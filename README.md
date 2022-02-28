@@ -74,7 +74,7 @@ pwn[v0.4.342]:001 >>> PWN.help
 
 
 ### **Documentation** ###
-Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn/PWN)
+Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn)
 
 
 
