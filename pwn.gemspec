@@ -25,10 +25,12 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   File.readlines('./Gemfile').each do |line|
-    gem_name = line.split("\s")[1]
-    gem_version = line.split("\s").last
-    spec.add_development_dependency(gem_name, gem_version) 
-    spec.add_runtime_dependency(gem_name, gem_version)
+    if line.split("\s").first == 'gem'
+      gem_name = line.split("\s")[1]
+      gem_version = line.split("\s").last
+      spec.add_development_dependency(gem_name, gem_version) 
+      spec.add_runtime_dependency(gem_name, gem_version)
+    end
   end
   # spec.add_development_dependency 'bundler'
   # spec.add_development_dependency 'rake'
