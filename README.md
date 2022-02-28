@@ -1,4 +1,4 @@
-![PWN](https://github.com/0dayinc/pwn/blob/master/documentation/pwn_wallpaper.jpg)
+![PWN](https://raw.githubusercontent.com/0dayinc/pwn/master/documentation/pwn_wallpaper.jpg)
 
 ### **Table of Contents** ###
 - [Keep Us Caffeinated](#keep-us-caffeinated)
@@ -34,7 +34,7 @@ If you're willing to provide access to commercial security tools (e.g. Rapid7's 
 
 ### **Intro** ###
 #### **What is PWN** ####
-PWN (Continuous Security Integration) is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.  If a picture is worth a thousand words, then a video must be worth at least a million...let's begin by planting a million seeds in your mind:
+PWN (Pronounced /pōn/ or pone), formerly known as [CSI](https://github.com/0dayinc/csi) is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.  If a picture is worth a thousand words, then a video must be worth at least a million...let's begin by planting a million seeds in your mind:
 
 #### **Creating an OWASP ZAP Scanning Driver Leveraging the pwn Prototyper** ####
 [![Continuous Security Integration: Basics of Building Your Own Security Automation ](https://i.ytimg.com/vi/MLSqd5F-Bjw/0.jpg)](https://youtu.be/MLSqd5F-Bjw)
@@ -53,12 +53,12 @@ Also known as, "Drivers" PWN can produce all sorts of useful tools by mixing and
 
 
 #### **Install Locally on Host OS** ####
-Tested on Linux, OSX, & OpenBSD leveraging Ruby via RVM.
+Tested on Linux, & OSX leveraging Ruby via RVM.
 
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.340]:001 >>> PWN.help
+pwn[v0.4.343]:001 >>> PWN.help
 ```
 
 
@@ -69,12 +69,12 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.340]:001 >>> PWN.help
+pwn[v0.4.343]:001 >>> PWN.help
 ```
 
 
 ### **Documentation** ###
-Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn/PWN)
+Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn)
 
 
 
@@ -88,6 +88,6 @@ I hope you enjoy PWN and remember...ensure you always have permission prior to c
 
 [![Red Fingerprint](https://image.spreadshirtmedia.com/image-server/v1/products/T803A2PA1648PT26X47Y0D1020472684FS6537/views/1,width=650,height=650,appearanceId=2/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/redfingerprint-A5c3e49cd1cbf3a0b9596ae58?productType=803&appearance=2&size=29)
 
-[![0day Inc.](https://image.spreadshirtmedia.com/image-server/v1/products/T951A70PA3076PT17X0Y73D1020472680FS8515/views/1,width=650,height=650,appearanceId=70/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/0dayinc-A5c3e498cf937643162a01b5f?productType=951&appearance=70)
+[![0day Inc..](https://image.spreadshirtmedia.com/image-server/v1/products/T951A70PA3076PT17X0Y73D1020472680FS8515/views/1,width=650,height=650,appearanceId=70/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/0dayinc-A5c3e498cf937643162a01b5f?productType=951&appearance=70)
 
 [![Mens Black Fingerprint Hoodie](https://image.spreadshirtmedia.com/image-server/v1/products/T111A2PA3208PT17X169Y51D1020472728FS6268/views/1,width=650,height=650,appearanceId=2/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/blackfingerprint-A5c3e49db1cbf3a0b9596b4d0?productType=111&appearance=2)
