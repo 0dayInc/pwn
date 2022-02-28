@@ -64,35 +64,9 @@ Certain Constraints Mandate PWN be Installed in /opt/pwn:
 - Packer: https://www.packer.io/downloads.html (If you contribute to the Kali Rolling Box hosted on https://app.vagrantup.com/pwn/boxes/kali_rolling)
 
 #### **Install Locally on Host OS** ####
-[Instructions](https://gist.github.com/ninp0/613696fbf2ffda01b02706a89bef7491)
-
-
-#### **Deploy in AWS EC2** ####
-[Instructions](https://gist.github.com/ninp0/ba9698b7ca5a7696abf37a579097a2f2)
-
-
-#### **Deploy in Docker Container** ####
-[Deploy PWN Fuzz Network Application Protocol](https://gist.github.com/ninp0/b2e9831429b2223bbbe913294e7a1690)
-
-[Deploy PWN Prototyping Driver](https://gist.github.com/ninp0/450666731c4ac52c1e218d55579a0580)
-
-[Deploy PWN Public IP Checking Driver](https://gist.github.com/ninp0/d56bd37d9c25886e6a89e38ec635ec0f)
-
-[Deploy PWN SAST)](https://gist.github.com/ninp0/2478ff7bbce0036a11f729d715923f28)
-
-[Deploy PWN Transparent Browser](https://gist.github.com/ninp0/b96aec0c64c2c8e6ffee342bafe4b17a)
-
-#### **Deploy in VirtualBox** ####
-[Instructions](https://gist.github.com/ninp0/f01c4f129a34684f30f5cd2935c0f0d8)
-  
-
-#### **Deploy in VMware** ####
-[Instructions](https://gist.github.com/ninp0/2e97f1f34c956e90294f214e1edd2ffb)
-
-
-#### **Deploy in vSphere** ####
-[Instructions](https://gist.github.com/ninp0/f1baf4fcd4ae9d23ae35ed7a7d083ae9)
-
+```
+$ gem install pwn
+```
 
 
 ### **General Usage** ###
@@ -100,8 +74,8 @@ Certain Constraints Mandate PWN be Installed in /opt/pwn:
 
 It's wise to rebuild pwn often as this repo has numerous releases/week (unless you're in the Kali box, then it's handled for you daily in the Jenkins job called, "selfupdate-pwn":
   ```
-  $ cd /opt/pwn && ./update_pwn.sh && pwn
-  pwn[v0.4.333]:001 >>> PWN.help
+  $ pwn
+  pwn[v0.4.336]:001 >>> PWN.help
   ```
 
 
