@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-# Uncomment when github.com/didww/credit_card_validations
-# pushes new gem that supports activesupport >=7.0
-# require 'credit_card_validations'
+require 'credit_card_validations'
 
 module PWN
   module Plugins
@@ -28,11 +26,11 @@ module PWN
         raise e
       end
 
-      # Author(s):: 0day Inc <request.pentest@0dayinc.com>
+      # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          0day Inc <request.pentest@0dayinc.com>
+          0day Inc. <request.pentest@0dayinc.com>
         "
       end
 

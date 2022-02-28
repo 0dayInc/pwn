@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= #{File.read('.ruby-version')}"
   spec.name = 'pwn'
   spec.version = PWN::VERSION
-  spec.authors = ['0day Inc']
+  spec.authors = ['0day Inc.']
   spec.email = ['request.pentest@0dayinc.com']
   spec.summary = 'Automated Security Testing for CI/CD Pipelines & Beyond'
   spec.description = 'https://github.com/0dayinc/pwn/README.md'
