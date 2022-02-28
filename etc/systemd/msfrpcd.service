@@ -1,0 +1,12 @@
+[Unit]
+Description=RPC interface to the Metasploit Framework
+
+[Service]
+User=root
+RemainAfterExit=yes
+ExecStart=/bin/bash --login -c "msf_ruby_v=$(cat /opt/metasploit-framework-dev/.ruby-version) && source /etc/profile.d/rvm.sh && rvm use ruby-$msf_ruby_v@metasploit-framework && $PWN_ROOT/packer/daemons/msfrpcd.rb --action start"
+ExecReload=/bin/bash --login -c "msf_ruby_v=$(cat /opt/metasploit-framework-dev/.ruby-version) && source /etc/profile.d/rvm.sh && rvm use ruby-$msf_ruby_v@metasploit-framework && $PWN_ROOT/packer/daemons/msfrpcd.rb --action reload"
+ExecStop=/bin/bash --login -c "msf_ruby_v=$(cat /opt/metasploit-framework-dev/.ruby-version) && source /etc/profile.d/rvm.sh && rvm use ruby-$msf_ruby_v@metasploit-framework && $PWN_ROOT/packer/daemons/msfrpcd.rb --action stop"
+
+[Install]
+WantedBy=multi-user.target

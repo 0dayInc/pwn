@@ -1,0 +1,66 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-vNUM', '--voicemail_num=num', '<Required - Number to Voicemail Service>') do |num|
+    opts[:voicemail_num] = num
+  end
+  options.on('-pPIN', '--voicemail_pin=PIN', '<Optional - Voicemail Pin (Prompts if Ommitted>') do |pin|
+    opts[:voicemail_pin] = pin
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+voicemail_num = opts[:voicemail_num].to_s.scrub.strip.chomp.delete('-').delete('.').to_i
+
+if opts[:voicemail_pin].nil?
+  voicemail_pin = PWN::Plugins::AuthenticationHelper.mask_password.to_s.scrub
+else
+  voicemail_pin = opts[:voicemail_pin].to_s.scrub
+end
+
+serial_obj = PWN::Plugins::Serial.connect
+
+PWN::Plugins::Serial.request(
+  serial_obj: serial_obj,
+  request: "ATDT#{voicemail_num};\r\n"
+)
+
+# TODO: Loop until data received indicates call picked up instead of sleep
+sleep 13
+
+voicemail_pin.each_char do |pin_char|
+  PWN::Plugins::Serial.request(
+    serial_obj: serial_obj,
+    request: "AT+VTS=#{pin_char}\r\n"
+  )
+end
+
+PWN::Plugins::Serial.request(
+  serial_obj: serial_obj,
+  request: "AT+VTS=#\r\n"
+)
+
+PWN::Plugins::Serial.request(
+  serial_obj: serial_obj,
+  request: "AT+CHUP;\r\n"
+)
+
+session_data = PWN::Plugins::Serial.dump_session_data
+puts '~' * 200
+puts session_data
+puts '~' * 200
+
+PWN::Plugins::Serial.disconnect(serial_obj: serial_obj)

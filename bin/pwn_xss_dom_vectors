@@ -1,0 +1,169 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tFQDN', '--target-fqdn=FQDN', '<Required - FQDN to Target>') do |t|
+    opts[:target_fqdn] = t
+  end
+
+  options.on('-dDIR', '--output-dir=DIR', '<Required - Directory to Save Results>') do |d|
+    opts[:output_dir] = d
+  end
+
+  options.on('-uURI', '--uri-source-root=URI', '<Required - URI to Source Root (for pwn_sast Results)>') do |u|
+    opts[:uri_source_root] = u
+  end
+
+  options.on('-bTYPE', '--browser-type=BROWSER', '<Optional - Browser Type chrome|firefox|headless (Default)>') do |b|
+    opts[:browser_type] = b
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
+    opts[:with_tor] = w
+  end
+
+  options.on('-S', '--[no-]spider-fqdn', '<Optional - Spider Target FQDN>') do |s|
+    opts[:spider] = s
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Required Flag Variables
+target_fqdn = opts[:target_fqdn].to_s.scrub.strip.chomp
+output_dir = opts[:output_dir].to_s.scrub.strip.chomp if Dir.exist?(opts[:output_dir].to_s.scrub.strip.chomp)
+uri_source_root = opts[:uri_source_root].to_s.scrub
+
+if opts[:browser_type]
+  browser_type = opts[:browser_type].to_s.scrub.chomp.strip.to_sym
+else
+  browser_type = :headless
+end
+
+proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
+with_tor = opts[:with_tor]
+
+if opts[:spider]
+  spider = true
+else
+  spider = false
+end
+
+spider_results = "#{output_dir}/#{File.basename($PROGRAM_NAME)}.spider"
+
+# Colors!
+@dark_red = "\e[1m\e[31m"
+@green = "\e[32m"
+@yellow = "\e[33m"
+@end_of_color = "\e[0m"
+
+begin
+  def grab_js_in_page(opts = {})
+    browser_obj = opts[:browser_obj]
+    target_page = opts[:url].to_s.scrub.chomp.strip
+    output_dir = opts[:output_dir].to_s.scrub.chomp.strip
+
+    puts "#{@green}Navigating to Page #{target_page}#{@end_of_color}"
+    browser_obj.goto(target_page)
+    browser_obj.scripts.each do |script|
+      if script.src == ''
+        # Save a copy of the outer_html
+        puts "#{@yellow}Saving OuterHTML of Native '<script>' Element#{@end_of_color}"
+        sha256_hexdigest = OpenSSL::Digest::SHA256.hexdigest(script.outer_html)
+        script_results = "#{output_dir}/#{sha256_hexdigest}.js"
+        File.open(script_results, 'w') do |f|
+          f.puts script.outer_html
+        end
+      else
+        # Save a copy of the script
+        puts "#{@yellow}Navigating to #{script.src}#{@end_of_color}"
+        browser_obj.goto(script.src)
+        sha256_hexdigest = OpenSSL::Digest::SHA256.hexdigest(browser_obj.text)
+        uri = URI.parse(browser_obj.url)
+        script_filename = File.basename(uri.path)
+        script_results = "#{output_dir}/#{File.basename(script_filename, '.*')}-#{sha256_hexdigest}#{File.extname(script_filename)}".to_s.scrub.chomp.strip
+        File.open(script_results, 'w') do |f|
+          f.puts browser_obj.text
+        end
+        browser_obj.back
+      end
+      puts "#{@green}Saved #{script_results}#{@end_of_color}\n\n\n"
+    end
+  rescue StandardError => e
+    raise e
+  end
+
+  if proxy
+    if with_tor
+      browser_obj = PWN::Plugins::TransparentBrowser.open(
+        browser_type: browser_type,
+        proxy: proxy,
+        with_tor: true
+      )
+    else
+      browser_obj = PWN::Plugins::TransparentBrowser.open(
+        browser_type: browser_type,
+        proxy: proxy
+      )
+    end
+  else
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: browser_type)
+  end
+
+  puts "#{@green}Navigating to Target FQDN: #{target_fqdn}#{@end_of_color}\n\n\n"
+  browser_obj.goto(target_fqdn)
+
+  if spider
+    if File.exist?(spider_results)
+      puts "#{@dark_red}Using Existing Spider Results: #{spider_results}#{@end_of_color}"
+    else
+      puts "#{@dark_red}Spidering Target FQDN: #{target_fqdn}#{@end_of_color}"
+      PWN::Plugins::Spider.crawl(
+        target_fqdn: target_fqdn,
+        results_path: spider_results
+      )
+    end
+  end
+
+  # Grab JavaScript for Each Page Discovered
+  if spider
+    File.readlines(spider_results).uniq.each do |this_page|
+      grab_js_in_page(browser_obj: browser_obj, url: this_page, output_dir: output_dir)
+    end
+  else
+    grab_js_in_page(browser_obj: browser_obj, url: target_fqdn, output_dir: output_dir)
+  end
+
+  # Run DOM XSS SAST Test Cases
+  puts `pwn_sast -d #{output_dir} -t 1 -T 'InnerHTML, OuterHTML, WindowLocationHash' -u #{uri_source_root}`
+
+  # For future use
+  # page_script_elements = browser_obj.execute_script("
+  #   // JavaScript Goes Here
+  #   var script_elements = [];
+  #   var script_query = document.querySelectorAll('script');
+  #   for (var i = 0; i < script_query.length; i++) {
+  #     script_elements.push(script_query[i]);
+  #   }
+  #   return script_elements;
+  # ")
+rescue StandardError => e
+  raise e
+ensure
+  browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) unless browser_obj.nil?
+end

@@ -1,0 +1,12 @@
+inherit_from: .rubocop_todo.yml
+AllCops: 
+  UseCache: false
+  NewCops: enable
+Layout:
+  Max: 3000
+Style/HashEachMethods:
+  Enabled: true
+Style/HashTransformKeys:
+  Enabled: true
+Style/HashTransformValues:
+  Enabled: true

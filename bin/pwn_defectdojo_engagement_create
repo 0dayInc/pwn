@@ -1,0 +1,158 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-uURL', '--url=URL', '<Required - DefectDojo URL>') do |u|
+    opts[:url] = u
+  end
+
+  options.on('-VVERSION', '--api-version=VERSION', '<Optional - DefectDojo API version v1 || v2 (Defaults to v2)>') do |v|
+    opts[:api_version] = v
+  end
+
+  options.on('-UUSER', '--username=USER', '<Optional - DefectDojo Username (Will Prompt if nil)>') do |u|
+    opts[:username] = u
+  end
+
+  options.on('-aKEY', '--api-key=KEY', '<Optional - DefectDojo API Key (Will Prompt if nil)>') do |a|
+    opts[:api_key] = a
+  end
+
+  options.on('-nNAME', '--enagagement-name=NAME', '<Required - Engagement Name to Create>') do |n|
+    opts[:name] = n
+  end
+
+  options.on('-dDESC', '--description=DESC', '<Optional - Engagement Description>') do |d|
+    opts[:description] = d
+  end
+
+  options.on('-xTYPE', '--enagagement-type=TYPE', '<Optional - type of engagement Interactive||CI/CD (Defaults to CI/CD)>') do |x|
+    opts[:engagement_name] = x
+  end
+
+  options.on('-sSTATUS', '--status=STATUS', '<Optional - status of the engagement In Progress || On Hold (defaults to In Progress)>') do |s|
+    opts[:status] = s
+  end
+
+  options.on('-lUSER', '--lead-username=USER', '<Optional - username of lead to tie to engagement (Defaults to username)>') do |l|
+    opts[:lead_username] = l
+  end
+
+  options.on('-pNAME', '--product-name=NAME', '<Required - product name in which to create engagement>') do |p|
+    opts[:product_name] = p
+  end
+
+  options.on('-tSTRATEGY', '--test-strategy=STRATEGY', '<Required - URL of test strategy documentation (e.g. OWASP ASVS URL)>') do |t|
+    opts[:test_strategy] = t
+  end
+
+  options.on('-bSERVER', '--build-server=SERVER', '<Optional - name of build server tied to CI/CD engagement>') do |b|
+    opts[:build_server] = b
+  end
+
+  options.on('-zSERVER', '--scm-server=SERVER', '<Optional - name of SCM server tied to CI/CD engagement>') do |z|
+    opts[:scm_server] = z
+  end
+
+  options.on('-oENGINE', '--orchestration-engine=ENGINE', '<Optional - name of orchestration engine tied to CI/CD engagement>') do |o|
+    opts[:orchestration_engine] = o
+  end
+
+  options.on('-A', '--[no-]api-test', '<Optional - API Test in Scope for Engagement (Defaults to false)>') do |a|
+    opts[:api_test] = a
+  end
+
+  options.on('-P', '--[no-]pen-test', '<Optional - Pen Test in Scope for Engagement (Defaults to false)>') do |p|
+    opts[:pen_test] = p
+  end
+
+  options.on('-T', '--[no-]threat-model', '<Optional - API Test in Scope for Engagement (Defaults to false)>') do |t|
+    opts[:threat_model] = t
+  end
+
+  options.on('-C', '--[no-]check-list', '<Optional - Checkbox Test in Scope for Engagement (Defaults to false)>') do |c|
+    opts[:check_list] = c
+  end
+
+  options.on('-cCONTACTED', '--first-contacted=CONTACTED', '<Optional - date of engagement request e.g. 2018-06-18 (Defaults to current day)>') do |c|
+    opts[:first_contacted] = c
+  end
+
+  options.on('-SSTART', '--target-start=START', '<Optional - date to start enagement e.g. 2018-06-19 (Defaults to current day)>') do |s|
+    opts[:target_start] = s
+  end
+
+  options.on('-EEND', '--target-end=END', '<Optional - date to end enagement e.g. 2018-06-20 (Defaults to current day)>') do |e|
+    opts[:target_end] = e
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Construct AuthN Args
+url = opts[:url]
+api_version = opts[:api_version]
+opts[:username] ? (username = opts[:username]) : (username = PWN::Plugins::AuthenticationHelper.username)
+opts[:api_key] ? (api_key = opts[:api_key]) : (api_key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'API Key'))
+
+# Create Engagement Args
+name = opts[:name]
+description = opts[:description]
+engagement_type = opts[:engagement_type]
+status = opts[:status]
+opts[:lead_username] ? (lead_username = opts[:lead_username]) : (lead_username = username)
+product_name = opts[:product_name]
+test_strategy = opts[:test_strategy]
+orchestration_engine = opts[:orchestration_engine]
+build_server = opts[:build_server]
+scm_server = opts[:scm_server]
+api_test = opts[:api_test]
+pen_test = opts[:pen_test]
+threat_model = opts[:threat_model]
+check_list = opts[:check_list]
+first_contacted = opts[:first_contacted]
+target_start = opts[:target_start]
+target_end = opts[:target_end]
+
+begin
+  dd_obj = PWN::Plugins::DefectDojo.login(
+    url: url,
+    api_version: api_version,
+    username: username,
+    api_key: api_key
+  )
+
+  engagement_create_resp = PWN::Plugins::DefectDojo.engagement_create(
+    dd_obj: dd_obj,
+    name: name,
+    description: description,
+    engagement_type: engagement_type,
+    status: status,
+    lead_username: lead_username,
+    product_name: product_name,
+    test_strategy: test_strategy,
+    orchestration_engine: orchestration_engine,
+    build_server: build_server,
+    scm_server: scm_server,
+    api_test: api_test,
+    pen_test: pen_test,
+    threat_model: threat_model,
+    check_list: check_list,
+    first_contacted: first_contacted,
+    target_start: target_start,
+    target_end: target_end
+  )
+rescue StandardError => e
+  raise e
+end

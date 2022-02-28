@@ -1,0 +1,103 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'yaml'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-cYPATH', '--yaml-config=YPATH', '<Required - YAML Config Containing Access & Secret Keys for Authentication>') do |c|
+    opts[:yaml_config] = c
+  end
+
+  options.on('-nVALUE', '--scan-name=VALUE', '<Required - Name of Scan to Launch>') do |n|
+    opts[:scan_name] = n
+  end
+
+  options.on('-rRPATH', '--report-path=RPATH', '<Required - Path / Filename of Report>') do |r|
+    opts[:path_to_export] = r
+  end
+
+  options.on('-fFORMAT', '--report-format=FORMAT', '<Optional - Report Format :csv|:db|:html|:nessus|:pdf (defaults to :csv)>') do |f|
+    opts[:format] = f
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  yaml_config = opts[:yaml_config]
+
+  raise "YAML Config Not Found: #{yaml_config}" unless File.exist?(yaml_config)
+
+  yaml = YAML.load_file(
+    yaml_config,
+    symbolize_names: true
+  )
+
+  access_key = yaml[:access_key]
+  secret_key = yaml[:secret_key]
+  scan_name = opts[:scan_name]
+  path_to_export = opts[:path_to_export]
+  format = opts[:format]
+
+  nessus_obj = PWN::Plugins::NessusCloud.login(
+    access_key: access_key,
+    secret_key: secret_key
+  )
+
+  scan_list = PWN::Plugins::NessusCloud.list_scans(
+    nessus_obj: nessus_obj
+  )
+
+  selected_scan_to_launch = scan_list[:scans].select do |scan|
+    scan[:name] == scan_name
+  end
+
+  scan_id = selected_scan_to_launch.first[:id]
+
+  PWN::Plugins::NessusCloud.launch_scan(
+    nessus_obj: nessus_obj,
+    scan_id: scan_id
+  )
+
+  scan_status = 'initializing'
+
+  loop do
+    print '.'
+    sleep 60
+
+    scan_status_resp = PWN::Plugins::NessusCloud.get_scan_status(
+      nessus_obj: nessus_obj,
+      scan_id: scan_id
+    )
+
+    scan_status = scan_status_resp[:status]
+    break if scan_status != 'initializing' && scan_status != 'pending' && scan_status != 'running'
+  end
+
+  raise "Scan status reached an unexpected condition: #{scan_status}.  Re-verify the scan config for, '#{scan_name}' and try again." unless scan_status == 'completed'
+
+  puts 'scan complete.'
+
+  print "Exporting results to #{path_to_export}..."
+  PWN::Plugins::NessusCloud.export_scan_results(
+    nessus_obj: nessus_obj,
+    scan_id: scan_id,
+    path_to_export: path_to_export,
+    format: format
+  )
+  puts 'complete.'
+rescue Interrupt
+  puts 'CTRL+C detected...goodbye.'
+rescue StandardError => e
+  raise e
+end

@@ -1,0 +1,62 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
+    opts[:with_tor] = w
+  end
+
+  options.on('-i', '--[no-]ipinfo', '<Optional - Return Details about Public IP Returned from CheckIP>') do |i|
+    opts[:ipinfo] = i
+  end
+end.parse!
+
+proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
+with_tor = opts[:with_tor]
+ipinfo = opts[:ipinfo]
+
+begin
+  if proxy != '' && with_tor
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest, proxy: proxy, with_tor: true)::Request
+  elsif proxy != '' && with_tor.nil?
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest, proxy: proxy)::Request
+  else
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+  end
+
+  if proxy
+    public_ip_address = browser_obj.execute(
+      method: :get,
+      url: 'https://checkip.amazonaws.com',
+      verify_ssl: false
+    ).to_s.chomp
+  else
+    public_ip_address = browser_obj.execute(
+      method: :get,
+      url: 'https://checkip.amazonaws.com'
+    ).to_s.chomp
+  end
+
+  puts "PUBLIC IP: #{public_ip_address}"
+  puts PWN::Plugins::IPInfo.get(ip_or_host: public_ip_address) unless ipinfo.nil?
+rescue StandardError => e
+  raise e
+ensure
+  if browser_obj
+    browser_obj = PWN::Plugins::TransparentBrowser.close(
+      browser_obj: browser_obj
+    )
+  end
+end

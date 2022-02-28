@@ -1,0 +1,149 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'json'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-dDIR', '--dir-path=DIR', '<Required - Report Output Directory>') do |d|
+    opts[:dir_path] = d
+  end
+
+  options.on('-tHOST', '--target-host=HOST', '<Required - Target Host or IP>') do |t|
+    opts[:target] = t
+  end
+
+  options.on('-pPORT', '--port=PORT', '<Required - Target Port>') do |p|
+    opts[:port] = p
+  end
+
+  options.on('-PPROTOCOL', '--protocol=PROTOCOL', '<Optional - tcp || udp (defaults to tcp)>') do |p|
+    opts[:protocol] = p
+  end
+
+  options.on('-S', '--[no-]secure', '<Optional - boolean to connect to target socket using TLS (defaults to false)') do |s|
+    opts[:tls] = s
+  end
+
+  options.on('-FCHAR', '--fuzz-delimeter=CHAR', "<optional - fuzz delimeter used in request to specify where payloads should reside (defaults to \u2665)>") do |c|
+    opts[:fuzz_delimeter] = c
+  end
+
+  options.on('-rREQUEST', '--request-format=REQUEST', "<Required - String object of socket request w/ \u2665 as position delimeter (e.g. '\"GET /\u2665\u2665 HTTP/1.1\\r\\nHost: \u2665127.0.0.1\u2665\\r\\n\\r\\n\"'>") do |r|
+    opts[:request] = r
+  end
+
+  options.on('-fFILE', '--fuzz-file=FILE', '<Required - path of file containing fuzz requests>') do |f|
+    opts[:fuzz_file] = f
+  end
+
+  options.on('-eENC', '--payload-encoding=ENC', '<Optional - encode payload base64 || hex || html_entity || url (Defaults to nil)>') do |e|
+    opts[:encoding] = e
+  end
+
+  options.on('-DDEPTH', '--encoding-depth=DEPTH', '<Optional - payload encoding payload depth (Defaults to 1)>') do |d|
+    opts[:encoding_depth] = d
+  end
+
+  options.on('-cENC', '--char-encoding=ENC', '<Optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)>') do |c|
+    opts[:char_encoding] = c
+  end
+
+  options.on('-TFLOAT', '--response-timeout=FLOAT', '<Optional - float (defaults to 0.3)>') do |f|
+    opts[:response_timeout] = f
+  end
+
+  options.on('-lFLOAT', '--request-rate-limit=FLOAT', '<Optional - limit between requests in a given thread (defaults to 0.0)>') do |l|
+    opts[:request_rate_limit] = l
+  end
+
+  options.on('-mINT', '--max-threads=INT', '<Optional - fuzz payloads to send in parallel (defaults to 1)>') do |i|
+    opts[:max_threads] = i
+  end
+
+  options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
+    opts[:start_reporting_server] = s
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+
+dir_path = opts[:dir_path].to_s.scrub
+target = opts[:target]
+port = opts[:port]
+protocol = opts[:protocol]
+tls = opts[:tls]
+fuzz_delimeter = opts[:fuzz_delimeter]
+request = opts[:request]
+fuzz_file = opts[:fuzz_file].to_s.strip.scrub.chomp if File.exist?(opts[:fuzz_file].to_s.strip.scrub.chomp)
+encoding = opts[:encoding]
+encoding_depth = opts[:encoding_depth]
+opts[:char_encoding].nil? ? char_encoding = 'UTF-8' : char_encoding = opts[:char_encoding]
+response_timeout = opts[:response_timeout]
+request_rate_limit = opts[:request_rate_limit]
+opts[:max_threads].nil? ? max_threads = 1 : max_threads = opts[:max_threads].to_i
+start_reporting_server = opts[:start_reporting_server]
+
+results_hash = { data: [] }
+results_arr = []
+mutex = Mutex.new
+
+slice = max_threads * 3
+File.open(fuzz_file, "rb:#{char_encoding}") do |file|
+  file.each_slice(slice) do |payload_batch_arr|
+    PWN::Plugins::ThreadPool.fill(enumerable_array: payload_batch_arr, max_threads: max_threads) do |payload|
+      socket_fuzz_results_arr = PWN::Plugins::Fuzz.socket(
+        target: target,
+        port: port,
+        protocol: protocol,
+        tls: tls,
+        fuzz_delimeter: fuzz_delimeter,
+        request: request.to_s.b,
+        payload: payload.to_s.b.chomp,
+        encoding: encoding,
+        encoding_depth: encoding_depth,
+        char_encoding: char_encoding,
+        response_timeout: response_timeout,
+        request_rate_limit: request_rate_limit
+      )
+      socket_fuzz_results_arr.each do |hash_line|
+        mutex.synchronize do
+          results_hash[:data].push(hash_line)
+        end
+      end
+    end
+  end
+end
+
+# Generate HTML Report
+print "#{$PROGRAM_NAME} Generating Report..."
+PWN::Reports::Fuzz.generate(
+  dir_path: dir_path,
+  results_hash: results_hash,
+  char_encoding: char_encoding
+)
+puts 'complete.'
+
+# Start Simple HTTP Server (If Requested)
+if start_reporting_server
+  listen_port = 3333
+  if pwn_provider == 'docker'
+    listen_ip = '0.0.0.0'
+  else
+    listen_ip = '127.0.0.1'
+  end
+  puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_fuzz_net_app_proto.html"
+  simple_http_server_params = "-i #{listen_ip} -p #{listen_port}"
+  system("cd #{dir_path} && pwn_simple_http_server #{simple_http_server_params}")
+end

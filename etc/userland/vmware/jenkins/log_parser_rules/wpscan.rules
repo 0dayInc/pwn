@@ -1,0 +1,2 @@
+# wpscan found something if the console output contains [+]
+warning /\[\!\].+$/

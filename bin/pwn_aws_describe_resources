@@ -1,0 +1,728 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'aws-sdk'
+require 'optparse'
+require 'yaml'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-rREGION', '--region=REGION', '<Required - Region to Describe>') do |region|
+    opts[:region] = region
+  end
+
+  options.on('-cYAML', '--aws_yaml=YAML', '<Quickest - Path to YAML Config>') do |yaml|
+    opts[:yaml] = yaml
+  end
+
+  options.on('-AAKI', '--access_key_id=AKI', '<Alternative over Quickest - AWS Access Key ID>') do |aki|
+    opts[:aki] = aki
+  end
+
+  options.on('-SSAK', '--secret_access_key=SAK', '<Alternative over Quickest - Secret Access Key>') do |sak|
+    opts[:sak] = sak
+  end
+
+  options.on('-aARN', '--sts_role_arn=ARN', '<More Secure than Quickest or Alt - STS Role ARN>') do |sts_role_arn|
+    opts[:sts_role_arn] = sts_role_arn
+  end
+
+  options.on('-nRNAME', '--sts_role_name=RNAME', '<More Secure than Quickest or Alt - STS Role Name>') do |sts_role_name|
+    opts[:sts_role_name] = sts_role_name
+  end
+
+  options.on('-eEXPIRES', '--sts_expiration=EXPIRES', '<More Secure than Quickest or Alt - STS Expiration (Defaults to 900 Seconds)>') do |sts_exp|
+    opts[:sts_exp] = sts_exp
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+logger = PWN::Plugins::PWNLogger.create
+
+if opts[:yaml]
+  yaml = YAML.load_file(opts[:yaml]) if File.exist?(opts[:yaml])
+  access_key_id = yaml['access_key_id'].to_s.scrub.strip.chomp
+  secret_access_key = yaml['secret_access_key'].to_s.scrub.strip.chomp
+else
+  access_key_id = opts[:aki].to_s.scrub
+  secret_access_key = opts[:sak].to_s.scrub
+end
+
+region = opts[:region].to_s.scrub
+sts_role_arn = opts[:sts_role_arn].to_s.scrub
+sts_role_name = opts[:sts_role_name].to_s.scrub
+
+sts_exp = if opts[:sts_exp].nil?
+            900
+          else
+            opts[:sts_exp].to_i
+          end
+
+if access_key_id == '' && secret_access_key == ''
+  credentials = PWN::AWS::STS.get_temp_credentials(
+    region: region,
+    role_arn: sts_role_arn,
+    role_session_name: sts_role_name,
+    duration_seconds: sts_exp
+  )
+else
+  credentials = Aws::Credentials.new(access_key_id, secret_access_key)
+end
+
+# BEGIN Describing Region ***
+api_gateway_obj = PWN::AWS::APIGateway.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts api_gateway_obj.public_methods
+PWN::AWS::APIGateway.disconnect(api_gateway_obj: api_gateway_obj)
+
+app_auto_scale_obj = PWN::AWS::ApplicationAutoScaling.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts app_auto_scale_obj.public_methods
+PWN::AWS::ApplicationAutoScaling.disconnect(app_auto_scale_obj: app_auto_scale_obj)
+
+app_discover_svc_obj = PWN::AWS::ApplicationDiscoveryService.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts app_discover_svc_obj.public_methods
+PWN::AWS::ApplicationDiscoveryService.disconnect(app_discover_svc_obj: app_discover_svc_obj)
+
+auto_scaling_obj = PWN::AWS::AutoScaling.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts auto_scaling_obj.public_methods
+PWN::AWS::AutoScaling.disconnect(auto_scaling_obj: auto_scaling_obj)
+
+cloud_formation_obj = PWN::AWS::CloudFormation.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_formation_obj.public_methods
+PWN::AWS::CloudFormation.disconnect(cloud_formation_obj: cloud_formation_obj)
+
+cloud_front_obj = PWN::AWS::CloudFront.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_front_obj.public_methods
+PWN::AWS::CloudFront.disconnect(cloud_front_obj: cloud_front_obj)
+
+cloud_hsm_obj = PWN::AWS::CloudHSM.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_hsm_obj.public_methods
+PWN::AWS::CloudHSM.disconnect(cloud_hsm_obj: cloud_hsm_obj)
+
+cloud_search_obj = PWN::AWS::CloudSearch.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_search_obj.public_methods
+PWN::AWS::CloudSearch.disconnect(cloud_search_obj: cloud_search_obj)
+
+cloud_search_domain_obj = PWN::AWS::CloudSearchDomain.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_search_domain_obj.public_methods
+PWN::AWS::CloudSearchDomain.disconnect(cloud_search_domain_obj: cloud_search_domain_obj)
+
+cloud_trail_obj = PWN::AWS::CloudTrail.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_trail_obj.public_methods
+PWN::AWS::CloudTrail.disconnect(cloud_trail_obj: cloud_trail_obj)
+
+cloud_watch_obj = PWN::AWS::CloudWatch.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_watch_obj.public_methods
+PWN::AWS::CloudWatch.disconnect(cloud_watch_obj: cloud_watch_obj)
+
+cloud_watch_events_obj = PWN::AWS::CloudWatchEvents.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_watch_events_obj.public_methods
+PWN::AWS::CloudWatchEvents.disconnect(cloud_watch_events_obj: cloud_watch_events_obj)
+
+cloud_watch_logs_obj = PWN::AWS::CloudWatchLogs.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cloud_watch_logs_obj.public_methods
+PWN::AWS::CloudWatchLogs.disconnect(cloud_watch_logs_obj: cloud_watch_logs_obj)
+
+code_commit_obj = PWN::AWS::CodeCommit.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts code_commit_obj.public_methods
+PWN::AWS::CodeCommit.disconnect(code_commit_obj: code_commit_obj)
+
+code_deploy_obj = PWN::AWS::CodeDeploy.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts code_deploy_obj.public_methods
+PWN::AWS::CodeDeploy.disconnect(code_deploy_obj: code_deploy_obj)
+
+code_pipeline_obj = PWN::AWS::CodePipeline.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts code_pipeline_obj.public_methods
+PWN::AWS::CodePipeline.disconnect(code_pipeline_obj: code_pipeline_obj)
+
+cognito_identity_obj = PWN::AWS::CognitoIdentity.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cognito_identity_obj.public_methods
+PWN::AWS::CognitoIdentity.disconnect(cognito_identity_obj: cognito_identity_obj)
+
+cognito_identity_prov_obj = PWN::AWS::CognitoIdentityProvider.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cognito_identity_prov_obj.public_methods
+PWN::AWS::CognitoIdentityProvider.disconnect(cognito_identity_prov_obj: cognito_identity_prov_obj)
+
+cognito_sync_obj = PWN::AWS::CognitoSync.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts cognito_sync_obj.public_methods
+PWN::AWS::CognitoSync.disconnect(cognito_sync_obj: cognito_sync_obj)
+
+config_service_obj = PWN::AWS::ConfigService.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts config_service_obj.public_methods
+PWN::AWS::ConfigService.disconnect(config_service_obj: config_service_obj)
+
+data_pipeline_obj = PWN::AWS::DataPipeline.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts data_pipeline_obj.public_methods
+PWN::AWS::DataPipeline.disconnect(data_pipeline_obj: data_pipeline_obj)
+
+db_migration_svc_obj = PWN::AWS::DatabaseMigrationService.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts db_migration_svc_obj.public_methods
+PWN::AWS::DatabaseMigrationService.disconnect(db_migration_svc_obj: db_migration_svc_obj)
+
+device_farm_obj = PWN::AWS::DeviceFarm.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts device_farm_obj.public_methods
+PWN::AWS::DeviceFarm.disconnect(device_farm_obj: device_farm_obj)
+
+direct_connect_obj = PWN::AWS::DirectConnect.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts direct_connect_obj.public_methods
+PWN::AWS::DirectConnect.disconnect(direct_connect_obj: direct_connect_obj)
+
+directory_service_obj = PWN::AWS::DirectoryService.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts directory_service_obj.public_methods
+PWN::AWS::DirectoryService.disconnect(directory_service_obj: directory_service_obj)
+
+dynamo_db_obj = PWN::AWS::DynamoDB.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts dynamo_db_obj.public_methods
+PWN::AWS::DynamoDB.disconnect(dynamo_db_obj: dynamo_db_obj)
+
+dynamo_db_streams_obj = PWN::AWS::DynamoDBStreams.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts dynamo_db_streams_obj.public_methods
+PWN::AWS::DynamoDBStreams.disconnect(dynamo_db_streams_obj: dynamo_db_streams_obj)
+
+ec2_obj = PWN::AWS::EC2.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts ec2_obj.public_methods
+PWN::AWS::EC2.disconnect(ec2_obj: ec2_obj)
+
+ecr_obj = PWN::AWS::ECR.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts ecr_obj.public_methods
+PWN::AWS::ECR.disconnect(ecr_obj: ecr_obj)
+
+ecs_obj = PWN::AWS::ECS.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts ecs_obj.public_methods
+PWN::AWS::ECS.disconnect(ecs_obj: ecs_obj)
+
+efs_obj = PWN::AWS::EFS.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts efs_obj.public_methods
+PWN::AWS::EFS.disconnect(efs_obj: efs_obj)
+
+emr_obj = PWN::AWS::EMR.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts emr_obj.public_methods
+PWN::AWS::EMR.disconnect(emr_obj: emr_obj)
+
+elasti_cache_obj = PWN::AWS::ElastiCache.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts elasti_cache_obj.public_methods
+PWN::AWS::ElastiCache.disconnect(elasti_cache_obj: elasti_cache_obj)
+
+eb_obj = PWN::AWS::ElasticBeanstalk.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts eb_obj.public_methods
+PWN::AWS::ElasticBeanstalk.disconnect(eb_obj: eb_obj)
+
+elastic_load_balancing_obj = PWN::AWS::ElasticLoadBalancing.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts elastic_load_balancing_obj.public_methods
+PWN::AWS::ElasticLoadBalancing.disconnect(elastic_load_balancing_obj: elastic_load_balancing_obj)
+
+elastic_lb_v2_obj = PWN::AWS::ElasticLoadBalancingV2.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts elastic_lb_v2_obj.public_methods
+PWN::AWS::ElasticLoadBalancingV2.disconnect(elastic_lb_v2_obj: elastic_lb_v2_obj)
+
+elastic_transcoder_obj = PWN::AWS::ElasticTranscoder.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts elastic_transcoder_obj.public_methods
+PWN::AWS::ElasticTranscoder.disconnect(elastic_transcoder_obj: elastic_transcoder_obj)
+
+elasticsearch_service_obj = PWN::AWS::ElasticsearchService.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts elasticsearch_service_obj.public_methods
+PWN::AWS::ElasticsearchService.disconnect(elasticsearch_service_obj: elasticsearch_service_obj)
+
+firehose_obj = PWN::AWS::Firehose.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts firehose_obj.public_methods
+PWN::AWS::Firehose.disconnect(firehose_obj: firehose_obj)
+
+game_lift_obj = PWN::AWS::GameLift.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts game_lift_obj.public_methods
+PWN::AWS::GameLift.disconnect(game_lift_obj: game_lift_obj)
+
+glacier_obj = PWN::AWS::Glacier.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts glacier_obj.public_methods
+PWN::AWS::Glacier.disconnect(glacier_obj: glacier_obj)
+
+iam_obj = PWN::AWS::IAM.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts iam_obj.public_methods
+PWN::AWS::IAM.disconnect(iam_obj: iam_obj)
+
+import_export_obj = PWN::AWS::ImportExport.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts import_export_obj.public_methods
+PWN::AWS::ImportExport.disconnect(import_export_obj: import_export_obj)
+
+inspector_obj = PWN::AWS::Inspector.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts inspector_obj.public_methods
+PWN::AWS::Inspector.disconnect(inspector_obj: inspector_obj)
+
+iot_obj = PWN::AWS::IoT.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts iot_obj.public_methods
+PWN::AWS::IoT.disconnect(iot_obj: iot_obj)
+
+iot_data_plane_obj = PWN::AWS::IoTDataPlane.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts iot_data_plane_obj.public_methods
+PWN::AWS::IoTDataPlane.disconnect(iot_data_plane_obj: iot_data_plane_obj)
+
+kms_obj = PWN::AWS::KMS.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts kms_obj.public_methods
+PWN::AWS::KMS.disconnect(kms_obj: kms_obj)
+
+kinesis_obj = PWN::AWS::Kinesis.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts kinesis_obj.public_methods
+PWN::AWS::Kinesis.disconnect(kinesis_obj: kinesis_obj)
+
+kinesis_analytics_obj = PWN::AWS::KinesisAnalytics.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts kinesis_analytics_obj.public_methods
+PWN::AWS::KinesisAnalytics.disconnect(kinesis_analytics_obj: kinesis_analytics_obj)
+
+lambda_obj = PWN::AWS::Lambda.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts lambda_obj.public_methods
+PWN::AWS::Lambda.disconnect(lambda_obj: lambda_obj)
+
+lambda_preview_obj = PWN::AWS::LambdaPreview.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts lambda_preview_obj.public_methods
+PWN::AWS::LambdaPreview.disconnect(lambda_preview_obj: lambda_preview_obj)
+
+machine_learning_obj = PWN::AWS::MachineLearning.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts machine_learning_obj.public_methods
+PWN::AWS::MachineLearning.disconnect(machine_learning_obj: machine_learning_obj)
+
+marketplace_commerce_analytics_obj = PWN::AWS::MarketplaceCommerceAnalytics.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts marketplace_commerce_analytics_obj.public_methods
+PWN::AWS::MarketplaceCommerceAnalytics.disconnect(marketplace_commerce_analytics_obj: marketplace_commerce_analytics_obj)
+
+marketplace_metering_obj = PWN::AWS::MarketplaceMetering.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts marketplace_metering_obj.public_methods
+PWN::AWS::MarketplaceMetering.disconnect(marketplace_metering_obj: marketplace_metering_obj)
+
+ops_works_obj = PWN::AWS::OpsWorks.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts ops_works_obj.public_methods
+PWN::AWS::OpsWorks.disconnect(ops_works_obj: ops_works_obj)
+
+rds_obj = PWN::AWS::RDS.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts rds_obj.public_methods
+PWN::AWS::RDS.disconnect(rds_obj: rds_obj)
+
+redshift_obj = PWN::AWS::Redshift.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts redshift_obj.public_methods
+PWN::AWS::Redshift.disconnect(redshift_obj: redshift_obj)
+
+r53_obj = PWN::AWS::Route53.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts r53_obj.public_methods
+PWN::AWS::Route53.disconnect(r53_obj: r53_obj)
+
+r53_domains_obj = PWN::AWS::Route53Domains.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts r53_domains_obj.public_methods
+PWN::AWS::Route53Domains.disconnect(r53_domains_obj: r53_domains_obj)
+
+s3_obj = PWN::AWS::S3.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts s3_obj.public_methods
+PWN::AWS::S3.disconnect(s3_obj: s3_obj)
+
+ses_obj = PWN::AWS::SES.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts ses_obj.public_methods
+PWN::AWS::SES.disconnect(ses_obj: ses_obj)
+
+sns_obj = PWN::AWS::SNS.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts sns_obj.public_methods
+PWN::AWS::SNS.disconnect(sns_obj: sns_obj)
+
+sqs_obj = PWN::AWS::SQS.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts sqs_obj.public_methods
+PWN::AWS::SQS.disconnect(sqs_obj: sqs_obj)
+
+ssm_obj = PWN::AWS::SSM.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts ssm_obj.public_methods
+PWN::AWS::SSM.disconnect(ssm_obj: ssm_obj)
+
+swf_obj = PWN::AWS::SWF.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts swf_obj.public_methods
+PWN::AWS::SWF.disconnect(swf_obj: swf_obj)
+
+service_catalog_obj = PWN::AWS::ServiceCatalog.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts service_catalog_obj.public_methods
+PWN::AWS::ServiceCatalog.disconnect(service_catalog_obj: service_catalog_obj)
+
+simple_db_obj = PWN::AWS::SimpleDB.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts simple_db_obj.public_methods
+PWN::AWS::SimpleDB.disconnect(simple_db_obj: simple_db_obj)
+
+snowball_obj = PWN::AWS::Snowball.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts snowball_obj.public_methods
+PWN::AWS::Snowball.disconnect(snowball_obj: snowball_obj)
+
+storage_gateway_obj = PWN::AWS::StorageGateway.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts storage_gateway_obj.public_methods
+PWN::AWS::StorageGateway.disconnect(storage_gateway_obj: storage_gateway_obj)
+
+support_obj = PWN::AWS::Support.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts support_obj.public_methods
+PWN::AWS::Support.disconnect(support_obj: support_obj)
+
+waf_obj = PWN::AWS::WAF.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts waf_obj.public_methods
+PWN::AWS::WAF.disconnect(waf_obj: waf_obj)
+
+workspaces_obj = PWN::AWS::Workspaces.connect(
+  region: region,
+  access_key_id: credentials.access_key_id,
+  secret_access_key: credentials.secret_access_key,
+  sts_session_token: credentials.session_token
+)
+puts workspaces_obj.public_methods
+PWN::AWS::Workspaces.disconnect(workspaces_obj: workspaces_obj)

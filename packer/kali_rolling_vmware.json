@@ -1,0 +1,163 @@
+{
+  "variables": {
+    "vagrant_cloud_token": "{{ env `VAGRANT_CLOUD_TOKEN` }}",
+    "box_version": "{{ env `BOX_VERSION` }}"
+  },
+  "builders": [{
+    "type": "vmware-iso",
+    "guest_os_type": "debian7-64",
+    "vmx_data": {
+      "memsize": "4096",
+      "numvcpus": "1",
+      "cpuid.coresPerSocket": "1"
+    },
+    "disk_size": 36864,
+    "http_directory": "http",
+    "iso_url": "https://cdimage.kali.org/kali-2020.2/kali-linux-2020.2-installer-amd64.iso",
+    "iso_checksum": "ae9a3b6a1e016cd464ca31ef5055506cecfc55a10f61bf1acb8313eddbe12ad7",
+    "iso_checksum_type": "sha256",
+    "headless": false,
+    "boot_command": [
+      "<esc><wait>",
+      "install <wait>",
+      "debug <wait>",
+      "dbg/flags=all-x <wait>",
+      "debconf/priority=high <wait>",
+      "DEBCONF_DEBUG=5 <wait>",
+      "auto=true <wait>",
+      "url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/kali_rolling_preseed.cfg <wait>",
+      "locale=en_US.UTF-8 <wait>",
+      "hostname=kali <wait>",
+      "domain=rolling.local <wait>",
+      "<enter><wait>"
+    ],
+    "boot_wait": "9s",
+    "communicator": "ssh",
+    "ssh_username": "pwnadmin",
+    "ssh_password": "changeme",
+    "ssh_port": 22,
+    "ssh_timeout": "9999s",
+    "shutdown_command": "sudo /sbin/shutdown -P now"
+  }],
+  "provisioners": [
+    {
+      "type": "shell",
+      "environment_vars": [
+        "PWN_ROOT=/opt/pwn",
+        "PWN_PROVIDER=vmware"
+      ],
+      "scripts": [
+        "provisioners/upload_globals.sh",
+        "provisioners/init_image.sh"
+      ]
+    },
+
+    {
+      "type": "shell",
+      "scripts": [
+        "provisioners/reboot_os.sh"
+      ]
+    },
+
+    {
+      "pause_before": "180s",
+      "type": "shell",
+      "environment_vars": [
+        "PWN_ROOT=/opt/pwn",
+        "PWN_PROVIDER=vmware"
+      ],
+      "scripts": [
+        "provisioners/install_vagrant_ssh_key.sh",
+        "provisioners/update_os.sh"
+       ]
+    },
+
+    {
+      "type": "shell",
+      "scripts": [
+        "provisioners/reboot_os.sh"
+      ]
+    },
+
+    {
+      "pause_before": "180s",
+      "type": "shell",
+      "environment_vars": [
+        "PWN_ROOT=/opt/pwn",
+        "PWN_PROVIDER=vmware"
+      ],
+      "scripts": [
+        "provisioners/coreutils.sh",
+        "provisioners/git.sh",
+        "provisioners/curl.sh",
+        "provisioners/rvm.sh",
+        "provisioners/bashrc.sh",
+        "provisioners/ruby.sh",
+        "provisioners/aliases.rb",
+        "provisioners/pwn.sh",
+        "provisioners/beef.rb",
+        "provisioners/burpsuite.sh",
+        "provisioners/jenkins.sh",
+        "provisioners/android.sh",
+        "provisioners/sox.sh",
+        "provisioners/phantomjs_wrapper.sh",
+        "provisioners/geckodriver.sh",
+        "provisioners/chrome.sh",
+        "provisioners/ansible.sh",
+        "provisioners/openvas.sh",
+        "provisioners/openvas_wrappers.sh",
+        "provisioners/metasploit.rb",
+        "provisioners/wpscan.rb",
+        "provisioners/ssllabs-scan.sh",
+        "provisioners/sublist3r.sh",
+        "provisioners/scapy.sh",
+        "provisioners/terminator.sh",
+        "provisioners/apache2.sh",
+        "provisioners/tor.sh",
+        "provisioners/toggle_tor.sh",
+        "provisioners/nmap_all_live_hosts.sh",
+        "provisioners/arachni.sh",
+        "provisioners/eyewitness.sh",
+        "provisioners/afl.sh",
+        "provisioners/peda.sh",
+        "provisioners/preeny.sh",
+        "provisioners/pwntools.sh",
+        "provisioners/scout2.sh",
+        "provisioners/strace.sh",
+        "provisioners/awscli.sh",
+        "provisioners/openvpn.sh",
+        "provisioners/fuzzdb.sh",
+        "provisioners/SecLists.sh",
+        "provisioners/PayloadsAllTheThings.sh",
+        "provisioners/rc.local.sh",
+        "provisioners/vim.sh",
+        "provisioners/firefox.sh",
+        "provisioners/ffmpeg.sh",
+        "provisioners/docker.sh",
+        "provisioners/twinkle.sh",
+        "provisioners/ghidra.sh",
+        "provisioners/zzuf.sh",
+        "provisioners/radamsa.sh",
+        "provisioners/gdb.sh",
+        "provisioners/post_install.sh"
+      ]
+    }
+  ],
+  "post-processors": [
+    [
+      {
+        "type": "vagrant",
+        "compression_level": "9",
+        "output": "kali_rolling_vmware.box"
+      },
+      
+      {
+        "type": "vagrant-cloud",
+        "box_tag": "pwn/kali_rolling",
+        "access_token": "{{user `vagrant_cloud_token`}}",
+        "version": "{{user `box_version`}}",
+        "version_description": "Continuous Security Integration framework built on top of Kali Rolling.  For information around this security framework, visit the project on GitHub: https://github.com/0dayinc/pwn"
+      }
+    ]
+  ]
+}

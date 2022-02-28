@@ -1,0 +1,14 @@
+#ok /not really/
+
+# match line containing 'error', case-insensitive
+error /(?i)(^|\s)error(:|\s)/
+
+# match line containing 'warning', case-insensitive
+warning /(?i)(^|\s)warning(:|\s)/
+
+# create a quick access link to lines in the report containing 'INFO'
+info /INFO/
+
+# each line containing 'BUILD' represents the start of a section for grouping errors and warnings found after the line.
+# also creates a quick access link.
+start /BUILD/

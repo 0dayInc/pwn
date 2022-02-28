@@ -1,0 +1,318 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'uri'
+require 'json'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tDOMAINS', '--targets=DOMAINS', '<Required - Comma-Delimited List of Target Domains>') do |t|
+    opts[:targets] = t
+  end
+
+  options.on('-dDIR', '--output-dir=DIR', '<Required - Directory to Save Results>') do |d|
+    opts[:output_dir] = d
+  end
+
+  options.on('-eEXCLUDE', '--exclude-domains=EXCLUDE', '<Optional - Comma-Delimited List of Domains to Exclude>') do |e|
+    opts[:exclude_domains] = e
+  end
+
+  options.on('-sSUBLIST3R', '--sublist3r-path=SUBLIST3R', '<Optional - Path to Sublist3r>') do |s|
+    opts[:sublist3r_path] = s
+  end
+
+  options.on('-i', '--[no-]ipinfo', '<Optional - Leverage ipinfo.com on Domains (Defaults to false)>') do |i|
+    opts[:ipinfo] = i
+  end
+
+  options.on('-nNMAP', '--nmap-path=NMAP', '<Optional - Path to Nmap>') do |n|
+    opts[:nmap_path] = n
+  end
+
+  options.on('-EWITNESS', '--eyewitness-path=WITNESS', '<Optional - Path to eyewitness/Requires Nmap Flag>') do |w|
+    opts[:eyewitness_path] = w
+  end
+
+  options.on('-bBURP', '--burp-path=BURP', '<Optional - Path to Burp>') do |b|
+    opts[:burp_path] = b
+  end
+
+  options.on('-r', '--[no-]resume-last-scan', '<Optional - Resume Last Scan (Defaults to false)>') do |r|
+    opts[:resume_last_scan] = r
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Colors!
+@red = "\e[31m"
+@green = "\e[32m"
+@yellow = "\e[33m"
+@end_of_color = "\e[0m"
+
+# Required Flag Variables
+targets = opts[:targets].to_s.scrub.strip.chomp.delete("\s").split(',')
+output_dir = opts[:output_dir].to_s.scrub.strip.chomp if Dir.exist?(opts[:output_dir].to_s.scrub.strip.chomp)
+
+if opts[:resume_last_scan]
+  @resume_last_scan = opts[:resume_last_scan]
+  @runtime_timestamp = File.basename(Dir.glob("#{output_dir}/target_domains*")[-1]).split('-')[-6..-1].join('-').split('.txt')[0]
+  target_domains = "#{output_dir}/target_domains-#{@runtime_timestamp}.txt"
+else
+  @resume_last_scan = nil
+  @runtime_timestamp = Time.now.strftime('%Y-%m-%d-%H-%M-%S')
+  target_domains = "#{output_dir}/target_domains-#{@runtime_timestamp}.txt"
+  File.open(target_domains, 'w') do |f|
+    targets.each do |target|
+      f.puts target
+    end
+  end
+end
+
+exclude_domains = opts[:exclude_domains].to_s.scrub.strip.chomp.delete("\s").split(',')
+ipinfo = opts[:ipinfo]
+sublist3r_path = opts[:sublist3r_path].to_s.scrub.strip.chomp
+burp_path = opts[:burp_path].to_s.scrub.strip.chomp
+nmap_path = opts[:nmap_path].to_s.scrub.strip.chomp
+eyewitness_path = opts[:eyewitness_path].to_s.scrub.strip.chomp
+
+def invoke_burp(opts = {})
+  burp_path = opts[:burp_path]
+  burp_target = opts[:burp_target]
+  port_number = opts[:port_number]
+  port_protocol = opts[:port_protocol]
+  output_dir = opts[:output_dir]
+  use_https = opts[:use_https]
+  target_domain = URI.parse(burp_target).host
+
+  json_results = "#{output_dir}/#{target_domain}-#{port_protocol}-#{port_number}-#{@runtime_timestamp}-burpsuite_activescan.json"
+  html_results = "#{output_dir}/#{target_domain}-#{port_protocol}-#{port_number}-#{@runtime_timestamp}-burpsuite_activescan.html"
+
+  if File.exist?(json_results)
+    puts "#{@yellow}Already Exists: #{json_results}#{@end_of_color}"
+  else
+    burp_obj = PWN::Plugins::BurpSuite.start(
+      burp_jar_path: burp_path,
+      headless: true,
+      browser_type: :headless
+    )
+
+    PWN::Plugins::BurpSuite.disable_proxy(
+      burp_obj: burp_obj
+    )
+
+    browser_obj = burp_obj[:burp_browser]
+
+    puts "#{@green}Navigating to: #{burp_target}#{@end_of_color}"
+    browser_obj.goto(burp_target)
+
+    puts "#{@green}Invoking Active Scan...#{@end_of_color}"
+    json_scan_queue = PWN::Plugins::BurpSuite.invoke_active_scan(
+      burp_obj: burp_obj,
+      target_url: burp_target,
+      use_https: use_https
+    )
+    puts "#{@green}complete.#{@end_of_color}"
+
+    print "#{@green}Generating Burp Suite Active Scan JSON Results...#{@end_of_color}"
+    scan_issues_hash = PWN::Plugins::BurpSuite.get_scan_issues(
+      burp_obj: burp_obj
+    )
+
+    File.open(json_results, 'w') do |f|
+      f.puts scan_issues_hash.to_json
+    end
+    puts "#{@green}complete.#{@end_of_color}\n\n\n"
+
+    print "#{@green}Generating Burp Suite Active Scan HTML Results...#{@end_of_color}"
+    PWN::Plugins::BurpSuite.generate_scan_report(
+      burp_obj: burp_obj,
+      report_type: :html,
+      output_path: html_results
+    )
+
+    burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj)
+    puts "#{@green}complete.#{@end_of_color}\n\n\n"
+  end
+rescue StandardError => e
+  puts "#{@red}#{e}#{@end_of_color}"
+ensure
+  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj) unless burp_obj.nil?
+end
+
+# Run Sublist3r to find as many domains as possible for a given FQDN
+unless sublist3r_path == ''
+  if @resume_last_scan.nil?
+    sublist3r_target_domains_arr = []
+    File.readlines(target_domains).uniq.each do |s_line|
+      sublist3r_target = s_line.to_s.scrub.strip.chomp
+      sublist3r_results = "#{output_dir}/#{sublist3r_target}-#{@runtime_timestamp}-sublist3r.txt"
+      print "#{@green}Sublist3r Domain Discovery #{sublist3r_target}...#{@end_of_color}"
+      puts `python #{sublist3r_path} -v -d #{sublist3r_target} -o #{sublist3r_results}`
+      File.readlines(sublist3r_results).uniq.each do |sr_line|
+        discovered_domain = sr_line.to_s.scrub.strip.chomp
+        sublist3r_target_domains_arr.push(discovered_domain)
+      end
+      puts "#{@green}complete.#{@end_of_color}"
+    end
+    File.open(target_domains, 'a') do |f|
+      sublist3r_target_domains_arr.uniq do |discovered_domain|
+        if URI.parse(discovered_domain).host.nil?
+          f.puts discovered_domain unless exclude_domains.include?(discovered_domain)
+        else
+          parsed_domain = URI.parse(discovered_domain).host
+          f.puts parsed_domain unless exclude_domains.include?(parsed_domain)
+        end
+      end
+    end
+  else
+    puts "#{@yellow}Resuming scan from #{target_domains}...#{@end_of_color}"
+  end
+end
+
+# Obtain additional information about the targeted hosts...
+unless ipinfo.nil?
+  File.readlines(target_domains).uniq.each do |h_line|
+    ipinfo_target = h_line.to_s.scrub.strip.chomp
+    ipinfo_json_results = "#{output_dir}/#{ipinfo_target}-#{@runtime_timestamp}-ipinfo.json"
+    puts "#{@yellow}Already Exists: #{ipinfo_json_results}#{@end_of_color}" if File.exist?(ipinfo_json_results)
+    next if exclude_domains.include?(ipinfo_target) || File.exist?(ipinfo_json_results)
+
+    ipinfo_struc = PWN::Plugins::IPInfo.get(ip_or_host: ipinfo_target)
+    File.open(ipinfo_json_results, 'w') do |f|
+      f.puts ipinfo_struc.to_json
+    end
+  end
+end
+
+unless nmap_path == ''
+  print "#{@green}Nmap all the things...#{@end_of_color}"
+  File.readlines(target_domains).uniq.each do |n_line|
+    nmap_target = n_line.to_s.scrub.strip.chomp
+    nmap_xml_results = "#{output_dir}/#{nmap_target}-#{@runtime_timestamp}-nmap_default.xml"
+    puts "#{@yellow}Already Exists: #{nmap_xml_results}#{@end_of_color}" if File.exist?(nmap_xml_results)
+    next if exclude_domains.include?(nmap_target)
+
+    begin
+      unless File.exist?(nmap_xml_results)
+        PWN::Plugins::NmapIt.port_scan do |nmap|
+          nmap.connect_scan = true
+          nmap.service_scan = true
+          nmap.os_fingerprint = true
+          nmap.verbose = true
+          nmap.targets = nmap_target
+          nmap.xml = nmap_xml_results
+        end
+      end
+
+      # Eyewitness Nmap XML Results
+      unless eyewitness_path == ''
+        print "#{@green}Eyewitness Nmap XML Results...#{@end_of_color}"
+        system("#{eyewitness_path} -x '#{nmap_xml_results}' -d '#{output_dir}/#{nmap_target}-#{@runtime_timestamp}' --no-prompt --all-protocols")
+      end
+
+      PWN::Plugins::NmapIt.parse_xml_results(xml_file: nmap_xml_results) do |xml|
+        xml.each_host do |host|
+          puts "#{@green}#{host.hostname}#{@end_of_color}"
+
+          host.scripts.each do |name, output|
+            puts name
+            output.each_line { |h_line| puts h_line }
+          end
+
+          host.each_port do |port|
+            puts "#{@yellow}#{port.number}|#{port.protocol}|#{port.state}|#{port.reason}|#{port.service}#{@end_of_color}"
+
+            case port.number.to_i
+            when 80
+              burp_target = "http://#{nmap_target}"
+              unless burp_path == ''
+                invoke_burp(
+                  burp_path: burp_path,
+                  burp_target: burp_target,
+                  port_number: port.number,
+                  port_protocol: port.protocol,
+                  output_dir: output_dir,
+                  use_https: false
+                )
+              end
+
+            when 443
+              burp_target = "https://#{nmap_target}"
+              unless burp_path == ''
+                invoke_burp(
+                  burp_path: burp_path,
+                  burp_target: burp_target,
+                  port_number: port.number,
+                  port_protocol: port.protocol,
+                  output_dir: output_dir,
+                  use_https: true
+                )
+              end
+
+            when 8080
+              burp_target = "http://#{nmap_target}:#{port.number}"
+              unless burp_path == ''
+                invoke_burp(
+                  burp_path: burp_path,
+                  burp_target: burp_target,
+                  port_number: port.number,
+                  port_protocol: port.protocol,
+                  output_dir: output_dir,
+                  use_https: false
+                )
+              end
+
+            when 8443
+              burp_target = "https://#{nmap_target}:#{port.number}"
+              unless burp_path == ''
+                invoke_burp(
+                  burp_path: burp_path,
+                  burp_target: burp_target,
+                  port_number: port.number,
+                  port_protocol: port.protocol,
+                  output_dir: output_dir,
+                  use_https: true
+                )
+              end
+
+            when 8888
+              burp_target = "http://#{nmap_target}:#{port.number}"
+              unless burp_path == ''
+                invoke_burp(
+                  burp_path: burp_path,
+                  burp_target: burp_target,
+                  port_number: port.number,
+                  port_protocol: port.protocol,
+                  output_dir: output_dir
+                )
+              end
+
+            else
+              puts "Nothing special implemented for #{port.protocol} #{port.number}"
+            end
+
+            port.scripts.each do |name, output|
+              puts name
+              output.each_line { |p_line| puts p_line }
+            end
+          end
+        end
+      end
+    rescue StandardError => e
+      puts "#{@red}#{e}#{@end_of_color}"
+      next
+    end
+  end
+  puts "#{@green}complete.#{@end_of_color}"
+end

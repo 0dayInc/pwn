@@ -1,0 +1,134 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-aAPIKEY', '--api_key=APIKEY', '<Required - OWASP Zap API Key (Tools>Options>API)>') do |a|
+    opts[:api_key] = a
+  end
+
+  options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
+    opts[:target_url] = t
+  end
+
+  options.on('-oDIR', '--report_output_dir=DIR', '<Required - Output Directory for Active Scan Report>') do |o|
+    opts[:output_dir] = o
+  end
+
+  options.on('-bTYPE', '--browser_type=TYPE', '<Optional - Browser Type <firefox|chrome|headless|rest> (Defaults to chrome)>') do |b|
+    opts[:browser_type] = b
+  end
+
+  options.on('-IINST', '--navigation_instruct=INST', '<Optional - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/owasp_zap/navigation.instruct.EXAMPLE)>') do |i|
+    opts[:navigation_instruct] = i
+  end
+
+  options.on('-zZPATH', '--zap_bin_path=ZPATH', '<Optional - Path to zap.sh>') do |z|
+    opts[:zap_bin_path] = z
+  end
+
+  options.on('-h', '--[no-]headless', '<Optional - Run OWASP Zap Headless>') do |h|
+    opts[:headless] = h
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Change Local Zap Proxy Listener (Default http://127.0.0.1:8080)>') do |p|
+    opts[:proxy] = p
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  logger = PWN::Plugins::PWNLogger.create
+
+  api_key = opts[:api_key].to_s.strip.chomp.scrub
+
+  if opts[:browser_type].nil?
+    browser_type = :chrome
+  else
+    browser_type = opts[:browser_type].to_s.strip.chomp.scrub.to_sym
+  end
+
+  target_url = opts[:target_url].to_s.strip.chomp.scrub
+  output_dir = opts[:output_dir].to_s.strip.chomp.scrub
+  navigation_instruct = opts[:navigation_instruct].to_s.strip.chomp.scrub if File.exist?(opts[:navigation_instruct].to_s.strip.chomp.scrub)
+  zap_bin_path = opts[:zap_bin_path].to_s.strip.chomp.scrub if File.exist?(opts[:zap_bin_path].to_s.strip.chomp.scrub)
+  headless = opts[:headless]
+  proxy = opts[:proxy].to_s.strip.chomp.scrub
+  proxy = 'http://127.0.0.1:8080' if proxy == ''
+
+  # ------
+  # Dynamically build arguments hash based on flags passed and Open Zap
+  start_args = {}
+  start_args[:api_key] = api_key
+  start_args[:zap_bin_path] = zap_bin_path if zap_bin_path != ''
+  start_args[:headless] = true if headless
+  start_args[:proxy] = proxy
+  zap_obj = PWN::Plugins::OwaspZap.start(start_args)
+
+  logger.info(zap_obj)
+
+  browser = PWN::Plugins::TransparentBrowser.open(
+    browser_type: browser_type,
+    proxy: proxy
+  )
+
+  if browser_type == :rest
+    browser.get(target_url)
+  else
+    browser.goto(target_url)
+  end
+
+  if navigation_instruct
+    File.read(navigation_instruct).each_line do |instruction|
+      browser.instance_eval(instruction.to_s.scrub.strip.chomp)
+    end
+  end
+
+  PWN::Plugins::OwaspZap.spider(
+    zap_obj: zap_obj,
+    target: target_url
+  )
+
+  PWN::Plugins::OwaspZap.active_scan(
+    zap_obj: zap_obj,
+    target: target_url
+  )
+
+  # Generate all Report Types
+  (1..3).each do |report_iteration|
+    case report_iteration
+    when 1
+      report_type = 'html'
+    when 2
+      report_type = 'markdown'
+    when 3
+      report_type = 'xml'
+    end
+
+    report_path = PWN::Plugins::OwaspZap.generate_report(
+      zap_obj: zap_obj,
+      output_dir: output_dir,
+      report_type: report_type
+    )
+
+    logger.info("Report can be found here: #{report_path}")
+  end
+
+  PWN::Plugins::OwaspZap.stop(zap_obj: zap_obj)
+rescue StandardError => e
+  raise e
+ensure
+  PWN::Plugins::OwaspZap.stop(zap_obj: zap_obj) unless zap_obj.nil?
+  browser = PWN::Plugins::TransparentBrowser.close(browser_obj: browser) unless browser.nil?
+end

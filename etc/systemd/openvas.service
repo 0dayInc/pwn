@@ -1,0 +1,14 @@
+[Unit]
+Description=Open Vulnerability Assessment System (OpenVAS)
+Requires=apache2.service
+After=apache2.service
+
+[Service]
+User=root
+RemainAfterExit=yes
+ExecStart=$PWN_ROOT/packer/daemons/openvas.rb --action start
+ExecReload=$PWN_ROOT/packer/daemons/openvas.rb --action restart
+ExecStop=$PWN_ROOT/packer/daemons/openvas.rb --action stop
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+user: 'pwnadmin'
+pass: 'changeme'
+fullname: 'changeme'
+email: 'changeme@pwn.local'
+ssh_keygen_pass: 'changeme'
+#jenkins_job_credentials:
+#  - { ssh_username: 'changeme', description: 'changeme', credential_id: '000000001' }
+#  - { ssh_username: 'changeme', description: 'changeme', credential_id: '000000002' }

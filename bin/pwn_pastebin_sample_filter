@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-rPATTERN', '--regex=PATTERN', "<Required - Regex Pattern for Interesting Pastes ('.*' for All)>") do |r|
+    opts[:regex] = r
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
+    opts[:with_tor] = w
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+proxy = opts[:proxy]
+with_tor = opts[:with_tor]
+regex = opts[:regex]
+
+browser_obj = PWN::WWW::Pastebin.open(
+  browser_type: :headless,
+  proxy: proxy,
+  with_tor: with_tor
+)
+
+begin
+  loop do
+    browser_obj.div(id: 'menu_2').links[0].click
+    code_frame = browser_obj.div(id: 'code_frame').text
+    if code_frame.match?(/#{regex}/mi)
+      puts "\nCurrent Link: #{browser_obj.url}"
+      puts "#{code_frame}\n\n\n"
+    else
+      print '.'
+    end
+    sleep 9
+  end
+rescue StandardError => e
+  raise e
+ensure
+  if browser_obj
+    browser_obj = PWN::Plugins::TransparentBrowser.close(
+      browser_obj: browser_obj
+    )
+  end
+end

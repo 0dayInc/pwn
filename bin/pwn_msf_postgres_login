@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+
+msfrpcd_yaml_conf = ARGV[0].to_s.strip.chomp
+rhosts = ARGV[1].to_s.strip.chomp
+rport = ARGV[2].to_s.strip.chomp
+
+logger = PWN::Plugins::PWNLogger.create
+
+logger.info('MSF Postgres Login for ' << rhosts)
+
+results = PWN::MSF::PostgresLogin.exploit(
+  msfrpcd_yaml_conf: msfrpcd_yaml_conf,
+  rhosts: rhosts,
+  rport: rport
+)
+
+File.write("#{rhosts}_msf_postgres_login.txt", results['data'])
+
+if results['data'].include?('- LOGIN SUCCESSFUL:')
+  logger.error(
+    "Successful Postgres AuthN!!!  See #{rhosts}_msf_postgres_login.txt for more information."
+  )
+end
+
+# TODO: - Publish as HTML

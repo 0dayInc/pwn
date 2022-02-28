@@ -1,0 +1,137 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'waveform'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-fFROM', '--from=FROM', '<Required - Dial Range from (Beginning Number)>') do |f|
+    opts[:from_num] = f
+  end
+
+  options.on('-tTO', '--to=TO', '<Required - Dial Range to (Ending Number)>') do |t|
+    opts[:to_num] = t
+  end
+
+  options.on('-sSEC', '--seconds-to-record=SEC', '<Required - Seconds to Record >') do |s|
+    opts[:seconds_to_record] = s
+  end
+
+  options.on('-aADB', '--adb-path=ADB', '<Required - Path to ADB (Android Debug Bridge)>') do |adb|
+    opts[:adb_bin] = adb
+  end
+
+  options.on('-SSOX', '--sox-path=SOX', '<Required - Path to SoX Binary, the Swiss Army knife of Audio>') do |sox|
+    opts[:sox_bin] = sox
+  end
+
+  options.on('-wWAV', '--wav-archive-dir=WAV', '<Required - Directory Path to Store WAV Files>') do |wav|
+    opts[:wav_archive] = wav
+  end
+
+  options.on('-r', '--[no-]randomize', '<Optional - Randomize Number Range (Defaults to false)>') do |r|
+    opts[:randomize] = r
+  end
+
+  options.on('-dSEC', '--delay-between-calls=SEC', '<Optional - Seconds to Delay Between Calls (Defaults to 0)>') do |d|
+    opts[:seconds_to_delay_between_calls] = d
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Required Flag Variables
+from_num = opts[:from_num].to_s.scrub.strip.chomp.delete('(').delete(')').delete('-').delete('.').delete('+').to_i
+to_num = opts[:to_num].to_s.scrub.strip.chomp.delete('(').delete(')').delete('-').delete('.').delete('+').to_i
+seconds_to_record = opts[:seconds_to_record].to_i
+adb_bin = opts[:adb_bin] if File.exist?(opts[:adb_bin].to_s.scrub.strip.chomp)
+sox_bin = opts[:sox_bin] if File.exist?(opts[:sox_bin].to_s.scrub.strip.chomp)
+wav_archive = opts[:wav_archive].to_s.scrub.strip.chomp if Dir.exist?(opts[:wav_archive].to_s.scrub.strip.chomp)
+waveform_bin = 'waveform'
+
+# Optional Flag Variables
+randomize = opts[:randomize]
+seconds_to_delay_between_calls = opts[:seconds_to_delay_between_calls].to_i
+
+# Colors!
+red = "\e[31m"
+green = "\e[32m"
+yellow = "\e[33m"
+cayan = "\e[36m"
+end_of_color = "\e[0m"
+
+raise 'ERROR: --from value must be <= --to value' if from_num > to_num
+
+begin
+  $stdout.sync = true
+  range = []
+  # Prepare the targets for assessment
+  (from_num..to_num).each { |number| range.push(number) }
+
+  # Randomize targets if applicable
+  range.shuffle! if randomize
+
+  range.each do |target_num|
+    start_timestamp = Time.now.strftime('%Y-%m-%d.%H.%M.%S')
+    puts "#{green}#{start_timestamp} >>>#{end_of_color} #{yellow}dialing #{target_num}#{end_of_color}"
+    PWN::Plugins::Android.adb_sh(
+      adb_path: adb_bin,
+      command: "am start -a android.intent.action.CALL -d tel:'#{target_num}'"
+    )
+
+    # Record Call
+    pid_to_kill = 0
+    wav_file = "#{wav_archive}/#{target_num}-#{start_timestamp}.wav"
+    sox_params = "-d #{wav_file} trim 0 #{seconds_to_record}"
+
+    puts red
+    puts "Recording Duration: #{seconds_to_record}s"
+    system(sox_bin, sox_params)
+    puts 'Complete.'
+    puts end_of_color
+
+    ending_timestamp = Time.now.strftime('%Y-%m-%d.%H.%M.%S')
+    print "#{yellow}#{ending_timestamp} >>> #{end_of_color}"
+    PWN::Plugins::Android.adb_sh(
+      adb_path: adb_bin,
+      command: 'input keyevent KEYCODE_ENDCALL'
+    )
+    puts "#{green}hung up #{target_num}#{end_of_color}"
+
+    puts cayan
+    puts 'Generating Audio Spectrogram...'
+    sox_params = "#{wav_file} -n spectrogram -o #{wav_file}-spectrogram.png -d #{seconds_to_record}"
+    system(sox_bin, sox_params)
+    puts 'Generating Audio Waveform...'
+    waveform_params = "-c '#FF0000' -b '#000000' -F #{wav_file} #{wav_file}-waveform.png"
+    system(waveform_bin, waveform_params)
+    puts 'Complete.'
+    puts end_of_color
+
+    if seconds_to_delay_between_calls.positive? # Greater than 0
+      (1..seconds_to_delay_between_calls).reverse_each do |countdown|
+        print "#{red}delay #{seconds_to_delay_between_calls}s until next call: #{format('%-9.9s', countdown)}#{end_of_color}"
+        print "\r"
+        sleep 1
+      end
+      puts "\n#{green}waking up \\o/#{end_of_color}"
+    end
+    puts "\n\n\n"
+  end
+rescue StandardError => e
+  raise e.message
+ensure
+  PWN::Plugins::Android.adb_sh(
+    adb_path: adb_bin,
+    command: 'input keyevent KEYCODE_ENDCALL'
+  )
+end

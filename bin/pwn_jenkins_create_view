@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-sIP', '--jenkins_ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:jenkins_ip] = s }
+
+  options.on('-dPORT', '--dest-port=PORT', '<Optional - Jenkins Server Port (Defaults to 8080)>') do |port|
+    opts[:port] = port
+  end
+
+  options.on('-UUSER', '--username=USER', '<Required - Jenkins Username>') do |user|
+    opts[:username] = user
+  end
+
+  options.on('-PPASS', '--password=PASS', '<Required - Jenkins Password>') do |pass|
+    opts[:password] = pass
+  end
+
+  options.on('-vVIEW', '--view-name=VIEW', '<Required - View Name to Create>') do |view_name|
+    opts[:view_name] = view_name
+  end
+
+  options.on('-rREGX', '--regx-filter=REGEX', '<Required - RegEx >') do |regex_filter|
+    opts[:regex_filter] = regex_filter
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+jenkins_ip = opts[:jenkins_ip].to_s.scrub
+port = opts[:port].to_i
+username = opts[:username]
+password = opts[:password]
+view_name = opts[:view_name].to_s.chomp.strip.scrub
+regex_filter = opts[:regex_filter].to_s.chomp.strip.scrub
+
+if port.positive?
+  jenkins_obj = PWN::Plugins::Jenkins.connect(
+    jenkins_ip: jenkins_ip,
+    port: port,
+    username: username,
+    password: password
+  )
+else
+  jenkins_obj = PWN::Plugins::Jenkins.connect(
+    jenkins_ip: jenkins_ip,
+    username: username,
+    password: password
+  )
+end
+
+jenkins_obj.view.create_list_view(
+  name: view_name,
+  regex: regex_filter
+)
+
+PWN::Plugins::Jenkins.disconnect(jenkins_obj: jenkins_obj)

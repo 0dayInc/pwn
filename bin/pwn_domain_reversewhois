@@ -1,0 +1,89 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'nokogiri'
+require 'csv'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-sRFILTER', '--registrant-filter=RFILTER', '<Required - Registrant Name or Email Address>') do |s|
+    opts[:registrant_filter] = s
+  end
+
+  options.on('-oPATH', '--output-results=PATH', '<Required - Path to Output Results>') do |o|
+    opts[:output_results] = o
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
+    opts[:with_tor] = w
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+registrant_filter = opts[:registrant_filter].to_s.strip.chomp.scrub
+output_results = opts[:output_results].to_s.strip.chomp.scrub
+proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
+with_tor = opts[:with_tor]
+
+begin
+  if proxy != '' && with_tor
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :headless, proxy: proxy, with_tor: true)
+  elsif proxy != '' && with_tor.nil?
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :headless, proxy: proxy)
+  else
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :headless)
+  end
+
+  browser_obj.goto("https://viewdns.info/reversewhois/?q=#{CGI.escape(registrant_filter)}")
+
+  # Consume Results Table and Convert to CSV :)
+  reversewhois_xp_resp = Nokogiri::HTML(browser_obj.html).xpath('//*[@id="null"]/tbody/tr[3]/td/font/table/tbody/tr')
+  CSV.open(output_results, 'w', col_sep: ',', quote_char: "'", force_quotes: true) do |csv|
+    reversewhois_xp_resp.each do |row|
+      tarray = []
+      row.xpath('td').each do |cell|
+        tarray << cell.text
+      end
+      csv << tarray
+    end
+  end
+
+  # Ok, now let's append domain bigdata.com
+  browser_obj.goto('https://domainbigdata.com')
+
+  # Type Registrant Filter in Char-by-Char to Ensure Everyone is Happy ;)
+  PWN::Plugins::TransparentBrowser.type_as_human(q: registrant_filter) do |char|
+    browser_obj.text_field(id: 'txtSearchTopPage').wait_until(&:present?).send_keys(char)
+  end
+  browser_obj.button(id: 'btnTopSearch').wait_until(&:present?).click
+
+  # Consume Results Table and Convert to CSV :)
+  reversewhois_xp_resp = Nokogiri::HTML(browser_obj.html).xpath('//*[@id="domain-same-ip"]/div/div/table/tbody/tr')
+  CSV.open(output_results, 'a', col_sep: ',', quote_char: "'", force_quotes: true) do |csv|
+    reversewhois_xp_resp.each do |row|
+      tarray = []
+      row.xpath('td').each do |cell|
+        tarray << cell.text
+      end
+      csv << tarray
+    end
+  end
+rescue StandardError => e
+  raise e
+ensure
+  browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) unless browser_obj.nil?
+end

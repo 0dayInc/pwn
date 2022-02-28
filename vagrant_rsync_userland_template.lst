@@ -1,0 +1,8 @@
+apache2/vagrant.yaml
+burpsuite/vagrant.yaml
+jenkins/jobs_userland
+jenkins/vagrant.yaml
+letsencrypt/vagrant.yaml
+metasploit/vagrant.yaml
+openvas/vagrant.yaml
+recon-ng/vagrant.yaml

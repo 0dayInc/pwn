@@ -1,0 +1,233 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tURL', '--target-url=URL', '<Required - URL to Target>') do |t|
+    opts[:target_url] = t
+  end
+
+  options.on('-rRESULTS', '--output-results=RESULTS', '<Required - Path of Results File>') do |r|
+    opts[:output_results] = r
+  end
+
+  options.on('-l', '---list-pwn-www-mods', '<Optional - Provide a List of PWN::WWW Modules to Support Post-AuthN w/ -m Flag') do |l|
+    opts[:list_pwn_mods] = l
+  end
+
+  options.on('-mMOD', '--pwn-www-mod=MOD', '<Optional - PWN::WWW Module to Support Post-AuthN (-l to list Modules)') do |m|
+    opts[:pwn_www_mod_str] = m
+  end
+
+  options.on('-uUSER', '--username=USER', '<Optional - PWN::WWW Module username') do |u|
+    opts[:username] = u
+  end
+
+  options.on('-pPASS', '--password=PASS', '<Optional - PWN::WWW Module password (Will Prompt if nil)') do |p|
+    opts[:password] = p
+  end
+
+  options.on('-f', '--[no-]mfa', '<Optional - Enable MFA PWN::WWW Module') do |f|
+    opts[:mfa] = f
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
+    opts[:with_tor] = w
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Colors!
+@dark_red = "\e[1m\e[31m"
+@green = "\e[32m"
+@yellow = "\e[33m"
+@end_of_color = "\e[0m"
+
+# if -l Flag is passed, list all PWN::WWW Modules and exit
+if opts[:list_pwn_mods]
+  puts "#{@green}Available PWN::WWW modules to obtain a Post AuthN state:#{@end_of_color}:"
+  puts "#{@yellow}#{PWN::WWW.help.join(',').tr(',', "\n")}#{@end_of_color}"
+  exit
+end
+
+# Required Flag Variables
+target_url = opts[:target_url].to_s.scrub.strip.chomp
+output_results = opts[:output_results].to_s.scrub.strip.chomp
+
+# Optional Flag Variables
+pwn_www_mod_str = opts[:pwn_www_mod_str].to_s.scrub.strip.chomp
+
+username = opts[:username].to_s.scrub.strip.chomp
+
+password = opts[:password] # Don't cast to string to detect if PWN::Plugins::AuthenticationHelper is necessary
+if password.nil?
+  password = PWN::Plugins::AuthenticationHelper.mask_password
+else
+  password = opts[:password].to_s.scrub.strip.chomp
+end
+
+if opts[:mfa]
+  mfa = true
+else
+  mfa = false
+end
+
+proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
+with_tor = opts[:with_tor]
+
+begin
+  def get_web_cache_deception(opts = {})
+    browser_obj = opts[:browser_obj]
+    target_url = opts[:target_url].to_s.scrub.chomp.strip
+    payload = opts[:payload].to_s.scrub.chomp.strip
+
+    # Browse to original page to compare response lengths
+    browser_obj.goto(target_url)
+    orig_url_response_length = browser_obj.html.length
+
+    http_result = ''
+    if target_url.include?('?')
+      injected_target_url = URI.parse(target_url)
+      # Add non-existent file at the end of the path
+      injected_target_url.path = "#{injected_target_url.path.to_s.chomp('/')}/wcd.#{payload}"
+      web_cache_deception_url = injected_target_url.to_s
+
+      browser_obj.goto(injected_target_url.to_s)
+      injected_url_response_length = browser_obj.html.length
+
+      if injected_url_response_length == orig_url_response_length
+        # TODO: Add incognito Chrome browser
+        puts "\n#{@dark_red}Alert! Potential Candidate: #{web_cache_deception_url}#{@end_of_color}\n"
+        http_result = "Alert! Potential Candidate: #{web_cache_deception_url}"
+      else
+        print "#{@yellow}.#{@end_of_color}"
+        http_result = "Response Length Mismatch: Orig Len: #{orig_url_response_length} | Inj Len: #{injected_url_response_length} | WCD: #{web_cache_deception_url}"
+      end
+    else
+      web_cache_deception_url = "#{target_url.chomp('/')}/wcd.#{payload}"
+      browser_obj.goto(web_cache_deception_url)
+      wcd_url_response_length = browser_obj.html.length
+
+      if orig_url_response_length == wcd_url_response_length
+        # TODO: Add incognito Chrome browser
+        puts "\n#{@dark_red}Alert! Potential Candidate: #{web_cache_deception_url}#{@end_of_color}\n"
+        http_result = "Alert! Potential Candidate: #{web_cache_deception_url}"
+      else
+        print "#{@yellow}.#{@end_of_color}"
+        http_result = "Response Length Mismatch: Orig Len: #{orig_url_response_length} | WCD Len: #{wcd_url_response_length} | WCD: #{web_cache_deception_url}"
+      end
+    end
+  rescue Net::ReadTimeout => e
+    http_result = "#{e} Orig: #{target_url} | WCD: #{web_cache_deception_url}"
+  rescue StandardError => e
+    raise e
+  ensure
+    http_result
+  end
+
+  # Script starts crunching here...
+  if pwn_www_mod_str != ''
+    begin
+      pwn_www_mod = PWN::WWW.const_get(pwn_www_mod_str)
+      unless pwn_www_mod.respond_to?('open') && pwn_www_mod.respond_to?('login') && pwn_www_mod.respond_to?('logout')
+        puts "#{@dark_red}Module PWN::WWW::#{pwn_www_mod_str} Missing #open #login and/or #logout Method(s)#{@end_of_color}"
+        puts `#{$PROGRAM_NAME} -l`
+        exit
+      end
+    rescue NAME_ERROR => e
+      puts "#{@dark_red}Invalid module PWN::WWW::#{pwn_www_mod_str}#{@end_of_color}"
+      puts `#{$PROGRAM_NAME} -l`
+      exit
+    end
+
+    puts "#{@green}Leveraging PWN::WWW::#{pwn_www_mod_str} to Obtain a Post AuhN State...#{@end_of_color}"
+    if proxy
+      if with_tor
+        browser_obj = pwn_www_mod.open(
+          browser_type: :chrome,
+          proxy: proxy,
+          with_tor: true
+        )
+      else
+        browser_obj = pwn_www_mod.open(
+          browser_type: :chrome,
+          proxy: proxy
+        )
+      end
+    else
+      browser_obj = pwn_www_mod.open(browser_type: :chrome)
+    end
+    # Now AuthN via PWN::WWW::<MODULE>
+    browser_obj = pwn_www_mod.login(
+      browser_obj: browser_obj,
+      username: username,
+      password: password,
+      mfa: mfa
+    )
+    puts "#{@green}complete.#{@end_of_color}\n\n\n"
+  elsif pwn_www_mod_str == '' && proxy
+    if with_tor
+      browser_obj = PWN::Plugins::TransparentBrowser.open(
+        browser_type: :chrome,
+        proxy: proxy,
+        with_tor: true
+      )
+    else
+      browser_obj = PWN::Plugins::TransparentBrowser.open(
+        browser_type: :chrome,
+        proxy: proxy
+      )
+    end
+  else
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :chrome)
+  end
+
+  puts "#{@green}Navigating to Target URL: #{target_url}#{@end_of_color}\n\n\n"
+  browser_obj.goto(target_url)
+
+  web_cache_deception_payload_arr = %w[
+    aif aiff au avi bin bmp cab carb cct cdf class css doc dcr dtd gcf gff gif grv hdml hqx ico ini jpeg jpg js mov mp3 mp4 nc pct ppc pws swa swf txt vbs w32 wav wbmp wml wmlc wmls wmlsc xsd zip
+  ]
+
+  File.open(output_results, 'w') do |f|
+    web_cache_deception_payload_arr.each do |payload|
+      http_result = get_web_cache_deception(
+        browser_obj: browser_obj,
+        target_url: target_url,
+        payload: payload
+      )
+
+      f.puts http_result
+    end
+  end
+  puts "\n#{@yellow}Results Location: #{output_results}#{@end_of_color}\n\n\n"
+  puts "#{@green}complete.#{@end_of_color}"
+rescue StandardError => e
+  raise e
+ensure
+  if browser_obj &&
+     pwn_www_mod
+
+    browser_obj = pwn_www_mod.logout(browser_obj: browser_obj)
+    browser_obj = pwn_www_mod.close(browser_obj: browser_obj)
+  else
+    browser_obj = PWN::Plugins::TransparentBrowser.close(
+      browser_obj: browser_obj
+    )
+  end
+end

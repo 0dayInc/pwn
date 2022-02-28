@@ -1,0 +1,29 @@
+base_url = '<base_target_api_url>'
+
+rest_response = rest_client.execute(
+  method: :post,
+  url: "#{base_url}/<login_path>",
+  verify_ssl: false,
+  headers: { content_type: 'application/json' },
+  payload: '{ "username":"<target_username>", "password":"<target_password>" }'
+) { |response, request, result| response } # Don't raise exceptions and simply return the response
+
+token_hash = JSON.parse(rest_response.body, symbolize_names: true)
+
+rest_response = rest_client.execute(
+  method: :get,
+  url: "#{base_url}/<misc_api_path>",
+  verify_ssl: false,
+  headers: {
+    content_type: 'application/json',
+    authorization: token_hash[:bearer_token],
+    params: {
+      sort: 'desc',
+      max_records: 36
+    }
+  }
+) {|response, request, result| response } # Don't raise exceptions and simply return the response
+
+# If you want to force a Custom HTTP Header to Be Passed to pwn_arachni_rest
+# the following example is reserved for such cases:
+pwn_arachni_rest_custom_http_header = "Authorization: #{token_hash[:bearer_token]}"

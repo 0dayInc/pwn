@@ -1,0 +1,132 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
+    opts[:target_url] = t
+  end
+
+  options.on('-oDIR', '--report_output_dir=DIR', '<Required - Output Directory for Results Generation>') do |o|
+    opts[:output_dir] = o
+  end
+
+  options.on('-bTYPE', '--browser_type=TYPE', '<Optional - Browser Type <firefox|chrome|headless> (Defaults to chrome)>') do |b|
+    opts[:browser_type] = b
+  end
+
+  options.on('-IINST', '--navigation_instruct=INST', '<Optional - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/arachni/navigation.instruct.EXAMPLE)>') do |i|
+    opts[:navigation_instruct] = i
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Proxy SCHEME://ADDRESS:PORT>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-xTYPE', '--proxy-type=TYPE', '<Optional - Proxy Type (See arachni --help)>') do |x|
+    opts[:proxy_type] = x
+  end
+
+  options.on('-ePATTERN', '--exclude-pattern=PATTERN', '<Optional - Exclude comma-delimited resources whose URL matches pattern>') do |e|
+    opts[:exclude_pattern] = e
+  end
+
+  options.on('-d', '--[no-]deep', '<Optional - Enable Deep Scanning (Much Longer to Complete)>') do |d|
+    opts[:deep_scan] = d
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  logger = PWN::Plugins::PWNLogger.create
+
+  target_url = opts[:target_url].to_s.scrub
+  output_dir = opts[:output_dir].to_s.scrub if Dir.exist?(opts[:output_dir].to_s.scrub)
+  if opts[:browser_type].nil?
+    browser_type = :chrome
+  else
+    browser_type = opts[:browser_type].to_s.strip.chomp.scrub.to_sym
+  end
+  navigation_instruct = opts[:navigation_instruct].to_s.strip.chomp.scrub if File.exist?(opts[:navigation_instruct].to_s.strip.chomp.scrub)
+  proxy = opts[:proxy]
+  proxy_type = opts[:proxy_type]
+  exclude_pattern = opts[:exclude_pattern]
+  deep_scan = opts[:deep_scan]
+
+  raise 'ERROR: please use pwn_arachni_rest for REST Scanning.' if browser_type == :rest
+
+  browser = PWN::Plugins::TransparentBrowser.open(
+    browser_type: browser_type,
+    proxy: proxy
+  )
+
+  browser.goto(target_url)
+
+  if navigation_instruct
+    File.read(navigation_instruct).each_line do |instruction|
+      browser.instance_eval(instruction.to_s.scrub.strip.chomp)
+    end
+
+    # We should have an authenticated session by now in our browser object...
+    http_cookie_header = ''
+    browser.cookies.to_a.each_with_index do |this_symbolized_cookie_hash, index|
+      # Need to convert symbolized key names in browser.cookies.to_a[index]
+      # to strings for proper CGI::Cookie consumption
+      this_cookie = {}
+      this_symbolized_cookie_hash.each do |key, val|
+        this_cookie[key.to_s] = val
+      end
+
+      cgi_cookie_str = CGI::Cookie.new(this_cookie).to_s
+
+      if index.zero?
+        http_cookie_header = cgi_cookie_str
+      else
+        http_cookie_header = "#{http_cookie_header}, #{cgi_cookie_str}"
+      end
+    end
+  end
+
+  arachni_cmd_str = "arachni #{target_url} --audit-parameter-names"
+  arachni_cmd_str = "#{arachni_cmd_str} --output-debug"
+  arachni_cmd_str = "#{arachni_cmd_str} --checks=*"
+  arachni_cmd_str = "#{arachni_cmd_str} --audit-ui-inputs --audit-ui-forms"
+  arachni_cmd_str = "#{arachni_cmd_str} --audit-jsons --audit-xmls"
+  arachni_cmd_str = "#{arachni_cmd_str} --audit-links --audit-forms --audit-cookies"
+  arachni_cmd_str = "#{arachni_cmd_str} --report-save-path=#{output_dir}/arachni_results.afr"
+  arachni_cmd_str = "#{arachni_cmd_str} --http-proxy #{proxy}" if proxy
+  arachni_cmd_str = "#{arachni_cmd_str} --http-proxy-type #{proxy_type}" if proxy_type
+  arachni_cmd_str = "#{arachni_cmd_str} --http-cookie-string='#{http_cookie_header}'" if navigation_instruct
+  arachni_cmd_str = "#{arachni_cmd_str} --audit-headers --audit-with-both-methods --audit-cookies-extensively" if deep_scan
+
+  if exclude_pattern
+    exclude_pattern.to_s.split(',').each do |exclude_entry|
+      arachni_cmd_str = "#{arachni_cmd_str} --scope-exclude-pattern #{exclude_entry}"
+    end
+  end
+
+  # Kick off scan as defined by pwn_arachni flags
+  system("sudo /bin/bash --login -c \"#{arachni_cmd_str}\"")
+
+  # Report Scan Results
+  system("sudo /bin/bash --login -c \"arachni_reporter #{output_dir}/arachni_results.afr --reporter=html:outfile=#{output_dir}/arachni_results.html.zip\"")
+  system("sudo /bin/bash --login -c \"arachni_reporter #{output_dir}/arachni_results.afr --reporter=json:outfile=#{output_dir}/arachni_results.json\"")
+
+  # Unzip Results in Output Dir
+  system("sudo /bin/bash --login -c \"cd #{output_dir} && unzip -o arachni_results.html.zip\"")
+rescue StandardError, SystemExit, Interrupt => e
+  raise e
+ensure
+  browser = PWN::Plugins::TransparentBrowser.close(browser_obj: browser) unless browser.nil?
+end

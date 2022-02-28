@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-sIP', '--jenkins_ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:jenkins_ip] = s }
+
+  options.on('-dPORT', '--dest-port=PORT', '<Optional - Jenkins Server Port (Defaults to 8080)>') do |port|
+    opts[:port] = port
+  end
+
+  options.on('-UUSER', '--username=USER', '<Required - Jenkins Username>') do |user|
+    opts[:username] = user
+  end
+
+  options.on('-PPASS', '--password=PASS', '<Optional - Jenkins Password (Will Prompt if Flag Undetected)>') do |pass|
+    opts[:password] = pass
+  end
+
+  options.on('-jNAME', '--job-name=NAME', '<Required - Name of Job to Create>') do |job|
+    opts[:job_name] = job
+  end
+
+  options.on('-cPATH', '--config-xml=PATH', '<Required - Path to config.xml>') do |xml|
+    opts[:config_xml] = xml
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+jenkins_ip = opts[:jenkins_ip].to_s.scrub
+port = opts[:port].to_i
+username = opts[:username]
+password = opts[:password]
+job_name = opts[:job_name].to_s.scrub
+config_xml = File.read(opts[:config_xml]) if File.exist?(opts[:config_xml])
+
+if port.positive?
+  jenkins_obj = PWN::Plugins::Jenkins.connect(
+    jenkins_ip: jenkins_ip,
+    port: port,
+    username: username,
+    password: password
+  )
+else
+  jenkins_obj = PWN::Plugins::Jenkins.connect(
+    jenkins_ip: jenkins_ip,
+    username: username,
+    password: password
+  )
+end
+
+jenkins_obj.job.create(
+  job_name,
+  config_xml
+)
+
+PWN::Plugins::Jenkins.disconnect(jenkins_obj: jenkins_obj)

@@ -1,0 +1,161 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'pwn'
+require 'optparse'
+require 'htmlentities'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-dDIR', '--dir-path=DIR', '<Required - Report Output Directory>') { |d| opts[:dir_path] = d }
+
+  options.on('-uGITURI', '--uri-source-root=GITURI', '<Required - HTTP URI of Git Repo Scanned e.g. https://github.com/0dayInc/pwn/tree/master>') do |u|
+    opts[:uri_source_root] = u
+  end
+
+  options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # Test Cases to Run Simultaneously (Default 25)>') do |t|
+    opts[:max_threads] = t
+  end
+
+  options.on('-TCASE', '--test-cases=CASE', '<Optional Comma-Delimited Test Cases to Invoke (-l for List)>') do |c|
+    opts[:chosen_test_cases] = c
+  end
+
+  options.on('-l', '--[no-]list-test-cases', '<Optional List Available Test Cases to Invoke and Exit>') do |l|
+    opts[:list_test_cases] = l
+  end
+
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "File.basename(Dir.pwd)")>') do |n|
+    opts[:report_name] = n
+  end
+
+  options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
+    opts[:start_reporting_server] = s
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+
+  green = "\e[32m"
+  end_of_color = "\e[0m"
+
+  dir_path = opts[:dir_path].to_s.scrub
+  uri_source_root = opts[:uri_source_root].to_s.scrub
+  max_threads = opts[:max_threads]
+  chosen_test_cases = opts[:chosen_test_cases]
+  list_test_cases = opts[:list_test_cases]
+
+  report_name = File.basename(Dir.pwd)
+  report_name = opts[:report_name] unless opts[:report_name].nil?
+
+  start_reporting_server = opts[:start_reporting_server]
+
+  # Define Test Cases to Run & Start Thread Pool
+  if chosen_test_cases && !list_test_cases
+    test_cases = chosen_test_cases.to_s.scrub.chomp.strip.delete("\s").split(',').map(&:to_sym)
+  else
+    test_cases = %i[
+      ApacheFileSystemUtilAPI
+      AMQPConnectAsGuest
+      AWS
+      BannedFunctionCallsC
+      Base64
+      BeefHook
+      CmdExecutionJava
+      CmdExecutionPython
+      CmdExecutionRuby
+      CmdExecutionScala
+      CSRF
+      Emoticon
+      DeserialJava
+      Eval
+      InnerHTML
+      FilePermission
+      Factory
+      LocationHash
+      Log4J
+      Logger
+      Keystore
+      OuterHTML
+      Password
+      PomVersion
+      Port
+      PrivateKey
+      Redirect
+      ReDOS
+      Shell
+      SQL
+      SSL
+      Sudo
+      TaskTag
+      ThrowErrors
+      Token
+      Version
+    ]
+  end
+
+  if list_test_cases
+    test_cases.each { |tc| puts "#{green}#{tc}#{end_of_color}" }
+    exit
+  end
+
+  raise "ERROR: Invalid Directory #{dir_path}" unless File.directory?(dir_path)
+
+  results_hash = {
+    report_name: HTMLEntities.new.encode(
+      report_name.to_s.scrub.strip.chomp
+    ),
+    data: []
+  }
+
+  mutex = Mutex.new
+
+  PWN::Plugins::ThreadPool.fill(enumerable_array: test_cases, max_threads: max_threads) do |test_case|
+    sca_arr = PWN::SAST.const_get(
+      test_case.to_s.scrub
+    ).scan(
+      dir_path: dir_path,
+      git_repo_root_uri: uri_source_root
+    )
+
+    sca_arr.each do |hash_line|
+      mutex.synchronize do
+        results_hash[:data].push(hash_line)
+      end
+    end
+  end
+
+  # Generate HTML Report
+  print "#{$PROGRAM_NAME} Generating Report..."
+  PWN::Reports::SAST.generate(
+    dir_path: dir_path,
+    results_hash: results_hash
+  )
+  puts 'complete.'
+
+  # Start Simple HTTP Server (If Requested)
+  if start_reporting_server
+    listen_port = Random.rand(1_025..65_535)
+
+    if pwn_provider == 'docker'
+      listen_ip = '0.0.0.0'
+    else
+      listen_ip = '127.0.0.1'
+    end
+
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_scan_git_source.html"
+    system("cd #{dir_path} && pwn_simple_http_server -i #{listen_ip} -p #{listen_port}")
+  end
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+end

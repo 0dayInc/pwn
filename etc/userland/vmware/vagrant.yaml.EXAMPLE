@@ -1,0 +1,5 @@
+vagrant_vmware_license: "/tmp/license.lic"
+cpus: 1
+memory: 4096
+hostname: pwndeployed.pwn.local
+diskMB: 36864

@@ -1,0 +1,123 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'aws-sdk'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-rREGION', '--region=REGION', "<Optional - AWS STS Region (Defaults to 'us-west-1')>") do |sts_region|
+    opts[:sts_region] = sts_region
+  end
+
+  options.on('-aARN', '--sts_role_arn=ARN', '<Required - STS Role ARN>') do |sts_role_arn|
+    opts[:sts_role_arn] = sts_role_arn
+  end
+
+  options.on('-nRNAME', '--sts_role_name=RNAME', '<Required - STS Role Name>') do |sts_role_name|
+    opts[:sts_role_name] = sts_role_name
+  end
+
+  options.on('-eEXPIRES', '--sts_expiration=EXPIRES', '<Optional - STS Expiration (Defaults to 900 Seconds)>') do |sts_expiration|
+    opts[:sts_expiration] = sts_expiration
+  end
+
+  options.on('-sBUCKET', '--s3_bucket=BUCKET', '<Required - AWS S3 Bucket Destination>') { |s3_bucket| opts[:s3_bucket] = s3_bucket }
+
+  options.on('-fFOLDER', '--s3_folder=FOLDER', '<Required - AWS S3 Folder Destinaiton>') do |s3_folder|
+    opts[:s3_folder] = s3_folder
+  end
+
+  options.on('-bBACKROOT', '--jenkins_thinBackup_root=BACKROOT', '<Optional - Jenkins thinBackup Root Folder (Defaults to /var/lib/jenkins/thinBackup)>') do |backup_root|
+    opts[:backup_root] = backup_root
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+sts_region = if opts[:sts_region].nil?
+               'us-west-1'
+             else
+               opts[:sts_region].to_s.scrub
+             end
+
+sts_role_arn = opts[:sts_role_arn].to_s.scrub
+sts_role_name = opts[:sts_role_name].to_s.scrub
+
+sts_expiration = if opts[:sts_expiration].nil?
+                   900
+                 else
+                   opts[:sts_expiration].to_i
+                 end
+
+credentials = PWN::AWS::STS.get_temp_credentials(
+  region: sts_region,
+  role_arn: sts_role_arn,
+  role_session_name: sts_role_name,
+  duration_seconds: sts_expiration
+)
+
+# S3 Variables
+s3_bucket = opts[:s3_bucket].to_s.scrub
+s3_folder = opts[:s3_folder].to_s.scrub # Trailing Forward Slash is Important as it Denotes the S3 Object is a Folder Instead of File
+
+backup_root = if opts[:backup_root].nil?
+                '/var/lib/jenkins/thinBackup'
+              else
+                opts[:backup_root].to_s.scrub
+              end
+
+s3_buck_arr = []
+s3_obj_arr = []
+
+s3 = Aws::S3::Client.new(
+  region: 'us-west-1',
+  access_key_id: credentials[:access_key_id],
+  secret_access_key: credentials[:secret_access_key],
+  session_token: credentials[:session_token]
+)
+
+puts s3.list_buckets.buckets
+puts "\n"
+
+s3.list_buckets.buckets.each { |bucket| s3_buck_arr.push(bucket.name) }
+if s3_buck_arr.uniq.include?(s3_bucket)
+  puts 'S3 Bucket: {s3_bucket} already exists...moving on.'
+else
+  print 'Creating S3 Bucket: {s3_bucket}...'
+  s3.create_bucket(bucket: s3_bucket)
+  puts 'complete.'
+end
+
+puts s3.list_buckets.buckets
+puts "\n"
+
+objects = s3.list_objects(bucket: s3_bucket)
+objects.contents.each { |object| s3_obj_arr.push(object.key) }
+
+s3.put_object(bucket: s3_bucket, key: s3_folder) unless s3_obj_arr.uniq.include?(s3_folder)
+
+objects = s3.list_objects(bucket: s3_bucket)
+puts objects.contents
+puts "\n"
+
+Dir.entries(backup_root).sort.each do |entry|
+  puts "#{s3_folder}#{entry} backup exists...skipping to next entry." if s3_obj_arr.uniq.include?("#{s3_folder}#{entry}")
+
+  next unless File.file?("#{backup_root}/#{entry}")
+
+  print "Backing up #{backup_root}/#{entry} => #{s3_bucket}/#{s3_folder}#{entry}..."
+  File.open("#{backup_root}/#{entry}", 'rb') do |file|
+    s3.put_object(bucket: s3_bucket, key: "#{s3_folder}#{entry}", body: file)
+  end
+  puts 'complete.'
+end
+puts 'backup complete.'

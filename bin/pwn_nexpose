@@ -1,0 +1,52 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  # Nexpose Flags
+  options.on('-CIP', '--console_ip=IP', '<Required - Nexpose Console IP>') { |c| opts[:console_ip] = c }
+  options.on('-UCUSER', '--console_username=CUSER', '<Required - Nexpose Console Username>') { |cu| opts[:console_username] = cu }
+  options.on('-PCPASS', '--console_password=CPASS', '<Required - Nexpose Console Password>') { |cp| opts[:console_password] = cp }
+  options.on('-SSITE', '--site_name=SITE', '<Required - Nexpose Site Name>') { |s| opts[:site_name] = s }
+  options.on('-RREPORTS', '--report_names=REPORTS', '<Required - Comma Delimited String of Report Names>') { |r| opts[:report_names] = r }
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Nexpose
+console_ip = opts[:console_ip].to_s.scrub
+console_username = opts[:console_username].to_s.scrub
+console_password = opts[:console_password] # Prompt if console_password.nil? (For Demos)
+site_name = opts[:site_name].to_s.scrub
+report_names = opts[:report_names].to_s.scrub
+
+#-----------------
+# Login to Nexpose
+site_id = nil
+nsc_obj = PWN::Plugins::NexposeVulnScan.login(
+  console_ip: console_ip,
+  username: console_username,
+  password: console_password
+)
+
+nsc_obj = PWN::Plugins::NexposeVulnScan.scan_site_by_name(
+  nsc_obj: nsc_obj,
+  site_name: site_name
+)
+
+nsc_obj = PWN::Plugins::NexposeVulnScan.download_recurring_report(
+  nsc_obj: nsc_obj,
+  report_names: report_names
+)
+
+PWN::Plugins::NexposeVulnScan.logout(nsc_obj: nsc_obj)

@@ -1,0 +1,50 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+
+old_rev = PWN::VERSION
+readme_md_path = './README.md'
+placeholder_arr = old_rev.split('.')
+major = placeholder_arr[0].to_i
+minor = placeholder_arr[1].to_i
+hotfix = placeholder_arr[2].to_i
+
+if hotfix < 999
+  hotfix += 1
+  placeholder_arr[2] = hotfix.to_s
+else
+  placeholder_arr[2] = '0'
+  if minor < 9
+    minor += 1
+    placeholder_arr[1] = minor.to_s
+  else
+    placeholder_arr[1] = '0'
+    major += 1
+    placeholder_arr[0] = major.to_s
+  end
+end
+
+new_rev = placeholder_arr.join('.')
+
+puts "Upgrading to #{new_rev}..."
+File.open('./lib/pwn/version.rb', 'w') do |f|
+  f.puts '# frozen_string_literal: true'
+  f.puts "\n"
+  f.puts 'module PWN'
+  f.puts "  VERSION = '#{new_rev}'"
+  f.puts 'end'
+end
+
+# Update README.md
+old_readme_md = File.read(readme_md_path, encoding: 'utf-8')
+File.open(readme_md_path, 'w') do |file|
+  old_readme_md.each_line do |line|
+    if line.to_s.scrub.match?(/pwn\[v.+\..+\..+\]/)
+      new_line = line.to_s.gsub(/pwn\[v#{old_rev}\]/, "pwn\[v#{new_rev}\]")
+      file.puts new_line
+    else
+      file.puts line
+    end
+  end
+end

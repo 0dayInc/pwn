@@ -1,0 +1,8 @@
+# Fail
+error /("grade"(:\s+|:)("D\+"|"D"|"D-"|"F")|Certificate not valid for domain name|Unable to connect to the server)/
+
+# Warn as TLS Certs Begin to Degrade
+warning /"grade"(:\s+|:)("B\+"|"B"|"B-"|"C\+"|"C"|"C-")/
+
+# Build Success
+info /"grade"(:\s+|:)("A\+"|"A"|"A-")/

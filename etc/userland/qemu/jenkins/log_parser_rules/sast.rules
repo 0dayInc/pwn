@@ -1,0 +1,2 @@
+# Warn when an x has been identified in console output for any test case (implies security pattern matched)
+warning /\=\>(.+x.*)(?=complete.)/

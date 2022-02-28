@@ -1,0 +1,35 @@
+hostname: 'pwndeployed.DOMAIN'
+access_key_id: 'ACCESS_KEY_ID'
+secret_access_key: 'SECRET_ACCESS_KEY'
+session_token: 'ONLY NECESSARY WHEN USING STS'
+keypair_name: 'Public SSH "Key pair name" from Key Pairs link in EC2'
+block_device_mapping:
+  - DeviceName: '/dev/xvda' 
+    Ebs.VolumeSize: 36
+region: 'REGION'
+monitoring: true
+elastic_ip: true
+associate_public_ip: true
+private_ip_address: 'LAN_IP_ADDRESS'
+subnet_id: 'SUBNET_ID'
+instance_type: 't2.medium'
+iam_instance_profile_name: 'IAM_INSTANCE_PROFILE_NAME'
+security_groups: 
+  - 'SECURITY_GROUP_ID'
+tags: 
+  Name: 'PWN Kali Rolling'
+ssh_private_key_path: 'SSH_PRIVATE_KEY_PATH'
+# Route53 Configuration
+#record_sets:
+#  - 
+#    - 'HOSTED_ZONE_ID'
+#    - 'jenkins.DOMAIN'
+#    - 'A'
+#  - 
+#    - 'HOSTED_ZONE_ID'
+#    - 'openvas.DOMAIN'
+#    - 'A'
+#  - 
+#    - 'HOSTED_ZONE_ID'
+#    - 'sast.DOMAIN'
+#    - 'A'

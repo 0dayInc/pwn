@@ -1,0 +1,104 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-uURL', '--url=URL', '<Required - DefectDojo URL>') do |u|
+    opts[:url] = u
+  end
+
+  options.on('-VVERSION', '--api-version=VERSION', '<Optional - DefectDojo API version v1 || v2 (Defaults to v2)>') do |v|
+    opts[:api_version] = v
+  end
+
+  options.on('-UUSER', '--username=USER', '<Optional - DefectDojo Username (Will Prompt if nil)>') do |u|
+    opts[:username] = u
+  end
+
+  options.on('-aKEY', '--api-key=KEY', '<Optional - DefectDojo API Key (Will Prompt if nil)>') do |a|
+    opts[:api_key] = a
+  end
+
+  options.on('-nNAME', '--enagagement-name=NAME', '<Required - name of engagement to associate w/ scan>') do |n|
+    opts[:engagement_name] = n
+  end
+
+  options.on('-sTYPE', '--scan-type=TYPE', '<Required - type of scan importing (see <DEFECTDOJO_URL>/admin/dojo/test_type/ for listing)>') do |t|
+    opts[:scan_type] = t
+  end
+
+  options.on('-fFILE', '--file-path=FILE', '<Required - path of scan results file>') do |f|
+    opts[:file] = f
+  end
+
+  options.on('-lUSER', '--lead-username=USER', '<Optional - username of lead to tie to engagement (Defaults to username)>') do |l|
+    opts[:lead_username] = l
+  end
+
+  options.on('-tTAGS', '--tags=TAGS', '<Optional - comma-delimited list of tag names to tie to scan>') do |t|
+    opts[:tags] = t
+  end
+
+  options.on('-mSEVERITY', '--min-severity=SEVERITY', '<Optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)>') do |m|
+    opts[:minimum_severity] = m
+  end
+
+  options.on('-dDATE', '--scan-date=DATE', '<Optional - date in which scan was kicked off (Defaults to current day)>') do |d|
+    opts[:scan_date] = d
+  end
+
+  options.on('-v', '--[no-]verified', '<Optional - flag finding as verified by a tester (defaults to false)') do |v|
+    opts[:verified] = v
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Construct AuthN Args
+url = opts[:url]
+api_version = opts[:api_version]
+opts[:username] ? (username = opts[:username]) : (username = PWN::Plugins::AuthenticationHelper.username)
+opts[:api_key] ? (api_key = opts[:api_key]) : (api_key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'API Key'))
+
+# Create Engagement Args
+engagement_name = opts[:engagement_name]
+scan_type = opts[:scan_type]
+file = opts[:file]
+opts[:lead_username] ? (lead_username = opts[:lead_username]) : (lead_username = username)
+tags = opts[:tags]
+minimum_severity = opts[:minimum_severity]
+scan_date = opts[:scan_date]
+verified = opts[:verified]
+
+begin
+  dd_obj = PWN::Plugins::DefectDojo.login(
+    url: url,
+    api_version: api_version,
+    username: username,
+    api_key: api_key
+  )
+
+  importscan_response = PWN::Plugins::DefectDojo.importscan(
+    dd_obj: dd_obj,
+    engagement_name: engagement_name,
+    scan_type: scan_type,
+    file: file,
+    lead_username: lead_username,
+    tags: tags,
+    minimum_severity: minimum_severity,
+    scan_date: scan_date,
+    verified: verified
+  )
+rescue StandardError => e
+  raise e
+end

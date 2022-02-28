@@ -1,0 +1,9 @@
+# self_signed || letsencrypt# 
+tls_deployment_type: 'self_signed'
+country_name: 'US'
+state_or_prov: 'NY'
+city_name: 'New York'
+org_company_name: 'Company'
+org_unit_name: 'Unit'
+common_name_fqdn: 'pwndeployed.local'
+email_addr: ''

@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+  options.on('-iIP', '--bind-ip=IP', '<Optional - HTTP Bind IP to Listen> (Defaults to Localhost)') do |i|
+    opts[:bind_ip] = i
+  end
+
+  options.on('-pPORT', '--port=PORT', '<Optional - HTTP Port to Listen (Defaults to 3333)>') do |p|
+    opts[:port] = p
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+if opts[:bind_ip]
+  bind_ip = opts[:bind_ip]
+else
+  bind_ip = '127.0.0.1'
+end
+
+if opts[:port]
+  port = opts[:port].to_i
+else
+  port = 3333
+end
+
+begin
+  system("thin start --adapter file --address #{bind_ip} --port #{port} --threaded --debug")
+rescue RuntimeError
+  puts "WARNING: Service Already Listening on TCP #{port}..."
+  port = Random.rand(1_025..65_535)
+  puts "Listen on #{bind_ip}:#{port}..."
+  retry
+rescue SystemExit, Interrupt
+  puts "\n#{File.basename($PROGRAM_NAME)} terminated."
+end

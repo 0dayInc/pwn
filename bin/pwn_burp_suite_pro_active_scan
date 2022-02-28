@@ -1,0 +1,113 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-bBPATH', '--burp_path=BPATH', '<Required - Path to Burp Suite Pro Jar File>') do |b|
+    opts[:burp_jar_path] = b
+  end
+
+  options.on('-h', '--[no-]headless', '<Optional - Run Burp and Browser Headless>') do |h|
+    opts[:headless] = h
+  end
+
+  options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
+    opts[:target_url] = t
+  end
+
+  options.on('-oPATH', '--report_output_path=PATH', '<Required - Output Path for Active Scan Issues>') do |o|
+    opts[:output_path] = o
+  end
+
+  options.on('-IINST', '--navigation_instruct=INST', '<Required - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/burpsuite/navigation.instruct.EXAMPLE)>') do |i|
+    opts[:navigation_instruct] = i
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  logger = PWN::Plugins::PWNLogger.create
+
+  burp_jar_path = opts[:burp_jar_path].to_s.scrub
+  headless = opts[:headless]
+  target_url = opts[:target_url].to_s.scrub
+  output_path = opts[:output_path].to_s.scrub
+
+  navigation_instruct = opts[:navigation_instruct]
+  raise 'Invalid path to browser instructions.  Please check your spelling and try again.' unless File.exist?(navigation_instruct)
+
+  # ------
+  # Open Burp
+  if headless
+    burp_obj = PWN::Plugins::BurpSuite.start(
+      burp_jar_path: burp_jar_path,
+      headless: true,
+      browser_type: :headless
+    )
+  else
+    burp_obj = PWN::Plugins::BurpSuite.start(
+      burp_jar_path: burp_jar_path,
+      browser_type: :chrome
+    )
+  end
+
+  logger.info(burp_obj)
+  # Disable Proxy Intercepting Capabilities for this Driver
+  PWN::Plugins::BurpSuite.disable_proxy(burp_obj: burp_obj)
+
+  # Use a headless browser w/ JavaScript Support to Load Our Target
+  # and Optionally Authenticate to Provide the Capability to Conduct
+  # a Burp Active Scan in a Post-AuthN state.  Since our browsers
+  # support JavaScript, DOM-based XSS vuln attempts are
+  # possible as well since we have a DOM to interact w/
+  # (Burp's DOM-XSS checks are based on static code analysis)
+  browser = burp_obj[:burp_browser]
+  browser.goto(target_url)
+
+  File.read(navigation_instruct).each_line do |instruction|
+    browser.instance_eval(instruction.to_s.scrub.strip.chomp)
+  end
+
+  duration = 9
+  print "Waiting #{duration} seconds prior to kicking off active scan..."
+  sleep duration # Sleep for now so everything loads the way we expect - blech.
+
+  active_scan_url_arr = PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: target_url)
+
+  # Dump a list of scan issues from Active Scan result
+  # scan_issues = PWN::Plugins::BurpSuite.get_scan_issues(:burp_obj => burp_obj)
+  # puts scan_issues
+
+  # Once DefectDojo begins to support XML report results
+  report_types = %i[html xml]
+  report_types.each do |report_type|
+    if report_type == :html
+      this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
+    else
+      this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml"
+    end
+    PWN::Plugins::BurpSuite.generate_scan_report(
+      burp_obj: burp_obj,
+      target_url: target_url,
+      report_type: report_type,
+      output_path: this_output_path
+    )
+  end
+
+  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj)
+rescue StandardError => e
+  raise e
+ensure
+  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj) unless burp_obj.nil?
+end

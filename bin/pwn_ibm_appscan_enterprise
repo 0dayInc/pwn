@@ -1,0 +1,112 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-SIP', '--appscan_ip=IP', '<Required - IBM Appscan Enterprise Server IP>') { |s| opts[:appscan_ip] = s }
+  options.on('-UUSER', '--ase_username=USER', '<Required - IBM Appscan Enterprise Username>') { |u| opts[:ase_username] = u }
+  options.on('-PPASS', '--ase_password=PASS', '<Required - IBM Appscan Enterprise Password>') { |p| opts[:ase_password] = p }
+  options.on('-tTARGET', '--target_name=TARGET', '<Required - Target Folder Item Name to Initiate Scan>') do |t|
+    opts[:target_name] = t
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+appscan_ip = opts[:appscan_ip].to_s.scrub
+ase_username = opts[:ase_username].to_s.scrub
+ase_password = opts[:ase_password] # Prompt if console_password.nil? (For Demos)
+target_name = opts[:target_name].to_s.scrub
+
+# Login
+appscan_obj = PWN::Plugins::IBMAppscan.login(
+  appscan_ip: appscan_ip,
+  username: ase_username,
+  password: ase_password
+)
+
+# Retrieve Folder Item ID by target_name Variable
+folder_items = PWN::Plugins::IBMAppscan.get_folder_items(appscan_obj: appscan_obj)
+folder_item_id = -1
+folder_items[:xml_response].xpath('//xmlns:content-scan-job').each do |node|
+  folder_item_id = node.xpath('xmlns:id').text if node.xpath('xmlns:name').text == target_name
+end
+# Exit Driver if Folder Item (Target Name) Isn't Found
+raise "ERROR: Target Name: #{target_name} Not Found.  Please Check the Spelling." if folder_item_id == -1
+
+# Run Scan
+scan_action = PWN::Plugins::IBMAppscan.folder_item_scan_action(
+  appscan_obj: appscan_obj,
+  folder_item_id: folder_item_id,
+  action: :run
+)
+
+# Retrieve Report Folder Item ID (Report Collection) by target_name Variable
+report_folder_item_id = -1
+folder_items[:xml_response].xpath('//xmlns:report-pack').each do |node|
+  report_folder_item_id = node.xpath('xmlns:id').text if node.xpath('xmlns:name').text == target_name
+end
+# Exit Driver if Report Folder Item (Target Name) Isn't Found
+raise "ERROR: Report Collection: #{target_name} Not Found. Please Check the Spelling." if report_folder_item_id == -1
+
+# Retrieve Report Pack Collection of Folder Item (Target Name)
+# to Obtain a List of Report Names & IDs
+report_collection = PWN::Plugins::IBMAppscan.get_report_collection(
+  appscan_obj: appscan_obj,
+  report_folder_item_id: report_folder_item_id
+)
+
+# Obtain Report ID for Requested Reports
+reports_to_download = []
+report_collection[:xml_response].xpath('//xmlns:report').each do |r|
+  reports_to_download.push(r.xpath('xmlns:name').text)
+end
+
+pdf_gen_timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S.%9N %z')
+reports_to_download.each do |report_to_download|
+  report_collection[:xml_response].xpath('//xmlns:report').each do |report|
+    # We found the report id by name of report
+    next unless report.xpath('xmlns:name').text == report_to_download
+
+    report_id = report.xpath('xmlns:id').text
+
+    # Get Report Schema
+    report_schema = PWN::Plugins::IBMAppscan.get_single_report_schema(
+      appscan_obj: appscan_obj,
+      report_id: report_id
+    )
+
+    # Get General Report
+    report = PWN::Plugins::IBMAppscan.get_single_report(
+      appscan_obj: appscan_obj,
+      report_id: report_id
+    )
+
+    # Get Report Data
+    report_data = PWN::Plugins::IBMAppscan.get_single_report_data(
+      appscan_obj: appscan_obj,
+      report_id: report_id
+    )
+
+    # Get Issue Collection
+    issue_collection = PWN::Plugins::IBMAppscan.get_issue_collection(
+      appscan_obj: appscan_obj,
+      report_id: report_id
+    )
+
+    puts '~' * 33 # Easier for the Eyes in Console
+  end
+end
+
+# Logout
+PWN::Plugins::IBMAppscan.logout(appscan_obj: appscan_obj)

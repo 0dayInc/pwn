@@ -1,0 +1,135 @@
+{
+  "variables": {
+    "aws_access_key": "{{ env `AWS_ACCESS_KEY` }}",
+    "aws_secret_access_key": "{{ env `AWS_SECRET_ACCESS_KEY` }}",
+    "aws_ssh_keypair_name": "{{ env `AWS_SSH_KEYPAIR_NAME` }}",
+    "aws_ssh_private_key_file": "{{ env `AWS_SSH_PRIVATE_KEY_FILE` }}",
+    "box_version": "{{ env `BOX_VERSION` }}"
+  },
+  "builders": [{
+    "type": "amazon-ebs",
+    "access_key": "{{user `aws_access_key`}}",
+    "secret_key":"{{user `aws_secret_access_key`}}",
+    "ami_name": "PWN Kali Rolling v{{user `box_version`}}",
+    "region": "us-east-1",
+    "source_ami": "ami-066027b63b44ebc0a",
+    "instance_type": "t2.medium",
+    "communicator": "ssh",
+    "ssh_username": "admin",
+    "ssh_keypair_name": "{{user `aws_ssh_keypair_name`}}",
+    "ssh_private_key_file": "{{user `aws_ssh_private_key_file`}}",
+    "security_group_id": "sg-0dea37d8a00e64f73",
+    "run_tags":{ "Name":"PWN Kali Rolling v{{user `box_version`}}" },
+    "run_volume_tags":{ "Name":"PWN Kali Rolling v{{user `box_version`}}" },
+    "launch_block_device_mappings": [{
+      "device_name": "xvda",
+      "volume_size": 63,
+      "volume_type": "gp2",
+      "delete_on_termination": true
+    }]
+  }],
+  "provisioners": [
+    {
+      "type": "shell",
+      "environment_vars": [
+        "PWN_ROOT=/opt/pwn",
+        "PWN_PROVIDER=aws"
+      ],
+      "scripts": [
+        "provisioners/upload_globals.sh",
+        "provisioners/init_image.sh"
+      ]
+    },
+
+    {
+      "type": "shell",
+      "scripts": [
+        "provisioners/reboot_os.sh"
+      ]
+    },
+
+    {
+      "pause_before": "180s",
+      "type": "shell",
+      "environment_vars": [
+        "PWN_ROOT=/opt/pwn",
+        "PWN_PROVIDER=aws"
+      ],
+      "scripts": [
+        "provisioners/update_os.sh"
+      ]
+    },
+
+    {
+      "type": "shell",
+      "scripts": [
+        "provisioners/reboot_os.sh"
+      ]
+    },
+
+    {
+      "pause_before": "180s",
+      "type": "shell",
+      "environment_vars": [
+        "PWN_ROOT=/opt/pwn",
+        "PWN_PROVIDER=aws"
+      ],
+      "scripts": [
+        "provisioners/coreutils.sh",
+        "provisioners/git.sh",
+        "provisioners/curl.sh",
+        "provisioners/rvm.sh",
+        "provisioners/bashrc.sh",
+        "provisioners/ruby.sh",
+        "provisioners/aliases.rb",
+        "provisioners/pwn.sh",
+        "provisioners/beef.rb",
+        "provisioners/burpsuite.sh",
+        "provisioners/jenkins.sh",
+        "provisioners/android.sh",
+        "provisioners/sox.sh",
+        "provisioners/phantomjs_wrapper.sh",
+        "provisioners/geckodriver.sh",
+        "provisioners/chrome.sh",
+        "provisioners/ansible.sh",
+        "provisioners/openvas.sh",
+        "provisioners/openvas_wrappers.sh",
+        "provisioners/metasploit.rb",
+        "provisioners/wpscan.rb",
+        "provisioners/ssllabs-scan.sh",
+        "provisioners/sublist3r.sh",
+        "provisioners/scapy.sh",
+        "provisioners/terminator.sh",
+        "provisioners/apache2.sh",
+        "provisioners/tor.sh",
+        "provisioners/toggle_tor.sh",
+        "provisioners/nmap_all_live_hosts.sh",
+        "provisioners/arachni.sh",
+        "provisioners/eyewitness.sh",
+        "provisioners/afl.sh",
+        "provisioners/peda.sh",
+        "provisioners/preeny.sh",
+        "provisioners/pwntools.sh",
+        "provisioners/scout2.sh",
+        "provisioners/strace.sh",
+        "provisioners/awscli.sh",
+        "provisioners/openvpn.sh",
+        "provisioners/fuzzdb.sh",
+        "provisioners/SecLists.sh",
+        "provisioners/PayloadsAllTheThings.sh",
+        "provisioners/rc.local.sh",
+        "provisioners/vim.sh",
+        "provisioners/firefox.sh",
+        "provisioners/ffmpeg.sh",
+        "provisioners/xrdp.sh",
+        "provisioners/docker.sh",
+        "provisioners/twinkle.sh",
+        "provisioners/ghidra.sh",
+        "provisioners/zzuf.sh",
+        "provisioners/radamsa.sh",
+        "provisioners/gdb.sh",
+        "provisioners/post_install.sh"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# FYI: Prone to false positives
+# Mark Build as Failed if the Following Generic Strings are Discovered
+error /(?i)(error|stacktrace|exception):/
+
+# Mark Build as Unstable if the Following Generic Strings are Discovered
+warning /(?i)warning:/
+
+# Build Success
+info /.*/

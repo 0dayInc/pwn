@@ -1,0 +1,34 @@
+{
+  "variables": {
+    "docker_hub_user": "{{env `DOCKER_HUB_USER`}}",
+    "docker_hub_pass": "{{env `DOCKER_HUB_PASS`}}"
+  },
+  "builders": [{
+    "type": "docker",
+    "image": "0dayinc/pwn_prototyper",
+    "commit": true,
+    "pull": false,
+    "run_command": [
+      "--detach",
+      "--interactive",
+      "--tty",
+      "--entrypoint=/bin/bash",
+      "{{.Image}}"
+    ]
+  }],
+  "post-processors": [
+    [
+      {
+        "type": "docker-tag",
+        "repository": "0dayinc/pwn_www_checkip",
+        "tag": "latest"
+      },
+      {
+        "type": "docker-push",
+        "login": true,
+        "login_username": "{{user `docker_hub_user`}}",
+        "login_password": "{{user `docker_hub_pass`}}"
+      }
+    ]
+  ]
+}

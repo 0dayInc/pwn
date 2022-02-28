@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'pry'
+require 'tty-prompt'
+require 'tty-reader'
+
+begin
+  # TODO: Remove once this feature is available in mainline
+  class Pry
+    # Overwrite Pry::History.push method in History class to get duplicate history entries
+    # in order to properly replay automation in this prototyping driver
+    class History
+      def push(line)
+        return line if line.empty? || invalid_readline_line?(line)
+
+        begin
+          last_line = @history[-1]
+        rescue IndexError
+          last_line = nil
+        end
+
+        # return line if line == last_line
+
+        @history << line
+        @history_line_count += 1
+        @saver.call(line) if !should_ignore?(line) &&
+                             Pry.config.history_save
+
+        line
+      end
+      alias << push
+    end
+  end
+
+  cli = Pry
+
+  cli.config.hooks.add_hook(:before_eval, :autocomplete) do
+    prompt = TTY::Prompt.new
+    reader = TTY::Reader.new
+    reader.on(:keypress) { |key_event| prompt(key_event) }
+  end
+
+  cli::Commands.create_command 'toggle-pager' do
+    description 'Toggle less on returned objects surpassing the terminal.'
+
+    def process
+      _pry_.config.pager ? _pry_.config.pager = false : _pry_.config.pager = true
+    end
+  end
+
+  # Custom Main & Wait (Multi-Line) Prompts
+  title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002" # Bold Red
+  version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002" # Cyan
+  arrow = "\001\e[32m\002>>>\001\e[0m\002" # Green
+  splat = "\001\e[33m\002***\001\e[0m\002" # Yellow
+
+  prompt = [
+    proc do |_target_self, _nest_level, pry|
+      line_pad = format('%0.3d', pry.input_ring.size)
+      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
+      "#{title}[#{version}]:#{line_count} #{arrow} ".to_s.scrub
+    end,
+    proc do |_target_self, _nest_level, pry|
+      line_pad = format('%0.3d', pry.input_ring.size)
+      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
+      "#{title}[#{version}]:#{line_count} #{splat} ".to_s.scrub
+    end
+  ]
+  cli.start(self, prompt: Pry::Prompt.new(:pwn, 'PWN_PROTOTYPING_DRIVER', prompt))
+rescue StandardError => e
+  raise e
+end

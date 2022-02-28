@@ -1,0 +1,5 @@
+# Arachni found something if the console output contains [+]
+warning /^\[\+\] [1-9][0-9]{1,} issues were detected\./
+
+# Success if 0 issues were detected
+info /^\[\+\] 0 issues were detected\.$/

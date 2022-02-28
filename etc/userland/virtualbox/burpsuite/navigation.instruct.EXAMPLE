@@ -1,0 +1,3 @@
+text_field(id: 'username').wait_until(&:present?).set('<target username>')
+text_field(id: 'password').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mask_password)
+button(name: 'login').wait_until(&:present?).click!

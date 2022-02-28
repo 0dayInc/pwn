@@ -1,0 +1,127 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'yaml'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-aTYPE', '--agent-type=TYPE', '<Required - Mail Agent Type office365|gmail|hotmail_n_live|yahoo|manual>') do |a|
+    opts[:agent_type] = a
+  end
+
+  options.on('-l', '--[no-]list-agent-opts', '<Optional List Options Available for an Agent and Exit>') do |l|
+    opts[:list_agent_opts] = l
+  end
+
+  options.on('-mYAML', '--msg-body-yaml=YAML', '<Required - Mail Agent YAML File>') do |m|
+    opts[:msg_body_yaml] = m
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+private
+
+def initiate_action
+  puts @list_agent_opts
+  if @list_agent_opts
+    puts "The following is an example YAML file for #{@agent_type}:\n#{@example_msg_body_yaml}"
+    exit
+  else
+    PWN::Plugins::MailAgent.public_send(@agent_type_sym, @msg_body_yaml)
+  end
+end
+
+begin
+  logger = PWN::Plugins::PWNLogger.create
+
+  @agent_type = opts[:agent_type].to_s.scrub.strip.chomp
+  @agent_type_sym = @agent_type.to_sym
+  @list_agent_opts = opts[:list_agent_opts]
+  # Needs to be YAML instead of JSON to better support backslashes.
+  # Technically backslashes shouldn't exist in JSON, # however, they're
+  # needed in this case for specifying domains in usernames for agents
+  # like office365.
+  @msg_body_yaml = YAML.load_file(opts[:msg_body_yaml].to_s.scrub.strip.chomp) if File.exist?(opts[:msg_body_yaml].to_s.scrub.strip.chomp)
+
+  case @agent_type_sym
+  when :office365
+    @example_msg_body_yaml = %q{
+      :from: 'required'
+      :to: 'required'
+      :cc: 'optional'
+      :bcc: 'optional'
+      :reply_to: 'optional'
+      :subject: 'optional'
+      :html_body: 'optional'
+      :txt_body: 'optional alternative to :html_body'
+      :attachments_hash:
+        attachment_name1.doc: 'attachment file path 1'
+        attachment_name2.xls: 'attachment file path 2'
+      :username: 'required domain\username'
+      :password: 'optional (but will be prompted if not submitted)'
+      :debug: true
+    }
+
+    initiate_action
+  when :gmail,
+       :hotmail_n_live,
+       :yahoo
+
+    @example_msg_body_yaml = "
+      :from: 'required'
+      :to: 'required'
+      :cc: 'optional'
+      :bcc: 'optional'
+      :reply_to: 'optional'
+      :subject: 'optional'
+      :html_body: 'optional'
+      :txt_body: 'optional alternative to :html_body'
+      :attachments_hash:
+        attachment_name1.doc: 'attachment file path 1'
+        attachment_name2.xls: 'attachment file path 2'
+      :username: 'required'
+      :password: 'optional (but will be prompted if not submitted)'
+      :debug: true
+    "
+
+    initiate_action
+  when :manual
+    @example_msg_body_yaml = "
+      :from: 'required'
+      :to: 'required'
+      :cc: 'optional'
+      :bcc: 'optional'
+      :reply_to: 'optional'
+      :subject: 'optional'
+      :html_body: 'optional'
+      :txt_body: 'optional alternative to :html_body'
+      :attachments_hash:
+        attachment_name1.doc: 'attachment file path 1'
+        attachment_name2.xls: 'attachment file path 2'
+      :address: 'smtp server ip or domain'
+      :port: 'smtp port'
+      :tls_auto: true
+      :authentication: 'optional defaults to plain - available login, plain, or cram_md5'
+      :username: 'required'
+      :password: 'optional (but will be prompted if not submitted)'
+      :debug: true
+    "
+
+    initiate_action
+  else
+    raise "ERROR: #{@agent_type} is not supported."
+  end
+rescue StandardError, Interrupt => e
+  puts 'ERROR: Something Happened'
+  raise e
+end
