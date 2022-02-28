@@ -75,7 +75,7 @@ $ gem install pwn
 It's wise to rebuild pwn often as this repo has numerous releases/week (unless you're in the Kali box, then it's handled for you daily in the Jenkins job called, "selfupdate-pwn":
   ```
   $ pwn
-  pwn[v0.4.336]:001 >>> PWN.help
+  pwn[v0.4.337]:001 >>> PWN.help
   ```
 
 
