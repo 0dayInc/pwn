@@ -42,49 +42,43 @@ PWN (Continuous Security Integration) is an open security automation framework t
 #### **Why PWN** ####
 It's easy to agree that while corporate automation is a collection of proprietary source code, the core modules used to produce automated solutions should be open for all eyes to continuously promote trust and innovation...broad collaboration is key to any automation framework's success, particularly in the cyber security arena.  
 
+
 #### **How PWN Works** ####
 Leveraging various pre-built modules and the pwn prototyper, you can mix-and-match modules to test, record, replay, and rollout your own custom security automation packages known as, "drivers."  
+
 
 #### **PWN Modules Can be Mixed and Matched to Produce Your Own Tools** ####
 Also known as, "Drivers" PWN can produce all sorts of useful tools by mixing and matching modules.
 ![PWN](https://github.com/0dayinc/pwn/blob/master/documentation/PWN_Driver_Arch.png)
 
 
-
-### **Clone PWN** ###
-Certain Constraints Mandate PWN be Installed in /opt/pwn:
- `$ sudo git clone https://github.com/0dayinc/pwn.git /opt/pwn`
-
-
-
-### **Deploy** ###
-#### **Basic Installation Dependencies** ###
-- Latest Version of Vagrant: https://www.vagrantup.com/downloads.html
-- Latest Version of Vagrant VMware Utility (if using VMware): https://www.vagrantup.com/vmware/downloads.html
-- Packer: https://www.packer.io/downloads.html (If you contribute to the Kali Rolling Box hosted on https://app.vagrantup.com/pwn/boxes/kali_rolling)
-
 #### **Install Locally on Host OS** ####
+Tested on Linux, OSX, & OpenBSD leveraging Ruby via RVM.
+
 ```
 $ gem install pwn
+$ pwn
+pwn[v0.4.339]:001 >>> PWN.help
 ```
 
 
 ### **General Usage** ###
 [General Usage Quick-Start](https://github.com/0dayinc/pwn/wiki/General-PWN-Usage)
 
-It's wise to rebuild pwn often as this repo has numerous releases/week (unless you're in the Kali box, then it's handled for you daily in the Jenkins job called, "selfupdate-pwn":
-  ```
-  $ pwn
-  pwn[v0.4.338]:001 >>> PWN.help
-  ```
+It's wise to update pwn often as numerous versions are released/week:
+```
+$ gem update pwn
+$ pwn
+pwn[v0.4.339]:001 >>> PWN.help
+```
 
 
-### **Driver Documentation** ###
-[For a list of existing drivers and their usage](https://github.com/0dayinc/pwn/wiki/PWN-Driver-Documentation)
+### **Documentation** ###
+Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn)
 
 
 
-I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go hackomate all the things!
+I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn-tomate all the things!
 
 ### **Merchandise** ###
 
