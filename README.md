@@ -101,7 +101,7 @@ Certain Constraints Mandate PWN be Installed in /opt/pwn:
 It's wise to rebuild pwn often as this repo has numerous releases/week (unless you're in the Kali box, then it's handled for you daily in the Jenkins job called, "selfupdate-pwn":
   ```
   $ cd /opt/pwn && ./update_pwn.sh && pwn
-  pwn[v0.4.333]:001 >>> PWN.help
+  pwn[v0.4.334]:001 >>> PWN.help
   ```
 
 
