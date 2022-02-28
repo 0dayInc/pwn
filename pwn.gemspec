@@ -30,12 +30,12 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rspec'
 
   File.readlines('./Gemfile').each do |line|
-    columns = line.chomp.split("\s")
-    if columns.first == 'gem'
-      gem_name = columns[1].delete("'").delete(',')
-      gem_version = columns.last.delete("'")
-      # spec.add_development_dependency(gem_name, gem_version) 
-      spec.add_runtime_dependency(gem_name, gem_version)
-    end
+    columns = line.chomp.split
+    next unless columns.first == 'gem'
+
+    gem_name = columns[1].delete("'").delete(',')
+    gem_version = columns.last.delete("'")
+    # spec.add_development_dependency(gem_name, gem_version)
+    spec.add_runtime_dependency(gem_name, gem_version)
   end
 end
