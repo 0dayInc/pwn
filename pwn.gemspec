@@ -31,21 +31,9 @@ Gem::Specification.new do |spec|
     rspec
   ]
 
-  # File.readlines('./Gemfile').each do |line|
-  #   columns = line.chomp.split
-  #   next unless columns.first == 'gem' &&
-  #               dev_dependency_arr.include?(gem_name.to_sym)
-  #   gem_name = columns[1].delete("'").delete(',')
-  #   gem_version = columns.last.delete("'")
-  #   spec.add_development_dependency(
-  #     gem_name,
-  #     gem_version
-  #   )
-  # end
-
   File.readlines('./Gemfile').each do |line|
     columns = line.chomp.split
-    next unless columns.first == 'gem' &&
+    next unless columns.first == 'gem'
 
     gem_name = columns[1].delete("'").delete(',')
     gem_version = columns.last.delete("'")
@@ -56,7 +44,7 @@ Gem::Specification.new do |spec|
         gem_version
       )
     else
-      spec.add_development_dependency(
+      spec.add_runtime_dependency(
         gem_name,
         gem_version
       )
