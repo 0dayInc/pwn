@@ -53,12 +53,12 @@ Also known as, "Drivers" PWN can produce all sorts of useful tools by mixing and
 
 
 #### **Install Locally on Host OS** ####
-Tested on Linux, OSX, & OpenBSD leveraging Ruby via RVM.
+Tested on Linux, & OSX leveraging Ruby via RVM.
 
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.340]:001 >>> PWN.help
+pwn[v0.4.341]:001 >>> PWN.help
 ```
 
 
@@ -69,7 +69,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.340]:001 >>> PWN.help
+pwn[v0.4.341]:001 >>> PWN.help
 ```
 
 

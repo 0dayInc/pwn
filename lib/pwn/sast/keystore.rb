@@ -112,11 +112,11 @@ module PWN
         raise e.mesasge
       end
 
-      # Author(s):: Jacob Hoopes <jake.hoopes@gmail.com>
+      # Author(s):: 0day Inc <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          Jacob Hoopes <jake.hoopes@gmail.com>
+          0day Inc <request.pentest@0dayinc.com>
         "
       end
 

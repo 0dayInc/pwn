@@ -1,4 +1,4 @@
-Copyright (c) 2014 Jacob Hoopes
+Copyright (c) 2014 0day Inc
 
 MIT License
 
