@@ -49,7 +49,6 @@ Leveraging various pre-built modules and the pwn prototyper, you can mix-and-mat
 
 #### **PWN Modules Can be Mixed and Matched to Produce Your Own Tools** ####
 Also known as, "Drivers" PWN can produce all sorts of useful tools by mixing and matching modules.
-![PWN](https://github.com/0dayinc/pwn/blob/master/documentation/PWN_Driver_Arch.png)
 
 
 #### **Install Locally on Host OS** ####
@@ -58,7 +57,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.343]:001 >>> PWN.help
+pwn[v0.4.344]:001 >>> PWN.help
 ```
 
 
@@ -69,7 +68,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.343]:001 >>> PWN.help
+pwn[v0.4.344]:001 >>> PWN.help
 ```
 
 
