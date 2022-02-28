@@ -25,9 +25,10 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   File.readlines('./Gemfile').each do |line|
-    if line.split("\s").first == 'gem'
-      gem_name = line.split("\s")[1]
-      gem_version = line.split("\s").last
+    columns = line.chomp.split("\s")
+    if columns.first == 'gem'
+      gem_name = columns[1].delete("'").delete(',')
+      gem_version = columns.last.delete("'")
       spec.add_development_dependency(gem_name, gem_version) 
       spec.add_runtime_dependency(gem_name, gem_version)
     end
