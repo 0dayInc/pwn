@@ -1,8 +1,6 @@
 ![PWN](https://raw.githubusercontent.com/0dayinc/pwn/master/documentation/pwn_wallpaper.jpg)
 
 ### **Table of Contents** ###
-- [Keep Us Caffeinated](#keep-us-caffeinated)
-- [Call to Arms](#call-to-arms)
 - [Intro](#intro)
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
@@ -10,17 +8,10 @@
   * [PWN Modules Can be Mixed and Matched to Produce Your Own Tools](#pwn-modules-can-be-mixed-and-matched-to-produce-your-own-tools)
 - [Installation](#install-locally-on-host-os)
 - [General Usage](#general-usage)
+- [Call to Arms](#call-to-arms)
 - [Driver Documentation](#driver-documentation)
+- [Keep Us Caffeinated](#keep-us-caffeinated)
 - [Merchandise](#merchandise)
-
-
-### **Keep Us Caffeinated** ###
-If you've found this framework useful and you're either not in a position to donate or simply interested in us cranking out as many features as possible, we invite you to take a brief moment to keep us caffeinated:
-
-[![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
-
-### **Call to Arms** ###
-If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).  Lastly, we accept [donations](https://cash.me/$fundpwn).
 
 
 ### **Intro** ###
@@ -49,7 +40,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.345]:001 >>> PWN.help
+pwn[v0.4.346]:001 >>> PWN.help
 ```
 
 
@@ -60,16 +51,24 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.345]:001 >>> PWN.help
+pwn[v0.4.346]:001 >>> PWN.help
 ```
+
+
+### **Call to Arms** ###
+If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).  Lastly, we accept [donations](https://cash.me/$fundpwn).
 
 
 ### **Documentation** ###
 Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn)
 
+I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn all the things!
 
+### **Keep Us Caffeinated** ###
+If you've found this framework useful and you're either not in a position to donate or simply interested in us cranking out as many features as possible, we invite you to take a brief moment to keep us caffeinated:
 
-I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn-tomate all the things!
+[![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
+
 
 ### **Merchandise** ###
 
