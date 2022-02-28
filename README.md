@@ -6,10 +6,10 @@
   * [Why PWN](#why-pwn)
   * [How PWN Works](#how-pwn-works)
   * [PWN Modules Can be Mixed and Matched to Produce Your Own Tools](#pwn-modules-can-be-mixed-and-matched-to-produce-your-own-tools)
-- [Installation](#install-locally-on-host-os)
+- [Installation](#installation)
 - [General Usage](#general-usage)
 - [Call to Arms](#call-to-arms)
-- [Driver Documentation](#driver-documentation)
+- [Module Documentation](#module-documentation)
 - [Keep Us Caffeinated](#keep-us-caffeinated)
 - [Merchandise](#merchandise)
 
@@ -40,7 +40,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.346]:001 >>> PWN.help
+pwn[v0.4.347]:001 >>> PWN.help
 ```
 
 
@@ -51,7 +51,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.346]:001 >>> PWN.help
+pwn[v0.4.347]:001 >>> PWN.help
 ```
 
 
@@ -59,7 +59,7 @@ pwn[v0.4.346]:001 >>> PWN.help
 If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).  Lastly, we accept [donations](https://cash.me/$fundpwn).
 
 
-### **Documentation** ###
+### **Module Documentation** ###
 Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn)
 
 I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn all the things!
