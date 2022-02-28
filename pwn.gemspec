@@ -24,17 +24,18 @@ Gem::Specification.new do |spec|
   spec.test_files = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ['lib']
 
+  spec.add_development_dependency 'bundler'
+  spec.add_development_dependency 'rake'
+  spec.add_development_dependency 'rdoc'
+  spec.add_development_dependency 'rspec'
+
   File.readlines('./Gemfile').each do |line|
     columns = line.chomp.split("\s")
     if columns.first == 'gem'
       gem_name = columns[1].delete("'").delete(',')
       gem_version = columns.last.delete("'")
-      spec.add_development_dependency(gem_name, gem_version) 
+      # spec.add_development_dependency(gem_name, gem_version) 
       spec.add_runtime_dependency(gem_name, gem_version)
     end
   end
-  # spec.add_development_dependency 'bundler'
-  # spec.add_development_dependency 'rake'
-  # spec.add_development_dependency 'rdoc'
-  # spec.add_development_dependency 'rspec'
 end
