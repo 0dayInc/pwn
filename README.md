@@ -1,35 +1,17 @@
 ![PWN](https://raw.githubusercontent.com/0dayinc/pwn/master/documentation/pwn_wallpaper.jpg)
 
 ### **Table of Contents** ###
-- [Keep Us Caffeinated](#keep-us-caffeinated)
-- [Call to Arms](#call-to-arms)
 - [Intro](#intro)
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
   * [How PWN Works](#how-pwn-works)
   * [PWN Modules Can be Mixed and Matched to Produce Your Own Tools](#pwn-modules-can-be-mixed-and-matched-to-produce-your-own-tools)
-  * [Creating an OWASP ZAP Scanning Driver Leveraging the pwn Prototyper](#creating-an-owasp-zap-scanning-driver-leveraging-the-pwn-prototyper)
-- [Clone PWN](#clone-pwn)
-- [Deploy](#deploy)
-  * [Basic Installation Dependencies](#basic-installation-dependencies)
-  * [Install Locally on Host OS](#install-locally-on-host-os)
-  * [Deploy in AWS EC2](#deploy-in-aws-ec2)
-  * [Deploy in Docker Container](#deploy-in-docker-container)
-  * [Deploy in VirtualBox](#deploy-in-virtualbox)
-  * [Deploy in VMware](#deploy-in-vmware)
-  * [Deploy in vSphere](#deploy-in-vsphere)
+- [Installation](#install-locally-on-host-os)
 - [General Usage](#general-usage)
+- [Call to Arms](#call-to-arms)
 - [Driver Documentation](#driver-documentation)
+- [Keep Us Caffeinated](#keep-us-caffeinated)
 - [Merchandise](#merchandise)
-
-
-### **Keep Us Caffeinated** ###
-If you've found this framework useful and you're either not in a position to donate or simply interested in us cranking out as many features as possible, we invite you to take a brief moment to keep us caffeinated:
-
-[![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
-
-### **Call to Arms** ###
-If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).  Lastly, we accept [donations](https://cash.me/$fundpwn).
 
 
 ### **Intro** ###
@@ -39,25 +21,26 @@ PWN (Pronounced /pōn/ or pone), formerly known as [CSI](https://github.com/0day
 #### **Creating an OWASP ZAP Scanning Driver Leveraging the pwn Prototyper** ####
 [![Continuous Security Integration: Basics of Building Your Own Security Automation ](https://i.ytimg.com/vi/MLSqd5F-Bjw/0.jpg)](https://youtu.be/MLSqd5F-Bjw)
 
+
 #### **Why PWN** ####
-It's easy to agree that while corporate automation is a collection of proprietary source code, the core modules used to produce automated solutions should be open for all eyes to continuously promote trust and innovation...broad collaboration is key to any automation framework's success, particularly in the cyber security arena.  
+It's easy to agree that while corporate automation is a collection of proprietary source code, the core modules used to produce automated solutions should be open for all eyes to continuously promote trust and innovation...broad collaboration is key to any automation framework's success, particularly in the cyber security arena.
 
 
 #### **How PWN Works** ####
-Leveraging various pre-built modules and the pwn prototyper, you can mix-and-match modules to test, record, replay, and rollout your own custom security automation packages known as, "drivers."  
+Leveraging various pre-built modules and the pwn prototyper, you can mix-and-match modules to test, record, replay, and rollout your own custom security automation packages known as, "drivers."
 
 
 #### **PWN Modules Can be Mixed and Matched to Produce Your Own Tools** ####
 Also known as, "Drivers" PWN can produce all sorts of useful tools by mixing and matching modules.
 
 
-#### **Install Locally on Host OS** ####
+#### **Installation** ####
 Tested on Linux, & OSX leveraging Ruby via RVM.
 
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.344]:001 >>> PWN.help
+pwn[v0.4.346]:001 >>> PWN.help
 ```
 
 
@@ -68,16 +51,24 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.344]:001 >>> PWN.help
+pwn[v0.4.346]:001 >>> PWN.help
 ```
+
+
+### **Call to Arms** ###
+If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).  Lastly, we accept [donations](https://cash.me/$fundpwn).
 
 
 ### **Documentation** ###
 Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn)
 
+I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn all the things!
 
+### **Keep Us Caffeinated** ###
+If you've found this framework useful and you're either not in a position to donate or simply interested in us cranking out as many features as possible, we invite you to take a brief moment to keep us caffeinated:
 
-I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn-tomate all the things!
+[![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
+
 
 ### **Merchandise** ###
 
