@@ -5,7 +5,6 @@
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
   * [How PWN Works](#how-pwn-works)
-  * [PWN Modules Can be Mixed and Matched to Produce Your Own Tools](#pwn-modules-can-be-mixed-and-matched-to-produce-your-own-tools)
 - [Installation](#installation)
 - [General Usage](#general-usage)
 - [Call to Arms](#call-to-arms)
@@ -30,9 +29,6 @@ It's easy to agree that while corporate automation is a collection of proprietar
 Leveraging various pre-built modules and the pwn prototyper, you can mix-and-match modules to test, record, replay, and rollout your own custom security automation packages known as, "drivers."
 
 
-#### **PWN Modules Can be Mixed and Matched to Produce Your Own Tools** ####
-Also known as, "Drivers" PWN can produce all sorts of useful tools by mixing and matching modules.
-
 
 #### **Installation** ####
 Tested on Linux, & OSX leveraging Ruby via RVM.
@@ -40,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.347]:001 >>> PWN.help
+pwn[v0.4.348]:001 >>> PWN.help
 ```
 
 
@@ -51,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.347]:001 >>> PWN.help
+pwn[v0.4.348]:001 >>> PWN.help
 ```
 
 
