@@ -1,4 +1,4 @@
-![PWN](https://raw.githubusercontent.com/0dayinc/pwn/master/documentation/pwn_wallpaper.jpg)
+![PWN](https://raw.githubusercontent.com/0dayinc/pwn/master/documentation/PWN.jpg)
 
 ### **Table of Contents** ###
 - [Intro](#intro)
@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.355]:001 >>> PWN.help
+pwn[v0.4.356]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.355]:001 >>> PWN.help
+pwn[v0.4.356]:001 >>> PWN.help
 ```
 
 
