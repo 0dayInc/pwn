@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.363]:001 >>> PWN.help
+pwn[v0.4.364]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.363]:001 >>> PWN.help
+pwn[v0.4.364]:001 >>> PWN.help
 ```
 
 
