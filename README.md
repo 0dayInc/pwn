@@ -10,7 +10,7 @@
 - [Call to Arms](#call-to-arms)
 - [Module Documentation](#module-documentation)
 - [Keep Us Caffeinated](#keep-us-caffeinated)
-- [Merch!](#merch!)
+- [0x4D 0x65 0x72 0x63 0x68](#0x4D-0x65-0x72-0x63-0x68)
 
 
 ### **Intro** ###
@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.362]:001 >>> PWN.help
+pwn[v0.4.363]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.362]:001 >>> PWN.help
+pwn[v0.4.363]:001 >>> PWN.help
 ```
 
 
@@ -66,7 +66,7 @@ If you've found this framework useful and you're interested in supporting as man
 [![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
 
 
-### **Merch!** ###
+### **0x4D 0x65 0x72 0x63 0x68** ###
 
 [![PWN Sticker](https://image.spreadshirtmedia.com/image-server/v1/products/T1459A839PA3861PT28D1044068794FS8193/views/1,width=300,height=300,appearanceId=839,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/pwn-A621e580f05c234502aaf5f27?productType=1459&sellable=2L4De7dGJmC4qZLq4z7r-1459-215&appearance=839&size=167)
 
