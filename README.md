@@ -15,7 +15,7 @@
 
 ### **Intro** ###
 #### **What is PWN** ####
-PWN (Pronounced /pōn/ or pone), formerly known as [CSI](https://github.com/0dayinc/csi) is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.  If a picture is worth a thousand words, then a video must be worth at least a million...let's begin by planting a million seeds in your mind:
+PWN (Pronounced /pōn/ or pone), [formerly known as [CSI](https://github.com/0dayinc/csi)] is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.  If a picture is worth a thousand words, imagine how many come to mind by watching this demo:
 
 #### **Creating an OWASP ZAP Scanning Driver Leveraging the pwn Prototyper** ####
 [![Continuous Security Integration: Basics of Building Your Own Security Automation ](https://i.ytimg.com/vi/MLSqd5F-Bjw/0.jpg)](https://youtu.be/MLSqd5F-Bjw)
@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.348]:001 >>> PWN.help
+pwn[v0.4.349]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.348]:001 >>> PWN.help
+pwn[v0.4.349]:001 >>> PWN.help
 ```
 
 
