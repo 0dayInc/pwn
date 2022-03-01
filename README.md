@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.349]:001 >>> PWN.help
+pwn[v0.4.350]:001 >>> PWN.help
 ```
 
 
@@ -47,12 +47,12 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.349]:001 >>> PWN.help
+pwn[v0.4.350]:001 >>> PWN.help
 ```
 
 
 ### **Call to Arms** ###
-If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).  Lastly, we accept [donations](https://cash.me/$fundpwn).
+If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).
 
 
 ### **Module Documentation** ###
