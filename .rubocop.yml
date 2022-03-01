@@ -6,6 +6,8 @@ Layout:
   Max: 3000
 Style/HashEachMethods:
   Enabled: true
+Style/HashSyntax:
+  EnforcedShorthandSyntax: never
 Style/HashTransformKeys:
   Enabled: true
 Style/HashTransformValues:
