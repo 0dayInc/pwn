@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.358]:001 >>> PWN.help
+pwn[v0.4.359]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.358]:001 >>> PWN.help
+pwn[v0.4.359]:001 >>> PWN.help
 ```
 
 
@@ -70,7 +70,11 @@ If you've found this framework useful and you're interested in supporting as man
 
 [![PWN Sticker](https://image.spreadshirtmedia.com/image-server/v1/products/T1459A839PA3861PT28D1044068794FS8193/views/1,width=650,height=650,appearanceId=839,backgroundColor=f6f6f6/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/pwn-A621e580f05c234502aaf5f27?productType=1459&sellable=2L4De7dGJmC4qZLq4z7r-1459-215&appearance=839&size=167)
 
-[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T949A2PA1998PT25X7Y0D1020472684FS8982/views/3,width=650,height=650,appearanceId=2,backgroundColor=f6f6f6,crop=detail,modelId=1333,version=1546851285/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/redfingerprint-A5c3e49cd1cbf3a0b9596ae58?productType=949&appearance=2&size=29)
+[Other Stickers](https://0day.myspreadshop.com/accessories+sticker?q=P19)
+
+[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T949A2PA1998PT25X3Y7D1044068794FS8999/views/3,width=650,height=650,appearanceId=2,backgroundColor=f6f6f6,crop=detail,modelId=1333/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/pwn-A621e580f05c234502aaf5f27?productType=949&sellable=2L4De7dGJmC4qZLq4z7r-949-32&appearance=2&size=29)
+
+[Other Accessories](https://0day.myspreadshop.com/accessories?q=D4)
 
 [![0day Inc.](https://image.spreadshirtmedia.com/image-server/v1/products/T951A70PA3076PT17X0Y73D1020472680FS8515/views/1,width=650,height=650,appearanceId=70/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/0dayinc-A5c3e498cf937643162a01b5f?productType=951&appearance=70)
 
