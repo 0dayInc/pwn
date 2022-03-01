@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.350]:001 >>> PWN.help
+pwn[v0.4.351]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.350]:001 >>> PWN.help
+pwn[v0.4.351]:001 >>> PWN.help
 ```
 
 
@@ -61,7 +61,7 @@ Additional documentation on using PWN can be found on [RubyGems.org](https://www
 I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn all the things!
 
 ### **Keep Us Caffeinated** ###
-If you've found this framework useful and you're either not in a position to donate or simply interested in us cranking out as many features as possible, we invite you to take a brief moment to keep us caffeinated:
+If you've found this framework useful and you're interested in supporting as many new features as possible, we invite you to take a brief moment to keep us caffeinated:
 
 [![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
 
