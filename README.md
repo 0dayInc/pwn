@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.365]:001 >>> PWN.help
+pwn[v0.4.366]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.365]:001 >>> PWN.help
+pwn[v0.4.366]:001 >>> PWN.help
 ```
 
 
@@ -70,7 +70,7 @@ If you've found this framework useful and you're interested in supporting as man
 
 [![PWN Sticker](https://image.spreadshirtmedia.com/image-server/v1/products/T1459A839PA3861PT28D1044068794FS8193/views/1,width=300,height=300,appearanceId=839,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/stickers)
 
-[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T949A2PA1998PT25X3Y25D1044068794FS8999/views/3,width=300,height=300,appearanceId=2,backgroundColor=000000,crop=detail,modelId=1333/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/accessories+mugs+%26+drinkware)
+[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T1313A1PA3933PT10X2Y25D1020472680FS6327/views/3,width=300,height=300,appearanceId=1,backgroundColor=000000/https0dayinccom.jpg)](https://0day.myspreadshop.com/accessories+mugs+%26+drinkware)
 
 [![Mouse Pad](https://image.spreadshirtmedia.com/image-server/v1/products/T993A1PA2168PT10X162Y26D1044068794S100/views/1,width=300,height=300,appearanceId=1,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/accessories)
 
