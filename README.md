@@ -26,7 +26,7 @@ It's easy to agree that while corporate automation is a collection of proprietar
 
 
 #### **How PWN Works** ####
-Leveraging various pre-built modules and the pwn prototyper, you can mix-and-match modules to test, record, replay, and rollout your own custom security automation packages known as, "drivers."
+Leveraging various pre-built modules and the pwn prototyper, you can mix-and-match modules to test, record, replay, and rollout your own custom security automation packages known as, "drivers." Here are some [examples of drivers](https://github.com/0dayInc/pwn/tree/master/bin) distributed with PWN.
 
 
 
@@ -36,7 +36,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.351]:001 >>> PWN.help
+pwn[v0.4.352]:001 >>> PWN.help
 ```
 
 
@@ -47,7 +47,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem update pwn
 $ pwn
-pwn[v0.4.351]:001 >>> PWN.help
+pwn[v0.4.352]:001 >>> PWN.help
 ```
 
 
