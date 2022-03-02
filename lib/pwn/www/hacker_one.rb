@@ -76,7 +76,7 @@ module PWN
 
         browser_obj.text_field(name: 'user[email]').wait_until(&:present?).set(username)
         browser_obj.text_field(name: 'user[password]').wait_until(&:present?).set(password)
-        browser_obj.button(name: 'commit').wait_until(&:present?).click
+        browser_obj.button(name: 'commit').click!
 
         browser_obj
       rescue StandardError => e
@@ -90,8 +90,8 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.i(class: 'icon-arrow-closure').click
-        browser_obj.link(index: 16).click
+        browser_obj.i(class: 'icon-arrow-closure').click!
+        browser_obj.link(index: 16).click!
 
         browser_obj
       rescue StandardError => e

@@ -63,7 +63,7 @@ module PWN
         q = opts[:q].to_s
 
         browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(text: 'Google Search').wait_until(&:present?).click
+        browser_obj.button(text: 'Google Search').click!
 
         browser_obj
       rescue StandardError => e
@@ -82,7 +82,7 @@ module PWN
         q = "site:linkedin.com inurl:in intext:\"#{company}\""
 
         browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(name: 'btnG').wait_until(&:present?).click
+        browser_obj.button(name: 'btnG').click!
         sleep 3 # Cough: <hack>
 
         browser_obj

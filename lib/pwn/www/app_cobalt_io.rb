@@ -81,12 +81,12 @@ module PWN
         # id: 'user_password' doesn't work
         browser_obj.text_field(index: 10).wait_until(&:present?).set(password)
         # name: 'commit' doesn't work
-        browser_obj.button(index: 6).wait_until(&:present?).click # no name or id in button element
+        browser_obj.button(index: 6).click! # no name or id in button element
 
         if mfa
           until browser_obj.url == 'https://app.cobalt.io/dashboard'
             browser_obj.text_field(id: 'code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
-            browser_obj.button(name: 'commit').wait_until(&:present?).click
+            browser_obj.button(name: 'commit').click!
             sleep 3
           end
           print "\n"
@@ -104,8 +104,8 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.li(class: 'user-dropdown').wait_until(&:present?).click
-        browser_obj.link(index: 10).wait_until(&:present?).click
+        browser_obj.li(class: 'user-dropdown').wait_until(&:present?).click!
+        browser_obj.link(index: 10).wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e
