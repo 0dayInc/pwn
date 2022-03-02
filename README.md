@@ -15,7 +15,7 @@
 
 ### **Intro** ###
 #### **What is PWN** ####
-PWN (Pronounced /pōn/ or pone), [formerly known as [CSI](https://github.com/0dayinc/csi)] is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.
+PWN (Pronounced /pōn/ or pone), is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.
 
 
 #### **Why PWN** ####
@@ -33,7 +33,7 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.369]:001 >>> PWN.help
+pwn[v0.4.370]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -45,7 +45,7 @@ It's wise to update pwn often as numerous versions are released/week:
 ```
 $ gem uninstall pwn && gem install pwn
 $ pwn
-pwn[v0.4.369]:001 >>> PWN.help
+pwn[v0.4.370]:001 >>> PWN.help
 ```
 
 
