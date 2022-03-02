@@ -64,7 +64,7 @@ module PWN
         q = opts[:q].to_s
 
         browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(name: 'cmd').wait_until(&:present?).click
+        browser_obj.button(name: 'cmd').click!
 
         browser_obj
       rescue StandardError => e

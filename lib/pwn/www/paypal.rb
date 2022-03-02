@@ -92,7 +92,7 @@ module PWN
         browser_obj.text_field(id: 'email').wait_until(&:present?).set(username)
         browser_obj.text_field(id: 'password').wait_until(&:present?).set(password)
         browser_obj.text_field(id: 'confirmPassword').wait_until(&:present?).set(password)
-        browser_obj.button(id: '_eventId_personal').wait_until(&:present?).click
+        browser_obj.button(id: '_eventId_personal').wait_until(&:present?).click!
         browser_obj.text_field(id: 'firstName').wait_until(&:present?).set(first_name)
         browser_obj.text_field(id: 'lastName').wait_until(&:present?).set(last_name)
         browser_obj.text_field(id: 'address1').wait_until(&:present?).set(address)
@@ -100,8 +100,8 @@ module PWN
         browser_obj.select(id: 'state').wait_until(&:present?).select_value(state)
         browser_obj.text_field(id: 'postalCode').wait_until(&:present?).set(zip_code)
         browser_obj.text_field(id: 'phoneNumber').wait_until(&:present?).set(mobile_phone)
-        browser_obj.span(index: 7).wait_until(&:present?).click # Agree to ToS
-        browser_obj.button(id: 'submitBtn').wait_until(&:present?).click
+        browser_obj.span(index: 7).wait_until(&:present?).click! # Agree to ToS
+        browser_obj.button(id: 'submitBtn').wait_until(&:present?).click!
 
         puts "Confirmation email sent to: #{username}"
 
@@ -134,14 +134,14 @@ module PWN
 
         browser_obj.text_field(id: 'email').wait_until(&:present?).set(username)
         browser_obj.text_field(id: 'password').wait_until(&:present?).set(password)
-        browser_obj.button(id: 'btnLogin').wait_until(&:present?).click
+        browser_obj.button(id: 'btnLogin').click!
 
         if mfa
           # Send code to SMS
-          browser_obj.button(id: 'btnSelectSoftToken').wait_until(&:present?).click
+          browser_obj.button(id: 'btnSelectSoftToken').wait_until(&:present?).click!
           until browser_obj.url == 'https://www.paypal.com/myaccount/home'
             browser_obj.text_field(id: 'security-code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
-            browser_obj.button(id: 'btnCodeSubmit').wait_until(&:present?).click
+            browser_obj.button(id: 'btnCodeSubmit').click!
             sleep 3
           end
           print "\n"
@@ -159,7 +159,7 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.link(index: 13).wait_until(&:present?).click
+        browser_obj.link(index: 13).wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e

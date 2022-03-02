@@ -52,7 +52,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj = PWN::WWW::Google.search(
+      # browser_obj = PWN::WWW::Youtube.search(
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   q: 'required - search string'
       # )
@@ -62,7 +62,7 @@ module PWN
         q = opts[:q].to_s
 
         browser_obj.text_field(name: 'search_query').wait_until(&:present?).set(q)
-        browser_obj.button(id: 'search-btn').wait_until(&:present?).click
+        browser_obj.button(id: 'search-btn').click!
 
         browser_obj
       rescue StandardError => e

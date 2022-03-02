@@ -78,12 +78,12 @@ module PWN
 
         browser_obj.text_field(index: 2).wait_until(&:present?).set(username)
         browser_obj.text_field(index: 3).wait_until(&:present?).set(password)
-        browser_obj.button(index: 1).wait_until(&:present?).click
+        browser_obj.button(index: 1).click!
 
         if mfa
           until browser_obj.url == 'https://twitter.com/' || browser_obj.url == 'https://twitter.com/home'
             browser_obj.text_field(id: 'challenge_response').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
-            browser_obj.button(id: 'email_challenge_submit').wait_until(&:present?).click
+            browser_obj.button(id: 'email_challenge_submit').click!
             sleep 3
           end
           print "\n"
@@ -101,8 +101,8 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.li(id: 'user-dropdown').wait_until(&:present?).click
-        browser_obj.button(text: 'Log out').wait_until(&:present?).click
+        browser_obj.li(id: 'user-dropdown').wait_until(&:present?).click!
+        browser_obj.button(text: 'Log out').wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e
