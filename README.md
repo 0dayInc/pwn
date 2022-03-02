@@ -15,10 +15,7 @@
 
 ### **Intro** ###
 #### **What is PWN** ####
-PWN (Pronounced /pōn/ or pone), [formerly known as [CSI](https://github.com/0dayinc/csi)] is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.  If a picture is worth a thousand words, imagine how many come to mind watching the demo below:
-
-#### **Creating an OWASP ZAP Scanning Driver Leveraging the pwn Prototyper** ####
-[![Continuous Security Integration: Basics of Building Your Own Security Automation ](https://i.ytimg.com/vi/MLSqd5F-Bjw/0.jpg)](https://youtu.be/MLSqd5F-Bjw)
+PWN (Pronounced /pōn/ or pone), [formerly known as [CSI](https://github.com/0dayinc/csi)] is an open security automation framework that aims to stand on the shoulders of security giants, promoting trust and innovation.  Build your own custom automation drivers freely and easily using pre-built modules.
 
 
 #### **Why PWN** ####
@@ -36,18 +33,19 @@ Tested on Linux, & OSX leveraging Ruby via RVM.
 ```
 $ gem install pwn
 $ pwn
-pwn[v0.4.368]:001 >>> PWN.help
+pwn[v0.4.369]:001 >>> PWN.help
 ```
 
+[![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
 
 ### **General Usage** ###
 [General Usage Quick-Start](https://github.com/0dayinc/pwn/wiki/General-PWN-Usage)
 
 It's wise to update pwn often as numerous versions are released/week:
 ```
-$ gem update pwn
+$ gem uninstall pwn && gem install pwn
 $ pwn
-pwn[v0.4.368]:001 >>> PWN.help
+pwn[v0.4.369]:001 >>> PWN.help
 ```
 
 
