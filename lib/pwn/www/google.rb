@@ -82,7 +82,7 @@ module PWN
         q = "site:linkedin.com inurl:in intext:\"#{company}\""
 
         browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(name: 'btnG').click!
+        browser_obj.button(text: 'Google Search').click!
         sleep 3 # Cough: <hack>
 
         browser_obj
