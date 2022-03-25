@@ -19,6 +19,7 @@ module PWN
     autoload :Paypal, 'pwn/www/paypal'
     autoload :Synack, 'pwn/www/synack'
     autoload :Torch, 'pwn/www/torch'
+    autoload :TradingView, 'pwn/www/trading_view'
     autoload :Twitter, 'pwn/www/twitter'
     autoload :Uber, 'pwn/www/uber'
     autoload :Upwork, 'pwn/www/upwork'
