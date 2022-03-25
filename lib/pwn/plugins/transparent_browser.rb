@@ -315,6 +315,8 @@ module PWN
             with_devtools: 'optional - boolean (defaults to false)'
           )
           puts browser_obj1.public_methods
+          devtools = browser_obj1.driver.devtools
+          puts devtools.public_methods
 
           browser_obj1 = #{self}.linkout(
             browser_obj: 'required - browser_obj returned from #open method)'
