@@ -315,6 +315,9 @@ module PWN
             with_devtools: 'optional - boolean (defaults to false)'
           )
           puts browser_obj1.public_methods
+          * Only works w/ Chrome
+          * All DevTools Commands can be found here:
+          * https://chromedevtools.github.io/devtools-protocol/
           devtools = browser_obj1.driver.devtools
           puts devtools.public_methods
           puts devtools.instance_variables
@@ -323,8 +326,10 @@ module PWN
           devtools.send_cmd('Tracing.requestMemoryDump')
           devtools.send_cmd('Tracing.end')
           puts devtools.instance_variable_get('@messages')
-          * All DevTools Commands can be found here:
-          https://chromedevtools.github.io/devtools-protocol/
+          devtools.send_cmd('Network.enable')
+          last_ws_resp = devtools.instance_variable_get('@messages').last if devtools.instance_variable_get('@messages')['method'] == 'Network.webSocketFrameReceived'
+          puts last_ws_resp
+          devtools.send_cmd('Network.disable')
 
           browser_obj1 = #{self}.linkout(
             browser_obj: 'required - browser_obj returned from #open method)'
