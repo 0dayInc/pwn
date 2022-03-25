@@ -93,7 +93,7 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.button(index: 3).wait_until(&:present?).click
+        browser_obj.button(index: 4).wait_until(&:present?).click
         browser_obj.div(text: 'Sign Out').wait_until(&:present?).click!
 
         browser_obj
