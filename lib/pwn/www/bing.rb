@@ -13,7 +13,7 @@ module PWN
 
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
-        
+
         browser_obj.goto('https://www.bing.com')
 
         browser_obj

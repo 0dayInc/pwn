@@ -36,7 +36,7 @@ $ rvm list gemsets
 $ rvm use ruby-<VERSION>@pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.379]:001 >>> PWN.help
+pwn[v0.4.380]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -51,7 +51,7 @@ $ rvm use ruby-<VERSION>@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.379]:001 >>> PWN.help
+pwn[v0.4.380]:001 >>> PWN.help
 ```
 
 
