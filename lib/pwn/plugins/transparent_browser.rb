@@ -317,6 +317,14 @@ module PWN
           puts browser_obj1.public_methods
           devtools = browser_obj1.driver.devtools
           puts devtools.public_methods
+          puts devtools.instance_variables
+          puts devtools.instance_variable_get('@messages')
+          devtools.send_cmd('Tracing.start')
+          devtools.send_cmd('Tracing.requestMemoryDump')
+          devtools.send_cmd('Tracing.end')
+          puts devtools.instance_variable_get('@messages')
+          * All DevTools Commands can be found here:
+          https://chromedevtools.github.io/devtools-protocol/
 
           browser_obj1 = #{self}.linkout(
             browser_obj: 'required - browser_obj returned from #open method)'
