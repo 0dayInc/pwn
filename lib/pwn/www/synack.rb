@@ -14,38 +14,7 @@ module PWN
       # )
 
       public_class_method def self.open(opts = {})
-        browser_type = if opts[:browser_type].nil?
-                         :firefox
-                       else
-                         opts[:browser_type]
-                       end
-
-        proxy = opts[:proxy].to_s unless opts[:proxy].nil?
-
-        with_tor = if opts[:with_tor]
-                     true
-                   else
-                     false
-                   end
-
-        if proxy
-          if with_tor
-            browser_obj = PWN::Plugins::TransparentBrowser.open(
-              browser_type: browser_type,
-              proxy: proxy,
-              with_tor: with_tor
-            )
-          else
-            browser_obj = PWN::Plugins::TransparentBrowser.open(
-              browser_type: browser_type,
-              proxy: proxy
-            )
-          end
-        else
-          browser_obj = PWN::Plugins::TransparentBrowser.open(
-            browser_type: browser_type
-          )
-        end
+        browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
         browser_obj.goto('https://www.synack.com')
 

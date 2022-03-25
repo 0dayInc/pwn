@@ -12,40 +12,8 @@ module PWN
       # )
 
       public_class_method def self.open(opts = {})
-        browser_type = if opts[:browser_type].nil?
-                         :firefox
-                       else
-                         opts[:browser_type]
-                       end
+        browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        proxy = opts[:proxy].to_s unless opts[:proxy].nil?
-
-        with_tor = if opts[:with_tor]
-                     true
-                   else
-                     false
-                   end
-
-        with_tor = opts[:with_tor].nil?
-
-        if proxy
-          if with_tor
-            browser_obj = PWN::Plugins::TransparentBrowser.open(
-              browser_type: browser_type,
-              proxy: proxy,
-              with_tor: true
-            )
-          else
-            browser_obj = PWN::Plugins::TransparentBrowser.open(
-              browser_type: browser_type,
-              proxy: proxy
-            )
-          end
-        else
-          browser_obj = PWN::Plugins::TransparentBrowser.open(
-            browser_type: browser_type
-          )
-        end
         browser_obj.goto('http://www.torchtorsearch.com')
 
         browser_obj
