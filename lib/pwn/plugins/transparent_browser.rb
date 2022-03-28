@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'watir'
+require 'selenium/webdriver'
+require 'selenium/devtools'
 require 'rest-client'
 require 'socksify'
 require 'em/pure_ruby'
