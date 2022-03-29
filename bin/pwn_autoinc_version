@@ -5,6 +5,7 @@ require 'pwn'
 
 old_rev = PWN::VERSION
 readme_md_path = './README.md'
+current_ruby = './.ruby-version'
 placeholder_arr = old_rev.split('.')
 major = placeholder_arr[0].to_i
 minor = placeholder_arr[1].to_i
@@ -37,11 +38,16 @@ File.open('./lib/pwn/version.rb', 'w') do |f|
 end
 
 # Update README.md
+current_ruby_version = File.read(current_ruby).chomp
 old_readme_md = File.read(readme_md_path, encoding: 'utf-8')
 File.open(readme_md_path, 'w') do |file|
   old_readme_md.each_line do |line|
-    if line.to_s.scrub.match?(/pwn\[v.+\..+\..+\]/)
-      new_line = line.to_s.gsub(/pwn\[v#{old_rev}\]/, "pwn\[v#{new_rev}\]")
+    if line.to_s.scrub.match?(/pwn\[v.+\..+\..+\]/) ||
+       line.to_s.scrub.match?(/ruby-.+/)
+
+      new_line = line.to_s.gsub(/pwn\[v#{old_rev}\]/, "pwn\[v#{new_rev}\]") if line.to_s.scrub.match?(/pwn\[v.+\..+\..+\]/)
+      new_line = line.to_s.gsub(/ruby-.+(?=(@))/, current_ruby_version) if line.to_s.scrub.match?(/ruby-.+/)
+
       file.puts new_line
     else
       file.puts line
