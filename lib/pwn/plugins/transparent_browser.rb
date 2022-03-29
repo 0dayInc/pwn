@@ -317,21 +317,60 @@ module PWN
             with_devtools: 'optional - boolean (defaults to false)'
           )
           puts browser_obj1.public_methods
-          * Only works w/ Chrome
+
+          ********************************************************
+          * DevTools Interaction Only works w/ Chrome
           * All DevTools Commands can be found here:
           * https://chromedevtools.github.io/devtools-protocol/
+          * Examples
           devtools = browser_obj1.driver.devtools
           puts devtools.public_methods
           puts devtools.instance_variables
           puts devtools.instance_variable_get('@messages')
+
+          * Tracing
           devtools.send_cmd('Tracing.start')
           devtools.send_cmd('Tracing.requestMemoryDump')
           devtools.send_cmd('Tracing.end')
           puts devtools.instance_variable_get('@messages')
+
+          * Network
           devtools.send_cmd('Network.enable')
-          last_ws_resp = devtools.instance_variable_get('@messages').last if devtools.instance_variable_get('@messages')['method'] == 'Network.webSocketFrameReceived'
+          last_ws_resp = devtools.instance_variable_get('@messages').last if devtools.instance_variable_get('@messages').last['method'] == 'Network.webSocketFrameReceived'
           puts last_ws_resp
           devtools.send_cmd('Network.disable')
+
+          * Debugging DOM and Sending JavaScript to Console
+          devtools.send_cmd('Runtime.enable')
+          devtools.send_cmd('DOM.enable')
+          devtools.send_cmd('Log.enable')
+          devtools.send_cmd('Debugger.enable')
+          devtools.send_cmd('Debugger.pause')
+          console_cmd = {
+            expression: 'console.log(global);'
+          }
+          step = 1
+          loop do
+            devtools.send_cmd('Debugger.stepInto')
+            puts \"Step: \#{step}\"
+            this_call = devtools.instance_variable_get('@messages').last['params']['callFrames'].last if devtools.instance_variable_get('@messages').last['method'] == 'Debugger.paused'
+            puts \"Function Name: \#{this_call['functionName']}\"
+            this_document = devtools.send_cmd('DOM.getDocument')
+            puts \"This #document:\\n\#{this_document}\\n\\n\\n\"
+
+            this_global = devtools.send_cmd(
+              'Runtime.evaluate',
+              **console_cmd
+            )
+            puts \"This #global:\\n\#{this_global}\\n\\n\\n\"
+
+            sleep 9
+          end
+          devtools.send_cmd('Debugger.disable')
+          devtools.send_cmd('DOM.disable')
+          devtools.send_cmd('Runtime.disable')
+          * End of DevTools Examples
+          ********************************************************
 
           browser_obj1 = #{self}.linkout(
             browser_obj: 'required - browser_obj returned from #open method)'
