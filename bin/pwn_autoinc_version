@@ -38,15 +38,17 @@ File.open('./lib/pwn/version.rb', 'w') do |f|
 end
 
 # Update README.md
-current_ruby_version = File.read(current_ruby).chomp
+current_ruby_version = "ruby-#{File.read(current_ruby).chomp}"
 old_readme_md = File.read(readme_md_path, encoding: 'utf-8')
+pwn_regex = 'pwn\[v.+\..+\..+\]'
+rb_regex = 'ruby-.+'
 File.open(readme_md_path, 'w') do |file|
   old_readme_md.each_line do |line|
-    if line.to_s.scrub.match?(/pwn\[v.+\..+\..+\]/) ||
-       line.to_s.scrub.match?(/ruby-.+/)
+    if line.to_s.scrub.match?(/#{pwn_regex}/) ||
+       line.to_s.scrub.match?(/#{rb_regex}/)
 
-      new_line = line.to_s.gsub(/pwn\[v#{old_rev}\]/, "pwn\[v#{new_rev}\]") if line.to_s.scrub.match?(/pwn\[v.+\..+\..+\]/)
-      new_line = line.to_s.gsub(/ruby-.+(?=(@))/, current_ruby_version) if line.to_s.scrub.match?(/ruby-.+/)
+      new_line = line.to_s.gsub(/pwn\[v#{old_rev}\]/, "pwn\[v#{new_rev}\]") if line.to_s.scrub.match?(/#{pwn_regex}/)
+      new_line = line.to_s.gsub(/ruby-.+(?=(@))/, current_ruby_version) if line.to_s.scrub.match?(/#{rb_regex}/)
 
       file.puts new_line
     else
