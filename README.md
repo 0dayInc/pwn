@@ -31,12 +31,13 @@ Leveraging various pre-built modules and the pwn prototyper, you can mix-and-mat
 Tested on Linux, & OSX leveraging Ruby via RVM.
 
 ```
+$ rvm use ruby-<VERSION>@global
 $ rvm gemset create pwn
-$ rvm list gemsets
 $ rvm use ruby-<VERSION>@pwn
+$ rvm list gemsets
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.381]:001 >>> PWN.help
+pwn[v0.4.382]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -51,7 +52,7 @@ $ rvm use ruby-<VERSION>@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.381]:001 >>> PWN.help
+pwn[v0.4.382]:001 >>> PWN.help
 ```
 
 
