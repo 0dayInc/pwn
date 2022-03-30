@@ -5,6 +5,7 @@ require 'selenium/webdriver'
 require 'selenium/devtools'
 require 'rest-client'
 require 'socksify'
+require 'openssl'
 require 'em/pure_ruby'
 require 'faye/websocket'
 
@@ -260,12 +261,12 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::TransparentBrowser.type_as_human(
-      #   q: 'required - query string to randomize',
+      #   string: 'required - string to type as human',
       #   rand_sleep_float: 'optional - float timing in between keypress (defaults to 0.09)'
       # )
 
       public_class_method def self.type_as_human(opts = {})
-        query_string = opts[:q].to_s
+        string = opts[:string].to_s
 
         rand_sleep_float = if opts[:rand_sleep_float]
                              opts[:rand_sleep_float].to_f
@@ -273,7 +274,7 @@ module PWN
                              0.09
                            end
 
-        query_string.each_char do |char|
+        string.each_char do |char|
           yield char
           sleep Random.rand(rand_sleep_float)
         end
@@ -342,32 +343,55 @@ module PWN
 
           * Debugging DOM and Sending JavaScript to Console
           devtools.send_cmd('Runtime.enable')
+          devtools.send_cmd('Console.enable')
           devtools.send_cmd('DOM.enable')
+          devtools.send_cmd('Page.enable')
+          devtools.send_cmd('Network.enable')
           devtools.send_cmd('Log.enable')
           devtools.send_cmd('Debugger.enable')
           devtools.send_cmd('Debugger.pause')
-          console_cmd = {
-            expression: 'console.log(global);'
-          }
           step = 1
+          next_step = 60
           loop do
+            console_events = []
+            b.driver.on_log_event(:console) { |event| console_events.push(event) }
+
             devtools.send_cmd('Debugger.stepInto')
             puts \"Step: \#{step}\"
-            this_call = devtools.instance_variable_get('@messages').last['params']['callFrames'].last if devtools.instance_variable_get('@messages').last['method'] == 'Debugger.paused'
-            puts \"Function Name: \#{this_call['functionName']}\"
+
             this_document = devtools.send_cmd('DOM.getDocument')
             puts \"This #document:\\n\#{this_document}\\n\\n\\n\"
 
-            this_global = devtools.send_cmd(
-              'Runtime.evaluate',
-              **console_cmd
-            )
-            puts \"This #global:\\n\#{this_global}\\n\\n\\n\"
+            console_cmd = {
+              expression: 'for(var pop_var in window) { if (window.hasOwnProperty(pop_var) && window[pop_var] != null) console.log(pop_var + \" = \" + window[pop_var]); }'
+            }
+            puts devtools.send_cmd('Runtime.evaluate', **console_cmd)
 
-            sleep 9
+            print '-' * 180
+            print \"\\n\"
+            console_events.each do |event|
+              puts event.args
+            end
+            puts \"Console Response Length: \#{console_events.length}\"
+            console_events_digest = OpenSSL::Digest::SHA256.hexdigest(
+              console_events.inspect
+            )
+            puts \"Console Events Array SHA256 Digest: \#{console_events_digest}\"
+            print '-' * 180
+            puts \"\\n\\n\\n\"
+
+            print \"Next Step in \"
+            next_step.downto(1) {|n| print \"\#{n} \"; sleep 1 }
+            puts 'READY!'
+            step += 1
           end
+
           devtools.send_cmd('Debugger.disable')
+          devtools.send_cmd('Log.disable')
+          devtools.send_cmd('Network.disable')
+          devtools.send_cmd('Page.disable')
           devtools.send_cmd('DOM.disable')
+          devtools.send_cmd('Console.disable')
           devtools.send_cmd('Runtime.disable')
           * End of DevTools Examples
           ********************************************************
@@ -377,9 +401,9 @@ module PWN
           )
 
           #{self}.type_as_human(
-            q: 'required - query string to randomize',
+            string: 'required - string to type as human',
             rand_sleep_float: 'optional - float timing in between keypress (defaults to 0.09)'
-          ) {|char| browser_obj1.text_field(name: \"q\").send_keys(char) }
+          ) {|char| browser_obj1.text_field(name: \"search\").send_keys(char) }
 
           browser_obj1 = #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method)'

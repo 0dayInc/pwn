@@ -66,7 +66,7 @@ begin
   browser_obj.goto('https://domainbigdata.com')
 
   # Type Registrant Filter in Char-by-Char to Ensure Everyone is Happy ;)
-  PWN::Plugins::TransparentBrowser.type_as_human(q: registrant_filter) do |char|
+  PWN::Plugins::TransparentBrowser.type_as_human(string: registrant_filter) do |char|
     browser_obj.text_field(id: 'txtSearchTopPage').wait_until(&:present?).send_keys(char)
   end
   browser_obj.button(id: 'btnTopSearch').wait_until(&:present?).click
