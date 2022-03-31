@@ -346,13 +346,14 @@ module PWN
           devtools.send_cmd('Console.enable')
           devtools.send_cmd('DOM.enable')
           devtools.send_cmd('Page.enable')
-          devtools.send_cmd('Network.enable')
           devtools.send_cmd('Log.enable')
           devtools.send_cmd('Debugger.enable')
           devtools.send_cmd('Debugger.pause')
           step = 1
           next_step = 60
           loop do
+            devtools.send_cmd('Console.clearMessages')
+            devtools.send_cmd('Log.clear')
             console_events = []
             b.driver.on_log_event(:console) { |event| console_events.push(event) }
 
@@ -388,7 +389,6 @@ module PWN
 
           devtools.send_cmd('Debugger.disable')
           devtools.send_cmd('Log.disable')
-          devtools.send_cmd('Network.disable')
           devtools.send_cmd('Page.disable')
           devtools.send_cmd('DOM.disable')
           devtools.send_cmd('Console.disable')
