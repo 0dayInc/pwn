@@ -9,6 +9,7 @@ module PWN
     autoload :Bing, 'pwn/www/bing'
     autoload :BugCrowd, 'pwn/www/bug_crowd'
     autoload :Checkip, 'pwn/www/checkip.rb'
+    autoload :CoinbasePro, 'pwn/www/coinbase_pro.rb'
     autoload :Duckduckgo, 'pwn/www/duckduckgo'
     autoload :Facebook, 'pwn/www/facebook'
     autoload :Google, 'pwn/www/google'
