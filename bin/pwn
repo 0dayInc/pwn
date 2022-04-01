@@ -3,12 +3,14 @@
 
 require 'pwn'
 require 'pry'
-require 'bond'
-require 'pry/bond'
 require 'tty-prompt'
 require 'tty-reader'
 
 begin
+  class LineCount
+    attr_accessor :total
+  end
+
   # TODO: Remove once this feature is available in mainline
   class Pry
     # Overwrite Pry::History.push method in History class to get duplicate history entries
@@ -36,12 +38,15 @@ begin
     end
   end
 
-  cli = Pry
+  prompt = TTY::Prompt.new
+  reader = TTY::Reader.new
 
-  cli.config.hooks.add_hook(:before_eval, :autocomplete) do
-    prompt = TTY::Prompt.new
-    reader = TTY::Reader.new
-    reader.on(:keypress) { |key_event| prompt(key_event) }
+  cli = Pry
+  cli.config.hooks.add_hook(:before_eval, :autocomplete) do |output, _binding, _pry|
+    reader.on(:keypress) do |key_event|
+      output.puts "Key: #{key_event.inspect}"
+      prompt.select('', key_event)
+    end
   end
 
   cli::Commands.create_command 'toggle-pager' do
@@ -55,22 +60,39 @@ begin
   # Custom Main & Wait (Multi-Line) Prompts
   title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002" # Bold Red
   version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002" # Cyan
+  @line_count = LineCount.new
+  @line_count.total = 0
   arrow = "\001\e[32m\002>>>\001\e[0m\002" # Green
   splat = "\001\e[33m\002***\001\e[0m\002" # Yellow
 
-  prompt = [
-    proc do |_target_self, _nest_level, pry|
-      line_pad = format('%0.3d', pry.input_ring.size)
-      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
-      "#{title}[#{version}]:#{line_count} #{arrow} ".to_s.scrub
-    end,
-    proc do |_target_self, _nest_level, pry|
-      line_pad = format('%0.3d', pry.input_ring.size)
-      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
-      "#{title}[#{version}]:#{line_count} #{splat} ".to_s.scrub
-    end
-  ]
-  cli.start(self, prompt: Pry::Prompt.new(:pwn, 'PWN_PROTOTYPING_DRIVER', prompt))
+  # arrow_ps1_proc = proc do |_target_self, _nest_level, _pry|
+  arrow_ps1_proc = proc do
+    @line_count.total += 1
+    line_pad = format('%0.3d', @line_count.total)
+    line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
+    "#{title}[#{version}]:#{line_count} #{arrow} ".to_s.scrub
+  end
+
+  # splat_ps1_proc = proc do |_target_self, _nest_level, _pry|
+  splat_ps1_proc = proc do
+    @line_count.total += 1
+    line_pad = format('%0.3d', @line_count.total)
+    line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
+    "#{title}[#{version}]:#{line_count} #{splat} ".to_s.scrub
+  end
+
+  prompt_ps1 = [arrow_ps1_proc, splat_ps1_proc]
+
+  pwn_prompt = Pry::Prompt.new(
+    :pwn,
+    'PWN_PROTOTYPING_DRIVER',
+    prompt_ps1
+  )
+
+  cli.start(
+    self,
+    prompt: pwn_prompt
+  )
 rescue StandardError => e
   raise e
 end
