@@ -3,6 +3,7 @@
 
 require 'pwn'
 require 'pry'
+require 'pry_bond'
 require 'tty-prompt'
 require 'tty-reader'
 

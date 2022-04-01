@@ -105,6 +105,9 @@ module PWN
           this_profile['download.default_directory'] = '~/Downloads'
 
           switches = []
+          switches.push('--start-maximized')
+          switches.push('--disable-notifications')
+
           if proxy
             switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{URI(proxy).host}'") if with_tor
             switches.push("--proxy-server=#{proxy}")
@@ -187,7 +190,10 @@ module PWN
           this_profile['download.default_directory'] = '~/Downloads'
 
           switches = []
-          switches.push('-headless')
+          switches.push('--headless')
+          switches.push('--start-maximized')
+          switches.push('--disable-notifications')
+
           if proxy
             switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{URI(proxy).host}'") if with_tor
             switches.push("--proxy-server=#{proxy}")

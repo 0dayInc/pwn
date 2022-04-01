@@ -27,7 +27,8 @@ module PWN
       # browser_obj = PWN::WWW::CoinbasePro.login(
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   username: 'required - username',
-      #   password: 'optional - passwd (will prompt if blank)'
+      #   password: 'optional - passwd (will prompt if blank)',
+      #   mfa: 'optional - if true prompt for mfa token (defaults to false)'
       # )
 
       public_class_method def self.login(opts = {})
@@ -44,9 +45,6 @@ module PWN
 
         browser_obj.goto('https://pro.coinbase.com')
 
-        # In case window is really small,
-        # click on hamburger menu
-        browser_obj.div(index: 9).click if browser_obj.div(index: 9).visible?
         browser_obj.span(text: 'Sign in').wait_until(&:present?).click
         browser_obj.text_field(name: 'email').wait_until(&:present?).set(username)
         browser_obj.text_field(name: 'password').wait_until(&:present?).set(password)
@@ -117,6 +115,7 @@ module PWN
             browser_obj: 'required - browser_obj returned from #open method',
             username: 'required - username',
             password: 'optional - passwd (will prompt if blank),
+            mfa: 'optional - if true prompt for mfa token (defaults to false)'
           )
 
           browser_obj = #{self}.logout(
