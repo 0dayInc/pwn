@@ -11,7 +11,6 @@ begin
     attr_accessor :total
   end
 
-  # TODO: Remove once this feature is available in mainline
   class Pry
     # Overwrite Pry::History.push method in History class to get duplicate history entries
     # in order to properly replay automation in this prototyping driver
@@ -42,6 +41,13 @@ begin
   reader = TTY::Reader.new
 
   cli = Pry
+  cli.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
+    output.puts 'Use the #help method for more options.'
+    output.puts 'e.g PWN.help'
+    output.puts 'e.g PWN::Plugins.help'
+    output.puts 'e.g PWN::Plugins::TransparentBrowser.help'
+  end
+
   cli.config.hooks.add_hook(:before_eval, :autocomplete) do |output, _binding, _pry|
     reader.on(:keypress) do |key_event|
       output.puts "Key: #{key_event.inspect}"
