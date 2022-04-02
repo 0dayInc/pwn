@@ -7,6 +7,26 @@ require 'tty-prompt'
 require 'tty-reader'
 
 begin
+  def gen_ps1_proc(opts = {})
+    delim = opts[:delim]
+
+    # Custom Main & Wait (Multi-Line) Prompts
+    title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002" # Bold Red
+    version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002" # Cyan
+    dchars = "\001\e[32m\002>>>\001\e[0m\002" # Green
+    dchars = "\001\e[33m\002***\001\e[0m\002" if delim == :splat # Yellow
+
+    proc do |_target_self, _nest_level, pry|
+      pry.config.pwn_repl_line += 1
+      line_pad = format(
+        '%0.3d',
+        pry.config.pwn_repl_line
+      )
+      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
+      "#{title}[#{version}]:#{line_count} #{dchars} ".to_s.scrub
+    end
+  end
+
   class Pry
     # Overwrite Pry::History.push method in History class to get duplicate history entries
     # in order to properly replay automation in this prototyping driver
@@ -31,13 +51,12 @@ begin
     end
   end
 
-  cli = Pry
-  cli.config.prompt_name = :pwn
-  cli.config.pwn_repl_line = 0
-  cli.config.tty_prompt = TTY::Prompt.new
-  cli.config.tty_reader = TTY::Reader.new
+  Pry.config.prompt_name = :pwn
+  Pry.config.pwn_repl_line = 0
+  Pry.config.tty_prompt = TTY::Prompt.new
+  Pry.config.tty_reader = TTY::Reader.new
 
-  cli.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
+  Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
     output.puts 'Use the #help method for more options.'
     output.puts 'e.g help'
     output.puts 'e.g PWN.help'
@@ -45,41 +64,17 @@ begin
     output.puts 'e.g PWN::Plugins::TransparentBrowser.help'
   end
 
-  cli::Commands.create_command 'toggle-pager' do
+  Pry::Commands.create_command 'toggle-pager' do
     description 'Toggle less on returned objects surpassing the terminal.'
 
     def process
-      _pry_.config.pager ? _pry_.config.pager = false : _pry_.config.pager = true
+      pi = pry_instance
+      pi.config.pager ? pi.config.pager = false : pi.config.pager = true
     end
   end
 
-  # Custom Main & Wait (Multi-Line) Prompts
-  title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002" # Bold Red
-  version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002" # Cyan
-  # @line = cli.config.custom_attrs[:line_number]
-  arrow = "\001\e[32m\002>>>\001\e[0m\002" # Green
-  splat = "\001\e[33m\002***\001\e[0m\002" # Yellow
-
-  arrow_ps1_proc = proc do |_target_self, _nest_level, pry|
-    pry.config.pwn_repl_line += 1
-    line_pad = format(
-      '%0.3d',
-      pry.config.pwn_repl_line
-    )
-    line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
-    "#{title}[#{version}]:#{line_count} #{arrow} ".to_s.scrub
-  end
-
-  splat_ps1_proc = proc do |_target_self, _nest_level, pry|
-    pry.config.pwn_repl_line += 1
-    line_pad = format(
-      '%0.3d',
-      pry.config.pwn_repl_line
-    )
-    line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
-    "#{title}[#{version}]:#{line_count} #{splat} ".to_s.scrub
-  end
-
+  arrow_ps1_proc = gen_ps1_proc
+  splat_ps1_proc = gen_ps1_proc(delim: :splat)
   prompt_ps1 = [arrow_ps1_proc, splat_ps1_proc]
 
   pwn_prompt = Pry::Prompt.new(
@@ -88,7 +83,7 @@ begin
     prompt_ps1
   )
 
-  cli.start(
+  Pry.start(
     self,
     prompt: pwn_prompt
   )
