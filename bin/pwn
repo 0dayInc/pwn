@@ -71,7 +71,7 @@ begin
   end
 
   splat_ps1_proc = proc do |_target_self, _nest_level, pry|
-    pry.config.pwn_repl_line+= 1
+    pry.config.pwn_repl_line += 1
     line_pad = format(
       '%0.3d',
       pry.config.pwn_repl_line
