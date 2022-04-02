@@ -19,7 +19,7 @@ begin
 
     # Green Arrows
     dchars = "\001\e[32m\002>>>\001\e[0m\002"
-    
+
     # Yellow Splats
     dchars = "\001\e[33m\002***\001\e[0m\002" if delim == :splat
 
