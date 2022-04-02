@@ -7,10 +7,6 @@ require 'tty-prompt'
 require 'tty-reader'
 
 begin
-  class LineCount
-    attr_accessor :total
-  end
-
   class Pry
     # Overwrite Pry::History.push method in History class to get duplicate history entries
     # in order to properly replay automation in this prototyping driver
@@ -24,8 +20,6 @@ begin
           last_line = nil
         end
 
-        # return line if line == last_line
-
         @history << line
         @history_line_count += 1
         @saver.call(line) if !should_ignore?(line) &&
@@ -37,22 +31,18 @@ begin
     end
   end
 
-  prompt = TTY::Prompt.new
-  reader = TTY::Reader.new
-
   cli = Pry
+  cli.config.prompt_name = :pwn
+  cli.config.pwn_repl_line = 0
+  cli.config.tty_prompt = TTY::Prompt.new
+  cli.config.tty_reader = TTY::Reader.new
+
   cli.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
     output.puts 'Use the #help method for more options.'
+    output.puts 'e.g help'
     output.puts 'e.g PWN.help'
     output.puts 'e.g PWN::Plugins.help'
     output.puts 'e.g PWN::Plugins::TransparentBrowser.help'
-  end
-
-  cli.config.hooks.add_hook(:before_eval, :autocomplete) do |output, _binding, _pry|
-    reader.on(:keypress) do |key_event|
-      output.puts "Key: #{key_event.inspect}"
-      prompt.select('', key_event)
-    end
   end
 
   cli::Commands.create_command 'toggle-pager' do
@@ -66,23 +56,26 @@ begin
   # Custom Main & Wait (Multi-Line) Prompts
   title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002" # Bold Red
   version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002" # Cyan
-  @line_count = LineCount.new
-  @line_count.total = 0
+  # @line = cli.config.custom_attrs[:line_number]
   arrow = "\001\e[32m\002>>>\001\e[0m\002" # Green
   splat = "\001\e[33m\002***\001\e[0m\002" # Yellow
 
-  # arrow_ps1_proc = proc do |_target_self, _nest_level, _pry|
-  arrow_ps1_proc = proc do
-    @line_count.total += 1
-    line_pad = format('%0.3d', @line_count.total)
+  arrow_ps1_proc = proc do |_target_self, _nest_level, pry|
+    pry.config.pwn_repl_line += 1
+    line_pad = format(
+      '%0.3d',
+      pry.config.pwn_repl_line
+    )
     line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
     "#{title}[#{version}]:#{line_count} #{arrow} ".to_s.scrub
   end
 
-  # splat_ps1_proc = proc do |_target_self, _nest_level, _pry|
-  splat_ps1_proc = proc do
-    @line_count.total += 1
-    line_pad = format('%0.3d', @line_count.total)
+  splat_ps1_proc = proc do |_target_self, _nest_level, pry|
+    pry.config.pwn_repl_line += 1
+    line_pad = format(
+      '%0.3d',
+      pry.config.pwn_repl_line
+    )
     line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
     "#{title}[#{version}]:#{line_count} #{splat} ".to_s.scrub
   end
