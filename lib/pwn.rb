@@ -10,6 +10,7 @@ module PWN
   $stdout.flush       # < Ensure that all print statements output progress in realtime
   # TODO: Determine best balance for namespace naming conventions
   autoload :AWS, 'pwn/aws'
+  autoload :Banner, 'pwn/banner'
   autoload :FFI, 'pwn/ffi'
   autoload :Plugins, 'pwn/plugins'
   autoload :Reports, 'pwn/reports'
