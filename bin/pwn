@@ -3,6 +3,7 @@
 
 require 'pwn'
 require 'pry'
+require 'colorize'
 # require 'tty-prompt'
 # require 'tty-reader'
 
@@ -10,18 +11,10 @@ begin
   def gen_ps1_proc(opts = {})
     delim = opts[:delim]
 
-    # Custom Main & Wait (Multi-Line) Prompts
-    # Bold Red Title
-    title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002"
-
-    # Cyan Version
-    version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002"
-
-    # Green Arrows
-    dchars = "\001\e[32m\002>>>\001\e[0m\002"
-
-    # Yellow Splats
-    dchars = "\001\e[33m\002***\001\e[0m\002" if delim == :splat
+    title = 'pwn'.red.bold
+    version = PWN::VERSION.cyan
+    dchars = '>>>'.green
+    dchars = '***'.yellow if delim == :splat
 
     proc do |_target_self, _nest_level, pry|
       pry.config.pwn_repl_line += 1
@@ -70,7 +63,8 @@ begin
 
   # Define REPL Hooks
   Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
-    output.puts 'Use the #help method for more options.'
+    output.puts PWN::Banner.get
+    output.puts 'Use the #help command & methods for more options.'
     output.puts 'e.g help'
     output.puts 'e.g PWN.help'
     output.puts 'e.g PWN::Plugins.help'
