@@ -46,6 +46,7 @@ module PWN
           #{ee1}#{ee2}#{ee3}#{ee4}#{ee5}#{f1}
           #{ee1}#{ee2}#{ee3}#{ee4}#{ee5}#{f1}
           #{ee1}#{ee2}#{ee3}#{ee4}#{ee5}#{f1}
+          PWN
         "
       rescue StandardError => e
         raise e
