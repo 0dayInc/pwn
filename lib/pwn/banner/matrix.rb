@@ -169,6 +169,7 @@ module PWN
           matrix = "#{matrix}#{matrix_row}\n"
         end
 
+        matrix = "#{matrix}PWN\n"
         matrix.green
       rescue StandardError => e
         raise e
