@@ -42,7 +42,7 @@ module PWN
     autoload :Packet, 'pwn/plugins/packet'
     autoload :PDFParse, 'pwn/plugins/pdf_parse'
     autoload :Pony, 'pwn/plugins/pony'
-    autoload :RabbitMQHole, 'pwn/plugins/rabbit_mq_hole'
+    autoload :RabbitMQ, 'pwn/plugins/rabbit_mq'
     autoload :RFIDler, 'pwn/plugins/rfidler'
     autoload :Serial, 'pwn/plugins/serial'
     autoload :Shodan, 'pwn/plugins/shodan'

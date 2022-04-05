@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-describe PWN::Plugins::RabbitMQHole do
+describe PWN::Plugins::RabbitMQ do
   it 'should display information for authors' do
-    authors_response = PWN::Plugins::RabbitMQHole
+    authors_response = PWN::Plugins::RabbitMQ
     expect(authors_response).to respond_to :authors
   end
 
   it 'should display information for existing help method' do
-    help_response = PWN::Plugins::RabbitMQHole
+    help_response = PWN::Plugins::RabbitMQ
     expect(help_response).to respond_to :help
   end
 end
