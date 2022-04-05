@@ -11,10 +11,14 @@ begin
   def gen_ps1_proc(opts = {})
     delim = opts[:delim]
 
-    title = 'pwn'.red.bold
-    version = PWN::VERSION.cyan
-    dchars = '>>>'.green
-    dchars = '***'.yellow if delim == :splat
+    # title = 'pwn'.red.bold
+    title = "\001\e[1m\002\001\e[31m\002pwn\001\e[0m\002"
+    # version = PWN::VERSION.cyan
+    version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002"
+    # dchars = '>>>'.green
+    dchars = "\001\e[32m\002>>>\001\e[0m\002"
+    # dchars = '***'.yellow if delim == :splat
+    dchars = "\001\e[33m\002***\001\e[0m\002" if delim == :splat
 
     proc do |_target_self, _nest_level, pry|
       pry.config.pwn_repl_line += 1

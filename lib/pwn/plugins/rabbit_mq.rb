@@ -5,9 +5,9 @@ require 'bunny'
 module PWN
   module Plugins
     # This plugin is used to interact w/ RabbitMQ via ruby.
-    module RabbitMQHole
+    module RabbitMQ
       # Supported Method Parameters::
-      # PWN::Plugins::RabbitMQHole.open(
+      # PWN::Plugins::RabbitMQ.open(
       #   hostname: 'required',
       #   username: 'optional',
       #   password: 'optional'
@@ -15,17 +15,19 @@ module PWN
 
       public_class_method def self.open(opts = {})
         host = opts[:hostname].to_s
+        port = opts[:port].to_i
+        port = 5672 unless port.positive?
         user = opts[:username].to_s
         pass = opts[:password].to_s
 
-        this_amqp_obj = Bunny.new("amqp://#{user}:#{pass}@#{host}")
+        this_amqp_obj = Bunny.new("amqp://#{user}:#{pass}@#{host}:#{port}")
         this_amqp_obj.start
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::RabbitMQHole.close(
+      # PWN::Plugins::RabbitMQ.close(
       #   amqp_oject: amqp_conn1
       # )
 
@@ -50,6 +52,7 @@ module PWN
         puts %{USAGE:
           amqp_conn1 = #{self}.open(
             hostname: 'required',
+            port: 'optional - defaults to 5672',
             username: 'optional',
             password: 'optional'
           )
