@@ -9,6 +9,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::RabbitMQ.open(
       #   hostname: 'required',
+      #   port: 'optional - defaults to 5672',
       #   username: 'optional',
       #   password: 'optional'
       # )
