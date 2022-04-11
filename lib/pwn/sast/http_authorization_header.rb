@@ -4,15 +4,13 @@ require 'socket'
 
 module PWN
   module SAST
-    # SAST Module used to identify if source may
-    # result in exposing the Java application to deserialization vulnerabilities.
-    # For more information see:
-    # https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html
-    module DeserialJava
+    # SAST Module used to identify hard-code/plain-text
+    # passwords within source code.
+    module HTTPAuthorizationHeader
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
-      # PWN::SAST::DeserialJava.scan(
+      # PWN::SAST::HTTPAuthorizationHeader.scan(
       #   :dir_path => 'optional path to dir defaults to .'
       #   :git_repo_root_uri => 'optional http uri of git repo scanned'
       # )
@@ -24,7 +22,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.scala' || File.extname(entry) == '.java')
+          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/
             line_no_and_contents_arr = []
             filename_arr = []
             entry_beautified = false
@@ -35,7 +33,19 @@ module PWN
               entry_beautified = true
             end
 
-            test_case_filter = "grep -in -e readObject -e XMLdecoder -e fromXML -e readObjectNodData -e readResolve -e readExternal -e readUnshared -e Serializable #{entry}"
+            test_case_filter = %(
+              grep -Ein \
+              -e "Authorization:(\\sBasic|Basic)" \
+              -e "Authorization:(\\sBearer|Bearer)" \
+              -e "Authorization:(\\sDigest|Digest)" \
+              -e "Authorization:(\\sHOBA|HOBA)" \
+              -e "Authorization:(\\sMutual|Mutual)" \
+              -e "Authorization:(\\sNegotiate|Negotiate)" \
+              -e "Authorization:(\\sVapid|Vapid)" \
+              -e "Authorization:(\\sSCRAM|SCRAM)" \
+              -e "Authorization:(\\sAWS|AWS)" \
+              -e "authorization(\\s=|=)" #{entry}
+            )
 
             str = `#{test_case_filter}`.to_s.scrub
 
@@ -105,8 +115,8 @@ module PWN
       public_class_method def self.nist_800_53_requirements
         {
           sast_module: self,
-          section: 'INFORMATION INPUT VALIDATION',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=SI-10'
+          section: 'PROTECTION OF INFORMATION AT REST',
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=SC-28'
         }
       end
 
