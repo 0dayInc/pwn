@@ -23,7 +23,7 @@ module PWN
         d4 = '%%%%%'.black
         d5 = '-----'.light_blue
         d6 = '@@@@@'.black
-        d7 = ':::::'.white
+        d7 = 'PWN::'.red
         ee1 = '######'.red
         ee2 = '......'.white
         ee3 = '******'.blue
@@ -46,7 +46,6 @@ module PWN
           #{ee1}#{ee2}#{ee3}#{ee4}#{ee5}#{f1}
           #{ee1}#{ee2}#{ee3}#{ee4}#{ee5}#{f1}
           #{ee1}#{ee2}#{ee3}#{ee4}#{ee5}#{f1}
-          PWN
         "
       rescue StandardError => e
         raise e
