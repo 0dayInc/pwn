@@ -56,6 +56,14 @@ begin
   end
 
   # Define Custom REPL Commands
+  Pry::Commands.create_command 'welcome-banner' do
+    description 'Display the random welcome banner, including basic usage.'
+
+    def process
+      puts PWN::Banner.welcome
+    end
+  end
+
   Pry::Commands.create_command 'toggle-pager' do
     description 'Toggle less on returned objects surpassing the terminal.'
 
@@ -67,12 +75,7 @@ begin
 
   # Define REPL Hooks
   Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
-    output.puts PWN::Banner.get
-    output.puts 'Use the #help command & methods for more options.'
-    output.puts 'e.g help'
-    output.puts 'e.g PWN.help'
-    output.puts 'e.g PWN::Plugins.help'
-    output.puts 'e.g PWN::Plugins::TransparentBrowser.help'
+    output.puts PWN::Banner.welcome
   end
 
   # Define PS1 Prompt

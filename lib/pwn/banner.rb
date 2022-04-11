@@ -39,6 +39,20 @@ module PWN
       banner
     end
 
+    # Supported Method Parameters::
+    # PWN::Banner.get(
+    #   index: 'optional - defaults to random banner index'
+    # )
+
+    public_class_method def self.welcome
+      banner = PWN::Banner.get
+      banner = "#{banner}\nUse the #help command & methods for more options.\n"
+      banner = "#{banner}e.g help\n"
+      banner = "#{banner}e.g PWN.help\n"
+      banner = "#{banner}e.g PWN::Plugins.help\n"
+      banner = "#{banner}e.g PWN::Plugins::TransparentBrowser.help\n"
+    end
+
     # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
     public_class_method def self.authors
@@ -54,6 +68,8 @@ module PWN
         banner = #{self}.get(
           index: 'optional - defaults to random banner index'
         )
+
+        banner = #{self}.welcome
 
         #{self}.authors
       "
