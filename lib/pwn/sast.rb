@@ -22,6 +22,7 @@ module PWN
     autoload :Eval, 'pwn/sast/eval'
     autoload :Factory, 'pwn/sast/factory'
     autoload :FilePermission, 'pwn/sast/file_permission'
+    autoload :HTTPAuthorizationHeader, 'pwn/sast/http_authorization_header'
     autoload :InnerHTML, 'pwn/sast/inner_html'
     autoload :Keystore, 'pwn/sast/keystore'
     autoload :LocationHash, 'pwn/sast/location_hash'

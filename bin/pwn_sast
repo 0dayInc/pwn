@@ -76,12 +76,13 @@ begin
       CmdExecutionRuby
       CmdExecutionScala
       CSRF
-      Emoticon
       DeserialJava
+      Emoticon
       Eval
-      InnerHTML
-      FilePermission
       Factory
+      FilePermission
+      HTTPAuthorizationHeader
+      InnerHTML
       LocationHash
       Log4J
       Logger
