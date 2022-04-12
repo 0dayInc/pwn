@@ -117,7 +117,7 @@ module PWN
         {
           sast_module: self,
           section: 'DEVELOPER SECURITY AND PRIVACY ARCHITECTURE AND DESIGN',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=SA-17'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SA-17'
         }
       rescue StandardError => e
         raise e

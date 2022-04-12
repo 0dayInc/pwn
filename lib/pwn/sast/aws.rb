@@ -111,7 +111,7 @@ module PWN
         {
           sast_module: self,
           section: 'TRANSMISSION CONFIDENTIALITY AND INTEGRITY',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=SC-8'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SC-8'
         }
       rescue StandardError => e
         raise e

@@ -109,7 +109,7 @@ module PWN
         {
           sast_module: self,
           section: 'ACCOUNT MANAGEMENT',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=AC-2'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=AC-2'
         }
       rescue StandardError => e
         raise e
