@@ -43,7 +43,7 @@
     {
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=/opt/pwn",
+        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
         "PWN_PROVIDER=vmware"
       ],
       "scripts": [
@@ -63,7 +63,7 @@
       "pause_before": "180s",
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=/opt/pwn",
+        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
         "PWN_PROVIDER=vmware"
       ],
       "scripts": [
@@ -83,7 +83,7 @@
       "pause_before": "180s",
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=/opt/pwn",
+        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
         "PWN_PROVIDER=vmware"
       ],
       "scripts": [
