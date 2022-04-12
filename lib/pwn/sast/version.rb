@@ -106,7 +106,7 @@ module PWN
         {
           sast_module: self,
           section: 'VULNERABILITY SCANNING',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=RA-5'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=RA-5'
         }
       rescue StandardError => e
         raise e

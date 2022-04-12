@@ -108,7 +108,7 @@ module PWN
         {
           sast_module: self,
           section: 'ERROR HANDLING',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=SI-11'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SI-11'
         }
       rescue StandardError => e
         raise e

@@ -114,7 +114,7 @@ module PWN
         {
           sast_module: self,
           section: 'LEAST PRIVILEGE',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control/?version=5.1&number=AC-6'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=AC-6'
         }
       rescue StandardError => e
         raise e
