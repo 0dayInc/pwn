@@ -4,15 +4,15 @@
 require 'yaml'
 
 print "Installing Let's Encrypt **************************************************************"
-if ENV['PWN_ROOT']
-  pwn_root = ENV['PWN_ROOT']
+if ENV.fetch('PWN_ROOT')
+  pwn_root = ENV.fetch('PWN_ROOT')
 elsif Dir.exist?('/pwn')
   pwn_root = '/pwn'
 else
   pwn_root = Dir.pwd
 end
 
-pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
 letsencrypt_git = 'https://github.com/letsencrypt/letsencrypt'
 letsencrypt_root = '/opt/letsencrypt-git'
 letsencrypt_yaml = YAML.load_file("#{pwn_root}/etc/userland/#{pwn_provider}/letsencrypt/vagrant.yaml")

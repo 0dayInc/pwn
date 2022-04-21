@@ -4,15 +4,15 @@
 require 'yaml'
 require 'pwn'
 
-if ENV['PWN_ROOT']
-  pwn_root = ENV['PWN_ROOT']
+if ENV.fetch('PWN_ROOT')
+  pwn_root = ENV.fetch('PWN_ROOT')
 elsif Dir.exist?('/pwn')
   pwn_root = '/pwn'
 else
   pwn_root = Dir.pwd
 end
 
-pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
 jenkins_userland_config = YAML.load_file("#{pwn_root}/etc/userland/#{pwn_provider}/jenkins/vagrant.yaml")
 private_key_path = '/var/lib/jenkins/.ssh/id_rsa-pwn_jenkins'
 userland_ssh_keygen_pass = jenkins_userland_config['ssh_keygen_pass']

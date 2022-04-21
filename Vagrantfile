@@ -7,13 +7,13 @@ require 'pathname'
 
 API_VERSION = '2'
 pwn_root = Pathname.new(__FILE__).realpath.expand_path.parent
-vagrant_gui = ENV['VAGRANT_GUI'] if ENV['VAGRANT_GUI']
-pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+vagrant_gui = ENV.fetch('VAGRANT_GUI') if ENV.fetch('VAGRANT_GUI')
+pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
 runtime_userland = 'vagrant_rsync_userland_configs.lst'
 template_userland = "#{pwn_root}/vagrant_rsync_userland_template.lst"
 
 if pwn_provider == 'docker'
-  docker_container_target = ENV['DOCKER_CONTAINER_TARGET'] if ENV['DOCKER_CONTAINER_TARGET']
+  docker_container_target = ENV.fetch('DOCKER_CONTAINER_TARGET') if ENV.fetch('DOCKER_CONTAINER_TARGET')
   docker_create_args = [
     '--interactive',
     '--tty'
