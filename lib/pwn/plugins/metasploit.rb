@@ -17,8 +17,8 @@ module PWN
         if opts[:yaml_conf] && File.exist?(opts[:yaml_conf])
           yaml_conf = YAML.load_file(opts[:yaml_conf].to_s.strip.chomp.scrub)
         else
-          pwn_root = ENV['PWN_ROOT'] if ENV['PWN_ROOT']
-          pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+          pwn_root = ENV.fetch('PWN_ROOT') if ENV.fetch('PWN_ROOT')
+          pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
           yaml_conf = YAML.load_file("#{pwn_root}/etc/userland/#{pwn_provider}/metasploit/vagrant.yaml")
         end
 

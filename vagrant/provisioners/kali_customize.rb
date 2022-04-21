@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-if ENV['PWN_ROOT']
-  pwn_root = ENV['PWN_ROOT']
+if ENV.fetch('PWN_ROOT')
+  pwn_root = ENV.fetch('PWN_ROOT')
 elsif Dir.exist?('/pwn')
   pwn_root = '/pwn'
 else

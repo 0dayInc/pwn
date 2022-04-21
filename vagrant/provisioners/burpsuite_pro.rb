@@ -5,15 +5,15 @@ require 'yaml'
 require 'digest'
 require 'fileutils'
 
-if ENV['PWN_ROOT']
-  pwn_root = ENV['PWN_ROOT']
+if ENV.fetch('PWN_ROOT')
+  pwn_root = ENV.fetch('PWN_ROOT')
 elsif Dir.exist?('/pwn')
   pwn_root = '/pwn'
 else
   pwn_root = Dir.pwd
 end
 
-pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
 userland_config = "#{pwn_root}/etc/userland/#{pwn_provider}/burpsuite/vagrant.yaml"
 userland_burpsuite_pro_jar_path = "#{pwn_root}/third_party/burpsuite-pro.jar"
 burpsuite_pro_jar_dest_path = "/opt/burpsuite/#{File.basename(userland_burpsuite_pro_jar_path)}"

@@ -44,7 +44,7 @@ if opts.empty?
 end
 
 begin
-  pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
 
   green = "\e[32m"
   end_of_color = "\e[0m"

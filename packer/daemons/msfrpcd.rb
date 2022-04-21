@@ -21,15 +21,15 @@ end
 action = opts[:action].to_s.scrub.to_sym
 
 def start
-  if ENV['PWN_ROOT']
-    pwn_root = ENV['PWN_ROOT']
+  if ENV.fetch('PWN_ROOT')
+    pwn_root = ENV.fetch('PWN_ROOT')
   elsif Dir.exist?('/pwn')
     pwn_root = '/pwn'
   else
     pwn_root = Dir.pwd
   end
 
-  pwn_provider = ENV['PWN_PROVIDER'] if ENV['PWN_PROVIDER']
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
   metasploit_root = '/opt/metasploit-framework-dev'
 
   msfrpcd_config = YAML.load_file("#{pwn_root}/etc/userland/#{pwn_provider}/metasploit/vagrant.yaml")
