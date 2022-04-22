@@ -2,8 +2,8 @@
   "variables": {
     "vagrant_cloud_token": "{{env `VAGRANT_CLOUD_TOKEN`}}",
     "box_version": "{{env `BOX_VERSION`}}",
-    "pwn_root": "{{ env 'PWN_ROOT' }}",
-    "pwn_provider": "{{ env PWN_PROVIDER=virtualbox }}"
+    "pwn_root": "{{ env `PWN_ROOT` }}",
+    "pwn_provider": "{{ env `PWN_PROVIDER` }}"
   },
   "builders": [{
     "type": "virtualbox-iso",
