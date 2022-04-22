@@ -4,7 +4,9 @@
     "aws_secret_access_key": "{{ env `AWS_SECRET_ACCESS_KEY` }}",
     "aws_ssh_keypair_name": "{{ env `AWS_SSH_KEYPAIR_NAME` }}",
     "aws_ssh_private_key_file": "{{ env `AWS_SSH_PRIVATE_KEY_FILE` }}",
-    "box_version": "{{ env `BOX_VERSION` }}"
+    "box_version": "{{ env `BOX_VERSION` }}",
+    "pwn_root": "{{ env 'PWN_ROOT' }}",
+    "pwn_provider": "{{ PWN_PROVIDER=aws }}"
   },
   "builders": [{
     "type": "amazon-ebs",
@@ -32,8 +34,8 @@
     {
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
-        "PWN_PROVIDER=aws"
+        "PWN_ROOT={{user `pwn_root` }}",
+        "PWN_PROVIDER={{user `pwn_provider` }}"
       ],
       "scripts": [
         "provisioners/upload_globals.sh",
@@ -52,8 +54,8 @@
       "pause_before": "180s",
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
-        "PWN_PROVIDER=aws"
+        "PWN_ROOT={{user `pwn_root` }}",
+        "PWN_PROVIDER={{user `pwn_provider` }}"
       ],
       "scripts": [
         "provisioners/update_os.sh"
@@ -71,8 +73,8 @@
       "pause_before": "180s",
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
-        "PWN_PROVIDER=aws"
+        "PWN_ROOT={{user `pwn_root` }}",
+        "PWN_PROVIDER={{user `pwn_provider` }}"
       ],
       "scripts": [
         "provisioners/coreutils.sh",

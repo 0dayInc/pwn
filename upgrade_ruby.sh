@@ -43,4 +43,5 @@ cd $pwn_root && ./vagrant/provisioners/gem.sh
 rvmsudo rvm install ruby-$new_ruby_version
 echo $new_ruby_version > $pwn_root/.ruby-version
 
-cd $pwn_root && rvm use $new_ruby_version@$ruby_gemset && ./build_pwn_gem.sh
+cd / && cd $pwn_root && rvm use $new_ruby_version@$ruby_gemset && ./build_pwn_gem.sh
+rvmsudo gem pristine --all
