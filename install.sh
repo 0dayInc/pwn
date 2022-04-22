@@ -1,10 +1,6 @@
 #!/bin/bash --login
-if [[ $PWN_ROOT == '' ]]; then
-  if [[ ! -d '/pwn' ]]; then
-    pwn_root=$(pwd)
-  else
-    pwn_root='/pwn'
-  fi
+if [[ -d '/opt/pwn' ]]; then
+  pwn_root='/opt/pwn' 
 else
   pwn_root="${PWN_ROOT}"
 fi

@@ -1,11 +1,7 @@
 #!/bin/bash --login
 # USE THIS SCRIPT WHEN UPGRADING RUBY
-if [[ $PWN_ROOT == '' ]]; then
-  if [[ ! -d '/pwn' ]]; then
-    pwn_root=$(pwd)
-  else
-    pwn_root='/pwn'
-  fi
+if [[ -d '/opt/pwn' ]]; then
+  pwn_root='/opt/pwn' 
 else
   pwn_root="${PWN_ROOT}"
 fi
@@ -43,4 +39,5 @@ cd $pwn_root && ./vagrant/provisioners/gem.sh
 rvmsudo rvm install ruby-$new_ruby_version
 echo $new_ruby_version > $pwn_root/.ruby-version
 
-cd $pwn_root && rvm use $new_ruby_version@$ruby_gemset && ./build_pwn_gem.sh
+cd / && cd $pwn_root && rvm use $new_ruby_version@$ruby_gemset && ./build_pwn_gem.sh
+rvmsudo gem pristine --all

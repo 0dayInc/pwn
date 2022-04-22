@@ -1,7 +1,9 @@
 {
   "variables": {
     "vagrant_cloud_token": "{{ env `VAGRANT_CLOUD_TOKEN` }}",
-    "box_version": "{{ env `BOX_VERSION` }}"
+    "box_version": "{{ env `BOX_VERSION` }}",
+    "pwn_root": "{{ env 'PWN_ROOT' }}",
+    "pwn_provider": "{{ PWN_PROVIDER=qemu }}"
   },
   "builders": [{
     "type": "qemu",
@@ -39,8 +41,8 @@
     {
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
-        "PWN_PROVIDER=qemu"
+        "PWN_ROOT={{user `pwn_root` }}",
+        "PWN_PROVIDER={{user `pwn_provider` }}"
       ],
       "scripts": [
         "provisioners/upload_globals.sh",
@@ -75,8 +77,8 @@
       "pause_before": "180s",
       "type": "shell",
       "environment_vars": [
-        "PWN_ROOT=\$(ruby -r pwn -e 'puts \"#{Gem.path.first}/gems/pwn-#{PWN::VERSION}\"')",
-        "PWN_PROVIDER=qemu"
+        "PWN_ROOT={{user `pwn_root` }}",
+        "PWN_PROVIDER={{user `pwn_provider` }}"
       ],
       "scripts": [
         "provisioners/coreutils.sh",
