@@ -3,7 +3,7 @@
     "vagrant_cloud_token": "{{env `VAGRANT_CLOUD_TOKEN`}}",
     "box_version": "{{env `BOX_VERSION`}}",
     "pwn_root": "{{ env 'PWN_ROOT' }}",
-    "pwn_provider": "{{ PWN_PROVIDER=virtualbox }}"
+    "pwn_provider": "{{ env PWN_PROVIDER=virtualbox }}"
   },
   "builders": [{
     "type": "virtualbox-iso",
