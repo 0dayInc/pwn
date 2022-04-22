@@ -3,7 +3,7 @@
     "vagrant_cloud_token": "{{ env `VAGRANT_CLOUD_TOKEN` }}",
     "box_version": "{{ env `BOX_VERSION` }}",
     "pwn_root": "{{ env 'PWN_ROOT' }}",
-    "pwn_provider": "{{ PWN_PROVIDER=vmware }}"
+    "pwn_provider": "{{ env PWN_PROVIDER=vmware }}"
   },
   "builders": [{
     "type": "vmware-iso",
