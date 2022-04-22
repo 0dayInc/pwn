@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash --login
 if [[ $1 != "" && $2 != "" && $3 != "" ]]; then
   # Default Strategy is to merge codebase
   git config pull.rebase false
