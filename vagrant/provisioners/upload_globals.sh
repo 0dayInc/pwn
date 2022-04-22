@@ -12,7 +12,8 @@ fi
 sudo tee -a $pwn_env_file << EOF
 export PWN_ROOT=\$(
   source /etc/profile.d/rvm.sh; \
-  ruby -r pwn -e 'puts "#{Gem.path.first}/gems/pwn-#{PWN::VERSION}"'
+  ruby -r pwn -e 'puts "#{Gem.path.first}/gems/pwn-#{PWN::VERSION}"' \
+  2> /dev/null
 )
 export PWN_PROVIDER='${pwn_provider}'
 EOF
