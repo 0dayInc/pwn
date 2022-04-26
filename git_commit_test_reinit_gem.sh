@@ -1,5 +1,10 @@
 #!/bin/bash --login
-if [[ $1 != "" && $2 != "" && $3 != "" ]]; then
+usage() {
+  echo "USAGE: ${0} '<full name>' <email address> '<git commit comments>'"
+  exit 1
+}
+
+if (( $# == 3 )); then
   # Default Strategy is to merge codebase
   git config pull.rebase false
   git config commit.gpgsign true
@@ -18,5 +23,5 @@ if [[ $1 != "" && $2 != "" && $3 != "" ]]; then
     git tag $this_version
   fi
 else
-  echo "USAGE: ${0} '<full name>' <email address> '<git commit comments>'"
+  usage
 fi

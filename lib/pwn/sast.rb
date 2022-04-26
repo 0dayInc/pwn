@@ -36,6 +36,7 @@ module PWN
     autoload :Redirect, 'pwn/sast/redirect'
     autoload :ReDOS, 'pwn/sast/redos'
     autoload :Shell, 'pwn/sast/shell'
+    autoload :Signature, 'pwn/sast/signature'
     autoload :SQL, 'pwn/sast/sql'
     autoload :SSL, 'pwn/sast/ssl'
     autoload :Sudo, 'pwn/sast/sudo'

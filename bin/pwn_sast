@@ -95,6 +95,7 @@ begin
       Redirect
       ReDOS
       Shell
+      Signature
       SQL
       SSL
       Sudo
