@@ -7,7 +7,7 @@ require 'pwn/version'
 Gem::Specification.new do |spec|
   # Switch back when RVM has stable 3.1.2 (i.e. not just preview / p20)
   # spec.required_ruby_version = ">= #{File.read('.ruby-version')}"
-  spec.required_ruby_version = "~> #{File.read('.ruby-version')}"
+  spec.required_ruby_version = '>= 3.1.2.p20'
   spec.name = 'pwn'
   spec.version = PWN::VERSION
   spec.authors = ['0day Inc.']
