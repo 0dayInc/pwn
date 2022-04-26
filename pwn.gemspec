@@ -5,7 +5,10 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'pwn/version'
 
 Gem::Specification.new do |spec|
-  spec.required_ruby_version = ">= #{File.read('.ruby-version')}"
+  # Switch back when RVM has stable 3.1.2 (i.e. not just preview / p20)
+  # spec.required_ruby_version = ">= #{File.read('.ruby-version')}"
+  required_minor_ruby_version = File.read('.ruby-version').split('.')[0..1].join('.')
+  spec.required_ruby_version = ">= #{required_minor_ruby_version}"
   spec.name = 'pwn'
   spec.version = PWN::VERSION
   spec.authors = ['0day Inc.']
