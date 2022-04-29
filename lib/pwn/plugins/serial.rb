@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'serialport'
+require 'io/wait'
 
 module PWN
   module Plugins
