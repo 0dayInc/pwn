@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'credit_card_validations'
+require 'credit_card_validations/string'
 
 module PWN
   module Plugins
@@ -26,6 +27,18 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::CreditCard.type(
+      #   cc: 'required - e.g. XXXX XXXX XXXX XXXX'
+      # )
+
+      public_class_method def self.type(opts = {})
+        cc = opts[:cc].to_s.scrub.strip.chomp
+        cc.credit_card_brand
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
@@ -41,6 +54,10 @@ module PWN
           #{self}.generate(
             type: 'required - card to generate :amex|:unionpay|:dankort|:diners|:elo|:discover|:hipercard|:jcb|:maestro|:mastercard|:mir|:rupay|:solo|:switch|:visa',
             count: 'required - number of numbers to generate'
+          )
+
+          #{self}.type(
+            cc: 'required - e.g. XXXX XXXX XXXX XXXX'
           )
 
           #{self}.authors
