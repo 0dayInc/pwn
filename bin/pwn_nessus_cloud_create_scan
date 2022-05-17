@@ -39,7 +39,7 @@ begin
   secret_key = yaml[:secret_key]
 
   scan_template_name = opts[:scan_template_name]
-  scan_template_name = 'Basic Network Scan' unless scan_template_name
+  scan_template_name ||= 'Basic Network Scan'
 
   nessus_obj = PWN::Plugins::NessusCloud.login(
     access_key: access_key,

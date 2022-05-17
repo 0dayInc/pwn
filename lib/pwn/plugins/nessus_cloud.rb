@@ -301,7 +301,7 @@ module PWN
             secret_key: 'required - API secret key (will prompt if blank)'
           )
 
-          #{self}.get_scan_templates(
+          #{self}.get_canned_scan_templates(
             nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
