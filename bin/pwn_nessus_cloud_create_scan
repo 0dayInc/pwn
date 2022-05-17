@@ -58,10 +58,11 @@ begin
     nessus_obj: nessus_obj
   )
 
-  selected_scan_template = scan_template_list[:scans].select do |scan|
-    scan[:name] == scan_name
-  end
-  puts selected_scan_template.inspect
+  puts scan_template_list.inspect
+  # selected_scan_template = scan_template_list[:scans].select do |scan|
+  #   scan[:name] == scan_name
+  # end
+  # puts selected_scan_template.inspect
 
   # scan_template_id = selected_scan_template.first[:id]
   # puts scan_template_id
