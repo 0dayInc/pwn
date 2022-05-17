@@ -15,16 +15,8 @@ OptionParser.new do |options|
     opts[:yaml_config] = c
   end
 
-  options.on('-nVALUE', '--scan-name=VALUE', '<Required - Name of Scan to Launch>') do |n|
-    opts[:scan_name] = n
-  end
-
-  options.on('-rRPATH', '--report-path=RPATH', '<Required - Path / Filename of Report>') do |r|
-    opts[:path_to_export] = r
-  end
-
-  options.on('-fFORMAT', '--report-format=FORMAT', '<Optional - Report Format :csv|:db|:html|:nessus|:pdf (defaults to :csv)>') do |f|
-    opts[:format] = f
+  options.on('-nVALUE', '--scan-template-name=VALUE', '<Optional - Name of Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |n|
+    opts[:scan_template_name] = n
   end
 end.parse!
 
@@ -45,27 +37,27 @@ begin
 
   access_key = yaml[:access_key]
   secret_key = yaml[:secret_key]
-  scan_name = opts[:scan_name]
-  path_to_export = opts[:path_to_export]
-  format = opts[:format]
+
+  scan_template_name = opts[:scan_template_name]
+  scan_template_name = 'Basic Network Scan' unless scan_template_name
 
   nessus_obj = PWN::Plugins::NessusCloud.login(
     access_key: access_key,
     secret_key: secret_key
   )
 
-  scan_template_list = PWN::Plugins::NessusCloud.list_scan_templates(
+  canned_scan_template_list = PWN::Plugins::NessusCloud.get_canned_scan_templates(
     nessus_obj: nessus_obj
   )
 
   puts scan_template_list.inspect
-  # selected_scan_template = scan_template_list[:scans].select do |scan|
-  #   scan[:name] == scan_name
-  # end
-  # puts selected_scan_template.inspect
+  selected_scan_template = scan_template_list[:templates].select do |scan_template|
+    scan_template[:title] == scan_template_name
+  end
+  puts selected_scan_template.inspect
 
-  # scan_template_id = selected_scan_template.first[:id]
-  # puts scan_template_id
+  scan_template_id = selected_scan_template.first[:uuid]
+  puts scan_template_id
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e

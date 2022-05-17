@@ -93,11 +93,11 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::NessusCloud.list_scan_templates(
+      # PWN::Plugins::NessusCloud.get_canned_scan_templates(
       #   nessus_obj: 'required - nessus_obj returned from #login method'
       # )
 
-      public_class_method def self.list_scan_templates(opts = {})
+      public_class_method def self.get_canned_scan_templates(opts = {})
         nessus_obj = opts[:nessus_obj]
 
         scan_templates_resp = nessus_cloud_rest_call(
@@ -111,11 +111,11 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::NessusCloud.list_scans(
+      # PWN::Plugins::NessusCloud.get_scans(
       #   nessus_obj: 'required - nessus_obj returned from #login method'
       # )
 
-      public_class_method def self.list_scans(opts = {})
+      public_class_method def self.get_scans(opts = {})
         nessus_obj = opts[:nessus_obj]
 
         scans_resp = nessus_cloud_rest_call(
@@ -301,11 +301,11 @@ module PWN
             secret_key: 'required - API secret key (will prompt if blank)'
           )
 
-          #{self}.list_scan_templates(
+          #{self}.get_scan_templates(
             nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
-          #{self}.list_scans(
+          #{self}.get_scans(
             nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
