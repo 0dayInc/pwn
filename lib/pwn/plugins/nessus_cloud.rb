@@ -93,6 +93,24 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.list_scan_templates(
+      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      # )
+
+      public_class_method def self.list_scan_templates(opts = {})
+        nessus_obj = opts[:nessus_obj]
+
+        scan_templates_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'editor/scan/templates'
+        ).body
+
+        JSON.parse(scan_templates_resp, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.list_scans(
       #   nessus_obj: 'required - nessus_obj returned from #login method'
       # )
@@ -281,6 +299,10 @@ module PWN
           nessus_obj = #{self}.login(
             access_key: 'required - API access key (will prompt if blank)',
             secret_key: 'required - API secret key (will prompt if blank)'
+          )
+
+          #{self}.list_scan_templates(
+            nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
           #{self}.list_scans(
