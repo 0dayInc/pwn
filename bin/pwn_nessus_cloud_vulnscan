@@ -54,7 +54,7 @@ begin
     secret_key: secret_key
   )
 
-  scan_list = PWN::Plugins::NessusCloud.list_scans(
+  scan_list = PWN::Plugins::NessusCloud.get_scans(
     nessus_obj: nessus_obj
   )
 
