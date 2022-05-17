@@ -46,7 +46,7 @@ begin
     secret_key: secret_key
   )
 
-  canned_scan_template_list = PWN::Plugins::NessusCloud.get_canned_scan_templates(
+  scan_template_list = PWN::Plugins::NessusCloud.get_canned_scan_templates(
     nessus_obj: nessus_obj
   )
 
