@@ -337,15 +337,15 @@ module PWN
             secret_key: 'required - API secret key (will prompt if blank)'
           )
 
+          #{self}.get_canned_scan_templates(
+            nessus_obj: 'required - nessus_obj returned from #login method'
+          )
+
           #{self}.get_policies(
             nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
           #{self}.get_folders(
-            nessus_obj: 'required - nessus_obj returned from #login method'
-          )
-
-          #{self}.get_canned_scan_templates(
             nessus_obj: 'required - nessus_obj returned from #login method'
           )
 

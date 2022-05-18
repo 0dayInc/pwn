@@ -68,13 +68,12 @@ begin
     nessus_obj: nessus_obj
   )
 
-  selected_scan_template = scan_template_list[:templates].select do |scan_template|
-    scan_template[:title] == scan_template
+  selected_scan_template = scan_template_list[:templates].select do |sc|
+    sc[:title] == scan_template
   end
 
   scan_template_id = selected_scan_template.first[:uuid]
 
-  
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e
