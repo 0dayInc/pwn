@@ -15,8 +15,16 @@ OptionParser.new do |options|
     opts[:yaml_config] = c
   end
 
-  options.on('-nVALUE', '--scan-template-name=VALUE', '<Optional - Name of Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |n|
-    opts[:scan_template_name] = n
+  options.on('-nNAME', '--scan-name=NAME', '<Required - YAML Name of Scan to Create>') do |n|
+    opts[:scan_name] = n
+  end
+
+  options.on('-pPOLICY', '--policy-name=POLICY', '<Optional - Policy to Use to Create the Scan (Defaults to "")>') do |p|
+    opts[:policy_name] = p
+  end
+
+  options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
+    opts[:scan_template] = t
   end
 end.parse!
 
@@ -38,26 +46,35 @@ begin
   access_key = yaml[:access_key]
   secret_key = yaml[:secret_key]
 
-  scan_template_name = opts[:scan_template_name]
-  scan_template_name ||= 'Basic Network Scan'
+  scan_name = opts[:scan_name]
+
+  policy_name = opts[:policy_name]
+  policy_name ||= ''
+
+  scan_template = opts[:scan_template]
+  scan_template ||= 'Basic Network Scan'
 
   nessus_obj = PWN::Plugins::NessusCloud.login(
     access_key: access_key,
     secret_key: secret_key
   )
 
+  policy_list = PWN::Plugins::NessusCloud.get_policies(
+    nessus_obj: nessus_obj
+  )
+  puts policy_list.inspect
+
   scan_template_list = PWN::Plugins::NessusCloud.get_canned_scan_templates(
     nessus_obj: nessus_obj
   )
 
-  puts scan_template_list.inspect
   selected_scan_template = scan_template_list[:templates].select do |scan_template|
-    scan_template[:title] == scan_template_name
+    scan_template[:title] == scan_template
   end
-  puts selected_scan_template.inspect
 
   scan_template_id = selected_scan_template.first[:uuid]
-  puts scan_template_id
+
+  
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e

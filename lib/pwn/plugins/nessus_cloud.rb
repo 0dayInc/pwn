@@ -111,6 +111,42 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_policies(
+      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      # )
+
+      public_class_method def self.get_policies(opts = {})
+        nessus_obj = opts[:nessus_obj]
+
+        scan_templates_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'policies'
+        ).body
+
+        JSON.parse(scan_templates_resp, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_policies(
+      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      # )
+
+      public_class_method def self.get_folders(opts = {})
+        nessus_obj = opts[:nessus_obj]
+
+        scan_templates_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'policies'
+        ).body
+
+        JSON.parse(scan_templates_resp, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_scans(
       #   nessus_obj: 'required - nessus_obj returned from #login method'
       # )
@@ -299,6 +335,14 @@ module PWN
           nessus_obj = #{self}.login(
             access_key: 'required - API access key (will prompt if blank)',
             secret_key: 'required - API secret key (will prompt if blank)'
+          )
+
+          #{self}.get_policies(
+            nessus_obj: 'required - nessus_obj returned from #login method'
+          )
+
+          #{self}.get_folders(
+            nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
           #{self}.get_canned_scan_templates(
