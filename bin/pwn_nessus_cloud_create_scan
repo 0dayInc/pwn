@@ -31,8 +31,8 @@ OptionParser.new do |options|
     opts[:folder_name] = f
   end
 
-  options.on('-sSCANNER', '--scanner=SCANNER', '<Optional - Scanner to Use (Defaults to "AUTO-ROUTED")>') do |s|
-    opts[:scanner] = s
+  options.on('-sSCANNER', '--scanner-name=SCANNER', '<Optional - Scanner to Use (Defaults to "AUTO-ROUTED")>') do |s|
+    opts[:scanner_name] = s
   end
 
   options.on('-nTARGET', '--target-network=TARGET', '<Optional if --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "default-network")>') do |n|
@@ -77,8 +77,8 @@ begin
   folder_name = opts[:folder_name]
   folder_name ||= 'main'
 
-  scanner = opts[:scanner]
-  scanner ||= 'AUTO-ROUTED'
+  scanner_name = opts[:scanner_name]
+  scanner_name ||= 'AUTO-ROUTED'
 
   target_network = opts[:target_network]
   target_network ||= '00000000-0000-0000-0000-000000000000'
@@ -94,30 +94,33 @@ begin
     secret_key: secret_key
   )
 
-  scan_template_list = PWN::Plugins::NessusCloud.get_canned_scan_templates(
-    nessus_obj: nessus_obj
+  scan_template = PWN::Plugins::NessusCloud.get_canned_scan_templates(
+    nessus_obj: nessus_obj,
+    title: scan_template
   )
+  scan_template_id = scan_template[:uuid]
+  puts scan_template_id
 
-  selected_scan_template = scan_template_list[:templates].select do |sc|
-    sc[:title] == scan_template
-  end
-
-  scan_template_id = selected_scan_template.first[:uuid]
-
-  policy_list = PWN::Plugins::NessusCloud.get_policies(
-    nessus_obj: nessus_obj
+  policy = PWN::Plugins::NessusCloud.get_policies(
+    nessus_obj: nessus_obj,
+    name: policy_name
   )
-  puts policy_list.inspect
+  policy_id = policy[:id]
+  puts policy_id
 
-  folder_list = PWN::Plugins::NessusCloud.get_folders(
-    nessus_obj: nessus_obj
+  folder = PWN::Plugins::NessusCloud.get_folders(
+    nessus_obj: nessus_obj,
+    name: folder_name
   )
-  puts folder_list.inspect
+  folder_id = folder[:id]
+  puts folder_id
 
-  scanner_list = PWN::Plugins::NessusCloud.get_scanners(
-    nessus_obj: nessus_obj
+  scanner = PWN::Plugins::NessusCloud.get_scanners(
+    nessus_obj: nessus_obj,
+    name: scanner_name
   )
-  puts scanner_list.inspect
+  scanner_id = scanner[:id]
+  puts scanner_id
 
   target_network_list = PWN::Plugins::NessusCloud.get_target_networks(
     nessus_obj: nessus_obj

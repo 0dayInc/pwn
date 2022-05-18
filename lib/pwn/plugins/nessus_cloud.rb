@@ -99,13 +99,24 @@ module PWN
 
       public_class_method def self.get_canned_scan_templates(opts = {})
         nessus_obj = opts[:nessus_obj]
+        title = opts[:title]
 
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'editor/scan/templates'
         ).body
 
-        JSON.parse(scan_templates_resp, symbolize_names: true)
+        scan_templates = JSON.parse(scan_templates_resp, symbolize_names: true)
+
+        if title
+          selected_scan_template = scan_templates[:templates].select do |sc|
+            sc[:title] == title
+          end
+          scan_templates = selected_scan_template.first if selected_scan_template.any?
+          scan_templates ||= {}
+        end
+
+        scan_templates
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -117,13 +128,24 @@ module PWN
 
       public_class_method def self.get_policies(opts = {})
         nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
 
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'policies'
         ).body
 
-        JSON.parse(scan_templates_resp, symbolize_names: true)
+        policies = JSON.parse(scan_templates_resp, symbolize_names: true)
+
+        if name
+          selected_policy = policies[:policies].select do |p|
+            p[:name] == name
+          end
+          policies = selected_policy.first if selected_policy.any?
+          policies ||= {}
+        end
+
+        policies
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -135,13 +157,24 @@ module PWN
 
       public_class_method def self.get_folders(opts = {})
         nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
 
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
-          rest_call: 'policies'
+          rest_call: 'folders'
         ).body
 
-        JSON.parse(scan_templates_resp, symbolize_names: true)
+        folders = JSON.parse(scan_templates_resp, symbolize_names: true)
+
+        if name
+          selected_folder = folders[:folders].select do |f|
+            f[:name] == name
+          end
+          folders = selected_folder.first if selected_folder.any?
+          folders ||= {}
+        end
+
+        folders
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -153,13 +186,24 @@ module PWN
 
       public_class_method def self.get_scanners(opts = {})
         nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
 
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'scanners'
         ).body
 
-        JSON.parse(scan_templates_resp, symbolize_names: true)
+        scanners = JSON.parse(scan_templates_resp, symbolize_names: true)
+
+        if name
+          selected_scanner = scanners[:scanners].select do |s|
+            s[:name] == name
+          end
+          scanners = selected_scanner.first if selected_scanner.any?
+          scanners ||= {}
+        end
+
+        scanners
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -189,13 +233,24 @@ module PWN
 
       public_class_method def self.get_scans(opts = {})
         nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
 
         scans_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'scans'
         ).body
 
-        JSON.parse(scans_resp, symbolize_names: true)
+        scans = JSON.parse(scans_resp, symbolize_names: true)
+
+        if name
+          selected_scan = scans[:scans].select do |s|
+            s[:name] == name
+          end
+          scans = selected_scan.first if selected_scan.any?
+          scans ||= {}
+        end
+
+        scans
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
