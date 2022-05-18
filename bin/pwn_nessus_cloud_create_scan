@@ -19,12 +19,32 @@ OptionParser.new do |options|
     opts[:scan_name] = n
   end
 
+  options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
+    opts[:scan_template] = t
+  end
+
   options.on('-pPOLICY', '--policy-name=POLICY', '<Optional - Policy to Use to Create the Scan (Defaults to "")>') do |p|
     opts[:policy_name] = p
   end
 
-  options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
-    opts[:scan_template] = t
+  options.on('-fFOLDER', '--folder-name=FOLDER', '<Optional - Where to Store the Scan (Defaults to "main")>') do |f|
+    opts[:folder_name] = f
+  end
+
+  options.on('-sSCANNER', '--scanner=SCANNER', '<Optional - Scanner to Use (Defaults to "AUTO-ROUTED")>') do |s|
+    opts[:scanner] = s
+  end
+
+  options.on('-nTARGET', '--target-network=TARGET', '<Optional if --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "default-network")>') do |n|
+    opts[:target_network] = n
+  end
+
+  options.on('-lWHEN', '--launch=WHEN', '<Optional When to Launch Scan - ON_DEMAND || DAILY || WEEKLY || MONTHLY || YEARLY (Defaults to "ON_DEMAND")>') do |l|
+    opts[:launch] = l
+  end
+
+  options.on('-wTIME', '--scan-time-window=TIME', '<Optional Scan Time Window in Minutes - (Defaults to 0 if nessus scanner scan || 180 if nessus agent scan)>') do |l|
+    opts[:launch] = l
   end
 end.parse!
 
@@ -48,21 +68,31 @@ begin
 
   scan_name = opts[:scan_name]
 
+  scan_template = opts[:scan_template]
+  scan_template ||= 'Basic Network Scan'
+
   policy_name = opts[:policy_name]
   policy_name ||= ''
 
-  scan_template = opts[:scan_template]
-  scan_template ||= 'Basic Network Scan'
+  folder_name = opts[:folder_name]
+  folder_name ||= 'main'
+
+  scanner = opts[:scanner]
+  scanner ||= 'AUTO-ROUTED'
+
+  target_network = opts[:target_network]
+  target_network ||= '00000000-0000-0000-0000-000000000000'
+  target_network = '00000000-0000-0000-0000-000000000000' if target_network == 'default-network'
+
+  launch = opts[:launch]
+  launch ||= 'ON_DEMAND'
+
+  scan_time_window = opts[:scan_time_window]
 
   nessus_obj = PWN::Plugins::NessusCloud.login(
     access_key: access_key,
     secret_key: secret_key
   )
-
-  policy_list = PWN::Plugins::NessusCloud.get_policies(
-    nessus_obj: nessus_obj
-  )
-  puts policy_list.inspect
 
   scan_template_list = PWN::Plugins::NessusCloud.get_canned_scan_templates(
     nessus_obj: nessus_obj
@@ -74,6 +104,25 @@ begin
 
   scan_template_id = selected_scan_template.first[:uuid]
 
+  policy_list = PWN::Plugins::NessusCloud.get_policies(
+    nessus_obj: nessus_obj
+  )
+  puts policy_list.inspect
+
+  folder_list = PWN::Plugins::NessusCloud.get_folders(
+    nessus_obj: nessus_obj
+  )
+  puts folder_list.inspect
+
+  scanner_list = PWN::Plugins::NessusCloud.get_scanners(
+    nessus_obj: nessus_obj
+  )
+  puts scanner_list.inspect
+
+  target_network_list = PWN::Plugins::NessusCloud.get_target_networks(
+    nessus_obj: nessus_obj
+  )
+  puts target_network_list.inspect
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e

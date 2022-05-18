@@ -129,7 +129,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::NessusCloud.get_policies(
+      # PWN::Plugins::NessusCloud.get_folders(
       #   nessus_obj: 'required - nessus_obj returned from #login method'
       # )
 
@@ -139,6 +139,42 @@ module PWN
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'policies'
+        ).body
+
+        JSON.parse(scan_templates_resp, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_scanners(
+      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      # )
+
+      public_class_method def self.get_scanners(opts = {})
+        nessus_obj = opts[:nessus_obj]
+
+        scan_templates_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'scanners'
+        ).body
+
+        JSON.parse(scan_templates_resp, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_target_networks(
+      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      # )
+
+      public_class_method def self.get_target_networks(opts = {})
+        nessus_obj = opts[:nessus_obj]
+
+        scan_templates_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'networks'
         ).body
 
         JSON.parse(scan_templates_resp, symbolize_names: true)
@@ -346,6 +382,14 @@ module PWN
           )
 
           #{self}.get_folders(
+            nessus_obj: 'required - nessus_obj returned from #login method'
+          )
+
+          #{self}.get_scanners(
+            nessus_obj: 'required - nessus_obj returned from #login method'
+          )
+
+          #{self}.get_target_networks(
             nessus_obj: 'required - nessus_obj returned from #login method'
           )
 
