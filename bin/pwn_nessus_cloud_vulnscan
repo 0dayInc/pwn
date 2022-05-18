@@ -54,15 +54,11 @@ begin
     secret_key: secret_key
   )
 
-  scan_list = PWN::Plugins::NessusCloud.get_scans(
-    nessus_obj: nessus_obj
+  scan = PWN::Plugins::NessusCloud.get_scans(
+    nessus_obj: nessus_obj,
+    name: scan_name
   )
-
-  selected_scan_to_launch = scan_list[:scans].select do |scan|
-    scan[:name] == scan_name
-  end
-
-  scan_id = selected_scan_to_launch.first[:id]
+  scan_id = scan[:id]
 
   PWN::Plugins::NessusCloud.launch_scan(
     nessus_obj: nessus_obj,
