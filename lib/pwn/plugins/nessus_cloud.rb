@@ -215,13 +215,24 @@ module PWN
 
       public_class_method def self.get_target_networks(opts = {})
         nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
 
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'networks'
         ).body
 
-        JSON.parse(scan_templates_resp, symbolize_names: true)
+        target_networks = JSON.parse(scan_templates_resp, symbolize_names: true)
+
+        if name
+          selected_network = target_networks[:networks].select do |tn|
+            tn[:name] == name
+          end
+          target_networks = selected_network.first if selected_network.any?
+          target_networks ||= {}
+        end
+
+        target_networks
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end

@@ -35,8 +35,8 @@ OptionParser.new do |options|
     opts[:scanner_name] = s
   end
 
-  options.on('-nTARGET', '--target-network=TARGET', '<Optional if --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "default-network")>') do |n|
-    opts[:target_network] = n
+  options.on('-TTARGET', '--target-network-name=TARGET', '<Optional if --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "Default")>') do |t|
+    opts[:target_network_name] = t
   end
 
   options.on('-lWHEN', '--launch=WHEN', '<Optional When to Launch Scan - ON_DEMAND || DAILY || WEEKLY || MONTHLY || YEARLY (Defaults to "ON_DEMAND")>') do |l|
@@ -80,9 +80,8 @@ begin
   scanner_name = opts[:scanner_name]
   scanner_name ||= 'AUTO-ROUTED'
 
-  target_network = opts[:target_network]
-  target_network ||= '00000000-0000-0000-0000-000000000000'
-  target_network = '00000000-0000-0000-0000-000000000000' if target_network == 'default-network'
+  target_network_name = opts[:target_network_name]
+  target_network_name ||= 'Default'
 
   launch = opts[:launch]
   launch ||= 'ON_DEMAND'
@@ -122,10 +121,11 @@ begin
   scanner_id = scanner[:id]
   puts scanner_id
 
-  target_network_list = PWN::Plugins::NessusCloud.get_target_networks(
-    nessus_obj: nessus_obj
+  target_network = PWN::Plugins::NessusCloud.get_target_networks(
+    nessus_obj: nessus_obj,
+    name: target_network_name
   )
-  puts target_network_list.inspect
+  target_network_id = target_network[:uuid]
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e
