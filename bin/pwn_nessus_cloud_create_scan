@@ -19,15 +19,19 @@ OptionParser.new do |options|
     opts[:scan_name] = n
   end
 
+  options.on('-TTARGETS', '--text-targets=TARGETS', '<Required - Comma-delimited list of targets to scan>') do |t|
+    opts[:text_targets] = t
+  end
+
   options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
     opts[:scan_template] = t
   end
 
-  options.on('-pPOLICY', '--policy-name=POLICY', '<Optional - Policy to Use to Create the Scan (Defaults to "")>') do |p|
+  options.on('-pPOLICY', '--policy-name=POLICY', '<Optional - Policy to Use to Create the Scan>') do |p|
     opts[:policy_name] = p
   end
 
-  options.on('-fFOLDER', '--folder-name=FOLDER', '<Optional - Where to Store the Scan (Defaults to "main")>') do |f|
+  options.on('-fFOLDER', '--folder-name=FOLDER', '<Optional - Where to Store the Scan (Defaults to "My Scans")>') do |f|
     opts[:folder_name] = f
   end
 
@@ -35,16 +39,32 @@ OptionParser.new do |options|
     opts[:scanner_name] = s
   end
 
-  options.on('-nTARGET', '--target-network=TARGET', '<Optional if --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "default-network")>') do |n|
-    opts[:target_network] = n
+  options.on('-D', '--disable-scan', '<Optional - If true, the schedule for the scan is disabled (Defaults to false)>') do |d|
+    opts[:disabled] = d
   end
 
-  options.on('-lWHEN', '--launch=WHEN', '<Optional When to Launch Scan - ON_DEMAND || DAILY || WEEKLY || MONTHLY || YEARLY (Defaults to "ON_DEMAND")>') do |l|
+  options.on('-NTARGET', '--target-network-name=TARGET', '<Optional - If --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "Default")>') do |n|
+    opts[:target_network_name] = n
+  end
+
+  options.on('-lWHEN', '--launch=WHEN', '<Optional - When to Launch Scan - ON_DEMAND || DAILY || WEEKLY || MONTHLY || YEARLY (Defaults to "ON_DEMAND")>') do |l|
     opts[:launch] = l
   end
 
-  options.on('-wTIME', '--scan-time-window=TIME', '<Optional Scan Time Window in Minutes - (Defaults to 0 if nessus scanner scan || 180 if nessus agent scan)>') do |l|
-    opts[:launch] = l
+  options.on('-wTIME', '--scan-time-window=TIME', '<Optional - Scan Time Window in Minutes - (Defaults to 0 if nessus scanner scan || 180 if nessus agent scan)>') do |t|
+    opts[:scan_time_window] = t
+  end
+
+  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan - (Defaults to Time.now.strftime("%Y%m%dT%H%M%S")>') do |t|
+    opts[:starttime] = t
+  end
+
+  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan - (Defaults to "FREQ=ONETIME;INTERVAL=0;BYDAY=null")>') do |r|
+    opts[:rrules] = r
+  end
+
+  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan - (Defaults to "UTC")>') do |t|
+    opts[:timezone] = t
   end
 end.parse!
 
@@ -54,6 +74,7 @@ if opts.empty?
 end
 
 begin
+  # Get Options Passed to pwn_nessus_cloud_create_scan
   yaml_config = opts[:yaml_config]
 
   raise "YAML Config Not Found: #{yaml_config}" unless File.exist?(yaml_config)
@@ -75,32 +96,102 @@ begin
   policy_name ||= ''
 
   folder_name = opts[:folder_name]
-  folder_name ||= 'main'
+  folder_name ||= 'My Scans'
 
   scanner_name = opts[:scanner_name]
   scanner_name ||= 'AUTO-ROUTED'
 
-  target_network = opts[:target_network]
-  target_network ||= '00000000-0000-0000-0000-000000000000'
-  target_network = '00000000-0000-0000-0000-000000000000' if target_network == 'default-network'
+  target_network_name = opts[:target_network_name]
+  target_network_name ||= 'Default'
+
+  disabled = true if opts[:disabled]
+  disabled ||= false
+
+  enabled = true
+  enabled = false if disabled
 
   launch = opts[:launch]
   launch ||= 'ON_DEMAND'
 
   scan_time_window = opts[:scan_time_window]
 
+  starttime = opts[:starttime]
+  starttime ||= Time.now.strftime('%Y%m%dT%H%M%S')
+
+  rrules = opts[:rrules]
+  rrules ||= 'FREQ=ONETIME;INTERVAL=0;BYDAY=null'
+  # if opts[:rrules].nil?
+  #   # SU, MO, TU, WE, TH, FR, SA
+  #   byday_today = Time.now.strftime('%A').upcase[0..1]
+  #   rrules = "FREQ=ONETIME;INTERVAL=0;BYDAY=#{byday_today}"
+  # end
+
+  timezone = opts[:timezone]
+  timezone ||= 'UTC'
+
+  text_targets = opts[:text_targets]
+  raise 'ERROR: --text-targets (i.e. List of targets to scan) is required.' unless text_targets
+
+  text_targets_arr = text_targets.split(',')
+
+  target_groups = opts[:target_groups]
+
+  file_targets = opts[:file_targets]
+
+  tag_targets = opts[:tag_targets]
+
+  agent_group_name = opts[:agent_group_name]
+  agent_group_id = ''
+
+  agent_scan_launch_type = opts[:agent_scan_launch_type]
+  agent_scan_launch_type ||= 'triggered'
+
+  triggers = {}
+  triggers[:trigger_type] = agent_scan_launch_type
+  triggers[:trigger_type] ||= 'periodic'
+
+  triggers[:options] = {}
+  case agent_scan_launch_type
+  when 'periodic'
+    triggers[:options][:periodic_hourly_interval] = opts[:periodic_hourly_interval]
+    triggers[:options][:periodic_hourly_interval] ||= 0
+  when 'file-exists'
+    triggers[:options][:filename] = opts[:filename]
+  end
+
+  emails = opts[:emails]
+
+  acls = {}
+  acls[:permissions] = opts[:acl_permissions]
+  acls[:owner] = opts[:acl_owner]
+  acls[:display_name] = opts[:acl_display_name]
+  acls[:name] = opts[:acl_name]
+  acls[:id] = opts[:acl_id]
+  acls[:type] = opts[:acl_type]
+
+  # Begin Here
   nessus_obj = PWN::Plugins::NessusCloud.login(
     access_key: access_key,
     secret_key: secret_key
   )
 
+  # Requirements to create a scan:
+  # Part 1: Populate uuid
+  # Part 2: Populate settings object
+  # Part 3: Populate credentials object
+  # Part 4: Populate plugins object (optional)
+
+  # Part 1: Populate uuid
+  # TODO: add --list-canned-scan-templates option
   scan_template = PWN::Plugins::NessusCloud.get_canned_scan_templates(
     nessus_obj: nessus_obj,
-    title: scan_template
+    name: scan_template
   )
-  scan_template_id = scan_template[:uuid]
-  puts scan_template_id
+  scan_template_uuid = scan_template[:uuid]
+  puts scan_template_uuid
 
+  # Part 2: Populate settings object
+  settings = {}
   policy = PWN::Plugins::NessusCloud.get_policies(
     nessus_obj: nessus_obj,
     name: policy_name
@@ -122,10 +213,50 @@ begin
   scanner_id = scanner[:id]
   puts scanner_id
 
-  target_network_list = PWN::Plugins::NessusCloud.get_target_networks(
+  target_network = PWN::Plugins::NessusCloud.get_target_networks(
+    nessus_obj: nessus_obj,
+    name: target_network_name
+  )
+  target_network_id = target_network[:uuid]
+  puts target_network_id
+
+  # Part 3: Populate credentials object
+  credentials = {}
+  credential_types = PWN::Plugins::NessusCloud.get_credential_types(
     nessus_obj: nessus_obj
   )
-  puts target_network_list.inspect
+  puts credential_types.inspect
+  # TODO: add --list-credential-types option
+  # credentials[:add] = {}
+
+  # case opts[:credential_type]
+  # when 'host/ssh'
+  #   credential_type_parent = opts[:credential_type].split('/').first.to_sym
+  #   credential_type = opts[:credential_type].split('/').last.to_sym
+  #   credentials[:add][credential_type_parent] = {}
+  #   credentials[:add][credential_type_parent][credential_type] = []
+  # when 'host/windows'
+  #   credential_type_parent = opts[:credential_type].split('/').first.to_sym
+  #   credential_type = opts[:credential_type].split('/').last.to_sym
+  #   credentials[:add][credential_type_parent] = {}
+  #   credentials[:add][credential_type_parent][credential_type] = []
+  # else
+  #   raise "ERROR: #{opts[:credential_type]} Not Supported."
+  # end
+
+  # Part 4: Populate plugins object (optional)
+  # TODO: Implment Plugins During Scan Creation
+  plugins = {}
+
+  # create_scan_resp = PWN::Plugins::NessusCloud.create_scan(
+  #   nessus_obj: nessus_obj,
+  #   scan_template_uuid: scan_template_uuid,
+  #   settings: settings,
+  #   credentials: credentials,
+  #   plugins: plugins
+  # )
+
+  # puts create_scan_resp.inspect
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e
