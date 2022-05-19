@@ -94,12 +94,13 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_canned_scan_templates(
-      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of scan template'
       # )
 
       public_class_method def self.get_canned_scan_templates(opts = {})
         nessus_obj = opts[:nessus_obj]
-        title = opts[:title]
+        name = opts[:name]
 
         scan_templates_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
@@ -108,9 +109,9 @@ module PWN
 
         scan_templates = JSON.parse(scan_templates_resp, symbolize_names: true)
 
-        if title
+        if name
           selected_scan_template = scan_templates[:templates].select do |sc|
-            sc[:title] == title
+            sc[:title] == name
           end
           scan_templates = selected_scan_template.first if selected_scan_template.any?
           scan_templates ||= {}
@@ -123,19 +124,20 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_policies(
-      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of policy (i.e. user-defined template)'
       # )
 
       public_class_method def self.get_policies(opts = {})
         nessus_obj = opts[:nessus_obj]
         name = opts[:name]
 
-        scan_templates_resp = nessus_cloud_rest_call(
+        policies_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'policies'
         ).body
 
-        policies = JSON.parse(scan_templates_resp, symbolize_names: true)
+        policies = JSON.parse(policies_resp, symbolize_names: true)
 
         if name
           selected_policy = policies[:policies].select do |p|
@@ -152,19 +154,20 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_folders(
-      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of folder'
       # )
 
       public_class_method def self.get_folders(opts = {})
         nessus_obj = opts[:nessus_obj]
         name = opts[:name]
 
-        scan_templates_resp = nessus_cloud_rest_call(
+        folders_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'folders'
         ).body
 
-        folders = JSON.parse(scan_templates_resp, symbolize_names: true)
+        folders = JSON.parse(folders_resp, symbolize_names: true)
 
         if name
           selected_folder = folders[:folders].select do |f|
@@ -181,19 +184,20 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_scanners(
-      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of scanner'
       # )
 
       public_class_method def self.get_scanners(opts = {})
         nessus_obj = opts[:nessus_obj]
         name = opts[:name]
 
-        scan_templates_resp = nessus_cloud_rest_call(
+        scanners_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'scanners'
         ).body
 
-        scanners = JSON.parse(scan_templates_resp, symbolize_names: true)
+        scanners = JSON.parse(scanners_resp, symbolize_names: true)
 
         if name
           selected_scanner = scanners[:scanners].select do |s|
@@ -210,19 +214,20 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_target_networks(
-      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of target network'
       # )
 
       public_class_method def self.get_target_networks(opts = {})
         nessus_obj = opts[:nessus_obj]
         name = opts[:name]
 
-        scan_templates_resp = nessus_cloud_rest_call(
+        target_networks_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'networks'
         ).body
 
-        target_networks = JSON.parse(scan_templates_resp, symbolize_names: true)
+        target_networks = JSON.parse(target_networks_resp, symbolize_names: true)
 
         if name
           selected_network = target_networks[:networks].select do |tn|
@@ -233,6 +238,128 @@ module PWN
         end
 
         target_networks
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_timezones(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of timezone'
+      # )
+
+      public_class_method def self.get_timezones(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
+
+        timezones_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'scans/timezones'
+        ).body
+
+        timezones = JSON.parse(timezones_resp, symbolize_names: true)
+
+        if name
+          selected_timezone = timezones[:networks].select do |tz|
+            tz[:name] == name
+          end
+          timezones = selected_timezone.first if selected_timezone.any?
+          timezones ||= {}
+        end
+
+        timezones
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_target_groups(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of timezone'
+      # )
+      # )
+
+      public_class_method def self.get_target_groups(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
+
+        target_groups_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'target-groups'
+        ).body
+
+        timezones = JSON.parse(target_groups_resp, symbolize_names: true)
+
+        if name
+          selected_timezone = timezones[:networks].select do |tz|
+            tz[:name] == name
+          end
+          timezones = selected_timezone.first if selected_timezone.any?
+          timezones ||= {}
+        end
+
+        timezones
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_credential_types(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of credential type (e.g. SSH, Windows, HTTP, etc.)'
+      # )
+      # )
+
+      public_class_method def self.get_credential_types(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
+
+        credential_types_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'credentials/types'
+        ).body
+
+        credential_types = JSON.parse(credential_types_resp, symbolize_names: true)
+
+        if name
+          selected_credential_type = credential_types[:networks].select do |tz|
+            tz[:name] == name
+          end
+          credential_types = selected_credential_type.first if selected_credential_type.any?
+          credential_types ||= {}
+        end
+
+        credential_types
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.create_scan(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   scan_template_uuid: 'required - the UUID for the Tenable-provided scan template to use.  Run #get_canned_scan_templates for a list of UUIDs',
+      #   settings: 'required - settings object as defined by https://developer.tenable.com/reference/scans-create',
+      #   credentials: 'required - credentials object as defined by https://developer.tenable.com/reference/scans-create',
+      #   plugins: 'optional - plugins object as defined by https://developer.tenable.com/reference/scans-create (Defaults to {})'
+      # )
+
+      public_class_method def self.create_scan(opts = {})
+        nessus_obj = opts[:nessus_obj]
+
+        http_body = {}
+        http_body[:uuid] = opts[:scan_template_uuid]
+        http_body[:settings] = opts[:settings]
+        http_body[:credentials] = opts[:credentials]
+        http_body[:plugins] = opts[:plugins]
+
+        create_scan_resp = nessus_cloud_rest_call(
+          http_method: :post,
+          nessus_obj: nessus_obj,
+          rest_call: 'scans',
+          http_body: http_body
+        ).body
+
+        JSON.parse(create_scan_resp, symbolize_names: true)
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -440,23 +567,33 @@ module PWN
           )
 
           #{self}.get_canned_scan_templates(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of scan template'
           )
 
           #{self}.get_policies(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of policy (i.e. user-defined template)'
           )
 
           #{self}.get_folders(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of folder'
           )
 
           #{self}.get_scanners(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of scanner'
           )
 
           #{self}.get_target_networks(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of target network'
+          )
+
+          #{self}.get_timezones(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of timezone'
           )
 
           #{self}.get_scans(
