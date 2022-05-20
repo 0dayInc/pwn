@@ -138,7 +138,8 @@ begin
   file_targets = opts[:file_targets]
 
   tag_targets = opts[:tag_targets]
-  tag_targets_arr = tag_targets.split(',')
+  tag_targets_arr = []
+  tag_targets_arr = tag_targets.split(',') if tag_targets
 
   agent_group_name = opts[:agent_group_name]
   agent_group_id_arr = []
