@@ -1,2 +1,15 @@
 access_key: 'ACCESS_KEY'
 secret_key: 'SECRET_KEY'
+credentials:
+  add:
+    Host:
+      Windows:
+      - domain: 'dc.local'
+        username: 'USERNAME'
+        auth_method: 'Password'
+        password: 'PASSWORD'
+plugins:
+  Web Servers:
+    individual:
+      '11213': enabled
+      '18261': enabled

@@ -11,7 +11,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-cYPATH', '--yaml-config=YPATH', '<Required - YAML Config Containing Access & Secret Keys for Authentication>') do |c|
+  options.on('-cYPATH', '--yaml-config=YPATH', '<Required - YAML Config Containing Access & Secret Keys for Authentication, Including Credential Information for Scan Creation (https://developer.tenable.com/docs/determine-settings-for-credential-type)>') do |c|
     opts[:yaml_config] = c
   end
 
@@ -21,6 +21,10 @@ OptionParser.new do |options|
 
   options.on('-TTARGETS', '--text-targets=TARGETS', '<Required - Comma-delimited list of targets to scan>') do |t|
     opts[:text_targets] = t
+  end
+
+  options.on('-dDESC', '--scan-description=DESC', '<Optional - Scan Description (Defaults to nil)>') do |d|
+    opts[:scan_desc] = d
   end
 
   options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
@@ -51,7 +55,7 @@ OptionParser.new do |options|
     opts[:launch] = l
   end
 
-  options.on('-wTIME', '--scan-time-window=TIME', '<Optional - Scan Time Window in Minutes - (Defaults to 0 if nessus scanner scan || 180 if nessus agent scan)>') do |t|
+  options.on('-wTIMEWINDOW', '--scan-time-window=TIMEWINDOW', '<Optional - Scan Time Window in Minutes - (Defaults to 0)>') do |t|
     opts[:scan_time_window] = t
   end
 
@@ -87,7 +91,10 @@ begin
   access_key = yaml[:access_key]
   secret_key = yaml[:secret_key]
 
+  credentials = yaml[:create_scan][:credentials]
+
   scan_name = opts[:scan_name]
+  scan_desc = opts[:scan_desc]
 
   scan_template = opts[:scan_template]
   scan_template ||= 'Basic Network Scan'
@@ -113,18 +120,14 @@ begin
   launch = opts[:launch]
   launch ||= 'ON_DEMAND'
 
-  scan_time_window = opts[:scan_time_window]
+  scan_time_window = opts[:scan_time_window].to_i
+  scan_time_window ||= 0
 
   starttime = opts[:starttime]
   starttime ||= Time.now.strftime('%Y%m%dT%H%M%S')
 
   rrules = opts[:rrules]
   rrules ||= 'FREQ=ONETIME;INTERVAL=0;BYDAY=null'
-  # if opts[:rrules].nil?
-  #   # SU, MO, TU, WE, TH, FR, SA
-  #   byday_today = Time.now.strftime('%A').upcase[0..1]
-  #   rrules = "FREQ=ONETIME;INTERVAL=0;BYDAY=#{byday_today}"
-  # end
 
   timezone = opts[:timezone]
   timezone ||= 'UTC'
@@ -132,23 +135,23 @@ begin
   text_targets = opts[:text_targets]
   raise 'ERROR: --text-targets (i.e. List of targets to scan) is required.' unless text_targets
 
-  text_targets_arr = text_targets.split(',')
-
   target_groups = opts[:target_groups]
 
   file_targets = opts[:file_targets]
 
   tag_targets = opts[:tag_targets]
+  tag_targets_arr = tag_targets.split(',')
 
   agent_group_name = opts[:agent_group_name]
-  agent_group_id = ''
+  agent_group_id_arr = []
 
   agent_scan_launch_type = opts[:agent_scan_launch_type]
   agent_scan_launch_type ||= 'triggered'
 
+  triggers_arr = []
   triggers = {}
-  triggers[:trigger_type] = agent_scan_launch_type
-  triggers[:trigger_type] ||= 'periodic'
+  triggers[:type] = agent_scan_launch_type
+  triggers[:type] ||= 'periodic'
 
   triggers[:options] = {}
   case agent_scan_launch_type
@@ -158,6 +161,8 @@ begin
   when 'file-exists'
     triggers[:options][:filename] = opts[:filename]
   end
+
+  triggers_arr.push(triggers)
 
   emails = opts[:emails]
 
@@ -169,6 +174,9 @@ begin
   acls[:id] = opts[:acl_id]
   acls[:type] = opts[:acl_type]
 
+  credential_category = opts[:credential_category]
+  credential_type = opts[:credential_type]
+
   # Begin Here
   nessus_obj = PWN::Plugins::NessusCloud.login(
     access_key: access_key,
@@ -177,9 +185,9 @@ begin
 
   # Requirements to create a scan:
   # Part 1: Populate uuid
-  # Part 2: Populate settings object
-  # Part 3: Populate credentials object
-  # Part 4: Populate plugins object (optional)
+  # Part 2: Populate settings object from options passed to driver
+  # Part 3: Populate credentials object from YAML config (optional)
+  # Part 4: Populate plugins object from YAML config (optional)
 
   # Part 1: Populate uuid
   # TODO: add --list-canned-scan-templates option
@@ -190,73 +198,80 @@ begin
   scan_template_uuid = scan_template[:uuid]
   puts scan_template_uuid
 
-  # Part 2: Populate settings object
+  # Part 2: Populate settings object from options passed to driver
   settings = {}
+  settings[:name] = scan_name
+  settings[:description] = scan_desc
+
   policy = PWN::Plugins::NessusCloud.get_policies(
     nessus_obj: nessus_obj,
     name: policy_name
   )
-  policy_id = policy[:id]
-  puts policy_id
+  settings[:policy_id] = policy[:id]
 
   folder = PWN::Plugins::NessusCloud.get_folders(
     nessus_obj: nessus_obj,
     name: folder_name
   )
-  folder_id = folder[:id]
-  puts folder_id
+  settings[:folder_id] = folder[:id]
 
   scanner = PWN::Plugins::NessusCloud.get_scanners(
     nessus_obj: nessus_obj,
     name: scanner_name
   )
-  scanner_id = scanner[:id]
-  puts scanner_id
+  settings[:scanner_id] = scanner[:id]
 
   target_network = PWN::Plugins::NessusCloud.get_target_networks(
     nessus_obj: nessus_obj,
     name: target_network_name
   )
-  target_network_id = target_network[:uuid]
-  puts target_network_id
+  settings[:target_network_uuid] = target_network[:uuid]
 
-  # Part 3: Populate credentials object
-  credentials = {}
-  credential_types = PWN::Plugins::NessusCloud.get_credential_types(
-    nessus_obj: nessus_obj
+  settings[:enabled] = enabled
+
+  settings[:launch] = launch
+
+  settings[:scan_time_window] = scan_time_window
+
+  settings[:starttime] = starttime
+
+  settings[:rrules] = rrules
+
+  settings[:timezone] = timezone
+
+  settings[:text_targets] = text_targets
+
+  settings[:target_groups] = target_groups
+
+  settings[:file_targets] = file_targets
+
+  settings[:tag_targets] = tag_targets_arr
+
+  settings[:agent_group_id] = agent_group_id_arr
+
+  settings[:agent_scan_launch_type] = agent_scan_launch_type
+
+  settings[:triggers] = triggers_arr
+
+  settings[:emails] = emails
+
+  settings[:acls] = acls
+
+  # Part 3: Populate credentials object from YAML config (optional)
+  credentials = yaml[:credentials]
+
+  # Part 4: Populate plugins object from YAML config (optional)
+  plugins = yaml[:plugins]
+
+  create_scan_resp = PWN::Plugins::NessusCloud.create_scan(
+    nessus_obj: nessus_obj,
+    scan_template_uuid: scan_template_uuid,
+    settings: settings,
+    credentials: credentials,
+    plugins: plugins
   )
-  puts credential_types.inspect
-  # TODO: add --list-credential-types option
-  # credentials[:add] = {}
 
-  # case opts[:credential_type]
-  # when 'host/ssh'
-  #   credential_type_parent = opts[:credential_type].split('/').first.to_sym
-  #   credential_type = opts[:credential_type].split('/').last.to_sym
-  #   credentials[:add][credential_type_parent] = {}
-  #   credentials[:add][credential_type_parent][credential_type] = []
-  # when 'host/windows'
-  #   credential_type_parent = opts[:credential_type].split('/').first.to_sym
-  #   credential_type = opts[:credential_type].split('/').last.to_sym
-  #   credentials[:add][credential_type_parent] = {}
-  #   credentials[:add][credential_type_parent][credential_type] = []
-  # else
-  #   raise "ERROR: #{opts[:credential_type]} Not Supported."
-  # end
-
-  # Part 4: Populate plugins object (optional)
-  # TODO: Implment Plugins During Scan Creation
-  plugins = {}
-
-  # create_scan_resp = PWN::Plugins::NessusCloud.create_scan(
-  #   nessus_obj: nessus_obj,
-  #   scan_template_uuid: scan_template_uuid,
-  #   settings: settings,
-  #   credentials: credentials,
-  #   plugins: plugins
-  # )
-
-  # puts create_scan_resp.inspect
+  puts create_scan_resp.inspect
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e
