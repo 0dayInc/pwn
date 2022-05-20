@@ -91,8 +91,6 @@ begin
   access_key = yaml[:access_key]
   secret_key = yaml[:secret_key]
 
-  credentials = yaml[:create_scan][:credentials]
-
   scan_name = opts[:scan_name]
   scan_desc = opts[:scan_desc]
 
