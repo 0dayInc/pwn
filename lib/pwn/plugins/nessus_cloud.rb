@@ -306,13 +306,17 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_credential_types(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   name: 'optional - name of credential type (e.g. SSH, Windows, HTTP, etc.)'
+      #   category: 'optional - category of credential type (Defaults to "Host")',
+      #   name: 'optional - name of credential type (Defaults to "SSH")'
       # )
       # )
 
       public_class_method def self.get_credential_types(opts = {})
         nessus_obj = opts[:nessus_obj]
-        name = opts[:name]
+        category = opts[:category].to_s.downcase
+        name = opts[:name].to_s.downcase
+
+        raise 'ERROR: name parameter requires category parameter.' if category.empty? && !name.empty?
 
         credential_types_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
@@ -321,12 +325,21 @@ module PWN
 
         credential_types = JSON.parse(credential_types_resp, symbolize_names: true)
 
-        if name
-          selected_credential_type = credential_types[:networks].select do |tz|
-            tz[:name] == name
+        if category
+          selected_credential_category = credential_types[:credentials].select do |cc|
+            cc[:category].downcase == category
           end
-          credential_types = selected_credential_type.first if selected_credential_type.any?
+          credential_types = selected_credential_category.first if selected_credential_category.any?
           credential_types ||= {}
+
+          if name
+            selected_credential_type = credential_types[:types].select do |ct|
+              ct[:name].downcase == name
+            end
+            credential_types = selected_credential_type.first if selected_credential_type.any?
+            credential_types ||= {}
+          end
+
         end
 
         credential_types
