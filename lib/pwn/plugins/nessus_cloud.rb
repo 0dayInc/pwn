@@ -358,12 +358,17 @@ module PWN
 
       public_class_method def self.create_scan(opts = {})
         nessus_obj = opts[:nessus_obj]
+        uuid = opts[:scan_template_uuid]
+        settings = opts[:settings]
+        credentials = opts[:credentials]
+        plugins = opts[:plugins]
 
-        http_body = {}
-        http_body[:uuid] = opts[:scan_template_uuid]
-        http_body[:settings] = opts[:settings]
-        http_body[:credentials] = opts[:credentials]
-        http_body[:plugins] = opts[:plugins]
+        http_body = {
+          uuid: uuid,
+          settings: settings,
+          credentials: credentials,
+          plugins: plugins
+        }.to_json
 
         create_scan_resp = nessus_cloud_rest_call(
           http_method: :post,
