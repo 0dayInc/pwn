@@ -70,6 +70,10 @@ OptionParser.new do |options|
   options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan - (Defaults to "UTC")>') do |t|
     opts[:timezone] = t
   end
+
+  options.on('-gGROUPS', '--target-groups=GROUPS', '<Optional - Comma-delimited list of target group IDs to scan>') do |t|
+    opts[:timezone] = t
+  end
 end.parse!
 
 if opts.empty?
@@ -79,6 +83,7 @@ end
 
 begin
   # Get Options Passed to pwn_nessus_cloud_create_scan
+  # Required Arguments
   yaml_config = opts[:yaml_config]
 
   raise "YAML Config Not Found: #{yaml_config}" unless File.exist?(yaml_config)
@@ -92,6 +97,11 @@ begin
   secret_key = yaml[:secret_key]
 
   scan_name = opts[:scan_name]
+
+  text_targets = opts[:text_targets]
+  raise 'ERROR: --text-targets (i.e. List of targets to scan) is required.' unless text_targets
+
+  # Optional Arguments
   scan_desc = opts[:scan_desc]
 
   scan_template = opts[:scan_template]
@@ -129,9 +139,6 @@ begin
 
   timezone = opts[:timezone]
   timezone ||= 'UTC'
-
-  text_targets = opts[:text_targets]
-  raise 'ERROR: --text-targets (i.e. List of targets to scan) is required.' unless text_targets
 
   target_groups = opts[:target_groups]
 
@@ -200,7 +207,7 @@ begin
   # Part 2: Populate settings object from options passed to driver
   settings = {}
   settings[:name] = scan_name
-  settings[:description] = scan_desc
+  settings[:description] = scan_desc if scan_desc
 
   policy = PWN::Plugins::NessusCloud.get_policies(
     nessus_obj: nessus_obj,
@@ -240,27 +247,28 @@ begin
 
   settings[:text_targets] = text_targets
 
-  settings[:target_groups] = target_groups
+  # Example array on https://developer.tenable.com/reference/scans-create is really just a string.
+  settings[:target_groups] = "[#{target_groups}]" if target_groups
 
-  settings[:file_targets] = file_targets
+  settings[:file_targets] = file_targets if file_targets
 
-  settings[:tag_targets] = tag_targets_arr
+  settings[:tag_targets] = tag_targets_arr if tag_targets_arr
 
-  settings[:agent_group_id] = agent_group_id_arr
+  settings[:agent_group_id] = agent_group_id_arr if agent_group_id_arr.any?
 
-  settings[:agent_scan_launch_type] = agent_scan_launch_type
+  settings[:agent_scan_launch_type] = agent_scan_launch_type if agent_scan_launch_type
 
-  settings[:triggers] = triggers_arr
+  settings[:triggers] = triggers_arr if triggers_arr.any?
 
-  settings[:emails] = emails
+  settings[:emails] = emails if emails
 
-  settings[:acls] = acls
+  settings[:acls] = acls if acls
 
   # Part 3: Populate credentials object from YAML config (optional)
-  credentials = yaml[:credentials]
+  credentials = yaml[:credentials] if yaml[:credentials]
 
   # Part 4: Populate plugins object from YAML config (optional)
-  plugins = yaml[:plugins]
+  plugins = yaml[:plugins] if yaml[:plugins]
 
   create_scan_resp = PWN::Plugins::NessusCloud.create_scan(
     nessus_obj: nessus_obj,
