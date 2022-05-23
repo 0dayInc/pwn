@@ -55,19 +55,23 @@ OptionParser.new do |options|
     opts[:launch] = l
   end
 
-  options.on('-wTIMEWINDOW', '--scan-time-window=TIMEWINDOW', '<Optional - Scan Time Window in Minutes - (Defaults to 0)>') do |t|
+  options.on('-wTIMEWINDOW', '--scan-time-window=TIMEWINDOW', '<Optional - Scan Time Window in Minutes (Defaults to 0)>') do |t|
     opts[:scan_time_window] = t
   end
 
-  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan - (Defaults to Time.now.strftime("%Y%m%dT%H%M%S")>') do |t|
+  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (Defaults to Time.now.strftime("%Y%m%dT%H%M%S")>') do |t|
     opts[:starttime] = t
   end
 
-  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan - (Defaults to "FREQ=ONETIME;INTERVAL=0;BYDAY=null")>') do |r|
+  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (Defaults to "FREQ=ONETIME;INTERVAL=0;BYDAY=null")>') do |r|
     opts[:rrules] = r
   end
 
-  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan - (Defaults to "UTC")>') do |t|
+  options.on('-xTAGS', '--tag-targets=TAGS', '<Optional - Comma-delimited list of tags to add to targets in scan>') do |x|
+    opts[:tag_targets] = x
+  end
+
+  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan (Defaults to "UTC")>') do |t|
     opts[:timezone] = t
   end
 
