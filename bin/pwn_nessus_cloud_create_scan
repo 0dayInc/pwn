@@ -252,7 +252,7 @@ begin
 
   settings[:file_targets] = file_targets if file_targets
 
-  settings[:tag_targets] = tag_targets_arr if tag_targets_arr
+  settings[:tag_targets] = tag_targets_arr if tag_targets_arr.any?
 
   settings[:agent_group_id] = agent_group_id_arr if agent_group_id_arr.any?
 
@@ -262,7 +262,7 @@ begin
 
   settings[:emails] = emails if emails
 
-  settings[:acls] = acls if acls
+  # settings[:acls] = acls if acls
 
   # Part 3: Populate credentials object from YAML config (optional)
   credentials = yaml[:credentials] if yaml[:credentials]
