@@ -46,6 +46,19 @@ module PWN
             verify_ssl: false
           )
 
+        when :put
+          response = rest_client.execute(
+            method: :put,
+            url: "#{base_nessus_cloud_api_uri}/#{rest_call}",
+            headers: {
+              x_apikeys: "accessKey=#{access_key}; secretKey=#{secret_key}",
+              accept: 'application/json',
+              content_type: 'application/json; charset=UTF-8'
+            },
+            payload: http_body,
+            verify_ssl: false
+          )
+
         when :post
           response = rest_client.execute(
             method: :post,
