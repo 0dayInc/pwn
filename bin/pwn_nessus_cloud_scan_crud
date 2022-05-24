@@ -32,7 +32,7 @@ OptionParser.new do |options|
   end
 
   options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
-    opts[:scan_template] = t
+    opts[:scan_template_name] = t
   end
 
   options.on('-pPOLICY', '--policy-name=POLICY', '<Optional - Policy to Use to Create the Scan>') do |p|
@@ -116,8 +116,8 @@ begin
   # Optional Arguments
   scan_desc = opts[:scan_desc]
 
-  scan_template = opts[:scan_template]
-  scan_template ||= 'Basic Network Scan'
+  scan_template_name = opts[:scan_template_name]
+  scan_template_name ||= 'Basic Network Scan'
 
   policy_name = opts[:policy_name]
   policy_name ||= ''
@@ -204,17 +204,18 @@ begin
     secret_key: secret_key
   )
 
-  # Requirements to create a scan:
+  # Requirements to update / create a scan:
   # Part 1: Populate uuid
   # Part 2: Populate settings object from options passed to driver
   # Part 3: Populate credentials object from YAML config (optional)
   # Part 4: Populate plugins object from YAML config (optional)
+  # Part 5: Update Scan if it exists, or create it.
 
   # Part 1: Populate uuid
   # TODO: add --list-canned-scan-templates option
   scan_template = PWN::Plugins::NessusCloud.get_canned_scan_templates(
     nessus_obj: nessus_obj,
-    name: scan_template
+    name: scan_template_name
   )
   scan_template_uuid = scan_template[:uuid]
   puts scan_template_uuid
@@ -307,15 +308,34 @@ begin
   # Part 4: Populate plugins object from YAML config (optional)
   plugins = yaml[:plugins] if yaml[:plugins]
 
-  create_scan_resp = PWN::Plugins::NessusCloud.create_scan(
+  # Part 5: Update Scan if it exists, or create it.
+  scan = PWN::Plugins::NessusCloud.get_scans(
     nessus_obj: nessus_obj,
-    scan_template_uuid: scan_template_uuid,
-    settings: settings,
-    credentials: credentials,
-    plugins: plugins
+    name: scan_name
   )
+  if scan.any?
+    scan_uuid = scan[:uuid]
+    update_scan_resp = PWN::Plugins::NessusCloud.update_scan(
+      nessus_obj: nessus_obj,
+      scan_uuid: scan_uuid,
+      scan_template_uuid: scan_template_uuid,
+      settings: settings,
+      credentials: credentials,
+      plugins: plugins
+    )
 
-  puts create_scan_resp.inspect
+    puts update_scan_resp.inspect
+  else
+    create_scan_resp = PWN::Plugins::NessusCloud.create_scan(
+      nessus_obj: nessus_obj,
+      scan_template_uuid: scan_template_uuid,
+      settings: settings,
+      credentials: credentials,
+      plugins: plugins
+    )
+
+    puts create_scan_resp.inspect
+  end
 rescue Interrupt
   puts 'CTRL+C detected...goodbye.'
 rescue StandardError => e
