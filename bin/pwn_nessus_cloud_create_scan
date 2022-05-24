@@ -271,18 +271,17 @@ begin
         name: tag_name
       )
 
-      if tag.empty?
-        PWN::Plugins::NessusCloud.create_tag(
-          nessus_obj: nessus_obj,
-          category: tag_category_name,
-          value: tag_name,
-        )
-      end
+      next if tag.any?
+
+      PWN::Plugins::NessusCloud.create_tag(
+        nessus_obj: nessus_obj,
+        category: tag_category_name,
+        value: tag_name
+      )
     end
 
     settings[:tag_targets] = tag_targets_arr
   end
-  
 
   settings[:agent_group_id] = agent_group_id_arr if agent_group_id_arr.any?
 
