@@ -314,22 +314,22 @@ module PWN
         nessus_obj = opts[:nessus_obj]
         name = opts[:name]
 
-        target_groups_resp = nessus_cloud_rest_call(
+        tags_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
           rest_call: 'target-groups'
         ).body
 
-        target_groups = JSON.parse(target_groups_resp, symbolize_names: true)
+        tags = JSON.parse(target_groups_resp, symbolize_names: true)
 
         if name
-          selected_target_group = target_groups[:target_groups].select do |tg|
-            tg[:name] == name
+          selected_tag = tags[:tags].select do |tag|
+            tag[:name] == name
           end
-          target_groups = selected_target_group.first if selected_target_group.any?
-          target_groups ||= {}
+          tags = selected_tag.first if selected_tag.any?
+          tags ||= {}
         end
 
-        target_groups
+        tags
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
