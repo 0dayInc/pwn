@@ -275,7 +275,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_target_groups(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   name: 'optional - name of timezone'
+      #   name: 'optional - name of target group'
       # )
       # )
 
@@ -288,17 +288,48 @@ module PWN
           rest_call: 'target-groups'
         ).body
 
-        timezones = JSON.parse(target_groups_resp, symbolize_names: true)
+        target_groups = JSON.parse(target_groups_resp, symbolize_names: true)
 
         if name
-          selected_timezone = timezones[:networks].select do |tz|
-            tz[:name] == name
+          selected_target_group = target_groups[:target_groups].select do |tg|
+            tg[:name] == name
           end
-          timezones = selected_timezone.first if selected_timezone.any?
-          timezones ||= {}
+          target_groups = selected_target_group.first if selected_target_group.any?
+          target_groups ||= {}
         end
 
-        timezones
+        target_groups
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_tags(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of tag'
+      # )
+      # )
+
+      public_class_method def self.get_tags(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
+
+        target_groups_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'target-groups'
+        ).body
+
+        target_groups = JSON.parse(target_groups_resp, symbolize_names: true)
+
+        if name
+          selected_target_group = target_groups[:target_groups].select do |tg|
+            tg[:name] == name
+          end
+          target_groups = selected_target_group.first if selected_target_group.any?
+          target_groups ||= {}
+        end
+
+        target_groups
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -348,6 +379,35 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_scans(
+      #   nessus_obj: 'required - nessus_obj returned from #login method'
+      # )
+
+      public_class_method def self.get_scans(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
+
+        scans_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'scans'
+        ).body
+
+        scans = JSON.parse(scans_resp, symbolize_names: true)
+
+        if name
+          selected_scan = scans[:scans].select do |s|
+            s[:name] == name
+          end
+          scans = selected_scan.first if selected_scan.any?
+          scans ||= {}
+        end
+
+        scans
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.create_scan(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
       #   scan_template_uuid: 'required - the UUID for the Tenable-provided scan template to use.  Run #get_canned_scan_templates for a list of UUIDs',
@@ -378,35 +438,6 @@ module PWN
         ).body
 
         JSON.parse(create_scan_resp, symbolize_names: true)
-      rescue StandardError, SystemExit, Interrupt => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::NessusCloud.get_scans(
-      #   nessus_obj: 'required - nessus_obj returned from #login method'
-      # )
-
-      public_class_method def self.get_scans(opts = {})
-        nessus_obj = opts[:nessus_obj]
-        name = opts[:name]
-
-        scans_resp = nessus_cloud_rest_call(
-          nessus_obj: nessus_obj,
-          rest_call: 'scans'
-        ).body
-
-        scans = JSON.parse(scans_resp, symbolize_names: true)
-
-        if name
-          selected_scan = scans[:scans].select do |s|
-            s[:name] == name
-          end
-          scans = selected_scan.first if selected_scan.any?
-          scans ||= {}
-        end
-
-        scans
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -453,14 +484,14 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::NessusCloud.tag(
+      # PWN::Plugins::NessusCloud.create_tag(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
       #   category: 'required - category name to create or use',
       #   value: 'required - value name to create or use',
       #   desc: 'optional - _value_ description'
       # )
 
-      public_class_method def self.tag(opts = {})
+      public_class_method def self.create_tag(opts = {})
         nessus_obj = opts[:nessus_obj]
         category = opts[:category]
         value = opts[:value]
@@ -468,7 +499,8 @@ module PWN
 
         http_body = {
           category_name: category,
-          value: value
+          value: value,
+          description: desc
         }.to_json
 
         tag_resp = nessus_cloud_rest_call(
@@ -612,6 +644,16 @@ module PWN
           #{self}.get_timezones(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of timezone'
+          )
+
+          #{self}.get_target_groups(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of target group'
+          )
+
+          #{self}.get_tags(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of tag'
           )
 
           #{self}.get_scans(
