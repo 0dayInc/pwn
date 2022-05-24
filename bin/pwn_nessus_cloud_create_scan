@@ -71,6 +71,10 @@ OptionParser.new do |options|
     opts[:tag_targets] = x
   end
 
+  options.on('-yCATEGORY', '--tag-category-name=CATEGORY', '<Optional - Tag Category Name to Associate with --tag-targets flag>') do |y|
+    opts[:tag_category_name] = y
+  end
+
   options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan (Defaults to "UTC")>') do |t|
     opts[:timezone] = t
   end
@@ -151,6 +155,9 @@ begin
   tag_targets = opts[:tag_targets]
   tag_targets_arr = []
   tag_targets_arr = tag_targets.split(',') if tag_targets
+
+  tag_category_name = opts[:tag_category_name]
+  raise 'ERROR: --tag-category-name Required as --tag-targets is Populated' if tag_targets && !tag_category_name
 
   agent_group_name = opts[:agent_group_name]
   agent_group_id_arr = []
@@ -256,7 +263,25 @@ begin
 
   settings[:file_targets] = file_targets if file_targets
 
-  settings[:tag_targets] = tag_targets_arr if tag_targets_arr.any?
+  if tag_targets_arr.any?
+    tag_targets_arr.each do |tag_name|
+      # TODO: Lookup tag and create if does not exist
+      tag = PWN::Plugins::NessusCloud.get_tags(
+        nessus_obj: nessus_obj,
+        name: tag_name
+      )
+
+      next if tag.any?
+
+      PWN::Plugins::NessusCloud.create_tag(
+        nessus_obj: nessus_obj,
+        category: tag_category_name,
+        value: tag_name
+      )
+    end
+
+    settings[:tag_targets] = tag_targets_arr
+  end
 
   settings[:agent_group_id] = agent_group_id_arr if agent_group_id_arr.any?
 
