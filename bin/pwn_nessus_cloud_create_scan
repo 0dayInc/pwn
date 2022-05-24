@@ -27,6 +27,10 @@ OptionParser.new do |options|
     opts[:scan_desc] = d
   end
 
+  options.on('-eEMAILS', '--emails=EMAILS', '<Optional - Comma-delimited list of email addresses that receive the email summary report>') do |e|
+    opts[:emails] = e
+  end
+
   options.on('-tVALUE', '--scan-template=VALUE', '<Optional - Canned Scan Template to Use for Scan Creation (Defaults to "Basic Network Scan">') do |t|
     opts[:scan_template] = t
   end
@@ -271,7 +275,7 @@ begin
         name: tag_name
       )
 
-      next if tag.any?
+      next if tag[:values].any?
 
       PWN::Plugins::NessusCloud.create_tag(
         nessus_obj: nessus_obj,
