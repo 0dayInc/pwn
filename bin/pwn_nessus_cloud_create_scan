@@ -271,7 +271,7 @@ begin
         name: tag_name
       )
 
-      next if tag.any?
+      next if tag[:values].any?
 
       PWN::Plugins::NessusCloud.create_tag(
         nessus_obj: nessus_obj,
