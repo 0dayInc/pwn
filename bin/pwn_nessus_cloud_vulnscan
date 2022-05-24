@@ -58,11 +58,11 @@ begin
     nessus_obj: nessus_obj,
     name: scan_name
   )
-  scan_id = scan[:id]
+  scan_uuid = scan[:uuid]
 
   PWN::Plugins::NessusCloud.launch_scan(
     nessus_obj: nessus_obj,
-    scan_id: scan_id
+    scan_uuid: scan_uuid
   )
 
   scan_status = 'initializing'
@@ -73,7 +73,7 @@ begin
 
     scan_status_resp = PWN::Plugins::NessusCloud.get_scan_status(
       nessus_obj: nessus_obj,
-      scan_id: scan_id
+      scan_uuid: scan_uuid
     )
 
     scan_status = scan_status_resp[:status]
@@ -87,7 +87,7 @@ begin
   print "Exporting results to #{path_to_export}..."
   PWN::Plugins::NessusCloud.export_scan_results(
     nessus_obj: nessus_obj,
-    scan_id: scan_id,
+    scan_uuid: scan_uuid,
     path_to_export: path_to_export,
     format: format
   )
