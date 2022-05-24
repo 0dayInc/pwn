@@ -265,8 +265,8 @@ begin
 
   if tag_targets_arr.any?
     tag_targets_arr.each do |tag_name|
-      # TODO: Lookup tag and create if does not exist
-      tag = PWN::Plugins::NessusCloud.get_tags(
+      # Lookup tag and create if does not exist
+      tag = PWN::Plugins::NessusCloud.get_tag_values(
         nessus_obj: nessus_obj,
         name: tag_name
       )
