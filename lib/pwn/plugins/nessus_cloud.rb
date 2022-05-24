@@ -487,8 +487,8 @@ module PWN
       # PWN::Plugins::NessusCloud.create_tag(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
       #   category: 'required - category name to create or use',
-      #   value: 'required - value name to create or use',
-      #   desc: 'optional - _value_ description'
+      #   value: 'required - tag value name to create or use',
+      #   desc: 'optional - tag value description'
       # )
 
       public_class_method def self.create_tag(opts = {})
@@ -670,11 +670,11 @@ module PWN
             scan_id: 'required - scan id to retrieve status'
           )
 
-          #{self}.tag(
+          #{self}.create_tag(
             nessus_obj: 'required - nessus_obj returned from #login method',
             category: 'required - category name to create or use',
-            value: 'required - value name to create or use',
-            desc: 'optional - _value_ description'
+            value: 'required - tag value name to create or use',
+            desc: 'optional - tag value description'
           )
 
           #{self}.get_scan_history(
