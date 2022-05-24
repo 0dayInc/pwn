@@ -274,7 +274,6 @@ begin
         nessus_obj: nessus_obj,
         name: tag_name
       )
-      puts "#get_tag_values for #{tag_name}: #{tag.inspect}"
       next if tag.any?
 
       PWN::Plugins::NessusCloud.create_tag(

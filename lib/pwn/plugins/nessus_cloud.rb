@@ -113,7 +113,7 @@ module PWN
           selected_scan_template = scan_templates[:templates].select do |sc|
             sc[:title] == name
           end
-          scan_templates = selected_scan_template.first if selected_scan_template.any?
+          scan_templates = selected_scan_template.first
           scan_templates ||= {}
         end
 
@@ -143,7 +143,7 @@ module PWN
           selected_policy = policies[:policies].select do |p|
             p[:name] == name
           end
-          policies = selected_policy.first if selected_policy.any?
+          policies = selected_policy.first
           policies ||= {}
         end
 
@@ -173,7 +173,7 @@ module PWN
           selected_folder = folders[:folders].select do |f|
             f[:name] == name
           end
-          folders = selected_folder.first if selected_folder.any?
+          folders = selected_folder.first
           folders ||= {}
         end
 
@@ -203,7 +203,7 @@ module PWN
           selected_scanner = scanners[:scanners].select do |s|
             s[:name] == name
           end
-          scanners = selected_scanner.first if selected_scanner.any?
+          scanners = selected_scanner.first
           scanners ||= {}
         end
 
@@ -233,7 +233,7 @@ module PWN
           selected_network = target_networks[:networks].select do |tn|
             tn[:name] == name
           end
-          target_networks = selected_network.first if selected_network.any?
+          target_networks = selected_network.first
           target_networks ||= {}
         end
 
@@ -263,7 +263,7 @@ module PWN
           selected_timezone = timezones[:networks].select do |tz|
             tz[:name] == name
           end
-          timezones = selected_timezone.first if selected_timezone.any?
+          timezones = selected_timezone.first
           timezones ||= {}
         end
 
@@ -294,7 +294,7 @@ module PWN
           selected_target_group = target_groups[:target_groups].select do |tg|
             tg[:name] == name
           end
-          target_groups = selected_target_group.first if selected_target_group.any?
+          target_groups = selected_target_group.first
           target_groups ||= {}
         end
 
@@ -325,7 +325,7 @@ module PWN
           selected_tag = tag_values[:values].select do |tag|
             tag[:value] == name
           end
-          tag_values = selected_tag.first if selected_tag.any?
+          tag_values = selected_tag.first
           tag_values ||= {}
         end
 
@@ -360,14 +360,14 @@ module PWN
           selected_credential_category = credential_types[:credentials].select do |cc|
             cc[:category].downcase == category
           end
-          credential_types = selected_credential_category.first if selected_credential_category.any?
+          credential_types = selected_credential_category.first
           credential_types ||= {}
 
           if name
             selected_credential_type = credential_types[:types].select do |ct|
               ct[:name].downcase == name
             end
-            credential_types = selected_credential_type.first if selected_credential_type.any?
+            credential_types = selected_credential_type.first
             credential_types ||= {}
           end
 
@@ -398,7 +398,7 @@ module PWN
           selected_scan = scans[:scans].select do |s|
             s[:name] == name
           end
-          scans = selected_scan.first if selected_scan.any?
+          scans = selected_scan.first
           scans ||= {}
         end
 
