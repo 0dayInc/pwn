@@ -304,32 +304,32 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::NessusCloud.get_tags(
+      # PWN::Plugins::NessusCloud.get_tag_values(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   name: 'optional - name of tag'
+      #   name: 'optional - name of tag value'
       # )
       # )
 
-      public_class_method def self.get_tags(opts = {})
+      public_class_method def self.get_tag_values(opts = {})
         nessus_obj = opts[:nessus_obj]
         name = opts[:name]
 
-        tags_resp = nessus_cloud_rest_call(
+        tag_values_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
-          rest_call: 'target-groups'
+          rest_call: 'tags/values'
         ).body
 
-        tags = JSON.parse(target_groups_resp, symbolize_names: true)
+        tag_values = JSON.parse(tag_values_resp, symbolize_names: true)
 
         if name
-          selected_tag = tags[:tags].select do |tag|
+          selected_tag = tag_values[:tags].select do |tag|
             tag[:name] == name
           end
-          tags = selected_tag.first if selected_tag.any?
-          tags ||= {}
+          tag_values = selected_tag.first if selected_tag.any?
+          tag_values ||= {}
         end
 
-        tags
+        tag_values
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
@@ -651,9 +651,9 @@ module PWN
             name: 'optional - name of target group'
           )
 
-          #{self}.get_tags(
+          #{self}.get_tag_values(
             nessus_obj: 'required - nessus_obj returned from #login method',
-            name: 'optional - name of tag'
+            name: 'optional - name of tag value'
           )
 
           #{self}.get_scans(
