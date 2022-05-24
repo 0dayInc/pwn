@@ -458,7 +458,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.update_scan(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   scan_uuid: 'required - the scan UUID to update.  Run #get_scans for a list of UUIDs',
+      #   scan_id: 'required - the scan id to update.  Run #get_scans for a list',
       #   scan_template_uuid: 'required - the UUID for the Tenable-provided scan template to use.  Run #get_canned_scan_templates for a list of UUIDs',
       #   settings: 'required - settings object as defined by https://developer.tenable.com/reference/scans-create',
       #   credentials: 'required - credentials object as defined by https://developer.tenable.com/reference/scans-create',
@@ -467,7 +467,7 @@ module PWN
 
       public_class_method def self.update_scan(opts = {})
         nessus_obj = opts[:nessus_obj]
-        scan_uuid = opts[:scan_uuid]
+        scan_id = opts[:scan_id]
         scan_template_uuid = opts[:scan_template_uuid]
         settings = opts[:settings]
         credentials = opts[:credentials]
@@ -483,7 +483,7 @@ module PWN
         update_scan_resp = nessus_cloud_rest_call(
           http_method: :put,
           nessus_obj: nessus_obj,
-          rest_call: "scans/#{scan_uuid}",
+          rest_call: "scans/#{scan_id}",
           http_body: http_body
         ).body
 
@@ -495,17 +495,17 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.launch_scan(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   scan_uuid: 'required - scan uuid to launch'
+      #   scan_id: 'required - scan uuid to launch'
       # )
 
       public_class_method def self.launch_scan(opts = {})
         nessus_obj = opts[:nessus_obj]
-        scan_uuid = opts[:scan_uuid]
+        scan_id = opts[:scan_id]
 
         launch_scan_resp = nessus_cloud_rest_call(
           http_method: :post,
           nessus_obj: nessus_obj,
-          rest_call: "scans/#{scan_uuid}/launch"
+          rest_call: "scans/#{scan_id}/launch"
         ).body
 
         JSON.parse(launch_scan_resp, symbolize_names: true)
@@ -516,16 +516,16 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_scan_status(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   scan_uuid: 'required - scan uuid to retrieve status'
+      #   scan_id: 'required - scan uuid to retrieve status'
       # )
 
       public_class_method def self.get_scan_status(opts = {})
         nessus_obj = opts[:nessus_obj]
-        scan_uuid = opts[:scan_uuid]
+        scan_id = opts[:scan_id]
 
         scan_status_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
-          rest_call: "scans/#{scan_uuid}/latest-status"
+          rest_call: "scans/#{scan_id}/latest-status"
         ).body
 
         JSON.parse(scan_status_resp, symbolize_names: true)
@@ -568,16 +568,16 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_scan_history(
       #   nessus_obj: 'required - nessus_obj returned from #login method'
-      #   scan_uuid: 'required - scan uuid to launch'
+      #   scan_id: 'required - scan uuid to launch'
       # )
 
       public_class_method def self.get_scan_history(opts = {})
         nessus_obj = opts[:nessus_obj]
-        scan_uuid = opts[:scan_uuid]
+        scan_id = opts[:scan_id]
 
         scan_hist_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
-          rest_call: "scans/#{scan_uuid}/history"
+          rest_call: "scans/#{scan_id}/history"
         ).body
 
         JSON.parse(scan_hist_resp, symbolize_names: true)
@@ -588,7 +588,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.export_scan_results(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
-      #   scan_uuid: 'required - scan uuid to export',
+      #   scan_id: 'required - scan uuid to export',
       #   path_to_export: 'required - filename to export results',
       #   history_id: 'optional - defaults to last scan',
       #   format: 'optional - :csv|:db|:html|:nessus|:pdf (defaults to :csv')
@@ -596,14 +596,14 @@ module PWN
 
       public_class_method def self.export_scan_results(opts = {})
         nessus_obj = opts[:nessus_obj]
-        scan_uuid = opts[:scan_uuid]
+        scan_id = opts[:scan_id]
         path_to_export = opts[:path_to_export]
         if opts[:history_id]
           history_id = opts[:history_id]
         else
           scan_history_resp = get_scan_history(
             nessus_obj: nessus_obj,
-            scan_uuid: scan_uuid
+            scan_id: scan_id
           )
 
           if scan_history_resp[:history].empty?
@@ -618,7 +618,7 @@ module PWN
         format = opts[:format].to_s.to_sym if opts[:format]
 
         http_body = {
-          scan_uuid: scan_uuid,
+          scan_id: scan_id,
           history_id: history_id,
           format: format
         }.to_json
@@ -626,7 +626,7 @@ module PWN
         export_scan_resp = nessus_cloud_rest_call(
           http_method: :post,
           nessus_obj: nessus_obj,
-          rest_call: "scans/#{scan_uuid}/export",
+          rest_call: "scans/#{scan_id}/export",
           http_body: http_body
         ).body
 
@@ -637,7 +637,7 @@ module PWN
 
         download_export_resp = nessus_cloud_rest_call(
           nessus_obj: nessus_obj,
-          rest_call: "scans/#{scan_uuid}/export/#{file_id}/download"
+          rest_call: "scans/#{scan_id}/export/#{file_id}/download"
         ).body
 
         File.open(path_to_export, 'wb') do |f|
@@ -720,7 +720,7 @@ module PWN
 
           #{self}.update_scan(
             nessus_obj: 'required - nessus_obj returned from #login method',
-            scan_uuid: 'required - the scan UUID to update.  Run #get_scans for a list of UUIDs',
+            scan_id: 'required - the scan id to update.  Run #get_scans for a list',
             scan_template_uuid: 'required - the UUID for the Tenable-provided scan template to use.  Run #get_canned_scan_templates for a list of UUIDs',
             settings: 'required - settings object as defined by https://developer.tenable.com/reference/scans-create',
             credentials: 'required - credentials object as defined by https://developer.tenable.com/reference/scans-create',
@@ -729,12 +729,12 @@ module PWN
 
           #{self}.launch_scan(
             nessus_obj: 'required - nessus_obj returned from #login method',
-            scan_uuid: 'required - scan uuid to launch'
+            scan_id: 'required - scan uuid to launch'
           )
 
           #{self}.get_scan_status(
             nessus_obj: 'required - nessus_obj returned from #login method',
-            scan_uuid: 'required - scan uuid to retrieve status'
+            scan_id: 'required - scan uuid to retrieve status'
           )
 
           #{self}.create_tag(
@@ -746,12 +746,12 @@ module PWN
 
           #{self}.get_scan_history(
             nessus_obj: 'required - nessus_obj returned from #login method'
-            scan_uuid: 'required - scan uuid to launch'
+            scan_id: 'required - scan uuid to launch'
           )
 
           #{self}.export_scan_results(
             nessus_obj: 'required - nessus_obj returned from #login method',
-            scan_uuid: 'required - scan uuid to export',
+            scan_id: 'required - scan uuid to export',
             path_to_export: 'required - filename to export results',
             history_id: 'optional - defaults to last scan',
             format: 'optional - :csv|:db|:html|:nessus|:pdf (defaults to :csv')

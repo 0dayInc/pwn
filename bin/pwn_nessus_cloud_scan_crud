@@ -314,10 +314,10 @@ begin
     name: scan_name
   )
   if scan.any?
-    scan_uuid = scan[:uuid]
+    scan_id = scan[:id]
     update_scan_resp = PWN::Plugins::NessusCloud.update_scan(
       nessus_obj: nessus_obj,
-      scan_uuid: scan_uuid,
+      scan_id: scan_id,
       scan_template_uuid: scan_template_uuid,
       settings: settings,
       credentials: credentials,
