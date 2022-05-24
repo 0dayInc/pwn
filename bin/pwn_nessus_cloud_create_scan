@@ -275,15 +275,17 @@ begin
         nessus_obj: nessus_obj,
         name: tag_name
       )
+      tag_uuid = tag[:uuid] if tag.any?
+      tag_uuids_arr.push(tag_uuid) if tag.any?
       next if tag.any?
 
-      tag_uuid = tag[:uuid]
-      tag_uuids_arr.push(tag_uuid)
-      PWN::Plugins::NessusCloud.create_tag(
+      new_tag = PWN::Plugins::NessusCloud.create_tag(
         nessus_obj: nessus_obj,
         category: tag_category_name,
         value: tag_name
       )
+      tag_uuid = new_tag[:uuid]
+      tag_uuids_arr.push(tag_uuid)
     end
 
     settings[:tag_targets] = tag_uuids_arr
