@@ -322,8 +322,8 @@ module PWN
         tag_values = JSON.parse(tag_values_resp, symbolize_names: true)
 
         if name
-          selected_tag = tag_values[:tags].select do |tag|
-            tag[:name] == name
+          selected_tag = tag_values[:values].select do |tag|
+            tag[:value] == name
           end
           tag_values = selected_tag.first if selected_tag.any?
           tag_values ||= {}
