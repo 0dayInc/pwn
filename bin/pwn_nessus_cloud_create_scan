@@ -268,6 +268,7 @@ begin
   settings[:file_targets] = file_targets if file_targets
 
   if tag_targets_arr.any?
+    tag_uuids_arr = []
     tag_targets_arr.each do |tag_name|
       # Lookup tag and create if does not exist
       tag = PWN::Plugins::NessusCloud.get_tag_values(
@@ -276,6 +277,8 @@ begin
       )
       next if tag.any?
 
+      tag_uuid = tag[:uuid]
+      tag_uuids_arr.push(tag_uuid)
       PWN::Plugins::NessusCloud.create_tag(
         nessus_obj: nessus_obj,
         category: tag_category_name,
@@ -283,7 +286,7 @@ begin
       )
     end
 
-    settings[:tag_targets] = tag_targets_arr
+    settings[:tag_targets] = tag_uuids_arr
   end
 
   settings[:agent_group_id] = agent_group_id_arr if agent_group_id_arr.any?
