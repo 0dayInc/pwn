@@ -32,6 +32,7 @@ module PWN
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
     autoload :Metasploit, 'pwn/plugins/metasploit'
+    autoload :MSR206, 'pwn/plugins/msr206'
     autoload :NessusCloud, 'pwn/plugins/nessus_cloud'
     autoload :NexposeVulnScan, 'pwn/plugins/nexpose_vuln_scan'
     autoload :NmapIt, 'pwn/plugins/nmap_it'
