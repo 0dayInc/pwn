@@ -72,10 +72,10 @@ module PWN
           load_custom_data_for_writing_track2
           load_custom_data_for_writing_track3
           set_write_density
-          set_write_density_210_bpi_tracks_1_3
-          set_write_density_75_bpi_tracks_1_3
-          set_write_density_210_bpi_tracks_2
-          set_write_density_75_bpi_tracks_2
+          set_write_density_210_bpi_tracks13
+          set_write_density_75_bpi_tracks13
+          set_write_density_210_bpi_tracks2
+          set_write_density_75_bpi_tracks2
           set_default_write_current
           view_default_write_current
           set_temp_write_current
@@ -145,11 +145,11 @@ module PWN
           cmd_bytes = [0x53]
         when :tx_error_data
           cmd_bytes = [0x49]
-        when :tx_custom_data_forward_track1
+        when :tx_custom_data_forward_track1, :load_custom_data_for_writing_track1
           cmd_bytes = [0x45]
-        when :tx_custom_data_forward_track2
+        when :tx_custom_data_forward_track2, :load_custom_data_for_writing_track2
           cmd_bytes = [0x46]
-        when :tx_custom_data_forward_track3
+        when :tx_custom_data_forward_track3, :load_custom_data_for_writing_track3
           cmd_bytes = [0x47]
         when :tx_passbook_data
           cmd_bytes = [0x58]
@@ -173,21 +173,15 @@ module PWN
           cmd_bytes = [0x63]
         when :load_passbook_data_for_writing
           cmd_bytes = [0x6A]
-        when :load_custom_data_for_writing_track1
-          cmd_bytes = [0x45]
-        when :load_custom_data_for_writing_track2
-          cmd_bytes = [0x46]
-        when :load_custom_data_for_writing_track3
-          cmd_bytes = [0x47]
         when :set_write_density
           cmd_bytes = [0x3B]
-        when :set_write_density_210_bpi_tracks_1_3
+        when :set_write_density_210_bpi_tracks13
           cmd_bytes = [0x4F]
-        when :set_write_density_75_bpi_tracks_1_3
+        when :set_write_density_75_bpi_tracks13
           cmd_bytes = [0x6F]
-        when :set_write_density_210_bpi_tracks_2
+        when :set_write_density_210_bpi_tracks2
           cmd_bytes = [0x4E]
-        when :set_write_density_75_bpi_tracks_2
+        when :set_write_density_75_bpi_tracks2
           cmd_bytes = [0x6E]
         when :set_default_write_current
           cmd_bytes = [0x5B]
