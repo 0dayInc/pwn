@@ -151,7 +151,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # parsed_cmd_resp_arr = parse_cmd_resp(
+      # parsed_cmd_resp_arr = parse_responses(
       #   cmd_resp: 'required - command response string'
       # )
 
