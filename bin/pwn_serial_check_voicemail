@@ -35,7 +35,7 @@ serial_obj = PWN::Plugins::Serial.connect
 
 PWN::Plugins::Serial.request(
   serial_obj: serial_obj,
-  request: "ATDT#{voicemail_num};\r\n"
+  payload: "ATDT#{voicemail_num};\r\n"
 )
 
 # TODO: Loop until data received indicates call picked up instead of sleep
@@ -44,18 +44,18 @@ sleep 13
 voicemail_pin.each_char do |pin_char|
   PWN::Plugins::Serial.request(
     serial_obj: serial_obj,
-    request: "AT+VTS=#{pin_char}\r\n"
+    payload: "AT+VTS=#{pin_char}\r\n"
   )
 end
 
 PWN::Plugins::Serial.request(
   serial_obj: serial_obj,
-  request: "AT+VTS=#\r\n"
+  payload: "AT+VTS=#\r\n"
 )
 
 PWN::Plugins::Serial.request(
   serial_obj: serial_obj,
-  request: "AT+CHUP;\r\n"
+  payload: "AT+CHUP;\r\n"
 )
 
 session_data = PWN::Plugins::Serial.dump_session_data

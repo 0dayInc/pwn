@@ -8,7 +8,6 @@ module PWN
     # This plugin is used for interacting with serial devices including, but not limited to,
     # modems (including cellphone radios), legacy equipment, arduinos, & other misc ftdi devices
     module Serial
-      # @session_data = ""
       @session_data = []
 
       # Supported Method Parameters::
@@ -45,17 +44,27 @@ module PWN
                       opts[:stop_bits].to_i
                     end
 
-        parity = if opts[:parity].nil?
-                   SerialPort::NONE
-                 else
-                   opts[:parity]
-                 end
+        case opts[:parity]
+        when :even
+          parity = SerialPort::EVEN
+        when :mark
+          parity = SerialPort::MARK
+        when :odd
+          parity = SerialPort::ODD
+        when :space
+          parity = SerialPort::SPACE
+        else
+          parity = SerialPort::NONE
+        end
 
-        flow_control = if opts[:flow_control].nil?
-                         SerialPort::HARD
-                       else
-                         opts[:flow_control]
-                       end
+        case opts[:flow_control]
+        when :hard
+          flow_control = SerialPort::HARD
+        when :soft
+          flow_control = SerialPort::SOFT
+        else
+          flow_control = SerialPort::NONE
+        end
 
         serial_conn = SerialPort.new(
           block_dev,
@@ -138,20 +147,38 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Serial.request(
       #   serial_obj: 'required serial_obj returned from #connect method',
-      #   request: 'required - string to write to serial device'
+      #   payload: 'required - array of bytes OR string to write to serial device (e.g. [0x00, 0x41, 0x90, 0x00] OR "ATDT+15555555\r\n"'
       # )
 
       public_class_method def self.request(opts = {})
         serial_obj = opts[:serial_obj]
-        request = opts[:request].to_s.scrub
+        payload = opts[:payload]
         serial_conn = serial_obj[:serial_conn]
-        chars_written = serial_conn.write(request)
+
+        byte_arr = payload
+        byte_arr = payload.chars if payload.instance_of?(String)
+
+        byte_arr.each do |byte|
+          serial_conn.putc(byte)
+        end
+
         serial_conn.flush
-        chars_written
       rescue StandardError => e
         disconnect(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
+
+      # public_class_method def self.request(opts = {})
+      #   serial_obj = opts[:serial_obj]
+      #   request = opts[:request].to_s.scrub
+      #   serial_conn = serial_obj[:serial_conn]
+      #   chars_written = serial_conn.write(request)
+      #   serial_conn.flush
+      #   chars_written
+      # rescue StandardError => e
+      #   disconnect(serial_obj: serial_obj) unless serial_obj.nil?
+      #   raise e
+      # end
 
       # Supported Method Parameters::
       # PWN::Plugins::Serial.response(
@@ -160,37 +187,60 @@ module PWN
 
       public_class_method def self.response(opts = {})
         serial_obj = opts[:serial_obj]
-        @session_data.last
+
+        raw_byte_arr = dump_session_data
+
+        hex_esc_raw_resp = ''
+        raw_byte_arr.each do |byte|
+          # this_byte = "\s#{byte.unpack1('H*')}"
+          this_byte = byte.unpack1('H*')
+          # Needed when #unpack1 returns 2 bytes instead of one
+          # e.g."ް" translates to deb0 (that's not a double quote ")
+          # instead of de b0
+          # this condition is ghetto-hacker-ish.
+          if this_byte.length == 4
+            byte_one = this_byte[1..2]
+            byte_two = this_byte[-2..-1]
+            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{byte_one}"
+            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{byte_two}"
+          else
+            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{this_byte}"
+          end
+        end
+
+        # Return command response array in space-delimited hex
+        cmd_response_arr = hex_esc_raw_resp.upcase.strip.split(/(?=FF)/)
+        cmd_response_arr.map(&:strip)
       rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
+        # Flush Responses for Next Request
+        flush_session_data(serial_obj: serial_obj)
+
         raise e
       end
 
+      # public_class_method def self.response(opts = {})
+      #   serial_obj = opts[:serial_obj]
+      #   @session_data.last
+      # rescue StandardError => e
+      #   disconnect(serial_obj: serial_obj) unless serial_obj.nil?
+      #   raise e
+      # end
+
       # Supported Method Parameters::
-      # session_data = PWN::Plugins::Serial.dump_session_data(
-      #   serial_obj: 'required - serial_obj returned from #connect method'
-      # )
+      # session_data = PWN::Plugins::Serial.dump_session_data
 
-      public_class_method def self.dump_session_data(opts = {})
-        serial_obj = opts[:serial_obj]
-
+      public_class_method def self.dump_session_data
         @session_data
       rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
 
       # Supported Method Parameters::
-      # session_data = PWN::Plugins::Serial.flush_session_data(
-      #   serial_obj: 'required - serial_obj returned from #connect method'
-      # )
+      # session_data = PWN::Plugins::Serial.flush_session_data
 
-      public_class_method def self.flush_session_data(opts = {})
-        serial_obj = opts[:serial_obj]
-
+      public_class_method def self.flush_session_data
         @session_data.clear
       rescue StandardError => e
-        disconnect(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
 
@@ -203,7 +253,7 @@ module PWN
         serial_obj = opts[:serial_obj]
         serial_conn = serial_obj[:serial_conn]
         session_thread = serial_obj[:session_thread]
-        flush_session_data(serial_obj: serial_obj)
+        flush_session_data
         session_thread.terminate
         serial_conn.close
         serial_conn = nil
@@ -242,20 +292,16 @@ module PWN
 
           #{self}.request(
             serial_obj: 'required serial_obj returned from #connect method',
-            request: 'required string to write to serial device'
+            payload: 'required - array of bytes OR string to write to serial device (e.g. [0x00, 0x41, 0x90, 0x00] OR \"ATDT+15555555\r\n\"'
           )
 
           #{self}.response(
             serial_obj: 'required serial_obj returned from #connect method'
           )
 
-          session_data_arr = #{self}.dump_session_data(
-            serial_obj: 'required serial_obj returned from #connect method'
-          )
+          session_data_arr = #{self}.dump_session_data
 
           #{self}.flush_session_data
-            serial_obj: 'required serial_obj returned from #connect method'
-          )
 
           #{self}.disconnect(
             serial_obj: 'required serial_obj returned from #connect method'

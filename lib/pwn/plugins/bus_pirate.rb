@@ -63,28 +63,28 @@ module PWN
         case mode
         when 'BBI01'
           # Enter reset binary mode
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x00')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x00])
         when 'SPI1'
           # Enter binary SPI mode
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x01')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x01])
         when 'I2C1'
           # Enter I2C mode
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x02')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x02])
         when 'ART1'
           # Enter UART mode
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x03')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x03])
         when '1W01'
           # Enter 1-Wire mode
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x04')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x04])
         when 'RAW1'
           # Enter raw-wire mode
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x05')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x05])
         when 'RESET'
           # Reset Bus Pirate
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x0F')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x0F])
         when 'STEST'
           # Bus Pirate self-tests
-          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, request: '\x10')
+          PWN::Plugins::Serial.request(serial_obj: bus_pirate_obj, byte_arr: [0x10])
         else
           raise "Invalid mode: #{mode}"
         end
