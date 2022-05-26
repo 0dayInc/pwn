@@ -7,7 +7,7 @@ serial_obj = PWN::Plugins::Serial.connect
 
 PWN::Plugins::Serial.request(
   serial_obj: serial_obj,
-  request: "AT+CLAC\r\n"
+  payload: "AT+CLAC\r\n"
 )
 
 session_data = PWN::Plugins::Serial.dump_session_data

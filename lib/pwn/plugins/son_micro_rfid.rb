@@ -8,7 +8,7 @@ module PWN
       # Supported Method Parameters::
       # son_micro_rfid_obj = PWN::Plugins::SonMicroRFID.connect(
       #   block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',
-      #   baud: 'optional - (defaults to 9600)',
+      #   baud: 'optional - (defaults to 19_200)',
       #   data_bits: 'optional - (defaults to 8)',
       #   stop_bits: 'optional - (defaults to 1)',
       #   parity: 'optional - (defaults to SerialPort::NONE)',
@@ -17,7 +17,10 @@ module PWN
 
       public_class_method def self.connect(opts = {})
         # Default Baud Rate for this Device is 19200
-        opts[:baud] = 19_200 if opts[:baud].nil?
+        opts[:baud] = 19_200 unless opts[:baud]
+        opts[:data_bits] = 8 unless opts[:data_bits]
+        opts[:stop_bits] = 1 unless opts[:stop_bits]
+        opts[:parity] = :none unless opts[:parity]
         son_micro_rfid_obj = PWN::Plugins::Serial.connect(opts)
       rescue StandardError => e
         disconnect(son_micro_rfid_obj: son_micro_rfid_obj) unless son_micro_rfid_obj.nil?
@@ -109,49 +112,8 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # cmd_response_arr = get_cmd_responses(
-      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
-      # )
-
-      public_class_method def self.get_cmd_responses(opts = {})
-        son_micro_rfid_obj = opts[:son_micro_rfid_obj]
-
-        raw_byte_arr = PWN::Plugins::Serial.dump_session_data(
-          serial_obj: son_micro_rfid_obj
-        )
-
-        hex_esc_raw_resp = ''
-        raw_byte_arr.each do |byte|
-          # this_byte = "\s#{byte.unpack1('H*')}"
-          this_byte = byte.unpack1('H*')
-          # Needed when #unpack1 returns 2 bytes instead of one
-          # e.g."ް" translates to deb0 (that's not a double quote ")
-          # instead of de b0
-          # this condition is ghetto-hacker-ish.
-          if this_byte.length == 4
-            byte_one = this_byte[1..2]
-            byte_two = this_byte[-2..-1]
-            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{byte_one}"
-            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{byte_two}"
-          else
-            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{this_byte}"
-          end
-        end
-
-        # Return command response array in space-delimited hex
-        cmd_response_arr = hex_esc_raw_resp.upcase.strip.split(/(?=FF)/)
-        cmd_response_arr.map(&:strip)
-      rescue StandardError => e
-        # Flush Responses for Next Request
-        PWN::Plugins::Serial.flush_session_data(
-          serial_obj: son_micro_rfid_obj
-        )
-
-        raise e
-      end
-
-      # Supported Method Parameters::
       # parsed_cmd_resp_arr = parse_responses(
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       #   cmd_resp: 'required - command response string'
       # )
 
@@ -173,13 +135,14 @@ module PWN
         while keep_parsing_responses
           until next_response_detected
             print '.'
-            all_cmd_responses = get_cmd_responses(
-              son_micro_rfid_obj: son_micro_rfid_obj
+            all_cmd_responses = PWN::Plugins::Serial.response(
+              serial_obj: son_micro_rfid_obj
             )
             cmd_resp = all_cmd_responses.last
             bytes_in_cmd_resp = cmd_resp.split.length if cmd_resp
             a_cmd_r_len = all_cmd_responses.length
 
+            # Dont proceed until the expected_cmd_resp_byte_len byte appears
             next_response_detected = true if bytes_in_cmd_resp > 3 &&
                                              a_cmd_r_len > last_a_cmd_r_len
           end
@@ -194,8 +157,8 @@ module PWN
           cmd_hex = cmd_resp.split[3]
 
           while bytes_in_cmd_resp < expected_cmd_resp_byte_len
-            all_cmd_responses = get_cmd_responses(
-              son_micro_rfid_obj: son_micro_rfid_obj
+            all_cmd_responses = PWN::Plugins::Serial.response(
+              serial_obj: son_micro_rfid_obj
             )
 
             cmd_resp = all_cmd_responses.last
@@ -210,6 +173,7 @@ module PWN
           puts "#{all_cmd_responses}\n\n\n"
 
           parsed_cmd_resp_hash = {}
+          parsed_cmd_resp_hash[:raw_resp] = PWN::Plugins::Serial.dump_session_data.inspect
           parsed_cmd_resp_hash[:hex_resp] = cmd_resp
           parsed_cmd_resp_hash[:cmd_hex] = cmd_hex
           parsed_cmd_resp_hash[:cmd_desc] = cmd.to_sym
@@ -268,9 +232,7 @@ module PWN
         raise e
       ensure
         # Flush Responses for Next Request
-        PWN::Plugins::Serial.flush_session_data(
-          serial_obj: son_micro_rfid_obj
-        )
+        PWN::Plugins::Serial.flush_session_data
       end
 
       # Supported Method Parameters::
@@ -355,9 +317,10 @@ module PWN
         # If parameters to a command are set, append them.
         cmd_bytes += params_bytes unless params_bytes.empty?
         # Execute the command.
-        cmd_bytes.each do |byte|
-          son_micro_rfid_obj[:serial_conn].putc(byte)
-        end
+        PWN::Plugins::Serial.request(
+          serial_obj: son_micro_rfid_obj,
+          payload: cmd_bytes
+        )
 
         # Parse commands response(s).
         # Return an array of hashes.
@@ -369,9 +332,7 @@ module PWN
         raise e
       ensure
         # Flush Responses for Next Request
-        PWN::Plugins::Serial.flush_session_data(
-          serial_obj: son_micro_rfid_obj
-        )
+        PWN::Plugins::Serial.flush_session_data
       end
 
       # Supported Method Parameters::
@@ -401,7 +362,7 @@ module PWN
         puts "USAGE:
           son_micro_rfid_obj = #{self}.connect(
             block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
-            baud: 'optional (defaults to 9600)',
+            baud: 'optional (defaults to 19_200)',
             data_bits: 'optional (defaults to 8)',
             stop_bits: 'optional (defaults to 1)',
             parity: 'optional (defaults to SerialPort::NONE)',

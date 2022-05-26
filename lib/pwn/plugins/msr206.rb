@@ -9,15 +9,18 @@ module PWN
       # msr206_obj = PWN::Plugins::MSR206.connect(
       #   block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',
       #   baud: 'optional - (defaults to 9600)',
-      #   data_bits: 'optional - (defaults to 8)',
+      #   data_bits: 'optional - (defaults to 7)',
       #   stop_bits: 'optional - (defaults to 1)',
-      #   parity: 'optional - (defaults to SerialPort::NONE)',
+      #   parity: 'optional - (defaults to SerialPort::ODD)',
       #   flow_control: 'optional - (defaults to SerialPort::HARD) SerialPort::NONE|SerialPort::SOFT|SerialPort::HARD'
       # )
 
       public_class_method def self.connect(opts = {})
         # Default Baud Rate for this Device is 19200
-        opts[:baud] = 19_200 if opts[:baud].nil?
+        opts[:baud] = 9_600 unless opts[:baud]
+        opts[:data_bits] = 7 unless opts[:data_bits]
+        opts[:stop_bits] = 1 unless opts[:stop_bits]
+        opts[:parity] = :odd unless opts[:parity]
         msr206_obj = PWN::Plugins::Serial.connect(opts)
       rescue StandardError => e
         disconnect(msr206_obj: msr206_obj) unless msr206_obj.nil?
@@ -89,47 +92,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # cmd_response_arr = get_cmd_responses(
-      #   msr206_obj: 'required - msr206_obj returned from #connect method'
-      # )
-
-      public_class_method def self.get_cmd_responses(opts = {})
-        msr206_obj = opts[:msr206_obj]
-
-        raw_byte_arr = PWN::Plugins::Serial.dump_session_data(
-          serial_obj: msr206_obj
-        )
-
-        hex_esc_raw_resp = ''
-        raw_byte_arr.each do |byte|
-          this_byte = byte.unpack1('H*')
-          # Needed when #unpack1 returns 2 bytes instead of one
-          # e.g."ް" translates to deb0 (that's not a double quote ")
-          # instead of de b0
-          # this condition is ghetto-hacker-ish.
-          if this_byte.length == 4
-            byte_one = this_byte[1..2]
-            byte_two = this_byte[-2..-1]
-            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{byte_one}"
-            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{byte_two}"
-          else
-            hex_esc_raw_resp = "#{hex_esc_raw_resp}\s#{this_byte}"
-          end
-        end
-
-        # Return command response array in space-delimited hex
-        cmd_response_arr = hex_esc_raw_resp.upcase.strip.split(/(?=FF)/)
-        cmd_response_arr.map(&:strip)
-      rescue StandardError => e
-        # Flush Responses for Next Request
-        PWN::Plugins::Serial.flush_session_data(
-          serial_obj: msr206_obj
-        )
-
-        raise e
-      end
-
-      # Supported Method Parameters::
       # parsed_cmd_resp_arr = parse_responses(
       #   cmd_resp: 'required - command response string'
       # )
@@ -150,10 +112,9 @@ module PWN
 
         while keep_parsing_responses
           until next_response_detected
-            all_cmd_responses = get_cmd_responses(
-              msr206_obj: msr206_obj
-            )
-            # bytes_in_cmd_resp = cmd_resp.split.length if cmd_resp
+            all_cmd_responses = PWN::Plugins::Serial.response(serial_obj: msr206_obj)
+            cmd_resp = all_cmd_responses.last
+            bytes_in_cmd_resp = cmd_resp.split.length if cmd_resp
             a_cmd_r_len = all_cmd_responses.length
 
             next_response_detected = true if a_cmd_r_len > last_a_cmd_r_len
@@ -175,9 +136,7 @@ module PWN
         raise e
       ensure
         # Flush Responses for Next Request
-        PWN::Plugins::Serial.flush_session_data(
-          serial_obj: msr206_obj
-        )
+        PWN::Plugins::Serial.flush_session_data
       end
 
       # Supported Method Parameters::
@@ -211,8 +170,6 @@ module PWN
           cmd_bytes = [0x29]
         when :version_report
           cmd_bytes = [0x39]
-        when :power_on_report
-          cmd_bytes = [0x3A]
         when :set_write_density
           cmd_bytes = [0x3B]
         when :set_temp_write_current
@@ -304,9 +261,10 @@ module PWN
         # If parameters to a command are set, append them.
         cmd_bytes += params_bytes unless params_bytes.empty?
         # Execute the command.
-        cmd_bytes.each do |byte|
-          msr206_obj[:serial_conn].putc(byte)
-        end
+        PWN::Plugins::Serial.request(
+          serial_obj: msr206_obj,
+          payload: cmd_bytes
+        )
 
         # Parse commands response(s).
         # Return an array of hashes.
@@ -316,6 +274,9 @@ module PWN
         )
       rescue StandardError => e
         raise e
+      ensure
+        # Flush Responses for Next Request
+        PWN::Plugins::Serial.flush_session_data
       end
 
       # Supported Method Parameters::
@@ -346,9 +307,9 @@ module PWN
           msr206_obj = #{self}.connect(
             block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
             baud: 'optional (defaults to 9600)',
-            data_bits: 'optional (defaults to 8)',
+            data_bits: 'optional (defaults to 7)',
             stop_bits: 'optional (defaults to 1)',
-            parity: 'optional (defaults to SerialPort::NONE)',
+            parity: 'optional (defaults to SerialPort::ODD)',
             flow_control: 'optional (defaults to SerialPort::NONE)'
           )
 
