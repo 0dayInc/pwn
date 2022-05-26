@@ -1,0 +1,66 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-dDEV', '--block-dev=DEV', '<Optional - MSR206 block device path (defaults to /dev/ttyUSB0)>') do |d|
+    opts[:block_dev] = d
+  end
+
+  options.on('-bBAUD', '--baud=DEV', '<Optional - (defaults to 9600)>') do |d|
+    opts[:block_dev] = d
+  end
+
+  options.on('-DDATABITS', '--data-bits=DATABITS', '<Optional - (defaults to 7)>') do |d|
+    opts[:block_dev] = d
+  end
+
+  options.on('-sSTOPBITS', '--stop-bits=STOPBITS', '<Optional - (defaults to 1)>') do |d|
+    opts[:block_dev] = d
+  end
+
+  options.on('-pPARITY', '--parity=PARITY', '<Optional - :even|:mark|:odd|:space|:none (defaults to :odd)>') do |d|
+    opts[:block_dev] = d
+  end
+
+  options.on('-fFLOW', '--flow-control=FLOW', '<Optional - :none||:hard||:soft (defaults to :none)>') do |d|
+    opts[:block_dev] = d
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  block_dev = opts[:block_dev]
+  baud = opts[:baud]
+  data_bits = opts[:data_bits]
+  stop_bits = opts[:stop_bits]
+  parity = opts[:parity]
+  flow_control = opts[:flow_control]
+
+  msr206_obj = PWN::Plugins::MSR206.connect(
+    block_dev: block_dev,
+    baud: baud,
+    data_bits: data_bits,
+    stop_bits: stop_bits,
+    parity: parity,
+    flow_control: flow_control
+  )
+
+  serial_resp = PWN::Plugins::MSR206.exec(
+    msr206_obj: msr206_obj,
+    cmd: :simulate_power_cycle_warm_reset
+  )
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+end

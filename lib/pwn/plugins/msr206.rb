@@ -11,16 +11,18 @@ module PWN
       #   baud: 'optional - (defaults to 9600)',
       #   data_bits: 'optional - (defaults to 7)',
       #   stop_bits: 'optional - (defaults to 1)',
-      #   parity: 'optional - (defaults to SerialPort::ODD)',
-      #   flow_control: 'optional - (defaults to SerialPort::HARD) SerialPort::NONE|SerialPort::SOFT|SerialPort::HARD'
+      #   parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :odd),'
+      #   flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
       # )
 
       public_class_method def self.connect(opts = {})
         # Default Baud Rate for this Device is 19200
+        opts[:block_dev] = '/dev/ttyUSB0' unless opts[:block_dev]
         opts[:baud] = 9_600 unless opts[:baud]
         opts[:data_bits] = 7 unless opts[:data_bits]
         opts[:stop_bits] = 1 unless opts[:stop_bits]
         opts[:parity] = :odd unless opts[:parity]
+        opts[:flow_control] = :none unless opts[:flow_control]
         msr206_obj = PWN::Plugins::Serial.connect(opts)
       rescue StandardError => e
         disconnect(msr206_obj: msr206_obj) unless msr206_obj.nil?
@@ -309,8 +311,8 @@ module PWN
             baud: 'optional (defaults to 9600)',
             data_bits: 'optional (defaults to 7)',
             stop_bits: 'optional (defaults to 1)',
-            parity: 'optional (defaults to SerialPort::ODD)',
-            flow_control: 'optional (defaults to SerialPort::NONE)'
+            parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :odd),'
+            flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
           )
 
           cmds = #{self}.list_cmds
