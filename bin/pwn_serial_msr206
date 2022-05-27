@@ -81,7 +81,6 @@ begin
         msr206_obj: msr206_obj,
         cmd: :yellow_on
       )
-      puts exec_resp.inspect
     end
 
     puts "\n>> MAIN MENU OPTIONS:"
