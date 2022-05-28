@@ -24,7 +24,6 @@ Gem::Specification.new do |spec|
     File.basename(f)
   end
 
-  spec.test_files = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ['lib']
 
   dev_dependency_arr = %i[
