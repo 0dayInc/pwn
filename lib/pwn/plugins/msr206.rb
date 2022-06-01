@@ -309,6 +309,26 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # parsed_cmd_resp_arr = binary(
+      #   raw_byte_arr: 'required - raw_byte_arr produced in #parse_responses'
+      # )
+
+      private_class_method def self.binary(opts = {})
+        raw_byte_arr = opts[:raw_byte_arr]
+
+        binary_byte_arr = []
+        if raw_byte_arr
+          raw_byte_arr.first.split.each do |byte_str|
+            binary_byte_arr.push([byte_str].pack('H*').unpack('B*').first.reverse)
+          end
+        end
+
+        binary_byte_arr
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # parsed_cmd_resp_arr = parse_responses(
       #   cmd_resp: 'required - command response string'
       # )
@@ -342,31 +362,31 @@ module PWN
           end
 
           case cmd_resp
-          when '21'
+          when '21', 'A1'
             response[:msg] = :invalid_command
-          when '28'
+          when '28', 'A8'
             response[:msg] = :card_speed_measurement_start
-          when '29'
+          when '29', 'A9'
             response[:msg] = :card_speed_measurement_end
-          when '2A'
+          when '2A', 'AA'
             response[:msg] = :error
-          when '2B'
+          when '2B', 'AB'
             response[:msg] = :no_data_found
-          when '2D'
+          when '2D', 'AD'
             response[:msg] = :insufficient_leading_zeros_for_custom_writing
-          when '2F'
+          when '2F', 'AF'
             response[:msg] = :first_lsb_char_not_one_for_custom_writing
-          when '3A'
-            response[:msg] = :power_on_report
-          when '31'
+          when '31', 'B1'
             response[:msg] = :unsuccessful_read_after_write_track1
-          when '32'
+          when '32', 'B2'
             response[:msg] = :unsuccessful_read_after_write_track2
-          when '33'
+          when '33', 'B3'
             response[:msg] = :unsuccessful_read_after_write_track3
-          when '3E'
+          when '3A', 'BA'
+            response[:msg] = :power_on_report
+          when '3E', 'BE'
             response[:msg] = :card_edge_detected
-          when '3F'
+          when '3F', 'BF'
             response[:msg] = :communications_error
           when '5E'
             response[:msg] = :ack_command_completed
@@ -382,6 +402,7 @@ module PWN
         end
 
         response[:raw] = raw_byte_arr
+        response[:binary] = binary(raw_byte_arr: raw_byte_arr)
         response[:decoded] = decode(raw_byte_arr: raw_byte_arr)
         response
       rescue StandardError => e
@@ -584,57 +605,61 @@ module PWN
           break if exec_resp[:msg] == :ack_command_completed
         end
 
-        puts "*** ISO Track Format: Standard #{'*' * 17}"
+        puts "\n*** ISO Track Format: Standard #{'*' * 17}"
         print 'TRACK 1 >>> '
         exec_resp = exec(
           msr206_obj: msr206_obj,
-          cmd: :tx_iso_std_data_track1,
-          params: [0x31]
+          cmd: :tx_iso_std_data_track1
         )
         puts exec_resp[:decoded]
         puts exec_resp.inspect
 
-        # print ">> Track 1 (ALT DATA)\n"
-        # exec_resp = exec(
-        #   msr206_obj: msr206_obj,
-        #   cmd: :alt_tx_iso_std_data_track1,
-        #   params: [0x31]
-        # )
-        # puts exec_resp.inspect
+        # (1..3).each do |n|
+        #   print ">> Track 1 (ALT DATA) ISO Track Format: #{n}\n"
+        #   exec_resp = exec(
+        #     msr206_obj: msr206_obj,
+        #     cmd: :alt_tx_iso_std_data_track1,
+        #     params: [n.to_s]
+        #   )
+        #   puts exec_resp.inspect
+        # end
 
         print "\nTRACK 2 >>> "
         exec_resp = exec(
           msr206_obj: msr206_obj,
-          cmd: :tx_iso_std_data_track2,
-          params: [0x32]
+          cmd: :tx_iso_std_data_track2
         )
         puts exec_resp[:decoded]
         puts exec_resp.inspect
 
-        # print ">> Track 2 (ALT DATA)\n"
-        # exec_resp = exec(
-        #   msr206_obj: msr206_obj,
-        #   cmd: :alt_tx_iso_std_data_track2,
-        #   params: [0x32]
-        # )
-        # puts exec_resp.inspect
+        # (1..3).each do |n|
+        #   print ">> Track 2 (ALT DATA) ISO Track Format: #{n}\n"
+        #   exec_resp = exec(
+        #     msr206_obj: msr206_obj,
+        #     cmd: :alt_tx_iso_std_data_track2,
+        #     params: [n.to_s]
+        #   )
+        #   puts exec_resp.inspect
+        # end
 
         print "\nTRACK 3 >>> "
         exec_resp = exec(
           msr206_obj: msr206_obj,
-          cmd: :tx_iso_std_data_track3,
-          params: [0x33]
+          cmd: :tx_iso_std_data_track3
         )
         puts exec_resp[:decoded]
         puts exec_resp.inspect
 
-        # print ">> Track 3 (ALT DATA)\n"
-        # exec_resp = exec(
-        #   msr206_obj: msr206_obj,
-        #   cmd: :alt_tx_iso_std_data_track3,
-        #   params: [0x33]
-        # )
-        # puts exec_resp.inspect
+        # (1..3).each do |n|
+        #   print ">> Track 3 (ALT DATA) ISO Track Format: #{n}\n"
+        #   exec_resp = exec(
+        #     msr206_obj: msr206_obj,
+        #     cmd: :alt_tx_iso_std_data_track3,
+        #     params: [n.to_s]
+        #   )
+        #   puts exec_resp.inspect
+        # end
+
       rescue StandardError => e
         raise e
       ensure
