@@ -67,6 +67,27 @@ begin
     cmd: :simulate_power_cycle_warm_reset
   )
 
+  # TODO: Parse Binary Bits to Derive Readable Configuration
+  # e.g. 'Read & Write All Three Tracks' if binary_resp == '11101111'
+  # Probably better to split each bit and then evaluate
+  # binary_resp_arr = binary_resp.chars
+  # --------------------------------------------------
+  # Bit|Bit = 0                  |Bit = 1
+  # --------------------------------------------------
+  # 0  |Track 1 Read not present |Track 1 Read present
+  # 1  |Track 2 Read not present |Track 2 Read present
+  # 2  |Track 3 Read not present |Track 3 Read present
+  # 3  |not used – should be 0   |not used
+  # 4  |Track 3 Write not present|Track 3 Write present
+  # 5  |Track 2 Write not present|Track 2 Write present
+  # 6  |Track 1 Write not present|Track 1 Write present
+  # 7  |parity bit**             |parity bit** 
+  exec_resp = PWN::Plugins::MSR206.exec(
+    msr206_obj: msr206_obj,
+    cmd: :configuration_request
+  )
+  puts "Configuration Bits: #{exec_resp[:binary].first}"
+
   exec_resp = PWN::Plugins::MSR206.exec(
     msr206_obj: msr206_obj,
     cmd: :version_report
