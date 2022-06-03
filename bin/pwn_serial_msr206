@@ -101,7 +101,7 @@ begin
     unless menu_msg.include?('ERROR')
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
-        cmd: :yellow_on
+        cmd: :green_flash
       )
     end
 
@@ -156,14 +156,33 @@ begin
       )
       file = ''
       loop do
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :green_flash
+        )
+
         print 'Enter File Name to Save Backup: '
         file = gets.scrub.chomp.strip
         file_dir = File.dirname(file)
         break if Dir.exist?(file_dir)
 
         puts "\nDirectory #{file_dir} for #{file} does not exist."
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :green_off
+        )
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :yellow_flash
+        )
       end
+
       File.write(file, "#{track_data.to_json}\n")
+      exec_resp = PWN::Plugins::MSR206.exec(
+        msr206_obj: msr206_obj,
+        cmd: :yellow_off
+      )
+
       puts 'complete.'
     when :W
       exec_resp = PWN::Plugins::MSR206.exec(
@@ -177,12 +196,12 @@ begin
       menu_msg = '****** ERROR: Invalid Menu Option Selected ******'
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
-        cmd: :yellow_off
+        cmd: :green_off
       )
 
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
-        cmd: :red_flash
+        cmd: :yellow_flash
       )
     end
   end
