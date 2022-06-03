@@ -319,7 +319,7 @@ module PWN
         binary_byte_arr = []
         if raw_byte_arr
           raw_byte_arr.first.split.each do |byte_str|
-            binary_byte_arr.push([byte_str].pack('H*').unpack('B*').first.reverse)
+            binary_byte_arr.push([byte_str].pack('H*').unpack1('B*').reverse)
           end
         end
 
@@ -555,6 +555,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::MSR206.wait_for_swipe(
       #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      #   type: 'required - swipe type'
       # )
 
       public_class_method def self.wait_for_swipe(opts = {})
@@ -569,6 +570,8 @@ module PWN
         ]
 
         raise "ERROR Unsupported type in #wait_for_swipe - #{type}. Valid types:\n#{types_arr}" unless types_arr.include?(type)
+
+        track_data = {}
 
         exec_resp = exec(
           msr206_obj: msr206_obj,
@@ -613,6 +616,7 @@ module PWN
         )
         puts exec_resp[:decoded]
         puts exec_resp.inspect
+        track_data[:track1] = exec_resp
 
         # (1..3).each do |n|
         #   print ">> Track 1 (ALT DATA) ISO Track Format: #{n}\n"
@@ -631,6 +635,7 @@ module PWN
         )
         puts exec_resp[:decoded]
         puts exec_resp.inspect
+        track_data[:track2] = exec_resp
 
         # (1..3).each do |n|
         #   print ">> Track 2 (ALT DATA) ISO Track Format: #{n}\n"
@@ -649,6 +654,7 @@ module PWN
         )
         puts exec_resp[:decoded]
         puts exec_resp.inspect
+        track_data[:track3] = exec_resp
 
         # (1..3).each do |n|
         #   print ">> Track 3 (ALT DATA) ISO Track Format: #{n}\n"
@@ -659,7 +665,7 @@ module PWN
         #   )
         #   puts exec_resp.inspect
         # end
-
+        track_data
       rescue StandardError => e
         raise e
       ensure
