@@ -154,19 +154,24 @@ begin
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
+
       file = ''
+      backup_msg = ''
       loop do
-        exec_resp = PWN::Plugins::MSR206.exec(
-          msr206_obj: msr206_obj,
-          cmd: :green_flash
-        )
+        if backup_msg.empty?
+          exec_resp = PWN::Plugins::MSR206.exec(
+            msr206_obj: msr206_obj,
+            cmd: :green_flash
+          )
+        end
 
         print 'Enter File Name to Save Backup: '
         file = gets.scrub.chomp.strip
         file_dir = File.dirname(file)
         break if Dir.exist?(file_dir)
 
-        puts "\nDirectory #{file_dir} for #{file} does not exist."
+        backup_msg = "\n****** ERROR: Directory #{file_dir} for #{file} does not exist ******"
+        puts backup_msg
         exec_resp = PWN::Plugins::MSR206.exec(
           msr206_obj: msr206_obj,
           cmd: :green_off
