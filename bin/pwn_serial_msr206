@@ -3,6 +3,7 @@
 
 require 'pwn'
 require 'optparse'
+require 'json'
 
 opts = {}
 OptionParser.new do |options|
@@ -81,7 +82,7 @@ begin
   # 4  |Track 3 Write not present|Track 3 Write present
   # 5  |Track 2 Write not present|Track 2 Write present
   # 6  |Track 1 Write not present|Track 1 Write present
-  # 7  |parity bit**             |parity bit** 
+  # 7  |parity bit**             |parity bit**
   exec_resp = PWN::Plugins::MSR206.exec(
     msr206_obj: msr206_obj,
     cmd: :configuration_request
@@ -100,7 +101,7 @@ begin
     unless menu_msg.include?('ERROR')
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
-        cmd: :yellow_on
+        cmd: :green_flash
       )
     end
 
@@ -120,14 +121,14 @@ begin
     when :R
       menu_msg = 'READY TO READ - PLEASE SWIPE CARD'
       # Read Card
-      PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.wait_for_swipe(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
     when :C
       menu_msg = 'READY TO COPY - PLEASE SWIPE ORIGINAL CARD'
       # Read Original Card
-      PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.wait_for_swipe(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
@@ -138,7 +139,7 @@ begin
     when :E
       menu_msg = 'READY TO EDIT - PLEASE SWIPE TARGET CARD'
       # Read Target Card
-      PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.wait_for_swipe(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
@@ -149,10 +150,45 @@ begin
     when :B
       menu_msg = 'READY TO BACKUP - PLEASE SWIPE CARD'
       # Read Card
-      PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.wait_for_swipe(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
+
+      file = ''
+      backup_msg = ''
+      loop do
+        if backup_msg.empty?
+          exec_resp = PWN::Plugins::MSR206.exec(
+            msr206_obj: msr206_obj,
+            cmd: :green_flash
+          )
+        end
+
+        print 'Enter File Name to Save Backup: '
+        file = gets.scrub.chomp.strip
+        file_dir = File.dirname(file)
+        break if Dir.exist?(file_dir)
+
+        backup_msg = "\n****** ERROR: Directory #{file_dir} for #{file} does not exist ******"
+        puts backup_msg
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :green_off
+        )
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :yellow_flash
+        )
+      end
+
+      File.write(file, "#{track_data.to_json}\n")
+      exec_resp = PWN::Plugins::MSR206.exec(
+        msr206_obj: msr206_obj,
+        cmd: :yellow_off
+      )
+
+      puts 'complete.'
     when :W
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
@@ -165,12 +201,12 @@ begin
       menu_msg = '****** ERROR: Invalid Menu Option Selected ******'
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
-        cmd: :yellow_off
+        cmd: :green_off
       )
 
       exec_resp = PWN::Plugins::MSR206.exec(
         msr206_obj: msr206_obj,
-        cmd: :red_flash
+        cmd: :yellow_flash
       )
     end
   end
