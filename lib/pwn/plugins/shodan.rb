@@ -90,7 +90,7 @@ module PWN
             rest_call: "shodan/host/#{target_ip}",
             params: params
           )
-          services_by_ips.push(JSON.parse(response))
+          services_by_ips.push(JSON.parse(response, symbolize_names: true))
         rescue StandardError => e
           services_by_ips.push(error: e.message)
           next
@@ -131,7 +131,7 @@ module PWN
           rest_call: 'shodan/host/count',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -166,7 +166,7 @@ module PWN
           rest_call: 'shodan/host/search',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -191,7 +191,7 @@ module PWN
           rest_call: 'shodan/host/search/tokens',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -210,7 +210,7 @@ module PWN
           rest_call: 'shodan/ports',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -229,7 +229,7 @@ module PWN
           rest_call: 'shodan/protocols',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -253,7 +253,7 @@ module PWN
           params: params,
           http_body: http_body
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -279,7 +279,7 @@ module PWN
           params: params,
           http_body: http_body
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -303,7 +303,7 @@ module PWN
           rest_call: "shodan/scan/status/#{scan_id}",
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -322,7 +322,7 @@ module PWN
           rest_call: 'shodan/services',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -352,7 +352,7 @@ module PWN
           rest_call: 'shodan/query',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -381,7 +381,7 @@ module PWN
           rest_call: 'shodan/query/tags',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -400,7 +400,7 @@ module PWN
           rest_call: 'account/profile',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -437,7 +437,7 @@ module PWN
           rest_call: 'api-info',
           params: params
         )
-        JSON.parse(response)
+        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
