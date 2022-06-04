@@ -12,7 +12,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-c', '--config-yaml', '<Required - YAML config containing api_key from Shodan.io>') do |y|
+  options.on('-cYAML', '--config-yaml=YAML', '<Required - YAML config containing api_key from Shodan.io>') do |y|
     opts[:yaml] = y
   end
 
