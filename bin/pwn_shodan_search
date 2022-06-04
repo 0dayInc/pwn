@@ -48,32 +48,32 @@ begin
   query_results_file ||= "/tmp/shodan-results-#{timestamp}"
 
   raw_query_results_file = "#{query_results_file}-RAW.json"
-  File.open(raw_query_results_file, 'w') do |r|
-    File.open(query_results_file, 'w') do |f|
-      queries.each do |query_line|
-        query = query_line.chomp
-        print "QUERY: '#{query}'"
-        f.puts("QUERY: '#{query}'")
-        search_results = PWN::Plugins::Shodan.search(
-          api_key: api_key,
-          query: query
-        )
-        puts " >>> Matches: #{search_results[:total]}"
+  raw_results_arr = []
+  File.open(query_results_file, 'w') do |f|
+    queries.each do |query_line|
+      query = query_line.chomp
+      print "QUERY: '#{query}'"
+      f.puts("QUERY: '#{query}'")
+      search_results = PWN::Plugins::Shodan.search(
+        api_key: api_key,
+        query: query
+      )
+      puts " >>> Matches: #{search_results[:total]}"
 
-        raw_results = {}
-        raw_results[:query] = query
-        raw_results[:results] = search_results
-        r.puts raw_results.to_json
+      raw_results = {}
+      raw_results[:query] = query
+      raw_results[:results] = search_results
+      raw_results_arr.push(raw_results.to_json)
 
-        search_results[:matches].select do |m|
-          f.puts "ORG: #{m[:org]} | PUBIP: #{m[:ip_str]} #{'*' * 36}"
-          f.puts "Product: #{m[:product]}"
-          f.puts "TCP Port: #{m[:port]}"
-          f.puts "Data: #{m[:data]}\n\n\n"
-        end
+      search_results[:matches].select do |m|
+        f.puts "ORG: #{m[:org]} | PUBIP: #{m[:ip_str]} #{'*' * 36}"
+        f.puts "Product: #{m[:product]}"
+        f.puts "TCP Port: #{m[:port]}"
+        f.puts "Data: #{m[:data]}\n\n\n"
       end
     end
   end
+  File.write(raw_query_results_file, raw_results_arr)
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 end
