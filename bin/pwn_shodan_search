@@ -45,23 +45,25 @@ begin
 
   timestamp = Time.now.strftime('%Y-%m-%d.%H:%M:%S')
   query_results_file = opts[:output_results_file]
-  query_results_file ||= "/tmp/shodan-results-#{timestamp}.txt"
-  query_results_dir = File.dirname(query_results_file)
+  query_results_file ||= "/tmp/shodan-results-#{timestamp}"
 
-  raw_query_results_file = "#{query_results_dir}/shodan-results-#{timestamp}-RAW.json"
+  raw_query_results_file = "#{query_results_file}-RAW.json"
   File.open(raw_query_results_file, 'w') do |r|
     File.open(query_results_file, 'w') do |f|
       queries.each do |query_line|
         query = query_line.chomp
         print "QUERY: '#{query}'"
-        r.puts("QUERY: '#{query}'")
         f.puts("QUERY: '#{query}'")
         search_results = PWN::Plugins::Shodan.search(
           api_key: api_key,
           query: query
         )
         puts " >>> Matches: #{search_results[:total]}"
-        r.puts search_results.to_json
+
+        raw_results = {}
+        raw_results[:query] = query
+        raw_results[:results] = search_results
+        r.puts raw_results.to_json
 
         search_results[:matches].select do |m|
           f.puts "ORG: #{m[:org]} | PUBIP: #{m[:ip_str]} #{'*' * 36}"
