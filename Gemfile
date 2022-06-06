@@ -28,7 +28,7 @@ gem 'faye-websocket', '0.11.1'
 gem 'gdb', '1.0.0'
 gem 'gist', '6.0.0'
 gem 'htmlentities', '4.3.4'
-gem 'ipaddress', ''
+gem 'ipaddress', '0.8.3'
 # gem 'jenkins_api_client', '1.5.3' # Temporarily disabled until arangamani/jenkins_api_client/issues/304 is Closed out
 gem 'js-beautify', '0.1.8'
 gem 'json', '2.6.2'
