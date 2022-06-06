@@ -402,7 +402,7 @@ module PWN
           when '7E'
             response[:msg] = :command_not_supported_by_hardware
           else
-            response[:msg] = :data
+            response[:msg] = :response
           end
 
           next_response_detected = false
@@ -410,7 +410,7 @@ module PWN
           keep_parsing_responses = false
         end
 
-        response[:raw] = raw_byte_arr
+        response[:hex] = raw_byte_arr
         response[:binary] = binary(raw_byte_arr: raw_byte_arr)
         response[:decoded] = decode(raw_byte_arr: raw_byte_arr)
         response
@@ -574,16 +574,18 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # wait_for_swipe(
+      # MSR206.wait_for_swipe(
       #   msr206_obj: 'required - msr206_obj returned from #connect method'
       #   type: 'required - swipe type :arm_to_read || :arm_to_read_w_speed_prompts || :arm_to_write_no_raw || :arm_to_write_with_raw || :arm_to_write_with_raw_speed_prompts',
-      #   encoding: required - :iso || :iso_alt || :raw'
+      #   encoding: 'required - :iso || :iso_alt || :raw',
+      #   track_data: 'optional - track_data to write'
       # )
 
       private_class_method def self.wait_for_swipe(opts = {})
         msr206_obj = opts[:msr206_obj]
         type = opts[:type].to_s.scrub.strip.chomp.to_sym
         encoding = opts[:encoding].to_s.scrub.strip.chomp.to_sym
+        track_data = opts[:track_data]
 
         exec_resp = exec(
           msr206_obj: msr206_obj,
@@ -600,26 +602,26 @@ module PWN
           cmd: :green_on
         )
 
-        exec_resp = PWN::Plugins::MSR206.exec(
-          msr206_obj: msr206_obj,
-          cmd: type
-        )
-
-        print 'Ready.  Please Swipe Card Now:'
-        loop do
-          exec_resp = parse_responses(
-            msr206_obj: msr206_obj,
-            cmd: type
-          )
-
-          break if exec_resp[:msg] == :ack_command_completed
-        end
-
         track_data_arr = []
 
         case type
         when :arm_to_read,
              :arm_to_read_w_speed_prompts
+
+          exec_resp = PWN::Plugins::MSR206.exec(
+            msr206_obj: msr206_obj,
+            cmd: type
+          )
+
+          print 'Ready to Read.  Please Swipe Card Now:'
+          loop do
+            exec_resp = parse_responses(
+              msr206_obj: msr206_obj,
+              cmd: type
+            )
+
+            break if exec_resp[:msg] == :ack_command_completed
+          end
 
           if encoding == :iso
             cmds_arr = %i[
@@ -633,6 +635,7 @@ module PWN
                 msr206_obj: msr206_obj,
                 cmd: cmd
               )
+              exec_resp[:encoding] = encoding
               puts exec_resp[:decoded]
               puts exec_resp.inspect
               track_data_arr.push(exec_resp)
@@ -655,6 +658,7 @@ module PWN
                   cmd: cmd,
                   params: [param]
                 )
+                exec_resp[:encoding] = encoding
                 puts exec_resp[:decoded]
                 puts exec_resp.inspect
                 track_data_arr.push(exec_resp)
@@ -679,6 +683,7 @@ module PWN
                   cmd: cmd,
                   params: [param]
                 )
+                exec_resp[:encoding] = encoding
                 puts exec_resp[:decoded]
                 puts exec_resp.inspect
                 track_data_arr.push(exec_resp)
@@ -689,6 +694,7 @@ module PWN
                   cmd: cmd,
                   params: [0x5f] + [param]
                 )
+                exec_resp[:encoding] = encoding
                 puts exec_resp[:decoded]
                 puts exec_resp.inspect
                 track_data_arr.push(exec_resp)
@@ -699,8 +705,86 @@ module PWN
              :arm_to_write_with_raw,
              :arm_to_write_with_raw_speed_prompts
 
-          cmds_arr = %i[
-          ]
+          if encoding == :iso
+            cmds_arr = %i[
+              load_iso_std_data_for_writing_track1
+              load_iso_std_data_for_writing_track2
+              load_iso_std_data_for_writing_track3
+            ]
+
+            cmds_arr.each_with_index do |cmd, track|
+              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+              this_track = track_data[track][:decoded].chars.map do |c|
+                c.unpack1('H*').to_i(16)
+              end
+              this_track_w_eot = this_track + [0x04]
+              puts this_track_w_eot.inspect
+              exec_resp = exec(
+                msr206_obj: msr206_obj,
+                cmd: cmd,
+                params: this_track_w_eot
+              )
+              exec_resp[:encoding] = encoding
+              puts exec_resp[:decoded]
+              puts exec_resp.inspect
+              track_data_arr.push(exec_resp)
+            end
+          end
+
+          # if encoding == :iso_alt
+          #   cmds_arr = %i[
+          #     alt_load_iso_std_data_for_writing_track1
+          #     alt_load_iso_std_data_for_writing_track2
+          #     alt_load_iso_std_data_for_writing_track3
+          #   ]
+
+          #   cmds_arr.each do |cmd|
+          #     puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+          #     exec_resp = exec(
+          #       msr206_obj: msr206_obj,
+          #       cmd: cmd
+          #     )
+          #     exec_resp[:encoding] = encoding
+          #     puts exec_resp[:decoded]
+          #     puts exec_resp.inspect
+          #     track_data_arr.push(exec_resp)
+          #   end
+          # end
+
+          # if encoding == :raw
+          #   cmds_arr = %i[
+          #     load_custom_data_for_writing_track1
+          #     load_custom_data_for_writing_track2
+          #     load_custom_data_for_writing_track3
+          #   ]
+
+          #   cmds_arr.each do |cmd|
+          #     puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+          #     exec_resp = exec(
+          #       msr206_obj: msr206_obj,
+          #       cmd: cmd
+          #     )
+          #     exec_resp[:encoding] = encoding
+          #     puts exec_resp[:decoded]
+          #     puts exec_resp.inspect
+          #     track_data_arr.push(exec_resp)
+          #   end
+          # end
+
+          exec_resp = PWN::Plugins::MSR206.exec(
+            msr206_obj: msr206_obj,
+            cmd: type
+          )
+
+          print 'Ready to Write.  Please Swipe Card Now:'
+          loop do
+            exec_resp = parse_responses(
+              msr206_obj: msr206_obj,
+              cmd: type
+            )
+
+            break if exec_resp[:msg] == :ack_command_completed
+          end
         else
           raise "ERROR Unsupported type in #wait_for_swipe - #{type}"
         end
@@ -718,7 +802,6 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::MSR206.read_card(
       #   msr206_obj: 'required - msr206_obj returned from #connect method'
-      #   type: 'required - swipe type :arm_to_read || :arm_to_read_w_speed_prompts || :arm_to_write_no_raw || :arm_to_write_with_raw || :arm_to_write_with_raw_speed_prompts',
       # )
 
       public_class_method def self.read_card(opts = {})
@@ -749,9 +832,240 @@ module PWN
 
         wait_for_swipe(
           msr206_obj: msr206_obj,
-          type: type,
+          type: :arm_to_read,
           encoding: encoding
         )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.backup_card(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      # )
+
+      public_class_method def self.backup_card(opts = {})
+        msr206_obj = opts[:msr206_obj]
+        type = opts[:type].to_s.scrub.strip.chomp.to_sym
+
+        # Read Card to Backup
+        track_data = read_card(
+          msr206_obj: msr206_obj
+        )
+
+        file = ''
+        backup_msg = ''
+        loop do
+          if backup_msg.empty?
+            exec_resp = exec(
+              msr206_obj: msr206_obj,
+              cmd: :green_flash
+            )
+          end
+
+          print 'Enter File Name to Save Backup: '
+          file = gets.scrub.chomp.strip
+          file_dir = File.dirname(file)
+          break if Dir.exist?(file_dir)
+
+          backup_msg = "\n****** ERROR: Directory #{file_dir} for #{file} does not exist ******"
+          puts backup_msg
+          exec_resp = exec(
+            msr206_obj: msr206_obj,
+            cmd: :green_off
+          )
+          exec_resp = exec(
+            msr206_obj: msr206_obj,
+            cmd: :yellow_flash
+          )
+        end
+
+        File.write(file, "#{track_data.to_json}\n")
+        exec_resp = exec(
+          msr206_obj: msr206_obj,
+          cmd: :yellow_off
+        )
+
+        puts 'complete.'
+
+        track_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.copy_card(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      # )
+
+      public_class_method def self.copy_card(opts = {})
+        msr206_obj = opts[:msr206_obj]
+
+        # Read Card to Backup
+        track_data = backup_card(
+          msr206_obj: msr206_obj
+        )
+
+        encoding = track_data.first[:encoding] if track_data.length == 3
+        # TODO: Save Original Card Contents
+        track_data = wait_for_swipe(
+          msr206_obj: msr206_obj,
+          type: :arm_to_write_no_raw,
+          encoding: encoding,
+          track_data: track_data
+        )
+
+        puts 'complete.'
+
+        track_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.load_card_from_file(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      # )
+
+      public_class_method def self.load_card_from_file(opts = {})
+        msr206_obj = opts[:msr206_obj]
+
+        file = ''
+        restore_msg = ''
+        loop do
+          if restore_msg.empty?
+            exec_resp = exec(
+              msr206_obj: msr206_obj,
+              cmd: :green_flash
+            )
+          end
+
+          print 'Enter File Name to Restore to Card: '
+          file = gets.scrub.chomp.strip
+          break if File.exist?(file)
+
+          restore_msg = "\n****** ERROR: #{file} does not exist ******"
+          puts restore_msg
+          exec_resp = exec(
+            msr206_obj: msr206_obj,
+            cmd: :green_off
+          )
+          exec_resp = exec(
+            msr206_obj: msr206_obj,
+            cmd: :yellow_flash
+          )
+        end
+
+        track_data = JSON.parse(
+          File.read(file),
+          symbolize_names: true
+        )
+
+        exec_resp = exec(
+          msr206_obj: msr206_obj,
+          cmd: :yellow_off
+        )
+
+        # Read Card from Backup
+        encoding = track_data.first[:encoding] if track_data.length == 3
+
+        # TODO: Save Original Card Contents
+        track_data = wait_for_swipe(
+          msr206_obj: msr206_obj,
+          type: :arm_to_write_no_raw,
+          encoding: encoding,
+          track_data: track_data
+        )
+
+        puts 'complete.'
+
+        track_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.edit_card(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      # )
+
+      public_class_method def self.edit_card(opts = {})
+        msr206_obj = opts[:msr206_obj]
+
+        # Read Card to Backup
+        track_data = backup_card(
+          msr206_obj: msr206_obj
+        )
+
+        # TODO: Inline Editing
+
+        encoding = track_data.first[:encoding] if track_data.length == 3
+        # TODO: Save Original Card Contents
+        track_data = wait_for_swipe(
+          msr206_obj: msr206_obj,
+          type: :arm_to_write_no_raw,
+          encoding: encoding
+        )
+
+        puts 'complete.'
+
+        track_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.get_config(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      # )
+
+      public_class_method def self.get_config(opts = {})
+        msr206_obj = opts[:msr206_obj]
+
+        # --------------------------------------------------
+        # Bit|Bit = 0                  |Bit = 1
+        # --------------------------------------------------
+        # 0  |Track 1 Read not present |Track 1 Read present
+        # 1  |Track 2 Read not present |Track 2 Read present
+        # 2  |Track 3 Read not present |Track 3 Read present
+        # 3  |not used – should be 0   |not used
+        # 4  |Track 3 Write not present|Track 3 Write present
+        # 5  |Track 2 Write not present|Track 2 Write present
+        # 6  |Track 1 Write not present|Track 1 Write present
+        # 7  |parity bit**             |parity bit**
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :configuration_request
+        )
+
+        config_arr = exec_resp[:binary].first.reverse.chars
+        config_hash = {}
+        config_arr.each_with_index do |bit_str, i|
+          bit = bit_str.to_i
+          config_hash[:track1_read] = false if bit.zero? && i.zero?
+          config_hash[:track1_read] = true if bit == 1 && i.zero?
+
+          config_hash[:track2_read] = false if bit.zero? && i == 1
+          config_hash[:track2_read] = true if bit == 1 && i == 1
+
+          config_hash[:track3_read] = false if bit.zero? && i == 2
+          config_hash[:track3_read] = true if bit == 1 && i == 2
+
+          config_hash[:not_used] if i == 3
+
+          config_hash[:track1_write] = false if bit.zero? && i == 4
+          config_hash[:track1_write] = true if bit == 1 && i == 4
+
+          config_hash[:track2_write] = false if bit.zero? && i == 5
+          config_hash[:track2_write] = true if bit == 1 && i == 5
+
+          config_hash[:track3_write] = false if bit.zero? && i == 6
+          config_hash[:track3_write] = true if bit == 1 && i == 6
+
+          config_hash[:parity] = true if bit == 1 && i == 7
+        end
+
+        config_hash
       rescue StandardError => e
         raise e
       end
