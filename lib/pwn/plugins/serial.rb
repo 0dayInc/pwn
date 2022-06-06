@@ -44,7 +44,7 @@ module PWN
                       opts[:stop_bits].to_i
                     end
 
-        case opts[:parity]
+        case opts[:parity].to_s.to_sym
         when :even
           parity = SerialPort::EVEN
         when :mark
@@ -57,7 +57,7 @@ module PWN
           parity = SerialPort::NONE
         end
 
-        case opts[:flow_control]
+        case opts[:flow_control].to_s.to_sym
         when :hard
           flow_control = SerialPort::HARD
         when :soft

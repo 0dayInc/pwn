@@ -12,7 +12,7 @@ module PWN
       #   data_bits: 'optional - (defaults to 8)',
       #   stop_bits: 'optional - (defaults to 1)',
       #   parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none),'
-      #   flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
+      #   flow_control: 'optional - :none|:hard|:soft (defaults to :soft)'
       # )
 
       public_class_method def self.connect(opts = {})
@@ -22,7 +22,7 @@ module PWN
         opts[:data_bits] = 8 unless opts[:data_bits]
         opts[:stop_bits] = 1 unless opts[:stop_bits]
         opts[:parity] = :none unless opts[:parity]
-        opts[:flow_control] = :none unless opts[:flow_control]
+        opts[:flow_control] = :soft unless opts[:flow_control]
         msr206_obj = PWN::Plugins::Serial.connect(opts)
       rescue StandardError => e
         disconnect(msr206_obj: msr206_obj) unless msr206_obj.nil?
@@ -34,6 +34,8 @@ module PWN
       public_class_method def self.list_cmds
         # Returns an Array of Symbols
         cmds = %i[
+          proto_usi0
+          proto_usi1
           version_report
           simulate_power_cycle_warm_reset
           configuration_request
@@ -319,7 +321,7 @@ module PWN
         binary_byte_arr = []
         if raw_byte_arr
           raw_byte_arr.first.split.each do |byte_str|
-            binary_byte_arr.push([byte_str].pack('H*').unpack1('B*').reverse)
+            binary_byte_arr.push([byte_str].pack('H*').unpack1('B*'))
           end
         end
 
@@ -336,6 +338,7 @@ module PWN
       private_class_method def self.parse_responses(opts = {})
         msr206_obj = opts[:msr206_obj]
         cmd = opts[:cmd]
+        cmd_bytes = opts[:cmd_bytes]
 
         keep_parsing_responses = true
         next_response_detected = false
@@ -343,22 +346,28 @@ module PWN
         response[:cmd] = cmd
         response[:cmd] ||= :na
 
+        if cmd_bytes.instance_of?(Array)
+          response[:cmd_bytes] = opts[:cmd_bytes].map do |base10_int|
+            "0x#{base10_int.to_s(16).rjust(2, '0')}"
+          end
+        end
+        response[:cmd_bytes] ||= :na
+
         raw_byte_arr = []
-        a_cmd_r_len = 0
-        last_a_cmd_r_len = 0
+        raw_byte_arr_len = 0
+        last_raw_byte_arr_len = 0
 
         parsed_cmd_resp_arr = []
-        bytes_in_cmd_resp = 0
         cmd_resp = ''
 
         while keep_parsing_responses
           until next_response_detected
+            last_raw_byte_arr_len = raw_byte_arr_len
             raw_byte_arr = PWN::Plugins::Serial.response(serial_obj: msr206_obj)
             cmd_resp = raw_byte_arr.last
-            bytes_in_cmd_resp = cmd_resp.split.length if cmd_resp
-            a_cmd_r_len = raw_byte_arr.length
+            raw_byte_arr_len = raw_byte_arr.length
 
-            next_response_detected = true if a_cmd_r_len > last_a_cmd_r_len
+            next_response_detected = true if raw_byte_arr_len > last_raw_byte_arr_len
           end
 
           case cmd_resp
@@ -393,11 +402,11 @@ module PWN
           when '7E'
             response[:msg] = :command_not_supported_by_hardware
           else
-            response[:msg] = :na
+            response[:msg] = :data
           end
 
           next_response_detected = false
-          last_a_cmd_r_len = a_cmd_r_len
+          last_raw_byte_arr_len = raw_byte_arr_len
           keep_parsing_responses = false
         end
 
@@ -421,10 +430,15 @@ module PWN
       public_class_method def self.exec(opts = {})
         msr206_obj = opts[:msr206_obj]
         cmd = opts[:cmd].to_s.scrub.strip.chomp
-        params = opts[:params].to_s.scrub.strip.chomp
+        params = opts[:params]
+        raise 'ERROR: params argument must be a byte array (e.g. [0x41]).' if params && !params.instance_of?(Array)
 
         params_bytes = []
         case cmd.to_sym
+        when :proto_usi0
+          cmd_bytes = [0x55, 0x53, 0x49, 0x30]
+        when :proto_usi1
+          cmd_bytes = [0x55, 0x53, 0x49, 0x31]
         when :resume_transmission_to_host
           cmd_bytes = [0x11]
         when :pause_transmission_to_host
@@ -459,11 +473,11 @@ module PWN
           cmd_bytes = [0x42]
         when :load_iso_std_data_for_writing_track3
           cmd_bytes = [0x43]
-        when :tx_custom_data_forward_track1, :load_custom_data_for_writing_track1
+        when :load_custom_data_for_writing_track1
           cmd_bytes = [0x45]
-        when :tx_custom_data_forward_track2, :load_custom_data_for_writing_track2
+        when :load_custom_data_for_writing_track2
           cmd_bytes = [0x46]
-        when :tx_custom_data_forward_track3, :load_custom_data_for_writing_track3
+        when :load_custom_data_for_writing_track3
           cmd_bytes = [0x47]
         when :tx_error_data
           cmd_bytes = [0x49]
@@ -485,6 +499,12 @@ module PWN
           cmd_bytes = [0x52]
         when :tx_iso_std_data_track3
           cmd_bytes = [0x53]
+        when :tx_custom_data_forward_track1
+          cmd_bytes = [0x55]
+        when :tx_custom_data_forward_track2
+          cmd_bytes = [0x56]
+        when :tx_custom_data_forward_track3
+          cmd_bytes = [0x57]
         when :tx_passbook_data
           cmd_bytes = [0x58]
         when :arm_to_write_no_raw
@@ -532,7 +552,7 @@ module PWN
         end
 
         # If parameters to a command are set, append them.
-        cmd_bytes += params_bytes unless params_bytes.empty?
+        cmd_bytes += params if params
         # Execute the command.
         PWN::Plugins::Serial.request(
           serial_obj: msr206_obj,
@@ -543,7 +563,8 @@ module PWN
         # Return an array of hashes.
         parse_responses(
           msr206_obj: msr206_obj,
-          cmd: cmd.to_sym
+          cmd: cmd.to_sym,
+          cmd_bytes: cmd_bytes
         )
       rescue StandardError => e
         raise e
@@ -553,25 +574,16 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::MSR206.wait_for_swipe(
+      # wait_for_swipe(
       #   msr206_obj: 'required - msr206_obj returned from #connect method'
-      #   type: 'required - swipe type'
+      #   type: 'required - swipe type :arm_to_read || :arm_to_read_w_speed_prompts || :arm_to_write_no_raw || :arm_to_write_with_raw || :arm_to_write_with_raw_speed_prompts',
+      #   encoding: required - :iso || :iso_alt || :raw'
       # )
 
-      public_class_method def self.wait_for_swipe(opts = {})
+      private_class_method def self.wait_for_swipe(opts = {})
         msr206_obj = opts[:msr206_obj]
         type = opts[:type].to_s.scrub.strip.chomp.to_sym
-        types_arr = %i[
-          arm_to_read
-          arm_to_read_w_speed_prompts
-          arm_to_write_no_raw
-          arm_to_write_with_raw
-          arm_to_write_with_raw_speed_prompts
-        ]
-
-        raise "ERROR Unsupported type in #wait_for_swipe - #{type}. Valid types:\n#{types_arr}" unless types_arr.include?(type)
-
-        track_data = {}
+        encoding = opts[:encoding].to_s.scrub.strip.chomp.to_sym
 
         exec_resp = exec(
           msr206_obj: msr206_obj,
@@ -583,11 +595,6 @@ module PWN
           cmd: :yellow_off
         )
 
-        exec_resp = PWN::Plugins::MSR206.exec(
-          msr206_obj: msr206_obj,
-          cmd: type
-        )
-
         exec_resp = exec(
           msr206_obj: msr206_obj,
           cmd: :green_on
@@ -595,77 +602,110 @@ module PWN
 
         exec_resp = PWN::Plugins::MSR206.exec(
           msr206_obj: msr206_obj,
-          cmd: :card_edge_detect
+          cmd: type
         )
 
         print 'Ready.  Please Swipe Card Now:'
         loop do
           exec_resp = parse_responses(
             msr206_obj: msr206_obj,
-            cmd: :card_edge_detect
+            cmd: type
           )
 
           break if exec_resp[:msg] == :ack_command_completed
         end
 
-        puts "\n*** ISO Track Format: Standard #{'*' * 17}"
-        print 'TRACK 1 >>> '
-        exec_resp = exec(
-          msr206_obj: msr206_obj,
-          cmd: :tx_iso_std_data_track1
-        )
-        puts exec_resp[:decoded]
-        puts exec_resp.inspect
-        track_data[:track1] = exec_resp
+        track_data_arr = []
 
-        # (1..3).each do |n|
-        #   print ">> Track 1 (ALT DATA) ISO Track Format: #{n}\n"
-        #   exec_resp = exec(
-        #     msr206_obj: msr206_obj,
-        #     cmd: :alt_tx_iso_std_data_track1,
-        #     params: [n.to_s]
-        #   )
-        #   puts exec_resp.inspect
-        # end
+        case type
+        when :arm_to_read,
+             :arm_to_read_w_speed_prompts
 
-        print "\nTRACK 2 >>> "
-        exec_resp = exec(
-          msr206_obj: msr206_obj,
-          cmd: :tx_iso_std_data_track2
-        )
-        puts exec_resp[:decoded]
-        puts exec_resp.inspect
-        track_data[:track2] = exec_resp
+          if encoding == :iso
+            cmds_arr = %i[
+              tx_iso_std_data_track1
+              tx_iso_std_data_track2
+              tx_iso_std_data_track3
+            ]
+            cmds_arr.each do |cmd|
+              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+              exec_resp = exec(
+                msr206_obj: msr206_obj,
+                cmd: cmd
+              )
+              puts exec_resp[:decoded]
+              puts exec_resp.inspect
+              track_data_arr.push(exec_resp)
+            end
+          end
 
-        # (1..3).each do |n|
-        #   print ">> Track 2 (ALT DATA) ISO Track Format: #{n}\n"
-        #   exec_resp = exec(
-        #     msr206_obj: msr206_obj,
-        #     cmd: :alt_tx_iso_std_data_track2,
-        #     params: [n.to_s]
-        #   )
-        #   puts exec_resp.inspect
-        # end
+          if encoding == :iso_alt
+            cmds_arr = %i[
+              alt_tx_iso_std_data_track1
+              alt_tx_iso_std_data_track2
+              alt_tx_iso_std_data_track3
+            ]
 
-        print "\nTRACK 3 >>> "
-        exec_resp = exec(
-          msr206_obj: msr206_obj,
-          cmd: :tx_iso_std_data_track3
-        )
-        puts exec_resp[:decoded]
-        puts exec_resp.inspect
-        track_data[:track3] = exec_resp
+            cmds_arr.each do |cmd|
+              params_arr = [0x31, 0x32, 0x33]
+              params_arr.each do |param|
+                puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+                exec_resp = exec(
+                  msr206_obj: msr206_obj,
+                  cmd: cmd,
+                  params: [param]
+                )
+                puts exec_resp[:decoded]
+                puts exec_resp.inspect
+                track_data_arr.push(exec_resp)
+              end
+            end
+          end
 
-        # (1..3).each do |n|
-        #   print ">> Track 3 (ALT DATA) ISO Track Format: #{n}\n"
-        #   exec_resp = exec(
-        #     msr206_obj: msr206_obj,
-        #     cmd: :alt_tx_iso_std_data_track3,
-        #     params: [n.to_s]
-        #   )
-        #   puts exec_resp.inspect
-        # end
-        track_data
+          if encoding == :raw
+            cmds_arr = %i[
+              tx_custom_data_forward_track1
+              tx_custom_data_forward_track2
+              tx_custom_data_forward_track3
+            ]
+
+            cmds_arr.each do |cmd|
+              params_arr = [0x33, 0x34, 0x35, 0x36, 0x37]
+              params_arr.each do |param|
+                puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+                # 2 byte command
+                exec_resp = exec(
+                  msr206_obj: msr206_obj,
+                  cmd: cmd,
+                  params: [param]
+                )
+                puts exec_resp[:decoded]
+                puts exec_resp.inspect
+                track_data_arr.push(exec_resp)
+
+                # 3 byte command
+                exec_resp = exec(
+                  msr206_obj: msr206_obj,
+                  cmd: cmd,
+                  params: [0x5f] + [param]
+                )
+                puts exec_resp[:decoded]
+                puts exec_resp.inspect
+                track_data_arr.push(exec_resp)
+              end
+            end
+          end
+        when :arm_to_write_no_raw,
+             :arm_to_write_with_raw,
+             :arm_to_write_with_raw_speed_prompts
+
+          cmds_arr = %i[
+          ]
+        else
+          raise "ERROR Unsupported type in #wait_for_swipe - #{type}"
+        end
+
+        track_data_arr
       rescue StandardError => e
         raise e
       ensure
@@ -673,6 +713,47 @@ module PWN
           msr206_obj: msr206_obj,
           cmd: :green_off
         )
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.read_card(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method'
+      #   type: 'required - swipe type :arm_to_read || :arm_to_read_w_speed_prompts || :arm_to_write_no_raw || :arm_to_write_with_raw || :arm_to_write_with_raw_speed_prompts',
+      # )
+
+      public_class_method def self.read_card(opts = {})
+        msr206_obj = opts[:msr206_obj]
+        type = opts[:type].to_s.scrub.strip.chomp.to_sym
+
+        encoding = :waiting_for_selection
+        loop do
+          puts "\nENCODING OPTIONS:"
+          puts '[(I)SO Standard]'
+          puts '[(A)LT ISO Standard]'
+          puts '[(R)aw]'
+          print 'ENCODING TYPE >>> '
+          encoding_choice = gets.scrub.chomp.strip.upcase.to_sym
+
+          case encoding_choice
+          when :I
+            encoding = :iso
+            break
+          when :A
+            encoding = :iso_alt
+            break
+          when :R
+            encoding = :raw
+            break
+          end
+        end
+
+        wait_for_swipe(
+          msr206_obj: msr206_obj,
+          type: type,
+          encoding: encoding
+        )
+      rescue StandardError => e
+        raise e
       end
 
       # Supported Method Parameters::
@@ -706,7 +787,7 @@ module PWN
             data_bits: 'optional (defaults to 8)',
             stop_bits: 'optional (defaults to 1)',
             parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none),'
-            flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
+            flow_control: 'optional - :none|:hard|:soft (defaults to :none)'
           )
 
           cmds = #{self}.list_cmds
