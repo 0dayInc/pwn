@@ -15,7 +15,7 @@ OptionParser.new do |options|
     opts[:block_dev] = d
   end
 
-  options.on('-bBAUD', '--baud=BAUD', '<Optional - (defaults to 9600)>') do |b|
+  options.on('-bBAUD', '--baud=BAUD', '<Optional - (defaults to 9_600)>') do |b|
     opts[:baud] = b
   end
 
@@ -31,7 +31,7 @@ OptionParser.new do |options|
     opts[:parity] = p
   end
 
-  options.on('-fFLOWCTRL', '--flow-control=FLOWCTRL', '<Optional - none||hard||soft (defaults to none)>') do |f|
+  options.on('-fFLOWCTRL', '--flow-control=FLOWCTRL', '<Optional - none||hard||soft (defaults to soft)>') do |f|
     opts[:flow_control] = f
   end
 end.parse!
@@ -68,6 +68,13 @@ begin
     cmd: :simulate_power_cycle_warm_reset
   )
 
+  # Unsure if this switches the protocol from USI0 to USI1
+  # exec_resp = PWN::Plugins::MSR206.exec(
+  #   msr206_obj: msr206_obj,
+  #   cmd: :proto_usi1
+  # )
+  # puts exec_resp.inspect
+
   # TODO: Parse Binary Bits to Derive Readable Configuration
   # e.g. 'Read & Write All Three Tracks' if binary_resp == '11101111'
   # Probably better to split each bit and then evaluate
@@ -87,7 +94,7 @@ begin
     msr206_obj: msr206_obj,
     cmd: :configuration_request
   )
-  puts "Configuration Bits: #{exec_resp[:binary].first}"
+  puts "Configuration Bits: #{exec_resp[:binary].first.reverse}"
 
   exec_resp = PWN::Plugins::MSR206.exec(
     msr206_obj: msr206_obj,
@@ -121,14 +128,14 @@ begin
     when :R
       menu_msg = 'READY TO READ - PLEASE SWIPE CARD'
       # Read Card
-      track_data = PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.read_card(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
     when :C
       menu_msg = 'READY TO COPY - PLEASE SWIPE ORIGINAL CARD'
       # Read Original Card
-      track_data = PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.read_card(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
@@ -139,7 +146,7 @@ begin
     when :E
       menu_msg = 'READY TO EDIT - PLEASE SWIPE TARGET CARD'
       # Read Target Card
-      track_data = PWN::Plugins::MSR206.wait_for_swipe(
+      track_data = PWN::Plugins::MSR206.read_card(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
@@ -149,8 +156,8 @@ begin
       # read edited card to verify successful write
     when :B
       menu_msg = 'READY TO BACKUP - PLEASE SWIPE CARD'
-      # Read Card
-      track_data = PWN::Plugins::MSR206.wait_for_swipe(
+      # Read Card to Backup
+      track_data = PWN::Plugins::MSR206.read_card(
         msr206_obj: msr206_obj,
         type: :arm_to_read
       )
