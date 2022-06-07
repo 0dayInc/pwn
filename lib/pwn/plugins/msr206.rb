@@ -958,8 +958,8 @@ module PWN
         coercivity = :waiting_for_selection
         loop do
           puts "\nCOERCIVITY OPTIONS:"
-          puts '[(H)igh (Black Stripe)]'
-          puts '[(L)ow (Brown Stripe)]'
+          puts '[(H)igh (Most Often Black Stripe)]'
+          puts '[(L)ow  (Most Often Brown Stripe)]'
           print 'COERCIVITY LEVEL >>> '
           coercivity_choice = gets.scrub.chomp.strip.upcase.to_sym
 
@@ -1074,32 +1074,6 @@ module PWN
         # Read Card from Backup
         encoding = track_data.first[:encoding] if track_data.length == 3
 
-        # TODO: Save Original Card Contents
-        write_card(
-          msr206_obj: msr206_obj,
-          encoding: encoding,
-          track_data: track_data
-        )
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::MSR206.edit_card(
-      #   msr206_obj: 'required - msr206_obj returned from #connect method'
-      # )
-
-      public_class_method def self.edit_card(opts = {})
-        msr206_obj = opts[:msr206_obj]
-
-        # Read Card to Backup
-        track_data = backup_card(
-          msr206_obj: msr206_obj
-        )
-
-        # TODO: Inline Editing
-
-        encoding = track_data.first[:encoding] if track_data.length == 3
         # TODO: Save Original Card Contents
         write_card(
           msr206_obj: msr206_obj,
