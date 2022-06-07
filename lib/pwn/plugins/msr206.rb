@@ -106,6 +106,7 @@ module PWN
         decoded_data_str = ''
         if raw_byte_arr
           raw_byte_arr.first.split.each do |byte_str|
+            # TODO: Different case statements for each parity
             case byte_str
             when '1B'
               decoded_data_str += ''
@@ -880,7 +881,7 @@ module PWN
           )
         end
 
-        File.write(file, "#{track_data.to_json}\n")
+        File.write(file, "#{JSON.pretty_generate(track_data)}\n")
         exec_resp = exec(
           msr206_obj: msr206_obj,
           cmd: :yellow_off

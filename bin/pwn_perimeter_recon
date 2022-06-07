@@ -130,7 +130,7 @@ def invoke_burp(opts = {})
     )
 
     File.open(json_results, 'w') do |f|
-      f.puts scan_issues_hash.to_json
+      f.puts JSON.pretty_generate(scan_issues_hash)
     end
     puts "#{@green}complete.#{@end_of_color}\n\n\n"
 
@@ -190,7 +190,7 @@ unless ipinfo.nil?
 
     ipinfo_struc = PWN::Plugins::IPInfo.get(ip_or_host: ipinfo_target)
     File.open(ipinfo_json_results, 'w') do |f|
-      f.puts ipinfo_struc.to_json
+      f.puts JSON.pretty_generate(ipinfo_struc)
     end
   end
 end
