@@ -111,38 +111,24 @@ begin
     case option
     when :R
       menu_msg = 'READ CARD'
-      # Read Card
       track_data = PWN::Plugins::MSR206.read_card(
         msr206_obj: msr206_obj
       )
     when :B
       menu_msg = 'BACKUP CARD TO FILE'
-      # Read Card to Backup
       track_data = PWN::Plugins::MSR206.backup_card(
         msr206_obj: msr206_obj
       )
     when :C
       menu_msg = 'COPY CARD'
-      # Copy Card
       track_data = PWN::Plugins::MSR206.copy_card(
         msr206_obj: msr206_obj
       )
     when :L
       menu_msg = 'LOAD FROM FILE'
-      # Read Card to Backup
       track_data = PWN::Plugins::MSR206.load_card_from_file(
         msr206_obj: msr206_obj
       )
-    when :E
-      menu_msg = 'EDIT'
-      # Read Target Card
-      track_data = PWN::Plugins::MSR206.edit_card(
-        msr206_obj: msr206_obj
-      )
-
-      # TODO: Save Original Card Contents
-      # arm_to_write card to edit
-      # read edited card to verify successful write
     when :W
       menu_msg = 'WARM RESET'
       exec_resp = PWN::Plugins::MSR206.exec(
