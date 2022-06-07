@@ -613,6 +613,7 @@ module PWN
             msr206_obj: msr206_obj,
             cmd: type
           )
+          puts exec_resp.inspect
 
           print 'Ready to Read.  Please Swipe Card Now:'
           loop do
@@ -621,6 +622,7 @@ module PWN
               cmd: type
             )
 
+            puts exec_resp[:msg]
             break if exec_resp[:msg] == :ack_command_completed
           end
 
@@ -715,6 +717,9 @@ module PWN
 
             cmds_arr.each_with_index do |cmd, track|
               puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+              puts track_data[track][:decoded]
+              next if track_data[track][:decoded] == '+'
+
               this_track = track_data[track][:decoded].chars.map do |c|
                 c.unpack1('H*').to_i(16)
               end
@@ -726,7 +731,6 @@ module PWN
                 params: this_track_w_eot
               )
               exec_resp[:encoding] = encoding
-              puts exec_resp[:decoded]
               puts exec_resp.inspect
               track_data_arr.push(exec_resp)
             end
@@ -776,6 +780,7 @@ module PWN
             msr206_obj: msr206_obj,
             cmd: type
           )
+          puts exec_resp.inspect
 
           print 'Ready to Write.  Please Swipe Card Now:'
           loop do
@@ -887,7 +892,80 @@ module PWN
           cmd: :yellow_off
         )
 
-        puts 'complete.'
+        track_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::MSR206.write_card(
+      #   msr206_obj: 'required - msr206_obj returned from #connect method',
+      #   encoding: 'required - :iso || :alt_iso || :raw',
+      #   track_data: 'requred - track data to write (see #backup_card for structure)'
+      # )
+
+      public_class_method def self.write_card(opts = {})
+        msr206_obj = opts[:msr206_obj]
+        encoding = opts[:encoding].to_s.scrub.strip.chomp.to_sym
+        track_data = opts[:track_data]
+
+        puts 'IN ORDER TO GET BLANK TRACKS, A STRONG MAGNETIC FIELD MUST BE PRESENT TO FIRST WIPE THE CARD TARGETED FOR WRITING.'
+        # puts 'Default Write Current:'
+        # exec_resp = exec(
+        #   msr206_obj: msr206_obj,
+        #   cmd: :view_default_write_current
+        # )
+        # puts exec_resp.inspect
+
+        # puts 'Temporary Write Current:'
+        # exec_resp = exec(
+        #   msr206_obj: msr206_obj,
+        #   cmd: :view_temp_write_current
+        # )
+        # puts exec_resp.inspect
+
+        coercivity = :waiting_for_selection
+        loop do
+          puts "\nCOERCIVITY OPTIONS:"
+          puts '[(H)igh (Black Stripe)]'
+          puts '[(L)ow (Brown Stripe)]'
+          print 'COERCIVITY LEVEL >>> '
+          coercivity_choice = gets.scrub.chomp.strip.upcase.to_sym
+
+          # Write Current Settings vs. Media Coercivties
+          # Media Coercivity (Oersteds)|Write Current Setting*|Typical Usage
+          # 300                        |36                    |Low coercivity
+          # 600                        |                      |
+          # 1800                       |                      |
+          # 3600+                      |255                   |Typical high corcivity
+
+          case coercivity_choice
+          when :H
+            coercivity = [0x32, 0x35, 0x35]
+            break
+          when :L
+            coercivity = [0x30, 0x33, 0x36]
+            break
+          end
+        end
+
+        exec_resp = exec(
+          msr206_obj: msr206_obj,
+          cmd: :set_temp_write_current,
+          params: coercivity
+        )
+
+        track_data = wait_for_swipe(
+          msr206_obj: msr206_obj,
+          type: :arm_to_write_no_raw,
+          encoding: encoding,
+          track_data: track_data
+        )
+
+        exec_resp = PWN::Plugins::MSR206.exec(
+          msr206_obj: msr206_obj,
+          cmd: :simulate_power_cycle_warm_reset
+        )
 
         track_data
       rescue StandardError => e
@@ -909,16 +987,11 @@ module PWN
 
         encoding = track_data.first[:encoding] if track_data.length == 3
         # TODO: Save Original Card Contents
-        track_data = wait_for_swipe(
+        write_card(
           msr206_obj: msr206_obj,
-          type: :arm_to_write_no_raw,
           encoding: encoding,
           track_data: track_data
         )
-
-        puts 'complete.'
-
-        track_data
       rescue StandardError => e
         raise e
       end
@@ -971,16 +1044,11 @@ module PWN
         encoding = track_data.first[:encoding] if track_data.length == 3
 
         # TODO: Save Original Card Contents
-        track_data = wait_for_swipe(
+        write_card(
           msr206_obj: msr206_obj,
-          type: :arm_to_write_no_raw,
           encoding: encoding,
           track_data: track_data
         )
-
-        puts 'complete.'
-
-        track_data
       rescue StandardError => e
         raise e
       end
@@ -1002,15 +1070,11 @@ module PWN
 
         encoding = track_data.first[:encoding] if track_data.length == 3
         # TODO: Save Original Card Contents
-        track_data = wait_for_swipe(
+        write_card(
           msr206_obj: msr206_obj,
-          type: :arm_to_write_no_raw,
-          encoding: encoding
+          encoding: encoding,
+          track_data: track_data
         )
-
-        puts 'complete.'
-
-        track_data
       rescue StandardError => e
         raise e
       end
