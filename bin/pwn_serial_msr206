@@ -101,7 +101,6 @@ begin
     puts '[(B)ackup Card]'
     puts '[(C)opy Card]'
     puts '[(L)oad Card from File]'
-    puts '[(E)dit Card]'
     puts '[(W)arm Reset]'
     puts '[(Q)uit]'
     puts menu_msg
