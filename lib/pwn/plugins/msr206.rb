@@ -662,6 +662,7 @@ module PWN
                   params: [param]
                 )
                 exec_resp[:encoding] = encoding
+                exec_resp[:track_format] = [param]
                 puts exec_resp[:decoded]
                 puts exec_resp.inspect
                 track_data_arr.push(exec_resp)
@@ -687,17 +688,20 @@ module PWN
                   params: [param]
                 )
                 exec_resp[:encoding] = encoding
+                exec_resp[:track_format] = [param]
                 puts exec_resp[:decoded]
                 puts exec_resp.inspect
                 track_data_arr.push(exec_resp)
 
                 # 3 byte command
+                param = [0x5f] + [param]
                 exec_resp = exec(
                   msr206_obj: msr206_obj,
                   cmd: cmd,
-                  params: [0x5f] + [param]
+                  params: param
                 )
                 exec_resp[:encoding] = encoding
+                exec_resp[:track_format] = param
                 puts exec_resp[:decoded]
                 puts exec_resp.inspect
                 track_data_arr.push(exec_resp)
@@ -708,6 +712,9 @@ module PWN
              :arm_to_write_with_raw,
              :arm_to_write_with_raw_speed_prompts
 
+          # TODO: Set Write Density for Tracks Here
+          # >>>
+
           if encoding == :iso
             cmds_arr = %i[
               load_iso_std_data_for_writing_track1
@@ -715,6 +722,7 @@ module PWN
               load_iso_std_data_for_writing_track3
             ]
 
+            # TODO: Get Data by cmd (e.g. load_iso_std_data_for_writing_track1)
             cmds_arr.each_with_index do |cmd, track|
               puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
               puts track_data[track][:decoded]
@@ -723,12 +731,13 @@ module PWN
               this_track = track_data[track][:decoded].chars.map do |c|
                 c.unpack1('H*').to_i(16)
               end
-              this_track_w_eot = this_track + [0x04]
-              puts this_track_w_eot.inspect
+              track_eot = [0x04]
+              track_payload = this_track + track_eot
+              puts track_payload.inspect
               exec_resp = exec(
                 msr206_obj: msr206_obj,
                 cmd: cmd,
-                params: this_track_w_eot
+                params: track_payload
               )
               exec_resp[:encoding] = encoding
               puts exec_resp.inspect
@@ -736,45 +745,67 @@ module PWN
             end
           end
 
-          # if encoding == :iso_alt
-          #   cmds_arr = %i[
-          #     alt_load_iso_std_data_for_writing_track1
-          #     alt_load_iso_std_data_for_writing_track2
-          #     alt_load_iso_std_data_for_writing_track3
-          #   ]
+          if encoding == :iso_alt
+            cmds_arr = %i[
+              alt_load_iso_std_data_for_writing_track1
+              alt_load_iso_std_data_for_writing_track2
+              alt_load_iso_std_data_for_writing_track3
+            ]
 
-          #   cmds_arr.each do |cmd|
-          #     puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-          #     exec_resp = exec(
-          #       msr206_obj: msr206_obj,
-          #       cmd: cmd
-          #     )
-          #     exec_resp[:encoding] = encoding
-          #     puts exec_resp[:decoded]
-          #     puts exec_resp.inspect
-          #     track_data_arr.push(exec_resp)
-          #   end
-          # end
+            # TODO: Get Data by cmd (e.g. alt_load_iso_std_data_for_writing_track1)
+            cmds_arr.each_with_index do |cmd, track|
+              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+              puts track_data[track][:decoded]
+              next if track_data[track][:decoded] == '+'
 
-          # if encoding == :raw
-          #   cmds_arr = %i[
-          #     load_custom_data_for_writing_track1
-          #     load_custom_data_for_writing_track2
-          #     load_custom_data_for_writing_track3
-          #   ]
+              this_track = track_data[track][:decoded].chars.map do |c|
+                c.unpack1('H*').to_i(16)
+              end
+              track_format = track_data[track][:track_format]
+              track_eot = [0x04]
+              track_payload = track_format + this_track + track_eot
+              puts track_payload.inspect
+              exec_resp = exec(
+                msr206_obj: msr206_obj,
+                cmd: cmd,
+                params: track_payload
+              )
+              exec_resp[:encoding] = encoding
+              puts exec_resp.inspect
+              track_data_arr.push(exec_resp)
+            end
+          end
 
-          #   cmds_arr.each do |cmd|
-          #     puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
-          #     exec_resp = exec(
-          #       msr206_obj: msr206_obj,
-          #       cmd: cmd
-          #     )
-          #     exec_resp[:encoding] = encoding
-          #     puts exec_resp[:decoded]
-          #     puts exec_resp.inspect
-          #     track_data_arr.push(exec_resp)
-          #   end
-          # end
+          if encoding == :raw
+            cmds_arr = %i[
+              load_custom_data_for_writing_track1
+              load_custom_data_for_writing_track2
+              load_custom_data_for_writing_track3
+            ]
+
+            # TODO: Get Data by cmd (e.g. load_custom_data_for_writing_track1)
+            cmds_arr.each_with_index do |cmd, track|
+              puts "\n*** #{cmd.to_s.gsub('_', ' ').upcase} #{'*' * 17}"
+              puts track_data[track][:decoded]
+              next if track_data[track][:decoded] == '+'
+
+              this_track = track_data[track][:decoded].chars.map do |c|
+                c.unpack1('H*').to_i(16)
+              end
+              track_format = track_data[track][:track_format]
+              track_eot = [0x04]
+              track_payload = track_format + this_track + track_eot
+              puts track_payload.inspect
+              exec_resp = exec(
+                msr206_obj: msr206_obj,
+                cmd: cmd,
+                params: track_payload
+              )
+              exec_resp[:encoding] = encoding
+              puts exec_resp.inspect
+              track_data_arr.push(exec_resp)
+            end
+          end
 
           exec_resp = PWN::Plugins::MSR206.exec(
             msr206_obj: msr206_obj,
