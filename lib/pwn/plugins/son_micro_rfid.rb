@@ -164,14 +164,14 @@ module PWN
 
             cmd_resp = all_cmd_responses.last
             bytes_in_cmd_resp = cmd_resp.split.length
-            puts "EXPECTED CMD BYTE LEN: #{expected_cmd_resp_byte_len}"
-            puts "LAST CMD BYTE LEN: #{bytes_in_cmd_resp} >>>"
-            puts all_cmd_responses
-            puts "COMMAND HEX: #{cmd_hex}\n\n\n"
+            # puts "EXPECTED CMD BYTE LEN: #{expected_cmd_resp_byte_len}"
+            # puts "LAST CMD BYTE LEN: #{bytes_in_cmd_resp} >>>"
+            # puts all_cmd_responses
+            # puts "COMMAND HEX: #{cmd_hex}\n\n\n"
           end
 
-          puts "\nALL CMD RESPS >>>"
-          puts "#{all_cmd_responses}\n\n\n"
+          # puts "\nALL CMD RESPS >>>"
+          # puts "#{all_cmd_responses}\n\n\n"
 
           parsed_cmd_resp_hash = {}
           parsed_cmd_resp_hash[:raw_resp] = PWN::Plugins::Serial.dump_session_data.inspect
@@ -343,11 +343,12 @@ module PWN
 
       public_class_method def self.read_card(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        print 'Ready to Read.  Please Scan Card Now:'
         rfid_data = exec(
           son_micro_rfid_obj: son_micro_rfid_obj,
           cmd: :seek_for_tag
         )
-        puts rfid_data.inspect
+        puts "#{rfid_data[:resp_code_desc]} >>> #{rfid_data[:tag_id]}"
 
         rfid_data
       rescue StandardError => e

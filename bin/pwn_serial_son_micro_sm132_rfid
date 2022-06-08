@@ -77,6 +77,7 @@ begin
     puts '[(B)ackup Card]'
     puts '[(C)opy Card]'
     puts '[(L)oad Card from File]'
+    puts '[(W)arm Reset]'
     puts '[(Q)uit]'
     puts menu_msg
     print 'MAIN MENU OPTION >>> '
@@ -103,6 +104,12 @@ begin
       menu_msg = 'LOAD FROM FILE'
       rfid_data = PWN::Plugins::SonMicroRFID.load_card_from_file(
         son_micro_rfid_obj: son_micro_rfid_obj
+      )
+    when :W
+      menu_msg = 'WARM RESET'
+      exec_resp = PWN::Plugins::SonMicroRFID.exec(
+        son_micro_rfid_obj: son_micro_rfid_obj,
+        cmd: :reset
       )
     when :Q
       exit
