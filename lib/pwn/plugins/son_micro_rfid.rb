@@ -136,7 +136,6 @@ module PWN
         # Parse All Responses and add them to parsed_cmd_resp_arr
         while keep_parsing_responses
           until next_response_detected
-            print '.'
             all_cmd_responses = PWN::Plugins::Serial.response(
               serial_obj: son_micro_rfid_obj
             )
@@ -344,10 +343,13 @@ module PWN
 
       public_class_method def self.read_card(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
-        exec(
+        rfid_data = exec(
           son_micro_rfid_obj: son_micro_rfid_obj,
           cmd: :seek_for_tag
         )
+        puts rfid_data.inspect
+
+        rfid_data
       rescue StandardError => e
         raise e
       end
@@ -361,7 +363,7 @@ module PWN
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
         rfid_data = opts[:rfid_data]
         # TODO: write card
-        puts 'Coming soon.'
+        puts rfid_data.inspect
 
         rfid_data
       rescue StandardError => e
