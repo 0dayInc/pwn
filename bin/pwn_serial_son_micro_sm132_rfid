@@ -89,25 +89,21 @@ begin
       rfid_data = PWN::Plugins::SonMicroRFID.read_card(
         son_micro_rfid_obj: son_micro_rfid_obj
       )
-      puts rfid_data.inspect
     when :B
       menu_msg = 'BACKUP CARD TO FILE'
       rfid_data = PWN::Plugins::SonMicroRFID.backup_card(
         son_micro_rfid_obj: son_micro_rfid_obj
       )
-      puts rfid_data.inspect
     when :C
       menu_msg = 'COPY CARD'
       rfid_data = PWN::Plugins::SonMicroRFID.copy_card(
         son_micro_rfid_obj: son_micro_rfid_obj
       )
-      puts rfid_data.inspect
     when :L
       menu_msg = 'LOAD FROM FILE'
       rfid_data = PWN::Plugins::SonMicroRFID.load_card_from_file(
         son_micro_rfid_obj: son_micro_rfid_obj
       )
-      puts rfid_data.inspect
     when :Q
       exit
     else
