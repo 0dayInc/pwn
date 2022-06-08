@@ -172,10 +172,15 @@ module PWN
 
           # puts "\nALL CMD RESPS >>>"
           # puts "#{all_cmd_responses}\n\n\n"
+          decoded = ''
+          cmd_resp.split.each do |byte_str|
+            decoded += [byte_str].pack('H*')
+          end
 
           parsed_cmd_resp_hash = {}
           parsed_cmd_resp_hash[:raw_resp] = PWN::Plugins::Serial.dump_session_data.inspect
           parsed_cmd_resp_hash[:hex_resp] = cmd_resp
+          parsed_cmd_resp_hash[:decoded_resp] = decoded.to_s.scrub.strip.chomp
           parsed_cmd_resp_hash[:cmd_hex] = cmd_hex
           parsed_cmd_resp_hash[:cmd_desc] = cmd.to_sym
           resp_code = '?'
@@ -349,7 +354,7 @@ module PWN
           cmd: :seek_for_tag
         )
 
-        rfid_data = exec_resp.first
+        rfid_data = exec_resp.last
         puts "#{rfid_data[:resp_code_desc]} >>> #{rfid_data[:tag_id]}"
 
         rfid_data

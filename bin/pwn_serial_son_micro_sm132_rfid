@@ -67,7 +67,7 @@ begin
     son_micro_rfid_obj: son_micro_rfid_obj,
     cmd: :firmware
   )
-  puts "Firmware Version: #{exec_resp.first[:raw_resp].join}"
+  puts "Firmware Version: #{exec_resp.first[:decoded_resp]}"
 
   # Main Menu
   menu_msg = ''
