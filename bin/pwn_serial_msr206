@@ -135,7 +135,6 @@ begin
         msr206_obj: msr206_obj,
         cmd: :simulate_power_cycle_warm_reset
       )
-      puts exec_resp.inspect
     when :Q
       exit
     else

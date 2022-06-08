@@ -338,6 +338,111 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::SonMicroRFID.read_card(
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
+      # )
+
+      public_class_method def self.read_card(opts = {})
+        son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        exec(
+          son_micro_rfid_obj: son_micro_rfid_obj,
+          cmd: :seek_for_tag
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::SonMicroRFID.write_card(
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
+      # )
+
+      public_class_method def self.write_card(opts = {})
+        son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        rfid_data = opts[:rfid_data]
+        # TODO: write card
+        puts 'Coming soon.'
+
+        rfid_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::SonMicroRFID.backup_card(
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
+      # )
+
+      public_class_method def self.backup_card(opts = {})
+        son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        rfid_data = read_card(son_micro_rfid_obj: son_micro_rfid_obj)
+        file = ''
+        backup_msg = ''
+        loop do
+          print 'Enter File Name to Save Backup: '
+          file = gets.scrub.chomp.strip
+          file_dir = File.dirname(file)
+          break if Dir.exist?(file_dir)
+
+          backup_msg = "\n****** ERROR: Directory #{file_dir} for #{file} does not exist ******"
+          puts backup_msg
+        end
+        File.write(file, "#{JSON.pretty_generate(rfid_data)}\n")
+
+        rfid_data
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::SonMicroRFID.copy_card(
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
+      # )
+
+      public_class_method def self.copy_card(opts = {})
+        son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        rfid_data = read_card(son_micro_rfid_obj: son_micro_rfid_obj)
+        write_card(
+          son_micro_rfid_obj: son_micro_rfid_obj,
+          rfid_data: rfid_data
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::SonMicroRFID.load_card_from_file(
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
+      # )
+
+      public_class_method def self.load_card_from_file(opts = {})
+        son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        file = ''
+        restore_msg = ''
+        loop do
+          print 'Enter File Name to Restore to Card: '
+          file = gets.scrub.chomp.strip
+          break if File.exist?(file)
+
+          restore_msg = "\n****** ERROR: #{file} does not exist ******"
+          puts restore_msg
+        end
+
+        rfid_data = JSON.parse(
+          File.read(file),
+          symbolize_names: true
+        )
+
+        # TODO: Save Original Card Contents
+        write_card(
+          son_micro_rfid_obj: son_micro_rfid_obj,
+          rfid_data: rfid_data
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::SonMicroRFID.disconnect(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       # )
