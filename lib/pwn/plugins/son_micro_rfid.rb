@@ -344,10 +344,12 @@ module PWN
       public_class_method def self.read_card(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
         print 'Ready to Read.  Please Scan Card Now:'
-        rfid_data = exec(
+        exec_resp = exec(
           son_micro_rfid_obj: son_micro_rfid_obj,
           cmd: :seek_for_tag
         )
+
+        rfid_data = exec_resp.first
         puts "#{rfid_data[:resp_code_desc]} >>> #{rfid_data[:tag_id]}"
 
         rfid_data
