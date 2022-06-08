@@ -615,7 +615,7 @@ module PWN
           )
           puts exec_resp.inspect
 
-          print 'Ready to Read.  Please Swipe Card Now:'
+          print 'Reader Activated.  Please Swipe Card...'
           loop do
             exec_resp = parse_responses(
               msr206_obj: msr206_obj,
@@ -813,7 +813,7 @@ module PWN
           )
           puts exec_resp.inspect
 
-          print 'Ready to Write.  Please Swipe Card Now:'
+          print 'Writer Activated.  Please Swipe Card...'
           loop do
             exec_resp = parse_responses(
               msr206_obj: msr206_obj,
@@ -923,6 +923,8 @@ module PWN
           cmd: :yellow_off
         )
 
+        puts 'complete.'
+
         track_data
       rescue StandardError => e
         raise e
@@ -1017,7 +1019,6 @@ module PWN
         )
 
         encoding = track_data.first[:encoding] if track_data.length == 3
-        # TODO: Save Original Card Contents
         write_card(
           msr206_obj: msr206_obj,
           encoding: encoding,
@@ -1061,6 +1062,7 @@ module PWN
           )
         end
 
+        # Read Card from Backup
         track_data = JSON.parse(
           File.read(file),
           symbolize_names: true
@@ -1071,10 +1073,7 @@ module PWN
           cmd: :yellow_off
         )
 
-        # Read Card from Backup
         encoding = track_data.first[:encoding] if track_data.length == 3
-
-        # TODO: Save Original Card Contents
         write_card(
           msr206_obj: msr206_obj,
           encoding: encoding,
