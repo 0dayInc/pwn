@@ -149,7 +149,6 @@ module PWN
           end
           next_response_detected = false
           last_a_cmd_r_len = a_cmd_r_len
-          print "\n"
 
           # Third byte
           expected_cmd_resp_byte_len = cmd_resp.split[2].to_i(16) + 4
@@ -172,17 +171,10 @@ module PWN
 
           # puts "\nALL CMD RESPS >>>"
           # puts "#{all_cmd_responses}\n\n\n"
-          decoded = ''
-          cmd_resp.split.each do |byte_str|
-            decoded += [byte_str].pack('H*')
-          end
-
           parsed_cmd_resp_hash = {}
-          parsed_cmd_resp_hash[:raw_resp] = PWN::Plugins::Serial.dump_session_data.inspect
-          parsed_cmd_resp_hash[:hex_resp] = cmd_resp
-          parsed_cmd_resp_hash[:decoded_resp] = decoded.to_s.scrub.strip.chomp
           parsed_cmd_resp_hash[:cmd_hex] = cmd_hex
           parsed_cmd_resp_hash[:cmd_desc] = cmd.to_sym
+          parsed_cmd_resp_hash[:hex_resp] = cmd_resp
           resp_code = '?'
 
           # TODO: Detect EMV
@@ -348,7 +340,7 @@ module PWN
 
       public_class_method def self.read_card(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
-        print 'Ready to Read.  Please Scan Card Now:'
+        print 'Reader Activated.  Please Scan Card...'
         exec_resp = exec(
           son_micro_rfid_obj: son_micro_rfid_obj,
           cmd: :seek_for_tag
@@ -399,6 +391,7 @@ module PWN
         end
         File.write(file, "#{JSON.pretty_generate(rfid_data)}\n")
 
+        puts 'complete.'
         rfid_data
       rescue StandardError => e
         raise e

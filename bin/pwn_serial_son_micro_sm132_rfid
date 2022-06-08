@@ -67,7 +67,13 @@ begin
     son_micro_rfid_obj: son_micro_rfid_obj,
     cmd: :firmware
   )
-  puts "Firmware Version: #{exec_resp.first[:decoded_resp]}"
+
+  firmware_decoded = ''
+  exec_resp.last[:hex_resp].split.each do |byte_str|
+    firmware_decoded += [byte_str].pack('H*')
+  end
+
+  puts "Firmware Version: #{firmware_decoded.scrub.strip.chomp}"
 
   # Main Menu
   menu_msg = ''
