@@ -217,6 +217,7 @@ begin
     nessus_obj: nessus_obj,
     name: scan_template_name
   )
+  puts scan_template.inspect
   scan_template_uuid = scan_template[:uuid]
   puts scan_template_uuid
 
