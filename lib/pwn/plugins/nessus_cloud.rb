@@ -396,7 +396,7 @@ module PWN
         asset_uuids_arr = []
         targets.each do |target|
           selected_asset = all_assets[:assets].select do |asset|
-            asset[:fqdn] == target
+            asset[:fqdn] == [target]
           end
           this_asset = selected_asset.first
           target_uuid = this_asset[:uuid]
