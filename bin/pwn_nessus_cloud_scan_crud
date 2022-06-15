@@ -67,7 +67,7 @@ OptionParser.new do |options|
     opts[:starttime] = t
   end
 
-  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (Defaults to "FREQ=ONETIME;INTERVAL=0;BYDAY=null")>') do |r|
+  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (Defaults to "FREQ=null;INTERVAL=0;BYDAY=null")>') do |r|
     opts[:rrules] = r
   end
 
@@ -147,7 +147,7 @@ begin
   starttime ||= Time.now.strftime('%Y%m%dT%H%M%S')
 
   rrules = opts[:rrules]
-  rrules ||= 'FREQ=ONETIME;INTERVAL=0;BYDAY=null'
+  rrules ||= 'FREQ=null;INTERVAL=0;BYDAY=null'
 
   timezone = opts[:timezone]
   timezone ||= 'UTC'
@@ -217,9 +217,7 @@ begin
     nessus_obj: nessus_obj,
     name: scan_template_name
   )
-  puts scan_template.inspect
   scan_template_uuid = scan_template[:uuid]
-  puts scan_template_uuid
 
   # Part 2: Populate settings object from options passed to driver
   settings = {}

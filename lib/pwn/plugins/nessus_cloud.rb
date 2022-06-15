@@ -431,13 +431,13 @@ module PWN
 
       public_class_method def self.create_scan(opts = {})
         nessus_obj = opts[:nessus_obj]
-        uuid = opts[:scan_template_uuid]
+        scan_template_uuid = opts[:scan_template_uuid]
         settings = opts[:settings]
         credentials = opts[:credentials]
         plugins = opts[:plugins]
 
         http_body = {
-          uuid: uuid,
+          uuid: scan_template_uuid,
           settings: settings,
           credentials: credentials,
           plugins: plugins
