@@ -63,7 +63,7 @@ OptionParser.new do |options|
     opts[:scan_time_window] = t
   end
 
-  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (Defaults to Time.now.strftime("%Y%m%dT%H%M%S")>') do |t|
+  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan>') do |t|
     opts[:starttime] = t
   end
 
@@ -79,7 +79,7 @@ OptionParser.new do |options|
     opts[:tag_category_name] = y
   end
 
-  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan (Defaults to "UTC")>') do |t|
+  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan>') do |t|
     opts[:timezone] = t
   end
 
@@ -144,13 +144,13 @@ begin
   scan_time_window ||= 0
 
   starttime = opts[:starttime]
-  starttime ||= Time.now.strftime('%Y%m%dT%H%M%S')
+  # starttime ||= Time.now.strftime('%Y%m%dT%H%M%S')
 
   rrules = opts[:rrules]
   rrules ||= 'FREQ=null;INTERVAL=0;BYDAY=null'
 
   timezone = opts[:timezone]
-  timezone ||= 'UTC'
+  # timezone ||= 'UTC'
 
   target_groups = opts[:target_groups]
 
