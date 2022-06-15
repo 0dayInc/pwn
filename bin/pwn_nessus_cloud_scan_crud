@@ -47,8 +47,8 @@ OptionParser.new do |options|
     opts[:scanner_name] = s
   end
 
-  options.on('-D', '--disable-scan', '<Optional - If true, the schedule for the scan is disabled (Defaults to false)>') do |d|
-    opts[:disabled] = d
+  options.on('-E', '--enable-schedule', '<Optional - If true, the schedule for the scan is enabled (Defaults to false)>') do |e|
+    opts[:enable_schedule] = e
   end
 
   options.on('-NTARGET', '--target-network-name=TARGET', '<Optional - If --scanner other than AUTO-ROUTED, Otherwise Required - Network to Scan (Defaults to "Default")>') do |n|
@@ -63,11 +63,11 @@ OptionParser.new do |options|
     opts[:scan_time_window] = t
   end
 
-  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan>') do |t|
+  options.on('-STIME', '--start-time=TIME', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (e.g. "2777-07-07T00:00:00")>') do |t|
     opts[:starttime] = t
   end
 
-  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (Defaults to "FREQ=null;INTERVAL=0;BYDAY=null")>') do |r|
+  options.on('-rRRULES', '--rrules=RRULES', '<Optional - For One-Time Scans, the Starting Time and Date for the Scan (e.g. "FREQ=WEEKLY;INTERVAL=3;BYDAY=MO,WE,FR")>') do |r|
     opts[:rrules] = r
   end
 
@@ -79,12 +79,12 @@ OptionParser.new do |options|
     opts[:tag_category_name] = y
   end
 
-  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan>') do |t|
+  options.on('-zTIMEZONE', '--timezone=TIMEZONE', '<Optional - Timezone of the scheduled start time for the scan (e.g. "US/Eastern")>') do |t|
     opts[:timezone] = t
   end
 
-  options.on('-gGROUPS', '--target-groups=GROUPS', '<Optional - Comma-delimited list of target group IDs to scan>') do |t|
-    opts[:timezone] = t
+  options.on('-gGROUPS', '--target-groups=GROUPS', '<Optional - Comma-delimited list of target group IDs to scan>') do |g|
+    opts[:target_groups] = g
   end
 end.parse!
 
@@ -131,11 +131,8 @@ begin
   target_network_name = opts[:target_network_name]
   target_network_name ||= 'Default'
 
-  disabled = true if opts[:disabled]
-  disabled ||= false
-
-  enabled = true
-  enabled = false if disabled
+  enable_schedule = true if opts[:enable_schedule]
+  enable_schedule ||= false
 
   launch = opts[:launch]
   launch ||= 'ON_DEMAND'
@@ -147,7 +144,7 @@ begin
   # starttime ||= Time.now.strftime('%Y%m%dT%H%M%S')
 
   rrules = opts[:rrules]
-  rrules ||= 'FREQ=null;INTERVAL=0;BYDAY=null'
+  # rrules ||= 'FREQ=null;INTERVAL=0;BYDAY=null'
 
   timezone = opts[:timezone]
   # timezone ||= 'UTC'
@@ -248,7 +245,7 @@ begin
   )
   settings[:target_network_uuid] = target_network[:uuid]
 
-  settings[:enabled] = enabled
+  settings[:enabled] = enable_schedule
 
   settings[:launch] = launch
 
