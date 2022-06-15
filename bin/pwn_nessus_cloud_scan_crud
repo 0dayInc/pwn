@@ -283,6 +283,12 @@ begin
       )
       tag_uuid = new_tag[:uuid]
       tag_uuids_arr.push(tag_uuid)
+
+      tag_assets = PWN::Plugins::NessusCloud.add_tag_to_assets(
+        nessus_obj: nessus_obj,
+        targets: text_targets,
+        tag_uuids: tag_uuids_arr
+      )
     end
 
     settings[:tag_targets] = tag_uuids_arr

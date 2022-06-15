@@ -348,6 +348,81 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.get_assets(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   name: 'optional - name of asset'
+      # )
+      # )
+
+      public_class_method def self.get_assets(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        name = opts[:name]
+
+        assets_resp = nessus_cloud_rest_call(
+          nessus_obj: nessus_obj,
+          rest_call: 'assets'
+        ).body
+
+        assets = JSON.parse(assets_resp, symbolize_names: true)
+
+        if name
+          selected_asset = assets[:assets].select do |asset|
+            asset[:fqdn] == name
+          end
+          assets = selected_asset.first
+          assets ||= {}
+        end
+
+        assets
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::NessusCloud.add_tag_to_assets(
+      #   nessus_obj: 'required - nessus_obj returned from #login method',
+      #   targets: 'required - comma-delimited list of targets to tag',
+      #   tag_uuids: 'required - array of tag UUIDS to tag against targets'
+      # )
+      # )
+
+      public_class_method def self.add_tag_to_assets(opts = {})
+        nessus_obj = opts[:nessus_obj]
+        targets = opts[:targets].to_s.split(',')
+        tag_uuids = opts[:tag_uuids]
+
+        all_assets = get_assets(nessus_obj: nessus_obj)
+
+        asset_uuids_arr = []
+        targets.each do |target|
+          selected_asset = all_assets[:assets].select do |asset|
+            asset[:fqdn] == target
+          end
+          this_asset = selected_asset.first
+          target_uuid = this_asset[:uuid]
+
+          asset_uuids_arr.push(target_uuid)
+        end
+
+        http_body = {
+          action: 'add',
+          assets: asset_uuids_arr,
+          tags: tag_uuids
+        }.to_json
+
+        tag_assets_resp = nessus_cloud_rest_call(
+          http_method: :post,
+          nessus_obj: nessus_obj,
+          rest_call: 'tags/assets/assignments',
+          http_body: http_body
+        ).body
+
+        JSON.parse(tag_assets_resp, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::NessusCloud.get_credential_types(
       #   nessus_obj: 'required - nessus_obj returned from #login method',
       #   category: 'optional - category of credential type (Defaults to "Host")',
