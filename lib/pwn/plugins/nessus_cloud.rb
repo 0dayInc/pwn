@@ -399,7 +399,7 @@ module PWN
             asset[:fqdn] == [target]
           end
           this_asset = selected_asset.first
-          target_uuid = this_asset[:uuid]
+          target_uuid = this_asset[:id]
 
           asset_uuids_arr.push(target_uuid)
         end
