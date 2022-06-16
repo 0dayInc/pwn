@@ -1,0 +1,108 @@
+e761590 Gemfile - include whois-parser gem
+9125ac9 Gemfile - include whois gem
+8e280b1 pwn_nessus_cloud_scan_crud Driver - add tags to assets #bugfix
+282d8b6 pwn_nessus_cloud_scan_crud Driver - add tags to assets #bugfix
+e447047 pwn_nessus_cloud_scan_crud Driver - add tags to assets #bugfix
+15faf7b pwn_nessus_cloud_scan_crud Driver - add tags to assets
+c468e7b pwn_nessus_cloud_scan_crud Driver - disable schedule by default
+45a5eb6 pwn_nessus_cloud_scan_crud Driver - timezone && starttime default to nil
+09fe8a6 pwn_nessus_cloud_scan_crud Driver - rrules default to FREQ=null
+3b4c6c2 pwn_nessus_cloud_scan_crud Driver - bugfix in UUID
+e986c98 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
+45113bc pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
+6c24858 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
+e4f9869 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
+b2a416c pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout
+13e7540 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout
+a7efffd pwn_serial_son_micro_sm132_rfid Driver - initial commit
+b8427fd pwn_serial_mar206 Driver - remove redundant edit card option in favor of load card from file
+41da7df PWN::Plugins::MSR206 module - slight #tweak to coercivity menu
+3281c7d PWN::Plugins::MSR206 module - begin supporting iso_alt and raw writing modes
+89fd44c PWN::Plugins::MSR206 module - support high and low coercivity writes in #write_card method
+6a58842 PWN::Plugins::MSR206 module - pretty print JSON data in backup file w/in #backup_card method
+a9175b1 pwn_serial_msr206 Driver - working copy and load from file (i.e. write to card initial support)
+e529993 pwn_serial_msr206 Driver - working copy and load from file (i.e. write to card initial support)
+e0273b7 pwn_serial_msr206 Driver - implement alt ISO decoding and raw reading modes to support reading non-standard cards (e.g. metrocards)
+b87c22e pwn_shodan_search - array of hashes in json output #tweak
+e380835 pwn_shodan_search - array of hashes in json output
+1d8a0e8 pwn_shodan_search - bugfix in json output
+c4e4fb9 pwn_shodan_search - intial working commit #bugfix
+17111dd pwn_shodan_search - intial working commit #bugfix
+8e1715a pwn_shodan_search - intial working commit
+38f3bd8 PWN::Plugins::Shodan module - symbolize key names in method responses
+045796f pwn_serial_msr206 Driver - Reserve yellow led for minor errors #bugfix
+a051b7f pwn_serial_msr206 Driver - Reserve yellow led for minor errors
+cf398ad pwn_serial_msr206 Driver - (B)ackup Card #working
+53256f4 pwn_serial_msr206 Driver - display configuration bits at start && bugfix with error handling
+a56a1a2 pwn_serial_msr206 Driver - remove yellow_on debug output
+3dc8d41 pwn_serial_msr206 Driver - Working Card Read
+809e74b pwn_serial_msr206 Driver - Initial commit
+43755ab PWN::Plugins::BusPirate module - #bugfix in call to PWN::Plugins::Serial.request method
+ccc167a PWN::Plugins::BusPirate module - #bugfix in call to PWN::Plugins::Serial.request method
+c048f2c PWN::Plugins::Serial, PWN::Plugins::SonMicroRFID, & PWN::Plugins::MSR206 modules - cleanup some redudant methods, make requests over serial more reliable, and work towards better response output
+f31caad PWN::Plugins::MSR206 module - more refinements
+4eb6060 PWN::Plugins::MSR206 module - implement #list_cmds && #exec methods #rubocop
+96de906 PWN::Plugins::MSR206 module - implement #list_cmds && #exec methods
+79fe42a PWN::Plugins::MSR206 module - initial non-working commit (redact msr gem in favor of 100% ruby native module)
+13b0e31 PWN::Plugins::MSR206 module - initial non-working commit
+15fb720 pwn_nessus_cloud_scan_crud && pwn_nessus_cloud_vulnscan Drivers - rename pwn_nessus_cloud_create_scan to reflect ability to create, read, update, & delete scans #bugfix
+68a92cc PWN::Plugins::NessusCloud module - implement HTTP PUT method in #nessus_cloud_rest_call
+267b389 pwn_nessus_cloud_scan_crud Driver - rename pwn_nessus_cloud_create_scan to reflect ability to create, read, update, & delete scans
+94bb346 pwn_nessus_cloud_create_scan Driver - add tag uuid to settinggs[:tag_targets] instead of tag name #bugfix
+a33c3e0 pwn_nessus_cloud_create_scan Driver - add tag uuid to settinggs[:tag_targets] instead of tag name
+d1ae4f6 pwn_nessus_cloud_create_scan Driver - add debugging to #get_tag_values call to understand condition required to trigger #create_tag method #bugfix
+2eb9500 pwn_nessus_cloud_create_scan Driver - add debugging to #get_tag_values call to understand condition required to trigger #create_tag method
+f77a454 pwn_nessus_cloud_create_scan Driver - add debugging to #get_tag_values call to understand condition required to trigger #create_tag method
+486a5a2 PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
+a59ad8d PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
+22c4559 PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
+550779a PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
+f13218f PWN::Plugins::NessusCloud module - refactor #get_tags method
+e9b1a1b pwn_nessus_cloud_create_scan Driver - add --tag-category-name feature #rubocop
+7e347e3 pwn_nessus_cloud_create_scan Driver - add --tag-category-name feature
+478ec25 pwn_nessus_cloud_create_scan Driver - add --tag-targets feature
+a02f88b pwn_nessus_cloud_create_scan Driver - more code refinement
+1999189 pwn_nessus_cloud_create_scan Driver - more code refinement
+654c50d PWN::Plugins::NessusCloud module - #bugfix in #create_scan method
+b752378 pwn_nessus_cloud_create_scan Driver - tag_targets_arr #bugfix
+7719f22 pwn_nessus_cloud_create_scan Driver - credentials key #bugfix
+906a607 pwn_nessus_cloud_create_scan Driver - migrate credentials && plugins objeects into YAML config since the structure is so diverse depending on the object used (e.g. Windows vs SSH vs etc.)
+3a6e477 pwn_nessus_cloud_create_scan Driver - closer to working commit
+3e264d8 pwn_nessus_cloud_create_scan Driver - get target network UUID for --target-network-name
+75b2d64 pwn_nessus_cloud_create_scan && pwn_nessus_cloud_vulscan Drivers - more additions and migrating certain logic to plugin in an effort to reduce code redundancy in drivers
+0cdc0ce pwn_nessus_cloud_create_scan Driver - more additions
+cc95e2b pwn_nessus_cloud_create_scan Driver - add policy parameter
+2115eb3 pwn_nessus_cloud_create_scan Driver - add policy parameter
+ac67b0f pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks #bugfix
+84ac773 pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks #rubocop_fixes
+8a841d8 pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks
+3fd2f1b pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks
+9119659 PWN::Plugins::NessusCloud - add #list_scan_templates method && pwn_nessus_cloud_create_scan Driver - initial non-working commit
+a434c66 PWN::Plugins::CreditCard module - add #type method to aid in reversing weak generation methods used by some financial institutions #rubocop
+29fce17 PWN::Plugins::CreditCard module - add #type method to aid in reversing weak generation methods used by some financial institutions
+a1f7bf1 PWN::Plugins::SerialPort module - fix missing method #wait_readable #bugfix
+f4c91d6 pwn.gemspec - Specify requirements for only the minor Ruby version, not patch (i.e. 3.1.x)
+baecc3b pwn.gemspec - Support ruby-3.1.2p20
+1e80a2b .ruby-version - Support ruby-3.1.2p20
+bd770d0 .ruby-version - Support ruby-3.1.2p20
+68958e3 .ruby-version - Support ruby-3.1.2p20 - i.e. >= Preview 20
+947fbe3 PWN::VERSION - bump gem version
+ac9387b PWN::SAST::Signature module - initial commit
+67e9cde Packer provisioners - include env when setting user var, PWN_PROVIDER #bugfix
+066da28 Packer provisioners - include env when setting user var, PWN_PROVIDER #bugfix
+b1c87af *.sh in pwn repo root - bugfix in PWN_ROOT assignment when building within cloned ssrc
+ab3eb54 *.sh in pwn repo root - bugfix in PWN_ROOT assignment when building within cloned ssrc
+31bfdb9 Packer & Vagrant - fix bug in PWN_ROOT assignment when generating /etc/profile.d/pwn_envs.sh AND redirect STDERR to /dev/null when assigining PWN_ROOT
+21db2bc Packer & Vagrant - fix bug in PWN_ROOT assignment when generating /etc/profile.d/pwn_envs.sh
+007dc4d Packer & Vagrant - fix bug in PWN_ROOT assignment when generating /etc/profile.d/pwn_envs.sh
+917a82b .ruby-version - address weird versioning issue
+41fa60e .ruby-version - Bump to 3.1.2 #rubocop_fixes
+5d51b69 .ruby-version - Bump to 3.1.2
+a225371 PWN::SAST::* modules - fix NIST 800-53 links to show respective control desc for SAST module #bugfix
+321e5ea Packer && Vagrant - ensure PWN_ROOT reflects path of latest installed pwn gem
+eb5e59d PWN::Banner::* - slight tweaks
+959941d Gemfile && PWN::Plugins::CreditCard - reinstate module w/ compatible version of credit_card_validations (i.e.  5.0.0)
+3133eb6 pwn REPL driver - implement welcome-banner command in REPL session to display example usage on demand
+831d253 PWN::SAST::HTTPAuthorizationHeader module - initial commit
+611bbf0 PWN::Plugins::RabbitMQHole to PWN::Plugins::RabbitMQ module - update rdoc to include port parameter
+87e1ef5 PWN REPL driver - regress colors back to ansi strings to avoid readline issues on prompt && rename PWN::Plugins::RabbitMQHole to PWN::Plugins::RabbitMQ and include a port parameter that can be passed to the #open method

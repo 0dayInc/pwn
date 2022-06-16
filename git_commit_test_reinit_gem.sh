@@ -21,6 +21,9 @@ if (( $# == 3 )); then
     this_version=`ruby -r 'pwn' -e 'print PWN::VERSION'`
     echo "Tagging: ${this_version}"
     git tag $this_version
+    last_tag=$(git tag | tail -n 2 | head -n 1)
+    this_tag=$(git tag | tail -n 1)
+    git log $last_tag...$this_tag --oneline > CHANGELOG_BETWEEN_TAGS.txt
   fi
 else
   usage
