@@ -218,7 +218,15 @@ unless nmap_path == ''
       # Eyewitness Nmap XML Results
       unless eyewitness_path == ''
         print "#{@green}Eyewitness Nmap XML Results...#{@end_of_color}"
-        system("#{eyewitness_path} -x '#{nmap_xml_results}' -d '#{output_dir}/#{nmap_target}-#{@runtime_timestamp}' --no-prompt --all-protocols")
+        system(
+          eyewitness_path,
+          '-x',
+          nmap_xml_results,
+          '-d',
+          "#{output_dir}/#{nmap_target}-#{@runtime_timestamp}",
+          '--no-prompt',
+          '--all-protocols'
+        )
       end
 
       PWN::Plugins::NmapIt.parse_xml_results(xml_file: nmap_xml_results) do |xml|

@@ -95,7 +95,11 @@ module PWN
             next if Dir.exist?(clone_dir)
 
             print "Cloning: #{clone_uri}..."
-            system('git', 'clone', clone_uri)
+            system(
+              'git',
+              'clone',
+              clone_uri
+            )
             puts 'complete.'
           end
 

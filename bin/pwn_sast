@@ -147,7 +147,7 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    listen_port = Random.rand(1_025..65_535)
+    listen_port = Random.rand(1_025..65_535).to_s
 
     if pwn_provider == 'docker'
       listen_ip = '0.0.0.0'
@@ -156,7 +156,14 @@ begin
     end
 
     puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_scan_git_source.html"
-    system("cd #{dir_path} && pwn_simple_http_server -i #{listen_ip} -p #{listen_port}")
+    Dir.chdir(dir_path)
+    system(
+      'pwn_simple_http_server',
+      '-i',
+      listen_ip,
+      '-p',
+      listen_port
+    )
   end
 rescue SystemExit, Interrupt
   puts "\nGoodbye."

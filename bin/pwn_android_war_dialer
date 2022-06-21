@@ -91,11 +91,18 @@ begin
     # Record Call
     pid_to_kill = 0
     wav_file = "#{wav_archive}/#{target_num}-#{start_timestamp}.wav"
-    sox_params = "-d #{wav_file} trim 0 #{seconds_to_record}"
 
     puts red
     puts "Recording Duration: #{seconds_to_record}s"
-    system(sox_bin, sox_params)
+    system(
+      sox_bin,
+      '-d',
+      wav_file,
+      'trim',
+      '0',
+      seconds_to_record.to_s
+    )
+
     puts 'Complete.'
     puts end_of_color
 
@@ -109,11 +116,27 @@ begin
 
     puts cayan
     puts 'Generating Audio Spectrogram...'
-    sox_params = "#{wav_file} -n spectrogram -o #{wav_file}-spectrogram.png -d #{seconds_to_record}"
-    system(sox_bin, sox_params)
+    system(
+      sox_bin,
+      wav_file,
+      '-n',
+      'spectrogram',
+      '-o',
+      "#{wav_file}-spectrogram.png",
+      '-d',
+      seconds_to_record.to_s
+    )
+
     puts 'Generating Audio Waveform...'
-    waveform_params = "-c '#FF0000' -b '#000000' -F #{wav_file} #{wav_file}-waveform.png"
-    system(waveform_bin, waveform_params)
+    system(
+      waveform_bin,
+      '-c',
+      '#FF0000',
+      '-b',
+      '#000000',
+      '-F',
+      "#{wav_file} #{wav_file}-waveform.png"
+    )
     puts 'Complete.'
     puts end_of_color
 

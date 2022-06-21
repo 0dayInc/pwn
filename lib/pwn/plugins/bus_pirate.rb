@@ -8,7 +8,6 @@ module PWN
     module BusPirate
       # Supported Method Parameters::
       # PWN::Plugins::BusPirate.connect_via_screen(
-      #   screen_bin: 'optional - defaults to /usr/bin/screen'
       #   block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)'
       # )
 
@@ -17,19 +16,19 @@ module PWN
           opts[:block_dev].to_s
         )
 
-        block_dev = '/dev/ttyUSB0' if opts[:block_dev].nil?
+        block_dev ||= '/dev/ttyUSB0'
 
-        if opts[:screen_bin].nil?
-          screen_bin = '/usr/bin/screen'
-        else
-          screen_bin = opts[:screen_bin].to_s.strip.chomp.scrub
-        end
-
+        screen_bin = '/usr/bin/screen'
         raise "ERROR: #{screen_bin} not found." unless File.exist?(screen_bin)
 
-        screen_params = "#{block_dev} 115200 8 N 1"
-        screen_cmd = "#{screen_bin} #{screen_params}"
-        system(screen_cmd)
+        system(
+          screen_bin,
+          block_dev,
+          '115200',
+          '8',
+          'N',
+          '1'
+        )
       rescue StandardError => e
         raise e
       end
@@ -120,7 +119,6 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           #{self}.connect_via_screen(
-            screen_bin: 'optional - defaults to /usr/bin/screen'
             block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)'
           )
 
