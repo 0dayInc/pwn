@@ -25,6 +25,7 @@ module PWN
     autoload :FileFu, 'pwn/plugins/file_fu'
     autoload :Fuzz, 'pwn/plugins/fuzz'
     autoload :Git, 'pwn/plugins/git'
+    autoload :Github, 'pwn/plugins/github'
     autoload :HackerOne, 'pwn/plugins/hacker_one'
     autoload :IBMAppscan, 'pwn/plugins/ibm_appscan'
     autoload :IPInfo, 'pwn/plugins/ip_info'
