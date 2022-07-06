@@ -35,7 +35,17 @@ else
 end
 
 begin
-  system("thin start --adapter file --address #{bind_ip} --port #{port} --threaded --debug")
+  system(
+    'thin',
+    'start',
+    '--adapter file',
+    '--address',
+    bind_ip,
+    '--port',
+    port.to_s,
+    '--threaded',
+    '--debug'
+  )
 rescue RuntimeError
   puts "WARNING: Service Already Listening on TCP #{port}..."
   port = Random.rand(1_025..65_535)

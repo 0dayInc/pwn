@@ -1107,31 +1107,73 @@ module PWN
             my_os = PWN::Plugins::DetectOS.type
             case my_os
             when :linux
-              ipfilter = 'sudo iptables'
-              chain_action = '-C'
-              ipfilter_rule = "OUTPUT --protocol tcp --source #{pkt.ip_saddr} --destination #{pkt.ip_daddr} --destination-port #{pkt.tcp_dst} --tcp-flags RST RST -j DROP"
+              system_resp = system(
+                'sudo',
+                'iptables',
+                '-C',
+                'OUTPUT',
+                '--protocol',
+                'tcp',
+                '--source',
+                pkt.ip_saddr,
+                '--destination',
+                pkt.ip_daddr,
+                '--destination-port',
+                pkt.tcp_dst.to_s,
+                '--tcp-flags',
+                'RST',
+                'RST',
+                '-j',
+                'DROP',
+                out: File::NULL,
+                err: File::NULL
+              )
 
-              ipfilter_cmd = "#{ipfilter} #{chain_action} #{ipfilter_rule}"
-
-              unless system(ipfilter_cmd, out: File::NULL, err: File::NULL)
-                chain_action = '-A'
-                ipfilter_cmd = "#{ipfilter} #{chain_action} #{ipfilter_rule}"
-
+              unless system_resp
                 puts 'Preventing kernel from misbehaving when manipulating packets.'
-                puts 'Creating the following iptables rule:'
-                puts ipfilter_cmd
-                system(ipfilter_cmd)
-
-                puts "Be sure to delete iptables rule, once completed.  Here's how:"
-                chain_action = '-D'
-                ipfilter_cmd = "#{ipfilter} #{chain_action} #{ipfilter_rule}"
-                puts ipfilter_cmd
+                system(
+                  'sudo',
+                  'iptables',
+                  '-A',
+                  'OUTPUT',
+                  '--protocol',
+                  'tcp',
+                  '--source',
+                  pkt.ip_saddr,
+                  '--destination',
+                  pkt.ip_daddr,
+                  '--destination-port',
+                  pkt.tcp_dst.to_s,
+                  '--tcp-flags',
+                  'RST',
+                  'RST',
+                  '-j',
+                  'DROP'
+                )
               end
 
               pkt.recalc
               pkt.to_w(iface)
 
-              system(ipfilter, "-D #{ipfilter_rule}")
+              system(
+                'sudo',
+                'iptables',
+                '-D',
+                'OUTPUT',
+                '--protocol',
+                'tcp',
+                '--source',
+                pkt.ip_saddr,
+                '--destination',
+                pkt.ip_daddr,
+                '--destination-port',
+                pkt.tcp_dst.to_s,
+                '--tcp-flags',
+                'RST',
+                'RST',
+                '-j',
+                'DROP'
+              )
             # when :osx
             #   ipfilter = 'pfctl'
             #   ipfilter_rule = "block out proto tcp from #{pkt.ip_saddr} to #{pkt.ip_daddr} port #{pkt.tcp_dst} flags R"

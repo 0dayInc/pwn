@@ -145,5 +145,12 @@ if start_reporting_server
   end
   puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_fuzz_net_app_proto.html"
   simple_http_server_params = "-i #{listen_ip} -p #{listen_port}"
-  system("cd #{dir_path} && pwn_simple_http_server #{simple_http_server_params}")
+  Dir.chdir(dir_path)
+  system(
+    'pwn_simple_http_server',
+    '-i',
+    listen_ip,
+    '-p',
+    listen_port.to_s
+  )
 end
