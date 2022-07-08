@@ -115,8 +115,8 @@ module PWN
           sast_module: self,
           section: 'LEAST PRIVILEGE',
           nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=AC-6',
-          id: '546',
-          uri: 'https://cwe.mitre.org/data/definitions/546.html'
+          cwe_id: '546',
+          cwe_uri: 'https://cwe.mitre.org/data/definitions/546.html'
         }
       rescue StandardError => e
         raise e
