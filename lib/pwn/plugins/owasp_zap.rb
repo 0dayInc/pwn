@@ -139,10 +139,10 @@ module PWN
           end
         rescue PTY::ChildExited, SystemExit, Interrupt, Errno::EIO
           puts 'Spawned OWASP Zap PTY exiting...'
-          File.unlink(pwn_stdout_log_path) if File.exist?(pwn_stdout_log_path)
+          File.unlink(pwn_stdout_log_path)
         rescue StandardError => e
           puts 'Spawned process exiting...'
-          File.unlink(pwn_stdout_log_path) if File.exist?(pwn_stdout_log_path)
+          File.unlink(pwn_stdout_log_path)
           raise e
         end
         Process.detach(fork_pid)
@@ -475,7 +475,7 @@ module PWN
         zap_obj = opts[:zap_obj]
         unless zap_obj.nil?
           pid = zap_obj[:pid]
-          File.unlink(zap_obj[:stdout_log]) if File.exist?(zap_obj[:stdout_log])
+          File.unlink(zap_obj[:stdout_log])
 
           Process.kill('TERM', pid)
         end

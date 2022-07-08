@@ -105,8 +105,8 @@ rescue Interrupt
   exit 1
 ensure
   Process.kill('TERM', fork_pid) if fork_pid
-  File.unlink(arachni_stdout_log_path) if File.exist?(arachni_stdout_log_path)
-  File.unlink(trained_attack_vectors_yaml) if File.exist?(trained_attack_vectors_yaml)
+  File.unlink(arachni_stdout_log_path)
+  File.unlink(trained_attack_vectors_yaml)
 end
 
 # Watch for Arachni proxy plugin to intialize prior to invoking navigation-REST.instruct

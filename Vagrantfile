@@ -247,4 +247,4 @@ else
     end
   end
 end
-File.unlink(runtime_userland) if File.exist?(runtime_userland)
+File.unlink(runtime_userland)
