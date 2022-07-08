@@ -80,7 +80,6 @@ begin
       Emoticon
       Eval
       Factory
-      FilePermission
       HTTPAuthorizationHeader
       InnerHTML
       LocationHash

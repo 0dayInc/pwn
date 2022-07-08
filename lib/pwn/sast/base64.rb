@@ -51,7 +51,7 @@ module PWN
 
               hash_line = {
                 timestamp: Time.now.strftime('%Y-%m-%d %H:%M:%S.%9N %z').to_s,
-                test_case: nist_800_53_requirements,
+                security_requirements: security_requirements,
                 filename: filename_arr.push(git_repo_root_uri: git_repo_root_uri, entry: entry),
                 line_no_and_contents: '',
                 raw_content: str,
@@ -103,16 +103,15 @@ module PWN
         raise e
       end
 
-      # Used primarily to map NIST 800-53 Revision 4 Security Controls
-      # https://web.nvd.nist.gov/view/800-53/Rev4/impact?impactName=HIGH
-      # to PWN Exploit & Static Code Anti-Pattern Matching Modules to
-      # Determine the level of Testing Coverage w/ PWN.
+      # Used to dictate Security Control Requirements for a Given SAST module.
 
-      public_class_method def self.nist_800_53_requirements
+      public_class_method def self.security_requirements
         {
           sast_module: self,
           section: 'PROTECTION OF INFORMATION AT REST',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SC-28'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SC-28',
+          id: '95',
+          uri: 'https://cwe.mitre.org/data/definitions/95.html'
         }
       rescue StandardError => e
         raise e

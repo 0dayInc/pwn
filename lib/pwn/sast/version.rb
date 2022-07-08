@@ -45,7 +45,7 @@ module PWN
 
               hash_line = {
                 timestamp: Time.now.strftime('%Y-%m-%d %H:%M:%S.%9N %z').to_s,
-                test_case: nist_800_53_requirements,
+                security_requirements: security_requirements,
                 filename: filename_arr.push(git_repo_root_uri: git_repo_root_uri, entry: entry),
                 line_no_and_contents: '',
                 raw_content: str,
@@ -102,11 +102,13 @@ module PWN
       # to PWN Exploit & Static Code Anti-Pattern Matching Modules to
       # Determine the level of Testing Coverage w/ PWN.
 
-      public_class_method def self.nist_800_53_requirements
+      public_class_method def self.security_requirements
         {
           sast_module: self,
           section: 'VULNERABILITY SCANNING',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=RA-5'
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=RA-5',
+          cwe_id: '672',
+          cwe_uri: 'https://cwe.mitre.org/data/definitions/672.html'
         }
       rescue StandardError => e
         raise e
