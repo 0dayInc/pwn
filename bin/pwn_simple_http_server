@@ -38,7 +38,8 @@ begin
   system(
     'thin',
     'start',
-    '--adapter file',
+    '--adapter',
+    'file',
     '--address',
     bind_ip,
     '--port',
