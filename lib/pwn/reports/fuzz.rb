@@ -26,9 +26,7 @@ module PWN
         # JSON object Completion
         File.open("#{dir_path}/pwn_fuzz_net_app_proto.json", "w:#{char_encoding}") do |f|
           f.print(
-            JSON.pretty_generate(
-              results_hash.to_json.force_encoding(char_encoding)
-            )
+            JSON.pretty_generate(results_hash).force_encoding(char_encoding)
           )
         end
 
