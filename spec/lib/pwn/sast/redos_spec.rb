@@ -8,9 +8,9 @@ describe PWN::SAST::ReDOS do
     expect(scan_response).to respond_to :scan
   end
 
-  it 'should display information for nist_800_53_requirements' do
-    nist_800_53_requirements_response = PWN::SAST::ReDOS
-    expect(nist_800_53_requirements_response).to respond_to :nist_800_53_requirements
+  it 'should display information for security_requirements' do
+    security_requirements_response = PWN::SAST::ReDOS
+    expect(security_requirements_response).to respond_to :security_requirements
   end
 
   it 'should display information for authors' do

@@ -101,7 +101,7 @@ module PWN
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="2" href="#">Test Case Invoked/NIST 800-53 Rev. 4 Section</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="2" href="#">Test Case / Security Requirements</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Path</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, &amp; Last Committed By</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="5" href="#">Raw Content</a>&nbsp;|&nbsp;
@@ -115,7 +115,7 @@ module PWN
                   <tr>
                     <th>#</th>
                     <th>Timestamp</th>
-                    <th>Test Case / NIST 800-53 Security Control</th>
+                    <th>Test Case / Security Requirements</th>
                     <th>Path</th>
                     <th>Line#, Formatted Content, &amp; Last Committed By</th>
                     <th>Raw Content</th>
@@ -170,13 +170,13 @@ module PWN
                       "render": $.fn.dataTable.render.text()
                     },
                     {
-                      "data": "test_case",
+                      "data": "security_requirements",
                       "render": function (data, type, row, meta) {
                         var sast_dirname = data['sast_module'].split('::')[0].toLowerCase() + '/' + data['sast_module'].split('::')[1].toLowerCase();
                         var sast_module = data['sast_module'].split('::')[2];
                         var sast_test_case = sast_module.replace(/\.?([A-Z])/g, function (x,y){ if (sast_module.match(/\.?([A-Z][a-z])/g) ) { return "_" + y.toLowerCase(); } else { return y.toLowerCase(); } }).replace(/^_/g, "");
 
-                        return '<tr><td style="width:150px;" align="left"><a href="https://github.com/0dayinc/pwn/tree/master/lib/' + htmlEntityEncode(sast_dirname) + '/' + htmlEntityEncode(sast_test_case) + '.rb" target="_blank">' + htmlEntityEncode(data['sast_module'].split("::")[2]) + '</a><br /><a href="' + htmlEntityEncode(data['nist_800_53_uri']) + '" target="_blank">' + htmlEntityEncode(data['section'])  + '</a></td></tr>';
+                        return '<tr><td style="width:150px;" align="left"><a href="https://github.com/0dayinc/pwn/tree/master/lib/' + htmlEntityEncode(sast_dirname) + '/' + htmlEntityEncode(sast_test_case) + '.rb" target="_blank">' + htmlEntityEncode(data['sast_module'].split("::")[2]) + '</a><br /><a href="' + htmlEntityEncode(data['nist_800_53_uri']) + '" target="_blank">NIST 800-53:' + htmlEntityEncode(data['section'])  + '</a><a href="' + htmlEntityEncode(data['cwe_uri']) + '" target="_blank">CWE:' + htmlEntityEncode(data['cwe_id'])  + '</a></td></tr>';
                       }
                     },
                     {
@@ -202,7 +202,7 @@ module PWN
 
                           var bug_comment = 'Timestamp: ' + row.timestamp + '\n' +
                                             'Test Case: http://' + window.location.hostname + ':8808/doc_root/pwn-0.1.0/' +
-                                              row.test_case['sast_module'].replace(/::/g, "/") + '\n' +
+                                              row.security_requirements['sast_module'].replace(/::/g, "/") + '\n' +
                                             'Source Code Impacted: ' + $("<div/>").html(filename_link).text() + '\n\n' +
                                             'Test Case Request:\n' +
                                             $("<div/>").html(row.test_case_filter.replace(/\s{2,}/g, " ")).text() + '\n\n' +
