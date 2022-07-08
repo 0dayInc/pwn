@@ -27,7 +27,7 @@ module PWN
         # end
         File.write(
           "#{dir_path}/pwn_scan_git_source.json",
-          JSON.pretty_generate(results_hash.to_json)
+          JSON.pretty_generate(results_hash)
         )
 
         html_report = %q{<!DOCTYPE HTML>
