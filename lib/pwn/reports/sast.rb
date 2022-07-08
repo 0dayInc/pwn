@@ -22,9 +22,13 @@ module PWN
         results_hash = opts[:results_hash]
 
         # JSON object Completion
-        File.open("#{dir_path}/pwn_scan_git_source.json", 'w') do |f|
-          f.print(results_hash.to_json)
-        end
+        # File.open("#{dir_path}/pwn_scan_git_source.json", 'w') do |f|
+        #   f.print(results_hash.to_json)
+        # end
+        File.write(
+          "#{dir_path}/pwn_scan_git_source.json",
+          JSON.pretty_generate(results_hash.to_json)
+        )
 
         html_report = %q{<!DOCTYPE HTML>
         <html>
