@@ -25,7 +25,6 @@ module PWN
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
           if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/
             line_no_and_contents_arr = []
-            filename_arr = []
             entry_beautified = false
 
             if File.extname(entry) == '.js' && (`wc -l #{entry}`.split.first.to_i < 20 || entry.include?('.min.js') || entry.include?('-all.js'))
@@ -51,7 +50,7 @@ module PWN
               hash_line = {
                 timestamp: Time.now.strftime('%Y-%m-%d %H:%M:%S.%9N %z').to_s,
                 security_requirements: security_requirements,
-                filename: filename_arr.push(git_repo_root_uri: git_repo_root_uri, entry: entry),
+                filename: { git_repo_root_uri: git_repo_root_uri, entry: entry },
                 line_no_and_contents: '',
                 raw_content: str,
                 test_case_filter: test_case_filter

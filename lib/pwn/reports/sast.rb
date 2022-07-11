@@ -182,12 +182,13 @@ module PWN
                     {
                       "data": "filename",
                       "render": function (data, type, row, meta) {
-                        for (var i = 0; i < data.length; i++) {
-                          line_entry_uri = data[i]['git_repo_root_uri'] + '/' + data[i]['entry'];
+                        line_entry_uri = htmlEntityEncode(
+                          data['git_repo_root_uri'] + '/' + data['entry']
+                        );
 
-                          return '<table class="squish"><tr class="highlighted"><td style="width:150px;" align="left"><a href="' + htmlEntityEncode(line_entry_uri) + '" target="_blank">' + htmlEntityEncode(data[i]['entry']) + '</a></td></tr></table>';
+                        file = htmlEntityEncode(data['entry']);
 
-                        }
+                        return '<table class="squish"><tr class="highlighted"><td style="width:150px;" align="left"><a href="' + line_entry_uri + '" target="_blank">' + file + '</a></td></tr></table>';
                       }
                     },
                     {
