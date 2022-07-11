@@ -475,7 +475,7 @@ module PWN
         zap_obj = opts[:zap_obj]
         unless zap_obj.nil?
           pid = zap_obj[:pid]
-          File.unlink(zap_obj[:stdout_log])
+          # File.unlink(zap_obj[:stdout_log]) if File.exist?(zap_obj[:stdout_log])
 
           Process.kill('TERM', pid)
         end
