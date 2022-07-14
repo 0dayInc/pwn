@@ -47,7 +47,7 @@ module PWN
 
               hash_line = {
                 timestamp: Time.now.strftime('%Y-%m-%d %H:%M:%S.%9N %z').to_s,
-                security_requirements: security_requirements,
+                security_references: security_references,
                 filename: { git_repo_root_uri: git_repo_root_uri, entry: entry },
                 line_no_and_contents: '',
                 raw_content: str,
@@ -77,9 +77,11 @@ module PWN
                 else
                   author = 'N/A'
                 end
-                hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(line_no: line_no,
-                                                                                 contents: contents,
-                                                                                 author: author)
+                hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
+                  line_no: line_no,
+                  contents: contents,
+                  author: author
+                )
 
                 current_count += 2
               end
@@ -104,7 +106,7 @@ module PWN
       # to PWN Exploit & Static Code Anti-Pattern Matching Modules to
       # Determine the level of Testing Coverage w/ PWN.
 
-      public_class_method def self.security_requirements
+      public_class_method def self.security_references
         {
           sast_module: self,
           section: 'CRYPTOGRAPHIC MODULE AUTHENTICATION',
