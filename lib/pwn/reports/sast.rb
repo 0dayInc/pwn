@@ -101,7 +101,7 @@ module PWN
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="2" href="#">Test Case / Security Requirements</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="2" href="#">Test Case / Security References</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Path</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, &amp; Last Committed By</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="5" href="#">Raw Content</a>&nbsp;|&nbsp;
@@ -115,7 +115,7 @@ module PWN
                   <tr>
                     <th>#</th>
                     <th>Timestamp</th>
-                    <th>Test Case / Security Requirements</th>
+                    <th>Test Case / Security References</th>
                     <th>Path</th>
                     <th>Line#, Formatted Content, &amp; Last Committed By</th>
                     <th>Raw Content</th>
@@ -170,7 +170,7 @@ module PWN
                       "render": $.fn.dataTable.render.text()
                     },
                     {
-                      "data": "security_requirements",
+                      "data": "security_references",
                       "render": function (data, type, row, meta) {
                         var sast_dirname = data['sast_module'].split('::')[0].toLowerCase() + '/' + data['sast_module'].split('::')[1].toLowerCase();
                         var sast_module = data['sast_module'].split('::')[2];
@@ -203,7 +203,7 @@ module PWN
 
                           var bug_comment = 'Timestamp: ' + row.timestamp + '\n' +
                                             'Test Case: http://' + window.location.hostname + ':8808/doc_root/pwn-0.1.0/' +
-                                              row.security_requirements['sast_module'].replace(/::/g, "/") + '\n' +
+                                              row.security_references['sast_module'].replace(/::/g, "/") + '\n' +
                                             'Source Code Impacted: ' + $("<div/>").html(filename_link).text() + '\n\n' +
                                             'Test Case Request:\n' +
                                             $("<div/>").html(row.test_case_filter.replace(/\s{2,}/g, " ")).text() + '\n\n' +

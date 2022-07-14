@@ -8,9 +8,9 @@ describe PWN::SAST::CmdExecutionJava do
     expect(scan_response).to respond_to :scan
   end
 
-  it 'should display information for security_requirements' do
-    security_requirements_response = PWN::SAST::CmdExecutionJava
-    expect(security_requirements_response).to respond_to :security_requirements
+  it 'should display information for security_references' do
+    security_references_response = PWN::SAST::CmdExecutionJava
+    expect(security_references_response).to respond_to :security_references
   end
 
   it 'should display information for authors' do
