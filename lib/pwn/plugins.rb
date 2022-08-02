@@ -8,6 +8,7 @@ module PWN
     autoload :Android, 'pwn/plugins/android'
     autoload :AnsibleVault, 'pwn/plugins/ansible_vault'
     autoload :AuthenticationHelper, 'pwn/plugins/authentication_helper'
+    autoload :BareSIP, 'pwn/plugins/baresip'
     autoload :BasicAuth, 'pwn/plugins/basic_auth'
     autoload :BeEF, 'pwn/plugins/beef'
     autoload :BurpSuite, 'pwn/plugins/burp_suite'

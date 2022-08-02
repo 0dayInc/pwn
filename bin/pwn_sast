@@ -49,7 +49,9 @@ begin
   green = "\e[32m"
   end_of_color = "\e[0m"
 
-  dir_path = opts[:dir_path].to_s.scrub
+  dir_path = opts[:dir_path]
+  dir_path ||= '.'
+
   uri_source_root = opts[:uri_source_root].to_s.scrub
   max_threads = opts[:max_threads]
   chosen_test_cases = opts[:chosen_test_cases]
@@ -121,7 +123,10 @@ begin
 
   mutex = Mutex.new
 
-  PWN::Plugins::ThreadPool.fill(enumerable_array: test_cases, max_threads: max_threads) do |test_case|
+  PWN::Plugins::ThreadPool.fill(
+    enumerable_array: test_cases,
+    max_threads: max_threads
+  ) do |test_case|
     sca_arr = PWN::SAST.const_get(
       test_case.to_s.scrub
     ).scan(

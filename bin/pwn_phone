@@ -1,0 +1,124 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'optparse'
+require 'fileutils'
+require 'ruby-audio'
+require 'fftw3'
+require 'waveform'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tPATH', '--target-file=PATH', '<Required - File Containing List of Targets to Dial>') do |t|
+    opts[:target_file] = t
+  end
+
+  options.on('-sSEC', '--seconds-to-record=SEC', '<Optional - Seconds to Record (Defaults to 60)>') do |s|
+    opts[:seconds_to_record] = s
+  end
+
+  options.on('-TTHREADS', '--max-threads=THREADS', '<Optional # Calls to Run Simultaneously (Defaults to 3 - update "call_max_calls" in ~/.baresip/config if > 4)>') do |t|
+    opts[:max_threads] = t
+  end
+
+  options.on('-bPATH', '--baresip-binary=PATH', '<Optional - Path to baresip Binary (Defaults to /usr/bin/baresip)>') do |bs|
+    opts[:baresip_bin] = bs
+  end
+
+  options.on('-SSOX', '--sox-path=SOX', '<Optional - Path to SoX Binary, the Swiss Army knife of Audio (Defaults to /usr/bin/sox)>') do |sox|
+    opts[:sox_bin] = sox
+  end
+
+  options.on('-rDIR', '--session-root=DIR', '<Optional - Directory to Store Session Files (Defaults to Present Working Directory))>') do |sr|
+    opts[:session_root] = sr
+  end
+
+  options.on('-R', '--[no-]randomize', '<Optional - Randomize Number Range (Defaults to false)>') do |r|
+    opts[:randomize] = r
+  end
+
+  options.on('-h', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
+    opts[:start_reporting_server] = s
+  end
+
+  options.on('-xRULES', '--source-num-rules=RULES', '<Optional - Comma-delimited list of rules for src_num format (i.e. self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])>') do |x|
+    opts[:src_num_rules] = x
+  end
+
+  # TODO: Add an hours of operation flag.
+  # TODO: Add a resume feature to resume session following an interruption.
+  # TODO: Append results to pwn_phone_results.json as things are running #save_memory.
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
+  $stdout.sync = true
+
+  # Required Flag Variables
+  target_file = opts[:target_file]
+  max_threads = opts[:max_threads]
+  seconds_to_record = opts[:seconds_to_record]
+  baresip_bin = opts[:baresip_bin]
+  sox_bin = opts[:sox_bin]
+  session_root = opts[:session_root]
+  session_root ||= Dir.pwd
+
+  # Optional Flag Variables
+  randomize = opts[:randomize]
+  start_reporting_server = opts[:start_reporting_server]
+  src_num_rules = opts[:src_num_rules]
+
+  # Initiallize Phone Reconaissance
+  results_hash = PWN::Plugins::BareSIP.recon(
+    baresip_bin: baresip_bin,
+    session_root: session_root,
+    target_file: target_file,
+    randomize: randomize,
+    src_num_rules: src_num_rules,
+    seconds_to_record: seconds_to_record,
+    sox_bin: sox_bin
+  )
+
+  # Generate HTML Report
+  print "#{$PROGRAM_NAME} Generating Report..."
+  PWN::Reports::Phone.generate(
+    dir_path: session_root,
+    results_hash: results_hash
+  )
+  puts 'complete.'
+
+  # Start Simple HTTP Server (If Requested)
+  if start_reporting_server
+    listen_port = Random.rand(1_025..65_535).to_s
+
+    if pwn_provider == 'docker'
+      listen_ip = '0.0.0.0'
+    else
+      listen_ip = '127.0.0.1'
+    end
+
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_phone.html"
+    Dir.chdir(session_root)
+    system(
+      'pwn_simple_http_server',
+      '-i',
+      listen_ip,
+      '-p',
+      listen_port
+    )
+  end
+rescue StandardError => e
+  raise e.message
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+end
