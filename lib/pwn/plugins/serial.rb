@@ -213,7 +213,7 @@ module PWN
         cmd_response_arr.map(&:strip)
       rescue StandardError => e
         # Flush Responses for Next Request
-        flush_session_data(serial_obj: serial_obj)
+        flush_session_data
 
         raise e
       end

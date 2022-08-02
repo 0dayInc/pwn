@@ -48,6 +48,32 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::Sock.check_port_availability(
+      #   port: 'required - target port',
+      #   server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
+      #   protocol: 'optional - :tcp || :udp (defaults to tcp)'
+      # )
+
+      public_class_method def self.check_port_availability(opts = {})
+        server_ip = opts[:server_ip]
+        server_ip ||= '127.0.0.1'
+        port = opts[:port]
+        protocol = opts[:protocol]
+        protocol ||= :tcp
+
+        ct = 0.1
+        s = Socket.tcp(server_ip, port, connect_timeout: ct) if protocol == :tcp
+        s = Socket.udp(server_ip, port, connect_timeout: ct) if protocol == :udp
+        s.close
+
+        true
+      rescue Errno::ECONNREFUSED,
+             Errno::EHOSTUNREACH,
+             Errno::ETIMEDOUT
+        false
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::Sock.listen(
       #   server_ip: 'required - target host or ip to listen',
       #   port: 'required - target port',
@@ -135,6 +161,12 @@ module PWN
             port: 'required - target port',
             protocol: 'optional - :tcp || :udp (defaults to tcp)',
             tls: 'optional - boolean connect to target socket using TLS (defaults to false)'
+          )
+
+          #{self}.check_port_availability(
+            port: 'required - target port',
+            server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
+            protocol: 'optional - :tcp || :udp (defaults to tcp)'
           )
 
           #{self}.listen(

@@ -102,7 +102,10 @@ mutex = Mutex.new
 slice = max_threads * 3
 File.open(fuzz_file, "rb:#{char_encoding}") do |file|
   file.each_slice(slice) do |payload_batch_arr|
-    PWN::Plugins::ThreadPool.fill(enumerable_array: payload_batch_arr, max_threads: max_threads) do |payload|
+    PWN::Plugins::ThreadPool.fill(
+      enumerable_array: payload_batch_arr,
+      max_threads: max_threads
+    ) do |payload|
       socket_fuzz_results_arr = PWN::Plugins::Fuzz.socket(
         target: target,
         port: port,

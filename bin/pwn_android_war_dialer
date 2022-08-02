@@ -135,7 +135,8 @@ begin
       '-b',
       '#000000',
       '-F',
-      "#{wav_file} #{wav_file}-waveform.png"
+      wav_file,
+      "#{wav_file}-waveform.png"
     )
     puts 'Complete.'
     puts end_of_color
