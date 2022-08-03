@@ -112,7 +112,7 @@ module PWN
           section: 'MALICIOUS CODE PROTECTION',
           nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SI-3',
           cwe_id: '79',
-          uri: 'https://cwe.mitre.org/data/definitions/79.html'
+          cwe_uri: 'https://cwe.mitre.org/data/definitions/79.html'
         }
       rescue StandardError => e
         raise e
