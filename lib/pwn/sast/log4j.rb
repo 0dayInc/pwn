@@ -22,7 +22,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && File.extname(entry) == '.java'
+          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && File.extname(entry) == '.java' && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 

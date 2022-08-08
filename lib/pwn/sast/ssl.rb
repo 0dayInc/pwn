@@ -22,7 +22,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/
+          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/ && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
@@ -32,7 +32,14 @@ module PWN
               entry_beautified = true
             end
 
-            test_case_filter = "grep -Fin -e 'ssl' -e 'tls' -e 'trustAll' -e 'trustmanager' -e 'ssl_version' #{entry}"
+            test_case_filter = "
+              grep -Fin \
+              -e 'ssl' \
+              -e 'tls' \
+              -e 'trustAll' \
+              -e 'trustmanager' \
+              -e 'ssl_version' #{entry}
+            "
 
             str = `#{test_case_filter}`.to_s.scrub
 

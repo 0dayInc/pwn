@@ -23,7 +23,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.c' || File.extname(entry) == '.cpp' || File.extname(entry) == '.c++' || File.extname(entry) == '.cxx' || File.extname(entry) == '.h' || File.extname(entry) == '.hpp' || File.extname(entry) == '.h++' || File.extname(entry) == '.hh' || File.extname(entry) == '.hxx' || File.extname(entry) == '.ii' || File.extname(entry) == '.ixx' || File.extname(entry) == '.ipp' || File.extname(entry) == '.inl' || File.extname(entry) == '.txx' || File.extname(entry) == '.tpp' || File.extname(entry) == '.tpl')
+          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.c' || File.extname(entry) == '.cpp' || File.extname(entry) == '.c++' || File.extname(entry) == '.cxx' || File.extname(entry) == '.h' || File.extname(entry) == '.hpp' || File.extname(entry) == '.h++' || File.extname(entry) == '.hh' || File.extname(entry) == '.hxx' || File.extname(entry) == '.ii' || File.extname(entry) == '.ixx' || File.extname(entry) == '.ipp' || File.extname(entry) == '.inl' || File.extname(entry) == '.txx' || File.extname(entry) == '.tpp' || File.extname(entry) == '.tpl') && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
