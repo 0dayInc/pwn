@@ -22,7 +22,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.scala' || File.extname(entry) == '.java')
+          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.scala' || File.extname(entry) == '.java') && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
@@ -33,7 +33,8 @@ module PWN
             end
 
             test_case_filter = %(
-              grep -in throw #{entry} | grep '"'
+              grep -in \
+              -e throw #{entry} | grep '"'
             )
 
             str = `#{test_case_filter}`.to_s.scrub

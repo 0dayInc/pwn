@@ -23,7 +23,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/
+          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/ && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
@@ -34,7 +34,8 @@ module PWN
             end
 
             test_case_filter = "
-              grep -n 'eval(' #{entry}
+              grep -n \
+              -e 'eval(' #{entry}
             "
 
             str = `#{test_case_filter}`.to_s.scrub

@@ -22,7 +22,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.py' || File.extname(entry) == '.pyc' || File.extname(entry) == '.pyo' || File.extname(entry) == '.pyd')
+          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.py' || File.extname(entry) == '.pyc' || File.extname(entry) == '.pyo' || File.extname(entry) == '.pyd') && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
