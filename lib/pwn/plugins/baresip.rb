@@ -291,6 +291,10 @@ module PWN
       # )
 
       public_class_method def self.apply_src_num_rules(opts = {})
+        config_root = opts[:config_root] if Dir.exist?(
+          opts[:config_root].to_s
+        )
+        config_root ||= "#{Dir.home}/.baresip"
         src_num_rules = opts[:src_num_rules]
         target_num = opts[:target_num]
 
@@ -347,8 +351,17 @@ module PWN
         src_num = target_num if src_num_rules_arr.include?(:self)
 
         # TODO: Update ~/.baresip/accounts to apply source number
-        # config_root = baresip_obj[:config_root]
-        # config = "#{config_root}/config"
+        sip_accounts_path = "#{config_root}/accounts"
+        updated_account_content = ''
+        File.read(sip_accounts_path).each_line do |line|
+          this_account_line = line
+          if line.match?(/^<sip:.+@.+>/)
+            sip_account_to_keep = this_account_line.split('@').last
+            this_account_line = "<sip:#{src_num}@#{sip_account_to_keep}"
+          end
+          updated_account_content = "#{updated_account_content}#{this_account_line}"
+        end
+        File.write(sip_accounts_path, updated_account_content)
 
         src_num
       rescue StandardError => e
@@ -366,6 +379,12 @@ module PWN
 
       public_class_method def self.recon(opts = {})
         baresip_bin = opts[:baresip_bin]
+
+        config_root = opts[:config_root] if Dir.exist?(
+          opts[:config_root].to_s
+        )
+        config_root ||= "#{Dir.home}/.baresip"
+
         session_root = opts[:session_root]
         session_root ||= Dir.pwd
         target_file = opts[:target_file]
@@ -414,6 +433,7 @@ module PWN
           Dir.chdir(session_root)
 
           src_num = apply_src_num_rules(
+            config_root: config_root,
             target_num: target_num,
             src_num_rules: src_num_rules
           )
