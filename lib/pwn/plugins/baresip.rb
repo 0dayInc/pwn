@@ -311,25 +311,25 @@ module PWN
           country = ''
         when 11
           # 1 digit country+area+prefix+suffix
-          country = format('%0.1s', Random.rand(1..9))
+          country = format('%0.1d', Random.rand(1..9))
           country = target_num.to_s.chars.first if src_num_rules_arr.include?(
             :same_country
           )
         when 12
           # 2 digit country+area+prefix+suffix
-          country = format('%0.2s', Random.rand(1..99))
+          country = format('%0.2d', Random.rand(1..99))
           country = target_num.to_s.chars[0..1].join if src_num_rules_arr.include?(
             :same_country
           )
         when 13
           # 3 digit country+area+prefix+suffix
-          country = format('%0.3s', Random.rand(1..999))
+          country = format('%0.3d', Random.rand(1..999))
           country = target_num.to_s.chars[0..2].join if src_num_rules_arr.include?(
             :same_country
           )
         when 14
           # 4 digit country+area+prefix+suffix
-          country = format('%0.4s', Random.rand(1..9999))
+          country = format('%0.4d', Random.rand(1..9999))
           country = target_num.to_s.chars[0..3].join if src_num_rules_arr.include?(
             :same_country
           )
@@ -337,16 +337,18 @@ module PWN
           raise "Target # should be 10-14 digits. Length is: #{target_num.to_s.length}"
         end
 
-        area = format('%0.3s', Random.rand(200..999))
+        # > 799 for prefix leads to call issues when calling 800 numbers.
+        # area = format('%0.3s', Random.rand(200..999))
+        area = format('%0.3d', Random.rand(200..999))
         area = target_num.to_s.chars[-10..-8].join if src_num_rules_arr.include?(
           :same_area
         )
 
-        prefix = format('%0.3s', Random.rand(200..999))
+        prefix = format('%0.3d', Random.rand(200..999))
         prefix = target_num.to_s.chars[-7..-5].join if src_num_rules_arr.include?(
           :same_prefix
         )
-        suffix = format('%0.4s', Random.rand(0..9999))
+        suffix = format('%0.4d', Random.rand(0..9999))
         src_num = "#{country}#{area}#{prefix}#{suffix}"
         src_num = target_num if src_num_rules_arr.include?(:self)
 
