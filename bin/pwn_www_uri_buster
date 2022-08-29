@@ -28,7 +28,7 @@ OptionParser.new do |options|
     opts[:wordlist] = w
   end
 
-  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<format("%Y-%m-%d_%H-%M-%S", Time.now)>")>') do |n|
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<Time.now.strftime("%Y-%m-%d_%H-%M-%S")>")>') do |n|
     opts[:report_name] = n
   end
 
@@ -58,7 +58,7 @@ begin
   dir_path ||= '.'
 
   report_name = opts[:report_name]
-  report_name ||= "#{parsed_target_url.host}-#{format('%Y-%m-%d_%H-%M-%S', Time.now)}"
+  report_name ||= "#{parsed_target_url.host}-#{Time.now.strftime('%Y-%m-%d_%H-%M-%S')}"
 
   start_reporting_server = opts[:start_reporting_server]
 
@@ -95,7 +95,7 @@ begin
         )
 
         rest_client_resp_hash = {
-          request_timestamp: format('%Y-%m-%d_%H-%M-%S', Time.now),
+          request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
           http_uri: http_uri,
           http_method: http_method,
           http_resp_code: response.code,
@@ -106,7 +106,7 @@ begin
              RestClient::NotFound => e
 
         rest_client_resp_hash = {
-          request_timestamp: format('%Y-%m-%d_%H-%M-%S', Time.now),
+          request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
           http_uri: http_uri,
           http_method: http_method,
           http_resp_code: e.response.code,
