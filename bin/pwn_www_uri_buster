@@ -44,6 +44,9 @@ if opts.empty?
 end
 
 begin
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
+  $stdout.sync = true
+
   target_url = opts[:target_url]
   parsed_target_url = URI.parse(target_url)
 
