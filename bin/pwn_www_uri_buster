@@ -44,8 +44,6 @@ end
 
 begin
   target_url = opts[:target_url]
-  raise "ERROR: Invalid URL #{target_url}\nBe sure to include URL scheme (e.g. http://)" if target_url =~ URI::DEFAULT_PARSER.make_regexp.nil?
-
   parsed_target_url = URI.parse(target_url)
 
   wordlist = opts[:wordlist]
@@ -88,7 +86,7 @@ begin
         rest_client_resp_hash = {}
         http_uri = "#{target_url}/#{wordlist_line}"
         rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
-        response = rest_client_request.execute(
+        response = rest_client.execute(
           method: http_method,
           url: http_uri,
           verify_ssl: false
