@@ -28,7 +28,7 @@ OptionParser.new do |options|
     opts[:wordlist] = w
   end
 
-  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<Time.now.strftime("%Y-%m-%d_%H-%M-%S")>")>') do |n|
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<File.basename(wordlist)>-<Time.now.strftime("%Y-%m-%d_%H-%M-%S")>")>') do |n|
     opts[:report_name] = n
   end
 
@@ -56,7 +56,7 @@ begin
   dir_path ||= '.'
 
   report_name = opts[:report_name]
-  report_name ||= "#{parsed_target_url.host}-#{Time.now.strftime('%Y-%m-%d_%H-%M-%S')}"
+  report_name ||= "#{parsed_target_url.host}-#{File.basename(wordlist)}-#{Time.now.strftime('%Y-%m-%d_%H-%M-%S')}"
 
   start_reporting_server = opts[:start_reporting_server]
 
