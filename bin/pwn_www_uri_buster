@@ -44,6 +44,9 @@ if opts.empty?
 end
 
 begin
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
+  $stdout.sync = true
+
   target_url = opts[:target_url]
   parsed_target_url = URI.parse(target_url)
 
@@ -102,6 +105,7 @@ begin
         }
       rescue RestClient::Forbidden,
              RestClient::BadRequest,
+             RestClient::MethodNotAllowed,
              RestClient::NotFound => e
 
         rest_client_resp_hash = {
@@ -112,6 +116,8 @@ begin
           http_resp: e.response.body[0..300]
         }
         next
+      rescue RestClient::TooManyRequests
+        sleep 60
       ensure
         mutex.synchronize do
           results_hash[:data].push(rest_client_resp_hash)
