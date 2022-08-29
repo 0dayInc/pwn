@@ -82,12 +82,11 @@ begin
 
     next if wordlist_line.match?(/^#/)
 
-    http_uri = "#{target_url}/#{CGI.escape(wordlist_line)}"
-
     http_methods = %i[GET HEAD POST PUT DELETE OPTIONS TRACE]
     http_methods.each do |http_method|
       begin
         print '.'
+        http_uri = "#{target_url}/#{wordlist_line}"
         rest_client_resp_hash = {}
         rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
         response = rest_client.execute(
@@ -116,6 +115,14 @@ begin
           http_resp: e.response.body[0..300]
         }
         next
+      rescue URI::InvalidURIError
+        url_encoded_wordlist_arr = []
+        wordlist_line.split('/').each do |path|
+          url_encoded_wordlist_arr.push(CGI.escape(path))
+        end
+        wordlist_line = url_encoded_wordlist_arr.join('/')
+
+        retry
       rescue RestClient::TooManyRequests
         sleep 60
       ensure
