@@ -28,7 +28,7 @@ OptionParser.new do |options|
     opts[:wordlist] = w
   end
 
-  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<format("%Y-%m-%d_%H-%M-%S", Time.now)>")>') do |n|
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<Time.now.strftime("%Y-%m-%d_%H-%M-%S")>")>') do |n|
     opts[:report_name] = n
   end
 
@@ -44,8 +44,6 @@ end
 
 begin
   target_url = opts[:target_url]
-  raise "ERROR: Invalid URL #{target_url}\nBe sure to include URL scheme (e.g. http://)" if target_url =~ URI::DEFAULT_PARSER.make_regexp.nil?
-
   parsed_target_url = URI.parse(target_url)
 
   wordlist = opts[:wordlist]
@@ -58,7 +56,7 @@ begin
   dir_path ||= '.'
 
   report_name = opts[:report_name]
-  report_name ||= "#{parsed_target_url.host}-#{format('%Y-%m-%d_%H-%M-%S', Time.now)}"
+  report_name ||= "#{parsed_target_url.host}-#{Time.now.strftime('%Y-%m-%d_%H-%M-%S')}"
 
   start_reporting_server = opts[:start_reporting_server]
 
@@ -88,14 +86,14 @@ begin
         rest_client_resp_hash = {}
         http_uri = "#{target_url}/#{wordlist_line}"
         rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
-        response = rest_client_request.execute(
+        response = rest_client.execute(
           method: http_method,
           url: http_uri,
           verify_ssl: false
         )
 
         rest_client_resp_hash = {
-          request_timestamp: format('%Y-%m-%d_%H-%M-%S', Time.now),
+          request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
           http_uri: http_uri,
           http_method: http_method,
           http_resp_code: response.code,
@@ -106,7 +104,7 @@ begin
              RestClient::NotFound => e
 
         rest_client_resp_hash = {
-          request_timestamp: format('%Y-%m-%d_%H-%M-%S', Time.now),
+          request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
           http_uri: http_uri,
           http_method: http_method,
           http_resp_code: e.response.code,
