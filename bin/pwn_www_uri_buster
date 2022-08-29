@@ -97,7 +97,7 @@ begin
           http_uri: http_uri,
           http_method: http_method,
           http_resp_code: response.code,
-          http_resp: response.body
+          http_resp: response.body[0..300]
         }
       rescue RestClient::Forbidden,
              RestClient::BadRequest,
@@ -108,7 +108,7 @@ begin
           http_uri: http_uri,
           http_method: http_method,
           http_resp_code: e.response.code,
-          http_resp: e.response.body
+          http_resp: e.response.body[0..300]
         }
         next
       ensure
