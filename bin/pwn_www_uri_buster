@@ -1,0 +1,156 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'pwn'
+require 'optparse'
+require 'uri'
+require 'htmlentities'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tURL', '--target-url=URL', '<Required - Target URL)>') do |t|
+    opts[:target_url] = t
+  end
+
+  options.on('-wFILE', '--word-list=FILE', '<Required - Wordlist File to Use>') do |w|
+    opts[:wordlist] = w
+  end
+
+  options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # HTTP Requests to Run Simultaneously (Default 100)>') do |t|
+    opts[:max_threads] = t
+  end
+
+  options.on('-dDIR', '--dir-path=DIR', '<Optional - Report Output Directory (Defaults to ".")>') do |w|
+    opts[:wordlist] = w
+  end
+
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<TARGET_URL_HOST>-<format("%Y-%m-%d_%H-%M-%S", Time.now)>")>') do |n|
+    opts[:report_name] = n
+  end
+
+  options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
+    opts[:start_reporting_server] = s
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  target_url = opts[:target_url]
+  raise "ERROR: Invalid URL #{target_url}\nBe sure to include URL scheme (e.g. http://)" if target_url =~ URI::DEFAULT_PARSER.make_regexp.nil?
+
+  parsed_target_url = URI.parse(target_url)
+
+  wordlist = opts[:wordlist]
+  raise "ERROR: #{wordlist} Does Not Exist." unless File.exist?(wordlist)
+
+  max_threads = opts[:max_threads]
+  max_threads ||= 100
+
+  dir_path = opts[:dir_path]
+  dir_path ||= '.'
+
+  report_name = opts[:report_name]
+  report_name ||= "#{parsed_target_url.host}-#{format('%Y-%m-%d_%H-%M-%S', Time.now)}"
+
+  start_reporting_server = opts[:start_reporting_server]
+
+  mutex = Mutex.new
+
+  results_hash = {
+    report_name: HTMLEntities.new.encode(
+      report_name.to_s.scrub.strip.chomp
+    ),
+    data: []
+  }
+
+  wordlist_arr = File.readlines(wordlist)
+  PWN::Plugins::ThreadPool.fill(
+    enumerable_array: wordlist_arr,
+    max_threads: max_threads
+  ) do |this_wl_line|
+    wordlist_line = this_wl_line.to_s.scrub.strip.chomp
+
+    next if wordlist_line.match?(/^#/)
+
+    http_methods = %i[GET HEAD POST PUT DELETE CONNECT OPTIONS TRACE]
+
+    http_methods.each do |http_method|
+      begin
+        print '.'
+        rest_client_resp_hash = {}
+        http_uri = "#{target_url}/#{wordlist_line}"
+        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        response = rest_client_request.execute(
+          method: http_method,
+          url: http_uri,
+          verify_ssl: false
+        )
+
+        rest_client_resp_hash = {
+          request_timestamp: format('%Y-%m-%d_%H-%M-%S', Time.now),
+          http_uri: http_uri,
+          http_method: http_method,
+          http_resp_code: response.code,
+          http_resp: response.body
+        }
+      rescue RestClient::Forbidden,
+             RestClient::BadRequest,
+             RestClient::NotFound => e
+
+        rest_client_resp_hash = {
+          request_timestamp: format('%Y-%m-%d_%H-%M-%S', Time.now),
+          http_uri: http_uri,
+          http_method: http_method,
+          http_resp_code: e.response.code,
+          http_resp: e.response.body
+        }
+        next
+      ensure
+        mutex.synchronize do
+          results_hash[:data].push(rest_client_resp_hash)
+        end
+      end
+    end
+  end
+
+  # Generate HTML Report
+  print "#{$PROGRAM_NAME} Generating Report..."
+  PWN::Reports::URIBuster.generate(
+    dir_path: dir_path,
+    results_hash: results_hash
+  )
+  puts 'complete.'
+
+  # Start Simple HTTP Server (If Requested)
+  if start_reporting_server
+    listen_port = Random.rand(1_025..65_535).to_s
+
+    if pwn_provider == 'docker'
+      listen_ip = '0.0.0.0'
+    else
+      listen_ip = '127.0.0.1'
+    end
+
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_www_uri_buster.html"
+    Dir.chdir(dir_path)
+    system(
+      'pwn_simple_http_server',
+      '-i',
+      listen_ip,
+      '-p',
+      listen_port
+    )
+  end
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+rescue StandardError => e
+  raise e
+end

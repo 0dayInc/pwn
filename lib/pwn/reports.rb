@@ -11,6 +11,7 @@ module PWN
     autoload :Fuzz, 'pwn/reports/fuzz'
     autoload :Phone, 'pwn/reports/phone'
     autoload :SAST, 'pwn/reports/sast'
+    autoload :URIBuster, 'pwn/reports/uri_buster'
     # autoload :XML, 'pwn/reports/xml'
 
     # Display a List of Every PWN Report

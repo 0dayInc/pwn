@@ -11,10 +11,12 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-dDIR', '--dir-path=DIR', '<Required - Report Output Directory>') { |d| opts[:dir_path] = d }
-
   options.on('-uGITURI', '--uri-source-root=GITURI', '<Required - HTTP URI of Git Repo Scanned e.g. https://github.com/0dayInc/pwn/tree/master>') do |u|
     opts[:uri_source_root] = u
+  end
+
+  options.on('-dDIR', '--dir-path=DIR', '<Optional - Report Output Directory (Defaults to ".")>') do |d|
+    opts[:dir_path] = d
   end
 
   options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # Test Cases to Run Simultaneously (Default 25)>') do |t|
@@ -53,12 +55,15 @@ begin
   dir_path ||= '.'
 
   uri_source_root = opts[:uri_source_root].to_s.scrub
+
   max_threads = opts[:max_threads]
+  max_threads ||= 25
+
   chosen_test_cases = opts[:chosen_test_cases]
   list_test_cases = opts[:list_test_cases]
 
-  report_name = File.basename(Dir.pwd)
-  report_name = opts[:report_name] unless opts[:report_name].nil?
+  report_name = opts[:report_name]
+  report_name ||= File.basename(Dir.pwd)
 
   start_reporting_server = opts[:start_reporting_server]
 
