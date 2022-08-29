@@ -78,13 +78,13 @@ begin
 
     next if wordlist_line.match?(/^#/)
 
-    http_methods = %i[GET HEAD POST PUT DELETE OPTIONS TRACE]
+    http_uri = "#{target_url}/#{CGI.escape(wordlist_line)}"
 
+    http_methods = %i[GET HEAD POST PUT DELETE OPTIONS TRACE]
     http_methods.each do |http_method|
       begin
         print '.'
         rest_client_resp_hash = {}
-        http_uri = "#{target_url}/#{wordlist_line}"
         rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
         response = rest_client.execute(
           method: http_method,
