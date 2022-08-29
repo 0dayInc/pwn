@@ -12,7 +12,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-tURL', '--target-url=URL', '<Required - Target URL)>') do |t|
+  options.on('-uURL', '--target-url=URL', '<Required - Target URL)>') do |t|
     opts[:target_url] = t
   end
 
