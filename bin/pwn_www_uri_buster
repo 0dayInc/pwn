@@ -25,6 +25,10 @@ OptionParser.new do |options|
     opts[:http_request_headers] = h
   end
 
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Proxy SCHEME://ADDRESS:PORT>') do |p|
+    opts[:proxy] = p
+  end
+
   options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # HTTP Requests to Run Simultaneously (Default 100)>') do |t|
     opts[:max_threads] = t
   end
@@ -58,6 +62,8 @@ begin
   raise "ERROR: #{wordlist} Does Not Exist." unless File.exist?(wordlist)
 
   http_request_headers = opts[:http_request_headers]
+
+  proxy = opts[:proxy]
 
   max_threads = opts[:max_threads]
   max_threads ||= 100
@@ -95,7 +101,16 @@ begin
         print '.'
         http_uri = "#{target_url}/#{wordlist_line}"
         rest_client_resp_hash = {}
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        if proxy
+          rest_client = PWN::Plugins::TransparentBrowser.open(
+            browser_type: :rest,
+            proxy: proxy
+        )::Request
+        else
+          rest_client = PWN::Plugins::TransparentBrowser.open(
+            browser_type: :rest
+          )::Request
+        end
 
         headers = nil
         if http_request_headers
