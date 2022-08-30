@@ -88,6 +88,7 @@ begin
 
     next if wordlist_line.match?(/^#/)
 
+    # http_methods = %i[CONNECT DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
     http_methods = %i[GET HEAD POST PUT DELETE OPTIONS TRACE]
     http_methods.each do |http_method|
       begin
@@ -118,10 +119,11 @@ begin
           http_resp_code: response.code,
           http_resp: response.body[0..300]
         }
-      rescue RestClient::Forbidden,
-             RestClient::BadRequest,
+      rescue RestClient::BadRequest,
+             RestClient::Forbidden,
              RestClient::MethodNotAllowed,
-             RestClient::NotFound => e
+             RestClient::NotFound,
+             RestClient::ServiceUnavailable => e
 
         rest_client_resp_hash = {
           request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
