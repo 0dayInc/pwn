@@ -121,6 +121,7 @@ begin
         }
       rescue RestClient::BadRequest,
              RestClient::Forbidden,
+             RestClient::GatewayTimeout,
              RestClient::MethodNotAllowed,
              RestClient::NotFound,
              RestClient::ServiceUnavailable => e
