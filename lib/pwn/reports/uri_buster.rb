@@ -98,7 +98,8 @@ module PWN
               <a class="toggle-vis" data-column="2" href="#">URI</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">HTTP Method</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="4" href="#">HTTP Response Code</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="5" href="#">HTTP Response</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="5" href="#">HTTP Response Length</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">HTTP Response</a>&nbsp;|&nbsp;
             </div>
             <br /><br />
 
@@ -111,7 +112,8 @@ module PWN
                     <th>URI</th>
                     <th>HTTP Method</th>
                     <th>HTTP Response Code</th>
-                    <th>HTTP Response</th>
+                    <th>HTTP Response Length</th>
+                    <th>HTTP Response (300 bytes)</th>
                   </tr>
                 </thead>
                 <!-- DataTables <tbody> -->
@@ -163,7 +165,9 @@ module PWN
                     },
                     {
                       "data": "http_uri",
-                      "render": $.fn.dataTable.render.text()
+                      "render": function (data, type, row, meta) {
+                        return '<a href="' + data + '" target="_blank">' + data + '</a>';
+                      }
                     },
                     {
                       "data": "http_method",
@@ -171,6 +175,10 @@ module PWN
                     },
                     {
                       "data": "http_resp_code",
+                      "render": $.fn.dataTable.render.text()
+                    },
+                    {
+                      "data": "http_resp_length",
                       "render": $.fn.dataTable.render.text()
                     },
                     {
