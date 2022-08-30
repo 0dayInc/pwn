@@ -119,14 +119,7 @@ begin
           http_resp_code: response.code,
           http_resp: response.body[0..300]
         }
-      rescue RestClient::BadRequest,
-             RestClient::Forbidden,
-             RestClient::GatewayTimeout,
-             RestClient::InternalServerError,
-             RestClient::MethodNotAllowed,
-             RestClient::NotFound,
-             RestClient::ServiceUnavailable => e
-
+      rescue RestClient::ExceptionWithResponse => e
         rest_client_resp_hash = {
           request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
           http_uri: http_uri,
