@@ -122,6 +122,7 @@ begin
       rescue RestClient::BadRequest,
              RestClient::Forbidden,
              RestClient::GatewayTimeout,
+             RestClient::InternalServerError,
              RestClient::MethodNotAllowed,
              RestClient::NotFound,
              RestClient::ServiceUnavailable => e
