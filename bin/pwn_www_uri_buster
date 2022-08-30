@@ -89,7 +89,7 @@ begin
     next if wordlist_line.match?(/^#/)
 
     # http_methods = %i[CONNECT DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
-    http_methods = %i[GET HEAD POST PUT DELETE OPTIONS TRACE]
+    http_methods = %i[DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
     http_methods.each do |http_method|
       begin
         print '.'
