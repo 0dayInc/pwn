@@ -135,7 +135,8 @@ begin
           http_resp_length: response.body.length,
           http_resp: "#{response.body[0..300]}..."
         }
-      rescue RestClient::ExceptionWithResponse => e
+      rescue RestClient::ExceptionWithResponse,
+             RestClient::ServerBrokeConnection => e
         rest_client_resp_hash = {
           request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
           http_uri: http_uri,
