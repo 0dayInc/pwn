@@ -4,13 +4,13 @@ require 'socket'
 
 module PWN
   module SAST
-    # SAST Module used to identify loose comparisons
-    # (i.e. == instead of ===) within PHP source code.
-    module PHPTypeJuggling
+    # SAST Module used to identify HTTP input
+    # mechanisms that exist in PHP code (e.g. $_REQUEST, $_GET, etc.)
+    module PHPInputMechanisms
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
-      # PWN::SAST::PHPTypeJuggling.scan(
+      # PWN::SAST::PHPInputMechanisms.scan(
       #   dir_path: 'optional path to dir defaults to .'
       #   git_repo_root_uri: 'optional http uri of git repo scanned'
       # )
@@ -34,8 +34,13 @@ module PWN
 
             test_case_filter = "
               grep -Fn \
-              -e '==' #{entry} \ |
-              grep -v '==='
+              -e '$_COOKIE' \
+              -e '$_FILES' \
+              -e '$_GET' \
+              -e '$_POST' \
+              -e '$_REQUEST' \
+              -e '$_SERVER' \
+              -e '$_SESSION' #{entry}
             "
 
             str = `#{test_case_filter}`.to_s.scrub
