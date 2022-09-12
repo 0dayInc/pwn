@@ -72,8 +72,8 @@ begin
     test_cases = chosen_test_cases.to_s.scrub.chomp.strip.delete("\s").split(',').map(&:to_sym)
   else
     test_cases = %i[
-      ApacheFileSystemUtilAPI
       AMQPConnectAsGuest
+      ApacheFileSystemUtilAPI
       AWS
       BannedFunctionCallsC
       Base64
@@ -89,12 +89,13 @@ begin
       Factory
       HTTPAuthorizationHeader
       InnerHTML
+      Keystore
       LocationHash
       Log4J
       Logger
-      Keystore
       OuterHTML
       Password
+      PHPTypeJuggling
       PomVersion
       Port
       PrivateKey
@@ -109,6 +110,7 @@ begin
       ThrowErrors
       Token
       Version
+      WindowLocationHash
     ]
   end
 
