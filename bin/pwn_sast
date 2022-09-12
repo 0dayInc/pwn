@@ -95,6 +95,7 @@ begin
       Logger
       OuterHTML
       Password
+      PHPInputMechanisms
       PHPTypeJuggling
       PomVersion
       Port
