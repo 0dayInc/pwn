@@ -29,6 +29,7 @@ module PWN
     autoload :Logger, 'pwn/sast/logger'
     autoload :OuterHTML, 'pwn/sast/outer_html'
     autoload :Password, 'pwn/sast/password'
+    autoload :PHPTypeJuggling, 'pwn/sast/php_type_juggling'
     autoload :PomVersion, 'pwn/sast/pom_version'
     autoload :Port, 'pwn/sast/port'
     autoload :PrivateKey, 'pwn/sast/private_key'
