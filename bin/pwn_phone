@@ -22,7 +22,7 @@ OptionParser.new do |options|
     opts[:seconds_to_record] = s
   end
 
-  options.on('-TTHREADS', '--max-threads=THREADS', '<Optional # Calls to Run Simultaneously (Defaults to 3 - update "call_max_calls" in ~/.baresip/config if > 4)>') do |t|
+  options.on('-TTHREADS', '--max-threads=THREADS', '<Optional # Calls to Run Simultaneously (Defaults to 3)>') do |t|
     opts[:max_threads] = t
   end
 

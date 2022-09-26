@@ -17,7 +17,7 @@ module PWN
       private_class_method def self.baresip_http_call(opts = {})
         baresip_obj = opts[:baresip_obj]
         cmd = opts[:cmd]
-        http_listen_ip_port = baresip_obj[:http_listen_ip_port]
+        http_listen_ip_port = opts[:http_listen_ip_port]
         baresip_url = "http://#{http_listen_ip_port}"
 
         max_conn_attempts = 30
@@ -37,7 +37,7 @@ module PWN
           )
 
           Nokogiri::HTML.parse(response)
-        rescue Errno::ECONNREFUSED
+        rescue Errno::ECONNREFUSED => e
           raise e if conn_attempt > max_conn_attempts
 
           sleep 1
@@ -58,6 +58,7 @@ module PWN
       #   baresip_bin: 'Optional path of baresip binary (Defaults to /usr/bin/baresip)',
       #   config_root: 'Optional dir of baresip config (Defaults to ~/.baresip)',
       #   session_root: 'Optional dir of baresip session (Defaults to Dir.pwd)',
+      #   screenlog_path: 'Optional path of screenlog file (Defaults to screenlog.txt)',
       #   screen_session: 'Optional name of screen session (Defaults baresip)'
       # )
 
@@ -68,8 +69,6 @@ module PWN
           opts[:baresip_bin].to_s
         )
         baresip_bin ||= '/usr/bin/baresip'
-
-        baresip_obj = {}
 
         session_root = opts[:session_root] if Dir.exist?(opts[:session_root].to_s)
 
@@ -84,7 +83,34 @@ module PWN
 
         raise "no http_listen value found in #{config}." if http_list_entry.empty?
 
-        http_listen_ip_port = http_list_entry.last.split.grep(/:/).last
+        # Update http_listen value in respective config with random available port
+        random_port = -1
+        port_in_use = true
+        while port_in_use
+          random_port = Random.rand(1024..65_535)
+          port_in_use = PWN::Plugins::Sock.check_port_in_use(port: random_port)
+        end
+        http_listen_ip_port = "127.0.0.1:#{random_port}"
+
+        updated_config_content = ''
+        File.read(config).each_line do |line|
+          this_config_line = line
+          # Only allow one call per thread.
+          this_config_line = "call_max_calls 1\n" if line.match?(/^call_max_calls\s.+$/)
+
+          # One random HTTP listener / thread
+          if line.match?(/^http_listen\s.+$/)
+            this_config_line = "http_listen #{http_listen_ip_port}\n"
+          end
+          updated_config_content = "#{updated_config_content}#{this_config_line}"
+        end
+        File.write(config, updated_config_content)
+
+        baresip_obj = {}
+
+        screenlog_path = opts[:screenlog_path]
+        screenlog_path ||= "#{session_root}/screenlog.txt"
+        baresip_obj[:screenlog_path] = screenlog_path
 
         screen_session = opts[:screen_session]
         screen_session ||= 'baresip'
@@ -94,9 +120,6 @@ module PWN
         baresip_obj[:session_root] = session_root
         baresip_obj[:screen_session] = screen_session
 
-        screenlog_file = 'screenlog.txt'
-        baresip_obj[:screenlog_file] = screenlog_file
-
         # Prefer running baresip in detached screen vs --daemon mode
         # Since sndfile doesn't produce .wav files in --daemon mode
         system(
@@ -105,7 +128,7 @@ module PWN
           'xterm',
           '-L',
           '-Logfile',
-          screenlog_file,
+          screenlog_path,
           '-S',
           screen_session,
           '-d',
@@ -116,7 +139,8 @@ module PWN
           '-e',
           '/insmod httpd',
           '-e',
-          '/insmod sndfile'
+          '/insmod sndfile',
+          '-v'
         )
 
         baresip_obj[:session_thread] = init_session_thread(
@@ -155,17 +179,15 @@ module PWN
         baresip_obj = opts[:baresip_obj]
 
         session_root = baresip_obj[:session_root]
-        screenlog_file = baresip_obj[:screenlog_file]
-
-        screenlog = "#{session_root}/#{screenlog_file}"
+        screenlog_path = baresip_obj[:screenlog_path]
 
         # Spin up a baresip_obj session_thread
         Thread.new do
           loop do
-            next unless File.exist?(screenlog)
+            next unless File.exist?(screenlog_path)
 
-            # Continuously consume contents of screenlog.0
-            @session_data = File.readlines(screenlog)
+            # Continuously consume contents of screenlog_path
+            @session_data = File.readlines(screenlog_path)
             @session_data.delete_if do |line|
               line.include?('ua: using best effort AF: af=AF_INET')
             end
@@ -203,10 +225,12 @@ module PWN
 
       public_class_method def self.baresip_exec(opts = {})
         baresip_obj = opts[:baresip_obj]
+        http_listen_ip_port = baresip_obj[:http_listen_ip_port]
         cmd = opts[:cmd]
 
         baresip_http_call(
           baresip_obj: baresip_obj,
+          http_listen_ip_port: http_listen_ip_port,
           cmd: cmd
         )
       rescue StandardError => e
@@ -227,15 +251,11 @@ module PWN
 
         session_thread.terminate
 
-        system(
-          'screen',
-          '-X',
-          '-S',
-          screen_session,
-          'quit'
+        puts "STOPPING #{baresip_obj[:screen_session]}"
+        cmd_resp = baresip_exec(
+          baresip_obj: baresip_obj,
+          cmd: "/quit\r\n"
         )
-
-        baresip_obj = nil
       rescue StandardError => e
         raise e
       end
@@ -372,15 +392,11 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::BareSIP.recon(
-      #   baresip_obj: 'Required - baresip_obj returned from #start method',
-      #   target_num: 'Required - target destination to recon (i.e. phone number)',
-      #   src_num_rules: 'Optional - Comma-delimited list of rules for src_num format (i.e. self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])',
-      #   seconds_to_record: 'Optional - Seconds to Record (Defaults to 60)',
-      #   sox_bin: 'Optional - Path to SoX Binary, the Swiss Army knife of Audio (Defaults to /usr/bin/sox)'
       # )
 
-      public_class_method def self.recon(opts = {})
+      public_class_method def self.dial_target_in_list(opts = {})
         baresip_bin = opts[:baresip_bin]
+        target_num = opts[:target_num]
 
         config_root = opts[:config_root] if Dir.exist?(
           opts[:config_root].to_s
@@ -389,15 +405,16 @@ module PWN
 
         session_root = opts[:session_root]
         session_root ||= Dir.pwd
-        target_file = opts[:target_file]
+
         randomize = opts[:randomize]
         src_num_rules = opts[:src_num_rules]
-        max_threads = opts[:max_threads].to_i
-        max_threads = 3 if max_threads.zero?
+
         seconds_to_record = opts[:seconds_to_record].to_i
         seconds_to_record = 60 if seconds_to_record.zero?
+
         sox_bin = opts[:sox_bin] if File.exist?(opts[:sox_bin].to_s)
         sox_bin ||= '/usr/bin/sox'
+
         waveform_bin = 'waveform'
 
         # Intialize empty baresip obj for ensure block below
@@ -410,6 +427,203 @@ module PWN
         cayan = "\e[36m"
         end_of_color = "\e[0m"
 
+        config_root_for_target_num = "#{config_root}-#{target_num}"
+        FileUtils.cp_r(config_root, config_root_for_target_num)
+        src_num = apply_src_num_rules(
+          config_root: config_root_for_target_num,
+          target_num: target_num,
+          src_num_rules: src_num_rules
+        )
+
+        call_resp_hash = {}
+
+        call_started = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
+
+        call_resp_hash[:call_started] = call_started
+        call_resp_hash[:src_num] = src_num
+        call_resp_hash[:src_num_rules] = src_num_rules
+        call_resp_hash[:target_num] = target_num
+        target_num_root = "#{session_root}/#{target_num}-#{call_started}"
+        Dir.mkdir(target_num_root)
+
+        screenlog_path = "#{target_num_root}/screenlog-#{target_num}.txt"
+        screen_session = "#{File.basename($PROGRAM_NAME)}-#{target_num}"
+
+        # Start baresip in detached screen to support commands over HTTP
+        # and call recording to wav files
+        baresip_obj = start(
+          src_num: src_num,
+          baresip_bin: baresip_bin,
+          config_root: config_root_for_target_num,
+          session_root: session_root,
+          screenlog_path: screenlog_path,
+          screen_session: screen_session
+        )
+
+        # session_root = baresip_obj[:session_root]
+        config_root = baresip_obj[:config_root]
+        config = "#{config_root}/config"
+
+        puts "#{green}#{call_started} >>>#{end_of_color}"
+        puts "#{yellow}dialing #{target_num}#{end_of_color}"
+
+        cmd_resp = baresip_exec(
+          baresip_obj: baresip_obj,
+          cmd: "/dial #{target_num}\r\n"
+        )
+        puts "/dial #{target_num} RESP:"
+        puts cmd_resp.xpath('//pre').text
+
+        cmd_resp = baresip_exec(
+          baresip_obj: baresip_obj,
+          cmd: "/listcalls\r\n"
+        )
+        puts '/listcalls RESP:'
+        puts cmd_resp.xpath('//pre').text
+
+        puts red
+        # Conditions to hangup when less than seconds_to_record
+        terminated = 'terminated (duration:'
+        unavail = '503 Service Unavailable'
+        not_found = 'session closed: 404 Not Found'
+
+        reason = 'recording limit reached'
+        seconds_recorded = 0
+        seconds_to_record.downto(1).each do |countdown|
+          seconds_recorded += 1
+          print "#{seconds_to_record}s to record - remaining: #{format('%-9.9s', countdown)}"
+          print "\r"
+
+          if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
+            reason = 'call terminated by other party'
+            break
+          end
+
+          if dump_session_data.select { |s| s.include?(unavail) }.length.positive?
+            reason = 'SIP 503 (service unavailable)'
+            break
+          end
+
+          if dump_session_data.select { |s| s.include?(not_found) }.length.positive?
+            reason = 'SIP 404 (not found)'
+            break
+          end
+
+          sleep 1
+        end
+        call_resp_hash[:seconds_recorded] = seconds_recorded
+        puts end_of_color
+
+        call_stopped = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
+        puts "\n#{green}#{call_stopped} >>> #{reason} #{target_num}#{end_of_color}"
+        call_resp_hash[:call_stopped] = call_stopped
+        call_resp_hash[:reason] = reason
+        puts "call termination reason: #{reason}"
+
+        stop(baresip_obj: baresip_obj)
+        FileUtils.rm_rf(config_root_for_target_num)
+
+        absolute_recording = ''
+        relative_recording = ''
+        Dir.glob("#{session_root}/dump-*#{target_num}*.wav").each do |path|
+          wav = File.basename(path)
+          File.delete(path) if wav.match(/^dump-.+#{target_num}.+-enc\.wav$/)
+          next unless wav.match(/^dump-.+#{target_num}.+-dec.wav/)
+
+          FileUtils.mv(path, target_num_root)
+          absolute_recording = "#{target_num_root}/#{wav}"
+          relative_recording = "#{target_num}-#{call_started}/#{wav}"
+        end
+
+        screenlog_file = File.basename(screenlog_path)
+        relative_screenlog = "#{target_num}-#{call_started}/#{screenlog_file}"
+
+        call_resp_hash[:screenlog] = relative_screenlog
+        call_resp_hash[:recording] = '--'
+        call_resp_hash[:waveform] = '--'
+        call_resp_hash[:spectrogram] = '--'
+
+        unless absolute_recording.empty?
+          puts cayan
+
+          call_resp_hash[:recording] = relative_recording
+
+          absolute_spectrogram = "#{absolute_recording}-spectrogram.png"
+          relative_spectrogram = "#{relative_recording}-spectrogram.png"
+          print "Generating Audio Spectrogram for #{absolute_recording}..."
+          system(
+            sox_bin,
+            '--show-progress',
+            '--type',
+            'sndfile',
+            '--encoding',
+            'signed-integer',
+            '--bits',
+            '16',
+            '--endian',
+            'little',
+            '--channels',
+            '1',
+            '--rate',
+            '8000',
+            absolute_recording,
+            '-n',
+            'spectrogram',
+            '-o',
+            absolute_spectrogram,
+            '-d',
+            seconds_to_record.to_s
+          )
+          puts 'complete.'
+          call_resp_hash[:spectrogram] = relative_spectrogram
+
+          absolute_waveform = "#{absolute_recording}-waveform.png"
+          relative_waveform = "#{relative_recording}-waveform.png"
+          print "Generating Audio Waveform for #{absolute_recording}..."
+          system(
+            waveform_bin,
+            '--method',
+            'peak',
+            '--color',
+            '#FF0000',
+            '--background',
+            '#000000',
+            '--force',
+            absolute_recording,
+            absolute_waveform
+          )
+          puts 'complete.'
+          call_resp_hash[:waveform] = relative_waveform
+          puts end_of_color
+        end
+
+        call_resp_hash
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::BareSIP.recon(
+      # )
+
+      public_class_method def self.recon(opts = {})
+        baresip_bin = opts[:baresip_bin]
+        config_root = opts[:config_root] if Dir.exist?(
+          opts[:config_root].to_s
+        )
+        config_root ||= "#{Dir.home}/.baresip"
+        session_root = opts[:session_root]
+        session_root ||= Dir.pwd
+        target_file = opts[:target_file]
+        randomize = opts[:randomize]
+        src_num_rules = opts[:src_num_rules]
+        max_threads = opts[:max_threads].to_i
+        max_threads = 3 if max_threads.zero?
+        seconds_to_record = opts[:seconds_to_record].to_i
+        seconds_to_record = 60 if seconds_to_record.zero?
+        sox_bin = opts[:sox_bin] if File.exist?(opts[:sox_bin].to_s)
+        sox_bin ||= '/usr/bin/sox'
+
         target_range = parse_target_file(
           target_file: target_file,
           randomize: randomize
@@ -420,210 +634,34 @@ module PWN
           data: []
         }
 
-        # TODO: Multi-thread!
-        # mutex = Mutex.new
-        # PWN::Plugins::ThreadPool.fill(
-        #   enumerable_array: target_range,
-        #   max_threads: max_threads
-        # ) do |target_num|
-        target_range.each_with_index do |target_num, index|
-          call_count = index + 1
-          puts "Call #{call_count} of #{target_range.length}..."
+        # Change to session_root _before_ executing threads
+        Dir.chdir(session_root)
 
-          # Change to session_root _before_ starting to ensure
-          # wav files are stored in the proper location
-          Dir.chdir(session_root)
-
-          src_num = apply_src_num_rules(
-            config_root: config_root,
-            target_num: target_num,
-            src_num_rules: src_num_rules
-          )
-
-          call_info_hash = {}
-
-          call_started = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
-
-          call_info_hash[:call_started] = call_started
-          call_info_hash[:src_num] = src_num
-          call_info_hash[:src_num_rules] = src_num_rules
-          call_info_hash[:target_num] = target_num
-
-          target_num_root = "#{session_root}/#{target_num}-#{call_started}"
-
-          # TODO: Determine what to do w/ existing Directory
-          Dir.mkdir(target_num_root)
-          Dir.chdir(target_num_root)
-
-          # Start baresip in detached screen to support commands over HTTP
-          # and call recording to wav files
-          baresip_obj = start(
-            src_num: src_num,
+        # Multi-thread calls!
+        mutex = Mutex.new
+        PWN::Plugins::ThreadPool.fill(
+          enumerable_array: target_range,
+          max_threads: max_threads
+        ) do |target_num|
+          call_resp_hash = dial_target_in_list(
             baresip_bin: baresip_bin,
-            session_root: target_num_root,
-            screen_session: "#{File.basename($PROGRAM_NAME)}-#{target_num}"
+            target_num: target_num,
+            config_root: config_root,
+            session_root: session_root,
+            randomize: randomize,
+            src_num_rules: src_num_rules,
+            seconds_to_record: seconds_to_record,
+            sox_bin: sox_bin
           )
-
-          # session_root = baresip_obj[:session_root]
-          config_root = baresip_obj[:config_root]
-          config = "#{config_root}/config"
-
-          puts "#{green}#{call_started} >>>#{end_of_color}"
-          puts "#{yellow}dialing #{target_num}#{end_of_color}"
-
-          cmd_resp = baresip_exec(
-            baresip_obj: baresip_obj,
-            cmd: "/dial #{target_num}\r\n"
-          )
-          puts "/dial #{target_num} RESP:"
-          puts cmd_resp.xpath('//pre').text
-
-          cmd_resp = baresip_exec(
-            baresip_obj: baresip_obj,
-            cmd: "/listcalls\r\n"
-          )
-          puts '/listcalls RESP:'
-          puts cmd_resp.xpath('//pre').text
-
-          puts red
-          # Conditions to proceed less than seconds_to_record
-          terminated = 'terminated (duration:'
-          unavail = '503 Service Unavailable'
-          not_found = 'session closed: 404 Not Found'
-
-          reason = 'recording limit reached'
-          seconds_recorded = 0
-          seconds_to_record.downto(1).each do |countdown|
-            seconds_recorded += 1
-            print "#{seconds_to_record}s to record - remaining: #{format('%-9.9s', countdown)}"
-            print "\r"
-
-            if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
-              reason = 'call terminated by other party'
-              break
-            end
-
-            if dump_session_data.select { |s| s.include?(unavail) }.length.positive?
-              reason = 'SIP 503 (service unavailable)'
-              break
-            end
-
-            if dump_session_data.select { |s| s.include?(not_found) }.length.positive?
-              reason = 'SIP 404 (not found)'
-              break
-            end
-
-            sleep 1
-          end
-          call_info_hash[:seconds_recorded] = seconds_recorded
-          puts end_of_color
-
-          call_stopped = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
-          puts "\n#{green}#{call_stopped} >>> #{reason} #{target_num}#{end_of_color}"
-          call_info_hash[:call_stopped] = call_stopped
-          call_info_hash[:reason] = reason
-
-          recording = ''
-          # BUGFIX: Sometimes recordings aren't generated
-          # Perhaps because previous session wasn't stopped properly?
-          Dir.entries(target_num_root).each do |entry|
-            recording = entry if entry.match(/^dump-.+-dec.wav/)
-            File.delete(entry) if entry.match(/^dump-.+-enc\.wav$/) && File.exist?(entry)
-          end
-
-          call_info_hash[:recording] = '--'
-          call_info_hash[:waveform] = '--'
-          call_info_hash[:spectrogram] = '--'
-
-          unless recording.empty?
-            puts cayan
-
-            call_info_hash[:recording] = "#{target_num}-#{call_started}/#{recording}"
-
-            spectrogram = "#{recording}-spectrogram.png"
-            print "Generating Audio Spectrogram for #{recording}..."
-            system(
-              sox_bin,
-              '--show-progress',
-              '--type',
-              'sndfile',
-              '--encoding',
-              'signed-integer',
-              '--bits',
-              '16',
-              '--endian',
-              'little',
-              '--channels',
-              '1',
-              '--rate',
-              '8000',
-              recording,
-              '-n',
-              'spectrogram',
-              '-o',
-              spectrogram,
-              '-d',
-              seconds_to_record.to_s
-            )
-            puts 'complete.'
-            call_info_hash[:spectrogram] = "#{target_num}-#{call_started}/#{spectrogram}"
-
-            waveform = "#{recording}-waveform.png"
-            print "Generating Audio Waveform for #{recording}..."
-            system(
-              waveform_bin,
-              '--method',
-              'peak',
-              '--color',
-              '#FF0000',
-              '--background',
-              '#000000',
-              '--force',
-              recording,
-              waveform
-            )
-            puts 'complete.'
-            call_info_hash[:waveform] = "#{target_num}-#{call_started}/#{waveform}"
-            puts end_of_color
-          end
 
           # Push Call Results to results_hash[:data]
-          # mutex.synchronize do
-          #   results_hash[:data].push(call_info_hash)
-          # end
-          results_hash[:data].push(call_info_hash)
-
-          puts "call termination reason: #{reason}"
-          # Stop call to cd into next session root
-          stop(baresip_obj: baresip_obj)
-
-          seconds_to_delay_between_pool_of_calls = Random.rand(1..9)
-          seconds_to_delay_between_pool_of_calls.downto(1).each do |countdown|
-            print "#{red}ZZZ #{seconds_to_delay_between_pool_of_calls}s until next pool of calls: #{format('%-9.9s', countdown)}#{end_of_color}"
-            print "\r"
-            sleep 1
+          mutex.synchronize do
+            results_hash[:data].push(call_resp_hash)
           end
-          puts "\n#{green}waking up for next call \\o/#{end_of_color}"
-          puts "\n\n\n"
         end
         results_hash[:session_ended] = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
 
         results_hash
-      rescue StandardError => e
-        raise e
-      ensure
-        stop(baresip_obj: baresip_obj) unless baresip_obj.empty?
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::BareSIP.killall
-
-      public_class_method def self.killall
-        system(
-          'killall',
-          '-15',
-          'baresip'
-        )
       rescue StandardError => e
         raise e
       end
@@ -641,8 +679,11 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           baresip_obj = #{self}.start(
-            baresip_bin: 'Optional path of baresip binary (Defaults to /usr/bin/baresip)'
+            src_num: 'Optional source phone number displayed',
+            baresip_bin: 'Optional path of baresip binary (Defaults to /usr/bin/baresip)',
             config_root: 'Optional dir of baresip config (Defaults to ~/.baresip)',
+            session_root: 'Optional dir of baresip session (Defaults to Dir.pwd)',
+            screenlog_path: 'Optional path of screenlog file (Defaults to screenlog.txt)',
             screen_session: 'Optional name of screen session (Defaults baresip)'
           )
 
@@ -656,8 +697,6 @@ module PWN
           stopped_bool = #{self}.stop(
             screen_session: 'Required - screen session to stop'
           )
-
-          #{self}.killall
 
           #{self}.authors
         "

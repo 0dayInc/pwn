@@ -104,9 +104,10 @@ module PWN
               <a class="toggle-vis" data-column="5" href="#">Seconds Recorded</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="6" href="#">Call Stopped</a>
               <a class="toggle-vis" data-column="7" href="#">Reason</a>
-              <a class="toggle-vis" data-column="8" href="#">Recording</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="9" href="#">Spectrogram</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="10" href="#">Waveform</a>
+              <a class="toggle-vis" data-column="8" href="#">Screenlog</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="9" href="#">Recording</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="10" href="#">Spectrogram</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="11" href="#">Waveform</a>
             </div>
             <br /><br />
 
@@ -122,6 +123,7 @@ module PWN
                     <th>Seconds Recorded</th>
                     <th>Call Stopped</th>
                     <th>Reason Stopped</th>
+                    <th>Screenlog</th>
                     <th>Recording</th>
                     <th>Spectrogram</th>
                     <th>Waveform</th>
@@ -197,6 +199,13 @@ module PWN
                     {
                       "data": "reason",
                       "render": $.fn.dataTable.render.text()
+                    },
+                    {
+                      "data": "screenlog",
+                      "render": function (data, type, row, meta) {
+                        var screenlog = htmlEntityEncode(data);
+                        return '<a href="' + screenlog +'" target="_blank">' + screenlog + '</a>';
+                      }
                     },
                     {
                       "data": "recording",
