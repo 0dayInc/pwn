@@ -14,8 +14,11 @@ module PWN
       #
       # Example:
       # arr = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+      # mutex = Mutex.new
       # PWN::Plugins::ThreadPool.fill(enumerable_array: arr, max_threads: 9) do |integer|
-      #   puts integer
+      #   mutex.synchronize do
+      #     puts integer
+      #   end
       # end
 
       public_class_method def self.fill(opts = {})

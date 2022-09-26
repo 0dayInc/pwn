@@ -48,20 +48,20 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Sock.check_port_availability(
+      # PWN::Plugins::Sock.check_port_in_use(
       #   port: 'required - target port',
       #   server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
       #   protocol: 'optional - :tcp || :udp (defaults to tcp)'
       # )
 
-      public_class_method def self.check_port_availability(opts = {})
+      public_class_method def self.check_port_in_use(opts = {})
         server_ip = opts[:server_ip]
         server_ip ||= '127.0.0.1'
         port = opts[:port]
         protocol = opts[:protocol]
         protocol ||= :tcp
 
-        ct = 0.1
+        ct = 1
         s = Socket.tcp(server_ip, port, connect_timeout: ct) if protocol == :tcp
         s = Socket.udp(server_ip, port, connect_timeout: ct) if protocol == :udp
         s.close
