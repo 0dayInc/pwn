@@ -53,6 +53,7 @@ end
 
 def request_path(opts = {})
   target_url = opts[:target_url]
+  http_request_headers = opts[:http_request_headers]
   proxy = opts[:proxy]
   wordlist_line = opts[:wordlist_line]
 
