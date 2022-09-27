@@ -51,6 +51,76 @@ if opts.empty?
   exit 1
 end
 
+def request_path(opts = {})
+  target_url = opts[:target_url]
+  proxy = opts[:proxy]
+  wordlist_line = opts[:wordlist_line]
+
+  http_methods = %i[DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
+  http_methods.each do |http_method|
+    begin
+      print '.'
+      http_uri = "#{target_url}/#{wordlist_line}"
+      rest_client_resp_hash = {}
+      if proxy
+        rest_client = PWN::Plugins::TransparentBrowser.open(
+          browser_type: :rest,
+          proxy: proxy
+        )::Request
+      else
+        rest_client = PWN::Plugins::TransparentBrowser.open(
+          browser_type: :rest
+        )::Request
+      end
+
+      headers = nil
+      if http_request_headers
+        headers = JSON.parse(
+          http_request_headers,
+          symbolize_names: true
+        )
+      end
+
+      response = rest_client.execute(
+        method: http_method,
+        url: http_uri,
+        headers: headers,
+        verify_ssl: false
+      )
+
+      rest_client_resp_hash = {
+        request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
+        http_uri: http_uri,
+        http_method: http_method,
+        http_resp_code: response.code,
+        http_resp_length: response.body.length,
+        http_resp: "#{response.body[0..300]}..."
+      }
+    rescue RestClient::ExceptionWithResponse,
+           RestClient::ServerBrokeConnection => e
+      rest_client_resp_hash = {
+        request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
+        http_uri: http_uri,
+        http_method: http_method,
+        http_resp_code: e.response.code,
+        http_resp_length: e.response.body.length,
+        http_resp: "#{e.response.body[0..300]}..."
+      }
+      next
+    rescue URI::InvalidURIError
+      url_encoded_wordlist_arr = []
+      wordlist_line.split('/').each do |path|
+        url_encoded_wordlist_arr.push(CGI.escape(path))
+      end
+      wordlist_line = url_encoded_wordlist_arr.join('/')
+
+      retry
+    rescue RestClient::TooManyRequests
+      sleep 60
+    end
+  end
+end
+
 begin
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
   $stdout.sync = true
@@ -94,73 +164,15 @@ begin
 
     next if wordlist_line.match?(/^#/)
 
-    # http_methods = %i[CONNECT DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
-    http_methods = %i[DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
-    http_methods.each do |http_method|
-      begin
-        print '.'
-        http_uri = "#{target_url}/#{wordlist_line}"
-        rest_client_resp_hash = {}
-        if proxy
-          rest_client = PWN::Plugins::TransparentBrowser.open(
-            browser_type: :rest,
-            proxy: proxy
-          )::Request
-        else
-          rest_client = PWN::Plugins::TransparentBrowser.open(
-            browser_type: :rest
-          )::Request
-        end
+    rest_client_resp_hash = request_path(
+      target_url: target_url,
+      http_request_headers: http_request_headers,
+      proxy: proxy,
+      wordlist_line: wordlist_line
+    )
 
-        headers = nil
-        if http_request_headers
-          headers = JSON.parse(
-            http_request_headers,
-            symbolize_names: true
-          )
-        end
-
-        response = rest_client.execute(
-          method: http_method,
-          url: http_uri,
-          headers: headers,
-          verify_ssl: false
-        )
-
-        rest_client_resp_hash = {
-          request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
-          http_uri: http_uri,
-          http_method: http_method,
-          http_resp_code: response.code,
-          http_resp_length: response.body.length,
-          http_resp: "#{response.body[0..300]}..."
-        }
-      rescue RestClient::ExceptionWithResponse,
-             RestClient::ServerBrokeConnection => e
-        rest_client_resp_hash = {
-          request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
-          http_uri: http_uri,
-          http_method: http_method,
-          http_resp_code: e.response.code,
-          http_resp_length: e.response.body.length,
-          http_resp: "#{e.response.body[0..300]}..."
-        }
-        next
-      rescue URI::InvalidURIError
-        url_encoded_wordlist_arr = []
-        wordlist_line.split('/').each do |path|
-          url_encoded_wordlist_arr.push(CGI.escape(path))
-        end
-        wordlist_line = url_encoded_wordlist_arr.join('/')
-
-        retry
-      rescue RestClient::TooManyRequests
-        sleep 60
-      ensure
-        mutex.synchronize do
-          results_hash[:data].push(rest_client_resp_hash)
-        end
-      end
+    mutex.synchronize do
+      results_hash[:data].push(rest_client_resp_hash)
     end
   end
 
