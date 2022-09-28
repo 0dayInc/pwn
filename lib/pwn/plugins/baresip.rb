@@ -525,7 +525,7 @@ module PWN
 
         absolute_recording = ''
         relative_recording = ''
-        Dir.glob("#{session_root}/dump-*#{target_num}*.wav").each do |path|
+        Dir.glob("#{session_root}/dump-*=>*#{target_num}*.wav").each do |path|
           wav = File.basename(path)
           File.delete(path) if wav.match(/^dump-.+#{target_num}.+-enc\.wav$/)
           next unless wav.match(/^dump-.+#{target_num}.+-dec.wav/)
