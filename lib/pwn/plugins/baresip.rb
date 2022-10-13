@@ -307,7 +307,7 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::BareSIP.apply_src_num_rules(
       #   target_num: 'Required - destination number to derive source number',
-      #   src_num_rules: 'Optional - Comma-delimited list of rules for src_num format (i.e. self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])'
+      #   src_num_rules: 'Optional - Comma-delimited list of rules for src_num format (i.e. XXXXXXXXXX, self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])'
       # )
 
       public_class_method def self.apply_src_num_rules(opts = {})
@@ -356,6 +356,7 @@ module PWN
         else
           raise "Target # should be 10-14 digits. Length is: #{target_num.to_s.length}"
         end
+        src_num_rules_arr.delete(:same_country)
 
         # > 799 for prefix leads to call issues when calling 800 numbers.
         # area = format('%0.3s', Random.rand(200..999))
@@ -363,14 +364,28 @@ module PWN
         area = target_num.to_s.chars[-10..-8].join if src_num_rules_arr.include?(
           :same_area
         )
+        src_num_rules_arr.delete(:same_area)
 
         prefix = format('%0.3d', Random.rand(200..999))
         prefix = target_num.to_s.chars[-7..-5].join if src_num_rules_arr.include?(
           :same_prefix
         )
+        src_num_rules_arr.delete(:same_prefix)
+
         suffix = format('%0.4d', Random.rand(0..9999))
+
+        # Defaults to Random Source Number
         src_num = "#{country}#{area}#{prefix}#{suffix}"
+
+        # Change to same as dest if :self is passed
         src_num = target_num if src_num_rules_arr.include?(:self)
+        src_num_rules_arr.delete(:self)
+
+        # Assume a custom number is passed if an element
+        # still exists in src_num_rules_arr
+        # Cast symbol to string, string to integer to massage input,
+        # and cast back to string.
+        src_num = src_num_rules_arr.first.to_s.to_i.to_s if src_num_rules_arr.any?
 
         # TODO: Update ~/.baresip/accounts to apply source number
         sip_accounts_path = "#{config_root}/accounts"

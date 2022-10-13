@@ -46,7 +46,7 @@ OptionParser.new do |options|
     opts[:start_reporting_server] = s
   end
 
-  options.on('-xRULES', '--source-num-rules=RULES', '<Optional - Comma-delimited list of rules for src_num format (i.e. self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])>') do |x|
+  options.on('-xRULES', '--source-num-rules=RULES', '<Optional - Comma-delimited list of rules for src_num format (i.e. XXXXXXXXXX, self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])>') do |x|
     opts[:src_num_rules] = x
   end
 
