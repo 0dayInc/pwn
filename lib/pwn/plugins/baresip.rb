@@ -511,18 +511,22 @@ module PWN
 
           # TODO: Fix known issue - if remote terminates call early
           # all calls in thread pool will be stopped prematurely :-/
+          # This likely has something to do w/ data scoping issues in dump_session_data
           if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
             reason = 'call terminated by other party'
+            flush_session_data
             break
           end
 
           if dump_session_data.select { |s| s.include?(unavail) }.length.positive?
             reason = 'SIP 503 (service unavailable)'
+            flush_session_data
             break
           end
 
           if dump_session_data.select { |s| s.include?(not_found) }.length.positive?
             reason = 'SIP 404 (not found)'
+            flush_session_data
             break
           end
 
