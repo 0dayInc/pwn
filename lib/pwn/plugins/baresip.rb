@@ -509,6 +509,8 @@ module PWN
           print "#{seconds_to_record}s to record - remaining: #{format('%-9.9s', countdown)}"
           print "\r"
 
+          # TODO: Fix known issue - if remote terminates call early
+          # all calls in thread pool will be stopped prematurely :-/
           if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
             reason = 'call terminated by other party'
             break
@@ -529,14 +531,16 @@ module PWN
         call_resp_hash[:seconds_recorded] = seconds_recorded
         puts end_of_color
 
-        call_stopped = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
-        puts "\n#{green}#{call_stopped} >>> #{reason} #{target_num}#{end_of_color}"
-        call_resp_hash[:call_stopped] = call_stopped
-        call_resp_hash[:reason] = reason
-        puts "call termination reason: #{reason}"
+        # Move to ensure block?
+        # call_stopped = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
+        # puts "\n#{green}#{call_stopped} >>> #{reason} #{target_num}#{end_of_color}"
+        # call_resp_hash[:call_stopped] = call_stopped
+        # call_resp_hash[:reason] = reason
+        # puts "call termination reason: #{reason}"
 
-        stop(baresip_obj: baresip_obj)
-        FileUtils.rm_rf(config_root_for_target_num)
+        # stop(baresip_obj: baresip_obj)
+        # FileUtils.rm_rf(config_root_for_target_num)
+        # End of ensure block
 
         absolute_recording = ''
         relative_recording = ''
@@ -615,6 +619,16 @@ module PWN
         call_resp_hash
       rescue StandardError => e
         raise e
+      ensure
+        # Ensure baresip session is stopped
+        call_stopped = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
+        puts "\n#{green}#{call_stopped} >>> #{reason} #{target_num}#{end_of_color}"
+        call_resp_hash[:call_stopped] = call_stopped
+        call_resp_hash[:reason] = reason
+        puts "call termination reason: #{reason}"
+
+        stop(baresip_obj: baresip_obj)
+        FileUtils.rm_rf(config_root_for_target_num)
       end
 
       # Supported Method Parameters::
