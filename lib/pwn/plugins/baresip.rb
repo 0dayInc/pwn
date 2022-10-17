@@ -143,10 +143,6 @@ module PWN
           '-v'
         )
 
-        baresip_obj[:session_thread] = init_session_thread(
-          baresip_obj: baresip_obj
-        )
-
         ok = 'registered successfully'
         gone = 'account: No SIP accounts found'
         forb = '403 Forbidden'
@@ -154,7 +150,13 @@ module PWN
         # TODO: Make this faster.
         print 'Starting baresip...'
         loop do
-          break if @session_data.select { |s| s.include?(ok) }.length.positive?
+          next unless File.exist?(screenlog_path)
+
+          dump_session_data = File.readlines(screenlog_path)
+          dump_session_data.delete_if do |line|
+            line.include?('ua: using best effort AF: af=AF_INET')
+          end
+          break if dump_session_data.select { |s| s.include?(ok) }.length.positive?
 
           next unless dump_session_data.select { |s| s.include?(gone) }.length.positive?
           next unless dump_session_data.select { |s| s.include?(forb) }.length.positive?
@@ -166,53 +168,6 @@ module PWN
         puts 'ready.'
 
         baresip_obj
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # session_thread = init_session_thread(
-      #   serial_conn: 'required - SerialPort.new object'
-      # )
-
-      private_class_method def self.init_session_thread(opts = {})
-        baresip_obj = opts[:baresip_obj]
-
-        session_root = baresip_obj[:session_root]
-        screenlog_path = baresip_obj[:screenlog_path]
-
-        # Spin up a baresip_obj session_thread
-        Thread.new do
-          loop do
-            next unless File.exist?(screenlog_path)
-
-            # Continuously consume contents of screenlog_path
-            @session_data = File.readlines(screenlog_path)
-            @session_data.delete_if do |line|
-              line.include?('ua: using best effort AF: af=AF_INET')
-            end
-          end
-        end
-      rescue StandardError => e
-        session_thread&.terminate
-
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # session_data = PWN::Plugins::BareSIP.dump_session_data
-
-      public_class_method def self.dump_session_data
-        @session_data
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # session_data = PWN::Plugins::BareSIP.flush_session_data
-
-      public_class_method def self.flush_session_data
-        @session_data.clear
       rescue StandardError => e
         raise e
       end
@@ -244,12 +199,7 @@ module PWN
 
       public_class_method def self.stop(opts = {})
         baresip_obj = opts[:baresip_obj]
-        session_thread = baresip_obj[:session_thread]
         screen_session = baresip_obj[:screen_session]
-
-        flush_session_data
-
-        session_thread.terminate
 
         puts "STOPPING #{baresip_obj[:screen_session]}"
         cmd_resp = baresip_exec(
@@ -509,24 +459,23 @@ module PWN
           print "#{seconds_to_record}s to record - remaining: #{format('%-9.9s', countdown)}"
           print "\r"
 
-          # TODO: Fix known issue - if remote terminates call early
-          # all calls in thread pool will be stopped prematurely :-/
-          # This likely has something to do w/ data scoping issues in dump_session_data
+          dump_session_data = File.readlines(screenlog_path)
+          dump_session_data.delete_if do |line|
+            line.include?('ua: using best effort AF: af=AF_INET')
+          end
+
           if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
             reason = 'call terminated by other party'
-            flush_session_data
             break
           end
 
           if dump_session_data.select { |s| s.include?(unavail) }.length.positive?
             reason = 'SIP 503 (service unavailable)'
-            flush_session_data
             break
           end
 
           if dump_session_data.select { |s| s.include?(not_found) }.length.positive?
             reason = 'SIP 404 (not found)'
-            flush_session_data
             break
           end
 
@@ -719,8 +668,6 @@ module PWN
             screenlog_path: 'Optional path of screenlog file (Defaults to screenlog.txt)',
             screen_session: 'Optional name of screen session (Defaults baresip)'
           )
-
-          session_data_arr = #{self}.dump_session_data
 
           cmd_resp = #{self}.baresip_exec(
             baresip_obj: 'Required - baresip obj returned from #start method',
