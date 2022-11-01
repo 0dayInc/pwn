@@ -57,6 +57,10 @@ case $os in
       $screen_cmd "${apt} install -y libpcap-dev ${assess_update_errors}"
       grok_error
 
+      echo "Installing fftw Libraries..."
+      $screen_cmd "${apt} install -y libfftw3-dev ${assess_update_errors}"
+      grok_error
+
       echo "Installing libsndfile1 & libsndfile1-dev Libraries..."
       $screen_cmd "${apt} install -y libsndfile1 ${assess_update_errors}"
       grok_error
