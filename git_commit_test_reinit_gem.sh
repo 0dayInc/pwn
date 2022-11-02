@@ -15,6 +15,13 @@ if (( $# == 3 )); then
   pwn_autoinc_version
   git commit -a -S --author="${1} <${2}>" -m "${3}"
   ./update_pwn.sh
+
+  latest_gem=$(ls pkg/*.gem)
+  if [[ $latest_gem != "" ]]; then
+    echo "Pushing ${latest_gem} to RubyGems.org..."
+    rvmsudo gem push $latest_gem --debug
+  fi
+
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
   tag_this_version_bool=`ruby -r 'pwn' -e 'if PWN::VERSION.split(".")[-1].to_i % 100 == 0; then print true; else print false; end'`
   if [[ $tag_this_version_bool == 'true' ]]; then

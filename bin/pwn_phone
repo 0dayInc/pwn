@@ -61,8 +61,8 @@ if opts.empty?
 end
 
 begin
+  pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
-  pwn_provider ||= 'ruby-gem'
   $stdout.sync = true
 
   # Required Flag Variables

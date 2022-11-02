@@ -24,12 +24,6 @@ if [[ $old_ruby_version == $new_ruby_version ]]; then
   rvmsudo gem rdoc --rdoc --ri --overwrite -V pwn
   echo "Invoking bundle-audit Gemfile Scanner..."
   rvmsudo bundle-audit
-
-  latest_gem=$(ls pkg/*.gem)
-  if [[ $latest_gem != "" ]]; then
-    echo "Pushing ${latest_gem} to RubyGems.org..."
-    rvmsudo gem push $latest_gem --debug
-  fi
 else
   cd $pwn_root && ./upgrade_ruby.sh $new_ruby_version $old_ruby_version
 fi
