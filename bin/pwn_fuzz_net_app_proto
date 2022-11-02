@@ -77,8 +77,8 @@ if opts.empty?
   exit 1
 end
 
+pwn_provider = 'ruby-gem'
 pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
-pwn_provider ||= 'ruby-gem'
 
 dir_path = opts[:dir_path].to_s.scrub
 target = opts[:target]
