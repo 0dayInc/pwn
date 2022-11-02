@@ -124,6 +124,7 @@ end
 
 begin
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.fetch('PWN_PROVIDER')
+  pwn_provider ||= 'ruby-gem'
   $stdout.sync = true
 
   target_url = opts[:target_url]
