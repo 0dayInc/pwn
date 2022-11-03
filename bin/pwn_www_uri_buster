@@ -21,16 +21,20 @@ OptionParser.new do |options|
     opts[:wordlist] = w
   end
 
-  options.on('-rHEADERS', '--request-headers=HEADERS', '<Optional - HTTP Request Headers in JSON Format)>') do |h|
-    opts[:http_request_headers] = h
-  end
-
   options.on('-pPROXY', '--proxy=PROXY', '<Optional - Proxy SCHEME://ADDRESS:PORT>') do |p|
     opts[:proxy] = p
   end
 
   options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # HTTP Requests to Run Simultaneously (Default 100)>') do |t|
     opts[:max_threads] = t
+  end
+
+  options.on('-rHEADERS', '--request-headers=HEADERS', '<Optional - HTTP Request Headers in JSON Format)>') do |h|
+    opts[:http_request_headers] = h
+  end
+
+  options.on('-cCODES', '--only-report-response-codes=CODES', '<Optional - Comma-Delimited List of Response Codes to Only Include in Report)>') do |c|
+    opts[:http_response_codes] = c
   end
 
   options.on('-dDIR', '--dir-path=DIR', '<Optional - Report Output Directory (Defaults to ".")>') do |w|
@@ -53,8 +57,8 @@ end
 
 def request_path(opts = {})
   target_url = opts[:target_url]
-  http_request_headers = opts[:http_request_headers]
   proxy = opts[:proxy]
+  http_request_headers = opts[:http_request_headers]
   wordlist_line = opts[:wordlist_line]
   http_method = opts[:http_method]
 
@@ -132,12 +136,14 @@ begin
   wordlist = opts[:wordlist]
   raise "ERROR: #{wordlist} Does Not Exist." unless File.exist?(wordlist)
 
-  http_request_headers = opts[:http_request_headers]
-
   proxy = opts[:proxy]
 
   max_threads = opts[:max_threads]
   max_threads ||= 100
+
+  http_request_headers = opts[:http_request_headers]
+  http_response_codes = opts[:http_response_codes]
+  http_response_codes = http_response_codes.delete("\s").split(',') if http_response_codes
 
   dir_path = opts[:dir_path]
   dir_path ||= '.'
@@ -169,14 +175,19 @@ begin
     http_methods.each do |http_method|
       rest_client_resp_hash = request_path(
         target_url: target_url,
-        http_request_headers: http_request_headers,
         proxy: proxy,
+        http_request_headers: http_request_headers,
         wordlist_line: wordlist_line,
         http_method: http_method
       )
 
       mutex.synchronize do
-        results_hash[:data].push(rest_client_resp_hash)
+        if http_response_codes.any?
+          ret_http_resp_code = rest_client_resp_hash[:http_resp_code]
+          results_hash[:data].push(rest_client_resp_hash) if http_response_codes.include?(ret_http_resp_code)
+        else
+          results_hash[:data].push(rest_client_resp_hash)
+        end
       end
     end
   end
