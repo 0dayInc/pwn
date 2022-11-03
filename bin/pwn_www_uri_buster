@@ -182,7 +182,7 @@ begin
       )
 
       mutex.synchronize do
-        if http_response_codes.any?
+        if http_response_codes
           ret_http_resp_code = rest_client_resp_hash[:http_resp_code]
           results_hash[:data].push(rest_client_resp_hash) if http_response_codes.include?(ret_http_resp_code)
         else
