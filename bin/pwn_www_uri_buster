@@ -105,7 +105,7 @@ def request_path(opts = {})
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
       http_uri: http_uri,
       http_method: http_method,
-      http_resp_code: 'N/A',
+      http_resp_code: 'RestClient::Exceptions::ReadTimeout',
       http_resp_length: 'N/A',
       http_resp: 'N/A'
     }
