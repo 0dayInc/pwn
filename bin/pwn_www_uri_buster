@@ -106,7 +106,6 @@ def request_path(opts = {})
       http_resp_length: e.response.body.length,
       http_resp: "#{e.response.body[0..300]}..."
     }
-    next
   rescue URI::InvalidURIError
     url_encoded_wordlist_arr = []
     wordlist_line.split('/').each do |path|
