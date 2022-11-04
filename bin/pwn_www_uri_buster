@@ -100,17 +100,18 @@ def request_path(opts = {})
       http_resp_length: response.body.length,
       http_resp: "#{response.body[0..300]}..."
     }
-  rescue RestClient::Exceptions::ReadTimeout
+  rescue Errno::ECONNRESET,
+         RestClient::Exceptions::ReadTimeout,
+         RestClient::ServerBrokeConnection => e
     rest_client_resp_hash = {
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
       http_uri: http_uri,
       http_method: http_method,
-      http_resp_code: 'RestClient::Exceptions::ReadTimeout',
+      http_resp_code: e.class,
       http_resp_length: 'N/A',
-      http_resp: 'N/A'
+      http_resp: e.class
     }
-  rescue RestClient::ExceptionWithResponse,
-         RestClient::ServerBrokeConnection => e
+  rescue RestClient::ExceptionWithResponse => e
     rest_client_resp_hash = {
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
       http_uri: http_uri,
