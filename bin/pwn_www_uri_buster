@@ -100,35 +100,18 @@ def request_path(opts = {})
       http_resp_length: response.body.length,
       http_resp: "#{response.body[0..300]}..."
     }
-  rescue Errno::ECONNRESET
-    rest_client_resp_hash = {
-      request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
-      http_uri: http_uri,
-      http_method: http_method,
-      http_resp_code: 'Errno::ECONNRESET',
-      http_resp_length: 'N/A',
-      http_resp: 'Errno::ECONNRESET'
-    }
-  rescue RestClient::ServerBrokeConnection
-    rest_client_resp_hash = {
-      request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
-      http_uri: http_uri,
-      http_method: http_method,
-      http_resp_code: 'RestClient::ServerBrokeConnection',
-      http_resp_length: 'N/A',
-      http_resp: 'RestClient::ServerBrokeConnection'
-    }
-  rescue RestClient::Exceptions::ReadTimeout
-    rest_client_resp_hash = {
-      request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
-      http_uri: http_uri,
-      http_method: http_method,
-      http_resp_code: 'RestClient::Exceptions::ReadTimeout',
-      http_resp_length: 'N/A',
-      http_resp: 'RestClient::Exceptions::ReadTimeout'
-    }
-  rescue RestClient::ExceptionWithResponse,
+  rescue Errno::ECONNRESET,
+         RestClient::Exceptions::ReadTimeout,
          RestClient::ServerBrokeConnection => e
+    rest_client_resp_hash = {
+      request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
+      http_uri: http_uri,
+      http_method: http_method,
+      http_resp_code: e.class,
+      http_resp_length: 'N/A',
+      http_resp: e.class
+    }
+  rescue RestClient::ExceptionWithResponse => e
     rest_client_resp_hash = {
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
       http_uri: http_uri,
