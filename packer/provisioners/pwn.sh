@@ -22,6 +22,9 @@ case $os in
     echo "Installing fontconfig..."
     sudo port -N install fontconfig
 
+    echo "Installing cmatrix..."
+    sudo port -N install cmatrix
+
     echo 'Installing Postgres Libraries for pg gem...'
     sudo port -N install postgresql96-server
 
@@ -47,6 +50,10 @@ case $os in
 
       echo "Installing fontconfig..."
       $screen_cmd "${apt} install -y fontconfig ${assess_update_errors}"
+      grok_error
+
+      echo "Installing fontmatrix..."
+      $screen_cmd "${apt} install -y fontmatrix ${assess_update_errors}"
       grok_error
 
       echo "Installing Postgres Libraries for pg gem..."

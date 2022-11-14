@@ -27,4 +27,5 @@ sudo /bin/bash --login -c "echo -e \"trust\n5\ny\n\" | gpg2 --no-tty --command-f
 sudo /bin/bash --login -c "echo -e \"trust\n5\ny\n\" | gpg2 --no-tty --command-fd 0 --edit-key ${key2}"
 
 # Multi-user install required due to the need to run MSFRPCD as root w/in metasploit gemset
-curl -sSL https://get.rvm.io | sudo bash -s latest
+curl -sSL https://get.rvm.io | sudo bash -s stable
+rvm reload
