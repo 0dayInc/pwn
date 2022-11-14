@@ -32,5 +32,4 @@ esac
 sudo /bin/bash --login -c "git clone https://github.com/0dayinc/pwn.git ${pwn_root}"
 
 ruby_version=`cat ${pwn_root}/.ruby-version`
-ruby_gemset=`cat ${pwn_root}/.ruby-gemset`
-sudo /bin/bash --login -c "source /etc/profile.d/rvm.sh && rvm install ruby-${ruby_version}"
+rvmsudo rvm install ruby-$ruby_version
