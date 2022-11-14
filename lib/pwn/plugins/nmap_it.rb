@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-require 'nmap'
+require 'nmap/command'
+require 'nmap/xml'
 
 module PWN
   module Plugins
@@ -12,7 +13,7 @@ module PWN
       # end
 
       public_class_method def self.port_scan
-        Nmap::Program.scan do |nmap|
+        Nmap::Command.sudo do |nmap|
           yield(nmap)
         end
       rescue StandardError => e
@@ -43,7 +44,7 @@ module PWN
       public_class_method def self.parse_xml_results(opts = {})
         xml_file = opts[:xml_file].to_s.scrub.strip.chomp if File.exist?(opts[:xml_file].to_s.scrub.strip.chomp)
 
-        Nmap::XML.new(xml_file) do |xml|
+        Nmap::XML.open(xml_file) do |xml|
           yield(xml)
         end
       rescue StandardError => e
