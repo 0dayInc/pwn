@@ -761,7 +761,7 @@ module PWN
         end
         return @@logger.error("Could not find matching scan name for name #{scan_name}") unless clicked
 
-        output_path = "#{output_path}/#{scan_name.gsub(/[^\w.\-]/, '_')}/"
+        output_path = "#{output_path}/#{scan_name.gsub(/[^\w.-]/, '_')}/"
         FileUtils.rm_rf output_path if File.directory?(output_path)
         FileUtils.mkpath output_path
 
