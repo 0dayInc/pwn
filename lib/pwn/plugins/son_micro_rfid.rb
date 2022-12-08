@@ -3,7 +3,8 @@
 module PWN
   module Plugins
     # This plugin is used for interacting with a SonMicro
-    # SM132 USB RFID Reader / Writer (PCB v3)
+    # SM132 USB RFID Reader / Writer (PCB V3) &&
+    # SM2330-USB Rev.0
     module SonMicroRFID
       # Supported Method Parameters::
       # son_micro_rfid_obj = PWN::Plugins::SonMicroRFID.connect(
