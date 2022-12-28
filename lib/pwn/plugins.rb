@@ -40,6 +40,7 @@ module PWN
     autoload :NmapIt, 'pwn/plugins/nmap_it'
     autoload :OAuth2, 'pwn/plugins/oauth2'
     autoload :OCR, 'pwn/plugins/ocr'
+    autoload :OpenAI, 'pwn/plugins/open_ai'
     autoload :OpenVAS, 'pwn/plugins/openvas'
     autoload :OwaspZap, 'pwn/plugins/owasp_zap'
     autoload :Packet, 'pwn/plugins/packet'
