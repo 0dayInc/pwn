@@ -81,7 +81,6 @@ module PWN
         token = opts[:token]
 
         response = open_ai_rest_call(
-          http_method: :post,
           token: token,
           rest_call: 'models'
         )
