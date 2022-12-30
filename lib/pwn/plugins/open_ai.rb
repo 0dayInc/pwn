@@ -6,8 +6,8 @@ module PWN
   module Plugins
     # This plugin is used for interacting w/ OpenAI's REST API using
     # the 'rest' browser type of PWN::Plugins::TransparentBrowser.
-    #  This is based on the following OpenAI API Specification:
-    # https://developer.shodan.io/api
+    # This is based on the following OpenAI API Specification:
+    # https://api.openai.com/v1
     module OpenAI
       @@logger = PWN::Plugins::PWNLogger.create
 
@@ -95,14 +95,20 @@ module PWN
       # response = PWN::Plugins::OpenAI.chat_gpt(
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
+      #   model: 'optional - model to use for text generation (defaults to text-davinci-003)',
+      #   alt_response: 'optional boolean to generate a more creative response (defaults to false)'
       # )
 
       public_class_method def self.chat_gpt(opts = {})
         token = opts[:token]
         request = opts[:request]
+        model = opts[:model]
+        model ||= 'text-davinci-003'
+        rest_call = 'completions'
+        rest_call = 'text-generations' if opts[:alt_response]
 
         http_body = {
-          model: 'text-davinci-003',
+          model: model,
           prompt: request,
           temperature: 0,
           max_tokens: 1024
@@ -111,7 +117,7 @@ module PWN
         response = open_ai_rest_call(
           http_method: :post,
           token: token,
-          rest_call: 'completions',
+          rest_call: rest_call,
           http_body: http_body.to_json
         )
 
@@ -132,9 +138,11 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          response #{self}.chat_gpt(
+          response = #{self}.chat_gpt(
             token: 'required - Bearer token',
-            request: 'required - message to ChatGPT'
+            request: 'required - message to ChatGPT',
+            model: 'optional - model to use for text generation (defaults to text-davinci-003)',
+            alt_response: 'optional boolean to generate a more creative response (defaults to false)'
           )
 
           #{self}.authors
