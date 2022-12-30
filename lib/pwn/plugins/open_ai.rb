@@ -105,9 +105,9 @@ module PWN
         request = opts[:request]
         model = opts[:model]
         model ||= 'text-davinci-003'
-        temp = opts[:temp].to_i
+        temp = opts[:temp]
         temp ||= 0
-        max_tokens = opts[:max_tokens].to_i
+        max_tokens = opts[:max_tokens]
         max_tokens ||= 1024
 
         rest_call = 'completions'
@@ -115,8 +115,8 @@ module PWN
         http_body = {
           model: model,
           prompt: request,
-          temperature: temp,
-          max_tokens: max_tokens
+          temperature: temp.to_i,
+          max_tokens: max_tokens.to_i
         }
 
         response = open_ai_rest_call(
