@@ -96,7 +96,8 @@ module PWN
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to text-davinci-003)',
-      #   alt_response: 'optional boolean to generate a more creative response (defaults to false)'
+      #   temp: 'optional - integer (deafults to 0)',
+      #   max_tokens: 'optional - integer (deafults to 1024)'
       # )
 
       public_class_method def self.chat_gpt(opts = {})
@@ -104,14 +105,18 @@ module PWN
         request = opts[:request]
         model = opts[:model]
         model ||= 'text-davinci-003'
+        temp = opts[:temp].to_i
+        temp ||= 0
+        max_tokens = opts[:max_tokens].to_i
+        max_tokens ||= 1024
+
         rest_call = 'completions'
-        rest_call = 'text-generations' if opts[:alt_response]
 
         http_body = {
           model: model,
           prompt: request,
-          temperature: 0,
-          max_tokens: 1024
+          temperature: temp,
+          max_tokens: max_tokens
         }
 
         response = open_ai_rest_call(
@@ -142,7 +147,8 @@ module PWN
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
             model: 'optional - model to use for text generation (defaults to text-davinci-003)',
-            alt_response: 'optional boolean to generate a more creative response (defaults to false)'
+            temp: 'optional - integer (deafults to 0)',
+            max_tokens: 'optional - integer (deafults to 1024)'
           )
 
           #{self}.authors
