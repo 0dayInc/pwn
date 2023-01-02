@@ -14,7 +14,6 @@ module PWN
     autoload :BurpSuite, 'pwn/plugins/burp_suite'
     autoload :BusPirate, 'pwn/plugins/bus_pirate'
     autoload :Char, 'pwn/plugins/char'
-    autoload :ChatSonic, 'pwn/plugins/chat_sonic'
     autoload :CreditCard, 'pwn/plugins/credit_card'
     autoload :PWNLogger, 'pwn/plugins/pwn_logger'
     autoload :DAOLDAP, 'pwn/plugins/dao_ldap'
