@@ -130,6 +130,43 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.img_gen(
+      #   token: 'required - Bearer token',
+      #   request: 'required - message to ChatGPT'
+      #   model: 'optional - model to use for text generation (defaults to text-davinci-003)',
+      #   temp: 'optional - integer (deafults to 0)',
+      #   max_tokens: 'optional - integer (deafults to 1024)'
+      # )
+
+      public_class_method def self.img_gen(opts = {})
+        token = opts[:token]
+        request = opts[:request]
+        n = opts[:n]
+        n ||= 1
+        size = opts[:size]
+        size ||= '1024x1024'
+
+        rest_call = 'images/generations'
+
+        http_body = {
+          prompt: request,
+          n: n,
+          size: size
+        }
+
+        response = open_ai_rest_call(
+          http_method: :post,
+          token: token,
+          rest_call: rest_call,
+          http_body: http_body.to_json
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
