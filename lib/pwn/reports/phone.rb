@@ -222,7 +222,10 @@ module PWN
                     },
                     {
                       "data": "speech_to_text",
-                      "render": $.fn.dataTable.render.text()
+                      "render": function (data, type, row, meta) {
+                        var speech_to_text = htmlEntityEncode(data);
+                        return '<a href="' + speech_to_text +'" target="_blank">' + speech_to_text + '</a>';
+                      }
                     },
                     {
                       "data": "spectrogram",
