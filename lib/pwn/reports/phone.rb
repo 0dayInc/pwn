@@ -106,8 +106,9 @@ module PWN
               <a class="toggle-vis" data-column="7" href="#">Reason</a>
               <a class="toggle-vis" data-column="8" href="#">Screenlog</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="9" href="#">Recording</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="10" href="#">Spectrogram</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="11" href="#">Waveform</a>
+              <a class="toggle-vis" data-column="10" href="#">Speech to Text</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="11" href="#">Spectrogram</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="12" href="#">Waveform</a>
             </div>
             <br /><br />
 
@@ -125,6 +126,7 @@ module PWN
                     <th>Reason Stopped</th>
                     <th>Screenlog</th>
                     <th>Recording</th>
+                    <th>Speech to Text</th>
                     <th>Spectrogram</th>
                     <th>Waveform</th>
                   </tr>
@@ -217,6 +219,10 @@ module PWN
                           return '<audio controls><source src="' + wav +'" type="audio/wav"></audio>';
                         }
                       }
+                    },
+                    {
+                      "data": "speech_to_text",
+                      "render": $.fn.dataTable.render.text()
                     },
                     {
                       "data": "spectrogram",
