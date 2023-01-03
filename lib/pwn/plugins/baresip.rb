@@ -574,7 +574,7 @@ module PWN
           if speech_to_text
             absolute_speech_to_text = "#{absolute_recording}.txt"
             PWN::Plugins::OpenAI.speech_to_text(
-              audio_file_path: absolute_recording
+              audio_file_path: absolute_recording,
               output_dir: target_num_root
             )
             print "Generating Speech-to-Text for #{absolute_recording}..."
