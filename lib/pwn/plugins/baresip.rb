@@ -380,6 +380,9 @@ module PWN
         sox_bin = opts[:sox_bin] if File.exist?(opts[:sox_bin].to_s)
         sox_bin ||= '/usr/bin/sox'
 
+        speech_to_text = true if opts[:speech_to_text]
+        speech_to_text ||= false
+
         waveform_bin = 'waveform'
 
         # Intialize empty baresip obj for ensure block below
