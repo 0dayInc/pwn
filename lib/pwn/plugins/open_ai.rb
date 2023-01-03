@@ -177,7 +177,7 @@ module PWN
       public_class_method def self.speech_to_text(opts = {})
         audio_file_path = opts[:audio_file_path]
         whisper_path = opts[:whisper_path]
-	whisper_path ||= '/usr/local/bin/whisper'
+        whisper_path ||= '/usr/local/bin/whisper'
         model = opts[:model]
         model ||= 'tiny'
         output_dir = opts[:output_dir]

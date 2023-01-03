@@ -356,7 +356,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::BareSIP.recon(
+      # PWN::Plugins::BareSIP.dial_target_in_list(
       # )
 
       public_class_method def self.dial_target_in_list(opts = {})
@@ -569,6 +569,18 @@ module PWN
           )
           puts 'complete.'
           call_resp_hash[:waveform] = relative_waveform
+
+          # TODO: Get thos block working
+          if speech_to_text
+            absolute_speech_to_text = "#{absolute_recording}-speech_to_text.txt"
+            relative_speech_to_text = "#{relative_recording}-speech_to_text.txt"
+            PWN::Plugins::OpenAI.speech_to_text(
+              audio_file_path: absolute_recording
+            )
+            print "Generating Speech-to-Text for #{absolute_recording}..."
+            puts 'complete.'
+            call_resp_hash[:speech_to_text] = relative_speech_to_text
+          end
           puts end_of_color
         end
 
@@ -608,6 +620,7 @@ module PWN
         seconds_to_record = 60 if seconds_to_record.zero?
         sox_bin = opts[:sox_bin] if File.exist?(opts[:sox_bin].to_s)
         sox_bin ||= '/usr/bin/sox'
+        speech_to_text = opts[:speech_to_text]
 
         target_range = parse_target_file(
           target_file: target_file,
@@ -636,7 +649,8 @@ module PWN
             randomize: randomize,
             src_num_rules: src_num_rules,
             seconds_to_record: seconds_to_record,
-            sox_bin: sox_bin
+            sox_bin: sox_bin,
+            speech_to_text: speech_to_text
           )
 
           # Push Call Results to results_hash[:data]
