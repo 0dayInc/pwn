@@ -46,6 +46,10 @@ OptionParser.new do |options|
     opts[:start_reporting_server] = s
   end
 
+  options.on('-X', '--[no-]speech-to-text', '<Optional - Speech to Text from Audio Recordings>') do |x|
+    opts[:speech_to_text] = x
+  end
+
   options.on('-xRULES', '--source-num-rules=RULES', '<Optional - Comma-delimited list of rules for src_num format (i.e. XXXXXXXXXX, self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])>') do |x|
     opts[:src_num_rules] = x
   end
@@ -77,6 +81,7 @@ begin
   # Optional Flag Variables
   randomize = opts[:randomize]
   start_reporting_server = opts[:start_reporting_server]
+  speech_to_text = opts[:speech_to_text]
   src_num_rules = opts[:src_num_rules]
 
   # Initiallize Phone Reconaissance
@@ -87,7 +92,8 @@ begin
     randomize: randomize,
     src_num_rules: src_num_rules,
     seconds_to_record: seconds_to_record,
-    sox_bin: sox_bin
+    sox_bin: sox_bin,
+    speech_to_text: speech_to_text
   )
 
   # Generate HTML Report
