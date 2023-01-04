@@ -42,7 +42,7 @@ OptionParser.new do |options|
     opts[:randomize] = r
   end
 
-  options.on('-h', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
+  options.on('-H', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
     opts[:start_reporting_server] = s
   end
 

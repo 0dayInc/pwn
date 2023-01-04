@@ -573,13 +573,14 @@ module PWN
           call_resp_hash[:speech_to_text] = 'N/A'
           if speech_to_text
             absolute_speech_to_text = "#{absolute_recording}.txt"
+            relative_speech_to_text = "#{relative_recording}.txt"
             PWN::Plugins::OpenAI.speech_to_text(
               audio_file_path: absolute_recording,
               output_dir: target_num_root
             )
             print "Generating Speech-to-Text for #{absolute_recording}..."
             puts 'complete.'
-            call_resp_hash[:speech_to_text] = File.read(absolute_speech_to_text)
+            call_resp_hash[:speech_to_text] = relative_speech_to_text
           end
           puts end_of_color
         end
