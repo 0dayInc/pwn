@@ -166,37 +166,6 @@ module PWN
         raise e
       end
 
-      # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.speech_to_text(
-      #   audio_file_path: 'required - path to audio file',
-      #   whisper_path: 'optional - path to OpenAI whisper application (defaults to /usr/local/bin/whisper)',
-      #   model: 'optional - transcribe model to use (defaults to tiny)',
-      #   output_dir: 'optional - directory to output results (defaults to .)'
-      # )
-
-      public_class_method def self.speech_to_text(opts = {})
-        audio_file_path = opts[:audio_file_path]
-        whisper_path = opts[:whisper_path]
-        whisper_path ||= '/usr/local/bin/whisper'
-        model = opts[:model]
-        model ||= 'tiny'
-        output_dir = opts[:output_dir]
-        output_dir ||= '.'
-
-        raise "Speech-to-Text Engine Not Found: #{whisper_path}" unless File.exist?(whisper_path)
-
-        system(
-          whisper_path,
-          audio_file_path,
-          '--model',
-          model,
-          '--output_dir',
-          output_dir
-        )
-      rescue StandardError => e
-        raise e
-      end
-
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
@@ -222,13 +191,6 @@ module PWN
             request: 'required - message to ChatGPT'
             n: 'optional - number of images to generate (defaults to 1)',
             size: 'optional - size of image (defaults to \"1024x1024\")'
-          )
-
-          response = #{self}.speech_to_text(
-            audio_file_path: 'required - path to audio file',
-            whisper_path: 'optional - path to OpenAI whisper application (defaults to /usr/local/bin/whisper)',
-            model: 'optional - transcribe model to use (defaults to tiny)',
-            output_dir: 'optional - directory to output results (defaults to .)'
           )
 
           #{self}.authors

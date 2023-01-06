@@ -59,6 +59,7 @@ module PWN
     autoload :TransparentBrowser, 'pwn/plugins/transparent_browser'
     autoload :TwitterAPI, 'pwn/plugins/twitter_api'
     autoload :URIScheme, 'pwn/plugins/uri_scheme'
+    autoload :Voice, 'pwn/plugins/voice'
     autoload :Vsphere, 'pwn/plugins/vsphere'
 
     # Display a List of Every PWN Plugin
