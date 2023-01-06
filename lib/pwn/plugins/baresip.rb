@@ -574,7 +574,7 @@ module PWN
           if speech_to_text
             absolute_speech_to_text = "#{absolute_recording}.txt"
             relative_speech_to_text = "#{relative_recording}.txt"
-            PWN::Plugins::OpenAI.speech_to_text(
+            PWN::Plugins::Voice.speech_to_text(
               audio_file_path: absolute_recording,
               output_dir: target_num_root
             )
