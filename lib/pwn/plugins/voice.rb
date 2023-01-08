@@ -79,6 +79,7 @@ module PWN
       # PWN::Plugins::Voice.text_to_speech(
       #   text_path: 'required - path to text file to speak',
       #   festival_path: 'optional - path to festival (defaults to /usr/bin/festival)',
+      #   voice: 'optional - voice to use (defaults to cmu_us_slt_arctic_hts)',
       # )
 
       public_class_method def self.text_to_speech(opts = {})
@@ -133,6 +134,7 @@ module PWN
           #{self}.text_to_speech(
             text_path: 'required - path to text file to speak',
             festival_path: 'optional - path to festival (defaults to /usr/bin/festival)',
+            voice: 'optional - voice to use (defaults to cmu_us_slt_arctic_hts)',
           )
 
           #{self}.authors
