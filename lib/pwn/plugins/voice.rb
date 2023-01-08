@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'pty'
 
 module PWN
   module Plugins
@@ -10,29 +11,31 @@ module PWN
       # Supported Method Parameters::
       # response = PWN::Plugins::Voice.mutate(
       #   sox_path: 'optional - path to sox application (defaults to /usr/bin/sox)',
+      #   pitch: 'optional - integer to alter voice input (defaults to -300)'
       # )
 
       public_class_method def self.mutate(opts = {})
         sox_path = opts[:sox_path]
         sox_path ||= '/usr/bin/sox'
+        pitch = opts[:pitch].to_i
+        pitch = -300 if pitch.zero?
 
         raise "SOX Not Found: #{sox_path}" unless File.exist?(sox_path)
 
         puts 'Press CTRL+C to Exit....'
         system(
           sox_path,
-          '-d',
-          '-d',
+          '--default-device',
+          '--default-device',
+          '--no-show-progress',
           'pitch',
-          '-700',
+          '-q',
+          pitch.to_s,
           'contrast',
-          '100',
-          'echo',
-          '0.8',
-          '0.88',
-          '6',
-          '0.4'
+          '63'
         )
+
+        puts "\nGoodbye."
       rescue Interrupt
         puts "\nGoodbye."
       rescue StandardError => e
@@ -66,6 +69,8 @@ module PWN
           '--output_dir',
           output_dir
         )
+      rescue Interrupt
+        puts "\nGoodbye."
       rescue StandardError => e
         raise e
       end
@@ -73,23 +78,30 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Voice.text_to_speech(
       #   text_path: 'required - path to text file to speak',
-      #   festival_path: 'optional - path to festival app (defaults to /usr/bin/festival)',
+      #   festival_path: 'optional - path to festival (defaults to /usr/bin/festival)',
       # )
 
       public_class_method def self.text_to_speech(opts = {})
         text_path = opts[:text_path]
         festival_path = opts[:festival_path]
         festival_path ||= '/usr/bin/festival'
+        voice = opts[:voice]
+        voice ||= 'cmu_us_slt_arctic_hts'
 
         raise "Festival Not Found: #{festival_path}" unless File.exist?(festival_path)
 
         raise "Text File Not Found: #{text_path}" unless File.exist?(text_path)
 
+        text_to_say = File.read(text_path).delete('"')
+
         system(
           festival_path,
-          '--tts',
-          text_path
+          '--batch',
+          "(voice_#{voice})",
+          "(SayText \"#{text_to_say}\")"
         )
+      rescue Interrupt
+        puts "\nGoodbye."
       rescue StandardError => e
         raise e
       end
@@ -106,8 +118,9 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-           #{self}.mutate(
-             sox_path: 'optional - path to sox application (defaults to /usr/bin/sox)',
+          #{self}.mutate(
+            sox_path: 'optional - path to sox application (defaults to /usr/bin/sox)',
+            pitch: 'optional - integer to alter voice input (defaults to -300)'
           )
 
           response = #{self}.speech_to_text(
@@ -119,7 +132,7 @@ module PWN
 
           #{self}.text_to_speech(
             text_path: 'required - path to text file to speak',
-            festival_path: 'optional - path to festival app (defaults to /usr/bin/festival)',
+            festival_path: 'optional - path to festival (defaults to /usr/bin/festival)',
           )
 
           #{self}.authors
