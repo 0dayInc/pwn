@@ -17,6 +17,7 @@ new_ruby_version=`cat ${pwn_root}/.ruby-version`
 if [[ $old_ruby_version == $new_ruby_version ]]; then
   export rvmsudo_secure_path=1
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && ./reinstall_pwn_gemset.sh"
+  cd /tmp && cd $pwn_root
   rvmsudo rake
   rvmsudo rake install
   rvmsudo rake rerdoc
