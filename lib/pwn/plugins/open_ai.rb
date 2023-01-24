@@ -107,6 +107,7 @@ module PWN
         temp = opts[:temp].to_f
         temp = 0 unless temp.positive?
         max_tokens = opts[:max_tokens].to_i
+        max_tokens = 4_097 - request.to_s.length
         max_tokens = 3_072 unless max_tokens.positive?
 
         rest_call = 'completions'
