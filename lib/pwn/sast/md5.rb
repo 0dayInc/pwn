@@ -10,7 +10,7 @@ module PWN
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
-      # PWN::SAST::MD4.scan(
+      # PWN::SAST::MD5.scan(
       #   dir_path: 'optional path to dir defaults to .'
       #   git_repo_root_uri: 'optional http uri of git repo scanned'
       # )
