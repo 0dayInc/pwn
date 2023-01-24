@@ -27,6 +27,7 @@ module PWN
     autoload :LocationHash, 'pwn/sast/location_hash'
     autoload :Log4J, 'pwn/sast/log4j'
     autoload :Logger, 'pwn/sast/logger'
+    autoload :MD5, 'pwn/sast/md5'
     autoload :OuterHTML, 'pwn/sast/outer_html'
     autoload :Password, 'pwn/sast/password'
     autoload :PHPInputMechanisms, 'pwn/sast/php_input_mechanisms'

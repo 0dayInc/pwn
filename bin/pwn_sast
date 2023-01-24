@@ -94,6 +94,7 @@ begin
       LocationHash
       Log4J
       Logger
+      MD5
       OuterHTML
       Password
       PHPInputMechanisms
