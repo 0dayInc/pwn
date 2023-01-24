@@ -33,8 +33,8 @@ module PWN
             end
 
             test_case_filter = "
-              grep -n \
-              -ei 'md5' #{entry}
+              grep -in \
+              -e 'md5' #{entry}
             "
 
             str = `#{test_case_filter}`.to_s.scrub
