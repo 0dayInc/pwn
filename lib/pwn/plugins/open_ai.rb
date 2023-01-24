@@ -96,7 +96,7 @@ module PWN
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to text-davinci-003)',
       #   temp: 'optional - creative response float (deafults to 0)',
-      #   max_tokens: 'optional - integer (defaults to 3_072)'
+      #   max_tokens: 'optional - integer (defaults to 4_097 - request.length || 300)'
       # )
 
       public_class_method def self.chat_gpt(opts = {})
@@ -108,7 +108,7 @@ module PWN
         temp = 0 unless temp.positive?
         max_tokens = opts[:max_tokens].to_i
         max_tokens = 4_097 - request.to_s.length
-        max_tokens = 3_072 unless max_tokens.positive?
+        max_tokens = 300 unless max_tokens.positive?
 
         rest_call = 'completions'
 
@@ -184,7 +184,7 @@ module PWN
             request: 'required - message to ChatGPT',
             model: 'optional - model to use for text generation (defaults to text-davinci-003)',
             temp: 'optional - creative response float (deafults to 0)',
-            max_tokens: 'optional - integer (deafults to 3_072)'
+            max_tokens: 'optional - integer (deafults to 4_097 - request.length || 300)'
           )
 
           response = #{self}.img_gen(
