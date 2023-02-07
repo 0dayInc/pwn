@@ -63,6 +63,10 @@ module PWN
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
         response
+      rescue RestClient::TooManyRequests
+        print 'Too many requests.  Sleeping 10s...'
+        sleep 10
+        retry
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'

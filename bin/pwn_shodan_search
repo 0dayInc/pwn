@@ -59,6 +59,7 @@ begin
         query: query
       )
       puts " >>> Matches: #{search_results[:total]}"
+      sleep 1
 
       raw_results = {}
       raw_results[:query] = query
