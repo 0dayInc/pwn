@@ -14,9 +14,10 @@ rvmsudo git config pull.rebase false
 rvmsudo git pull
 new_ruby_version=`cat ${pwn_root}/.ruby-version`
 
+rvmsudo gem update --system
+
 if [[ $old_ruby_version == $new_ruby_version ]]; then
   export rvmsudo_secure_path=1
-  rvmsudo gem update --system
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && ./reinstall_pwn_gemset.sh"
   cd /tmp && cd $pwn_root
   rvmsudo rake

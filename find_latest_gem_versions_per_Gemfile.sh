@@ -1,4 +1,7 @@
 #!/bin/bash --login
+export rvmsudo_secure_path=1
+rvmsudo gem update --system
+
 cat Gemfile | awk '{print $2}' | grep -E "^'.+$" | grep -v -e rubygems.org | while read gem; do 
   this_gem=`echo $gem | sed "s/'//g" | sed 's/\,//g'`
   latest_version=`gem search -r $this_gem | grep -E "^${this_gem}\s.+$" | awk '{print $2}' | sed 's/(//g' | sed 's/)//g' | sed 's/,//g'`
