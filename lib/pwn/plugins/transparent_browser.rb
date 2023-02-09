@@ -96,7 +96,8 @@ module PWN
           args.push('--devtools') if with_devtools
           options = Selenium::WebDriver::Firefox::Options.new(args: args, accept_insecure_certs: true)
           options.profile = this_profile
-          driver = Selenium::WebDriver.for(:firefox, capabilities: options)
+          # driver = Selenium::WebDriver.for(:firefox, capabilities: options)
+          driver = Selenium::WebDriver.for(:firefox, options: options)
           this_browser = Watir::Browser.new(driver)
 
         when :chrome
@@ -124,7 +125,8 @@ module PWN
           )
 
           options.profile = this_profile
-          driver = Selenium::WebDriver.for(:chrome, capabilities: options)
+          # driver = Selenium::WebDriver.for(:chrome, capabilities: options)
+          driver = Selenium::WebDriver.for(:chrome, options: options)
           this_browser = Watir::Browser.new(driver)
 
         when :headless, :headless_firefox
@@ -181,7 +183,8 @@ module PWN
 
           options = Selenium::WebDriver::Firefox::Options.new(args: ['-headless'], accept_insecure_certs: true)
           options.profile = this_profile
-          driver = Selenium::WebDriver.for(:firefox, capabilities: options)
+          # driver = Selenium::WebDriver.for(:firefox, capabilities: options)
+          driver = Selenium::WebDriver.for(:firefox, options: options)
           this_browser = Watir::Browser.new(driver)
 
         when :headless_chrome
@@ -205,7 +208,8 @@ module PWN
           )
 
           options.profile = this_profile
-          driver = Selenium::WebDriver.for(:chrome, capabilities: options)
+          # driver = Selenium::WebDriver.for(:chrome, capabilities: options)
+          driver = Selenium::WebDriver.for(:chrome, options: options)
           this_browser = Watir::Browser.new(driver)
 
         when :rest
