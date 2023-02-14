@@ -91,7 +91,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.chat_gpt(
+      # response = PWN::Plugins::OpenAI.default_chat(
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to text-davinci-003)',
@@ -99,7 +99,7 @@ module PWN
       #   max_tokens: 'optional - integer (defaults to 4_097 - request.length || 300)'
       # )
 
-      public_class_method def self.chat_gpt(opts = {})
+      public_class_method def self.default_chat(opts = {})
         token = opts[:token]
         request = opts[:request]
         model = opts[:model]
@@ -179,7 +179,7 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          response = #{self}.chat_gpt(
+          response = #{self}.default_chat(
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
             model: 'optional - model to use for text generation (defaults to text-davinci-003)',
