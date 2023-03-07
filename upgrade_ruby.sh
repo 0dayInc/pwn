@@ -30,7 +30,7 @@ fi
 curl -sSL https://rvm.io/mpapis.asc | sudo gpg2 --import -
 curl -sSL https://rvm.io/pkuczynski.asc | sudo gpg2 --import -
 export rvmsudo_secure_path=1
-rvmsudo rvm get latest
+rvmsudo rvm get stable
 rvm reload
 
 # Install New Version of RubyGems & Ruby

@@ -368,7 +368,7 @@ module PWN
             end
           end
 
-          if File.read(this_file).empty?
+          if File.empty?(this_file)
             File.unlink(this_file)
           else
             print '.'
@@ -376,7 +376,7 @@ module PWN
         rescue StandardError => e
           puts "FILE GENERATION ATTEMPT OF: #{this_file} RESULTED THE FOLLOWING ERROR:"
           puts "#{e.class}: #{e.message}\n#{e.backtrace}\n\n\n"
-          File.unlink(this_file) if File.read(this_file).empty?
+          File.unlink(this_file) if File.empty?(this_file)
           next
         end
         print "\n"
