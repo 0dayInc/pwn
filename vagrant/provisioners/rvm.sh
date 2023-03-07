@@ -12,7 +12,7 @@ fi
 ruby_version=`cat ${pwn_root}/.ruby-version`
 ruby_gemset=`cat ${pwn_root}/.ruby-gemset`
 printf "Updating RVM..."
-rvmsudo rvm get latest
+rvmsudo rvm get stable
 rvm reload
 /bin/bash --login -c "source /etc/profile.d/rvm.sh && rvm --default ruby-${ruby_version}@${ruby_gemset}"
 echo "complete."
