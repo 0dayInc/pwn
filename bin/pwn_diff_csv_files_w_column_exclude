@@ -1,0 +1,114 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+require 'csv'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+    EXAMPLE w/ Tenable Nessus Results:
+    #{$PROGRAM_NAME} \\
+      --csv-a vuln_scan1.csv \\
+      --csv-b vuln_scan2.csv \\
+      --csv-diff vuln_scan_diff.csv \\
+      --exclude-column-names 'Synopsis,Description,Solution,See Also,Plugin Output,Asset UUID,Vulnerability State,IP Address,FQDN,NetBios,OS,MAC Address,Plugin Family,CVSS Base Score,CVSS Temporal Score,CVSS Temporal Vector,CVSS Vector,CVSS3 Base Score,CVSS3 Temporal Score,CVSS3 Temporal Vector,CVSS3 Vector,System Type,Host Start,Host End,Vulnerability Priority Rating (VPR),First Found,Last Found,Host Scan Schedule ID,Host Scan ID,Indexed At,Last Authenticated Results Date,Last Unauthenticated Results Date,Tracked,Risk Factor,Severity,Original Severity,Modification,Plugin Family ID,Plugin Type,Plugin Version,Service,Plugin Modification Date,Plugin Publication Date,Checks for Malware,Exploit Available,Exploited by Malware,Exploited by Nessus,CANVAS,D2 Elliot,Metasploit,Core Exploits,ExploitHub,Default Account,Patch Available,In The News,Unsupported By Vendor,Last Fixed'
+  "
+
+  options.on('-aCSV', '--csv-a=CSV', '<Required - First CSV to Compare)>') do |c1|
+    opts[:c1_path] = c1
+  end
+
+  options.on('-bCSV', '--csv-b=CSV', '<Required - Second CSV to Compare)>') do |c2|
+    opts[:c2_path] = c2
+  end
+
+  options.on('-dDIFF', '--csv-diff=DIFF', '<Required - Path of CSV Diff to Generate)>') do |d|
+    opts[:diff_path] = d
+  end
+
+  options.on('-eNAMES', '--exclude-column-names=NAMES', '<Optional - Comma-Delimited List of Column Names to Exclude)>') do |n|
+    opts[:column_names_to_exclude] = n
+  end
+
+  options.on('-n', '--no-headers', '<Optional - Redact CSV Headers in CSV Diff>') do |h|
+    opts[:no_headers] = h
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+def csv_diff(opts = {})
+  larger_csv = opts[:larger_csv]
+  smaller_csv = opts[:smaller_csv]
+  diff_path = opts[:diff_path]
+  include_csv_headers = opts[:include_csv_headers]
+  column_names_to_exclude = opts[:column_names_to_exclude]
+
+  columns_index_arr = []
+  column_names_to_exclude&.each do |column_name|
+    column_index = smaller_csv.first.find_index(column_name)
+    columns_index_arr.push(column_index)
+  end
+
+  if columns_index_arr.any?
+    larger_csv.each do |line_arr|
+      line_arr.delete_if.with_index do |_, index|
+        columns_index_arr.include?(index)
+      end
+    end
+
+    smaller_csv.each do |line_arr|
+      line_arr.delete_if.with_index do |_, index|
+        columns_index_arr.include?(index)
+      end
+    end
+  end
+
+  csv_headers = larger_csv.first.join(',')
+  File.open(diff_path, 'w') do |f|
+    f.puts csv_headers if include_csv_headers
+    larger_csv.each do |line_arr|
+      line = line_arr.join(',')
+      f.puts line unless smaller_csv.include?(line_arr)
+    end
+  end
+end
+
+c1_path = opts[:c1_path]
+csv1 = CSV.read(c1_path)
+
+c2_path = opts[:c2_path]
+csv2 = CSV.read(c2_path)
+
+diff_path = opts[:diff_path]
+
+column_names_to_exclude = opts[:column_names_to_exclude].to_s.split(',')
+
+include_csv_headers = false if opts[:no_headers]
+include_csv_headers ||= true
+
+# Compare which two is larger
+if csv1.length > csv2.length
+  csv_diff(
+    larger_csv: csv1,
+    smaller_csv: csv2,
+    diff_path: diff_path,
+    include_csv_headers: include_csv_headers,
+    column_names_to_exclude: column_names_to_exclude
+  )
+elsif csv1.length < csv2.length
+  csv_diff(
+    larger_csv: csv2,
+    smaller_csv: csv1,
+    diff_path: diff_path,
+    include_csv_headers: include_csv_headers,
+    column_names_to_exclude: column_names_to_exclude
+  )
+else
+  puts "#{c1_path} and #{c2_path} are the same size."
+end
