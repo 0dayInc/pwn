@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Until jenkins_api_client is Updated
-# require 'jenkins_api_client'
+require 'jenkins_api_client2'
 
 module PWN
   module Plugins
