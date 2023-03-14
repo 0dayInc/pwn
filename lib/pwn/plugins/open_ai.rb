@@ -91,15 +91,15 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.default_chat(
+      # response = PWN::Plugins::OpenAI.legacy_chat(
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
-      #   model: 'optional - model to use for text generation (defaults to text-davinci-003)',
+      #   model: 'optional - model to use for text generation (defaults to gpt-3.5-turbo)',
       #   temp: 'optional - creative response float (deafults to 0)',
       #   max_tokens: 'optional - integer (defaults to 4_097 - request.length || 300)'
       # )
 
-      public_class_method def self.default_chat(opts = {})
+      public_class_method def self.legacy_chat(opts = {})
         token = opts[:token]
         request = opts[:request]
         model = opts[:model]
@@ -112,12 +112,64 @@ module PWN
 
         rest_call = 'completions'
 
-        http_body = {
-          model: model,
-          prompt: request,
-          temperature: temp,
-          max_tokens: max_tokens
-        }
+        response = open_ai_rest_call(
+          http_method: :post,
+          token: token,
+          rest_call: rest_call,
+          http_body: http_body.to_json
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.chat(
+      #   token: 'required - Bearer token',
+      #   request: 'required - message to ChatGPT'
+      #   model: 'optional - model to use for text generation (defaults to gpt-3.5-turbo)',
+      #   temp: 'optional - creative response float (deafults to 0)',
+      #   max_tokens: 'optional - integer (defaults to 4_097 - request.length || 300)'
+      # )
+
+      public_class_method def self.chat(opts = {})
+        token = opts[:token]
+        request = opts[:request]
+        model = opts[:model]
+        model ||= 'gpt-3.5-turbo'
+        # model ||= 'text-davinci-003'
+        temp = opts[:temp].to_f
+        temp = 0 unless temp.positive?
+        max_tokens = opts[:max_tokens].to_i
+        max_tokens = 4_097 - request.to_s.length
+        max_tokens = 300 unless max_tokens.positive?
+
+        rest_call = 'chat/completions'
+
+        case model
+        when 'text-davinci-002',
+             'text-davinci-003'
+          http_body = {
+            model: model,
+            prompt: request,
+            temperature: temp,
+            max_tokens: max_tokens
+          }
+        when 'gpt-3.5-turbo',
+             'gpt-4'
+          http_body = {
+            model: model,
+            messages: [
+              role: 'system',
+              content: request
+            ],
+            temperature: temp,
+            max_tokens: max_tokens
+          }
+        else
+          raise "ERROR: #{model} not supported."
+        end
 
         response = open_ai_rest_call(
           http_method: :post,
@@ -179,11 +231,11 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          response = #{self}.default_chat(
+          response = #{self}.chat(
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
-            model: 'optional - model to use for text generation (defaults to text-davinci-003)',
-            temp: 'optional - creative response float (deafults to 0)',
+            model: 'optional - model to use for text generation (defaults to gpt-3.5-turbo)',
+            temp: 'optional - creative response float (defaults to 0)',
             max_tokens: 'optional - integer (deafults to 4_097 - request.length || 300)'
           )
 
