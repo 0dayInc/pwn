@@ -91,40 +91,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.legacy_chat(
-      #   token: 'required - Bearer token',
-      #   request: 'required - message to ChatGPT'
-      #   model: 'optional - model to use for text generation (defaults to gpt-3.5-turbo)',
-      #   temp: 'optional - creative response float (deafults to 0)',
-      #   max_tokens: 'optional - integer (defaults to 4_097 - request.length || 300)'
-      # )
-
-      public_class_method def self.legacy_chat(opts = {})
-        token = opts[:token]
-        request = opts[:request]
-        model = opts[:model]
-        model ||= 'text-davinci-003'
-        temp = opts[:temp].to_f
-        temp = 0 unless temp.positive?
-        max_tokens = opts[:max_tokens].to_i
-        max_tokens = 4_097 - request.to_s.length
-        max_tokens = 300 unless max_tokens.positive?
-
-        rest_call = 'completions'
-
-        response = open_ai_rest_call(
-          http_method: :post,
-          token: token,
-          rest_call: rest_call,
-          http_body: http_body.to_json
-        )
-
-        JSON.parse(response, symbolize_names: true)
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
       # response = PWN::Plugins::OpenAI.chat(
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
@@ -145,11 +111,12 @@ module PWN
         max_tokens = 4_097 - request.to_s.length
         max_tokens = 300 unless max_tokens.positive?
 
-        rest_call = 'chat/completions'
-
         case model
         when 'text-davinci-002',
              'text-davinci-003'
+
+          rest_call = 'completions'
+
           http_body = {
             model: model,
             prompt: request,
@@ -158,6 +125,9 @@ module PWN
           }
         when 'gpt-3.5-turbo',
              'gpt-4'
+
+          rest_call = 'chat/completions'
+
           http_body = {
             model: model,
             messages: [
