@@ -34,7 +34,7 @@ Gem::Specification.new do |spec|
 
     missing_rspec = true
     pwn_mod_dir = File.dirname(pwn_path)
-    error_msg = "ERROR: RSpec: #{spec_path_for_mod} missing for PWN Module: #{pwn_path}"
+    error_msg = "ERROR: No RSpec: #{spec_path_for_mod} for PWN Module: #{pwn_path}"
     # Display error message in red (octal encoded ansi sequence)
     puts "\001\e[1m\002\001\e[31m\002#{error_msg}\001\e[0m\002"
   end
