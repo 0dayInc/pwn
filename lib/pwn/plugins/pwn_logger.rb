@@ -10,10 +10,26 @@ module PWN
       # PWN::Plugins::PWNLogger.create(
       # )
 
-      public_class_method def self.create
+      public_class_method def self.create(opts = {})
         logger = Logger.new($stdout)
-        logger.level = Logger::INFO
-        logger.datetime_format = '%Y-%m-%d %H:%M:%S'
+        level = opts[:level]
+
+        case level.to_s.downcase.to_sym
+        when :debug
+          logger.level = Logger::DEBUG
+        when :error
+          logger.level = Logger::ERROR
+        when :fatal
+          logger.level = Logger::FATAL
+        when :unknown
+          logger.level = Logger::UNKNOWN
+        when :warn
+          logger.level = Logger::WARN
+        else
+          logger.level = Logger::INFO
+        end
+
+        logger.datetime_format = '%Y-%m-%d %H:%M:%S.%N'
 
         logger.formatter = proc do |severity, _datetime, _progname, msg|
           # TODO: Include datetime & progname vars
@@ -37,8 +53,10 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          logger = #{self}.create()
-         #{self}.authors
+          logger = #{self}.create(
+            level: 'optional - logging verbosity :debug|:error|:fatal|:info|:unknown|:warn (Defaults to :info)'
+          )
+          #{self}.authors
         "
       end
     end
