@@ -27,13 +27,14 @@ Gem::Specification.new do |spec|
 
   missing_rspec = false
   pwn_modules.each do |pwn_path|
-    spec_test_for_mod = "#{File.dirname(pwn_path)}/#{File.basename(pwn_path).split('.').first}_spec.rb"
-    next unless spec_tests.grep(/#{spec_test_for_mod}/).empty?
+    spec_dirname_for_mod = "spec/#{File.dirname(pwn_path)}"
+    spec_test_for_mod = "#{File.basename(pwn_path).split('.').first}_spec.rb"
+    spec_path_for_mod = "#{spec_dirname_for_mod}/#{spec_test_for_mod}"
+    next unless spec_tests.grep(/#{spec_path_for_mod}/).empty?
 
     missing_rspec = true
     pwn_mod_dir = File.dirname(pwn_path)
-    spec_test = "spec/#{pwn_mod_dir}/#{spec_test_for_mod}"
-    error_msg = "ERROR: RSpec: #{spec_test} missing for PWN Module: #{pwn_path}"
+    error_msg = "ERROR: RSpec: #{spec_path_for_mod} missing for PWN Module: #{pwn_path}"
     # Display error message in red (octal encoded ansi sequence)
     puts "\001\e[1m\002\001\e[31m\002#{error_msg}\001\e[0m\002"
   end
