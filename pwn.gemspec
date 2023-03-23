@@ -17,10 +17,28 @@ Gem::Specification.new do |spec|
   spec.license = 'MIT'
   spec.metadata['rubygems_mfa_required'] = 'true'
 
-  spec.files = `git ls-files -z`.split("\x0")
+  spec.files = `git ls-files -z`.split("\x00")
   spec.executables = spec.files.grep(%r{^bin/}) do |f|
     File.basename(f)
   end
+
+  spec_tests = spec.files.grep(%r{^spec/})
+  pwn_modules = spec.files.grep(%r{^lib/})
+
+  missing_rspec = false
+  pwn_modules.each do |pwn_path|
+    spec_test_for_mod = "#{File.basename(pwn_path).split('.').first}_spec.rb"
+    next unless spec_tests.grep(/#{spec_test_for_mod}/).empty?
+
+    missing_rspec = true
+    pwn_mod_dir = File.dirname(pwn_path)
+    spec_test = "/spec/#{pwn_mod_dir}/#{spec_test_for_mod}"
+    error_msg = "ERROR: RSpec: #{spec_test} missing for PWN Module: #{pwn_path}"
+    # Display error message in red (octal encoded ansi sequence)
+    puts "\001\e[1m\002\001\e[31m\002#{error_msg}\001\e[0m\002"
+  end
+
+  raise if missing_rspec
 
   spec.require_paths = ['lib']
 
