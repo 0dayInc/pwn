@@ -23,6 +23,10 @@ OptionParser.new do |options|
   options.on('-sSTAGE', '--system-role-content=STAGE', '<Optional - system Role Content Value to Define Behavior of assistant responses (Defaults to value in PWN::Plugins::OpenAI.chat method)>') do |s|
     opts[:system_role_content] = s
   end
+
+  options.on('-v', '--voice', '<Options - Voice Activate Responses (Defaults to false)>') do |v|
+    opts[:voice] = v
+  end
 end.parse!
 
 if opts.empty?
@@ -89,6 +93,8 @@ begin
 
   system_role_content = opts[:system_role_content]
 
+  @voice = true if opts[:voice]
+
   # Define Custom REPL Commands
   Pry::Commands.create_command 'welcome-banner' do
     description 'Display the random welcome banner, including basic usage.'
@@ -123,6 +129,12 @@ begin
       response_history: @response_history
     )
     puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+
+    if @voice
+      text_path = "/tmp/#{File.basename($PROGRAM_NAME)}.response"
+      File.write(text_path, response[:choices].last[:content])
+      PWN::Plugins::Voice.text_to_speech(text_path: text_path)
+    end
 
     @response_history = {
       id: response[:id],
