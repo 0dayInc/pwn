@@ -29,9 +29,11 @@ module PWN
                        end
 
         if opts[:headless]
-          burp_cmd_string = "java -Xmx3G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
+          # burp_cmd_string = "java -Xmx3G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
+          burp_cmd_string = "java -Xmx3G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar -jar #{burp_jar_path}"
         else
-          burp_cmd_string = "java -Xmx3G -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
+          # burp_cmd_string = "java -Xmx3G -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
+          burp_cmd_string = "java -Xmx3G -classpath #{burp_root}/burpbuddy.jar -jar #{burp_jar_path}"
         end
 
         # Construct burp_obj
