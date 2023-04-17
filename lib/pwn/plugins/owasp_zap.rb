@@ -113,14 +113,12 @@ module PWN
           owasp_zap_cmd = "cd #{zap_dir} && ./#{zap_bin}"
         end
 
-        if opts[:proxy]
-          proxy = opts[:proxy].to_s.scrub.strip.chomp
-          proxy_uri = URI.parse(proxy)
-        else
-          random_port = PWN::Plugins::Sock.get_random_unused_port
-          proxy = "http://127.0.0.1:#{random_port}"
-          proxy_uri = URI.parse(proxy)
-        end
+        random_port = PWN::Plugins::Sock.get_random_unused_port
+
+        proxy = "http://127.0.0.1:#{random_port}"
+        proxy = opts[:proxy].to_s.scrub.strip.chomp if opts[:proxy]
+
+        proxy_uri = URI.parse(proxy)
         owasp_zap_cmd = "#{owasp_zap_cmd} -host #{proxy_uri.host} -port #{proxy_uri.port}"
         zap_obj[:host] = proxy_uri.host.to_s.scrub
         zap_obj[:port] = proxy_uri.port.to_i
