@@ -120,7 +120,7 @@ module PWN
           listen_obj = UDPSocket.new
           listen_obj.bind(server_ip, port)
           while (client_input = listen_obj.recvmsg)
-            puts client_input[0].to_s
+            puts client_input[0]
           end
         else
           raise "Unsupported protocol: #{protocol}"
