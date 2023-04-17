@@ -75,7 +75,7 @@ module PWN
       #   api_key: 'required - api key for API authorization',
       #   zap_bin_path: 'optional - path to zap.sh file'
       #   headless: 'optional - run zap headless if set to true',
-      #   proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:8080)',
+      #   proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:<Random 1024-65535>)',
       # )
 
       public_class_method def self.start(opts = {})
@@ -118,7 +118,8 @@ module PWN
           proxy_uri = URI.parse(proxy)
           owasp_zap_cmd = "#{owasp_zap_cmd} -host #{proxy_uri.host} -port #{proxy_uri.port}"
         else
-          proxy = 'http://127.0.0.1:8080'
+          random_port = PWN::Plugins::Sock.get_random_unused_port
+          proxy = "http://127.0.0.1:#{random_port}"
           proxy_uri = URI.parse(proxy)
         end
         zap_obj[:host] = proxy_uri.host.to_s.scrub
@@ -499,7 +500,7 @@ module PWN
             api_key: 'required - api key for API authorization',
             zap_bin_path: 'optional - path to zap.sh file',
             headless: 'optional - run zap headless if set to true',
-            proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:8080)'
+            proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:<Random 1024-65535>)'
           )
           puts zap_obj.public_methods
 

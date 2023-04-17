@@ -84,12 +84,13 @@ module PWN
         raise "no http_listen value found in #{config}." if http_list_entry.empty?
 
         # Update http_listen value in respective config with random available port
-        random_port = -1
-        port_in_use = true
-        while port_in_use
-          random_port = Random.rand(1024..65_535)
-          port_in_use = PWN::Plugins::Sock.check_port_in_use(port: random_port)
-        end
+        # random_port = -1
+        # port_in_use = true
+        # while port_in_use
+        #   random_port = Random.rand(1024..65_535)
+        #   port_in_use = PWN::Plugins::Sock.check_port_in_use(port: random_port)
+        # end
+        random_port = PWN::Plugins::Sock.get_random_unused_port
         http_listen_ip_port = "127.0.0.1:#{random_port}"
 
         updated_config_content = ''

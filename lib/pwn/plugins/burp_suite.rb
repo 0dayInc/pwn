@@ -40,8 +40,11 @@ module PWN
         burp_obj = {}
         burp_obj[:pid] = Process.spawn(burp_cmd_string)
         rest_browser = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
-        burp_obj[:mitm_proxy] = '127.0.0.1:8080'
-        burp_obj[:burpbuddy_api] = '127.0.0.1:8001'
+        random_mitm_port = PWN::Plugins::Sock.get_random_unused_port
+        random_bb_port = random_mitm_port
+        random_bb_port = PWN::Plugins::Sock.get_random_unused_port while random_bb_port == random_mitm_port
+        burp_obj[:mitm_proxy] = "127.0.0.1:#{random_mitm_port}"
+        burp_obj[:burpbuddy_api] = "127.0.0.1:#{random_bb_port}"
         burp_obj[:rest_browser] = rest_browser
 
         # Proxy always listens on localhost...use SSH tunneling if remote access is required
@@ -54,7 +57,7 @@ module PWN
 
         # Wait for TCP 8001 to open prior to returning burp_obj
         loop do
-          s = TCPSocket.new('127.0.0.1', 8001)
+          s = TCPSocket.new('127.0.0.1', random_bb_port)
           s.close
           break
         rescue Errno::ECONNREFUSED

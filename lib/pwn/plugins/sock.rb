@@ -48,9 +48,39 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Sock.check_port_in_use(
-      #   port: 'required - target port',
+      # PWN::Plugins::Sock.get_random_unused_port(
       #   server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
+      #   protocol: 'optional - :tcp || :udp (defaults to tcp)'
+      # )
+
+      public_class_method def self.get_random_unused_port(opts = {})
+        server_ip = opts[:server_ip]
+        server_ip ||= '127.0.0.1'
+        port = -1
+        protocol = opts[:protocol]
+        protocol ||= :tcp
+
+        port_in_use = true
+        while port_in_use
+          port = Random.rand(1024..65_535)
+          port_in_use = check_port_in_use(
+            server_ip: server_ip,
+            port: port,
+            protocol: protocol
+          )
+        end
+
+        port
+      rescue Errno::ECONNREFUSED,
+             Errno::EHOSTUNREACH,
+             Errno::ETIMEDOUT
+        false
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::Sock.check_port_in_use(
+      #   server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
+      #   port: 'required - target port',
       #   protocol: 'optional - :tcp || :udp (defaults to tcp)'
       # )
 
@@ -163,9 +193,14 @@ module PWN
             tls: 'optional - boolean connect to target socket using TLS (defaults to false)'
           )
 
-          #{self}.check_port_availability(
-            port: 'required - target port',
+          port = #{self}.get_random_unused_port(
             server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
+            protocol: 'optional - :tcp || :udp (defaults to tcp)'
+          )
+
+          #{self}.check_port_in_use(
+            server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
+            port: 'required - target port',
             protocol: 'optional - :tcp || :udp (defaults to tcp)'
           )
 
