@@ -1,11 +1,34 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'optparse'
 require 'pwn'
 require 'pry'
-require 'colorize'
-# require 'tty-prompt'
-# require 'tty-reader'
+require 'yaml'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-cPATH', '--yaml-config=PATH', '<Required - OpenAI YAML File>') do |p|
+    opts[:yaml_config_path] = p
+  end
+
+  options.on('-d', '--[no-]debug', '<Options - Display response_history Object During Session>') do |d|
+    opts[:debug] = d
+  end
+
+  options.on('-sSTAGE', '--system-role-content=STAGE', '<Optional - system Role Content Value to Define Behavior of assistant responses (Defaults to value in PWN::Plugins::OpenAI.chat method)>') do |s|
+    opts[:system_role_content] = s
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
 
 begin
   def gen_ps1_proc(opts = {})
@@ -55,6 +78,17 @@ begin
     end
   end
 
+  # Get OptParse Cli Parameters
+  yaml_config_path = opts[:yaml_config_path]
+  raise "ERROR: YAML Config => #{yaml_config_path} not found." unless File.exist?(yaml_config_path)
+
+  yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
+  token = yaml_config[:bearer_token]
+
+  debug = opts[:debug]
+
+  system_role_content = opts[:system_role_content]
+
   # Define Custom REPL Commands
   Pry::Commands.create_command 'welcome-banner' do
     description 'Display the random welcome banner, including basic usage.'
@@ -78,6 +112,34 @@ begin
     output.puts PWN::Banner.welcome
   end
 
+  @response_history = nil
+  Pry.config.hooks.add_hook(:after_eval, :open_ai_hook) do |request, _pry|
+    response = PWN::Plugins::OpenAI.chat(
+      token: token,
+      system_role_content: system_role_content,
+      request: request.to_s,
+      temp: 1,
+      max_tokens: 0,
+      response_history: @response_history
+    )
+    puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+
+    @response_history = {
+      id: response[:id],
+      object: response[:object],
+      model: response[:model],
+      usage: response[:usage]
+    }
+    @response_history[:choices] = response[:choices].slice(-6..)
+    @response_history[:choices] ||= response[:choices]
+  end
+
+  if debug
+    Pry.config.hooks.add_hook(:after_eval, :open_ai_hook_resp) do |_request, _pry|
+      puts @response_history
+    end
+  end
+
   # Define PS1 Prompt
   Pry.config.pwn_repl_line = 0
   arrow_ps1_proc = gen_ps1_proc
@@ -85,13 +147,13 @@ begin
   prompt_ps1 = [arrow_ps1_proc, splat_ps1_proc]
 
   pwn_prompt = Pry::Prompt.new(
-    :pwn,
-    'PWN Prototyping REPL',
+    :pwn_chat,
+    'PWN Prototyping REPL w/ OpenAI Assistant',
     prompt_ps1
   )
 
   # Start PWN REPL
-  Pry.config.prompt_name = :pwn
+  Pry.config.prompt_name = :pwn_chat
   Pry.start(
     self,
     prompt: pwn_prompt
