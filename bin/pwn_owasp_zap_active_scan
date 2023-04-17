@@ -38,7 +38,7 @@ OptionParser.new do |options|
     opts[:headless] = h
   end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Change Local Zap Proxy Listener (Default http://127.0.0.1:8080)>') do |p|
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Change Local Zap Proxy Listener (Default http://127.0.0.1:<Random 1024-65535>)>') do |p|
     opts[:proxy] = p
   end
 end.parse!
@@ -64,8 +64,7 @@ begin
   navigation_instruct = opts[:navigation_instruct].to_s.strip.chomp.scrub if File.exist?(opts[:navigation_instruct].to_s.strip.chomp.scrub)
   zap_bin_path = opts[:zap_bin_path].to_s.strip.chomp.scrub if File.exist?(opts[:zap_bin_path].to_s.strip.chomp.scrub)
   headless = opts[:headless]
-  proxy = opts[:proxy].to_s.strip.chomp.scrub
-  proxy = 'http://127.0.0.1:8080' if proxy == ''
+  proxy = opts[:proxy]
 
   # ------
   # Dynamically build arguments hash based on flags passed and Open Zap
