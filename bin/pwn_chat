@@ -119,14 +119,8 @@ begin
   end
 
   @response_history = nil
-  @keep_in_memory = 0
   Pry.config.hooks.add_hook(:after_eval, :open_ai_hook) do |request, _pry|
     if request.instance_of?(String)
-      unless @response_history.nil?
-        choices_len = @response_history[:choices].length
-        @keep_in_memory = choices_len * -1
-      end
-
       response = PWN::Plugins::OpenAI.chat(
         token: token,
         system_role_content: system_role_content,
