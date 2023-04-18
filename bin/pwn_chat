@@ -24,8 +24,8 @@ OptionParser.new do |options|
     opts[:system_role_content] = s
   end
 
-  options.on('-v', '--voice', '<Options - Voice Activate Responses (Defaults to false)>') do |v|
-    opts[:voice] = v
+  options.on('-S', '--speak-answer', '<Options - Speak Answers (Defaults to false)>') do |v|
+    opts[:speak_answer] = v
   end
 end.parse!
 
@@ -93,7 +93,7 @@ begin
 
   system_role_content = opts[:system_role_content]
 
-  @voice = true if opts[:voice]
+  @speak_answer = true if opts[:speak_answer]
 
   # Define Custom REPL Commands
   Pry::Commands.create_command 'welcome-banner' do
@@ -127,52 +127,24 @@ begin
         @keep_in_memory = choices_len * -1
       end
 
-      begin
-        response = PWN::Plugins::OpenAI.chat(
-          token: token,
-          system_role_content: system_role_content,
-          request: request.to_s,
-          temp: 1,
-          max_tokens: 0,
-          response_history: @response_history
-        )
-        puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+      response = PWN::Plugins::OpenAI.chat(
+        token: token,
+        system_role_content: system_role_content,
+        request: request.to_s,
+        temp: 1,
+        max_tokens: 0,
+        response_history: @response_history,
+        speak_answer: @speak_answer
+      )
+      puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
 
-        if @voice
-          text_path = "/tmp/#{File.basename($PROGRAM_NAME)}.response"
-          File.write(text_path, response[:choices].last[:content])
-          PWN::Plugins::Voice.text_to_speech(text_path: text_path)
-        end
-
-        @response_history = {
-          id: response[:id],
-          object: response[:object],
-          model: response[:model],
-          usage: response[:usage]
-        }
-        @response_history[:choices] ||= response[:choices]
-      rescue JSON::ParserError
-        max_tokens = 4097
-        if request.length > max_tokens
-          puts "Request Length Too Long: #{request.length}\n"
-        else
-          puts 'Token Length too long, trimming memory by 1 and retrying...'
-          @keep_in_memory += 1
-          @response_history[:choices] = @response_history[:choices].slice(@keep_in_memory..)
-
-          response = PWN::Plugins::OpenAI.chat(
-            token: token,
-            system_role_content: system_role_content,
-            request: "summarize what we've already discussed",
-            temp: 1,
-            max_tokens: 0,
-            response_history: @response_history
-          )
-          @response_history[:choices] = response[:choices].slice(@keep_in_memory..)
-
-          retry
-        end
-      end
+      @response_history = {
+        id: response[:id],
+        object: response[:object],
+        model: response[:model],
+        usage: response[:usage]
+      }
+      @response_history[:choices] ||= response[:choices]
     end
   end
 
