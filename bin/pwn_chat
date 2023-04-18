@@ -119,36 +119,68 @@ begin
   end
 
   @response_history = nil
+  @keep_in_memory = 0
   Pry.config.hooks.add_hook(:after_eval, :open_ai_hook) do |request, _pry|
-    response = PWN::Plugins::OpenAI.chat(
-      token: token,
-      system_role_content: system_role_content,
-      request: request.to_s,
-      temp: 1,
-      max_tokens: 0,
-      response_history: @response_history
-    )
-    puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+    if request.instance_of?(String)
+      unless @response_history.nil?
+        choices_len = @response_history[:choices].length
+        @keep_in_memory = choices_len * -1
+      end
 
-    if @voice
-      text_path = "/tmp/#{File.basename($PROGRAM_NAME)}.response"
-      File.write(text_path, response[:choices].last[:content])
-      PWN::Plugins::Voice.text_to_speech(text_path: text_path)
+      begin
+        response = PWN::Plugins::OpenAI.chat(
+          token: token,
+          system_role_content: system_role_content,
+          request: request.to_s,
+          temp: 1,
+          max_tokens: 0,
+          response_history: @response_history
+        )
+        puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+
+        if @voice
+          text_path = "/tmp/#{File.basename($PROGRAM_NAME)}.response"
+          File.write(text_path, response[:choices].last[:content])
+          PWN::Plugins::Voice.text_to_speech(text_path: text_path)
+        end
+
+        @response_history = {
+          id: response[:id],
+          object: response[:object],
+          model: response[:model],
+          usage: response[:usage]
+        }
+        @response_history[:choices] ||= response[:choices]
+      rescue JSON::ParserError
+        max_tokens = 4097
+        if request.length > max_tokens
+          puts "Request Length Too Long: #{request.length}\n"
+        else
+          puts 'Token Length too long, trimming memory by 1 and retrying...'
+          @keep_in_memory += 1
+          @response_history[:choices] = @response_history[:choices].slice(@keep_in_memory..)
+
+          response = PWN::Plugins::OpenAI.chat(
+            token: token,
+            system_role_content: system_role_content,
+            request: "summarize what we've already discussed",
+            temp: 1,
+            max_tokens: 0,
+            response_history: @response_history
+          )
+          @response_history[:choices] = response[:choices].slice(@keep_in_memory..)
+
+          retry
+        end
+      end
     end
-
-    @response_history = {
-      id: response[:id],
-      object: response[:object],
-      model: response[:model],
-      usage: response[:usage]
-    }
-    @response_history[:choices] = response[:choices].slice(-6..)
-    @response_history[:choices] ||= response[:choices]
   end
 
   if debug
     Pry.config.hooks.add_hook(:after_eval, :open_ai_hook_resp) do |_request, _pry|
-      puts @response_history
+      puts 'DEBUG: @response_history = '
+      pp @response_history
+      puts "@response_history[:choices] Length: #{@response_history[:choices].length}\n" unless @response_history.nil?
     end
   end
 
