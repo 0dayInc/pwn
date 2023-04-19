@@ -1,11 +1,24 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'optparse'
 require 'pwn'
 require 'pry'
-require 'colorize'
+require 'yaml'
+# require 'colorize'
 # require 'tty-prompt'
 # require 'tty-reader'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-cPATH', '--yaml-config=PATH', '<Optional - OpenAI YAML File>') do |p|
+    opts[:yaml_config_path] = p
+  end
+end.parse!
 
 begin
   def gen_ps1_proc(opts = {})
@@ -73,9 +86,87 @@ begin
     end
   end
 
+  Pry::Commands.create_command 'toggle-chatGPT-debug' do
+    description "Display the response_history object while using OpenAI's ChatGPT."
+
+    def process
+      pi = pry_instance
+      pi.config.chat_gpt_debug ? pi.config.chat_gpt_debug = false : pi.config.chat_gpt_debug = true
+      puts 'ChatGPT Debug Enabled.' if pi.config.chat_gpt_debug
+      puts 'ChatGPT Debug Disabled.' unless pi.config.chat_gpt_debug
+    end
+  end
+
+  Pry::Commands.create_command 'toggle-chatGPT-speaks' do
+    description 'Use speech capabilities within PWN to speak OpenAI ChatGPT answers.'
+
+    def process
+      pi = pry_instance
+      pi.config.chat_gpt_speak ? pi.config.chat_gpt_speak = false : pi.config.chat_gpt_speak = true
+      puts 'ChatGPT Speech Enabled.' if pi.config.chat_gpt_speak
+      puts 'ChatGPT Speech Disabled.' unless pi.config.chat_gpt_speak
+    end
+  end
+
+  Pry::Commands.create_command 'toggle-chatGPT' do
+    description "Interact w/ OpenAI's ChatGPT"
+
+    def process
+      pi = pry_instance
+      pi.config.chat_gpt ? pi.config.chat_gpt = false : pi.config.chat_gpt = true
+      puts 'ChatGPT Enabled.' if pi.config.chat_gpt
+      puts 'ChatGPT Disabled.' unless pi.config.chat_gpt
+    end
+  end
+
   # Define REPL Hooks
+  # Welcome Banner Hook
   Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
     output.puts PWN::Banner.welcome
+  end
+
+  # ChatGPT Hooks
+  Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
+    pi.config.chat_gpt_token = ''
+    if opts[:yaml_config_path] && File.exist?(opts[:yaml_config_path])
+      yaml_config_path = opts[:yaml_config_path]
+      yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
+      pi.config.chat_gpt_token = yaml_config[:bearer_token]
+    end
+  end
+
+  Pry.config.hooks.add_hook(:after_eval, :open_ai_hook) do |request, pi|
+    if request.instance_of?(String) && pi.config.chat_gpt
+      debug = pi.config.chat_gpt_debug
+      token = pi.config.chat_gpt_token
+      token = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'OpenAI API Key') if token.empty?
+      response_history = pi.config.chat_gpt_response_history
+      speak_answer = pi.config.chat_gpt_speak
+      response = PWN::Plugins::OpenAI.chat(
+        token: token,
+        request: request.to_s,
+        temp: 1,
+        max_tokens: 0,
+        response_history: response_history,
+        speak_answer: speak_answer
+      )
+      puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+
+      response_history = {
+        id: response[:id],
+        object: response[:object],
+        model: response[:model],
+        usage: response[:usage]
+      }
+      response_history[:choices] ||= response[:choices]
+
+      if debug
+        puts 'DEBUG: response_history = '
+        pp response_history
+        puts "response_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
+      end
+      pi.config.chat_gpt_response_history = response_history
+    end
   end
 
   # Define PS1 Prompt
