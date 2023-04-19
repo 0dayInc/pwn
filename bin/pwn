@@ -103,7 +103,7 @@ begin
     def process
       pi = pry_instance
       pi.config.chat_gpt_speak ? pi.config.chat_gpt_speak = false : pi.config.chat_gpt_speak = true
-      puts 'ChatGPT Speech Enabled.' if pi.config.chat_gpt_speak
+      print 'ChatGPT Speech Enabled.' if pi.config.chat_gpt_speak
       puts 'ChatGPT Speech Disabled.' unless pi.config.chat_gpt_speak
     end
   end
@@ -127,7 +127,6 @@ begin
 
   # ChatGPT Hooks
   Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
-    pi.config.chat_gpt_token = ''
     if opts[:yaml_config_path] && File.exist?(opts[:yaml_config_path])
       yaml_config_path = opts[:yaml_config_path]
       yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
@@ -136,10 +135,17 @@ begin
   end
 
   Pry.config.hooks.add_hook(:after_eval, :open_ai_hook) do |request, pi|
-    if request.instance_of?(String) && pi.config.chat_gpt
+    if pi.config.chat_gpt && request
       debug = pi.config.chat_gpt_debug
       token = pi.config.chat_gpt_token
-      token = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'OpenAI API Key') if token.empty?
+      token ||= ''
+      if token.empty?
+        token = PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'OpenAI API Key'
+        )
+        pi.config.chat_gpt_token = token
+      end
+
       response_history = pi.config.chat_gpt_response_history
       speak_answer = pi.config.chat_gpt_speak
       response = PWN::Plugins::OpenAI.chat(
