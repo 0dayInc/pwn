@@ -5,9 +5,6 @@ require 'optparse'
 require 'pwn'
 require 'pry'
 require 'yaml'
-# require 'colorize'
-# require 'tty-prompt'
-# require 'tty-reader'
 
 opts = {}
 OptionParser.new do |options|
@@ -21,29 +18,39 @@ OptionParser.new do |options|
 end.parse!
 
 begin
-  def gen_ps1_proc(opts = {})
-    delim = opts[:delim]
+  def refresh_ps1_proc(opts = {})
+    mode = opts[:mode]
 
-    # title = 'pwn'.red.bold
-    title = "\001\e[1m\002\001\e[31m\002#{File.basename($PROGRAM_NAME)}\001\e[0m\002"
-    # version = PWN::VERSION.cyan
-    version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002"
-    # dchars = '>>>'.green
-    dchars = "\001\e[32m\002>>>\001\e[0m\002"
-    # dchars = '***'.yellow if delim == :splat
-    dchars = "\001\e[33m\002***\001\e[0m\002" if delim == :splat
-
-    proc do |_target_self, _nest_level, pry|
-      pry.config.pwn_repl_line += 1
+    proc do |_target_self, _nest_level, pi|
+      pi.config.pwn_repl_line += 1
       line_pad = format(
         '%0.3d',
-        pry.config.pwn_repl_line
+        pi.config.pwn_repl_line
       )
-      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002" # Blue
-      "#{title}[#{version}]:#{line_count} #{dchars} ".to_s.scrub
+
+      pi.config.prompt_name = :pwn
+      name = "\001\e[1m\002\001\e[31m\002#{pi.config.prompt_name}\001\e[0m\002"
+      version = "\001\e[36m\002v#{PWN::VERSION}\001\e[0m\002"
+      line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002"
+      dchars = "\001\e[32m\002>>>\001\e[0m\002"
+      dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
+      if pi.config.chat_gpt
+        pi.config.prompt_name = 'chatGPT.pwn'
+        pi.config.prompt_name = 'SPEAKING.chatGPT.pwn' if pi.config.chat_gpt_speak
+        name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
+        dchars = "\001\e[32m\002>>>\001\e[31m\002"
+        dchars = "\001\e[33m\002***\001\e[31m\002" if mode == :splat
+        if pi.config.chat_gpt_debug
+          dchars = "\001\e[32m\002(DEBUG) >>>\001\e[31m\002"
+          dchars = "\001\e[33m\002(DEBUG) ***\001\e[31m\002" if mode == :splat
+        end
+      end
+
+      "#{name}[#{version}]:#{line_count} #{dchars} ".to_s.scrub
     end
   end
 
+  # Pry Monkey Patches \_(oo)_/
   class Pry
     # Overwrite Pry::History.push method in History class to get duplicate history entries
     # in order to properly replay automation in this prototyping driver
@@ -66,6 +73,108 @@ begin
       end
       alias << push
     end
+
+    def handle_line(line, options)
+      if line.nil?
+        config.control_d_handler.call(self)
+        return
+      end
+
+      ensure_correct_encoding!(line)
+      Pry.history << line unless options[:generated]
+
+      @suppress_output = false
+      inject_sticky_locals!
+      begin
+        unless process_command_safely(line)
+          @eval_string += "#{line.chomp}\n" if !line.empty? || !@eval_string.empty?
+        end
+      rescue RescuableException => e
+        self.last_exception = e
+        result = e
+
+        Pry.critical_section do
+          show_result(result)
+        end
+        return
+      end
+
+      # This hook is supposed to be executed after each line of ruby code
+      # has been read (regardless of whether eval_string is yet a complete expression)
+      exec_hook :after_read, eval_string, self
+
+      begin
+        if config.chat_gpt
+          complete_expr = true
+          @eval_string += ';'
+        else
+          complete_expr = Pry::Code.complete_expression?(@eval_string)
+        end
+      rescue SyntaxError => e
+        output.puts e.message.gsub(/^.*syntax error, */, "SyntaxError: ")
+        reset_eval_string
+      end
+
+      if complete_expr
+        if @eval_string =~ /;\Z/ || @eval_string.empty? || @eval_string =~ /\A *#.*\n\z/
+          @suppress_output = true
+        end
+
+        # A bug in jruby makes java.lang.Exception not rescued by
+        # `rescue Pry::RescuableException` clause.
+        #
+        # * https://github.com/pry/pry/issues/854
+        # * https://jira.codehaus.org/browse/JRUBY-7100
+        #
+        # Until that gets fixed upstream, treat java.lang.Exception
+        # as an additional exception to be rescued explicitly.
+        #
+        # This workaround has a side effect: java exceptions specified
+        # in `Pry.config.unrescued_exceptions` are ignored.
+        jruby_exceptions = []
+        jruby_exceptions << Java::JavaLang::Exception if Helpers::Platform.jruby?
+
+        begin
+          # Reset eval string, in case we're evaluating Ruby that does something
+          # like open a nested REPL on this instance.
+          eval_string = @eval_string
+          reset_eval_string
+
+          result = evaluate_ruby(eval_string)
+        rescue RescuableException, *jruby_exceptions => e
+          # Eliminate following warning:
+          # warning: singleton on non-persistent Java type X
+          # (http://wiki.jruby.org/Persistence)
+          if Helpers::Platform.jruby? && e.class.respond_to?('__persistent__')
+            e.class.__persistent__ = true
+          end
+          self.last_exception = e
+          result = e
+        end
+
+        Pry.critical_section do
+          show_result(result)
+        end
+      end
+
+      throw(:breakout) if current_binding.nil?
+    end
+
+    # Ensure the return value in chat_gpt mode reflects the input
+    def evaluate_ruby(code)
+      if config.chat_gpt
+        result = message = code.to_s
+        return
+      end
+      inject_sticky_locals!
+      exec_hook :before_eval, code, self
+
+      result = current_binding.eval(code, Pry.eval_path, Pry.current_line)
+      set_last_result(result, code)
+    ensure
+      update_input_history(code)
+      exec_hook :after_eval, result, self
+    end
   end
 
   # Define Custom REPL Commands
@@ -86,14 +195,23 @@ begin
     end
   end
 
+  Pry::Commands.create_command 'toggle-chatGPT' do
+    description "Interact w/ OpenAI's ChatGPT"
+
+    def process
+      pi = pry_instance
+      pi.config.chat_gpt ? pi.config.chat_gpt = false : pi.config.chat_gpt = true
+      pi.config.color = false if pi.config.chat_gpt
+      pi.config.color = true unless pi.config.chat_gpt
+    end
+  end
+
   Pry::Commands.create_command 'toggle-chatGPT-debug' do
     description "Display the response_history object while using OpenAI's ChatGPT."
 
     def process
       pi = pry_instance
       pi.config.chat_gpt_debug ? pi.config.chat_gpt_debug = false : pi.config.chat_gpt_debug = true
-      puts 'ChatGPT Debug Enabled.' if pi.config.chat_gpt_debug
-      puts 'ChatGPT Debug Disabled.' unless pi.config.chat_gpt_debug
     end
   end
 
@@ -103,25 +221,12 @@ begin
     def process
       pi = pry_instance
       pi.config.chat_gpt_speak ? pi.config.chat_gpt_speak = false : pi.config.chat_gpt_speak = true
-      print 'ChatGPT Speech Enabled.' if pi.config.chat_gpt_speak
-      puts 'ChatGPT Speech Disabled.' unless pi.config.chat_gpt_speak
-    end
-  end
-
-  Pry::Commands.create_command 'toggle-chatGPT' do
-    description "Interact w/ OpenAI's ChatGPT"
-
-    def process
-      pi = pry_instance
-      pi.config.chat_gpt ? pi.config.chat_gpt = false : pi.config.chat_gpt = true
-      puts 'ChatGPT Enabled.' if pi.config.chat_gpt
-      puts 'ChatGPT Disabled.' unless pi.config.chat_gpt
     end
   end
 
   # Define REPL Hooks
   # Welcome Banner Hook
-  Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pry|
+  Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
     output.puts PWN::Banner.welcome
   end
 
@@ -134,8 +239,9 @@ begin
     end
   end
 
-  Pry.config.hooks.add_hook(:after_eval, :open_ai_hook) do |request, pi|
-    if pi.config.chat_gpt && request
+  Pry.config.hooks.add_hook(:after_read, :open_ai_hook) do |request, pi|
+    if pi.config.chat_gpt && !request.chomp.empty?
+      request = pi.input.line_buffer
       debug = pi.config.chat_gpt_debug
       token = pi.config.chat_gpt_token
       token ||= ''
@@ -150,13 +256,13 @@ begin
       speak_answer = pi.config.chat_gpt_speak
       response = PWN::Plugins::OpenAI.chat(
         token: token,
-        request: request.to_s,
+        request: request.chomp,
         temp: 1,
         max_tokens: 0,
         response_history: response_history,
         speak_answer: speak_answer
       )
-      puts "\n\n\n#{response[:choices].last[:content]}\n\n\n"
+      puts "\n\n\n\001\e[32m\002#{response[:choices].last[:content]}\001\e[31m\002\n\n\n"
 
       response_history = {
         id: response[:id],
@@ -167,9 +273,9 @@ begin
       response_history[:choices] ||= response[:choices]
 
       if debug
-        puts 'DEBUG: response_history = '
+        puts 'DEBUG: response_history => '
         pp response_history
-        puts "response_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
+        puts "\nresponse_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
       end
       pi.config.chat_gpt_response_history = response_history
     end
@@ -177,22 +283,22 @@ begin
 
   # Define PS1 Prompt
   Pry.config.pwn_repl_line = 0
-  arrow_ps1_proc = gen_ps1_proc
-  splat_ps1_proc = gen_ps1_proc(delim: :splat)
+  Pry.config.prompt_name = :pwn
+  arrow_ps1_proc = refresh_ps1_proc
+  splat_ps1_proc = refresh_ps1_proc(mode: :splat)
   prompt_ps1 = [arrow_ps1_proc, splat_ps1_proc]
-
-  pwn_prompt = Pry::Prompt.new(
+  prompt = Pry::Prompt.new(
     :pwn,
     'PWN Prototyping REPL',
     prompt_ps1
   )
 
   # Start PWN REPL
-  Pry.config.prompt_name = :pwn
   Pry.start(
     self,
-    prompt: pwn_prompt
+    prompt: prompt
   )
 rescue StandardError => e
+  puts 1111 if Pry.config.chat_gpt
   raise e
 end
