@@ -104,21 +104,18 @@ begin
       exec_hook :after_read, eval_string, self
 
       begin
-        if config.chat_gpt
-          complete_expr = true
-          @eval_string += ';'
-        else
-          complete_expr = Pry::Code.complete_expression?(@eval_string)
-        end
+        complete_expr = true if config.chat_gpt
+        complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.chat_gpt
       rescue SyntaxError => e
         output.puts e.message.gsub(/^.*syntax error, */, "SyntaxError: ")
         reset_eval_string
       end
 
       if complete_expr
-        if @eval_string =~ /;\Z/ || @eval_string.empty? || @eval_string =~ /\A *#.*\n\z/
-          @suppress_output = true
-        end
+        @suppress_output = true if @eval_string =~ /;\Z/ ||
+                                   @eval_string.empty? ||
+                                   @eval_string =~ /\A *#.*\n\z/ ||
+                                   config.chat_gpt
 
         # A bug in jruby makes java.lang.Exception not rescued by
         # `rescue Pry::RescuableException` clause.
@@ -201,8 +198,6 @@ begin
     def process
       pi = pry_instance
       pi.config.chat_gpt ? pi.config.chat_gpt = false : pi.config.chat_gpt = true
-      pi.config.color = false if pi.config.chat_gpt
-      pi.config.color = true unless pi.config.chat_gpt
     end
   end
 
