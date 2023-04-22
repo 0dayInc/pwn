@@ -38,11 +38,11 @@ begin
         pi.config.prompt_name = 'chatGPT.pwn'
         pi.config.prompt_name = 'SPEAKING.chatGPT.pwn' if pi.config.chat_gpt_speak
         name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
-        dchars = "\001\e[32m\002>>>\001\e[31m\002"
-        dchars = "\001\e[33m\002***\001\e[31m\002" if mode == :splat
+        dchars = "\001\e[32m\002>>>\001\e[33m\002"
+        dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
         if pi.config.chat_gpt_debug
-          dchars = "\001\e[32m\002(DEBUG) >>>\001\e[31m\002"
-          dchars = "\001\e[33m\002(DEBUG) ***\001\e[31m\002" if mode == :splat
+          dchars = "\001\e[32m\002(DEBUG) >>>\001\e[33m\002"
+          dchars = "\001\e[33m\002(DEBUG) ***\001\e[33m\002" if mode == :splat
         end
       end
 
@@ -198,6 +198,9 @@ begin
     def process
       pi = pry_instance
       pi.config.chat_gpt ? pi.config.chat_gpt = false : pi.config.chat_gpt = true
+
+      pi.config.color = false if pi.config.chat_gpt
+      pi.config.color = true unless pi.config.chat_gpt
     end
   end
 
