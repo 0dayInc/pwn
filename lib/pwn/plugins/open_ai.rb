@@ -2,6 +2,7 @@
 
 require 'json'
 require 'securerandom'
+require 'tty-spinner'
 
 module PWN
   module Plugins
@@ -34,6 +35,8 @@ module PWN
         token = opts[:token]
 
         rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        spinner = TTY::Spinner.new
+        spinner.auto_spin
 
         case http_method
         when :get
@@ -63,6 +66,7 @@ module PWN
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
+        spinner.stop
         response
       rescue StandardError => e
         case e.message
