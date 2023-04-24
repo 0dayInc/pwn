@@ -71,13 +71,15 @@ module PWN
         end
 
         JSON.parse(response, symbolize_names: true)
-      rescue StandardError => e
+      rescue ExceptionWithResponse => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
           "#{e.message}: #{e.response}"
         else
           raise e
         end
+      rescue StandardError => e
+        raise e
       ensure
         spinner.stop
       end
@@ -104,7 +106,7 @@ module PWN
         rest_call(
           base_api_uri: base_api_uri,
           token: token,
-          rest_call: "/issue/#{issue}"
+          rest_call: "issue/#{issue}"
         )
       rescue StandardError => e
         raise e
