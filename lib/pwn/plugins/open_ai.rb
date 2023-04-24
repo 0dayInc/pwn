@@ -66,7 +66,6 @@ module PWN
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
-        spinner.stop
         response
       rescue StandardError => e
         case e.message
@@ -75,6 +74,8 @@ module PWN
         else
           raise e
         end
+      ensure
+        spinner.stop
       end
 
       # Supported Method Parameters::

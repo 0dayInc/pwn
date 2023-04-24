@@ -31,6 +31,7 @@ module PWN
     autoload :IBMAppscan, 'pwn/plugins/ibm_appscan'
     autoload :IPInfo, 'pwn/plugins/ip_info'
     autoload :Jenkins, 'pwn/plugins/jenkins'
+    autoload :JiraServer, 'pwn/plugins/jira_server'
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
     autoload :Metasploit, 'pwn/plugins/metasploit'
