@@ -112,6 +112,34 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # jira_resp = PWN::Plugins::JiraServer.manual_call(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
+      #   token: 'required - bearer token',
+      #   path: 'required - API path to call, without beginning forward slash'
+      # )
+
+      public_class_method def self.manual_call(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+
+        path = opts[:path]
+
+        raise 'ERROR: path cannot be nil.' if path.nil?
+
+        rest_call(
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: path
+        )
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
@@ -124,10 +152,16 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          issue_resp = PWN::Plugins::JiraServer.get_issue(
+          issue_resp = #{self}.get_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
             token: 'required - bearer token',
             issue: 'required - issue to lookup'
+          )
+
+          jira_resp = #{self}.manual_call(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
+            token: 'required - bearer token',
+            path: 'required - API path to call, without beginning forward slash'
           )
 
           #{self}.authors
