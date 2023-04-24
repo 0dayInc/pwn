@@ -89,7 +89,7 @@ module PWN
       #   issue: 'required - issue to lookup'
       # )
 
-      private_class_method def self.get_issue(opts = {})
+      public_class_method def self.get_issue(opts = {})
         base_api_uri = opts[:base_api_uri]
 
         token = opts[:token]
