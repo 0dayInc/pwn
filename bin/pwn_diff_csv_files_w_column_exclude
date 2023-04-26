@@ -93,7 +93,7 @@ include_csv_headers = false if opts[:no_headers]
 include_csv_headers ||= true
 
 # Compare which two is larger
-if csv1.length > csv2.length
+if csv1.length >= csv2.length
   csv_diff(
     larger_csv: csv1,
     smaller_csv: csv2,
@@ -101,7 +101,7 @@ if csv1.length > csv2.length
     include_csv_headers: include_csv_headers,
     column_names_to_exclude: column_names_to_exclude
   )
-elsif csv1.length < csv2.length
+else
   csv_diff(
     larger_csv: csv2,
     smaller_csv: csv1,
@@ -109,6 +109,4 @@ elsif csv1.length < csv2.length
     include_csv_headers: include_csv_headers,
     column_names_to_exclude: column_names_to_exclude
   )
-else
-  puts "#{c1_path} and #{c2_path} are the same size."
 end
