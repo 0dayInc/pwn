@@ -203,7 +203,7 @@ module PWN
             --gmp-username '#{username}' \
             --gmp-password '#{password}' \
             socket \
-            --xml="<get_reports report_id='#{report_id}' format_id='#{format_id}'/>"
+            --xml="<get_reports report_id='#{report_id}' format_id='#{format_id}' details='1' />"
           `
         )
 
