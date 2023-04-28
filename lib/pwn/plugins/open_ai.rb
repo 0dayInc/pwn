@@ -146,13 +146,14 @@ module PWN
 
         gpt = true if model.include?('gpt-3.5') || model.include?('gpt-4')
 
+        max_tokens = 4_096 - (request.to_s.length / 4)
+
         if gpt
           rest_call = 'chat/completions'
 
           response_history = opts[:response_history]
 
           max_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
-          max_tokens ||= 4_096 - (request.to_s.length / 4)
           max_tokens = 8_192 - (request.to_s.length / 4) if model.include?('gpt-4')
           max_tokens = 32_768 - (request.to_s.length / 4) if model.include?('gpt-4-32k')
           max_tokens = 300 unless max_tokens.positive?
@@ -191,7 +192,6 @@ module PWN
         else
           # Per https://openai.com/pricing:
           # For English text, 1 token is approximately 4 characters or 0.75 words.
-          max_tokens = 4_097 - (request.to_s.length / 4)
           max_tokens = 300 unless max_tokens.positive?
 
           rest_call = 'completions'
@@ -541,7 +541,6 @@ module PWN
       public_class_method def self.delete_file(opts = {})
         token = opts[:token]
         file = opts[:file]
-        raise "ERROR: #{file} not found." unless File.exist?(file)
 
         response = list_files(token: token)
         file_id = response[:data].select { |f| f if f[:filename] == File.basename(file) }.first[:id]
