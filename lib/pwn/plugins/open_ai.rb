@@ -643,9 +643,19 @@ module PWN
             fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
           )
 
+          response = #{self}.cancel_fine_tune(
+            token: 'required - Bearer token',
+            fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+          )
+
           response = #{self}.get_fine_tune_events(
             token: 'required - Bearer token',
             fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+          )
+
+          response = #{self}.delete_fine_tune_model(
+            token: 'required - Bearer token',
+            model: 'required - model to delete'
           )
 
           response = #{self}.list_files(
