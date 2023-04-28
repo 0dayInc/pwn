@@ -30,21 +30,36 @@ module PWN
                       end
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
-        http_body = opts[:http_body].to_s.scrub
+        http_body = opts[:http_body]
+        http_body ||= {}
         base_open_ai_api_uri = 'https://api.openai.com/v1'
         token = opts[:token]
+
+        content_type = 'application/json; charset=UTF-8'
 
         rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
         spinner = TTY::Spinner.new
         spinner.auto_spin
 
         case http_method
+        when :delete
+          response = rest_client.execute(
+            method: :delete,
+            url: "#{base_open_ai_api_uri}/#{rest_call}",
+            headers: {
+              content_type: content_type,
+              authorization: "Bearer #{token}",
+              params: params
+            },
+            verify_ssl: false
+          )
+
         when :get
           response = rest_client.execute(
             method: :get,
             url: "#{base_open_ai_api_uri}/#{rest_call}",
             headers: {
-              content_type: 'application/json; charset=UTF-8',
+              content_type: content_type,
               authorization: "Bearer #{token}",
               params: params
             },
@@ -52,16 +67,28 @@ module PWN
           )
 
         when :post
-          response = rest_client.execute(
-            method: :post,
-            url: "#{base_open_ai_api_uri}/#{rest_call}",
-            headers: {
-              content_type: 'application/json; charset=UTF-8',
-              authorization: "Bearer #{token}"
-            },
-            payload: http_body,
-            verify_ssl: false
-          )
+          if http_body.key?(:multipart)
+            response = rest_client.execute(
+              method: :post,
+              url: "#{base_open_ai_api_uri}/#{rest_call}",
+              headers: {
+                authorization: "Bearer #{token}"
+              },
+              payload: http_body,
+              verify_ssl: false
+            )
+          else
+            response = rest_client.execute(
+              method: :post,
+              url: "#{base_open_ai_api_uri}/#{rest_call}",
+              headers: {
+                content_type: content_type,
+                authorization: "Bearer #{token}"
+              },
+              payload: http_body.to_json,
+              verify_ssl: false
+            )
+          end
 
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
@@ -80,7 +107,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::Plugins::OpenAI.get_models(
-      #   token: 'required - Bearer token',
+      #   token: 'required - Bearer token'
       # )
 
       public_class_method def self.get_models(opts = {})
@@ -181,7 +208,7 @@ module PWN
           http_method: :post,
           token: token,
           rest_call: rest_call,
-          http_body: http_body.to_json
+          http_body: http_body
         )
 
         json_resp = JSON.parse(response, symbolize_names: true)
@@ -259,7 +286,298 @@ module PWN
           http_method: :post,
           token: token,
           rest_call: rest_call,
-          http_body: http_body.to_json
+          http_body: http_body
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.create_fine_tune(
+      #   token: 'required - Bearer token',
+      #   training_file: 'required - JSONL that contains OpenAI training data'
+      #   validation_file: 'optional - JSONL that contains OpenAI validation data'
+      #   model: 'optional - :ada||:babbage||:curie||:davinci (defaults to :davinci)',
+      #   n_epochs: 'optional - iterate N times through training_file to train the model (defaults to 4)',
+      #   batch_size: 'optional - batch size to use for training (defaults to nil)',
+      #   learning_rate_multipler: 'optional - fine-tuning learning rate is the original learning rate used for pretraining multiplied by this value (defaults to nil)',
+      #   prompt_loss_weight: 'optional -  (defaults to 0.01)',
+      #   computer_classification_metrics: 'optional - calculate classification-specific metrics such as accuracy and F-1 score using the validation set at the end of every epoch (defaults to false)',
+      #   classification_n_classes: 'optional - number of classes in a classification task (defaults to nil)',
+      #   classification_positive_class: 'optional - generate precision, recall, and F1 metrics when doing binary classification (defaults to nil)',
+      #   classification_betas: 'optional - calculate F-beta scores at the specified beta values (defaults to nil)',
+      #   suffix: 'optional - string of up to 40 characters that will be added to your fine-tuned model name (defaults to nil)',
+      # )
+
+      public_class_method def self.create_fine_tune(opts = {})
+        token = opts[:token]
+        training_file = opts[:training_file]
+        validation_file = opts[:validation_file]
+        model = opts[:model]
+        model ||= :davinci
+
+        n_epochs = opts[:n_epochs]
+        n_epochs ||= 4
+
+        batch_size = opts[:batch_size]
+        learning_rate_multipler = opts[:learning_rate_multipler]
+
+        prompt_loss_weight = opts[:prompt_loss_weight]
+        prompt_loss_weight ||= 0.01
+
+        computer_classification_metrics = true if opts[:computer_classification_metrics]
+        classification_n_classes = opts[:classification_n_classes]
+        classification_positive_class = opts[:classification_positive_class]
+        classification_betas = opts[:classification_betas]
+        suffix = opts[:suffix]
+
+        response = upload_file(
+          token: token,
+          file: training_file
+        )
+        training_file = response[:id]
+
+        if validation_file
+          response = upload_file(
+            token: token,
+            file: validation_file
+          )
+          validation_file = response[:id]
+        end
+
+        http_body = {}
+        http_body[:training_file] = training_file
+        http_body[:validation_file] = validation_file if validation_file
+        http_body[:model] = model
+        http_body[:n_epochs] = n_epochs
+        http_body[:batch_size] = batch_size if batch_size
+        http_body[:learning_rate_multipler] = learning_rate_multipler if learning_rate_multipler
+        http_body[:prompt_loss_weight] = prompt_loss_weight if prompt_loss_weight
+        http_body[:computer_classification_metrics] = computer_classification_metrics if computer_classification_metrics
+        http_body[:classification_n_classes] = classification_n_classes if classification_n_classes
+        http_body[:classification_positive_class] = classification_positive_class if classification_positive_class
+        http_body[:classification_betas] = classification_betas if classification_betas
+        http_body[:suffix] = suffix if suffix
+
+        response = open_ai_rest_call(
+          http_method: :post,
+          token: token,
+          rest_call: 'fine-tunes',
+          http_body: http_body
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.list_fine_tunes(
+      #   token: 'required - Bearer token'
+      # )
+
+      public_class_method def self.list_fine_tunes(opts = {})
+        token = opts[:token]
+
+        response = open_ai_rest_call(
+          token: token,
+          rest_call: 'fine-tunes'
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.get_fine_tune_status(
+      #   token: 'required - Bearer token',
+      #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+      # )
+
+      public_class_method def self.get_fine_tune_status(opts = {})
+        token = opts[:token]
+        fine_tune_id = opts[:fine_tune_id]
+
+        rest_call = "fine-tunes/#{fine_tune_id}"
+
+        response = open_ai_rest_call(
+          token: token,
+          rest_call: rest_call
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.cancel_fine_tune(
+      #   token: 'required - Bearer token',
+      #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+      # )
+
+      public_class_method def self.cancel_fine_tune(opts = {})
+        token = opts[:token]
+        fine_tune_id = opts[:fine_tune_id]
+
+        rest_call = "fine-tunes/#{fine_tune_id}/cancel"
+
+        response = open_ai_rest_call(
+          http_method: :post,
+          token: token,
+          rest_call: rest_call
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.get_fine_tune_events(
+      #   token: 'required - Bearer token',
+      #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+      # )
+
+      public_class_method def self.get_fine_tune_events(opts = {})
+        token = opts[:token]
+        fine_tune_id = opts[:fine_tune_id]
+
+        rest_call = "fine-tunes/#{fine_tune_id}/events"
+
+        response = open_ai_rest_call(
+          token: token,
+          rest_call: rest_call
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.delete_fine_tune_model(
+      #   token: 'required - Bearer token',
+      #   model: 'required - model to delete'
+      # )
+
+      public_class_method def self.delete_fine_tune_model(opts = {})
+        token = opts[:token]
+        model = opts[:model]
+
+        rest_call = "models/#{model}"
+
+        response = open_ai_rest_call(
+          http_method: :delete,
+          token: token,
+          rest_call: rest_call
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.list_files(
+      #   token: 'required - Bearer token'
+      # )
+
+      public_class_method def self.list_files(opts = {})
+        token = opts[:token]
+
+        response = open_ai_rest_call(
+          token: token,
+          rest_call: 'files'
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.upload_file(
+      #   token: 'required - Bearer token',
+      #   file: 'required - file to upload',
+      #   purpose: 'optional - intended purpose of the uploaded documents (defaults to fine-tune'
+      # )
+
+      public_class_method def self.upload_file(opts = {})
+        token = opts[:token]
+        file = opts[:file]
+        raise "ERROR: #{file} not found." unless File.exist?(file)
+
+        purpose = opts[:purpose]
+        purpose ||= 'fine-tune'
+
+        http_body = {
+          multipart: true,
+          file: File.new(file, 'rb'),
+          purpose: purpose
+        }
+
+        response = open_ai_rest_call(
+          http_method: :post,
+          token: token,
+          rest_call: 'files',
+          http_body: http_body
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.delete_file(
+      #   token: 'required - Bearer token',
+      #   file: 'required - file to delete'
+      # )
+
+      public_class_method def self.delete_file(opts = {})
+        token = opts[:token]
+        file = opts[:file]
+        raise "ERROR: #{file} not found." unless File.exist?(file)
+
+        response = list_files(token: token)
+        file_id = response[:data].select { |f| f if f[:filename] == File.basename(file) }.first[:id]
+
+        rest_call = "files/#{file_id}"
+
+        response = open_ai_rest_call(
+          http_method: :delete,
+          token: token,
+          rest_call: rest_call
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::OpenAI.get_file(
+      #   token: 'required - Bearer token',
+      #   file: 'required - file to delete'
+      # )
+
+      public_class_method def self.get_file(opts = {})
+        token = opts[:token]
+        file = opts[:file]
+        raise "ERROR: #{file} not found." unless File.exist?(file)
+
+        response = list_files(token: token)
+        file_id = response[:data].select { |f| f if f[:filename] == File.basename(file) }.first[:id]
+
+        rest_call = "files/#{file_id}"
+
+        response = open_ai_rest_call(
+          token: token,
+          rest_call: rest_call
         )
 
         JSON.parse(response, symbolize_names: true)
@@ -279,6 +597,10 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          response = #{self}.get_models(
+            token: 'required - Bearer token'
+          )
+
           response = #{self}.chat(
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
@@ -294,6 +616,55 @@ module PWN
             request: 'required - message to ChatGPT'
             n: 'optional - number of images to generate (defaults to 1)',
             size: 'optional - size of image (defaults to \"1024x1024\")'
+          )
+
+          response = #{self}.create_fine_tune(
+            token: 'required - Bearer token',
+            training_file: 'required - JSONL that contains OpenAI training data'
+            validation_file: 'optional - JSONL that contains OpenAI validation data'
+            model: 'optional - :ada||:babbage||:curie||:davinci (defaults to :davinci)',
+            n_epochs: 'optional - iterate N times through training_file to train the model (defaults to 4)',
+            batch_size: 'optional - batch size to use for training (defaults to nil)',
+            learning_rate_multipler: 'optional - fine-tuning learning rate is the original learning rate used for pretraining multiplied by this value (defaults to nill)',
+            prompt_loss_weight: 'optional -  (defaults to nil)',
+            computer_classification_metrics: 'optional - calculate classification-specific metrics such as accuracy and F-1 score using the validation set at the end of every epoch (defaults to false)',
+            classification_n_classes: 'optional - number of classes in a classification task (defaults to nil)',
+            classification_positive_class: 'optional - generate precision, recall, and F1 metrics when doing binary classification (defaults to nil)',
+            classification_betas: 'optional - calculate F-beta scores at the specified beta values (defaults to nil)',
+            suffix: 'optional - string of up to 40 characters that will be added to your fine-tuned model name (defaults to nil)',
+          )
+
+          response = #{self}.list_fine_tunes(
+            token: 'required - Bearer token'
+          )
+
+          response = #{self}.get_fine_tune_status(
+            token: 'required - Bearer token',
+            fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+          )
+
+          response = #{self}.get_fine_tune_events(
+            token: 'required - Bearer token',
+            fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
+          )
+
+          response = #{self}.list_files(
+            token: 'required - Bearer token'
+          )
+
+          response = #{self}.upload_file(
+            token: 'required - Bearer token',
+            file: 'required - file to upload'
+          )
+
+          response = #{self}.delete_file(
+            token: 'required - Bearer token',
+            file: 'required - file to delete'
+          )
+
+          response = #{self}.get_file(
+            token: 'required - Bearer token',
+            file: 'required - file to delete'
           )
 
           #{self}.authors
