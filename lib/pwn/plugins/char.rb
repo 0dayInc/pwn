@@ -7,8 +7,6 @@ module PWN
   module Plugins
     # This plugin was created to generate various characters for fuzzing
     module Char
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::Plugins::Char.generate_by_range(
       #   from: 'required - integer to start from',

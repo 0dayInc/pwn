@@ -6,7 +6,6 @@ module PWN
   module Plugins
     # This plugin is used for interacting w/ baresip over a screen session.
     module BareSIP
-      @@logger = PWN::Plugins::PWNLogger.create
       @session_data = []
       # Supported Method Parameters::
       # baresip_http_call(

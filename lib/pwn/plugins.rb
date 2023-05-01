@@ -33,6 +33,7 @@ module PWN
     autoload :Jenkins, 'pwn/plugins/jenkins'
     autoload :JiraServer, 'pwn/plugins/jira_server'
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
+    autoload :Log, 'pwn/plugins/log'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
     autoload :Metasploit, 'pwn/plugins/metasploit'
     autoload :MSR206, 'pwn/plugins/msr206'

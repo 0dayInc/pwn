@@ -13,8 +13,6 @@ module PWN
       #   proxy: 'optional - proxy to spider through e.g. http://127.0.0.1:8080'
       # )
 
-      @@logger = PWN::Plugins::PWNLogger.create
-
       public_class_method def self.crawl(opts = {})
         # TODO: Add AuthN Support
         # FYI: Anemone very well may have a memory leak.

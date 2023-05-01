@@ -6,8 +6,6 @@ module PWN
     # Used to encrypt/decrypt configuration files leveraging AES256
     # (ansible-vault utility wrapper)
     module AnsibleVault
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::Plugins::AnsibleVault.encrypt(
       #   yaml_config: 'required - yaml config to encrypt',

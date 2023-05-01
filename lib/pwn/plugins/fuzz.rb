@@ -8,8 +8,6 @@ module PWN
   module Plugins
     # This plugin was created to support fuzzing various networking protocols
     module Fuzz
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # socket_fuzz_results_arr = PWN::Plugins::Fuzz.socket(
       #   target: 'required - target host or ip',
