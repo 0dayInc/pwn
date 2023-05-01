@@ -80,9 +80,10 @@ module PWN
 
         response
       rescue RestClient::ExceptionWithResponse => e
-        puts "#{base_nessus_cloud_api_uri}/#{rest_call}"
-        puts params
-        puts http_body
+        puts "URI: #{base_nessus_cloud_api_uri}/#{rest_call}"
+        puts "Params: #{params.inspect}"
+        puts "HTTP POST Body: #{http_body}"
+
         raise e
       rescue StandardError, SystemExit, Interrupt => e
         raise e

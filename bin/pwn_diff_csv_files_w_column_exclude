@@ -43,15 +43,33 @@ if opts.empty?
 end
 
 def csv_diff(opts = {})
-  larger_csv = opts[:larger_csv]
-  smaller_csv = opts[:smaller_csv]
+  c1_path = opts[:c1_path]
+  c2_path = opts[:c2_path]
   diff_path = opts[:diff_path]
   include_csv_headers = opts[:include_csv_headers]
-  column_names_to_exclude = opts[:column_names_to_exclude]
+  column_names_to_exclude = opts[:column_names_to_exclude].to_s.split(',')
 
-  # TODO: Exclude the column values for diff consideration
-  # while including the columns in the diff...figure out what
-  # to do with the columns' values.
+  csv1 = CSV.read(c1_path)
+  csv2 = CSV.read(c2_path)
+
+  if csv1.length >= csv2.length
+    larger_csv = csv1
+    larger_csv_orig = CSV.read(c1_path)
+
+    smaller_csv = csv2
+    smaller_csv_orig = CSV.read(c2_path)
+  end
+
+  if csv2.length >= csv1.length
+    larger_csv = csv2
+    larger_csv_orig = CSV.read(c2_path)
+
+    smaller_csv = csv1
+    smaller_csv_orig = CSV.read(c1_path)
+  end
+
+  # Exclude the column values for diff to ensure the same rows
+  # with for example different timestamps aren't included.
   columns_index_arr = []
   column_names_to_exclude&.each do |column_name|
     column_index = smaller_csv.first.find_index(column_name)
@@ -72,44 +90,39 @@ def csv_diff(opts = {})
     end
   end
 
-  csv_headers = larger_csv.first.join(',')
+  # Write diff with redacted columns (to find differences we care about)
   File.open(diff_path, 'w') do |f|
-    f.puts csv_headers if include_csv_headers
     larger_csv.each do |line_arr|
       line = line_arr.join(',')
       f.puts line unless smaller_csv.include?(line_arr)
     end
   end
+  diff_csv = CSV.read(diff_path)
+
+  # Write diff again with all columns.
+  csv_headers_orig = larger_csv_orig.first.join(',')
+  File.open(diff_path, 'w') do |f|
+    f.puts csv_headers_orig if include_csv_headers
+    larger_csv_orig.each do |line_arr|
+      line = line_arr.join(',')
+      f.puts line if diff_csv.include?(line_arr)
+    end
+  end
 end
 
 c1_path = opts[:c1_path]
-csv1 = CSV.read(c1_path)
-
 c2_path = opts[:c2_path]
-csv2 = CSV.read(c2_path)
-
 diff_path = opts[:diff_path]
-
-column_names_to_exclude = opts[:column_names_to_exclude].to_s.split(',')
+column_names_to_exclude = opts[:column_names_to_exclude]
 
 include_csv_headers = false if opts[:no_headers]
 include_csv_headers ||= true
 
 # Compare which two is larger
-if csv1.length >= csv2.length
-  csv_diff(
-    larger_csv: csv1,
-    smaller_csv: csv2,
-    diff_path: diff_path,
-    include_csv_headers: include_csv_headers,
-    column_names_to_exclude: column_names_to_exclude
-  )
-else
-  csv_diff(
-    larger_csv: csv2,
-    smaller_csv: csv1,
-    diff_path: diff_path,
-    include_csv_headers: include_csv_headers,
-    column_names_to_exclude: column_names_to_exclude
-  )
-end
+csv_diff(
+  c1_path: c1_path,
+  c2_path: c2_path,
+  diff_path: diff_path,
+  include_csv_headers: include_csv_headers,
+  column_names_to_exclude: column_names_to_exclude
+)
