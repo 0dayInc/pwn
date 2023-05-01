@@ -229,6 +229,8 @@ module PWN
 
         json_resp
       rescue JSON::ParserError => e
+        # TODO: Leverage PWN::Plugins::Log & log to JSON file
+        # in order to manage memory
         if e.message.include?('exceeded')
           if request.length > max_tokens
             puts "Request Length Too Long: #{request.length}\n"
