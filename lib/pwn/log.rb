@@ -12,17 +12,11 @@ module PWN
       level = opts[:level].to_s.downcase.to_sym
       msg = opts[:msg]
       which_self = opts[:which_self].to_s
-      event_history = opts[:event_history]
 
       driver_name = File.basename($PROGRAM_NAME)
 
       # Only attempt to exit gracefully if level == :error
       exit_gracefully = false
-
-      if event_history.respond_to?('order_book')
-        session = event_history.order_book[:path].split('/').first
-        symbol = event_history.order_book[:symbol]
-      end
 
       # Define Date / Time Format
       datetime_str = '%Y-%m-%d %H:%M:%S.%N%z'
@@ -82,10 +76,6 @@ module PWN
         end
       else
         log_event = "driver: #{driver_name}"
-        if event_history.respond_to?('order_book')
-          log_event += ", session: #{session}, "
-          log_event += "symbol: #{symbol}"
-        end
 
         if msg.instance_of?(Interrupt)
           logger.level = Logger::WARN
@@ -105,8 +95,6 @@ module PWN
       end
 
       logger.add(logger.level, log_event, which_self)
-
-      PWN::UI::Exit.gracefully(event_history: event_history) if exit_gracefully
     rescue Interrupt, StandardError => e
       raise e
     end
@@ -115,7 +103,11 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        logger = #{self}.create()
+        logger = #{self}.append(
+          level: 'required - log verbosity :debug|:error|:fatal|:info|:learning|:unknown|:warn',
+          msg: 'required - message to log',
+          which_self: 'required - pass in self object from module calling #{self}'
+        )
       "
     end
   end
