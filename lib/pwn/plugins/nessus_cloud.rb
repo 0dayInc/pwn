@@ -79,6 +79,11 @@ module PWN
         sleep 3
 
         response
+      rescue RestClient::ExceptionWithResponse => e
+        puts "#{base_nessus_cloud_api_uri}/#{rest_call}"
+        puts params
+        puts http_body
+        raise e
       rescue StandardError, SystemExit, Interrupt => e
         raise e
       end
