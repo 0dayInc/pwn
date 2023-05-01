@@ -11,8 +11,6 @@ module PWN
     # This is based on the following OpenAI API Specification:
     # https://api.openai.com/v1
     module OpenAI
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # open_ai_rest_call(
       #   token: 'required - open_ai bearer token',

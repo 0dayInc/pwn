@@ -14,8 +14,6 @@ module PWN
       #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
       # )
 
-      @@logger = PWN::Plugins::PWNLogger.create
-
       public_class_method def self.start(opts = {})
         burp_jar_path = opts[:burp_jar_path]
         raise 'Invalid path to burp jar file.  Please check your spelling and try again.' unless File.exist?(burp_jar_path)

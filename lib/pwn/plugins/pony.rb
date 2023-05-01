@@ -10,7 +10,6 @@ module PWN
     # This module's purpose is to exist until the necessary
     # functionality can be integrated into PWN::Plugins::MailAgent
     module Pony
-      @@logger = PWN::Plugins::PWNLogger.create
       @@options = {}
       @@override_options = {}
       @@subject_prefix = false
