@@ -12,7 +12,6 @@ module PWN
   autoload :AWS, 'pwn/aws'
   autoload :Banner, 'pwn/banner'
   autoload :FFI, 'pwn/ffi'
-  autoload :Log, 'pwn/log'
   autoload :Plugins, 'pwn/plugins'
   autoload :Reports, 'pwn/reports'
   autoload :SAST, 'pwn/sast'
