@@ -52,9 +52,7 @@ module PWN
           puts "\nERROR: See #{log_file_path} for more details." if driver_name == 'pwn'
         when :fatal
           logger.level = Logger::FATAL
-          if driver_name == 'pwn'
-            puts "\n FATAL ERROR: See #{log_file_path} for more details."
-          end
+          puts "\n FATAL ERROR: See #{log_file_path} for more details." if driver_name == 'pwn'
         when :info, :learning
           logger.level = Logger::INFO
         when :unknown
@@ -107,7 +105,7 @@ module PWN
         "
       end
 
-    # Display Usage for this Module
+      # Display Usage for this Module
 
       public_class_method def self.help
         puts "USAGE:
