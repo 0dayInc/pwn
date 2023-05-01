@@ -49,6 +49,9 @@ def csv_diff(opts = {})
   include_csv_headers = opts[:include_csv_headers]
   column_names_to_exclude = opts[:column_names_to_exclude]
 
+  # TODO: Exclude the column values for diff consideration
+  # while including the columns in the diff...figure out what
+  # to do with the columns' values.
   columns_index_arr = []
   column_names_to_exclude&.each do |column_name|
     column_index = smaller_csv.first.find_index(column_name)

@@ -77,11 +77,11 @@ begin
     )
 
     scan_status = scan_status_resp[:status]
-    break if scan_status != 'initializing' && scan_status != 'pending' && scan_status != 'running' && scan_status != 'publishing'
-    # break if scan_status == 'completed'
+    # break if scan_status != 'initializing' && scan_status != 'pending' && scan_status != 'running' && scan_status != 'publishing'
+    break if scan_status == 'completed'
   end
 
-  raise "Scan status reached an unexpected condition: #{scan_status}.  Re-verify the scan config for, '#{scan_name}' and try again." unless scan_status == 'completed'
+  # raise "Scan status reached an unexpected condition: #{scan_status}.  Re-verify the scan config for, '#{scan_name}' and try again." unless scan_status == 'completed'
 
   puts 'scan complete.'
 
