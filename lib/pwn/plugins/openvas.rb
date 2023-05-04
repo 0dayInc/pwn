@@ -147,9 +147,10 @@ module PWN
       # PWN::Plugins::OpenVAS.save_report(
       #   report_type: 'required report type (csv|itg|pdf|txt|xml)',
       #   report_id: 'required report id to save',
-      #   report_filter: 'optional - results filter (Default: "")
+      #   report_dir: 'required directory to save report',
       #   username: 'required username',
-      #   password: 'optional password (will prompt if nil)'
+      #   password: 'optional password (will prompt if nil)',
+      #   report_filter: 'optional - results filter (Default: "apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity")
       # )
 
       public_class_method def self.save_report(opts = {})
@@ -160,9 +161,6 @@ module PWN
           report_dir
         )
 
-        report_filter = opts[:report_filter]
-        report_filter ||= 'apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity'
-
         username = opts[:username].to_s.scrub
 
         password = if opts[:password].nil?
@@ -170,6 +168,9 @@ module PWN
                    else
                      opts[:password].to_s.scrub
                    end
+
+        report_filter = opts[:report_filter]
+        report_filter ||= 'apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity'
 
         case report_type.to_sym
         when :csv
@@ -296,7 +297,8 @@ module PWN
             report_id: 'required report id to save',
             report_dir: 'required directory to save report',
             username: 'required username',
-            password: 'optional password (will prompt if nil)'
+            password: 'optional password (will prompt if nil)',
+            report_filter: 'optional - results filter (Default: \"apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity\")
           )
 
           report_types = #{self}.get_report_types(
