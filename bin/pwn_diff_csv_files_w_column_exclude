@@ -109,7 +109,7 @@ def csv_diff(opts = {})
       end
     else
       f.puts csv_headers_orig
-      larger_csv_orig(1..-1).each do |line_arr|
+      larger_csv_orig[1..-1].each do |line_arr|
         line = line_arr.join(',')
         f.puts line if diff_csv.include?(line_arr)
       end
