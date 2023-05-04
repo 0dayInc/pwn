@@ -5,11 +5,17 @@ require 'nmap/xml'
 
 module PWN
   module Plugins
-    # This plugin is used as an  interface to nmap, the exploration tool and security / port scanner.
+    # This plugin is used as an  interface to nmap, the exploration tool and security / port scanner.  More info on available options can be found at: https://github.com/postmodern/ruby-nmap/blob/main/lib/nmap/command.rb
     module NmapIt
       # Supported Method Parameters::
       # PWN::Plugins::NmapIt.port_scan do |nmap|
       #   puts nmap.public_methods
+      #   nmap.connect_scan = true
+      #   nmap.service_scan = true
+      #   nmap.verbose = true
+      #   nmap.ports = [1..1024,1337]
+      #   nmap.targets = '127.0.0.1'
+      #   nmap.xml = '/tmp/nmap_port_scan_res.xml'
       # end
 
       public_class_method def self.port_scan

@@ -1,0 +1,195 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'optparse'
+require 'nokogiri'
+require 'pwn'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-IRANGE', '--ip-range=RANGE', '<Required - nmap supported ip range e.g. 192.168.1.1-20, 192.168.1.0/24, etc>') do |i|
+    opts[:ip_range] = i
+  end
+
+  options.on('-eFILE', '--target-exclude-file=FILE', '<Optional - nmap excludes file>') do |e|
+    opts[:exclude_file] = e
+  end
+
+  options.on('-iINTERFACE', '--interface=INTERFACE', '<Optional - use specified network interface (Default: eth0)') do |i|
+    opts[:interface] = i
+  end
+
+  options.on('-T', '--tor', '<Optional - Source Scans from Tor Nodes>') do |t|
+    opts[:with_tor] = t
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+ip_range = opts[:ip_range]
+exclude_file = opts[:exclude_file]
+exclude_file ||= '/tmp/nmap_targets_exclude.txt'
+interface = opts[:interface]
+interface ||= 'eth0'
+with_tor = true if opts[:with_tor]
+with_tor ||= false
+if with_tor
+  tor_obj = PWN::Plugins::Tor.start
+  proxy = "socks4://#{tor_obj[:ip]}:#{tor_obj[:port]}"
+end
+
+File.new(exclude_file, 'w') unless File.exist?(exclude_file)
+nmap_results_root = File.dirname(exclude_file)
+FileUtils.mkdir_p nmap_results_root
+puts "nmap Results Saved in: #{nmap_results_root}"
+
+discovery_ports = {
+  ftp: 21,
+  ssh: 22,
+  telnet: 23,
+  smtp: 25,
+  dns: 53,
+  http: 80,
+  pop3: 110,
+  rpc: 111,
+  ident: 113,
+  ntp: 123,
+  netbios_name_service: 137,
+  netbios_session_service: 139,
+  imap: 143,
+  snmp: 161,
+  ldap: 389,
+  https: 443,
+  smb: 445,
+  smtps: 465,
+  remote_process: 512,
+  login: 513,
+  rsh: 514,
+  ldaps: 636,
+  rsync: 873,
+  imaps: 993,
+  openvpn: 1194,
+  mssql: 1433,
+  oracle: 1521,
+  pptp: 1723,
+  radius: 1812,
+  nfs: 2049,
+  mysql: 3306,
+  rdp: 3389,
+  meterpreter: 4444,
+  upnp: 5000,
+  sip: 5060,
+  postgres: 5432,
+  postgres_alt: 5433,
+  amqp: 5672,
+  vnc: 5900,
+  vncs: 5901,
+  xfree86: 6000,
+  irc: 6667,
+  http_alt: 8080,
+  https_alt: 8443,
+  http_alt2: 8888,
+  http_alt3: 9090,
+  http_alt4: 9999
+}
+
+target_file = "#{nmap_results_root}/nmap_targets.txt"
+latest_discovery_results = "#{nmap_results_root}/nmap_latest_discovery_results"
+latest_tcp_results = "#{nmap_results_root}/nmap_latest_tcp_results"
+latest_udp_results = "#{nmap_results_root}/nmap_latest_udp_results"
+
+begin
+  # Target Discovery Scan
+  PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.exclude_file = exclude_file
+    nmap.interface = interface
+    nmap.aggressive_timing = true
+    nmap.ping = true
+    nmap.arp_ping = true
+    nmap.icmp_echo_discovery = true
+    nmap.icmp_timestamp_discovery = true
+    nmap.syn_discovery = discovery_ports.values
+    nmap.ack_discovery = discovery_ports.values
+    nmap.udp_discovery = discovery_ports.values
+    nmap.sctp_init_ping = discovery_ports.values
+    nmap.output_all = latest_discovery_results
+    nmap.targets = ip_range
+    nmap.proxies = proxy if with_tor
+  end
+
+  # Generate targets.txt from discovery above
+  # taking into consideration IPs to skip scans
+  File.open(target_file, 'w') do |f|
+    PWN::Plugins::NmapIt.parse_xml_results(
+      xml_file: "#{latest_discovery_results}.xml"
+    ) do |xml|
+      xml.each_host do |host|
+        f.puts host.ip unless File.read(exclude_file).include?(host.ip)
+      end
+    end
+  end
+
+  # Switch Tor Exit Node if with_tor
+  PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
+
+  # TCP Scan
+  PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.target_file = target_file
+    nmap.show_reason = true
+    nmap.exclude_file = exclude_file
+    nmap.interface = interface
+    nmap.min_host_group = 3
+    nmap.host_timeout = '999m'
+    nmap.aggressive_timing = true
+    nmap.skip_discovery = true
+    nmap.syn_scan = true
+    nmap.default_script = true
+    nmap.update_scriptdb = true
+    nmap.service_scan = true
+    nmap.os_fingerprint = true
+    nmap.verbose = true
+    nmap.all = true
+    nmap.ports = [1..65_535]
+    nmap.output_all = latest_tcp_results
+    nmap.proxies = proxy if with_tor
+  end
+  FileUtils.cp("#{latest_tcp_results}.nmap", "#{latest_tcp_results}.txt")
+
+  # Switch Tor Exit Node if with_tor
+  PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
+
+  # UDP Scan
+  PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.target_file = target_file
+    nmap.show_reason = true
+    nmap.exclude_file = exclude_file
+    nmap.interface = interface
+    nmap.min_host_group = 3
+    nmap.host_timeout = '999m'
+    nmap.aggressive_timing = true
+    nmap.skip_discovery = true
+    nmap.udp_scan = true
+    nmap.default_script = true
+    nmap.update_scriptdb = true
+    nmap.service_scan = true
+    nmap.os_fingerprint = true
+    nmap.verbose = true
+    nmap.all = true
+    nmap.output_all = latest_udp_results
+    nmap.proxies = proxy if with_tor
+  end
+  FileUtils.cp("#{latest_udp_results}.nmap", "#{latest_udp_results}.txt")
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+rescue StandardError => e
+  raise e
+ensure
+  tor_obj = PWN::Plugins::Tor.stop(tor_obj: tor_obj) if with_tor
+end
