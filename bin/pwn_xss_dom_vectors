@@ -26,12 +26,8 @@ OptionParser.new do |options|
     opts[:browser_type] = b
   end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || :tor>') do |p|
     opts[:proxy] = p
-  end
-
-  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
-    opts[:with_tor] = w
   end
 
   options.on('-S', '--[no-]spider-fqdn', '<Optional - Spider Target FQDN>') do |s|
@@ -56,7 +52,6 @@ else
 end
 
 proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
-with_tor = opts[:with_tor]
 
 if opts[:spider]
   spider = true
@@ -109,18 +104,10 @@ begin
   end
 
   if proxy
-    if with_tor
-      browser_obj = PWN::Plugins::TransparentBrowser.open(
-        browser_type: browser_type,
-        proxy: proxy,
-        with_tor: true
-      )
-    else
-      browser_obj = PWN::Plugins::TransparentBrowser.open(
-        browser_type: browser_type,
-        proxy: proxy
-      )
-    end
+    browser_obj = PWN::Plugins::TransparentBrowser.open(
+      browser_type: browser_type,
+      proxy: proxy
+    )
   else
     browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: browser_type)
   end

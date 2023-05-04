@@ -10,12 +10,8 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || :tor>') do |p|
     opts[:proxy] = p
-  end
-
-  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
-    opts[:with_tor] = w
   end
 
   options.on('-i', '--[no-]ipinfo', '<Optional - Return Details about Public IP Returned from CheckIP>') do |i|
@@ -24,14 +20,14 @@ OptionParser.new do |options|
 end.parse!
 
 proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
-with_tor = opts[:with_tor]
 ipinfo = opts[:ipinfo]
 
 begin
-  if proxy != '' && with_tor
-    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest, proxy: proxy, with_tor: true)::Request
-  elsif proxy != '' && with_tor.nil?
-    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest, proxy: proxy)::Request
+  if proxy
+    browser_obj = PWN::Plugins::TransparentBrowser.open(
+      browser_type: :rest,
+      proxy: proxy
+    )::Request
   else
     browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
   end

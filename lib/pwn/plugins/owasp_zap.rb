@@ -71,7 +71,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.start(
+      # zap_obj = PWN::Plugins::OwaspZap.start(
       #   api_key: 'required - api key for API authorization',
       #   zap_bin_path: 'optional - path to zap.sh file'
       #   headless: 'optional - run zap headless if set to true',
@@ -467,17 +467,12 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::OwaspZap.stop(
-      #   :zap_obj => 'required - zap_obj returned from #open method'
+      #   :zap_obj => 'required - zap_obj returned from #start method'
       # )
 
       public_class_method def self.stop(opts = {})
         zap_obj = opts[:zap_obj]
-        unless zap_obj.nil?
-          pid = zap_obj[:pid]
-          # File.unlink(zap_obj[:stdout_log]) if File.exist?(zap_obj[:stdout_log])
-
-          Process.kill('TERM', pid)
-        end
+        Process.kill('TERM', zab_obj[:pid]) unless zap_obj.nil?
       rescue StandardError => e
         raise e
       end
@@ -538,7 +533,7 @@ module PWN
           )
 
           #{self}.stop(
-            zap_obj: 'required - zap_obj returned from #open method'
+            zap_obj: 'required - zap_obj returned from #start method'
           )
 
           #{self}.authors

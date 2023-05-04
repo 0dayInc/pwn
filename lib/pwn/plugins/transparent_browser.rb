@@ -9,6 +9,17 @@ require 'openssl'
 require 'em/pure_ruby'
 require 'faye/websocket'
 
+# Monkey Patch Watir
+module Watir
+  # Browser Class to allow tor_obj from PWN::Plugins::Tor.start
+  # to populate attr_accessor :tor_obj
+  # This was done this way soley to maintain backwards compatibility
+  # with how browser_obj is returned.
+  class Browser
+    attr_accessor :tor_obj
+  end
+end
+
 module PWN
   module Plugins
     # This plugin rocks. Chrome, Firefox, PhantomJS, IE, REST Client,
@@ -23,8 +34,7 @@ module PWN
       # Supported Method Parameters::
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
       #   browser_type: :firefox|:chrome|:headless|:rest|:websocket,
-      #   proxy: 'optional - scheme://proxy_host:port',
-      #   with_tor: 'optional - boolean (defaults to false)'
+      #   proxy: 'optional - scheme://proxy_host:port || :tor',
       #   with_devtools: 'optional - boolean (defaults to false)'
       # )
 
@@ -32,7 +42,13 @@ module PWN
         this_browser = nil
         browser_type = opts[:browser_type]
         proxy = opts[:proxy].to_s unless opts[:proxy].nil?
-        opts[:with_tor] ? (with_tor = true) : (with_tor = false)
+
+        tor_obj = nil
+        if opts[:proxy] == :tor
+          tor_obj = PWN::Plugins::Tor.start if opts[:proxy] == :tor
+          proxy = "socks5://#{tor_obj[:ip]}:#{tor_obj[:port]}"
+        end
+
         opts[:with_devtools] ? (with_devtools = true) : (with_devtools = false)
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
@@ -77,10 +93,10 @@ module PWN
           if proxy
             this_profile['network.proxy.type'] = 1
             this_profile['network.proxy.allow_hijacking_localhost'] = true
-            if with_tor
+            if tor_obj
               this_profile['network.proxy.socks_version'] = 5
-              this_profile['network.proxy.socks'] = URI(proxy).host
-              this_profile['network.proxy.socks_port'] = URI(proxy).port
+              this_profile['network.proxy.socks'] = tor_obj[:ip]
+              this_profile['network.proxy.socks_port'] = tor_obj[:port]
             else
               this_profile['network.proxy.ftp'] = URI(proxy).host
               this_profile['network.proxy.ftp_port'] = URI(proxy).port
@@ -110,7 +126,7 @@ module PWN
           switches.push('--disable-notifications')
 
           if proxy
-            switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{URI(proxy).host}'") if with_tor
+            switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
             switches.push("--proxy-server=#{proxy}")
           end
 
@@ -167,10 +183,10 @@ module PWN
           if proxy
             this_profile['network.proxy.type'] = 1
             this_profile['network.proxy.allow_hijacking_localhost'] = true
-            if with_tor
+            if tor_obj
               this_profile['network.proxy.socks_version'] = 5
-              this_profile['network.proxy.socks'] = URI(proxy).host
-              this_profile['network.proxy.socks_port'] = URI(proxy).port
+              this_profile['network.proxy.socks'] = tor_obj[:ip]
+              this_profile['network.proxy.socks_port'] = tor_obj[:port]
             else
               this_profile['network.proxy.ftp'] = URI(proxy).host
               this_profile['network.proxy.ftp_port'] = URI(proxy).port
@@ -183,7 +199,6 @@ module PWN
 
           options = Selenium::WebDriver::Firefox::Options.new(args: ['-headless'], accept_insecure_certs: true)
           options.profile = this_profile
-          # driver = Selenium::WebDriver.for(:firefox, capabilities: options)
           driver = Selenium::WebDriver.for(:firefox, options: options)
           this_browser = Watir::Browser.new(driver)
 
@@ -198,7 +213,7 @@ module PWN
           switches.push('--disable-notifications')
 
           if proxy
-            switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{URI(proxy).host}'") if with_tor
+            switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
             switches.push("--proxy-server=#{proxy}")
           end
 
@@ -208,16 +223,15 @@ module PWN
           )
 
           options.profile = this_profile
-          # driver = Selenium::WebDriver.for(:chrome, capabilities: options)
           driver = Selenium::WebDriver.for(:chrome, options: options)
           this_browser = Watir::Browser.new(driver)
 
         when :rest
           this_browser = RestClient
           if proxy
-            if with_tor
-              TCPSocket.socks_server = URI(proxy).host
-              TCPSocket.socks_port = URI(proxy).port
+            if tor_obj
+              TCPSocket.socks_server = tor_obj[:ip]
+              TCPSocket.socks_port = tor_obj[:port]
             else
               this_browser.proxy = proxy
             end
@@ -225,9 +239,9 @@ module PWN
 
         when :websocket
           if proxy
-            if with_tor
-              TCPSocket.socks_server = URI(proxy).host
-              TCPSocket.socks_port = URI(proxy).port
+            if tor_obj
+              TCPSocket.socks_server = tor_obj[:ip]
+              TCPSocket.socks_port = tor_obj[:port]
             end
             proxy_opts = { origin: proxy }
             tls_opts = { verify_peer: false }
@@ -247,6 +261,7 @@ module PWN
           return nil
         end
 
+        this_browser.tor_obj = tor_obj if tor_obj
         this_browser
       rescue StandardError => e
         raise e
@@ -300,6 +315,11 @@ module PWN
       public_class_method def self.close(opts = {})
         this_browser_obj = opts[:browser_obj]
 
+        if this_browser_obj.respond_to?('tor_obj')
+          tor_obj = this_browser_obj.tor_obj
+          PWN::Plugins::Tor.stop(tor_obj: tor_obj)
+        end
+
         unless this_browser_obj.to_s.include?('RestClient')
           # Close the browser unless this_browser_obj.nil? (thus the &)
           this_browser_obj&.close
@@ -323,8 +343,7 @@ module PWN
         puts "USAGE:
           browser_obj1 = #{self}.open(
             browser_type: :firefox|:chrome|:headless_chrome|:headless_firefox|:rest|:websocket,
-            proxy: 'optional scheme://proxy_host:port',
-            with_tor: 'optional boolean (defaults to false)',
+            proxy: 'optional scheme://proxy_host:port || :tor',
             with_devtools: 'optional - boolean (defaults to false)'
           )
           puts browser_obj1.public_methods

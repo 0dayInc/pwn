@@ -58,6 +58,7 @@ module PWN
     autoload :Spider, 'pwn/plugins/spider'
     autoload :SSN, 'pwn/plugins/ssn'
     autoload :ThreadPool, 'pwn/plugins/thread_pool'
+    autoload :Tor, 'pwn/plugins/tor'
     autoload :TransparentBrowser, 'pwn/plugins/transparent_browser'
     autoload :TwitterAPI, 'pwn/plugins/twitter_api'
     autoload :URIScheme, 'pwn/plugins/uri_scheme'
