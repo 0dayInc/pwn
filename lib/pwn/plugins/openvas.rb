@@ -147,6 +147,7 @@ module PWN
       # PWN::Plugins::OpenVAS.save_report(
       #   report_type: 'required report type (csv|itg|pdf|txt|xml)',
       #   report_id: 'required report id to save',
+      #   report_filter: 'optional - results filter (Default: "")
       #   username: 'required username',
       #   password: 'optional password (will prompt if nil)'
       # )
@@ -158,6 +159,9 @@ module PWN
         raise "#{report_dir} Does Not Exist." unless Dir.exist?(
           report_dir
         )
+
+        report_filter = opts[:report_filter]
+        report_filter ||= 'apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity'
 
         username = opts[:username].to_s.scrub
 
@@ -203,7 +207,7 @@ module PWN
             --gmp-username '#{username}' \
             --gmp-password '#{password}' \
             socket \
-            --xml="<get_reports report_id='#{report_id}' format_id='#{format_id}' details='1' />"
+            --xml="<get_reports report_id='#{report_id}' format_id='#{format_id}' filter='#{report_filter}' details='1' />"
           `
         )
 

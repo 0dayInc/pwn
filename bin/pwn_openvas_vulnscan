@@ -25,6 +25,10 @@ OptionParser.new do |options|
   options.on('-pPASSWORD', '--password=PASSWORD', '<Optional - Password to AuthN (Will Prompt if nil)>') do |p|
     opts[:password] = p
   end
+
+  options.on('-fFILTER', '--report-filter=FILTER', '<Optional - GVM Results Filter (Default: "apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity")>') do |p|
+    opts[:password] = p
+  end
 end.parse!
 
 if opts.empty?
@@ -45,6 +49,8 @@ password = if opts[:password].nil?
            else
              opts[:password].to_s.scrub
            end
+
+report_filter = opts[:report_filter]
 
 begin
   start_time = Time.now
@@ -89,6 +95,7 @@ begin
     report_type: :csv,
     report_id: last_report_id,
     report_dir: report_dir,
+    report_filter: report_filter,
     username: username,
     password: password
   )
