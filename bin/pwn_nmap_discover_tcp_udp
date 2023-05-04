@@ -2,7 +2,6 @@
 # frozen_string_literal: false
 
 require 'optparse'
-require 'nokogiri'
 require 'pwn'
 
 opts = {}
@@ -42,7 +41,7 @@ with_tor = true if opts[:with_tor]
 with_tor ||= false
 if with_tor
   tor_obj = PWN::Plugins::Tor.start
-  proxy = "socks4://#{tor_obj[:ip]}:#{tor_obj[:port]}"
+  proxy = ["socks4://#{tor_obj[:ip]}:#{tor_obj[:port]}"]
 end
 
 File.new(exclude_file, 'w') unless File.exist?(exclude_file)
@@ -106,11 +105,29 @@ latest_tcp_results = "#{nmap_results_root}/nmap_latest_tcp_results"
 latest_udp_results = "#{nmap_results_root}/nmap_latest_udp_results"
 
 begin
+  # Per man nmap:
+  # The main effects of T0 are serializing the scan so only one port
+  # is scanned at a time, and waiting five minutes between sending
+  # each probe.
+  # T1 and T2 are similar but they only wait 15 seconds and 0.4 seconds,
+  # respectively, between probes.
+  # T3 is Nmap's default behavior, which includes parallelization.
+  # T4 does the equivalent of --max-rtt-timeout 1250ms --min-rtt-timeout 100ms
+  # --initial-rtt-timeout 500ms --max-retries 6 and sets the maximum TCP and
+  # SCTP scan delay to 10ms.
+  # T5 does the equivalent of --max-rtt-timeout 300ms --min-rtt-timeout 50ms
+  # --initial-rtt-timeout 250ms --max-retries 2 --host-timeout 15m
+  # --script-timeout 10m --max-scan-delay as well as setting the maximum TCP
+  # and SCTP scan delay to 5ms. Maximum UDP scan delay is not set by T4 or T5,
+  # but it can be set with the --max-scan-delay option.
+
   # Target Discovery Scan
+  # Using -T5 template to reduce number of
+  # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.exclude_file = exclude_file
     nmap.interface = interface
-    nmap.aggressive_timing = true
+    nmap.insane_timing = true
     nmap.ping = true
     nmap.arp_ping = true
     nmap.icmp_echo_discovery = true
@@ -121,6 +138,7 @@ begin
     nmap.sctp_init_ping = discovery_ports.values
     nmap.output_all = latest_discovery_results
     nmap.targets = ip_range
+    nmap.randomize_hosts = true
     nmap.proxies = proxy if with_tor
   end
 
@@ -135,19 +153,24 @@ begin
       end
     end
   end
+  sorted_targets = File.readlines(target_file).sort.join
+  File.write(target_file, sorted_targets)
 
   # Switch Tor Exit Node if with_tor
   PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
 
   # TCP Scan
+  # Using -T5 template to reduce number of
+  # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.target_file = target_file
+    nmap.randomize_hosts = true
     nmap.show_reason = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
     nmap.min_host_group = 3
     nmap.host_timeout = '999m'
-    nmap.aggressive_timing = true
+    nmap.insane_timing = true
     nmap.skip_discovery = true
     nmap.syn_scan = true
     nmap.default_script = true
@@ -166,14 +189,17 @@ begin
   PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
 
   # UDP Scan
+  # Using -T5 template to reduce number of
+  # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.target_file = target_file
+    nmap.randomize_hosts = true
     nmap.show_reason = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
     nmap.min_host_group = 3
     nmap.host_timeout = '999m'
-    nmap.aggressive_timing = true
+    nmap.insane_timing = true
     nmap.skip_discovery = true
     nmap.udp_scan = true
     nmap.default_script = true
