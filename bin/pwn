@@ -297,6 +297,5 @@ begin
     prompt: prompt
   )
 rescue StandardError => e
-  puts 1111 if Pry.config.chat_gpt
   raise e
 end

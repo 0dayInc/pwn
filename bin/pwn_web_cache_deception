@@ -38,12 +38,8 @@ OptionParser.new do |options|
     opts[:mfa] = f
   end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || :tor>') do |p|
     opts[:proxy] = p
-  end
-
-  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
-    opts[:with_tor] = w
   end
 end.parse!
 
@@ -88,7 +84,6 @@ else
 end
 
 proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
-with_tor = opts[:with_tor]
 
 begin
   def get_web_cache_deception(opts = {})
@@ -157,18 +152,10 @@ begin
 
     puts "#{@green}Leveraging PWN::WWW::#{pwn_www_mod_str} to Obtain a Post AuhN State...#{@end_of_color}"
     if proxy
-      if with_tor
-        browser_obj = pwn_www_mod.open(
-          browser_type: :chrome,
-          proxy: proxy,
-          with_tor: true
-        )
-      else
-        browser_obj = pwn_www_mod.open(
-          browser_type: :chrome,
-          proxy: proxy
-        )
-      end
+      browser_obj = pwn_www_mod.open(
+        browser_type: :chrome,
+        proxy: proxy
+      )
     else
       browser_obj = pwn_www_mod.open(browser_type: :chrome)
     end
@@ -181,18 +168,10 @@ begin
     )
     puts "#{@green}complete.#{@end_of_color}\n\n\n"
   elsif pwn_www_mod_str == '' && proxy
-    if with_tor
-      browser_obj = PWN::Plugins::TransparentBrowser.open(
-        browser_type: :chrome,
-        proxy: proxy,
-        with_tor: true
-      )
-    else
-      browser_obj = PWN::Plugins::TransparentBrowser.open(
-        browser_type: :chrome,
-        proxy: proxy
-      )
-    end
+    browser_obj = PWN::Plugins::TransparentBrowser.open(
+      browser_type: :chrome,
+      proxy: proxy
+    )
   else
     browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :chrome)
   end

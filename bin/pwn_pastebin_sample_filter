@@ -14,12 +14,8 @@ OptionParser.new do |options|
     opts[:regex] = r
   end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy>') do |p|
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || :tor>') do |p|
     opts[:proxy] = p
-  end
-
-  options.on('-T', '--[no-]with-tor', '<Optional - Proxy w/ TOR (Defaults to false)>') do |w|
-    opts[:with_tor] = w
   end
 end.parse!
 
@@ -29,13 +25,11 @@ if opts.empty?
 end
 
 proxy = opts[:proxy]
-with_tor = opts[:with_tor]
 regex = opts[:regex]
 
 browser_obj = PWN::WWW::Pastebin.open(
   browser_type: :headless,
-  proxy: proxy,
-  with_tor: with_tor
+  proxy: proxy
 )
 
 begin
