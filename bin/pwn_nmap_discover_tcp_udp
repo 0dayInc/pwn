@@ -151,7 +151,7 @@ begin
   # Target Discovery Scan
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
-  puts "\n\n\n#{banner}"
+  puts banner
   puts '- PHASE 1: Target Discovery'
   PWN::Plugins::NmapIt.port_scan do |nmap|
     if with_tor
@@ -188,16 +188,32 @@ begin
         next if File.read(exclude_file).include?(host.ip) ||
                 host.status.state != :up
 
-        hosts_arr = host.hostnames.map { |h| h[:name] }
-        f.print host.ip
-        f.puts " # { \"hostnames\": #{hosts_arr}}, \"mac\": \"#{host.mac}\" }"
+        f.puts host.ip
       end
     end
   end
 
-  # Produce a good targets.txt redacting duplicates
-  sorted_targets = File.readlines(target_file).sort.join
-  File.write(target_file, sorted_targets)
+  # Produce a good targets.txt redacting duplicates && sorting by IP
+  sorted_ips = File.readlines(target_file).uniq.map do |ip|
+    IPAddr.new(ip.chomp)
+  end
+  sorted_ips = sorted_ips.sort_by(&:hton)
+
+  # Now Add additional info about the IP as a comment
+  File.open(target_file, 'w') do |f|
+    sorted_ips.each do |ip|
+      PWN::Plugins::NmapIt.parse_xml_results(
+        xml_file: latest_discovery_results
+      ) do |xml|
+        xml.each_host do |host|
+          next unless host.ip.to_s == ip.to_s
+
+          hosts_arr = host.hostnames.map { |h| h[:name] }
+          f.puts "#{ip} # { \"hostnames\": #{hosts_arr}}, \"mac\": \"#{host.mac}\" }"
+        end
+      end
+    end
+  end
 
   phase1_ended_at = Time.now.strftime(ftimestr)
   phase1_ended_at_parse = Time.parse(phase1_ended_at)
