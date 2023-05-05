@@ -203,17 +203,18 @@ begin
   phase1_ended_at_parse = Time.parse(phase1_ended_at)
   elapsed_in_seconds = (phase1_ended_at_parse - started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
-  puts "\n\n\n#{banner}"
+  puts "\n#{banner}"
   puts "- DISCOVERY COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 
   puts "\n\n\n#{banner}"
   puts '- PHASE 2: TCP Port Scanning'
+  puts banner
   phase2_started_at = Time.now.strftime(ftimestr)
   phase2_started_at_parse = Time.parse(phase2_started_at)
 
   # Switch Tor Exit Node if with_tor
   if with_tor
-    puts "\n\n\n#{banner}"
     puts '- INFO: Switching to Clean Tor Circuit...'
     PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
   end
@@ -247,17 +248,18 @@ begin
   phase2_ended_at_parse = Time.parse(phase2_ended_at)
   elapsed_in_seconds = (phase2_ended_at_parse - phase2_started_at).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
-  puts "\n\n\n#{banner}"
+  puts "\n#{banner}"
   puts "- TCP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 
   puts "\n\n\n#{banner}"
   puts '- PHASE 3: UDP Port Scanning'
+  puts banner
   phase3_started_at = Time.now.strftime(ftimestr)
   phase3_started_at_parse = Time.parse(phase3_started_at)
 
   # Switch Tor Exit Node if with_tor
   if with_tor
-    puts "\n\n\n#{banner}"
     puts '- INFO: Switching to Clean Tor Circuit...'
     PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
   end
@@ -294,8 +296,9 @@ begin
   phase3_ended_at_parse = Time.parse(phase3_ended_at)
   elapsed_in_seconds = (phase3_ended_at_parse - phase3_started_at).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
-  puts "\n\n\n#{banner}"
+  puts "\n#{banner}"
   puts "- UDP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
@@ -303,13 +306,11 @@ rescue StandardError => e
 ensure
   tor_obj = PWN::Plugins::Tor.stop(tor_obj: tor_obj) if with_tor
   ended_at = Time.now.strftime(ftimestr)
-  puts "\n\n\n#{banner}"
-  puts "- ENDED: #{ended_at}"
-
   ended_at_parse = Time.parse(ended_at)
   elapsed_in_seconds = (ended_at_parse - started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
   puts "\n\n\n#{banner}"
+  puts "- ENDED: #{ended_at}"
   puts "- SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
   puts banner
 end
