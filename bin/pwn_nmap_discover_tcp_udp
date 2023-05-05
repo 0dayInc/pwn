@@ -35,6 +35,7 @@ end
 
 ftimestr = '%Y-%m-%d %H:%M:%S.%N%z'
 started_at = Time.now.strftime(ftimestr)
+started_at_parse = Time.parse(started_at)
 banner = '-' * 64
 puts "\n\n\n#{banner}"
 puts "- STARTED: #{started_at} "
@@ -153,18 +154,21 @@ begin
   puts "\n\n\n#{banner}"
   puts '- PHASE 1: Target Discovery'
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    if with_tor
+      nmap.syn_discovery = discovery_tcp_ports.values
+      nmap.ack_discovery = discovery_tcp_ports.values
+    else
+      nmap.ping = true
+      nmap.arp_ping = true
+      nmap.icmp_echo_discovery = true
+      nmap.icmp_timestamp_discovery = true
+      nmap.udp_discovery = discovery_udp_ports.values
+      nmap.sctp_init_ping = discovery_sctp_ports.values
+    end
     nmap.verbose = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
     nmap.insane_timing = true
-    nmap.ping = true
-    nmap.arp_ping = true
-    nmap.icmp_echo_discovery = true
-    nmap.icmp_timestamp_discovery = true
-    nmap.syn_discovery = discovery_tcp_ports.values
-    nmap.ack_discovery = discovery_tcp_ports.values
-    nmap.udp_discovery = discovery_udp_ports.values
-    nmap.sctp_init_ping = discovery_sctp_ports.values
     nmap.output_xml = latest_discovery_results
     nmap.targets = target_range
     nmap.randomize_hosts = true
@@ -181,7 +185,8 @@ begin
       xml_file: latest_discovery_results
     ) do |xml|
       xml.each_host do |host|
-        next unless File.read(exclude_file).include?(host.ip)
+        next if File.read(exclude_file).include?(host.ip) ||
+                host.status.state != :up
 
         hosts_arr = host.hostnames.map { |h| h[:name] }
         f.print host.ip
@@ -194,6 +199,18 @@ begin
   sorted_targets = File.readlines(target_file).sort.join
   File.write(target_file, sorted_targets)
 
+  phase1_ended_at = Time.now.strftime(ftimestr)
+  phase1_ended_at_parse = Time.parse(phase1_ended_at)
+  elapsed_in_seconds = (phase1_ended_at_parse - started_at_parse).to_f
+  fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
+  puts "\n\n\n#{banner}"
+  puts "- DISCOVERY COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+
+  puts "\n\n\n#{banner}"
+  puts '- PHASE 2: TCP Port Scanning'
+  phase2_started_at = Time.now.strftime(ftimestr)
+  phase2_started_at_parse = Time.parse(phase2_started_at)
+
   # Switch Tor Exit Node if with_tor
   if with_tor
     puts "\n\n\n#{banner}"
@@ -204,8 +221,6 @@ begin
   # TCP Scan
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
-  puts "\n\n\n#{banner}"
-  puts '- PHASE 2: TCP Port Scanning'
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.verbose = true
     nmap.target_file = target_file
@@ -228,6 +243,17 @@ begin
     nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_tcp_results}.nmap", "#{latest_tcp_results}.txt")
+  phase2_ended_at = Time.now.strftime(ftimestr)
+  phase2_ended_at_parse = Time.parse(phase2_ended_at)
+  elapsed_in_seconds = (phase2_ended_at_parse - phase2_started_at).to_f
+  fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
+  puts "\n\n\n#{banner}"
+  puts "- TCP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+
+  puts "\n\n\n#{banner}"
+  puts '- PHASE 3: UDP Port Scanning'
+  phase3_started_at = Time.now.strftime(ftimestr)
+  phase3_started_at_parse = Time.parse(phase3_started_at)
 
   # Switch Tor Exit Node if with_tor
   if with_tor
@@ -239,9 +265,11 @@ begin
   # UDP Scan
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
-  puts "\n\n\n#{banner}"
-  puts '- PHASE 3: UDP Port Scanning'
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    unless with_tor
+      nmap.default_script = true
+      nmap.update_scriptdb = true
+    end
     nmap.verbose = true
     nmap.target_file = target_file
     nmap.fast = true
@@ -254,8 +282,6 @@ begin
     nmap.insane_timing = true
     nmap.skip_discovery = true
     nmap.udp_scan = true
-    nmap.default_script = true unless with_tor
-    nmap.update_scriptdb = true unless with_tor
     nmap.output_all = latest_udp_results
     nmap.min_parallelism = 36
     nmap.max_retries = 0
@@ -264,6 +290,12 @@ begin
     nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_udp_results}.nmap", "#{latest_udp_results}.txt")
+  phase3_ended_at = Time.now.strftime(ftimestr)
+  phase3_ended_at_parse = Time.parse(phase3_ended_at)
+  elapsed_in_seconds = (phase3_ended_at_parse - phase3_started_at).to_f
+  fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
+  puts "\n\n\n#{banner}"
+  puts "- UDP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
@@ -274,7 +306,6 @@ ensure
   puts "\n\n\n#{banner}"
   puts "- ENDED: #{ended_at}"
 
-  started_at_parse = Time.parse(started_at)
   ended_at_parse = Time.parse(ended_at)
   elapsed_in_seconds = (ended_at_parse - started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
