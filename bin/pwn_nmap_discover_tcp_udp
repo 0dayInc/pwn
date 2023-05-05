@@ -246,7 +246,7 @@ begin
   FileUtils.cp("#{latest_tcp_results}.nmap", "#{latest_tcp_results}.txt")
   phase2_ended_at = Time.now.strftime(ftimestr)
   phase2_ended_at_parse = Time.parse(phase2_ended_at)
-  elapsed_in_seconds = (phase2_ended_at_parse - phase2_started_at).to_f
+  elapsed_in_seconds = (phase2_ended_at_parse - phase2_started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
   puts "\n#{banner}"
   puts "- TCP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
@@ -295,7 +295,7 @@ begin
   FileUtils.cp("#{latest_udp_results}.nmap", "#{latest_udp_results}.txt")
   phase3_ended_at = Time.now.strftime(ftimestr)
   phase3_ended_at_parse = Time.parse(phase3_ended_at)
-  elapsed_in_seconds = (phase3_ended_at_parse - phase3_started_at).to_f
+  elapsed_in_seconds = (phase3_ended_at_parse - phase3_started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
   puts "\n#{banner}"
   puts "- UDP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
