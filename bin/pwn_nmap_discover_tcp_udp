@@ -155,6 +155,7 @@ begin
   puts '- PHASE 1: Target Discovery'
   PWN::Plugins::NmapIt.port_scan do |nmap|
     if with_tor
+      nmap.proxies = proxy
       nmap.syn_discovery = discovery_tcp_ports.values
       nmap.ack_discovery = discovery_tcp_ports.values
     else
@@ -175,7 +176,6 @@ begin
     nmap.min_parallelism = 36
     nmap.max_retries = 3
     nmap.max_scan_delay = 3
-    nmap.proxies = proxy if with_tor
   end
 
   # Generate targets.txt from discovery above
@@ -223,6 +223,7 @@ begin
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.proxies = proxy if with_tor
     nmap.verbose = true
     nmap.target_file = target_file
     nmap.randomize_hosts = true
@@ -241,7 +242,6 @@ begin
     nmap.min_parallelism = 36
     nmap.max_retries = 3
     nmap.max_scan_delay = 3
-    nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_tcp_results}.nmap", "#{latest_tcp_results}.txt")
   phase2_ended_at = Time.now.strftime(ftimestr)
@@ -268,7 +268,9 @@ begin
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
-    unless with_tor
+    if with_tor
+      nmap.proxies = proxy
+    else
       nmap.default_script = true
       nmap.update_scriptdb = true
     end
@@ -289,7 +291,6 @@ begin
     nmap.max_retries = 0
     nmap.max_scan_delay = 3
     nmap.data_length = Random.rand(1..256)
-    nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_udp_results}.nmap", "#{latest_udp_results}.txt")
   phase3_ended_at = Time.now.strftime(ftimestr)
