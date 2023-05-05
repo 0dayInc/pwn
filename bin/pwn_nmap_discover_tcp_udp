@@ -155,6 +155,7 @@ begin
   puts '- PHASE 1: Target Discovery'
   PWN::Plugins::NmapIt.port_scan do |nmap|
     if with_tor
+      nmap.proxies = proxy
       nmap.syn_discovery = discovery_tcp_ports.values
       nmap.ack_discovery = discovery_tcp_ports.values
     else
@@ -175,7 +176,6 @@ begin
     nmap.min_parallelism = 36
     nmap.max_retries = 3
     nmap.max_scan_delay = 3
-    nmap.proxies = proxy if with_tor
   end
 
   # Generate targets.txt from discovery above
@@ -203,17 +203,18 @@ begin
   phase1_ended_at_parse = Time.parse(phase1_ended_at)
   elapsed_in_seconds = (phase1_ended_at_parse - started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
-  puts "\n\n\n#{banner}"
+  puts "\n#{banner}"
   puts "- DISCOVERY COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 
   puts "\n\n\n#{banner}"
   puts '- PHASE 2: TCP Port Scanning'
+  puts banner
   phase2_started_at = Time.now.strftime(ftimestr)
   phase2_started_at_parse = Time.parse(phase2_started_at)
 
   # Switch Tor Exit Node if with_tor
   if with_tor
-    puts "\n\n\n#{banner}"
     puts '- INFO: Switching to Clean Tor Circuit...'
     PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
   end
@@ -222,6 +223,7 @@ begin
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.proxies = proxy if with_tor
     nmap.verbose = true
     nmap.target_file = target_file
     nmap.randomize_hosts = true
@@ -240,24 +242,24 @@ begin
     nmap.min_parallelism = 36
     nmap.max_retries = 3
     nmap.max_scan_delay = 3
-    nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_tcp_results}.nmap", "#{latest_tcp_results}.txt")
   phase2_ended_at = Time.now.strftime(ftimestr)
   phase2_ended_at_parse = Time.parse(phase2_ended_at)
   elapsed_in_seconds = (phase2_ended_at_parse - phase2_started_at).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
-  puts "\n\n\n#{banner}"
+  puts "\n#{banner}"
   puts "- TCP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 
   puts "\n\n\n#{banner}"
   puts '- PHASE 3: UDP Port Scanning'
+  puts banner
   phase3_started_at = Time.now.strftime(ftimestr)
   phase3_started_at_parse = Time.parse(phase3_started_at)
 
   # Switch Tor Exit Node if with_tor
   if with_tor
-    puts "\n\n\n#{banner}"
     puts '- INFO: Switching to Clean Tor Circuit...'
     PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
   end
@@ -266,7 +268,9 @@ begin
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
-    unless with_tor
+    if with_tor
+      nmap.proxies = proxy
+    else
       nmap.default_script = true
       nmap.update_scriptdb = true
     end
@@ -287,15 +291,15 @@ begin
     nmap.max_retries = 0
     nmap.max_scan_delay = 3
     nmap.data_length = Random.rand(1..256)
-    nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_udp_results}.nmap", "#{latest_udp_results}.txt")
   phase3_ended_at = Time.now.strftime(ftimestr)
   phase3_ended_at_parse = Time.parse(phase3_ended_at)
   elapsed_in_seconds = (phase3_ended_at_parse - phase3_started_at).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
-  puts "\n\n\n#{banner}"
+  puts "\n#{banner}"
   puts "- UDP SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
@@ -303,13 +307,11 @@ rescue StandardError => e
 ensure
   tor_obj = PWN::Plugins::Tor.stop(tor_obj: tor_obj) if with_tor
   ended_at = Time.now.strftime(ftimestr)
-  puts "\n\n\n#{banner}"
-  puts "- ENDED: #{ended_at}"
-
   ended_at_parse = Time.parse(ended_at)
   elapsed_in_seconds = (ended_at_parse - started_at_parse).to_f
   fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
   puts "\n\n\n#{banner}"
+  puts "- ENDED: #{ended_at}"
   puts "- SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
   puts banner
 end
