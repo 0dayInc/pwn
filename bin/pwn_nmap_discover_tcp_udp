@@ -3,6 +3,7 @@
 
 require 'optparse'
 require 'pwn'
+require 'time'
 
 opts = {}
 OptionParser.new do |options|
@@ -10,8 +11,8 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-IRANGE', '--ip-range=RANGE', '<Required - nmap supported ip range e.g. 192.168.1.1-20, 192.168.1.0/24, etc>') do |i|
-    opts[:ip_range] = i
+  options.on('-tRANGE', '--target-range=RANGE', '<Required - nmap supported host || ip range e.g. foo.bar, 192.168.1.1-20, 192.168.1.0/24, etc>') do |t|
+    opts[:target_range] = t
   end
 
   options.on('-eFILE', '--target-exclude-file=FILE', '<Optional - nmap excludes file>') do |e|
@@ -32,7 +33,13 @@ if opts.empty?
   exit 1
 end
 
-ip_range = opts[:ip_range]
+ftimestr = '%Y-%m-%d %H:%M:%S.%N%z'
+started_at = Time.now.strftime(ftimestr)
+banner = '-' * 64
+puts "\n\n\n#{banner}"
+puts "- STARTED: #{started_at} "
+
+target_range = opts[:target_range]
 exclude_file = opts[:exclude_file]
 exclude_file ||= '/tmp/nmap_targets_exclude.txt'
 interface = opts[:interface]
@@ -49,28 +56,24 @@ nmap_results_root = File.dirname(exclude_file)
 FileUtils.mkdir_p nmap_results_root
 puts "nmap Results Saved in: #{nmap_results_root}"
 
-discovery_ports = {
+discovery_tcp_ports = {
   ftp: 21,
   ssh: 22,
   telnet: 23,
   smtp: 25,
-  dns: 53,
   http: 80,
   pop3: 110,
-  rpc: 111,
   ident: 113,
-  ntp: 123,
+  msrpc: 135,
   netbios_name_service: 137,
   netbios_session_service: 139,
   imap: 143,
-  snmp: 161,
   ldap: 389,
   https: 443,
   smb: 445,
   smtps: 465,
   remote_process: 512,
   login: 513,
-  rsh: 514,
   ldaps: 636,
   rsync: 873,
   imaps: 993,
@@ -84,13 +87,12 @@ discovery_ports = {
   rdp: 3389,
   meterpreter: 4444,
   upnp: 5000,
-  sip: 5060,
   postgres: 5432,
   postgres_alt: 5433,
   amqp: 5672,
   vnc: 5900,
   vncs: 5901,
-  xfree86: 6000,
+  x11: 6000,
   irc: 6667,
   http_alt: 8080,
   https_alt: 8443,
@@ -99,10 +101,34 @@ discovery_ports = {
   http_alt4: 9999
 }
 
+discovery_udp_ports = {
+  dns: 53,
+  dhcp: 67,
+  dhcp_client: 68,
+  tftp: 69,
+  nfs: 111,
+  ntp: 123,
+  snmp: 161,
+  snmp_traps: 162,
+  syslog: 514,
+  rip: 520,
+  iax: 4569,
+  sip: 5060,
+  mdns: 5353
+}
+
+discovery_sctp_ports = {
+  sigtran: 2905,
+  stl: 5000,
+  sap: 5004,
+  turn_ip: 5766,
+  sicc: 38412
+}
+
 target_file = "#{nmap_results_root}/nmap_targets.txt"
-latest_discovery_results = "#{nmap_results_root}/nmap_latest_discovery_results"
-latest_tcp_results = "#{nmap_results_root}/nmap_latest_tcp_results"
-latest_udp_results = "#{nmap_results_root}/nmap_latest_udp_results"
+latest_discovery_results = "#{nmap_results_root}/nmap_discovery_results.xml"
+latest_tcp_results = "#{nmap_results_root}/nmap_tcp_results"
+latest_udp_results = "#{nmap_results_root}/nmap_udp_results"
 
 begin
   # Per man nmap:
@@ -124,7 +150,10 @@ begin
   # Target Discovery Scan
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
+  puts "\n\n\n#{banner}"
+  puts '- PHASE 1: Target SYN Discovery'
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.verbose = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
     nmap.insane_timing = true
@@ -132,13 +161,16 @@ begin
     nmap.arp_ping = true
     nmap.icmp_echo_discovery = true
     nmap.icmp_timestamp_discovery = true
-    nmap.syn_discovery = discovery_ports.values
-    nmap.ack_discovery = discovery_ports.values
-    nmap.udp_discovery = discovery_ports.values
-    nmap.sctp_init_ping = discovery_ports.values
-    nmap.output_all = latest_discovery_results
-    nmap.targets = ip_range
+    nmap.syn_discovery = discovery_tcp_ports.values
+    nmap.ack_discovery = discovery_tcp_ports.values
+    nmap.udp_discovery = discovery_udp_ports.values
+    nmap.sctp_init_ping = discovery_sctp_ports.values
+    nmap.output_xml = latest_discovery_results
+    nmap.targets = target_range
     nmap.randomize_hosts = true
+    nmap.min_parallelism = 36
+    nmap.max_retries = 3
+    nmap.max_scan_delay = 3
     nmap.proxies = proxy if with_tor
   end
 
@@ -146,69 +178,89 @@ begin
   # taking into consideration IPs to skip scans
   File.open(target_file, 'w') do |f|
     PWN::Plugins::NmapIt.parse_xml_results(
-      xml_file: "#{latest_discovery_results}.xml"
+      xml_file: latest_discovery_results
     ) do |xml|
       xml.each_host do |host|
-        f.puts host.ip unless File.read(exclude_file).include?(host.ip)
+        unless File.read(exclude_file).include?(host.ip)
+          hosts_arr = host.hostnames.map { |h| h[:name] }
+          f.print host.ip
+          f.puts " # { \"hostnames\": #{hosts_arr}}, \"mac\": \"#{host.mac}\" }"
+        end
       end
     end
   end
+
+  # Produce a good targets.txt redacting duplicates
   sorted_targets = File.readlines(target_file).sort.join
   File.write(target_file, sorted_targets)
 
   # Switch Tor Exit Node if with_tor
-  PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
+  if with_tor
+    puts "\n\n\n#{banner}"
+    puts '- INFO: Switching to Clean Tor Circuit...'
+    PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
+  end
 
   # TCP Scan
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
+  puts "\n\n\n#{banner}"
+  puts '- PHASE 2: TCP Port Scanning'
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.verbose = true
     nmap.target_file = target_file
     nmap.randomize_hosts = true
     nmap.show_reason = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
-    nmap.min_host_group = 3
-    nmap.host_timeout = '999m'
+    nmap.min_host_group = 9
+    nmap.host_timeout = '36m'
     nmap.insane_timing = true
     nmap.skip_discovery = true
     nmap.syn_scan = true
     nmap.default_script = true
     nmap.update_scriptdb = true
-    nmap.service_scan = true
-    nmap.os_fingerprint = true
-    nmap.verbose = true
-    nmap.all = true
     nmap.ports = [1..65_535]
     nmap.output_all = latest_tcp_results
+    nmap.min_parallelism = 36
+    nmap.max_retries = 3
+    nmap.max_scan_delay = 3
     nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_tcp_results}.nmap", "#{latest_tcp_results}.txt")
 
   # Switch Tor Exit Node if with_tor
-  PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
+  if with_tor
+    puts "\n\n\n#{banner}"
+    puts '- INFO: Switching to Clean Tor Circuit...'
+    PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
+  end
 
   # UDP Scan
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
+  puts "\n\n\n#{banner}"
+  puts '- PHASE 3: UDP Port Scanning'
   PWN::Plugins::NmapIt.port_scan do |nmap|
+    nmap.verbose = true
     nmap.target_file = target_file
+    nmap.fast = true
     nmap.randomize_hosts = true
     nmap.show_reason = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
-    nmap.min_host_group = 3
-    nmap.host_timeout = '999m'
+    nmap.min_host_group = 9
+    nmap.host_timeout = '3m'
     nmap.insane_timing = true
     nmap.skip_discovery = true
     nmap.udp_scan = true
-    nmap.default_script = true
-    nmap.update_scriptdb = true
-    nmap.service_scan = true
-    nmap.os_fingerprint = true
-    nmap.verbose = true
-    nmap.all = true
+    nmap.default_script = true unless with_tor
+    nmap.update_scriptdb = true unless with_tor
     nmap.output_all = latest_udp_results
+    nmap.min_parallelism = 36
+    nmap.max_retries = 0
+    nmap.max_scan_delay = 3
+    nmap.data_length = Random.rand(1..256)
     nmap.proxies = proxy if with_tor
   end
   FileUtils.cp("#{latest_udp_results}.nmap", "#{latest_udp_results}.txt")
@@ -218,4 +270,15 @@ rescue StandardError => e
   raise e
 ensure
   tor_obj = PWN::Plugins::Tor.stop(tor_obj: tor_obj) if with_tor
+  ended_at = Time.now.strftime(ftimestr)
+  puts "\n\n\n#{banner}"
+  puts "- ENDED: #{ended_at}"
+
+  started_at_parse = Time.parse(started_at)
+  ended_at_parse = Time.parse(ended_at)
+  elapsed_in_seconds = (ended_at_parse - started_at_parse).to_f
+  fmt_elapsed_in_seconds = format('%0.2f', elapsed_in_seconds)
+  puts "\n\n\n#{banner}"
+  puts "- SCAN COMPLETE!  DURATION: #{fmt_elapsed_in_seconds} seconds"
+  puts banner
 end
