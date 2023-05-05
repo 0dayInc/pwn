@@ -15,12 +15,16 @@ OptionParser.new do |options|
     opts[:target_range] = t
   end
 
-  options.on('-eFILE', '--target-exclude-file=FILE', '<Optional - nmap excludes file>') do |e|
+  options.on('-eFILE', '--target-exclude-file=FILE', '<Optional - IP excludes file>') do |e|
     opts[:exclude_file] = e
   end
 
   options.on('-iINTERFACE', '--interface=INTERFACE', '<Optional - use specified network interface (Default: eth0)') do |i|
     opts[:interface] = i
+  end
+
+  options.on('-rDIR', '--results-root=DIR', '<Optional - nmap results root (Default: /tmp)>') do |r|
+    opts[:results_root] = r
   end
 
   options.on('-T', '--tor', '<Optional - Source Scans from Tor Nodes>') do |t|
@@ -41,21 +45,27 @@ puts "\n\n\n#{banner}"
 puts "- STARTED: #{started_at} "
 
 target_range = opts[:target_range]
+
+results_root = opts[:results_root]
+results_root ||= '/tmp'
+FileUtils.mkdir_p results_root
+puts "Results Saved in: #{results_root}"
+
 exclude_file = opts[:exclude_file]
-exclude_file ||= '/tmp/nmap_targets_exclude.txt'
+exclude_file ||= "#{results_root}/nmap_targets_exclude.txt"
+# We create an exclude file (even if its empty)
+File.new(exclude_file, 'w') unless File.exist?(exclude_file)
+
 interface = opts[:interface]
 interface ||= 'eth0'
+
 with_tor = true if opts[:with_tor]
 with_tor ||= false
+
 if with_tor
   tor_obj = PWN::Plugins::Tor.start
   proxy = ["socks4://#{tor_obj[:ip]}:#{tor_obj[:port]}"]
 end
-
-File.new(exclude_file, 'w') unless File.exist?(exclude_file)
-nmap_results_root = File.dirname(exclude_file)
-FileUtils.mkdir_p nmap_results_root
-puts "nmap Results Saved in: #{nmap_results_root}"
 
 discovery_tcp_ports = {
   ftp: 21,
@@ -126,10 +136,10 @@ discovery_sctp_ports = {
   sicc: 38_412
 }
 
-target_file = "#{nmap_results_root}/nmap_targets.txt"
-latest_discovery_results = "#{nmap_results_root}/nmap_discovery_results.xml"
-latest_tcp_results = "#{nmap_results_root}/nmap_tcp_results"
-latest_udp_results = "#{nmap_results_root}/nmap_udp_results"
+target_file = "#{results_root}/nmap_targets.txt"
+latest_discovery_results = "#{results_root}/nmap_discovery_results.xml"
+latest_tcp_results = "#{results_root}/nmap_tcp_results"
+latest_udp_results = "#{results_root}/nmap_udp_results"
 
 begin
   # Per man nmap:
