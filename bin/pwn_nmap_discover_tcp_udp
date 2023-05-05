@@ -122,7 +122,7 @@ discovery_sctp_ports = {
   stl: 5000,
   sap: 5004,
   turn_ip: 5766,
-  sicc: 38412
+  sicc: 38_412
 }
 
 target_file = "#{nmap_results_root}/nmap_targets.txt"
@@ -151,7 +151,7 @@ begin
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
   puts "\n\n\n#{banner}"
-  puts '- PHASE 1: Target SYN Discovery'
+  puts '- PHASE 1: Target Discovery'
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.verbose = true
     nmap.exclude_file = exclude_file
@@ -181,11 +181,11 @@ begin
       xml_file: latest_discovery_results
     ) do |xml|
       xml.each_host do |host|
-        unless File.read(exclude_file).include?(host.ip)
-          hosts_arr = host.hostnames.map { |h| h[:name] }
-          f.print host.ip
-          f.puts " # { \"hostnames\": #{hosts_arr}}, \"mac\": \"#{host.mac}\" }"
-        end
+        next unless File.read(exclude_file).include?(host.ip)
+
+        hosts_arr = host.hostnames.map { |h| h[:name] }
+        f.print host.ip
+        f.puts " # { \"hostnames\": #{hosts_arr}}, \"mac\": \"#{host.mac}\" }"
       end
     end
   end
