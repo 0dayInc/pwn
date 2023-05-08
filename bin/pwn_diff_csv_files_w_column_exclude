@@ -42,6 +42,17 @@ if opts.empty?
   exit 1
 end
 
+def ommit_columns_by_indices(opts = {})
+  csv = opts[:csv]
+  columns_index_arr = opts[:columns_index_arr]
+
+  csv.each do |line_arr|
+    line_arr.delete_if.with_index do |_, index|
+      columns_index_arr.include?(index)
+    end
+  end
+end
+
 def csv_diff(opts = {})
   c1_path = opts[:c1_path]
   c2_path = opts[:c2_path]
@@ -77,24 +88,22 @@ def csv_diff(opts = {})
   end
 
   if columns_index_arr.any?
-    larger_csv.each do |line_arr|
-      line_arr.delete_if.with_index do |_, index|
-        columns_index_arr.include?(index)
-      end
-    end
+    larger_csv = ommit_columns_by_indices(
+      csv: larger_csv,
+      columns_index_arr: columns_index_arr
+    )
 
-    smaller_csv.each do |line_arr|
-      line_arr.delete_if.with_index do |_, index|
-        columns_index_arr.include?(index)
-      end
-    end
+    smaller_csv = ommit_columns_by_indices(
+      csv: smaller_csv,
+      columns_index_arr: columns_index_arr
+    )
   end
 
   # Write diff with redacted columns (to find differences we care about)
   File.open(diff_path, 'w') do |f|
     larger_csv.each do |line_arr|
       line = line_arr.join(',')
-      f.puts line unless smaller_csv.include?(line_arr)
+      f.puts line unless smaller_csv.select { |sc| sc.join(',') == line }
     end
   end
   diff_csv = CSV.read(diff_path)
@@ -105,13 +114,13 @@ def csv_diff(opts = {})
     if no_headers
       larger_csv_orig.each do |line_arr|
         line = line_arr.join(',')
-        f.puts line if diff_csv.include?(line_arr)
+        f.puts line if diff_csv.select { |dc| dc.join(',') == line }
       end
     else
       f.puts csv_headers_orig
       larger_csv_orig[1..-1].each do |line_arr|
         line = line_arr.join(',')
-        f.puts line if diff_csv.include?(line_arr)
+        f.puts line if diff_csv.select { |dc| dc.join(',') == line }
       end
     end
   end
