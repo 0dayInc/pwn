@@ -15,7 +15,7 @@ OptionParser.new do |options|
       --csv-diff vuln_scan_diff.csv \\
       --exclude-column-names 'Synopsis,Description,Solution,See Also,Plugin Output,Asset UUID,Vulnerability State,IP Address,FQDN,NetBios,OS,MAC Address,Plugin Family,CVSS Base Score,CVSS Temporal Score,CVSS Temporal Vector,CVSS Vector,CVSS3 Base Score,CVSS3 Temporal Score,CVSS3 Temporal Vector,CVSS3 Vector,System Type,Host Start,Host End,Vulnerability Priority Rating (VPR),First Found,Last Found,Host Scan Schedule ID,Host Scan ID,Indexed At,Last Authenticated Results Date,Last Unauthenticated Results Date,Tracked,Risk Factor,Severity,Original Severity,Modification,Plugin Family ID,Plugin Type,Plugin Version,Service,Plugin Modification Date,Plugin Publication Date,Checks for Malware,Exploit Available,Exploited by Malware,Exploited by Nessus,CANVAS,D2 Elliot,Metasploit,Core Exploits,ExploitHub,Default Account,Patch Available,In The News,Unsupported By Vendor,Last Fixed'
 
-    EXAMPLE w/ OpeVAS Results:
+    EXAMPLE w/ OpenVAS Results:
     #{$PROGRAM_NAME} \\
       --csv-a vuln_scan1.csv \\
       --csv-b vuln_scan2.csv \\
