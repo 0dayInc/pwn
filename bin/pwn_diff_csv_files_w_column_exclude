@@ -126,7 +126,8 @@ def csv_diff(opts = {})
   # Write diff with redacted columns (to find differences we care about)
   CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     larger_csv.each do |line_arr|
-      csv.puts line_arr if smaller_csv.select { |sc| sc == line_arr }.empty?
+      line = line_arr.join(',')
+      csv.puts line_arr if smaller_csv.select { |sc| sc.join(',') == line }.empty?
     end
   end
   diff_csv = CSV.open(
@@ -138,16 +139,20 @@ def csv_diff(opts = {})
   ).read
 
   # Write diff again with all columns.
-  csv_headers_orig = larger_csv_orig.first
   CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     if no_headers
       larger_csv_orig.each_with_index do |line_arr, index|
-        csv.puts line_arr if diff_csv.select { |dc| dc == larger_csv[index] }.any?
+        # Use larger_csv instead of orig to compare column redaction to diff_csv
+        line = larger_csv[index].join(',')
+        csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
       end
     else
-      csv.puts csv_headers_orig
+      # Write original headers
+      csv.puts larger_csv_orig.first
       larger_csv_orig[1..-1].each_with_index do |line_arr, index|
-        csv.puts line_arr if diff_csv.select { |dc| dc == larger_csv[index] }.any?
+        # Use larger_csv instead of orig to compare column redaction to diff_csv
+        line = larger_csv[index].join(',')
+        csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
       end
     end
   end
