@@ -68,7 +68,6 @@ def csv_diff(opts = {})
     larger_csv_orig = CSV.read(c1_path)
 
     smaller_csv = csv2
-    smaller_csv_orig = CSV.read(c2_path)
   end
 
   if csv2.length >= csv1.length
@@ -76,7 +75,6 @@ def csv_diff(opts = {})
     larger_csv_orig = CSV.read(c2_path)
 
     smaller_csv = csv1
-    smaller_csv_orig = CSV.read(c1_path)
   end
 
   # Exclude the column values for diff to ensure the same rows
@@ -101,27 +99,27 @@ def csv_diff(opts = {})
   end
 
   # Write diff with redacted columns (to find differences we care about)
-  File.open(diff_path, 'w') do |f|
+  CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     larger_csv.each do |line_arr|
       line = line_arr.join(',')
-      f.puts line unless smaller_csv.select { |sc| sc.join(',') == line }
+      csv.puts line_arr if smaller_csv.select { |sc| sc.join(',') == line }.empty?
     end
   end
   diff_csv = CSV.read(diff_path)
 
   # Write diff again with all columns.
-  csv_headers_orig = larger_csv_orig.first.join(',')
-  File.open(diff_path, 'w') do |f|
+  csv_headers_orig = larger_csv_orig.first
+  CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     if no_headers
-      larger_csv_orig.each do |line_arr|
-        line = line_arr.join(',')
-        f.puts line if diff_csv.select { |dc| dc.join(',') == line }
+      larger_csv_orig.each_with_index do |line_arr, index|
+        line = larger_csv[index].join(',')
+        csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
       end
     else
       f.puts csv_headers_orig
-      larger_csv_orig[1..-1].each do |line_arr|
-        line = line_arr.join(',')
-        f.puts line if diff_csv.select { |dc| dc.join(',') == line }
+      larger_csv_orig[1..-1].each_with_index do |line_arr, index|
+        line = larger_csv[index].join(',')
+        csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
       end
     end
   end
