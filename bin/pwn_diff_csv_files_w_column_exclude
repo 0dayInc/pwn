@@ -60,19 +60,44 @@ def csv_diff(opts = {})
   no_headers = opts[:no_headers]
   column_names_to_exclude = opts[:column_names_to_exclude].to_s.split(',')
 
-  csv1 = CSV.read(c1_path)
-  csv2 = CSV.read(c2_path)
+  csv1 = CSV.open(
+    c1_path,
+    'rb',
+    col_sep: ',',
+    quote_char: '"',
+    force_quotes: true
+  ).read
+
+  csv2 = CSV.open(
+    c2_path,
+    'rb',
+    col_sep: ',',
+    quote_char: '"',
+    force_quotes: true
+  ).read
 
   if csv1.length >= csv2.length
     larger_csv = csv1
-    larger_csv_orig = CSV.read(c1_path)
+    larger_csv_orig = CSV.open(
+      c1_path,
+      'rb',
+      col_sep: ',',
+      quote_char: '"',
+      force_quotes: true
+    ).read
 
     smaller_csv = csv2
   end
 
   if csv2.length >= csv1.length
     larger_csv = csv2
-    larger_csv_orig = CSV.read(c2_path)
+    larger_csv_orig = CSV.open(
+      c2_path,
+      'rb',
+      col_sep: ',',
+      quote_char: '"',
+      force_quotes: true
+    ).read
 
     smaller_csv = csv1
   end
@@ -101,25 +126,28 @@ def csv_diff(opts = {})
   # Write diff with redacted columns (to find differences we care about)
   CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     larger_csv.each do |line_arr|
-      line = line_arr.join(',')
-      csv.puts line_arr if smaller_csv.select { |sc| sc.join(',') == line }.empty?
+      csv.puts line_arr if smaller_csv.select { |sc| sc == line_arr }.empty?
     end
   end
-  diff_csv = CSV.read(diff_path)
+  diff_csv = CSV.open(
+    diff_path,
+    'rb',
+    col_sep: ',',
+    quote_char: '"',
+    force_quotes: true
+  ).read
 
   # Write diff again with all columns.
   csv_headers_orig = larger_csv_orig.first
   CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     if no_headers
       larger_csv_orig.each_with_index do |line_arr, index|
-        line = larger_csv[index].join(',')
-        csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
+        csv.puts line_arr if diff_csv.select { |dc| dc == larger_csv[index] }.any?
       end
     else
       csv.puts csv_headers_orig
       larger_csv_orig[1..-1].each_with_index do |line_arr, index|
-        line = larger_csv[index].join(',')
-        csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
+        csv.puts line_arr if diff_csv.select { |dc| dc == larger_csv[index] }.any?
       end
     end
   end
