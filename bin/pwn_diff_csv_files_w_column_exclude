@@ -14,6 +14,13 @@ OptionParser.new do |options|
       --csv-b vuln_scan2.csv \\
       --csv-diff vuln_scan_diff.csv \\
       --exclude-column-names 'Synopsis,Description,Solution,See Also,Plugin Output,Asset UUID,Vulnerability State,IP Address,FQDN,NetBios,OS,MAC Address,Plugin Family,CVSS Base Score,CVSS Temporal Score,CVSS Temporal Vector,CVSS Vector,CVSS3 Base Score,CVSS3 Temporal Score,CVSS3 Temporal Vector,CVSS3 Vector,System Type,Host Start,Host End,Vulnerability Priority Rating (VPR),First Found,Last Found,Host Scan Schedule ID,Host Scan ID,Indexed At,Last Authenticated Results Date,Last Unauthenticated Results Date,Tracked,Risk Factor,Severity,Original Severity,Modification,Plugin Family ID,Plugin Type,Plugin Version,Service,Plugin Modification Date,Plugin Publication Date,Checks for Malware,Exploit Available,Exploited by Malware,Exploited by Nessus,CANVAS,D2 Elliot,Metasploit,Core Exploits,ExploitHub,Default Account,Patch Available,In The News,Unsupported By Vendor,Last Fixed'
+
+    EXAMPLE w/ OpeVAS Results:
+    #{$PROGRAM_NAME} \\
+      --csv-a vuln_scan1.csv \\
+      --csv-b vuln_scan2.csv \\
+      --csv-diff vuln_scan_diff.csv \\
+      --exclude-column-names 'Timestamp, Result ID'
   "
 
   options.on('-aCSV', '--csv-a=CSV', '<Required - First CSV to Compare)>') do |c1|
@@ -42,7 +49,7 @@ if opts.empty?
   exit 1
 end
 
-def ommit_columns_by_indices(opts = {})
+def ommit_columns_by_index(opts = {})
   csv = opts[:csv]
   columns_index_arr = opts[:columns_index_arr]
 
@@ -112,12 +119,12 @@ def csv_diff(opts = {})
   end
 
   if columns_index_arr.any?
-    larger_csv = ommit_columns_by_indices(
+    larger_csv = ommit_columns_by_index(
       csv: larger_csv,
       columns_index_arr: columns_index_arr
     )
 
-    smaller_csv = ommit_columns_by_indices(
+    smaller_csv = ommit_columns_by_index(
       csv: smaller_csv,
       columns_index_arr: columns_index_arr
     )
