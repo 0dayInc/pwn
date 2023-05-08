@@ -116,7 +116,7 @@ def csv_diff(opts = {})
         csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
       end
     else
-      f.puts csv_headers_orig
+      csv.puts csv_headers_orig
       larger_csv_orig[1..-1].each_with_index do |line_arr, index|
         line = larger_csv[index].join(',')
         csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
