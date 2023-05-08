@@ -82,7 +82,8 @@ def csv_diff(opts = {})
   # Exclude the column values for diff to ensure the same rows
   # with for example different timestamps aren't included.
   columns_index_arr = []
-  column_names_to_exclude&.each do |column_name|
+  column_names_to_exclude&.each do |cn|
+    column_name = cn.strip.chomp
     column_index = smaller_csv.first.find_index(column_name)
     columns_index_arr.push(column_index)
   end
