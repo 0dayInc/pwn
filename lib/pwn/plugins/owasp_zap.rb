@@ -472,7 +472,7 @@ module PWN
 
       public_class_method def self.stop(opts = {})
         zap_obj = opts[:zap_obj]
-        Process.kill('TERM', zab_obj[:pid]) unless zap_obj.nil?
+        Process.kill('TERM', zap_obj[:pid]) unless zap_obj.nil?
       rescue StandardError => e
         raise e
       end
