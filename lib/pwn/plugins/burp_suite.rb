@@ -249,12 +249,12 @@ module PWN
 
         report_url = Base64.strict_encode64(target_domain)
         # Ready scanreport API call in burpbuddy to support HTML & XML report generation
-        # report_resp = rest_browser.get(
-        #   "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
-        # )
         report_resp = rest_browser.get(
-          "http://#{burpbuddy_api}/scanreport/#{report_url}"
+          "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
         )
+        # report_resp = rest_browser.get(
+        #   "http://#{burpbuddy_api}/scanreport/#{report_url}"
+        # )
         File.open(output_path, 'w') do |f|
           f.puts(report_resp.body)
         end
