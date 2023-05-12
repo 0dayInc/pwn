@@ -256,7 +256,7 @@ module PWN
         #   "http://#{burpbuddy_api}/scanreport/#{report_url}"
         # )
         File.open(output_path, 'w') do |f|
-          f.puts(report_resp.body)
+          f.puts(report_resp.body.gsub(/\r\n/, "\n"))
         end
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
