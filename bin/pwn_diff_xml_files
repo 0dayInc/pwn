@@ -1,0 +1,51 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'nokogiri'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.on('-aXML', '--xml-a=XML', '<Required - First XML to Compare)>') do |x1|
+    opts[:x1_path] = x1
+  end
+
+  options.on('-bXML', '--xml-b=XML', '<Required - Second XML to Compare)>') do |x2|
+    opts[:x2_path] = x2
+  end
+
+  options.on('-dDIFF', '--xml-diff=DIFF', '<Required - Path of XML Diff to Generate)>') do |d|
+    opts[:diff_path] = d
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+# Compare the diff of two XML files using the nokogiri gem in Ruby
+# and output the diff to a new XML file using the same format as the
+# the original XML files.
+begin
+  x1_path = opts[:x1_path]
+  x2_path = opts[:x2_path]
+  diff_path = opts[:diff_path]
+
+  x1 = Nokogiri::XML(File.open(x1_path))
+  x2 = Nokogiri::XML(File.open(x2_path))
+
+  diff = x1.diff(x2)
+  diff_xml = Nokogiri::XML::Builder.new do |xml|
+    xml.diff do
+      diff.each do |change|
+        xml.send(change.action, change.node.to_xml) unless change.action == '='
+      end
+    end
+  end
+
+  File.write(diff_path, diff_xml.to_xml)
+rescue StandardError => e
+  puts "Error: #{e.message}"
+  exit 1
+end
