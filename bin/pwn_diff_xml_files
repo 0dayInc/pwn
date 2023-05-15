@@ -32,14 +32,37 @@ begin
   x2_path = opts[:x2_path]
   diff_path = opts[:diff_path]
 
-  x1 = Nokogiri::XML(File.open(x1_path))
-  x2 = Nokogiri::XML(File.open(x2_path))
+  x1 = Nokogiri::XML(File.read(x1_path))
+  x2 = Nokogiri::XML(File.read(x2_path))
 
-  diff = x1.diff(x2)
   diff_xml = Nokogiri::XML::Builder.new do |xml|
     xml.diff do
-      diff.each do |change|
-        xml.send(change.action, change.node.to_xml) unless change.action == '='
+      x1.root.traverse do |node|
+        next unless node.element?
+
+        node_name = node.name
+        node_x2 = x2.at_xpath(node.path)
+
+        if node_x2.nil?
+          xml.delete do
+            xml.send(node_name, node.attributes)
+          end
+        elsif node_x2 != node
+          xml.change do
+            xml.send(node_name, node.attributes)
+          end
+        end
+      end
+
+      x2.root.traverse do |node|
+        next unless node.element?
+
+        node_name = node.name
+        node_x1 = x1.at_xpath(node.path)
+
+        xml.add do
+          xml.send(node_name, node.attributes) if node_x1.nil?
+        end
       end
     end
   end
