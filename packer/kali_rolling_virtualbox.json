@@ -136,7 +136,7 @@
         "provisioners/apache2.sh",
         "provisioners/tor.sh",
         "provisioners/toggle_tor.sh",
-        "provisioners/nmap_all_live_hosts.sh",
+        "provisioners/nmap.sh",
         "provisioners/arachni.sh",
         "provisioners/eyewitness.sh",
         "provisioners/afl.sh",
