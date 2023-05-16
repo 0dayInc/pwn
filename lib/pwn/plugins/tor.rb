@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'netaddr'
 require 'pty'
 
 module PWN
@@ -77,6 +78,7 @@ module PWN
       #   ip: 'optional - IP address to listen (default: 127.0.0.1)',
       #   port: 'optional - socks port to listen (default: 1024-65535)',
       #   ctrl_port: 'optional - tor control port to listen (default: 1024-65535)',
+      #   net: 'optional - CIDR notation to accept connections (default: 127.0.0.0.1/32)',
       #   data_dir: 'optional - directory to keep tor session data (default: /tmp/tor_pwn-TIMESTAMP)'
       # )
 
@@ -92,6 +94,11 @@ module PWN
             break if ctrl_port != port
           end
         end
+
+        net = opts[:net]
+        net ||= "#{ip}/32"
+        acl_net = NetAddr.parse_net(net)
+
         timestamp = Time.now.strftime('%Y-%m-%d_%H-%M-%S.%N%z')
         data_dir = opts[:data_dir]
         data_dir ||= "/tmp/tor_pwn-#{timestamp}"
@@ -115,7 +122,11 @@ module PWN
             'ControlPort',
             ctrl_port.to_s,
             'CookieAuthentication',
-            '1'
+            '1',
+            'SocksPolicy',
+            "accept #{acl_net}",
+            'SocksPolicy',
+            'reject *'
           ) do |stdout, _stdin, pid|
             File.write(pid_file, pid)
             stdout.each do |line|
@@ -201,6 +212,7 @@ module PWN
             ip: 'optional - IP address to listen (default: 127.0.0.1)',
             port: 'optional - socks port to listen (default: 9050)',
             ctrl_port: 'optional - tor control port to listen (default: 9051)',
+            net: 'optional - CIDR notation to accept connections (default: 127.0.0.1/32)',
             data_dir: 'optional - directory to keep tor session data (default: /tmp/tor_pwn-TIMESTAMP)'
           )
 
