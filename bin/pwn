@@ -4,6 +4,7 @@
 require 'optparse'
 require 'pwn'
 require 'pry'
+require 'sys/proctable'
 require 'yaml'
 
 opts = {}
@@ -292,10 +293,27 @@ begin
   )
 
   # Start PWN REPL
+  pwn_pid = Process.pid
   Pry.start(
     self,
     prompt: prompt
   )
 rescue StandardError => e
   raise e
+ensure
+  child_pids = Sys::ProcTable.ps(smaps: false).select do |pe|
+    pe.ppid == pwn_pid
+  end.map(&:pid)
+
+  grandkid_pids = Sys::ProcTable.ps(smaps: false).select do |pe|
+    child_pids.include?(pe.ppid)
+  end.map(&:pid)
+
+  grandkid_pids.each do |grandkid_pid|
+    Process.kill('TERM', grandkid_pid)
+  end
+
+  child_pids.each do |child_pid|
+    Process.kill('TERM', child_pid)
+  end
 end
