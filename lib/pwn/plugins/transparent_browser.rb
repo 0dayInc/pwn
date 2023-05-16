@@ -34,7 +34,7 @@ module PWN
       # Supported Method Parameters::
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
       #   browser_type: :firefox|:chrome|:headless|:rest|:websocket,
-      #   proxy: 'optional - scheme://proxy_host:port || :tor',
+      #   proxy: 'optional - scheme://proxy_host:port || tor',
       #   with_devtools: 'optional - boolean (defaults to false)'
       # )
 
@@ -44,8 +44,8 @@ module PWN
         proxy = opts[:proxy].to_s unless opts[:proxy].nil?
 
         tor_obj = nil
-        if opts[:proxy] == :tor
-          tor_obj = PWN::Plugins::Tor.start if opts[:proxy] == :tor
+        if opts[:proxy] == 'tor'
+          tor_obj = PWN::Plugins::Tor.start
           proxy = "socks5://#{tor_obj[:ip]}:#{tor_obj[:port]}"
         end
 
@@ -343,7 +343,7 @@ module PWN
         puts "USAGE:
           browser_obj1 = #{self}.open(
             browser_type: :firefox|:chrome|:headless_chrome|:headless_firefox|:rest|:websocket,
-            proxy: 'optional scheme://proxy_host:port || :tor',
+            proxy: 'optional scheme://proxy_host:port || tor',
             with_devtools: 'optional - boolean (defaults to false)'
           )
           puts browser_obj1.public_methods

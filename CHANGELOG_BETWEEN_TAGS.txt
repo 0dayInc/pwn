@@ -1,108 +1,492 @@
-e761590 Gemfile - include whois-parser gem
-9125ac9 Gemfile - include whois gem
-8e280b1 pwn_nessus_cloud_scan_crud Driver - add tags to assets #bugfix
-282d8b6 pwn_nessus_cloud_scan_crud Driver - add tags to assets #bugfix
-e447047 pwn_nessus_cloud_scan_crud Driver - add tags to assets #bugfix
-15faf7b pwn_nessus_cloud_scan_crud Driver - add tags to assets
-c468e7b pwn_nessus_cloud_scan_crud Driver - disable schedule by default
-45a5eb6 pwn_nessus_cloud_scan_crud Driver - timezone && starttime default to nil
-09fe8a6 pwn_nessus_cloud_scan_crud Driver - rrules default to FREQ=null
-3b4c6c2 pwn_nessus_cloud_scan_crud Driver - bugfix in UUID
-e986c98 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
-45113bc pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
-6c24858 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
-e4f9869 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout #bugfix
-b2a416c pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout
-13e7540 pwn_serial_son_micro_sm132_rfid Driver - slightly better output to stdout
-a7efffd pwn_serial_son_micro_sm132_rfid Driver - initial commit
-b8427fd pwn_serial_mar206 Driver - remove redundant edit card option in favor of load card from file
-41da7df PWN::Plugins::MSR206 module - slight #tweak to coercivity menu
-3281c7d PWN::Plugins::MSR206 module - begin supporting iso_alt and raw writing modes
-89fd44c PWN::Plugins::MSR206 module - support high and low coercivity writes in #write_card method
-6a58842 PWN::Plugins::MSR206 module - pretty print JSON data in backup file w/in #backup_card method
-a9175b1 pwn_serial_msr206 Driver - working copy and load from file (i.e. write to card initial support)
-e529993 pwn_serial_msr206 Driver - working copy and load from file (i.e. write to card initial support)
-e0273b7 pwn_serial_msr206 Driver - implement alt ISO decoding and raw reading modes to support reading non-standard cards (e.g. metrocards)
-b87c22e pwn_shodan_search - array of hashes in json output #tweak
-e380835 pwn_shodan_search - array of hashes in json output
-1d8a0e8 pwn_shodan_search - bugfix in json output
-c4e4fb9 pwn_shodan_search - intial working commit #bugfix
-17111dd pwn_shodan_search - intial working commit #bugfix
-8e1715a pwn_shodan_search - intial working commit
-38f3bd8 PWN::Plugins::Shodan module - symbolize key names in method responses
-045796f pwn_serial_msr206 Driver - Reserve yellow led for minor errors #bugfix
-a051b7f pwn_serial_msr206 Driver - Reserve yellow led for minor errors
-cf398ad pwn_serial_msr206 Driver - (B)ackup Card #working
-53256f4 pwn_serial_msr206 Driver - display configuration bits at start && bugfix with error handling
-a56a1a2 pwn_serial_msr206 Driver - remove yellow_on debug output
-3dc8d41 pwn_serial_msr206 Driver - Working Card Read
-809e74b pwn_serial_msr206 Driver - Initial commit
-43755ab PWN::Plugins::BusPirate module - #bugfix in call to PWN::Plugins::Serial.request method
-ccc167a PWN::Plugins::BusPirate module - #bugfix in call to PWN::Plugins::Serial.request method
-c048f2c PWN::Plugins::Serial, PWN::Plugins::SonMicroRFID, & PWN::Plugins::MSR206 modules - cleanup some redudant methods, make requests over serial more reliable, and work towards better response output
-f31caad PWN::Plugins::MSR206 module - more refinements
-4eb6060 PWN::Plugins::MSR206 module - implement #list_cmds && #exec methods #rubocop
-96de906 PWN::Plugins::MSR206 module - implement #list_cmds && #exec methods
-79fe42a PWN::Plugins::MSR206 module - initial non-working commit (redact msr gem in favor of 100% ruby native module)
-13b0e31 PWN::Plugins::MSR206 module - initial non-working commit
-15fb720 pwn_nessus_cloud_scan_crud && pwn_nessus_cloud_vulnscan Drivers - rename pwn_nessus_cloud_create_scan to reflect ability to create, read, update, & delete scans #bugfix
-68a92cc PWN::Plugins::NessusCloud module - implement HTTP PUT method in #nessus_cloud_rest_call
-267b389 pwn_nessus_cloud_scan_crud Driver - rename pwn_nessus_cloud_create_scan to reflect ability to create, read, update, & delete scans
-94bb346 pwn_nessus_cloud_create_scan Driver - add tag uuid to settinggs[:tag_targets] instead of tag name #bugfix
-a33c3e0 pwn_nessus_cloud_create_scan Driver - add tag uuid to settinggs[:tag_targets] instead of tag name
-d1ae4f6 pwn_nessus_cloud_create_scan Driver - add debugging to #get_tag_values call to understand condition required to trigger #create_tag method #bugfix
-2eb9500 pwn_nessus_cloud_create_scan Driver - add debugging to #get_tag_values call to understand condition required to trigger #create_tag method
-f77a454 pwn_nessus_cloud_create_scan Driver - add debugging to #get_tag_values call to understand condition required to trigger #create_tag method
-486a5a2 PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
-a59ad8d PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
-22c4559 PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
-550779a PWN::Plugins::NessusCloud module - refactor #get_tags method #bugfix
-f13218f PWN::Plugins::NessusCloud module - refactor #get_tags method
-e9b1a1b pwn_nessus_cloud_create_scan Driver - add --tag-category-name feature #rubocop
-7e347e3 pwn_nessus_cloud_create_scan Driver - add --tag-category-name feature
-478ec25 pwn_nessus_cloud_create_scan Driver - add --tag-targets feature
-a02f88b pwn_nessus_cloud_create_scan Driver - more code refinement
-1999189 pwn_nessus_cloud_create_scan Driver - more code refinement
-654c50d PWN::Plugins::NessusCloud module - #bugfix in #create_scan method
-b752378 pwn_nessus_cloud_create_scan Driver - tag_targets_arr #bugfix
-7719f22 pwn_nessus_cloud_create_scan Driver - credentials key #bugfix
-906a607 pwn_nessus_cloud_create_scan Driver - migrate credentials && plugins objeects into YAML config since the structure is so diverse depending on the object used (e.g. Windows vs SSH vs etc.)
-3a6e477 pwn_nessus_cloud_create_scan Driver - closer to working commit
-3e264d8 pwn_nessus_cloud_create_scan Driver - get target network UUID for --target-network-name
-75b2d64 pwn_nessus_cloud_create_scan && pwn_nessus_cloud_vulscan Drivers - more additions and migrating certain logic to plugin in an effort to reduce code redundancy in drivers
-0cdc0ce pwn_nessus_cloud_create_scan Driver - more additions
-cc95e2b pwn_nessus_cloud_create_scan Driver - add policy parameter
-2115eb3 pwn_nessus_cloud_create_scan Driver - add policy parameter
-ac67b0f pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks #bugfix
-84ac773 pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks #rubocop_fixes
-8a841d8 pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks
-3fd2f1b pwn_nessus_cloud_create_scan Driver - initial non-working commit #tweaks
-9119659 PWN::Plugins::NessusCloud - add #list_scan_templates method && pwn_nessus_cloud_create_scan Driver - initial non-working commit
-a434c66 PWN::Plugins::CreditCard module - add #type method to aid in reversing weak generation methods used by some financial institutions #rubocop
-29fce17 PWN::Plugins::CreditCard module - add #type method to aid in reversing weak generation methods used by some financial institutions
-a1f7bf1 PWN::Plugins::SerialPort module - fix missing method #wait_readable #bugfix
-f4c91d6 pwn.gemspec - Specify requirements for only the minor Ruby version, not patch (i.e. 3.1.x)
-baecc3b pwn.gemspec - Support ruby-3.1.2p20
-1e80a2b .ruby-version - Support ruby-3.1.2p20
-bd770d0 .ruby-version - Support ruby-3.1.2p20
-68958e3 .ruby-version - Support ruby-3.1.2p20 - i.e. >= Preview 20
-947fbe3 PWN::VERSION - bump gem version
-ac9387b PWN::SAST::Signature module - initial commit
-67e9cde Packer provisioners - include env when setting user var, PWN_PROVIDER #bugfix
-066da28 Packer provisioners - include env when setting user var, PWN_PROVIDER #bugfix
-b1c87af *.sh in pwn repo root - bugfix in PWN_ROOT assignment when building within cloned ssrc
-ab3eb54 *.sh in pwn repo root - bugfix in PWN_ROOT assignment when building within cloned ssrc
-31bfdb9 Packer & Vagrant - fix bug in PWN_ROOT assignment when generating /etc/profile.d/pwn_envs.sh AND redirect STDERR to /dev/null when assigining PWN_ROOT
-21db2bc Packer & Vagrant - fix bug in PWN_ROOT assignment when generating /etc/profile.d/pwn_envs.sh
-007dc4d Packer & Vagrant - fix bug in PWN_ROOT assignment when generating /etc/profile.d/pwn_envs.sh
-917a82b .ruby-version - address weird versioning issue
-41fa60e .ruby-version - Bump to 3.1.2 #rubocop_fixes
-5d51b69 .ruby-version - Bump to 3.1.2
-a225371 PWN::SAST::* modules - fix NIST 800-53 links to show respective control desc for SAST module #bugfix
-321e5ea Packer && Vagrant - ensure PWN_ROOT reflects path of latest installed pwn gem
-eb5e59d PWN::Banner::* - slight tweaks
-959941d Gemfile && PWN::Plugins::CreditCard - reinstate module w/ compatible version of credit_card_validations (i.e.  5.0.0)
-3133eb6 pwn REPL driver - implement welcome-banner command in REPL session to display example usage on demand
-831d253 PWN::SAST::HTTPAuthorizationHeader module - initial commit
-611bbf0 PWN::Plugins::RabbitMQHole to PWN::Plugins::RabbitMQ module - update rdoc to include port parameter
-87e1ef5 PWN REPL driver - regress colors back to ansi strings to avoid readline issues on prompt && rename PWN::Plugins::RabbitMQHole to PWN::Plugins::RabbitMQ and include a port parameter that can be passed to the #open method
+d36822b PWN::Plugins::NmapIt module - implement #diff_xml_results method
+1af07d5 pwn REPL Driver - kill process tree of pwn session on exit
+4b66284 Merge pull request #280 from ninp0/master
+ea0e515 PWN::Plugins::Tor module - implement least privilege controls when calling #start method
+b7b1dc1 Merge pull request #279 from ninp0/master
+6f36641 pwn_diff_xml_files Driver - Github Copilot attempt #3
+cf194d7 Merge pull request #278 from ninp0/master
+8c3734a pwn_diff_xml_files Driver - Github Copilot attempt #2
+fce8bce Merge pull request #277 from ninp0/master
+2800507 pwn_diff_xml_files Driver - initial commit
+459967f Merge pull request #276 from ninp0/master
+d8daa1f PWN::Plugins::BurpSuite module - replace carriage-return line-feed w/ line-feed #generate_scan_report method
+f4b77d6 Merge pull request #275 from ninp0/master
+cec9e7b PWN::Plugins::BurpSuite module - align #generate_scan_report method to burpbuddy-3.1.1-SNAPSHOT-all.jar (which is currently only available by building https://github.com/tomsteele/burpbuddy).  Requested new build to be made available via tomsteele/burpbuddy/issues/40
+ec7d8af Merge pull request #274 from ninp0/master
+a9a113d PWN::Plugins::OwaspZAP module - #bugfix in #stop method
+6ca2d1b Merge pull request #273 from ninp0/master
+25dba8c pwn_nmap_discover_tcp_udp Driver - include ipaddr gem #bugfix
+37c30e3 Merge branch 'master' of ssh://github.com/ninp0/pwn
+2248423 pwn_diff_csv_files_w_column_exclude Driver - provide additional example in usage to include not only Tenable Nessus but OpenVAS as well. #tweak
+2650e2c Merge pull request #272 from ninp0/master
+0359fab pwn_diff_csv_files_w_column_exclude Driver - provide additional example in usage to include not only Tenable Nessus but OpenVAS as well.
+584a867 Merge pull request #271 from ninp0/master
+58d287f pwn_diff_csv_files_w_column_exclude Driver - #final_major_bugfix in producing actual diff CSV file
+8af4ba3 pwn_diff_csv_files_w_column_exclude Driver - #more_bugfixes in producing actual diff CSV file
+4d4a72b Merge pull request #270 from ninp0/master
+e5aca05 pwn_diff_csv_files_w_column_exclude Driver - #more_bugfixes in producing actual diff CSV file
+3671b25 Merge pull request #269 from ninp0/master
+3a48688 pwn_diff_csv_files_w_column_exclude Driver - #more_bugfixes in producing actual diff CSV file
+6f7b66c Merge pull request #268 from ninp0/master
+05945f5 pwn_diff_csv_files_w_column_exclude Driver - #more_bugfixes in producing actual diff CSV file
+10e24e1 Merge pull request #267 from ninp0/master
+460b647 pwn_diff_csv_files_w_column_exclude Driver - #bugfixes in carving out new diff csv files
+5616439 pwn_diff_csv_files_w_column_exclude Driver - bugfixes in carving out new diff csv files
+c9e824c Merge pull request #266 from ninp0/master
+b9253e5 pwn_nmap_discover_tcp_udp Driver - add --results-root parameter
+723c88f Merge pull request #265 from ninp0/master
+55780a3 pwn_nmap_discover_tcp_udp Driver - sort nmap_targets.txt by IP address
+a44d0a4 Merge pull request #264 from ninp0/master
+33aa6dc pwn_nmap_discover_tcp_udp Driver - #bugfixes
+ec07522 Merge pull request #263 from ninp0/master
+9190401 pwn_nmap_discover_tcp_udp Driver - #bugfixes
+15cd413 pwn_nmap_discover_tcp_udp Driver - minor tweaks
+0cd59cc Merge pull request #262 from ninp0/master
+a16105a pwn_nmap_discover_tcp_udp Driver - MORE speed and data quality optimizations #bugfixes
+89f30a9 pwn_nmap_discover_tcp_udp Driver - speed and data quality optimizations #rubocop_fixes
+49e668b pwn_nmap_discover_tcp_udp Driver - speed and data quality optimizations
+8c84ef2 Merge pull request #261 from ninp0/master
+cb14128 repo file cleanup
+0a6e48f Merge pull request #260 from ninp0/master
+79ba8d0 pwn_nmap_discover_tcp_udp Driver - packet reduction, increased speed, and randomize hosts in targets file
+fabe549 Merge pull request #259 from ninp0/master
+5f97bde pwn_nmap_discover_tcp_udp Driver - initial commit
+32062c9 Merge pull request #258 from ninp0/master
+2d4445e PWN::Plugins::OpenVAS module && pwn_openvas_vulnscan - add report_filter parameter in #save_report method to generate the same default report as the greenbone UI or have the ability to customize report results
+607c294 Merge pull request #257 from ninp0/master
+7acb478 pwn_diff_csv_files_w_column_exclude Driver - #bugfixes
+1a9d4cc PWN::Plugins::Tor module - initial commit && #bugfix in pwn_diff_csv_files_w_column_exclude Driver
+a1e7115 Merge pull request #256 from ninp0/master
+9f26c20 pwn_diff_csv_files_w_column_exclude Driver - preserve original columns when creating diff
+207804a Merge pull request #255 from ninp0/master
+bc85335 PWN::Plugins::NessusCloud module - better error handling in #nessus_cloud_rest_call method
+8798424 pwn_nessus_cloud_vulnscan driver - more explicit logic to determine when a scan is complete.
+0df7b85 Merge pull request #254 from ninp0/master
+824b3d2 PWN::Plugins::Log module - #rubocop_fixes
+1fbc1b4 PWN::Log module - move to PWN::Plugins::Log instead
+d2e36c6 PWN::Log module - begin integrating into framework
+6d8ba88 pwn_nessus_cloud_vulnscan driver - bugfix and begin phasing out PWN::Plugins::PWNLogger in favor of PWN::Log module
+cd6c67e Merge pull request #253 from ninp0/master
+9943c9d PWN::Plugins::OpenAI module - bugfix in #delete_file method as the target file for deletion is a remote file.
+fbd123d Merge pull request #252 from ninp0/master
+7432624 PWN::Plugins::OpenAI module - update #help method to reflect usage of all methods in module
+ceaf81a Merge pull request #251 from ninp0/master
+d55e47d PWN::Plugins::OpenAI module - implement all the fine tunings to produce custom models
+b1b8457 Merge pull request #250 from ninp0/master
+8fa039e pwn_diff_csv_files_w_column_exclude Driver - #bugfix in two different CSV files that are the same size but w/ different contents.
+944fd99 Merge pull request #249 from ninp0/master
+e1eedeb PWN::Plugins::OpenVAS module - #bugfix in #save_report method.  GVM switching it up again #shakes_fist
+42c594b Merge pull request #248 from ninp0/master
+0820e36 PWN::Plugins::JiraServer module - add #manual_call method (for quick testing of HTTP GET API calls)
+d7296a5 Merge pull request #247 from ninp0/master
+c9e8ba7 PWN::Plugins::JiraServer module - #bugfix in #get_issue method
+b39b96b Merge pull request #246 from ninp0/master
+1667753 PWN::Plugins::JiraServer module - #bugfix in #get_issue method
+38aa67a Merge pull request #245 from ninp0/master
+3e2d27b PWN::Plugins::JiraServer module - initial basic commit #add_rspec
+0f134cf PWN::Plugins::JiraServer module - initial basic commit
+4a83083 Merge pull request #244 from ninp0/master
+bcd12f8 PWN::Plugins::OpenGPT module - add spinner to give end user a sense that things are worlojg as expected
+0f9e44b Merge pull request #243 from ninp0/master
+f578312 pwn Driver - change STDIN color in chatGPT.pwn mode from red to yellow for easier readability.
+e302627 Merge pull request #242 from ninp0/master
+6342d95 pwn Driver - #rubocop #monkey_patch fixes
+1be9771 Merge pull request #241 from ninp0/master
+fc63af5 pwn Driver - #rubocop_auto_gen_config #monkey_patch
+ecedc4d pwn Driver - implement ChatGPT mode and make REPL behave differently when pry_instance.config.chat_gpt = true
+280d70d Merge pull request #240 from ninp0/master
+f636f5b pwn Driver - remember token value if prompted for OpenAI API token
+56dcc61 Merge pull request #239 from ninp0/master
+2a942d7 pwn Driver - complete pwn_chat (i.e. OpenAI ChatGPT) integration into REPL via toggle-chat_gpt* commands
+d549bd7 Merge pull request #238 from ninp0/master
+3723fd5 pwn_chat Driver - remove deprecated code
+75f663f Merge pull request #237 from ninp0/master
+55245f8 pwn_chat Driver - move context history retention and voice capabilities to PWN::Plugins::OpenAI module
+c644612 Merge pull request #236 from ninp0/master
+8a71e14 pwn_chat Driver - squeeze in as much historical context the API will tolerate.
+6c2806b Merge pull request #235 from ninp0/master
+37ee284 pwn_chat Driver - add a --voice parameter to speak answers via PWN::Plugins::Voice module
+7e9d774 Merge pull request #234 from ninp0/master
+40b2a97 pwn_chat Driver - Build a PWN chatbot w/ Pry and OpenAI (i.e. AI REPL)
+b8f0423 Merge pull request #233 from ninp0/master
+bd47daa pwn_owasp_zap_active_scan Driver - handle default proxy options in PWN::Plugins::OwaspZAP module
+639fb17 Merge pull request #232 from ninp0/master
+987e85a PWN::Plugins::OwaspZAP module - #rubocop_fixes and code cleanup
+3cc59b9 PWN::Plugins::BurpSuite module - rollback to static port assignment since both jars statically define ports :P and PWN::Plugins::OwaspZAP module - bugfix in random port assignment
+3cacddf Merge pull request #231 from ninp0/master
+33bf915 PWN::Plugins::Sock module - implement #get_random_unused_port method and leverage this method in PWN::Plugins::BareSIP, PWN::Plugins::BurpSuite, and PWN::Plugins::OwaspZAP modules
+bb7c4b7 Merge pull request #230 from ninp0/master
+5332bf4 PWN::Plugins::Sock - #rubocop_fix
+f88f912 PWN::Plugins::BurpSuite - change how BurpSuite Pro starts to avoid licensing change in burp.StartBurp
+051c88a Merge pull request #228 from ninp0/master
+0fd354c PWN file cleanup
+1492fd5 Merge pull request #227 from ninp0/master
+f3556a8 PWN::Banner::Matrix - Faster response time
+c550ff9 Merge pull request #226 from ninp0/master
+8a285ad #rubocop Fixes
+3ab6490 .ruby-version - Bump to Ruby 3.2.2
+884e414 Merge pull request #225 from ninp0/master
+b8c2018 pwn.gemspec - ensure every PWN module contains an RSpec test #slight_tweak
+191810c pwn.gemspec - ensure every PWN module contains an RSpec test #more_explicit
+2cd592d pwn.gemspec - ensure every PWN module contains an RSpec test #bugfixes & add version_spec.rb RSpec test
+6568c28 Merge pull request #224 from ninp0/master
+27a89b2 pwn.gemspec - ensure every PWN module contains an RSpec test
+34a2390 Rspec - add test for PWN::SAST::OuterHTML module
+08f103e Merge pull request #223 from ninp0/master
+ec4b4a5 PWN::Plugins::PWNLogger - add logging verbosity level parameter in #create method, add some Rspec tests, and remove deprecated module PWN::Plugins::HTTPInterceptHelper
+0754c34 Merge pull request #222 from ninp0/master
+947af5e PWN::Plugins::OpenAI module - #minor_tweak
+07190f2 Merge pull request #221 from ninp0/master
+c0ac132 PWN::Plugins::OpenAI module - #bugfixes in #chat method...ensure http_body and response objects are in sync / all conversation history is included.
+9277d0b Merge pull request #220 from ninp0/master
+8e9542a PWN::Plugins::OpenAI module - implement the ability to make the #chat method conversational, using previously returned response objects to be passed back into the #chat method using the #response_history parameter.
+5ba925a Merge pull request #219 from ninp0/master
+de3cc39 PWN::Plugins::OpenAI module - disable content filtering in #char method when using gpt-3.5-turbo model
+764af6d Merge pull request #218 from ninp0/master
+5674b59 PWN::Plugins::OpenAI module - combine #chat && #default_chat methods
+e7aa7b7 Merge pull request #217 from ninp0/master
+f3b6a58 PWN::Plugins::OpenAI module - change default chat model froom text-davinci-003 to gpt-3.5-turbo
+f536f0c Merge pull request #216 from ninp0/master
+e9f12af Gemfile && PWN::Plugins::Jenkins module - replace jenkins_api_client gem with jenkins_api_client2 gem to re-enable capabilities within PWN::Plugins::Jenkins
+16f22f6 Merge pull request #215 from ninp0/master
+8a6d38b pwn_diff_csv_files_w_column_exclude Driver - Initial working commit
+776b5df Merge pull request #214 from ninp0/master
+82f385f Rubocop - fixes and refresh .rubocop_todo.yml
+91e77f6 Gemfile - bump to latest versions
+0005e4c Merge pull request #213 from ninp0/master
+3e15d2a Gemile - add netaddr gem to work with CIDR ranges
+c3c8589 Merge pull request #212 from ninp0/master
+2fe7f91 PWN::Plugins::OpenAI plugin - distinguish between models available in #default_chat and #chat_gpt (coming soon)
+c90316b Merge pull request #211 from ninp0/master
+91e7a21 .ruby-version - Bump to ruby-3.2.1 and #bugfix in pwn.gemspec for spec.required_ruby_version
+af77dd6 PWN::Plugins::TransparentBrowser module - replace deprecated capabilities parameter to Selenium with options instead
+be5be7a Merge pull request #210 from ninp0/master
+9008606 PWN::Plugins::Shodan module - sleep 10s and retry when HTTP 429 response is received.  Additionally, pwn_shodan_search sleep 1s between requests. Lastly, remove yard gem from Gemfile
+e2c41c6 PWN::Plugins::Shodan module - sleep 10s and retry when HTTP 429 response is received.  Additionally, pwn_shodan_search sleep 1s between requests.
+63624f6 PWN::Plugins::Shodan module - sleep 10s and retry when HTTP 429 response is received.  Additionally, pwn_shodan_search sleep 1s between requests.
+5025f89 PWN::Plugins::Shodan module - sleep 10s and retry when HTTP 429 response is received.  Additionally, pwn_shodan_search sleep 1s between requests.
+ac491de PWN::Plugins::Shodan module - sleep 10s and retry when HTTP 429 response is received.  Additionally, pwn_shodan_search sleep 1s between requests.
+9329275 Merge pull request #209 from ninp0/master
+7c57588 PWN::Plugins::OpenAI - better max_tokens auto-calculation w/ optional override. #tweak
+9660bd8 Merge pull request #208 from ninp0/master
+da36496 PWN::Plugins::OpenAI - better max_tokens auto-calculation w/ optional override.
+010ea15 Merge pull request #207 from ninp0/master
+aa2fdd4 PWN::SAST::MD5 module - line number parsing #bugfix
+564b9d3 PWN::SAST::MD5 module - tweak in rDoc && Add ffi gem to Gemfile
+d1a79a6 PWN::SAST::MD5 module - initial commit to identify deprecated md5 objects, methods, classes, etc.
+1d07696 Merge pull request #206 from ninp0/master
+66692a0 README.md - sync versions
+65c8860 Merge pull request #205 from ninp0/master
+f806e83 pwn gem - ensure its available when install via gem on endpoints #attempt_4
+d978987 pwn gem - ensure its available when install via gem on endpoints #attempt_3
+7d94a33 pwn gem - ensure its available when install via gem on endpoints #attempt_2
+7b15826 pwn gem - ensure its available when install via gem on endpoints #attempt_2
+2762d35 pwn gem - ensure its available when install via gem on endpoints
+c085063 Merge pull request #204 from ninp0/master
+1eea9ac PWN::VERSION - manual bump.
+5774e1f .ruby_version - more refactoring to bump to ruby-3.2.0 stable #rubocop_auto_gen_config
+a57d942 .ruby_version - more refactoring to bump to ruby-3.2.0 stable
+f59d25a Merge pull request #203 from ninp0/master
+c73c3ba PWN::Plugins::Voice module - update #usage in #help method for #text_to_speech method
+a9f1e09 Merge pull request #202 from ninp0/master
+0e992bc PWN::Plugins::Voice module - #bugfix in #mutate method when catching Interrupt
+bb2da46 Merge pull request #201 from ninp0/master
+3fe7598 PWN::Plugins::Voice module - initial commit w/ #mutate , #speech_to_text , and #text_to_speech methods. Migrate PWN::Plugins::OpenAI.speech_to_text method to this module.
+e3964b7 Merge pull request #200 from ninp0/master
+a8f672e PWN::Plugins::BareSIP module - link to speech_totext file insteas of displaying in UI rows
+2b41516 pwn_phone Driver - change -h flag to -H
+9a55a44 Merge pull request #199 from ninp0/master
+9244486 PWN::Plugins::BareSIP module - implement basic #speech_to_text capability #bugfix
+cccc78f PWN::Plugins::BareSIP module - implement basic #speech_to_text capability
+9e0348f Merge pull request #198 from ninp0/master
+9fc6b42 PWN::Plugins::OpenAI - implement basic #speech_to_text method #rubocop_fixes
+e7aeaaf PWN::Plugins::OpenAI - implement basic #speech_to_text method
+77ddbdd Merge pull request #197 from ninp0/master
+2a0bebb PWN::Plugin::OpenAI module - implement #img_gen method
+649e61f Merge pull request #196 from ninp0/master
+287c401 PWN::Plugins::Char module - #rubocop fix
+3233079 PWN::Plugins::ChatSonic module - remove, not a fan of the inconsistent responses and laxk of code generation
+c8f6e2b Merge pull request #195 from ninp0/master
+f5bd226 PWN::Plugins::ChatSonic module - initial commit
+d7d2d55 Merge pull request #194 from ninp0/master
+24bad3f PWN::OpenAI module - #get_models http method #bugfix
+de8f29c Merge pull request #193 from ninp0/master
+0d19645 PWN::OpenAI module - implement max_tokens and temp params in #chat_gpt method, better input val
+20c3b85 Merge pull request #192 from ninp0/master
+94616c2 PWN::OpenAI module - implement max_tokens and temp params in #chat_gpt method and remove alt response param because chatgpt bsed me about the existence of text-generations vs completions #bugfix
+2b43264 Merge pull request #191 from ninp0/master
+209f3a5 PWN::OpenAI module - implement max_tokens and temp params in #chat_gpt method and remove alt response param because chatgpt bsed me about the existence of text-generations vs completions
+130ed78 Merge pull request #190 from ninp0/master
+454cb1f PWN::OpenAI module - support choice for mutiple models and whether to use a more structed response via the completions url path or a more creative, less structered approach using the text-generations url path
+d7de082 Merge pull request #189 from ninp0/master
+e0a6198 .ruby_version - rollback to 3.1.3...3.2.0 gems not ready
+b76f1eb .ruby_version - more refactoring to bump to ruby-3.2.0 stable
+92f6671 .ruby-version - bump to 3.2.0
+152f9ff Merge pull request #188 from ninp0/master
+bf3664d PWN:Plugins::OpenAI module - initial commit, which includes #chat_gpt method
+ecfdae1 Merge pull request #187 from ninp0/master
+8af2577 .ruby-version - Bump ruby to 3.1.3 stable
+a6b73f1 Merge pull request #186 from ninp0/master
+e8d483b PWN::Plugins::IBMAppScan module - #rubocop fix
+792a4d8 Gemfile - bump gems to latest versions
+8498886 Merge pull request #185 from ninp0/master
+77dc447 PWN::Plugin::NmapIt module - change require value from upstream gem Class path update
+2670fbb PWN::Plugin::BurpSuite - refactor URI for #generate_scan_report method
+517d1a1 Merge pull request #184 from ninp0/master
+8a0718c pwn_www_uri_buster Driver - rescue combine connection-related exceptions into one block and call out its respective class name in the report
+09591d0 pwn_www_uri_buster Driver - rescue RestClient::ServerBrokeConnection
+e7bbc3f pwn_www_uri_buster Driver - rescue RestClient::ServerBrokeConnection
+e5a1d5f Merge pull request #183 from ninp0/master
+4b038eb pwn_www_uri_buster Driver - rescue RestClient::Exceptions::ReadTimeout (better description of this event in the report)
+21dd0ba Merge pull request #182 from ninp0/master
+b058535 pwn_www_uri_buster Driver - rescue RestClient::Exceptions::ReadTimeout
+9f21409 Merge pull request #181 from ninp0/master
+38e1936 pwn_www_uri_buster Driver - implement --only-report-response-codes paramater to distill only interested results in report cat integer to string #bugfix
+0504a28 Merge pull request #180 from ninp0/master
+cd18007 pwn_www_uri_buster Driver - implement --only-report-response-codes paramater to distill only interested results in report #bugfix
+434535d Merge pull request #179 from ninp0/master
+c397f6d pwn_www_uri_buster Driver - implement --only-report-response-codes paramater to distill only interested results in report
+253fe02 Merge pull request #178 from ninp0/master
+b188362 Drivers w/ PWN_PROVIDER - default to ruby-gem if PWN_PROVIDER env is missing #bugfix #rubocop
+79cfdc5 Drivers w/ PWN_PROVIDER - default to ruby-gem if PWN_PROVIDER env is missing #bugfix
+b5227a8 Merge pull request #177 from ninp0/master
+a6bf15f pwn_www_uri_buster - return valid response hashes from #request_path method #bugfix
+a4509d7 Merge pull request #176 from ninp0/master
+cffbcd6 Merge branch 'master' of ssh://github.com/ninp0/pwn
+98ac671 pwn_www_uri_buster - return valid response hashes from #request_path method #bugfix
+f88aaa5 Merge pull request #175 from ninp0/master
+2033372 build_pwn_gem.sh - migrate push of gem to rubygems to git_commit_test_reinit_gem.sh
+afbe928 Drivers w/ PWN_PROVIDER - default to ruby-gem if PWN_PROVIDER env is missing #bugfix
+1974667 Merge pull request #174 from ninp0/master
+ec7eac6 Drivers w/ PWN_PROVIDER - default to ruby-gem if PWN_PROVIDER env is missing
+8d016a6 Merge pull request #173 from ninp0/master
+fb62eff Packer provisioner - add fftw3-dev dependency
+a252a68 Merge pull request #172 from ninp0/master
+adfbffc rubicop - regenerate TODOs
+e8c451b Grmfile - bump versions to latest
+4837f9d Merge pull request #171 from ninp0/master
+1da5df5 PWN::Plugins::BareSIP & pwn_phone Driver - ensure only respective screen session stops if terminated by other party, instead of entire thread pool #bugfix
+8a306f2 Merge pull request #170 from ninp0/master
+79cbafc PWN::Plugins::BareSIP & pwn_phone Driver - ensure all calls stop if interrupt detected #bugfix
+77810df PWN::Plugins::BareSIP & pwn_phone Driver - ensure all calls stop if interrupt detected #bugfix
+2ce891a PWN::Plugins::BareSIP & pwn_phone Driver - ensure all calls stop if interrupt detected
+6de2ffd PWN::Plugins::BareSIP & pwn_phone Driver - Implement custom source number
+dc2a55e Merge pull request #169 from ninp0/master
+28edadc Gemfile - bump to latest versions, particularly to address sqlite3 gem vuln
+b21dbe8 Merge pull request #168 from ninp0/master
+9a5b28d PWN::Plugins::BareSIP module - implement threaded calls #slight_tweak
+40acb11 Merge pull request #167 from ninp0/master
+35a4aca pwn_www_uri_buster Driver - better memory integrity in ThreadPool.fill block #bugfix
+c87337b Merge pull request #166 from ninp0/master
+91d3ac9 pwn_www_uri_buster Driver - better memory integrity in ThreadPool.fill block
+799afc8 Merge pull request #165 from ninp0/master
+dcc73e5 PWN::Plugins::BareSIP module - implement threaded calls
+2241072 Merge pull request #164 from ninp0/master
+bd9154d PWN::Plugins::BareSIP module - bugfix in spectrogram PNG generation
+9cd8f9c Merge pull request #163 from ninp0/master
+aa6f754 PWN::SAST::PHPInputMechanisms - Initial commit
+b6da8f5 Merge pull request #162 from ninp0/master
+d9c610f pwn_sast Driver - add PHPTypeJuggling && WindowLocationHash test cases
+3567254 Merge pull request #161 from ninp0/master
+5a10f45 PWN::SAST::PHPTypeJuggling - Initial commit
+b274ee3 Merge pull request #160 from ninp0/master
+68e2f39 pwn_www_uri_buster Driver - handle RestClient::ServerBrokeConnection in rescue
+c800de0 Merge pull request #159 from ninp0/master
+de15120 pwn_www_uri_buster Driver && PWN::Reports::URIBuster module - add http_resp_length && make URIs in report clickable
+75f64b9 Merge pull request #158 from ninp0/master
+81a5604 pwn_www_uri_buster Driver - add --proxy argument for MiTM proxy support #rubocop_fix
+0bf0c71 pwn_www_uri_buster Driver - add --proxy argument for MiTM proxy support
+cd6557a Merge pull request #157 from ninp0/master
+e54fcf8 pwn_www_uri_buster Driver - add HTTP PATCH method
+c3df18b Merge pull request #156 from ninp0/master
+5e709cd pwn_www_uri_buster Driver - rescue RestClient::ExceptionWithResponse
+c86e8bd Merge pull request #155 from ninp0/master
+568e37c pwn_www_uri_buster Driver - rescue add RestClient::InternalSercerError
+38d20dd Merge pull request #154 from ninp0/master
+4584c7e pwn_www_uri_buster Driver - rescue add RestClient::GatewayTimeout
+d396c32 Merge pull request #153 from ninp0/master
+b548926 pwn_www_uri_buster Driver - rescue add RestClient::ServiceUnavailable
+df70edd Merge pull request #152 from ninp0/master
+9277c90 pwn_www_uri_buster Driver - Implement feature to include HTTP request headers to be passed into each wordlist attempt
+03e4edb Merge pull request #151 from ninp0/master
+d1ef5fe pwn_www_uri_buster Driver - URL encode only wordlist lines to that respond with invalid URI error
+d473b35 Merge pull request #150 from ninp0/master
+a782b62 pwn_www_uri_buster Driver - rescue add RestClient::MethodNotAllowed, handle too many requests, and bugfix in pwn_provider object #bugfixes
+95db7b1 pwn_www_uri_buster Driver - rescue add RestClient::MethodNotAllowed
+062d0eb Merge pull request #149 from ninp0/master
+6755126 pwn_www_uri_buster Driver - require cgi gem #bugfix
+3a21cac Merge pull request #148 from ninp0/master
+037e7fd pwn_www_uri_buster Driver - URL encode wordlist lines to prevent invalid URI errors
+cb615ec Merge pull request #147 from ninp0/master
+9b33c51 pwn_www_uri_buster Driver - only include last 300 bytes of http response in report
+6ae3fe1 Merge pull request #146 from ninp0/master
+ac2fabe pwn_www_uri_buster Driver - add wordlist to default filename
+831ea01 Merge pull request #145 from ninp0/master
+87f181f pwn_www_uri_buster Driver - http_methods, remove CONNECT method #bugfix
+87fe904 Merge pull request #144 from ninp0/master
+2f715ad pwn_www_uri_buster Driver - rest_client object #bugfix
+14206fc pwn_www_uri_buster Driver - timestamp #bugfix
+46afd6f Merge pull request #143 from ninp0/master
+d05e423 pwn_www_uri_buster Driver - --target-url #bugfix
+332bfa4 Merge pull request #142 from ninp0/master
+e465525 pwn_www_uri_buster Driver - initial commit.  Lots of these out here but want one w/ complete control.
+2979810 Merge pull request #141 from ninp0/master
+7e7b935 PWN::Plugins::Baresip - country, area, prefix, suffix padding #bugfix
+7330bcd Merge pull request #140 from ninp0/master
+c4107ed PWN::Plugins::Baresip - implement working #apply_src_num_rules method
+2b480d8 Merge pull request #139 from ninp0/master
+e136f0b PWN::SAST::* modules - exclude entries that contain "test" in entry path (i.e. dont evalutate test cases for anti-patterns due to extremely high false+ rate).  Downside is it could lead to false- uptick, however, I suspect it will be less than current false+ rate.
+b39e2c3 Merge pull request #138 from ninp0/master
+2af3f7b PWN::SAST::InnerHTML module - #bugfix in incorrect key name for cwe_uri in #security_references method
+2693e81 Merge pull request #137 from ninp0/master
+0e6d298 pwn_phone driver && PWN::Plugins::BareSIP module - initial working commits
+b9d5261 pwn_android_wardialer - bugfix in waveform generation
+fc3e3e6 Merge pull request #136 from ninp0/master
+adf6793 PWN::SAST::* && PWN::Reports::SAST - change security_requirements key to security_references
+dd28ca0 Merge pull request #135 from ninp0/master
+164e617 PWN::Plugins::OwaspZap - redact attempt to remove file that never exists
+bd6c0f7 Merge pull request #134 from ninp0/master
+193390d PWN::SAST::* && PWN::Reports::SAST - eliminate pushing filename hash onto an array (use hash only)...i.e. increase reporting efficiency
+9d14f41 Merge pull request #133 from ninp0/master
+2e18f1c PWN::Reports::SAST module - UI #tweak
+82eb2d7 Merge pull request #132 from ninp0/master
+6fc615e PWN::Reports::* - bugfix in JSON.pretty_generate
+eaa9cfb Merge pull request #131 from ninp0/master
+9e5936d pwn_simple_http_server Driver - #bugfix in adapter parameter
+7cf6257 Merge pull request #130 from ninp0/master
+dc34d74 PWN SAST - refactor Driver, Report, and Modules to allow for security requirements in addition to NIST 800-53 (e.g. CWE) to allow for integrations into OWASPs DefectDojo reporting tool #bugfixes
+cf7d115 PWN SAST - refactor Driver, Report, and Modules to allow for security requirements in addition to NIST 800-53 (e.g. CWE) to allow for integrations into OWASPs DefectDojo reporting tool
+5ab9c55 Merge pull request #129 from ninp0/master
+a7241c9 PWN Framework - #rubocop
+206dc42 PWN::Reports::* - JSON.pretty_generate(results_hash)
+927b878 Merge pull request #128 from ninp0/master
+12ed8de PWN modules and drivers - parameterize all #system methods
+9ff7bbe Merge pull request #127 from ninp0/master
+778a4f1 PWN::Plugins::Gist module - rename to PWN::Plugins::Github
+c650495 Merge pull request #126 from ninp0/master
+4e0735f git_commit_test_reinit_gem.sh - Implement CHANGELOG_BETWEEN_TAGS.txt
+9581a0c Merge pull request #125 from ninp0/master
+aed4e56 Merge pull request #124 from ninp0/master
+67e8e8d Merge pull request #123 from ninp0/master
+b40f611 Merge pull request #122 from ninp0/master
+8e148ff Merge pull request #121 from ninp0/master
+5878045 Merge pull request #120 from ninp0/master
+fffaeb4 Merge pull request #119 from ninp0/master
+da13380 Merge pull request #118 from ninp0/master
+0ec0f71 Merge pull request #117 from ninp0/master
+f5ed6c6 Merge pull request #116 from ninp0/master
+97e39f0 Merge pull request #115 from ninp0/master
+6c456a7 Merge pull request #114 from ninp0/master
+eafe8c7 Merge pull request #113 from ninp0/master
+3c187fe Merge pull request #112 from ninp0/master
+ad3d0eb Merge pull request #111 from ninp0/master
+27bf28f Merge pull request #110 from ninp0/master
+93bc614 Merge pull request #109 from ninp0/master
+1c5ee31 Merge pull request #108 from ninp0/master
+922ec62 Merge pull request #107 from ninp0/master
+55bb8ab Merge pull request #106 from ninp0/master
+51e85bd Merge pull request #105 from ninp0/master
+a558975 Merge pull request #104 from ninp0/master
+1bfe151 Merge pull request #103 from ninp0/master
+5fd9dca Merge pull request #102 from ninp0/master
+433f2b0 Merge pull request #101 from ninp0/master
+dd149c1 Merge pull request #100 from ninp0/master
+4728998 Merge pull request #99 from ninp0/master
+bdb4894 Merge pull request #98 from ninp0/master
+177d75e Merge pull request #97 from ninp0/master
+34639d2 Merge pull request #96 from ninp0/master
+4d2e8de Merge pull request #95 from ninp0/master
+08e1ef6 Merge pull request #94 from ninp0/master
+2f473b4 Merge pull request #93 from ninp0/master
+976c337 Merge pull request #92 from ninp0/master
+cadefc5 Merge pull request #91 from ninp0/master
+60fb2b7 Merge pull request #90 from ninp0/master
+21e7d03 Merge pull request #89 from ninp0/master
+f524912 Merge pull request #88 from ninp0/master
+df3c3d5 Merge pull request #87 from ninp0/master
+dcd0940 Merge pull request #86 from ninp0/master
+c225e15 Merge pull request #85 from ninp0/master
+9103491 Merge pull request #84 from ninp0/master
+5b1a06d Merge pull request #83 from ninp0/master
+aedf742 Merge pull request #82 from ninp0/master
+300b1e0 Merge pull request #81 from ninp0/master
+de05ac5 Merge pull request #80 from ninp0/master
+a5e73a7 Merge pull request #79 from ninp0/master
+0fb95f6 Merge pull request #78 from ninp0/master
+4959184 Merge pull request #77 from ninp0/master
+947657d Merge pull request #76 from ninp0/master
+1b6d234 Merge pull request #75 from ninp0/master
+76f35bc Merge pull request #74 from ninp0/master
+de3c392 Merge pull request #73 from ninp0/master
+fb3a807 Merge pull request #72 from ninp0/master
+0f9f6db Merge pull request #71 from ninp0/master
+c3c0a86 Merge pull request #70 from ninp0/master
+c13b10a Merge pull request #69 from ninp0/master
+67f4b61 Merge pull request #68 from ninp0/master
+de2af9e Merge pull request #67 from ninp0/master
+bf8db61 Merge pull request #66 from ninp0/master
+198528d Merge pull request #65 from ninp0/master
+81d108e Merge pull request #64 from ninp0/master
+9e83ba7 Merge pull request #63 from ninp0/master
+9d80750 Merge pull request #62 from ninp0/master
+8b64a43 Merge pull request #61 from ninp0/master
+64a8f7b Merge pull request #60 from ninp0/master
+7f880be Merge pull request #59 from ninp0/master
+35243f4 Merge pull request #58 from ninp0/master
+0654a58 Merge pull request #57 from ninp0/master
+e1d141a Merge pull request #56 from ninp0/master
+aa6ef9e Merge pull request #55 from ninp0/master
+30d0183 Merge pull request #54 from ninp0/master
+60750ae Merge pull request #53 from ninp0/master
+1047ef8 Merge pull request #52 from ninp0/master
+ba2f8de Merge pull request #51 from ninp0/master
+1c0e6d6 Merge pull request #50 from ninp0/master
+804fcda Merge pull request #49 from ninp0/master
+cb44fce Merge pull request #48 from ninp0/master
+8a555c2 Merge pull request #47 from ninp0/master
+89dca1f Merge pull request #46 from ninp0/master
+a3f870c Merge pull request #45 from ninp0/master
+21d4773 Merge pull request #44 from ninp0/master
+df819e3 Merge pull request #43 from ninp0/master
+369f820 Merge pull request #42 from ninp0/master
+27d90d1 Merge pull request #41 from ninp0/master
+0c41e75 Merge pull request #40 from ninp0/master
+cdc34ce Merge pull request #39 from ninp0/master
+0ae704b Merge pull request #38 from ninp0/master
+aa06418 Merge pull request #37 from ninp0/master
+17151a9 Merge pull request #36 from ninp0/master
+a238b43 Merge pull request #35 from ninp0/master
+342bf90 Merge pull request #34 from ninp0/master
+fb24b3c Merge pull request #33 from ninp0/master
+445d1a3 Merge pull request #32 from ninp0/master
+100da52 Merge pull request #31 from ninp0/master
+1f176ba Merge pull request #30 from ninp0/master
+655b530 Merge pull request #29 from ninp0/master
+32f20ee Merge pull request #28 from ninp0/master
+6324a32 Merge pull request #27 from ninp0/master
+10dd4e0 Merge pull request #26 from ninp0/master
+dd05dd5 Merge pull request #25 from ninp0/master
+376afac Merge pull request #24 from ninp0/master
+e13e601 Merge pull request #23 from ninp0/master
+b073d81 Merge pull request #22 from ninp0/master
+fb00083 Merge pull request #21 from ninp0/master
+e1e4f08 Merge pull request #20 from ninp0/master
+9014577 Merge pull request #19 from ninp0/master
+cd3bfea Merge pull request #18 from ninp0/master
+464977e Merge pull request #17 from ninp0/master
+7aa3369 Merge pull request #16 from ninp0/master
+acd3698 Merge pull request #15 from ninp0/master
+9536196 Merge pull request #14 from ninp0/master
+ac1493b Merge pull request #13 from ninp0/master
+7c1b0ce Merge pull request #12 from ninp0/master
+06e0896 Merge pull request #11 from ninp0/master
+6127fb9 Merge pull request #10 from ninp0/master
+bd9faaa Merge pull request #9 from ninp0/master
+ce24df5 Merge pull request #8 from ninp0/master
+33fd8ab Merge pull request #7 from ninp0/master
+bfea776 Merge pull request #6 from ninp0/master
+dce8c00 Merge pull request #5 from ninp0/master
+a8fa417 Merge pull request #4 from ninp0/master
+fabefe8 Merge pull request #3 from ninp0/master
+16beda8 Merge pull request #2 from ninp0/master
+426a0ec Merge pull request #1 from ninp0/master

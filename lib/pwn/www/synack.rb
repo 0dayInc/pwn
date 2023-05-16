@@ -9,7 +9,7 @@ module PWN
       # Supported Method Parameters::
       # browser_obj = PWN::WWW::Synack.open(
       #   browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
-      #   proxy: 'optional - scheme://proxy_host:port || :tor'
+      #   proxy: 'optional - scheme://proxy_host:port || tor'
       # )
 
       public_class_method def self.open(opts = {})
@@ -105,7 +105,7 @@ module PWN
         puts "USAGE:
           browser_obj = #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
-            proxy: 'optional - scheme://proxy_host:port || :tor'
+            proxy: 'optional - scheme://proxy_host:port || tor'
           )
           puts browser_obj.public_methods
 
