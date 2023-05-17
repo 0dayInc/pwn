@@ -44,10 +44,11 @@ begin
     browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :headless)
   end
 
-  browser_obj.goto("https://viewdns.info/reversewhois/?q=#{CGI.escape(registrant_filter)}")
+  browser = browser_obj[:browser]
+  browser.goto("https://viewdns.info/reversewhois/?q=#{CGI.escape(registrant_filter)}")
 
   # Consume Results Table and Convert to CSV :)
-  reversewhois_xp_resp = Nokogiri::HTML(browser_obj.html).xpath('//*[@id="null"]/tbody/tr[3]/td/font/table/tbody/tr')
+  reversewhois_xp_resp = Nokogiri::HTML(browser.html).xpath('//*[@id="null"]/tbody/tr[3]/td/font/table/tbody/tr')
   CSV.open(output_results, 'w', col_sep: ',', quote_char: "'", force_quotes: true) do |csv|
     reversewhois_xp_resp.each do |row|
       tarray = []
@@ -59,16 +60,16 @@ begin
   end
 
   # Ok, now let's append domain bigdata.com
-  browser_obj.goto('https://domainbigdata.com')
+  browser.goto('https://domainbigdata.com')
 
   # Type Registrant Filter in Char-by-Char to Ensure Everyone is Happy ;)
   PWN::Plugins::TransparentBrowser.type_as_human(string: registrant_filter) do |char|
-    browser_obj.text_field(id: 'txtSearchTopPage').wait_until(&:present?).send_keys(char)
+    browser.text_field(id: 'txtSearchTopPage').wait_until(&:present?).send_keys(char)
   end
-  browser_obj.button(id: 'btnTopSearch').wait_until(&:present?).click
+  browser.button(id: 'btnTopSearch').wait_until(&:present?).click
 
   # Consume Results Table and Convert to CSV :)
-  reversewhois_xp_resp = Nokogiri::HTML(browser_obj.html).xpath('//*[@id="domain-same-ip"]/div/div/table/tbody/tr')
+  reversewhois_xp_resp = Nokogiri::HTML(browser.html).xpath('//*[@id="domain-same-ip"]/div/div/table/tbody/tr')
   CSV.open(output_results, 'a', col_sep: ',', quote_char: "'", force_quotes: true) do |csv|
     reversewhois_xp_resp.each do |row|
       tarray = []

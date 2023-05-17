@@ -15,7 +15,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://app.cobalt.io')
+        browser = browser_obj[:browser]
+        browser.goto('https://app.cobalt.io')
 
         browser_obj
       rescue StandardError => e
@@ -35,6 +36,8 @@ module PWN
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
 
+        browser = browser_obj[:browser]
+
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
@@ -42,19 +45,19 @@ module PWN
         end
         mfa = opts[:mfa]
 
-        browser_obj.goto('https://app.cobalt.io/users/sign_in')
+        browser.goto('https://app.cobalt.io/users/sign_in')
 
         # id: 'user_email' doesn't work
-        browser_obj.text_field(index: 9).wait_until(&:present?).set(username)
+        browser.text_field(index: 9).wait_until(&:present?).set(username)
         # id: 'user_password' doesn't work
-        browser_obj.text_field(index: 10).wait_until(&:present?).set(password)
+        browser.text_field(index: 10).wait_until(&:present?).set(password)
         # name: 'commit' doesn't work
-        browser_obj.button(index: 6).click! # no name or id in button element
+        browser.button(index: 6).click! # no name or id in button element
 
         if mfa
-          until browser_obj.url == 'https://app.cobalt.io/dashboard'
-            browser_obj.text_field(id: 'code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
-            browser_obj.button(name: 'commit').click!
+          until browser.url == 'https://app.cobalt.io/dashboard'
+            browser.text_field(id: 'code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
+            browser.button(name: 'commit').click!
             sleep 3
           end
           print "\n"
@@ -72,8 +75,10 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.li(class: 'user-dropdown').wait_until(&:present?).click!
-        browser_obj.link(index: 10).wait_until(&:present?).click!
+
+        browser = browser_obj[:browser]
+        browser.li(class: 'user-dropdown').wait_until(&:present?).click!
+        browser.link(index: 10).wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e
@@ -110,7 +115,8 @@ module PWN
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',

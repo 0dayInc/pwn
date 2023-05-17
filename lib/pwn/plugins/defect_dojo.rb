@@ -67,14 +67,16 @@ module PWN
         api_version = dd_obj[:api_version]
         base_dd_api_uri = "#{url}/api/#{api_version}".to_s.scrub
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
 
         if dd_obj[:proxy]
-          rest_client = PWN::Plugins::TransparentBrowser.open(
+          browser_obj = PWN::Plugins::TransparentBrowser.open(
             browser_type: :rest,
             proxy: dd_obj[:proxy]
-          )::Request
+          )
         end
+
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

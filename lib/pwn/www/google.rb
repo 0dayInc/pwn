@@ -13,7 +13,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://www.google.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://www.google.com')
 
         browser_obj
       rescue StandardError => e
@@ -30,8 +31,9 @@ module PWN
         browser_obj = opts[:browser_obj]
         q = opts[:q].to_s
 
-        browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(text: 'Google Search').click!
+        browser = browser_obj[:browser]
+        browser.text_field(name: 'q').wait_until(&:present?).set(q)
+        browser.button(text: 'Google Search').click!
 
         browser_obj
       rescue StandardError => e
@@ -49,8 +51,9 @@ module PWN
         company = opts[:company].to_s.scrub
         q = "site:linkedin.com inurl:in intext:\"#{company}\""
 
-        browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(text: 'Google Search').click!
+        browser = browser_obj[:browser]
+        browser.text_field(name: 'q').wait_until(&:present?).set(q)
+        browser.button(text: 'Google Search').click!
         sleep 3 # Cough: <hack>
 
         browser_obj
@@ -88,7 +91,8 @@ module PWN
             browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.search(
             browser_obj: 'required - browser_obj returned from #open method',

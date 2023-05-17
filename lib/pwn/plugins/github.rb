@@ -28,7 +28,8 @@ module PWN
         http_body = opts[:http_body].to_s.scrub
         base_gist_api_uri = 'https://api.github.com'
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

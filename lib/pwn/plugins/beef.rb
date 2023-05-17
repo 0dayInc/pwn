@@ -39,7 +39,9 @@ module PWN
         auth_payload[:password] = password
 
         @@logger.info("Logging into BeEF REST API: #{beef_ip}")
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
+
         response = rest_client.execute(
           method: :post,
           url: "#{base_beef_api_uri}/admin/login",
@@ -85,7 +87,8 @@ module PWN
         base_beef_api_uri = "http://#{beef_ip}:#{beef_port}/api".to_s.scrub
         api_token = beef_obj[:api_token]
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

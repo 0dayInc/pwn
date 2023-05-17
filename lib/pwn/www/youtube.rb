@@ -13,7 +13,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://www.youtube.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://www.youtube.com')
 
         browser_obj
       rescue StandardError => e
@@ -30,8 +31,9 @@ module PWN
         browser_obj = opts[:browser_obj]
         q = opts[:q].to_s
 
-        browser_obj.text_field(name: 'search_query').wait_until(&:present?).set(q)
-        browser_obj.button(id: 'search-btn').click!
+        browser = browser_obj[:browser]
+        browser.text_field(name: 'search_query').wait_until(&:present?).set(q)
+        browser.button(id: 'search-btn').click!
 
         browser_obj
       rescue StandardError => e
@@ -68,7 +70,8 @@ module PWN
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts 'browser_obj.public_methods'
+          browser = browser_obj[:browser]
+          puts 'browser.public_methods'
 
           browser_obj =#{self}.search(
             browser_obj: 'required - browser_obj returned from #open method',

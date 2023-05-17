@@ -34,7 +34,8 @@ module PWN
         port = zap_obj[:port]
         base_zap_api_uri = "http://#{host}:#{port}"
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

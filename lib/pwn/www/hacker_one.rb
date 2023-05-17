@@ -15,7 +15,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://www.hackerone.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://www.hackerone.com')
 
         browser_obj
       rescue StandardError => e
@@ -34,17 +35,19 @@ module PWN
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
 
+        browser = browser_obj[:browser]
+
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
           password = opts[:password].to_s.scrub.strip.chomp
         end
 
-        browser_obj.goto('https://hackerone.com/users/sign_in')
+        browser.goto('https://hackerone.com/users/sign_in')
 
-        browser_obj.text_field(name: 'user[email]').wait_until(&:present?).set(username)
-        browser_obj.text_field(name: 'user[password]').wait_until(&:present?).set(password)
-        browser_obj.button(name: 'commit').click!
+        browser.text_field(name: 'user[email]').wait_until(&:present?).set(username)
+        browser.text_field(name: 'user[password]').wait_until(&:present?).set(password)
+        browser.button(name: 'commit').click!
 
         browser_obj
       rescue StandardError => e
@@ -58,8 +61,10 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.i(class: 'icon-arrow-closure').click!
-        browser_obj.link(index: 16).click!
+
+        browser = browser_obj[:browser]
+        browser.i(class: 'icon-arrow-closure').click!
+        browser.link(index: 16).click!
 
         browser_obj
       rescue StandardError => e
@@ -96,7 +101,8 @@ module PWN
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',

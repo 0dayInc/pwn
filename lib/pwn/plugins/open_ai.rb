@@ -35,7 +35,9 @@ module PWN
 
         content_type = 'application/json; charset=UTF-8'
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
+
         spinner = TTY::Spinner.new
         spinner.auto_spin
 

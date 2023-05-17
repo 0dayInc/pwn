@@ -13,7 +13,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://pastebin.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://pastebin.com')
 
         browser_obj
       rescue StandardError => e
@@ -27,7 +28,9 @@ module PWN
 
       public_class_method def self.onion(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.goto('http://lw4ipk5choakk5ze.onion')
+
+        browser = browser_obj[:browser]
+        browser.goto('http://lw4ipk5choakk5ze.onion')
 
         browser_obj
       rescue StandardError => e
@@ -64,7 +67,8 @@ module PWN
             browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.onion(
             browser_obj: 'required - browser_obj returned from #open method'

@@ -4,8 +4,7 @@ require 'rbvmomi'
 
 module PWN
   module Plugins
-    # This plugin is used for interacting w/ VMware ESXI's REST API using
-    # the 'rest' browser type of PWN::Plugins::TransparentBrowser.
+    # This plugin is used for interacting w/ VMware ESXI's REST API
     module Vsphere
       @@logger = PWN::Plugins::PWNLogger.create
 

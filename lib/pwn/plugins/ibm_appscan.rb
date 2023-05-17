@@ -33,7 +33,9 @@ module PWN
                    end
 
         @@logger.info("Logging into IBM Appscan Enterprise Server: #{appscan_ip}")
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
+
         response = rest_client.execute(
           method: :post,
           url: "#{base_appscan_api_uri}/login",
@@ -91,7 +93,8 @@ module PWN
         base_appscan_api_uri = "https://#{appscan_ip}/ase/services".to_s.scrub
         retry_count = 3
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get
@@ -694,7 +697,9 @@ module PWN
 
         # First Get request
         uri = URI.parse(report_link)
-        rb = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rb = browser_obj[:browser]
+
         res = rb.get(report_link, 'Cookie' => appscan_obj[:cookie], :verify_ssl => OpenSSL::SSL::VERIFY_NONE)
         location = "https://#{uri.host}#{res.headers['location']}"
 
@@ -736,9 +741,11 @@ module PWN
         # verify the output path actually exists
         return @@logger.error("Output directory does not exist: #{output_path}") unless File.directory?(output_path)
 
-        # REMEMBER TO CHANGE BROWSER TYPE BACK TO HEADLESS!!!!
-        h_browser = PWN::Plugins::TransparentBrowser.open(browser_type: :firefox,
-                                                          proxy: 'http://127.0.0.1:8080')
+        browser_obj = PWN::Plugins::TransparentBrowser.open(
+          browser_type: :headless,
+          proxy: 'http://127.0.0.1:8080'
+        )
+        h_browser = browser_obj[:browser]
 
         # log into the system
         h_browser.goto login_uri.to_s.to_s.scrub

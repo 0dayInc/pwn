@@ -25,9 +25,10 @@ module PWN
         begin
           conn_attempt += 1
 
-          rest_client = PWN::Plugins::TransparentBrowser.open(
+          browser_obj = PWN::Plugins::TransparentBrowser.open(
             browser_type: :rest
-          )::Request
+          )
+          rest_client = browser_obj[:browser]::Request
 
           response = rest_client.execute(
             method: :get,

@@ -15,7 +15,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://twitter.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://twitter.com')
 
         browser_obj
       rescue StandardError => e
@@ -35,6 +36,8 @@ module PWN
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
 
+        browser = browser_obj[:browser]
+
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
@@ -44,14 +47,16 @@ module PWN
 
         browser_obj.goto('https://twitter.com/login')
 
-        browser_obj.text_field(index: 2).wait_until(&:present?).set(username)
-        browser_obj.text_field(index: 3).wait_until(&:present?).set(password)
-        browser_obj.button(index: 1).click!
+        browser.text_field(index: 2).wait_until(&:present?).set(username)
+        browser.text_field(index: 3).wait_until(&:present?).set(password)
+        browser.button(index: 1).click!
 
         if mfa
-          until browser_obj.url == 'https://twitter.com/' || browser_obj.url == 'https://twitter.com/home'
-            browser_obj.text_field(id: 'challenge_response').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
-            browser_obj.button(id: 'email_challenge_submit').click!
+          until browser.url == 'https://twitter.com/' ||
+                browser.url == 'https://twitter.com/home'
+
+            browser.text_field(id: 'challenge_response').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
+            browser.button(id: 'email_challenge_submit').click!
             sleep 3
           end
           print "\n"
@@ -69,8 +74,10 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.li(id: 'user-dropdown').wait_until(&:present?).click!
-        browser_obj.button(text: 'Log out').wait_until(&:present?).click!
+
+        browser = browser_obj[:browser]
+        browser.li(id: 'user-dropdown').wait_until(&:present?).click!
+        browser.button(text: 'Log out').wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e
@@ -107,7 +114,8 @@ module PWN
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
