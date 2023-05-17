@@ -35,7 +35,8 @@ module PWN
         basic_auth_header = "Basic #{base64_encoded_auth}"
 
         @@logger.info("Logging into HackerOne REST API: #{base_h1_api_uri}")
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
         response = rest_client.execute(
           method: :get,
           url: base_h1_api_uri,
@@ -80,7 +81,8 @@ module PWN
         base_h1_api_uri = 'https://api.hackerone.com/v1/'.to_s.scrub
         api_token = h1_obj[:api_token]
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

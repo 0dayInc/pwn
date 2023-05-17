@@ -77,10 +77,11 @@ begin
 
   logger.info(zap_obj)
 
-  browser = PWN::Plugins::TransparentBrowser.open(
+  browser_obj = PWN::Plugins::TransparentBrowser.open(
     browser_type: browser_type,
     proxy: proxy
   )
+  browser = browser_obj[:browser]
 
   if browser_type == :rest
     browser.get(target_url)
@@ -129,5 +130,5 @@ rescue StandardError => e
   raise e
 ensure
   PWN::Plugins::OwaspZap.stop(zap_obj: zap_obj) unless zap_obj.nil?
-  browser = PWN::Plugins::TransparentBrowser.close(browser_obj: browser) unless browser.nil?
+  browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) unless browser_obj.nil?
 end

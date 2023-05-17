@@ -15,7 +15,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://www.pandora.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://www.pandora.com')
 
         browser_obj
       rescue StandardError => e
@@ -34,17 +35,19 @@ module PWN
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
 
+        browser = browser_obj[:browser]
+
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
           password = opts[:password].to_s.scrub.strip.chomp
         end
 
-        browser_obj.goto('https://www.pandora.com/account/sign-in')
+        browser.goto('https://www.pandora.com/account/sign-in')
 
-        browser_obj.text_field(id: 'login_username').wait_until(&:present?).set(username)
-        browser_obj.text_field(id: 'login_password').wait_until(&:present?).set(password)
-        browser_obj.button(text: 'Log In').click!
+        browser.text_field(id: 'login_username').wait_until(&:present?).set(username)
+        browser.text_field(id: 'login_password').wait_until(&:present?).set(password)
+        browser.button(text: 'Log In').click!
 
         browser_obj
       rescue StandardError => e
@@ -58,8 +61,10 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.img(alt: 'Account Menu').wait_until(&:present?).click!
-        browser_obj.span(text: 'Sign Out').wait_until(&:present?).click!
+
+        browser = browser_obj[:browser]
+        browser.img(alt: 'Account Menu').wait_until(&:present?).click!
+        browser.span(text: 'Sign Out').wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e
@@ -96,7 +101,8 @@ module PWN
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',

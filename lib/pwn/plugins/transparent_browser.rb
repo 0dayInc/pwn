@@ -9,20 +9,9 @@ require 'openssl'
 require 'em/pure_ruby'
 require 'faye/websocket'
 
-# Monkey Patch Watir
-module Watir
-  # Browser Class to allow tor_obj from PWN::Plugins::Tor.start
-  # to populate attr_accessor :tor_obj
-  # This was done this way soley to maintain backwards compatibility
-  # with how browser_obj is returned.
-  class Browser
-    attr_accessor :tor_obj
-  end
-end
-
 module PWN
   module Plugins
-    # This plugin rocks. Chrome, Firefox, PhantomJS, IE, REST Client,
+    # This plugin rocks. Chrome, Firefox, headless, REST Client,
     # all from the comfort of one plugin.  Proxy support (e.g. Burp
     # Suite Professional) is completely available for all browsers
     # except for limited functionality within IE (IE has interesting
@@ -39,14 +28,16 @@ module PWN
       # )
 
       public_class_method def self.open(opts = {})
-        this_browser = nil
         browser_type = opts[:browser_type]
         proxy = opts[:proxy].to_s unless opts[:proxy].nil?
+
+        browser_obj = {}
 
         tor_obj = nil
         if opts[:proxy] == 'tor'
           tor_obj = PWN::Plugins::Tor.start
           proxy = "socks5://#{tor_obj[:ip]}:#{tor_obj[:port]}"
+          browser_obj[:tor_obj] = tor_obj
         end
 
         opts[:with_devtools] ? (with_devtools = true) : (with_devtools = false)
@@ -114,7 +105,7 @@ module PWN
           options.profile = this_profile
           # driver = Selenium::WebDriver.for(:firefox, capabilities: options)
           driver = Selenium::WebDriver.for(:firefox, options: options)
-          this_browser = Watir::Browser.new(driver)
+          browser_obj[:browser] = Watir::Browser.new(driver)
 
         when :chrome
           this_profile = Selenium::WebDriver::Chrome::Profile.new
@@ -143,7 +134,7 @@ module PWN
           options.profile = this_profile
           # driver = Selenium::WebDriver.for(:chrome, capabilities: options)
           driver = Selenium::WebDriver.for(:chrome, options: options)
-          this_browser = Watir::Browser.new(driver)
+          browser_obj[:browser] = Watir::Browser.new(driver)
 
         when :headless, :headless_firefox
           this_profile = Selenium::WebDriver::Firefox::Profile.new
@@ -200,7 +191,7 @@ module PWN
           options = Selenium::WebDriver::Firefox::Options.new(args: ['-headless'], accept_insecure_certs: true)
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
-          this_browser = Watir::Browser.new(driver)
+          browser_obj[:browser] = Watir::Browser.new(driver)
 
         when :headless_chrome
           this_profile = Selenium::WebDriver::Chrome::Profile.new
@@ -224,16 +215,16 @@ module PWN
 
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
-          this_browser = Watir::Browser.new(driver)
+          browser_obj[:browser] = Watir::Browser.new(driver)
 
         when :rest
-          this_browser = RestClient
+          browser_obj[:browser] = RestClient
           if proxy
             if tor_obj
               TCPSocket.socks_server = tor_obj[:ip]
               TCPSocket.socks_port = tor_obj[:port]
             else
-              this_browser.proxy = proxy
+              browser_obj[:browser].proxy = proxy
             end
           end
 
@@ -245,7 +236,7 @@ module PWN
             end
             proxy_opts = { origin: proxy }
             tls_opts = { verify_peer: false }
-            this_browser = Faye::WebSocket::Client.new(
+            browser_obj[:browser] = Faye::WebSocket::Client.new(
               '',
               [],
               {
@@ -254,15 +245,14 @@ module PWN
               }
             )
           else
-            this_browser = Faye::WebSocket::Client.new('')
+            browser_obj[:browser] = Faye::WebSocket::Client.new('')
           end
         else
           puts 'Error: browser_type only supports :firefox, :chrome, :headless, :rest, or :websocket'
           return nil
         end
 
-        this_browser.tor_obj = tor_obj if tor_obj
-        this_browser
+        browser_obj
       rescue StandardError => e
         raise e
       end
@@ -273,13 +263,13 @@ module PWN
       # )
 
       public_class_method def self.linkout(opts = {})
-        this_browser_obj = opts[:browser_obj]
+        browser_obj = opts[:browser_obj]
 
-        this_browser_obj.links.each do |link|
+        browser_obj[:browser].links.each do |link|
           @@logger.info("#{link.text} => #{link.href}\n\n\n") unless link.text == ''
         end
 
-        this_browser_obj
+        browser_obj
       rescue StandardError => e
         raise e
       end
@@ -313,16 +303,16 @@ module PWN
       # )
 
       public_class_method def self.close(opts = {})
-        this_browser_obj = opts[:browser_obj]
+        browser_obj = opts[:browser_obj]
 
-        if this_browser_obj.respond_to?('tor_obj')
-          tor_obj = this_browser_obj.tor_obj
-          PWN::Plugins::Tor.stop(tor_obj: tor_obj)
+        unless browser_obj[:tor_obj].nil?
+          tor_obj = browser_obj[:tor_obj]
+          PWN::Plugins::Tor.stop(tor_obj: browser_obj[:tor_obj])
         end
 
-        unless this_browser_obj.to_s.include?('RestClient')
+        unless browser_obj[:browser].to_s.include?('RestClient')
           # Close the browser unless this_browser_obj.nil? (thus the &)
-          this_browser_obj&.close
+          this_browser_obj[:browser]&.close
         end
         nil
       rescue StandardError => e

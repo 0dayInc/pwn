@@ -16,8 +16,9 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('http://checkip.amazonaws.com')
-        public_ip_address = Nokogiri::HTML.parse(browser_obj.html).xpath('//pre').text.chomp
+        browser = browser_obj[:browser]
+        browser.goto('http://checkip.amazonaws.com')
+        public_ip_address = Nokogiri::HTML.parse(browser.html).xpath('//pre').text.chomp
         puts "PUBLIC IP: #{public_ip_address}"
 
         browser_obj
@@ -55,7 +56,8 @@ module PWN
             browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method',

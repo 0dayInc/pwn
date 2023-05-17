@@ -72,7 +72,8 @@ begin
   # support JavaScript, DOM-based XSS vuln attempts are
   # possible as well since we have a DOM to interact w/
   # (Burp's DOM-XSS checks are based on static code analysis)
-  browser = burp_obj[:burp_browser]
+  browser_obj = burp_obj[:burp_browser]
+  browser = browser_obj[:browser]
   browser.goto(target_url)
 
   File.read(navigation_instruct).each_line do |instruction|

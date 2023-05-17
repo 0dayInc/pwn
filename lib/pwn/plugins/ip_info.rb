@@ -20,10 +20,12 @@ module PWN
 
         if IPAddress.valid?(ip)
           if proxy
-            rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest, proxy: proxy)
+            browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest, proxy: proxy)
           else
-            rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+            browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
           end
+          rest_client = browser_obj[:browser]
+
           ip_resp_str = rest_client.get("http://ip-api.com/json/#{ip}?fields=country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,reverse,mobile,proxy,query,status,message")
           ip_resp_json = JSON.parse(
             ip_resp_str,

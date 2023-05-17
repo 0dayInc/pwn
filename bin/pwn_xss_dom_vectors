@@ -73,9 +73,10 @@ begin
     target_page = opts[:url].to_s.scrub.chomp.strip
     output_dir = opts[:output_dir].to_s.scrub.chomp.strip
 
+    browser = browser_obj[:browser]
     puts "#{@green}Navigating to Page #{target_page}#{@end_of_color}"
-    browser_obj.goto(target_page)
-    browser_obj.scripts.each do |script|
+    browser.goto(target_page)
+    browser.scripts.each do |script|
       if script.src == ''
         # Save a copy of the outer_html
         puts "#{@yellow}Saving OuterHTML of Native '<script>' Element#{@end_of_color}"
@@ -87,15 +88,15 @@ begin
       else
         # Save a copy of the script
         puts "#{@yellow}Navigating to #{script.src}#{@end_of_color}"
-        browser_obj.goto(script.src)
-        sha256_hexdigest = OpenSSL::Digest::SHA256.hexdigest(browser_obj.text)
-        uri = URI.parse(browser_obj.url)
+        browser.goto(script.src)
+        sha256_hexdigest = OpenSSL::Digest::SHA256.hexdigest(browser.text)
+        uri = URI.parse(browser.url)
         script_filename = File.basename(uri.path)
         script_results = "#{output_dir}/#{File.basename(script_filename, '.*')}-#{sha256_hexdigest}#{File.extname(script_filename)}".to_s.scrub.chomp.strip
         File.open(script_results, 'w') do |f|
-          f.puts browser_obj.text
+          f.puts browser.text
         end
-        browser_obj.back
+        browser.back
       end
       puts "#{@green}Saved #{script_results}#{@end_of_color}\n\n\n"
     end
@@ -112,8 +113,10 @@ begin
     browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: browser_type)
   end
 
+  browser = browser_obj[:browser]
+
   puts "#{@green}Navigating to Target FQDN: #{target_fqdn}#{@end_of_color}\n\n\n"
-  browser_obj.goto(target_fqdn)
+  browser.goto(target_fqdn)
 
   if spider
     if File.exist?(spider_results)

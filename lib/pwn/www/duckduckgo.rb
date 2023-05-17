@@ -13,7 +13,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://duckduckgo.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://duckduckgo.com')
 
         browser_obj
       rescue StandardError => e
@@ -30,11 +31,14 @@ module PWN
         browser_obj = opts[:browser_obj]
         q = opts[:q].to_s
 
-        browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        if browser_obj.url == 'https://duckduckgo.com/' || browser_obj.url == 'http://3g2upl4pq6kufc4m.onion/'
-          browser_obj.button(id: 'search_button_homepage').click!
+        browser = browser_obj[:browser]
+        browser.text_field(name: 'q').wait_until(&:present?).set(q)
+        if browser.url == 'https://duckduckgo.com/' ||
+           browser.url == 'http://3g2upl4pq6kufc4m.onion/'
+
+          browser.button(id: 'search_button_homepage').click!
         else
-          browser_obj.button(id: 'search_button').click!
+          browser.button(id: 'search_button').click!
         end
 
         browser_obj
@@ -49,7 +53,9 @@ module PWN
 
       public_class_method def self.onion(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.goto('http://3g2upl4pq6kufc4m.onion')
+
+        browser = browser_obj[:browser]
+        browser.goto('http://3g2upl4pq6kufc4m.onion')
 
         browser_obj
       rescue StandardError => e
@@ -86,6 +92,7 @@ module PWN
             browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
+          browser = browser_obj[:browser]
           puts browser_obj.public_methods
 
           browser_obj = #{self}.search(

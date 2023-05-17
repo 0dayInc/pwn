@@ -37,7 +37,9 @@ module PWN
         # Construct burp_obj
         burp_obj = {}
         burp_obj[:pid] = Process.spawn(burp_cmd_string)
-        rest_browser = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_browser = browser_obj1[:browser]
+
         # random_mitm_port = PWN::Plugins::Sock.get_random_unused_port
         # random_bb_port = random_mitm_port
         # random_bb_port = PWN::Plugins::Sock.get_random_unused_port while random_bb_port == random_mitm_port
@@ -46,12 +48,12 @@ module PWN
         burp_obj[:rest_browser] = rest_browser
 
         # Proxy always listens on localhost...use SSH tunneling if remote access is required
-        burp_browser = PWN::Plugins::TransparentBrowser.open(
+        browser_obj2 = PWN::Plugins::TransparentBrowser.open(
           browser_type: browser_type,
           proxy: "http://#{burp_obj[:mitm_proxy]}"
         )
 
-        burp_obj[:burp_browser] = burp_browser
+        burp_obj[:burp_browser] = browser_obj2
 
         # Wait for TCP 8001 to open prior to returning burp_obj
         loop do
@@ -278,10 +280,10 @@ module PWN
 
       public_class_method def self.stop(opts = {})
         burp_obj = opts[:burp_obj]
-        burp_browser = burp_obj[:burp_browser]
+        browser_obj = burp_obj[:burp_browser]
         burp_pid = burp_obj[:pid]
 
-        burp_browser = PWN::Plugins::TransparentBrowser.close(browser_obj: burp_browser)
+        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
         Process.kill('TERM', burp_pid)
 
         burp_obj = nil

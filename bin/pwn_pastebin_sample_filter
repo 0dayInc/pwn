@@ -32,12 +32,14 @@ browser_obj = PWN::WWW::Pastebin.open(
   proxy: proxy
 )
 
+browser = browser_obj[:browser]
+
 begin
   loop do
-    browser_obj.div(id: 'menu_2').links[0].click
-    code_frame = browser_obj.div(id: 'code_frame').text
+    browser.div(id: 'menu_2').links[0].click
+    code_frame = browser.div(id: 'code_frame').text
     if code_frame.match?(/#{regex}/mi)
-      puts "\nCurrent Link: #{browser_obj.url}"
+      puts "\nCurrent Link: #{browser.url}"
       puts "#{code_frame}\n\n\n"
     else
       print '.'

@@ -13,7 +13,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('http://www.torchtorsearch.com')
+        browser = browser_obj[:browser]
+        browser.goto('http://www.torchtorsearch.com')
 
         browser_obj
       rescue StandardError => e
@@ -30,8 +31,9 @@ module PWN
         browser_obj = opts[:browser_obj]
         q = opts[:q].to_s
 
-        browser_obj.text_field(name: 'q').wait_until(&:present?).set(q)
-        browser_obj.button(name: 'cmd').click!
+        browser = browser_obj[:browser]
+        browser.text_field(name: 'q').wait_until(&:present?).set(q)
+        browser.button(name: 'cmd').click!
 
         browser_obj
       rescue StandardError => e
@@ -45,7 +47,9 @@ module PWN
 
       public_class_method def self.onion
         browser_obj = opts[:browser_obj]
-        browser_obj.goto('http://xmh57jrzrnw6insl.onion')
+
+        browser = browser_obj[:browser]
+        browser.goto('http://xmh57jrzrnw6insl.onion')
 
         browser_obj
       rescue StandardError => e
@@ -82,7 +86,8 @@ module PWN
             browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.open(
             q: 'required search string'

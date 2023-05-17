@@ -15,7 +15,8 @@ module PWN
       public_class_method def self.open(opts = {})
         browser_obj = PWN::Plugins::TransparentBrowser.open(opts)
 
-        browser_obj.goto('https://www.paypal.com')
+        browser = browser_obj[:browser]
+        browser.goto('https://www.paypal.com')
 
         browser_obj
       rescue StandardError => e
@@ -48,6 +49,8 @@ module PWN
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
 
+        browser = browser_obj[:browser]
+
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
@@ -55,21 +58,21 @@ module PWN
         end
         mfa = opts[:mfa]
 
-        browser_obj.goto('https://www.paypal.com/signup/account')
+        browser.goto('https://www.paypal.com/signup/account')
 
-        browser_obj.text_field(id: 'email').wait_until(&:present?).set(username)
-        browser_obj.text_field(id: 'password').wait_until(&:present?).set(password)
-        browser_obj.text_field(id: 'confirmPassword').wait_until(&:present?).set(password)
-        browser_obj.button(id: '_eventId_personal').wait_until(&:present?).click!
-        browser_obj.text_field(id: 'firstName').wait_until(&:present?).set(first_name)
-        browser_obj.text_field(id: 'lastName').wait_until(&:present?).set(last_name)
-        browser_obj.text_field(id: 'address1').wait_until(&:present?).set(address)
-        browser_obj.text_field(id: 'city').wait_until(&:present?).set(city)
-        browser_obj.select(id: 'state').wait_until(&:present?).select_value(state)
-        browser_obj.text_field(id: 'postalCode').wait_until(&:present?).set(zip_code)
-        browser_obj.text_field(id: 'phoneNumber').wait_until(&:present?).set(mobile_phone)
-        browser_obj.span(index: 7).wait_until(&:present?).click! # Agree to ToS
-        browser_obj.button(id: 'submitBtn').wait_until(&:present?).click!
+        browser.text_field(id: 'email').wait_until(&:present?).set(username)
+        browser.text_field(id: 'password').wait_until(&:present?).set(password)
+        browser.text_field(id: 'confirmPassword').wait_until(&:present?).set(password)
+        browser.button(id: '_eventId_personal').wait_until(&:present?).click!
+        browser.text_field(id: 'firstName').wait_until(&:present?).set(first_name)
+        browser.text_field(id: 'lastName').wait_until(&:present?).set(last_name)
+        browser.text_field(id: 'address1').wait_until(&:present?).set(address)
+        browser.text_field(id: 'city').wait_until(&:present?).set(city)
+        browser.select(id: 'state').wait_until(&:present?).select_value(state)
+        browser.text_field(id: 'postalCode').wait_until(&:present?).set(zip_code)
+        browser.text_field(id: 'phoneNumber').wait_until(&:present?).set(mobile_phone)
+        browser.span(index: 7).wait_until(&:present?).click! # Agree to ToS
+        browser.button(id: 'submitBtn').wait_until(&:present?).click!
 
         puts "Confirmation email sent to: #{username}"
 
@@ -91,6 +94,8 @@ module PWN
         username = opts[:username].to_s.scrub.strip.chomp
         password = opts[:password]
 
+        browser = browser_obj[:browser]
+
         if password.nil?
           password = PWN::Plugins::AuthenticationHelper.mask_password
         else
@@ -98,18 +103,18 @@ module PWN
         end
         mfa = opts[:mfa]
 
-        browser_obj.goto('https://www.paypal.com/signin')
+        browser.goto('https://www.paypal.com/signin')
 
-        browser_obj.text_field(id: 'email').wait_until(&:present?).set(username)
-        browser_obj.text_field(id: 'password').wait_until(&:present?).set(password)
-        browser_obj.button(id: 'btnLogin').click!
+        browser.text_field(id: 'email').wait_until(&:present?).set(username)
+        browser.text_field(id: 'password').wait_until(&:present?).set(password)
+        browser.button(id: 'btnLogin').click!
 
         if mfa
           # Send code to SMS
-          browser_obj.button(id: 'btnSelectSoftToken').wait_until(&:present?).click!
-          until browser_obj.url == 'https://www.paypal.com/myaccount/home'
-            browser_obj.text_field(id: 'security-code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
-            browser_obj.button(id: 'btnCodeSubmit').click!
+          browser.button(id: 'btnSelectSoftToken').wait_until(&:present?).click!
+          until browser.url == 'https://www.paypal.com/myaccount/home'
+            browser.text_field(id: 'security-code').wait_until(&:present?).set(PWN::Plugins::AuthenticationHelper.mfa(prompt: 'enter mfa token'))
+            browser.button(id: 'btnCodeSubmit').click!
             sleep 3
           end
           print "\n"
@@ -127,7 +132,9 @@ module PWN
 
       public_class_method def self.logout(opts = {})
         browser_obj = opts[:browser_obj]
-        browser_obj.link(index: 13).wait_until(&:present?).click!
+
+        browser = browser_obj[:browser]
+        browser.link(index: 13).wait_until(&:present?).click!
 
         browser_obj
       rescue StandardError => e
@@ -164,7 +171,8 @@ module PWN
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          puts browser_obj.public_methods
+          browser = browser_obj[:browser]
+          puts browser.public_methods
 
           browser_obj = #{self}.signup(
             browser_obj: 'required - browser_obj returned from #open method',

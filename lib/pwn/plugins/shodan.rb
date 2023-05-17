@@ -33,7 +33,8 @@ module PWN
         base_shodan_api_uri = 'https://api.shodan.io'
         api_key = opts[:api_key]
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

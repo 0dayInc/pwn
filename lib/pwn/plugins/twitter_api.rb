@@ -32,7 +32,9 @@ module PWN
         http_headers[:authorization] = "Basic #{authz_str}"
 
         @@logger.info("Logging into TwitterAPI REST API: #{base_api_uri}")
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
+
         response = rest_client.execute(
           method: :post,
           url: "#{base_api_uri}/oauth2/token",
@@ -69,7 +71,8 @@ module PWN
         port = bearer_token[:port]
         base_zap_api_uri = "http://#{host}:#{port}"
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

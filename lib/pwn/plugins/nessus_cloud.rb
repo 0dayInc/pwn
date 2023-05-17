@@ -30,7 +30,8 @@ module PWN
         secret_key = nessus_obj[:secret_key]
         base_nessus_cloud_api_uri = 'https://cloud.tenable.com'
 
-        rest_client = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_client = browser_obj[:browser]::Request
 
         case http_method
         when :get

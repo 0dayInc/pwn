@@ -27,19 +27,20 @@ begin
     browser_obj = PWN::Plugins::TransparentBrowser.open(
       browser_type: :rest,
       proxy: proxy
-    )::Request
+    )
   else
-    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)::Request
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
   end
+  browser = browser_obj[:browser]::Request
 
   if proxy
-    public_ip_address = browser_obj.execute(
+    public_ip_address = browser.execute(
       method: :get,
       url: 'https://checkip.amazonaws.com',
       verify_ssl: false
     ).to_s.chomp
   else
-    public_ip_address = browser_obj.execute(
+    public_ip_address = browser.execute(
       method: :get,
       url: 'https://checkip.amazonaws.com'
     ).to_s.chomp
