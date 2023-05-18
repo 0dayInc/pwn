@@ -312,7 +312,7 @@ module PWN
 
         unless browser_obj[:browser].to_s.include?('RestClient')
           # Close the browser unless this_browser_obj.nil? (thus the &)
-          this_browser_obj[:browser]&.close
+          browser_obj[:browser]&.close
         end
         nil
       rescue StandardError => e
