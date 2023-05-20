@@ -15,7 +15,11 @@ module PWN
         which_os = PWN::Plugins::DetectOS.type
 
         case which_os
-        when :cygwin, :linux
+        when :cygwin
+          cmd = 'ps'
+          params = "waux -p #{pid}"
+          params = 'waux' if pid.nil?
+        when :linux
           cmd = 'ps'
           format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command:1000,pmem'
           params = "-p #{pid} -o #{format}"
