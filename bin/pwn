@@ -18,6 +18,17 @@ OptionParser.new do |options|
 end.parse!
 
 begin
+  def cleanup_pids(opts = {})
+    pids_arr = opts[:pids_arr]
+
+    pids_arr.each do |pid_line|
+      pid = pid_line[2].to_i
+      Process.kill('TERM', pid)
+    rescue Errno::ESRCH
+      next
+    end
+  end
+
   def refresh_ps1_proc(opts = {})
     mode = opts[:mode]
 
@@ -312,21 +323,6 @@ ensure
   end
   # pp grandkid_pids_arr
 
-  grandkid_pids_arr.each do |grandkid_pid|
-    begin
-      pid = grandkid_pid[2].to_i
-      Process.kill('TERM', pid)
-    rescue Errno::ESRCH
-      next
-    end
-  end
-
-  kid_pids_arr.each do |kid_pid|
-    begin
-      pid = kid_pid[2].to_i
-      Process.kill('TERM', pid)
-    rescue Errno::ESRCH
-      next
-    end
-  end
+  cleanup_pids(pids_arr: grandkid_pids_arr)
+  cleanup_pids(pids_arr: kid_pids_arr)
 end
