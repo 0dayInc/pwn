@@ -15,19 +15,25 @@ module PWN
         which_os = PWN::Plugins::DetectOS.type
 
         case which_os
+        when :cygwin
+          cmd = 'ps'
+          params = "waux -p #{pid}"
+          params = 'waux' if pid.nil?
         when :linux
+          cmd = 'ps'
           format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command:1000,pmem'
-          cmd = ['ps', '-p', pid.to_s, '-o', format]
-          cmd = ['ps', 'ax', '-o', format] if pid.nil?
+          params = "-p #{pid} -o #{format}"
+          params = "ax -o #{format}" if pid.nil?
         when :freebsd, :netbsd, :openbsd, :osx
+          cmd = 'ps'
           format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command,pmem'
-          cmd = ['ps', '-p', pid.to_s, '-o', format]
-          cmd = ['ps', 'ax', '-o', format] if pid.nil?
+          params = "-p #{pid} -o #{format}"
+          params = "ax -o #{format}" if pid.nil?
         else
           raise "Unsupported OS: #{which_os}"
         end
 
-        stdout, _stderr, _status = Open3.capture3(cmd)
+        stdout, _stderr, _status = Open3.capture3(cmd, params)
 
         proc_list_arr = []
         stdout_arr = stdout.split("\n")
