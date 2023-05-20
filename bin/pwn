@@ -4,7 +4,6 @@
 require 'optparse'
 require 'pwn'
 require 'pry'
-require 'sys/proctable'
 require 'yaml'
 
 opts = {}
@@ -301,19 +300,33 @@ begin
 rescue StandardError => e
   raise e
 ensure
-  child_pids = Sys::ProcTable.ps(smaps: false).select do |pe|
-    pe.ppid == pwn_pid
-  end.map(&:pid)
+  proc_list_arr = PWN::Plugins::PS.list
 
-  grandkid_pids = Sys::ProcTable.ps(smaps: false).select do |pe|
-    child_pids.include?(pe.ppid)
-  end.map(&:pid)
+  kid_pids_arr = proc_list_arr.select { |proc_line| proc_line[3] == pwn_pid.to_s }
+  # pp kid_pids_arr
 
-  grandkid_pids.each do |grandkid_pid|
-    Process.kill('TERM', grandkid_pid)
+  grandkid_pids_arr = []
+  kid_pids_arr.each do |kid_pid|
+    gk_arr = proc_list_arr.select { |proc_line| proc_line[3] == kid_pid[2] }
+    gk_arr.each { |gk| grandkid_pids_arr.push(gk) }
+  end
+  # pp grandkid_pids_arr
+
+  grandkid_pids_arr.each do |grandkid_pid|
+    begin
+      pid = grandkid_pid[2].to_i
+      Process.kill('TERM', pid)
+    rescue Errno::ESRCH
+      next
+    end
   end
 
-  child_pids.each do |child_pid|
-    Process.kill('TERM', child_pid)
+  kid_pids_arr.each do |kid_pid|
+    begin
+      pid = kid_pid[2].to_i
+      Process.kill('TERM', pid)
+    rescue Errno::ESRCH
+      next
+    end
   end
 end

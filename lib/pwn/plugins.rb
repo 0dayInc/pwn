@@ -48,6 +48,7 @@ module PWN
     autoload :Packet, 'pwn/plugins/packet'
     autoload :PDFParse, 'pwn/plugins/pdf_parse'
     autoload :Pony, 'pwn/plugins/pony'
+    autoload :PS, 'pwn/plugins/ps'
     autoload :RabbitMQ, 'pwn/plugins/rabbit_mq'
     autoload :RFIDler, 'pwn/plugins/rfidler'
     autoload :Serial, 'pwn/plugins/serial'
