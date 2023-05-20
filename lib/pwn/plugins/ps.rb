@@ -32,8 +32,9 @@ module PWN
         else
           raise "Unsupported OS: #{which_os}"
         end
+        full_cmd = "#{cmd} #{params}"
 
-        stdout, _stderr, _status = Open3.capture3(cmd, params)
+        stdout, _stderr, _status = Open3.capture3(full_cmd)
 
         proc_list_arr = []
         stdout_arr = stdout.split("\n")
