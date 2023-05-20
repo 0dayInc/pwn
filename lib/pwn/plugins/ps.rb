@@ -12,24 +12,22 @@ module PWN
       public_class_method def self.list(opts = {})
         pid = opts[:pid]
 
-        format = 'user,pcpu,pid,ppid,uid,gid,euid,egid,uname,group,args:1000,pmem'
+        which_os = PWN::Plugins::DetectOS.type
 
-        if pid.nil?
-          stdout, _stderr, _status = Open3.capture3(
-            'ps',
-            'ax',
-            '-o',
-            format
-          )
+        case which_os
+        when :linux
+          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command:1000,pmem'
+          cmd = ['ps', '-p', pid.to_s, '-o', format]
+          cmd = ['ps', 'ax', '-o', format] if pid.nil?
+        when :freebsd, :netbsd, :openbsd, :osx
+          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command,pmem'
+          cmd = ['ps', '-p', pid.to_s, '-o', format]
+          cmd = ['ps', 'ax', '-o', format] if pid.nil?
         else
-          stdout, _stderr, _status = Open3.capture3(
-            'ps',
-            '-p',
-            pid.to_s,
-            '-o',
-            format
-          )
+          raise "Unsupported OS: #{which_os}"
         end
+
+        stdout, _stderr, _status = Open3.capture3(cmd)
 
         proc_list_arr = []
         stdout_arr = stdout.split("\n")
