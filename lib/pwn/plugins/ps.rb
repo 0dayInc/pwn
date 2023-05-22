@@ -17,7 +17,7 @@ module PWN
         case which_os
         when :cygwin
           cmd = 'ps'
-          params = "waux -p #{pid}"
+          params = "w -p #{pid}"
           params = 'waux' if pid.nil?
         when :freebsd, :linux, :netbsd, :openbsd, :osx
           cmd = 'ps'
