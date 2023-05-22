@@ -21,9 +21,9 @@ module PWN
           params = 'waux' if pid.nil?
         when :linux
           cmd = 'ps'
-          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command:1000,pmem'
-          params = "ax -p #{pid} -o #{format}"
-          params = "ax -o #{format}" if pid.nil?
+          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command,pmem'
+          params = "w -p #{pid} -o #{format}"
+          params = "wax -o #{format}" if pid.nil?
         when :freebsd, :netbsd, :openbsd, :osx
           cmd = 'ps'
           format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command,pmem'
