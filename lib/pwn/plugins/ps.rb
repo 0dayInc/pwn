@@ -19,15 +19,10 @@ module PWN
           cmd = 'ps'
           params = "waux -p #{pid}"
           params = 'waux' if pid.nil?
-        when :linux
+        when :freebsd, :linux, :netbsd, :openbsd, :osx
           cmd = 'ps'
           format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,pmem,command'
           params = "w -p #{pid} -o #{format}"
-          params = "wax -o #{format}" if pid.nil?
-        when :freebsd, :netbsd, :openbsd, :osx
-          cmd = 'ps'
-          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,pmem,command'
-          params = "wax -p #{pid} -o #{format}"
           params = "wax -o #{format}" if pid.nil?
         else
           raise "Unsupported OS: #{which_os}"
