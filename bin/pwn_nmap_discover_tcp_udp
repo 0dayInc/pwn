@@ -28,6 +28,10 @@ OptionParser.new do |options|
     opts[:results_root] = r
   end
 
+  options.on('-N', '--no-script', '<Optional - Exclude Nmap Scripts>') do |n|
+    opts[:no_script] = n
+  end
+
   options.on('-T', '--tor', '<Optional - Source Scans from Tor Nodes>') do |t|
     opts[:with_tor] = t
   end
@@ -59,6 +63,9 @@ File.new(exclude_file, 'w') unless File.exist?(exclude_file)
 
 interface = opts[:interface]
 interface ||= 'eth0'
+
+no_script = true if opts[:with_tor]
+no_script ||= false
 
 with_tor = true if opts[:with_tor]
 with_tor ||= false
@@ -251,6 +258,10 @@ begin
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.proxies = proxy if with_tor
+    unless no_script
+      nmap.default_script = true
+      nmap.update_scriptdb = true
+    end
     nmap.verbose = true
     nmap.target_file = target_file
     nmap.randomize_hosts = true
@@ -262,8 +273,6 @@ begin
     nmap.insane_timing = true
     nmap.skip_discovery = true
     nmap.syn_scan = true
-    nmap.default_script = true
-    nmap.update_scriptdb = true
     nmap.ports = [1..65_535]
     nmap.output_all = latest_tcp_results
     nmap.min_parallelism = 36
@@ -295,9 +304,8 @@ begin
   # Using -T5 template to reduce number of
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
-    if with_tor
-      nmap.proxies = proxy
-    else
+    nmap.proxies = proxy if with_tor
+    unless no_script
       nmap.default_script = true
       nmap.update_scriptdb = true
     end
