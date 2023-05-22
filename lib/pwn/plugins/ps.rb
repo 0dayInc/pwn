@@ -21,12 +21,12 @@ module PWN
           params = 'waux' if pid.nil?
         when :linux
           cmd = 'ps'
-          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command,pmem'
+          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,pmem,command'
           params = "w -p #{pid} -o #{format}"
           params = "wax -o #{format}" if pid.nil?
         when :freebsd, :netbsd, :openbsd, :osx
           cmd = 'ps'
-          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,command,pmem'
+          format = 'user,pcpu,pid,ppid,uid,group,gid,cpu,pmem,command'
           params = "wax -p #{pid} -o #{format}"
           params = "wax -o #{format}" if pid.nil?
         else
@@ -40,11 +40,10 @@ module PWN
         stdout_arr = stdout.split("\n")
         stdout_arr.each do |line|
           column_len = format.split(',').length
-          cmd_idx = column_len - 2
+          cmd_idx = column_len - 1
           first_cols = line.split[0..(cmd_idx - 1)]
-          cmd = [line.split[cmd_idx..-2].join(' ')]
-          pmem = [line.split.last]
-          proc_line = first_cols + pmem + cmd
+          cmd = [line.split[cmd_idx..].join(' ')]
+          proc_line = first_cols + cmd
           proc_list_arr.push(proc_line)
         end
 
