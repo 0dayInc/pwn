@@ -28,8 +28,8 @@ OptionParser.new do |options|
     opts[:results_root] = r
   end
 
-  options.on('-N', '--no-script', '<Optional - Exclude Nmap Scripts>') do |n|
-    opts[:no_script] = n
+  options.on('-S', '--stop-nse', '<Optional - Disable Nmap Scripting Engine>') do |n|
+    opts[:stop_nse] = n
   end
 
   options.on('-T', '--tor', '<Optional - Source Scans from Tor Nodes>') do |t|
@@ -64,8 +64,8 @@ File.new(exclude_file, 'w') unless File.exist?(exclude_file)
 interface = opts[:interface]
 interface ||= 'eth0'
 
-no_script = true if opts[:no_script]
-no_script ||= false
+stop_nse = true if opts[:stop_nse]
+stop_nse ||= false
 
 with_tor = true if opts[:with_tor]
 with_tor ||= false
@@ -258,7 +258,7 @@ begin
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.proxies = proxy if with_tor
-    unless no_script
+    unless stop_nse
       nmap.default_script = true
       nmap.update_scriptdb = true
     end
@@ -305,7 +305,7 @@ begin
   # retransmission attempts on filtered ports.
   PWN::Plugins::NmapIt.port_scan do |nmap|
     nmap.proxies = proxy if with_tor
-    unless no_script
+    unless stop_nse
       nmap.default_script = true
       nmap.update_scriptdb = true
     end
