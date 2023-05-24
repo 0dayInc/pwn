@@ -64,7 +64,7 @@ File.new(exclude_file, 'w') unless File.exist?(exclude_file)
 interface = opts[:interface]
 interface ||= 'eth0'
 
-no_script = true if opts[:with_tor]
+no_script = true if opts[:no_script]
 no_script ||= false
 
 with_tor = true if opts[:with_tor]
