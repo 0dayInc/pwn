@@ -11,7 +11,7 @@ gemspec
 # In some circumstances custom flags are passed to gems in order
 # to build appropriately.  Defer to ./reinstall_pwn_gemset.sh
 # to review these custom flags (e.g. pg, serialport, etc).
-gem 'activesupport', '7.0.4.3'
+gem 'activesupport', '7.0.5'
 gem 'anemone', '0.7.2'
 gem 'authy', '3.0.1'
 gem 'aws-sdk', '3.1.0'
