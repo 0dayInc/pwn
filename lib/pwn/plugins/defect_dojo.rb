@@ -488,7 +488,8 @@ module PWN
       #   test_resource_uri: 'optional - alternative to tag names to know which test to reimport',
       #   minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
       #   scan_date: 'optional - date in which scan was kicked off (defaults to now)',
-      #   verified: 'optional - flag finding as verified by a tester (defaults to false)'
+      #   verified: 'optional - flag finding as verified by a tester (defaults to false)',
+      #   create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
       # )
 
       public_class_method def self.reimportscan(opts = {})
@@ -566,6 +567,8 @@ module PWN
 
         # Defaults to false
         opts[:verified] ? (http_body[:verified] = true) : (http_body[:verified] = false)
+
+        opts[:create_finding_groups] ? (http_body[:create_finding_groups_for_all_findings] = true) : (http_body[:create_finding_groups_for_all_findings] = false)
 
         api_path = 'reimport-scan/'
         api_path = 'reimportscan/' if api_version == 'v1'
@@ -735,7 +738,8 @@ module PWN
             test_resource_uri: 'optional - alternative to tag names to know which test to reimport',
             minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
             scan_date: 'optional - date in which scan was kicked off (defaults to now)',
-            verified: 'optional - flag finding as verified by a tester (defaults to false)'
+            verified: 'optional - flag finding as verified by a tester (defaults to false)',
+            create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
           )
 
           finding_list = #{self}.finding_list(
