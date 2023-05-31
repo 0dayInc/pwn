@@ -57,6 +57,10 @@ OptionParser.new do |options|
   options.on('-v', '--[no-]verified', '<Optional - flag finding as verified by a tester (defaults to false)') do |v|
     opts[:verified] = v
   end
+
+  options.on('-g', '--create-finding-groups', '<Optional - group similar findings into one finding (defaults to false)') do |g|
+    opts[:create_finding_groups] = g
+  end
 end.parse!
 
 if opts.empty?
@@ -79,6 +83,7 @@ tags = opts[:tags]
 minimum_severity = opts[:minimum_severity]
 scan_date = opts[:scan_date]
 verified = opts[:verified]
+create_findings_groups = opts[:create_finding_groups]
 
 begin
   dd_obj = PWN::Plugins::DefectDojo.login(
@@ -97,7 +102,8 @@ begin
     tags: tags,
     minimum_severity: minimum_severity,
     scan_date: scan_date,
-    verified: verified
+    verified: verified,
+    create_findings_groups: create_findings_groups
   )
 rescue StandardError => e
   raise e

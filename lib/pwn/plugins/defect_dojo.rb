@@ -462,6 +462,8 @@ module PWN
         # Defaults to false
         opts[:verified] ? (http_body[:verified] = true) : (http_body[:verified] = false)
 
+        opts[:create_finding_groups] ? (http_body[:create_finding_groups_for_all_findings] = true) : (http_body[:create_finding_groups_for_all_findings] = false)
+
         api_path = 'import-scan/'
         api_path = 'importscan/' if api_version == 'v1'
 
