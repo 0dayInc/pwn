@@ -386,7 +386,8 @@ module PWN
       #   tags: 'optional - comma-delimited list of tag names to tie to scan',
       #   minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
       #   scan_date: 'optional - date in which scan was kicked off (defaults to now)',
-      #   verified: 'optional - flag finding as verified by a tester (defaults to false)'
+      #   verified: 'optional - flag finding as verified by a tester (defaults to false)',
+      #   create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
       # )
 
       public_class_method def self.importscan(opts = {})
@@ -721,7 +722,8 @@ module PWN
             tags: 'optional - comma-delimited list of tag names to tie to scan',
             minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
             scan_date: 'optional - date in which scan was kicked off (defaults to now)',
-            verified: 'optional - flag finding as verified by a tester (defaults to false)'
+            verified: 'optional - flag finding as verified by a tester (defaults to false)',
+            create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
           )
 
           reimportscan_response = #{self}.reimportscan(
