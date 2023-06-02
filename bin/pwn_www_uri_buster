@@ -101,6 +101,8 @@ def request_path(opts = {})
       http_resp_length: response.body.length,
       http_resp: "#{response.body[0..300]}..."
     }
+  rescue Errno::ECONNREFUSED
+    raise 'ERROR: Connection(s) Refused. Try lowering the --max-threads value.'
   rescue Errno::ECONNRESET,
          RestClient::Exceptions::ReadTimeout,
          RestClient::ServerBrokeConnection => e
