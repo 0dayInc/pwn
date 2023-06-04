@@ -134,7 +134,8 @@ def csv_diff(opts = {})
   CSV.open(diff_path, 'w', col_sep: ',', quote_char: '"', force_quotes: true) do |csv|
     larger_csv.each do |line_arr|
       line = line_arr.join(',')
-      csv.puts line_arr if smaller_csv.select { |sc| sc.join(',') == line }.empty?
+      # csv.puts line_arr if smaller_csv.select { |sc| sc.join(',') == line }.empty?
+      csv.puts line_arr if smaller_csv.none? { |sc| sc.join(',') == line }
     end
   end
   diff_csv = CSV.open(
@@ -151,7 +152,8 @@ def csv_diff(opts = {})
     larger_csv_orig.each_with_index do |line_arr, index|
       # Use larger_csv instead of orig to compare column redaction to diff_csv
       line = larger_csv[index].join(',')
-      csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
+      # csv.puts line_arr if diff_csv.select { |dc| dc.join(',') == line }.any?
+      csv.puts line_arr if diff_csv.any? { |dc| dc.join(',') == line }
     end
   end
 end
