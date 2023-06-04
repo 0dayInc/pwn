@@ -78,7 +78,16 @@ if opts.empty?
 end
 
 pwn_provider = 'ruby-gem'
-pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?
+# pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?
+pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
+
+if pwn_provider == 'ruby-gem'
+  require 'pwn'
+elsif pwn_provider == 'docker'
+  require '/opt/pwn/lib/pwn'
+else
+  raise "PWN_PROVIDER env variable is not set to 'ruby-gem' or 'docker'"
+end
 
 dir_path = opts[:dir_path].to_s.scrub
 target = opts[:target]
