@@ -26,7 +26,7 @@ OptionParser.new do |options|
     opts[:api_key] = a
   end
 
-  options.on('-nNAME', '--enagagement-name=NAME', '<Required - name of engagement to associate w/ scan>') do |n|
+  options.on('-nNAME', '--engagement-name=NAME', '<Required - name of engagement to associate w/ scan>') do |n|
     opts[:engagement_name] = n
   end
 
