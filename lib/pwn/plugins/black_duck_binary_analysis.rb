@@ -130,6 +130,24 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_apps(
+      #   token: 'required - Bearer token'
+      # )
+
+      public_class_method def self.get_apps(opts = {})
+        token = opts[:token]
+
+        response = bd_bin_analysis_rest_call(
+          token: token,
+          rest_call: 'apps'
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
       #   token: 'required - Bearer token'
       # )
@@ -140,6 +158,26 @@ module PWN
         response = bd_bin_analysis_rest_call(
           token: token,
           rest_call: 'groups'
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_apps_by_group(
+      #   token: 'required - Bearer token',
+      #   group_id: 'required - group id'
+      # )
+
+      public_class_method def self.apps_by_group(opts = {})
+        token = opts[:token]
+        group_id = opts[:group_id]
+
+        response = bd_bin_analysis_rest_call(
+          token: token,
+          rest_call: "apps/#{group_id}"
         )
 
         JSON.parse(response, symbolize_names: true)
@@ -212,11 +250,20 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          response = #{self}.get_apps(
+            token: 'required - Bearer token'
+          )
+
           response = #{self}.get_groups(
             token: 'required - Bearer token'
           )
 
           response = #{self}.get_group_details(
+            token: 'required - Bearer token',
+            group_id: 'required - group id'
+          )
+
+          response = #{self}.get_apps_by_group(
             token: 'required - Bearer token',
             group_id: 'required - group id'
           )
