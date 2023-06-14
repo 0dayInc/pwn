@@ -30,7 +30,7 @@ module PWN
         params = opts[:params]
         http_body = opts[:http_body]
         http_body ||= {}
-        base_bd_bin_analysis_api_uri = 'https://protocode-sc.com/api'
+        base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
         token = opts[:token]
 
         content_type = 'application/json; charset=UTF-8'
