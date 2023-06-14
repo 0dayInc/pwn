@@ -11,6 +11,7 @@ module PWN
     autoload :BareSIP, 'pwn/plugins/baresip'
     autoload :BasicAuth, 'pwn/plugins/basic_auth'
     autoload :BeEF, 'pwn/plugins/beef'
+    autoload :BlackDuckBinaryAnalysis, 'pwn/plugins/black_duck_binary_analysis'
     autoload :BurpSuite, 'pwn/plugins/burp_suite'
     autoload :BusPirate, 'pwn/plugins/bus_pirate'
     autoload :Char, 'pwn/plugins/char'
