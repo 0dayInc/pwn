@@ -148,6 +148,26 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
+      #   token: 'required - Bearer token',
+      #   group_id: 'required - group id'
+      # )
+
+      public_class_method def self.get_group_details(opts = {})
+        token = opts[:token]
+        group_id = opts[:group_id]
+
+        response = bd_bin_analysis_rest_call(
+          token: token,
+          rest_call: "groups/#{group_id}"
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
       #   token: 'required - Bearer token',
       #   file: 'required - file to upload',
@@ -194,6 +214,11 @@ module PWN
         puts "USAGE:
           response = #{self}.get_groups(
             token: 'required - Bearer token'
+          )
+
+          response = #{self}.get_group_details(
+            token: 'required - Bearer token',
+            group_id: 'required - group id'
           )
 
           response = #{self}.upload_file(
