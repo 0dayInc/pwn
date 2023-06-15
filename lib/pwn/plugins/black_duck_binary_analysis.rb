@@ -32,15 +32,13 @@ module PWN
 
         headers = opts[:http_headers]
         headers ||= {
-          content_type: content_type,
+          content_type: 'application/json; charset=UTF-8',
           authorization: "Bearer #{token}"
         }
 
         http_body = opts[:http_body]
         base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
         token = opts[:token]
-
-        content_type = 'application/json; charset=UTF-8'
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
