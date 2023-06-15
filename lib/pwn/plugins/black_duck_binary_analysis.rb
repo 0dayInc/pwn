@@ -29,6 +29,13 @@ module PWN
                       end
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
+
+        headers = opts[:http_headers]
+        headers ||= {
+          content_type: content_type,
+          authorization: "Bearer #{token}"
+        }
+
         http_body = opts[:http_body]
         base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
         token = opts[:token]
@@ -43,12 +50,7 @@ module PWN
 
         case http_method
         when :delete, :get
-          headers = opts[:http_headers]
-          headers ||= {
-            content_type: content_type,
-            authorization: "Bearer #{token}",
-            params: params
-          }
+          headers[:params] = params
           response = rest_client.execute(
             method: http_method,
             url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
@@ -57,10 +59,6 @@ module PWN
           )
 
         when :post, :put
-          headers = opts[:http_headers]
-          headers ||= {
-            authorization: "Bearer #{token}"
-          }
           response = rest_client.execute(
             method: :post,
             url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
