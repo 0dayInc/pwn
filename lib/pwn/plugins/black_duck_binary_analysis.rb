@@ -22,6 +22,7 @@ module PWN
       # )
 
       private_class_method def self.bd_bin_analysis_rest_call(opts = {})
+        token = opts[:token]
         http_method = if opts[:http_method].nil?
                         :get
                       else
@@ -38,7 +39,6 @@ module PWN
 
         http_body = opts[:http_body]
         base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
-        token = opts[:token]
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
