@@ -59,30 +59,30 @@ module PWN
 
         when :post, :put
           headers = opts[:http_headers]
-          if http_body.key?(:multipart)
-            headers ||= {
-              authorization: "Bearer #{token}"
-            }
-            response = rest_client.execute(
-              method: :post,
-              url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
-              headers: headers,
-              payload: http_body,
-              verify_ssl: false
-            )
-          else
-            headers ||= {
-              content_type: content_type,
-              authorization: "Bearer #{token}"
-            }
-            response = rest_client.execute(
-              method: http_method,
-              url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
-              headers: headers,
-              payload: http_body.to_json,
-              verify_ssl: false
-            )
-          end
+          # if http_body.key?(:multipart)
+          headers ||= {
+            authorization: "Bearer #{token}"
+          }
+          response = rest_client.execute(
+            method: :post,
+            url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
+            headers: headers,
+            payload: http_body,
+            verify_ssl: false
+          )
+          # else
+          #   headers ||= {
+          #     content_type: content_type,
+          #     authorization: "Bearer #{token}"
+          #   }
+          #   response = rest_client.execute(
+          #     method: http_method,
+          #     url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
+          #     headers: headers,
+          #     payload: http_body.to_json,
+          #     verify_ssl: false
+          #   )
+          # end
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
