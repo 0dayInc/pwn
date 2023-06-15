@@ -21,6 +21,7 @@ module PWN
       # )
 
       private_class_method def self.open_ai_rest_call(opts = {})
+        token = opts[:token]
         http_method = if opts[:http_method].nil?
                         :get
                       else
@@ -28,10 +29,14 @@ module PWN
                       end
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
+        headers = {
+          content_type: content_type,
+          authorization: "Bearer #{token}"
+        }
+
         http_body = opts[:http_body]
         http_body ||= {}
         base_open_ai_api_uri = 'https://api.openai.com/v1'
-        token = opts[:token]
 
         content_type = 'application/json; charset=UTF-8'
 
@@ -43,25 +48,22 @@ module PWN
 
         case http_method
         when :delete, :get
+          headers[:params] = params
           response = rest_client.execute(
             method: http2_method,
             url: "#{base_open_ai_api_uri}/#{rest_call}",
-            headers: {
-              content_type: content_type,
-              authorization: "Bearer #{token}",
-              params: params
-            },
+            headers: headers,
             verify_ssl: false
           )
 
         when :post
           if http_body.key?(:multipart)
+            headers[:content_type] = 'multipart/form-data'
+
             response = rest_client.execute(
               method: http_method,
               url: "#{base_open_ai_api_uri}/#{rest_call}",
-              headers: {
-                authorization: "Bearer #{token}"
-              },
+              headers: headers,
               payload: http_body,
               verify_ssl: false
             )
@@ -69,10 +71,7 @@ module PWN
             response = rest_client.execute(
               method: http_method,
               url: "#{base_open_ai_api_uri}/#{rest_call}",
-              headers: {
-                content_type: content_type,
-                authorization: "Bearer #{token}"
-              },
+              headers: headers,
               payload: http_body.to_json,
               verify_ssl: false
             )

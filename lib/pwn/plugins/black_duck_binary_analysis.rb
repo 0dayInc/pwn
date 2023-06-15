@@ -59,13 +59,25 @@ module PWN
           )
 
         when :post, :put
-          response = rest_client.execute(
-            method: :post,
-            url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
-            headers: headers,
-            payload: http_body,
-            verify_ssl: false
-          )
+          if http_body.key?(:multipart)
+            headers[:content_type] = 'multipart/form-data'
+
+            response = rest_client.execute(
+              method: :post,
+              url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
+              headers: headers,
+              payload: http_body,
+              verify_ssl: false
+            )
+          else
+            response = rest_client.execute(
+              method: :post,
+              url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
+              headers: headers,
+              payload: http_body.to_json,
+              verify_ssl: false
+            )
+          end
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
@@ -122,7 +134,16 @@ module PWN
       # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
       #   token: 'required - Bearer token',
-      #   file: 'required - file to upload'
+      #   file: 'required - path of file to upload',
+      #   group_id: 'optional - group id',
+      #   delete_binary: 'optional - delete binary after upload (defaults to false)',
+      #   force_scan: 'optional - force scan (defaults to false)',
+      #   callback_url: 'optional - callback url',
+      #   scan_infoleak: 'optional - scan infoleak (defaults to true)',
+      #   code_analysis: 'optional - code analysis (defaults to true)',
+      #   scan_code_familiarity: 'optional - scan code familiarity (defaults to true)',
+      #   version: 'optional - version',
+      #   product_id: 'optional - product id'
       # )
 
       public_class_method def self.upload_file(opts = {})
@@ -130,8 +151,29 @@ module PWN
         file = opts[:file]
         raise "ERROR: #{file} not found." unless File.exist?(file)
 
+        file_name = File.basename(file)
+
+        group_id = opts[:group_id]
+        delete_binary = true if opts[:delete_binary] ||= false
+        force_scan = true if opts[:force_scan] ||= false
+        callback_url = opts[:callback_url]
+        scan_infoleak = false if opts[:scan_infoleak] ||= true
+        code_analysis = false if opts[:code_analysis] ||= true
+        scan_code_familiarity = false if opts[:scan_code_familiarity] ||= true
+        version = opts[:version]
+        product_id = opts[:product_id]
+
         http_headers = {
-          authorization: "Bearer #{token}"
+          authorization: "Bearer #{token}",
+          delete_binary: delete_binary,
+          force_scan: force_scan,
+          group: group_id,
+          callback: callback_url,
+          scan_infoleak: scan_infoleak,
+          code_analysis: code_analysis,
+          scan_code_familiarity: scan_code_familiarity,
+          version: version,
+          replace: product_id
         }
 
         http_body = {
@@ -140,9 +182,9 @@ module PWN
         }
 
         response = bd_bin_analysis_rest_call(
-          http_method: :post,
+          http_method: :put,
           token: token,
-          rest_call: 'files',
+          rest_call: "upload/#{file_name}",
           http_headers: http_headers,
           http_body: http_body
         )
@@ -193,7 +235,7 @@ module PWN
       #   token: 'required - Bearer token',
       #   name: 'required - group name',
       #   desc: 'optional - group description',
-      #   parent: 'optional - parent group id',
+      #   parent_id: 'optional - parent group id',
       #   delete_binary: 'optional - delete binary after analysis C|Y|N (Default: C== company default)',
       #   binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 604_800 / 1 week)',
       #   product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 604_800 / 1 week)',
@@ -212,7 +254,7 @@ module PWN
         token = opts[:token]
         name = opts[:name]
         desc = opts[:desc]
-        parent = opts[:parent]
+        parent_id = opts[:parent_id]
         delete_binary = opts[:delete_binary] ||= 'C'
         binary_cleanup_age = opts[:binary_cleanup_age] ||= 604_800
         product_cleanup_age = opts[:product_cleanup_age] ||= 604_800
@@ -230,7 +272,7 @@ module PWN
           authorization: "Bearer #{token}",
           name: name,
           description: desc,
-          parent: parent,
+          parent: parent_id,
           delete_binary_after_scan: delete_binary,
           binary_cleanup_age: binary_cleanup_age,
           product_cleanup_age: product_cleanup_age,
@@ -473,9 +515,18 @@ module PWN
             token: 'required - Bearer token'
           )
 
-          response = #{self}.upload_file(
-            token: 'required - Black Duck Binary Analysis API token',
-            file: 'required - file to upload'
+          response = PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
+            token: 'required - Bearer token',
+            file: 'required - path of file to upload',
+            group_id: 'optional - group id',
+            delete_binary: 'optional - delete binary after upload (defaults to false)',
+            force_scan: 'optional - force scan (defaults to false)',
+            callback_url: 'optional - callback url',
+            scan_infoleak: 'optional - scan infoleak (defaults to true)',
+            code_analysis: 'optional - code analysis (defaults to true)',
+            scan_code_familiarity: 'optional - scan code familiarity (defaults to true)',
+            version: 'optional - version',
+            product_id: 'optional - product id'
           )
 
           response = #{self}.get_tasks(
@@ -495,7 +546,7 @@ module PWN
             token: 'required - Bearer token',
             name: 'required - group name',
             desc: 'optional - group description',
-            parent: 'optional - parent group id',
+            parent_id: 'optional - parent_id group id',
             delete_binary: 'optional - delete binary after analysis C|Y|N (Default: C== company default)',
             binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 604_800 / 1 week)',
             product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 604_800 / 1 week)',
