@@ -219,7 +219,7 @@ module PWN
       #   include_historical_vulns: 'optional - include historical vulns nil|true|false (Default: nil == company default)',
       #   cvss3_fallback: 'optional - cvss3 fallback nil|true|false (Default: nil == company default)',
       #   assume_unknown_version_as_latest: 'optional - assume unknown version as latest nil|true|false (Default: nil == company default)',
-      #   custom_data: 'optional - custom data hash (see group metadata for details)',
+      #   custom_data: 'optional - custom data hash (Default: {}, see group metadata for details)',
       #   scan_infoleak: 'optional - scan infoleak nil|true|false (Default: nil == company default)',
       #   code_analysis: 'optional - code analysis nil|true|false (Default: nil == company default)',
       #   scan_code_similarity: 'optional - scan code similarity nil|true|false (Default: nil == company default)'
@@ -238,7 +238,7 @@ module PWN
         include_historical_vulns = opts[:include_historical_vulns]
         cvss3_fallback = opts[:cvss3_fallback]
         assume_unknown_version_as_latest = opts[:assume_unknown_version_as_latest]
-        custom_data = opts[:custom_data]
+        custom_data = opts[:custom_data] ||= {}
         scan_infoleak = opts[:scan_infoleak]
         code_analysis = opts[:code_analysis]
         scan_code_similarity = opts[:scan_code_similarity]
@@ -521,7 +521,7 @@ module PWN
             include_historical_vulns: 'optional - include historical vulns nil|true|false (Default: nil == company default)',
             cvss3_fallback: 'optional - cvss3 fallback nil|true|false (Default: nil == company default)',
             assume_unknown_version_as_latest: 'optional - assume unknown version as latest nil|true|false (Default: nil == company default)',
-            custom_data: 'optional - custom data hash (see group metadata for details)',
+            custom_data: 'optional - custom data hash (Default: {}, see group metadata for details)',
             scan_infoleak: 'optional - scan infoleak nil|true|false (Default: nil == company default)',
             code_analysis: 'optional - code analysis nil|true|false (Default: nil == company default)',
             scan_code_similarity: 'optional - scan code similarity nil|true|false (Default: nil == company default)'
