@@ -193,6 +193,26 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_product(
+      #   token: 'required - Bearer token',
+      #   product_id: 'required - product id'
+      # )
+
+      public_class_method def self.get_product(opts = {})
+        token = opts[:token]
+        product_id = opts[:product_id]
+
+        response = bd_bin_analysis_rest_call(
+          token: token,
+          rest_call: "product/#{product_id}"
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_tasks(
       #   token: 'required - Bearer token'
       # )
@@ -525,6 +545,11 @@ module PWN
             scan_code_familiarity: 'optional - scan code familiarity (defaults to true)',
             version: 'optional - version',
             product_id: 'optional - product id'
+          )
+
+          response = #{self}.get_product(
+            token: 'required - Bearer token',
+            product_id: 'required - product id'
           )
 
           response = #{self}.get_tasks(
