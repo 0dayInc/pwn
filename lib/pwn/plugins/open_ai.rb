@@ -42,21 +42,9 @@ module PWN
         spinner.auto_spin
 
         case http_method
-        when :delete
+        when :delete, :get
           response = rest_client.execute(
-            method: :delete,
-            url: "#{base_open_ai_api_uri}/#{rest_call}",
-            headers: {
-              content_type: content_type,
-              authorization: "Bearer #{token}",
-              params: params
-            },
-            verify_ssl: false
-          )
-
-        when :get
-          response = rest_client.execute(
-            method: :get,
+            method: http2_method,
             url: "#{base_open_ai_api_uri}/#{rest_call}",
             headers: {
               content_type: content_type,
@@ -69,7 +57,7 @@ module PWN
         when :post
           if http_body.key?(:multipart)
             response = rest_client.execute(
-              method: :post,
+              method: http_method,
               url: "#{base_open_ai_api_uri}/#{rest_call}",
               headers: {
                 authorization: "Bearer #{token}"
@@ -79,7 +67,7 @@ module PWN
             )
           else
             response = rest_client.execute(
-              method: :post,
+              method: http_method,
               url: "#{base_open_ai_api_uri}/#{rest_call}",
               headers: {
                 content_type: content_type,
