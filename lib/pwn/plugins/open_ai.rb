@@ -30,15 +30,13 @@ module PWN
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
         headers = {
-          content_type: content_type,
+          content_type: 'application/json; charset=UTF-8',
           authorization: "Bearer #{token}"
         }
 
         http_body = opts[:http_body]
         http_body ||= {}
         base_open_ai_api_uri = 'https://api.openai.com/v1'
-
-        content_type = 'application/json; charset=UTF-8'
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
