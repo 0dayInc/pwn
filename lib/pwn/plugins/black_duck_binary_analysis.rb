@@ -29,8 +29,14 @@ module PWN
                       end
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
+
+        headers = opts[:http_headers]
+        headers ||= {
+          content_type: content_type,
+          authorization: "Bearer #{token}"
+        }
+
         http_body = opts[:http_body]
-        http_body ||= {}
         base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
         token = opts[:token]
 
@@ -44,12 +50,7 @@ module PWN
 
         case http_method
         when :delete, :get
-          headers = opts[:http_headers]
-          headers ||= {
-            content_type: content_type,
-            authorization: "Bearer #{token}",
-            params: params
-          }
+          headers[:params] = params
           response = rest_client.execute(
             method: http_method,
             url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
@@ -58,11 +59,6 @@ module PWN
           )
 
         when :post, :put
-          headers = opts[:http_headers]
-          # if http_body.key?(:multipart)
-          headers ||= {
-            authorization: "Bearer #{token}"
-          }
           response = rest_client.execute(
             method: :post,
             url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
@@ -70,19 +66,6 @@ module PWN
             payload: http_body,
             verify_ssl: false
           )
-          # else
-          #   headers ||= {
-          #     content_type: content_type,
-          #     authorization: "Bearer #{token}"
-          #   }
-          #   response = rest_client.execute(
-          #     method: http_method,
-          #     url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
-          #     headers: headers,
-          #     payload: http_body.to_json,
-          #     verify_ssl: false
-          #   )
-          # end
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
