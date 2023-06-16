@@ -1,0 +1,66 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'optparse'
+require 'pwn'
+require 'yaml'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-cCONFIG', '--config=CONFG', '<Required - Black Duck Binary Analysis YAML config>') do |c|
+    opts[:config] = c
+  end
+
+  options.on('-CGROUP', '--create=GROUP', '<Required - Black Duck Binary Analysis Group/Sub-Group to Create>') do |g|
+    opts[:group_name] = g
+  end
+
+  options.on('-pNAME', '--parent-group=NAME', '<Optional - Black Duck Binary Analysis Parent Group Name to Associate with Group>') do |p|
+    opts[:parent_group_name] = p
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  pwn_provider = 'ruby-gem'
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
+
+  config = opts[:config]
+  raise "ERROR: BDBA YAML Config File Not Found: #{config}" unless File.exist?(config)
+
+  yaml_config = YAML.load_file(config, symbolize_names: true)
+
+  token = yaml_config[:token]
+  raise "ERROR: BDBA Token Not Found: #{token}" if token.nil?
+
+  group_name = opts[:group_name]
+  raise "ERROR: BDBA Group Name Not Provided: #{group_name}" if group_name.nil?
+
+  parent_group_name = opts[:parent_group_name]
+
+  if parent_group_name
+    groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
+      token: token
+    )
+
+    parent_id = groups_resp[:data].find { |g| g[:name] == parent_group_name }[:id]
+  end
+
+  PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
+    token: token,
+    name: group_name,
+    parent: parent_id
+  )
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+rescue StandardError => e
+  raise e
+end

@@ -1,0 +1,105 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'optparse'
+require 'pwn'
+require 'yaml'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-cCONFIG', '--config=CONFG', '<Required - Black Duck Binary Analysis YAML config>') do |g|
+    opts[:config] = g
+  end
+
+  options.on('-pNAME', '--parent-group=NAME', '<Required - Black Duck Binary Analysis Parent Group Name to Associate with Binary Scan>') do |p|
+    opts[:parent_group_name] = p
+  end
+
+  options.on('-sFILE', '--scan=FILE', '<Required - File to Scan in Black Duck Binary Analysis>') do |f|
+    opts[:target_file] = f
+  end
+
+  options.on('-rPATH', '--report=PATH', '<Required - Path to Save Black Duck Binary Analysis Scan Report>') do |r|
+    opts[:report_path] = r
+  end
+
+  options.on('-tTYPE', '--report-type=TYPE', '<Optional - Black Duck Binary Analysis Scan Report Type csv_libs|csv_vulns|pdf (Default: csv_vulns)>') do |t|
+    opts[:report_type] = t
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+begin
+  pwn_provider = 'ruby-gem'
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
+
+  config = opts[:config]
+  raise "ERROR: BDBA YAML Config File Not Found: #{config}" unless File.exist?(config)
+
+  yaml_config = YAML.load_file(config, symbolize_names: true)
+
+  token = yaml_config[:token]
+  raise "ERROR: BDBA Token Not Found: #{token}" if token.nil?
+
+  parent_group_name = opts[:parent_group_name]
+  raise "ERROR: BDBA Parent Group Name Not Provided: #{parent_group_name}" if parent_group_name.nil?
+
+  target_file = opts[:target_file]
+  raise "ERROR: BDBA Target File Not Found: #{target_file}" unless File.exist?(target_file)
+
+  report_path = opts[:report_path]
+  raise "ERROR: BDBA Report Path Not Provided: #{report_path}" if report_path.nil?
+
+  report_type_str = opts[:report_type] ||= 'csv_vulns'
+  report_type = report_type_str.to_s.to_sym
+
+  groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
+    token: token
+  )
+
+  parent_id = groups_resp[:data].find { |g| g[:name] == parent_group_name }[:id]
+
+  PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
+    token: token,
+    file: target_file,
+    group_id: parent_id
+  )
+
+  scan_progress_resp = {}
+  loop do
+    scan_progress_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_apps_by_group(
+      token: token,
+      group_id: parent_id
+    )
+
+    30.times do
+      print '.'
+      sleep 1
+    end
+
+    break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' }
+  end
+
+  product_id = scan_progress_resp[:products].find { |p| p[:name] == File.basename(target_file) }[:product_id]
+
+  scan_report_resp = PWN::Plugins::BlackDuckBinaryAnalysis.generate_product_report(
+    token: token,
+    product_id: product_id,
+    type: report_type,
+    output_path: report_path
+  )
+
+  puts "Report Saved to: #{report_path}"
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+rescue StandardError => e
+  raise e
+end
