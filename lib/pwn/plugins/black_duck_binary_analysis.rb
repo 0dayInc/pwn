@@ -213,6 +213,41 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.generate_product_report(
+      #   token: 'required - Bearer token',
+      #   product_id: 'required - product id',
+      #   output_path: 'required - path to output file',
+      #   type: 'optional - report type csv_libs||csv_vulns|pdf (Defaults to csv_vulns)'
+      # )
+
+      public_class_method def self.generate_product_report(opts = {})
+        token = opts[:token]
+        product_id = opts[:product_id]
+        output_path = opts[:output_path]
+        type = opts[:type] ||= :csv_vulns
+
+        case type.to_s.downcase.to_sym
+        when :csv_libs
+          rest_call = "product/#{product_id}/csv-libs"
+        when :csv_vulns
+          rest_call = "product/#{product_id}/csv-vulns"
+        when :pdf
+          rest_call = "product/#{product_id}/pdf-report"
+        else
+          raise "ERROR: Invalid report type #{type}"
+        end
+
+        response = bd_bin_analysis_rest_call(
+          token: token,
+          rest_call: rest_call
+        )
+
+        File.write(output_path, response.body)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_tasks(
       #   token: 'required - Bearer token'
       # )
@@ -550,6 +585,13 @@ module PWN
           response = #{self}.get_product(
             token: 'required - Bearer token',
             product_id: 'required - product id'
+          )
+
+          response = #{self}.generate_product_report(
+            token: 'required - Bearer token',
+            product_id: 'required - product id',
+            output_path: 'required - path to output file',
+            type: 'optional - report type csv_libs||csv_vulns|pdf (Defaults to csv_vulns)'
           )
 
           response = #{self}.get_tasks(
