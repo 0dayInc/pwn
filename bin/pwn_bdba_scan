@@ -65,7 +65,7 @@ begin
     token: token
   )
 
-  parent_id = groups_resp[:data].find { |g| g[:name] == parent_group_name }[:id]
+  parent_id = groups_resp[:groups].find { |g| g[:name] == parent_group_name }[:id]
 
   PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
     token: token,
