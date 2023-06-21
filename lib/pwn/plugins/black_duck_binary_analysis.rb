@@ -37,7 +37,7 @@ module PWN
           authorization: "Bearer #{token}"
         }
 
-        http_body = opts[:http_body]
+        http_body = opts[:http_body] ||= {}
         base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
