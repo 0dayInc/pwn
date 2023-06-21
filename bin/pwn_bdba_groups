@@ -51,13 +51,13 @@ begin
       token: token
     )
 
-    parent_id = groups_resp[:groups].find { |g| g[:name] == parent_group_name }[:id]
+    group_id = groups_resp[:groups].find { |g| g[:name] == parent_group_name }[:id]
   end
 
   PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
     name: group_name,
-    parent: parent_id
+    parent_id: parent_id
   )
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
