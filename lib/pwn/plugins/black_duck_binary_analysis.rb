@@ -37,7 +37,7 @@ module PWN
           authorization: "Bearer #{token}"
         }
 
-        http_body = opts[:http_body] ||= {}
+        http_body = opts[:http_body]
         base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
@@ -57,25 +57,19 @@ module PWN
           )
 
         when :post, :put
-          if http_body.key?(:multipart)
-            headers[:content_type] = 'multipart/form-data'
-
-            response = rest_client.execute(
-              method: http_method,
-              url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
-              headers: headers,
-              payload: http_body,
-              verify_ssl: false
-            )
-          else
-            response = rest_client.execute(
-              method: http_method,
-              url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
-              headers: headers,
-              payload: http_body.to_json,
-              verify_ssl: false
-            )
+          if http_body.is_a?(Hash)
+            headers[:content_type] = nil if http_body.key?(:multipart)
+            # headers[:content_type] = 'multipart/form-data' if http_body.key?(:multipart)
+            http_body = http_body.to_json unless http_body.key?(:multipart)
           end
+
+          response = rest_client.execute(
+            method: http_method,
+            url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
+            headers: headers,
+            payload: http_body,
+            verify_ssl: false
+          )
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
