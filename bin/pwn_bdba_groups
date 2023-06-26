@@ -56,7 +56,7 @@ begin
       token: token,
       group_id: group_id
     )
-    puts group_resp.to_json unless group_resp.nil?
+    puts groups_resp.to_json unless groups_resp.nil?
     exit 0
   end
 

@@ -14,12 +14,12 @@ module PWN
         c2 = '====='.yellow
         c3 = ':::::'.light_blue
         c4 = '====='.light_green
-        c5 = '+++++'.light_purple
+        c5 = '+++++'.magenta
         c6 = '%%%%%'.red
         c7 = '#####'.blue
         d1 = '+++++'.blue
         d2 = '%%%%%'.black
-        d3 = '+++++'.light_purple
+        d3 = '+++++'.magenta
         d4 = '%%%%%'.black
         d5 = '-----'.light_blue
         d6 = '@@@@@'.black
