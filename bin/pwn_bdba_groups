@@ -51,12 +51,14 @@ begin
       token: token
     )
 
-    group_id = groups_resp[:groups].find { |g| g[:name] == list_group_name }[:id]
-    groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
-      token: token,
-      group_id: group_id
-    )
-    puts groups_resp.to_json unless groups_resp.nil?
+    unless groups_resp.nil?
+      group_id = groups_resp[:groups].find { |g| g[:name] == list_group_name }[:id]
+      group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
+        token: token,
+        group_id: group_id
+      )
+      puts group_details_resp.to_json unless group_details_resp.nil?
+    end
     exit 0
   end
 
