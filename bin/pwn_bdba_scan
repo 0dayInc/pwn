@@ -65,8 +65,11 @@ begin
     token: token
   )
 
-  parent = groups_resp[:groups].select { |g| g[:name] == parent_group_name }
-  parent_id = parent.last[:id] unless parent.empty?
+  parent_arr = groups_resp[:groups].select { |g| g[:name] == parent_group_name }
+  raise "ERROR: BDBA Parent Group Not Found: #{parent_group_name}" if parent_arr.nil?
+
+  sorted_parent_arr = parent_arr.sort_by { |g| g[:id] }
+  parent_id = parent.last[:id]
 
   PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
     token: token,
