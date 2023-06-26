@@ -97,7 +97,7 @@ begin
     output_path: report_path
   )
 
-  puts "Report Saved to: #{report_path}"
+  puts "\nReport Saved to: #{report_path}"
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
