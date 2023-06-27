@@ -69,7 +69,7 @@ begin
   raise "ERROR: BDBA Parent Group Not Found: #{parent_group_name}" if parent_arr.nil?
 
   sorted_parent_arr = parent_arr.sort_by { |g| g[:id] }
-  parent_id = parent.last[:id]
+  parent_id = sorted_parent_arr.last[:id]
 
   PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
     token: token,
