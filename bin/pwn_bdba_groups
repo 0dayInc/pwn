@@ -53,24 +53,25 @@ begin
       token: token
     )
 
-    raise 'No groups found in BDBA.  Use the --create flag to create one.' group_resp.nil?
+    raise 'No groups found in BDBA.  Use the --create flag to create one.' if group_resp.nil?
 
-      group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
-      group_arr_sorted = group_arr.sort_by { |g| g[:id] }
-      group = group_arr_sorted.last
+    group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
+    group_arr_sorted = group_arr.sort_by { |g| g[:id] }
+    group = group_arr_sorted.last
 
-      raise "ERROR: BDBA Group ID Not Found for: #{list_group_name}" if group.nil? || group.empty?
+    raise "ERROR: BDBA Group ID Not Found for: #{list_group_name}" if group.nil? || group.empty?
 
-      group_id = group[:id]
+    parent_id = group[:id]
 
-      if list_group_name
-        group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
-          token: token,
-          group_id: group_id
-        )
-        puts group_details_resp.to_json if group_details_resp.is_a?(Hash)
-        exit 0
-      end
+    if list_group_name
+      group_id = parent_id
+      group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
+        token: token,
+        group_id: group_id
+      )
+      puts group_details_resp.to_json if group_details_resp.is_a?(Hash)
+      exit 0
+    end
   end
 
   group_name = opts[:group_name]
@@ -79,7 +80,7 @@ begin
   PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
     name: group_name,
-    parent_id: group_id
+    parent_id: parent_id
   )
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
