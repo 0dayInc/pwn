@@ -53,13 +53,14 @@ begin
       token: token
     )
 
-    raise 'No groups found in BDBA.  Use the --create flag to create one.' if groups_resp.nil?
+    raise 'No groups found in BDBA.  Use the --create flag to create your first group.' if groups_resp.nil?
 
-    group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
+    list_or_parent = list_group_name ||= parent_group_name
+    group_arr = groups_resp[:groups].select { |g| g[:name] == list_or_parent }
     group_arr_sorted = group_arr.sort_by { |g| g[:id] }
     group = group_arr_sorted.last
 
-    raise "ERROR: BDBA Group ID Not Found for: #{list_group_name}" if group.empty?
+    raise "ERROR: BDBA Group Not Found: #{list_or_parent}" if group.nil?
 
     parent_id = group[:id]
 
@@ -69,7 +70,7 @@ begin
         token: token,
         group_id: group_id
       )
-      puts group_details_resp.to_json if group_details_resp.is_a?(Hash)
+      puts group_details_resp.to_json
       exit 0
     end
   end
