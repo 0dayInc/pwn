@@ -53,7 +53,7 @@ begin
       token: token
     )
 
-    raise 'No groups found in BDBA.  Use the --create flag to create one.' if group_resp.nil?
+    raise 'No groups found in BDBA.  Use the --create flag to create one.' if groups_resp.nil?
 
     group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
     group_arr_sorted = group_arr.sort_by { |g| g[:id] }
