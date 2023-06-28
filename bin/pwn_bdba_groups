@@ -60,7 +60,10 @@ begin
     group_arr_sorted = group_arr.sort_by { |g| g[:id] }
     group = group_arr_sorted.last
 
-    raise "ERROR: BDBA Group Not Found: #{list_or_parent}" if group.nil?
+    if group.nil?
+      puts 'BDBA Group Not Found.'
+      exit 1
+    end
 
     parent_id = group[:id]
 
