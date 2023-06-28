@@ -46,43 +46,37 @@ begin
   raise "ERROR: BDBA Token Not Found: #{token}" if token.nil?
 
   list_group_name = opts[:list_group_name]
-  if list_group_name
+  parent_group_name = opts[:parent_group_name]
+
+  if list_group_name || parent_group_name
     groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
       token: token
     )
 
-    group = groups_resp[:groups].find { |g| g[:name] == list_group_name }
+    group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
 
-    unless group.nil?
-      group_id = group[:id]
+    unless group_arr.nil?
+      group_arr_sorted = group_arr.sort_by { |g| g[:id] }
+      group_id = group_arr_sorted.last[:id]
 
-      group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
-        token: token,
-        group_id: group_id
-      )
-      puts group_details_resp.to_json if group_details_resp[:group].find { |g| g[:name] == list_group_name }
+      if list_group_name
+        group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
+          token: token,
+          group_id: group_id
+        )
+        puts group_details_resp.to_json if group_details_resp.is_a?(Hash)
+        exit 0
+      end
     end
-
-    exit 0
   end
 
   group_name = opts[:group_name]
   raise "ERROR: BDBA Group Name Not Provided: #{group_name}" if group_name.nil?
 
-  parent_group_name = opts[:parent_group_name]
-
-  if parent_group_name
-    groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
-      token: token
-    )
-
-    parent_id = groups_resp[:groups].find { |g| g[:name] == parent_group_name }[:id]
-  end
-
   PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
     name: group_name,
-    parent_id: parent_id
+    parent_id: group_id
   )
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
