@@ -55,7 +55,7 @@ begin
 
     group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
 
-    unless group_arr.nil?
+    unless group_arr.empty?
       group_arr_sorted = group_arr.sort_by { |g| g[:id] }
       group_id = group_arr_sorted.last[:id]
 
