@@ -60,7 +60,7 @@ begin
     group_arr_sorted = group_arr.sort_by { |g| g[:id] }
     group = group_arr_sorted.last
 
-    if group.nil?
+    if list_group_name && group.nil?
       puts 'BDBA Group Not Found.'
       exit 1
     end
