@@ -71,7 +71,6 @@ begin
     parent_id = group[:id]
 
     if list_group_name
-      puts list_group_name.inspect
       group_id = parent_id
       group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
         token: token,
