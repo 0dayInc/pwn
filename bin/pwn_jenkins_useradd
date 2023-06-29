@@ -10,7 +10,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-sIP', '--jenkins_ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:jenkins_ip] = s }
+  options.on('-sIP', '--ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:ip] = s }
 
   options.on('-dPORT', '--dest-port=PORT', '<Optional - Jenkins Server Port (Defaults to 8080)>') do |port|
     opts[:port] = port
@@ -46,7 +46,7 @@ if opts.empty?
   exit 1
 end
 
-jenkins_ip = opts[:jenkins_ip].to_s.scrub
+ip = opts[:ip].to_s.scrub
 port = opts[:port].to_i
 
 admin_username = opts[:admin_username]
@@ -59,14 +59,14 @@ new_email = opts[:new_email]
 
 if port.positive?
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     port: port,
     username: admin_username,
     password: admin_password
   )
 else
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     username: admin_username,
     password: admin_password
   )
