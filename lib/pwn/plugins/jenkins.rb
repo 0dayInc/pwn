@@ -75,7 +75,7 @@ module PWN
             server_ip: ip,
             server_port: port,
             username: username,
-            api_key: api_key,
+            password: api_key,
             follow_redirects: true,
             ssl: ssl_bool,
             proxy_protocol: proxy_protocol,

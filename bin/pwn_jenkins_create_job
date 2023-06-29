@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:username] = user
   end
 
-  options.on('-PPASS', '--api-key=PASS', '<Optional - Jenkins API Key (Will Prompt if Flag Undetected)>') do |pass|
-    opts[:api_key] = pass
+  options.on('-PKEY', '--api-key=KEY', '<Optional - Jenkins API Key (Will Prompt if Flag Undetected)>') do |api_key|
+    opts[:api_key] = api_key
   end
 
   options.on('-jNAME', '--job-name=NAME', '<Required - Name of Job to Create>') do |job|
