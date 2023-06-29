@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:username] = user
   end
 
-  options.on('-PPASS', '--password=PASS', '<Optional - Jenkins Password (Will Prompt if Flag Undetected)>') do |pass|
-    opts[:password] = pass
+  options.on('-PPASS', '--api-key=PASS', '<Optional - Jenkins API Key (Will Prompt if Flag Undetected)>') do |pass|
+    opts[:api_key] = pass
   end
 
   options.on('-jNAME', '--job-name=NAME', '<Required - Name of Job to Create>') do |job|
@@ -41,7 +41,7 @@ end
 ip = opts[:ip].to_s.scrub
 port = opts[:port].to_i
 username = opts[:username]
-password = opts[:password]
+api_key = opts[:api_key]
 job_name = opts[:job_name].to_s.scrub
 config_xml = File.read(opts[:config_xml]) if File.exist?(opts[:config_xml])
 
@@ -50,13 +50,13 @@ if port.positive?
     ip: ip,
     port: port,
     username: username,
-    password: password
+    api_key: api_key
   )
 else
   jenkins_obj = PWN::Plugins::Jenkins.connect(
     ip: ip,
     username: username,
-    password: password
+    api_key: api_key
   )
 end
 

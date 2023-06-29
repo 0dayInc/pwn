@@ -43,10 +43,10 @@ puts `
 
 # TODO: Create Jenkins SSH Credentials for all hosts referenced in vagrant.yaml (User-Land Config)
 jenkins_obj = PWN::Plugins::Jenkins.connect(
-  jenkins_ip: '127.0.0.1',
+  ip: '127.0.0.1',
   port: 8888,
   username: userland_user,
-  password: userland_pass
+  api_key: userland_pass
 )
 
 if jenkins_userland_config.include?('jenkins_job_credentials') &&

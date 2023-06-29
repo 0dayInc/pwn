@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:username] = user
   end
 
-  options.on('-PPASS', '--password=PASS', '<Required - Jenkins Password>') do |pass|
-    opts[:password] = pass
+  options.on('-PKEY', '--api-key=KEY', '<Required - Jenkins API Key>') do |api_key|
+    opts[:api_key] = api_key
   end
 
   options.on('-vVIEW', '--view-name=VIEW', '<Required - View Name to Create>') do |view_name|
@@ -41,7 +41,7 @@ end
 ip = opts[:ip].to_s.scrub
 port = opts[:port].to_i
 username = opts[:username]
-password = opts[:password]
+api_key = opts[:api_key]
 view_name = opts[:view_name].to_s.chomp.strip.scrub
 regex_filter = opts[:regex_filter].to_s.chomp.strip.scrub
 
@@ -50,13 +50,13 @@ if port.positive?
     ip: ip,
     port: port,
     username: username,
-    password: password
+    api_key: api_key
   )
 else
   jenkins_obj = PWN::Plugins::Jenkins.connect(
     ip: ip,
     username: username,
-    password: password
+    api_key: api_key
   )
 end
 
