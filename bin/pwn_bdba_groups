@@ -45,9 +45,6 @@ begin
   token = yaml_config[:token]
   raise "ERROR: BDBA Token Not Found: #{token}" if token.nil?
 
-  group_name = opts[:group_name]
-  raise "ERROR: BDBA Group Name Not Provided: #{group_name}" if group_name.nil?
-
   list_group_name = opts[:list_group_name]
   parent_group_name = opts[:parent_group_name]
   parent_id = nil
@@ -59,7 +56,9 @@ begin
 
     raise 'No groups found in BDBA.  Use the --create flag to create your first group.' if groups_resp.nil?
 
-    list_or_parent = list_group_name ||= parent_group_name
+    list_or_parent = list_group_name unless list_group_name.nil?
+    list_or_parent = parent_group_name unless parent_group_name.nil?
+
     group_arr = groups_resp[:groups].select { |g| g[:name] == list_or_parent }
     group_arr_sorted = group_arr.sort_by { |g| g[:id] }
     group = group_arr_sorted.last
@@ -82,6 +81,9 @@ begin
       exit 0
     end
   end
+
+  group_name = opts[:group_name]
+  raise "ERROR: BDBA Group Name Not Provided: #{group_name}" if group_name.nil?
 
   PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
