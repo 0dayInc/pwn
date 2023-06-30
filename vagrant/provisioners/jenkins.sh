@@ -76,7 +76,7 @@ pwn_jenkins_create_view --ip 127.0.0.1 \
   -d 8888 \
   -U admin \
   --api-key $initial_admin_pwd \
-  -v 'Pipeline' \
+  -v 'Pipelines' \
   -r '^pipeline-.+$'
 
 pwn_jenkins_create_view --ip 127.0.0.1 \
