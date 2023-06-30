@@ -32,7 +32,7 @@ OptionParser.new do |options|
     opts[:list_available_bool] = list_available_bool
   end
 
-  options.on('-R', '--[no-]restart-jenkins', '<Restart Jenkins - Defaults to true>') do |restart_bool|
+  options.on('-R', '--restart-jenkins', '<Do not Install Plugins - Just Restart Jenkins - Defaults to false>') do |restart_bool|
     opts[:restart_jenkins] = restart_bool
   end
 end.parse!
@@ -53,7 +53,12 @@ list_available_bool = if opts[:list_available_bool]
                         false
                       end
 
-restart_jenkins = opts[:restart_jenkins].nil?
+restart_jenkins = true if opts[:restart_jenkins] ||= false
+if restart_jenkins
+  puts 'Restarting Jenkins...'
+  jenkins_obj.system.restart
+  exit 0
+end
 
 if port.positive?
   jenkins_obj = PWN::Plugins::Jenkins.connect(
@@ -85,7 +90,6 @@ else
   # JenkinsApi::Exceptions::Forbidden: Access Denied...
   # Crumb expired...
   jenkins_obj.plugin.install(plugin_arr)
-  jenkins_obj.system.restart if restart_jenkins
 end
 
 PWN::Plugins::Jenkins.disconnect(jenkins_obj: jenkins_obj)
