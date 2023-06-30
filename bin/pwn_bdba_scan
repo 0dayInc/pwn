@@ -71,6 +71,7 @@ begin
   sorted_parent_arr = parent_arr.sort_by { |g| g[:id] }
   parent_id = sorted_parent_arr.last[:id]
 
+  puts "Uploading/Scanning: #{target_file}"
   PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
     token: token,
     file: target_file,
