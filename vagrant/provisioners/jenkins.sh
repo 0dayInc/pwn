@@ -26,17 +26,17 @@ new_pass=`ruby -e "require 'yaml'; print YAML.load_file('${jenkins_vagrant_yaml}
 new_fullname=`ruby -e "require 'yaml'; print YAML.load_file('${jenkins_vagrant_yaml}')['fullname']"`
 new_email=`ruby -e "require 'yaml'; print YAML.load_file('${jenkins_vagrant_yaml}')['email']"`
 
-pwn_jenkins_useradd -s 127.0.0.1 -d 8888 -u $new_user -p $new_pass -U admin -P $initial_admin_pwd -e $new_email
+pwn_jenkins_useradd -s 127.0.0.1 -d 8888 -u $new_user -p $new_pass -U admin --api-key $initial_admin_pwd -e $new_email
 
 # Begin Creating Self-Update Jobs in Jenkins and Template-Based Jobs to Describe how to Intgrate PWN into Jenkins
 printf "Creating Self-Update and PWN-Template Jobs ********************************************"
 ls $jenkins_userland_root/jobs/*.xml | while read jenkins_xml_config; do
   file_name=`basename $jenkins_xml_config`
   job_name=${file_name%.*}
-  pwn_jenkins_create_job --jenkins_ip 127.0.0.1 \
+  pwn_jenkins_create_job --ip 127.0.0.1 \
     -d 8888 \
     -U admin \
-    -P $initial_admin_pwd \
+    --api-key $initial_admin_pwd \
     -j $job_name \
     -c $jenkins_xml_config
 done
@@ -48,40 +48,40 @@ if [[ $? == 0 ]]; then
   ls $jenkins_userland_root/jobs_userland/*.xml | while read jenkins_xml_config; do
     file_name=`basename $jenkins_xml_config`
     job_name=${file_name%.*}
-    pwn_jenkins_create_job --jenkins_ip 127.0.0.1 \
+    pwn_jenkins_create_job --ip 127.0.0.1 \
       -d 8888 \
       -U admin \
-      -P $initial_admin_pwd \
+      --api-key $initial_admin_pwd \
       -j $job_name \
       -c $jenkins_xml_config
   done
 fi
 
 printf "Creating Jenkins Views ****************************************************************"
-pwn_jenkins_create_view --jenkins_ip 127.0.0.1 \
+pwn_jenkins_create_view --ip 127.0.0.1 \
   -d 8888 \
   -U admin \
-  -P $initial_admin_pwd \
+  --api-key $initial_admin_pwd \
   -v 'PWN-Templates' \
   -r '^pwntemplate-.+$'
 
-pwn_jenkins_create_view --jenkins_ip 127.0.0.1 \
+pwn_jenkins_create_view --ip 127.0.0.1 \
   -d 8888 \
   -U admin \
-  -P $initial_admin_pwd \
+  --api-key $initial_admin_pwd \
   -v 'Self-Update' \
   -r '^selfupdate-.+$'
 
-pwn_jenkins_create_view --jenkins_ip 127.0.0.1 \
+pwn_jenkins_create_view --ip 127.0.0.1 \
   -d 8888 \
   -U admin \
-  -P $initial_admin_pwd \
+  --api-key $initial_admin_pwd \
   -v 'Pipeline' \
   -r '^pipeline-.+$'
 
-pwn_jenkins_create_view --jenkins_ip 127.0.0.1 \
+pwn_jenkins_create_view --ip 127.0.0.1 \
   -d 8888 \
   -U admin \
-  -P $initial_admin_pwd \
+  --api-key $initial_admin_pwd \
   -v 'User-Land' \
   -r '^userland-.+$'

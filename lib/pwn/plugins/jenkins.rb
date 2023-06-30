@@ -12,25 +12,25 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::Jenkins.connect(
-      #   jenkins_ip: 'required host/ip of Jenkins Server',
+      #   ip: 'required host/ip of Jenkins Server',
       #   port: 'optional tcp port (defaults to 8080),
       #   username: 'optional username (functionality will be limited if ommitted)',
-      #   password: 'optional password (functionality will be limited if ommitted)'
-      #   identity_file: 'optional ssh private key path to AuthN w/ Jenkins PREFERRED over username/password',
+      #   api_key: 'optional api_key (functionality will be limited if ommitted)'
+      #   identity_file: 'optional ssh private key path to AuthN w/ Jenkins PREFERRED over username/api_key',
       #   ssl: 'optional connect over TLS (defaults to true),
       #   proxy: 'optional debug proxy rest api requests to jenkins (e.g. "http://127.0.0.1:8080")''
       # )
 
       public_class_method def self.connect(opts = {})
-        jenkins_ip = opts[:jenkins_ip]
+        ip = opts[:ip]
         port = if opts[:port]
                  opts[:port].to_i
                else
                  8080
                end
         username = opts[:username].to_s.scrub
-        base_jenkins_api_uri = "https://#{jenkins_ip}/ase/services".to_s.scrub
-        password = opts[:password].to_s.scrub
+        base_jenkins_api_uri = "https://#{ip}/ase/services".to_s.scrub
+        api_key = opts[:api_key].to_s.scrub
         identity_file = opts[:identity_file].to_s.scrub
         ssl_bool = if opts[:ssl] == true
                      opts[:ssl]
@@ -45,11 +45,11 @@ module PWN
           proxy_port = proxy.port
         end
 
-        @@logger.info("Logging into Jenkins Server: #{jenkins_ip}")
-        if username == '' && password == ''
+        @@logger.info("Logging into Jenkins Server: #{ip}")
+        if username == '' && api_key == ''
           if identity_file == ''
             jenkins_obj = JenkinsApi::Client.new(
-              server_ip: jenkins_ip,
+              server_ip: ip,
               server_port: port,
               follow_redirects: true,
               ssl: ssl_bool,
@@ -59,7 +59,7 @@ module PWN
             )
           else
             jenkins_obj = JenkinsApi::Client.new(
-              server_ip: jenkins_ip,
+              server_ip: ip,
               server_port: port,
               identity_file: identity_file,
               follow_redirects: true,
@@ -70,12 +70,12 @@ module PWN
             )
           end
         else
-          password = PWN::Plugins::AuthenticationHelper.mask_password if password == ''
+          api_key = PWN::Plugins::AuthenticationHelper.mask_password if api_key == ''
           jenkins_obj = JenkinsApi::Client.new(
-            server_ip: jenkins_ip,
+            server_ip: ip,
             server_port: port,
             username: username,
-            password: password,
+            password: api_key,
             follow_redirects: true,
             ssl: ssl_bool,
             proxy_protocol: proxy_protocol,
@@ -452,11 +452,11 @@ module PWN
       public_class_method def self.help
         puts %{USAGE:
           jenkins_obj = #{self}.connect(
-            jenkins_ip: 'required host/ip of Jenkins Server',
+            ip: 'required host/ip of Jenkins Server',
             port: 'optional tcp port (defaults to 8080),
             username: 'optional username (functionality will be limited if ommitted)',
-            password: 'optional password (functionality will be limited if ommitted)',
-            identity_file: 'optional ssh private key path to AuthN w/ Jenkins PREFERRED over username/password',
+            api_key: 'optional api_key (functionality will be limited if ommitted)',
+            identity_file: 'optional ssh private key path to AuthN w/ Jenkins PREFERRED over username/api_key',
             ssl: 'optional connect over TLS (defaults to true),
             proxy: 'optional debug proxy rest api requests to jenkins (e.g. "http://127.0.0.1:8080")''
           )

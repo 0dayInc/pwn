@@ -20,7 +20,12 @@ rvm use ruby-$ruby_version@pwn
 
 printf "Installing Jenkins ********************************************************************"
 domain_name=`hostname -d`
-wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo apt-key add -
+curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2023.key | sudo tee \
+    /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+    https://pkg.jenkins.io/debian binary/ | sudo tee \
+    /etc/apt/sources.list.d/jenkins.list > /dev/null
 
 # Get back to a Java version Jenkins supports
 sudo ln -sf /usr/lib/jvm/java-11-openjdk-amd64/bin/java /etc/alternatives/java
@@ -51,12 +56,12 @@ echo "JENKINS Initial Admin: ${initial_admin_pwd}"
 
 # TODO: Get this working
 # printf "Updating Pre-Installed Jenkins Plugins ************************************************"
-# pwn_jenkins_update_plugins --jenkins_ip 127.0.0.1 -U admin -P $initial_admin_pwd --no-restart-jenkins
+# pwn_jenkins_update_plugins --ip 127.0.0.1 -U admin --api-key $initial_admin_pwd --no-restart-jenkins
 
 printf "Installing Necessary Jenkins Plugins **************************************************"
-pwn_jenkins_install_plugin --jenkins_ip 127.0.0.1 \
+pwn_jenkins_install_plugin --ip 127.0.0.1 \
   -d 8888 \
   -U admin \
-  -P $initial_admin_pwd \
+  --api-key $initial_admin_pwd \
   --no-restart-jenkins \
   -p "ace-editor, analysis-core, ansicolor, ant, antisamy-markup-formatter, apache-httpcomponents-client-4-api, bouncycastle-api, build-pipeline-plugin, bulk-builder, command-launcher, conditional-buildstep, credentials, dashboard-view, dependency-check-jenkins-plugin, dependency-track, display-url-api, external-monitor-job, git, git-client, handlebars, htmlpublisher, jackson2-api, javadoc, jdk-tool, jquery, jquery-detached, jquery-ui, jsch, junit, ldap, log-parser, mailer, matrix-auth, matrix-project, maven-plugin, momentjs, nested-view, pam-auth, parameterized-trigger, pipeline-build-step, pipeline-graph-analysis, pipeline-input-step, pipeline-rest-api, pipeline-stage-step, pipeline-stage-view, plain-credentials, purge-build-queue-plugin, role-strategy, run-condition, scm-api, script-security, slack, ssh-agent, ssh-credentials, ssh-slaves, structs, token-macro, windows-slaves, workflow-api, workflow-cps, workflow-job, workflow-scm-step, workflow-step-api, workflow-support"

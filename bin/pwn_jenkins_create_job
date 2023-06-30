@@ -10,7 +10,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-sIP', '--jenkins_ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:jenkins_ip] = s }
+  options.on('-sIP', '--ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:ip] = s }
 
   options.on('-dPORT', '--dest-port=PORT', '<Optional - Jenkins Server Port (Defaults to 8080)>') do |port|
     opts[:port] = port
@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:username] = user
   end
 
-  options.on('-PPASS', '--password=PASS', '<Optional - Jenkins Password (Will Prompt if Flag Undetected)>') do |pass|
-    opts[:password] = pass
+  options.on('-PKEY', '--api-key=KEY', '<Optional - Jenkins API Key (Will Prompt if Flag Undetected)>') do |api_key|
+    opts[:api_key] = api_key
   end
 
   options.on('-jNAME', '--job-name=NAME', '<Required - Name of Job to Create>') do |job|
@@ -38,25 +38,25 @@ if opts.empty?
   exit 1
 end
 
-jenkins_ip = opts[:jenkins_ip].to_s.scrub
+ip = opts[:ip].to_s.scrub
 port = opts[:port].to_i
 username = opts[:username]
-password = opts[:password]
+api_key = opts[:api_key]
 job_name = opts[:job_name].to_s.scrub
 config_xml = File.read(opts[:config_xml]) if File.exist?(opts[:config_xml])
 
 if port.positive?
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     port: port,
     username: username,
-    password: password
+    api_key: api_key
   )
 else
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     username: username,
-    password: password
+    api_key: api_key
   )
 end
 

@@ -10,7 +10,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-sIP', '--jenkins_ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:jenkins_ip] = s }
+  options.on('-sIP', '--ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:ip] = s }
 
   options.on('-dPORT', '--dest-port=PORT', '<Optional - Jenkins Server Port (Defaults to 8080)>') do |port|
     opts[:port] = port
@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:username] = user
   end
 
-  options.on('-PPASS', '--password=PASS', '<Required - Jenkins Password>') do |pass|
-    opts[:password] = pass
+  options.on('-PKEY', '--api-key=KEY', '<Required - Jenkins API Key>') do |api_key|
+    opts[:api_key] = api_key
   end
 
   options.on('-vVIEW', '--view-name=VIEW', '<Required - View Name to Create>') do |view_name|
@@ -38,25 +38,25 @@ if opts.empty?
   exit 1
 end
 
-jenkins_ip = opts[:jenkins_ip].to_s.scrub
+ip = opts[:ip].to_s.scrub
 port = opts[:port].to_i
 username = opts[:username]
-password = opts[:password]
+api_key = opts[:api_key]
 view_name = opts[:view_name].to_s.chomp.strip.scrub
 regex_filter = opts[:regex_filter].to_s.chomp.strip.scrub
 
 if port.positive?
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     port: port,
     username: username,
-    password: password
+    api_key: api_key
   )
 else
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     username: username,
-    password: password
+    api_key: api_key
   )
 end
 

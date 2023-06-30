@@ -10,7 +10,7 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-sIP', '--jenkins_ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:jenkins_ip] = s }
+  options.on('-sIP', '--ip=IP', '<Required - Jenkins Server IP>') { |s| opts[:ip] = s }
 
   options.on('-dPORT', '--dest-port=PORT', '<Optional - Jenkins Server Port (Defaults to 8080)>') do |port|
     opts[:port] = port
@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:admin_username] = auser
   end
 
-  options.on('-PAPASS', '--admin-password=APASS', '<Required - Jenkins Admin Password>') do |apass|
-    opts[:admin_password] = apass
+  options.on('-PKEY', '--admin-password=KEY', '<Required - Jenkins Admin API Key>') do |akey|
+    opts[:admin_api_key] = akey
   end
 
   options.on('-uNUSER', '--new-username=NUSER', '<Required - Jenkins Username to Create>') do |nuser|
@@ -46,11 +46,11 @@ if opts.empty?
   exit 1
 end
 
-jenkins_ip = opts[:jenkins_ip].to_s.scrub
+ip = opts[:ip].to_s.scrub
 port = opts[:port].to_i
 
 admin_username = opts[:admin_username]
-admin_password = opts[:admin_password]
+admin_api_key = opts[:admin_api_key]
 
 new_username = opts[:new_username]
 new_password = opts[:new_password]
@@ -59,16 +59,16 @@ new_email = opts[:new_email]
 
 if port.positive?
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     port: port,
     username: admin_username,
-    password: admin_password
+    api_key: admin_api_key
   )
 else
   jenkins_obj = PWN::Plugins::Jenkins.connect(
-    jenkins_ip: jenkins_ip,
+    ip: ip,
     username: admin_username,
-    password: admin_password
+    api_key: admin_api_key
   )
 end
 

@@ -11,14 +11,14 @@ gemspec
 # In some circumstances custom flags are passed to gems in order
 # to build appropriately.  Defer to ./reinstall_pwn_gemset.sh
 # to review these custom flags (e.g. pg, serialport, etc).
-gem 'activesupport', '7.0.5.1'
+gem 'activesupport', '7.0.6'
 gem 'anemone', '0.7.2'
 gem 'authy', '3.0.1'
 gem 'aws-sdk', '3.1.0'
 # gem 'bettercap', '1.6.2'
 gem 'brakeman', '6.0.0'
 gem 'bson', '4.15.0'
-gem 'bundler', '>=2.4.14'
+gem 'bundler', '>=2.4.15'
 gem 'bundler-audit', '0.9.1'
 gem 'bunny', '2.22.0'
 gem 'colorize', '1.1.0'
