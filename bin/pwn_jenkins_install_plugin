@@ -28,7 +28,7 @@ OptionParser.new do |options|
     opts[:plugins] = plugins
   end
 
-  options.on('-L', '--[no-]list-available', '<Optional - List Available Jenkins Plugins for Installation>') do |list_available_bool|
+  options.on('-L', '--list-available', '<Optional - List Available Jenkins Plugins for Installation>') do |list_available_bool|
     opts[:list_available_bool] = list_available_bool
   end
 
@@ -42,54 +42,52 @@ if opts.empty?
   exit 1
 end
 
-ip = opts[:ip].to_s.scrub
-port = opts[:port].to_i
-username = opts[:username]
-api_key = opts[:api_key]
-plugins = opts[:plugins].to_s.scrub
-list_available_bool = if opts[:list_available_bool]
-                        true
-                      else
-                        false
-                      end
+begin
+  ip = opts[:ip].to_s.scrub
+  port = opts[:port].to_i
+  username = opts[:username]
+  api_key = opts[:api_key]
+  plugins = opts[:plugins].to_s.scrub
+  list_available_bool = true if opts[:list_available_bool] ||= false
+  restart_jenkins = true if opts[:restart_jenkins] ||= false
 
-restart_jenkins = true if opts[:restart_jenkins] ||= false
-if restart_jenkins
-  puts 'Restarting Jenkins...'
-  jenkins_obj.system.restart
-  exit 0
-end
-
-if port.positive?
-  jenkins_obj = PWN::Plugins::Jenkins.connect(
-    ip: ip,
-    port: port,
-    username: username,
-    api_key: api_key
-  )
-else
-  jenkins_obj = PWN::Plugins::Jenkins.connect(
-    ip: ip,
-    username: username,
-    api_key: api_key
-  )
-end
-
-if list_available_bool
-  puts jenkins_obj.plugin.list_available
-else
-  plugin_arr = []
-  plugins.split(',').each do |p|
-    plugin_arr.push(p.strip.chomp)
+  if port.positive?
+    jenkins_obj = PWN::Plugins::Jenkins.connect(
+      ip: ip,
+      port: port,
+      username: username,
+      api_key: api_key
+    )
+  else
+    jenkins_obj = PWN::Plugins::Jenkins.connect(
+      ip: ip,
+      username: username,
+      api_key: api_key
+    )
   end
 
-  # In Reference to https://github.com/arangamani/jenkins_api_client/issues/287
-  # Bug in RubyGem jenkins_api_client 1.5.3 when interacting w/ Jenkins > 2.190
-  # i.e.
-  # Crumbs turned on...
-  # JenkinsApi::Exceptions::Forbidden: Access Denied...
-  # Crumb expired...
-  jenkins_obj.plugin.install(plugin_arr)
-end
+  if restart_jenkins
+    puts 'Restarting Jenkins...'
+    jenkins_obj.system.restart
+    exit 0
+  end
 
-PWN::Plugins::Jenkins.disconnect(jenkins_obj: jenkins_obj)
+  if list_available_bool
+    puts jenkins_obj.plugin.list_available
+  else
+    plugin_arr = []
+    plugins.split(',').each do |p|
+      plugin_arr.push(p.strip.chomp)
+    end
+
+    jenkins_obj.plugin.install(plugin_arr)
+  end
+rescue Interrupt
+  puts "\nGoodbye."
+rescue JenkinsApi::Exceptions::ServiceUnavailable
+  puts 'Jenkins Server Unavailable.' unless restart_jenkins
+rescue StandardError => e
+  raise e
+ensure
+  PWN::Plugins::Jenkins.disconnect(jenkins_obj: jenkins_obj) unless restart_jenkins
+end
