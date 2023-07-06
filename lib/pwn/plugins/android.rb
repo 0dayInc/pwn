@@ -175,7 +175,8 @@ module PWN
                   end
 
         `#{adb_path} root` if as_root
-        app_resp = `#{adb_path} shell pm list packages`
+        app_resp = `#{adb_path} shell pm list packages` if as_root
+        app_resp = `#{adb_path} shell pm list packages --user 0` unless as_root
         app_resp.gsub("\npackage:", "\n").split("\n")
       rescue StandardError => e
         raise e
