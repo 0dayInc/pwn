@@ -48,7 +48,7 @@ module PWN
         when :delete, :get
           headers[:params] = params
           response = rest_client.execute(
-            method: http2_method,
+            method: http_method,
             url: "#{base_open_ai_api_uri}/#{rest_call}",
             headers: headers,
             verify_ssl: false
@@ -124,7 +124,7 @@ module PWN
         request = opts[:request]
 
         model = opts[:model]
-        model ||= 'gpt-3.5-turbo-0613'
+        model ||= 'gpt-4'
 
         temp = opts[:temp].to_f
         temp = 0 unless temp.positive?
