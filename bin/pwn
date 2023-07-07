@@ -245,6 +245,7 @@ begin
       yaml_config_path = opts[:yaml_config_path]
       yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
       pi.config.chat_gpt_token = yaml_config[:bearer_token]
+      Pry.config.chat_gpt_token = pi.config.chat_gpt_token
     end
   end
 
