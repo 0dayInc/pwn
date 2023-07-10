@@ -176,7 +176,7 @@ module PWN
         response = bd_bin_analysis_rest_call(
           http_method: :put,
           token: token,
-          rest_call: "upload/#{file_name}",
+          rest_call: "upload/#{CGI.esccape(file_name)}",
           http_headers: http_headers,
           http_body: http_body
         )
