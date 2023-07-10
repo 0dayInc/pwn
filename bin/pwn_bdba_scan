@@ -27,6 +27,10 @@ OptionParser.new do |options|
     opts[:report_path] = r
   end
 
+  options.on('-R', '--report-only', '<Optional - Only Generate a Black Duck Binary Analysis Scan Report for an Existing Scan (Default: false)>') do |o|
+    opts[:report_only] = o
+  end
+
   options.on('-tTYPE', '--report-type=TYPE', '<Optional - Black Duck Binary Analysis Scan Report Type csv_libs|csv_vulns|pdf (Default: csv_vulns)>') do |t|
     opts[:report_type] = t
   end
@@ -58,6 +62,8 @@ begin
   report_path = opts[:report_path]
   raise "ERROR: BDBA Report Path Not Provided: #{report_path}" if report_path.nil?
 
+  report_only = opts[:report_only] ||= false
+
   report_type_str = opts[:report_type] ||= 'csv_vulns'
   report_type = report_type_str.to_s.to_sym
 
@@ -71,12 +77,14 @@ begin
   sorted_parent_arr = parent_arr.sort_by { |g| g[:id] }
   parent_id = sorted_parent_arr.last[:id]
 
-  puts "Uploading/Scanning: #{target_file}"
-  PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
-    token: token,
-    file: target_file,
-    group_id: parent_id
-  )
+  unless report_only
+    puts "Uploading/Scanning: #{target_file}"
+    PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
+      token: token,
+      file: target_file,
+      group_id: parent_id
+    )
+  end
 
   scan_progress_resp = {}
   loop do
