@@ -13,14 +13,6 @@ if (( $# == 3 )); then
   echo 'Updating Gems to Latest Versions in Gemfile...'
   ./find_latest_gem_versions_per_Gemfile.sh
   pwn_autoinc_version
-  git commit -a -S --author="${1} <${2}>" -m "${3}"
-  ./update_pwn.sh
-
-  latest_gem=$(ls pkg/*.gem)
-  if [[ $latest_gem != "" ]]; then
-    echo "Pushing ${latest_gem} to RubyGems.org..."
-    rvmsudo gem push $latest_gem --debug
-  fi
 
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
   tag_this_version_bool=`ruby -r 'pwn' -e 'if PWN::VERSION.split(".")[-1].to_i % 100 == 0; then print true; else print false; end'`
@@ -31,6 +23,15 @@ if (( $# == 3 )); then
     last_tag=$(git tag | tail -n 2 | head -n 1)
     this_tag=$(git tag | tail -n 1)
     git log $last_tag...$this_tag --oneline > CHANGELOG_BETWEEN_TAGS.txt
+  fi
+
+  git commit -a -S --author="${1} <${2}>" -m "${3}"
+  ./update_pwn.sh
+
+  latest_gem=$(ls pkg/*.gem)
+  if [[ $latest_gem != "" ]]; then
+    echo "Pushing ${latest_gem} to RubyGems.org..."
+    rvmsudo gem push $latest_gem --debug
   fi
 else
   usage
