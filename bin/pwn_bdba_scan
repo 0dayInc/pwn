@@ -94,12 +94,12 @@ begin
       group_id: parent_id
     )
 
-    30.times do
+    break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' }
+
+    10.times do
       print '.'
       sleep 1
     end
-
-    break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' }
   end
 
   product_id = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }[:product_id]
