@@ -94,7 +94,7 @@ begin
       group_id: parent_id
     )
 
-    break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' }
+    break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' } || report_only
 
     10.times do
       print '.'
