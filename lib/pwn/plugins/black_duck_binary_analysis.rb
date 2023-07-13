@@ -54,7 +54,8 @@ module PWN
             method: http_method,
             url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
             headers: headers,
-            verify_ssl: false
+            verify_ssl: false,
+            timeout: 5400
           )
 
         when :post, :put
@@ -69,7 +70,8 @@ module PWN
             url: "#{base_bd_bin_analysis_api_uri}/#{rest_call}",
             headers: headers,
             payload: http_body,
-            verify_ssl: false
+            verify_ssl: false,
+            timeout: 5400
           )
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
