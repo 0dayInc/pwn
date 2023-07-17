@@ -17,12 +17,8 @@ if (( $# == 3 )); then
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
   tag_this_version_bool=`ruby -r 'pwn' -e 'if (PWN::VERSION.split(".")[-1].to_i + 1) % 100 == 0; then print true; else print false; end'`
   if [[ $tag_this_version_bool == 'true' ]]; then
-    this_version=`ruby -r 'pwn' -e 'print PWN::VERSION'`
-    echo "Tagging: ${this_version}"
-    git tag $this_version
-    last_tag=$(git tag | tail -n 2 | head -n 1)
-    this_tag=$(git tag | tail -n 1)
-    git log $last_tag...$this_tag --oneline > CHANGELOG_BETWEEN_TAGS.txt
+    last_tag=$(git tag | tail -n 1)
+    git log $last_tag.. --oneline > CHANGELOG_BETWEEN_TAGS.txt
   fi
 
   git commit -a -S --author="${1} <${2}>" -m "${3}"
@@ -33,8 +29,12 @@ if (( $# == 3 )); then
     echo "Pushing ${latest_gem} to RubyGems.org..."
     rvmsudo gem push $latest_gem --debug
   fi
+
   if [[ $tag_this_version_bool == 'true' ]]; then
-    git push origin ${this_tag}
+    this_version=`ruby -r 'pwn' -e 'print PWN::VERSION'`
+    echo "Tagging: ${this_version}"
+    git tag $this_version
+    git push origin $this_version
   fi
 else
   usage
