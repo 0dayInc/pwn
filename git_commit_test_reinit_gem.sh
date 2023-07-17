@@ -15,7 +15,7 @@ if (( $# == 3 )); then
   pwn_autoinc_version
 
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
-  tag_this_version_bool=`ruby -r 'pwn' -e 'if PWN::VERSION.split(".")[-1].to_i % 100 == 0; then print true; else print false; end'`
+  tag_this_version_bool=`ruby -r 'pwn' -e 'if (PWN::VERSION.split(".")[-1].to_i + 1) % 100 == 0; then print true; else print false; end'`
   if [[ $tag_this_version_bool == 'true' ]]; then
     this_version=`ruby -r 'pwn' -e 'print PWN::VERSION'`
     echo "Tagging: ${this_version}"
@@ -32,6 +32,9 @@ if (( $# == 3 )); then
   if [[ $latest_gem != "" ]]; then
     echo "Pushing ${latest_gem} to RubyGems.org..."
     rvmsudo gem push $latest_gem --debug
+  fi
+  if [[ $tag_this_version_bool == 'true' ]]; then
+    git push origin ${this_tag}
   fi
 else
   usage
