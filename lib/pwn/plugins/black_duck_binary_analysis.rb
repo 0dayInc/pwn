@@ -210,6 +210,27 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan(
+      #   token: 'required - Bearer token',
+      #   product_id: 'required - product id'
+      # )
+
+      public_class_method def self.abort_product_scan(opts = {})
+        token = opts[:token]
+        product_id = opts[:product_id]
+
+        response = bd_bin_analysis_rest_call(
+          http_method: :post,
+          token: token,
+          rest_call: "product/#{product_id}/abort"
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.generate_product_report(
       #   token: 'required - Bearer token',
       #   product_id: 'required - product id',
@@ -580,6 +601,11 @@ module PWN
           )
 
           response = #{self}.get_product(
+            token: 'required - Bearer token',
+            product_id: 'required - product id'
+          )
+
+          response = #{self}.abort_product_scan(
             token: 'required - Bearer token',
             product_id: 'required - product id'
           )
