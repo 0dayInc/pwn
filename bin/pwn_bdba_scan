@@ -88,6 +88,7 @@ begin
   end
 
   scan_progress_resp = {}
+  scan_progress_busy_duration = 0
   loop do
     scan_progress_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_apps_by_group(
       token: token,
@@ -96,10 +97,23 @@ begin
 
     break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' } || report_only
 
+    # Cancel queued scan if it's been queued for more than 90 minutes
+    if scan_progress_busy_duration > 5_400
+      scan_progress_resp[:products].select { |p| p[:status] == 'B' }.each do |p|
+        puts "Abort Queued Scan: #{p[:name]}"
+        PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan(
+          token: token,
+          product_id: p[:product_id]
+        )
+      end
+      raise "ERROR: BDBA Scan Queued for More than 90 Minutes: #{target_file}"
+    end
+
     10.times do
       print '.'
       sleep 1
     end
+    scan_progress_busy_duration += 10
   end
 
   product_id = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }[:product_id]
