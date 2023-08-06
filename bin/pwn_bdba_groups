@@ -62,7 +62,7 @@ begin
 
     group_details_arr = []
     group_arr.each do |group|
-      group_id = group.[:id]
+      group_id = group[:id]
 
       this_group_details = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
         token: token,
