@@ -16,8 +16,8 @@ OptionParser.new do |options|
     opts[:config] = g
   end
 
-  options.on('-pNAME', '--parent-group=NAME', '<Required - Black Duck Binary Analysis Parent Group Name to Associate with Binary Scan>') do |p|
-    opts[:parent_group_name] = p
+  options.on('-pID', '--parent-group-id=ID', '<Required - Black Duck Binary Analysis Parent Group ID to Associate with Binary Scan>') do |p|
+    opts[:parent_group_id] = p
   end
 
   options.on('-sFILE', '--scan=FILE', '<Required - File to Scan in Black Duck Binary Analysis>') do |f|
@@ -58,8 +58,8 @@ begin
   token = yaml_config[:token]
   raise "ERROR: BDBA Token Not Found: #{token}" if token.nil?
 
-  parent_group_name = opts[:parent_group_name]
-  raise "ERROR: BDBA Parent Group Name Not Provided: #{parent_group_name}" if parent_group_name.nil?
+  parent_group_id = opts[:parent_group_id]
+  raise "ERROR: BDBA Parent Group ID Not Provided: #{parent_group_id}" if parent_group_id.nil?
 
   target_file = opts[:target_file]
   raise "ERROR: BDBA Target File Not Found: #{target_file}" unless File.exist?(target_file)
@@ -74,22 +74,12 @@ begin
 
   version = opts[:version]
 
-  groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
-    token: token
-  )
-
-  parent_arr = groups_resp[:groups].select { |g| g[:name] == parent_group_name }
-  raise "ERROR: BDBA Parent Group Not Found: #{parent_group_name}" if parent_arr.nil?
-
-  sorted_parent_arr = parent_arr.sort_by { |g| g[:id] }
-  parent_id = sorted_parent_arr.last[:id]
-
   unless report_only
     puts "Uploading/Scanning: #{target_file}"
     PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
       token: token,
       file: target_file,
-      group_id: parent_id,
+      group_id: parent_group_id,
       version: version
     )
   end
@@ -99,7 +89,7 @@ begin
   loop do
     scan_progress_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_apps_by_group(
       token: token,
-      group_id: parent_id
+      group_id: parent_group_id
     )
 
     break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' } || report_only
