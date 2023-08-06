@@ -15,7 +15,7 @@ OptionParser.new do |options|
     opts[:config] = c
   end
 
-  options.on('-CGROUP', '--create=GROUP', '<Required - Group/Sub-Group to Create>') do |g|
+  options.on('-CGROUP', '--create=GROUP', '<Optional - Group/Sub-Group to Create>') do |g|
     opts[:group_name] = g
   end
 
@@ -60,14 +60,29 @@ begin
     list_or_parent = parent_group_name unless parent_group_name.nil?
 
     group_arr = groups_resp[:groups].select { |g| g[:name] == list_or_parent }
-    group_arr_sorted = group_arr.sort_by { |g| g[:id] }
-    group = group_arr_sorted.last
 
-    if list_group_name && group.nil?
+    if list_group_name && group_arr.empty?
       puts 'BDBA Group Not Found.'
       exit 1
     end
 
+    group_arr_sorted = group_arr.sort_by { |g| g[:id] }
+    if group_arr_sorted.length > 1
+      dup_groups_arr = []
+      group_arr_sorted.each do |group|
+        this_group_id = group[:id]
+        this_group_details = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
+          token: token,
+          group_id: this_group_id
+        )
+        dup_groups_arr.push(this_group_details[:group])
+      end
+
+      puts "ERROR: Multiple BDBA Groups Found:\n#{dup_groups_arr}"
+      exit 1
+    end
+
+    group = group_arr_sorted.last
     parent_id = group[:id]
 
     if list_group_name
@@ -84,11 +99,13 @@ begin
   group_name = opts[:group_name]
   raise "ERROR: BDBA Group Name Not Provided: #{group_name}" if group_name.nil?
 
-  PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
+  create_group_resp = PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
     name: group_name,
     parent_id: parent_id
   )
+
+  puts create_group_resp.to_json
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
