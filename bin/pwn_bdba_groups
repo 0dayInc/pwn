@@ -61,6 +61,8 @@ begin
     end
 
     group_details_arr = []
+    # TODO: Add pagination support
+    # i.e. group_arr[:next]
     group_arr.each do |group|
       group_id = group[:id]
 
