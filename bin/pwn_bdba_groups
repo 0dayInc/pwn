@@ -23,8 +23,8 @@ OptionParser.new do |options|
     opts[:list_group_name] = l
   end
 
-  options.on('-pPNAME', '--parent-group=PNAME', '<Optional - Black Duck Binary Analysis Parent Group Name to Associate with Group>') do |p|
-    opts[:parent_group_name] = p
+  options.on('-pID', '--parent-group-ID=ID', '<Optional - Black Duck Binary Analysis Parent Group ID to Associate with Group>') do |p|
+    opts[:parent_group_id] = p
   end
 end.parse!
 
@@ -46,54 +46,32 @@ begin
   raise "ERROR: BDBA Token Not Found: #{token}" if token.nil?
 
   list_group_name = opts[:list_group_name]
-  parent_group_name = opts[:parent_group_name]
-  parent_id = nil
+  parent_group_id = opts[:parent_group_id]
 
-  if list_group_name || parent_group_name
+  if list_group_name
     groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
       token: token
     )
 
-    raise 'No groups found in BDBA.  Use the --create flag to create your first group.' if groups_resp.nil?
-
-    list_or_parent = list_group_name unless list_group_name.nil?
-    list_or_parent = parent_group_name unless parent_group_name.nil?
-
-    group_arr = groups_resp[:groups].select { |g| g[:name] == list_or_parent }
+    group_arr = groups_resp[:groups].select { |g| g[:name] == list_group_name }
 
     if list_group_name && group_arr.empty?
       puts 'BDBA Group Not Found.'
       exit 1
     end
 
-    group_arr_sorted = group_arr.sort_by { |g| g[:id] }
-    if group_arr_sorted.length > 1
-      dup_groups_arr = []
-      group_arr_sorted.each do |group|
-        this_group_id = group[:id]
-        this_group_details = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
-          token: token,
-          group_id: this_group_id
-        )
-        dup_groups_arr.push(this_group_details[:group])
-      end
+    group_details_arr = []
+    group_arr.each do |group|
+      group_id = group.[:id]
 
-      puts "ERROR: Multiple BDBA Groups Found:\n#{dup_groups_arr}"
-      exit 1
-    end
-
-    group = group_arr_sorted.last
-    parent_id = group[:id]
-
-    if list_group_name
-      group_id = parent_id
-      group_details_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
+      this_group_details = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_details(
         token: token,
         group_id: group_id
       )
-      puts group_details_resp.to_json
-      exit 0
+      group_details_arr.push(this_group_details)
     end
+    puts group_details_arr.to_json
+    exit 0
   end
 
   group_name = opts[:group_name]
@@ -102,7 +80,7 @@ begin
   create_group_resp = PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
     name: group_name,
-    parent_id: parent_id
+    parent_id: parent_group_id
   )
 
   puts create_group_resp.to_json
