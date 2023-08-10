@@ -120,7 +120,7 @@ def request_path(opts = {})
       http_resp: e.class
     }
   rescue RestClient::ExceptionWithResponse => e
-    if e.responds_to?(:response)
+    if e.respond_to?(:response)
       rest_client_resp_hash = {
         request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
         http_uri: http_uri,
