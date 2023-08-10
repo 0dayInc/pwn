@@ -42,6 +42,10 @@ OptionParser.new do |options|
     opts[:randomize] = r
   end
 
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "File.basename(Dir.pwd)")>') do |n|
+    opts[:report_name] = n
+  end
+
   options.on('-H', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
     opts[:start_reporting_server] = s
   end
@@ -81,6 +85,8 @@ begin
 
   # Optional Flag Variables
   randomize = opts[:randomize]
+  report_name = opts[:report_name]
+  report_name ||= File.basename(Dir.pwd)
   start_reporting_server = opts[:start_reporting_server]
   speech_to_text = opts[:speech_to_text]
   src_num_rules = opts[:src_num_rules]
@@ -94,7 +100,8 @@ begin
     src_num_rules: src_num_rules,
     seconds_to_record: seconds_to_record,
     sox_bin: sox_bin,
-    speech_to_text: speech_to_text
+    speech_to_text: speech_to_text,
+    report_name: report_name
   )
 
   # Generate HTML Report
@@ -107,7 +114,7 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    listen_port = Random.rand(1_025..65_535).to_s
+    listen_port = PWN::Plugins::Sock.get_random_unused_port
 
     if pwn_provider == 'docker'
       listen_ip = '0.0.0.0'
@@ -115,7 +122,7 @@ begin
       listen_ip = '127.0.0.1'
     end
 
-    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_phone.html"
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
     Dir.chdir(session_root)
     system(
       'pwn_simple_http_server',

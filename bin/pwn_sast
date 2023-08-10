@@ -162,7 +162,7 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    listen_port = Random.rand(1_025..65_535).to_s
+    listen_port = PWN::Plugins::Sock.get_random_unused_port
 
     if pwn_provider == 'docker'
       listen_ip = '0.0.0.0'
@@ -170,7 +170,7 @@ begin
       listen_ip = '127.0.0.1'
     end
 
-    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_scan_git_source.html"
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
     Dir.chdir(dir_path)
     system(
       'pwn_simple_http_server',

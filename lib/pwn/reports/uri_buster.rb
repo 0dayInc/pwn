@@ -17,9 +17,10 @@ module PWN
         raise "PWN Error: Invalid Directory #{dir_path}" if dir_path.nil?
 
         results_hash = opts[:results_hash]
+        report_name = results_name[:report_name]
 
         File.write(
-          "#{dir_path}/pwn_www_uri_buster.json",
+          "#{dir_path}/#{report_name}.json",
           JSON.pretty_generate(results_hash)
         )
 
@@ -216,7 +217,7 @@ module PWN
         </html>
         }
 
-        File.open("#{dir_path}/pwn_www_uri_buster.html", 'w') do |f|
+        File.open("#{dir_path}/#{report_name}.html", 'w') do |f|
           f.print(html_report)
         end
       rescue StandardError => e
