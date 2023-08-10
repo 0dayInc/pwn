@@ -17,7 +17,7 @@ module PWN
         raise "PWN Error: Invalid Directory #{dir_path}" if dir_path.nil?
 
         results_hash = opts[:results_hash]
-        report_name = results_name[:report_name]
+        report_name = results_hash[:report_name]
 
         File.write(
           "#{dir_path}/#{report_name}.json",
