@@ -21,6 +21,10 @@ OptionParser.new do |options|
     opts[:wordlist] = w
   end
 
+  options.on('-aPATTERN', '--append=PATTERN', '<Optional - Append Pattern to Each Entry in the Wordlist (e.g .inc, .BAK, .git, etc>') do |a|
+    opts[:append_pattern] = a
+  end
+
   options.on('-pPROXY', '--proxy=PROXY', '<Optional - Proxy SCHEME://ADDRESS:PORT>') do |p|
     opts[:proxy] = p
   end
@@ -150,6 +154,7 @@ begin
   wordlist = opts[:wordlist]
   raise "ERROR: #{wordlist} Does Not Exist." unless File.exist?(wordlist)
 
+  append_pattern = opts[:append_pattern]
   proxy = opts[:proxy]
 
   max_threads = opts[:max_threads]
@@ -191,7 +196,7 @@ begin
         target_url: target_url,
         proxy: proxy,
         http_request_headers: http_request_headers,
-        wordlist_line: wordlist_line,
+        wordlist_line: "#{wordlist_line}#{append_pattern}",
         http_method: http_method
       )
 
