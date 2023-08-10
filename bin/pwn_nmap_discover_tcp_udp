@@ -12,7 +12,11 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-tRANGE', '--target-range=RANGE', '<Required - nmap supported host || ip range e.g. foo.bar, 192.168.1.1-20, 192.168.1.0/24, etc>') do |t|
+  options.on('-fFILE', '--target-file=FILE', '<Required if --target-range excluded - File containing one supported nmap target / line e.g. foo.bar, 10.1.1.1, 192.168.1.1-20, 192.168.1.0/24, etc>') do |f|
+    opts[:target_file] = f
+  end
+
+  options.on('-tRANGE', '--target-range=RANGE', '<Required if --target-file excluded - nmap supported host || ip range e.g. foo.bar, 10.1.1.1, 192.168.1.1-20, 192.168.1.0/24, etc>') do |t|
     opts[:target_range] = t
   end
 
@@ -49,7 +53,12 @@ banner = '-' * 64
 puts "\n\n\n#{banner}"
 puts "- STARTED: #{started_at} "
 
+target_file = opts[:target_file]
 target_range = opts[:target_range]
+if (target_file && target_range) || (!target_file && !target_range)
+  puts 'ERROR: Must specify --target-file OR --target-range'
+  exit 1
+end
 
 results_root = opts[:results_root]
 results_root ||= '/tmp'
@@ -144,7 +153,7 @@ discovery_sctp_ports = {
   sicc: 38_412
 }
 
-target_file = "#{results_root}/nmap_targets.txt"
+discovered_targets_file = "#{results_root}/nmap_discovery_results.txt"
 latest_discovery_results = "#{results_root}/nmap_discovery_results.xml"
 latest_tcp_results = "#{results_root}/nmap_tcp_results"
 latest_udp_results = "#{results_root}/nmap_udp_results"
@@ -174,22 +183,23 @@ begin
   PWN::Plugins::NmapIt.port_scan do |nmap|
     if with_tor
       nmap.proxies = proxy
-      nmap.syn_discovery = discovery_tcp_ports.values
       nmap.ack_discovery = discovery_tcp_ports.values
     else
-      nmap.ping = true
-      nmap.arp_ping = true
-      nmap.icmp_echo_discovery = true
-      nmap.icmp_timestamp_discovery = true
       nmap.udp_discovery = discovery_udp_ports.values
-      nmap.sctp_init_ping = discovery_sctp_ports.values
     end
+    nmap.ping = true
+    nmap.arp_ping = true
+    nmap.icmp_echo_discovery = true
+    nmap.icmp_timestamp_discovery = true
+    nmap.syn_discovery = discovery_tcp_ports.values
+    nmap.sctp_init_ping = discovery_sctp_ports.values
     nmap.verbose = true
     nmap.exclude_file = exclude_file
     nmap.interface = interface
     nmap.insane_timing = true
     nmap.output_xml = latest_discovery_results
-    nmap.targets = target_range
+    nmap.targets = target_range if target_range
+    nmap.target_file = target_file if target_file
     nmap.randomize_hosts = true
     nmap.min_parallelism = 36
     nmap.max_retries = 3
@@ -198,7 +208,7 @@ begin
 
   # Generate targets.txt from discovery above
   # taking into consideration IPs to skip scans
-  File.open(target_file, 'w') do |f|
+  File.open(discovered_targets_file, 'w') do |f|
     PWN::Plugins::NmapIt.parse_xml_results(
       xml_file: latest_discovery_results
     ) do |xml|
@@ -212,13 +222,13 @@ begin
   end
 
   # Produce a good targets.txt redacting duplicates && sorting by IP
-  sorted_ips = File.readlines(target_file).uniq.map do |ip|
+  sorted_ips = File.readlines(discovered_targets_file).uniq.map do |ip|
     IPAddr.new(ip.chomp)
   end
   sorted_ips = sorted_ips.sort_by(&:hton)
 
   # Now Add additional info about the IP as a comment
-  File.open(target_file, 'w') do |f|
+  File.open(discovered_targets_file, 'w') do |f|
     sorted_ips.each do |ip|
       PWN::Plugins::NmapIt.parse_xml_results(
         xml_file: latest_discovery_results
@@ -263,7 +273,7 @@ begin
       nmap.update_scriptdb = true
     end
     nmap.verbose = true
-    nmap.target_file = target_file
+    nmap.target_file = discovered_targets_file
     nmap.randomize_hosts = true
     nmap.show_reason = true
     nmap.exclude_file = exclude_file
@@ -310,7 +320,7 @@ begin
       nmap.update_scriptdb = true
     end
     nmap.verbose = true
-    nmap.target_file = target_file
+    nmap.target_file = discovered_targets_file
     nmap.fast = true
     nmap.randomize_hosts = true
     nmap.show_reason = true
