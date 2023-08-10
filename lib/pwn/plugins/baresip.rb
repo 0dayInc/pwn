@@ -623,6 +623,7 @@ module PWN
         sox_bin = opts[:sox_bin] if File.exist?(opts[:sox_bin].to_s)
         sox_bin ||= '/usr/bin/sox'
         speech_to_text = opts[:speech_to_text]
+        report_name = opts[:report_name]
 
         target_range = parse_target_file(
           target_file: target_file,
@@ -630,6 +631,9 @@ module PWN
         )
 
         results_hash = {
+          report_name: HTMLEntities.new.encode(
+            report_name.to_s.scrub.strip.chomp
+          ),
           session_started: Time.now.strftime('%Y-%m-%d_%H.%M.%S'),
           data: []
         }

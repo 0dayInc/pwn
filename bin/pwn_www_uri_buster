@@ -29,7 +29,7 @@ OptionParser.new do |options|
     opts[:proxy] = p
   end
 
-  options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # HTTP Requests to Run Simultaneously (Default 100)>') do |t|
+  options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # HTTP Requests to Run Simultaneously (Default 25)>') do |t|
     opts[:max_threads] = t
   end
 
@@ -109,6 +109,7 @@ def request_path(opts = {})
     raise 'ERROR: Connection(s) Refused. Try lowering the --max-threads value.'
   rescue Errno::ECONNRESET,
          RestClient::Exceptions::ReadTimeout,
+         RestClient::Exceptions::OpenTimeout,
          RestClient::ServerBrokeConnection => e
     rest_client_resp_hash = {
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
@@ -119,14 +120,25 @@ def request_path(opts = {})
       http_resp: e.class
     }
   rescue RestClient::ExceptionWithResponse => e
-    rest_client_resp_hash = {
-      request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
-      http_uri: http_uri,
-      http_method: http_method,
-      http_resp_code: e.response.code,
-      http_resp_length: e.response.body.length,
-      http_resp: "#{e.response.body[0..300]}..."
-    }
+    if e.responds_to?(:response)
+      rest_client_resp_hash = {
+        request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
+        http_uri: http_uri,
+        http_method: http_method,
+        http_resp_code: e.response.code,
+        http_resp_length: e.response.body.length,
+        http_resp: "#{e.response.body[0..300]}..."
+      }
+    else
+      resp_client_resp_hash = {
+        request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
+        http_uri: http_uri,
+        http_method: http_method,
+        http_resp_code: 'N/A',
+        http_resp_length: 'N/A',
+        http_resp: 'N/A'
+      }
+    end
   rescue URI::InvalidURIError
     url_encoded_wordlist_arr = []
     wordlist_line.split('/').each do |path|
@@ -158,7 +170,7 @@ begin
   proxy = opts[:proxy]
 
   max_threads = opts[:max_threads]
-  max_threads ||= 100
+  max_threads ||= 25
 
   http_request_headers = opts[:http_request_headers]
   http_response_codes = opts[:http_response_codes]
@@ -221,7 +233,7 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    listen_port = Random.rand(1_025..65_535).to_s
+    listen_port = PWN::Plugins::Sock.get_random_unused_port
 
     if pwn_provider == 'docker'
       listen_ip = '0.0.0.0'
@@ -229,7 +241,7 @@ begin
       listen_ip = '127.0.0.1'
     end
 
-    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_www_uri_buster.html"
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
     Dir.chdir(dir_path)
     system(
       'pwn_simple_http_server',

@@ -67,6 +67,10 @@ OptionParser.new do |options|
     opts[:max_threads] = i
   end
 
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "File.basename(Dir.pwd)")>') do |n|
+    opts[:report_name] = n
+  end
+
   options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
     opts[:start_reporting_server] = s
   end
@@ -103,9 +107,16 @@ opts[:char_encoding].nil? ? char_encoding = 'UTF-8' : char_encoding = opts[:char
 response_timeout = opts[:response_timeout]
 request_rate_limit = opts[:request_rate_limit]
 opts[:max_threads].nil? ? max_threads = 1 : max_threads = opts[:max_threads].to_i
+report_name = opts[:report_name]
+report_name ||= File.basename(Dir.pwd)
 start_reporting_server = opts[:start_reporting_server]
 
-results_hash = { data: [] }
+results_hash = {
+  report_name: HTMLEntities.new.encode(
+    report_name.to_s.strip.scrub.chomp
+  ),
+  data: []
+}
 results_arr = []
 mutex = Mutex.new
 
@@ -150,13 +161,13 @@ puts 'complete.'
 
 # Start Simple HTTP Server (If Requested)
 if start_reporting_server
-  listen_port = 3333
+  listen_port = PWN::Plugins::Sock.get_random_unused_port
   if pwn_provider == 'docker'
     listen_ip = '0.0.0.0'
   else
     listen_ip = '127.0.0.1'
   end
-  puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/pwn_fuzz_net_app_proto.html"
+  puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
   simple_http_server_params = "-i #{listen_ip} -p #{listen_port}"
   Dir.chdir(dir_path)
   system(

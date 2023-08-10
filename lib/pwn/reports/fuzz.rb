@@ -21,10 +21,11 @@ module PWN
         raise "PWN Error: Invalid Directory #{dir_path}" if dir_path.nil?
 
         results_hash = opts[:results_hash]
+        report_name = results_hash[:report_name]
         opts[:char_encoding].nil? ? char_encoding = 'UTF-8' : char_encoding = opts[:char_encoding].to_s
 
         # JSON object Completion
-        File.open("#{dir_path}/pwn_fuzz_net_app_proto.json", "w:#{char_encoding}") do |f|
+        File.open("#{dir_path}/#{report_name}.json", "w:#{char_encoding}") do |f|
           f.print(
             JSON.pretty_generate(results_hash).force_encoding(char_encoding)
           )
@@ -239,7 +240,7 @@ module PWN
         </html>
         }
 
-        File.open("#{dir_path}/pwn_fuzz_net_app_proto.html", 'w') do |f|
+        File.open("#{dir_path}/#{report_name}.html", 'w') do |f|
           f.print(html_report)
         end
       rescue StandardError => e
