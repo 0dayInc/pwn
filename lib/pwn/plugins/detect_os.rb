@@ -10,13 +10,13 @@ module PWN
       # PWN::Plugins::DetectOS.type
 
       public_class_method def self.type
-        return :cygwin if OS.cygwin?
-        return :freebsd if OS.freebsd?
-        return :linux if OS.linux?
-        return :netbsd if OS.host_os.include?('netbsd')
-        return :openbsd if OS.host_os.include?('openbsd')
-        return :osx if OS.osx?
-        return :windows if OS.windows?
+        :cygwin if OS.cygwin?
+        :freebsd if OS.freebsd?
+        :linux if OS.linux?
+        :netbsd if OS.host_os.include?('netbsd')
+        :openbsd if OS.host_os.include?('openbsd')
+        :osx if OS.osx?
+        :windows if OS.windows?
       rescue StandardError => e
         raise e
       end
