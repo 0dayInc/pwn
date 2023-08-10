@@ -52,6 +52,10 @@ OptionParser.new do |options|
   options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
     opts[:start_reporting_server] = s
   end
+
+  options.on('-T', '--tor', '<Optional - Source Scans from Tor Nodes>') do |t|
+    opts[:with_tor] = t
+  end
 end.parse!
 
 if opts.empty?
@@ -184,6 +188,15 @@ begin
 
   start_reporting_server = opts[:start_reporting_server]
 
+  with_tor = true if opts[:with_tor]
+  with_tor ||= false
+
+  tor_obj = nil
+  if with_tor
+    tor_obj = PWN::Plugins::Tor.start
+    proxy = "socks5://#{tor_obj[:ip]}:#{tor_obj[:port]}"
+  end
+
   mutex = Mutex.new
 
   results_hash = {
@@ -204,6 +217,8 @@ begin
 
     http_methods = %i[DELETE GET HEAD OPTIONS PATCH POST PUT TRACE]
     http_methods.each do |http_method|
+      PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj) if with_tor
+
       rest_client_resp_hash = request_path(
         target_url: target_url,
         proxy: proxy,
@@ -255,4 +270,6 @@ rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
   raise e
+ensure
+  tor_obj = PWN::Plugins::Tor.stop(tor_obj: tor_obj) if with_tor && tor_obj
 end
