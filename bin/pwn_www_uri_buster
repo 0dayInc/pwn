@@ -103,6 +103,7 @@ def request_path(opts = {})
       http_method: http_method,
       http_resp_code: response.code,
       http_resp_length: response.body.length,
+      http_resp_headers: response.headers,
       http_resp: "#{response.body[0..300]}..."
     }
   rescue Errno::ECONNREFUSED
@@ -117,6 +118,7 @@ def request_path(opts = {})
       http_method: http_method,
       http_resp_code: e.class,
       http_resp_length: 'N/A',
+      http_resp_headers: 'N/A',
       http_resp: e.class
     }
   rescue RestClient::ExceptionWithResponse => e
@@ -127,6 +129,7 @@ def request_path(opts = {})
         http_method: http_method,
         http_resp_code: e.response.code,
         http_resp_length: e.response.body.length,
+        http_resp_headers: response.headers,
         http_resp: "#{e.response.body[0..300]}..."
       }
     else
@@ -136,6 +139,7 @@ def request_path(opts = {})
         http_method: http_method,
         http_resp_code: 'N/A',
         http_resp_length: 'N/A',
+        http_resp_headers: 'N/A',
         http_resp: 'N/A'
       }
     end
@@ -149,6 +153,10 @@ def request_path(opts = {})
     retry
   rescue RestClient::TooManyRequests
     sleep 60
+  ensure
+    browser_obj = PWN::Plugins::TransparentBrowser.close(
+      browser_obj: browser_obj
+    )
   end
 
   rest_client_resp_hash

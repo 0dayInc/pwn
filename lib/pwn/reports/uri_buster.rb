@@ -100,7 +100,8 @@ module PWN
               <a class="toggle-vis" data-column="3" href="#">HTTP Method</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="4" href="#">HTTP Response Code</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="5" href="#">HTTP Response Length</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="6" href="#">HTTP Response</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">HTTP Response Headers</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="7" href="#">HTTP Response Body</a>&nbsp;|&nbsp;
             </div>
             <br /><br />
 
@@ -114,7 +115,8 @@ module PWN
                     <th>HTTP Method</th>
                     <th>HTTP Response Code</th>
                     <th>HTTP Response Length</th>
-                    <th>HTTP Response (300 bytes)</th>
+                    <th>HTTP Response Headers</th>
+                    <th>HTTP Response Body (300 bytes)</th>
                   </tr>
                 </thead>
                 <!-- DataTables <tbody> -->
@@ -180,6 +182,10 @@ module PWN
                     },
                     {
                       "data": "http_resp_length",
+                      "render": $.fn.dataTable.render.text()
+                    },
+                    {
+                      "data": "http_resp_headers",
                       "render": $.fn.dataTable.render.text()
                     },
                     {
