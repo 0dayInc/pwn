@@ -111,7 +111,8 @@ def request_path(opts = {})
   rescue Errno::ECONNRESET,
          RestClient::Exceptions::ReadTimeout,
          RestClient::Exceptions::OpenTimeout,
-         RestClient::ServerBrokeConnection => e
+         RestClient::ServerBrokeConnection,
+         OpenSSL::SSL::SSLError => e
     rest_client_resp_hash = {
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
       http_uri: http_uri,
@@ -241,7 +242,7 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    listen_port = PWN::Plugins::Sock.get_random_unused_port
+    listen_port = PWN::Plugins::Sock.get_random_unused_port.to_s
 
     if pwn_provider == 'docker'
       listen_ip = '0.0.0.0'
