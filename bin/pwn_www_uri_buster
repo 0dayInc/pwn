@@ -129,7 +129,7 @@ def request_path(opts = {})
         http_method: http_method,
         http_resp_code: e.response.code,
         http_resp_length: e.response.body.length,
-        http_resp_headers: response.headers,
+        http_resp_headers: e.response.headers,
         http_resp: "#{e.response.body[0..300]}..."
       }
     else
