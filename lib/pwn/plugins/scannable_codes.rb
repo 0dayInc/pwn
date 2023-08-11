@@ -59,7 +59,7 @@ module PWN
           #{self}.generate(
             data: 'required - data to encode',
             type: 'optional - :barcode || :qrcode (defaults to :qrcode)',
-            path: 'optional - path to save image (defaults to \"./#{data}.png\")'
+            path: 'optional - path to save image (defaults to \"./\#{data}.png\")'
           )
 
           #{self}.authors
