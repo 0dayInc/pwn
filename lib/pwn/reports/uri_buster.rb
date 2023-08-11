@@ -24,7 +24,7 @@ module PWN
           JSON.pretty_generate(results_hash)
         )
 
-        html_report = %q{<!DOCTYPE HTML>
+        html_report = %{<!DOCTYPE HTML>
         <html>
           <head>
             <!-- favicon.ico from https://0dayinc.com -->
@@ -156,7 +156,7 @@ module PWN
                       }
                     });
                   },
-                  "ajax": "pwn_www_uri_buster.json",
+                  "ajax": "#{report_name}.json",
                   //"deferRender": true,
                   "dom": "fplitfpliS",
                   "autoWidth": false,

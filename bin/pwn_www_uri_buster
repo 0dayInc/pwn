@@ -109,10 +109,13 @@ def request_path(opts = {})
   rescue Errno::ECONNREFUSED
     raise 'ERROR: Connection(s) Refused. Try lowering the --max-threads value.'
   rescue Errno::ECONNRESET,
+         OpenSSL::SSL::SSLError,
          RestClient::Exceptions::ReadTimeout,
          RestClient::Exceptions::OpenTimeout,
          RestClient::ServerBrokeConnection,
-         OpenSSL::SSL::SSLError => e
+         SOCKSError => e
+
+    # May be best to switch Tor channel if SOCKSError is rescued
     rest_client_resp_hash = {
       request_timestamp: Time.now.strftime('%Y-%m-%d_%H-%M-%S'),
       http_uri: http_uri,
