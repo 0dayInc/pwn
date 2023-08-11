@@ -6,6 +6,7 @@ require 'optparse'
 require 'uri'
 require 'cgi'
 require 'htmlentities'
+require 'faker'
 
 opts = {}
 OptionParser.new do |options|
@@ -82,7 +83,10 @@ def request_path(opts = {})
     end
     rest_client = browser_obj[:browser]::Request
 
-    headers = nil
+    headers = {
+      user_agent: Faker::Internet.user_agent
+    }
+
     if http_request_headers
       headers = JSON.parse(
         http_request_headers,
