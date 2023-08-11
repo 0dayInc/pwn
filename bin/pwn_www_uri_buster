@@ -25,7 +25,7 @@ OptionParser.new do |options|
     opts[:append_pattern] = a
   end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Proxy SCHEME://ADDRESS:PORT>') do |p|
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - Proxy SCHEME://ADDRESS:PORT || tor>') do |p|
     opts[:proxy] = p
   end
 
@@ -75,11 +75,6 @@ def request_path(opts = {})
         browser_type: :rest,
         proxy: proxy
       )
-
-      if proxy == 'tor'
-        tor_obj = browser_obj[:tor_obj]
-        PWN::Plugins::Tor.switch_exit_node(tor_obj: tor_obj)
-      end
     else
       browser_obj = PWN::Plugins::TransparentBrowser.open(
         browser_type: :rest
