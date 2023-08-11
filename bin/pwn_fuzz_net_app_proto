@@ -161,7 +161,7 @@ puts 'complete.'
 
 # Start Simple HTTP Server (If Requested)
 if start_reporting_server
-  listen_port = PWN::Plugins::Sock.get_random_unused_port
+  listen_port = PWN::Plugins::Sock.get_random_unused_port.to_s
   if pwn_provider == 'docker'
     listen_ip = '0.0.0.0'
   else

@@ -31,7 +31,7 @@ module PWN
           JSON.pretty_generate(results_hash)
         )
 
-        html_report = %q{<!DOCTYPE HTML>
+        html_report = %{<!DOCTYPE HTML>
         <html>
           <head>
             <!-- favicon.ico from https://0dayinc.com -->
@@ -160,7 +160,7 @@ module PWN
                       }
                     });
                   },
-                  "ajax": "pwn_scan_git_source.json",
+                  "ajax": "#{report_name}.json",
                   //"deferRender": true,
                   "dom": "fplitfpliS",
                   "autoWidth": false,
@@ -175,7 +175,7 @@ module PWN
                       "render": function (data, type, row, meta) {
                         var sast_dirname = data['sast_module'].split('::')[0].toLowerCase() + '/' + data['sast_module'].split('::')[1].toLowerCase();
                         var sast_module = data['sast_module'].split('::')[2];
-                        var sast_test_case = sast_module.replace(/\.?([A-Z])/g, function (x,y){ if (sast_module.match(/\.?([A-Z][a-z])/g) ) { return "_" + y.toLowerCase(); } else { return y.toLowerCase(); } }).replace(/^_/g, "");
+                        var sast_test_case = sast_module.replace(/\\.?([A-Z])/g, function (x,y){ if (sast_module.match(/\\.?([A-Z][a-z])/g) ) { return "_" + y.toLowerCase(); } else { return y.toLowerCase(); } }).replace(/^_/g, "");
 
                         return '<tr><td style="width:150px;" align="left"><a href="https://github.com/0dayinc/pwn/tree/master/lib/' + htmlEntityEncode(sast_dirname) + '/' + htmlEntityEncode(sast_test_case) + '.rb" target="_blank">' + htmlEntityEncode(data['sast_module'].split("::")[2]) + '</a><br /><br /><a href="' + htmlEntityEncode(data['nist_800_53_uri']) + '" target="_blank">NIST 800-53: ' + htmlEntityEncode(data['section'])  + '</a><br /><br /><a href="' + htmlEntityEncode(data['cwe_uri']) + '" target="_blank">CWE:' + htmlEntityEncode(data['cwe_id'])  + '</a></td></tr>';
                       }
@@ -202,16 +202,16 @@ module PWN
 
                           var filename_link = row.filename;
 
-                          var bug_comment = 'Timestamp: ' + row.timestamp + '\n' +
+                          var bug_comment = 'Timestamp: ' + row.timestamp + '\\n' +
                                             'Test Case: http://' + window.location.hostname + ':8808/doc_root/pwn-0.1.0/' +
-                                              row.security_references['sast_module'].replace(/::/g, "/") + '\n' +
-                                            'Source Code Impacted: ' + $("<div/>").html(filename_link).text() + '\n\n' +
+                                              row.security_references['sast_module'].replace(/::/g, "/") + '\\n' +
+                                            'Source Code Impacted: ' + $("<div/>").html(filename_link).text() + '\\n\\n' +
                                             'Test Case Request:\n' +
-                                            $("<div/>").html(row.test_case_filter.replace(/\s{2,}/g, " ")).text() + '\n\n' +
-                                            'Test Case Response:\n' +
-                                            '\tCommitted by: ' + $("<div/>").html(data[i]['author']).text() + '\t' +
+                                            $("<div/>").html(row.test_case_filter.replace(/\\s{2,}/g, " ")).text() + '\\n\\n' +
+                                            'Test Case Response:\\n' +
+                                            '\\tCommitted by: ' + $("<div/>").html(data[i]['author']).text() + '\\t' +
                                               data[i]['line_no'] + ': ' +
-                                              $("<div/>").html(data[i]['contents'].replace(/\s{2,}/g, " ")).text() + '\n\n';
+                                              $("<div/>").html(data[i]['contents'].replace(/\\s{2,}/g, " ")).text() + '\\n\\n';
 
                           var author_and_email_arr = data[i]['author'].split(" ");
                           var email = author_and_email_arr[author_and_email_arr.length - 1];
@@ -220,11 +220,11 @@ module PWN
 
                           var uri = '#uri';
 
-                         var canned_email_results = 'Timestamp: ' + row.timestamp + '\n' +
-                                                    'Source Code File Impacted: ' + $("<div/>").html(filename_link).text() + '\n\n' +
-                                                    'Source Code in Question:\n\n' +
+                         var canned_email_results = 'Timestamp: ' + row.timestamp + '\\n' +
+                                                    'Source Code File Impacted: ' + $("<div/>").html(filename_link).text() + '\\n\\n' +
+                                                    'Source Code in Question:\\n\\n' +
                                                     data[i]['line_no'] + ': ' +
-                                                    $("<div/>").html(data[i]['contents'].replace(/\s{2,}/g, " ")).text() + '\n\n';
+                                                    $("<div/>").html(data[i]['contents'].replace(/\\s{2,}/g, " ")).text() + '\\n\\n';
 
                          var canned_email = email.replace("&lt;", "").replace("&gt;", "") + '?subject=Potential%20Bug%20within%20Source%20File:%20'+ encodeURIComponent(row.filename) +'&body=Greetings,%0A%0AThe%20following%20information%20likely%20represents%20a%20bug%20discovered%20through%20automated%20security%20testing%20initiatives:%0A%0A' + encodeURIComponent(canned_email_results) + 'Is%20this%20something%20that%20can%20be%20addressed%20immediately%20or%20would%20filing%20a%20bug%20be%20more%20appropriate?%20%20Please%20let%20us%20know%20at%20your%20earliest%20convenience%20to%20ensure%20we%20can%20meet%20security%20expectations%20for%20this%20release.%20%20Thanks%20and%20have%20a%20great%20day!';
 
