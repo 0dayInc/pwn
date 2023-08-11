@@ -52,6 +52,7 @@ module PWN
     autoload :PS, 'pwn/plugins/ps'
     autoload :RabbitMQ, 'pwn/plugins/rabbit_mq'
     autoload :RFIDler, 'pwn/plugins/rfidler'
+    autoload :ScannableCodes, 'pwn/plugins/scannable_codes'
     autoload :Serial, 'pwn/plugins/serial'
     autoload :Shodan, 'pwn/plugins/shodan'
     autoload :SlackClient, 'pwn/plugins/slack_client'
