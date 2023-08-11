@@ -206,7 +206,7 @@ module PWN
                                             'Test Case: http://' + window.location.hostname + ':8808/doc_root/pwn-0.1.0/' +
                                               row.security_references['sast_module'].replace(/::/g, "/") + '\\n' +
                                             'Source Code Impacted: ' + $("<div/>").html(filename_link).text() + '\\n\\n' +
-                                            'Test Case Request:\n' +
+                                            'Test Case Request:\\n' +
                                             $("<div/>").html(row.test_case_filter.replace(/\\s{2,}/g, " ")).text() + '\\n\\n' +
                                             'Test Case Response:\\n' +
                                             '\\tCommitted by: ' + $("<div/>").html(data[i]['author']).text() + '\\t' +
