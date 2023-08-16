@@ -85,7 +85,7 @@ module PWN
           raise e
         end
       ensure
-        spinner.stop
+        spinner.stop unless spinner.nil?
       end
 
       # Supported Method Parameters::
