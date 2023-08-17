@@ -20,6 +20,10 @@ OptionParser.new do |options|
     opts[:query_file] = q
   end
 
+  options.on('-rFLOAT', '--rate-limit=FLOAT', '<Optional - Rate Limit Between API Calls (Default: 1.0, must be >= 1.0)>') do |r|
+    opts[:rate_limit_duration] = r
+  end
+
   options.on('-oFILE', '--output-results-file=FILE', '<Optional - Defaults to /tmp/shodan-results-Time.now.strftime("%y-%m-%d.%H:%M:%S").txt>') do |o|
     opts[:output_results_file] = o
   end
@@ -41,6 +45,10 @@ begin
   query_file = opts[:query_file].to_s
   raise "ERROR: #{query_file} does not exist." unless File.exist?(query_file)
 
+  rate_limit_duration = opts[:rate_limit_duration].to_f
+  rate_limit_duration = 1.0 if rate_limit_duration.zero?
+  raise 'ERROR: Rate Limit must be >= 1.0' unless rate_limit_duration.positive?
+
   queries = File.readlines(query_file)
 
   timestamp = Time.now.strftime('%Y-%m-%d.%H:%M:%S')
@@ -59,7 +67,6 @@ begin
         query: query
       )
       puts " >>> Matches: #{search_results[:total]}"
-      sleep 1
 
       raw_results = {}
       raw_results[:query] = query
@@ -72,6 +79,8 @@ begin
         f.puts "TCP Port: #{m[:port]}"
         f.puts "Data: #{m[:data]}\n\n\n"
       end
+
+      sleep rate_limit_duration
     end
   end
   File.write(raw_query_results_file, JSON.pretty_generate(raw_results_arr))
