@@ -30,7 +30,7 @@ module PWN
              URI::InvalidURIError,
              URI::InvalidComponentError
 
-        next
+        false
       rescue StandardError => e
         raise e
       end
@@ -504,7 +504,7 @@ module PWN
       public_class_method def self.get_uris(opts = {})
         search_results = opts[:search_results]
 
-        search_results[:matches].map do |search_resuls_hash|
+        search_results.map do |search_results_hash|
           extract_and_validate_uris(
             search_results_hash: search_results_hash
           )
@@ -602,6 +602,10 @@ module PWN
           honeypot_probability_scores = #{self}.honeypot_probability_scores(
             api_key: 'required shodan api key',
             target_ips: 'required - comma-delimited list of ip addresses to target'
+          )
+
+          uri_arr = #{self}.get_uris(
+            search_results: 'required - search_results object returned from #search method'
           )
 
           #{self}.authors
