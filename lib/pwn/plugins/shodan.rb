@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'uri'
 
 module PWN
   module Plugins
@@ -10,6 +11,29 @@ module PWN
     # https://developer.shodan.io/api
     module Shodan
       @@logger = PWN::Plugins::PWNLogger.create
+
+      # Supported Method Parameters::
+      # extract_and_validate_uris((
+      #   search_results_hash: 'required - iteration of search results'
+      # )
+
+      private_class_method def self.extract_and_validate_uris(opts = {})
+        search_results_hash = opts[:search_results_hash]
+        uri_arr = []
+        search_results_hash.each_value do |search_results_value|
+          URI.extract(search_results_value.to_s).each do |uri|
+            uri_arr.push(uri) if %w[http https].include?(URI.parse(uri).scheme)
+          end
+        end
+        uri_arr
+      rescue URI::BadURIError,
+             URI::InvalidURIError,
+             URI::InvalidComponentError
+
+        false
+      rescue StandardError => e
+        raise e
+      end
 
       # Supported Method Parameters::
       # shodan_rest_call(
@@ -472,6 +496,23 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # uri_arr = PWN::Plugins::Shodan.get_uris(
+      #   search_results: 'required - search_results object returned from #search method'
+      # )
+
+      public_class_method def self.get_uris(opts = {})
+        search_results = opts[:search_results]
+
+        search_results.map do |search_results_hash|
+          extract_and_validate_uris(
+            search_results_hash: search_results_hash
+          )
+        end.flatten
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
@@ -561,6 +602,10 @@ module PWN
           honeypot_probability_scores = #{self}.honeypot_probability_scores(
             api_key: 'required shodan api key',
             target_ips: 'required - comma-delimited list of ip addresses to target'
+          )
+
+          uri_arr = #{self}.get_uris(
+            search_results: 'required - search_results object returned from #search method'
           )
 
           #{self}.authors
