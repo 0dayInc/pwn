@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'uri'
 
 module PWN
   module Plugins
@@ -10,6 +11,29 @@ module PWN
     # https://developer.shodan.io/api
     module Shodan
       @@logger = PWN::Plugins::PWNLogger.create
+
+      # Supported Method Parameters::
+      # extract_and_validate_uris((
+      #   search_results_hash: 'required - iteration of search results'
+      # )
+
+      private_class_method def self.extract_and_validate_uris(opts = {})
+        search_result_hash = opts[:search_result_hash]
+        uri_arr = []
+        search_result_hash.each_value do |search_result_value|
+          URI.extract(search_result_value.to_s).each do |uri|
+            uri_arr.push(uri) if %w[http https].include?(URI.parse(uri).scheme)
+          end
+        end
+        uri_arr
+      rescue URI::BadURIError,
+             URI::InvalidURIError,
+             URI::InvalidComponentError
+
+        next
+      rescue StandardError => e
+        raise e
+      end
 
       # Supported Method Parameters::
       # shodan_rest_call(
@@ -468,6 +492,23 @@ module PWN
           honeypot_probability_scores.push("#{target_ip} => #{response}")
         end
         honeypot_probability_scores
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # uri_arr = PWN::Plugins::Shodan.get_uris(
+      #   search_results: 'required - search_results object returned from #search method'
+      # )
+
+      public_class_method def self.get_uris(opts = {})
+        search_results = opts[:search_results]
+
+        search_results[:matches].map do |search_resuls_hash|
+          extract_and_validate_uris(
+            search_results_hash: search_results_hash
+          )
+        end.flatten
       rescue StandardError => e
         raise e
       end
