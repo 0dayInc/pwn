@@ -18,10 +18,10 @@ module PWN
       # )
 
       private_class_method def self.extract_and_validate_uris(opts = {})
-        search_result_hash = opts[:search_result_hash]
+        search_results_hash = opts[:search_results_hash]
         uri_arr = []
-        search_result_hash.each_value do |search_result_value|
-          URI.extract(search_result_value.to_s).each do |uri|
+        search_results_hash.each_value do |search_results_value|
+          URI.extract(search_results_value.to_s).each do |uri|
             uri_arr.push(uri) if %w[http https].include?(URI.parse(uri).scheme)
           end
         end
