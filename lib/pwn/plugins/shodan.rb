@@ -13,19 +13,36 @@ module PWN
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
-      # extract_and_validate_uris((
+      # valid_uri?(
       #   search_results_hash: 'required - iteration of search results'
       # )
 
-      private_class_method def self.extract_and_validate_uris(opts = {})
+      private_class_method def self.valid_uri?(opts = {})
+        uri = URI.parse(opts[:uri].to_s)
+        %w[http https].include?(uri.scheme) && URI.parse(uri).host
+      rescue URI::BadURIError,
+             URI::InvalidURIError,
+             URI::InvalidComponentError
+
+        false
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # extract_uris(
+      #   search_results_hash: 'required - iteration of search results'
+      # )
+
+      private_class_method def self.extract_uris(opts = {})
         search_results_hash = opts[:search_results_hash]
-        uri_arr = []
-        search_results_hash.each_value do |search_results_value|
-          URI.extract(search_results_value.to_s).each do |uri|
-            uri_arr.push(uri) if %w[http https].include?(URI.parse(uri).scheme)
+        search_results_hash.each_with_object([]) do |value, uris|
+          valid_uris_from_value = *URI.extract(value.to_s).select do |uri|
+            valid_uri?(uri: uri)
           end
+
+          uris.push(valid_uris_from_value)
         end
-        uri_arr
       rescue URI::BadURIError,
              URI::InvalidURIError,
              URI::InvalidComponentError
@@ -505,7 +522,7 @@ module PWN
         search_results = opts[:search_results]
 
         search_results.map do |search_results_hash|
-          extract_and_validate_uris(
+          extract_uris(
             search_results_hash: search_results_hash
           )
         end.flatten
