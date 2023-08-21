@@ -19,7 +19,7 @@ module PWN
 
       private_class_method def self.valid_uri?(opts = {})
         uri = URI.parse(opts[:uri].to_s)
-        %w[http https].include?(uri.scheme) && URI.parse(uri).host
+        %w[http https].include?(uri.scheme)
       rescue URI::BadURIError,
              URI::InvalidURIError,
              URI::InvalidComponentError
