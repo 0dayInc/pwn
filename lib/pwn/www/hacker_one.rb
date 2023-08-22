@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'uri'
 require 'yaml'
 
 module PWN
@@ -49,14 +50,16 @@ module PWN
           print '.'
           link = "https://#{ul.first.text}"
           min_payout_fmt = format('$%0.2f', min_payout)
-          split_link = link.split('/')
-          burp_project = "https://#{split_link[2]}/teams/#{split_link.last}/assets/download_burp_project_file.json"
+          scheme = URI.parse(link).scheme
+          host = URI.parse(link).host
+          path = URI.parse(link).path
+          burp_project = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
 
           bounty_program_hash = {
             name: link.split('/').last,
             min_payout: min_payout_fmt,
             policy: "#{link}?view_policy=true",
-            burp_project: "#{link}/assets/download_burp_project_file.json",
+            burp_project: burp_project,
             scope: "#{link}/policy_scopes",
             hacktivity: "#{link}/hacktivity",
             thanks: "#{link}/thanks",
