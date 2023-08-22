@@ -284,7 +284,7 @@ module PWN
         browser_obj = opts[:browser_obj]
         text = opts[:text].to_s
 
-        elements_found = browser_obj[:browser].elements.each do |element|
+        elements_found = browser_obj[:browser].elements.select do |element|
           element.text == text
         end
 
