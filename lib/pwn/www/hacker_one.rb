@@ -37,7 +37,8 @@ module PWN
         # Wait for JavaScript to load the DOM
 
         bb_programs_arr = []
-        browser.uls(class: 'program__meta-data').wait_until(&:present?).each do |ul|
+        browser.ul(class: 'program__meta-data').wait_until(&:present?)
+        browser.uls(class: 'program__meta-data').each do |ul|
           print '.'
 
           link = ul.first.text
