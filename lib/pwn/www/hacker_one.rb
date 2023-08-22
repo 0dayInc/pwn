@@ -34,6 +34,8 @@ module PWN
         browser = browser_obj[:browser]
 
         browser.goto('https://hackerone.com/bug-bounty-programs')
+        # Wait for JavaScript to load the DOM
+        sleep 6
 
         bb_orgs_arr = []
         browser.links.each do |link|
