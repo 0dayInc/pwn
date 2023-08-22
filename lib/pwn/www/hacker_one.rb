@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'faker'
 require 'json'
 require 'uri'
 require 'yaml'
@@ -81,7 +80,7 @@ module PWN
       #   programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
       #   browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
       #   name: 'optional - name of burp target config file (defaults to ALL)',
-      #   path: 'optional - path to save burp target config files (defaults to "./burp_target_config_file-NAME.json"))'
+      #   root_dir: 'optional - directory to save burp target config files (defaults to "./"))'
       # )
 
       public_class_method def self.save_burp_target_config_file(opts = {})
@@ -96,20 +95,22 @@ module PWN
         browser_opts[:browser_type] = :rest
 
         name = opts[:name]
-        path = opts[:path]
+        root_dir = opts[:root_dir]
 
         rest_obj = PWN::Plugins::TransparentBrowser.open(browser_opts)
         rest_client = rest_obj[:browser]::Request
+        user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
 
         if name
-          path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
+          path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
+          path = "#{root_dir}/burp_target_config_file-#{name}.json" unless opts[:root_dir].nil?
           burp_download_link = programs_arr.select do |program|
             program[:name] == name
           end.first[:burp_target_config]
 
           resp = rest_client.execute(
             method: :get,
-            headers: { user_agent: Faker::Internet.user_agent },
+            headers: { user_agent: user_agent },
             url: burp_download_link
           )
           json_resp = JSON.parse(resp.body)
@@ -121,11 +122,12 @@ module PWN
             begin
               name = program[:name]
               burp_download_link = program[:burp_target_config]
-              path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
+              path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
+              path = "#{root_dir}/burp_target_config_file-#{name}.json" unless opts[:root_dir].nil?
 
               resp = rest_client.execute(
                 method: :get,
-                headers: { user_agent: Faker::Internet.user_agent },
+                headers: { user_agent: user_agent },
                 url: burp_download_link
               )
               json_resp = JSON.parse(resp.body)
@@ -133,7 +135,8 @@ module PWN
               puts "Saving to: #{path}"
               File.write(path, JSON.pretty_generate(json_resp))
               print '.'
-            rescue RestClient::NotFound
+            rescue JSON::ParserError,
+                   RestClient::NotFound
               print '-'
               next
             end
@@ -235,7 +238,7 @@ module PWN
             programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
             browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
             name: 'optional - name of burp target config file (defaults to ALL)',
-            path: 'optional - path to save burp target config files (defaults to \"./burp_target_config_file-NAME.json\"))'
+            root_dir: 'optional - directory to save burp target config files (defaults to \"./\"))'
           )
 
           browser_obj = #{self}.login(
