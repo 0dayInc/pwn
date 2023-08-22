@@ -36,8 +36,6 @@ module PWN
         browser.goto('https://hackerone.com/bug-bounty-programs')
 
         bb_orgs_arr = []
-        # wait until brrowser.links has objects
-        browser.links.wait_until(&:present?)
         browser.links.each do |link|
           print '.'
           next unless link.href && link.text == ''
