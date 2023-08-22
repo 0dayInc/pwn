@@ -275,6 +275,29 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # browser_obj = PWN::Plugins::TransparentBrowser.find_element_by_text(
+      #   browser_obj: browser_obj1,
+      #   text: 'required - text to search for in the DOM'
+      # )
+
+      public_class_method def self.find_element_by_text(opts = {})
+        browser_obj = opts[:browser_obj]
+        text = opts[:text].to_s
+
+        elements_found = browser_obj[:browser].elements.each do |element|
+          element.text.include?(text)
+        end
+
+        elements_found.each do |element_found|
+          @@logger.info("#{element_found.html}\n\n\n")
+        end
+
+        browser_obj
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::TransparentBrowser.type_as_human(
       #   string: 'required - string to type as human',
       #   rand_sleep_float: 'optional - float timing in between keypress (defaults to 0.09)'
@@ -417,6 +440,11 @@ module PWN
 
           browser_obj1 = #{self}.linkout(
             browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          browser_obj1 = #{self}.find_element_by_text(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            text: 'required - text to search for in the DOM'
           )
 
           #{self}.type_as_human(
