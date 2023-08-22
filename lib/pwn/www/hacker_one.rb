@@ -26,12 +26,15 @@ module PWN
       # Supported Method Parameters::
       # bb_prograns_arr = PWN::WWW::HackerOne.get_bounty_programs(
       #   browser_obj: 'required - browser_obj returned from #open method',
-      #   proxy: 'optional - scheme://proxy_host:port || tor'
+      #   proxy: 'optional - scheme://proxy_host:port || tor',
+      #   min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
       # )
 
       public_class_method def self.get_bounty_programs(opts = {})
         browser_obj = opts[:browser_obj]
         browser = browser_obj[:browser]
+        min_payouts_enabled = true if opts[:min_payouts_enabled]
+        min_payouts_enabled ||= false
 
         browser.goto('https://hackerone.com/bug-bounty-programs')
         # Wait for JavaScript to load the DOM
@@ -39,11 +42,15 @@ module PWN
         bb_programs_arr = []
         browser.ul(class: 'program__meta-data').wait_until(&:present?)
         browser.uls(class: 'program__meta-data').each do |ul|
+          min_payout = ul.text.split('$').last.split.first.to_f
+
+          next if min_payouts_enabled && min_payout.zero?
+
           print '.'
-
           link = ul.first.text
-          min_payout = format('$%0.2f', ul.text.split('$').last.split.first.to_f)
+          min_payout_fmt = format('$%0.2f', min_payout)
 
+          
           bounty_program_hash = {
             name: link.split('/').last,
             min_payout: min_payout,
@@ -140,7 +147,8 @@ module PWN
 
           bb_prograns_arr = #{self}.get_bounty_programs(
             browser_obj: 'required - browser_obj returned from #open method',
-            proxy: 'optional - scheme://proxy_host:port || tor'
+            proxy: 'optional - scheme://proxy_host:port || tor',
+            min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
           )
 
           browser_obj = #{self}.login(
