@@ -24,12 +24,12 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj = PWN::WWW::HackerOne.get_bounty_org_links(
+      # browser_obj = PWN::WWW::HackerOne.get_bounty_programs(
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   proxy: 'optional - scheme://proxy_host:port || tor'
       # )
 
-      public_class_method def self.get_bounty_org_links(opts = {})
+      public_class_method def self.get_bounty_programs(opts = {})
         browser_obj = opts[:browser_obj]
         browser = browser_obj[:browser]
 
@@ -38,7 +38,14 @@ module PWN
 
         bb_orgs_arr = []
         browser.links.each do |link|
-          bb_orgs_arr.push(link.href) if link.href && link.text == ''
+          if link.href && link.text == ''
+            bounty_program_hash = {
+              name: link.href.split('/').last,
+              url: link.href
+            }
+            bb_orgs_arr.push(bounty_program_hash)
+            print '.'
+          end
         end
 
         bb_orgs_arr
@@ -127,7 +134,7 @@ module PWN
           browser = browser_obj[:browser]
           puts browser.public_methods
 
-          bb_orgs_arr = #{self}.get_bounty_org_links(
+          bb_orgs_arr = #{self}.get_bounty_programs(
             browser_obj: 'required - browser_obj returned from #open method',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
