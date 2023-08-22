@@ -134,10 +134,9 @@ module PWN
 
               puts "Saving to: #{path}"
               File.write(path, JSON.pretty_generate(json_resp))
-              print '.'
             rescue JSON::ParserError,
                    RestClient::NotFound
-              print '-'
+              puts '-'
               next
             end
           end
