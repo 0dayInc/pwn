@@ -39,6 +39,7 @@ module PWN
         bb_orgs_arr = []
         browser.links.each do |link|
           bb_orgs_arr.push(link.href) if link.href && link.text == ''
+          print '.'
         end
 
         bb_orgs_arr
