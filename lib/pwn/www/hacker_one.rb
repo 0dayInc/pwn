@@ -81,7 +81,7 @@ module PWN
       #   programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
       #   browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
       #   name: 'optional - name of burp target config file (defaults to ALL)',
-      #   path: 'optional - path to save burp target config files (defaults to "./burp_target_config_file-NAME.json"))'
+      #   root_dir: 'optional - directory to save burp target config files (defaults to "./"))'
       # )
 
       public_class_method def self.save_burp_target_config_file(opts = {})
@@ -96,13 +96,14 @@ module PWN
         browser_opts[:browser_type] = :rest
 
         name = opts[:name]
-        path = opts[:path]
+        root_dir = opts[:root_dir]
 
         rest_obj = PWN::Plugins::TransparentBrowser.open(browser_opts)
         rest_client = rest_obj[:browser]::Request
 
         if name
-          path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
+          path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
+          path = "#{root_dir}/burp_target_config_file-#{name}.json" unless opts[:root_dir].nil?
           burp_download_link = programs_arr.select do |program|
             program[:name] == name
           end.first[:burp_target_config]
@@ -121,7 +122,8 @@ module PWN
             begin
               name = program[:name]
               burp_download_link = program[:burp_target_config]
-              path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
+              path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
+              path = "#{root_dir}/burp_target_config_file-#{name}.json" unless opts[:root_dir].nil?
 
               resp = rest_client.execute(
                 method: :get,
@@ -235,7 +237,7 @@ module PWN
             programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
             browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
             name: 'optional - name of burp target config file (defaults to ALL)',
-            path: 'optional - path to save burp target config files (defaults to \"./burp_target_config_file-NAME.json\"))'
+            root_dir: 'optional - directory to save burp target config files (defaults to \"./\"))'
           )
 
           browser_obj = #{self}.login(
