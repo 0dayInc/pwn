@@ -35,7 +35,7 @@ module PWN
 
         browser.goto('https://hackerone.com/bug-bounty-programs')
         # Wait for JavaScript to load the DOM
-        sleep 9
+        browser.div(class: 'full-width-inner-container').wait_until(&:present?)
 
         bb_prograns_arr = []
         browser.links.each do |link|
