@@ -49,6 +49,8 @@ module PWN
           print '.'
           link = "https://#{ul.first.text}"
           min_payout_fmt = format('$%0.2f', min_payout)
+          split_link = link.split('/')
+          burp_project = "https://#{split_link[2]}/teams/#{split_link.last}/assets/download_burp_project_file.json"
 
           bounty_program_hash = {
             name: link.split('/').last,
