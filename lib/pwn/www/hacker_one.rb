@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'faker'
 require 'json'
 require 'uri'
 require 'yaml'
@@ -100,6 +99,7 @@ module PWN
 
         rest_obj = PWN::Plugins::TransparentBrowser.open(browser_opts)
         rest_client = rest_obj[:browser]::Request
+        user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
 
         if name
           path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
@@ -110,7 +110,7 @@ module PWN
 
           resp = rest_client.execute(
             method: :get,
-            headers: { user_agent: Faker::Internet.user_agent },
+            headers: { user_agent: user_agent },
             url: burp_download_link
           )
           json_resp = JSON.parse(resp.body)
@@ -127,7 +127,7 @@ module PWN
 
               resp = rest_client.execute(
                 method: :get,
-                headers: { user_agent: Faker::Internet.user_agent },
+                headers: { user_agent: user_agent },
                 url: burp_download_link
               )
               json_resp = JSON.parse(resp.body)
@@ -135,7 +135,8 @@ module PWN
               puts "Saving to: #{path}"
               File.write(path, JSON.pretty_generate(json_resp))
               print '.'
-            rescue RestClient::NotFound
+            rescue JSON::ParserError,
+                   RestClient::NotFound
               print '-'
               next
             end
