@@ -35,21 +35,24 @@ module PWN
 
         browser.goto('https://hackerone.com/bug-bounty-programs')
         # Wait for JavaScript to load the DOM
-        sleep 9
 
-        bb_prograns_arr = []
-        browser.links.each do |link|
+        bb_programs_arr = []
+        browser.ul(class: 'program__meta-data').wait_until(&:present?)
+        browser.uls(class: 'program__meta-data').each do |ul|
           print '.'
-          next unless link.href && link.text == ''
+
+          link = ul.first.text
+          min_payout = format('$%0.2f', ul.text.split('$').last.split.first.to_f)
 
           bounty_program_hash = {
-            name: link.href.split('/').last,
-            url: link.href
+            name: link.split('/').last,
+            min_payout: min_payout,
+            url: link
           }
-          bb_prograns_arr.push(bounty_program_hash)
+          bb_programs_arr.push(bounty_program_hash)
         end
 
-        bb_prograns_arr
+        bb_programs_arr
       rescue StandardError => e
         raise e
       end
