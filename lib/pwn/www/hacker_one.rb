@@ -38,14 +38,14 @@ module PWN
 
         bb_orgs_arr = []
         browser.links.each do |link|
-          if link.href && link.text == ''
-            bounty_program_hash = {
-              name: link.href.split('/').last,
-              url: link.href
-            }
-            bb_orgs_arr.push(bounty_program_hash)
-            print '.'
-          end
+          next unless link.href && link.text == ''
+
+          bounty_program_hash = {
+            name: link.href.split('/').last,
+            url: link.href
+          }
+          bb_orgs_arr.push(bounty_program_hash)
+          print '.'
         end
 
         bb_orgs_arr
