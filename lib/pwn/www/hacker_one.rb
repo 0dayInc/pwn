@@ -33,11 +33,11 @@ module PWN
         browser_obj = opts[:browser_obj]
         browser = browser_obj[:browser]
 
-        bb_orgs = 'https://hackerone.com/bug-bounty-programs'
-        browser.goto(bb_orgs)
+        browser.goto('https://hackerone.com/bug-bounty-programs')
 
         bb_orgs_arr = []
         browser.links.each do |link|
+          print '.'
           next unless link.href && link.text == ''
 
           bounty_program_hash = {
@@ -45,7 +45,6 @@ module PWN
             url: link.href
           }
           bb_orgs_arr.push(bounty_program_hash)
-          print '.'
         end
 
         bb_orgs_arr
