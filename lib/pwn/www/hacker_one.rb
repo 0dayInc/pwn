@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'uri'
 require 'yaml'
 
 module PWN
@@ -47,14 +48,23 @@ module PWN
           next if min_payouts_enabled && min_payout.zero?
 
           print '.'
-          link = ul.first.text
+          link = "https://#{ul.first.text}"
           min_payout_fmt = format('$%0.2f', min_payout)
+          scheme = URI.parse(link).scheme
+          host = URI.parse(link).host
+          path = URI.parse(link).path
+          burp_project = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
 
-          
           bounty_program_hash = {
             name: link.split('/').last,
-            min_payout: min_payout,
-            url: link
+            min_payout: min_payout_fmt,
+            policy: "#{link}?view_policy=true",
+            burp_project: burp_project,
+            scope: "#{link}/policy_scopes",
+            hacktivity: "#{link}/hacktivity",
+            thanks: "#{link}/thanks",
+            updates: "#{link}/updates",
+            collaborators: "#{link}/collaborators"
           }
           bb_programs_arr.push(bounty_program_hash)
         end
