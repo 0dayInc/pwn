@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'faker'
+require 'json'
 require 'uri'
 require 'yaml'
 
@@ -25,7 +27,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # bb_prograns_arr = PWN::WWW::HackerOne.get_bounty_programs(
+      # programs_arr = PWN::WWW::HackerOne.get_bounty_programs(
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   proxy: 'optional - scheme://proxy_host:port || tor',
       #   min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
@@ -40,7 +42,7 @@ module PWN
         browser.goto('https://hackerone.com/bug-bounty-programs')
         # Wait for JavaScript to load the DOM
 
-        bb_programs_arr = []
+        programs_arr = []
         browser.ul(class: 'program__meta-data').wait_until(&:present?)
         browser.uls(class: 'program__meta-data').each do |ul|
           min_payout = ul.text.split('$').last.split.first.to_f
@@ -53,23 +55,91 @@ module PWN
           scheme = URI.parse(link).scheme
           host = URI.parse(link).host
           path = URI.parse(link).path
-          burp_project = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
+          burp_target_config = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
 
           bounty_program_hash = {
             name: link.split('/').last,
             min_payout: min_payout_fmt,
             policy: "#{link}?view_policy=true",
-            burp_project: burp_project,
+            burp_target_config: burp_target_config,
             scope: "#{link}/policy_scopes",
             hacktivity: "#{link}/hacktivity",
             thanks: "#{link}/thanks",
             updates: "#{link}/updates",
             collaborators: "#{link}/collaborators"
           }
-          bb_programs_arr.push(bounty_program_hash)
+          programs_arr.push(bounty_program_hash)
         end
 
-        bb_programs_arr
+        programs_arr
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::WWW::HackerOne.save_burp_target_config_file(
+      #   programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
+      #   browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
+      #   name: 'optional - name of burp target config file (defaults to ALL)',
+      #   path: 'optional - path to save burp target config files (defaults to "./burp_target_config_file-NAME.json"))'
+      # )
+
+      public_class_method def self.save_burp_target_config_file(opts = {})
+        programs_arr = opts[:programs_arr]
+        raise 'ERROR: programs_arr should be data returned from #get_bounty_programs' unless programs_arr.any?
+
+        browser_opts = opts[:browser_opts]
+        raise 'ERROR: browser_opts should be a hash' unless browser_opts.nil? ||
+                                                            browser_opts.is_a?(Hash)
+
+        browser_opts ||= {}
+        browser_opts[:browser_type] = :rest
+
+        name = opts[:name]
+        path = opts[:path]
+
+        rest_obj = PWN::Plugins::TransparentBrowser.open(browser_opts)
+        rest_client = rest_obj[:browser]::Request
+
+        if name
+          path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
+          burp_download_link = programs_arr.select do |program|
+            program[:name] == name
+          end.first[:burp_target_config]
+
+          resp = rest_client.execute(
+            method: :get,
+            headers: { user_agent: Faker::Internet.user_agent },
+            url: burp_download_link
+          )
+          json_resp = JSON.parse(resp.body)
+
+          puts "Saving to: #{path}"
+          File.write(path, JSON.pretty_generate(json_resp))
+        else
+          programs_arr.each do |program|
+            begin
+              name = program[:name]
+              burp_download_link = program[:burp_target_config]
+              path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
+
+              resp = rest_client.execute(
+                method: :get,
+                headers: { user_agent: Faker::Internet.user_agent },
+                url: burp_download_link
+              )
+              json_resp = JSON.parse(resp.body)
+
+              puts "Saving to: #{path}"
+              File.write(path, JSON.pretty_generate(json_resp))
+              print '.'
+            rescue RestClient::NotFound
+              print '-'
+              next
+            end
+          end
+        end
+        puts 'complete.'
       rescue StandardError => e
         raise e
       end
@@ -155,10 +225,17 @@ module PWN
           browser = browser_obj[:browser]
           puts browser.public_methods
 
-          bb_prograns_arr = #{self}.get_bounty_programs(
+          programs_arr = #{self}.get_bounty_programs(
             browser_obj: 'required - browser_obj returned from #open method',
             proxy: 'optional - scheme://proxy_host:port || tor',
             min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
+          )
+
+          #{self}.save_burp_target_config_file(
+            programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
+            browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
+            name: 'optional - name of burp target config file (defaults to ALL)',
+            path: 'optional - path to save burp target config files (defaults to \"./burp_target_config_file-NAME.json\"))'
           )
 
           browser_obj = #{self}.login(

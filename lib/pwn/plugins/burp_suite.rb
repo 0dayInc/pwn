@@ -12,6 +12,7 @@ module PWN
       #   burp_jar_path: 'required - path of burp suite pro jar file',
       #   headless: 'optional - run burp headless if set to true',
       #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
+      #   target_config: 'optional - path to burp suite pro target config JSON file'
       # )
 
       public_class_method def self.start(opts = {})
@@ -26,6 +27,8 @@ module PWN
                          opts[:browser_type]
                        end
 
+        target_config = opts[:target_config]
+
         if opts[:headless]
           # burp_cmd_string = "java -Xmx4G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
           burp_cmd_string = "java -Xmx4G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar -jar #{burp_jar_path}"
@@ -33,6 +36,7 @@ module PWN
           # burp_cmd_string = "java -Xmx4G -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
           burp_cmd_string = "java -Xmx4G -classpath #{burp_root}/burpbuddy.jar -jar #{burp_jar_path}"
         end
+        burp_cmd_string = "#{burp_cmd_string} --config-file=#{target_config}" if target_config && File.exist?(target_config)
 
         # Construct burp_obj
         burp_obj = {}
