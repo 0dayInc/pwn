@@ -33,7 +33,7 @@ module PWN
         browser_obj = opts[:browser_obj]
         browser = browser_obj[:browser]
 
-        browser.goto('https://hackerone.com/bug-bounty-programs')
+        browser.goto('https://hackerone.com/bug-bounty-programs').wait_until(&:present?)
 
         bb_orgs_arr = []
         browser.links.each do |link|
