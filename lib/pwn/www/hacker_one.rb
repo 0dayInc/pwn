@@ -24,6 +24,29 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # browser_obj = PWN::WWW::HackerOne.get_bounty_org_links(
+      #   browser_obj: 'required - browser_obj returned from #open method',
+      #   proxy: 'optional - scheme://proxy_host:port || tor'
+      # )
+
+      public_class_method def self.get_bounty_org_links(opts = {})
+        browser_obj = opts[:browser_obj]
+        browser = browser_obj[:browser]
+
+        bb_orgs = 'https://hackerone.com/bug-bounty-programs'
+        browser.goto(bb_orgs)
+
+        bb_orgs_arr = []
+        browser.links.each do |link|
+          bb_orgs_arr.push(link.href) if link.href && link.text == ''
+        end
+
+        bb_orgs_arr
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # browser_obj = PWN::WWW::HackerOne.login(
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   username: 'required - username',
@@ -103,6 +126,11 @@ module PWN
           )
           browser = browser_obj[:browser]
           puts browser.public_methods
+
+          bb_orgs_arr = #{self}.get_bounty_org_links(
+            browser_obj: 'required - browser_obj returned from #open method',
+            proxy: 'optional - scheme://proxy_host:port || tor'
+          )
 
           browser_obj = #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
