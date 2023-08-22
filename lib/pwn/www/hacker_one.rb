@@ -47,13 +47,14 @@ module PWN
           next if min_payouts_enabled && min_payout.zero?
 
           print '.'
-          link = ul.first.text
+          link = "https://#{ul.first.text}"
           min_payout_fmt = format('$%0.2f', min_payout)
 
           bounty_program_hash = {
             name: link.split('/').last,
             min_payout: min_payout_fmt,
             policy: "#{link}?view_policy=true",
+            burp_project: "#{link}/assets/download_burp_project_file.json",
             scope: "#{link}/policy_scopes",
             hacktivity: "#{link}/hacktivity",
             thanks: "#{link}/thanks",
