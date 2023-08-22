@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+#805922 frozen_string_literal: true
 
 require 'yaml'
 
@@ -34,6 +34,8 @@ module PWN
         browser = browser_obj[:browser]
 
         browser.goto('https://hackerone.com/bug-bounty-programs')
+        # blech
+        sleep 9
 
         bb_orgs_arr = []
         browser.links.each do |link|
