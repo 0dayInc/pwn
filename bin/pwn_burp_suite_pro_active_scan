@@ -29,6 +29,10 @@ OptionParser.new do |options|
   options.on('-IINST', '--navigation_instruct=INST', '<Required - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/burpsuite/navigation.instruct.EXAMPLE)>') do |i|
     opts[:navigation_instruct] = i
   end
+
+  options.on('-cFILE', '--target-config=FILE', '<Optional - Path to Target Config JSON File>') do |c|
+    opts[:target_config] = c
+  end
 end.parse!
 
 if opts.empty?
@@ -47,18 +51,22 @@ begin
   navigation_instruct = opts[:navigation_instruct]
   raise 'Invalid path to browser instructions.  Please check your spelling and try again.' unless File.exist?(navigation_instruct)
 
+  target_config = opts[:target_config]
+
   # ------
   # Open Burp
   if headless
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
       headless: true,
-      browser_type: :headless
+      browser_type: :headless,
+      target_config: target_config
     )
   else
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
-      browser_type: :chrome
+      browser_type: :chrome,
+      target_config: target_config
     )
   end
 

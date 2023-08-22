@@ -55,13 +55,13 @@ module PWN
           scheme = URI.parse(link).scheme
           host = URI.parse(link).host
           path = URI.parse(link).path
-          burp_project = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
+          burp_target_config = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
 
           bounty_program_hash = {
             name: link.split('/').last,
             min_payout: min_payout_fmt,
             policy: "#{link}?view_policy=true",
-            burp_project: burp_project,
+            burp_target_config: burp_target_config,
             scope: "#{link}/policy_scopes",
             hacktivity: "#{link}/hacktivity",
             thanks: "#{link}/thanks",
@@ -77,14 +77,14 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::WWW::HackerOne.save_burp_project_file(
+      # PWN::WWW::HackerOne.save_burp_target_config_file(
       #   programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
       #   browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
-      #   name: 'optional - name of burp project file (defaults to ALL)',
-      #   path: 'optional - path to save burp project files (defaults to "./burp_project_file-NAME.json"))'
+      #   name: 'optional - name of burp target config file (defaults to ALL)',
+      #   path: 'optional - path to save burp target config files (defaults to "./burp_target_config_file-NAME.json"))'
       # )
 
-      public_class_method def self.save_burp_project_file(opts = {})
+      public_class_method def self.save_burp_target_config_file(opts = {})
         programs_arr = opts[:programs_arr]
         raise 'ERROR: programs_arr should be data returned from #get_bounty_programs' unless programs_arr.any?
 
@@ -102,10 +102,10 @@ module PWN
         rest_client = rest_obj[:browser]::Request
 
         if name
-          path = "./burp_project_file-#{name}.json" if opts[:path].nil?
+          path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
           burp_download_link = programs_arr.select do |program|
             program[:name] == name
-          end.first[:burp_project]
+          end.first[:burp_target_config]
 
           resp = rest_client.execute(
             method: :get,
@@ -120,8 +120,8 @@ module PWN
           programs_arr.each do |program|
             begin
               name = program[:name]
-              burp_download_link = program[:burp_project]
-              path = "./burp_project_file-#{name}.json" if opts[:path].nil?
+              burp_download_link = program[:burp_target_config]
+              path = "./burp_target_config_file-#{name}.json" if opts[:path].nil?
 
               resp = rest_client.execute(
                 method: :get,
@@ -231,11 +231,11 @@ module PWN
             min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
           )
 
-          #{self}.save_burp_project_file(
+          #{self}.save_burp_target_config_file(
             programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
             browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
-            name: 'optional - name of burp project file (defaults to ALL)',
-            path: 'optional - path to save burp project files (defaults to \"./burp_project_file-NAME.json\"))'
+            name: 'optional - name of burp target config file (defaults to ALL)',
+            path: 'optional - path to save burp target config files (defaults to \"./burp_target_config_file-NAME.json\"))'
           )
 
           browser_obj = #{self}.login(
