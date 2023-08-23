@@ -104,6 +104,8 @@ module PWN
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
+        response_body_scrubbed = response.body.to_s.scrub
+        response.body = response_body_scrubbed
         response
       rescue RestClient::TooManyRequests
         print 'Too many requests.  Sleeping 10s...'

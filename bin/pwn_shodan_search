@@ -84,10 +84,6 @@ begin
     end
   end
   File.write(raw_query_results_file, JSON.pretty_generate(raw_results_arr))
-rescue JSON::GeneratorError
-  # Sometimes we get source sequence is illegal/malformed utf-8
-  # errors, so we still attempt to write without pretty_generate
-  File.write(raw_query_results_file, raw_results_arr.to_json)
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 end
