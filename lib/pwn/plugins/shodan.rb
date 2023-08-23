@@ -105,6 +105,8 @@ module PWN
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
         JSON.parse(response.scrub, symbolize_names: true)
+      rescue JSON::ParserError => e
+        { error: "JSON::ParserError #{e.message}" }
       rescue RestClient::TooManyRequests
         print 'Too many requests.  Sleeping 10s...'
         sleep 10
