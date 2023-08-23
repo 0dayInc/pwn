@@ -106,7 +106,7 @@ module PWN
         end
         JSON.parse(response.scrub, symbolize_names: true)
       rescue JSON::ParserError => e
-        { error: "JSON::ParserError #{e.message}" }
+        "{ \"error\": \"JSON::ParserError #{e.message}\", \"params\": \"#{params}\" }"
       rescue RestClient::TooManyRequests
         print 'Too many requests.  Sleeping 10s...'
         sleep 10
