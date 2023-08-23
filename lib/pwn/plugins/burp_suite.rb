@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
-require 'socket'
 require 'base64'
+require 'json'
+require 'socket'
+require 'uri'
 
 module PWN
   module Plugins
@@ -73,6 +75,45 @@ module PWN
         burp_obj
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # uri_in_scope_bool = PWN::Plugins::BurpSuite.uri_in_scope(
+      #   target_config: 'required - path to burp suite pro target config JSON file',
+      #   uri: 'required - URI to determine if in scope'
+      # )
+
+      public_class_method def self.uri_in_scope(opts = {})
+        target_config = opts[:target_config]
+        raise 'ERROR: target_config does not exist' unless File.exist?(target_config)
+
+        uri = opts[:uri]
+        raise 'ERROR: uri parameter is required' if uri.nil?
+
+        target_config_json = JSON.parse(
+          File.read(target_config),
+          symbolize_names: true
+        )
+
+        out_of_scope = target_config_json[:target][:scope][:exclude]
+        out_of_scope_arr = out_of_scope.select do |os|
+          URI.parse(uri).scheme =~ /#{os[:protocol]}/ &&
+            URI.parse(uri).host =~ /#{os[:host]}/ &&
+            URI.parse(uri).path =~ /#{os[:file]}/
+        end
+        return false unless out_of_scope_arr.empty?
+
+        in_scope = target_config_json[:target][:scope][:include]
+        in_scope_arr = in_scope.select do |is|
+          URI.parse(uri).scheme =~ /#{is[:protocol]}/ &&
+            URI.parse(uri).host =~ /#{is[:host]}/ &&
+            URI.parse(uri).path =~ /#{is[:file]}/
+        end
+        return false if in_scope_arr.empty?
+
+        true
+      rescue StandardError => e
         raise e
       end
 
@@ -311,6 +352,12 @@ module PWN
             burp_jar_path: 'required - path of burp suite pro jar file',
             headless: 'optional - run headless if set to true',
             browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
+            target_config: 'optional - path to burp suite pro target config JSON file'
+          )
+
+          uri_in_scope_bool = #{self}.uri_in_scope(
+            target_config: 'required - path to burp suite pro target config JSON file',
+            uri: 'required - URI to determine if in scope'
           )
 
           #{self}.enable_proxy(
