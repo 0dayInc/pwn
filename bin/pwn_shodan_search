@@ -87,8 +87,17 @@ begin
   end
   File.write(raw_query_results_arr_file, raw_results_arr)
 
-  # Avoid JSON::GeneratorError: source sequence is illegal/malformed utf-8
+  # TODO: Avoid JSON::GeneratorError: source sequence is illegal/malformed utf-8
+  # in rare circumstances
   File.write(raw_query_results_file, JSON.pretty_generate(raw_results_arr))
+rescue JSON::GeneratorError => e
+  puts '!!! SERIALIZATION DEBUG MODE !!!'
+  raw_results_arr.each do |r|
+    puts r.to_json
+  rescue JSON::GeneratorError => e
+    print "#{e.message} FOUND IN: #{r.inspect}"
+    gets
+  end
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 end
