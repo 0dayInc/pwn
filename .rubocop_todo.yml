@@ -92,12 +92,6 @@ Style/IfUnlessModifier:
     - 'bin/pwn'
     - 'lib/pwn/plugins/baresip.rb'
 
-# Offense count: 1
-# This cop supports safe autocorrection (--autocorrect).
-Style/RedundantBegin:
-  Exclude:
-    - 'lib/pwn/www/hacker_one.rb'
-
 # Offense count: 95
 # This cop supports safe autocorrection (--autocorrect).
 Style/RedundantCondition:
