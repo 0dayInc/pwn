@@ -50,12 +50,13 @@ begin
   raise 'ERROR: Rate Limit must be >= 1.0' unless rate_limit_duration.positive?
 
   # Strip comments from query file when reading
-  queries = File.readlines(query_file).select { |l| l !~ /^#.*$/ }
+  queries = File.readlines(query_file).grep_v(/^#.*$/)
 
   timestamp = Time.now.strftime('%Y-%m-%d.%H:%M:%S')
   query_results_file = opts[:output_results_file]
   query_results_file ||= "./shodan-results-#{timestamp}"
 
+  raw_query_results_arr_file = "#{query_results_file}-RAW.arr"
   raw_query_results_file = "#{query_results_file}-RAW.json"
   raw_results_arr = []
   File.open(query_results_file, 'w') do |f|
@@ -84,6 +85,7 @@ begin
       sleep rate_limit_duration
     end
   end
+  File.write(raw_query_results_arr_file, raw_results_arr)
   File.write(raw_query_results_file, JSON.pretty_generate(raw_results_arr))
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
