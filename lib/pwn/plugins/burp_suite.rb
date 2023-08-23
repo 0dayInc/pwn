@@ -100,7 +100,7 @@ module PWN
         out_of_scope_arr = out_of_scope.select do |os|
           URI.parse(uri).scheme =~ /#{os[:protocol]}/ &&
             URI.parse(uri).host =~ /#{os[:host]}/ &&
-            URI.parse(uri).path =~ /#{os[:file]}/
+            (URI.parse(uri).path =~ /#{os[:file]}/ || URI.parse(uri).path == '')
         end
         return false unless out_of_scope_arr.empty?
 
@@ -108,7 +108,7 @@ module PWN
         in_scope_arr = in_scope.select do |is|
           URI.parse(uri).scheme =~ /#{is[:protocol]}/ &&
             URI.parse(uri).host =~ /#{is[:host]}/ &&
-            URI.parse(uri).path =~ /#{is[:file]}/
+            (URI.parse(uri).path =~ /#{is[:file]}/ || URI.parse(uri).path == '')
         end
         return false if in_scope_arr.empty?
 
