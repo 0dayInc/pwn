@@ -93,10 +93,9 @@ begin
 rescue JSON::GeneratorError => e
   puts '!!! SERIALIZATION DEBUG MODE !!!'
   raw_results_arr.each do |r|
-    puts r.to_json
+    JSON.pretty_generate(r)
   rescue JSON::GeneratorError => e
-    print "#{e.message} FOUND IN: #{r.inspect}"
-    gets
+    puts "#{e.message} FOUND IN: #{r.inspect}"
   end
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
