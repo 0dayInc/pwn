@@ -50,7 +50,7 @@ begin
   raise 'ERROR: Rate Limit must be >= 1.0' unless rate_limit_duration.positive?
 
   # Strip comments from query file when reading
-  queries = File.readlines(query_file).select { |l| l !~ /^#.*$/ }
+  queries = File.readlines(query_file).grep_v(/^#.*$/)
 
   timestamp = Time.now.strftime('%Y-%m-%d.%H:%M:%S')
   query_results_file = opts[:output_results_file]
