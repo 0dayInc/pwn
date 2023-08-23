@@ -104,9 +104,7 @@ module PWN
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
-        response_body_scrubbed = response.body.to_s.scrub
-        response.body = response_body_scrubbed
-        response
+        JSON.parse(response.scrub, symbolize_names: true)
       rescue RestClient::TooManyRequests
         print 'Too many requests.  Sleeping 10s...'
         sleep 10
@@ -138,7 +136,7 @@ module PWN
             rest_call: "shodan/host/#{target_ip}",
             params: params
           )
-          services_by_ips.push(JSON.parse(response, symbolize_names: true))
+          services_by_ips.push(response)
         rescue StandardError => e
           services_by_ips.push(error: e.message)
           next
@@ -174,12 +172,11 @@ module PWN
           }
         end
 
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/host/count',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -209,12 +206,11 @@ module PWN
           }
         end
 
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/host/search',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -234,12 +230,11 @@ module PWN
           query: query
         }
 
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/host/search/tokens',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -253,12 +248,11 @@ module PWN
         api_key = opts[:api_key].to_s.scrub
 
         params = { key: api_key }
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/ports',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -272,12 +266,11 @@ module PWN
         api_key = opts[:api_key].to_s.scrub
 
         params = { key: api_key }
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/protocols',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -294,14 +287,13 @@ module PWN
 
         params = { key: api_key }
         http_body = "ips=#{target_ips}"
-        response = shodan_rest_call(
+        shodan_rest_call(
           http_method: :post,
           api_key: api_key,
           rest_call: 'shodan/scan',
           params: params,
           http_body: http_body
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -320,14 +312,13 @@ module PWN
 
         params = { key: api_key }
         http_body = "port=#{port}&protocol=#{protocol}"
-        response = shodan_rest_call(
+        shodan_rest_call(
           http_method: :post,
           api_key: api_key,
           rest_call: 'shodan/scan/internet',
           params: params,
           http_body: http_body
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -346,12 +337,11 @@ module PWN
           key: api_key
         }
 
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: "shodan/scan/status/#{scan_id}",
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -365,12 +355,11 @@ module PWN
         api_key = opts[:api_key].to_s.scrub
 
         params = { key: api_key }
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/services',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -395,12 +384,12 @@ module PWN
           sort: sort.to_s,
           order: order.to_s
         }
-        response = shodan_rest_call(
+
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/query',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -424,12 +413,11 @@ module PWN
           params = { key: api_key }
         end
 
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'shodan/query/tags',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -443,12 +431,11 @@ module PWN
         api_key = opts[:api_key].to_s.scrub
 
         params = { key: api_key }
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'account/profile',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
@@ -480,12 +467,11 @@ module PWN
         api_key = opts[:api_key].to_s.scrub
 
         params = { key: api_key }
-        response = shodan_rest_call(
+        shodan_rest_call(
           api_key: api_key,
           rest_call: 'api-info',
           params: params
         )
-        JSON.parse(response, symbolize_names: true)
       rescue StandardError => e
         raise e
       end
