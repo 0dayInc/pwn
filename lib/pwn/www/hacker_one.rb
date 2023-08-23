@@ -119,26 +119,24 @@ module PWN
           File.write(path, JSON.pretty_generate(json_resp))
         else
           programs_arr.each do |program|
-            begin
-              name = program[:name]
-              burp_download_link = program[:burp_target_config]
-              path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
-              path = "#{root_dir}/burp_target_config_file-#{name}.json" unless opts[:root_dir].nil?
+            name = program[:name]
+            burp_download_link = program[:burp_target_config]
+            path = "./burp_target_config_file-#{name}.json" if opts[:root_dir].nil?
+            path = "#{root_dir}/burp_target_config_file-#{name}.json" unless opts[:root_dir].nil?
 
-              resp = rest_client.execute(
-                method: :get,
-                headers: { user_agent: user_agent },
-                url: burp_download_link
-              )
-              json_resp = JSON.parse(resp.body)
+            resp = rest_client.execute(
+              method: :get,
+              headers: { user_agent: user_agent },
+              url: burp_download_link
+            )
+            json_resp = JSON.parse(resp.body)
 
-              puts "Saving to: #{path}"
-              File.write(path, JSON.pretty_generate(json_resp))
-            rescue JSON::ParserError,
-                   RestClient::NotFound
-              puts '-'
-              next
-            end
+            puts "Saving to: #{path}"
+            File.write(path, JSON.pretty_generate(json_resp))
+          rescue JSON::ParserError,
+                 RestClient::NotFound
+            puts '-'
+            next
           end
         end
         puts 'complete.'
