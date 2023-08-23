@@ -88,16 +88,7 @@ begin
   File.write(raw_query_results_arr_file, raw_results_arr)
 
   # Avoid JSON::GeneratorError: source sequence is illegal/malformed utf-8
-  # File.write(raw_query_results_file, JSON.pretty_generate(raw_results_arr))
-  File.open(raw_query_results_arr_file, 'w') do |f|
-    f.puts '['
-    raw_results_arr.each do |raw_results|
-      f.puts "#{JSON.pretty_generate(raw_results)},"
-    rescue JSON::GeneratorError
-      f.puts '{ "JSON::GeneratorError": "source sequence is illegal/malformed utf-8" },'
-    end
-    f.puts ']'
-  end
+  File.write(raw_query_results_file, JSON.pretty_generate(raw_results_arr))
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 end
