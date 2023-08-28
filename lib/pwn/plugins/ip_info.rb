@@ -81,6 +81,8 @@ module PWN
             )
 
             ip_resp[:tls_avail] = tls_port_avail
+            ip_resp[:cert_txt] = false
+            ip_resp[:cert_obj] = false
             next unless tls_port_avail
 
             cert_obj = PWN::Plugins::Sock.get_tls_cert(
@@ -88,12 +90,10 @@ module PWN
               port: tls_port
             )
 
-            ip_resp[:cert_txt] = false
-            ip_resp[:cert_obj] = false
             next unless cert_obj.is_a?(OpenSSL::X509::Certificate)
 
             ip_resp[:cert_txt] = cert_obj.to_text
-            ip_resp[:cert_obj] = cert
+            ip_resp[:cert_obj] = cert_obj
           end
         end
 
