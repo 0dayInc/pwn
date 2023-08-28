@@ -26,8 +26,12 @@ module PWN
 
         # TODO: Add proxy support
 
-        tls = true if opts[:tls]
-        tls ||= false
+        if opts[:tls]
+          tls = true
+          tls_attempt = 1 unless tls_attempt > 1
+          tls_min_version = OpenSSL::SSL::TLS1_VERSION
+        end
+        tls = false unless opts[:tls]
 
         case protocol
         when :tcp
@@ -35,6 +39,8 @@ module PWN
             sock = TCPSocket.open(target, port)
             tls_context = OpenSSL::SSL::SSLContext.new
             tls_context.set_params(verify_mode: OpenSSL::SSL::VERIFY_NONE)
+            tls_context.verify_hostname = false
+            tls_context.min_proto_version = tls_min_version
             tls_sock = OpenSSL::SSL::SSLSocket.new(sock, tls_context)
             sock_obj = tls_sock.connect
           else
@@ -48,6 +54,15 @@ module PWN
         end
 
         sock_obj
+      rescue OpenSSL::SSL::SSLError
+        tls_attempt += 1
+
+        tls_min_version = OpenSSL::SSL::TLS1_1_VERSION if tls_attempt == 2
+        tls_min_version = OpenSSL::SSL::TLS1_2_VERSION if tls_attempt == 3
+        tls_min_version = OpenSSL::SSL::TLS1_3_VERSION if tls_attempt == 4
+
+        retry if tls_attempt < 5
+        raise e if tls_attempt > 4
       rescue StandardError => e
         sock_obj = disconnect(sock_obj: sock_obj) unless sock_obj.nil?
         raise e
@@ -188,8 +203,6 @@ module PWN
         )
         tls_sock_obj.sync_close = true
         tls_sock_obj.peer_cert
-      rescue OpenSSL::SSL::SSLError
-        false
       rescue StandardError => e
         raise e
       ensure
