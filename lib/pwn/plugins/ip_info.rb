@@ -75,7 +75,6 @@ module PWN
 
         if proxy.nil?
           ip_info_resp.each do |ip_resp|
-            # TODO: add this block as a method in PWN::Plugins::Sock
             tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
               server_ip: ip_or_host,
               server_port: tls_port
@@ -84,15 +83,11 @@ module PWN
             ip_resp[:tls_avail] = tls_port_avail
             next unless tls_port_avail
 
-            tls_sock_obj = PWN::Plugins::Sock.connect(
+            cert_obj = PWN::Plugins::Sock.get_tls_cert(
               target: ip_or_host,
-              port: tls_port,
-              protocol: :tcp,
-              tls: true
+              port: tls_port
             )
-            tls_sock_obj.sync_close = true
-            cert = tls_sock.peer_cert
-            ip_resp[:cert_txt] = cert.to_text
+            ip_resp[:cert_txt] = cert_obj.to_text
             ip_resp[:cert_obj] = cert
             PWN::Plugins::Sock.disconnect(sock_obj: tls_sock_obj)
           end

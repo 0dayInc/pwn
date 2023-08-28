@@ -170,6 +170,31 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # cert_obj = PWN::Plugins::Sock.get_tls_cert(
+      #   target: 'required - target host or ip',
+      #   port: 'optional - target port (defaults to 443)'
+      # )
+
+      public_class_method def self.get_tls_cert(opts = {})
+        target = opts[:target].to_s.scrub
+        port = opts[:port]
+        port ||= 443
+
+        tls_sock_obj = connect(
+          target: target,
+          port: port,
+          protocol: :tcp,
+          tls: true
+        )
+        tls_sock_obj.sync_close = true
+        tls_sock_obj.peer_cert
+      rescue StandardError => e
+        raise e
+      ensure
+        tls_sock_obj = disconnect(sock_obj: tls_sock_obj) unless tls_sock_obj.nil?
+      end
+
+      # Supported Method Parameters::
       # sock_obj = PWN::Plugins::Sock.disconnect(
       #   sock_obj: 'required - sock_obj returned from #connect method'
       # )
