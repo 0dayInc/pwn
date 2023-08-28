@@ -26,12 +26,10 @@ module PWN
 
         # TODO: Add proxy support
 
-        if opts[:tls]
-          tls = true
-          tls_attempt = 1 unless tls_attempt > 1
-          tls_min_version = OpenSSL::SSL::TLS1_VERSION
-        end
-        tls = false unless opts[:tls]
+        tls = true if opts[:tls]
+        tls ||= false
+
+        tls_min_version = OpenSSL::SSL::TLS1_VERSION if tls_min_version.nil?
 
         case protocol
         when :tcp
@@ -54,15 +52,20 @@ module PWN
         end
 
         sock_obj
-      rescue OpenSSL::SSL::SSLError
-        tls_attempt += 1
+      rescue OpenSSL::SSL::SSLError => e
+        tls_min_version = case tls_min_version
+                          when OpenSSL::SSL::TLS1_VERSION
+                            OpenSSL::SSL::TLS1_1_VERSION
+                          when OpenSSL::SSL::TLS1_1_VERSION
+                            OpenSSL::SSL::TLS1_2_VERSION
+                          when OpenSSL::SSL::TLS1_2_VERSION
+                            OpenSSL::SSL::TLS1_3_VERSION
+                          else
+                            :abort
+                          end
 
-        tls_min_version = OpenSSL::SSL::TLS1_1_VERSION if tls_attempt == 2
-        tls_min_version = OpenSSL::SSL::TLS1_2_VERSION if tls_attempt == 3
-        tls_min_version = OpenSSL::SSL::TLS1_3_VERSION if tls_attempt == 4
-
-        retry if tls_attempt < 5
-        raise e if tls_attempt > 4
+        retry unless tls_min_version == :abort
+        raise e if tls_min_version == :abort
       rescue StandardError => e
         sock_obj = disconnect(sock_obj: sock_obj) unless sock_obj.nil?
         raise e
