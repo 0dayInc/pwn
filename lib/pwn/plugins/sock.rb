@@ -29,12 +29,16 @@ module PWN
         tls = true if opts[:tls]
         tls ||= false
 
+        tls_min_version = OpenSSL::SSL::TLS1_VERSION if tls_min_version.nil?
+
         case protocol
         when :tcp
           if tls
             sock = TCPSocket.open(target, port)
             tls_context = OpenSSL::SSL::SSLContext.new
             tls_context.set_params(verify_mode: OpenSSL::SSL::VERIFY_NONE)
+            tls_context.verify_hostname = false
+            tls_context.min_version = tls_min_version
             tls_sock = OpenSSL::SSL::SSLSocket.new(sock, tls_context)
             sock_obj = tls_sock.connect
           else
@@ -48,6 +52,20 @@ module PWN
         end
 
         sock_obj
+      rescue OpenSSL::SSL::SSLError => e
+        tls_min_version = case tls_min_version
+                          when OpenSSL::SSL::TLS1_VERSION
+                            OpenSSL::SSL::TLS1_1_VERSION
+                          when OpenSSL::SSL::TLS1_1_VERSION
+                            OpenSSL::SSL::TLS1_2_VERSION
+                          when OpenSSL::SSL::TLS1_2_VERSION
+                            OpenSSL::SSL::TLS1_3_VERSION
+                          else
+                            :abort
+                          end
+
+        retry unless tls_min_version == :abort
+        raise e if tls_min_version == :abort
       rescue StandardError => e
         sock_obj = disconnect(sock_obj: sock_obj) unless sock_obj.nil?
         raise e
@@ -188,8 +206,6 @@ module PWN
         )
         tls_sock_obj.sync_close = true
         tls_sock_obj.peer_cert
-      rescue OpenSSL::SSL::SSLError
-        false
       rescue StandardError => e
         raise e
       ensure
