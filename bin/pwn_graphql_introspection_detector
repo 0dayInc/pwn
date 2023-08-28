@@ -1,0 +1,311 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'faker'
+require 'json'
+require 'optparse'
+require 'pwn'
+
+opts = {}
+OptionParser.new do |options|
+  options.on('-jFILE', '--json-results=FILE', 'Required - JSON results file from pwn_shodan_search driver') do |j|
+    opts[:json_results] = j
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+json_results_path = opts[:json_results]
+raise "ERROR: Shodan JSON Results File #{json_results_path} Does Not Exist." unless File.exist?(json_results_path)
+
+search_results = JSON.parse(
+  File.read(json_results_path),
+  symbolize_names: true
+)
+
+print 'Extracting URIs from Shodan search results...'
+uri_arr = PWN::Plugins::Shodan.get_uris(search_results: search_results)
+puts 'complete.'
+
+print "Extracting GraphQL URIs from #{uri_arr.count} URIs..."
+graphql_uris = uri_arr.uniq.select do |uri|
+  uri if uri =~ %r{.+/graphql/?$} ||
+         uri =~ %r{.+/graphiql/?$} ||
+         uri =~ %r{.+/playground/?$} ||
+         uri =~ %r{.+/console/?$} ||
+         uri =~ %r{.+/query/?$} ||
+         uri =~ %r{.+/gql/?$} ||
+         uri =~ %r{.+/index.php?graphql$}
+end
+puts 'complete.'
+
+browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+rest_client = browser_obj[:browser]::Request
+
+graphql_payloads_arr = []
+
+graphql_schema_payload = '{ "query": "{ __schema { types { name } } }" }'
+graphql_payloads_arr.push(graphql_schema_payload)
+
+graphql_introspection_payload1 = <<-END_OF_PAYLOAD
+  {
+    query IntrospectionQuery {
+      __schema {
+
+        queryType { name }
+        mutationType { name }
+        subscriptionType { name }
+        types { ...FullType }
+        directives {
+          name
+          description
+          locations
+          args { ...InputValue }
+        }
+      }
+    }
+
+    fragment FullType on __Type {
+      kind
+      name
+      description
+      fields(includeDeprecated: true) {
+        name
+        description
+        args { ...InputValue }
+        type { ...TypeRef }
+        isDeprecated
+        deprecationReason
+      }
+      inputFields {
+        ...InputValue
+      }
+      interfaces {
+        ...TypeRef
+      }
+      enumValues(includeDeprecated: true) {
+        name
+        description
+        isDeprecated
+        deprecationReason
+      }
+      possibleTypes {
+        ...TypeRef
+      }
+    }
+
+    fragment InputValue on __InputValue {
+      name
+      description
+      type { ...TypeRef }
+      defaultValue
+    }
+
+    fragment TypeRef on __Type {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType {
+                  kind
+                  name
+                  ofType {
+                    kind
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+END_OF_PAYLOAD
+graphql_payloads_arr.push(graphql_introspection_payload1)
+
+graphql_introspection_payload2 = <<-END_OF_PAYLOAD
+    {
+      "operationName":"IntrospectionQuery",
+      "variables":{},
+      "query":"
+        fragment FullType on __Type {
+          kind
+          name
+          description
+          fields(includeDeprecated: true) {
+            name
+            description
+            args { ...InputValue }
+            type { ...TypeRef }
+            isDeprecated    deprecationReason
+          }
+          inputFields { ...InputValue  }
+          interfaces { ...TypeRef  }
+          enumValues(includeDeprecated: true) {
+            name
+            description
+            isDeprecated
+            deprecationReason
+          }
+          possibleTypes { ...TypeRef }
+      }
+
+      fragment InputValue on __InputValue {
+        name
+        description
+        type { ...TypeRef }
+        defaultValue
+      }
+
+      fragment TypeRef on __Type {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType {
+                  kind
+                  name
+                  ofType {
+                    kind
+                    name
+                    ofType {
+                      kind
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      query IntrospectionQuery {
+        __schema {
+          queryType { name }
+          mutationType { name }
+          types { ...FullType }
+          directives {
+            name
+            description
+            locations
+            args { ...InputValue }
+          }
+        }
+      }"
+    }
+END_OF_PAYLOAD
+graphql_payloads_arr.push(graphql_introspection_payload2)
+
+# Math Part
+graphql_uri_tot = graphql_uris.length
+payload_tot = graphql_payloads_arr.length
+request_tot = payload_tot * graphql_uri_tot
+
+puts "Sending #{payload_tot} payloads to #{graphql_uris.count} GraphQL URIs..."
+puts "Total HTTP Requests: #{request_tot}"
+
+user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
+introspection_arr_of_hashes = []
+graphql_uris.each do |this_uri|
+  puts "IN PROGRESS: #{this_uri}..."
+  graphql_payloads_arr.each_with_index do |this_payload, payload_index|
+    # user_agent = Faker::Internet.user_agent
+    timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S')
+    introspection_hash = {
+      time: timestamp,
+      uri: this_uri,
+      payload_index: payload_index,
+      response_code: nil,
+      response_headers: nil,
+      response: nil
+    }
+    resp = rest_client.execute(
+      method: :post,
+      url: this_uri,
+      headers: {
+        content_type: 'application/json; charset=UTF-8',
+        user_agent: user_agent
+      },
+      payload: this_payload,
+      verify_ssl: false,
+      timeout: 3.0,
+      max_redirects: 3
+    )
+    introspection_hash[:response_code] = resp.code
+    introspection_hash[:response_headers] = resp.headers
+    json_resp = JSON.parse(
+      resp.body,
+      symbolize_names: true
+    )
+
+    introspection_hash[:response] = json_resp
+  rescue Errno::ECONNREFUSED,
+         Errno::ENETUNREACH,
+         JSON::ParserError,
+         OpenSSL::SSL::SSLError,
+         SocketError => e
+
+    introspection_hash[:response_code] = "#{e.class}: #{e.message}"
+
+    next
+  rescue RestClient::ExceptionWithResponse => e
+    introspection_hash[:response_code] = "#{e.class}: #{e.message}" if e.response.nil?
+
+    if e.response
+      introspection_hash[:response_code] = e.response.code
+      introspection_hash[:response_headers] = e.response.headers
+      introspection_hash[:response] = e.response.body
+    end
+
+    next
+  ensure
+    introspection_arr_of_hashes.push(introspection_hash)
+  end
+end
+puts 'complete.'
+
+timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S')
+print 'Saving Introspection Results...'
+File.write(
+  "graphql_results-#{timestamp}-ALL.json",
+  JSON.pretty_generate(introspection_arr_of_hashes)
+)
+
+vulnerable_uris = introspection_arr_of_hashes.select do |h|
+  h if (h[:response].is_a?(Hash) && h[:response].keys.first.to_sym == :data) ||
+       (h[:response].is_a?(Integer) && h[:response_code] == 415) ||
+       (h[:response].is_a?(Integer) && h[:response_code] >= 500)
+end
+File.write(
+  "graphql_results-#{timestamp}-VULNERABLE.json",
+  JSON.pretty_generate(vulnerable_uris)
+)
+puts 'complete.'
