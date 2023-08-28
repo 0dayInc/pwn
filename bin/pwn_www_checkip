@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'pwn'
+require 'json'
 require 'optparse'
 
 opts = {}
@@ -46,12 +47,14 @@ begin
     ).to_s.chomp
   end
 
-  puts "PUBLIC IP: #{public_ip_address}"
+  puts "PUBLIC IP: #{public_ip_address}" unless ipinfo
+
   if ipinfo
-    puts PWN::Plugins::IPInfo.get(
+    ip_info_obj = PWN::Plugins::IPInfo.get(
       target: public_ip_address,
       proxy: proxy
     )
+    puts JSON.pretty_generate(ip_info_obj)
   end
 rescue StandardError => e
   raise e
