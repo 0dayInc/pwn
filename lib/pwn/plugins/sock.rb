@@ -188,6 +188,8 @@ module PWN
         )
         tls_sock_obj.sync_close = true
         tls_sock_obj.peer_cert
+      rescue OpenSSL::SSL::SSLError
+        false
       rescue StandardError => e
         raise e
       ensure

@@ -87,9 +87,13 @@ module PWN
               target: target,
               port: tls_port
             )
+
+            ip_resp[:cert_txt] = false
+            ip_resp[:cert_obj] = false
+            next unless cert_obj.is_a?(OpenSSL::X509::Certificate)
+
             ip_resp[:cert_txt] = cert_obj.to_text
             ip_resp[:cert_obj] = cert
-            PWN::Plugins::Sock.disconnect(sock_obj: tls_sock_obj)
           end
         end
 
