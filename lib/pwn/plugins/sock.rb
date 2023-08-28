@@ -53,20 +53,22 @@ module PWN
 
         sock_obj
       rescue OpenSSL::SSL::SSLError => e
-        print '.'
         tls_min_version = case tls_min_version
                           when OpenSSL::SSL::TLS1_VERSION
+                            puts 'Attempting OpenSSL::SSL::TLS1_1_VERSION...'
                             OpenSSL::SSL::TLS1_1_VERSION
                           when OpenSSL::SSL::TLS1_1_VERSION
+                            puts 'Attempting OpenSSL::SSL::TLS1_2_VERSION...'
                             OpenSSL::SSL::TLS1_2_VERSION
                           when OpenSSL::SSL::TLS1_2_VERSION
+                            puts 'Attempting OpenSSL::SSL::TLS1_3_VERSION...'
                             OpenSSL::SSL::TLS1_3_VERSION
                           else
                             :abort
                           end
 
         retry unless tls_min_version == :abort
-        raise e if tls_min_version == :abort
+        raise "\n#{e}" if tls_min_version == :abort
       rescue StandardError => e
         sock_obj = disconnect(sock_obj: sock_obj) unless sock_obj.nil?
         raise e
