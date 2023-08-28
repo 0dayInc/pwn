@@ -39,6 +39,7 @@ module PWN
             tls_context.set_params(verify_mode: OpenSSL::SSL::VERIFY_NONE)
             tls_context.verify_hostname = false
             tls_context.min_version = tls_min_version
+            tls_context.ssl_version = tls_min_version
             tls_sock = OpenSSL::SSL::SSLSocket.new(sock, tls_context)
             sock_obj = tls_sock.connect
           else
