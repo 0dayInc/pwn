@@ -81,7 +81,6 @@ module PWN
             )
 
             ip_resp[:tls_avail] = tls_port_avail
-            ip_resp[:cert_txt] = false
             ip_resp[:cert_obj] = false
             next unless tls_port_avail
 
@@ -92,7 +91,6 @@ module PWN
 
             next unless cert_obj.is_a?(OpenSSL::X509::Certificate)
 
-            ip_resp[:cert_txt] = cert_obj.to_text
             ip_resp[:cert_obj] = cert_obj
           end
         end
