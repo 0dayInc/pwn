@@ -20,8 +20,14 @@ module PWN
       public_class_method def self.connect(opts = {})
         target = opts[:target].to_s.scrub
         port = opts[:port].to_i
-        opts[:protocol].nil? ? protocol = :tcp : protocol = opts[:protocol].to_s.downcase.to_sym
-        opts[:tls].nil? ? tls = false : tls = true
+
+        protocol = opts[:protocol]
+        protocol ||= :tcp
+
+        # TODO: Add proxy support
+
+        tls = true if opts[:tls]
+        tls ||= false
 
         case protocol
         when :tcp
@@ -91,6 +97,8 @@ module PWN
         protocol = opts[:protocol]
         protocol ||= :tcp
 
+        # TODO: Add proxy support
+
         ct = 1
         s = Socket.tcp(server_ip, port, connect_timeout: ct) if protocol == :tcp
         s = Socket.udp(server_ip, port, connect_timeout: ct) if protocol == :udp
@@ -159,6 +167,33 @@ module PWN
         raise e
       ensure
         listen_obj = disconnect(sock_obj: listen_obj) unless listen_obj.nil?
+      end
+
+      # Supported Method Parameters::
+      # cert_obj = PWN::Plugins::Sock.get_tls_cert(
+      #   target: 'required - target host or ip',
+      #   port: 'optional - target port (defaults to 443)'
+      # )
+
+      public_class_method def self.get_tls_cert(opts = {})
+        target = opts[:target].to_s.scrub
+        port = opts[:port]
+        port ||= 443
+
+        tls_sock_obj = connect(
+          target: target,
+          port: port,
+          protocol: :tcp,
+          tls: true
+        )
+        tls_sock_obj.sync_close = true
+        tls_sock_obj.peer_cert
+      rescue OpenSSL::SSL::SSLError
+        false
+      rescue StandardError => e
+        raise e
+      ensure
+        tls_sock_obj = disconnect(sock_obj: tls_sock_obj) unless tls_sock_obj.nil?
       end
 
       # Supported Method Parameters::

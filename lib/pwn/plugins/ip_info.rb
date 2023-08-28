@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'ipaddress'
+require 'openssl'
 require 'resolv'
 
 module PWN
@@ -9,7 +10,7 @@ module PWN
     # 1,000 daily requests are allowed for free
     module IPInfo
       # Supported Method Parameters::
-      # PWN::Plugins::IPInfo.get(
+      # ip_resp_json = ip_info_rest_call(
       #   ip: 'required - IP or Host to lookup',
       #   proxy: 'optional - use a proxy'
       # )
@@ -46,33 +47,57 @@ module PWN
 
       # Supported Method Parameters::
       # ip_info_struc = PWN::Plugins::IPInfo.get(
-      #   ip_or_host: 'required - IP or Host to lookup',
-      #   proxy: 'optional - use a proxy'
+      #   target: 'required - IP or Host to lookup',
+      #   proxy: 'optional - use a proxy',
+      #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.'
       # )
 
       public_class_method def self.get(opts = {})
-        ip_or_host = opts[:ip_or_host].to_s.scrub.strip.chomp
+        target = opts[:target].to_s.scrub.strip.chomp
         proxy = opts[:proxy]
+        tls_port = opts[:tls_port]
+        tls_port ||= 443
 
-        if IPAddress.valid?(ip_or_host)
+        ip_info_resp = []
+        if IPAddress.valid?(target)
           if proxy
-            ip_resp_json = ip_info_rest_call(ip: ip_or_host, proxy: proxy)
+            ip_resp_json = ip_info_rest_call(ip: target, proxy: proxy)
           else
-            ip_resp_json = ip_info_rest_call(ip: ip_or_host)
+            ip_resp_json = ip_info_rest_call(ip: target)
           end
 
-          ip_resp_json
+          ip_info_resp.push(ip_resp_json)
         else
-          host_resp_json = []
-          Resolv::DNS.new.each_address(ip_or_host) do |ip|
-            host_resp_json.push(ip_info_rest_call(ip: ip))
-          end
-          if host_resp_json.length == 1
-            host_resp_json[0]
-          else
-            host_resp_json
+          Resolv::DNS.new.each_address(target) do |ip|
+            ip_info_resp.push(ip_info_rest_call(ip: ip))
           end
         end
+
+        if proxy.nil?
+          ip_info_resp.each do |ip_resp|
+            tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
+              server_ip: target,
+              port: tls_port
+            )
+
+            ip_resp[:tls_avail] = tls_port_avail
+            ip_resp[:cert_txt] = false
+            ip_resp[:cert_obj] = false
+            next unless tls_port_avail
+
+            cert_obj = PWN::Plugins::Sock.get_tls_cert(
+              target: target,
+              port: tls_port
+            )
+
+            next unless cert_obj.is_a?(OpenSSL::X509::Certificate)
+
+            ip_resp[:cert_txt] = cert_obj.to_text
+            ip_resp[:cert_obj] = cert_obj
+          end
+        end
+
+        ip_info_resp
       rescue StandardError => e
         raise e
       end
@@ -90,8 +115,9 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           ip_info_struc = #{self}.get(
-            ip_or_host: 'required - IP or Host to lookup',
-            proxy: 'optional - use a proxy'
+            target: 'required - IP or Host to lookup',
+            proxy: 'optional - use a proxy',
+            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.'
           )
 
           #{self}.authors
