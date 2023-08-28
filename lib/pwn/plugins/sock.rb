@@ -20,8 +20,14 @@ module PWN
       public_class_method def self.connect(opts = {})
         target = opts[:target].to_s.scrub
         port = opts[:port].to_i
-        opts[:protocol].nil? ? protocol = :tcp : protocol = opts[:protocol].to_s.downcase.to_sym
-        opts[:tls].nil? ? tls = false : tls = true
+
+        protocol = opts[:protocol]
+        protocol ||= :tcp
+
+        # TODO: Add proxy support
+
+        tls = true if opts[:tls]
+        tls ||= false
 
         case protocol
         when :tcp
@@ -90,6 +96,8 @@ module PWN
         port = opts[:port]
         protocol = opts[:protocol]
         protocol ||= :tcp
+
+        # TODO: Add proxy support
 
         ct = 1
         s = Socket.tcp(server_ip, port, connect_timeout: ct) if protocol == :tcp

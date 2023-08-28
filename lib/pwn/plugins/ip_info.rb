@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'ipaddress'
+require 'openssl'
 require 'resolv'
 
 module PWN
@@ -47,13 +48,17 @@ module PWN
       # Supported Method Parameters::
       # ip_info_struc = PWN::Plugins::IPInfo.get(
       #   ip_or_host: 'required - IP or Host to lookup',
-      #   proxy: 'optional - use a proxy'
+      #   proxy: 'optional - use a proxy',
+      #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.'
       # )
 
       public_class_method def self.get(opts = {})
         ip_or_host = opts[:ip_or_host].to_s.scrub.strip.chomp
         proxy = opts[:proxy]
+        tls_port = opts[:tls_port]
+        tls_port ||= 443
 
+        ip_info_resp = []
         if IPAddress.valid?(ip_or_host)
           if proxy
             ip_resp_json = ip_info_rest_call(ip: ip_or_host, proxy: proxy)
@@ -61,18 +66,39 @@ module PWN
             ip_resp_json = ip_info_rest_call(ip: ip_or_host)
           end
 
-          ip_resp_json
+          ip_info_resp.push(ip_resp_json)
         else
-          host_resp_json = []
           Resolv::DNS.new.each_address(ip_or_host) do |ip|
-            host_resp_json.push(ip_info_rest_call(ip: ip))
-          end
-          if host_resp_json.length == 1
-            host_resp_json[0]
-          else
-            host_resp_json
+            ip_info_resp.push(ip_info_rest_call(ip: ip))
           end
         end
+
+        if proxy.nil?
+          ip_info_resp.each do |ip_resp|
+            # TODO: add this block as a method in PWN::Plugins::Sock
+            tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
+              server_ip: ip_or_host,
+              server_port: tls_port
+            )
+
+            ip_resp[:tls_avail] = tls_port_avail
+            next unless tls_port_avail
+
+            tls_sock_obj = PWN::Plugins::Sock.connect(
+              target: ip_or_host,
+              port: tls_port,
+              protocol: :tcp,
+              tls: true
+            )
+            tls_sock_obj.sync_close = true
+            cert = tls_sock.peer_cert
+            ip_resp[:cert_txt] = cert.to_text
+            ip_resp[:cert_obj] = cert
+            PWN::Plugins::Sock.disconnect(sock_obj: tls_sock_obj)
+          end
+        end
+
+        ip_info_resp
       rescue StandardError => e
         raise e
       end
@@ -91,7 +117,8 @@ module PWN
         puts "USAGE:
           ip_info_struc = #{self}.get(
             ip_or_host: 'required - IP or Host to lookup',
-            proxy: 'optional - use a proxy'
+            proxy: 'optional - use a proxy',
+            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.'
           )
 
           #{self}.authors

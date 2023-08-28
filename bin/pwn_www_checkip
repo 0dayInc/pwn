@@ -47,7 +47,12 @@ begin
   end
 
   puts "PUBLIC IP: #{public_ip_address}"
-  puts PWN::Plugins::IPInfo.get(ip_or_host: public_ip_address) unless ipinfo.nil?
+  if ipinfo
+    puts PWN::Plugins::IPInfo.get(
+      ip_or_host: public_ip_address,
+      proxy: proxy
+    )
+  end
 rescue StandardError => e
   raise e
 ensure
