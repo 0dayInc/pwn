@@ -81,7 +81,11 @@ module PWN
             )
 
             ip_resp[:tls_avail] = tls_port_avail
-            ip_resp[:cert_obj] = false
+            ip_resp[:cert_subject] = false
+            ip_resp[:cert_issuer] = false
+            ip_resp[:cert_serial] = false
+            ip_resp[:not_before] = false
+            ip_resp[:not_after] = false
             next unless tls_port_avail
 
             cert_obj = PWN::Plugins::Sock.get_tls_cert(
@@ -91,7 +95,11 @@ module PWN
 
             next unless cert_obj.is_a?(OpenSSL::X509::Certificate)
 
-            ip_resp[:cert_obj] = cert_obj
+            ip_resp[:cert_subject] = cert_obj.subject.to_s
+            ip_resp[:cert_issuer] = cert_obj.issuer.to_s
+            ip_resp[:cert_serial] = cert_obj.serial.to_s
+            ip_resp[:not_before] = cert_obj.not_before.to_s
+            ip_resp[:not_after] = cert_obj.not_after.to_s
           end
         end
 

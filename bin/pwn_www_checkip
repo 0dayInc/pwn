@@ -47,7 +47,8 @@ begin
     ).to_s.chomp
   end
 
-  puts "PUBLIC IP: #{public_ip_address}"
+  puts "PUBLIC IP: #{public_ip_address}" unless ipinfo
+
   if ipinfo
     ip_info_obj = PWN::Plugins::IPInfo.get(
       target: public_ip_address,
