@@ -53,6 +53,7 @@ module PWN
 
         sock_obj
       rescue OpenSSL::SSL::SSLError => e
+        print '.'
         tls_min_version = case tls_min_version
                           when OpenSSL::SSL::TLS1_VERSION
                             OpenSSL::SSL::TLS1_1_VERSION
