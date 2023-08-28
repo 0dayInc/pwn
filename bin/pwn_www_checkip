@@ -49,7 +49,7 @@ begin
   puts "PUBLIC IP: #{public_ip_address}"
   if ipinfo
     puts PWN::Plugins::IPInfo.get(
-      ip_or_host: public_ip_address,
+      target: public_ip_address,
       proxy: proxy
     )
   end
