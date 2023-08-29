@@ -107,7 +107,7 @@ module PWN
             ip_resp[:cert_issuer] = cert_obj.issuer.to_s
             ip_resp[:cert_serial] = cert_obj.serial.to_s
             ip_resp[:crl_uris] = cert_obj.crl_uris.to_s
-            ip_resp[:extensions] = cert_obj.extensions.map { |ext| ext.to_s }
+            ip_resp[:extensions] = cert_obj.extensions.map&.to_s
             ip_resp[:not_before] = cert_obj.not_before.to_s
             ip_resp[:not_after] = cert_obj.not_after.to_s
             ip_resp[:oscsp_uris] = cert_obj.ocsp_uris.to_s
