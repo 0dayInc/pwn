@@ -33,6 +33,7 @@ module PWN
         # tls_version Values can be Displayed via:
         # OpenSSL::SSL::SSLContext::METHODS
         tls_version = 'TLSv1' if tls_version.nil?
+        tls_version = nil if tls_min_version == OpenSSL::SSL::TLS1_3_VERSION
         cipher_tls = 'TLSv1.0' if cipher_tls.nil?
 
         case protocol
