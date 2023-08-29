@@ -10,49 +10,57 @@ OptionParser.new do |options|
   options.banner = "USAGE:
     #{$PROGRAM_NAME} [opts]
   "
+  options.on('-tIP_HOST', '--target=IP_HOST', '<Optional - IP or Host to Check (Default - Your Public IP)>') do |t|
+    opts[:target] = t
+  end
 
-  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
-    opts[:proxy] = p
+  options.on('-PPORT', '--tls-port=PORT', '<Optional - TLS Port to Check (Default - 443).  Will not execute if --proxy parameter is set.>') do |p|
+    opts[:tls_port] = p
   end
 
   options.on('-i', '--[no-]ipinfo', '<Optional - Return Details about Public IP Returned from CheckIP>') do |i|
     opts[:ipinfo] = i
   end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
+    opts[:proxy] = p
+  end
 end.parse!
 
-proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
+target = opts[:target]
+tls_port = opts[:tls_port]
 ipinfo = opts[:ipinfo]
+proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
 
 begin
-  if proxy
+  if proxy && opts[:target].nil?
     browser_obj = PWN::Plugins::TransparentBrowser.open(
       browser_type: :rest,
       proxy: proxy
     )
-  else
-    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
-  end
-  browser = browser_obj[:browser]::Request
-
-  if proxy
-    public_ip_address = browser.execute(
+    browser = browser_obj[:browser]::Request
+    target = browser.execute(
       method: :get,
       url: 'https://checkip.amazonaws.com',
       verify_ssl: false
     ).to_s.chomp
-  else
-    public_ip_address = browser.execute(
+  elsif opts[:target].nil?
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+    browser = browser_obj[:browser]::Request
+    target = browser.execute(
       method: :get,
       url: 'https://checkip.amazonaws.com'
     ).to_s.chomp
   end
 
-  puts "PUBLIC IP: #{public_ip_address}" unless ipinfo
+  puts "[ { \"public_ip\": \"#{target}\" } ]" if ipinfo.nil? && opts[:target].nil?
 
+  ipinfo = true if ipinfo.nil? && opts[:target]
   if ipinfo
     ip_info_obj = PWN::Plugins::IPInfo.get(
-      target: public_ip_address,
-      proxy: proxy
+      target: target,
+      proxy: proxy,
+      tls_port: tls_port
     )
     puts JSON.pretty_generate(ip_info_obj)
   end
