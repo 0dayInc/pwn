@@ -53,7 +53,7 @@ begin
     ).to_s.chomp
   end
 
-  puts "[ { \"query\": \"#{target}\" } ]" if ipinfo.nil? && opts[:target].nil?
+  puts "[ { \"target\": \"#{target}\" } ]" if ipinfo.nil? && opts[:target].nil?
 
   ipinfo = true if ipinfo.nil? && opts[:target]
   if ipinfo
