@@ -1,181 +1,168 @@
-d202e55 PWN::Plugins::OpenAI module - update default system_role_content value in #chat method - generate reports in Markdown format
-3213bef PWN::Plugins::OpenAI module - update default system_role_content value in #chat method - include PoCs in technical description
-c6acaae PWN::Plugins::OpenAI module - update default system_role_content value in #chat method - include vector string and base score for CVSS, URIs for CWE IDs, and reference links
-13b9598 Merge pull request #360 from ninp0/master
-b73d42f PWN::Plugins::OpenAI module - update default system_role_content value in #chat method - no sarcasm when reporting on vulns
-9080ac7 PWN::Plugins::OpenAI module - update default system_role_content value in #chat method #tweaks
-c7f1dfd Merge pull request #359 from ninp0/master
-2248d03 PWN::Plugins::OpenAI module - update default system_role_content value in #chat method
-5da4bce Merge pull request #358 from ninp0/master
-a50b72c pwn_bdba_scan Driver - #performance particularly when just generating reports #bugfix
-2f96e83 Merge pull request #357 from ninp0/master
-6129d18 PWN::Plugins::BlackDuckBinaryAnalysis module - Crank up timeouts to 90 minutes to reflect max API timeout
-0e1a730 Merge pull request #356 from ninp0/master
-11ed148 pwn_bdba_scan Driver - #performance particularly when just generating reports
-4d71f49 Merge pull request #355 from ninp0/master
-c58f9c9 git_commit_test_reinit_gem.sh - Ensure CHANGELOG is populated when tagged to next minor version
-f4ed39c Merge pull request #354 from ninp0/master
-4c16268 pwn_bdba_scan Driver - #bugfix when looking for parent id of file name that contains non-conforming HTTP chars (e.g. SPACES)
-db5ae62 Merge pull request #353 from ninp0/master
-40baa26 pwn_bdba_scan Driver - #bugfix when looking for parent id of file name that contains non-conforming HTTP chars (e.g. SPACES)
-2ab04b9 Merge pull request #352 from ninp0/master
-65c5f19 pwn_bdba_scan Driver - implement --report-only flag to generate reports for existing scan results
-1f2ee15 Merge pull request #351 from ninp0/master
-d639a04 PWN::Plugins::BlackDuckBinaryAnalysis module - URL encode file name passed in HTTP PUT path within #upload_file method #bugfix
-5e59667 Merge pull request #350 from ninp0/master
-afe77d0 PWN::Plugins::BlackDuckBinaryAnalysis module - URL encode file name passed in HTTP PUT path within #upload_file method
-42c985b Merge pull request #349 from ninp0/master
-e592306 pwn REPL Driver - make Open AI API token accessible via Pry.config.chat_gpt_token when passing --yaml-config parameter to driver
-cd4813d Merge pull request #348 from ninp0/master
-70e40ce PWN::Plugins::OpenAI module - #bugfix in private rest method amd bump.to GPT-4 by default
-2567bfc Merge pull request #347 from ninp0/master
-b185f66 PWN::Plugins::Android module - #bugfix in permissions for #list_installed_apps method when using non-rooted device
-f13328a Merge pull request #346 from ninp0/master
-665731c pwn_jenkins_install_plugin - #bugfix for --restart-jenkins parameter
-cdbbbad Merge pull request #345 from ninp0/master
-e530e5d Jenkins Userland - update pwntemplate-NETWORKRANGE-nmap_discovery_scan_tcp_udp_65k.xml to use new pwn_nmap_discover_tcp_udp driver
-e5dfdfe Merge pull request #344 from ninp0/master
-d2f8ba4 pwn_bdba_scan Driver - display file to be uploaded to stdout for informational purposes
-b45820f Merge pull request #343 from ninp0/master
-f86df03 PWN::Plugins::OpenAI module - change the default system_role_content name from Kennedy to Sonny in the #chat method
-7a280f3 Merge pull request #342 from ninp0/master
-c9bd639 pwn_jenkins_install_plugin - decouple jenkins restart from plugin installation and default restart is set to false
-b822def Merge pull request #341 from ninp0/master
-71cd60d PWN::Plugins::Jenkins module - #bugfix
-632dd28 PWN::Plugins::Jenkins module && pwn_jenkins* drivers - replace password flag with api_key
-cf9f401 PWN::Plugins::Jenkins module && pwn_jenkins* drivers - simply --jenkins-ip flag to be just --ip
-0c1f579 Merge pull request #340 from ninp0/master
-1fceafa pwn_bdba_groups Driver - #bugfix for list_or_parent variable
-fd8c646 Merge pull request #339 from ninp0/master
-25daa98 pwn_bdba_groups Driver - #debug
-a1dd50e pwn_bdba_groups Driver - #debug
-92c9c69 Merge pull request #338 from ninp0/master
-3e6beb8 pwn_bdba_groups Driver - #debug
-4e1f7c4 Merge pull request #337 from ninp0/master
-9dc0971 pwn_bdba_groups Driver - #bugfix
-d89fd9c Merge pull request #336 from ninp0/master
-68a9342 pwn_bdba_groups Driver - #bugfix
-ac6ce49 Merge pull request #335 from ninp0/master
-049e689 pwn_bdba_groups Driver - #bugfix
-0a3d148 Merge pull request #334 from ninp0/master
-e03837f pwn_bdba_groups Driver - #bugfix
-dc99ce7 pwn_bdba_groups Driver - #bugfix
-81ce6f6 Merge pull request #333 from ninp0/master
-3dd6eb6 pwn_bdba_groups Driver - #bugfix
-58c1ed2 Merge pull request #332 from ninp0/master
-d8b5dab pwn_bdba_groups Driver - #bugfix
-d368493 pwn_bdba_groups Driver - #bugfix
-79abbb4 pwn_bdba_groups Driver - #bugfix
-64c16be pwn_bdba_groups Driver - #bugfix
-6d4bd20 Merge pull request #331 from ninp0/master
-9afe787 pwn_bdba_groups Driver - #bugfix
-35295af Merge pull request #330 from ninp0/master
-6e37032 pwn_bdba_scan Driver - #bugfix
-2c6ef3a Merge pull request #329 from ninp0/master
-6c50dea pwn_bdba_scan Driver - #bugfix
-da2e00e Merge pull request #328 from ninp0/master
-c3262e1 pwn_bdba_scan Driver - #bugfix
-f835eaa Merge pull request #327 from ninp0/master
-c007ce0 pwn_bdba_scan Driver - #minor_tweak
-7661dd8 Merge pull request #326 from ninp0/master
-ee810d2 pwn_bdba_groups Driver - #bugfix
-ac0ba6c pwn_bdba_groups Driver - #bugfix
-509ac2d Merge pull request #325 from ninp0/master
-bca040d pwn_bdba_groups Driver - #bugfix
-2e8c05a PWN::Banner::OffTheAir module - magenta is back baby!
-01ed1f0 Merge pull request #324 from ninp0/master
-02156c0 PWN::Plugins::BurpSuite module - #rubocop_fix
-0b94f13 pwn_bdba_groups Driver - add --list-group flag to obtain details / determine if group already exists
-ddcd7a2 Merge pull request #323 from ninp0/master
-8ed1074 PWN::Banner::OffTheAir module - replace deprecated #String.magenta method for #string.light_purple
-89ee0aa Merge pull request #322 from ninp0/master
-ff45bc1 Black Duck Binary Analysis Drivers => #bugfix in pwn_bdba_groups
-c091e6f Merge pull request #321 from ninp0/master
-137e4dd Black Duck Binary Analysis Drivers => #bugfixes in pwn_bdba_scan && pwn_bdba_groups
-cb295bd Merge pull request #320 from ninp0/master
-98ad378 Black Duck Binary Analysis Drivers => #bugfixes in pwn_bdba_scan && pwn_bdba_groups
-3ecfe1f Merge pull request #319 from ninp0/master
-eda9b10 PWN::Plugins::BlackDuckBinaryAnalysi module - #bugfix in #bd_bin_analysis_rest_call private method
-066bb79 PWN::Plugins::BlackDuckBinaryAnalysi module - #bugfix in #bd_bin_analysis_rest_call private method
-45e7603 Merge pull request #318 from ninp0/master
-487ccbf PWN::Plugins::BlackDuckBinaryAnalysi module - #bugfix in #bd_bin_analysis_rest_call private method
-af0d440 PWN::Plugins::BlackDuckBinaryAnalysi module - #bugfix in #bd_bin_analysis_rest_call private method
-ef65bb9 Merge pull request #317 from ninp0/master
-50a379e Black Duck Binary Analysis Drivers => pwn_bdba_scan && pwn_bdba_groups - initial commit
-a3b0935 Merge pull request #316 from ninp0/master
-6f66bf1 PWN::Plugins::BlackDuckBinaryAnalysi module - add #generate_product_report method
-ebd27b1 Merge pull request #315 from ninp0/master
-261a9c8 PWN::Plugins::BlackDuckBinaryAnalysi module - add #get_product method
-2e53d07 Merge pull request #314 from ninp0/master
-e7cbb1e PWN::Plugins::BlackDuckBinaryAnalysi module - HTTP methods #bugfixes in private rest method
-2c0bb65 Merge pull request #313 from ninp0/master
-9bcce78 PWN::Plugins::BlackDuckBinaryAnalysi module - token paramter #bugfix in private rest method
-7e27756 Merge pull request #312 from ninp0/master
-58aa9b3 PWN::Plugins::BlackDuckBinaryAnalysis && PWN::Plugins::OpenAI modules - #bugfix in private rest methods
-29d6c72 Merge pull request #311 from ninp0/master
-12e6c9a PWN::Plugins::BlackDuckBinaryAnalysis module - update #upload_file method
-6d4cda8 Merge pull request #310 from ninp0/master
-fb2e801 PWN::Plugins::BlackDuckBinaryAnalysis module - #tweaks in #bd_bin_analysis_rest_call method
-d7cc8f5 PWN::Plugins::BlackDuckBinaryAnalysis module - #bugfix in #bd_bin_analysis_rest_call method
-9cf5bef Merge pull request #309 from ninp0/master
-212095f PWN::Plugins::BlackDuckBinaryAnalysis module - #bugfix in #create_group method
-4b5f3ad Merge pull request #308 from ninp0/master
-1e65438 PWN::Plugins::BlackDuckBinaryAnalysis module - #bugfix in #create_group method
-6308742 Merge pull request #307 from ninp0/master
-cf9201e PWN::Plugins::BlackDuckBinaryAnalysis module - add a lot more API-related methods #bugfix
-fcb5870 Merge pull request #306 from ninp0/master
-d8ef7f0 PWN::Plugins::BlackDuckBinaryAnalysis module - add a lot more API-related methods
-1ed8b27 Merge pull request #305 from ninp0/master
-c73a6b3 PWN::Plugins::BlackDuckBinaryAnalysis module - add #get_apps && #get_apps_by_group methods
-4e749d8 Merge pull request #304 from ninp0/master
-47f927a PWN::Plugins::BlackDuckBinaryAnalysis module - add #get_group_details method
-f95310e Merge pull request #303 from ninp0/master
-628a555 PWN::Plugins::BlackDuckBinaryAnalysis module - #bugfix in root URL
-a69f519 nuke random file
-bee33d1 Merge pull request #302 from ninp0/master
-94e622a PWN::Plugins::BlackDuckBinaryAnalysis module - Initial commit (limited functionality)
-16c49df Merge pull request #301 from ninp0/master
-50e7cbb PWN::Plugins::OpenAI module - bump default model to gpt-3.5-turbo-0613 to begin supporting functions
-e356852 Merge pull request #300 from ninp0/master
-ac783cc pwn_defectdojo_importscan Driver - bugfix in --engagement-name flag
-a28d1f9 Merge pull request #299 from ninp0/master
-2f3a720 #rubocop_fixes
-2690ce6 pwn_www_uri_buster driver - resuce Errno::ECONNREFUSED error.  This may happen when the remote server is configured to have less simultaneous connections than the value passed in the --max-threads value
-6e5ebbf Merge pull request #298 from ninp0/master
-7fda392 PWN::Plugins::DefectDojo module && pwn_defectdojo_reimportscan driver - do not create finding groups by default
-e4f0619 Merge pull request #297 from ninp0/master
-b966ca1 PWN::Plugins::DefectDojo module - update usage to #importscan method
-0deecc1 PWN::Plugins::DefectDojo module && pwn_defectdojo_importscan driver - do not create finding groups by default
-4f29fc1 Merge pull request #296 from ninp0/master
-0acd8ae pwn_nmap_discover_tcp_udp Driver - change --no-script flag to --stop-nse to honor disabling nmap scripting engine #bugfix
-5d6b669 Merge pull request #295 from ninp0/master
-303f665 pwn_nmap_discover_tcp_udp Driver - add --no-script flag to disable nmap scripting engine #bugfix
-dab35ce Merge pull request #294 from ninp0/master
-308b50f pwn_nmap_discover_tcp_udp Driver - add --no-script flag to disable nmap scripting engine
-29b543e Merge pull request #293 from ninp0/master
-f91c11c PWN::Plugins::PS module - tweak for cygwin
-74503d4 Merge pull request #292 from ninp0/master
-2dc9fdb PWN::Plugins::PS module - more OS-related tweaks #bugfixe
-88d1d29 Merge pull request #291 from ninp0/master
-eee7090 PWN::Plugins::PS module - more OS-related tweaks #bugfixes
-ce6770a PWN::Plugins::PS module - more OS-related tweaks
-f288ea7 Merge pull request #290 from ninp0/master
-8545fbb PWN::Plugins::PS module - wide output in BSDs and OSX
-1432b28 Merge pull request #289 from ninp0/master
-1a999e6 PWN::Plugins::PS module - cmd exec #bugfix
-69945ff Merge pull request #288 from ninp0/master
-6fb299e PWN::Plugins::PS module - extend capabilities to use cygwin
-708df39 PWN::Plugins::PS module - extend capabilities to detect *BSDs #bugfix
-eb8d222 Merge pull request #287 from ninp0/master
-f6724a8 PWN::Plugins::DetectOS module - extend capabilities to detect *BSDs
-dd8194a Merge pull request #286 from ninp0/master
-da367d1 PWN::Plugins::PS module - replace sys-proctable gem requirement in pwn REPL driver to make compat w *nix and *bsd #rubocop_fix
-8fecfe0 Merge pull request #285 from ninp0/master
-f7932f8 PWN::Plugins::PS module - replace sys-proctable gem requirement in pwn REPL driver to make compat w *nix and *bsd
-241096f Merge pull request #284 from ninp0/master
-33a5322 PWN::Plugins::TransparentBrowser module - #bugfix in #close method
-bc9bf5f Merge pull request #283 from ninp0/master
-0ec4889 PWN::Plugins::TransparentBrowser module - refactor the return object for the #open method to be a hash containing the browser and tor_obj.  Refactor pwn code to reflect this change.
-727481b Merge pull request #282 from ninp0/master
-810931a PWN::Plugins::TransparentBrowser module - use "tor" String as value to proxy parameter to trigger PWN::Plugins::Tor.start instead of using symbol
-ca5ddef Merge pull request #281 from ninp0/master
+b47ecb4 PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+fa1760e Merge pull request #428 from ninp0/master
+2bd5d5e PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+7967c6f PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+14d80f3 Merge pull request #427 from ninp0/master
+1c887ec PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+be15999 Merge pull request #426 from ninp0/master
+b085855 PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+7652edd PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+f359109 PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+9c88be9 Merge pull request #425 from ninp0/master
+2dfcf91 PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #try_again
+f101f43 Merge pull request #424 from ninp0/master
+946ed64 PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #bugfix
+2e9c789 PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method #bugfix
+d15459e PWN::Plugins::Sock module - use lowest supported proto version when attempting to connect to a socket via the #connect method
+4279ce0 Merge pull request #423 from ninp0/master
+67a340a pwn_graphql_introspection_detector Driver - rename to pwn_shodan_graphql_introspection to better reflect its purpose
+be974d9 Merge pull request #422 from ninp0/master
+aeac8e7 pwn_graphql_introspection_detector Driver - initial commit
+ba6ec74 Merge pull request #421 from ninp0/master
+7c5a237 PWN::Plugins::IPInfo module - prefer specific common key values from cert_obj for this module.  If additonal functionality is required, defer to using PWN::Plugins::Sock.get_tls_cert directly
+a65d92e pwn_www_checkip Driver - JSON.pretty_generate when returning IP information via -i flag
+63894da PWN::Plugins::IPInfo module - remove redundant cert_txt key from ip_info_resp, preferring a return of cert object which can call #to_text, #subject, #issuer, etc.
+0733e4b Merge pull request #420 from ninp0/master
+70baa71 PWN::Plugins::IPInfo module - #bugfix in returned object from #get_tls_cert method
+068f2d6 PWN::Plugins::IPInfo module - #bugfixes
+b60a94c PWN::Plugins::IPInfo module - get TLS cert if possible in attempt to obtain valid domain from IP addresses cert info #bugfix when checking for open tls port
+e055792 PWN::Plugins::Sock module - add #get_tls_cert method
+0d9bb3f PWN::Plugins::IPInfo module - get TLS cert if possible in attempt to obtain valid domain from IP addresses cert info
+7f150c6 Merge pull request #419 from ninp0/master
+647e5f3 pwn_shodan_search Driver - isolate objects in results that are causing JSON::GeneratorError: source sequence is illegal/malformed utf-8 messages when serializing to JSON strings #dont_use_gets
+9ad051c pwn_shodan_search Driver - isolate objects in results that are causing JSON::GeneratorError: source sequence is illegal/malformed utf-8 messages when serializing to JSON strings #serialization_issue
+0d166ee pwn_shodan_search Driver - #bugfix in JSON::GeneratorError where invalid UTF-8 sequences prevent writing to JSON file #nope_gotta_revert_that
+3f84e71 pwn_shodan_search Driver - #bugfix in JSON::GeneratorError where invalid UTF-8 sequences prevent writing to JSON file
+7721af4 Merge pull request #418 from ninp0/master
+02b8719 PWN::Plugins::Shodan module - need to return specific hash when JSON::ParserError is resccued (related to invalid UTF-8 sequences) #bugfix
+34df5ea Merge pull request #417 from ninp0/master
+ea99612 pwn_shodan_search Driver - add RAW.arr results file containing raw_results_arr object prior to attempting to cast the object as JSON #bugfix / #cast_to_string
+6104b15 Merge pull request #416 from ninp0/master
+09b0ad9 pwn_shodan_search Driver - add RAW.arr results file containing raw_results_arr object prior to attempting to cast the object as JSON
+705da0a Merge pull request #415 from ninp0/master
+e63cee6 pwn_shodan_search Driver - add RAW.arr results file containing raw_results_arr object prior to attempting to cast the object as JSON
+2e45a04 pwn_shodan_search Driver - strip comments when loading query file #rubocop_fix
+5f9598a Merge pull request #414 from ninp0/master
+4dfa34f pwn_shodan_search Driver - strip comments when loading query file
+217800b Merge pull request #413 from ninp0/master
+a473732 PWN::WWW::HackerOne module - #rubocop_fix
+5a9296e Merge pull request #412 from ninp0/master
+35236cc PWN::Plugins::Shodan module - scrub response.body for malformed UTF-8 characters that would otherwise prevent saving JSON results to file within pwn_shodan_search driver #attemptN
+cb17de9 Merge pull request #411 from ninp0/master
+afea697 PWN::Plugins::Shodan module - scrub response.body for malformed UTF-8 characters that would otherwise prevent saving JSON results to file within pwn_shodan_search driver
+bd7fd57 Merge pull request #410 from ninp0/master
+ca87dec pwn_shodan_search Driver - rescue JSON::Generator error in rare cases #pretty_generate method cant save out results
+6babce2 Merge pull request #409 from ninp0/master
+9675c6d PWN::Plugins::BurpSuite module - add #uri_in_scope method to compare URI to URI regexes in / out of scope per burp suite target scope config JSON file, like those produced by H1 (returns boolean)
+e20e0ee Merge pull request #408 from ninp0/master
+12ba09b Merge branch 'master' of ssh://github.com/ninp0/pwn
+f28066d PWN::WWW::TransparentBrowser module - add #find_element_by_text method #bugfix_again
+cd8db7a Merge pull request #407 from ninp0/master
+607e1de PWN::WWW::TransparentBrowser module - add #find_element_by_text method #bugfix
+b191e1c Merge pull request #406 from ninp0/master
+3a4d68a PWN::WWW::TransparentBrowser module - add #find_element_by_text method
+e0e7ecc Merge pull request #405 from ninp0/master
+adaebc5 PWN::WWW::HackerOne module - #slight_tweak to #save_burp_target_config_file method...replace random user_agent w/ fixed known supported user agent
+bcc814f Merge pull request #404 from ninp0/master
+9bd7c1b PWN::WWW::HackerOne module - #slight_tweak to #save_burp_target_config_file method...replace random user_agent w/ fixed known supported user agent
+8dfff4d PWN::WWW::HackerOne module - #slight_tweak to #save_burp_target_config_file method
+f2b0a55 Merge pull request #403 from ninp0/master
+48f47ff PWN::Plugins::BurpSuite module && pwn_burp_suite_pro_active_scan Driver - implement target_config capability to consume Burp Suite Pro Target Scope config JSON file
+e1b9345 PWN::WWW::HackerOne module - add #save_burp_project_file method
+b33caa7 Merge pull request #402 from ninp0/master
+7e7942f PWN::WWW::HackerOne module - add burp_project link to object returned from #get_bounty_programs method #bugfix
+13d3615 PWN::WWW::HackerOne module - add burp_project link to object returned from #get_bounty_programs method #bugfix
+049681e PWN::WWW::HackerOne module - add burp_project link to object returned from #get_bounty_programs method
+2f1e787 PWN::WWW::HackerOne module - add policy, scope, hacktivity, thanks, updates, collaborator links to object returned from #get_bounty_programs method / #minor_bugfix / #rubocop_fixes
+81bb4c3 Merge pull request #401 from ninp0/master
+cb7e893 PWN::WWW::HackerOne module - implement min_payouts_enabled parameter for #get_bounty_programs method
+22cff1b Merge pull request #400 from ninp0/master
+fcafa7e PWN::WWW::HackerOne module - best approarch to snag links after DOM loads #bugfix
+368a4df PWN::WWW::HackerOne module - best approarch to snag links after DOM loads #again
+bea57c0 PWN::WWW::HackerOne module - replace brittle sleep with more resilient .div(class: full-width-inner-container).wait_until(&:present?) to snag links after DOM loads #again
+1617603 PWN::WWW::HackerOne module - replace brittle sleep with more resilient .div(class: full-width-inner-container).wait_until(&:present?) to snag links after DOM loads
+9386f03 Merge pull request #399 from ninp0/master
+2058b3c PWN::WWW::HackerOne module - add method to return all bug bounty program links #bugfixes
+152022c Merge pull request #398 from ninp0/master
+67fe8a6 PWN::WWW::HackerOne module - add method to return all bug bounty program links #bugfixes
+a18b5ae PWN::WWW::HackerOne module - add method to return all bug bounty program links #bugfixes
+a688297 Merge pull request #397 from ninp0/master
+cff4ad0 PWN::WWW::HackerOne module - add method to return all bug bounty program links #bugfixes
+a3af8cf Merge pull request #396 from ninp0/master
+055eccb PWN::WWW::HackerOne module - add method to return all bug bounty program links #bugfixes
+33b3c82 Merge pull request #395 from ninp0/master
+3c1837b PWN::WWW::HackerOne module - add method to return all bug bounty program links #bugfixes
+208c8a4 Merge pull request #394 from ninp0/master
+773ad2f PWN::WWW::HackerOne module - add method to return all bug bounty program links #rubocop_fixes
+91252c7 Merge pull request #393 from ninp0/master
+fb80ad0 PWN::WWW::HackerOne module - add method to return all bug bounty program links #rubocop_fixes
+598aa2b Merge pull request #392 from ninp0/master
+cabcb83 PWN::WWW::HackerOne module - add method to return all bug bounty program links
+662e05f PWN::WWW::HackerOne module - add method to return all bug bounty program links
+94cf6d0 Merge pull request #391 from ninp0/master
+22a696e PWN::WWW::HackerOne module - add method to return all bug bounty program links
+69884d7 Merge pull request #390 from ninp0/master
+51cbfca PWN::Plugins::Shodan module - add #get_uris method to extract URI strings from search results returned from #search method #bugfixes
+57c18ee Merge pull request #389 from ninp0/master
+0161122 PWN::Plugins::Shodan module - add #get_uris method to extract URI strings from search results returned from #search method #bugfixes
+1f63683 Merge pull request #388 from ninp0/master
+d6e5e41 PWN::Plugins::Shodan module - add #get_uris method to extract URI strings from search results returned from #search method #bugfixes
+635d7d2 PWN::Plugins::Shodan module - add #get_uris method to extract URI strings from search results returned from #search method #bugfixes #add_usage
+2691a6f PWN::Plugins::Shodan module - add #get_uris method to extract URI strings from search results returned from #search method
+b83eed4 Merge pull request #387 from ninp0/master
+e0d6850 pwn_shodan_search Driver - change default output-results-file to reside in CWD instead of /tmp
+f19a02f Merge pull request #386 from ninp0/master
+04d3f97 pwn_shodan_search Driver - implement a --rate-limit flag to allow for customized rate limiting when API gets grumpy
+cff4d3c Merge pull request #385 from ninp0/master
+a949aa6 PWN::Plugins::ScannableCodes module - #bugfix in #help method
+e4b5a19 Merge pull request #384 from ninp0/master
+216bb34 PWN::Plugins::ScannableCodes module - initial commit
+04bc64e PWN::Plugins::ScannableCodes module - initial commit
+ae9ece4 Merge pull request #383 from ninp0/master
+594808b pwn_www_uri_buster Driver - JSON.pretty_generate(response.headers) #bugfix, cast hash to pretty JSON string
+810ee16 Merge pull request #382 from ninp0/master
+0adff45 pwn_www_uri_buster Driver - incorporate randomized user-agent string in HTTP requests
+b429bca Merge pull request #381 from ninp0/master
+8afb64a PWN::Reports::SAST module - #bugfix in escaped newline
+3ac73eb Merge pull request #380 from ninp0/master
+54e8fe1 PWN::Reports::* - #bufix in "ajax" key where report_name is now dynamic
+5fb8eb6 pwn_www_uri_buster Driver - #bugfix in retrieving random available ephemeral port via PWN::Plugins::Sock module in #get_random_unused_port method
+6c0d1be Merge pull request #379 from ninp0/master
+c3964c0 pwn_www_uri_buster Driver - include HTTP response headers in results && #bugfix
+1edc9d7 Merge pull request #378 from ninp0/master
+4cbd086 pwn_www_uri_buster Driver - include HTTP response headers in results && #bugfix when using tor as proxy
+1d8a60d Merge pull request #377 from ninp0/master
+4e0f5be pwn_www_uri_buster - implement tor support #more_bugfixes
+cf1a932 Merge pull request #376 from ninp0/master
+c845e1f pwn_www_uri_buster - implement tor support #bugfixes
+0e88ef7 Merge pull request #375 from ninp0/master
+e2e1de4 pwn_www_uri_buster - implement tor support
+5f4c2e3 Merge pull request #374 from ninp0/master
+720eec2 Custom report names for all reports in PWN::Reports namespace #bugfix
+7a77a69 Merge pull request #373 from ninp0/master
+61cc8a9 Custom report names for all reports in PWN::Reports namespace #bugfix
+e45c36e Merge pull request #372 from ninp0/master
+35b6623 Custom report names for all reports in PWN::Reports namespace
+c169f48 Merge pull request #371 from ninp0/master
+eb6de5e pwn_www_uri_buster Driver - add --append parameter to append pattern to end of entries in wordlist
+8a05fca pwn_www_uri_buster Driver - add --append parameter to append pattern to end of entries in wordlist
+5d04eab Merge pull request #370 from ninp0/master
+491898e PWN::Plugins::DetectOS module - #rubocop_fixes
+c752179 pwn_nmap_discover_tcp_udp Driver - implement --target-file flag (i.e. you can use either --target-file OR --target-range, not both and not neither) / slight discovery tweaks
+a320df1 Merge pull request #369 from ninp0/master
+9e16d30 pwn_bdba_scan && pwn_bdba_groups Drivers - change both drivers to support --parent-group-id flow (i.e. to avoid wrong group association when duplicate group names reside under different search-paths) #bugfix2_revert
+0bc80c1 Merge pull request #368 from ninp0/master
+1f92631 pwn_bdba_scan && pwn_bdba_groups Drivers - change both drivers to support --parent-group-id flow (i.e. to avoid wrong group association when duplicate group names reside under different search-paths) #bugfix
+663f3d9 Merge pull request #367 from ninp0/master
+50a4c48 pwn_bdba_scan && pwn_bdba_groups Drivers - change both drivers to support --parent-group-id flow (i.e. to avoid wrong group association when duplicate group names reside under different search-paths)
+02432d4 Merge pull request #366 from ninp0/master
+6afd3fc pwn_bdba_scan Driver - change --parent-group-name parameter to --parent-group-id to avoid wrong group association when duplicate group names reside under different search-paths
+9517452 Merge pull request #365 from ninp0/master
+0c326b8 pwn_bdba_scan Driver - incorporate optional --version parameter
+e96cb62 Merge pull request #364 from ninp0/master
+5324605 PWN::Plugins::BlackDuckBinaryAnalysis module && pwn_bdba_scans Driver - implement #abort_product_scan method && abort product scan results if they have been sitting in a queue status for more than 90 minutes.
+f36af42 Merge pull request #363 from ninp0/master
+f308dba git_commit_test_reinit_gem.sh - #more_tag_bugfixes
+31e8c06 Merge pull request #362 from ninp0/master
+38835e3 git_commit_test_reinit_gem.sh - Address off-by-one tagging #bugfix
+2f31697 Merge pull request #361 from ninp0/master
