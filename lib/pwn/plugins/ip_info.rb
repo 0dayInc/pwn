@@ -60,16 +60,14 @@ module PWN
 
         ip_info_resp = []
         if IPAddress.valid?(target)
-          if proxy
-            ip_resp_json = ip_info_rest_call(ip: target, proxy: proxy)
-          else
-            ip_resp_json = ip_info_rest_call(ip: target)
-          end
-
+          ip_resp_json = ip_info_rest_call(ip: target, proxy: proxy)
+          ip_resp_json[:target] = target
           ip_info_resp.push(ip_resp_json)
         else
           Resolv::DNS.new.each_address(target) do |ip|
-            ip_info_resp.push(ip_info_rest_call(ip: ip))
+            ip_resp_json = ip_info_rest_call(ip: ip, proxy: proxy)
+            ip_resp_json[:target] = target
+            ip_info_resp.push(ip_resp_json)
           end
         end
 
