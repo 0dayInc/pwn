@@ -60,14 +60,14 @@ module PWN
         case tls_min_version
         when OpenSSL::SSL::TLS1_VERSION
           puts 'Attempting OpenSSL::SSL::TLS1_1_VERSION...'
-          tls_version = 'TLSv1_1_client'
+          tls_version = 'TLSv1_1'
           tls_min_version = OpenSSL::SSL::TLS1_1_VERSION
         when OpenSSL::SSL::TLS1_1_VERSION
           puts 'Attempting OpenSSL::SSL::TLS1_2_VERSION...'
-          tls_version = 'TLSv1_2_client'
+          tls_version = 'TLSv1_2'
           tls_min_version = OpenSSL::SSL::TLS1_2_VERSION
         else
-          :abort
+          tls_min_version = :abort
         end
 
         retry unless tls_min_version == :abort
