@@ -71,10 +71,10 @@ module PWN
           tls_version = 'TLSv1_2'
           cipher_tls = 'TLSv1.2'
           tls_min_version = OpenSSL::SSL::TLS1_2_VERSION
-        when OpenSSL::SSL::TLS1_2_VERSION
-          puts 'Attempting OpenSSL::SSL::TLS1_3_VERSION...'
-          cipher_tls = 'TLSv1.3'
-          tls_min_version = OpenSSL::SSL::TLS1_3_VERSION
+          # when OpenSSL::SSL::TLS1_2_VERSION
+          #   puts 'Attempting OpenSSL::SSL::TLS1_3_VERSION...'
+          #   cipher_tls = 'TLSv1.3'
+          #   tls_min_version = OpenSSL::SSL::TLS1_3_VERSION
         else
           tls_min_version = :abort
         end
