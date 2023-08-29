@@ -151,7 +151,8 @@ module PWN
         server_ip = opts[:server_ip].to_s.scrub
         port = opts[:port].to_i
         opts[:protocol].nil? ? protocol = :tcp : protocol = opts[:protocol].to_s.downcase.to_sym
-        opts[:tls].nil? ? tls = false : tls = true
+        tls = true if opts[:tls]
+        tls ||= false
 
         case protocol
         when :tcp
@@ -271,7 +272,12 @@ module PWN
             tls: 'optional - boolean listen on TLS-enabled socket (defaults to false)'
           )
 
-          sock_obj = PWN::Plugins::Sock.disconnect(
+          cert_obj = #{self}.get_tls_cert(
+            target: 'required - target host or ip',
+            port: 'optional - target port (defaults to 443)'
+          )
+
+          sock_obj = #{self}.disconnect(
             sock_obj: 'required - sock_obj returned from #connect method'
           )
 
