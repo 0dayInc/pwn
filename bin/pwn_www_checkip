@@ -14,6 +14,10 @@ OptionParser.new do |options|
     opts[:target] = t
   end
 
+  options.on('-PPORT', '--tls-port=PORT', '<Optional - TLS Port to Check (Default - 443).  Will not execute if --proxy parameter is set.>') do |p|
+    opts[:tls_port] = p
+  end
+
   options.on('-i', '--[no-]ipinfo', '<Optional - Return Details about Public IP Returned from CheckIP>') do |i|
     opts[:ipinfo] = i
   end
@@ -24,27 +28,25 @@ OptionParser.new do |options|
 end.parse!
 
 target = opts[:target]
+tls_port = opts[:tls_port]
 ipinfo = opts[:ipinfo]
 proxy = opts[:proxy].to_s.scrub.strip.chomp unless opts[:proxy].nil?
 
 begin
-  if proxy
+  if proxy && opts[:target].nil?
     browser_obj = PWN::Plugins::TransparentBrowser.open(
       browser_type: :rest,
       proxy: proxy
     )
-  else
-    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
-  end
-  browser = browser_obj[:browser]::Request
-
-  if proxy && opts[:target].nil?
+    browser = browser_obj[:browser]::Request
     target = browser.execute(
       method: :get,
       url: 'https://checkip.amazonaws.com',
       verify_ssl: false
     ).to_s.chomp
   elsif opts[:target].nil?
+    browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+    browser = browser_obj[:browser]::Request
     target = browser.execute(
       method: :get,
       url: 'https://checkip.amazonaws.com'
@@ -57,7 +59,8 @@ begin
   if ipinfo
     ip_info_obj = PWN::Plugins::IPInfo.get(
       target: target,
-      proxy: proxy
+      proxy: proxy,
+      tls_port: tls_port
     )
     puts JSON.pretty_generate(ip_info_obj)
   end

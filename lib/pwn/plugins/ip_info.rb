@@ -81,18 +81,18 @@ module PWN
             )
 
             ip_resp[:tls_avail] = tls_port_avail
-            ip_resp[:ca_issuer_uris] = false
-            ip_resp[:cert_subject] = false
-            ip_resp[:cert_issuer] = false
-            ip_resp[:cert_serial] = false
-            ip_resp[:crl_uris] = false
-            ip_resp[:extensions] = false
-            ip_resp[:not_before] = false
-            ip_resp[:not_after] = false
-            ip_resp[:oscsp_uris] = false
-            ip_resp[:pem] = false
-            ip_resp[:signature_algorithm] = false
-            ip_resp[:version] = false
+            ip_resp[:ca_issuer_uris] = nil
+            ip_resp[:cert_subject] = nil
+            ip_resp[:cert_issuer] = nil
+            ip_resp[:cert_serial] = nil
+            ip_resp[:crl_uris] = nil
+            ip_resp[:extensions] = nil
+            ip_resp[:not_before] = nil
+            ip_resp[:not_after] = nil
+            ip_resp[:oscsp_uris] = nil
+            ip_resp[:pem] = nil
+            ip_resp[:signature_algorithm] = nil
+            ip_resp[:version] = nil
             next unless tls_port_avail
 
             cert_obj = PWN::Plugins::Sock.get_tls_cert(
@@ -102,15 +102,15 @@ module PWN
 
             next unless cert_obj.is_a?(OpenSSL::X509::Certificate)
 
-            ip_resp[:ca_issuer_uris] = cert_obj.ca_issuer_uris.to_s
+            ip_resp[:ca_issuer_uris] = cert_obj.ca_issuer_uris.map(&:to_s) unless cert_obj.ca_issuer_uris.nil?
             ip_resp[:cert_subject] = cert_obj.subject.to_s
             ip_resp[:cert_issuer] = cert_obj.issuer.to_s
             ip_resp[:cert_serial] = cert_obj.serial.to_s
-            ip_resp[:crl_uris] = cert_obj.crl_uris.to_s
-            ip_resp[:extensions] = cert_obj.extensions.map&.to_s
+            ip_resp[:crl_uris] = cert_obj.crl_uris.map(&:to_s) unless cert_obj.crl_uris.nil?
+            ip_resp[:extensions] = cert_obj.extensions.map(&:to_s) unless cert_obj.extensions.nil?
             ip_resp[:not_before] = cert_obj.not_before.to_s
             ip_resp[:not_after] = cert_obj.not_after.to_s
-            ip_resp[:oscsp_uris] = cert_obj.ocsp_uris.to_s
+            ip_resp[:oscsp_uris] = cert_obj.ocsp_uris.map(&:to_s) unless cert_obj.ocsp_uris.nil?
             ip_resp[:pem] = cert_obj.to_pem.to_s
             ip_resp[:signature_algorithm] = cert_obj.signature_algorithm.to_s
             ip_resp[:version] = cert_obj.version.to_s
