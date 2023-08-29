@@ -67,7 +67,7 @@ module PWN
           tls_version = 'TLSv1_2'
           tls_min_version = OpenSSL::SSL::TLS1_2_VERSION
         else
-          :abort
+          tls_min_version = :abort
         end
 
         retry unless tls_min_version == :abort
