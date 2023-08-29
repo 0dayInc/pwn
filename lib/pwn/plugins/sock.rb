@@ -30,11 +30,6 @@ module PWN
         tls ||= false
 
         tls_min_version = OpenSSL::SSL::TLS1_VERSION if tls_min_version.nil?
-        # tls_version Values can be Displayed via:
-        # OpenSSL::SSL::SSLContext::METHODS
-        # tls_version = 'TLSv1' if tls_version.nil?
-        # tls_version = nil if tls_min_version == OpenSSL::SSL::TLS1_3_VERSION
-        # cipher_tls = 'TLSv1.0' if cipher_tls.nil?
 
         case protocol
         when :tcp
@@ -42,13 +37,14 @@ module PWN
             sock = TCPSocket.open(target, port)
             tls_context = OpenSSL::SSL::SSLContext.new
             tls_context.set_params(verify_mode: OpenSSL::SSL::VERIFY_NONE)
-            # tls_context.verify_hostname = false
-            # tls_context.ssl_version = tls_version
             tls_context.min_version = tls_min_version
-            # tls_context.ciphers = tls_context.ciphers.select { |c| c[1] == cipher_tls }
+            # tls_context.ciphers = tls_context.ciphers.select do |cipher|
+            #   cipher[1] == cipher_tls
+            # end
             tls_sock = OpenSSL::SSL::SSLSocket.new(sock, tls_context)
             tls_sock.hostname = target
             sock_obj = tls_sock.connect
+            sock_obj.sync_close = true
           else
             sock_obj = TCPSocket.open(target, port)
           end
@@ -64,12 +60,10 @@ module PWN
         case tls_min_version
         when OpenSSL::SSL::TLS1_VERSION
           puts 'Attempting OpenSSL::SSL::TLS1_1_VERSION...'
-          # tls_version = 'TLSv1_1'
           # cipher_tls = 'TLSv1.0'
           tls_min_version = OpenSSL::SSL::TLS1_1_VERSION
         when OpenSSL::SSL::TLS1_1_VERSION
           puts 'Attempting OpenSSL::SSL::TLS1_2_VERSION...'
-          # tls_version = 'TLSv1_2'
           # cipher_tls = 'TLSv1.2'
           tls_min_version = OpenSSL::SSL::TLS1_2_VERSION
         when OpenSSL::SSL::TLS1_2_VERSION
@@ -220,7 +214,6 @@ module PWN
           protocol: :tcp,
           tls: true
         )
-        tls_sock_obj.sync_close = true
         tls_sock_obj.peer_cert
       rescue StandardError => e
         raise e
