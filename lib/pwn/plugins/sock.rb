@@ -47,6 +47,7 @@ module PWN
             tls_context.min_version = tls_min_version
             # tls_context.ciphers = tls_context.ciphers.select { |c| c[1] == cipher_tls }
             tls_sock = OpenSSL::SSL::SSLSocket.new(sock, tls_context)
+            tls_sock.hostname = target
             sock_obj = tls_sock.connect
           else
             sock_obj = TCPSocket.open(target, port)
