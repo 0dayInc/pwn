@@ -76,7 +76,7 @@ begin
 
     if parent_group_id
       filter_group_details_arr_by_parent = group_details_arr.select do |g|
-        g[:group][:parent] == parent_group_id
+        g[:group][:parent] == parent_group_id.to_i
       end
       group_details_arr = filter_group_details_arr_by_parent
       if group_details_arr.empty?
