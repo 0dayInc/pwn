@@ -70,8 +70,21 @@ begin
         token: token,
         group_id: group_id
       )
+
       group_details_arr.push(this_group_details)
     end
+
+    if parent_group_id
+      filter_group_details_arr_by_parent = group_details_arr.select do |g|
+        g[:group][:parent] == parent_group_id
+      end
+      group_details_arr = filter_group_details_arr_by_parent
+      if group_details_arr.empty?
+        puts "BDBA Group Not Found for Parent Group ID: #{parent_group_id}"
+        exit 1
+      end
+    end
+
     puts group_details_arr.to_json
     exit 0
   end
