@@ -37,7 +37,18 @@ $ rvm use ruby-3.2.2@pwn
 $ rvm list gemsets
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.912]:001 >>> PWN.help
+pwn[v0.4.914]:001 >>> PWN.help
+```
+
+If you're using a multi-user install of RVM do:
+```
+$ rvm use ruby-3.2.2@global
+$ rvmsudo rvm gemset create pwn
+$ rvm use ruby-3.2.2@pwn
+$ rvm list gemsets
+$ rvmsudo gem install --verbose pwn
+$ pwn
+pwn[v0.4.914]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -52,7 +63,17 @@ $ rvm use ruby-3.2.2@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.912]:001 >>> PWN.help
+pwn[v0.4.914]:001 >>> PWN.help
+```
+
+If you're using a multi-user install of RVM do:
+```
+$ rvm list gemsets
+$ rvm use ruby-3.2.2@pwn
+$ rvmsudo gem uninstall --all --executables pwn
+$ rvmsudo gem install --verbose pwn
+$ pwn
+pwn[v0.4.914]:001 >>> PWN.help
 ```
 
 

@@ -23,7 +23,7 @@ OptionParser.new do |options|
     opts[:list_group_name] = l
   end
 
-  options.on('-pID', '--parent-group-ID=ID', '<Optional - Black Duck Binary Analysis Parent Group ID to Associate with Group>') do |p|
+  options.on('-pID', '--parent-group-id=ID', '<Optional - Black Duck Binary Analysis Parent Group ID to Associate with Group>') do |p|
     opts[:parent_group_id] = p
   end
 end.parse!
