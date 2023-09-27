@@ -28,6 +28,14 @@ OptionParser.new do |options|
     opts[:report_path] = r
   end
 
+  options.on('-q', '--queue-timeout', '<Optional - Duration in Seconds for a File to Remain in Queue Prior to Aborting (Default: 5_400)>') do |q|
+    opts[:queue_timeout] = q
+  end
+
+  options.on('-a', '--scan-attempts', '<Optional - Number of Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts (Default: 3)>') do |a|
+    opts[:scan_attempts] = a
+  end
+
   options.on('-R', '--report-only', '<Optional - Only Generate a Black Duck Binary Analysis Scan Report for an Existing Scan (Default: false)>') do |o|
     opts[:report_only] = o
   end
@@ -46,6 +54,7 @@ if opts.empty?
   exit 1
 end
 
+abort_total = 0
 begin
   pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
@@ -66,6 +75,10 @@ begin
 
   report_path = opts[:report_path]
   raise "ERROR: BDBA Report Path Not Provided: #{report_path}" if report_path.nil?
+
+  queue_timeout = opts[:queue_timeout] ||= 5_400
+
+  scan_attempts = opts[:scan_attempts] ||= 3
 
   report_only = opts[:report_only] ||= false
 
@@ -95,7 +108,9 @@ begin
     break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' } || report_only
 
     # Cancel queued scan if it's been queued for more than 90 minutes
-    if scan_progress_busy_duration > 5_400
+    if scan_progress_busy_duration > queue_timeout.to_i
+      abort_total += 1
+      puts "Scan Queued for More than #{queue_timeout} Seconds. Aborting and Re-Queuing."
       scan_progress_resp[:products].select { |p| p[:status] == 'B' }.each do |p|
         puts "Abort Queued Scan: #{p[:name]}"
         PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan(
@@ -103,6 +118,9 @@ begin
           product_id: p[:product_id]
         )
       end
+
+      retry if abort_total <= scan_attempts.to_i
+
       raise "ERROR: BDBA Scan Queued for More than 90 Minutes: #{target_file}"
     end
 

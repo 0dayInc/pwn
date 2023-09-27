@@ -1,7 +1,7 @@
 #!/bin/bash
 source /etc/profile.d/globals.sh
 
-default_vimrc='/usr/share/vim/vim82/defaults.vim'
+default_vimrc='/usr/share/vim/vim90/defaults.vim'
 global_vimrc='/etc/vim/vimrc'
 
 $screen_cmd "${apt} install -y vim ${assess_update_errors}"
