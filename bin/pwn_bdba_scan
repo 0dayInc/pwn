@@ -4,6 +4,7 @@
 require 'cgi'
 require 'optparse'
 require 'pwn'
+require 'timeout'
 require 'yaml'
 
 opts = {}
@@ -109,9 +110,7 @@ begin
 
     # Cancel queued scan if it's been queued for more than 90 minutes
     if scan_progress_busy_duration > queue_timeout.to_i
-      abort_total += 1
       puts "Scan Queued for More than #{queue_timeout} Seconds."
-      puts "Aborting and Re-Queuing Attempt #{abort_total} of #{scan_attempts}..."
       scan_progress_resp[:products].select { |p| p[:status] == 'B' }.each do |p|
         puts "Abort Queued Scan: #{p[:name]}"
         PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan(
@@ -120,9 +119,7 @@ begin
         )
       end
 
-      retry if abort_total <= scan_attempts.to_i
-
-      raise "ERROR: BDBA Scan Aborted: #{target_file}"
+      raise Timeout::Error, "ERROR: BDBA Scan Aborted: #{target_file}"
     end
 
     10.times do
@@ -142,6 +139,14 @@ begin
   )
 
   puts "\nReport Saved to: #{report_path}"
+rescue Timeout::Error
+  abort_total += 1
+
+  puts "Scan Attempt #{abort_total} of #{scan_attempts}..."
+  retry if abort_total <= scan_attempts.to_i
+
+  puts 'Scan Attempts Reached - Goodbye.'
+  exit 1
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 rescue StandardError => e
