@@ -37,7 +37,7 @@ $ rvm use ruby-3.2.2@pwn
 $ rvm list gemsets
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.911]:001 >>> PWN.help
+pwn[v0.4.912]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -52,7 +52,7 @@ $ rvm use ruby-3.2.2@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.911]:001 >>> PWN.help
+pwn[v0.4.912]:001 >>> PWN.help
 ```
 
 
@@ -66,7 +66,7 @@ Additional documentation on using PWN can be found on [RubyGems.org](https://www
 I hope you enjoy PWN and remember...ensure you always have permission prior to carrying out any sort of hacktivities.  Now - go pwn all the things!
 
 ### **Keep Us Caffeinated** ###
-If you've found this framework useful and you're interested in supporting as many new features as possible, we invite you to take a brief moment to keep us caffeinated:
+If you've found this project useful and you're interested in supporting our efforts, we invite you to take a brief moment to keep us caffeinated:
 
 [![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
 

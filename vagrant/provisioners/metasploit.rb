@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 print 'Updating Metasploit...'
-metasploit_root = '/opt/metasploit-framework-dev/'
+metasploit_root = '/opt/metasploit-framework-dev'
 puts `sudo /bin/bash --login -c "cd #{metasploit_root} && rm Gemfile.lock && git pull"`
 metasploit_ruby_version = File.readlines("#{metasploit_root}/.ruby-version")[0].to_s.scrub.strip.chomp
 puts `
