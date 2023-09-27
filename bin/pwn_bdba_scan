@@ -90,13 +90,13 @@ begin
 
   unless report_only
     puts "Uploading/Scanning: #{target_file}"
-    puts "Scan Attempt #{abort_total} of #{scan_attempts}..."
     PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
       token: token,
       file: target_file,
       group_id: parent_group_id,
       version: version
     )
+    puts "Scan Attempt #{abort_total} of #{scan_attempts}..."
   end
 
   scan_progress_resp = {}
