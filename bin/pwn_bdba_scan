@@ -55,7 +55,7 @@ if opts.empty?
   exit 1
 end
 
-abort_total = 0
+abort_total = 1
 begin
   pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
@@ -90,6 +90,7 @@ begin
 
   unless report_only
     puts "Uploading/Scanning: #{target_file}"
+    puts "Scan Attempt #{abort_total} of #{scan_attempts}..."
     PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
       token: token,
       file: target_file,
@@ -142,7 +143,6 @@ begin
 rescue Timeout::Error
   abort_total += 1
 
-  puts "Scan Attempt #{abort_total} of #{scan_attempts}..."
   retry if abort_total <= scan_attempts.to_i
 
   puts 'Scan Attempts Reached - Goodbye.'
