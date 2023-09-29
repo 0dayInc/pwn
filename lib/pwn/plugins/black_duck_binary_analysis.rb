@@ -77,6 +77,36 @@ module PWN
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
         response
+      rescue RestClient::ExceptionWithResponse => e
+        if e.response
+          puts "HTTP RESPONSE CODE: #{e.response.code}"
+          puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
+          puts "HTTP RESPONSE BODY:\n#{e.response.body}"
+        end
+
+        # Use case statement to evaluate the
+        # type of RestClient::ExceptionWithResponse
+        # and handle accordingly.
+        case e
+        when RestClient::Unauthorized
+          raise "ERROR: #{e.message} - Invalid token."
+        when RestClient::Forbidden
+          raise "ERROR: #{e.message} - Insufficient permissions."
+        when RestClient::BadRequest
+          raise "ERROR: #{e.message} - Invalid request."
+        when RestClient::ResourceNotFound
+          raise "ERROR: #{e.message} - Resource not found."
+        when RestClient::InternalServerError
+          raise "ERROR: #{e.message} - Internal server error."
+        when RestClient::BadGateway
+          raise "ERROR: #{e.message} - Bad gateway."
+        when RestClient::ServiceUnavailable
+          raise "ERROR: #{e.message} - Service unavailable."
+        when RestClient::GatewayTimeout
+          raise "ERROR: #{e.message} - Gateway timeout."
+        else
+          raise e
+        end
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
