@@ -81,7 +81,7 @@ module PWN
         if e.response
           puts "HTTP RESPONSE CODE: #{e.response.code}"
           puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
-          puts "HTTP RESPONSE BODY:\n#{e.response.body}"
+          puts "HTTP RESPONSE BODY:\n#{e.response.body.inspect}\n\n\n"
         end
 
         # Use case statement to evaluate the
