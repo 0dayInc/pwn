@@ -4,7 +4,6 @@
 require 'cgi'
 require 'optparse'
 require 'pwn'
-require 'timeout'
 require 'yaml'
 
 opts = {}
@@ -33,7 +32,7 @@ OptionParser.new do |options|
     opts[:queue_timeout] = q
   end
 
-  options.on('-a', '--scan-attempts', '<Optional - Number of Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts (Default: 3)>') do |a|
+  options.on('-a', '--scan-attempts', '<Optional - Number of Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts or RestClient Exceptions (Default: 3)>') do |a|
     opts[:scan_attempts] = a
   end
 
@@ -120,7 +119,7 @@ begin
         )
       end
 
-      raise Timeout::Error, "ERROR: BDBA Scan Aborted: #{target_file}"
+      raise IO::TimeoutError, "ERROR: BDBA Scan Aborted: #{target_file}"
     end
 
     10.times do
@@ -140,10 +139,23 @@ begin
   )
 
   puts "\nReport Saved to: #{report_path}"
-rescue Timeout::Error
+rescue IO::TimeoutError,
+       RestClient::Unauthorized,
+       RestClient::Forbidden,
+       RestClient::BadRequest,
+       RestClient::ResourceNotFound,
+       RestClient::InternalServerError,
+       RestClient::BadGateway,
+       RestClient::ServiceUnavailable,
+       RestClient::GatewayTimeout
+
   abort_total += 1
 
-  retry if abort_total <= scan_attempts.to_i
+  if abort_total <= scan_attempts.to_i
+    puts 'Sleeping for 60 Seconds and Retrying...'
+    sleep 60
+    retry
+  end
 
   puts 'Scan Attempts Reached - Goodbye.'
   exit 1
