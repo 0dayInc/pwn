@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'credit_card_validations'
-require 'credit_card_validations/string'
+# require 'credit_card_validations'
+# require 'credit_card_validations/string'
 
 module PWN
   module Plugins
