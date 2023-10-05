@@ -11,7 +11,7 @@ gemspec
 # In some circumstances custom flags are passed to gems in order
 # to build appropriately.  Defer to ./reinstall_pwn_gemset.sh
 # to review these custom flags (e.g. pg, serialport, etc).
-gem 'activesupport', '7.0.8'
+gem 'activesupport', '7.1.0'
 gem 'anemone', '0.7.2'
 gem 'authy', '3.0.1'
 gem 'aws-sdk', '3.1.0'
@@ -23,7 +23,7 @@ gem 'bundler', '>=2.4.20'
 gem 'bundler-audit', '0.9.1'
 gem 'bunny', '2.22.0'
 gem 'colorize', '1.1.0'
-gem 'credit_card_validations', '6.0.0'
+# gem 'credit_card_validations', '6.0.0'
 gem 'eventmachine', '1.2.7'
 gem 'executable-hooks', '1.6.1'
 gem 'faker', '3.2.1'

@@ -36,6 +36,10 @@ OptionParser.new do |options|
     opts[:scan_attempts] = a
   end
 
+  options.on('-S', '--sleep-between-scan-attempts', '<Optional - Seconds to Sleep Between Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts or RestClient Exceptions (Default: 60)>') do |s|
+    opts[:sleep_between_scan_attempts] = s
+  end
+
   options.on('-R', '--report-only', '<Optional - Only Generate a Black Duck Binary Analysis Scan Report for an Existing Scan (Default: false)>') do |o|
     opts[:report_only] = o
   end
@@ -79,6 +83,7 @@ begin
   queue_timeout = opts[:queue_timeout] ||= 5_400
 
   scan_attempts = opts[:scan_attempts] ||= 3
+  sleep_between_scan_attempts = opts[:sleep_between_scan_attempts] ||= 60
 
   report_only = opts[:report_only] ||= false
 
@@ -153,7 +158,7 @@ rescue IO::TimeoutError,
 
   if abort_total <= scan_attempts.to_i
     puts 'Sleeping for 60 Seconds and Retrying...'
-    sleep 60
+    sleep sleep_between_scan_attempts.to_i
     retry
   end
 
