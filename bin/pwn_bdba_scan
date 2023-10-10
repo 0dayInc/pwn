@@ -145,14 +145,15 @@ begin
 
   puts "\nReport Saved to: #{report_path}"
 rescue IO::TimeoutError,
-       RestClient::Unauthorized,
-       RestClient::Forbidden,
-       RestClient::BadRequest,
-       RestClient::ResourceNotFound,
-       RestClient::InternalServerError,
        RestClient::BadGateway,
+       RestClient::BadRequest,
+       RestClient::Exceptions::OpenTimeout,
+       RestClient::Forbidden,
+       RestClient::GatewayTimeout,
+       RestClient::InternalServerError,
+       RestClient::ResourceNotFound,
        RestClient::ServiceUnavailable,
-       RestClient::GatewayTimeout
+       RestClient::Unauthorized
 
   abort_total += 1
 
