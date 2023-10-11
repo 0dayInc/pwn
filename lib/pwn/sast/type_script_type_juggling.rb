@@ -5,12 +5,12 @@ require 'socket'
 module PWN
   module SAST
     # SAST Module used to identify loose comparisons
-    # (i.e. == instead of ===) within PHP source code.
-    module PHPTypeJuggling
+    # (i.e. == instead of ===) within TypeScript source code.
+    module TypeScriptTypeJuggling
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
-      # PWN::SAST::PHPTypeJuggling.scan(
+      # PWN::SAST::TypeScriptTypeJuggling.scan(
       #   dir_path: 'optional path to dir defaults to .'
       #   git_repo_root_uri: 'optional http uri of git repo scanned'
       # )
@@ -22,7 +22,7 @@ module PWN
         logger_results = ''
 
         PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
-          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && File.extname(entry).include?('.php') && entry !~ /test/i
+          if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && File.extname(entry).include?('.ts') && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
