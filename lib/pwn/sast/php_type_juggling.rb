@@ -35,10 +35,10 @@ module PWN
             test_case_filter = "
               grep -Fn \
               -e '==' \
-              -e '!=' #{entry} \ |
+              -e '!=' #{entry} | \
               grep -v \
                 -e '===' \
-                -e '!==' \
+                -e '!=='
             "
 
             str = `#{test_case_filter}`.to_s.scrub
