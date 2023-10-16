@@ -134,7 +134,11 @@ begin
     scan_progress_busy_duration += 10
   end
 
-  product_id = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }[:product_id]
+  find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }
+
+  raise NoMethodError if find_product.nil?
+
+  product_id = find_product[:product_id]
 
   scan_report_resp = PWN::Plugins::BlackDuckBinaryAnalysis.generate_product_report(
     token: token,
@@ -145,6 +149,7 @@ begin
 
   puts "\nReport Saved to: #{report_path}"
 rescue IO::TimeoutError,
+       NoMethodError,
        RestClient::BadGateway,
        RestClient::BadRequest,
        RestClient::Exceptions::OpenTimeout,
