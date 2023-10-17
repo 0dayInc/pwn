@@ -28,27 +28,16 @@ Leveraging various pre-built modules and the pwn prototyper, you can mix-and-mat
 
 
 #### **Installation** ####
-Tested on Linux, & OSX leveraging Ruby via RVM.
+Tested on Debian-Based Linux Distros, & OSX leveraging Ruby via RVM.
 
 ```
-$ rvm use ruby-3.2.2@global
-$ rvm gemset create pwn
-$ rvm use ruby-3.2.2@pwn
-$ rvm list gemsets
-$ gem install --verbose pwn
+$ cd /opt
+$ sudo git clone https://github.com/0dayinc/pwn
+$ cd /opt/pwn
+$ ./install.sh
+$ ./install.sh ruby-gem
 $ pwn
-pwn[v0.4.929]:001 >>> PWN.help
-```
-
-If you're using a multi-user install of RVM do:
-```
-$ rvm use ruby-3.2.2@global
-$ rvmsudo rvm gemset create pwn
-$ rvm use ruby-3.2.2@pwn
-$ rvm list gemsets
-$ rvmsudo gem install --verbose pwn
-$ pwn
-pwn[v0.4.929]:001 >>> PWN.help
+pwn[v0.4.930]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -63,7 +52,7 @@ $ rvm use ruby-3.2.2@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.929]:001 >>> PWN.help
+pwn[v0.4.930]:001 >>> PWN.help
 ```
 
 If you're using a multi-user install of RVM do:
@@ -73,7 +62,7 @@ $ rvm use ruby-3.2.2@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.4.929]:001 >>> PWN.help
+pwn[v0.4.930]:001 >>> PWN.help
 ```
 
 
