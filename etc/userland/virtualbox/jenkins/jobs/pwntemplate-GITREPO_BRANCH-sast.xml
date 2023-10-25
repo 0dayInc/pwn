@@ -53,7 +53,7 @@
         <htmlpublisher.HtmlPublisherTarget>
           <reportName>PWN SAST - Latest Results</reportName>
           <reportDir>$WORKSPACE</reportDir>
-          <reportFiles>pwn_scan_git_source.html</reportFiles>
+          <reportFiles>$JOB_NAME.html</reportFiles>
           <alwaysLinkToLastBuild>false</alwaysLinkToLastBuild>
           <reportTitles></reportTitles>
           <keepAll>false</keepAll>
