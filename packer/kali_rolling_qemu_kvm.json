@@ -116,6 +116,7 @@
         "provisioners/peda.sh",
         "provisioners/preeny.sh",
         "provisioners/pwntools.sh",
+        "provisioners/radare2.sh",
         "provisioners/scout2.sh",
         "provisioners/strace.sh",
         "provisioners/awscli.sh",
