@@ -4,13 +4,12 @@ require 'socket'
 
 module PWN
   module SAST
-    # SAST Module used to identify Base64 encoded strings
-    # that may have sensitive artifacts when decoded.
-    module Base64
+    # SAST Module used to identify padding oracle vulnerabilities involving weak CBC block cipher padding.
+    module PaddingOracle
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
-      # PWN::SAST::Base64.scan(
+      # PWN::SAST::PaddingOracle.scan(
       #   dir_path: 'optional path to dir defaults to .'
       #   git_repo_root_uri: 'optional http uri of git repo scanned'
       # )
@@ -32,10 +31,10 @@ module PWN
               entry_beautified = true
             end
 
-            # TODO: Include regex to search for Base64 strings
+            # TODO: Include regex to search for weak CBC block cipher padding
             test_case_filter = "
               grep -Ein \
-              -e 'BASE64' #{entry}
+              -e 'AES/CBC/PKCS' #{entry}
             "
 
             str = `#{test_case_filter}`.to_s.scrub
@@ -107,10 +106,10 @@ module PWN
       public_class_method def self.security_references
         {
           sast_module: self,
-          section: 'PROTECTION OF INFORMATION AT REST',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SC-28',
-          cwe_id: '95',
-          cwe_uri: 'https://cwe.mitre.org/data/definitions/95.html'
+          section: 'PUBLIC KEY INFRASTRUCTURE CERTIFICATES',
+          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SC-17',
+          cwe_id: '310',
+          cwe_uri: 'https://cwe.mitre.org/data/definitions/310.html'
         }
       rescue StandardError => e
         raise e
