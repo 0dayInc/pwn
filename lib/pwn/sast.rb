@@ -29,6 +29,7 @@ module PWN
     autoload :Logger, 'pwn/sast/logger'
     autoload :MD5, 'pwn/sast/md5'
     autoload :OuterHTML, 'pwn/sast/outer_html'
+    autoload :PaddingOracle, 'pwn/sast/padding_oracle'
     autoload :Password, 'pwn/sast/password'
     autoload :PHPInputMechanisms, 'pwn/sast/php_input_mechanisms'
     autoload :PHPTypeJuggling, 'pwn/sast/php_type_juggling'

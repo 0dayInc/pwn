@@ -97,6 +97,7 @@ begin
       Logger
       MD5
       OuterHTML
+      PaddingOracle
       Password
       PHPInputMechanisms
       PHPTypeJuggling
