@@ -388,6 +388,9 @@ module PWN
       #   scan_date: 'optional - date in which scan was kicked off (defaults to now)',
       #   verified: 'optional - flag finding as verified by a tester (defaults to false)',
       #   create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
+      #   close_old_findings_product_scope: 'optional - flag to close old findings from engagement (defaults to false)',
+      #   close_old_findings: 'optional - flag to close old findings, regardless of engagement (defaults to false)',
+      #   push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)'
       # )
 
       public_class_method def self.importscan(opts = {})
@@ -465,6 +468,12 @@ module PWN
 
         opts[:create_finding_groups] ? (http_body[:create_finding_groups_for_all_findings] = true) : (http_body[:create_finding_groups_for_all_findings] = false)
 
+        opts[:close_old_findings_product_scope] ? (http_body[:close_old_findings_product_scope] = true) : (http_body[:close_old_findings_product_scope] = false)
+
+        opts[:close_old_findings] ? (http_body[:close_old_findings] = true) : (http_body[:close_old_findings] = false)
+
+        opts[:push_to_jira] ? (http_body[:push_to_jira] = true) : (http_body[:push_to_jira] = false)
+
         api_path = 'import-scan/'
         api_path = 'importscan/' if api_version == 'v1'
 
@@ -489,7 +498,10 @@ module PWN
       #   minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
       #   scan_date: 'optional - date in which scan was kicked off (defaults to now)',
       #   verified: 'optional - flag finding as verified by a tester (defaults to false)',
-      #   create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
+      #   create_finding_groups: 'optional - flag to create finding groups (defaults to false)',
+      #   close_old_findings_product_scope: 'optional - flag to close old findings from engagement (defaults to false)',
+      #   close_old_findings: 'optional - flag to close old findings, regardless of engagement (defaults to false)',
+      #   push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)'
       # )
 
       public_class_method def self.reimportscan(opts = {})
@@ -569,6 +581,12 @@ module PWN
         opts[:verified] ? (http_body[:verified] = true) : (http_body[:verified] = false)
 
         opts[:create_finding_groups] ? (http_body[:create_finding_groups_for_all_findings] = true) : (http_body[:create_finding_groups_for_all_findings] = false)
+
+        opts[:close_old_findings_product_scope] ? (http_body[:close_old_findings_product_scope] = true) : (http_body[:close_old_findings_product_scope] = false)
+
+        opts[:close_old_findings] ? (http_body[:close_old_findings] = true) : (http_body[:close_old_findings] = false)
+
+        opts[:push_to_jira] ? (http_body[:push_to_jira] = true) : (http_body[:push_to_jira] = false)
 
         api_path = 'reimport-scan/'
         api_path = 'reimportscan/' if api_version == 'v1'
@@ -726,7 +744,10 @@ module PWN
             minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
             scan_date: 'optional - date in which scan was kicked off (defaults to now)',
             verified: 'optional - flag finding as verified by a tester (defaults to false)',
-            create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
+            create_finding_groups: 'optional - flag to create finding groups (defaults to false)',
+            close_old_findings_product_scope: 'optional - flag to close old findings from engagement (defaults to false)',
+            close_old_findings: 'optional - flag to close old findings, regardless of engagement (defaults to false)',
+            push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)'
           )
 
           reimportscan_response = #{self}.reimportscan(
@@ -739,7 +760,10 @@ module PWN
             minimum_severity: 'optional - minimum finding severity Info||Low||Medium||High||Critical (Defaults to Info)',
             scan_date: 'optional - date in which scan was kicked off (defaults to now)',
             verified: 'optional - flag finding as verified by a tester (defaults to false)',
-            create_finding_groups: 'optional - flag to create finding groups (defaults to false)'
+            create_finding_groups: 'optional - flag to create finding groups (defaults to false)',
+            close_old_findings_product_scope: 'optional - flag to close old findings from engagement (defaults to false)',
+            close_old_findings: 'optional - flag to close old findings, regardless of engagement (defaults to false)',
+            push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)'
           )
 
           finding_list = #{self}.finding_list(
