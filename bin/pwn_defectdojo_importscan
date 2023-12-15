@@ -61,6 +61,18 @@ OptionParser.new do |options|
   options.on('-g', '--create-finding-groups', '<Optional - group similar findings into one finding (defaults to false)') do |g|
     opts[:create_finding_groups] = g
   end
+
+  options.on('-c', '--close-old-findings-product-scope', '<Optional - close old findings from the engagement (defaults to false)') do |c|
+    opts[:close_old_findings_product_scope] = c
+  end
+
+  options.on('-C', '--close-old-findings', '<Optional - close old findings, regardless of engagement (defaults to false)') do |c|
+    opts[:close_old_findings] = c
+  end
+
+  options.on('-j', '--push-to-jira', '<Optional - push findings to JIRA (defaults to false)') do |j|
+    opts[:push_to_jira] = j
+  end
 end.parse!
 
 if opts.empty?
@@ -84,6 +96,9 @@ minimum_severity = opts[:minimum_severity]
 scan_date = opts[:scan_date]
 verified = opts[:verified]
 create_findings_groups = opts[:create_finding_groups]
+close_old_findings_product_scope = opts[:close_old_findings_product_scope]
+close_old_findings = opts[:close_old_findings]
+push_to_jira = opts[:push_to_jira]
 
 begin
   dd_obj = PWN::Plugins::DefectDojo.login(
@@ -103,7 +118,10 @@ begin
     minimum_severity: minimum_severity,
     scan_date: scan_date,
     verified: verified,
-    create_findings_groups: create_findings_groups
+    create_findings_groups: create_findings_groups,
+    close_old_findings_product_scope: close_old_findings_product_scope,
+    close_old_findings: close_old_findings,
+    push_to_jira: push_to_jira
   )
 rescue StandardError => e
   raise e
