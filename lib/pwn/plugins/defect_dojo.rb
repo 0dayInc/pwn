@@ -96,32 +96,23 @@ module PWN
 
         when :post
           if http_body.key?(:multipart)
-            response = rest_client.execute(
-              method: :post,
-              url: "#{base_dd_api_uri}/#{rest_call}",
-              headers: {
-                content_type: content_type,
-                authorization: dd_obj[:authz_header]
-              },
-              payload: http_body,
-              verify_ssl: false,
-              timeout: request_timeout,
-              open_timeout: request_timeout
-            )
+            payload = http_body
           else
-            response = rest_client.execute(
-              method: :post,
-              url: "#{base_dd_api_uri}/#{rest_call}",
-              headers: {
-                content_type: content_type,
-                authorization: dd_obj[:authz_header]
-              },
-              payload: http_body.to_json,
-              verify_ssl: false,
-              timeout: request_timeout,
-              open_timeout: request_timeout
-            )
+            payload = http_body.to_json
           end
+
+          response = rest_client.execute(
+            method: :post,
+            url: "#{base_dd_api_uri}/#{rest_call}",
+            headers: {
+              content_type: content_type,
+              authorization: dd_obj[:authz_header]
+            },
+            payload: payload,
+            verify_ssl: false,
+            timeout: request_timeout,
+            open_timeout: request_timeout
+          )
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
