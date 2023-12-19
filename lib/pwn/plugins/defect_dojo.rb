@@ -62,6 +62,7 @@ module PWN
         http_body = opts[:http_body]
 
         content_type = 'application/json; charset=UTF-8'
+        content_type = 'multipart/form-data' if http_body.key?(:multipart)
 
         url = dd_obj[:url]
         api_version = dd_obj[:api_version]
@@ -99,6 +100,7 @@ module PWN
               method: :post,
               url: "#{base_dd_api_uri}/#{rest_call}",
               headers: {
+                content_type: content_type,
                 authorization: dd_obj[:authz_header]
               },
               payload: http_body,
@@ -449,7 +451,7 @@ module PWN
           http_body[:lead] = user_by_username_object.first[:id]
         end
 
-        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.delete("\s").split(',').join("\r\n") if opts[:tags]
+        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.delete("\s").split(',') if opts[:tags]
 
         minimum_severity = opts[:minimum_severity].to_s.strip.chomp.scrub.downcase.capitalize
         case minimum_severity
@@ -555,7 +557,7 @@ module PWN
           end
         end
 
-        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.delete("\s").split(',').join("\r\n") if opts[:tags]
+        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.delete("\s").split(',') if opts[:tags]
 
         http_body[:test] = opts[:test_resource_uri] if opts[:test_resource_uri]
 
