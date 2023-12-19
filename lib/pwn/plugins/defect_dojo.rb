@@ -101,7 +101,7 @@ module PWN
               headers: {
                 authorization: dd_obj[:authz_header]
               },
-              payload: http_body,
+              payload: http_body.to_json,
               verify_ssl: false,
               timeout: request_timeout,
               open_timeout: request_timeout
