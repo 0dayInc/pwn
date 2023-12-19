@@ -449,7 +449,7 @@ module PWN
           http_body[:lead] = user_by_username_object.first[:id]
         end
 
-        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.gsub("\s,\s", ',').split(',') if opts[:tags]
+        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.gsub("\s,\s", ',').split(',').join("\n") if opts[:tags]
 
         minimum_severity = opts[:minimum_severity].to_s.strip.chomp.scrub.downcase.capitalize
         case minimum_severity
@@ -555,7 +555,7 @@ module PWN
           end
         end
 
-        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.gsub("\s,\s", ',').split(',') if opts[:tags]
+        http_body[:tags] = opts[:tags].to_s.strip.chomp.scrub.gsub("\s,\s", ',').split(',').join("\n") if opts[:tags]
 
         http_body[:test] = opts[:test_resource_uri] if opts[:test_resource_uri]
 
