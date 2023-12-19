@@ -62,7 +62,6 @@ module PWN
         http_body = opts[:http_body]
 
         content_type = 'application/json; charset=UTF-8'
-        content_type = 'multipart/form-data' if http_body.key?(:multipart)
 
         url = dd_obj[:url]
         api_version = dd_obj[:api_version]
@@ -96,6 +95,7 @@ module PWN
 
         when :post
           if http_body.key?(:multipart)
+            content_type = 'multipart/form-data'
             payload = http_body
           else
             payload = http_body.to_json
