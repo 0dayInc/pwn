@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'securerandom'
 
 module PWN
   module Plugins
@@ -76,11 +77,12 @@ module PWN
           )
         end
 
-        rest_client = browser_obj[:browser]::Request
+        rest_client = browser_obj[:browser]
+        rest_request = rest_client::Request
 
         case http_method
         when :get
-          response = rest_client.execute(
+          response = rest_request.execute(
             method: :get,
             url: "#{base_dd_api_uri}/#{rest_call}",
             headers: {
@@ -95,13 +97,21 @@ module PWN
 
         when :post
           if http_body.key?(:multipart)
-            content_type = 'multipart/form-data'
-            payload = http_body
+            # Hack to fix name="tags[]" to name="tags" to allow for multi-tag submission
+            # otherwise we could just used payload = http_body
+            multipart = rest_client::Payload::Multipart.new(http_body)
+            content_type = multipart.headers['Content-Type']
+            multipart_massaged = multipart.to_s.gsub(
+              'Content-Disposition: form-data; name="tags[]"',
+              'Content-Disposition: form-data; name="tags"'
+            )
+            base = rest_client::Payload::Base.new(multipart_massaged)
+            payload = base.to_s
           else
             payload = http_body.to_json
           end
 
-          response = rest_client.execute(
+          response = rest_request.execute(
             method: :post,
             url: "#{base_dd_api_uri}/#{rest_call}",
             headers: {
