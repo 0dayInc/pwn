@@ -37,7 +37,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.4.947]:001 >>> PWN.help
+pwn[v0.4.948]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -48,21 +48,21 @@ pwn[v0.4.947]:001 >>> PWN.help
 It's wise to update pwn often as numerous versions are released/week:
 ```
 $ rvm list gemsets
-$ rvm use ruby-3.2.2@pwn
+$ rvm use ruby-3.3.0@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.947]:001 >>> PWN.help
+pwn[v0.4.948]:001 >>> PWN.help
 ```
 
 If you're using a multi-user install of RVM do:
 ```
 $ rvm list gemsets
-$ rvm use ruby-3.2.2@pwn
+$ rvm use ruby-3.3.0@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.4.947]:001 >>> PWN.help
+pwn[v0.4.948]:001 >>> PWN.help
 ```
 
 
