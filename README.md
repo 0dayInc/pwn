@@ -37,7 +37,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.4.948]:001 >>> PWN.help
+pwn[v0.4.949]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -52,7 +52,7 @@ $ rvm use ruby-3.3.0@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.948]:001 >>> PWN.help
+pwn[v0.4.949]:001 >>> PWN.help
 ```
 
 If you're using a multi-user install of RVM do:
@@ -62,8 +62,15 @@ $ rvm use ruby-3.3.0@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.4.948]:001 >>> PWN.help
+pwn[v0.4.949]:001 >>> PWN.help
 ```
+
+When ruby upgrades are required to bump to the latest version of PWN, the easiest way to achieve this is to run:
+```
+$ cd /opt/pwn
+$ ./vagrant/provisioners/pwn.sh
+```
+This should update ruby, create the necessary pwn gemset, etc.
 
 
 ### **Call to Arms** ###
