@@ -34,7 +34,7 @@ module PWN
       when 5
         banner = PWN::Banner::Pirate.get
       when 6
-        banner = PWN::Banner::WhiteBanner.get
+        banner = PWN::Banner::WhiteRabbit.get
       else
         raise 'Invalid Index.'
       end
