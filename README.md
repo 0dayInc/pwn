@@ -37,7 +37,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.4.949]:001 >>> PWN.help
+pwn[v0.4.950]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -52,7 +52,7 @@ $ rvm use ruby-3.3.0@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.4.949]:001 >>> PWN.help
+pwn[v0.4.950]:001 >>> PWN.help
 ```
 
 If you're using a multi-user install of RVM do:
@@ -62,19 +62,18 @@ $ rvm use ruby-3.3.0@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.4.949]:001 >>> PWN.help
+pwn[v0.4.950]:001 >>> PWN.help
 ```
 
-When ruby upgrades are required to bump to the latest version of PWN, the easiest way to achieve this is to run:
+PWN periodically upgrades to the latest version of Ruby which is reflected in `/opt/pwn/.ruby-version`.  The easiest way to upgrade to the latest version of Ruby from a previous PWN installation is to run the following script:
 ```
-$ cd /opt/pwn
-$ ./vagrant/provisioners/pwn.sh
+$ /opt/pwn/vagrant/provisioners/pwn.sh
 ```
-This should update ruby, create the necessary pwn gemset, etc.
+This should update Ruby, create the necessary pwn gemset within the latest Ruby version, etc.  It's important to note that if you're running an older version of ruby, you can only upgrade the `pwn` gem to the latest version supported by the earlier version of Ruby.
 
 
 ### **Call to Arms** ###
-If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please PM us as this will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).
+If you're willing to provide access to commercial security tools (e.g. Rapid7's Nexpose, Tenable Nessus, QualysGuard, HP WebInspect, IBM Appscan, etc) please [email us](mailto:support@0dayinc.com).  This will continue to promote PWNs interoperability w/ industry-recognized security tools moving forward.  Additionally if you want to contribute to this framework's success, check out our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md).
 
 
 ### **Module Documentation** ###
