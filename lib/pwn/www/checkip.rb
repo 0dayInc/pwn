@@ -56,8 +56,6 @@ module PWN
             browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
-          browser = browser_obj[:browser]
-          puts browser.public_methods
 
           browser_obj = #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method',
