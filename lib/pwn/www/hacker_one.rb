@@ -188,7 +188,12 @@ module PWN
           verify_ssl: false
         )
 
-        JSON.parse(rest_response.body, symbolize_names: true)
+        json_resp_hash = JSON.parse(rest_response.body, symbolize_names: true)
+
+        json_resp = {
+          name: program_name,
+          scope_details: json_resp_hash[:data][:team][:structured_scopes_search]
+        }
       rescue RestClient::ExceptionWithResponse => e
         if e.response
           puts "HTTP RESPONSE CODE: #{e.response.code}"
