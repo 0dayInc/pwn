@@ -76,6 +76,135 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # scope_details = PWN::WWW::HackerOne.get_scope_details(
+      #   program_name: 'required - program name from #get_bounty_programs method',
+      #   proxy: 'optional - scheme://proxy_host:port || tor'
+      # )
+
+      public_class_method def self.get_scope_details(opts = {})
+        program_name = opts[:program_name]
+        proxy = opts[:proxy]
+
+        browser_obj = PWN::Plugins::TransparentBrowser.open(
+          browser_type: :rest,
+          proxy: proxy
+        )
+        rest_client = browser_obj[:browser]
+        rest_request = rest_client::Request
+
+        graphql_endpoint = 'https://hackerone.com/graphql'
+        headers = { content_type: 'application/json' }
+        # NOTE: If you copy this payload to the pwn REPL
+        # the triple dots ... attempt to execute commands
+        # <cough>Pry CE</cough>
+        payload = {
+          operationName: 'PolicySearchStructuredScopesQuery',
+          variables: {
+            handle: program_name,
+            searchString: '',
+            eligibleForSubmission: nil,
+            eligibleForBounty: nil,
+            asmTagIds: [],
+            from: 0,
+            size: 100,
+            sort: {
+              field: 'cvss_score',
+              direction: 'DESC'
+            },
+            product_area: 'h1_assets',
+            product_feature: 'policy_scopes'
+          },
+          query: 'query PolicySearchStructuredScopesQuery(
+            $handle: String!,
+            $searchString: String,
+            $eligibleForSubmission: Boolean,
+            $eligibleForBounty: Boolean,
+            $minSeverityScore: SeverityRatingEnum,
+            $asmTagIds: [Int],
+            $from: Int, $size: Int, $sort: SortInput) {
+              team(handle: $handle) {
+                id
+                structured_scopes_search(
+                  search_string: $searchString
+                  eligible_for_submission: $eligibleForSubmission
+                  eligible_for_bounty: $eligibleForBounty
+                  min_severity_score: $minSeverityScore
+                  asm_tag_ids: $asmTagIds
+                  from: $from
+                  size: $size
+                  sort: $sort
+                ) {
+                  nodes {
+                    ... on StructuredScopeDocument {
+                      id
+                      ...PolicyScopeStructuredScopeDocument
+                      __typename
+                    }
+                    __typename
+                  }
+                  pageInfo {
+                    startCursor
+                    hasPreviousPage
+                    endCursor
+                    hasNextPage
+                    __typename
+                  }
+                  total_count
+                  __typename
+                }
+                __typename
+              }
+            }
+
+            fragment PolicyScopeStructuredScopeDocument on StructuredScopeDocument {
+              id
+              identifier
+              display_name
+              instruction
+              cvss_score
+              eligible_for_bounty
+              eligible_for_submission
+              asm_system_tags
+              created_at
+              updated_at
+              attachments {
+                id
+                file_name
+                file_size
+                content_type
+                expiring_url
+                __typename
+              }
+              __typename
+            }
+          '
+        }
+
+        rest_response = rest_request.execute(
+          method: :post,
+          url: graphql_endpoint,
+          headers: headers,
+          payload: payload.to_json.delete("\n"),
+          verify_ssl: false
+        )
+
+        JSON.parse(rest_response.body, symbolize_names: true)
+      rescue RestClient::ExceptionWithResponse => e
+        if e.response
+          puts "HTTP RESPONSE CODE: #{e.response.code}"
+          puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
+          puts "HTTP RESPONSE BODY:\n#{e.response.body}\n\n\n"
+        end
+
+        raise e
+      rescue StandardError => e
+        raise e
+      ensure
+        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) if browser_obj
+        rest_client = nil if rest_client
+        rest_request = nil if rest_request
+      end
+      # Supported Method Parameters::
       # PWN::WWW::HackerOne.save_burp_target_config_file(
       #   programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
       #   browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
@@ -227,6 +356,11 @@ module PWN
             browser_obj: 'required - browser_obj returned from #open method',
             proxy: 'optional - scheme://proxy_host:port || tor',
             min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
+          )
+
+          scope_details = PWN::WWW::HackerOne.get_scope_details(
+            program_name: 'required - program name from #get_bounty_programs method',
+            proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
           #{self}.save_burp_target_config_file(
