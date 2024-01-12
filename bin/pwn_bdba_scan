@@ -111,6 +111,10 @@ begin
       group_id: parent_group_id
     )
 
+    # Break out of infinite loop if status is anything other than 'B' (i.e. 'Busy')
+    # Possible status other than 'B' is:
+    # 'R' (i.e. 'Ready') or
+    # 'F' (i.e. 'Fail')
     break if scan_progress_resp[:products].none? { |p| p[:status] == 'B' } || report_only
 
     # Cancel queued scan if it's been queued for more than 90 minutes
@@ -134,9 +138,32 @@ begin
     scan_progress_busy_duration += 10
   end
 
-  find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }
+  raise 'ERROR: BDBA Scan Failed - Check BDBA Logs for More Info...' if scan_progress_resp[:products].any? { |p| p[:status] == 'F' }
 
-  raise NoMethodError if find_product.nil?
+  # Account for rare race condition scenario where get_apps_by_group may need to be called
+  # multiple times to find the product
+  find_product = nil
+  find_product_attempts = scan_attempts
+  print 'Looking for Product in Apps by Group...'
+  loop do
+    find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }
+    break unless find_product.nil?
+
+    find_product_attempts += 1
+
+    raise "ERROR: Cannot Find Product in Apps by Group:\n#{scan_progress_resp}" if find_product_attempts >= scan_attempts
+
+    10.times do
+      print '.'
+      sleep 1
+    end
+
+    scan_progress_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_apps_by_group(
+      token: token,
+      group_id: parent_group_id
+    )
+  end
+  puts 'complete.'
 
   product_id = find_product[:product_id]
 
@@ -149,7 +176,6 @@ begin
 
   puts "\nReport Saved to: #{report_path}"
 rescue IO::TimeoutError,
-       NoMethodError,
        RestClient::BadGateway,
        RestClient::BadRequest,
        RestClient::Exceptions::OpenTimeout,
