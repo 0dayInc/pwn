@@ -62,11 +62,11 @@ OptionParser.new do |options|
     opts[:create_finding_groups] = g
   end
 
-  options.on('-c', '--close-old-findings-product-scope', '<Optional - close old findings from the engagement (defaults to false)') do |c|
+  options.on('-c', '--close-old-findings-product-scope', '<Optional - Select if close_old_findings applies to all findings of the same type in the product (defaults to false)') do |c|
     opts[:close_old_findings_product_scope] = c
   end
 
-  options.on('-C', '--close-old-findings', '<Optional - close old findings, regardless of engagement (defaults to false)') do |c|
+  options.on('-C', '--close-old-findings', '<Optional - old findings no longer present in the report get closed as mitigated when importing (defaults to false)') do |c|
     opts[:close_old_findings] = c
   end
 
