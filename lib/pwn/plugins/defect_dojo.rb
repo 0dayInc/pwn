@@ -473,6 +473,8 @@ module PWN
 
         opts[:close_old_findings_product_scope] ? (http_body[:close_old_findings_product_scope] = true) : (http_body[:close_old_findings_product_scope] = false)
 
+        opts[:close_old_findings] = true if opts[:close_old_findings_product_scope]
+
         opts[:close_old_findings] ? (http_body[:close_old_findings] = true) : (http_body[:close_old_findings] = false)
 
         opts[:push_to_jira] ? (http_body[:push_to_jira] = true) : (http_body[:push_to_jira] = false)
@@ -580,6 +582,8 @@ module PWN
         opts[:create_finding_groups] ? (http_body[:create_finding_groups_for_all_findings] = true) : (http_body[:create_finding_groups_for_all_findings] = false)
 
         opts[:close_old_findings_product_scope] ? (http_body[:close_old_findings_product_scope] = true) : (http_body[:close_old_findings_product_scope] = false)
+
+        opts[:close_old_findings] = true if opts[:close_old_findings_product_scope]
 
         opts[:close_old_findings] ? (http_body[:close_old_findings] = true) : (http_body[:close_old_findings] = false)
 
