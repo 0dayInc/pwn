@@ -23,7 +23,7 @@ module PWN
         ⠀⠀⠀⠙⢄⠁⠀⠀⠈⣇⣀⡼⠃⠀⠀⢁⠞⠀⠀⠀⠀
         ⠀⠀⠀⠀⠀⠉⢆⡀⠀⢸⣿⡇⠀⢀⠠⠂⠀⠀⠀⠀⠀
         ⠀⠀⠀⠀⠀⠀⠀⠈⠁⠸⢿⡿⠃⠋⠁
-        '.black.on_white
+        '.black
       rescue StandardError => e
         raise e
       end
