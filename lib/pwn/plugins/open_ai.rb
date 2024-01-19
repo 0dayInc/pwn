@@ -350,7 +350,7 @@ module PWN
           role: 'user',
           content: [
             { type: 'text', text: request },
-            { type: 'image_url', url: "data:image/jpeg;base64,#{base64_encoded_img}" }
+            { type: 'image_url', img_url: { url: "data:image/jpeg;base64,#{base64_encoded_img}" } }
           ]
         }
 
