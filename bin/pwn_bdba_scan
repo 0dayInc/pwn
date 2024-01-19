@@ -146,7 +146,10 @@ begin
   find_product_attempts = scan_attempts
   print 'Looking for Product in Apps by Group...'
   loop do
-    find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(File.basename(target_file)) }
+    target_basename = File.basename(target_file)
+
+    # find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(target_basename) }
+    find_product = scan_progress_resp[:products].find { |p| p[:name] == target_basename } if find_product.nil?
     break unless find_product.nil?
 
     find_product_attempts += 1
