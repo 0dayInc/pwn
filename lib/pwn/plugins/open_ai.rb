@@ -352,7 +352,7 @@ module PWN
             { type: 'text', text: request },
             {
               type: 'image_url',
-              img_url: { url: "data:image/jpeg;base64,#{base64_encoded_img}" }
+              image_url: { url: "data:image/jpeg;base64,#{base64_encoded_img}" }
             }
           ]
         }
@@ -363,7 +363,7 @@ module PWN
         # TODO: Include max_tokens when sending chat requests
         http_body = {
           model: model,
-          messages: [],
+          messages: [system_role],
           temperature: temp
         }
 
