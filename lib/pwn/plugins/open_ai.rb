@@ -150,7 +150,7 @@ module PWN
 
           response_history = opts[:response_history]
 
-          max_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
+          max_tokens = response_history[:usage][:total_tokens] unless response_history.nil? || response_history.empty?
           max_tokens = 8_192 - (request.to_s.length / 4) if model.include?('gpt-4')
           max_tokens = 32_768 - (request.to_s.length / 4) if model.include?('gpt-4-32k')
           max_tokens = 300 unless max_tokens.positive?
