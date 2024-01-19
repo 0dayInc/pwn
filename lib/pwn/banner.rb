@@ -7,6 +7,7 @@ module PWN
   module Banner
     autoload :Bubble, 'pwn/banner/bubble'
     autoload :DontPanic, 'pwn/banner/dont_panic'
+    autoload :FSociety, 'pwn/banner/f_society'
     autoload :Matrix, 'pwn/banner/matrix'
     autoload :Ninja, 'pwn/banner/ninja'
     autoload :OffTheAir, 'pwn/banner/off_the_air'
@@ -20,7 +21,7 @@ module PWN
 
     public_class_method def self.get(opts = {})
       index = opts[:index].to_i
-      index = Random.rand(1..7) unless index.positive?
+      index = Random.rand(1..8) unless index.positive?
 
       banner = ''
       case index
@@ -29,14 +30,16 @@ module PWN
       when 2
         banner = PWN::Banner::DontPanic.get
       when 3
-        banner = PWN::Banner::Matrix.get
+        banner = PWN::Banner::FSociety.get
       when 4
-        banner = PWN::Banner::Ninja.get
+        banner = PWN::Banner::Matrix.get
       when 5
-        banner = PWN::Banner::OffTheAir.get
+        banner = PWN::Banner::Ninja.get
       when 6
-        banner = PWN::Banner::Pirate.get
+        banner = PWN::Banner::OffTheAir.get
       when 7
+        banner = PWN::Banner::Pirate.get
+      when 8
         banner = PWN::Banner::WhiteRabbit.get
       else
         raise 'Invalid Index.'

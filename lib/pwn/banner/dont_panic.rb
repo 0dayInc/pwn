@@ -24,7 +24,7 @@ module PWN
                      `;.  ,====\\=.  .;"
                        ``""""`==\\=="
                               `;=====
-                                ===   
+                                ===
         '.green
       rescue StandardError => e
         raise e
