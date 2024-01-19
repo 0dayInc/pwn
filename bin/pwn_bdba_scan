@@ -148,8 +148,8 @@ begin
   loop do
     target_basename = File.basename(target_file)
 
-    # find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(target_basename) }
-    find_product = scan_progress_resp[:products].find { |p| p[:name] == target_basename } if find_product.nil?
+    find_product = scan_progress_resp[:products].find { |p| p[:name] == target_basename }
+    # find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(target_basename) } if find_product.nil?
     break unless find_product.nil?
 
     find_product_attempts += 1

@@ -17,7 +17,7 @@ OptionParser.new do |options|
   end
 end.parse!
 
-bind_ip = opts[:bind_ip] || '127.0.0.1'
+bind_ip = opts[:bind_ip] ||= '127.0.0.1'
 
 port = opts[:port].to_i
 port = 3333 if port.zero?
