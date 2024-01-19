@@ -172,7 +172,6 @@ module PWN
           response_history ||= { choices: [system_role] }
           choices_len = response_history[:choices].length
 
-          # TODO: Include max_tokens when sending chat requests
           http_body = {
             model: model,
             messages: [system_role],
@@ -339,7 +338,7 @@ module PWN
 
         response_history = opts[:response_history]
 
-        max_tokens = 8_192
+        max_tokens = 4_096
         max_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
 
         system_role_content = opts[:system_role_content]
@@ -365,7 +364,6 @@ module PWN
         response_history ||= { choices: [system_role] }
         choices_len = response_history[:choices].length
 
-        # TODO: Include max_tokens when sending chat requests
         http_body = {
           model: model,
           messages: [system_role],

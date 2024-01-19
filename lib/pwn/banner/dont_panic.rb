@@ -5,30 +5,27 @@ require 'colorize'
 module PWN
   module Banner
     # This plugin processes images into readable text
-    module WhiteRabbit
+    module DontPanic
       # Supported Method Parameters::
-      # PWN::Banner::WhiteRabbit.get
+      # PWN::Banner::DontPanic.get
 
       public_class_method def self.get
         '
-             _       _
-            / \     / \
-           {   }   {   }
-           {   {   }   }
-            \   \ /   /
-             \   Y   /
-             .-"`"`"-.
-           ,`         `.
-          /             \
-         /               \
-        {     ."";,       }
-        {  /";`.`,;       }
-         \{  ;`,``;.     /
-          {  }`""`  }   /}
-          {  }      {  //
-          {||}      {  /
-          `"`       pwn
-        '.white
+                    _,.-pwn-.,_
+        \||\       ;;;;%%%@@@@@@       \ //,
+         V|/     %;;%%%%%@@@@@@@@@@  ===Y//
+         68=== ;;;;%%%%%%@@@@@@@@@@@@    @Y
+         ;Y   ;;%;%%%%%%@@@@@@@@@@@@@@    Y
+         ;Y  ;;;+;%%%%%%@@@@@@@@@@@@@@@    Y
+         ;Y__;;;+;%%%%%%@@@@@@@@@@@@@@i;;__Y
+        iiY"";;   "uu%@@@@@@@@@@uu"   @"";;;>
+               Y     "UUUUUUUUU"     @@
+               `;       ___ _       @
+                 `;.  ,====\\=.  .;"
+                   ``""""`==\\=="
+                          `;=====
+                            ===
+        '.green
       rescue StandardError => e
         raise e
       end
