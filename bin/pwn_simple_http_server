@@ -17,22 +17,10 @@ OptionParser.new do |options|
   end
 end.parse!
 
-if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
-  exit 1
-end
+bind_ip = opts[:bind_ip] || '127.0.0.1'
 
-if opts[:bind_ip]
-  bind_ip = opts[:bind_ip]
-else
-  bind_ip = '127.0.0.1'
-end
-
-if opts[:port]
-  port = opts[:port].to_i
-else
-  port = 3333
-end
+port = opts[:port].to_i
+port = 3333 if port.zero?
 
 begin
   system(
