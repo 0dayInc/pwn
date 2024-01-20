@@ -268,7 +268,6 @@ begin
         token: open_ai_key,
         request: request.chomp,
         temp: 1,
-        max_tokens: 0,
         response_history: response_history,
         speak_answer: speak_answer
       )
