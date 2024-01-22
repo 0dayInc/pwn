@@ -5,12 +5,14 @@ require 'colorize'
 module PWN
   module Banner
     # This plugin processes images into readable text
-    module JmpEsp
+    module ForkBomb
       # Supported Method Parameters::
-      # PWN::Banner::JmpEsp.get
+      # PWN::Banner::ForkBomb.get
 
       public_class_method def self.get
-        '$ pwn() { pwn | pwn & }; pwn'.blue
+        '
+        $ pwn() { pwn | pwn & }; pwn
+        '.blue
       rescue StandardError => e
         raise e
       end
