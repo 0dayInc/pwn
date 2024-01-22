@@ -10,10 +10,14 @@ module PWN
     autoload :Cheshire, 'pwn/banner/cheshire'
     autoload :DontPanic, 'pwn/banner/dont_panic'
     autoload :FSociety, 'pwn/banner/f_society'
+    autoload :JmpEsp, 'pwn/banner/jmp_esp'
+    autoload :ForkBomb, 'pwn/banner/fork_bomb'
+    autoload :FSociety, 'pwn/banner/jmp_esp'
     autoload :Matrix, 'pwn/banner/matrix'
     autoload :Ninja, 'pwn/banner/ninja'
     autoload :OffTheAir, 'pwn/banner/off_the_air'
     autoload :Pirate, 'pwn/banner/pirate'
+    autoload :Pirate, 'pwn/banner/radare2'
     autoload :WhiteRabbit, 'pwn/banner/white_rabbit'
 
     # Supported Method Parameters::
@@ -23,7 +27,7 @@ module PWN
 
     public_class_method def self.get(opts = {})
       index = opts[:index].to_i
-      index = Random.rand(1..10) unless index.positive?
+      index = Random.rand(1..12) unless index.positive?
 
       banner = ''
       case index
@@ -36,16 +40,22 @@ module PWN
       when 4
         banner = PWN::Banner::DontPanic.get
       when 5
-        banner = PWN::Banner::FSociety.get
+        banner = PWN::Banner::ForkBomb.get
       when 6
-        banner = PWN::Banner::Matrix.get
+        banner = PWN::Banner::FSociety.get
       when 7
-        banner = PWN::Banner::Ninja.get
+        banner = PWN::Banner::JmpEsp.get
       when 8
-        banner = PWN::Banner::OffTheAir.get
+        banner = PWN::Banner::Matrix.get
       when 9
-        banner = PWN::Banner::Pirate.get
+        banner = PWN::Banner::Ninja.get
       when 10
+        banner = PWN::Banner::OffTheAir.get
+      when 11
+        banner = PWN::Banner::Pirate.get
+      when 12
+        banner = PWN::Banner::Radare2.get
+      when 13
         banner = PWN::Banner::WhiteRabbit.get
       else
         raise 'Invalid Index.'
