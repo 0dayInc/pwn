@@ -5,30 +5,14 @@ require 'colorize'
 module PWN
   module Banner
     # This plugin processes images into readable text
-    module Ninja
+    module ForkBomb
       # Supported Method Parameters::
-      # PWN::Banner::Ninja.get
+      # PWN::Banner::ForkBomb.get
 
       public_class_method def self.get
         '
-               .=+*****=-
-             :#%%%%%%%%%%%=
-            :%%%%%%%%%%%%%%+
-            *%%#+=-::--=*%%%+*#*
-            *%+:%%-:::#@=:%%%#*-
-        ::  =%*:==::::-=:=%#:*%-
-        *#*- +%%%#######%%#.
-         :+##=.+%%%%%%%%%=
-           :-+%%%%%%%%%%%%#=
-           -%%%%%%%%%PWN%%%%%-
-          -%%#:.%%%%%%%%%.:#%%:
-          -##- -%%%%%%%%%- -##:
-               *%%%#+#%%%*::.
-               %%%+   *%%#
-              .%%%.   :%%%.
-              =**+     +##=
-        \xe5\xbf\x8d\xe8\xa1\x93
-        '.light_blue
+        $ pwn() { pwn | pwn & }; pwn
+        '.blue
       rescue StandardError => e
         raise e
       end
