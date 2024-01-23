@@ -144,7 +144,7 @@ module PWN
       #   callback_url: 'optional - callback url',
       #   scan_infoleak: 'optional - scan infoleak (defaults to true)',
       #   code_analysis: 'optional - code analysis (defaults to true)',
-      #   scan_code_familiarity: 'optional - scan code familiarity (defaults to true)',
+      #   scan_code_familiarity: 'optional - scan code familiarity (defaults to false)',
       #   version: 'optional - version',
       #   product_id: 'optional - product id'
       # )
@@ -162,7 +162,7 @@ module PWN
         callback_url = opts[:callback_url]
         scan_infoleak = false if opts[:scan_infoleak] ||= true
         code_analysis = false if opts[:code_analysis] ||= true
-        scan_code_familiarity = false if opts[:scan_code_familiarity] ||= true
+        scan_code_familiarity = false if opts[:scan_code_familiarity] ||= false
         version = opts[:version]
         product_id = opts[:product_id]
 
