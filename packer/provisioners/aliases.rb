@@ -12,8 +12,8 @@ File.open(alias_file, 'w') do |f|
   f.puts "alias phantomjs='export QT_QPA_PLATFORM=offscreen; phantomjs'"
   f.puts "alias prep='ps -ef | grep'"
   f.puts "alias sup='sudo -i'"
-  f.puts "alias vi='vim -i NONE'"
-  f.puts "alias vim='vim -i NONE'"
-  f.puts "alias tmux='TERM=xterm-256color tmux'"
+  f.puts "alias vi='vim -i NONE -b'"
+  f.puts "alias vim='vim -i NONE -b'"
+  f.puts "alias tmux='TERM=screen-256color tmux'"
 end
 system("sudo chmod 755 #{alias_file}")
