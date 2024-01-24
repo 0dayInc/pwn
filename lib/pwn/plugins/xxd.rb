@@ -6,11 +6,13 @@ module PWN
     module XXD
       # Supported Method Parameters::
       # PWN::Plugins::XXD.dump(
-      #   file: 'required - path to binary file to dump'
+      #   file: 'required - path to binary file to dump',
+      #   hexdump_arr: 'optional - return array of hashes instead of string (default: false)'
       # )
 
       public_class_method def self.dump(opts = {})
         file = opts[:file]
+        hexdump_arr = opts[:hexdump_arr] ||= false
 
         raise ArgumentError, 'file is required' if file.nil?
 
@@ -19,24 +21,36 @@ module PWN
         input = File.binread(file)
 
         io = StringIO.new
+        hex_arr = [] if hexdump_arr
         res = input.bytes.each_slice(2).each_slice(8).with_index do |row, index|
-          io.write(
-            format(
-              "%<s1>07x0: %<s2>-40s %<s3>-16s\n",
-              s1: index,
-              s2: row.map { |pair| pair.map { |b| b.to_s(16).rjust(2, '0') }.join }.join(' '),
-              s3: row.flat_map { |pair| pair.map { |b| (b >= 32 && b < 127 ? b.chr : '.') } }.flatten.join
-            )
+          fmt_row = format(
+            "%<s1>07x0: %<s2>-40s %<s3>-16s\n",
+            s1: index,
+            s2: row.map { |pair| pair.map { |b| b.to_s(16).rjust(2, '0') }.join }.join(' '),
+            s3: row.flat_map { |pair| pair.map { |b| (b >= 32 && b < 127 ? b.chr : '.') } }.flatten.join
           )
+
+          io.write(fmt_row)
+
+          if hexdump_arr
+            fmt_row_hash = {
+              address: fmt_row.split.first.delete(':'),
+              hex: fmt_row.split[1..8],
+              ascii: fmt_row.split[9..-1].join
+            }
+
+            hex_arr.push(fmt_row_hash)
+          end
         end
 
-        io.string
+        hex_arr if hexdump_arr
+        io.string unless hexdump_arr
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::XXD.dump(
+      # PWN::Plugins::XXD.reverse_dump(
       #   hexdump: 'required - hexdump string to reverse dump'
       #   file: 'required - path to binary file to dump'
       # )
@@ -50,7 +64,10 @@ module PWN
 
         # TODO: fix this block as it is not working as expected
         binary_data = hexdump.lines.map do |line|
-          line.chars[10..-19].join.split.map do |hex|
+          # Works but overly complicated
+          # line.chars[10..-19].join.split.map do |hex|
+          # More simple better
+          line.split[1..8].map do |hex|
             [hex].pack('H*')
           end.join
         end.join
@@ -73,7 +90,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           #{self}.dump(
-            file: 'required - path to binary file to dump'
+            file: 'required - path to binary file to dump',
+            hexdump_arr: 'optional - return array of hashes instead of string (default: false)'
           )
 
           #{self}.reverse_dump(
