@@ -50,7 +50,7 @@ module PWN
 
         # TODO: fix this block as it is not working as expected
         binary_data = hexdump.lines.map do |line|
-          line.split(':')[1].split[0..15].join.split.map do |hex|
+          line.chars[10..-19].join.split.map do |hex|
             [hex].pack('H*')
           end.join
         end.join

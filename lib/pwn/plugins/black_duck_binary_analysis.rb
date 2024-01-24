@@ -178,7 +178,6 @@ module PWN
           replace: product_id
         }
 
-        # file: File.binread(file)
         http_body = {
           multipart: true,
           file: File.new(file, 'rb')
