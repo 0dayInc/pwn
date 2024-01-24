@@ -60,14 +60,13 @@ module PWN
 
         when :post, :put
           if http_body.is_a?(Hash)
-            case http_body.key?
-            when :multipart
-              headers[:content_type] = 'multipart/form-data'
-            when :raw
+            if http_body.key?(:raw)
               headers[:content_type] = nil
               http_body = http_body[:file]
+            elsif http_body.key?(:multipart)
+              headers[:content_type] = 'multipart/form-data'
             else
-              http_body = http_body.to_json unless http_body.key?(:multipart)
+              http_body = http_body.to_json
             end
           end
 
