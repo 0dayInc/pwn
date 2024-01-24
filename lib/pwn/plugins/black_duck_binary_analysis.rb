@@ -60,8 +60,7 @@ module PWN
 
         when :post, :put
           if http_body.is_a?(Hash)
-            headers[:content_type] = nil if http_body.key?(:multipart)
-            # headers[:content_type] = 'multipart/form-data' if http_body.key?(:multipart)
+            headers[:content_type] = 'multipart/form-data' if http_body.key?(:multipart)
             http_body = http_body.to_json unless http_body.key?(:multipart)
           end
 
@@ -179,6 +178,7 @@ module PWN
           replace: product_id
         }
 
+        # file: File.binread(file)
         http_body = {
           multipart: true,
           file: File.new(file, 'rb')

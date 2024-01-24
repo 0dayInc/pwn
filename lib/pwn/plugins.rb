@@ -67,6 +67,7 @@ module PWN
     autoload :URIScheme, 'pwn/plugins/uri_scheme'
     autoload :Voice, 'pwn/plugins/voice'
     autoload :Vsphere, 'pwn/plugins/vsphere'
+    autoload :XXD, 'pwn/plugins/xxd'
 
     # Display a List of Every PWN Plugin
 
