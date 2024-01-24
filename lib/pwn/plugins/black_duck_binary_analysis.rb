@@ -60,8 +60,15 @@ module PWN
 
         when :post, :put
           if http_body.is_a?(Hash)
-            headers[:content_type] = 'multipart/form-data' if http_body.key?(:multipart)
-            http_body = http_body.to_json unless http_body.key?(:multipart)
+            case http_body.key?
+            when :multipart
+              headers[:content_type] = 'multipart/form-data'
+            when :raw
+              headers[:content_type] = nil
+              http_body = http_body[:file]
+            else
+              http_body = http_body.to_json unless http_body.key?(:multipart)
+            end
           end
 
           response = rest_client.execute(
@@ -178,9 +185,14 @@ module PWN
           replace: product_id
         }
 
+        # http_body = {
+        #   multipart: true,
+        #   file: File.new(file, 'rb')
+        # }
+
         http_body = {
-          multipart: true,
-          file: File.new(file, 'rb')
+          raw: true,
+          file: File.binread(file)
         }
 
         response = bd_bin_analysis_rest_call(
