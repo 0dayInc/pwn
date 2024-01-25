@@ -60,11 +60,19 @@ module PWN
 
         raise ArgumentError, 'output file is required' if file.nil?
 
-        # TODO: fix this block as it is not working as expected
+        # If hexdump is hashed leveraging the dump method, convert to string
+        if hexdump.is_a?(Hash)
+          hexdump = hexdump.map do |k, v|
+            format(
+              "%<s1>07s0: %<s2>-40s %<s3>-16s\n",
+              s1: k,
+              s2: v[:hex].join(' '),
+              s3: v[:ascii]
+            )
+          end.join
+        end
+
         binary_data = hexdump.lines.map do |line|
-          # Works but overly complicated
-          # line.chars[10..-19].join.split.map do |hex|
-          # More simple better
           line.split[1..8].map do |hex|
             [hex].pack('H*')
           end.join
