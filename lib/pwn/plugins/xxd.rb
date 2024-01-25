@@ -77,7 +77,7 @@ module PWN
             format(
               "%<s1>07s0: %<s2>-40s %<s3>-16s\n",
               s1: k,
-              s2: v[:hex].each_slice(2).map { |slice| slice.join }.join(' '),
+              s2: v[:hex].each_slice(2).map(&:join).join(' '),
               s3: v[:ascii]
             )
           end.join
