@@ -5,7 +5,7 @@ module PWN
     # This module provides the abilty to dump binaries in hex format
     module XXD
       # Supported Method Parameters::
-      # PWN::Plugins::XXD.dump(
+      # hexdump = PWN::Plugins::XXD.dump(
       #   file: 'required - path to binary file to dump',
       #   hashed: 'optional - return hexdump as hash instead of string (default: false)'
       # )
@@ -36,7 +36,7 @@ module PWN
             this_key = fmt_row.chars[0..7].join
             if fmt_row.length == 68
               hashed_hexdump[this_key] = {
-                hex: fmt_row.chars[10..48].join.split,
+                hex: fmt_row.chars[10..48].join.delete("\s").scan(/../),
                 ascii: fmt_row.chars[51..-2].join
               }
             else
@@ -44,7 +44,7 @@ module PWN
               hex_len = (rem_len / 3) * 2
               ascii_len = rem_len / 3
               hashed_hexdump[this_key] = {
-                hex: fmt_row.chars[10..(10 + hex_len)].join.split,
+                hex: fmt_row.chars[10..(10 + hex_len)].join.delete("\s").scan(/../),
                 ascii: fmt_row.chars[(10 + hex_len + 1)..-1].join
               }
             end
@@ -60,7 +60,7 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::XXD.reverse_dump(
-      #   hexdump: 'required - hexdump string to reverse dump'
+      #   hexdump: 'required - hexdump returned from #dump method',
       #   file: 'required - path to binary file to dump'
       # )
 
@@ -77,10 +77,11 @@ module PWN
             format(
               "%<s1>07s0: %<s2>-40s %<s3>-16s\n",
               s1: k,
-              s2: v[:hex].join(' '),
+              s2: v[:hex].each_slice(2).map(&:join).join(' '),
               s3: v[:ascii]
             )
           end.join
+          puts hexdump
         end
 
         binary_data = hexdump.lines.map do |line|
@@ -106,13 +107,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.dump(
+          hexdump = #{self}.dump(
             file: 'required - path to binary file to dump',
             hashed: 'optional - return hexdump as hash instead of string (default: false)'
           )
 
           #{self}.reverse_dump(
-            hexdump: 'required - hexdump string to reverse dump',
+            hexdump: 'required - hexdump returned from #dump method',
             file: 'required - path to binary file to dump'
           )
 
