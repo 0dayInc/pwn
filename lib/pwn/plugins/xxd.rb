@@ -81,7 +81,6 @@ module PWN
               s3: v[:ascii]
             )
           end.join
-          puts k
           puts hexdump
         end
 
