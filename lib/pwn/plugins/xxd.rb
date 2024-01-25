@@ -33,27 +33,20 @@ module PWN
           io.write(fmt_row)
 
           if hashed
-            # TODO: Fix NoMethodError: undefined method `join' for nil
-            # when fmt_row looks like:
-            # 000f4b20: 0000 0000 0000 0000                      ........
-            # fmt_row_col_len = fmt_row.split.length
-            # if fmt_row_col_len > 10
-            #   fmt_row.split[9..-1].join
-            # end
-            this_key = fmt_row.split.first.delete(':').to_s
-            hashed_hexdump[this_key] = {
-              hex: fmt_row.split[1..-2],
-              ascii: fmt_row.split[-1]
-            }
-
-            hhh_len = hashed_hexdump[this_key][:hex].length
-            # TODO: address last line if the hashed_hexdump[this_key][:hex] length is less than 8
-            if hhh_len > 8
-              mov_to_ascii = (hhh_len - 8) * -1
-              last_ascii = hashed_hexdump[this_key][:ascii]
-              hashed_hexdump[this_key][:hex][-1] = "#{hashed_hexdump[this_key][:hex].last}\s"
-              hashed_hexdump[this_key][:ascii] = "#{hashed_hexdump[this_key][:hex][mov_to_ascii..-1].join(' ')}#{last_ascii}"
-              hashed_hexdump[this_key][:hex] = hashed_hexdump[this_key][:hex][0..7]
+            this_key = fmt_row.chars[0..7].join
+            if fmt_row.length == 68
+              hashed_hexdump[this_key] = {
+                hex: fmt_row.chars[10..48].join.split,
+                ascii: fmt_row.chars[51..-2].join
+              }
+            else
+              rem_len = fmt_row[10..-1].length
+              hex_len = (rem_len / 3) * 2
+              ascii_len = rem_len / 3
+              hashed_hexdump[this_key] = {
+                hex: fmt_row.chars[10..(10 + hex_len)].join.split,
+                ascii: fmt_row.chars[(10 + hex_len + 1)..-1].join
+              }
             end
           end
         end
