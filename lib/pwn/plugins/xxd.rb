@@ -75,12 +75,13 @@ module PWN
         if hexdump.is_a?(Hash)
           hexdump = hexdump.map do |k, v|
             format(
-              "%<s1>07s0: %<s2>-40s %<s3>-16s\n",
+              "%<s1>s: %<s2>s %<s3>s\n",
               s1: k,
               s2: v[:hex].each_slice(2).map(&:join).join(' '),
               s3: v[:ascii]
             )
           end.join
+          puts k
           puts hexdump
         end
 
