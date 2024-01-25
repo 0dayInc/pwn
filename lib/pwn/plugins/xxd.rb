@@ -7,12 +7,12 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::XXD.dump(
       #   file: 'required - path to binary file to dump',
-      #   hexdump_arr: 'optional - return array of hashes instead of string (default: false)'
+      #   hashed: 'optional - return hexdump as hash instead of string (default: false)'
       # )
 
       public_class_method def self.dump(opts = {})
         file = opts[:file]
-        hexdump_arr = opts[:hexdump_arr] ||= false
+        hashed = opts[:hashed] ||= false
 
         raise ArgumentError, 'file is required' if file.nil?
 
@@ -21,7 +21,7 @@ module PWN
         input = File.binread(file)
 
         io = StringIO.new
-        hex_arr = [] if hexdump_arr
+        hashed_hexdump = {}
         res = input.bytes.each_slice(2).each_slice(8).with_index do |row, index|
           fmt_row = format(
             "%<s1>07x0: %<s2>-40s %<s3>-16s\n",
@@ -32,19 +32,19 @@ module PWN
 
           io.write(fmt_row)
 
-          if hexdump_arr
-            fmt_row_hash = {
-              address: fmt_row.split.first.delete(':'),
+          if hashed
+            hashed_hexdump["#{fmt_row.split.first.delete(':')}"] = {
               hex: fmt_row.split[1..8],
               ascii: fmt_row.split[9..-1].join
             }
-
-            hex_arr.push(fmt_row_hash)
           end
         end
 
-        hex_arr if hexdump_arr
-        io.string unless hexdump_arr
+        if hashed
+          return hashed_hexdump
+        else
+          return io.string
+        end
       rescue StandardError => e
         raise e
       end
@@ -91,7 +91,7 @@ module PWN
         puts "USAGE:
           #{self}.dump(
             file: 'required - path to binary file to dump',
-            hexdump_arr: 'optional - return array of hashes instead of string (default: false)'
+            hashed: 'optional - return hexdump as hash instead of string (default: false)'
           )
 
           #{self}.reverse_dump(
