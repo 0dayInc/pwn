@@ -33,18 +33,16 @@ module PWN
           io.write(fmt_row)
 
           if hashed
-            hashed_hexdump["#{fmt_row.split.first.delete(':')}"] = {
+            hashed_hexdump[fmt_row.split.first.delete(':').to_s] = {
               hex: fmt_row.split[1..8],
               ascii: fmt_row.split[9..-1].join
             }
           end
         end
 
-        if hashed
-          return hashed_hexdump
-        else
-          return io.string
-        end
+        return hashed_hexdump if hashed
+
+        io.string unless hashed
       rescue StandardError => e
         raise e
       end
