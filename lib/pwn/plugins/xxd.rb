@@ -59,14 +59,96 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # hexdump = PWN::Plugins::XXD.fill_range_w_byte(
+      #   hexdump: 'required - hexdump returned from #dump method',
+      #   start_addr: 'required - start address to fill with byte',
+      #   end_addr: 'required - end address to fill with byte',
+      #   byte: 'required - byte to fill range with'
+      # )
+
+      def self.fill_range_w_byte(opts = {})
+        hexdump = opts[:hexdump]
+        start_addr = opts[:start_addr]
+        end_addr = opts[:end_addr]
+        byte = opts[:byte]
+
+        start_int = start_addr.to_i(16)
+        end_int = end_addr.to_i(16)
+
+        hexdump.each do |key, value|
+          key_int = key.to_i(16)
+          value[:hex] = Array.new(16, byte) if key_int >= start_int && key_int <= end_int
+        end
+
+        hexdump
+      end
+
+      # Supported Method Parameters::
+      # hex_offset = PWN::Plugins::XXD.calc_addr_offset(
+      #   start_addr: 'required - start address to evaluate',
+      #   target_addr: 'required - memory address to set breakpoint'
+      # )
+      # ^^^ Instructions for #{self}.calc_addr_offset:
+      # This is useful for calculating address offsets of known functions in debuggers
+      # to set breakpoints of instructions that are not known at runtime.
+      # 1. Set a breakpoint at main and record its address - this is the start_addr.
+      #    For example in r2:
+      #    ```
+      #    [0x00001050]> db main
+      #    [0x00001050]> ood
+      #    [0x7fd16122b360]> dc
+      #    INFO: hit breakpoint at: 0x562e8547d139
+      #    [0x562e8547d139]> db
+      #    ```
+      # 2. Populate start_addr w/ address (i.e. '0x562e8547d139') of a known function (e.g. main)
+      # 3. Step down to the instruction you want to set a breakpoint. Record its address...
+      #    this is the target_addr.
+      #    ```
+      #    [0x562e8547d139]> v
+      #    <step through to target instruction via F7/F8>
+      #    ```
+      # 4. Get the hex offset value by calling this method
+      # 5. Future breakpoints can be calculated by adding the hex offset to the
+      #    updated start_addr (which changes every time the binary is executed).
+      #    If the offset returned is `0x00000ec2` a breakpoint in r2 can be set via:
+      #    ```
+      #    [0x00001050]> ood
+      #    INFO: hit breakpoint at: 0x55ee0a0e5139
+      #    [0x7f1a45bea360]> db main
+      #    [0x7f1a45bea360]> db (main)+0x00000ec2
+      #    [0x7f1a45bea360]> db
+      #    0x558eebd75139 - 0x558eebd7513a 1 --x sw break enabled valid ...
+      #    0x558eebd75ffb - 0x558eebd75ffc 1 --x sw break enabled valid ...
+      #    [0x55ee0a0e5139]> dc
+      #    [0x7feddfd2d360]> dc
+      #    INFO: hit breakpoint at: 0x558eebd75139
+      #    INFO: hit breakpoint at: 0x5558c3101ffb
+      #    [0x5558c3101ffb]> v
+      #    <step through via F7, F8, F9, etc. to get to desired breakpoint>
+      #    ```
+
+      def self.calc_addr_offset(opts = {})
+        start_addr = opts[:start_addr]
+        target_addr = opts[:target_addr]
+
+        format(
+          '0x%<s1>08x',
+          s1: target_addr.to_i(16) - start_addr.to_i(16)
+        )
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::XXD.reverse_dump(
       #   hexdump: 'required - hexdump returned from #dump method',
-      #   file: 'required - path to binary file to dump'
+      #   file: 'required - path to binary file to dump',
+      #   byte_chunks: 'optional - if set, will write n byte chunks of hexdump to multiple files'
       # )
 
       def self.reverse_dump(opts = {})
         hexdump = opts[:hexdump]
         file = opts[:file]
+        byte_chunks = opts[:byte_chunks].to_i
+
         raise ArgumentError, 'hexdump is required' if hexdump.nil?
 
         raise ArgumentError, 'output file is required' if file.nil?
@@ -84,13 +166,40 @@ module PWN
           puts hexdump
         end
 
-        binary_data = hexdump.lines.map do |line|
-          line.split[1..8].map do |hex|
-            [hex].pack('H*')
-          end.join
-        end.join
+        # Useful for testing which chunk(s)
+        # trigger malware detection engines
+        if byte_chunks.to_i.positive?
+          # Raise error if byte_chunks is not divisible by 16
+          raise ArgumentError, 'byte_chunks must be divisible by 16' if (byte_chunks % 16).positive?
 
-        File.binwrite(file, binary_data)
+          # Raise error if byte_chunks is greater than hexdump size
+          raise ArgumentError, 'byte_chunks must be less than hexdump size' if byte_chunks > hexdump.size
+
+          chunks = byte_chunks / 16
+          hexdump.lines.each_slice(chunks) do |chunk|
+            # File name should append memory address of chunks
+            # to make analysis possible
+            start_chunk_addr = chunk.first[0..7]
+            end_chunk_addr = chunk.last[0..7]
+            chunk_file = "#{file}.#{start_chunk_addr}-#{end_chunk_addr}"
+
+            binary_data = chunk.map do |line|
+              line.split[1..8].map do |hex|
+                [hex].pack('H*')
+              end.join
+            end.join
+
+            File.binwrite(chunk_file, binary_data)
+          end
+        else
+          binary_data = hexdump.lines.map do |line|
+            line.split[1..8].map do |hex|
+              [hex].pack('H*')
+            end.join
+          end.join
+
+          File.binwrite(file, binary_data)
+        end
       rescue StandardError => e
         raise e
       end
@@ -112,9 +221,61 @@ module PWN
             hashed: 'optional - return hexdump as hash instead of string (default: false)'
           )
 
+          hexdump = #{self}.fill_range_w_byte(
+            hexdump: 'required - hexdump returned from #dump method',
+            start_addr: 'required - start address to fill with byte',
+            end_addr: 'required - end address to fill with byte',
+            byte: 'required - byte to fill range with'
+          )
+
+          hex_offset = #{self}.calc_addr_offset(
+            start_addr: 'required - start address to evaluate',
+            target_addr: 'required - memory address to set breakpoint'
+          )
+
+          # ^^^ Instructions for #{self}.calc_addr_offset:
+          # This is useful for calculating address offsets of known functions in debuggers
+          # to set breakpoints of instructions that are not known at runtime.
+          # 1. Set a breakpoint at main and record its address - this is the start_addr.
+          #    For example in r2:
+          #    ```
+          #    [0x00001050]> db main
+          #    [0x00001050]> ood
+          #    [0x7fd16122b360]> dc
+          #    INFO: hit breakpoint at: 0x562e8547d139
+          #    [0x562e8547d139]> db
+          #    ```
+          # 2. Populate start_addr w/ address (i.e. '0x562e8547d139') of a known function (e.g. main)
+          # 3. Step down to the instruction you want to set a breakpoint. Record its address...
+          #    this is the target_addr.
+          #    ```
+          #    [0x562e8547d139]> v
+          #    <step through to target instruction via F7/F8>
+          #    ```
+          # 4. Get the hex offset value by calling this method
+          # 5. Future breakpoints can be calculated by adding the hex offset to the
+          #    updated start_addr (which changes every time the binary is executed).
+          #    If the offset returned is `0x00000ec2` a breakpoint in r2 can be set via:
+          #    ```
+          #    [0x00001050]> ood
+          #    INFO: hit breakpoint at: 0x55ee0a0e5139
+          #    [0x7f1a45bea360]> db main
+          #    [0x7f1a45bea360]> db (main)+0x00000ec2
+          #    [0x7f1a45bea360]> db
+          #    0x558eebd75139 - 0x558eebd7513a 1 --x sw break enabled valid ...
+          #    0x558eebd75ffb - 0x558eebd75ffc 1 --x sw break enabled valid ...
+          #    [0x55ee0a0e5139]> dc
+          #    [0x7feddfd2d360]> dc
+          #    INFO: hit breakpoint at: 0x558eebd75139
+          #    INFO: hit breakpoint at: 0x5558c3101ffb
+          #    [0x5558c3101ffb]> v
+          #    <step through via F7, F8, F9, etc. to get to desired breakpoint>
+          #    ```
+
           #{self}.reverse_dump(
             hexdump: 'required - hexdump returned from #dump method',
-            file: 'required - path to binary file to dump'
+            file: 'required - path to binary file to dump',
+            byte_chunks: 'optional - if set, will write n byte chunks of hexdump to multiple files'
           )
 
           #{self}.authors
