@@ -149,12 +149,7 @@ begin
     # File encoding conducting by synopsis is kinda goofy.
     # The encode space w/ + (which is expected) but dont
     # encode + to %2B (whiich _isn't_ expected)
-    target_basename = CGI.escape(
-      File.basename(target_file)
-    ).gsub(
-      '%2B',
-      '+'
-    )
+    target_basename = CGI.unescape_uri_component(File.basename(target_file))
 
     find_product = scan_progress_resp[:products].find { |p| p[:name] == target_basename }
 
