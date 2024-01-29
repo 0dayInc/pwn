@@ -197,7 +197,7 @@ module PWN
         response = bd_bin_analysis_rest_call(
           http_method: :put,
           token: token,
-          rest_call: "upload/#{CGI.escape(file_name)}",
+          rest_call: "upload/#{CGI.escape_uri_component(file_name)}",
           http_headers: http_headers,
           http_body: http_body
         )
@@ -326,8 +326,8 @@ module PWN
       #   desc: 'optional - group description',
       #   parent_id: 'optional - parent group id',
       #   delete_binary: 'optional - delete binary after analysis C|Y|N (Default: C== company default)',
-      #   binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 604_800 / 1 week)',
-      #   product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 604_800 / 1 week)',
+      #   binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 2_592_000 / 30 days)',
+      #   product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 2_592_000 / 30 days)',
       #   file_download_enabled: 'optional - allow download of uploaded binaries from group (Default: false),
       #   low_risk_tolerance: 'optional - low risk tolerance nil|true|false (Default: nil == company default)',
       #   include_historical_vulns: 'optional - include historical vulns nil|true|false (Default: nil == company default)',
@@ -345,8 +345,8 @@ module PWN
         desc = opts[:desc]
         parent_id = opts[:parent_id]
         delete_binary = opts[:delete_binary] ||= 'C'
-        binary_cleanup_age = opts[:binary_cleanup_age] ||= 604_800
-        product_cleanup_age = opts[:product_cleanup_age] ||= 604_800
+        binary_cleanup_age = opts[:binary_cleanup_age] ||= 2_592_000
+        product_cleanup_age = opts[:product_cleanup_age] ||= 2_592_000
         file_download_enabled = opts[:file_download_enabled] ||= false
         low_risk_tolerance = opts[:low_risk_tolerance]
         include_historical_vulns = opts[:include_historical_vulns]
@@ -654,8 +654,8 @@ module PWN
             desc: 'optional - group description',
             parent_id: 'optional - parent_id group id',
             delete_binary: 'optional - delete binary after analysis C|Y|N (Default: C== company default)',
-            binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 604_800 / 1 week)',
-            product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 604_800 / 1 week)',
+            binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 2_592_000 / 30 days)',
+            product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 2_592_000 / 30 days)',
             file_download_enabled: 'optional - allow download of uploaded binaries from group (Default: false),
             low_risk_tolerance: 'optional - low risk tolerance nil|true|false (Default: nil == company default)',
             include_historical_vulns: 'optional - include historical vulns nil|true|false (Default: nil == company default)',

@@ -26,6 +26,14 @@ OptionParser.new do |options|
   options.on('-pID', '--parent-group-id=ID', '<Optional - Black Duck Binary Analysis Parent Group ID to Associate with Group>') do |p|
     opts[:parent_group_id] = p
   end
+
+  options.on('-bSEC', '--binary-cleanup-age=SEC', '<Optional - after how long the binary will be deleted in seconds (Default: 2_592_000 / 30 days)>') do |b|
+    opts[:binary_cleanup_age] = b
+  end
+
+  options.on('-PSEC', '--product-cleanup-age=SEC', '<Optional - after how long the product will be deleted in seconds (Default: 2_592_000 / 30 days)>') do |p|
+    opts[:product_cleanup_age] = p
+  end
 end.parse!
 
 if opts.empty?
@@ -47,6 +55,8 @@ begin
 
   list_group_name = opts[:list_group_name]
   parent_group_id = opts[:parent_group_id]
+  binary_cleanup_age = opts[:binary_cleanup_age]
+  product_cleanup_age = opts[:product_cleanup_age]
 
   if list_group_name
     groups_resp = PWN::Plugins::BlackDuckBinaryAnalysis.get_groups(
@@ -95,7 +105,9 @@ begin
   create_group_resp = PWN::Plugins::BlackDuckBinaryAnalysis.create_group(
     token: token,
     name: group_name,
-    parent_id: parent_group_id
+    parent_id: parent_group_id,
+    binary_cleanup_age: binary_cleanup_age,
+    product_cleanup_age: product_cleanup_age
   )
 
   puts create_group_resp.to_json
