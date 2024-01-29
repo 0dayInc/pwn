@@ -146,10 +146,18 @@ begin
   find_product_attempts = scan_attempts
   print 'Looking for Product in Apps by Group...'
   loop do
-    target_basename = File.basename(target_file)
+    # File encoding conducting by synopsis is kinda goofy.
+    # The encode space w/ + (which is expected) but dont
+    # encode + to %2B (whiich _isn't_ expected)
+    target_basename = CGI.escape(
+      File.basename(target_file)
+    ).gsub(
+      '%2B',
+      '+'
+    )
 
     find_product = scan_progress_resp[:products].find { |p| p[:name] == target_basename }
-    # find_product = scan_progress_resp[:products].find { |p| p[:name] == CGI.escape(target_basename) } if find_product.nil?
+
     break unless find_product.nil?
 
     find_product_attempts += 1
