@@ -163,8 +163,9 @@ module PWN
               s3: v[:ascii]
             )
           end.join
-          puts hexdump
         end
+
+        puts hexdump
 
         # Useful for testing which chunk(s)
         # trigger malware detection engines
@@ -184,7 +185,9 @@ module PWN
             chunk_file = "#{file}.#{start_chunk_addr}-#{end_chunk_addr}"
 
             binary_data = chunk.map do |line|
-              line.split[1..8].map do |hex|
+              hex_line = line.split[1..8]
+              hex_line = line.split[1..-2] if hex_line.length < 8
+              hex_line.map do |hex|
                 [hex].pack('H*')
               end.join
             end.join
@@ -193,7 +196,9 @@ module PWN
           end
         else
           binary_data = hexdump.lines.map do |line|
-            line.split[1..8].map do |hex|
+            hex_line = line.split[1..8]
+            hex_line = line.split[1..-2] if hex_line.length < 8
+            hex_line.map do |hex|
               [hex].pack('H*')
             end.join
           end.join
