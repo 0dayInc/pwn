@@ -574,8 +574,15 @@ module PWN
 
           call_resp_hash[:speech_to_text] = 'N/A'
           if speech_to_text
-            absolute_speech_to_text = "#{absolute_recording}.txt"
-            relative_speech_to_text = "#{relative_recording}.txt"
+            abs_rec_dir = File.dirname(absolute_recording)
+            abs_rec_file = File.basename(absolute_recording, '.*')
+            absolute_speech_to_text = "#{abs_rec_dir}/#{abs_rec_file}.txt"
+            # absolute_speech_to_text = "#{absolute_recording}.txt"
+
+            rel_rec_dir = File.dirname(relative_recording)
+            rel_rec_file = File.basename(relative_recording, '.*')
+            relative_speech_to_text = "#{rel_rec_dir}/#{rel_rec_file}.txt"
+            # relative_speech_to_text = "#{relative_recording}.txt"
             PWN::Plugins::Voice.speech_to_text(
               audio_file_path: absolute_recording,
               output_dir: target_num_root
