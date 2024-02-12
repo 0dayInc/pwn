@@ -454,13 +454,8 @@ module PWN
         puts cmd_resp.xpath('//pre').text
 
         puts red
-        # TODO: Error handling herre is a brittle mess. Refactor.
-        # Conditions to hangup when less than seconds_to_record
-        forbidden = 'session closed: 403'
-        terminated = 'terminated (duration:'
-        # unavail = '503 Service Unavailable'
-        unavail = 'session closed: 503'
-        not_found = 'session closed: 404'
+        # Hangup if session is closed.
+        session_closed = ': session closed'
 
         reason = 'recording limit reached'
         seconds_recorded = 0
@@ -474,23 +469,8 @@ module PWN
             line.include?('ua: using best effort AF: af=AF_INET')
           end
 
-          if dump_session_data.select { |s| s.include?(forbidden) }.length.positive?
-            reason = 'SIP 403 (forbidden)'
-            break
-          end
-
-          if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
-            reason = 'call terminated by other party'
-            break
-          end
-
-          if dump_session_data.select { |s| s.include?(unavail) }.length.positive?
-            reason = 'SIP 503 (service unavailable)'
-            break
-          end
-
-          if dump_session_data.select { |s| s.include?(not_found) }.length.positive?
-            reason = 'SIP 404 (not found)'
+          if dump_session_data.select { |s| s.downcase.include?(session_closed) }.length.positive?
+            reason = dump_session_data.find { |s| s.downcase.include?(session_closed) }
             break
           end
 
