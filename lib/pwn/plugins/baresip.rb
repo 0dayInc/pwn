@@ -277,6 +277,8 @@ module PWN
           )
         end
 
+        return 'static' if src_num_rules_arr.include?(:static)
+
         case target_num.to_s.length
         when 10
           # area+prefix+suffix
