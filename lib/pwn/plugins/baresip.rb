@@ -455,6 +455,7 @@ module PWN
 
         puts red
         # Conditions to hangup when less than seconds_to_record
+        forbidden = '403 Caller Origination Number is Invalid'
         terminated = 'terminated (duration:'
         unavail = '503 Service Unavailable'
         not_found = 'session closed: 404 Not Found'
@@ -469,6 +470,11 @@ module PWN
           dump_session_data = File.readlines(screenlog_path)
           dump_session_data.delete_if do |line|
             line.include?('ua: using best effort AF: af=AF_INET')
+          end
+
+          if dump_session_data.select { |s| s.include?(forbidden) }.length.positive?
+            reason = 'SIP 403 (forbidden)'
+            break
           end
 
           if dump_session_data.select { |s| s.include?(terminated) }.length.positive?
