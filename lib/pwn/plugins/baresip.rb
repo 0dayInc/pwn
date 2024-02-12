@@ -454,11 +454,13 @@ module PWN
         puts cmd_resp.xpath('//pre').text
 
         puts red
+        # TODO: Error handling herre is a brittle mess. Refactor.
         # Conditions to hangup when less than seconds_to_record
-        forbidden = '403 Caller Origination Number is Invalid'
+        forbidden = 'session closed: 403'
         terminated = 'terminated (duration:'
-        unavail = '503 Service Unavailable'
-        not_found = 'session closed: 404 Not Found'
+        # unavail = '503 Service Unavailable'
+        unavail = 'session closed: 503'
+        not_found = 'session closed: 404'
 
         reason = 'recording limit reached'
         seconds_recorded = 0
