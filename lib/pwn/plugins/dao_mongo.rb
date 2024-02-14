@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'mongo'
+# require 'mongo'
 
 module PWN
   module Plugins

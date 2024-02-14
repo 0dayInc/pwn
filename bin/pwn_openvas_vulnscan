@@ -3,6 +3,7 @@
 
 require 'pwn'
 require 'optparse'
+require 'yaml'
 
 opts = {}
 OptionParser.new do |options|
@@ -10,20 +11,16 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
+  options.on('-cYPATH', '--yaml-config=YPATH', '<Required - YAML Config Containing Username & Password for Authentication>') do |c|
+    opts[:yaml_config] = c
+  end
+
   options.on('-tTASK_NAME', '--task-name=TASK_NAME', '<Required - Task Name to Start>') do |t|
     opts[:task_name] = t
   end
 
   options.on('-sDIR', '--save-report-to-dir=DIR', '<Required - Directory to Save Report>') do |d|
     opts[:report_dir] = d
-  end
-
-  options.on('-uUSERNAME', '--username=USERNAME', '<Required - Username to AuthN>') do |u|
-    opts[:username] = u
-  end
-
-  options.on('-pPASSWORD', '--password=PASSWORD', '<Optional - Password to AuthN (Will Prompt if nil)>') do |p|
-    opts[:password] = p
   end
 
   options.on('-fFILTER', '--report-filter=FILTER', '<Optional - GVM Results Filter (Default: "apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity")>') do |p|
@@ -43,11 +40,20 @@ raise "#{report_dir} Does Not Exist." unless Dir.exist?(
   report_dir
 )
 
-username = opts[:username]
-password = if opts[:password].nil?
+yaml_config = opts[:yaml_config]
+
+raise "YAML Config Not Found: #{yaml_config}" unless File.exist?(yaml_config)
+
+yaml = YAML.load_file(
+  yaml_config,
+  symbolize_names: true
+)
+
+username = yaml[:username]
+password = if yaml[:password].nil?
              PWN::Plugins::AuthenticationHelper.mask_password
            else
-             opts[:password].to_s.scrub
+             yaml[:password].to_s.scrub
            end
 
 report_filter = opts[:report_filter]
