@@ -23,6 +23,15 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::DetectOS.arch
+
+      public_class_method def self.arch
+        RUBY_PLATFORM.split('-').first
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
