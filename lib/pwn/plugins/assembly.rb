@@ -37,13 +37,13 @@ module PWN
         asm_tmp.write(asm_code)
         asm_tmp.close
 
-        system('as', '-o', "#{asm_tmp.path}.o", asm_tmp.path)
+        asm_tmp_o = "#{asm_tmp.path}.o"
+        system('as', '-o', asm_tmp_o, asm_tmp.path)
         `objdump -D #{asm_tmp.path}.o`
       rescue StandardError => e
         raise e
       ensure
-        asm_tmp.unlink if File.exist?(asm_tmp.path)
-        File.unlink("#{asm_tmp.path}.o") if File.exist?("#{asm_tmp.path}.o")
+        FileUtils.rm_f("#{asm_tmp.path}*") if File.exist?(asm_tmp.path)
       end
 
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
