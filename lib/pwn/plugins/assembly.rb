@@ -39,7 +39,7 @@ module PWN
         opcodes = opcodes.split.map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.include?(' ')
 
         # If opcodes appear to be '909090' then convert to "\x90\x90\x90"
-        opcodes = opcodes.scan(/../).map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.length.even?
+        opcodes = opcodes.chars.each_slice(2).map(&:join).map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.length.even?
 
         Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
       rescue StandardError => e
