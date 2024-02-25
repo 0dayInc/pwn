@@ -16,7 +16,7 @@ module PWN
 
       public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
-        arch = opts[:arch] ||= PNW::Plugins::DetectOS.arch
+        arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
 
         case arch
@@ -35,8 +35,6 @@ module PWN
         Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
       rescue StandardError => e
         raise e
-      ensure
-        opcodes_tmp.unlink if File.exist?(opcodes_tmp.path)
       end
 
       # Supported Method Parameters::
@@ -48,7 +46,7 @@ module PWN
 
       public_class_method def self.asm_to_opcodes(opts = {})
         asm = opts[:asm]
-        arch = opts[:arch] ||= PNW::Plugins::DetectOS.arch
+        arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
 
         case arch
