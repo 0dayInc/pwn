@@ -24,7 +24,7 @@ module PWN
           arch_obj = Metasm::Ia32.new(endian)
         when 'amd64', 'x86_64'
           arch_obj = Metasm::X86_64.new(endian)
-        when 'armv4l', 'armv4b','armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
+        when 'armv4l', 'armv4b', 'armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
           arch_obj = Metasm::ARM.new(endian)
         when 'aarch64', 'arm64'
           arch_obj = Metasm::ARM64.new(endian)
@@ -54,7 +54,7 @@ module PWN
           arch_obj = Metasm::Ia32.new(endian)
         when 'amd64', 'x86_64'
           arch_obj = Metasm::X86_64.new(endian)
-        when 'armv4l', 'armv4b','armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
+        when 'armv4l', 'armv4b', 'armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
           arch_obj = Metasm::ARM.new(endian)
         when 'aarch64', 'arm64'
           arch_obj = Metasm::ARM64.new(endian)
