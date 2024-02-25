@@ -8,15 +8,17 @@ module PWN
     module Assembly
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.opcodes_to_asm(
-      #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")'
+      #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")',
+      #   arch: 'optional - objdump -i architecture (defaults to i386)'
       # )
 
       public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
+        arch = opts[:arch] || 'i386'
 
         opcodes_tmp = Tempfile.new('pwn_opcodes')
         File.binwrite(opcodes_tmp.path, opcodes)
-        `objdump -D #{opcodes_tmp.path}`
+        `objdump --disassemble-all --target binary --architecture #{arch} #{opcodes_tmp.path}`
       rescue StandardError => e
         raise e
       ensure
@@ -39,7 +41,7 @@ module PWN
 
         asm_tmp_o = "#{asm_tmp.path}.o"
         system('as', '-o', asm_tmp_o, asm_tmp.path)
-        `objdump -D #{asm_tmp.path}.o`
+        `objdump --disassemble-all #{asm_tmp.path}.o`
       rescue StandardError => e
         raise e
       ensure
@@ -60,7 +62,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           #{self}.opcodes_to_asm(
-            opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")'
+            opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")',
+            arch: 'optional - objdump -i architecture (defaults to i386)'
           )
 
           #{self}.asm_to_opcodes(
