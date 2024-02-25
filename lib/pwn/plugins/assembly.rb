@@ -8,33 +8,28 @@ module PWN
     module Assembly
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.opcode_to_asm(
-      #   opcodes: 'required - hex escaped opcode(s) (e.g. '\x90\x90\x90')',
-      #   arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
+      #   opcodes: 'required - hex escaped opcode(s) (e.g. '\x90\x90\x90')'
       # )
 
       public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
-        arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
 
         opcodes_tmp = Tempfile.new('pwn_opcodes')
         File.binwrite(opcodes_tmp.path, opcodes)
-        asm = `objdump -M intel -b binary -D #{opcodes_tmp.path}`
-        opcodes_tmp.unlink
-
-        asm
+        `objdump -D #{opcodes_tmp.path}`
       rescue StandardError => e
         raise e
+      ensure
+        opcodes_tmp.unlink if File.exist?(opcodes_tmp.path)
       end
 
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.asm_to_opcode(
-      #   asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
-      #   arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
+      #   asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)'
       # )
 
       public_class_method def self.asm_to_opcodes(opts = {})
         asm = opts[:asm]
-        arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
 
         asm_code = ".global _start\n_start:\n#{asm}"
 
@@ -43,12 +38,12 @@ module PWN
         asm_tmp.close
 
         system('as', '-o', "#{asm_tmp.path}.o", asm_tmp.path)
-        opcodes = `objdump -D #{asm_tmp.path}.o`
-        asm_tmp.unlink
-
-        opcodes
+        `objdump -D #{asm_tmp.path}.o`
       rescue StandardError => e
         raise e
+      ensure
+        asm_tmp.unlink if File.exist?(asm_tmp.path)
+        File.unlink("#{asm_tmp.path}.o") if File.exist?("#{asm_tmp.path}.o")
       end
 
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
@@ -64,13 +59,11 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           #{self}.opcodes_to_asm(
-            opcodes: 'required - hex escaped opcode(s) (e.g. '\\x90\\x90\\x90')',
-            arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
+            opcodes: 'required - hex escaped opcode(s) (e.g. '\\x90\\x90\\x90')'
           )
 
           #{self}.asm_to_opcodes(
-            asm: 'required - assembly instruction(s) (e.g. 'jmp rsp')',
-            arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
+            asm: 'required - assembly instruction(s) (e.g. 'jmp rsp')'
           )
 
           #{self}.authors
