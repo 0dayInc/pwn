@@ -62,7 +62,7 @@ module PWN
           raise "Unsupported architecture: #{arch}"
         end
 
-        Metasm::Shellcode.assemble(arch_obj, asm).encode_string
+        Metasm::Shellcode.assemble(arch_obj, asm).encode_string.bytes.map { |b| format('\x%02x', b) }.join
       rescue StandardError => e
         raise e
       end
