@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'metasm'
-require 'tempfile'
 
 module PWN
   module Plugins
@@ -19,38 +18,39 @@ module PWN
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
 
-        pwn_asm_tmp = Tempfile.new('pwn_asm')
-
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
 
         case arch
-        when 'amd64', 'i386', 'i686', 'x86', 'x86_64'
-          arch = 'i386'
+        when 'i386', 'i686', 'x86'
+          arch_obj = Metasm::Ia32.new(endian)
+        when 'amd64', 'x86_64'
+          arch_obj = Metasm::X86_64.new(endian)
         when 'armv4l', 'armv4b', 'armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
-          arch = 'arm'
+          arch_obj = Metasm::ARM.new(endian)
         when 'aarch64', 'arm64'
-          arch = 'aarch64'
+          arch_obj = Metasm::ARM64.new(endian)
         else
           raise "Unsupported architecture: #{arch}"
         end
 
-        #  TOOD: Fix this
-        # If opcodes appear to be '"90", "90", "90"' then convert to "\x90\x90\x90"
-        # opcodes = opcodes.split(',').map { |x| format('\x%02x', x.gsub('"', '').to_i(16)) }.join if opcodes.include?('"') && opcodes.include?(',')
+        # TOOD: Still needs a fix if opcodes is passed in as:
+        # '\x90\x90\x90' (not to be confused w/ "\x90\x90\x90")
+        # '909090'
+        opcodes_orig_len = opcodes.length
+        opcodes = opcodes.map { |code| [code].pack('H*') }.join if opcodes.is_a?(Array)
+        opcodes.delete!('\x') if opcodes.include?('\x')
+        opcodes.delete!('"') if opcodes.include?('"')
+        opcodes.delete!("'") if opcodes.include?("'")
+        opcodes.delete!(',') if opcodes.include?(',')
+        opcodes.delete!("\s") if opcodes.include?("\s")
 
-        # If opcodes appear to be '90 90 90' then convert to "\x90\x90\x90"
-        # opcodes = opcodes.split.map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.include?(' ')
+        # puts opcodes.inspect
+        opcodes = [opcodes].pack('H*') if opcodes.length.even? && opcodes.length != opcodes_orig_len
+        # puts opcodes.inspect
 
-        # If opcodes appear to be '909090' then convert to "\x90\x90\x90"
-        # opcodes = opcodes.chars.each_slice(2).map(&:join).map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.length.even?
-
-        File.binwrite(pwn_asm_tmp.path, opcodes)
-        `objdump -D -b binary -m #{arch} -M intel --endian #{endian} #{pwn_asm_tmp.path}`
+        Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
       rescue StandardError => e
         raise e
-      ensure
-        tmp_file = [pwn_asm_tmp.path]
-        FileUtils.rm_f(tmp_file) if File.exist?(pwn_asm_tmp.path)
       end
 
       # Supported Method Parameters::
