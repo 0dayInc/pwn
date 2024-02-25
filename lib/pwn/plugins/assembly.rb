@@ -33,15 +33,20 @@ module PWN
           raise "Unsupported architecture: #{arch}"
         end
 
-        #  TOOD: Fix this
-        # If opcodes appear to be '"90", "90", "90"' then convert to "\x90\x90\x90"
-        # opcodes = opcodes.split(',').map { |x| format('\x%02x', x.gsub('"', '').to_i(16)) }.join if opcodes.include?('"') && opcodes.include?(',')
+        # TOOD: Still needs a fix if opcodes is passed in as:
+        # '\x90\x90\x90' (not to be confused w/ "\x90\x90\x90")
+        # '909090'
+        opcodes_orig_len = opcodes.length
+        opcodes = opcodes.map { |code| [code].pack('H*') }.join if opcodes.is_a?(Array)
+        opcodes.delete!('\x') if opcodes.include?('\x')
+        opcodes.delete!('"') if opcodes.include?('"')
+        opcodes.delete!("'") if opcodes.include?("'")
+        opcodes.delete!(',') if opcodes.include?(',')
+        opcodes.delete!("\s") if opcodes.include?("\s")
 
-        # If opcodes appear to be '90 90 90' then convert to "\x90\x90\x90"
-        # opcodes = opcodes.split.map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.include?(' ')
-
-        # If opcodes appear to be '909090' then convert to "\x90\x90\x90"
-        # opcodes = opcodes.chars.each_slice(2).map(&:join).map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.length.even?
+        # puts opcodes.inspect
+        opcodes = [opcodes].pack('H*') if opcodes.length.even? && opcodes.length != opcodes_orig_len
+        # puts opcodes.inspect
 
         Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
       rescue StandardError => e
