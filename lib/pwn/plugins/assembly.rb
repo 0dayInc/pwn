@@ -28,11 +28,11 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.asm_to_opcode(
-      #   asm: 'required - assembly code(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
+      #   asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
       #   arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
       # )
 
-      public_class_method def self.asm_to_opcode(opts = {})
+      public_class_method def self.asm_to_opcodes(opts = {})
         asm = opts[:asm]
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
 
@@ -43,7 +43,7 @@ module PWN
         asm_tmp.close
 
         system('as', '-o', "#{asm_tmp.path}.o", asm_tmp.path)
-        opcodes = `objdump -d #{asm_tmp.path}.o`
+        opcodes = `objdump -D #{asm_tmp.path}.o`
         asm_tmp.unlink
 
         opcodes
@@ -63,13 +63,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.opcode_to_asm(
+          #{self}.opcodes_to_asm(
             opcodes: 'required - hex escaped opcode(s) (e.g. '\\x90\\x90\\x90')',
             arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
           )
 
-          #{self}.asm_to_opcode(
-            asm: 'required - assembly code(s) (e.g. 'jmp rsp')',
+          #{self}.asm_to_opcodes(
+            asm: 'required - assembly instruction(s) (e.g. 'jmp rsp')',
             arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
           )
 
