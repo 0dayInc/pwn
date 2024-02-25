@@ -19,7 +19,9 @@ module PWN
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
 
-        raise "ERROR: opcodes parameter is required." if opcodes.nil?
+        pwn_asm_tmp = Tempfile.new('pwn_asm')
+
+        raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
 
         case arch
         when 'amd64', 'i386', 'i686', 'x86', 'x86_64'
@@ -41,7 +43,6 @@ module PWN
         # If opcodes appear to be '909090' then convert to "\x90\x90\x90"
         opcodes = opcodes.chars.each_slice(2).map(&:join).map { |x| format('\x%02x', x.to_i(16)) }.join if opcodes.length.even?
 
-        pwn_asm_tmp = Tempfile.new('pwn_asm')
         File.binwrite(pwn_asm_tmp.path, opcodes)
         `objdump -D -b binary -m #{arch} -M intel --endian #{endian} #{pwn_asm_tmp.path}`
       rescue StandardError => e
@@ -63,7 +64,7 @@ module PWN
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
 
-        raise "ERROR: asm parameter is required." if asm.nil?
+        raise 'ERROR: asm parameter is required.' if asm.nil?
 
         case arch
         when 'i386', 'i686', 'x86'
@@ -77,8 +78,6 @@ module PWN
         else
           raise "Unsupported architecture: #{arch}"
         end
-
-        raise "ERROR: #{as_bin} not found.  Choose a different arch parameter." unless File.exist?(as_bin)
 
         Metasm::Shellcode.assemble(arch_obj, asm).encode_string.bytes.map { |b| format('\x%02x', b) }.join
       rescue StandardError => e
