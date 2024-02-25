@@ -7,8 +7,8 @@ module PWN
     # This plugin converts images to readable text
     module Assembly
       # Supported Method Parameters::
-      # PWN::Plugins::Assembly.opcode_to_asm(
-      #   opcodes: 'required - hex escaped opcode(s) (e.g. '\x90\x90\x90')'
+      # PWN::Plugins::Assembly.opcodes_to_asm(
+      #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")'
       # )
 
       public_class_method def self.opcodes_to_asm(opts = {})
@@ -24,7 +24,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Assembly.asm_to_opcode(
+      # PWN::Plugins::Assembly.asm_to_opcodes(
       #   asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)'
       # )
 
@@ -43,7 +43,8 @@ module PWN
       rescue StandardError => e
         raise e
       ensure
-        FileUtils.rm_f("#{asm_tmp.path}*") if File.exist?(asm_tmp.path)
+        files = [asm_tmp.path, asm_tmp_o]
+        FileUtils.rm_f(files) if File.exist?(asm_tmp.path)
       end
 
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
@@ -59,7 +60,7 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           #{self}.opcodes_to_asm(
-            opcodes: 'required - hex escaped opcode(s) (e.g. '\\x90\\x90\\x90')'
+            opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")'
           )
 
           #{self}.asm_to_opcodes(
