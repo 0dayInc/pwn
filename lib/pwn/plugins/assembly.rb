@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'metasm'
 require 'tempfile'
 
 module PWN
@@ -9,18 +10,29 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.opcodes_to_asm(
       #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")',
-      #   arch: 'optional - objdump -i architecture (defaults to i386)'
+      #   arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
+      #   endian: 'optional - endianess (defaults to :little)'
       # )
 
       public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
-        arch = opts[:arch] || 'i386'
+        arch = opts[:arch] ||= PNW::Plugins::DetectOS.arch
+        endian = opts[:endian] ||= :little
 
-        opcodes_tmp = Tempfile.new('pwn_opcodes')
-        File.binwrite(opcodes_tmp.path, opcodes)
-        # TODO: Implement support for other architectures
-        # for both 32bit and 64bit
-        `objdump --disassemble-all --target binary --architecture #{arch} #{opcodes_tmp.path}`
+        case arch
+        when 'i386'
+          arch_obj = Metasm::Ia32.new(endian)
+        when 'amd64', 'x86_64'
+          arch_obj = Metasm::X86_64.new(endian)
+        when 'armv71'
+          arch_obj = Metasm::ARM.new(endian)
+        when 'aarch64'
+          arch_obj = Metasm::ARM64.new(endian)
+        else
+          raise "Unsupported architecture: #{arch}"
+        end
+
+        Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
       rescue StandardError => e
         raise e
       ensure
@@ -30,29 +42,31 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.asm_to_opcodes(
       #   asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
-      #   arch: 'optional - objdump -i architecture (defaults to i386)'
+      #   arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
+      #   endian: 'optional - endianess (defaults to :little)'
       # )
 
       public_class_method def self.asm_to_opcodes(opts = {})
         asm = opts[:asm]
-        arch = opts[:arch] || 'i386'
+        arch = opts[:arch] ||= PNW::Plugins::DetectOS.arch
+        endian = opts[:endian] ||= :little
 
-        asm_code = ".global _start\n_start:\n#{asm}"
+        case arch
+        when 'i386'
+          arch_obj = Metasm::Ia32.new(endian)
+        when 'amd64', 'x86_64'
+          arch_obj = Metasm::X86_64.new(endian)
+        when 'armv71'
+          arch_obj = Metasm::ARM.new(endian)
+        when 'aarch64'
+          arch_obj = Metasm::ARM64.new(endian)
+        else
+          raise "Unsupported architecture: #{arch}"
+        end
 
-        asm_tmp = Tempfile.new('pwn_asm')
-        asm_tmp.write(asm_code)
-        asm_tmp.close
-
-        asm_tmp_o = "#{asm_tmp.path}.o"
-        # TODO: Implement support for other architectures
-        # for both 32bit and 64bit
-        system('as', '-o', asm_tmp_o, asm_tmp.path)
-        `objdump --disassemble-all #{asm_tmp.path}.o`
+        Metasm::Shellcode.assemble(arch_obj, asm).encode_string
       rescue StandardError => e
         raise e
-      ensure
-        files = [asm_tmp.path, asm_tmp_o]
-        FileUtils.rm_f(files) if File.exist?(asm_tmp.path)
       end
 
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
@@ -69,12 +83,14 @@ module PWN
         puts "USAGE:
           #{self}.opcodes_to_asm(
             opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")',
-            arch: 'optional - objdump -i architecture (defaults to i386)'
+            arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
+            endian: 'optional - endianess (defaults to :little)'
           )
 
           #{self}.asm_to_opcodes(
-            asm: 'required - assembly instruction(s) (e.g. 'jmp rsp')',
-            arch: 'optional - objdump -i architecture (defaults to i386)'
+            asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
+            arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
+            endian: 'optional - endianess (defaults to :little)'
           )
 
           #{self}.authors
