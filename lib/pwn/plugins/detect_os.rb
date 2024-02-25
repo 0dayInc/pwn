@@ -46,6 +46,8 @@ module PWN
         puts "USAGE:
           #{self}.type
 
+          #{self}.arch
+
           #{self}.authors
         "
       end
