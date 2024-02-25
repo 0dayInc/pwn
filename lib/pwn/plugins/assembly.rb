@@ -12,13 +12,13 @@ module PWN
       #   arch: 'optional - architecture (defaults to PWN::Plugins::DetectOS.arch)'
       # )
 
-      public_class_method def self.opcode_to_asm(opts = {})
+      public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
 
         opcodes_tmp = Tempfile.new('pwn_opcodes')
         File.binwrite(opcodes_tmp.path, opcodes)
-        asm = `objdump -M intel -b binary -m #{arch} -D #{opcodes_tmp.path}`
+        asm = `objdump -M intel -b binary -D #{opcodes_tmp.path}`
         opcodes_tmp.unlink
 
         asm
