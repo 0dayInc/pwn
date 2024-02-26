@@ -1,0 +1,1 @@
+{"Title":"Disassembly","Cmd":"pd","x":0,"y":1,"w":100,"h":38},{"Title":"Stack","Cmd":"pxq 256","x":0,"y":39,"w":100,"h":16},{"Title":"Hexdump","Cmd":"xc $r*16","x":0,"y":55,"w":100,"h":16},{"Title":"Registers","Cmd":"dr","x":100,"y":1,"w":35,"h":70},{"Title":"Function Calls","Cmd":"aflm","x":135,"y":1,"w":44,"h":70}
