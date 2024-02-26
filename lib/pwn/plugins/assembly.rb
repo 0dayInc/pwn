@@ -22,7 +22,7 @@ module PWN
 
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
 
-        case arch
+        case arch.to_s.downcase
         when 'i386', 'i686', 'x86'
           arch_obj = Metasm::Ia32.new(endian)
         when 'amd64', 'x86_64'
@@ -82,7 +82,7 @@ module PWN
 
         raise 'ERROR: asm parameter is required.' if asm.nil?
 
-        case arch
+        case arch.to_s.downcase
         when 'i386', 'i686', 'x86'
           arch_obj = Metasm::Ia32.new(endian)
         when 'amd64', 'x86_64'

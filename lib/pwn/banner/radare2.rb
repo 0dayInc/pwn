@@ -11,15 +11,9 @@ module PWN
 
       public_class_method def self.get
         '
-        $ sudo r2 -d `pidof ${TARGET_BINARY}`
-        [0x7f000070776e]> aaaa
-        [0x7f000070776e]> ia ~..
-        [0x7f000070776e]> afl ~..
-        [0x7f000070776e]> db main
-        [0x7f000070776e]> db
-        [0x7f000070776e]> dc
-        [0x7f000070776e]> pdg
-        [0x7f000070776e]> v
+        $ target_arm_bin="/usr/bin/id";
+        $ alias r2="setarch $(uname -m) -R r2 -AA -c \"v /opt/pwn/third_party/r2-pwn-layout\""
+        $ r2 -c "db (0x`readelf -S $target_arm_bin | grep text | awk "{print $NF}"`)+0x4+0x00000328" -c "ood" -c "dc" -c "v" $target_arm_bin
         '.yellow
       rescue StandardError => e
         raise e
