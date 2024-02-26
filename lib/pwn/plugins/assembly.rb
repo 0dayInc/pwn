@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require 'cgi'
 require 'metasm'
+require 'tempfile'
 
 module PWN
   module Plugins
@@ -33,19 +35,30 @@ module PWN
           raise "Unsupported architecture: #{arch}"
         end
 
-        # TOOD: Still needs a fix if opcodes is passed in as:
+        # TOOD: Still needs a fix if opcodes are passed in as:
         # '\x90\x90\x90' (not to be confused w/ "\x90\x90\x90")
         # '909090'
         opcodes_orig_len = opcodes.length
-        opcodes = opcodes.map { |code| [code].pack('H*') }.join if opcodes.is_a?(Array)
-        opcodes.delete!('\x') if opcodes.include?('\x')
-        opcodes.delete!('"') if opcodes.include?('"')
-        opcodes.delete!("'") if opcodes.include?("'")
-        opcodes.delete!(',') if opcodes.include?(',')
-        opcodes.delete!("\s") if opcodes.include?("\s")
-
+        opcodes = opcodes.join(',') if opcodes.is_a?(Array)
+        opcodes = CGI.escape(opcodes)
         # puts opcodes.inspect
-        opcodes = [opcodes].pack('H*') if opcodes.length.even? && opcodes.length != opcodes_orig_len
+        # Doesnt work with sommething like: "'ff', 'e4'"
+        # known to work with:
+        # 'ffe4'
+        # 'ff,e4'
+        # "ff,e4"
+        # ['ff', 'e4']
+        # ["ff", "e4"]
+        # '\xff\xe4'
+        # "\xff\xe4"
+        opcodes.delete!('%5Cx') if opcodes.include?('%5Cx')
+        opcodes.delete!('%2C') if opcodes.include?('%2C')
+        opcodes.delete!('%22') if opcodes.include?('%22')
+        opcodes.delete!('%27') if opcodes.include?('%27')
+        opcodes.delete!('+') if opcodes.include?('+')
+        opcodes.delete!('%') if opcodes.include?('%')
+        # puts opcodes.inspect
+        opcodes = [opcodes].pack('H*')
         # puts opcodes.inspect
 
         Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
@@ -64,6 +77,8 @@ module PWN
         asm = opts[:asm]
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
+
+        asm_tmp = Tempfile.new('pwn_asm')
 
         raise 'ERROR: asm parameter is required.' if asm.nil?
 
