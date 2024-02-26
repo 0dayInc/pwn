@@ -45,13 +45,21 @@ begin
       line_count = "\001\e[34m\002#{line_pad}\001\e[0m\002"
       dchars = "\001\e[32m\002>>>\001\e[0m\002"
       dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
-      if pi.config.chat_gpt
-        pi.config.prompt_name = 'chatGPT.pwn'
-        pi.config.prompt_name = 'SPEAKING.chatGPT.pwn' if pi.config.chat_gpt_speak
+
+      if pi.config.pwn_asm
+        pi.config.prompt_name = 'pwn.asm'
+        name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
+        dchars = "\001\e[32m\002>>>\001\e[37m\002"
+        dchars = "\001\e[33m\002***\001\e[37m\002" if mode == :splat
+      end
+
+      if pi.config.pwn_gpt
+        pi.config.prompt_name = 'pwn.gpt'
+        pi.config.prompt_name = 'pwn.gpt.SPEAKING' if pi.config.pwn_gpt_speak
         name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
         dchars = "\001\e[32m\002>>>\001\e[33m\002"
         dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
-        if pi.config.chat_gpt_debug
+        if pi.config.pwn_gpt_debug
           dchars = "\001\e[32m\002(DEBUG) >>>\001\e[33m\002"
           dchars = "\001\e[33m\002(DEBUG) ***\001\e[33m\002" if mode == :splat
         end
@@ -115,8 +123,8 @@ begin
       exec_hook :after_read, eval_string, self
 
       begin
-        complete_expr = true if config.chat_gpt
-        complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.chat_gpt
+        complete_expr = true if config.pwn_gpt
+        complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.pwn_gpt
       rescue SyntaxError => e
         output.puts e.message.gsub(/^.*syntax error, */, "SyntaxError: ")
         reset_eval_string
@@ -126,7 +134,7 @@ begin
         @suppress_output = true if @eval_string =~ /;\Z/ ||
                                    @eval_string.empty? ||
                                    @eval_string =~ /\A *#.*\n\z/ ||
-                                   config.chat_gpt
+                                   config.pwn_gpt
 
         # A bug in jruby makes java.lang.Exception not rescued by
         # `rescue Pry::RescuableException` clause.
@@ -168,9 +176,9 @@ begin
       throw(:breakout) if current_binding.nil?
     end
 
-    # Ensure the return value in chat_gpt mode reflects the input
+    # Ensure the return value in pwn_gpt mode reflects the input
     def evaluate_ruby(code)
-      if config.chat_gpt
+      if config.pwn_gpt || config.pwn_asm
         result = message = code.to_s
         return
       end
@@ -203,33 +211,45 @@ begin
     end
   end
 
-  Pry::Commands.create_command 'toggle-chatGPT' do
-    description "Interact w/ OpenAI's ChatGPT"
+  Pry::Commands.create_command 'toggle-pwn-asm' do
+    description 'Toggle pwn.asm interface.'
 
     def process
       pi = pry_instance
-      pi.config.chat_gpt ? pi.config.chat_gpt = false : pi.config.chat_gpt = true
+      pi.config.pwn_asm ? pi.config.pwn_asm = false : pi.config.pwn_asm = true
 
-      pi.config.color = false if pi.config.chat_gpt
-      pi.config.color = true unless pi.config.chat_gpt
+      pi.config.color = false if pi.config.pwn_asm
+      pi.config.color = true unless pi.config.pwn_asm
     end
   end
 
-  Pry::Commands.create_command 'toggle-chatGPT-debug' do
-    description "Display the response_history object while using OpenAI's ChatGPT."
+  Pry::Commands.create_command 'toggle-pwn-gpt' do
+    description 'Toggle pwn.gpt chat interface.'
 
     def process
       pi = pry_instance
-      pi.config.chat_gpt_debug ? pi.config.chat_gpt_debug = false : pi.config.chat_gpt_debug = true
+      pi.config.pwn_gpt ? pi.config.pwn_gpt = false : pi.config.pwn_gpt = true
+
+      pi.config.color = false if pi.config.pwn_gpt
+      pi.config.color = true unless pi.config.pwn_gpt
     end
   end
 
-  Pry::Commands.create_command 'toggle-chatGPT-speaks' do
-    description 'Use speech capabilities within PWN to speak OpenAI ChatGPT answers.'
+  Pry::Commands.create_command 'toggle-pwn-gpt-debug' do
+    description 'Display the response_history object while using pwn.gpt'
 
     def process
       pi = pry_instance
-      pi.config.chat_gpt_speak ? pi.config.chat_gpt_speak = false : pi.config.chat_gpt_speak = true
+      pi.config.pwn_gpt_debug ? pi.config.pwn_gpt_debug = false : pi.config.pwn_gpt_debug = true
+    end
+  end
+
+  Pry::Commands.create_command 'toggle-pwn-gpt-speaks' do
+    description 'Use speech capabilities within pwn.gpt to speak answers.'
+
+    def process
+      pi = pry_instance
+      pi.config.pwn_gpt_speak ? pi.config.pwn_gpt_speak = false : pi.config.pwn_gpt_speak = true
     end
   end
 
@@ -239,31 +259,44 @@ begin
     output.puts PWN::Banner.welcome
   end
 
-  # ChatGPT Hooks
+  # pwn.gpt Hooks
   Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
     if opts[:yaml_config_path] && File.exist?(opts[:yaml_config_path])
       yaml_config_path = opts[:yaml_config_path]
       yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
-      pi.config.chat_gpt_key = yaml_config[:open_ai_key]
-      Pry.config.chat_gpt_key = pi.config.chat_gpt_key
+      pi.config.pwn_gpt_key = yaml_config[:open_ai_key]
+      Pry.config.pwn_gpt_key = pi.config.pwn_gpt_key
     end
   end
 
-  Pry.config.hooks.add_hook(:after_read, :open_ai_hook) do |request, pi|
-    if pi.config.chat_gpt && !request.chomp.empty?
+  Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
+    if pi.config.pwn_asm && !request.chomp.empty?
       request = pi.input.line_buffer
-      debug = pi.config.chat_gpt_debug
-      open_ai_key = pi.config.chat_gpt_key
+      # Determine what request is and determine if it's asm or opcodes
+      if request =~ /^[a-fA-F0-9\s]+$/
+        response = PWN::Plugins::Assembly.opcodes_to_asm(opcodes: request)
+      else
+        response = PWN::Plugins::Assembly.asm_to_opcodes(asm: request)
+      end
+      puts "\n\n\n\001\e[31m\002#{response}\001\e[0m\002\n\n\n"
+    end
+  end
+
+  Pry.config.hooks.add_hook(:after_read, :pwn_gpt_hook) do |request, pi|
+    if pi.config.pwn_gpt && !request.chomp.empty?
+      request = pi.input.line_buffer
+      debug = pi.config.pwn_gpt_debug
+      open_ai_key = pi.config.pwn_gpt_key
       open_ai_key ||= ''
       if open_ai_key.empty?
         open_ai_key = PWN::Plugins::AuthenticationHelper.mask_password(
           prompt: 'OpenAI API Key'
         )
-        pi.config.chat_gpt_key = open_ai_key
+        pi.config.pwn_gpt_key = open_ai_key
       end
 
-      response_history = pi.config.chat_gpt_response_history
-      speak_answer = pi.config.chat_gpt_speak
+      response_history = pi.config.pwn_gpt_response_history
+      speak_answer = pi.config.pwn_gpt_speak
       response = PWN::Plugins::OpenAI.chat(
         token: open_ai_key,
         request: request.chomp,
@@ -286,7 +319,7 @@ begin
         pp response_history
         puts "\nresponse_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
       end
-      pi.config.chat_gpt_response_history = response_history
+      pi.config.pwn_gpt_response_history = response_history
     end
   end
 
