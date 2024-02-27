@@ -123,8 +123,8 @@ begin
       exec_hook :after_read, eval_string, self
 
       begin
-        complete_expr = true if config.pwn_gpt
-        complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.pwn_gpt
+        complete_expr = true if config.pwn_gpt || config.pwn_asm
+        complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.pwn_gpt || config.pwn_asm
       rescue SyntaxError => e
         output.puts e.message.gsub(/^.*syntax error, */, "SyntaxError: ")
         reset_eval_string
