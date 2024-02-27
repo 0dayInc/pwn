@@ -134,7 +134,8 @@ begin
         @suppress_output = true if @eval_string =~ /;\Z/ ||
                                    @eval_string.empty? ||
                                    @eval_string =~ /\A *#.*\n\z/ ||
-                                   config.pwn_gpt
+                                   config.pwn_gpt ||
+                                   config.pwn_asm
 
         # A bug in jruby makes java.lang.Exception not rescued by
         # `rescue Pry::RescuableException` clause.
