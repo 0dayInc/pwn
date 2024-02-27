@@ -49,8 +49,8 @@ begin
       if pi.config.pwn_asm
         pi.config.prompt_name = 'pwn.asm'
         name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
-        dchars = "\001\e[32m\002>>>\001\e[37m\002"
-        dchars = "\001\e[33m\002***\001\e[37m\002" if mode == :splat
+        dchars = "\001\e[32m\002>>>\001\e[33m\002"
+        dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
       end
 
       if pi.config.pwn_gpt
@@ -157,7 +157,11 @@ begin
           eval_string = @eval_string
           reset_eval_string
 
-          result = evaluate_ruby(eval_string)
+          result = evaluate_ruby(eval_string) unless config.pwn_gpt ||
+                                                     config.pwn_asm
+
+          result = eval_string if config.pwn_gpt ||
+                                  config.pwn_asm
         rescue RescuableException, *jruby_exceptions => e
           # Eliminate following warning:
           # warning: singleton on non-persistent Java type X
@@ -179,10 +183,10 @@ begin
 
     # Ensure the return value in pwn_gpt mode reflects the input
     def evaluate_ruby(code)
-      if config.pwn_gpt || config.pwn_asm
-        result = message = code.to_s
-        return
-      end
+      # if config.pwn_gpt || config.pwn_asm
+      #   result = message = code.to_s
+      #   return
+      # end
       inject_sticky_locals!
       exec_hook :before_eval, code, self
 
@@ -218,9 +222,6 @@ begin
     def process
       pi = pry_instance
       pi.config.pwn_asm ? pi.config.pwn_asm = false : pi.config.pwn_asm = true
-
-      pi.config.color = false if pi.config.pwn_asm
-      pi.config.color = true unless pi.config.pwn_asm
     end
   end
 
@@ -230,7 +231,6 @@ begin
     def process
       pi = pry_instance
       pi.config.pwn_gpt ? pi.config.pwn_gpt = false : pi.config.pwn_gpt = true
-
       pi.config.color = false if pi.config.pwn_gpt
       pi.config.color = true unless pi.config.pwn_gpt
     end
@@ -273,19 +273,34 @@ begin
   Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
     if pi.config.pwn_asm && !request.chomp.empty?
       request = pi.input.line_buffer
-      # Determine what request is and determine if it's asm or opcodes
-      if request =~ /^[a-fA-F0-9\s]+$/
-        response = PWN::Plugins::Assembly.opcodes_to_asm(opcodes: request)
+
+      # Analyze request to determine if it should be processed as opcodes or asm.
+      straight_hex = /^[a-fA-F0-9\s]+$/
+      hex_esc_strings = /\\x[\da-fA-F]{2}/
+      hex_comma_delim_w_dbl_qt = /"(?:[0-9a-fA-F]{2})",?/
+      hex_comma_delim_w_sng_qt = /'(?:[0-9a-fA-F]{2})',?/
+      hex_byte_array_as_str = /^\[\s*(?:"[0-9a-fA-F]{2}",\s*)*"[0-9a-fA-F]{2}"\s*\]$/
+
+      if request.match?(straight_hex) ||
+         request.match?(hex_esc_strings) ||
+         request.match?(hex_comma_delim_w_dbl_qt) ||
+         request.match?(hex_comma_delim_w_sng_qt) ||
+         request.match?(hex_byte_array_as_str)
+
+        response = PWN::Plugins::Assembly.opcodes_to_asm(
+          opcodes: request,
+          opcodes_always_strings_obj: true
+        )
       else
         response = PWN::Plugins::Assembly.asm_to_opcodes(asm: request)
       end
-      puts "\n\n\n\001\e[31m\002#{response}\001\e[0m\002\n\n\n"
+      puts "\001\e[31m\002#{response}\001\e[0m\002"
     end
   end
 
   Pry.config.hooks.add_hook(:after_read, :pwn_gpt_hook) do |request, pi|
     if pi.config.pwn_gpt && !request.chomp.empty?
-      request = pi.input.line_buffer
+      request = pi.input.line_buffer.to_s
       debug = pi.config.pwn_gpt_debug
       open_ai_key = pi.config.pwn_gpt_key
       open_ai_key ||= ''
@@ -305,7 +320,8 @@ begin
         response_history: response_history,
         speak_answer: speak_answer
       )
-      puts "\n\n\n\001\e[32m\002#{response[:choices].last[:content]}\001\e[31m\002\n\n\n"
+      last_response = response[:choices].last[:content]
+      puts "\n\001\e[32m\002#{last_response}\001\e[0m\002\n\n"
 
       response_history = {
         id: response[:id],

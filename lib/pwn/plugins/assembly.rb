@@ -11,12 +11,14 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Assembly.opcodes_to_asm(
       #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")',
+      #   opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
       #   arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
       #   endian: 'optional - endianess (defaults to :little)'
       # )
 
       public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
+        opcodes_always_string_obj = opts[:opcodes_always_string_obj] ||= false
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
 
@@ -40,28 +42,43 @@ module PWN
         # '909090'
         opcodes_orig_len = opcodes.length
         opcodes = opcodes.join(',') if opcodes.is_a?(Array)
+        # puts opcodes.inspect
         opcodes = CGI.escape(opcodes)
         # puts opcodes.inspect
-        # Doesnt work with sommething like: "'ff', 'e4'"
-        # known to work with:
+        # known to work (when method is called directly) with:
         # 'ffe4'
         # 'ff,e4'
+        # 'ff e4'
         # "ff,e4"
+        # "ff e4"
         # ['ff', 'e4']
         # ["ff", "e4"]
         # '\xff\xe4'
         # "\xff\xe4"
-        opcodes.delete!('%5Cx') if opcodes.include?('%5Cx')
-        opcodes.delete!('%2C') if opcodes.include?('%2C')
-        opcodes.delete!('%22') if opcodes.include?('%22')
-        opcodes.delete!('%27') if opcodes.include?('%27')
-        opcodes.delete!('+') if opcodes.include?('+')
-        opcodes.delete!('%') if opcodes.include?('%')
+        # "'ff', 'e4'"
+        # '"ff", "e4"'
+        # only known to work in pwn REPL driver with:
+        # ffe4
+        # ff e4
+        # puts opcodes.inspect
+        #  More stripping if passed in via pwn REPL driver
+        # if opcodes_always_string_obj
+        # end
+
+        opcodes.delete!('%5B')
+        opcodes.delete!('%5D')
+        opcodes.delete!('%5Cx')
+        opcodes.delete!('%2C')
+        opcodes.delete!('%22')
+        opcodes.delete!('%27')
+        opcodes.delete!('+')
+        opcodes.delete!('%')
+
         # puts opcodes.inspect
         opcodes = [opcodes].pack('H*')
         # puts opcodes.inspect
 
-        Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s
+        Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s.squeeze("\n")
       rescue StandardError => e
         raise e
       end
@@ -95,7 +112,13 @@ module PWN
           raise "Unsupported architecture: #{arch}"
         end
 
-        Metasm::Shellcode.assemble(arch_obj, asm).encode_string.bytes.map { |b| format('\x%02x', b) }.join
+        opcodes = Metasm::Shellcode.assemble(arch_obj, asm).encode_string
+        hex_encoded_opcodes = opcodes.bytes.map { |b| format('\x%02x', b) }.join
+
+        "\n#{hex_encoded_opcodes}\n"
+      rescue Metasm::ParseError
+        puts "Invalid assembly instruction(s) provided:\n#{asm}"
+        # Should we try to call opcode_to_asm here or just raise the error?
       rescue StandardError => e
         raise e
       end
@@ -114,6 +137,7 @@ module PWN
         puts "USAGE:
           #{self}.opcodes_to_asm(
             opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")',
+            opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
             endian: 'optional - endianess (defaults to :little)'
           )
