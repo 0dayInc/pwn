@@ -47,6 +47,9 @@ module PWN
         spinner = TTY::Spinner.new
         spinner.auto_spin
 
+        max_request_attempts = 3
+        tot_request_attempts ||= 1
+
         case http_method
         when :delete, :get
           headers[:params] = params
@@ -90,6 +93,18 @@ module PWN
         end
 
         raise e
+      rescue IO::TimeoutError => e
+        raise e if tot_request_attempts == max_request_attempts
+
+        puts "\nTCP Connection Unavailable."
+        puts "Attempt (#{tot_request_attempts} of #{max_request_attempts}) in 60s"
+        60.downto(1) do
+          print '.'
+          sleep 1
+        end
+        tot_request_attempts += 1
+
+        retry
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
