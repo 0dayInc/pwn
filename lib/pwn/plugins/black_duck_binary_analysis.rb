@@ -424,6 +424,47 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_group_statistics(
+      #   token: 'required - Bearer token',
+      #   group_id: 'required - group id'
+      # )
+
+      public_class_method def self.get_group_statistics(opts = {})
+        token = opts[:token]
+        group_id = opts[:group_id]
+
+        response = bd_bin_analysis_rest_call(
+          token: token,
+          rest_call: "groups/#{group_id}/statistics"
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # response = PWN::Plugins::BlackDuckBinaryAnalysis.delete_group(
+      #   token: 'required - Bearer token',
+      #   group_id: 'required - group id'
+      # )
+
+      public_class_method def self.delete_group(opts = {})
+        token = opts[:token]
+        group_id = opts[:group_id]
+
+        response = bd_bin_analysis_rest_call(
+          http_method: :delete,
+          token: token,
+          rest_call: "groups/#{group_id}"
+        )
+
+        JSON.parse(response, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::Plugins::BlackDuckBinaryAnalysis.get_licenses(
       #   token: 'required - Bearer token'
       # )
@@ -683,6 +724,16 @@ module PWN
           )
 
           response = #{self}.get_group_details(
+            token: 'required - Bearer token',
+            group_id: 'required - group id'
+          )
+
+          response = #{self}.get_group_statistics(
+            token: 'required - Bearer token',
+            group_id: 'required - group id'
+          )
+
+          response = #{self}.delete_group(
             token: 'required - Bearer token',
             group_id: 'required - group id'
           )
