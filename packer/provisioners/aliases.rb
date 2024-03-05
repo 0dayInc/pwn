@@ -6,6 +6,7 @@ system("sudo touch #{alias_file}")
 system("sudo chmod 777 #{alias_file}")
 File.open(alias_file, 'w') do |f|
   f.puts '#!/bin/bash'
+  f.puts "alias file='file --keep-going --raw'"
   f.puts "alias grep='grep --color=auto'"
   f.puts "alias kpid='kill -15'"
   f.puts "alias ls='ls --color=auto'"
