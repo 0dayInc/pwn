@@ -1,9 +1,26 @@
-inherit_from: .rubocop_todo.yml
 AllCops: 
   UseCache: false
   NewCops: enable
-Layout:
-  Max: 3000
+Layout/LineLength:
+  Max: 293
+Lint/UselessRescue:
+  Enabled: false
+Metrics/AbcSize:
+  Max: 537.6
+Metrics/BlockLength:
+  Max: 138
+Metrics/BlockNesting:
+  Max: 4
+Metrics/ClassLength:
+  Max: 134
+Metrics/CyclomaticComplexity:
+  Max: 103
+Metrics/MethodLength:
+  Max: 485
+Metrics/ModuleLength:
+  Max: 495
+Metrics/PerceivedComplexity:
+  Max: 101
 Style/HashEachMethods:
   Enabled: true
 Style/HashSyntax:
@@ -14,3 +31,5 @@ Style/HashTransformValues:
   Enabled: true
 Style/RedundantLineContinuation:
   Enabled: false
+
+inherit_from: .rubocop_todo.yml

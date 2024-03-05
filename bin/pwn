@@ -216,21 +216,21 @@ begin
     end
   end
 
-  Pry::Commands.create_command 'toggle-pwn-asm' do
-    description 'Toggle pwn.asm interface.'
+  Pry::Commands.create_command 'pwn-asm' do
+    description 'Initiate pwn.asm shell.'
 
     def process
       pi = pry_instance
-      pi.config.pwn_asm ? pi.config.pwn_asm = false : pi.config.pwn_asm = true
+      pi.config.pwn_asm = true
     end
   end
 
-  Pry::Commands.create_command 'toggle-pwn-gpt' do
-    description 'Toggle pwn.gpt chat interface.'
+  Pry::Commands.create_command 'pwn-gpt' do
+    description 'Initiate pwn.gpt chat interface.'
 
     def process
       pi = pry_instance
-      pi.config.pwn_gpt ? pi.config.pwn_gpt = false : pi.config.pwn_gpt = true
+      pi.config.pwn_gpt = true
       pi.config.color = false if pi.config.pwn_gpt
       pi.config.color = true unless pi.config.pwn_gpt
     end
@@ -251,6 +251,18 @@ begin
     def process
       pi = pry_instance
       pi.config.pwn_gpt_speak ? pi.config.pwn_gpt_speak = false : pi.config.pwn_gpt_speak = true
+    end
+  end
+
+  Pry::Commands.create_command 'back' do
+    description 'Jump back to pwn REPL when in pwn-asm || pwn-gpt.'
+
+    def process
+      pi = pry_instance
+      pi.config.pwn_asm = false if pi.config.pwn_asm
+      pi.config.pwn_gpt = false if pi.config.pwn_gpt
+      pi.config.pwn_gpt_debug = false if pi.config.pwn_gpt_debug
+      pi.config.pwn_gpt_speak = false if pi.config.pwn_gpt_speak
     end
   end
 

@@ -29,10 +29,40 @@ module PWN
           arch_obj = Metasm::Ia32.new(endian)
         when 'amd64', 'x86_64'
           arch_obj = Metasm::X86_64.new(endian)
+        when 'arc'
+          arch_obj = Metasm::ARC.new(endian)
         when 'armv4l', 'armv4b', 'armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
           arch_obj = Metasm::ARM.new(endian)
         when 'aarch64', 'arm64'
           arch_obj = Metasm::ARM64.new(endian)
+        when 'bpf'
+          arch_obj = Metasm::BPF.new(endian)
+        when 'cy16'
+          arch_obj = Metasm::CY16.new(endian)
+        when 'dalvik'
+          arch_obj = Metasm::Dalvik.new(endian)
+        when 'ebpf'
+          arch_obj = Metasm::EBPF.new(endian)
+        when 'mcs51'
+          arch_obj = Metasm::MCS51.new(endian)
+        when 'mips'
+          arch_obj = Metasm::MIPS.new(endian)
+        when 'mips64'
+          arch_obj = Metasm::MIPS64.new(endian)
+        when 'msp430'
+          arch_obj = Metasm::MSP430.new(endian)
+        when 'openrisc'
+          arch_obj = Metasm::OpenRisc.new(endian)
+        when 'ppc'
+          arch_obj = Metasm::PPC.new(endian)
+        when 'sh4'
+          arch_obj = Metasm::SH4.new(endian)
+        when 'st20'
+          arch_obj = Metasm::ST20.new(endian)
+        when 'webasm'
+          arch_obj = Metasm::WebAsm.new(endian)
+        when 'z80'
+          arch_obj = Metasm::Z80.new(endian)
         else
           raise "Unsupported architecture: #{arch}"
         end
@@ -104,10 +134,40 @@ module PWN
           arch_obj = Metasm::Ia32.new(endian)
         when 'amd64', 'x86_64'
           arch_obj = Metasm::X86_64.new(endian)
+        when 'arc'
+          arch_obj = Metasm::ARC.new(endian)
         when 'armv4l', 'armv4b', 'armv5l', 'armv5b', 'armv6l', 'armv6b', 'armv7b', 'armv7l', 'arm', 'armhf'
           arch_obj = Metasm::ARM.new(endian)
         when 'aarch64', 'arm64'
           arch_obj = Metasm::ARM64.new(endian)
+        when 'bpf'
+          arch_obj = Metasm::BPF.new(endian)
+        when 'cy16'
+          arch_obj = Metasm::CY16.new(endian)
+        when 'dalvik'
+          arch_obj = Metasm::Dalvik.new(endian)
+        when 'ebpf'
+          arch_obj = Metasm::EBPF.new(endian)
+        when 'mcs51'
+          arch_obj = Metasm::MCS51.new(endian)
+        when 'mips'
+          arch_obj = Metasm::MIPS.new(endian)
+        when 'mips64'
+          arch_obj = Metasm::MIPS64.new(endian)
+        when 'msp430'
+          arch_obj = Metasm::MSP430.new(endian)
+        when 'openrisc'
+          arch_obj = Metasm::OpenRisc.new(endian)
+        when 'ppc'
+          arch_obj = Metasm::PPC.new(endian)
+        when 'sh4'
+          arch_obj = Metasm::SH4.new(endian)
+        when 'st20'
+          arch_obj = Metasm::ST20.new(endian)
+        when 'webasm'
+          arch_obj = Metasm::WebAsm.new(endian)
+        when 'z80'
+          arch_obj = Metasm::Z80.new(endian)
         else
           raise "Unsupported architecture: #{arch}"
         end
