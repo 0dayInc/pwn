@@ -1,0 +1,151 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-tFREQ', '--target-freq=FREQ', '<Required - Frequency to Conclude Scanning (e.g. 900000000 == 900 mHz>') do |e|
+    opts[:target_freq] = e
+  end
+
+  options.on('-dMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator ModeOFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB |USB | CW | CWL | CWU (Defaults to AM)>') do |d|
+    opts[:demodulator_mode] = d
+  end
+
+  options.on('-sFREQ', '--start-freq=FREQ', '<Optional - Frequency to Set when Scanning Begins (Defaults to last known frequency)>') do |s|
+    opts[:start_freq] = s
+  end
+
+  options.on('-hHOST', '--host=HOST', '<Optional - GQRX Host (Defaults to 127.0.0.1)>') do |h|
+    opts[:host] = h
+  end
+
+  options.on('-pPORT', '--port=PORT', '<Optional - GQRX Port (Defaults to 7356)>') do |p|
+    opts[:port] = p
+  end
+
+  options.on('-PPLACE', '--precision=PLACE', '<Optional - Precision of Frequency 1-9 (Defaults to 3)>') do |p|
+    opts[:precision] = p
+  end
+
+  options.on('-SFLOAT', '--sleep-between-hops=FLOAT', '<Optional - Float to Sleep Between Hops (Defaults to 0)>') do |s|
+    opts[:sleep_between_hops] = s
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+def gqrx_cmd(opts = {})
+  # f - Get frequency [Hz]
+  # F - Set frequency [Hz]
+  # m - Get demodulator mode
+  # M - Set demodulator mode (OFF, RAW, AM, FM, WFM, WFM_ST,
+  #     WFM_ST_OIRT, LSB, USB, CW, CWL, CWU)
+  # l STRENGTH - Get signal strength [dBFS]
+  # l SQL - Get squelch threshold [dBFS]
+  # L SQL <sql> - Set squelch threshold to <sql> [dBFS]
+  # u RECORD - Get status of audio recorder
+  # U RECORD <status> - Set status of audio recorder to <status>
+  # c - Close connection
+  # AOS - Acquisition of signal (AOS) event, start audio recording
+  # LOS - Loss of signal (LOS) event, stop audio recording
+  # \dump_state - Dump state (only usable for compatibility)
+  gqrx_sock = opts[:gqrx_sock]
+  cmd = opts[:cmd]
+
+  gqrx_sock.write("#{cmd}\n")
+  does_respond = gqrx_sock.wait_readable
+  gqrx_sock.readline.chomp if does_respond
+end
+
+def scan_range(opts = {})
+  gqrx_sock = opts[:gqrx_sock]
+  start_freq = opts[:start_freq]
+  target_freq = opts[:target_freq]
+  precision = opts[:precision]
+  multiplier = 10**(precision - 1)
+  sleep_between_hops = opts[:sleep_between_hops]
+
+  if start_freq > target_freq
+    start_freq.downto(target_freq) do |i|
+      next unless (i % multiplier).zero?
+
+      this_freq = i
+      gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{this_freq}")
+      resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f')
+      # Split the response from NNNNNNNNN to NNN.NNN.NNN
+      this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
+      puts ">>> #{this_freq}"
+      sleep sleep_between_hops
+    end
+  else
+    while start_freq <= target_freq
+      this_freq = start_freq
+      gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{this_freq}")
+      resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f')
+      # Split the response from NNNNNNNNN to NNN.NNN.NNN
+      this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
+      puts ">>> #{this_freq}"
+      sleep sleep_between_hops
+
+      start_freq += multiplier
+    end
+  end
+end
+
+begin
+  pwn_provider = 'ruby-gem'
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
+
+  demodulator_mode = opts[:demodulator_mode] ||= 'AM'
+  demodulator_mode.upcase!
+  raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
+
+  host = opts[:host] ||= '127.0.0.1'
+  port = opts[:port] ||= 7356
+  puts "Connecting to GQRX at #{host}:#{port}..."
+
+  gqrx_sock = PWN::Plugins::Sock.connect(target: host, port: port)
+  puts "Setting demodulator mode to #{demodulator_mode}..."
+  demod_resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "M #{demodulator_mode}")
+  puts demod_resp
+
+  start_freq = opts[:start_freq]
+  start_freq = start_freq.to_s.delete('.').to_i unless start_freq.nil?
+  start_freq = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f').to_i if start_freq.nil?
+
+  target_freq = opts[:target_freq]
+  target_freq = target_freq.to_s.delete('.').to_i unless target_freq.nil?
+  raise 'ERROR: Invalid end frequency' if target_freq.nil?
+
+  puts "Scanning from #{start_freq} to #{target_freq}..."
+
+  precision = opts[:precision] ||= 3
+  precision = precision.to_i
+  raise "ERROR: Invalid precision: #{precision}" unless (1..9).include?(precision)
+
+  sleep_between_hops = opts[:sleep_between_hops] ||= 0
+  sleep_between_hops = sleep_between_hops.to_f
+
+  scan_range(
+    gqrx_sock: gqrx_sock,
+    start_freq: start_freq,
+    target_freq: target_freq,
+    precision: precision,
+    sleep_between_hops: sleep_between_hops
+  )
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+ensure
+  resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'c')
+  gqrx_sock = PWN::Plugins::Sock.disconnect(sock_obj: gqrx_sock)
+end
