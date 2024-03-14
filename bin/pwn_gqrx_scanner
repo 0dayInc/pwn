@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: false
+
+require 'pwn'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{$PROGRAM_NAME} [opts]
+  "
+
+  options.on('-sFREQ', '--start-freq=FREQ', '<Optional - Frequency to Set when Scanning Begins (Defaults to last known frequency)>') do |s|
+    opts[:start_freq] = s
+  end
+
+  options.on('-tFREQ', '--target-freq=FREQ', '<Required - Frequency to Conclude Scanning (e.g. 900000000 == 900 mHz>') do |s|
+    opts[:start_freq] = s
+  end
+
+  options.on('-hHOST', '--host=HOST', '<Optional - GQRX Host (Defaults to 127.0.0.1)>') do |h|
+    opts[:host] = h
+  end
+
+  options.on('-pPORT', '--port=PORT', '<Optional - GQRX Port (Defaults to 7356)>') do |p|
+    opts[:port] = p
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{$PROGRAM_NAME} --help`
+  exit 1
+end
+
+def jump_to_freq(opts = {})
+  gqrx_sock = opts[:gqrx_sock]
+  freq = opts[:freq]
+
+  gqrx_sock.write("F #{freq}\n")
+  does_respond = gqrx_sock.wait_readable
+  gqrx_sock.readline.chomp
+
+  gqrx_sock.write("f\n")
+  does_respond = gqrx_sock.wait_readable
+  reached_freq = gqrx_sock.readline.chomp
+  puts "Reached #{reached_freq}..."
+end
+
+begin
+  pwn_provider = 'ruby-gem'
+  # pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
+
+  start_freq = opts[:start_freq].to_i
+  end_freq = opts[:end_freq].to_i
+  host = opts[:host] ||= '127.0.0.1'
+  port = opts[:port] ||= 7356
+
+  gqrx_sock = PWN::Plugins::Sock.connect(target: host, port: port)
+  # If start value is greater than end value, go in reverse
+  if start_freq > end_freq
+    end_freq.downto(start_freq) do |freq|
+      jump_to_freq(gqrx_sock: gqrx_sock, freq: freq)
+    end
+  else
+    (start_freq..end_freq).each do |freq|
+      puts "Scanning #{freq}..."
+      jump_to_freq(gqrx_sock: gqrx_sock, freq: freq)
+    end
+  end
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+ensure
+  gqrx_sock = PWN::Plugins::Sock.disconnect(sock_obj: gqrx_sock)
+end

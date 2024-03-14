@@ -4,6 +4,7 @@
 require 'optparse'
 require 'pwn'
 require 'pry'
+require 'tty-prompt'
 require 'yaml'
 
 opts = {}
@@ -216,12 +217,22 @@ begin
     end
   end
 
+  #  class PWNCompleter < Pry::InputCompleter
+  #    def call(input)
+  #    end
+  #  end
+
   Pry::Commands.create_command 'pwn-asm' do
     description 'Initiate pwn.asm shell.'
 
     def process
       pi = pry_instance
       pi.config.pwn_asm = true
+      pi.custom_completions = proc do
+        prompt = TTY::Prompt.new
+        [pi.input.line_buffer]
+        # prompt.select(pi.input.line_buffer)
+      end
     end
   end
 
@@ -263,6 +274,7 @@ begin
       pi.config.pwn_gpt = false if pi.config.pwn_gpt
       pi.config.pwn_gpt_debug = false if pi.config.pwn_gpt_debug
       pi.config.pwn_gpt_speak = false if pi.config.pwn_gpt_speak
+      pi.config.completer = Pry::InputCompleter
     end
   end
 
