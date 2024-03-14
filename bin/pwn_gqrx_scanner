@@ -10,8 +10,8 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-tFREQ', '--target-freq=FREQ', '<Required - Frequency to Conclude Scanning (e.g. 900000000 == 900 mHz>') do |s|
-    opts[:start_freq] = s
+  options.on('-tFREQ', '--target-freq=FREQ', '<Required - Frequency to Conclude Scanning (e.g. 900000000 == 900 mHz>') do |e|
+    opts[:end_freq] = e
   end
 
   options.on('-dMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator ModeOFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB |USB | CW | CWL | CWU (Defaults to AM)>') do |d|
@@ -64,8 +64,14 @@ begin
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
 
   demodulator_mode = opts[:demodulator_mode] ||= 'AM'
+  demodulator_mode.upcase!
   raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
 
+  host = opts[:host] ||= '127.0.0.1'
+  port = opts[:port] ||= 7356
+  puts "Connecting to GQRX at #{host}:#{port}..."
+
+  gqrx_sock = PWN::Plugins::Sock.connect(target: host, port: port)
   puts "Setting demodulator mode to #{demodulator_mode}..."
   demod_resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "M #{demodulator_mode}")
   puts demod_resp
@@ -78,24 +84,22 @@ begin
 
   puts "Scanning from #{start_freq} to #{end_freq}..."
 
-  host = opts[:host] ||= '127.0.0.1'
-  port = opts[:port] ||= 7356
-  puts "Connecting to GQRX at #{host}:#{port}..."
-
-  gqrx_sock = PWN::Plugins::Sock.connect(target: host, port: port)
   # If start value is greater than end value, go in reverse
   if start_freq > end_freq
     end_freq.downto(start_freq) do |freq|
       gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{freq}")
       resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f')
-      puts "Reached #{resp}..."
+      # Split the response from NNNNNNNNN to NNN.NNN.NNN
+      this_freq = resp.to_s.split('').insert(-4, '.').insert(-8, '.').join
+      puts ">>> #{this_freq}"
     end
   else
     (start_freq..end_freq).each do |freq|
-      puts "Scanning #{freq}..."
       gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{freq}")
       resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f')
-      puts "Reached #{resp}..."
+      # Split the response from NNNNNNNNN to NNN.NNN.NNN
+      this_freq = resp.to_s.split('').insert(-4, '.').insert(-8, '.').join
+      puts ">>> #{this_freq}"
     end
   end
 rescue SystemExit, Interrupt
