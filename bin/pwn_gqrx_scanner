@@ -33,6 +33,10 @@ OptionParser.new do |options|
   options.on('-PPLACE', '--precision=PLACE', '<Optional - Precision of Frequency 1-9 (Defaults to 3)>') do |p|
     opts[:precision] = p
   end
+
+  options.on('-SFLOAT', '--sleep-between-hops=FLOAT', '<Optional - Float to Sleep Between Hops (Defaults to 0)>') do |s|
+    opts[:sleep_between_hops] = s
+  end
 end.parse!
 
 if opts.empty?
@@ -69,6 +73,7 @@ def scan_range(opts = {})
   target_freq = opts[:target_freq]
   precision = opts[:precision]
   multiplier = 10**(precision - 1)
+  sleep_between_hops = opts[:sleep_between_hops]
 
   if start_freq > target_freq
     start_freq.downto(target_freq) do |i|
@@ -80,6 +85,7 @@ def scan_range(opts = {})
       # Split the response from NNNNNNNNN to NNN.NNN.NNN
       this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
       puts ">>> #{this_freq}"
+      sleep sleep_between_hops
     end
   else
     while start_freq <= target_freq
@@ -89,6 +95,8 @@ def scan_range(opts = {})
       # Split the response from NNNNNNNNN to NNN.NNN.NNN
       this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
       puts ">>> #{this_freq}"
+      sleep sleep_between_hops
+
       start_freq += multiplier
     end
   end
@@ -125,11 +133,15 @@ begin
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..9).include?(precision)
 
+  sleep_between_hops = opts[:sleep_between_hops] ||= 0
+  sleep_between_hops = sleep_between_hops.to_f
+
   scan_range(
     gqrx_sock: gqrx_sock,
     start_freq: start_freq,
     target_freq: target_freq,
-    precision: precision
+    precision: precision,
+    sleep_between_hops: sleep_between_hops
   )
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
