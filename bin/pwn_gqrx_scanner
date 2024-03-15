@@ -2,6 +2,7 @@
 # frozen_string_literal: false
 
 require 'pwn'
+require 'json'
 require 'optparse'
 
 opts = {}
@@ -14,14 +15,6 @@ OptionParser.new do |options|
     opts[:target_freq] = e
   end
 
-  options.on('-dMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator ModeOFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB |USB | CW | CWL | CWU (Defaults to AM)>') do |d|
-    opts[:demodulator_mode] = d
-  end
-
-  options.on('-sFREQ', '--start-freq=FREQ', '<Optional - Frequency to Set when Scanning Begins (Defaults to last known frequency)>') do |s|
-    opts[:start_freq] = s
-  end
-
   options.on('-hHOST', '--host=HOST', '<Optional - GQRX Host (Defaults to 127.0.0.1)>') do |h|
     opts[:host] = h
   end
@@ -30,12 +23,28 @@ OptionParser.new do |options|
     opts[:port] = p
   end
 
+  options.on('-dMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator ModeOFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB |USB | CW | CWL | CWU (Defaults to AM)>') do |d|
+    opts[:demodulator_mode] = d
+  end
+
+  options.on('-sFREQ', '--start-freq=FREQ', '<Optional - Frequency to Set when Scanning Begins (Defaults to last known frequency)>') do |s|
+    opts[:start_freq] = s
+  end
+
+  options.on('-qFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold (Defaults to -63)>') do |q|
+    opts[:squelch] = q
+  end
+
   options.on('-PPLACE', '--precision=PLACE', '<Optional - Precision of Frequency 1-12 (Defaults to 3)>') do |p|
     opts[:precision] = p
   end
 
-  options.on('-SFLOAT', '--sleep-between-hops=FLOAT', '<Optional - Float to Sleep Between Hops (Defaults to 0)>') do |s|
-    opts[:sleep_between_hops] = s
+  options.on('-LFLOAT', '--lock-on-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength value (Defaults to -63)>') do |l|
+    opts[:lock_on_freq_duration] = l
+  end
+
+  options.on('-SFLOAT', '--strength=FLOAT', '<Optional - Strength to trigger sleep (Defaults to 0)>') do |s|
+    opts[:strength] = s
   end
 end.parse!
 
@@ -70,24 +79,49 @@ end
 def init_freq(opts = {})
   gqrx_sock = opts[:gqrx_sock]
   this_freq = opts[:this_freq]
-  sleep_between_hops = opts[:sleep_between_hops]
+  lock_on_freq_duration = opts[:lock_on_freq_duration]
+  strength = opts[:strength]
 
-  resp = gqrx_cmd(
+  change_frreq_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "F #{this_freq}"
   )
-  raise "ERROR: Failed to set frequency to #{this_freq}" unless resp == 'RPRT 0'
+  raise "ERROR: Failed to set frequency to #{this_freq}" unless change_frreq_resp == 'RPRT 0'
 
-  resp = gqrx_cmd(
+  raw_freq = gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: 'f'
   )
 
   # Split the response from NNNNNNNNN
   # to NNN.NNN.NNN
-  this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
-  puts ">>> #{this_freq}"
-  sleep sleep_between_hops
+  this_freq = raw_freq.to_s.chars.insert(-4, '.').insert(-8, '.').join
+
+  strength_resp = gqrx_cmd(
+    gqrx_sock: gqrx_sock,
+    cmd: 'l STRENGTH'
+  )
+  current_strength = strength_resp.to_f
+
+  squelch_resp = gqrx_cmd(
+    gqrx_sock: gqrx_sock,
+    cmd: 'l SQL'
+  )
+  current_squelch = squelch_resp.to_f
+
+  init_freq_hash = {
+    frequency: this_freq,
+    strength: current_strength,
+    squelch: current_squelch
+  }
+  # puts JSON.parse(init_freq_hash)
+  puts init_freq_hash.to_json
+
+  sleep lock_on_freq_duration if current_strength < strength
+  # This helps level out strength
+  sleep 0.03
+
+  init_freq_hash
 end
 
 def scan_range(opts = {})
@@ -95,26 +129,30 @@ def scan_range(opts = {})
   start_freq = opts[:start_freq]
   target_freq = opts[:target_freq]
   precision = opts[:precision]
-  sleep_between_hops = opts[:sleep_between_hops]
+  lock_on_freq_duration = opts[:lock_on_freq_duration]
+  strength = opts[:strength]
 
   multiplier = 10**(precision - 1)
   if start_freq > target_freq
     start_freq.downto(target_freq) do |this_freq|
       next unless (i % multiplier).zero?
 
-      init_freq(
+      init_freq_hash = init_freq(
         gqrx_sock: gqrx_sock,
         this_freq: this_freq,
-        sleep_between_hops: sleep_between_hops
+        lock_on_freq_duration: lock_on_freq_duration,
+        strength: strength
       )
+      puts init_freq_hash.to_json
     end
   else
     this_freq = start_freq
     while this_freq <= target_freq
-      init_freq(
+      init_freq_hash = init_freq(
         gqrx_sock: gqrx_sock,
         this_freq: this_freq,
-        sleep_between_hops: sleep_between_hops
+        lock_on_freq_duration: lock_on_freq_duration,
+        strength: strength
       )
 
       this_freq += multiplier
@@ -126,42 +164,52 @@ begin
   pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
 
+  target_freq = opts[:target_freq]
+  target_freq = target_freq.to_s.delete('.').to_i unless target_freq.nil?
+  raise 'ERROR: Invalid end frequency' if target_freq.nil?
+
+  host = opts[:host] ||= '127.0.0.1'
+  port = opts[:port] ||= 7356
+
+  puts "Connecting to GQRX at #{host}:#{port}..."
+  gqrx_sock = PWN::Plugins::Sock.connect(target: host, port: port)
+
   demodulator_mode = opts[:demodulator_mode] ||= 'AM'
   demodulator_mode.upcase!
   raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
 
-  host = opts[:host] ||= '127.0.0.1'
-  port = opts[:port] ||= 7356
-  puts "Connecting to GQRX at #{host}:#{port}..."
-
-  gqrx_sock = PWN::Plugins::Sock.connect(target: host, port: port)
   puts "Setting demodulator mode to #{demodulator_mode}..."
   demod_resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "M #{demodulator_mode}")
-  puts demod_resp
+  raise "ERROR: Failed to set demodulator mode to #{demodulator_mode}" unless demod_resp == 'RPRT 0'
 
   start_freq = opts[:start_freq]
   start_freq = start_freq.to_s.delete('.').to_i unless start_freq.nil?
   start_freq = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f').to_i if start_freq.nil?
 
-  target_freq = opts[:target_freq]
-  target_freq = target_freq.to_s.delete('.').to_i unless target_freq.nil?
-  raise 'ERROR: Invalid end frequency' if target_freq.nil?
-
-  puts "Scanning from #{start_freq} to #{target_freq}..."
+  squelch = opts[:squelch] ||= -63
+  squelch = squelch.to_f
+  squelch_resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "L SQL #{squelch}")
+  raise "ERROR: Failed to set squelch to #{squelch}" unless squelch_resp == 'RPRT 0'
 
   precision = opts[:precision] ||= 3
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
-  sleep_between_hops = opts[:sleep_between_hops] ||= 0
-  sleep_between_hops = sleep_between_hops.to_f
+  lock_on_freq_duration = opts[:lock_on_freq_duration] ||= 0
+  lock_on_freq_duration = lock_on_freq_duration.to_f
+
+  strength = opts[:strength] ||= -63
+  strength = strength.to_f
+
+  puts "Scanning from #{start_freq} to #{target_freq}..."
 
   scan_range(
     gqrx_sock: gqrx_sock,
     start_freq: start_freq,
     target_freq: target_freq,
     precision: precision,
-    sleep_between_hops: sleep_between_hops
+    lock_on_freq_duration: lock_on_freq_duration,
+    strength: strength
   )
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
