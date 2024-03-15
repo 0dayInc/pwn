@@ -30,7 +30,7 @@ OptionParser.new do |options|
     opts[:port] = p
   end
 
-  options.on('-PPLACE', '--precision=PLACE', '<Optional - Precision of Frequency 1-9 (Defaults to 3)>') do |p|
+  options.on('-PPLACE', '--precision=PLACE', '<Optional - Precision of Frequency 1-12 (Defaults to 3)>') do |p|
     opts[:precision] = p
   end
 
@@ -67,37 +67,57 @@ def gqrx_cmd(opts = {})
   gqrx_sock.readline.chomp if does_respond
 end
 
+def init_freq(opts = {})
+  gqrx_sock = opts[:gqrx_sock]
+  this_freq = opts[:this_freq]
+  sleep_between_hops = opts[:sleep_between_hops]
+
+  resp = gqrx_cmd(
+    gqrx_sock: gqrx_sock,
+    cmd: "F #{this_freq}"
+  )
+  raise "ERROR: Failed to set frequency to #{this_freq}" unless resp == 'RPRT 0'
+
+  resp = gqrx_cmd(
+    gqrx_sock: gqrx_sock,
+    cmd: 'f'
+  )
+
+  # Split the response from NNNNNNNNN
+  # to NNN.NNN.NNN
+  this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
+  puts ">>> #{this_freq}"
+  sleep sleep_between_hops
+end
+
 def scan_range(opts = {})
   gqrx_sock = opts[:gqrx_sock]
   start_freq = opts[:start_freq]
   target_freq = opts[:target_freq]
   precision = opts[:precision]
-  multiplier = 10**(precision - 1)
   sleep_between_hops = opts[:sleep_between_hops]
 
+  multiplier = 10**(precision - 1)
   if start_freq > target_freq
-    start_freq.downto(target_freq) do |i|
+    start_freq.downto(target_freq) do |this_freq|
       next unless (i % multiplier).zero?
 
-      this_freq = i
-      gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{this_freq}")
-      resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f')
-      # Split the response from NNNNNNNNN to NNN.NNN.NNN
-      this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
-      puts ">>> #{this_freq}"
-      sleep sleep_between_hops
+      init_freq(
+        gqrx_sock: gqrx_sock,
+        this_freq: this_freq,
+        sleep_between_hops: sleep_between_hops
+      )
     end
   else
-    while start_freq <= target_freq
-      this_freq = start_freq
-      gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{this_freq}")
-      resp = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f')
-      # Split the response from NNNNNNNNN to NNN.NNN.NNN
-      this_freq = resp.to_s.chars.insert(-4, '.').insert(-8, '.').join
-      puts ">>> #{this_freq}"
-      sleep sleep_between_hops
+    this_freq = start_freq
+    while this_freq <= target_freq
+      init_freq(
+        gqrx_sock: gqrx_sock,
+        this_freq: this_freq,
+        sleep_between_hops: sleep_between_hops
+      )
 
-      start_freq += multiplier
+      this_freq += multiplier
     end
   end
 end
@@ -131,7 +151,7 @@ begin
 
   precision = opts[:precision] ||= 3
   precision = precision.to_i
-  raise "ERROR: Invalid precision: #{precision}" unless (1..9).include?(precision)
+  raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
   sleep_between_hops = opts[:sleep_between_hops] ||= 0
   sleep_between_hops = sleep_between_hops.to_f
