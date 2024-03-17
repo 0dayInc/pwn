@@ -31,7 +31,7 @@ OptionParser.new do |options|
     opts[:audio_gain_db] = a
   end
 
-  options.on('-BHZ', '--bandwidth=HZ', '<Optional - Set Bandwidth (Defaults to 240.000)>') do |b|
+  options.on('-BHZ', '--bandwidth=HZ', '<Optional - Set Bandwidth (Defaults to 200.000)>') do |b|
     opts[:bandwidth] = b
   end
 
@@ -291,7 +291,7 @@ begin
   demodulator_mode.upcase!
   raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
 
-  bandwidth = opts[:bandwidth] ||= '240.000'
+  bandwidth = opts[:bandwidth] ||= '200.000'
 
   puts "Setting demodulator mode to #{demodulator_mode} and bandwidth to #{bandwidth}..."
   bandwidth = bandwidth.to_s.delete('.').to_i unless bandwidth.nil?
