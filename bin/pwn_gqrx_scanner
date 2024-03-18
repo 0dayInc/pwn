@@ -47,8 +47,8 @@ OptionParser.new do |options|
     opts[:strength_lock] = s
   end
 
-  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.25)>') do |l|
-    opts[:lock_on_freq_duration] = l
+  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.5)>') do |l|
+    opts[:lock_freq_duration] = l
   end
 
   options.on('-QFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold -150.0 to 0 (Defaults to -50.0)>') do |q|
@@ -190,7 +190,7 @@ def init_freq(opts = {})
   demodulator_mode = opts[:demodulator_mode]
   bandwidth = opts[:bandwidth]
   this_freq = opts[:this_freq]
-  lock_on_freq_duration = opts[:lock_on_freq_duration]
+  lock_freq_duration = opts[:lock_freq_duration]
   strength_lock = opts[:strength_lock]
 
   demod_n_passband = gqrx_cmd(
@@ -248,11 +248,12 @@ def init_freq(opts = {})
     if_gain: if_gain,
     bb_gain: bb_gain,
     strength: current_strength,
-    strength_trigger_lock_on_freq: strength_lock
+    strength_trigger_lock_on_freq: strength_lock,
+    lock_freq_duration: lock_freq_duration
   }
   puts JSON.pretty_generate(init_freq_hash)
 
-  sleep lock_on_freq_duration if current_strength > strength_lock
+  sleep lock_freq_duration if current_strength > strength_lock
 
   init_freq_hash
 end
@@ -264,7 +265,7 @@ def scan_range(opts = {})
   start_freq = opts[:start_freq]
   target_freq = opts[:target_freq]
   precision = opts[:precision]
-  lock_on_freq_duration = opts[:lock_on_freq_duration]
+  lock_freq_duration = opts[:lock_freq_duration]
   strength_lock = opts[:strength_lock]
 
   multiplier = 10**(precision - 1)
@@ -277,7 +278,7 @@ def scan_range(opts = {})
         demodulator_mode: demodulator_mode,
         bandwidth: bandwidth,
         this_freq: this_freq,
-        lock_on_freq_duration: lock_on_freq_duration,
+        lock_freq_duration: lock_freq_duration,
         strength_lock: strength_lock
       )
     end
@@ -289,7 +290,7 @@ def scan_range(opts = {})
         demodulator_mode: demodulator_mode,
         bandwidth: bandwidth,
         this_freq: this_freq,
-        lock_on_freq_duration: lock_on_freq_duration,
+        lock_freq_duration: lock_freq_duration,
         strength_lock: strength_lock
       )
 
@@ -352,8 +353,8 @@ begin
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
-  lock_on_freq_duration = opts[:lock_on_freq_duration] ||= 0.25
-  lock_on_freq_duration = lock_on_freq_duration.to_f
+  lock_freq_duration = opts[:lock_freq_duration] ||= 0.5
+  lock_freq_duration = lock_freq_duration.to_f
 
   strength_lock = opts[:strength_lock] ||= -45.0
   strength_lock = strength_lock.to_f
@@ -392,7 +393,7 @@ begin
     start_freq: start_freq,
     target_freq: target_freq,
     precision: precision,
-    lock_on_freq_duration: lock_on_freq_duration,
+    lock_freq_duration: lock_freq_duration,
     strength_lock: strength_lock,
     squelch: squelch
   )
