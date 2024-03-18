@@ -47,7 +47,7 @@ OptionParser.new do |options|
     opts[:strength_lock] = s
   end
 
-  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.5)>') do |l|
+  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.25)>') do |l|
     opts[:lock_on_freq_duration] = l
   end
 
@@ -154,7 +154,8 @@ def gqrx_cmd(opts = {})
   response = []
   got_freq = false
   # Read all responses from gqrx_sock.write
-    timeout = 0.01 if timeout.nil?
+  timeout = 0.001 if timeout.nil?
+
   begin
     response.push(gqrx_sock.readline.chomp) while gqrx_sock.wait_readable(timeout)
     raise IOError if response.empty?
@@ -351,7 +352,7 @@ begin
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
-  lock_on_freq_duration = opts[:lock_on_freq_duration] ||= 0.5
+  lock_on_freq_duration = opts[:lock_on_freq_duration] ||= 0.25
   lock_on_freq_duration = lock_on_freq_duration.to_f
 
   strength_lock = opts[:strength_lock] ||= -45.0
