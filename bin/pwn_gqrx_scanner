@@ -31,7 +31,7 @@ OptionParser.new do |options|
     opts[:audio_gain_db] = a
   end
 
-  options.on('-bHZ', '--bandwidth=HZ', '<Optional - Set Bandwidth (Defaults to 200.000)>') do |b|
+  options.on('-bHZ', '--bandwidth=HZ', '<Optional - Set Bandwidth 0.0 - SDR Bandwidth Limit, e.g. 20.000.000 (Defaults to 270.000)>') do |b|
     opts[:bandwidth] = b
   end
 
@@ -39,19 +39,19 @@ OptionParser.new do |options|
     opts[:demodulator_mode] = d
   end
 
-  options.on('-PINT', '--precision=INT', '<Optional - Precision of Frequency 1-12 (Defaults to 6)>') do |p|
+  options.on('-PINT', '--precision=INT', '<Optional - Precision of Frequency 1-12 (Defaults to 5)>') do |p|
     opts[:precision] = p
   end
 
-  options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to trigger lock on frequency (Defaults to -55.0)>') do |s|
+  options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to trigger lock on frequency (Defaults to -45.0)>') do |s|
     opts[:strength_lock] = s
   end
 
-  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 5.0)>') do |l|
+  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.5)>') do |l|
     opts[:lock_on_freq_duration] = l
   end
 
-  options.on('-QFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold -65.0 to 0(Defaults to -150.0)>') do |q|
+  options.on('-QFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold -150.0 to 0 (Defaults to -50.0)>') do |q|
     opts[:squelch] = q
   end
 
@@ -63,7 +63,7 @@ OptionParser.new do |options|
     opts[:intermediate_gain] = i
   end
 
-  options.on('-BFLOAT', '--basedband-gain=FLOAT', '<Optional - Baseband Gain 0.0-62.0 (Defaults to 0.0)>') do |b|
+  options.on('-BFLOAT', '--basedband-gain=FLOAT', '<Optional - Baseband Gain 0.0-62.0 (Defaults to 10.0)>') do |b|
     opts[:baseband_gain] = b
   end
 end.parse!
@@ -154,7 +154,7 @@ def gqrx_cmd(opts = {})
   response = []
   got_freq = false
   # Read all responses from gqrx_sock.write
-  timeout = 0.015 if timeout.nil?
+    timeout = 0.01 if timeout.nil?
   begin
     response.push(gqrx_sock.readline.chomp) while gqrx_sock.wait_readable(timeout)
     raise IOError if response.empty?
@@ -321,7 +321,7 @@ begin
   demodulator_mode.upcase!
   raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
 
-  bandwidth = opts[:bandwidth] ||= '200.000'
+  bandwidth = opts[:bandwidth] ||= '270.000'
 
   puts "Setting demodulator mode to #{demodulator_mode} and bandwidth to #{bandwidth}..."
   bandwidth = bandwidth.to_s.delete('.').to_i unless bandwidth.nil?
@@ -339,7 +339,7 @@ begin
     resp_ok: 'RPRT 0'
   )
 
-  squelch = opts[:squelch] ||= -65.0
+  squelch = opts[:squelch] ||= -50.0
   squelch = squelch.to_f
   squelch_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
@@ -347,14 +347,14 @@ begin
     resp_ok: 'RPRT 0'
   )
 
-  precision = opts[:precision] ||= 6
+  precision = opts[:precision] ||= 5
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
-  lock_on_freq_duration = opts[:lock_on_freq_duration] ||= 5.0
+  lock_on_freq_duration = opts[:lock_on_freq_duration] ||= 0.5
   lock_on_freq_duration = lock_on_freq_duration.to_f
 
-  strength_lock = opts[:strength_lock] ||= -55.0
+  strength_lock = opts[:strength_lock] ||= -45.0
   strength_lock = strength_lock.to_f
 
   rf_gain = opts[:rf_gain] ||= 16.0
@@ -373,7 +373,7 @@ begin
     resp_ok: 'RPRT 0'
   )
 
-  baseband_gain = opts[:baseband_gain] ||= 0.0
+  baseband_gain = opts[:baseband_gain] ||= 10.0
   baseband_gain = baseband_gain.to_f
   squelch_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
