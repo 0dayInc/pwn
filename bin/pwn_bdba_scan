@@ -183,6 +183,7 @@ begin
 rescue IO::TimeoutError,
        RestClient::BadGateway,
        RestClient::BadRequest,
+       RestClient::Conflict,
        RestClient::Exceptions::OpenTimeout,
        RestClient::Forbidden,
        RestClient::GatewayTimeout,
