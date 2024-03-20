@@ -43,7 +43,7 @@ OptionParser.new do |options|
     opts[:precision] = p
   end
 
-  options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to trigger lock on frequency (Defaults to -45.0)>') do |s|
+  options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to lock onto frequency (Defaults to -45.0)>') do |s|
     opts[:strength_lock] = s
   end
 
@@ -249,7 +249,7 @@ def init_freq(opts = {})
     if_gain: if_gain,
     bb_gain: bb_gain,
     strength: current_strength,
-    strength_trigger_lock_on_freq: strength_lock,
+    strength_lock: strength_lock,
     lock_freq_duration: lock_freq_duration
   }
 
@@ -280,12 +280,12 @@ def scan_range(opts = {})
     if_gain: 0.0,
     bb_gain: 0.0,
     strength: 0.0,
-    strength_trigger_lock_on_freq: strength_lock,
+    strength_lock: strength_lock,
     lock_freq_duration: lock_freq_duration
   }
   if start_freq > target_freq
     start_freq.downto(target_freq) do |this_freq|
-      next unless (i % multiplier).zero?
+      next unless (this_freq % multiplier).zero?
 
       init_freq_hash = init_freq(
         gqrx_sock: gqrx_sock,
@@ -300,9 +300,10 @@ def scan_range(opts = {})
       prev_strength = prev_freq_hash[:strength]
       prev_freq = prev_freq_hash[:frequency]
 
-      approaching_detection = true if current_strength > prev_strength
-      if approaching_detection && current_strength < prev_strength
-        puts "**** Found a signal at ~ #{prev_freq} Hz ****"
+      approaching_detection = true if current_strength > prev_strength &&
+                                      current_strength > strength_lock
+      if approaching_detection && current_strength <= prev_strength
+        puts "\n**** Found a signal ~ #{prev_freq} Hz ****"
         puts JSON.pretty_generate(prev_freq_hash)
         approaching_detection = false
       end
@@ -325,9 +326,10 @@ def scan_range(opts = {})
       prev_strength = prev_freq_hash[:strength]
       prev_freq = prev_freq_hash[:frequency]
 
-      approaching_detection = true if current_strength > prev_strength
+      approaching_detection = true if current_strength > prev_strength &&
+                                      current_strength > strength_lock
       if approaching_detection && current_strength < prev_strength
-        puts "\n**** Discovered a signal at #{prev_freq} Hz ****"
+        puts "\n**** Discovered a signal ~ #{prev_freq} Hz ****"
         puts JSON.pretty_generate(prev_freq_hash)
         approaching_detection = false
       end
