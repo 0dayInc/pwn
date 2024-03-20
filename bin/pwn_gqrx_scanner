@@ -242,6 +242,7 @@ def init_freq(opts = {})
   init_freq_hash = {
     demod_mode_n_passband: demod_n_passband,
     frequency: current_freq,
+    bandwidth: bandwidth,
     audio_gain_db: audio_gain_db,
     squelch: current_squelch,
     rf_gain: rf_gain,
@@ -251,8 +252,8 @@ def init_freq(opts = {})
     strength_trigger_lock_on_freq: strength_lock,
     lock_freq_duration: lock_freq_duration
   }
-  puts JSON.pretty_generate(init_freq_hash)
 
+  print '.'
   sleep lock_freq_duration if current_strength > strength_lock
 
   init_freq_hash
@@ -269,6 +270,19 @@ def scan_range(opts = {})
   strength_lock = opts[:strength_lock]
 
   multiplier = 10**(precision - 1)
+  prev_freq_hash = {
+    demod_mode_n_passband: demodulator_mode,
+    frequency: start_freq,
+    bandwidth: bandwidth,
+    audio_gain_db: 0.0,
+    squelch: 0.0,
+    rf_gain: 0.0,
+    if_gain: 0.0,
+    bb_gain: 0.0,
+    strength: 0.0,
+    strength_trigger_lock_on_freq: strength_lock,
+    lock_freq_duration: lock_freq_duration
+  }
   if start_freq > target_freq
     start_freq.downto(target_freq) do |this_freq|
       next unless (i % multiplier).zero?
@@ -281,6 +295,19 @@ def scan_range(opts = {})
         lock_freq_duration: lock_freq_duration,
         strength_lock: strength_lock
       )
+
+      current_strength = init_freq_hash[:strength]
+      prev_strength = prev_freq_hash[:strength]
+      prev_freq = prev_freq_hash[:frequency]
+
+      approaching_detection = true if current_strength > prev_strength
+      if approaching_detection && current_strength < prev_strength
+        puts "**** Found a signal at ~ #{prev_freq} Hz ****"
+        puts JSON.pretty_generate(prev_freq_hash)
+        approaching_detection = false
+      end
+
+      prev_freq_hash = init_freq_hash
     end
   else
     this_freq = start_freq
@@ -293,6 +320,19 @@ def scan_range(opts = {})
         lock_freq_duration: lock_freq_duration,
         strength_lock: strength_lock
       )
+
+      current_strength = init_freq_hash[:strength]
+      prev_strength = prev_freq_hash[:strength]
+      prev_freq = prev_freq_hash[:frequency]
+
+      approaching_detection = true if current_strength > prev_strength
+      if approaching_detection && current_strength < prev_strength
+        puts "\n**** Discovered a signal at #{prev_freq} Hz ****"
+        puts JSON.pretty_generate(prev_freq_hash)
+        approaching_detection = false
+      end
+
+      prev_freq_hash = init_freq_hash
 
       this_freq += multiplier
     end
@@ -323,7 +363,7 @@ begin
   demodulator_mode.upcase!
   raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
 
-  bandwidth = opts[:bandwidth] ||= '270.000'
+  bandwidth = opts[:bandwidth] ||= '200.000'
 
   puts "Setting demodulator mode to #{demodulator_mode} and bandwidth to #{bandwidth}..."
   bandwidth = bandwidth.to_s.delete('.').to_i unless bandwidth.nil?
@@ -341,7 +381,7 @@ begin
     resp_ok: 'RPRT 0'
   )
 
-  squelch = opts[:squelch] ||= -50.0
+  squelch = opts[:squelch] ||= -63.0
   squelch = squelch.to_f
   squelch_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
@@ -356,10 +396,10 @@ begin
   lock_freq_duration = opts[:lock_freq_duration] ||= 0.5
   lock_freq_duration = lock_freq_duration.to_f
 
-  strength_lock = opts[:strength_lock] ||= -45.0
+  strength_lock = opts[:strength_lock] ||= -60.0
   strength_lock = strength_lock.to_f
 
-  rf_gain = opts[:rf_gain] ||= 16.0
+  rf_gain = opts[:rf_gain] ||= 0.0
   rf_gain = rf_gain.to_f
   squelch_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
@@ -367,7 +407,7 @@ begin
     resp_ok: 'RPRT 0'
   )
 
-  intermediate_gain = opts[:intermediate_gain] ||= 40.0
+  intermediate_gain = opts[:intermediate_gain] ||= 32.0
   intermediate_gain = intermediate_gain.to_f
   squelch_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
@@ -385,11 +425,12 @@ begin
 
   s_freq_pretty = start_freq.to_s.chars.insert(-4, '.').insert(-8, '.').join
   t_freq_pretty = target_freq.to_s.chars.insert(-4, '.').insert(-8, '.').join
-  puts "*** Scanning from #{s_freq_pretty} to #{t_freq_pretty}"
+  puts "*** Scanning from #{s_freq_pretty} to #{t_freq_pretty}\n\n\n"
 
   scan_range(
     gqrx_sock: gqrx_sock,
     demodulator_mode: demodulator_mode,
+    bandwidth: bandwidth,
     start_freq: start_freq,
     target_freq: target_freq,
     precision: precision,
