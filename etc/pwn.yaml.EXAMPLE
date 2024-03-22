@@ -1,1 +1,3 @@
+# ai_engine: 'openai' || 'ollama'
+ai_engine: 'openai'
 open_ai_key: 'OPEN_AI_API_KEY'
