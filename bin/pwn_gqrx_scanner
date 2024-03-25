@@ -183,6 +183,14 @@ def gqrx_cmd(opts = {})
   # puts response.length
 
   response
+rescue RuntimeError => e
+  puts 'WARNING: RF Gain is not supported by the radio backend.' if e.message.include?('Command: L RF_GAIN')
+  puts 'WARNING: Intermediate Gain is not supported by the radio backend.' if e.message.include?('Command: L IF_GAIN')
+  puts 'WARNING: Baseband Gain is not supported by the radio backend.' if e.message.include?('Command: L BB_GAIN')
+
+  raise e unless e.message.include?('Command: L RF_GAIN') ||
+                 e.message.include?('Command: L IF_GAIN') ||
+                 e.message.include?('Command: L BB_GAIN')
 end
 
 def init_freq(opts = {})
@@ -403,7 +411,7 @@ begin
 
   rf_gain = opts[:rf_gain] ||= 0.0
   rf_gain = rf_gain.to_f
-  squelch_resp = gqrx_cmd(
+  rf_gain_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L RF_GAIN #{rf_gain}",
     resp_ok: 'RPRT 0'
@@ -411,7 +419,7 @@ begin
 
   intermediate_gain = opts[:intermediate_gain] ||= 32.0
   intermediate_gain = intermediate_gain.to_f
-  squelch_resp = gqrx_cmd(
+  intermediate_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L IF_GAIN #{intermediate_gain}",
     resp_ok: 'RPRT 0'
@@ -419,7 +427,7 @@ begin
 
   baseband_gain = opts[:baseband_gain] ||= 10.0
   baseband_gain = baseband_gain.to_f
-  squelch_resp = gqrx_cmd(
+  baseband_resp = gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L BB_GAIN #{baseband_gain}",
     resp_ok: 'RPRT 0'
