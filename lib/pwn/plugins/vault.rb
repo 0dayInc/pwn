@@ -9,13 +9,13 @@ module PWN
     # Used to encrypt/decrypt configuration files leveraging AES256
     module Vault
       # Supported Method Parameters::
-      # PWN::Plugins::Vault.change_encryption_secrets(
+      # PWN::Plugins::Vault.refresh_encryption_secrets(
       #   file: 'required - file to encrypt with new key and iv',
       #   key: 'required - key to decrypt',
       #   iv: 'required - iv to decrypt'
       # )
 
-      def self.change_encryption_secrets(opts = {})
+      def self.refresh_encryption_secrets(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
         key = opts[:key]
         iv = opts[:iv]
@@ -29,6 +29,8 @@ module PWN
         create(
           file: file
         )
+      rescue ArgumentError
+        raise 'ERROR: Incorrect Key or IV.'
       rescue StandardError => e
         raise e
       end
@@ -67,8 +69,13 @@ module PWN
 
       public_class_method def self.decrypt(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key')
-        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV')
+        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Key'
+        )
+
+        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'IV'
+        )
 
         is_encrypted = file_encrypted?(file: file)
         raise 'ERROR: File is not encrypted.' unless is_encrypted
@@ -83,7 +90,7 @@ module PWN
 
         File.write(file, plain_text)
       rescue ArgumentError
-        raise 'Invalid Key or IV.'
+        raise 'ERROR: Incorrect Key or IV.'
       rescue StandardError => e
         raise e
       end
@@ -98,8 +105,14 @@ module PWN
 
       def self.dump(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key]
-        iv = opts[:iv]
+        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Key'
+        )
+
+        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'IV'
+        )
+
         search = opts[:search]
 
         decrypt(
@@ -121,6 +134,8 @@ module PWN
         )
 
         file_dump
+      rescue ArgumentError
+        raise 'ERROR: Incorrect Key or IV.'
       rescue StandardError => e
         raise e
       end
@@ -134,8 +149,14 @@ module PWN
 
       def self.edit(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key]
-        iv = opts[:iv]
+        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Key'
+        )
+
+        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'IV'
+        )
+
         editor = opts[:editor] ||= '/usr/bin/vim'
 
         decrypt(
@@ -155,6 +176,8 @@ module PWN
           key: key,
           iv: iv
         )
+      rescue ArgumentError
+        raise 'ERROR: Incorrect Key or IV.'
       rescue StandardError => e
         raise e
       end
@@ -168,8 +191,13 @@ module PWN
 
       public_class_method def self.encrypt(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key')
-        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV')
+        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Key'
+        )
+
+        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'IV'
+        )
 
         cipher = OpenSSL::Cipher.new('aes-256-cbc')
         cipher.encrypt
@@ -214,7 +242,7 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.change_encryption_secrets(
+          #{self}.refresh_encryption_secrets(
             file: 'required - file to encrypt with new key and iv',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
