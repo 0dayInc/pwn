@@ -67,10 +67,8 @@ module PWN
 
       public_class_method def self.decrypt(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key]
-        iv = opts[:iv]
-
-        raise 'ERROR: key and iv parameters are required.' if key.nil? || iv.nil?
+        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key')
+        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV')
 
         is_encrypted = file_encrypted?(file: file)
         raise 'ERROR: File is not encrypted.' unless is_encrypted
@@ -84,6 +82,8 @@ module PWN
         plain_text = cipher.update(b64_decoded_file_contents) + cipher.final
 
         File.write(file, plain_text)
+      rescue ArgumentError
+        raise 'Invalid Key or IV.'
       rescue StandardError => e
         raise e
       end
@@ -168,10 +168,8 @@ module PWN
 
       public_class_method def self.encrypt(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
-        key = opts[:key]
-        iv = opts[:iv]
-
-        raise 'ERROR: key and iv parameters are required.' if key.nil? || iv.nil?
+        key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Key')
+        iv = opts[:iv] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'IV')
 
         cipher = OpenSSL::Cipher.new('aes-256-cbc')
         cipher.encrypt
