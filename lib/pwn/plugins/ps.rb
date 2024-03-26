@@ -47,6 +47,23 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::PS.cleanup_pids(
+      #   pids_arr: 'required - array of pids to kill'
+      # )
+      public_class_method def self.cleanup_pids(opts = {})
+        pids_arr = opts[:pids_arr]
+
+        pids_arr.each do |pid_line|
+          pid = pid_line[2].to_i
+          Process.kill('TERM', pid)
+        rescue Errno::ESRCH
+          next
+        end
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
@@ -60,6 +77,10 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           proc_list_arr = #{self}.list
+
+          #{self}.cleanup_pids(
+            pids_arr: 'required - array of pids to kill'
+          )
 
           #{self}.authors
         "
