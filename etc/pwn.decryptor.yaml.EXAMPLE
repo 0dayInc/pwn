@@ -1,0 +1,4 @@
+# If you rely upon this file, it should be out-of-band
+# (e.g. not available in code repos, permission protected, limited access, etc.) 
+key: 'KEY PROVIDED WHEN USING PWN::Plugins::Vault.create(file: "pwn.yaml") TO ENCRYPT pwn.yaml'
+iv: 'KEY PROVIDED WHEN USING PWN::Plugins::Vault.create(file: "pwn.yaml") TO ENCRYPT pwn.yaml'

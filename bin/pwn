@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'base64'
 require 'optparse'
 require 'pwn'
 require 'pry'
@@ -13,12 +14,31 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-cPATH', '--yaml-config=PATH', '<Optional - OpenAI YAML File>') do |p|
+  options.on('-cPATH', '--yaml-config=PATH', '<Optional - PWN YAML File>') do |p|
     opts[:yaml_config_path] = p
+  end
+
+  options.on('-dPATH', '--decryptor=PATH', '<Optional - File Containing Decryption Key && IV>') do |d|
+    opts[:decryption_file] = d
+  end
+
+  options.on('-kKEY', '--decryption-key=KEY', '<Optional - Decryption Key>') do |k|
+    opts[:key] = k
+  end
+
+  options.on('-iIV', '--decryption-iv=PATH', '<Optional - Decryption IV>') do |i|
+    opts[:iv] = i
   end
 end.parse!
 
 begin
+  def yaml_config_encrypted?(opts = {})
+    config = opts[:config]
+
+    config_contents = File.read(config)
+    config_contents.is_a?(String) && Base64.strict_encode64(Base64.decode64(config_contents)) == config_contents
+  end
+
   def cleanup_pids(opts = {})
     pids_arr = opts[:pids_arr]
 
@@ -288,7 +308,25 @@ begin
   Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
     if opts[:yaml_config_path] && File.exist?(opts[:yaml_config_path])
       yaml_config_path = opts[:yaml_config_path]
-      yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
+      is_encrypted = yaml_config_encrypted?(config: yaml_config_path)
+
+      if is_encrypted
+        # TODO: Implement "something you know, something you have, && something you are?"
+        decryption_file = opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
+        yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true) if File.exist?(decryption_file)
+        key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
+        iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
+
+        encrypted_config_dump = PWN::Plugins::Vault.dump(
+          file: yaml_config_path,
+          key: key,
+          iv: iv
+        )
+        yaml_config = YAML.load(encrypted_config_dump, symbolize_names: true)
+      else
+        yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
+      end
+
       pi.config.pwn_ai_key = yaml_config[:ai_key]
       Pry.config.pwn_ai_key = pi.config.pwn_ai_key
     end

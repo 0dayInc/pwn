@@ -9,6 +9,31 @@ module PWN
     # Used to encrypt/decrypt configuration files leveraging AES256
     module Vault
       # Supported Method Parameters::
+      # PWN::Plugins::Vault.change_encryption_secrets(
+      #   file: 'required - file to encrypt with new key and iv',
+      #   key: 'required - key to decrypt',
+      #   iv: 'required - iv to decrypt'
+      # )
+
+      def self.change_encryption_secrets(opts = {})
+        file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
+        key = opts[:key]
+        iv = opts[:iv]
+
+        decrypt(
+          file: file,
+          key: key,
+          iv: iv
+        )
+
+        create(
+          file: file
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::Vault.create(
       #   file: 'required - encrypted file to create'
       # )
@@ -35,7 +60,7 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::Vault.decrypt(
-      #   file: 'required - file to encrypt',
+      #   file: 'required - file to decrypt',
       #   key: 'required - key to decrypt',
       #   iv: 'required - iv to decrypt'
       # )
@@ -62,15 +87,17 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::Vault.dump(
-      #   file: 'required - file to encrypt',
+      #   file: 'required - file to dump',
       #   key: 'required - key to decrypt',
-      #   iv: 'required - iv to decrypt'
+      #   iv: 'required - iv to decrypt',
+      #   search: 'optional - search for a specific string'
       # )
 
       def self.dump(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
         key = opts[:key]
         iv = opts[:iv]
+        search = opts[:search]
 
         decrypt(
           file: file,
@@ -78,20 +105,26 @@ module PWN
           iv: iv
         )
 
-        puts File.read(file)
+        if search
+          file_dump =  File.readlines(file).grep(/#{search}/)
+        else
+          file_dump =  File.read(file)
+        end
 
         encrypt(
           file: file,
           key: key,
           iv: iv
         )
+
+        file_dump
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # PWN::Plugins::Vault.edit(
-      #   file: 'required - file to encrypt',
+      #   file: 'required - file to edit',
       #   key: 'required - key to decrypt',
       #   iv: 'required - iv to decrypt'
       # )
@@ -163,24 +196,31 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          #{self}.change_encryption_secrets(
+            file: 'required - file to encrypt with new key and iv',
+            key: 'required - key to decrypt',
+            iv: 'required - iv to decrypt'
+          )
+
           #{self}.create(
             file: 'required - file to encrypt'
           )
 
           #{self}.decrypt(
-            file: 'required - file to encrypt',
+            file: 'required - file to decrypt',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
           )
 
           #{self}.dump(
-            file: 'required - file to encrypt',
+            file: 'required - file to dump',
             key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt'
+            iv: 'required - iv to decrypt',
+        #   search: 'optional - search for a specific string'
           )
 
           #{self}.edit(
-            file: 'required - file to encrypt',
+            file: 'required - file to edit',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
           )
