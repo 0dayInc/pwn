@@ -312,12 +312,10 @@ begin
 
       if is_encrypted
         # TODO: Implement "something you know, something you have, && something you are?"
-        decryption_file = opts[:decryption_file] ||= "#{ENV.fetch('HOME')}/pwn.decryptor.yaml"
-        raise "ERROR: Decryption file not found at #{decryption_file}" unless File.exist?(decryption_file)
-
-        yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true)
-        key = opts[:key] ||= yaml_decryptor[:key]
-        iv = opts[:iv] ||= yaml_decryptor[:iv]
+        decryption_file = opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
+        yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true) if File.exist?(decryption_file)
+        key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
+        iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
 
         encrypted_config_dump = PWN::Plugins::Vault.dump(
           file: yaml_config_path,
