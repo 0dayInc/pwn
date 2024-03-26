@@ -251,7 +251,6 @@ module PWN
                 token: ai_key,
                 model: model,
                 request: request.chomp,
-                temp: 1,
                 response_history: response_history,
                 speak_answer: speak_answer
               )
@@ -259,7 +258,6 @@ module PWN
               response = PWN::Plugins::OpenAI.chat(
                 token: ai_key,
                 request: request.chomp,
-                temp: 1,
                 response_history: response_history,
                 speak_answer: speak_answer
               )

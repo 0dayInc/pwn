@@ -139,10 +139,10 @@ module PWN
         request = opts[:request]
 
         model = opts[:model]
-        model ||= 'llama2:latest'
+        raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
 
         temp = opts[:temp].to_f
-        temp = 0 unless temp.positive?
+        temp = 1 if temp.zero?
 
         rest_call = 'ollama/v1/chat/completions'
 
