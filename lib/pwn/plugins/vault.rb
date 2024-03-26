@@ -184,6 +184,21 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::Vault.file_encrypted?(
+      #   file: 'required - file to check if encrypted'
+      # )
+      public_class_method def self.file_encrypted?(opts = {})
+        file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
+
+        raise 'ERROR: File does not exist.' unless File.exist?(file)
+
+        file_contents = File.read(file)
+        file_contents.is_a?(String) && Base64.strict_encode64(Base64.strict_decode64(file_contents)) == file_contents
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
 
       public_class_method def self.authors
@@ -229,6 +244,10 @@ module PWN
             file: 'required - file to encrypt',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
+          )
+
+          #{self}.file_encrypted?(
+            file: 'required - file to check if encrypted'
           )
 
           #{self}.authors
