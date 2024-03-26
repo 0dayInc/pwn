@@ -1,4 +1,11 @@
 # Use PWN::Plugins::Vault.create(file: 'pwn.yaml') to encrypt this file
 # ai_engine: 'openai' || 'ollama'
 ai_engine: 'openai'
-ai_key: 'OPEN AI OR OLLAMA API KEY'
+
+openai:
+  key: 'OpenAI API Key'
+
+ollama:
+  fqdn: 'FQDN for Open WebUI - e.g. https://ollama.local'
+  key: 'Open WebUI API Key Under Settings  >> Account >> JWT Token'
+  model: 'Ollama model to use'

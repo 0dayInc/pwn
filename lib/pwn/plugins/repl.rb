@@ -180,7 +180,19 @@ module PWN
               yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
             end
 
-            pi.config.pwn_ai_key = yaml_config[:ai_key]
+            ai_engine = yaml_config[:ai_engine].to_s.to_sym
+            pi.config.pwn_ai_engine = ai_engine
+            case ai_engine
+            when :openai
+              pi.config.pwn_ai_key = yaml_config[:openai][:key]
+            when :ollama
+              pi.config.pwn_ai_key = yaml_config[:ollama][:key]
+              Pry.config.pwn_ai_fqdn = yaml_config[:ollama][:fqdn]
+              Pry.config.pwn_ai_model = yaml_config[:ollama][:model]
+            else
+              raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}"
+            end
+
             Pry.config.pwn_ai_key = pi.config.pwn_ai_key
           end
         end
@@ -217,24 +229,42 @@ module PWN
           if pi.config.pwn_ai && !request.chomp.empty?
             request = pi.input.line_buffer.to_s
             debug = pi.config.pwn_ai_debug
+            ai_engine = pi.config.pwn_ai_engine.to_s.to_sym
             ai_key = pi.config.pwn_ai_key
             ai_key ||= ''
             if ai_key.empty?
               ai_key = PWN::Plugins::AuthenticationHelper.mask_password(
-                prompt: 'OpenAI API Key'
+                prompt: 'pwn-ai Key'
               )
               pi.config.pwn_ai_key = ai_key
             end
 
             response_history = pi.config.pwn_ai_response_history
             speak_answer = pi.config.pwn_ai_speak
-            response = PWN::Plugins::OpenAI.chat(
-              token: ai_key,
-              request: request.chomp,
-              temp: 1,
-              response_history: response_history,
-              speak_answer: speak_answer
-            )
+            case ai_engine
+            when :ollama
+              fqdn = pi.config.pwn_ai_fqdn
+              model = pi.config.pwn_ai_model
+
+              response = PWN::Plugins::Ollama.chat(
+                fqdn: fqdn,
+                token: ai_key,
+                model: model,
+                request: request.chomp,
+                response_history: response_history,
+                speak_answer: speak_answer
+              )
+            when :openai
+              response = PWN::Plugins::OpenAI.chat(
+                token: ai_key,
+                request: request.chomp,
+                response_history: response_history,
+                speak_answer: speak_answer
+              )
+            else
+              raise "ERROR: Unsupported AI Engine: #{ai_engine}"
+            end
+
             last_response = response[:choices].last[:content]
             puts "\n\001\e[32m\002#{last_response}\001\e[0m\002\n\n"
 

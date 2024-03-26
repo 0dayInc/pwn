@@ -80,7 +80,7 @@ module PWN
         cipher.key = Base64.strict_decode64(key)
         cipher.iv = Base64.strict_decode64(iv)
 
-        b64_decoded_file_contents = Base64.strict_decode64(File.read(file))
+        b64_decoded_file_contents = Base64.strict_decode64(File.read(file).chomp)
         plain_text = cipher.update(b64_decoded_file_contents) + cipher.final
 
         File.write(file, plain_text)
@@ -182,7 +182,7 @@ module PWN
         encrypted = cipher.update(data) + cipher.final
         encrypted_string = Base64.strict_encode64(encrypted)
 
-        File.write(file, encrypted_string)
+        File.write(file, "#{encrypted_string}\n")
       rescue StandardError => e
         raise e
       end
@@ -196,7 +196,7 @@ module PWN
 
         raise 'ERROR: File does not exist.' unless File.exist?(file)
 
-        file_contents = File.read(file)
+        file_contents = File.read(file).chomp
         file_contents.is_a?(String) && Base64.strict_encode64(Base64.strict_decode64(file_contents)) == file_contents
       rescue ArgumentError
         false
