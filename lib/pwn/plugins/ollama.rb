@@ -101,36 +101,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::Ollama.get_key(
-      #   fqdn: 'required - base URI for the Ollama API',
-      #   user: 'required - ollama user',
-      #   pass: 'required - ollama password',
-      # )
-
-      public_class_method def self.get_key(opts = {})
-        fqdn = opts[:fqdn]
-        user = opts[:user]
-        pass = opts[:pass]
-
-        http_body = {
-          email: user,
-          password: pass
-        }
-
-        response = ollama_rest_call(
-          fqdn: fqdn,
-          http_method: :post,
-          rest_call: 'api/v1/auths/signin',
-          http_body: http_body
-        )
-
-        json_resp = JSON.parse(response, symbolize_names: true)
-        json_resp[:token]
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
       # response = PWN::Plugins::Ollama.get_models(
       #   token: 'required - Bearer token',
       #   timeout: 'optional timeout in seconds (defaults to 300)'

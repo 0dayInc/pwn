@@ -186,17 +186,9 @@ module PWN
             when :openai
               pi.config.pwn_ai_key = yaml_config[:openai][:key]
             when :ollama
-              ollama_fqdn = yaml_config[:ollama][:fqdn]
-              Pry.config.pwn_ai_fqdn = ollama_fqdn
-
-              ollama_user = yaml_config[:ollama][:user]
-              ollama_pass = yaml_config[:ollama][:pass]
-              ollama_ai_key = PWN::Plugins::Ollama.get_key(
-                fqdn: ollama_fqdn,
-                user: ollama_user,
-                pass: ollama_pass
-              )
-              pi.config.pwn_ai_key = ollama_ai_key
+              pi.config.pwn_ai_key = yaml_config[:ollama][:key]
+              Pry.config.pwn_ai_fqdn = yaml_config[:ollama][:fqdn]
+              Pry.config.pwn_ai_model = yaml_config[:ollama][:model]
             else
               raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}"
             end
@@ -252,9 +244,12 @@ module PWN
             case ai_engine
             when :ollama
               fqdn = pi.config.pwn_ai_fqdn
+              model = pi.config.pwn_ai_model
+
               response = PWN::Plugins::Ollama.chat(
                 fqdn: fqdn,
                 token: ai_key,
+                model: model,
                 request: request.chomp,
                 temp: 1,
                 response_history: response_history,

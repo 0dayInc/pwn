@@ -3,10 +3,9 @@
 ai_engine: 'openai'
 
 openai:
-  key: 'OPENAI API KEY'
+  key: 'OpenAI API Key'
 
 ollama:
   fqdn: 'FQDN for Open WebUI - e.g. https://ollama.local'
-  user: 'Open WebUI username'
-  pass: 'Open WebUI password'
+  key: 'Open WebUI API Key Under Settings  >> Account >> JWT Token'
   model: 'Ollama model to use'
