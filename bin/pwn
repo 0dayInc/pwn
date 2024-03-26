@@ -314,8 +314,12 @@ begin
         # TODO: Implement "something you know, something you have, && something you are?"
         decryption_file = opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
         yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true) if File.exist?(decryption_file)
+
         key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
+        key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
+
         iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
+        iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
 
         encrypted_config_dump = PWN::Plugins::Vault.dump(
           file: yaml_config_path,
