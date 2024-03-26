@@ -72,6 +72,9 @@ module PWN
 
         raise 'ERROR: key and iv parameters are required.' if key.nil? || iv.nil?
 
+        is_encrypted = file_encrypted?(file: file)
+        raise 'ERROR: File is not encrypted.' unless is_encrypted
+
         cipher = OpenSSL::Cipher.new('aes-256-cbc')
         cipher.decrypt
         cipher.key = Base64.strict_decode64(key)
@@ -195,6 +198,8 @@ module PWN
 
         file_contents = File.read(file)
         file_contents.is_a?(String) && Base64.strict_encode64(Base64.strict_decode64(file_contents)) == file_contents
+      rescue ArgumentError
+        false
       rescue StandardError => e
         raise e
       end
