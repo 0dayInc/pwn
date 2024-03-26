@@ -51,7 +51,7 @@ module PWN
                 # @eval_string += "#{line.chomp}\n" if !line.empty? || !@eval_string.empty?
                 @eval_string += "#{line.chomp}\n"
               end
-            rescue RescuableException => e
+            rescue Pry::RescuableException => e
               self.last_exception = e
               result = e
 
@@ -105,11 +105,11 @@ module PWN
 
                 result = eval_string if config.pwn_ai ||
                                         config.pwn_asm
-              rescue RescuableException, *jruby_exceptions => e
+              rescue Pry::RescuableException, *jruby_exceptions => e
                 # Eliminate following warning:
                 # warning: singleton on non-persistent Java type X
                 # (http://wiki.jruby.org/Persistence)
-                e.class.__persistent__ = true if Helpers::Platform.jruby? && e.class.respond_to?('__persistent__')
+                e.class.__persistent__ = true if Pry::Helpers::Platform.jruby? && e.class.respond_to?('__persistent__')
                 self.last_exception = e
                 result = e
               end
