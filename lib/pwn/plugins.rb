@@ -6,7 +6,6 @@ module PWN
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module Plugins
     autoload :Android, 'pwn/plugins/android'
-    autoload :AnsibleVault, 'pwn/plugins/ansible_vault'
     autoload :Assembly, 'pwn/plugins/assembly'
     autoload :AuthenticationHelper, 'pwn/plugins/authentication_helper'
     autoload :BareSIP, 'pwn/plugins/baresip'
@@ -44,6 +43,7 @@ module PWN
     autoload :NmapIt, 'pwn/plugins/nmap_it'
     autoload :OAuth2, 'pwn/plugins/oauth2'
     autoload :OCR, 'pwn/plugins/ocr'
+    autoload :Ollama, 'pwn/plugins/ollama'
     autoload :OpenAI, 'pwn/plugins/open_ai'
     autoload :OpenVAS, 'pwn/plugins/openvas'
     autoload :OwaspZap, 'pwn/plugins/owasp_zap'
@@ -66,6 +66,7 @@ module PWN
     autoload :TransparentBrowser, 'pwn/plugins/transparent_browser'
     autoload :TwitterAPI, 'pwn/plugins/twitter_api'
     autoload :URIScheme, 'pwn/plugins/uri_scheme'
+    autoload :Vault, 'pwn/plugins/vault'
     autoload :Voice, 'pwn/plugins/voice'
     autoload :Vsphere, 'pwn/plugins/vsphere'
     autoload :XXD, 'pwn/plugins/xxd'
