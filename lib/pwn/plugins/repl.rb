@@ -38,8 +38,13 @@ module PWN
           end
 
           if pi.config.pwn_ai
-            pi.config.prompt_name = 'pwn.ai'
-            pi.config.prompt_name = 'pwn.ai.SPEAKING' if pi.config.pwn_ai_speak
+            ai_engine = pi.config.pwn_ai_engine
+            model = pi.config.pwn_ai_model
+            pname = "pwn.ai:#{ai_engine}"
+            pname = "pwn.ai:#{ai_engine}/#{model}" if model
+            pname = "pwn.ai:#{ai_engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
+            pi.config.prompt_name = pname
+
             name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
             dchars = "\001\e[32m\002>>>\001\e[33m\002"
             dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
@@ -180,20 +185,27 @@ module PWN
               yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
             end
 
+            valid_ai_engines = %i[
+              openai
+              ollama
+            ]
             ai_engine = yaml_config[:ai_engine].to_s.to_sym
-            pi.config.pwn_ai_engine = ai_engine
-            case ai_engine
-            when :openai
-              pi.config.pwn_ai_key = yaml_config[:openai][:key]
-            when :ollama
-              pi.config.pwn_ai_key = yaml_config[:ollama][:key]
-              Pry.config.pwn_ai_fqdn = yaml_config[:ollama][:fqdn]
-              Pry.config.pwn_ai_model = yaml_config[:ollama][:model]
-            else
-              raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}"
-            end
 
-            Pry.config.pwn_ai_key = pi.config.pwn_ai_key
+            raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}" unless valid_ai_engines.include?(ai_engine)
+
+            pi.config.pwn_ai_engine = ai_engine
+            Pry.config.pwn_ai_engine = ai_engine
+
+            pi.config.pwn_ai_fqdn = yaml_config[ai_engine][:fqdn]
+            Pry.config.pwn_ai_fqdn = yaml_config[ai_engine][:fqdn]
+
+            pi.config.pwn_ai_key = yaml_config[ai_engine][:key]
+            Pry.config.pwn_ai_key = yaml_config[ai_engine][:key]
+
+            pi.config.pwn_ai_model = yaml_config[ai_engine][:model]
+            Pry.config.pwn_ai_model = yaml_config[ai_engine][:model]
+
+            true
           end
         end
 
@@ -241,10 +253,11 @@ module PWN
 
             response_history = pi.config.pwn_ai_response_history
             speak_answer = pi.config.pwn_ai_speak
+            model = pi.config.pwn_ai_model
+
             case ai_engine
             when :ollama
               fqdn = pi.config.pwn_ai_fqdn
-              model = pi.config.pwn_ai_model
 
               response = PWN::Plugins::Ollama.chat(
                 fqdn: fqdn,
