@@ -473,7 +473,7 @@ module PWN
 
         valid_group_by = %w[
           component_name
-          component_name+compoent_version
+          component_name+component_version
           file_path
           finding_title
         ]
