@@ -38,6 +38,10 @@ OptionParser.new do |options|
     opts[:file] = f
   end
 
+  options.on('-TNAME', '--test-title=NAME', '<Optional - name of test to associate w/ scan type (Defaults to --scan-type value>') do |t|
+    opts[:test_title] = t
+  end
+
   options.on('-lUSER', '--lead-username=USER', '<Optional - username of lead to tie to engagement (Defaults to username)>') do |l|
     opts[:lead_username] = l
   end
@@ -56,6 +60,10 @@ OptionParser.new do |options|
 
   options.on('-v', '--[no-]verified', '<Optional - flag finding as verified by a tester (defaults to false)') do |v|
     opts[:verified] = v
+  end
+
+  options.on('-G', '--group-by', '<Optional - group findings by "component_name" || "component_name+component_version" || "file_path" || "finding_title" (defaults to nil)') do |g|
+    opts[:group_by] = g
   end
 
   options.on('-g', '--create-finding-groups', '<Optional - group similar findings into one finding (defaults to false)') do |g|
@@ -91,10 +99,12 @@ engagement_name = opts[:engagement_name]
 scan_type = opts[:scan_type]
 file = opts[:file]
 opts[:lead_username] ? (lead_username = opts[:lead_username]) : (lead_username = username)
+test_title = opts[:test_title]
 tags = opts[:tags]
 minimum_severity = opts[:minimum_severity]
 scan_date = opts[:scan_date]
 verified = opts[:verified]
+group_by = opts[:group_by]
 create_findings_groups = opts[:create_finding_groups]
 close_old_findings_product_scope = opts[:close_old_findings_product_scope]
 close_old_findings = opts[:close_old_findings]
@@ -113,11 +123,13 @@ begin
     engagement_name: engagement_name,
     scan_type: scan_type,
     file: file,
+    test_title: test_title,
     lead_username: lead_username,
     tags: tags,
     minimum_severity: minimum_severity,
     scan_date: scan_date,
     verified: verified,
+    group_by: group_by,
     create_findings_groups: create_findings_groups,
     close_old_findings_product_scope: close_old_findings_product_scope,
     close_old_findings: close_old_findings,
