@@ -432,6 +432,8 @@ module PWN
         http_body[:multipart] = true
         http_body[:file] = File.new(opts[:file].to_s.strip.chomp.scrub, 'rb') if File.exist?(opts[:file].to_s.strip.chomp.scrub)
 
+        http_body[:test_title] = opts[:test_title]
+
         # Ok lets determine the resource_uri for the lead username
         lead_username = opts[:lead_username].to_s.strip.chomp.scrub
         user_list = self.user_list(dd_obj: dd_obj)
@@ -468,6 +470,19 @@ module PWN
 
         # Defaults to false
         opts[:verified] ? (http_body[:verified] = true) : (http_body[:verified] = false)
+
+        valid_group_by = %w[
+          component_name
+          component_name+compoent_version
+          file_path
+          finding_title
+        ]
+
+        group_by = opts[:group_by]
+        # If group_by is set, ensure we have a valid group_by value
+        raise "ERROR: Invalid group_by value: #{group_by}.  Options are 'product' or 'engagement'" unless valid_group_by.include?(group_by) || group_by.nil?
+
+        http_body[:group_by] = group_by if group_by
 
         opts[:create_finding_groups] ? (http_body[:create_finding_groups_for_all_findings] = true) : (http_body[:create_finding_groups_for_all_findings] = false)
 
