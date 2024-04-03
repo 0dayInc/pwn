@@ -62,7 +62,7 @@ OptionParser.new do |options|
     opts[:verified] = v
   end
 
-  options.on('-G', '--group-by', '<Optional - group findings by "component_name" || "component_name+component_version" || "file_path" || "finding_title" (defaults to nil)') do |g|
+  options.on('-GVALUE', '--group-by=VALUE', '<Optional - group findings by "component_name" || "component_name+component_version" || "file_path" || "finding_title" (defaults to nil)') do |g|
     opts[:group_by] = g
   end
 
