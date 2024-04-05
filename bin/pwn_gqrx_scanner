@@ -11,7 +11,15 @@ OptionParser.new do |options|
     #{$PROGRAM_NAME} [opts]
   "
 
-  options.on('-tFREQ', '--target-freq=FREQ', '<Required - Frequency to Conclude Scanning (e.g. 900000000 == 900 mHz>') do |e|
+  options.on('-aPROFILE', '--assume-profile=PROFILE', '<Required if "--target-freq" is Nil - Profile to assume for common radio protocols.  Use "--list-profiles" to display supported protocols (Defaults to nil)') do |p|
+    opts[:profile] = p
+  end
+
+  options.on('-l', '--list-profiles', '<Optional - List supported profiles and exit>') do |l|
+    opts[:list_profiles] = l
+  end
+
+  options.on('-tFREQ', '--target-freq=FREQ', '<Required if "--assume-profile" is Nil - Frequency to Conclude Scanning (e.g. 900.000.000 == 900 mHz>') do |e|
     opts[:target_freq] = e
   end
 
@@ -35,7 +43,7 @@ OptionParser.new do |options|
     opts[:bandwidth] = b
   end
 
-  options.on('-DMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator ModeOFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB |USB | CW | CWL | CWU (Defaults to WFM_ST)>') do |d|
+  options.on('-DMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator Mode OFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB | USB | CW | CWL | CWU (Defaults to WFM_ST)>') do |d|
     opts[:demodulator_mode] = d
   end
 
@@ -77,10 +85,19 @@ begin
   pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
 
+  list_profiles = opts[:list_profiles]
+  if list_profiles
+    pp PWN::Plugins::GQRX.list_profiles
+    exit 0
+  end
+
+  profile = opts[:profile]
+  opts = PWN::Plugins::GQRX.assume_profile(profile: profile) unless profile.nil?
+
   target_freq = opts[:target_freq]
   target_freq = target_freq.to_s.delete('.') unless target_freq.nil?
   target_freq = target_freq.to_i
-  raise "ERROR: Invalid target frequency #{target_freq}" if target_freq.zero?
+  raise 'ERROR: --assume-profile || --target-freq is required.' if target_freq.zero? && profile.nil?
 
   host = opts[:host]
   port = opts[:port]
@@ -178,5 +195,5 @@ rescue StandardError => e
 rescue Interrupt, SystemExit
   puts "\nGoodbye."
 ensure
-  gqrx_sock = PWN::Plugins::GQRX.disconnect(gqrx_sock: gqrx_sock)
+  gqrx_sock = PWN::Plugins::GQRX.disconnect(gqrx_sock: gqrx_sock) unless gqrx_sock.nil?
 end
