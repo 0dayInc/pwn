@@ -23,7 +23,7 @@ module PWN
       # Supported Method Parameters::
       # gqrx_resp = PWN::Plugins::GQRX.gqrx_cmd(
       #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
-      #   cmd: 'required - GQRX command to execute'
+      #   cmd: 'required - GQRX command to execute',
       #   resp_ok: 'optional - Expected response from GQRX to indicate success'
       # )
 
@@ -329,6 +329,212 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # profiles = PWN::Plugins::GQRX.list_profiles
+      public_class_method def self.list_profiles
+        {
+          ads_b: 'ADS-B, 978mhz to 1090mhz, AM, 4.6mhz bandwidth',
+          analogue_tv: 'Analogue TV, 55.25mhz to 801.25mhz, WFM, 6mhz bandwidth',
+          am_radio: 'AM Radio, 540khz to 1600khz, AM, 6khz bandwidth',
+          bluetooth: 'Bluetooth, 2.4ghz to 2.5ghz, AM, 1mhz bandwidth',
+          cdma: 'CDMA, 824mhz to 849mhz, AM, 1.25mhz bandwidth',
+          cw20: 'CW 20m, 14mhz to 14.35mhz, CW, 150hz bandwidth',
+          cw40: 'CW 40m, 7mhz to 7.3mhz, CW, 150hz bandwidth',
+          cw80: 'CW 80m, 3.5mhz to 3.8mhz, CW, 150hz bandwidth',
+          gps: 'GPS, 1.57542ghz to 1.57545ghz, WFM, 9.6mhz bandwidth',
+          gsm: 'GSM, 935mhz to 960mhz, AM, 200khz bandwidth',
+          fm_radio: 'FM Radio, 88mhz to 108mhz, WFM, 200khz bandwidth',
+          lora433: 'LoRa 433mhz, 433mhz, AM, 125khz bandwidth',
+          lora915: 'LoRa 915mhz, 915mhz, AM, 125khz bandwidth',
+          lowrfid: 'Low RFID, 125khz, AM, 200khz bandwidth',
+          nfcrfid: 'NFC RFID, 13.56mhz, AM, 1mhz bandwidth',
+          radio_fob: 'Radio FOB, 315mhz, AM',
+          rtty20: 'RTTY 20m, 14mhz to 14.35mhz, RTTY, 170hz bandwidth',
+          rtty40: 'RTTY 40m, 7mhz to 7.3mhz, RTTY, 170hz bandwidth',
+          rtty80: 'RTTY 80m, 3.5mhz to 3.8mhz, RTTY, 170hz bandwidth',
+          ssb10: 'SSB 10m, 28mhz to 29.7mhz, USB, 2.7khz bandwidth',
+          ssb12: 'SSB 12m, 24.89mhz to 24.99mhz, USB, 2.7khz bandwidth',
+          ssb15: 'SSB 15m, 21mhz to 21.45mhz, USB, 2.7khz bandwidth',
+          ssb17: 'SSB 17m, 18.068mhz to 18.168mhz, USB, 2.7khz bandwidth',
+          ssb20: 'SSB 20m, 14mhz to 14.35mhz, USB, 2.7khz bandwidth',
+          ssb40: 'SSB 40m, 7mhz to 7.3mhz, LSB, 2.7khz bandwidth',
+          ssb80: 'SSB 80m, 3.5mhz to 3.8mhz, LSB, 2.7khz bandwidth',
+          ssb160: 'SSB 160m, 1.8mhz to 2mhz, LSB, 2.7khz bandwidth',
+          tempest: 'Tempest, 400mhz to 430mhz, AM, 200khz bandwidth',
+          wifi24: 'WiFi 2.4ghz, 2.4ghz to 2.5ghz, AM, 20mhz bandwidth',
+          zigbee: 'Zigbee, 2.405ghz to 2.485ghz, AM, 2mhz bandwidth'
+        }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # opts = PWN::Plugins::GQRX.assume_profile(
+      #   profile: 'required - valid GQRX profile name returned from #list_profiles method'
+      # )
+      public_class_method def self.assume_profile(opts = {})
+        profile = opts[:profile].to_s.to_sym
+
+        opts = {}
+        case profile
+        when :ads_b
+          opts[:start_freq] = '978.000.000'
+          opts[:target_freq] = '1.090.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '4.600.000'
+        when :analogue_tv
+          opts[:start_freq] = '55.250.000'
+          opts[:target_freq] = '801.250.000'
+          opts[:demodulator_mode] = 'WFM'
+          opts[:bandwidth] = '6.000'
+        when :am_radio
+          opts[:start_freq] = '540.000'
+          opts[:target_freq] = '1.600.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '6.000'
+        when :bluetooth
+          opts[:start_freq] = '2.400.000.000'
+          opts[:target_freq] = '2.500.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '1.000.000'
+        when :cdma
+          opts[:start_freq] = '824.000.000'
+          opts[:target_freq] = '849.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '1.250.000'
+        when :cw20
+          opts[:start_freq] = '14.000.000'
+          opts[:target_freq] = '14.350.000'
+          opts[:demodulator_mode] = 'CW'
+          opts[:bandwidth] = '150'
+        when :cw40
+          opts[:start_freq] = '7.000.000'
+          opts[:target_freq] = '7.300.000'
+          opts[:demodulator_mode] = 'CW'
+          opts[:bandwidth] = '150'
+        when :cw80
+          opts[:start_freq] = '3.500.000'
+          opts[:target_freq] = '3.800.000'
+          opts[:demodulator_mode] = 'CW'
+          opts[:bandwidth] = '150'
+        when :gps
+          opts[:start_freq] = '1.575.420.000'
+          opts[:target_freq] = '1.575.450.000'
+          opts[:demodulator_mode] = 'WFM'
+          opts[:bandwidth] = '9.600.000'
+        when :gsm
+          opts[:start_freq] = '935.000.000'
+          opts[:target_freq] = '960.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '200.000'
+        when :fm_radio
+          opts[:start_freq] = '88.000.000'
+          opts[:target_freq] = '108.000.000'
+          opts[:demodulator_mode] = 'WFM'
+          opts[:bandwidth] = '200.000'
+        when :lora433
+          opts[:start_freq] = '433.000.000'
+          opts[:target_freq] = '433.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '125.000'
+        when :lora915
+          opts[:start_freq] = '915.000.000'
+          opts[:target_freq] = '915.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '125.000'
+        when :lowrfid
+          opts[:start_freq] = '125.000'
+          opts[:target_freq] = '125.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '200.000'
+        when :nfcrfid
+          opts[:start_freq] = '13.560.000'
+          opts[:target_freq] = '13.560.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '1.000.000'
+        when :radio_fob
+          opts[:start_freq] = '315.000.000'
+          opts[:target_freq] = '315.000.000'
+          opts[:demodulator_mode] = 'AM'
+        when :rtty20
+          opts[:start_freq] = '14.000.000'
+          opts[:target_freq] = '14.350.000'
+          opts[:demodulator_mode] = 'RTTY'
+          opts[:bandwidth] = '170'
+        when :rtty40
+          opts[:start_freq] = '7.000.000'
+          opts[:target_freq] = '7.300.000'
+          opts[:demodulator_mode] = 'RTTY'
+          opts[:bandwidth] = '170'
+        when :rtty80
+          opts[:start_freq] = '3.500.000'
+          opts[:target_freq] = '3.800.000'
+          opts[:demodulator_mode] = 'RTTY'
+          opts[:bandwidth] = '170'
+        when :ssb10
+          opts[:start_freq] = '28.000.000'
+          opts[:target_freq] = '29.700.000'
+          opts[:demodulator_mode] = 'USB'
+          opts[:bandwidth] = '2.700'
+        when :ssb12
+          opts[:start_freq] = '24.890.000'
+          opts[:target_freq] = '24.990.000'
+          opts[:demodulator_mode] = 'USB'
+          opts[:bandwidth] = '2.700'
+        when :ssb15
+          opts[:start_freq] = '21.000.000'
+          opts[:target_freq] = '21.450.000'
+          opts[:demodulator_mode] = 'USB'
+          opts[:bandwidth] = '2.700'
+        when :ssb17
+          opts[:start_freq] = '18.068.000'
+          opts[:target_freq] = '18.168.000'
+          opts[:demodulator_mode] = 'USB'
+          opts[:bandwidth] = '2.700'
+        when :ssb20
+          opts[:start_freq] = '14.000.000'
+          opts[:target_freq] = '14.350.000'
+          opts[:demodulator_mode] = 'USB'
+          opts[:bandwidth] = '2.700'
+        when :ssb40
+          opts[:start_freq] = '7.000.000'
+          opts[:target_freq] = '7.300.000'
+          opts[:demodulator_mode] = 'LSB'
+          opts[:bandwidth] = '2.700'
+        when :ssb80
+          opts[:start_freq] = '3.500.000'
+          opts[:target_freq] = '3.800.000'
+          opts[:demodulator_mode] = 'LSB'
+          opts[:bandwidth] = '2.700'
+        when :ssb160
+          opts[:start_freq] = '1.800.000'
+          opts[:target_freq] = '2.000.000'
+          opts[:demodulator_mode] = 'LSB'
+          opts[:bandwidth] = '2.700'
+        when :tempest
+          opts[:start_freq] = '400.000.000'
+          opts[:target_freq] = '430.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '200.000'
+        when :wifi24
+          opts[:start_freq] = '2.400.000.000'
+          opts[:target_freq] = '2.500.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '20.000.000'
+        when :zigbee
+          opts[:start_freq] = '2.405.000.000'
+          opts[:target_freq] = '2.485.000.000'
+          opts[:demodulator_mode] = 'AM'
+          opts[:bandwidth] = '2.000.000'
+        else
+          raise "ERROR: Invalid profile: #{profile}"
+        end
+
+        opts
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::GQRX.disconnect(
       #   gqrx_sock: 'required - GQRX socket object returned from #connect method'
       # )
@@ -352,6 +558,46 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          gqrx_sock = #{self}.connect(
+          target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+            port: 'optional - GQRX target port (defaults to 7356)'
+          )
+
+          #{self}.gqrx_cmd(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            cmd: 'required - GQRX command to execute',
+            resp_ok: 'optional - Expected response from GQRX to indicate success'
+          )
+
+          #{self}.init_freq(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            freq: 'required - Frequency to set',
+            demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
+            bandwidth: 'optional - Bandwidth (defaults to 200000)',
+            lock_freq_duration: 'optional - Lock frequency duration (defaults to 0.5)',
+            strength_lock: 'optional - Strength lock (defaults to -60.0)'
+          )
+
+          #{self}.scan_range(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            demodulator_mode: 'required - Demodulator mode',
+            bandwidth: 'required - Bandwidth',
+            start_freq: 'required - Starting frequency',
+            target_freq: 'required - Target frequency',
+            precision: 'required - Precision',
+            lock_freq_duration: 'optional - Lock frequency duration (defaults to 0.5)',
+            strength_lock: 'optional - Strength lock (defaults to -60.0)'
+          )
+
+          profiles = #{self}.list_profiles
+
+          opts = #{self}.assume_profile(
+            profile: 'required - valid GQRX profile name returned from #list_profiles method'
+          )
+
+          #{self}.disconnect(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method'
+          )
 
           #{self}.authors
         "
