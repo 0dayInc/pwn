@@ -87,7 +87,8 @@ begin
 
   list_profiles = opts[:list_profiles]
   if list_profiles
-    pp PWN::Plugins::GQRX.list_profiles
+    profiles_available = PWN::Plugins::GQRX.list_profiles
+    puts JSON.pretty_generate(profiles_available)
     exit 0
   end
 
@@ -108,11 +109,18 @@ begin
   start_freq = opts[:start_freq]
   start_freq = start_freq.to_s.delete('.') unless start_freq.nil?
   start_freq = start_freq.to_i
-  start_freq = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f', resp_ok: 'RPRT 0').to_i if start_freq.zero?
+  if start_freq.zero?
+    start_freq = PWN::Plugins::GQRX.gqrx_cmd(
+      gqrx_sock: gqrx_sock, cmd: 'f',
+      resp_ok: 'RPRT 0'
+    ).to_i
+  end
 
   demodulator_mode = opts[:demodulator_mode] ||= 'WFM_ST'
-  demodulator_mode.upcase!
-  raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless %w[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU].include?(demodulator_mode)
+  puts "Demodulator Mode: #{demodulator_mode}"
+  # demodulator_mode.upcase! if opts[:demodulator_mode]
+  demodulator_modes = %i[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU]
+  raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless demodulator_modes.include?(demodulator_mode)
 
   bandwidth = opts[:bandwidth] ||= '200.000'
 

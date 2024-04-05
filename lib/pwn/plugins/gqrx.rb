@@ -331,37 +331,263 @@ module PWN
       # Supported Method Parameters::
       # profiles = PWN::Plugins::GQRX.list_profiles
       public_class_method def self.list_profiles
+        # TODO: Wifi5 / Wifi6 profiles,
+        # migrate to a YAML file, and add
+        # rSpec test to ensure all profiles
+        # contain consistent key-value pairs
         {
-          ads_b: 'ADS-B, 978mhz to 1090mhz, AM, 4.6mhz bandwidth',
-          analogue_tv: 'Analogue TV, 55.25mhz to 801.25mhz, WFM, 6mhz bandwidth',
-          am_radio: 'AM Radio, 540khz to 1600khz, AM, 6khz bandwidth',
-          bluetooth: 'Bluetooth, 2.4ghz to 2.5ghz, AM, 1mhz bandwidth',
-          cdma: 'CDMA, 824mhz to 849mhz, AM, 1.25mhz bandwidth',
-          cw20: 'CW 20m, 14mhz to 14.35mhz, CW, 150hz bandwidth',
-          cw40: 'CW 40m, 7mhz to 7.3mhz, CW, 150hz bandwidth',
-          cw80: 'CW 80m, 3.5mhz to 3.8mhz, CW, 150hz bandwidth',
-          gps: 'GPS, 1.57542ghz to 1.57545ghz, WFM, 9.6mhz bandwidth',
-          gsm: 'GSM, 935mhz to 960mhz, AM, 200khz bandwidth',
-          fm_radio: 'FM Radio, 88mhz to 108mhz, WFM, 200khz bandwidth',
-          lora433: 'LoRa 433mhz, 433mhz, AM, 125khz bandwidth',
-          lora915: 'LoRa 915mhz, 915mhz, AM, 125khz bandwidth',
-          lowrfid: 'Low RFID, 125khz, AM, 200khz bandwidth',
-          nfcrfid: 'NFC RFID, 13.56mhz, AM, 1mhz bandwidth',
-          radio_fob: 'Radio FOB, 315mhz, AM',
-          rtty20: 'RTTY 20m, 14mhz to 14.35mhz, RTTY, 170hz bandwidth',
-          rtty40: 'RTTY 40m, 7mhz to 7.3mhz, RTTY, 170hz bandwidth',
-          rtty80: 'RTTY 80m, 3.5mhz to 3.8mhz, RTTY, 170hz bandwidth',
-          ssb10: 'SSB 10m, 28mhz to 29.7mhz, USB, 2.7khz bandwidth',
-          ssb12: 'SSB 12m, 24.89mhz to 24.99mhz, USB, 2.7khz bandwidth',
-          ssb15: 'SSB 15m, 21mhz to 21.45mhz, USB, 2.7khz bandwidth',
-          ssb17: 'SSB 17m, 18.068mhz to 18.168mhz, USB, 2.7khz bandwidth',
-          ssb20: 'SSB 20m, 14mhz to 14.35mhz, USB, 2.7khz bandwidth',
-          ssb40: 'SSB 40m, 7mhz to 7.3mhz, LSB, 2.7khz bandwidth',
-          ssb80: 'SSB 80m, 3.5mhz to 3.8mhz, LSB, 2.7khz bandwidth',
-          ssb160: 'SSB 160m, 1.8mhz to 2mhz, LSB, 2.7khz bandwidth',
-          tempest: 'Tempest, 400mhz to 430mhz, AM, 200khz bandwidth',
-          wifi24: 'WiFi 2.4ghz, 2.4ghz to 2.5ghz, AM, 20mhz bandwidth',
-          zigbee: 'Zigbee, 2.405ghz to 2.485ghz, AM, 2mhz bandwidth'
+          ads_b978: {
+            start_freq: '978.000.000',
+            target_freq: '979.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '1.000.000',
+            precision: 5
+          },
+          ads_b1090: {
+            start_freq: '1.090.000.000',
+            target_freq: '1.091.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '1.000.000',
+            precision: 5
+          },
+          analog_tv_vhf: {
+            start_freq: '54.000.000',
+            target_freq: '216.000.000',
+            demodulator_mode: :WFM,
+            bandwidth: '6.000',
+            precision: 5
+          },
+          analog_tv_uhf: {
+            start_freq: '470.000.000',
+            target_freq: '890.000.000',
+            demodulator_mode: :WFM,
+            bandwidth: '6.000',
+            precision: 5
+          },
+          am_radio: {
+            start_freq: '540.000',
+            target_freq: '1.700.000',
+            demodulator_mode: :AM,
+            bandwidth: '10.000',
+            precision: 4
+          },
+          bluetooth: {
+            start_freq: '2.400.000.000',
+            target_freq: '2.485.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '1.000.000',
+            precision: 5
+          },
+          cdma: {
+            start_freq: '824.000.000',
+            target_freq: '849.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '1.250.000',
+            precision: 6
+          },
+          cw20: {
+            start_freq: '14.000.000',
+            target_freq: '14.350.000',
+            demodulator_mode: :CW,
+            bandwidth: '150',
+            precision: 3
+          },
+          cw40: {
+            start_freq: '7.000.000',
+            target_freq: '7.300.000',
+            demodulator_mode: :CW,
+            bandwidth: '150',
+            precision: 3
+          },
+          cw80: {
+            start_freq: '3.500.000',
+            target_freq: '3.800.000',
+            demodulator_mode: :CW,
+            bandwidth: '150',
+            precision: 3
+          },
+          gps12: {
+            start_freq: '1.227.600.000',
+            target_freq: '1.227.700.000',
+            demodulator_mode: :RAW,
+            bandwidth: '2.000.000',
+            precision: 6
+          },
+          gps15: {
+            start_freq: '1.575.420.000',
+            target_freq: '1.575.450.000',
+            demodulator_mode: :RAW,
+            bandwidth: '2.000.000',
+            precision: 6
+          },
+          gsm: {
+            start_freq: '935.000.000',
+            target_freq: '960.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '200.000',
+            precision: 4
+          },
+          fm_radio: {
+            start_freq: '88.000.000',
+            target_freq: '108.000.000',
+            demodulator_mode: :WFM,
+            bandwidth: '200.000',
+            precision: 5
+          },
+          high_rfid: {
+            start_freq: '13.560.000',
+            target_freq: '13.570.000',
+            demodulator_mode: :RAW,
+            bandwidth: '2.000.000',
+            precision: 3
+          },
+          lora433: {
+            start_freq: '432.000.000',
+            target_freq: '434.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '500.000',
+            precision: 3
+          },
+          lora915: {
+            start_freq: '914.000.000',
+            target_freq: '916.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '500.000',
+            precision: 3
+          },
+          low_rfid: {
+            start_freq: '125.000',
+            target_freq: '125.100',
+            demodulator_mode: :RAW,
+            bandwidth: '200.000',
+            precision: 1
+          },
+          keyfob300: {
+            start_freq: '300.000.000',
+            target_freq: '300.100.000',
+            demodulator_mode: :RAW,
+            bandwidth: '50.000',
+            precision: 4
+          },
+          keyfob310: {
+            start_freq: '310.000.000',
+            target_freq: '310.100.000',
+            demodulator_mode: :RAW,
+            bandwidth: '50.000',
+            precision: 4
+          },
+          keyfob315: {
+            start_freq: '315.000.000',
+            target_freq: '315.100.000',
+            demodulator_mode: :RAW,
+            bandwidth: '50.000',
+            precision: 4
+          },
+          keyfob390: {
+            start_freq: '390.000.000',
+            target_freq: '390.100.000',
+            demodulator_mode: :RAW,
+            bandwidth: '50.000',
+            precision: 4
+          },
+          rtty20: {
+            start_freq: '14.000.000',
+            target_freq: '14.350.000',
+            demodulator_mode: :RTTY,
+            bandwidth: '170',
+            precision: 3
+          },
+          rtty40: {
+            start_freq: '7.000.000',
+            target_freq: '7.300.000',
+            demodulator_mode: :RTTY,
+            bandwidth: '170',
+            precision: 3
+          },
+          rtty80: {
+            start_freq: '3.500.000',
+            target_freq: '3.800.000',
+            demodulator_mode: :RTTY,
+            bandwidth: '170',
+            precision: 3
+          },
+          ssb10: {
+            start_freq: '28.000.000',
+            target_freq: '29.700.000',
+            demodulator_mode: :USB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb12: {
+            start_freq: '24.890.000',
+            target_freq: '24.990.000',
+            demodulator_mode: :USB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb15: {
+            start_freq: '21.000.000',
+            target_freq: '21.450.000',
+            demodulator_mode: :USB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb17: {
+            start_freq: '18.068.000',
+            target_freq: '18.168.000',
+            demodulator_mode: :USB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb20: {
+            start_freq: '14.000.000',
+            target_freq: '14.350.000',
+            demodulator_mode: :USB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb40: {
+            start_freq: '7.000.000',
+            target_freq: '7.300.000',
+            demodulator_mode: :LSB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb80: {
+            start_freq: '3.500.000',
+            target_freq: '3.800.000',
+            demodulator_mode: :LSB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          ssb160: {
+            start_freq: '1.800.000',
+            target_freq: '2.000.000',
+            demodulator_mode: :LSB,
+            bandwidth: '2.700',
+            precision: 6
+          },
+          tempest: {
+            start_freq: '400.000.000',
+            target_freq: '430.000.000',
+            demodulator_mode: :WFM,
+            bandwidth: '200.000',
+            precision: 4
+          },
+          wifi24: {
+            start_freq: '2.400.000.000',
+            target_freq: '2.500.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '20.000.000',
+            precision: 7
+          },
+          zigbee: {
+            start_freq: '2.405.000.000',
+            target_freq: '2.485.000.000',
+            demodulator_mode: :RAW,
+            bandwidth: '2.000.000',
+            precision: 7
+          }
         }
       rescue StandardError => e
         raise e
@@ -374,157 +600,81 @@ module PWN
       public_class_method def self.assume_profile(opts = {})
         profile = opts[:profile].to_s.to_sym
 
+        profiles_available = list_profiles
         opts = {}
         case profile
-        when :ads_b
-          opts[:start_freq] = '978.000.000'
-          opts[:target_freq] = '1.090.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '4.600.000'
-        when :analogue_tv
-          opts[:start_freq] = '55.250.000'
-          opts[:target_freq] = '801.250.000'
-          opts[:demodulator_mode] = 'WFM'
-          opts[:bandwidth] = '6.000'
+        when :ads_b978
+          opts = profiles_available[:ads_b978]
+        when :ads_b1090
+          opts = profiles_available[:ads_b1090]
+        when :analog_tv_vhf
+          opts = profiles_available[:analog_tv_vhf]
+        when :analog_tv_uhf
+          opts = profiles_available[:analog_tv_uhf]
         when :am_radio
-          opts[:start_freq] = '540.000'
-          opts[:target_freq] = '1.600.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '6.000'
+          opts = profiles_available[:am_radio]
         when :bluetooth
-          opts[:start_freq] = '2.400.000.000'
-          opts[:target_freq] = '2.500.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '1.000.000'
+          opts = profiles_available[:bluetooth]
         when :cdma
-          opts[:start_freq] = '824.000.000'
-          opts[:target_freq] = '849.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '1.250.000'
+          opts = profiles_available[:cdma]
         when :cw20
-          opts[:start_freq] = '14.000.000'
-          opts[:target_freq] = '14.350.000'
-          opts[:demodulator_mode] = 'CW'
-          opts[:bandwidth] = '150'
+          opts = profiles_available[:cw20]
         when :cw40
-          opts[:start_freq] = '7.000.000'
-          opts[:target_freq] = '7.300.000'
-          opts[:demodulator_mode] = 'CW'
-          opts[:bandwidth] = '150'
+          opts = profiles_available[:cw40]
         when :cw80
-          opts[:start_freq] = '3.500.000'
-          opts[:target_freq] = '3.800.000'
-          opts[:demodulator_mode] = 'CW'
-          opts[:bandwidth] = '150'
-        when :gps
-          opts[:start_freq] = '1.575.420.000'
-          opts[:target_freq] = '1.575.450.000'
-          opts[:demodulator_mode] = 'WFM'
-          opts[:bandwidth] = '9.600.000'
+          opts = profiles_available[:cw80]
+        when :gps12
+          opts = profiles_available[:gps12]
+        when :gps15
+          opts = profiles_available[:gps15]
         when :gsm
-          opts[:start_freq] = '935.000.000'
-          opts[:target_freq] = '960.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '200.000'
+          opts = profiles_available[:gsm]
         when :fm_radio
-          opts[:start_freq] = '88.000.000'
-          opts[:target_freq] = '108.000.000'
-          opts[:demodulator_mode] = 'WFM'
-          opts[:bandwidth] = '200.000'
+          opts = profiles_available[:fm_radio]
+        when :high_rfid
+          opts = profiles_available[:high_rfid]
         when :lora433
-          opts[:start_freq] = '433.000.000'
-          opts[:target_freq] = '433.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '125.000'
+          opts = profiles_available[:lora433]
         when :lora915
-          opts[:start_freq] = '915.000.000'
-          opts[:target_freq] = '915.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '125.000'
-        when :lowrfid
-          opts[:start_freq] = '125.000'
-          opts[:target_freq] = '125.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '200.000'
-        when :nfcrfid
-          opts[:start_freq] = '13.560.000'
-          opts[:target_freq] = '13.560.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '1.000.000'
-        when :radio_fob
-          opts[:start_freq] = '315.000.000'
-          opts[:target_freq] = '315.000.000'
-          opts[:demodulator_mode] = 'AM'
+          opts = profiles_available[:lora915]
+        when :low_rfid
+          opts = profiles_available[:low_rfid]
+        when :keyfob300
+          opts = profiles_available[:keyfob300]
+        when :keyfob310
+          opts = profiles_available[:keyfob310]
+        when :keyfob315
+          opts = profiles_available[:keyfob315]
+        when :keyfob390
+          opts = profiles_available[:keyfob390]
         when :rtty20
-          opts[:start_freq] = '14.000.000'
-          opts[:target_freq] = '14.350.000'
-          opts[:demodulator_mode] = 'RTTY'
-          opts[:bandwidth] = '170'
+          opts = profiles_available[:rtty20]
         when :rtty40
-          opts[:start_freq] = '7.000.000'
-          opts[:target_freq] = '7.300.000'
-          opts[:demodulator_mode] = 'RTTY'
-          opts[:bandwidth] = '170'
+          opts = profiles_available[:rtty40]
         when :rtty80
-          opts[:start_freq] = '3.500.000'
-          opts[:target_freq] = '3.800.000'
-          opts[:demodulator_mode] = 'RTTY'
-          opts[:bandwidth] = '170'
+          opts = profiles_available[:rtty80]
         when :ssb10
-          opts[:start_freq] = '28.000.000'
-          opts[:target_freq] = '29.700.000'
-          opts[:demodulator_mode] = 'USB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb10]
         when :ssb12
-          opts[:start_freq] = '24.890.000'
-          opts[:target_freq] = '24.990.000'
-          opts[:demodulator_mode] = 'USB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb12]
         when :ssb15
-          opts[:start_freq] = '21.000.000'
-          opts[:target_freq] = '21.450.000'
-          opts[:demodulator_mode] = 'USB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb15]
         when :ssb17
-          opts[:start_freq] = '18.068.000'
-          opts[:target_freq] = '18.168.000'
-          opts[:demodulator_mode] = 'USB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb17]
         when :ssb20
-          opts[:start_freq] = '14.000.000'
-          opts[:target_freq] = '14.350.000'
-          opts[:demodulator_mode] = 'USB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb20]
         when :ssb40
-          opts[:start_freq] = '7.000.000'
-          opts[:target_freq] = '7.300.000'
-          opts[:demodulator_mode] = 'LSB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb40]
         when :ssb80
-          opts[:start_freq] = '3.500.000'
-          opts[:target_freq] = '3.800.000'
-          opts[:demodulator_mode] = 'LSB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb80]
         when :ssb160
-          opts[:start_freq] = '1.800.000'
-          opts[:target_freq] = '2.000.000'
-          opts[:demodulator_mode] = 'LSB'
-          opts[:bandwidth] = '2.700'
+          opts = profiles_available[:ssb160]
         when :tempest
-          opts[:start_freq] = '400.000.000'
-          opts[:target_freq] = '430.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '200.000'
+          opts = profiles_available[:tempest]
         when :wifi24
-          opts[:start_freq] = '2.400.000.000'
-          opts[:target_freq] = '2.500.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '20.000.000'
+          opts = profiles_available[:wifi24]
         when :zigbee
-          opts[:start_freq] = '2.405.000.000'
-          opts[:target_freq] = '2.485.000.000'
-          opts[:demodulator_mode] = 'AM'
-          opts[:bandwidth] = '2.000.000'
+          opts = profiles_available[:zigbee]
         else
           raise "ERROR: Invalid profile: #{profile}"
         end
