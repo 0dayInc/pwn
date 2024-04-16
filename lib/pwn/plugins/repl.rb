@@ -270,6 +270,7 @@ module PWN
             when :openai
               response = PWN::Plugins::OpenAI.chat(
                 token: ai_key,
+                model: model,
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer
