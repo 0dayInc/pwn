@@ -19,4 +19,5 @@ ResultAny=no
 ResultInactive=no
 ResultActive=yes
 EOF
+sudo usermod -aG xrdp $USER
 sudo systemctl restart polkit
