@@ -135,6 +135,7 @@ module PWN
 
           def process
             pi = pry_instance
+            pi.config.color = true
             pi.config.pwn_asm = false if pi.config.pwn_asm
             pi.config.pwn_ai = false if pi.config.pwn_ai
             pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug

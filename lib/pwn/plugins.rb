@@ -37,6 +37,7 @@ module PWN
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
     autoload :Log, 'pwn/plugins/log'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
+    autoload :Meshtastic, 'pwn/plugins/meshtastic'
     autoload :Metasploit, 'pwn/plugins/metasploit'
     autoload :MonkeyPatch, 'pwn/plugins/monkey_patch'
     autoload :MSR206, 'pwn/plugins/msr206'
