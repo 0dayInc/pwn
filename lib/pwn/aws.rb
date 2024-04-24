@@ -96,7 +96,7 @@ module PWN
     autoload :Workspaces, 'pwn/aws/workspaces'
     autoload :XRay, 'pwn/aws/x_ray'
 
-    # Display a List of Every PWN Plugin
+    # Display a List of Every PWN::AWS Module
 
     public_class_method def self.help
       constants.sort

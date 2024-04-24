@@ -14,7 +14,7 @@ module PWN
     autoload :URIBuster, 'pwn/reports/uri_buster'
     # autoload :XML, 'pwn/reports/xml'
 
-    # Display a List of Every PWN Report
+    # Display a List of Every PWN::Reports Module
 
     public_class_method def self.help
       constants.sort
