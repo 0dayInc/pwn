@@ -17,7 +17,7 @@ module PWN
   autoload :SAST, 'pwn/sast'
   autoload :WWW, 'pwn/www'
 
-  # Display Usage for the PWN Framework ~
+  # Display a List of Every PWN Module
 
   public_class_method def self.help
     constants.sort

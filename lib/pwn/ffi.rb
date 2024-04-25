@@ -5,9 +5,9 @@ module PWN
   # into memory only when they're needed. For more information, see:
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module FFI
-    # autoload :Sock, 'pwn/ffi/sock'
+    autoload :Stdio, 'pwn/ffi/stdio'
 
-    # Display a List of Every PWN Report
+    # Display a List of Every PWN::FFI Module
 
     public_class_method def self.help
       constants.sort

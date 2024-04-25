@@ -37,7 +37,6 @@ module PWN
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
     autoload :Log, 'pwn/plugins/log'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
-    autoload :Meshtastic, 'pwn/plugins/meshtastic'
     autoload :Metasploit, 'pwn/plugins/metasploit'
     autoload :MonkeyPatch, 'pwn/plugins/monkey_patch'
     autoload :MSR206, 'pwn/plugins/msr206'
@@ -75,7 +74,7 @@ module PWN
     autoload :Vsphere, 'pwn/plugins/vsphere'
     autoload :XXD, 'pwn/plugins/xxd'
 
-    # Display a List of Every PWN Plugin
+    # Display a List of Every PWN::Plugins Module
 
     public_class_method def self.help
       constants.sort

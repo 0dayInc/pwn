@@ -50,7 +50,7 @@ module PWN
     autoload :Version, 'pwn/sast/version'
     autoload :WindowLocationHash, 'pwn/sast/window_location_hash'
 
-    # Display a List of Each Static Code Anti-Pattern Matching Module
+    # Display a List of Every PWN::SAST Module
 
     public_class_method def self.help
       constants.sort

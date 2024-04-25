@@ -26,7 +26,7 @@ module PWN
     autoload :Upwork, 'pwn/www/upwork'
     autoload :Youtube, 'pwn/www/youtube'
 
-    # Display a List of Every PWN WWW module
+    # Display a List of Every PWN::WWW Module
 
     public_class_method def self.help
       constants.sort
