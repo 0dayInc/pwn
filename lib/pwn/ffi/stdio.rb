@@ -2,13 +2,14 @@
 
 require 'ffi'
 
+PubFFI = FFI
 module PWN
   module FFI
     # This plugin is a wrapper for the standard I/O functions in libc.
     module Stdio
-      extend FFI::Library
+      extend PubFFI::Library
 
-      ffi_lib FFI::Library::LIBC
+      ffi_lib PubFFI::Library::LIBC
 
       attach_function(:puts, [:string], :int)
       attach_function(:printf, %i[string varargs], :int, convention: :default)
