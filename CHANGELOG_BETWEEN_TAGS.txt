@@ -1,156 +1,176 @@
-4e36a03 PWN::Plugins::XXD module - break up hex array into one byte per element for easy hex editing #rubocop_fix
-dc1b690 PWN::Plugins::XXD module - break up hex array into one byte per element for easy hex editing
-10a34c1 PWN::Plugins::XXD module - #bugfix when space are in a given row and/or last line is shorter than typical length
-bbb94c9 Merge pull request #495 from ninp0/master
-977d319 PWN::Plugins::XXD module - implement optional parameter to return a hexdump as a single hash instead of an array of hashes in #dump method #bugfix
-f1d20fd Merge pull request #494 from ninp0/master
-5e474b6 PWN::Plugins::XXD module - convert string or hash returned from #dump method to file when calling the #reverse_dump method
-89929d0 Merge pull request #493 from ninp0/master
-bbc03f5 PWN::Plugins::XXD module - implement optional parameter to return a hexdump as a single hash instead of an array of hashes in #dump method #rubocop_fixes
-2e1da09 Merge pull request #492 from ninp0/master
-aa42a77 PWN::Plugins::XXD module - implement optional parameter to return a hexdump as a single hash instead of an array of hashes in #dump method
-97e5772 PWN::Plugins::XXD module - implement optional parameter to return a hexdump array (i.e. array containing a hash for each line) in #dump method
-d4dc1e3 Merge pull request #491 from ninp0/master
-c94e0c1 PWN::Plugins::BlackDuckBinaryAnalysis module - duplicate behavior or curl when uploading files by not specifying content-type HTTP header and populating the HTTP body with the raw binary contents #bugfix
-d931efa Merge pull request #490 from ninp0/master
-41c081e PWN::Plugins::BlackDuckBinaryAnalysis module - duplicate behavior or curl when uploading files by not specifying content-type HTTP header and populating the HTTP body with the raw binary contents
-37b7968 Merge pull request #489 from ninp0/master
-9c15b84 Merge branch 'master' of ssh://github.com/ninp0/pwn
-86764fc PWN::Plugins::XXD module - bugfix in #reverse_dump method #rubocop_fix
-778b6d6 PWN::Plugins::XXD module - bugfix in #reverse_dump method
-8f152cd Merge pull request #488 from ninp0/master
-c225ee4 PWN::Plugins::BlackDuckBinaryAnalysis module - explicitly set the content_type to "multipart/form-data" when http_body.key?(:multipart)
-618139f Merge pull request #487 from ninp0/master
-04b7295 PWN::Plugins::BlackDuckBinaryAnalysis module - change default parameter for scan_code_familiarity to false
-0e90eb4 Merge pull request #486 from ninp0/master
-994ede8 PWN::Banner::CodeCave module - bit more realistic #rubocop
-84da860 PWN::Banner::CodeCave module - bit more realistic
-dbd3818 Merge pull request #485 from ninp0/master
-59af310 aliases.rb Provisioner for Packer - update to ensure vim is compatible w/ xxd when hex-editing binaries
-3d82406 Merge pull request #484 from ninp0/master
-fd6cedb PWN::Banner::JmpEsp module - no nulls
-91baad5 PWN::Banner modules - add a couple more #bugfixes
-bdc6427 PWN::Banner modules - add a couple more
-b2b3768 Merge pull request #483 from ninp0/master
-6f2355f PWN::Plugins::OpenAI - #bugfix in #chat method when passing in max_tokens
-3ada78f PWN::Plugins::OpenAI - #bugfix in max_tokens
-0b03eee Merge pull request #482 from ninp0/master
-2fb01de PWN::Plugins::OpenAI - #bugfix in max_tokens
-19b093e PWN::Plugins::OpenAI - #bugfix in max_tokens
-879488e PWN::Plugins::OpenAI - #bugfix in max_tokens
-c69ad76 Merge pull request #481 from ninp0/master
-072f809 PWN::Banner::Cheshire module - initial commit
-6652474 Merge pull request #480 from ninp0/master
-885e774 PWN::Banner::Anon module - remove white background
-9c47423 Merge pull request #479 from ninp0/master
-176ebd2 PWN::Banner modules - adjust alignment && add Anon
-6af6a6d Rubocop
-95771a9 PWN::Banner::DontPanic module - initial commit
-15223aa PWN::Plugins::OpenAI module - tweak max_tokens to be 4_096 unless response_history is passed as a parameter #bugfix
-b0d7b89 Merge pull request #478 from ninp0/master
-ad7d769 PWN::Plugins::OpenAI module - tweak max_tokens to be 8_192 unless response_history is passed as a parameter
-ddeca39 Merge pull request #477 from ninp0/master
-36931f3 PWN::Plugins::OpenAI module - support both local images and those found at a given URI
-ce37bfc Merge pull request #476 from ninp0/master
-68a332a PWN::Plugins::OpenAI module - #bugfix in initial implementation of #vision method (i.e. analyze images)
-3e31d00 Merge pull request #475 from ninp0/master
-756db97 PWN::Plugins::OpenAI module - #bugfix in initial implementation of #vision method (i.e. analyze images)
-839bc30 PWN::Plugins::OpenAI module - #bugfix in initial implementation of #vision method (i.e. analyze images)
-92c95aa Merge pull request #474 from ninp0/master
-7732b1a PWN::Plugins::OpenAI module - initial implementation of #vision method (i.e. analyze images).  Additional #bugfix in pwn_simple_http_server driver.
-675e120 Merge pull request #473 from ninp0/master
-67687f5 pwn_bdba_scan Driver - #bugfix in target file basename when containing characters in scope for URL encoding
-b1c97fc pwn_simple_http_server - #bugfix when running w/ no flags
-bc1add9 Gemfile - comment out sinatra to get thin
-ca87e31 PWN::Plugins::CreditCard module - configure count parameter to default to 1
-88ac940 Merge pull request #472 from ninp0/master
-6094c98 PWN::Plugins::DefectDojo module - set close_old_findings = true if closee_old_findings_product_scope is set to true
-87a93ac Merge pull request #471 from ninp0/master
-1559e5f pwn_bdba_scan Driver - work-around for rare race condition in finding product when getting apps by group
-81da574 Merge pull request #470 from ninp0/master
-257d25d PWN::WWW::HackerOne module - implement #get_scope_details method #struct_tweak
-e183149 Merge pull request #469 from ninp0/master
-90602c5 PWN::WWW::HackerOne module - implement #get_scope_details method
-407a125 Merge pull request #468 from ninp0/master
-dd1316a PWN::Banner::WhiteRabbit - knock knock <>...follow the white rabbit. #better
-7b87b0d Merge pull request #467 from ninp0/master
-eda1eec PWN::Banner::WhiteRabbit - knock knock <>...follow the white rabbit. #tweak
-640ebb0 Merge pull request #466 from ninp0/master
-a2f489d PWN::Banner::WhiteRabbit - knock knock <>...follow the white rabbit. #bugfix
-58e8e3a PWN::Banner::WhiteRabbit - knock knock <>...follow the white rabbit. #rspec
-906f298 PWN::Banner::WhiteRabbit - knock knock <>...follow the white rabbit.
-23fcf53 Merge pull request #465 from ninp0/master
-4140ba4 PWN::WWW::* modules - update #help method to make the respective modules more clear to use.
-d699c31 Merge pull request #464 from ninp0/master
-4b0d1d2 Vagrant pwn.sh Provisioner - add safe.directory for PWN_ROOT
-2aabb4e Merge pull request #463 from ninp0/master
-6785669 .ruby-version - bump to 3.3.0
-bab66ab Merge pull request #462 from ninp0/master
-177f58d PWN::Plugins::DefectDojo module - add multiple tags to import-scan #workaround
-81b1d59 Merge pull request #461 from ninp0/master
-4c51da3 PWN::Plugins::DefectDojo module - remove redundant code #bugfix
-9a2be13 PWN::Plugins::DefectDojo module - remove redundant code
-23a612e PWN::Plugins::DefectDojo module - testing tags that are line feed delimited for multipart #try_again
-f01aee9 Merge pull request #460 from ninp0/master
-803f33f PWN::Plugins::DefectDojo module - testing tags that are line feed delimited for multipart #try_again
-36c37f8 Merge pull request #459 from ninp0/master
-ca7569f PWN::Plugins::DefectDojo module - testing tags that are line feed delimited for multipart #bugfix
-c417114 Merge pull request #458 from ninp0/master
-2296148 PWN::Plugins::DefectDojo module - testing http_body.to_json for multipart #nope
-a79d157 Merge pull request #457 from ninp0/master
-e801346 PWN::Plugins::DefectDojo module - testing http_body.to_json for multipart #bugfix
-2f5d836 Merge pull request #456 from ninp0/master
-b7755a1 PWN::Plugins::DefectDojo module - back to array but not populating despite swagger docs: https://demo.defectdojo.org/api/v2/oa3/swagger-ui/ #bug
-512bf08 Merge pull request #455 from ninp0/master
-75420fb PWN::Plugins::DefectDojo module - testing tag array compatibility #bugfix
-9ac3966 Merge pull request #454 from ninp0/master
-3027ed0 PWN::Plugins::DefectDojo module - cast comma-delimited string into array #bugfix
-a66ec1b Merge pull request #453 from ninp0/master
-513efe1 PWN::Plugins::DefectDojo module / pwn_defectdojo_importscan, pwn_defectdojo_reimportscan Drivers - implement --close_old_findings_product_scope, --close_old_findings, and --push_to_jira options
-0338b69 Merge pull request #452 from ninp0/master
-f776bb7 Gemfile - add gruff gem to create line charts for FFT data
-4ac46d6 Merge pull request #451 from ninp0/master
-b5c2b73 PWN::Plugins::OpenAI module - update default syatem_role_content
-249d4ec Merge pull request #450 from ninp0/master
-bdbdee5 PWN::SAST::PaddingOracle module - Initial Commit
-c13d34e Merge pull request #449 from ninp0/master
-c1b8ce9 Gemfile - re-enable credit_card_validations gem
-996a916 Merge pull request #448 from ninp0/master
-0587069 PWN::Plugins::OpenAI Module - incorporate a timeout parameter for every method and default Timeout from 60 seconds to 180 seconds (i.e. 1 minute to 3 minutes).
-0aaf3a1 Merge pull request #447 from ninp0/master
-712ca6f README.md - update docs to reflect easiest installation leveraging a fresh install of Kali
-5916b99 Merge pull request #446 from ninp0/master
-79ed55f pwn_bdba_scan Driver - Reattempt Scan if find_product returns nil
-86c2dc2 Merge pull request #445 from ninp0/master
-a454bc0 PWN::SAST::TypeScriptTypeJuggling && PWN::SAST::PHPTypeJuggling modules - #bugfixes
-714c7ea Merge pull request #444 from ninp0/master
-8dac465 pwn_sast Driver - Incorporate new SAST module PWN::SAST::TypeScriptTypeJuggling #add_spec
-80e2639 pwn_sast Driver - Incorporate new SAST module PWN::SAST::TypeScriptTypeJuggling
-1ce797d Merge pull request #443 from ninp0/master
-b79e7de pwn_bdba_scan Driver - include RestClient::Exceptions::OpenTimeout in rescue block for reattempts
-e6131e1 Merge pull request #442 from ninp0/master
-dfd6c6f Gemfile - disable credit_card_validations until such time didww/credit_card_validations/pull/121 is merged and a new gem version is released #disable_require_in_module
-0cc90bc pwn_bdba_scan Driver - add --sleep-between-scan-attempts flag with a default of 60 seconds
-eb2f6b3 Merge pull request #441 from ninp0/master
-dae6e57 pwn_bdba_scan Driver - include RestClient Exceptions for the --scan-attempts flag as well
-dcb2432 Merge pull request #440 from ninp0/master
-13c22cf PWN::Plugins::BlackDuckBinaryAnalysis module - clearer e.response.body data
-b093f8f Merge pull request #439 from ninp0/master
-aa27268 PWN::Plugins::BlackDuckBinaryAnalysis module - catch RestClient::ExceptionWithResponse to provide additional context as needed.
-36e269f Merge pull request #438 from ninp0/master
-9e66b99 pwn_bdba_scan Driver - more concise messaging to stdout
-a90c931 Merge pull request #437 from ninp0/master
-4a006d2 pwn_bdba_scan Driver - off-by-one on scan-attempts #bugfix
-e45160e pwn_bdba_scan Driver - #bugfix on abort queued scan reattempts
-2a94182 Merge pull request #436 from ninp0/master
-7fa05e1 pwn_bdba_groups Driver - bugfix in casting parent_group_id to integer when filtering group name by parent group id
-1b1636f Merge pull request #435 from ninp0/master
-5e02561 pwn_bdba_groups Driver - bugfix in response when passing --list-group flag with --parent-group-id flag
-e6120e6 Merge pull request #434 from ninp0/master
-7b4698c pwn_bdba_groups Driver - bugfix in --parent-group-id parameter && pwn_bdba_scan Driver - clearer messaging to STDOUT when queue timeout / scan aborts are triggered
-d190ee9 README.md - update installation && upgrade procedures if using a multi-user install of RVM
-6aed9c7 Merge pull request #433 from ninp0/master
-2e0cdf0 pwn_bdba_scan Driver - add --queue-timeout && --scan-attempts parameters
-a656fd7 Merge pull request #432 from ninp0/master
-86aa399 Merge pull request #431 from ninp0/master
-29ad011 Merge pull request #430 from ninp0/master
+b16033a Gemfile - mqtt #better_filtering_in_stdout
+592dc50 Merge pull request #572 from ninp0/master
+6f29ff4 Gemfile - Bump alt comms to latest
+85586bc Merge pull request #571 from ninp0/master
+61e2a26 .ruby-version - Bump to 3.3.1
+361d8bd Merge pull request #570 from ninp0/master
+c0f55a1 Gemfile - Bump alt comms to latest
+095acc5 Gemfile - Bump alt comms to latest
+dfc9770 Merge pull request #569 from ninp0/master
+cc5abbd Gemfile - Bump meshtastic to 0.0.27
+799ba17 Merge pull request #568 from ninp0/master
+bc83f38 Gemfile - Bump meshtastic to 0.0.26
+0730287 Gemfile - Bump meshtastic to 0.0.24
+d480bf6 Merge pull request #567 from ninp0/master
+5a8c3e4 Gemfile - Bump meshtastic gem to 0.0.19
+ee4aeb9 Merge pull request #566 from ninp0/master
+1bc3861 Gemfile - Bump meshtastic gem to 0.0.12
+4450e4d Merge pull request #565 from ninp0/master
+35d8c74 Gemfile - Bump meshtastic gem to 0.0.10
+cde6443 Gemfile - Bump meshtastic gem to 0.0.2
+c5cd5a3 Merge pull request #564 from ninp0/master
+24e084c PWN::FFI::Stdio module - #bugfix in namespace collision
+9b4449c Gemfile - incorporate meshtastic gems for alt comms
+e51f232 PWN::FFI::Stdio module - initial commit and migrate meshtastic into its own external gem
+ffdcf4d Merge pull request #563 from ninp0/master
+5e23c11 Gemfile - replace legacy rbvmomi gem with latest version of rbvmomi2
+892f655 Merge pull request #561 from ninp0/master
+8671eac pwn REPL driver - openai section in pwn.yaml can be used to dictate the model used in pwn-ai command + #rubocop_fixes
+de074c9 Merge pull request #560 from ninp0/master
+4d107a0 PWN::Plugins::GQRX module - more accurate profiles in #list_profiles method
+21064fd Merge pull request #559 from ninp0/master
+2c34791 pwn_gqrx_scanner Driver - implement --assume-profiles && -list-profiles options
+371e579 Merge pull request #558 from ninp0/master
+7c1fbea PWN::Plugins::DefectDojo module - #bugfix in #importscan method for group_by opt
+022ed74 Merge pull request #557 from ninp0/master
+9b04a38 pwn_defectdojo_importscan Driver --group-by parameter #bugfix
+985dd29 Merge pull request #556 from ninp0/master
+e74bc69 PWN::Plugins::DefectDojo module && pwn_defectdojo_importscan Driver - implement --test-title && --group-by parameters
+41388aa Merge pull request #555 from ninp0/master
+74d1f0b PWN::Plugins::GQRX module - decouple explicit logic from pwn_gqrx_scanner Driver
+34d976e Merge pull request #554 from ninp0/master
+5d26035 PWN::Plugins::Vault module - more resilient exception handling
+6dc346a Merge pull request #553 from ninp0/master
+906e600 PWN::Plugins::Vault module - protect sensitive artifacts when presenting
+5e17984 pwn REPL Driver - Distinguish between ai_engines and their respective models within pwn-ai command
+e4eff9e Merge pull request #552 from ninp0/master
+f12a26b PWN::Plugins::OpenAI module - change default temp to 1
+7b150e0 pwn REPL - simplify and speed up Pry.config.pwn_ai_key initialization when using ai_engine: "ollama"
+802784f pwn REPL - implement the means to choose between using OpenAI or Ollama as ai_engine for pwn-ai command
+ffa3762 Merge pull request #551 from ninp0/master
+f3580c8 PWN::Plugins::Vault - #bugfix in file_encrypted? method when file is cleartext && namespace #bugfixes in PWN::Plugins::MonkeyPatch.pry method
+4bcbb79 Merge pull request #550 from ninp0/master
+f7de92e pwn REPL Driver - decouple monkey patches, adding commands, and adding hooks from driver by implementing PWN::Plugins::MonkeyPatch && PWN::Plugins::REPL modules
+4568689 Merge pull request #549 from ninp0/master
+1a4df3e pwn REPL driver - migrate a couple methods into more appropriate modules #code_cleanup
+29374f2 Merge pull request #548 from ninp0/master
+c8fbcde pwn REPL driver - prompt for key and/or iv when not present
+c5c7d40 Merge pull request #547 from ninp0/master
+607b28f pwn REPL driver - implement support for encrypted pwn.yaml config file + #rubocop_fix
+6c2f97b pwn REPL driver - implement support for encrypted pwn.yaml config file
+68ddff7 Merge pull request #546 from ninp0/master
+815997c Deprecate PWN::Plugins::AnsibleVault module in favor of ruby-native PWN::Plugins::Vault module (manage encrypted file)
+1f313e2 Merge pull request #545 from ninp0/master
+b5fde6c pwn_gqrx_scanner Driver - Provide warning for transceivers that do not support -R -I or -B parameters instead of failing
+f544928 Merge pull request #544 from ninp0/master
+b8f1040 pwn REPL driver - change name of pwn-gpt command to pwn-ai and begin scaling out AI alternatives (e.g. local models via ollama)
+672c2d9 Merge pull request #543 from ninp0/master
+b5e0772 pwn_gqrx_scanner Driver - #bugfix in displaying discovered signals to stdout and additional #bugfix in reverse scan
+bac9b8b Merge pull request #542 from ninp0/master
+abeb856 pwn_bdba_scan Driver - rescue RestClient::Conflict for scan re-attempt
+2175a61 Merge pull request #541 from ninp0/master
+41dfa24 pwn_gqrx_scanner Driver - include lock_freq_duration value in STDOUT during scan
+8b12a41 pwn_gqrx_scanner Driver - signal detection default refinements
+64aaa36 pwn_gqrx_scanner Driver - signal detection default refinements
+1c44f05 pwn_gqrx_scanner Driver - signal detection #bugfix and implement rf, if, && bb gain parameters
+f0470b1 Merge pull request #540 from ninp0/master
+9aba9c9 pwn_gqrx_scanner Driver - tweak default bandwidth settong to align w hrf1
+4a0f273 Merge pull request #539 from ninp0/master
+1940860 pwn_gqrx_scanner Driver - better error handling, increased scan speed, tweak defaults to align w/ FM radio station detection
+37e9f8c pwn_gqrx_scanner Driver - implement error checks, squelch param and change sleep timing based upon measured signal strengths
+4686ca4 Merge pull request #538 from ninp0/master
+500c562 pwn_gqrx_scanner Driver - implement error checks and refactor redundant blocks of xode
+242df8d Merge pull request #537 from ninp0/master
+9619139 pwn_gqrx_scanner Driver - implement sleep between scan hops
+09ecfdd pwn_gqrx_scanner Driver - implement scan precision
+2a0465c pwn_gqrx_scanner Driver - gqrx_sock #bugfix
+54e557a pwn_gqrx_scanner Driver - implement demodulator mode
+3df14df pwn_gqrx_scanner Driver - Initial commit
+60c61d0 Merge pull request #536 from ninp0/master
+a5e4280 pwn REPL drive - change "toggle-pwn-asm" to "pwn-asm" command, change "toggle-pwn-gpt" to "pwn-gpt" command, and implement a "back" command to go back to pwn REPL mode
+04a4055 Merge pull request #535 from ninp0/master
+f82f349 PWN::Plugins::BlackDuckBinaryAnalysis module - add #get_group_statistics and #delette_group methods
+5af6d96 Merge pull request #534 from ninp0/master
+e719b2b PWN::Plugins::BlackDuckBinaryAnalysis module - implement connection reattempts (3 max attempts) when arbitrary connection timeouts occur between rest client and protecode-sc.com
+df28c3e Merge pull request #533 from ninp0/master
+b17e156 pwn Driver - improve input validation in toggle-pwn-gpt command and enhance opcode detection to support 1:1 opcode format in PWN::Plugins::Assembly module when using the toggle-pwn-asm command
+de4e4f4 Merge pull request #532 from ninp0/master
+02d0cb7 pwn Driver - toggle-pwn-asm #bugfix
+9fab25a Merge pull request #531 from ninp0/master
+615a48b pwn Driver - toggle-pwn-asm #bugfix
+7be1d80 Merge pull request #530 from ninp0/master
+16caf3b pwn Driver - implement REPL commands, toggle-pwn-gpt && toggle-pwn-asm
+58e7ad8 Merge pull request #529 from ninp0/master
+6bce390 PWN::Banner modules - slight tweaks
+fa61c8a Merge pull request #528 from ninp0/master
+82392d7 PWN::Plugins::Assembly module - better support for opcode string formats
+a82ae21 Merge pull request #527 from ninp0/master
+3009068 PWN::Plugins::Assembly module - #opcodes_to_asm back support multiple types of opcode string formats
+049e8fb PWN::Plugins::Assembly module - #opcodes_to_asm back to metasm
+9c0e8b4 Merge pull request #526 from ninp0/master
+ee2baed PWN::Plugins::Assembly module - rely upon archs native objdump bins to convert opcodes to asm within #opcodes_to_asm method #bugfix
+2c273b4 Merge pull request #525 from ninp0/master
+ca4788f PWN::Plugins::Assembly module - rely upon archs native objdump bins to convert opcodes to asm within #opcodes_to_asm method #bugfixes
+b1c3563 PWN::Plugins::Assembly module - rely upon archs native objdump bins to convert opcodes to asm within #opcodes_to_asm method
+2a497f0 Merge pull request #524 from ninp0/master
+c842b05 PWN::Plugins::Assembly module - support numerous types of hex string formats in opcodes_to_asm method #bugfix >>> invalid byte sequence in UTF-8
+a459bc3 Merge pull request #523 from ninp0/master
+581efd9 PWN::Plugins::Assembly module - support numerous types of hex string formats in opcodes_to_asm method
+2d4b622 Merge pull request #522 from ninp0/master
+bc5405e PWN::Plugins::Assembly module - always return hex escaped string from #asm_to_opcodes method
+62e6f8f Merge pull request #521 from ninp0/master
+26b5a94 Merge branch 'master' of ssh://github.com/ninp0/pwn
+358b53a PWN::Plugins::Assembly module - 32 bit ARM #rubocop
+866901c Merge pull request #520 from ninp0/master
+ad74573 PWN::Plugins::Assembly module - 32 bit ARM bugfixes
+909d0fb Merge pull request #519 from ninp0/master
+87c420a PWN::Plugins::Assembly module - overhaul using metasm gem - thank you Metasploit devs #bugfixes
+afd3e2c Merge pull request #518 from ninp0/master
+ef33860 PWN::Plugins::Assembly module - overhaul using metasm gem - thank you Metasploit devs #much_easier
+4539281 Merge pull request #517 from ninp0/master
+7046154 PWN::Plugins::Assembly module - more #bugfixes
+b9cbfa1 Merge pull request #516 from ninp0/master
+24cc69a PWN::Plugins::Assembly module - more #bugfixes
+6f6b8c7 Merge pull request #515 from ninp0/master
+5e436e0 PWN::Plugins::Assembly module - more #rubocop
+88935fb Merge pull request #514 from ninp0/master
+1736112 PWN::Plugins::Assembly module - more #rubocop
+00934b6 PWN::Plugins::Assembly module - more #bugfixes
+a724522 Merge pull request #513 from ninp0/master
+04b6fc1 PWN::Plugins::Assembly module - Decompile all sections in #asm_to_opcodes method / minor tweaks in #help method
+0133b4f Merge pull request #512 from ninp0/master
+dfffce8 PWN::Plugins::Assembly module - #opcodes_to_asm #bugfix
+b714aaa Merge pull request #511 from ninp0/master
+c8f56bf PWN::Plugins::Assembly module - initial commit #spec_bugfix
+04a390f PWN::Plugins::Assembly module - initial commit
+427d8bc Merge pull request #510 from ninp0/master
+e11a3a1 PWN::Plugins::DetectOS module - add #arch method
+aa8b59b Merge pull request #509 from ninp0/master
+f5ea3ff Gemfile - temporarily disable mongo gem until version conflicts are ironed out w/ bson
+e21f864 pwn_openvas_vulnscan Driver - replace --username / --password parameters in favor of --yaml-config
+2c540d8 PWN::Plugins::Baresip module - catch all session closures
+d93c7f2 Merge pull request #508 from ninp0/master
+46db844 PWN::Plugins::Baresip module - terminate call early if forbidden
+6025d4a PWN::Plugins::Baresip module - terminate call early if forbidden
+ceabe44 Merge pull request #507 from ninp0/master
+585f6c6 PWN::Plugins::Baresip module - add static option in #apply_src_num_rules method
+5f0f65d Merge pull request #506 from ninp0/master
+3f90f0d PWN::Plugins::BareSIP module - speech-to-text URI path bugfix for PWN::Reports::Phone module
+9275634 Merge pull request #505 from ninp0/master
+1ace8b6 PWN::Plugins::BareSIP module - require htmlentities gem #bugfix
+92e1151 Merge pull request #504 from ninp0/master
+1dc3aca PWN::Plugins::XXD module - #bugfix in #reverse_dump method when last line in hexdump is less than 16 bytes
+277711e Merge pull request #503 from ninp0/master
+4a925f6 pwn_bdba_scan Driver - URL decoding issues when searching for product and implement --binary-cleanup-age / --product-cleanup-age params in pwn_bdba_group driver #bugfix
+be1a6ec pwn_bdba_scan Driver - URL decoding issues when searching for product and implement --binary-cleanup-age / --product-cleanup-age params in pwn_bdba_group driver
+32dd341 Merge pull request #502 from ninp0/master
+f38f64c pwn_bdba_scan Driver - addressing weird response encoding practices done in the synopsis API for file names (i.e. + chars are not encoded to %2B, despite spaces being encoded to + chars) \_o_/
+907f6de Merge pull request #501 from ninp0/master
+918998b PWN::Plugins::XXD module - update usage
+e171b90 Merge pull request #500 from ninp0/master
+c805183 PWN::Plugins::XXD module - implement code necessary to demonstrate a code cave PoC in PWN::Banner::CodeCave
+3307e72 Merge pull request #499 from ninp0/master
+b19e2b1 PWN::Plugins::XXD module - #bugfix in format string in #reverse_dump method #bugfix
+b7e2250 Merge pull request #498 from ninp0/master
+4889b1e Merge pull request #497 from ninp0/master
+f0eecc5 Merge pull request #496 from ninp0/master
