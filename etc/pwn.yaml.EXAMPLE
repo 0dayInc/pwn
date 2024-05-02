@@ -10,3 +10,9 @@ ollama:
   fqdn: 'required - FQDN for Open WebUI - e.g. https://ollama.local'
   key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token'
   model: 'required - Ollama model to use'
+
+meshtastic:
+  psks:
+    admin: 'required - PSK for admin channel'
+    LongFast: 'required - PSK for LongFast channel'
+    PWN: 'required - PSK for pwn channel'
