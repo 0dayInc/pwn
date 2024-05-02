@@ -13,7 +13,7 @@ module PWN
       #   base: 'required ldap base to search from (e.g. dc=domain,dc=com)'
       #   encryption: 'optional parameter to protect communication in transit, :simple_tls OR :start_tls'
       #   auth_method: 'required ldap auth bind method, :simple, :sasl, OR :gss_spnego'
-      #   username: 'required username (e.g. request.pentest@0dayinc.com)',
+      #   username: 'required username (e.g. support@0dayinc.com)',
       #   password: 'optional (prompts if left blank)',
       # )
 
@@ -93,11 +93,11 @@ module PWN
         raise e
       end
 
-      # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
+      # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          0day Inc. <request.pentest@0dayinc.com>
+          0day Inc. <support@0dayinc.com>
         "
       end
 

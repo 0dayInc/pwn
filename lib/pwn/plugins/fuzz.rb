@@ -169,11 +169,11 @@ module PWN
         sock_obj = PWN::Plugins::Sock.disconnect(sock_obj: sock_obj) unless sock_obj.nil?
       end
 
-      # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
+      # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          0day Inc. <request.pentest@0dayinc.com>
+          0day Inc. <support@0dayinc.com>
         "
       end
 
