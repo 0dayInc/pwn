@@ -159,7 +159,7 @@ module PWN
           output.puts PWN::Banner.welcome
         end
 
-        # pwn.ai Hooks
+        # Initialize pwn.yaml Configuration using :before_session Hook
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
           if opts[:yaml_config_path] && File.exist?(opts[:yaml_config_path])
             yaml_config_path = opts[:yaml_config_path]
@@ -176,15 +176,16 @@ module PWN
               iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
               iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
 
-              decrypted_yaml_config = PWN::Plugins::Vault.dump(
+              yaml_config = PWN::Plugins::Vault.dump(
                 file: yaml_config_path,
                 key: key,
                 iv: iv
               )
-              yaml_config = YAML.load(decrypted_yaml_config, symbolize_names: true)
             else
               yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
             end
+            pi.config.p = yaml_config
+            Pry.config.p = yaml_config
 
             valid_ai_engines = %i[
               openai
@@ -197,14 +198,14 @@ module PWN
             pi.config.pwn_ai_engine = ai_engine
             Pry.config.pwn_ai_engine = ai_engine
 
-            pi.config.pwn_ai_fqdn = yaml_config[ai_engine][:fqdn]
-            Pry.config.pwn_ai_fqdn = yaml_config[ai_engine][:fqdn]
+            pi.config.pwn_ai_fqdn = pi.config.p[ai_engine][:fqdn]
+            Pry.config.pwn_ai_fqdn = pi.config.pwn_ai_fqdn
 
-            pi.config.pwn_ai_key = yaml_config[ai_engine][:key]
-            Pry.config.pwn_ai_key = yaml_config[ai_engine][:key]
+            pi.config.pwn_ai_key = pi.config.p[ai_engine][:key]
+            Pry.config.pwn_ai_key = pi.config.pwn_ai_key
 
-            pi.config.pwn_ai_model = yaml_config[ai_engine][:model]
-            Pry.config.pwn_ai_model = yaml_config[ai_engine][:model]
+            pi.config.pwn_ai_model = pi.config.p[ai_engine][:model]
+            Pry.config.pwn_ai_model = pi.config.pwn_ai_model
 
             true
           end
@@ -328,11 +329,11 @@ module PWN
         raise e
       end
 
-      # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
+      # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          0day Inc. <request.pentest@0dayinc.com>
+          0day Inc. <support@0dayinc.com>
         "
       end
 

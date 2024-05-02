@@ -123,11 +123,11 @@ module PWN
         }
       end
 
-      # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
+      # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          0day Inc. <request.pentest@0dayinc.com>
+          0day Inc. <support@0dayinc.com>
         "
       end
 

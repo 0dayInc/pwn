@@ -96,11 +96,11 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Vault.dump(
+      # vault = PWN::Plugins::Vault.dump(
       #   file: 'required - file to dump',
       #   key: 'required - key to decrypt',
       #   iv: 'required - iv to decrypt',
-      #   search: 'optional - search for a specific string'
+      #   yaml: 'optional - dump as parsed yaml hash (default: true)'
       # )
 
       def self.dump(opts = {})
@@ -113,7 +113,7 @@ module PWN
           prompt: 'IV'
         )
 
-        search = opts[:search]
+        yaml = opts[:yaml] ||= true
 
         decrypt(
           file: file,
@@ -121,10 +121,10 @@ module PWN
           iv: iv
         )
 
-        if search
-          file_dump =  File.readlines(file).grep(/#{search}/)
+        if yaml
+          file_dump = YAML.load_file(file, symbolize_names: true)
         else
-          file_dump =  File.read(file)
+          file_dump = File.read(file)
         end
 
         encrypt(
@@ -230,11 +230,11 @@ module PWN
         raise e
       end
 
-      # Author(s):: 0day Inc. <request.pentest@0dayinc.com>
+      # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
         "AUTHOR(S):
-          0day Inc. <request.pentest@0dayinc.com>
+          0day Inc. <support@0dayinc.com>
         "
       end
 
