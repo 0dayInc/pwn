@@ -11,6 +11,8 @@ else
   pwn_root="${PWN_ROOT}"
 fi
 
+target_jdk='openjdk-17-jdk'
+jenkins_java_version=$(echo ${target_jdk} | sed 's/-/ /g' | awk '{print $2}')
 pwn_provider=`echo $PWN_PROVIDER`
 
 # Make sure the pwn gemset has been loaded
@@ -27,14 +29,12 @@ echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
     https://pkg.jenkins.io/debian binary/ | sudo tee \
     /etc/apt/sources.list.d/jenkins.list > /dev/null
 
-# Get back to a Java version Jenkins supports
-sudo ln -sf /usr/lib/jvm/java-11-openjdk-amd64/bin/java /etc/alternatives/java
 sudo sh -c 'echo deb https://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
 
 $screen_cmd "${apt} update"
 grok_error
 
-$screen_cmd "${apt} install -yq openjdk-11-jdk"
+$screen_cmd "${apt} install -yq ${target_jdk}"
 grok_error
 
 $screen_cmd "${apt} install -yq jenkins"
@@ -45,6 +45,17 @@ sudo /bin/bash --login -c "cp ${pwn_root}/etc/userland/$pwn_provider/jenkins/jen
 sudo /bin/bash --login -c "sed -i \"s/DOMAIN/${domain_name}/g\" /etc/default/jenkins" 
 sudo usermod -a -G sudo jenkins
 sudo /bin/bash --login -c 'echo "jenkins ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jenkins'
+
+# Ensure Java version is supported by Jenkins
+sudo echo tee -a /etc/systemd/system/jenkins.service.d/override.conf << EOF
+[Service]
+Environment="JAVA_OPTS=-Djava.awt.headless=true -Dhudson.DNSMultiCast.disabled=true -Djava.net.preferIPv4Stack=true -Dmail.smtp.starttls.enable=true -Dhudson.model.DirectoryBrowserSupport.CSP= -Xmx2g"
+Environment="JENKINS_LISTEN_ADDRESS=127.0.0.1"
+Environment="JENKINS_PORT=8888"
+Environment="JENKINS_JAVA_CMD=/usr/lib/jvm/java-${jenkins_java_version}-openjdk-amd64/bin/java"
+EOF
+
+sudo systemctl daemon-reload
 sudo systemctl enable jenkins
 sudo systemctl restart jenkins
 
@@ -64,4 +75,3 @@ pwn_jenkins_install_plugin --ip 127.0.0.1 \
   -U admin \
   --api-key $initial_admin_pwd \
   -p "ansicolor, build-pipeline-plugin, bulk-builder, git, git-client, htmlpublisher, log-parser, mailer, matrix-auth, nested-view, purge-build-queue-plugin, ssh-agent, ssh-credentials"
-#  -p "ace-editor, analysis-core, ansicolor, ant, antisamy-markup-formatter, apache-httpcomponents-client-4-api, bouncycastle-api, build-pipeline-plugin, bulk-builder, command-launcher, conditional-buildstep, credentials, dashboard-view, dependency-check-jenkins-plugin, dependency-track, display-url-api, external-monitor-job, git, git-client, handlebars, htmlpublisher, jackson2-api, javadoc, jdk-tool, jquery, jquery-detached, jquery-ui, jsch, junit, ldap, log-parser, mailer, matrix-auth, matrix-project, maven-plugin, momentjs, nested-view, pam-auth, parameterized-trigger, pipeline-build-step, pipeline-graph-analysis, pipeline-input-step, pipeline-rest-api, pipeline-stage-step, pipeline-stage-view, plain-credentials, purge-build-queue-plugin, role-strategy, run-condition, scm-api, script-security, slack, ssh-agent, ssh-credentials, ssh-slaves, structs, token-macro, windows-slaves, workflow-api, workflow-cps, workflow-job, workflow-scm-step, workflow-step-api, workflow-support"
