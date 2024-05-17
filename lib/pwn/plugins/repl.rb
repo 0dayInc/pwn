@@ -324,7 +324,8 @@ module PWN
         prompt = Pry::Prompt.new(:pwn, 'PWN Prototyping REPL', ps1)
 
         # Start PWN REPL
-        Pry.start(self, prompt: prompt)
+        # Pry.start(self, prompt: prompt)
+        Pry.start(Pry.main, prompt: prompt)
       rescue StandardError => e
         raise e
       end
