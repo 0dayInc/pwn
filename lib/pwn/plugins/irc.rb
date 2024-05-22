@@ -57,7 +57,7 @@ module PWN
           next unless block_given?
 
           # Extract the message text from the message
-          message_text = message.split[3..-1].join(' ')[1..-1]
+          message_text = message.to_s.split[3..-1].join(' ')[1..-1]
           yield message_text
         end
       rescue StandardError => e
