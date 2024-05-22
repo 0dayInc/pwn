@@ -32,6 +32,7 @@ module PWN
     autoload :HackerOne, 'pwn/plugins/hacker_one'
     autoload :IBMAppscan, 'pwn/plugins/ibm_appscan'
     autoload :IPInfo, 'pwn/plugins/ip_info'
+    autoload :IRC, 'pwn/plugins/irc'
     autoload :Jenkins, 'pwn/plugins/jenkins'
     autoload :JiraServer, 'pwn/plugins/jira_server'
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
