@@ -54,10 +54,11 @@ module PWN
         loop do
           message = irc_obj.gets
           @@logger.info(message)
-          if block_given?
-            message_text = message.split[3..-1].join(' ')[1..-1]
-            yield message_text
-          end
+          next unless block_given?
+
+          # Extract the message text from the message
+          message_text = message.split[3..-1].join(' ')[1..-1]
+          yield message_text
         end
       rescue StandardError => e
         raise e
