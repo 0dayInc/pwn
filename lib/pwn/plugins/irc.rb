@@ -33,9 +33,20 @@ module PWN
         )
 
         send(irc_obj: irc_obj, message: "NICK #{nick}")
+        irc_obj.gets
+        irc_obj.flush
+
         send(irc_obj: irc_obj, message: "USER #{nick} #{host} #{host} :#{real}")
+        irc_obj.gets
+        irc_obj.flush
+
         send(irc_obj: irc_obj, message: "JOIN #{chan}")
+        irc_obj.gets
+        irc_obj.flush
+
         send(irc_obj: irc_obj, message: "PRIVMSG #{chan} :#{nick} joined.")
+        irc_obj.gets
+        irc_obj.flush
 
         irc_obj
       rescue StandardError => e
@@ -45,15 +56,17 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::IRC.listen(
-      #   irc_obj: 'required - irc_obj returned from #connect method'
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   verbose: 'optional - boolean to enable verbose output (defaults to false)'
       # )
 
       public_class_method def self.listen(opts = {})
         irc_obj = opts[:irc_obj]
+        verbose = opts[:verbose] || false
 
         loop do
           message = irc_obj.gets
-          @@logger.info(message.to_s.chomp)
+          @@logger.info(message.to_s.chomp) if verbose
           irc_obj.flush
           next unless block_given?
 
@@ -113,7 +126,8 @@ module PWN
           )
 
           #{self}.listen(
-            irc_obj: 'required - irc_obj returned from #connect method'
+            irc_obj: 'required - irc_obj returned from #connect method',
+            verbose: 'optional - boolean to enable verbose output (defaults to false)'
           )
 
           #{self}.send(
