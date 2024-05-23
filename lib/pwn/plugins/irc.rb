@@ -53,7 +53,7 @@ module PWN
 
         loop do
           message = irc_obj.gets
-          @@logger.info(message)
+          @@logger.info(message.to_s.chomp)
           next unless block_given?
 
           yield message
