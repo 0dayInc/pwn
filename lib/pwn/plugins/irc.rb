@@ -53,8 +53,8 @@ module PWN
 
         loop do
           message = irc_obj.gets
-          irc_obj.flush
           @@logger.info(message.to_s.chomp)
+          irc_obj.flush
           next unless block_given?
 
           yield message
@@ -69,17 +69,12 @@ module PWN
       # PWN::Plugins::IRC.send(
       #   irc_obj: 'required - irc_obj returned from #connect method',
       #   message: 'required - message to send',
-      #   response_timeout: 'optional - response timeout in seconds (defaults to 3)'
       # )
       public_class_method def self.send(opts = {})
         irc_obj = opts[:irc_obj]
         message = opts[:message].to_s.scrub
-        response_timeout = opts[:response_timeout] || 3
 
         irc_obj.puts(message)
-        # Wait for a response from the server
-        # does_respond = irc_obj.wait_readable(response_timeout)
-        irc_obj.gets
         irc_obj.flush
       rescue StandardError => e
         raise e
@@ -124,7 +119,6 @@ module PWN
           #{self}.send(
             irc_obj: 'required - irc_obj returned from #connect method',
             message: 'required - message to send',
-            response_timeout: 'optional - response timeout in seconds (defaults to 3)'
           )
 
           irc_obj = #{self}.disconnect(
