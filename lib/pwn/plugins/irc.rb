@@ -53,7 +53,8 @@ module PWN
 
         loop do
           message = irc_obj.gets
-          @@logger.info(message)
+          irc_obj.flush
+          @@logger.info(message.to_s.chomp)
           next unless block_given?
 
           yield message
@@ -77,7 +78,8 @@ module PWN
 
         irc_obj.puts(message)
         # Wait for a response from the server
-        does_respond = irc_obj.wait_readable(response_timeout)
+        # does_respond = irc_obj.wait_readable(response_timeout)
+        irc_obj.gets
         irc_obj.flush
       rescue StandardError => e
         raise e
