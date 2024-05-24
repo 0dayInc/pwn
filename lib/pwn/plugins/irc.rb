@@ -40,6 +40,23 @@ module PWN
         irc_obj.gets
         irc_obj.flush
 
+        join(irc_obj: irc_obj, chan: chan)
+
+        irc_obj
+      rescue StandardError => e
+        irc_obj = disconnect(irc_obj: irc_obj) unless irc_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::IRC.join(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   chan: 'required - channel to join'
+      # )
+      public_class_method def self.join(opts = {})
+        irc_obj = opts[:irc_obj]
+        chan = opts[:chan].to_s.scrub
+
         send(irc_obj: irc_obj, message: "JOIN #{chan}")
         irc_obj.gets
         irc_obj.flush
@@ -47,11 +64,44 @@ module PWN
         send(irc_obj: irc_obj, message: "PRIVMSG #{chan} :#{nick} joined.")
         irc_obj.gets
         irc_obj.flush
-
-        irc_obj
       rescue StandardError => e
-        irc_obj = disconnect(irc_obj: irc_obj) unless irc_obj.nil?
         raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::IRC.part(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   chan: 'required - channel to part',
+      #   message: 'optional - message to send when parting'
+      # )
+      public_class_method def self.part(opts = {})
+        irc_obj = opts[:irc_obj]
+        chan = opts[:chan].to_s.scrub
+        message = opts[:message].to_s.scrub
+
+        send(irc_obj: irc_obj, message: "PART #{chan} :#{message}")
+        irc_obj.gets
+        irc_obj.flush
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::IRC.quit(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   message: 'optional - message to send when quitting'
+      # )
+      public_class_method def self.quit(opts = {})
+        irc_obj = opts[:irc_obj]
+        message = opts[:message].to_s.scrub
+
+        send(irc_obj: irc_obj, message: "QUIT :#{message}")
+        irc_obj.gets
+        irc_obj.flush
+      rescue StandardError => e
+        raise e
+      ensure
+        disconnect(irc_obj: irc_obj) unless irc_obj.nil?
       end
 
       # Supported Method Parameters::
@@ -123,6 +173,22 @@ module PWN
             nick: 'required - nickname',
             chan: 'required - channel',
             tls: 'optional - boolean connect to host socket using TLS (defaults to false)'
+          )
+
+          #{self}.join(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            chan: 'required - channel to join'
+          )
+
+          #{self}.part(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            chan: 'required - channel to part',
+            message: 'optional - message to send when parting'
+          )
+
+          #{self}.quit(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            message: 'optional - message to send when quitting'
           )
 
           #{self}.listen(
