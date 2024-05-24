@@ -193,7 +193,7 @@ module PWN
       #   irc_obj: 'required - irc_obj returned from #connect method',
       #   message: 'required - message to send',
       # )
-      public_class_method def self.send(opts = {})
+      private_class_method def self.send(opts = {})
         irc_obj = opts[:irc_obj]
         message = opts[:message].to_s.scrub
 
@@ -271,11 +271,6 @@ module PWN
           #{self}.listen(
             irc_obj: 'required - irc_obj returned from #connect method',
             verbose: 'optional - boolean to enable verbose output (defaults to false)'
-          )
-
-          #{self}.send(
-            irc_obj: 'required - irc_obj returned from #connect method',
-            message: 'required - message to send',
           )
 
           irc_obj = #{self}.disconnect(
