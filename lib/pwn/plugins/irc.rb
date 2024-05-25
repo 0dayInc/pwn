@@ -93,7 +93,7 @@ module PWN
           message.split("\n") do |message_chunk|
             this_message = "PRIVMSG #{chan} :#{message_chunk}"
             if message_chunk.length.positive?
-              PWN::Plugins::IRC.send(
+              send(
                 irc_obj: irc_obj,
                 message: this_message
               )
