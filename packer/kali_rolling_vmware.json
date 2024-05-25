@@ -99,6 +99,7 @@
         "provisioners/pwn.sh",
         "provisioners/beef.rb",
         "provisioners/burpsuite.sh",
+        "provisioners/irc.sh",
         "provisioners/jenkins.sh",
         "provisioners/android.sh",
         "provisioners/sox.sh",
