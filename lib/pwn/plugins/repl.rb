@@ -117,13 +117,12 @@ module PWN
 
           def process
             pi = pry_instance
-            try_again = '/usr/bin/irrsi not found.  Run "sudo apt-get install irssi" to install and try again.'
-            puts try_again unless File.exist?('/usr/bin/irssi')
-            if File.exist?('/usr/bin/irssi')
-              # TODO: Initialize inspircd on localhost:6667 using
-              # PWN::Plugins::IRC && PWN::Plugins::ThreadPool modules.
-              system('/usr/bin/irssi -c 127.0.0.1 -p 6667 -n pwn-irc')
-            end
+            inspircd_listening = PWN::Plugins::Sock.check_port_in_use(server_ip: '127.0.0.1', port: 6667)
+            return unless File.exist?('/usr/bin/irssi') && inspircd_listening
+
+            # TODO: Initialize inspircd on localhost:6667 using
+            # PWN::Plugins::IRC && PWN::Plugins::ThreadPool modules.
+            system('/usr/bin/irssi -c 127.0.0.1 -p 6667 -n pwn-irc')
           end
         end
 
