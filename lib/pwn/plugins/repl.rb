@@ -112,6 +112,16 @@ module PWN
           end
         end
 
+        Pry::Commands.create_command 'pwn-irc' do
+          description 'Initiate pwn.irc chat interface.'
+
+          def process
+            pi = pry_instance
+            puts '/usr/bin/irrsi not found.  Run "sudo apt-get install irssi" to install.' unless File.exist?('/usr/bin/irssi') 
+            system('/usr/bin/irssi -c 127.0.0.1 -p 6667 -n pwn-irc') if File.exist?('/usr/bin/irssi')
+          end
+        end
+
         Pry::Commands.create_command 'toggle-pwn-ai-debug' do
           description 'Display the response_history object while using pwn.ai'
 
