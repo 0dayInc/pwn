@@ -117,8 +117,13 @@ module PWN
 
           def process
             pi = pry_instance
-            puts '/usr/bin/irrsi not found.  Run "sudo apt-get install irssi" to install.' unless File.exist?('/usr/bin/irssi') 
-            system('/usr/bin/irssi -c 127.0.0.1 -p 6667 -n pwn-irc') if File.exist?('/usr/bin/irssi')
+            try_again = '/usr/bin/irrsi not found.  Run "sudo apt-get install irssi" to install and try again.'
+            puts try_again unless File.exist?('/usr/bin/irssi')
+            if File.exist?('/usr/bin/irssi')
+              # TODO: Initialize inspircd on localhost:6667 using
+              # PWN::Plugins::IRC && PWN::Plugins::ThreadPool modules.
+              system('/usr/bin/irssi -c 127.0.0.1 -p 6667 -n pwn-irc')
+            end
           end
         end
 
