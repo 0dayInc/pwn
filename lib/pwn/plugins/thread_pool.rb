@@ -8,8 +8,7 @@ module PWN
       # PWN::Plugins::ThreadPool.fill(
       #   enumerable_array: 'required array for proper thread pool assignment',
       #   max_threads: 'optional number of threads in the thread pool (defaults to 9)',
-      #   seconds_between_thread_exec: 'optional - time to sleep between thread execution (defaults to 0)'
-      #   &block
+      #   detach: 'optional boolean to detach threads (defaults to false)'
       # )
       #
       # Example:
@@ -25,7 +24,7 @@ module PWN
         enumerable_array = opts[:enumerable_array]
         max_threads = opts[:max_threads].to_i
         max_threads = 9 if max_threads.zero?
-        # seconds_between_thread_exec = opts[:seconds_between_thread_exec].to_i
+        detach = opts[:detach] ||= false
 
         puts "Initiating Thread Pool of #{max_threads} Worker Threads...."
         queue = SizedQueue.new(max_threads)
@@ -45,11 +44,11 @@ module PWN
           queue << :POOL_EXHAUSTED
         end
 
-        # threads.each do |thread|
-        #   sleep seconds_between_thread_exec if seconds_between_thread_exec.positive?
-        #   thread.join
-        # end
-        threads.each(&:join)
+        if detach
+          puts 'Detaching from thread pool...'
+        else
+          threads.each(&:join)
+        end
       rescue Interrupt
         puts "\nGoodbye."
       rescue StandardError => e
@@ -71,7 +70,7 @@ module PWN
           #{self}.fill(
             enumerable_array. => 'required array for proper thread pool assignment',
             max_threads: 'optional number of threads in the thread pool (defaults to 9)',
-            &block
+            detach: 'optional boolean to detach threads (defaults to false)'
           )
 
           Example:

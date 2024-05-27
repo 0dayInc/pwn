@@ -11,6 +11,17 @@ ollama:
   key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token'
   model: 'required - Ollama model to use'
 
+irc:
+  irssi_nick: 'human'
+  shared_chan: '#pwn'
+  ai_agent_nicks:
+    browser:
+      system_role_content: ''
+    nmap:
+      system_role_content: ''
+    shodan:
+      system_role_content: ''
+
 meshtastic:
   psks:
     admin: 'required - PSK for admin channel'

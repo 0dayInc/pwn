@@ -45,6 +45,22 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::IRC.names(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   chan: 'required - channel to list names'
+      # )
+      public_class_method def self.names(opts = {})
+        irc_obj = opts[:irc_obj]
+        chan = opts[:chan].to_s.scrub
+
+        send(irc_obj: irc_obj, message: "NAMES #{chan}")
+        irc_obj.gets
+        irc_obj.flush
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::IRC.ping(
       #   irc_obj: 'required - irc_obj returned from #connect method',
       #   message: 'required - message to send'
@@ -231,7 +247,7 @@ module PWN
             host: 'required - host or ip',
             port: 'required - host port',
             nick: 'required - nickname',
-            chan: 'required - channel',
+            real: 'optional - real name (defaults to value of nick)',
             tls: 'optional - boolean connect to host socket using TLS (defaults to false)'
           )
 
