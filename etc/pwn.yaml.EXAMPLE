@@ -18,6 +18,9 @@ irc:
     browser:
       pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb'
       system_role_content: ''
+    ninja:
+      pwn_rb: ''
+      system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
     nmap:
       pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb'
       system_role_content: ''
