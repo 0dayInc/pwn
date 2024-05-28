@@ -12,14 +12,17 @@ ollama:
   model: 'required - Ollama model to use'
 
 irc:
-  irssi_nick: 'human'
+  ui_nick: 'human'
   shared_chan: '#pwn'
   ai_agent_nicks:
     browser:
+      pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb'
       system_role_content: ''
     nmap:
+      pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb'
       system_role_content: ''
     shodan:
+      pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb'
       system_role_content: ''
 
 meshtastic:
@@ -27,3 +30,6 @@ meshtastic:
     admin: 'required - PSK for admin channel'
     LongFast: 'required - PSK for LongFast channel'
     PWN: 'required - PSK for pwn channel'
+
+shodan:
+  api_key: 'SHODAN API Key'
