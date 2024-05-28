@@ -122,12 +122,11 @@ module PWN
             port = 6667
 
             inspircd_listening = PWN::Plugins::Sock.check_port_in_use(server_ip: host, port: port)
-            irssi_installed = File.exist?('/usr/bin/irssi')
             weechat_installed = File.exist?('/usr/bin/weechat')
-            unless pi.config.pwn_irc && inspircd_listening && (irssi_installed || weechat_installed)
+            unless pi.config.pwn_irc && inspircd_listening && weechat_installed
               puts 'The following requirements are needed to start pwn.irc:'
               puts '1. inspircd listening on localhost:6667'
-              puts '2. irssi OR weechat is installed on your system'
+              puts '2. weechat is installed on your system'
               puts '3. pwn.yaml configuration file with irc settings has been loaded'
 
               return
@@ -136,7 +135,7 @@ module PWN
             # Setup the IRC Environment - Quickly
             # TODO: Initialize inspircd on localhost:6667 using
             # PWN::Plugins::IRC && PWN::Plugins::ThreadPool modules.
-            # We use irssi or weechat instead of PWN::Plugins::IRC for the UI.
+            # We use weechat instead of PWN::Plugins::IRC for the UI.
             # TODO: Once host, port, && nick are dynamic, ensure
             # they are all casted into String objects.
 
@@ -161,17 +160,17 @@ module PWN
               )
 
               # Create a new IRC Channel for each AI Agent
-              chan = "##{nick}"
               PWN::Plugins::IRC.join(
                 irc_obj: irc_obj,
                 nick: nick,
                 chan: shared_chan
               )
 
+              chan = "##{nick}"
               PWN::Plugins::IRC.join(
                 irc_obj: irc_obj,
                 nick: nick,
-                chan: "##{nick}"
+                chan: chan
               )
 
               # Listen for IRC Messages and Reply if @<AI Agent> is mentioned
@@ -290,14 +289,14 @@ module PWN
                             irc_obj: irc_obj,
                             chan: shared_chan,
                             nick: dm_agent,
-                            message: reply
+                            message: "*** REQUEST:\n#{request}\n*** REPLY:\n#{reply}"
                           )
 
                           PWN::Plugins::IRC.privmsg(
                             irc_obj: irc_obj,
                             chan: chan,
                             nick: dm_agent,
-                            message: reply
+                            message: "*** REQUEST:\n#{request}\n*** REPLY:\n#{reply}"
                           )
                         end
                       end
@@ -310,30 +309,21 @@ module PWN
             # TODO: Use TLS for IRC Connections
             # Use an IRC nCurses CLI Client
             ui_nick = pi.config.pwn_irc[:ui_nick]
-            if weechat_installed
-              join_channels = ai_agents_arr.map { |a| "/join ##{a}" }.join(',')
-              cmd0 = "/nick #{ui_nick}"
-              cmd1 = "/server add pwn #{host}/#{port} -notls"
-              cmd2 = '/connect pwn'
-              cmd3 = join_channels
-              weechat_cmds = "#{cmd0};#{cmd1};#{cmd2};#{cmd3}"
+            join_channels = ai_agents_arr.map { |ai_chan| "##{ai_chan}" }.join(',')
 
-              system(
-                '/usr/bin/weechat',
-                '--run-command',
-                weechat_cmds
-              )
-            else
-              system(
-                '/usr/bin/irssi',
-                '--connect',
-                host.to_s,
-                '--port',
-                port.to_s,
-                '--nick',
-                ui_nick.to_s
-              )
-            end
+            cmd0 = "/server add pwn #{host}/#{port} -notls"
+            cmd1 = '/connect pwn'
+            cmd2 = "/wait 6 /allserv /nick #{ui_nick}"
+            cmd3 = "/wait 9 /join -server pwn #{join_channels},#pwn"
+            cmd4 = '/wait 15 /buffer pwn'
+
+            weechat_cmds = "'#{cmd0};#{cmd1};#{cmd2};#{cmd3};#{cmd4}'"
+
+            system(
+              '/usr/bin/weechat',
+              '--run-command',
+              weechat_cmds
+            )
           end
         end
 
