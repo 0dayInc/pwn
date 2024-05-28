@@ -311,15 +311,17 @@ module PWN
             # Use an IRC nCurses CLI Client
             ui_nick = pi.config.pwn_irc[:ui_nick]
             if weechat_installed
+              join_channels = ai_agents_arr.map { |a| "/join ##{a}" }.join(',') 
+              cmd0 = "/nick #{ui_nick}"
+              cmd1 = "/server add pwn #{host}/#{port} -notls"
+              cmd2 = "/connect pwn"
+              cmd3 = join_channels
+              weechat_cmds = "#{cmd0};#{cmd1};#{cmd2};#{cmd3}"
+
               system(
                 '/usr/bin/weechat',
                 '--run-command',
-                '/server add pwn 127.0.0.1/6667 -notls',
-                '--run-command',
-                '/connect pwn',
-                '--run-command',
-                '/nick',
-                ui_nick.to_s
+                weechat_cmds
               )
             else
               system(
