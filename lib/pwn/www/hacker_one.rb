@@ -29,7 +29,8 @@ module PWN
       # programs_arr = PWN::WWW::HackerOne.get_bounty_programs(
       #   browser_obj: 'required - browser_obj returned from #open method',
       #   proxy: 'optional - scheme://proxy_host:port || tor',
-      #   min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
+      #   min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)',
+      #   suppress_progress: 'optional - suppress output (defaults to false)'
       # )
 
       public_class_method def self.get_bounty_programs(opts = {})
@@ -37,6 +38,7 @@ module PWN
         browser = browser_obj[:browser]
         min_payouts_enabled = true if opts[:min_payouts_enabled]
         min_payouts_enabled ||= false
+        suppress_progress = opts[:suppress_progress] ||= false
 
         browser.goto('https://hackerone.com/bug-bounty-programs')
         # Wait for JavaScript to load the DOM
@@ -48,7 +50,8 @@ module PWN
 
           next if min_payouts_enabled && min_payout.zero?
 
-          print '.'
+          print '.' unless suppress_progress
+
           link = "https://#{ul.first.text}"
           min_payout_fmt = format('$%0.2f', min_payout)
           scheme = URI.parse(link).scheme
@@ -360,7 +363,8 @@ module PWN
           programs_arr = #{self}.get_bounty_programs(
             browser_obj: 'required - browser_obj returned from #open method',
             proxy: 'optional - scheme://proxy_host:port || tor',
-            min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)'
+            min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)',
+            suppress_progress: 'optional - suppress output (defaults to false)'
           )
 
           scope_details = PWN::WWW::HackerOne.get_scope_details(
