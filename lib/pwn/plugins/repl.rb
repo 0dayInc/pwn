@@ -336,16 +336,18 @@ module PWN
                             temp: ai_temp,
                             system_role_content: system_role_content,
                             request: request,
-                            response_history: response_history
+                            response_history: response_history,
+                            spinner: false
                           )
                         else
                           response = PWN::Plugins::OpenAI.chat(
                             token: ai_key,
                             model: model,
-                            temp: temp,
+                            temp: ai_temp,
                             system_role_content: system_role_content,
                             request: request,
-                            response_history: response_history
+                            response_history: response_history,
+                            spinner: false
                           )
                         end
 
