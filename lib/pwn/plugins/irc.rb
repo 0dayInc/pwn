@@ -9,6 +9,36 @@ module PWN
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
+      # resp = PWN::Plugins::IRC.irc_cmd(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   cmd: 'required - cmd to send',
+      # )
+      private_class_method def self.irc_cmd(opts = {})
+        irc_obj = opts[:irc_obj]
+        cmd = opts[:cmd].to_s.scrub
+        max_timeout = opts[:max_timeout] ||= 0.009
+
+        readl_timeout = 0.001
+        irc_obj.puts(cmd)
+        response = []
+
+        begin
+          response.push(irc_obj.readline.chomp) while irc_obj.wait_readable(readl_timeout) && irc_obj.ready? && !irc_obj.eof?
+          raise IOError if response.empty?
+        rescue IOError
+          readl_timeout += 0.001
+          retry if readl_timeout < max_timeout
+          return response if readl_timeout >= max_timeout
+        end
+
+        response
+      rescue StandardError => e
+        raise e
+      ensure
+        irc_obj.flush
+      end
+
+      # Supported Method Parameters::
       # irc_obj = PWN::Plugins::IRC.connect(
       #   host: 'required - host or ip (defaults to "127.0.0.1")',
       #   port: 'required - host port (defaults to 6667)',
@@ -30,17 +60,33 @@ module PWN
           tls: tls
         )
 
-        send(irc_obj: irc_obj, message: "NICK #{nick}")
-        irc_obj.gets
-        irc_obj.flush
-
-        send(irc_obj: irc_obj, message: "USER #{nick} #{host} #{host} :#{real}")
-        irc_obj.gets
-        irc_obj.flush
+        irc_cmd(irc_obj: irc_obj, cmd: "NICK #{nick}")
+        irc_cmd(
+          irc_obj: irc_obj,
+          cmd: "USER #{nick} #{host} #{host} :#{real}",
+          max_timeout: 0.1
+        )
 
         irc_obj
       rescue StandardError => e
         irc_obj = disconnect(irc_obj: irc_obj) unless irc_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::IRC.join(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   nick: 'required - nickname',
+      #   chan: 'required - channel to join'
+      # )
+      public_class_method def self.join(opts = {})
+        irc_obj = opts[:irc_obj]
+        nick = opts[:nick].to_s.scrub
+        chan = opts[:chan].to_s.scrub
+
+        irc_cmd(irc_obj: irc_obj, cmd: "JOIN #{chan}")
+        privmsg(irc_obj: irc_obj, message: "#{nick} joined.")
+      rescue StandardError => e
         raise e
       end
 
@@ -53,46 +99,19 @@ module PWN
         irc_obj = opts[:irc_obj]
         chan = opts[:chan].to_s.scrub
 
-        send(irc_obj: irc_obj, message: "NAMES #{chan}")
-        irc_obj.gets
-        irc_obj.flush
+        resp = irc_cmd(irc_obj: irc_obj, cmd: "NAMES #{chan}", max_timeout: 0.01)
+        names = []
+        raw_names = resp.first.to_s.split[5..-1]
+        # Strip out colons and @ from names
+        names = raw_names.map { |name| name.gsub(/[@:]/, '') } if raw_names.is_a?(Array)
+
+        names
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::IRC.ping(
-      #   irc_obj: 'required - irc_obj returned from #connect method',
-      #   message: 'required - message to send'
-      # )
-      public_class_method def self.ping(opts = {})
-        irc_obj = opts[:irc_obj]
-        message = opts[:message].to_s.scrub
-
-        send(irc_obj: irc_obj, message: "PING :#{message}")
-        irc_obj.gets
-        irc_obj.flush
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::IRC.pong(
-      #   irc_obj: 'required - irc_obj returned from #connect method',
-      #   message: 'required - message to send'
-      # )
-      public_class_method def self.pong(opts = {})
-        irc_obj = opts[:irc_obj]
-        message = opts[:message].to_s.scrub
-
-        send(irc_obj: irc_obj, message: "PONG :#{message}")
-        irc_obj.gets
-        irc_obj.flush
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
+      #
       # PWN::Plugins::IRC.privmsg(
       #   irc_obj: 'required - irc_obj returned from #connect method',
       #   chan: 'required - channel to send message',
@@ -109,37 +128,43 @@ module PWN
           message.split("\n") do |message_chunk|
             this_message = "PRIVMSG #{chan} :#{message_chunk}"
             if message_chunk.length.positive?
-              send(
+              irc_cmd(
                 irc_obj: irc_obj,
-                message: this_message
+                cmd: this_message
               )
             end
           end
         else
-          send(irc_obj: irc_obj, message: "PRIVMSG #{chan} :#{message}")
+          irc_cmd(irc_obj: irc_obj, cmd: "PRIVMSG #{chan} :#{message}")
         end
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::IRC.join(
+      # PWN::Plugins::IRC.ping(
       #   irc_obj: 'required - irc_obj returned from #connect method',
-      #   nick: 'required - nickname',
-      #   chan: 'required - channel to join'
+      #   message: 'required - message to send'
       # )
-      public_class_method def self.join(opts = {})
+      public_class_method def self.ping(opts = {})
         irc_obj = opts[:irc_obj]
-        nick = opts[:nick].to_s.scrub
-        chan = opts[:chan].to_s.scrub
+        message = opts[:message].to_s.scrub
 
-        send(irc_obj: irc_obj, message: "JOIN #{chan}")
-        irc_obj.gets
-        irc_obj.flush
+        irc_cmd(irc_obj: irc_obj, cmd: "PING :#{message}")
+      rescue StandardError => e
+        raise e
+      end
 
-        privmsg(irc_obj: irc_obj, message: "#{nick} joined.")
-        irc_obj.gets
-        irc_obj.flush
+      # Supported Method Parameters::
+      # PWN::Plugins::IRC.pong(
+      #   irc_obj: 'required - irc_obj returned from #connect method',
+      #   message: 'required - message to send'
+      # )
+      public_class_method def self.pong(opts = {})
+        irc_obj = opts[:irc_obj]
+        message = opts[:message].to_s.scrub
+
+        irc_cmd(irc_obj: irc_obj, cmd: "PONG :#{message}")
       rescue StandardError => e
         raise e
       end
@@ -155,9 +180,7 @@ module PWN
         chan = opts[:chan].to_s.scrub
         message = opts[:message].to_s.scrub
 
-        send(irc_obj: irc_obj, message: "PART #{chan} :#{message}")
-        irc_obj.gets
-        irc_obj.flush
+        irc_cmd(irc_obj: irc_obj, cmd: "PART #{chan} :#{message}")
       rescue StandardError => e
         raise e
       end
@@ -171,9 +194,7 @@ module PWN
         irc_obj = opts[:irc_obj]
         message = opts[:message].to_s.scrub
 
-        send(irc_obj: irc_obj, message: "QUIT :#{message}")
-        irc_obj.gets
-        irc_obj.flush
+        irc_cmd(irc_obj: irc_obj, cmd: "QUIT :#{message}")
       rescue StandardError => e
         raise e
       ensure
@@ -188,7 +209,7 @@ module PWN
 
       public_class_method def self.listen(opts = {})
         irc_obj = opts[:irc_obj]
-        verbose = opts[:verbose] || false
+        verbose = opts[:verbose] ||= false
 
         loop do
           message = irc_obj.gets
@@ -202,21 +223,6 @@ module PWN
         raise e
       ensure
         disconnect(irc_obj: irc_obj)
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::IRC.send(
-      #   irc_obj: 'required - irc_obj returned from #connect method',
-      #   message: 'required - message to send',
-      # )
-      private_class_method def self.send(opts = {})
-        irc_obj = opts[:irc_obj]
-        message = opts[:message].to_s.scrub
-
-        irc_obj.puts(message)
-        irc_obj.flush
-      rescue StandardError => e
-        raise e
       end
 
       # Supported Method Parameters::
@@ -251,12 +257,6 @@ module PWN
             tls: 'optional - boolean connect to host socket using TLS (defaults to false)'
           )
 
-          #{self}.join(
-            irc_obj: 'required - irc_obj returned from #connect method',
-            nick: 'required - nickname',
-            chan: 'required - channel to join'
-          )
-
           #{self}.ping(
             irc_obj: 'required - irc_obj returned from #connect method',
             message: 'required - message to send'
@@ -271,6 +271,17 @@ module PWN
             irc_obj: 'required - irc_obj returned from #connect method',
             chan: 'required - channel to send message',
             message: 'required - message to send'
+          )
+
+          #{self}.join(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            nick: 'required - nickname',
+            chan: 'required - channel to join'
+          )
+
+          #{self}.names(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            chan: 'required - channel to list names'
           )
 
           #{self}.part(

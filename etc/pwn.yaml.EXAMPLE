@@ -5,14 +5,16 @@ ai_engine: 'openai'
 openai:
   key: 'required - OpenAI API Key'
   model: 'optional - OpenAI model to use'
+  temp: 'optional - OpenAI temperature'
 
 ollama:
   fqdn: 'required - FQDN for Open WebUI - e.g. https://ollama.local'
   key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token'
   model: 'required - Ollama model to use'
+  temp: 'optional - Ollama temperature'
 
 irc:
-  ui_nick: 'human'
+  ui_nick: '_human_'
   shared_chan: '#pwn'
   ai_agent_nicks:
     browser:
