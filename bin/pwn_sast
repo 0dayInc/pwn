@@ -117,7 +117,7 @@ begin
       TypeScriptTypeJuggling
       Version
       WindowLocationHash
-    ]
+    ].sort.uniq
   end
 
   if list_test_cases
