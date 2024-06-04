@@ -128,7 +128,7 @@ module PWN
       # PWN::Plugins::IPInfo.bruteforce_subdomains(
       #   parent_domain: 'required - Parent Domain to brute force',
       #   dictionary: 'required - Dictionary to use for subdomain brute force',
-      #   max_threads: 'optional - Maximum number of threads to use (default: 10)',
+      #   max_threads: 'optional - Maximum number of threads to use (default: 9)',
       #   proxy: 'optional - use a proxy',
       #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
       #   results_file: 'optional - File to write results to (default: /tmp/parent_domain-timestamp-pwn_bruteforce_subdomains.txt)'
@@ -141,15 +141,14 @@ module PWN
         dictionary = opts[:dictionary] ||= default_dictionary
         raise "ERROR: Dictionary file not found: #{dictionary}" unless File.exist?(dictionary)
 
-        max_threads = opts[:max_threads].to_i
-        max_threads = 8 unless max_threads.positive?
+        max_threads = opts[:max_threads]
 
         proxy = opts[:proxy]
         tls_port = opts[:tls_port]
         timestamp = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
         results_file = opts[:results_file] ||= "/tmp/SUBS.#{parent_domain}-#{timestamp}-pwn_bruteforce_subdomains.txt"
 
-        File.write(results_file, '[')
+        File.write(results_file, "[\n")
 
         # Break up dictonary file into sublines and process each subline in a thread
         dict_lines = File.readlines(dictionary).shuffle
@@ -158,17 +157,16 @@ module PWN
           enumerable_array: dict_lines,
           max_threads: max_threads
         ) do |subline|
+          print '.'
           subdomain = subline.to_s.scrub.strip.chomp
           target = parent_domain if subdomain.empty?
-          target = "#{subdomain}.#{parent_domain}"
+          target = "#{subdomain}.#{parent_domain}" unless subdomain.empty?
           ip_info_resp = get(
             target: target,
             proxy: proxy,
             tls_port: tls_port,
             skip_api: true
           )
-          puts "SUBD: #{target} RESP: #{ip_info_resp}" if ip_info_resp.empty?
-          puts "SUBD: #{target} RESP:\n#{ip_info_resp}" if ip_info_resp.any?
 
           mutex.synchronize do
             File.open(results_file, 'a') do |file|
@@ -185,8 +183,11 @@ module PWN
         raise e
       ensure
         # Strip trailing comma and close JSON array
-        File.readlines(results_file)[-1].chomp!(',')
-        File.append(results_file, ']')
+        final_results = File.readlines(results_file)
+        # Strip trailing comma from last line
+        last_line = final_results[-1][0..-2]
+        final_results[-1] = last_line
+        File.write(results_file, "#{final_results.join}\n]")
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -211,7 +212,7 @@ module PWN
           #{self}.bruteforce_subdomains(
             parent_domain: 'required - Parent Domain to brute force',
             dictionary: 'required - Dictionary to use for subdomain brute force',
-            max_threads: 'optional - Maximum number of threads to use (default: 10)',
+            max_threads: 'optional - Maximum number of threads to use (default: 9)',
             proxy: 'optional - use a proxy',
             tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
             results_file: 'optional - File to write results to (default: /tmp/parent_domain-timestamp-pwn_bruteforce_subdomains.txt)'
