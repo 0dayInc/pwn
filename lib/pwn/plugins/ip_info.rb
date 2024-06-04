@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'ipaddress'
+require 'json'
 require 'openssl'
 require 'resolv'
 
@@ -10,7 +11,7 @@ module PWN
     # 1,000 daily requests are allowed for free
     module IPInfo
       # Supported Method Parameters::
-      # ip_resp_json = ip_info_rest_call(
+      # ip_resp_hash = ip_info_rest_call(
       #   ip: 'required - IP or Host to lookup',
       #   proxy: 'optional - use a proxy'
       # )
@@ -28,7 +29,7 @@ module PWN
           rest_client = browser_obj[:browser]
 
           ip_resp_str = rest_client.get("http://ip-api.com/json/#{ip}?fields=country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,reverse,mobile,proxy,query,status,message")
-          ip_resp_json = JSON.parse(
+          ip_resp_hash = JSON.parse(
             ip_resp_str,
             symbolize_names: true
           )
@@ -39,7 +40,7 @@ module PWN
           # To unban a banned IP, visit http://ip-api.com/docs/unban
           sleep 0.5
 
-          ip_resp_json
+          ip_resp_hash
         end
       rescue StandardError => e
         raise e
@@ -49,29 +50,32 @@ module PWN
       # ip_info_struc = PWN::Plugins::IPInfo.get(
       #   target: 'required - IP or Host to lookup',
       #   proxy: 'optional - use a proxy',
-      #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.'
+      #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
+      #   skip_api: 'optional - skip the API call'
       # )
 
       public_class_method def self.get(opts = {})
-        target = opts[:target].to_s.scrub.strip.chomp
+        target = opts[:target].to_s.scrub.strip.chomp.downcase
         proxy = opts[:proxy]
-        tls_port = opts[:tls_port]
-        tls_port ||= 443
+        tls_port = opts[:tls_port] ||= 443
+        skip_api = opts[:skip_api] ||= false
 
         ip_info_resp = []
-        if IPAddress.valid?(target)
-          ip_resp_json = ip_info_rest_call(ip: target, proxy: proxy)
-          ip_resp_json[:target] = target
-          ip_info_resp.push(ip_resp_json)
-        else
-          Resolv::DNS.new.each_address(target) do |ip|
-            ip_resp_json = ip_info_rest_call(ip: ip, proxy: proxy)
-            ip_resp_json[:target] = target
-            ip_info_resp.push(ip_resp_json)
-          end
+        ip_resp_hash = {}
+        is_ip = IPAddress.valid?(target)
+
+        begin
+          ip_resp_hash[:hostname] = target
+          target = Resolv.getaddress(target) unless is_ip
+        rescue Resolv::ResolvError
+          target = nil
         end
 
-        if proxy.nil?
+        ip_resp_hash = ip_info_rest_call(ip: target, proxy: proxy) unless skip_api
+        ip_resp_hash[:target] = target
+        ip_info_resp.push(ip_resp_hash) unless target.nil?
+
+        if proxy.nil? && is_ip
           ip_info_resp.each do |ip_resp|
             tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
               server_ip: target,
@@ -105,7 +109,7 @@ module PWN
             ip_resp[:cert_issuer] = cert_obj.issuer.to_s
             ip_resp[:cert_serial] = cert_obj.serial.to_s
             ip_resp[:crl_uris] = cert_obj.crl_uris.map(&:to_s) unless cert_obj.crl_uris.nil?
-            ip_resp[:extensions] = cert_obj.extensions.map(&:to_s) unless cert_obj.extensions.nil?
+            ip_resp[:extensions] = cert_obj.extensions.to_h { |ext| [ext.oid.to_s.to_sym, ext.value] } unless cert_obj.extensions.nil?
             ip_resp[:not_before] = cert_obj.not_before.to_s
             ip_resp[:not_after] = cert_obj.not_after.to_s
             ip_resp[:oscsp_uris] = cert_obj.ocsp_uris.map(&:to_s) unless cert_obj.ocsp_uris.nil?
@@ -116,6 +120,59 @@ module PWN
         end
 
         ip_info_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::IPInfo.bruteforce_subdomains(
+      #   parent_domain: 'required - Parent Domain to brute force',
+      #   dictionary: 'required - Dictionary to use for subdomain brute force',
+      #   max_threads: 'optional - Maximum number of threads to use (default: 10)',
+      #   proxy: 'optional - use a proxy'
+      #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
+      #   results_file: 'optional - File to write results to (default: /tmp/parent_domain-timestamp-pwn_bruteforce_subdomains.txt)'
+      # )
+      public_class_method def self.bruteforce_subdomains(opts = {})
+        parent_domain = opts[:parent_domain].to_s.scrub.strip.chomp
+        raise 'ERROR: parent_domain parameter is required' if parent_domain.empty?
+
+        default_dictionary = '/usr/share/seclists/Discovery/DNS/n0kovo_subdomains.txt'
+        dictionary = opts[:dictionary] ||= default_dictionary
+        raise "ERROR: Dictionary file not found: #{dictionary}" unless File.exist?(dictionary)
+
+        max_threads = opts[:max_threads].to_i
+        max_threads = 10 unless max_threads.positive?
+
+        proxy = opts[:proxy]
+        tls_port = opts[:tls_port]
+        timestamp = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
+        results_file = opts[:results_file] ||= "/tmp/SUBS.#{parent_domain}-#{timestamp}-pwn_bruteforce_subdomains.txt"
+
+        mutex = Mutex.new
+        PWN::Plugins::ThreadPool.fill(
+          enumerable_array: File.readlines(dictionary),
+          max_threads: max_threads
+        ) do |subline|
+          subdomain = subline.to_s.scrub.strip.chomp
+          next if subdomain.empty?
+
+          target = "#{subdomain}.#{parent_domain}"
+          ip_info_resp = get(
+            target: target,
+            proxy: proxy,
+            tls_port: tls_port,
+            skip_api: true
+          )
+          puts "TARGET: #{target} RESP: #{ip_info_resp}" if ip_info_resp.empty?
+          puts "TARGET: #{target} RESP:\n#{ip_info_resp}" if ip_info_resp.any?
+
+          mutex.synchronize do
+            File.open(results_file, 'a') do |file|
+              file.puts JSON.generate(ip_info_resp) unless ip_info_resp.empty?
+            end
+          end
+        end
       rescue StandardError => e
         raise e
       end
