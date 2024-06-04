@@ -168,6 +168,7 @@ module PWN
             reply = nil
             response_history = nil
             shared_chan = pi.config.pwn_irc[:shared_chan]
+            mem_chan = '#mem'
             ai_agents = pi.config.pwn_irc[:ai_agent_nicks]
             ai_agents_arr = pi.config.pwn_irc[:ai_agent_nicks].keys
             total_ai_agents = ai_agents_arr.length
@@ -198,6 +199,12 @@ module PWN
                 irc_obj: irc_obj,
                 nick: nick,
                 chan: shared_chan
+              )
+
+              PWN::Plugins::IRC.join(
+                irc_obj: irc_obj,
+                nick: nick,
+                chan: mem_chan
               )
 
               system_role_content = "
@@ -388,6 +395,17 @@ module PWN
                           chan: chan,
                           message: "*** #{msg_from}'s REQUEST: #{request}\n*** #{dm_agent}'s REPLY: @#{msg_from} <<< #{reply}\n*** #{msg_from} EOT"
                         )
+
+                        # Debug system_role_content parameter for #chat method
+                        # response_history[:choices].each do |choice|
+                        #   msg = choice[:content].to_s.gsub("@#{dm_agent}", dm_agent.to_s)
+                        #   PWN::Plugins::IRC.privmsg(
+                        #     irc_obj: irc_obj,
+                        #     nick: dm_agent,
+                        #     chan: mem_chan,
+                        #     message: "*** #{msg_from}'s MEMORY: #{msg}"
+                        #   )
+                        # end
                       end
                     end
                   end
