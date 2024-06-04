@@ -72,7 +72,7 @@ module PWN
         end
 
         ip_resp_hash = ip_info_rest_call(ip: target, proxy: proxy) unless skip_api
-        ip_resp_hash[:target] = target
+        ip_resp_hash[:ip] = target
         ip_info_resp.push(ip_resp_hash) unless target.nil?
 
         if proxy.nil? && is_ip
@@ -129,7 +129,7 @@ module PWN
       #   parent_domain: 'required - Parent Domain to brute force',
       #   dictionary: 'required - Dictionary to use for subdomain brute force',
       #   max_threads: 'optional - Maximum number of threads to use (default: 10)',
-      #   proxy: 'optional - use a proxy'
+      #   proxy: 'optional - use a proxy',
       #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
       #   results_file: 'optional - File to write results to (default: /tmp/parent_domain-timestamp-pwn_bruteforce_subdomains.txt)'
       # )
@@ -142,16 +142,18 @@ module PWN
         raise "ERROR: Dictionary file not found: #{dictionary}" unless File.exist?(dictionary)
 
         max_threads = opts[:max_threads].to_i
-        max_threads = 10 unless max_threads.positive?
+        max_threads = 8 unless max_threads.positive?
 
         proxy = opts[:proxy]
         tls_port = opts[:tls_port]
         timestamp = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
         results_file = opts[:results_file] ||= "/tmp/SUBS.#{parent_domain}-#{timestamp}-pwn_bruteforce_subdomains.txt"
 
+        # Break up dictonary file into sublines and process each subline in a thread
+        dict_lines = File.readlines(dictionary).shuffle
         mutex = Mutex.new
         PWN::Plugins::ThreadPool.fill(
-          enumerable_array: File.readlines(dictionary),
+          enumerable_array: dict_lines,
           max_threads: max_threads
         ) do |subline|
           subdomain = subline.to_s.scrub.strip.chomp
@@ -164,8 +166,8 @@ module PWN
             tls_port: tls_port,
             skip_api: true
           )
-          puts "TARGET: #{target} RESP: #{ip_info_resp}" if ip_info_resp.empty?
-          puts "TARGET: #{target} RESP:\n#{ip_info_resp}" if ip_info_resp.any?
+          puts "SUB: #{target} RESP: #{ip_info_resp}" if ip_info_resp.empty?
+          puts "SUB: #{target} RESP:\n#{ip_info_resp}" if ip_info_resp.any?
 
           mutex.synchronize do
             File.open(results_file, 'a') do |file|
@@ -192,7 +194,17 @@ module PWN
           ip_info_struc = #{self}.get(
             target: 'required - IP or Host to lookup',
             proxy: 'optional - use a proxy',
-            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.'
+            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
+            skip_api: 'optional - skip the API call'
+          )
+
+          #{self}.bruteforce_subdomains(
+            parent_domain: 'required - Parent Domain to brute force',
+            dictionary: 'required - Dictionary to use for subdomain brute force',
+            max_threads: 'optional - Maximum number of threads to use (default: 10)',
+            proxy: 'optional - use a proxy',
+            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
+            results_file: 'optional - File to write results to (default: /tmp/parent_domain-timestamp-pwn_bruteforce_subdomains.txt)'
           )
 
           #{self}.authors
