@@ -149,6 +149,8 @@ module PWN
         timestamp = Time.now.strftime('%Y-%m-%d_%H.%M.%S')
         results_file = opts[:results_file] ||= "/tmp/SUBS.#{parent_domain}-#{timestamp}-pwn_bruteforce_subdomains.txt"
 
+        File.write(results_file, '[')
+
         # Break up dictonary file into sublines and process each subline in a thread
         dict_lines = File.readlines(dictionary).shuffle
         mutex = Mutex.new
@@ -157,8 +159,7 @@ module PWN
           max_threads: max_threads
         ) do |subline|
           subdomain = subline.to_s.scrub.strip.chomp
-          next if subdomain.empty?
-
+          target = parent_domain if subdomain.empty?
           target = "#{subdomain}.#{parent_domain}"
           ip_info_resp = get(
             target: target,
@@ -166,17 +167,26 @@ module PWN
             tls_port: tls_port,
             skip_api: true
           )
-          puts "SUB: #{target} RESP: #{ip_info_resp}" if ip_info_resp.empty?
-          puts "SUB: #{target} RESP:\n#{ip_info_resp}" if ip_info_resp.any?
+          puts "SUBD: #{target} RESP: #{ip_info_resp}" if ip_info_resp.empty?
+          puts "SUBD: #{target} RESP:\n#{ip_info_resp}" if ip_info_resp.any?
 
           mutex.synchronize do
             File.open(results_file, 'a') do |file|
-              file.puts JSON.generate(ip_info_resp) unless ip_info_resp.empty?
+              resp_len = ip_info_resp.length
+              next unless resp_len.positive?
+
+              ip_info_resp.each do |ip_info_hash|
+                file.puts "#{JSON.generate(ip_info_hash)},"
+              end
             end
           end
         end
       rescue StandardError => e
         raise e
+      ensure
+        # Strip trailing comma and close JSON array
+        File.readlines(results_file)[-1].chomp!(',')
+        File.append(results_file, ']')
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
