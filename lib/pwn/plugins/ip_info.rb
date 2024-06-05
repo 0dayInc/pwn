@@ -214,9 +214,9 @@ module PWN
         raise e
       ensure
         # Strip trailing comma and close JSON array
-        final_results = File.readlines(results_file)
-        # Strip trailing comma from last line
-        last_line = final_results[-1][0..-2]
+        final_results = File.readlines(results_file).uniq
+        # Strip trailing newline and comma from last line
+        last_line = final_results[-1].chomp.chomp(',')
         final_results[-1] = last_line
         File.write(results_file, "#{final_results.join}\n]")
       end
