@@ -47,11 +47,29 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # is_rfc1918 = PWN::Plugins::IPInfo.check_rfc1918(
+      #   ip: 'required - IP to check'
+      # )
+      public_class_method def self.check_rfc1918(opts = {})
+        ip = opts[:ip].to_s.scrub.strip.chomp
+        ip_obj = IPAddress.valid?(ip) ? IPAddress.parse(ip) : nil
+
+        rfc1918_ranges = [
+          IPAddress('10.0.0.0/8'),     # 10.0.0.0 - 10.255.255.255
+          IPAddress('172.16.0.0/12'),  # 172.16.0.0 - 172.31.255.255
+          IPAddress('192.168.0.0/16')  # 192.168.0.0 - 192.168.255.255
+        ]
+
+        rfc1918_ranges.any? { |range| range.include?(ip_obj) }
+      end
+
+      # Supported Method Parameters::
       # ip_info_struc = PWN::Plugins::IPInfo.get(
       #   target: 'required - IP or Host to lookup',
       #   proxy: 'optional - use a proxy',
       #   tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
-      #   skip_api: 'optional - skip the API call'
+      #   skip_api: 'optional - skip the API call',
+      #   dns_server: 'optional - DNS server to use for lookup (default: your default DNS server)'
       # )
 
       public_class_method def self.get(opts = {})
@@ -63,19 +81,29 @@ module PWN
         ip_info_resp = []
         ip_resp_hash = {}
         is_ip = IPAddress.valid?(target)
+        hostname = '' if is_ip
 
-        begin
-          ip_resp_hash[:hostname] = target
-          target = Resolv.getaddress(target) unless is_ip
-        rescue Resolv::ResolvError
-          target = nil
+        unless is_ip
+          begin
+            hostname = target
+            dns_server = opts[:dns_server]
+            dns_resolver = Resolv::DNS.new(nameserver: [dns_server]) if dns_server
+            dns_resolver ||= Resolv::DNS.new
+            target = dns_resolver.getaddress(target).to_s
+          rescue Resolv::ResolvError
+            target = nil
+          end
         end
 
         ip_resp_hash = ip_info_rest_call(ip: target, proxy: proxy) unless skip_api
+        is_rfc1918 = check_rfc1918(ip: target)
         ip_resp_hash[:ip] = target
+        ip_resp_hash[:is_rfc1918] = is_rfc1918
+        ip_resp_hash[:hostname] = hostname
+
         ip_info_resp.push(ip_resp_hash) unless target.nil?
 
-        if proxy.nil? && is_ip
+        if proxy.nil?
           ip_info_resp.each do |ip_resp|
             tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
               server_ip: target,
@@ -202,11 +230,16 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          is_rfc1918 = #{self}.check_rfc1918(
+            ip: 'required - IP to check'
+          )
+
           ip_info_struc = #{self}.get(
             target: 'required - IP or Host to lookup',
             proxy: 'optional - use a proxy',
             tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
-            skip_api: 'optional - skip the API call'
+            skip_api: 'optional - skip the API call',
+            dns_server: 'optional - DNS server to use for lookup (default: your default DNS server)'
           )
 
           #{self}.bruteforce_subdomains(
