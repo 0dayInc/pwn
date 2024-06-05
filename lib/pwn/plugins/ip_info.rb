@@ -79,9 +79,9 @@ module PWN
         skip_api = opts[:skip_api] ||= false
 
         ip_info_resp = []
-        ip_resp_hash = {}
         is_ip = IPAddress.valid?(target)
         hostname = '' if is_ip
+        target_arr = [target] if is_ip
 
         unless is_ip
           begin
@@ -89,24 +89,27 @@ module PWN
             dns_server = opts[:dns_server]
             dns_resolver = Resolv::DNS.new(nameserver: [dns_server]) if dns_server
             dns_resolver ||= Resolv::DNS.new
-            target = dns_resolver.getaddress(target).to_s
+            target_arr = dns_resolver.getaddresses(target).map(&:to_s).uniq
           rescue Resolv::ResolvError
-            target = nil
+            target_arr = nil
           end
         end
 
-        ip_resp_hash = ip_info_rest_call(ip: target, proxy: proxy) unless skip_api
-        is_rfc1918 = check_rfc1918(ip: target)
-        ip_resp_hash[:ip] = target
-        ip_resp_hash[:is_rfc1918] = is_rfc1918
-        ip_resp_hash[:hostname] = hostname
+        target_arr.each do |this_target|
+          ip_resp_hash = ip_info_rest_call(ip: this_target, proxy: proxy) unless skip_api
+          ip_resp_hash ||= {}
+          is_rfc1918 = check_rfc1918(ip: this_target)
+          ip_resp_hash[:ip] = this_target
+          ip_resp_hash[:is_rfc1918] = is_rfc1918
+          ip_resp_hash[:hostname] = hostname
 
-        ip_info_resp.push(ip_resp_hash) unless target.nil?
+          ip_info_resp.push(ip_resp_hash) unless target_arr.nil?
 
-        if proxy.nil?
+          next unless proxy.nil?
+
           ip_info_resp.each do |ip_resp|
             tls_port_avail = PWN::Plugins::Sock.check_port_in_use(
-              server_ip: target,
+              server_ip: this_target,
               port: tls_port
             )
 
@@ -126,7 +129,7 @@ module PWN
             next unless tls_port_avail
 
             cert_obj = PWN::Plugins::Sock.get_tls_cert(
-              target: target,
+              target: this_target,
               port: tls_port
             )
 
