@@ -45,6 +45,15 @@ module PWN
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
 
+        args = []
+        args.push('--start-maximized')
+        args.push('--disable-notifications')
+
+        unless browser_type == :rest
+          logger = Selenium::WebDriver.logger
+          logger.level = :error
+        end
+
         case browser_type
         when :firefox
           this_profile = Selenium::WebDriver::Firefox::Profile.new
@@ -98,10 +107,11 @@ module PWN
             end
           end
 
-          args = []
-
           args.push('--devtools') if with_devtools
-          options = Selenium::WebDriver::Firefox::Options.new(args: args, accept_insecure_certs: true)
+          options = Selenium::WebDriver::Firefox::Options.new(
+            args: args,
+            accept_insecure_certs: true
+          )
           options.profile = this_profile
           # driver = Selenium::WebDriver.for(:firefox, capabilities: options)
           driver = Selenium::WebDriver.for(:firefox, options: options)
@@ -112,22 +122,18 @@ module PWN
           this_profile['download.prompt_for_download'] = false
           this_profile['download.default_directory'] = '~/Downloads'
 
-          switches = []
-          switches.push('--start-maximized')
-          switches.push('--disable-notifications')
-
           if proxy
-            switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
-            switches.push("--proxy-server=#{proxy}")
+            args.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
+            args.push("--proxy-server=#{proxy}")
           end
 
           if with_devtools
-            switches.push('--auto-open-devtools-for-tabs')
-            switches.push('--disable-hang-monitor')
+            args.push('--auto-open-devtools-for-tabs')
+            args.push('--disable-hang-monitor')
           end
 
           options = Selenium::WebDriver::Chrome::Options.new(
-            args: switches,
+            args: args,
             accept_insecure_certs: true
           )
 
@@ -188,7 +194,12 @@ module PWN
             end
           end
 
-          options = Selenium::WebDriver::Firefox::Options.new(args: ['-headless'], accept_insecure_certs: true)
+          args.push('--headless')
+          options = Selenium::WebDriver::Firefox::Options.new(
+            args: args,
+            accept_insecure_certs: true
+          )
+
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -198,18 +209,15 @@ module PWN
           this_profile['download.prompt_for_download'] = false
           this_profile['download.default_directory'] = '~/Downloads'
 
-          switches = []
-          switches.push('--headless')
-          switches.push('--start-maximized')
-          switches.push('--disable-notifications')
+          args.push('--headless')
 
           if proxy
-            switches.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
-            switches.push("--proxy-server=#{proxy}")
+            args.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
+            args.push("--proxy-server=#{proxy}")
           end
 
           options = Selenium::WebDriver::Chrome::Options.new(
-            args: switches,
+            args: args,
             accept_insecure_certs: true
           )
 
