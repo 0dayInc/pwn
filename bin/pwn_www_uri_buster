@@ -39,8 +39,12 @@ OptionParser.new do |options|
     opts[:http_request_headers] = h
   end
 
-  options.on('-cCODES', '--only-report-response-codes=CODES', '<Optional - Comma-Delimited List of Response Codes to Only Include in Report)>') do |c|
-    opts[:http_response_codes] = c
+  options.on('-ICODES', '--include-response-codes=CODES', '<Optional - Comma-Delimited List of Response Codes to Include in Report)>') do |i|
+    opts[:include_http_response_codes] = i
+  end
+
+  options.on('-ECODES', '--exclude-response-codes=CODES', '<Optional - Comma-Delimited List of Response Codes to Exclude in Report)>') do |e|
+    opts[:exclude_http_response_codes] = e
   end
 
   options.on('-dDIR', '--dir-path=DIR', '<Optional - Report Output Directory (Defaults to ".")>') do |w|
@@ -114,6 +118,7 @@ def request_path(opts = {})
   rescue Errno::ECONNREFUSED
     raise 'ERROR: Connection(s) Refused. Try lowering the --max-threads value.'
   rescue Errno::ECONNRESET,
+         NoMethodError,
          OpenSSL::SSL::SSLError,
          RestClient::Exceptions::ReadTimeout,
          RestClient::Exceptions::OpenTimeout,
@@ -128,7 +133,7 @@ def request_path(opts = {})
       http_resp_code: e.class,
       http_resp_length: 'N/A',
       http_resp_headers: 'N/A',
-      http_resp: e.class
+      http_resp: "ERROR: #{e.message}"
     }
   rescue RestClient::ExceptionWithResponse => e
     if e.respond_to?(:response)
@@ -190,8 +195,14 @@ begin
   max_threads ||= 25
 
   http_request_headers = opts[:http_request_headers]
-  http_response_codes = opts[:http_response_codes]
-  http_response_codes = http_response_codes.delete("\s").split(',') if http_response_codes
+
+  include_http_response_codes = opts[:include_http_response_codes]
+  include_http_response_codes = include_http_response_codes.delete("\s").split(',') if include_http_response_codes
+
+  exclude_http_response_codes = opts[:exclude_http_response_codes]
+  exclude_http_response_codes = exclude_http_response_codes.delete("\s").split(',') if exclude_http_response_codes
+
+  raise 'ERROR: Flags --include-response-codes and --exclude-response-codes cannot be used together.' if include_http_response_codes && exclude_http_response_codes
 
   dir_path = opts[:dir_path]
   dir_path ||= '.'
@@ -230,9 +241,12 @@ begin
       )
 
       mutex.synchronize do
-        if http_response_codes
+        if include_http_response_codes
           ret_http_resp_code = rest_client_resp_hash[:http_resp_code].to_s
-          results_hash[:data].push(rest_client_resp_hash) if http_response_codes.include?(ret_http_resp_code)
+          results_hash[:data].push(rest_client_resp_hash) if include_http_response_codes.include?(ret_http_resp_code)
+        elsif exclude_http_response_codes
+          ret_http_resp_code = rest_client_resp_hash[:http_resp_code].to_s
+          results_hash[:data].push(rest_client_resp_hash) unless exclude_http_response_codes.include?(ret_http_resp_code)
         else
           results_hash[:data].push(rest_client_resp_hash)
         end
