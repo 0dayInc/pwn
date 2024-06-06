@@ -336,12 +336,12 @@ module PWN
       public_class_method def self.close(opts = {})
         browser_obj = opts[:browser_obj]
 
-        unless browser_obj[:tor_obj].nil?
+        if browser_obj[:tor_obj]
           tor_obj = browser_obj[:tor_obj]
           PWN::Plugins::Tor.stop(tor_obj: browser_obj[:tor_obj])
         end
 
-        unless browser_obj[:browser].to_s.include?('RestClient')
+        unless browser_obj[:browser].is_a?(RestClient)
           # Close the browser unless this_browser_obj.nil? (thus the &)
           browser_obj[:browser]&.close
         end
