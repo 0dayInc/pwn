@@ -232,6 +232,7 @@ begin
 
     http_methods = %i[DELETE GET HEAD OPTIONS PATCH POST PUT TRACE].shuffle
     http_methods.each do |http_method|
+      # TODO: Implement HTTP response timeout
       rest_client_resp_hash = request_path(
         target_url: target_url,
         proxy: proxy,
