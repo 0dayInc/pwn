@@ -30,7 +30,7 @@ module PWN
         pass = TTY::Prompt.new.mask("#{prompt}: ")
         pass.to_s.strip.chomp.scrub
       rescue Interrupt
-        puts 'CTRL+C detected...goodbye.'
+        puts "#{self}.#{__method__} => Goodbye."
       rescue StandardError => e
         raise e
       end
@@ -46,7 +46,7 @@ module PWN
         mfa = TTY::Prompt.new.ask("#{prompt}: ")
         mfa.to_s.strip.chomp.scrub
       rescue Interrupt
-        puts 'CTRL+C detected...goodbye.'
+        puts "#{self}.#{__method__} => Goodbye."
       rescue StandardError => e
         raise e
       end

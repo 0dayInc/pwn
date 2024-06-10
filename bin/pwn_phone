@@ -11,7 +11,7 @@ require 'waveform'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-tPATH', '--target-file=PATH', '<Required - File Containing List of Targets to Dial>') do |t|
@@ -64,7 +64,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 
@@ -105,7 +105,7 @@ begin
   )
 
   # Generate HTML Report
-  print "#{$PROGRAM_NAME} Generating Report..."
+  print "#{File.basename($PROGRAM_NAME)} Generating Report..."
   PWN::Reports::Phone.generate(
     dir_path: session_root,
     results_hash: results_hash

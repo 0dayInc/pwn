@@ -8,7 +8,7 @@ require 'optparse'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
   options.on('-tIP_HOST', '--target=IP_HOST', '<Optional - IP or Host to Check (Default - Your Public IP)>') do |t|
     opts[:target] = t
@@ -64,6 +64,8 @@ begin
     )
     puts JSON.pretty_generate(ip_info_obj)
   end
+rescue Interrupt
+  puts "\n#{File.basename($PROGRAM_NAME)} => Goodbye."
 rescue StandardError => e
   raise e
 ensure

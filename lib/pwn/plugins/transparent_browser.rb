@@ -335,6 +335,9 @@ module PWN
 
       public_class_method def self.close(opts = {})
         browser_obj = opts[:browser_obj]
+
+        return nil unless browser_obj.is_a?(Hash)
+
         browser = browser_obj[:browser]
         tor_obj = browser_obj[:tor_obj]
 

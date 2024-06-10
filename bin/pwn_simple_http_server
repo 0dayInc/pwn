@@ -6,7 +6,7 @@ require 'optparse'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
   options.on('-iIP', '--bind-ip=IP', '<Optional - HTTP Bind IP to Listen> (Defaults to Localhost)') do |i|
     opts[:bind_ip] = i

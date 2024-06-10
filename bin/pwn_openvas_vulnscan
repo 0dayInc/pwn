@@ -8,7 +8,7 @@ require 'yaml'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-cYPATH', '--yaml-config=YPATH', '<Required - YAML Config Containing Username & Password for Authentication>') do |c|
@@ -29,7 +29,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 

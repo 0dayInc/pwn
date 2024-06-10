@@ -8,7 +8,7 @@ require 'yaml'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-aTYPE', '--agent-type=TYPE', '<Required - Mail Agent Type office365|gmail|hotmail_n_live|yahoo|manual>') do |a|
@@ -25,7 +25,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 

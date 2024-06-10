@@ -37,7 +37,7 @@ module PWN
 
         puts "\nGoodbye."
       rescue Interrupt
-        puts "\nGoodbye."
+        puts "\n#{self}.#{__method__} => Goodbye."
       rescue StandardError => e
         raise e
       end
@@ -70,7 +70,7 @@ module PWN
           output_dir
         )
       rescue Interrupt
-        puts "\nGoodbye."
+        puts "\n#{self}.#{__method__} => Goodbye."
       rescue StandardError => e
         raise e
       end
@@ -102,7 +102,7 @@ module PWN
           "(SayText \"#{text_to_say}\")"
         )
       rescue Interrupt
-        puts "\nGoodbye."
+        puts "\n#{self}.#{__method__} => Goodbye."
       rescue StandardError => e
         raise e
       end

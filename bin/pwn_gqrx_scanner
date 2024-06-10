@@ -8,7 +8,7 @@ require 'optparse'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-aPROFILE', '--assume-profile=PROFILE', '<Required if "--target-freq" is Nil - Profile to assume for common radio protocols.  Use "--list-profiles" to display supported protocols (Defaults to nil)') do |p|
@@ -77,7 +77,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 

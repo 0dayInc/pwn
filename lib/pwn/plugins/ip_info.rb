@@ -44,6 +44,8 @@ module PWN
         end
       rescue StandardError => e
         raise e
+      ensure
+        PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) if browser_obj
       end
 
       # Supported Method Parameters::
