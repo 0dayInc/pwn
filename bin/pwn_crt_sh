@@ -34,7 +34,7 @@ begin
   raise 'No target domain provided' if target_domain.nil?
 
   timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S.%L')
-  report_path = opts[:report_path] ||= "/tmp/pwn_crt_sh-#{timestamp}.json"
+  report_path = opts[:report_path] ||= "/tmp/pwn_crt_sh-#{target_domain}-#{timestamp}.json"
 
   proxy = opts[:proxy]
   if proxy
