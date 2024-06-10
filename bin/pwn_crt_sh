@@ -33,7 +33,7 @@ begin
   target_domain = opts[:target_domain]
   raise 'No target domain provided' if target_domain.nil?
 
-  timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S.%L')
+  timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S.%L')
   report_path = opts[:report_path] ||= "/tmp/pwn_crt_sh-#{timestamp}.json"
 
   proxy = opts[:proxy]
@@ -62,7 +62,8 @@ begin
   end
 
   nokogiri_obj = Nokogiri::HTML.parse(rest_resp.body)
-  uniq_subd_arr = nokogiri_obj.xpath('//td[@class="outer"]/table/tr/td[5]/text()').map(&:to_s).uniq
+  uniq_subd_arr = nokogiri_obj.xpath('//td[@class="outer"]/table/tr/td[5]/text()').map(&:to_s).uniq.sort
+  uniq_subd_arr.each { |subd| puts subd }
 
   report = {
     target_domain: target_domain,
