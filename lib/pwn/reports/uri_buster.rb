@@ -96,12 +96,14 @@ module PWN
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Request Time</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="2" href="#">URI</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="3" href="#">HTTP Method</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="4" href="#">HTTP Response Code</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="5" href="#">HTTP Response Length</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="6" href="#">HTTP Response Headers</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="7" href="#">HTTP Response Body</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="2" href="#">Response Time</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="3" href="#">Duration</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="4" href="#">URI</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="5" href="#">HTTP Method</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">HTTP Response Code</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="7" href="#">HTTP Response Length</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="8" href="#">HTTP Response Headers</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="9" href="#">HTTP Response Body</a>&nbsp;|&nbsp;
             </div>
             <br /><br />
 
@@ -111,6 +113,8 @@ module PWN
                   <tr>
                     <th>#</th>
                     <th>Request Time</th>
+                    <th>Response Time</th>
+                    <th>Duration</th>
                     <th>URI</th>
                     <th>HTTP Method</th>
                     <th>HTTP Response Code</th>
@@ -164,6 +168,14 @@ module PWN
                     { "data": null },
                     {
                       "data": "request_timestamp",
+                      "render": $.fn.dataTable.render.text()
+                    },
+                    {
+                      "data": "response_timestamp",
+                      "render": $.fn.dataTable.render.text()
+                    },
+                    {
+                      "data": "duration",
                       "render": $.fn.dataTable.render.text()
                     },
                     {

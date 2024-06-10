@@ -93,7 +93,9 @@ module PWN
         end
 
         logger.add(logger.level, log_event, which_self)
-      rescue Interrupt, StandardError => e
+      rescue Interrupt
+        puts "\n#{self}.#{__method__} => Goodbye."
+      rescue StandardError => e
         raise e
       end
 

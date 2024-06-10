@@ -7,7 +7,7 @@ require 'pwn'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-cPATH', '--yaml-config=PATH', '<Optional - PWN YAML File>') do |p|

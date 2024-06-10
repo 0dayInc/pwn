@@ -111,6 +111,7 @@ module PWN
         session_log = File.new(session_log_path, 'w')
         session_log.sync = true
         session_log.fsync
+        tor_obj = nil
 
         fork_pid = Process.fork do
           pty = PTY.spawn(
@@ -132,33 +133,52 @@ module PWN
             stdout.each do |line|
               session_log.puts line
             end
+          rescue Interrupt,
+                 Errno::EIO => e
+            puts "\n#{self}.#{__method__}#spawn => Goodbye." if e.is_a?(Interrupt)
+            tor_obj = {
+              parent_pid: fork_pid,
+              child_pid: pid,
+              data_dir: data_dir
+            }
+            stop(tor_obj: tor_obj)
           end
-        rescue StandardError => e
-          puts 'Tor exiting with errors...'
-          FileUtils.rm_rf(data_dir)
-          raise e
+        rescue Interrupt,
+               Errno::EIO => e
+          puts "\n#{self}.#{__method__}#fork => Goodbye." if e.is_a?(Interrupt)
+          tor_obj = {
+            parent_pid: fork_pid,
+            data_dir: data_dir
+          }
+          stop(tor_obj: tor_obj)
         end
+
         Process.detach(fork_pid)
 
         loop do
           pid_ready = File.exist?(pid_file)
           cookie_authn_ready = File.exist?(cookie_authn_file)
-          sleep 0.1
           break if pid_ready && cookie_authn_ready
         end
 
+        child_pid = File.read(pid_file).to_i
         cookie_authn = `hexdump -e '32/1 "%02x"' #{cookie_authn_file}`
+
         tor_obj = {
           parent_pid: fork_pid,
-          child_pid: File.read(pid_file).to_i,
+          child_pid: child_pid,
           ip: ip,
           port: port,
           ctrl_port: ctrl_port,
           data_dir: data_dir,
           cookie_authn: cookie_authn
         }
-      rescue StandardError, SystemExit => e
-        stop(tor_obj) unless tor_obj.nil?
+      rescue Interrupt, SystemExit
+        puts "\n#{self}.#{__method__} => Goodbye."
+        stop(tor_obj: tor_obj) unless tor_obj.nil?
+      rescue StandardError => e
+        puts "\n#{self}.#{__method__} => Goodbye."
+        stop(tor_obj: tor_obj) unless tor_obj.nil?
         raise e
       end
 
@@ -187,11 +207,30 @@ module PWN
 
       public_class_method def self.stop(opts = {})
         tor_obj = opts[:tor_obj]
-        unless tor_obj.nil?
-          FileUtils.rm_rf(tor_obj[:data_dir])
-          Process.kill('TERM', tor_obj[:child_pid])
-          Process.kill('TERM', tor_obj[:parent_pid])
+
+        return nil unless tor_obj.is_a?(Hash)
+
+        child_pid = tor_obj[:child_pid]
+        parent_pid = tor_obj[:parent_pid]
+        data_dir = tor_obj[:data_dir]
+        if child_pid || parent_pid || data_dir
+          proc_list = PWN::Plugins::PS.list
+          find_child_pid = proc_list.find { |arr| arr[2] == child_pid.to_s }
+          find_parent_pid = proc_list.find { |arr| arr[2] == parent_pid.to_s }
+
+          # puts "Killing Tor child PID: #{child_pid}..."
+          Process.kill('SIGKILL', child_pid) if find_child_pid
+
+          # puts "Killing Tor parent PID: #{parent_pid}..."
+          Process.kill('SIGKILL', parent_pid) if find_parent_pid
+
+          # puts "Removing Tor data directory: #{data_dir}..."
+          FileUtils.rm_rf(data_dir)
         end
+
+        nil
+      rescue Errno::ESRCH, Errno::ENOENT => e
+        puts e
       rescue StandardError => e
         raise e
       end

@@ -8,7 +8,7 @@ require 'aws-sdk'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-rREGION', '--region=REGION', "<Optional - AWS STS Region (Defaults to 'us-west-1')>") do |sts_region|
@@ -39,7 +39,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 

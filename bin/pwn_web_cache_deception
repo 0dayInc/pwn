@@ -7,7 +7,7 @@ require 'optparse'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-tURL', '--target-url=URL', '<Required - URL to Target>') do |t|
@@ -44,7 +44,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 
@@ -142,12 +142,12 @@ begin
       pwn_www_mod = PWN::WWW.const_get(pwn_www_mod_str)
       unless pwn_www_mod.respond_to?('open') && pwn_www_mod.respond_to?('login') && pwn_www_mod.respond_to?('logout')
         puts "#{@dark_red}Module PWN::WWW::#{pwn_www_mod_str} Missing #open #login and/or #logout Method(s)#{@end_of_color}"
-        puts `#{$PROGRAM_NAME} -l`
+        puts `#{File.basename($PROGRAM_NAME)} -l`
         exit
       end
     rescue NAME_ERROR => e
       puts "#{@dark_red}Invalid module PWN::WWW::#{pwn_www_mod_str}#{@end_of_color}"
-      puts `#{$PROGRAM_NAME} -l`
+      puts `#{File.basename($PROGRAM_NAME)} -l`
       exit
     end
 

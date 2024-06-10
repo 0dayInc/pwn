@@ -8,7 +8,7 @@ require 'json'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-dDIR', '--dir-path=DIR', '<Required - Report Output Directory>') do |d|
@@ -77,7 +77,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 
@@ -151,7 +151,7 @@ File.open(fuzz_file, "rb:#{char_encoding}") do |file|
 end
 
 # Generate HTML Report
-print "#{$PROGRAM_NAME} Generating Report..."
+print "#{File.basename($PROGRAM_NAME)} Generating Report..."
 PWN::Reports::Fuzz.generate(
   dir_path: dir_path,
   results_hash: results_hash,

@@ -9,7 +9,7 @@ require 'csv'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-sRFILTER', '--registrant-filter=RFILTER', '<Required - Registrant Name or Email Address>') do |s|
@@ -26,7 +26,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 

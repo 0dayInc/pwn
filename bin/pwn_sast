@@ -8,7 +8,7 @@ require 'htmlentities'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-uGITURI', '--uri-source-root=GITURI', '<Required - HTTP URI of Git Repo Scanned e.g. https://github.com/0dayInc/pwn/tree/master>') do |u|
@@ -41,7 +41,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 
@@ -155,7 +155,7 @@ begin
   end
 
   # Generate HTML Report
-  print "#{$PROGRAM_NAME} Generating Report..."
+  print "#{File.basename($PROGRAM_NAME)} Generating Report..."
   PWN::Reports::SAST.generate(
     dir_path: dir_path,
     results_hash: results_hash

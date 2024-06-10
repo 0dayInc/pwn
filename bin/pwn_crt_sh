@@ -1,0 +1,83 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+require 'nokogiri'
+require 'optparse'
+
+opts = {}
+OptionParser.new do |options|
+  options.banner = "USAGE:
+    #{File.basename($PROGRAM_NAME)} [opts]
+  "
+
+  options.on('-tDOMAIN', '--target-domain=DOMAIN', '<Required - Target Domain>') do |t|
+    opts[:target_domain] = t
+  end
+
+  options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
+    opts[:proxy] = p
+  end
+
+  options.on('-rPATH', '--report-path=PATH', '<Optional - Path to save report (Default: "/tmp/pwn_crt_sh-TIMESTAMP.json">') do |r|
+    opts[:report_path] = r
+  end
+end.parse!
+
+if opts.empty?
+  puts `#{File.basename($PROGRAM_NAME)} --help`
+  exit 1
+end
+
+begin
+  target_domain = opts[:target_domain]
+  raise 'No target domain provided' if target_domain.nil?
+
+  timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S.%L')
+  report_path = opts[:report_path] ||= "/tmp/pwn_crt_sh-#{timestamp}.json"
+
+  proxy = opts[:proxy]
+  if proxy
+    browser_obj = PWN::Plugins::TransparentBrowser.open(
+      browser_type: :rest,
+      proxy: proxy
+    )
+
+    rest_client = browser_obj[:browser]::Request
+    rest_resp = rest_client.execute(
+      method: :get,
+      url: "https://crt.sh/?q=#{target_domain}",
+      verify_ssl: false
+    )
+  else
+    browser_obj = PWN::Plugins::TransparentBrowser.open(
+      browser_type: :rest
+    )
+
+    rest_client = browser_obj[:browser]::Request
+    rest_resp = rest_client.execute(
+      method: :get,
+      url: "https://crt.sh/?q=#{target_domain}"
+    )
+  end
+
+  nokogiri_obj = Nokogiri::HTML.parse(rest_resp.body)
+  uniq_subd_arr = nokogiri_obj.xpath('//td[@class="outer"]/table/tr/td[5]/text()').map(&:to_s).uniq.sort
+  uniq_subd_arr.each { |subd| puts subd }
+
+  report = {
+    target_domain: target_domain,
+    subdomains: uniq_subd_arr
+  }
+
+  File.write(report_path, JSON.pretty_generate(report))
+
+  puts "Report saved to: #{report_path}"
+rescue Interrupt
+  puts "\n#{File.basename($PROGRAM_NAME)} => Goodbye."
+rescue StandardError => e
+  puts 'ERROR: Something Happened'
+  raise e
+ensure
+  browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) if browser_obj
+end

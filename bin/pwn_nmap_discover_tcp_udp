@@ -9,7 +9,7 @@ require 'time'
 opts = {}
 OptionParser.new do |options|
   options.banner = "USAGE:
-    #{$PROGRAM_NAME} [opts]
+    #{File.basename($PROGRAM_NAME)} [opts]
   "
 
   options.on('-fFILE', '--target-file=FILE', '<Required if --target-range excluded - File containing one supported nmap target / line e.g. foo.bar, 10.1.1.1, 192.168.1.1-20, 192.168.1.0/24, etc>') do |f|
@@ -42,7 +42,7 @@ OptionParser.new do |options|
 end.parse!
 
 if opts.empty?
-  puts `#{$PROGRAM_NAME} --help`
+  puts `#{File.basename($PROGRAM_NAME)} --help`
   exit 1
 end
 

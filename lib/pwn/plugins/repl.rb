@@ -488,8 +488,10 @@ module PWN
 
         # Initialize pwn.yaml Configuration using :before_session Hook
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
-          if opts[:yaml_config_path] && File.exist?(opts[:yaml_config_path])
+          if opts[:yaml_config_path]
             yaml_config_path = opts[:yaml_config_path]
+            raise "ERROR: #{yaml_config_path} does not exist." unless File.exist?(yaml_config_path)
+
             is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: yaml_config_path)
 
             if is_encrypted
