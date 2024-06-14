@@ -22,16 +22,17 @@ module PWN
 
       # Supported Method Parameters::
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
-      #   browser_type: :firefox|:chrome|:headless|:rest|:websocket,
-      #   proxy: 'optional - scheme://proxy_host:port || tor',
-      #   with_devtools: 'optional - boolean (defaults to false)'
+      #   browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
+      #   proxy: 'optional - scheme://proxy_host:port || tor (defaults to nil)',
+      #   with_devtools: 'optional - boolean (defaults to true)'
       # )
 
       public_class_method def self.open(opts = {})
-        browser_type = opts[:browser_type]
+        browser_type = opts[:browser_type] ||= :chrome
         proxy = opts[:proxy].to_s unless opts[:proxy].nil?
 
         browser_obj = {}
+        browser_obj[:type] = browser_type
 
         tor_obj = nil
         if opts[:proxy] == 'tor'
@@ -40,7 +41,7 @@ module PWN
           browser_obj[:tor_obj] = tor_obj
         end
 
-        opts[:with_devtools] ? (with_devtools = true) : (with_devtools = false)
+        with_devtools = opts[:with_devtools] ||= true
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
@@ -266,6 +267,36 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # console_resp = PWN::Plugins::TransparentBrowser.devtools_console(
+      #   browser_obj: browser_obj1,
+      #   js: 'required - JavaScript expression to evaluate'
+      # )
+
+      public_class_method def self.devtools_console(opts = {})
+        browser_obj = opts[:browser_obj]
+        browser_type = browser_obj[:type]
+        raise 'Error: sorry, this method only supports browser_obj[:type] == :chrome' unless browser_type == :chrome
+
+        js = opts[:js] ||= "alert('ACK from => #{self}')"
+
+        devtools = browser_obj[:browser].driver.devtools
+        devtools.send_cmd('Runtime.enable')
+        devtools.send_cmd('Console.enable')
+        devtools.send_cmd('DOM.enable')
+        devtools.send_cmd('Page.enable')
+        devtools.send_cmd('Log.enable')
+        devtools.send_cmd('Debugger.enable')
+
+        expression_cmd = {
+          expression: js
+        }
+
+        devtools.send_cmd('Runtime.evaluate', **expression_cmd)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # browser_obj = PWN::Plugins::TransparentBrowser.linkout(
       #   browser_obj: browser_obj1
       # )
@@ -364,21 +395,27 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           browser_obj1 = #{self}.open(
-            browser_type: :firefox|:chrome|:headless_chrome|:headless_firefox|:rest|:websocket,
-            proxy: 'optional scheme://proxy_host:port || tor',
-            with_devtools: 'optional - boolean (defaults to false)'
+            browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
+            proxy: 'optional scheme://proxy_host:port || tor (defaults to nil)',
+            with_devtools: 'optional - boolean (defaults to true)'
           )
-          puts browser_obj1.public_methods
+          browser = browser_obj1[:browser]
+          puts browser.public_methods
 
           ********************************************************
-          * DevTools Interaction Only works w/ Chrome
+          * DevTools Interaction
           * All DevTools Commands can be found here:
           * https://chromedevtools.github.io/devtools-protocol/
           * Examples
-          devtools = browser_obj1.driver.devtools
+          devtools = browser.driver.devtools
           puts devtools.public_methods
           puts devtools.instance_variables
-          puts devtools.instance_variable_get('@messages')
+          puts devtools.instance_variable_get('@session_id')
+
+          websocket = devtools.instance_variable_get('@ws')
+          puts websocket.public_methods
+          puts websocket.instance_variables
+          puts websocket.instance_variable_get('@messages')
 
           * Tracing
           devtools.send_cmd('Tracing.start')
@@ -406,7 +443,7 @@ module PWN
             devtools.send_cmd('Console.clearMessages')
             devtools.send_cmd('Log.clear')
             console_events = []
-            b.driver.on_log_event(:console) { |event| console_events.push(event) }
+            browser.driver.on_log_event(:console) { |event| console_events.push(event) }
 
             devtools.send_cmd('Debugger.stepInto')
             puts \"Step: \#{step}\"
@@ -446,6 +483,11 @@ module PWN
           devtools.send_cmd('Runtime.disable')
           * End of DevTools Examples
           ********************************************************
+
+          console_resp = #{self}.devtools_console(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            js: 'required - JavaScript expression to evaluate'
+          )
 
           browser_obj1 = #{self}.linkout(
             browser_obj: 'required - browser_obj returned from #open method)'
