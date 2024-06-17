@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require 'watir'
-require 'selenium/webdriver'
-require 'selenium/devtools'
-require 'rest-client'
-require 'socksify'
-require 'openssl'
 require 'em/pure_ruby'
 require 'faye/websocket'
+require 'rest-client'
+require 'selenium/webdriver'
+require 'selenium/devtools'
+require 'socksify'
+require 'openssl'
+require 'watir'
 
 module PWN
   module Plugins
@@ -261,6 +261,8 @@ module PWN
           return nil
         end
 
+        browser_obj[:devtools] = browser_obj[:browser].driver.devtools if with_devtools && (browser_obj[:type] == :chrome || browser_obj[:type] == :headless_chrome || browser_obj[:type] == :firefox || browser_obj[:type] == :headless_firefox)
+
         browser_obj
       rescue StandardError => e
         raise e
@@ -275,11 +277,13 @@ module PWN
       public_class_method def self.devtools_console(opts = {})
         browser_obj = opts[:browser_obj]
         browser_type = browser_obj[:type]
-        raise 'Error: sorry, this method only supports browser_obj[:type] == :chrome' unless browser_type == :chrome
+
+        valid_browser_types = %i[chrome headless_chrome firefox headless_firefox]
+        raise 'ERROR: browser_type must be :chrome, :headless_chrome, :firefox, or :headless_firefox' unless valid_browser_types.include?(browser_type)
 
         js = opts[:js] ||= "alert('ACK from => #{self}')"
 
-        devtools = browser_obj[:browser].driver.devtools
+        devtools = browser_obj[:devtools]
         devtools.send_cmd('Runtime.enable')
         devtools.send_cmd('Console.enable')
         devtools.send_cmd('DOM.enable')
@@ -287,52 +291,76 @@ module PWN
         devtools.send_cmd('Log.enable')
         devtools.send_cmd('Debugger.enable')
 
-        expression_cmd = {
+        js_exp = {
           expression: js
         }
 
-        devtools.send_cmd('Runtime.evaluate', **expression_cmd)
+        devtools.send_cmd('Runtime.evaluate', **js_exp)
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # browser_obj = PWN::Plugins::TransparentBrowser.linkout(
+      # browser_obj = PWN::Plugins::TransparentBrowser.dump_links(
       #   browser_obj: browser_obj1
       # )
 
-      public_class_method def self.linkout(opts = {})
+      public_class_method def self.dump_links(opts = {})
         browser_obj = opts[:browser_obj]
 
-        browser_obj[:browser].links.each do |link|
-          @@logger.info("#{link.text} => #{link.href}\n\n\n") unless link.text == ''
+        links = browser_obj[:browser].links
+
+        dump_links_arr = []
+        links.each do |link|
+          link_hash = {}
+
+          link_hash[:text] = link.text
+          link_hash[:href] = link.href
+          link_hash[:id] = link.id
+          link_hash[:name] = link.name
+          link_hash[:class_name] = link.class_name
+          link_hash[:html] = link.html
+          link_hash[:target] = link.target
+          dump_links_arr.push(link_hash)
+
+          yield link if block_given?
         end
 
-        browser_obj
+        dump_links_arr
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # browser_obj = PWN::Plugins::TransparentBrowser.find_element_by_text(
+      # browser_obj = PWN::Plugins::TransparentBrowser.find_elements_by_text(
       #   browser_obj: browser_obj1,
       #   text: 'required - text to search for in the DOM'
       # )
 
-      public_class_method def self.find_element_by_text(opts = {})
+      public_class_method def self.find_elements_by_text(opts = {})
         browser_obj = opts[:browser_obj]
         text = opts[:text].to_s
 
-        elements_found = browser_obj[:browser].elements.select do |element|
-          element.text == text
+        elements = browser_obj[:browser].elements
+        elements_found_arr = []
+        elements.each do |element|
+          begin
+            if element.text == text || element.value == text
+              element_hash = {}
+              element_hash[:tag_name] = element.tag_name
+              element_hash[:html] = element.html
+              elements_found_arr.push(element_hash)
+
+              yield element if block_given?
+            end
+          rescue NoMethodError
+            next
+          end
         end
 
-        elements_found.each do |element_found|
-          @@logger.info("#{element_found.html}\n\n\n")
-        end
-
-        browser_obj
+        elements_found_arr
       rescue StandardError => e
+        puts e.backtrace
         raise e
       end
 
@@ -353,6 +381,7 @@ module PWN
 
         string.each_char do |char|
           yield char
+
           sleep Random.rand(rand_sleep_float)
         end
       rescue StandardError => e
@@ -489,11 +518,11 @@ module PWN
             js: 'required - JavaScript expression to evaluate'
           )
 
-          browser_obj1 = #{self}.linkout(
+          browser_obj1 = #{self}.dump_links(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          browser_obj1 = #{self}.find_element_by_text(
+          browser_obj1 = #{self}.find_elements_by_text(
             browser_obj: 'required - browser_obj returned from #open method)',
             text: 'required - text to search for in the DOM'
           )
