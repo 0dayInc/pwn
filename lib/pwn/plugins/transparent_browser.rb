@@ -484,6 +484,8 @@ module PWN
         rand_tab = SecureRandom.hex(8)
         browser.execute_script("document.title = '#{rand_tab}'")
         browser.goto(url) unless url.nil?
+
+        { title: browser.title, url: browser.url, active: active }
       rescue StandardError => e
         raise e
       end
