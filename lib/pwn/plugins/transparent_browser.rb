@@ -461,9 +461,8 @@ module PWN
 
         browser = browser_obj[:browser]
         all_tabs = browser.windows
-        tab = all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
-
-        { title: tab.last.title, url: tab.last.url, active: true } unless tab.empty?
+        tab_sel = all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
+        { title: tab_sel.last.title, url: tab_sel.last.url, active: true } if tab_sel.any?
       rescue StandardError => e
         raise e
       end
