@@ -2,11 +2,13 @@
 
 require 'em/pure_ruby'
 require 'faye/websocket'
+require 'openssl'
 require 'rest-client'
+require 'securerandom'
 require 'selenium/webdriver'
 require 'selenium/devtools'
 require 'socksify'
-require 'openssl'
+require 'timeout'
 require 'watir'
 
 module PWN
@@ -19,6 +21,21 @@ module PWN
     # taking screenshots :)
     module TransparentBrowser
       @@logger = PWN::Plugins::PWNLogger.create
+
+      # Supported Method Parameters::
+      # verify_devtools_browser(
+      #   browser_obj: 'required - browser_obj returned from #open method',
+      #   supported: 'optional - array of supported browser types (defaults to [:chrome, :headless_chrome, :firefox, :headless_firefox])'
+      # )
+      private_class_method def self.verify_devtools_browser(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = opts[:supported] ||= %i[chrome headless_chrome firefox headless_firefox]
+
+        browser_type = browser_obj[:type]
+        raise "ERROR: browser_type must be #{supported}" unless supported.include?(browser_type)
+      rescue StandardError => e
+        raise e
+      end
 
       # Supported Method Parameters::
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
@@ -261,41 +278,30 @@ module PWN
           return nil
         end
 
-        browser_obj[:devtools] = browser_obj[:browser].driver.devtools if with_devtools && (browser_obj[:type] == :chrome || browser_obj[:type] == :headless_chrome || browser_obj[:type] == :firefox || browser_obj[:type] == :headless_firefox)
+        browser_type = browser_obj[:type]
+        supported = %i[chrome headless_chrome firefox headless_firefox]
+        if with_devtools && supported.include?(browser_type)
+          browser_obj[:browser].goto('about:blank')
+          rand_tab = SecureRandom.hex(8)
+          browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
+
+          browser_obj[:devtools] = browser_obj[:browser].driver.devtools
+
+          # browser_obj[:devtools].send_cmd('DOM.enable')
+          # browser_obj[:devtools].send_cmd('Log.enable')
+          # browser_obj[:devtools].send_cmd('Network.enable')
+          # browser_obj[:devtools].send_cmd('Page.enable')
+          # browser_obj[:devtools].send_cmd('Runtime.enable')
+          # browser_obj[:devtools].send_cmd('Security.enable')
+
+          # if browser_type == :chrome || browser_type == :headless_chrome
+          #   browser_obj[:devtools].send_cmd('Debugger.enable')
+          #   browser_obj[:devtools].send_cmd('DOMStorage.enable')
+          #   browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
+          # end
+        end
 
         browser_obj
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # console_resp = PWN::Plugins::TransparentBrowser.devtools_console(
-      #   browser_obj: browser_obj1,
-      #   js: 'required - JavaScript expression to evaluate'
-      # )
-
-      public_class_method def self.devtools_console(opts = {})
-        browser_obj = opts[:browser_obj]
-        browser_type = browser_obj[:type]
-
-        valid_browser_types = %i[chrome headless_chrome firefox headless_firefox]
-        raise 'ERROR: browser_type must be :chrome, :headless_chrome, :firefox, or :headless_firefox' unless valid_browser_types.include?(browser_type)
-
-        js = opts[:js] ||= "alert('ACK from => #{self}')"
-
-        devtools = browser_obj[:devtools]
-        devtools.send_cmd('Runtime.enable')
-        devtools.send_cmd('Console.enable')
-        devtools.send_cmd('DOM.enable')
-        devtools.send_cmd('Page.enable')
-        devtools.send_cmd('Log.enable')
-        devtools.send_cmd('Debugger.enable')
-
-        js_exp = {
-          expression: js
-        }
-
-        devtools.send_cmd('Runtime.evaluate', **js_exp)
       rescue StandardError => e
         raise e
       end
@@ -384,6 +390,218 @@ module PWN
 
           sleep Random.rand(rand_sleep_float)
         end
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # console_resp = PWN::Plugins::TransparentBrowser.console(
+      #   browser_obj: browser_obj1,
+      #   js: 'required - JavaScript expression to evaluate'
+      # )
+
+      public_class_method def self.console(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        js = opts[:js] ||= "alert('ACK from => #{self}')"
+
+        browser = browser_obj[:browser]
+        case js
+        when 'debugger', 'debugger;', 'debugger()', 'debugger();'
+          Timeout.timeout(1) { console_resp = browser.execute_script('debugger') }
+        when 'clear', 'clear;', 'clear()', 'clear();'
+          console_resp = browser.execute_script('console.clear()')
+        else
+          console_resp = browser.execute_script("console.log(#{js})")
+        end
+
+        console_resp
+      rescue Timeout::Error, Timeout::ExitException
+        console_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # tabs = PWN::Plugins::TransparentBrowser.list_tabs(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.list_tabs(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        browser = browser_obj[:browser]
+        browser.windows.map do |tab|
+          active = false
+          active = true if browser.title == tab.title && browser.url == tab.url
+          { title: tab.title, url: tab.url, active: active }
+        end
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.switch_tab(
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   keyword: 'required - keyword in title or url used to switch tabs'
+      # )
+
+      public_class_method def self.switch_tab(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        keyword = opts[:keyword]
+        raise 'ERROR: keyword parameter is required' if keyword.nil?
+
+        browser = browser_obj[:browser]
+        all_tabs = browser.windows
+        all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.new_tab(
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
+      # )
+
+      public_class_method def self.new_tab(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        url = opts[:url]
+
+        browser = browser_obj[:browser]
+        browser.execute_script('window.open()')
+        switch_tab(browser_obj: browser_obj, keyword: 'about:blank')
+        rand_tab = SecureRandom.hex(8)
+        browser.execute_script("document.title = '#{rand_tab}'")
+        browser.goto(url) unless url.nil?
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.close_tab(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      #   keyword: 'required - keyword in title or url used to close tabs'
+      # )
+
+      public_class_method def self.close_tab(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        keyword = opts[:keyword]
+        raise 'ERROR: keyword parameter is required' if keyword.nil?
+
+        browser = browser_obj[:browser]
+        all_tabs = browser.windows
+        all_tabs.select { |tab| tab.close if tab.title.include?(keyword) || tab.url.include?(keyword) }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.debugger(
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   action: 'optional - action to take :pause|:resume (Defaults to :pause)',
+      #   url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
+      # )
+
+      public_class_method def self.debugger(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        browser = browser_obj[:browser]
+        action = opts[:action] ||= :pause
+        url = opts[:url]
+
+        devtools = browser_obj[:devtools]
+
+        case action.to_s.downcase.to_sym
+        when :pause
+          console('browser_obj': browser_obj, js: 'debugger')
+
+          # devtools.send_cmd('Debugger.enable')
+          # devtools.send_cmd(
+          #   'Debugger.setInstrumentationBreakpoint',
+          #   instrumentation: 'beforeScriptExecution'
+          # )
+
+          # devtools.send_cmd(
+          #   'EventBreakpoints.setInstrumentationBreakpoint',
+          #   eventName: 'load'
+          # )
+
+          # devtools.send_cmd(
+          #   'Debugger.setPauseOnExceptions',
+          #   state: 'all'
+          # )
+
+          begin
+            Timeout.timeout(1) do
+              browser.refresh if url.nil?
+              browser.goto(url) unless url.nil?
+            end
+          rescue Timeout::Error
+            url
+          end
+        when :resume
+          devtools.send_cmd('Debugger.resume')
+        else
+          raise 'ERROR: action parameter must be :pause or :resume'
+        end
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.step_into(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.step_into(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+
+        devtools = browser_obj[:devtools]
+        devtools.send_cmd('Debugger.stepInto')
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.step_out(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.step_out(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+
+        devtools = browser_obj[:devtools]
+        devtools.send_cmd('Debugger.stepOut')
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # browser_obj1 = PWN::Plugins::TransparentBrowser.step_over(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.step_over(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+
+        devtools = browser_obj[:devtools]
+        devtools.send_cmd('Debugger.stepOver')
       rescue StandardError => e
         raise e
       end
@@ -513,11 +731,6 @@ module PWN
           * End of DevTools Examples
           ********************************************************
 
-          console_resp = #{self}.devtools_console(
-            browser_obj: 'required - browser_obj returned from #open method)',
-            js: 'required - JavaScript expression to evaluate'
-          )
-
           browser_obj1 = #{self}.dump_links(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
@@ -531,6 +744,47 @@ module PWN
             string: 'required - string to type as human',
             rand_sleep_float: 'optional - float timing in between keypress (defaults to 0.09)'
           ) {|char| browser_obj1.text_field(name: \"search\").send_keys(char) }
+
+          console_resp = #{self}.console(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            js: 'required - JavaScript expression to evaluate'
+          )
+
+          tabs = #{self}.list_tabs(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          browser_obj1 = #{self}.switch_tab(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            keyword: 'required - keyword in title or url used to switch tabs'
+          )
+
+          browser_obj1 = #{self}.new_tab(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          browser_obj1 = #{self}.close_tab(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            keyword: 'required - keyword in title or url used to close tabs'
+          )
+
+          browser_obj1 = #{self}.debugger(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            action: 'optional - action to take :pause|:resume (Defaults to :pause)',
+            url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
+          )
+
+          browser_obj1 = #{self}.step_into(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          browser_obj1 = #{self}.step_out(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          browser_obj1 = #{self}.step_over(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
 
           browser_obj1 = #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method)'
