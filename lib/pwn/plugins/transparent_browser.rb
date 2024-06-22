@@ -25,11 +25,11 @@ module PWN
       # Supported Method Parameters::
       # verify_devtools_browser(
       #   browser_obj: 'required - browser_obj returned from #open method',
-      #   supported: 'optional - array of supported browser types (defaults to [:chrome, :headless_chrome, :firefox, :headless_firefox])'
+      #   supported: 'optional - array of supported browser types (defaults to [:chrome, :headless_chrome, :firefox, :headless_firefox, :headless])'
       # )
       private_class_method def self.verify_devtools_browser(opts = {})
         browser_obj = opts[:browser_obj]
-        supported = opts[:supported] ||= %i[chrome headless_chrome firefox headless_firefox]
+        supported = opts[:supported] ||= %i[chrome headless_chrome firefox headless_firefox headless]
 
         browser_type = browser_obj[:type]
         raise "ERROR: browser_type must be #{supported}" unless supported.include?(browser_type)
@@ -282,7 +282,7 @@ module PWN
         end
 
         browser_type = browser_obj[:type]
-        supported = %i[chrome headless_chrome firefox headless_firefox]
+        supported = %i[chrome headless_chrome firefox headless_firefox headless]
         if with_devtools && supported.include?(browser_type)
           browser_obj[:browser].goto('about:blank')
           rand_tab = SecureRandom.hex(8)
