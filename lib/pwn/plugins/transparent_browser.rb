@@ -461,7 +461,9 @@ module PWN
 
         browser = browser_obj[:browser]
         all_tabs = browser.windows
-        all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
+        tab = all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
+
+        { title: tab.last.title, url: tab.last.url, active: true } unless tab.empty?
       rescue StandardError => e
         raise e
       end
@@ -485,7 +487,7 @@ module PWN
         browser.execute_script("document.title = '#{rand_tab}'")
         browser.goto(url) unless url.nil?
 
-        { title: browser.title, url: browser.url, active: active }
+        { title: browser.title, url: browser.url, active: true }
       rescue StandardError => e
         raise e
       end
