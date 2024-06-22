@@ -130,8 +130,9 @@ module PWN
             args: args,
             accept_insecure_certs: true
           )
+
+          options.web_socket_url = true
           options.profile = this_profile
-          # driver = Selenium::WebDriver.for(:firefox, capabilities: options)
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
 
@@ -155,8 +156,8 @@ module PWN
             accept_insecure_certs: true
           )
 
+          options.web_socket_url = true
           options.profile = this_profile
-          # driver = Selenium::WebDriver.for(:chrome, capabilities: options)
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
 
@@ -218,6 +219,7 @@ module PWN
             accept_insecure_certs: true
           )
 
+          options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -239,6 +241,7 @@ module PWN
             accept_insecure_certs: true
           )
 
+          options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -286,6 +289,7 @@ module PWN
           browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
 
           browser_obj[:devtools] = browser_obj[:browser].driver.devtools
+          browser_obj[:bidi] = browser_obj[:browser].driver.bidi
 
           # browser_obj[:devtools].send_cmd('DOM.enable')
           # browser_obj[:devtools].send_cmd('Log.enable')
@@ -523,7 +527,7 @@ module PWN
 
         case action.to_s.downcase.to_sym
         when :pause
-          console('browser_obj': browser_obj, js: 'debugger')
+          console(browser_obj: browser_obj, js: 'debugger')
 
           # devtools.send_cmd('Debugger.enable')
           # devtools.send_cmd(
