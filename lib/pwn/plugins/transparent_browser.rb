@@ -438,9 +438,9 @@ module PWN
 
         browser = browser_obj[:browser]
         browser.windows.map do |tab|
-          active = false
-          active = true if browser.title == tab.title && browser.url == tab.url
-          { title: tab.title, url: tab.url, active: active }
+          state = :inactive
+          state = :active if browser.title == tab.title && browser.url == tab.url
+          { title: tab.title, url: tab.url, state: state }
         end
       rescue StandardError => e
         raise e
@@ -462,7 +462,7 @@ module PWN
         browser = browser_obj[:browser]
         all_tabs = browser.windows
         tab_sel = all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
-        { title: tab_sel.last.title, url: tab_sel.last.url, active: true } if tab_sel.any?
+        { title: tab_sel.last.title, url: tab_sel.last.url, state: :active } if tab_sel.any?
       rescue StandardError => e
         raise e
       end
@@ -486,7 +486,7 @@ module PWN
         browser.execute_script("document.title = '#{rand_tab}'")
         browser.goto(url) unless url.nil?
 
-        { title: browser.title, url: browser.url, active: true }
+        { title: browser.title, url: browser.url, state: :active }
       rescue StandardError => e
         raise e
       end
@@ -506,7 +506,8 @@ module PWN
 
         browser = browser_obj[:browser]
         all_tabs = browser.windows
-        all_tabs.select { |tab| tab.close if tab.title.include?(keyword) || tab.url.include?(keyword) }
+        tab_sel = all_tabs.select { |tab| tab.close if tab.title.include?(keyword) || tab.url.include?(keyword) }
+        { title: tab_sel.last.title, url: tab_sel.last.url, state: :closed } if tab_sel.any?
       rescue StandardError => e
         raise e
       end
