@@ -59,8 +59,8 @@ module PWN
         end
 
         devtools_supported = %i[chrome headless_chrome firefox headless_firefox headless]
-        with_devtools = opts[:with_devtools] ||= true
-        with_devtools = false unless devtools_supported.include?(browser_type)
+        with_devtools = opts[:with_devtools] ||= false
+        with_devtools = true if devtools_supported.include?(browser_type) && with_devtools
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
@@ -289,7 +289,8 @@ module PWN
           browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
 
           if with_devtools
-            browser_obj[:devtools] = browser_obj[:browser].driver.devtools
+            driver = browser_obj[:browser].driver
+            browser_obj[:devtools] = driver.devtools
 
             browser_obj[:devtools].send_cmd('DOM.enable')
             browser_obj[:devtools].send_cmd('Log.enable')
@@ -305,7 +306,7 @@ module PWN
               browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
             end
 
-            # browser_obj[:bidi] = browser_obj[:browser].driver.bidi
+            browser_obj[:bidi] = driver.bidi
           end
         end
 
