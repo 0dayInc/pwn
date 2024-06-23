@@ -58,7 +58,9 @@ module PWN
           browser_obj[:tor_obj] = tor_obj
         end
 
+        devtools_supported = %i[chrome headless_chrome firefox headless_firefox headless]
         with_devtools = opts[:with_devtools] ||= true
+        with_devtools = false unless devtools_supported.include?(browser_type)
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
@@ -277,32 +279,34 @@ module PWN
             browser_obj[:browser] = Faye::WebSocket::Client.new('')
           end
         else
-          puts 'Error: browser_type only supports :firefox, :chrome, :headless, :rest, or :websocket'
+          puts 'Error: browser_type only supports :firefox, :chrome, :headless, :headless_chrome, :headless_firefox, :rest, :websocket'
           return nil
         end
 
-        browser_type = browser_obj[:type]
-        supported = %i[chrome headless_chrome firefox headless_firefox headless]
-        if with_devtools && supported.include?(browser_type)
-          browser_obj[:browser].goto('about:blank')
+        if devtools_supported.include?(browser_type)
           rand_tab = SecureRandom.hex(8)
+          browser_obj[:browser].goto('about:about')
           browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
 
-          browser_obj[:devtools] = browser_obj[:browser].driver.devtools
-          browser_obj[:bidi] = browser_obj[:browser].driver.bidi
+          if with_devtools
+            browser_obj[:devtools] = browser_obj[:browser].driver.devtools
 
-          # browser_obj[:devtools].send_cmd('DOM.enable')
-          # browser_obj[:devtools].send_cmd('Log.enable')
-          # browser_obj[:devtools].send_cmd('Network.enable')
-          # browser_obj[:devtools].send_cmd('Page.enable')
-          # browser_obj[:devtools].send_cmd('Runtime.enable')
-          # browser_obj[:devtools].send_cmd('Security.enable')
+            browser_obj[:devtools].send_cmd('DOM.enable')
+            browser_obj[:devtools].send_cmd('Log.enable')
+            browser_obj[:devtools].send_cmd('Network.enable')
+            browser_obj[:devtools].send_cmd('Page.enable')
+            browser_obj[:devtools].send_cmd('Runtime.enable')
+            browser_obj[:devtools].send_cmd('Security.enable')
 
-          # if browser_type == :chrome || browser_type == :headless_chrome
-          #   browser_obj[:devtools].send_cmd('Debugger.enable')
-          #   browser_obj[:devtools].send_cmd('DOMStorage.enable')
-          #   browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
-          # end
+            chrome_browser_types = %i[chrome headless_chrome]
+            if chrome_browser_types.include?(browser_type)
+              browser_obj[:devtools].send_cmd('Debugger.enable')
+              browser_obj[:devtools].send_cmd('DOMStorage.enable')
+              browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
+            end
+
+            # browser_obj[:bidi] = browser_obj[:browser].driver.bidi
+          end
         end
 
         browser_obj
