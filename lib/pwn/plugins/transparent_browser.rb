@@ -486,7 +486,7 @@ module PWN
 
         browser = browser_obj[:browser]
         browser.execute_script('window.open()')
-        switch_tab(browser_obj: browser_obj, keyword: 'about:blank')
+        switch_tab(browser_obj: browser_obj, keyword: 'about:about')
         rand_tab = SecureRandom.hex(8)
         browser.execute_script("document.title = '#{rand_tab}'")
         browser.goto(url) unless url.nil?
