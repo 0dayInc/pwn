@@ -41,7 +41,8 @@ module PWN
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
       #   browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
       #   proxy: 'optional - scheme://proxy_host:port || tor (defaults to nil)',
-      #   with_devtools: 'optional - boolean (defaults to true)'
+      #   with_devtools: 'optional - boolean (defaults to true)',
+      #   url: 'optional - URL to navigate to after opening browser (Defaults to about:about#RANDID)'
       # )
 
       public_class_method def self.open(opts = {})
@@ -61,6 +62,8 @@ module PWN
         devtools_supported = %i[chrome headless_chrome firefox headless_firefox headless]
         with_devtools = opts[:with_devtools] ||= false
         with_devtools = true if devtools_supported.include?(browser_type) && with_devtools
+
+        url = opts[:url] ||= "about:about##{SecureRandom.hex(8)}"
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
@@ -286,6 +289,7 @@ module PWN
         if devtools_supported.include?(browser_type)
           rand_tab = SecureRandom.hex(8)
           browser_obj[:browser].goto("about:about##{rand_tab}")
+          browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
 
           if with_devtools
             driver = browser_obj[:browser].driver
@@ -307,7 +311,7 @@ module PWN
 
             browser_obj[:bidi] = driver.bidi
 
-            browser_obj[:browser].body.send_keys(:escape)
+            browser_obj[:browser].send_keys(:escape)
           end
         end
 
@@ -497,9 +501,9 @@ module PWN
           browser.execute_script("document.title = '#{rand_tab}'")
         end
         # Open the DevTools for Firefox, Chrome opens them automatically
-        browser.body.send_keys(:f12) if firefox_types.include?(browser_type)
+        browser.send_keys(:f12) if firefox_types.include?(browser_type)
         # Open Console drawer if DevTools are open
-        browser.body.send_keys(:escape) unless devtools.nil?
+        browser.send_keys(:escape) unless devtools.nil?
         browser.goto(url) unless url.nil?
 
         { title: browser.title, url: browser.url, state: :active }
@@ -522,11 +526,13 @@ module PWN
 
         browser = browser_obj[:browser]
         # Switch to an inactive tab before closing the active tab if it's currently active
-        active_tab = list_tabs(browser_obj: browser_obj).select { |tab| tab[:state] == :active }
-        if active_tab.last[:url] == browser.url
-          inactive_tabs = list_tabs(browser_obj: browser_obj).reject { |tab| tab[:url] == browser.url }
-          keyword = inactive_tabs.last[:url]
-          jmp_tab(browser_obj: browser_obj, keyword: keyword)
+        active_tab = list_tabs(browser_obj: browser_obj).find { |tab| tab[:state] == :active }
+        if active_tab[:url] == browser.url
+          inactive_tabs = list_tabs(browser_obj: browser_obj).reject { |tab| tab[:state] == :active }
+          if inactive_tabs.any?
+            keyword = inactive_tabs.last[:url]
+            jmp_tab(browser_obj: browser_obj, keyword: keyword)
+          end
         end
         all_tabs = browser.windows
         tab_sel = all_tabs.select { |tab| tab.close if tab.title.include?(keyword) || tab.url.include?(keyword) }
@@ -647,7 +653,7 @@ module PWN
         verify_devtools_browser(browser_obj: browser_obj)
 
         browser = browser_obj[:browser]
-        browser.body.send_keys(:f12)
+        browser.send_keys(:f12)
       rescue StandardError => e
         raise e
       end
@@ -691,8 +697,8 @@ module PWN
         end
 
         # Have to call twice for Chrome, otherwise devtools stays closed
-        browser.body.send_keys(hotkey)
-        browser.body.send_keys(hotkey) if chrome_types.include?(browser_type)
+        browser.send_keys(hotkey)
+        browser.send_keys(hotkey) if chrome_types.include?(browser_type)
       rescue StandardError => e
         raise e
       end
