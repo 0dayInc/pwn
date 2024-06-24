@@ -42,7 +42,6 @@ module PWN
       #   browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
       #   proxy: 'optional - scheme://proxy_host:port || tor (defaults to nil)',
       #   devtools: 'optional - boolean (defaults to true)',
-      #   url: 'optional - URL to navigate to after opening browser (Defaults to about:about#RANDID)'
       # )
 
       public_class_method def self.open(opts = {})
@@ -62,8 +61,6 @@ module PWN
         devtools_supported = %i[chrome headless_chrome firefox headless_firefox headless]
         devtools = opts[:devtools] ||= false
         devtools = true if devtools_supported.include?(browser_type) && devtools
-
-        url = opts[:url] ||= "about:about##{SecureRandom.hex(8)}"
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
@@ -130,7 +127,7 @@ module PWN
             end
           end
 
-          args.push('--devtools') if devtools
+          # args.push('--devtools') if devtools
           options = Selenium::WebDriver::Firefox::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -152,7 +149,7 @@ module PWN
           end
 
           if devtools
-            args.push('--auto-open-devtools-for-tabs')
+            # args.push('--auto-open-devtools-for-tabs')
             args.push('--disable-hang-monitor')
           end
 
@@ -258,7 +255,6 @@ module PWN
               browser_obj[:browser].proxy = proxy
             end
           end
-          browser_obj[:browser].get(url) if url
 
         when :websocket
           if proxy
@@ -285,10 +281,6 @@ module PWN
         end
 
         if devtools_supported.include?(browser_type)
-          rand_tab = SecureRandom.hex(8)
-          browser_obj[:browser].goto(url)
-          browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
-
           if devtools
             driver = browser_obj[:browser].driver
             browser_obj[:devtools] = driver.devtools
@@ -310,8 +302,8 @@ module PWN
             browser_obj[:bidi] = driver.bidi
 
             jmp_devtools_panel(browser_obj: browser_obj, panel: :elements)
-            browser_obj[:browser].send_keys(:escape)
           end
+          new_tab(browser_obj: browser_obj, first_tab: true)
         end
 
         browser_obj
@@ -479,31 +471,28 @@ module PWN
       # Supported Method Parameters::
       # tab = PWN::Plugins::TransparentBrowser.new_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
+      #   first_tab: 'optional - boolean to indicate if this is the first tab (Defaults to false)'
       # )
 
       public_class_method def self.new_tab(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
-        url = opts[:url]
+        first_tab = opts[:first_tab] ||= false
 
-        firefox_types = %i[firefox headless_firefox]
         browser = browser_obj[:browser]
         browser_type = browser_obj[:type]
         devtools = browser_obj[:devtools]
-        browser.execute_script('window.open()')
-        jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
-        rand_tab = SecureRandom.hex(8)
-        if url.nil?
-          browser.goto("about:about##{rand_tab}")
-          browser.execute_script("document.title = '#{rand_tab}'")
+        unless first_tab
+          browser.execute_script('window.open()')
+          jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
         end
-        # Open the DevTools for Firefox, Chrome opens them automatically
-        browser.send_keys(:f12) if firefox_types.include?(browser_type)
-        # Open Console drawer if DevTools are open
-        browser.send_keys(:escape) unless devtools.nil?
-        browser.goto(url) unless url.nil?
+
+        rand_tab = SecureRandom.hex(8)
+        url = "about:about##{rand_tab}"
+        browser.goto(url)
+        browser.execute_script("document.title = '#{rand_tab}'")
+        toggle_devtools(browser_obj: browser_obj) if devtools
 
         { title: browser.title, url: browser.url, state: :active }
       rescue StandardError => e
@@ -660,8 +649,14 @@ module PWN
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
+        total_tabs = list_tabs(browser_obj: browser_obj).length
+
         browser = browser_obj[:browser]
         browser.send_keys(:f12)
+        if total_tabs < 2
+          sleep 1
+          browser.send_keys(:escape)
+        end
       rescue StandardError => e
         raise e
       end
@@ -697,7 +692,12 @@ module PWN
           hotkey.push('j') if chrome_types.include?(browser_type)
           hotkey.push('k') if firefox_types.include?(browser_type)
         when :debugger, :sources
-          hotkey.push('z') if firefox_types.include?(browser_type)
+          if firefox_types.include?(browser_type)
+            # If we're in the console, we need to switch to the inspector first
+            jmp_devtools_panel(browser_obj: browser_obj, panel: :inspector)
+            sleep 1
+            hotkey.push('z') if firefox_types.include?(browser_type)
+          end
         when :network
           hotkey.push('e') if firefox_types.include?(browser_type)
         else
@@ -705,9 +705,11 @@ module PWN
         end
 
         # Have to call twice for Chrome, otherwise devtools stays closed
-        browser.body.click
+        browser_obj[:browser].send_keys(:escape)
+        # browser.body.click!
         browser.send_keys(hotkey)
         browser.send_keys(hotkey) if chrome_types.include?(browser_type)
+        browser.send_keys(:escape)
       rescue StandardError => e
         raise e
       end
@@ -867,7 +869,7 @@ module PWN
 
           tab = #{self}.new_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
-            url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
+            first_tab: 'optional - boolean to indicate if this is the first tab (Defaults to false)'
           )
 
           tab = #{self}.close_tab(
