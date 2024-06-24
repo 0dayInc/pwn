@@ -198,9 +198,6 @@ module PWN
           this_profile['devtools.cache.disabled'] = true
           this_profile['dom.caches.enabled'] = false
 
-          # caps = Selenium::WebDriver::Remote::Capabilities.firefox
-          # caps[:acceptInsecureCerts] = true
-
           if proxy
             this_profile['network.proxy.type'] = 1
             this_profile['network.proxy.allow_hijacking_localhost'] = true
@@ -513,7 +510,7 @@ module PWN
 
       # Supported Method Parameters::
       # tab = PWN::Plugins::TransparentBrowser.close_tab(
-      #   browser_obj: 'required - browser_obj returned from #open method)'
+      #   browser_obj: 'required - browser_obj returned from #open method)',
       #   keyword: 'required - keyword in title or url used to close tabs'
       # )
 
@@ -526,17 +523,26 @@ module PWN
 
         browser = browser_obj[:browser]
         # Switch to an inactive tab before closing the active tab if it's currently active
-        active_tab = list_tabs(browser_obj: browser_obj).find { |tab| tab[:state] == :active }
-        if active_tab[:url] == browser.url
-          inactive_tabs = list_tabs(browser_obj: browser_obj).reject { |tab| tab[:state] == :active }
+        tab_list = list_tabs(browser_obj: browser_obj)
+        active_tab = tab_list.find { |tab| tab[:state] == :active }
+        if active_tab[:url].include?(keyword)
+          inactive_tabs = tab_list.reject { |tab| tab[:url] == browser.url }
           if inactive_tabs.any?
-            keyword = inactive_tabs.last[:url]
-            jmp_tab(browser_obj: browser_obj, keyword: keyword)
+            tab_to_activate = inactive_tabs.last[:url]
+            jmp_tab(browser_obj: browser_obj, keyword: tab_to_activate)
           end
         end
         all_tabs = browser.windows
-        tab_sel = all_tabs.select { |tab| tab.close if tab.title.include?(keyword) || tab.url.include?(keyword) }
-        { title: tab_sel.last.title, url: tab_sel.last.url, state: :closed } if tab_sel.any?
+
+        tabs_to_close = all_tabs.select { |tab| tab.title.include?(keyword) || tab.url.include?(keyword) }
+
+        tabs_closed = tabs_to_close.map do |tab|
+          { title: tab.title, url: tab.url, state: :closed }
+        end
+
+        tabs_to_close.each(&:close)
+
+        tabs_closed
       rescue StandardError => e
         raise e
       end
