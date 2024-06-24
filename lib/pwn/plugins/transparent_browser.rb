@@ -307,6 +307,8 @@ module PWN
             end
 
             browser_obj[:bidi] = driver.bidi
+
+            browser_obj[:browser].body.send_keys(:escape)
           end
         end
 
@@ -487,6 +489,7 @@ module PWN
         firefox_types = %i[firefox headless_firefox]
         browser = browser_obj[:browser]
         browser_type = browser_obj[:type]
+        devtools = browser_obj[:devtools]
         browser.execute_script('window.open()')
         jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
         browser.goto('about:about') if url.nil?
@@ -494,6 +497,8 @@ module PWN
         browser.execute_script("document.title = '#{rand_tab}'")
         # Open the DevTools for Firefox, Chrome opens them automatically
         browser.body.send_keys(:f12) if firefox_types.include?(browser_type)
+        # Open Console drawer if DevTools are open
+        browser.body.send_keys(:escape) if devtools
         browser.goto(url) unless url.nil?
 
         { title: browser.title, url: browser.url, state: :active }
@@ -837,7 +842,8 @@ module PWN
           )
 
           tab = #{self}.new_tab(
-            browser_obj: 'required - browser_obj returned from #open method)'
+            browser_obj: 'required - browser_obj returned from #open method)',
+            url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
           )
 
           tab = #{self}.close_tab(
