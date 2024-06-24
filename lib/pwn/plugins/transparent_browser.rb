@@ -524,8 +524,8 @@ module PWN
         # Switch to an inactive tab before closing the active tab if it's currently active
         active_tab = list_tabs(browser_obj: browser_obj).select { |tab| tab[:state] == :active }
         if active_tab.last[:url] == browser.url
-          invalid_tab = list_tabs(browser_obj: browser_obj).select { |tab| tab[:url] != browser.url }
-          keyword = invalid_tab.last[:url]
+          inactive_tabs = list_tabs(browser_obj: browser_obj).reject { |tab| tab[:url] == browser.url }
+          keyword = inactive_tabs.last[:url]
           jmp_tab(browser_obj: browser_obj, keyword: keyword)
         end
         all_tabs = browser.windows
