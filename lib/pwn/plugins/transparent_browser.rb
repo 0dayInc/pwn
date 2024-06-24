@@ -492,11 +492,14 @@ module PWN
         browser.execute_script('window.open()')
         jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
         rand_tab = SecureRandom.hex(8)
-        browser.goto("about:about##{rand_tab}") if url.nil?
+        if url.nil?
+          browser.goto("about:about##{rand_tab}")
+          browser.execute_script("document.title = '#{rand_tab}'")
+        end
         # Open the DevTools for Firefox, Chrome opens them automatically
         browser.body.send_keys(:f12) if firefox_types.include?(browser_type)
         # Open Console drawer if DevTools are open
-        browser.body.send_keys(:escape) if devtools
+        browser.body.send_keys(:escape) unless devtools.nil?
         browser.goto(url) unless url.nil?
 
         { title: browser.title, url: browser.url, state: :active }
@@ -519,10 +522,10 @@ module PWN
 
         browser = browser_obj[:browser]
         # Switch to an inactive tab before closing the active tab if it's currently active
-        active_tab = list_tabs(browser_obj: browser_obj).find { |tab| tab[:state] == :active }
-        if active_tab[:url] == browser.url
-          invalid_tab = list_tabs(browser_obj: browser_obj).find { |tab| tab[:url] != browser.url }
-          keyword = invalid_tab[:url]
+        active_tab = list_tabs(browser_obj: browser_obj).select { |tab| tab[:state] == :active }
+        if active_tab.last[:url] == browser.url
+          invalid_tab = list_tabs(browser_obj: browser_obj).select { |tab| tab[:url] != browser.url }
+          keyword = invalid_tab.last[:url]
           jmp_tab(browser_obj: browser_obj, keyword: keyword)
         end
         all_tabs = browser.windows
@@ -665,6 +668,7 @@ module PWN
         firefox_types = %i[firefox headless_firefox]
         chrome_types = %i[chrome headless_chrome]
 
+        hotkey = []
         case PWN::Plugins::DetectOS.type
         when :linux, :openbsd, :windows
           hotkey = %i[control shift]
