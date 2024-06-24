@@ -41,7 +41,7 @@ module PWN
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
       #   browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
       #   proxy: 'optional - scheme://proxy_host:port || tor (defaults to nil)',
-      #   with_devtools: 'optional - boolean (defaults to true)',
+      #   devtools: 'optional - boolean (defaults to true)',
       #   url: 'optional - URL to navigate to after opening browser (Defaults to about:about#RANDID)'
       # )
 
@@ -60,8 +60,8 @@ module PWN
         end
 
         devtools_supported = %i[chrome headless_chrome firefox headless_firefox headless]
-        with_devtools = opts[:with_devtools] ||= false
-        with_devtools = true if devtools_supported.include?(browser_type) && with_devtools
+        devtools = opts[:devtools] ||= false
+        devtools = true if devtools_supported.include?(browser_type) && devtools
 
         url = opts[:url] ||= "about:about##{SecureRandom.hex(8)}"
 
@@ -130,7 +130,7 @@ module PWN
             end
           end
 
-          args.push('--devtools') if with_devtools
+          args.push('--devtools') if devtools
           options = Selenium::WebDriver::Firefox::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -151,7 +151,7 @@ module PWN
             args.push("--proxy-server=#{proxy}")
           end
 
-          if with_devtools
+          if devtools
             args.push('--auto-open-devtools-for-tabs')
             args.push('--disable-hang-monitor')
           end
@@ -258,6 +258,7 @@ module PWN
               browser_obj[:browser].proxy = proxy
             end
           end
+          browser_obj[:browser].get(url) if url
 
         when :websocket
           if proxy
@@ -285,10 +286,10 @@ module PWN
 
         if devtools_supported.include?(browser_type)
           rand_tab = SecureRandom.hex(8)
-          browser_obj[:browser].goto("about:about##{rand_tab}")
+          browser_obj[:browser].goto(url)
           browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
 
-          if with_devtools
+          if devtools
             driver = browser_obj[:browser].driver
             browser_obj[:devtools] = driver.devtools
 
@@ -308,6 +309,7 @@ module PWN
 
             browser_obj[:bidi] = driver.bidi
 
+            jmp_devtools_panel(browser_obj: browser_obj, panel: :elements)
             browser_obj[:browser].send_keys(:escape)
           end
         end
@@ -703,6 +705,7 @@ module PWN
         end
 
         # Have to call twice for Chrome, otherwise devtools stays closed
+        browser.body.click
         browser.send_keys(hotkey)
         browser.send_keys(hotkey) if chrome_types.include?(browser_type)
       rescue StandardError => e
@@ -747,7 +750,7 @@ module PWN
           browser_obj1 = #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
             proxy: 'optional scheme://proxy_host:port || tor (defaults to nil)',
-            with_devtools: 'optional - boolean (defaults to true)'
+            devtools: 'optional - boolean (defaults to true)'
           )
           browser = browser_obj1[:browser]
           puts browser.public_methods
