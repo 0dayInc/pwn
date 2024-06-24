@@ -452,12 +452,12 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.switch_tab(
+      # tab = PWN::Plugins::TransparentBrowser.jmp_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
       #   keyword: 'required - keyword in title or url used to switch tabs'
       # )
 
-      public_class_method def self.switch_tab(opts = {})
+      public_class_method def self.jmp_tab(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
@@ -473,7 +473,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.new_tab(
+      # tab = PWN::Plugins::TransparentBrowser.new_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
       #   url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
       # )
@@ -484,12 +484,16 @@ module PWN
 
         url = opts[:url]
 
+        firefox_types = %i[firefox headless_firefox]
         browser = browser_obj[:browser]
+        browser_type = browser_obj[:type]
         browser.execute_script('window.open()')
-        switch_tab(browser_obj: browser_obj, keyword: 'about:blank')
+        jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
         browser.goto('about:about') if url.nil?
         rand_tab = SecureRandom.hex(8)
         browser.execute_script("document.title = '#{rand_tab}'")
+        # Open the DevTools for Firefox, Chrome opens them automatically
+        browser.body.send_keys(:f12) if firefox_types.include?(browser_type)
         browser.goto(url) unless url.nil?
 
         { title: browser.title, url: browser.url, state: :active }
@@ -498,7 +502,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.close_tab(
+      # tab = PWN::Plugins::TransparentBrowser.close_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)'
       #   keyword: 'required - keyword in title or url used to close tabs'
       # )
@@ -519,7 +523,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.debugger(
+      # PWN::Plugins::TransparentBrowser.debugger(
       #   browser_obj: 'required - browser_obj returned from #open method)',
       #   action: 'optional - action to take :pause|:resume (Defaults to :pause)',
       #   url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
@@ -573,7 +577,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.step_into(
+      # PWN::Plugins::TransparentBrowser.step_into(
       #   browser_obj: 'required - browser_obj returned from #open method)'
       # )
 
@@ -589,7 +593,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.step_out(
+      # PWN::Plugins::TransparentBrowser.step_out(
       #   browser_obj: 'required - browser_obj returned from #open method)'
       # )
 
@@ -605,7 +609,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # browser_obj1 = PWN::Plugins::TransparentBrowser.step_over(
+      # PWN::Plugins::TransparentBrowser.step_over(
       #   browser_obj: 'required - browser_obj returned from #open method)'
       # )
 
@@ -616,6 +620,65 @@ module PWN
 
         devtools = browser_obj[:devtools]
         devtools.send_cmd('Debugger.stepOver')
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::TransparentBrowser.toggle_devtools(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.toggle_devtools(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        browser = browser_obj[:browser]
+        browser.body.send_keys(:f12)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::TransparentBrowser.jmp_devtools_panel(
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   panel: 'optional - panel to switch to :elements|:inspector|:console|:debugger|:sources|:network
+      # )
+
+      public_class_method def self.jmp_devtools_panel(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        panel = opts[:panel] ||= :elements
+        browser = browser_obj[:browser]
+        browser_type = browser_obj[:type]
+        firefox_types = %i[firefox headless_firefox]
+        chrome_types = %i[chrome headless_chrome]
+
+        case PWN::Plugins::DetectOS.type
+        when :linux, :openbsd, :windows
+          hotkey = %i[control shift]
+        when :macos
+          hotkey = %i[command option]
+        end
+
+        case panel
+        when :elements, :inspector
+          hotkey.push('c') if firefox_types.include?(browser_type)
+        when :console
+          hotkey.push('j') if chrome_types.include?(browser_type)
+          hotkey.push('k') if firefox_types.include?(browser_type)
+        when :debugger, :sources
+          hotkey.push('z') if firefox_types.include?(browser_type)
+        when :network
+          hotkey.push('e') if firefox_types.include?(browser_type)
+        else
+          raise 'ERROR: panel parameter must be :elements|:inspector|:console|:debugger|:sources|:network'
+        end
+
+        # Have to call twice for Chrome, otherwise devtools stays closed
+        browser.body.send_keys(hotkey)
+        browser.body.send_keys(hotkey) if chrome_types.include?(browser_type)
       rescue StandardError => e
         raise e
       end
@@ -768,36 +831,45 @@ module PWN
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          browser_obj1 = #{self}.switch_tab(
+          tab = #{self}.jmp_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
             keyword: 'required - keyword in title or url used to switch tabs'
           )
 
-          browser_obj1 = #{self}.new_tab(
+          tab = #{self}.new_tab(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          browser_obj1 = #{self}.close_tab(
+          tab = #{self}.close_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
             keyword: 'required - keyword in title or url used to close tabs'
           )
 
-          browser_obj1 = #{self}.debugger(
+          #{self}.debugger(
             browser_obj: 'required - browser_obj returned from #open method)',
             action: 'optional - action to take :pause|:resume (Defaults to :pause)',
             url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
           )
 
-          browser_obj1 = #{self}.step_into(
+          #{self}.step_into(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          browser_obj1 = #{self}.step_out(
+          #{self}.step_out(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          browser_obj1 = #{self}.step_over(
+          #{self}.step_over(
             browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          #{self}.toggle_devtools(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          #{self}.jmp_devtools_panel(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            panel: 'optional - panel to switch to :elements|:inspector|:console|:debugger|:sources|:network'
           )
 
           browser_obj1 = #{self}.close(
