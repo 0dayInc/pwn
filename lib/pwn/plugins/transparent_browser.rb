@@ -285,8 +285,7 @@ module PWN
 
         if devtools_supported.include?(browser_type)
           rand_tab = SecureRandom.hex(8)
-          browser_obj[:browser].goto('about:about')
-          browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
+          browser_obj[:browser].goto("about:about##{rand_tab}")
 
           if with_devtools
             driver = browser_obj[:browser].driver
@@ -492,9 +491,8 @@ module PWN
         devtools = browser_obj[:devtools]
         browser.execute_script('window.open()')
         jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
-        browser.goto('about:about') if url.nil?
         rand_tab = SecureRandom.hex(8)
-        browser.execute_script("document.title = '#{rand_tab}'")
+        browser.goto("about:about##{rand_tab}") if url.nil?
         # Open the DevTools for Firefox, Chrome opens them automatically
         browser.body.send_keys(:f12) if firefox_types.include?(browser_type)
         # Open Console drawer if DevTools are open
@@ -520,6 +518,13 @@ module PWN
         raise 'ERROR: keyword parameter is required' if keyword.nil?
 
         browser = browser_obj[:browser]
+        # Switch to an inactive tab before closing the active tab if it's currently active
+        active_tab = list_tabs(browser_obj: browser_obj).find { |tab| tab[:state] == :active }
+        if active_tab[:url] == browser.url
+          invalid_tab = list_tabs(browser_obj: browser_obj).find { |tab| tab[:url] != browser.url }
+          keyword = invalid_tab[:url]
+          jmp_tab(browser_obj: browser_obj, keyword: keyword)
+        end
         all_tabs = browser.windows
         tab_sel = all_tabs.select { |tab| tab.close if tab.title.include?(keyword) || tab.url.include?(keyword) }
         { title: tab_sel.last.title, url: tab_sel.last.url, state: :closed } if tab_sel.any?
