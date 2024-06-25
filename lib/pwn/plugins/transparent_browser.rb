@@ -498,11 +498,7 @@ module PWN
         browser = browser_obj[:browser]
         browser_type = browser_obj[:type]
         devtools = browser_obj[:devtools]
-        unless first_tab
-          browser.execute_script('window.open()')
-          jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
-        end
-
+        browser.driver.switch_to.new_window(:tab) unless first_tab
         rand_tab = SecureRandom.hex(8)
         url = 'about:about'
         url = 'chrome://chrome-urls/' if chrome_types.include?(browser_type)
