@@ -128,6 +128,8 @@ module PWN
           end
 
           # args.push('--devtools') if devtools
+          # Private browsing mode
+          args.push('--private')
           options = Selenium::WebDriver::Firefox::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -153,6 +155,8 @@ module PWN
             args.push('--disable-hang-monitor')
           end
 
+          # Incognito browsing mode
+          args.push('--incognito')
           options = Selenium::WebDriver::Chrome::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -214,6 +218,8 @@ module PWN
           end
 
           args.push('--headless')
+          # Private browsing mode
+          args.push('--private')
           options = Selenium::WebDriver::Firefox::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -230,13 +236,14 @@ module PWN
           this_profile['download.prompt_for_download'] = false
           this_profile['download.default_directory'] = '~/Downloads'
 
-          args.push('--headless')
-
           if proxy
             args.push("--host-resolver-rules='MAP * 0.0.0.0 , EXCLUDE #{tor_obj[:ip]}'") if tor_obj
             args.push("--proxy-server=#{proxy}")
           end
 
+          args.push('--headless')
+          # Incognito browsing mode
+          args.push('--incognito')
           options = Selenium::WebDriver::Chrome::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -677,6 +684,7 @@ module PWN
           browser.execute_script("document.title = '#{devtools_tab_title}'")
         end
 
+        # TODO: Find replacement for hotkey - there must be a better way.
         browser.send_keys(:f12)
         if first_tab
           # TODO: replace sleep with something more reliable like an event listener
@@ -705,6 +713,7 @@ module PWN
         firefox_types = %i[firefox headless_firefox]
         chrome_types = %i[chrome headless_chrome]
 
+        # TODO: Find replacement for hotkey - there must be a better way.
         hotkey = []
         case PWN::Plugins::DetectOS.type
         when :linux, :openbsd, :windows
@@ -715,11 +724,13 @@ module PWN
 
         case panel
         when :elements, :inspector
+          hotkey.push('i') if chrome_types.include?(browser_type)
           hotkey.push('c') if firefox_types.include?(browser_type)
         when :console
           hotkey.push('j') if chrome_types.include?(browser_type)
           hotkey.push('k') if firefox_types.include?(browser_type)
         when :debugger, :sources
+          hotkey.push('s') if chrome_types.include?(browser_type)
           if firefox_types.include?(browser_type)
             # If we're in the console, we need to switch to the inspector first
             jmp_devtools_panel(browser_obj: browser_obj, panel: :inspector)
