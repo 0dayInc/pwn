@@ -66,7 +66,7 @@ module PWN
         Watir.default_timeout = 900
 
         args = []
-        args.push('--start-maximized')
+        # args.push('--start-maximized')
         args.push('--disable-notifications')
 
         unless browser_type == :rest
@@ -308,6 +308,7 @@ module PWN
             jmp_devtools_panel(browser_obj: browser_obj, panel: :elements)
           end
 
+          browser_obj[:browser].driver.manage.window.maximize
           new_tab(browser_obj: browser_obj, first_tab: true)
         end
 
