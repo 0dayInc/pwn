@@ -667,17 +667,22 @@ module PWN
         first_tab = opts[:first_tab] ||= false
 
         browser = browser_obj[:browser]
+        browser_type = browser_obj[:type]
+        chrome_types = %i[chrome headless_chrome]
         tab_id = browser.title.split('-').last.strip
-        devtools_tab_title = "DevTools-#{tab_id}"
-        jmp_tab(browser_obj: browser_obj, keyword: 'DevTools', explicit: true)
-        browser.execute_script("document.title = '#{devtools_tab_title}'")
+        if chrome_types.include?(browser_type)
+          devtools_tab_title = "DevTools-#{tab_id}"
+          jmp_tab(browser_obj: browser_obj, keyword: 'DevTools', explicit: true)
+          browser.execute_script("document.title = '#{devtools_tab_title}'")
+        end
+
         browser.send_keys(:f12)
         if first_tab
           # TODO: replace sleep with something more reliable like an event listener
           sleep 1
           browser.send_keys(:escape)
         end
-        tab_tied_to_devtools = "about:about-#{devtools_tab_title.split('-').last.strip}"
+        tab_tied_to_devtools = "about:about-#{tab_id}"
         jmp_tab(browser_obj: browser_obj, keyword: tab_tied_to_devtools, explicit: true)
       rescue StandardError => e
         raise e
