@@ -605,7 +605,8 @@ module PWN
                 model: model,
                 request: request.chomp,
                 response_history: response_history,
-                speak_answer: speak_answer
+                speak_answer: speak_answer,
+                spinner: true
               )
             when :openai
               response = PWN::Plugins::OpenAI.chat(
@@ -613,7 +614,8 @@ module PWN
                 model: model,
                 request: request.chomp,
                 response_history: response_history,
-                speak_answer: speak_answer
+                speak_answer: speak_answer,
+                spinner: true
               )
             else
               raise "ERROR: Unsupported AI Engine: #{ai_engine}"

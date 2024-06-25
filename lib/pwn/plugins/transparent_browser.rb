@@ -41,8 +41,7 @@ module PWN
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
       #   browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
       #   proxy: 'optional - scheme://proxy_host:port || tor (defaults to nil)',
-      #   with_devtools: 'optional - boolean (defaults to true)',
-      #   url: 'optional - URL to navigate to after opening browser (Defaults to about:about#RANDID)'
+      #   devtools: 'optional - boolean (defaults to true)',
       # )
 
       public_class_method def self.open(opts = {})
@@ -60,10 +59,8 @@ module PWN
         end
 
         devtools_supported = %i[chrome headless_chrome firefox headless_firefox headless]
-        with_devtools = opts[:with_devtools] ||= false
-        with_devtools = true if devtools_supported.include?(browser_type) && with_devtools
-
-        url = opts[:url] ||= "about:about##{SecureRandom.hex(8)}"
+        devtools = opts[:devtools] ||= false
+        devtools = true if devtools_supported.include?(browser_type) && devtools
 
         # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
         Watir.default_timeout = 900
@@ -130,7 +127,7 @@ module PWN
             end
           end
 
-          args.push('--devtools') if with_devtools
+          # args.push('--devtools') if devtools
           options = Selenium::WebDriver::Firefox::Options.new(
             args: args,
             accept_insecure_certs: true
@@ -151,7 +148,7 @@ module PWN
             args.push("--proxy-server=#{proxy}")
           end
 
-          if with_devtools
+          if devtools
             args.push('--auto-open-devtools-for-tabs')
             args.push('--disable-hang-monitor')
           end
@@ -161,7 +158,8 @@ module PWN
             accept_insecure_certs: true
           )
 
-          options.web_socket_url = true
+          # This is for bidi, once it's ready
+          # options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -221,7 +219,8 @@ module PWN
             accept_insecure_certs: true
           )
 
-          options.web_socket_url = true
+          # This is for bidi, once it's ready
+          # options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -243,7 +242,8 @@ module PWN
             accept_insecure_certs: true
           )
 
-          options.web_socket_url = true
+          # This is for bidi, once it's ready
+          # options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -284,11 +284,7 @@ module PWN
         end
 
         if devtools_supported.include?(browser_type)
-          rand_tab = SecureRandom.hex(8)
-          browser_obj[:browser].goto("about:about##{rand_tab}")
-          browser_obj[:browser].execute_script("document.title = '#{rand_tab}'")
-
-          if with_devtools
+          if devtools
             driver = browser_obj[:browser].driver
             browser_obj[:devtools] = driver.devtools
 
@@ -306,10 +302,13 @@ module PWN
               browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
             end
 
-            browser_obj[:bidi] = driver.bidi
+            # Future BiDi API that's more universally supported across browsers
+            # browser_obj[:bidi] = driver.bidi
 
-            browser_obj[:browser].send_keys(:escape)
+            jmp_devtools_panel(browser_obj: browser_obj, panel: :elements)
           end
+
+          new_tab(browser_obj: browser_obj, first_tab: true)
         end
 
         browser_obj
@@ -456,7 +455,8 @@ module PWN
       # Supported Method Parameters::
       # tab = PWN::Plugins::TransparentBrowser.jmp_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   keyword: 'required - keyword in title or url used to switch tabs'
+      #   keyword: 'required - keyword in title or url used to switch tabs',
+      #   explicit: 'optional - boolean to indicate if the keyword is an exact match (Defaults to false)'
       # )
 
       public_class_method def self.jmp_tab(opts = {})
@@ -466,9 +466,16 @@ module PWN
         keyword = opts[:keyword]
         raise 'ERROR: keyword parameter is required' if keyword.nil?
 
+        explicit = opts[:explicit] ||= false
+
         browser = browser_obj[:browser]
         all_tabs = browser.windows
-        tab_sel = all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
+        if explicit
+          tab_sel = all_tabs.select { |tab| tab.use if tab.title == keyword || tab.url == keyword }
+        else
+          tab_sel = all_tabs.select { |tab| tab.use if tab.title.include?(keyword) || tab.url.include?(keyword) }
+        end
+
         { title: tab_sel.last.title, url: tab_sel.last.url, state: :active } if tab_sel.any?
       rescue StandardError => e
         raise e
@@ -477,31 +484,33 @@ module PWN
       # Supported Method Parameters::
       # tab = PWN::Plugins::TransparentBrowser.new_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
+      #   first_tab: 'optional - boolean to indicate if this is the first tab (Defaults to false)'
       # )
 
       public_class_method def self.new_tab(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
-        url = opts[:url]
+        chrome_types = %i[chrome headless_chrome]
 
-        firefox_types = %i[firefox headless_firefox]
+        first_tab = opts[:first_tab] ||= false
+
         browser = browser_obj[:browser]
         browser_type = browser_obj[:type]
         devtools = browser_obj[:devtools]
-        browser.execute_script('window.open()')
-        jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
-        rand_tab = SecureRandom.hex(8)
-        if url.nil?
-          browser.goto("about:about##{rand_tab}")
-          browser.execute_script("document.title = '#{rand_tab}'")
+        unless first_tab
+          browser.execute_script('window.open()')
+          jmp_tab(browser_obj: browser_obj, keyword: 'about:blank')
         end
-        # Open the DevTools for Firefox, Chrome opens them automatically
-        browser.send_keys(:f12) if firefox_types.include?(browser_type)
-        # Open Console drawer if DevTools are open
-        browser.send_keys(:escape) unless devtools.nil?
-        browser.goto(url) unless url.nil?
+
+        rand_tab = SecureRandom.hex(8)
+        url = 'about:about'
+        url = 'chrome://chrome-urls/' if chrome_types.include?(browser_type)
+        browser.goto(url)
+        # TODO: replace sleep with something more reliable like an event listener
+        sleep 1
+        browser.execute_script("document.title = 'about:about-#{rand_tab}'")
+        toggle_devtools(browser_obj: browser_obj, first_tab: first_tab) if devtools
 
         { title: browser.title, url: browser.url, state: :active }
       rescue StandardError => e
@@ -651,15 +660,29 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::TransparentBrowser.toggle_devtools(
-      #   browser_obj: 'required - browser_obj returned from #open method)'
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   first_tab: 'optional - boolean to indicate if this is the first tab (Defaults to false)',
       # )
 
       public_class_method def self.toggle_devtools(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
+        first_tab = opts[:first_tab] ||= false
+
         browser = browser_obj[:browser]
+        tab_id = browser.title.split('-').last.strip
+        devtools_tab_title = "DevTools-#{tab_id}"
+        jmp_tab(browser_obj: browser_obj, keyword: 'DevTools', explicit: true)
+        browser.execute_script("document.title = '#{devtools_tab_title}'")
         browser.send_keys(:f12)
+        if first_tab
+          # TODO: replace sleep with something more reliable like an event listener
+          sleep 1
+          browser.send_keys(:escape)
+        end
+        tab_tied_to_devtools = "about:about-#{devtools_tab_title.split('-').last.strip}"
+        jmp_tab(browser_obj: browser_obj, keyword: tab_tied_to_devtools, explicit: true)
       rescue StandardError => e
         raise e
       end
@@ -695,7 +718,12 @@ module PWN
           hotkey.push('j') if chrome_types.include?(browser_type)
           hotkey.push('k') if firefox_types.include?(browser_type)
         when :debugger, :sources
-          hotkey.push('z') if firefox_types.include?(browser_type)
+          if firefox_types.include?(browser_type)
+            # If we're in the console, we need to switch to the inspector first
+            jmp_devtools_panel(browser_obj: browser_obj, panel: :inspector)
+            sleep 1
+            hotkey.push('z') if firefox_types.include?(browser_type)
+          end
         when :network
           hotkey.push('e') if firefox_types.include?(browser_type)
         else
@@ -703,8 +731,11 @@ module PWN
         end
 
         # Have to call twice for Chrome, otherwise devtools stays closed
+        browser_obj[:browser].send_keys(:escape)
+        # browser.body.click!
         browser.send_keys(hotkey)
         browser.send_keys(hotkey) if chrome_types.include?(browser_type)
+        browser.send_keys(:escape)
       rescue StandardError => e
         raise e
       end
@@ -747,7 +778,7 @@ module PWN
           browser_obj1 = #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
             proxy: 'optional scheme://proxy_host:port || tor (defaults to nil)',
-            with_devtools: 'optional - boolean (defaults to true)'
+            devtools: 'optional - boolean (defaults to true)'
           )
           browser = browser_obj1[:browser]
           puts browser.public_methods
@@ -864,7 +895,7 @@ module PWN
 
           tab = #{self}.new_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
-            url: 'optional - URL to navigate to after opening new tab (Defaults to nil)'
+            first_tab: 'optional - boolean to indicate if this is the first tab (Defaults to false)'
           )
 
           tab = #{self}.close_tab(
