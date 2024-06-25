@@ -107,6 +107,30 @@ module PWN
           this_profile['devtools.cache.disabled'] = true
           this_profile['dom.caches.enabled'] = false
 
+          # DevTools ToolBox Settings in Firefox about:config
+          this_profile['devtools.f12.enabled'] = true
+          this_profile['devtools.toolbox.host'] = 'right'
+          this_profile['devtools.toolbox.sidebar.width'] = 1400
+          this_profile['devtools.toolbox.splitconsoleHeight'] = 200
+
+          # DevTools Debugger Settings in Firefox about:config
+          this_profile['devtools.toolbox.selectedTool'] = 'jsdebugger'
+          this_profile['devtools.debugger.start-panel-size'] = 200
+          this_profile['devtools.debugger.end-panel-size'] = 200
+          this_profile['devtools.debugger.auto-pretty-print'] = true
+          # Re-enable once syntax highlighting is fixed
+          # this_profile['devtools.debugger.ui.editor-wrapping'] = true
+          this_profile['devtools.debugger.features.javascript-tracing'] = true
+          this_profile['devtools.debugger.xhr-breakpoints-visible'] = true
+          this_profile['devtools.debugger.expressions-visible'] = true
+          this_profile['devtools.debugger.dom-mutation-breakpoints-visible'] = true
+          this_profile['devtools.debugger.features.async-live-stacks'] = true
+          this_profile['devtools.debugger.features.autocomplete-expressions'] = true
+          this_profile['devtools.debugger.features.code-folding'] = true
+          this_profile['devtools.debugger.features.command-click'] = true
+          this_profile['devtools.debugger.features.component-pane'] = true
+          this_profile['devtools.debugger.map-scopes-enabled'] = true
+
           # caps = Selenium::WebDriver::Remote::Capabilities.firefox
           # caps[:acceptInsecureCerts] = true
 
@@ -435,6 +459,40 @@ module PWN
         end
 
         console_resp
+      rescue Timeout::Error, Timeout::ExitException
+        console_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::TransparentBrowser.update_about_config(
+      #   browser_obj: browser_obj1,
+      #   key: 'required - key to update in about:config',
+      #   value: 'required - value to set for key in about:config'
+      # )
+
+      public_class_method def self.update_about_config(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[firefox headless_firefox]
+        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+
+        key = opts[:key]
+        raise 'ERROR: key parameter is required' if key.nil?
+
+        value = opts[:value]
+        raise 'ERROR: value parameter is required' if value.nil?
+
+        browser = browser_obj[:browser]
+        browser_type = browser_obj[:type]
+        # chrome_types = %i[chrome headless_chrome]
+        firefox_types = %i[firefox headless_firefox]
+
+        browser.goto('about:config')
+        # Confirmed working in Firefox
+        js = %{Services.prefs.setStringPref("#{key}", "#{value}")} if firefox_types.include?(browser_type)
+        console(browser_obj: browser_obj, js: js)
+        browser.back
       rescue Timeout::Error, Timeout::ExitException
         console_resp
       rescue StandardError => e
@@ -895,6 +953,12 @@ module PWN
           console_resp = #{self}.console(
             browser_obj: 'required - browser_obj returned from #open method)',
             js: 'required - JavaScript expression to evaluate'
+          )
+
+          #{self}.update_about_config(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            key: 'required - key to update in about:config',
+            value: 'required - value to set for key in about:config'
           )
 
           tabs = #{self}.list_tabs(
