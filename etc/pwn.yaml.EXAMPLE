@@ -36,5 +36,8 @@ meshtastic:
     LongFast: 'required - PSK for LongFast channel'
     PWN: 'required - PSK for pwn channel'
 
+hunter:
+  api_key: 'hunter.how API Key'
+
 shodan:
   api_key: 'SHODAN API Key'

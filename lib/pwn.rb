@@ -22,4 +22,7 @@ module PWN
   public_class_method def self.help
     constants.sort
   end
+rescue StandardError => e
+  puts e.backtrace
+  raise e
 end

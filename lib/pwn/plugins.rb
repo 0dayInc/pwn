@@ -30,6 +30,7 @@ module PWN
     autoload :Github, 'pwn/plugins/github'
     autoload :GQRX, 'pwn/plugins/gqrx'
     autoload :HackerOne, 'pwn/plugins/hacker_one'
+    autoload :Hunter, 'pwn/plugins/hunter'
     autoload :IPInfo, 'pwn/plugins/ip_info'
     autoload :IRC, 'pwn/plugins/irc'
     autoload :Jenkins, 'pwn/plugins/jenkins'

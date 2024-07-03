@@ -110,7 +110,7 @@ module PWN
           # DevTools ToolBox Settings in Firefox about:config
           this_profile['devtools.f12.enabled'] = true
           this_profile['devtools.toolbox.host'] = 'right'
-          this_profile['devtools.toolbox.sidebar.width'] = 1400
+          this_profile['devtools.toolbox.sidebar.width'] = 1700
           this_profile['devtools.toolbox.splitconsoleHeight'] = 200
 
           # DevTools Debugger Settings in Firefox about:config
@@ -118,8 +118,7 @@ module PWN
           this_profile['devtools.debugger.start-panel-size'] = 200
           this_profile['devtools.debugger.end-panel-size'] = 200
           this_profile['devtools.debugger.auto-pretty-print'] = true
-          # Re-enable once syntax highlighting is fixed
-          # this_profile['devtools.debugger.ui.editor-wrapping'] = true
+          this_profile['devtools.debugger.ui.editor-wrapping'] = true
           this_profile['devtools.debugger.features.javascript-tracing'] = true
           this_profile['devtools.debugger.xhr-breakpoints-visible'] = true
           this_profile['devtools.debugger.expressions-visible'] = true
@@ -333,6 +332,14 @@ module PWN
               browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
             end
 
+            firefox_browser_types = %i[firefox headless_firefox]
+            if firefox_browser_types.include?(browser_type)
+              # browser_obj[:devtools].send_cmd(
+              #   'EventBreakpoints.setInstrumentationBreakpoint',
+              #   eventName: 'script'
+              # )
+            end
+
             # Future BiDi API that's more universally supported across browsers
             # browser_obj[:bidi] = driver.bidi
 
@@ -450,16 +457,22 @@ module PWN
 
         browser = browser_obj[:browser]
         case js
-        when 'debugger', 'debugger;', 'debugger()', 'debugger();'
-          Timeout.timeout(1) { console_resp = browser.execute_script('debugger') }
         when 'clear', 'clear;', 'clear()', 'clear();'
-          console_resp = browser.execute_script('console.clear()')
+          script = 'console.clear()'
         else
-          console_resp = browser.execute_script("console.log(#{js})")
+          script = "console.log(#{js})"
         end
 
-        console_resp
-      rescue Timeout::Error, Timeout::ExitException
+        console_resp = nil
+        begin
+          Timeout.timeout(1) { console_resp = browser.execute_script(script) }
+        rescue Timeout::Error, Timeout::ExitException
+          console_resp
+        rescue Selenium::WebDriver::Error::JavascriptError
+          script = js
+          retry
+        end
+
         console_resp
       rescue StandardError => e
         raise e
@@ -637,8 +650,10 @@ module PWN
 
         case action.to_s.downcase.to_sym
         when :pause
-          console(browser_obj: browser_obj, js: 'debugger')
-
+          devtools.send_cmd(
+            'EventBreakpoints.setInstrumentationBreakpoint',
+            eventName: 'scriptFirstStatement'
+          )
           # devtools.send_cmd('Debugger.enable')
           # devtools.send_cmd(
           #   'Debugger.setInstrumentationBreakpoint',
@@ -664,6 +679,10 @@ module PWN
             url
           end
         when :resume
+          devtools.send_cmd(
+            'EventBreakpoints.removeInstrumentationBreakpoint',
+            eventName: 'scriptFirstStatement'
+          )
           devtools.send_cmd('Debugger.resume')
         else
           raise 'ERROR: action parameter must be :pause or :resume'
@@ -673,8 +692,29 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::TransparentBrowser.step_into(
+      # current_dom = PWN::Plugins::TransparentBrowser.dom(
       #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.dom(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+
+        devtools = browser_obj[:devtools]
+        computed_styles = %i[display color font-size font-family]
+        devtools.send_cmd(
+          'DOMSnapshot.captureSnapshot',
+          computedStyles: computed_styles
+        ).transform_keys(&:to_sym)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::TransparentBrowser.step_into(
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   steps: 'optional - number of steps taken (Defaults to 1)'
       # )
 
       public_class_method def self.step_into(opts = {})
@@ -682,15 +722,39 @@ module PWN
         supported = %i[chrome headless_chrome]
         verify_devtools_browser(browser_obj: browser_obj, supported: supported)
 
+        steps = opts[:steps].to_i
+        steps = 1 if steps.zero? || steps.negative?
+
+        diff_arr = []
         devtools = browser_obj[:devtools]
-        devtools.send_cmd('Debugger.stepInto')
+        steps.times do |s|
+          diff_hash = {}
+          step = s + 1
+          diff_hash[:step] = step
+
+          dom_before = dom(browser_obj: browser_obj)
+          diff_hash[:dom_before_step] = dom_before
+
+          devtools.send_cmd('Debugger.stepInto')
+
+          dom_after = dom(browser_obj: browser_obj)
+          diff_hash[:dom_after_step] = dom_after
+
+          da = dom_before.to_a - dom_after.to_a
+          diff_hash[:diff_dom] = da.to_h.transform_keys(&:to_sym)
+
+          diff_arr.push(diff_hash)
+        end
+
+        diff_arr
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # PWN::Plugins::TransparentBrowser.step_out(
-      #   browser_obj: 'required - browser_obj returned from #open method)'
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   steps: 'optional - number of steps taken (Defaults to 1)'
       # )
 
       public_class_method def self.step_out(opts = {})
@@ -698,15 +762,39 @@ module PWN
         supported = %i[chrome headless_chrome]
         verify_devtools_browser(browser_obj: browser_obj, supported: supported)
 
+        steps = opts[:steps].to_i
+        steps = 1 if steps.zero? || steps.negative?
+
+        diff_arr = []
         devtools = browser_obj[:devtools]
-        devtools.send_cmd('Debugger.stepOut')
+        steps.times do |s|
+          diff_hash = {}
+          step = s + 1
+          diff_hash[:step] = step
+
+          dom_before = dom(browser_obj: browser_obj)
+          diff_hash[:pre_step] = dom_before
+
+          devtools.send_cmd('Debugger.stepOut')
+
+          dom_after = dom(browser_obj: browser_obj, step_sum: step_sum)
+          diff_hash[:post_step] = dom_after
+
+          da = dom_before.to_a - dom_after.to_a
+          diff_hash[:diff] = da.to_h.transform_keys(&:to_sym)
+
+          diff_arr.push(diff_hash)
+        end
+
+        diff_arr
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # PWN::Plugins::TransparentBrowser.step_over(
-      #   browser_obj: 'required - browser_obj returned from #open method)'
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   steps: 'optional - number of steps taken (Defaults to 1)'
       # )
 
       public_class_method def self.step_over(opts = {})
@@ -714,8 +802,31 @@ module PWN
         supported = %i[chrome headless_chrome]
         verify_devtools_browser(browser_obj: browser_obj, supported: supported)
 
+        steps = opts[:steps].to_i
+        steps = 1 if steps.zero? || steps.negative?
+
+        diff_arr = []
         devtools = browser_obj[:devtools]
-        devtools.send_cmd('Debugger.stepOver')
+        steps.times do |s|
+          diff_hash = {}
+          step = s + 1
+          diff_hash[:step] = step
+
+          dom_before = dom(browser_obj: browser_obj)
+          diff_hash[:dom_before_step] = dom_before
+
+          devtools.send_cmd('Debugger.stepOver')
+
+          dom_after = dom(browser_obj: browser_obj, step_sum: step_sum)
+          diff_hash[:dom_after_step] = dom_after
+
+          da = dom_before.to_a - dom_after.to_a
+          diff_hash[:diff_dom] = da.to_h.transform_keys(&:to_sym)
+
+          diff_arr.push(diff_hash)
+        end
+
+        diff_arr
       rescue StandardError => e
         raise e
       end
@@ -986,16 +1097,23 @@ module PWN
             url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
           )
 
-          #{self}.step_into(
+          current_dom = #{self}.dom(
             browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          #{self}.step_into(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            steps: 'optional - number of steps taken (Defaults to 1)'
           )
 
           #{self}.step_out(
-            browser_obj: 'required - browser_obj returned from #open method)'
+            browser_obj: 'required - browser_obj returned from #open method)',
+            steps: 'optional - number of steps taken (Defaults to 1)'
           )
 
           #{self}.step_over(
-            browser_obj: 'required - browser_obj returned from #open method)'
+            browser_obj: 'required - browser_obj returned from #open method)',
+            steps: 'optional - number of steps taken (Defaults to 1)'
           )
 
           #{self}.toggle_devtools(
