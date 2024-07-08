@@ -542,6 +542,9 @@ module PWN
             pi.config.pwn_irc = pi.config.p[:irc]
             Pry.config.pwn_irc = pi.config.pwn_irc
 
+            pi.config.pwn_hunter = pi.config.p[:hunter][:api_key]
+            Pry.config.pwn_hunter = pi.config.pwn_hunter
+
             pi.config.pwn_shodan = pi.config.p[:shodan][:api_key]
             Pry.config.pwn_shodan = pi.config.pwn_shodan
 
