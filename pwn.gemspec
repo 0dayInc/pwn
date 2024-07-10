@@ -64,7 +64,7 @@ Gem::Specification.new do |spec|
         gem_version
       )
     else
-      spec.add_runtime_dependency(
+      spec.add_dependency(
         gem_name,
         gem_version
       )
