@@ -107,28 +107,40 @@ module PWN
           this_profile['devtools.cache.disabled'] = true
           this_profile['dom.caches.enabled'] = false
 
-          # DevTools ToolBox Settings in Firefox about:config
-          this_profile['devtools.f12.enabled'] = true
-          this_profile['devtools.toolbox.host'] = 'right'
-          this_profile['devtools.toolbox.sidebar.width'] = 1700
-          this_profile['devtools.toolbox.splitconsoleHeight'] = 200
+          if devtools
+            # args.push('--start-debugger-server')
+            # this_profile['devtools.debugger.remote-enabled'] = true
+            # this_profile['devtools.debugger.remote-host'] = 'localhost'
+            # this_profile['devtools.debugger.remote-port'] = 6000
 
-          # DevTools Debugger Settings in Firefox about:config
-          this_profile['devtools.toolbox.selectedTool'] = 'jsdebugger'
-          this_profile['devtools.debugger.start-panel-size'] = 200
-          this_profile['devtools.debugger.end-panel-size'] = 200
-          this_profile['devtools.debugger.auto-pretty-print'] = true
-          this_profile['devtools.debugger.ui.editor-wrapping'] = true
-          this_profile['devtools.debugger.features.javascript-tracing'] = true
-          this_profile['devtools.debugger.xhr-breakpoints-visible'] = true
-          this_profile['devtools.debugger.expressions-visible'] = true
-          this_profile['devtools.debugger.dom-mutation-breakpoints-visible'] = true
-          this_profile['devtools.debugger.features.async-live-stacks'] = true
-          this_profile['devtools.debugger.features.autocomplete-expressions'] = true
-          this_profile['devtools.debugger.features.code-folding'] = true
-          this_profile['devtools.debugger.features.command-click'] = true
-          this_profile['devtools.debugger.features.component-pane'] = true
-          this_profile['devtools.debugger.map-scopes-enabled'] = true
+            # DevTools ToolBox Settings in Firefox about:config
+            this_profile['devtools.f12.enabled'] = true
+            this_profile['devtools.toolbox.host'] = 'right'
+            this_profile['devtools.toolbox.selectedTool'] = 'jsdebugger'
+            this_profile['devtools.toolbox.sidebar.width'] = 1700
+            this_profile['devtools.toolbox.splitconsoleHeight'] = 200
+
+            # DevTools Debugger Settings in Firefox about:config
+            this_profile['devtools.chrome.enabled'] = true
+            this_profile['devtools.debugger.start-panel-size'] = 200
+            this_profile['devtools.debugger.end-panel-size'] = 200
+            this_profile['devtools.debugger.auto-pretty-print'] = true
+            this_profile['devtools.debugger.ui.editor-wrapping'] = true
+            this_profile['devtools.debugger.features.javascript-tracing'] = true
+            this_profile['devtools.debugger.xhr-breakpoints-visible'] = true
+            this_profile['devtools.debugger.expressions-visible'] = true
+            this_profile['devtools.debugger.dom-mutation-breakpoints-visible'] = true
+            this_profile['devtools.debugger.features.async-live-stacks'] = true
+            this_profile['devtools.debugger.features.autocomplete-expressions'] = true
+            this_profile['devtools.debugger.features.code-folding'] = true
+            this_profile['devtools.debugger.features.command-click'] = true
+            this_profile['devtools.debugger.features.component-pane'] = true
+            this_profile['devtools.debugger.map-scopes-enabled'] = true
+
+            # Never optimize out variables in the debugger
+            this_profile['javascript.options.baselinejit'] = false
+            this_profile['javascript.options.ion'] = false
+          end
 
           # caps = Selenium::WebDriver::Remote::Capabilities.firefox
           # caps[:acceptInsecureCerts] = true
@@ -150,7 +162,6 @@ module PWN
             end
           end
 
-          # args.push('--devtools') if devtools
           # Private browsing mode
           args.push('--private')
           options = Selenium::WebDriver::Firefox::Options.new(
