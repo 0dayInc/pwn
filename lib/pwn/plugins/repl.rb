@@ -40,6 +40,8 @@ module PWN
           if pi.config.pwn_ai
             ai_engine = pi.config.pwn_ai_engine
             model = pi.config.pwn_ai_model
+            system_role_content = pi.config.pwn_ai_system_role_content
+            temp = pi.config.pwn_ai_temp
             pname = "pwn.ai:#{ai_engine}"
             pname = "pwn.ai:#{ai_engine}/#{model}" if model
             pname = "pwn.ai:#{ai_engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
@@ -305,6 +307,8 @@ module PWN
                         ai_temp = pi.config.pwn_ai_temp
 
                         model = pi.config.pwn_ai_model
+                        system_role_content = pi.config.pwn_ai_system_role_content
+                        temp = pi.config.pwn_ai_temp
 
                         users_in_chan = PWN::Plugins::IRC.names(
                           irc_obj: irc_obj,
@@ -536,6 +540,9 @@ module PWN
             pi.config.pwn_ai_model = pi.config.p[ai_engine][:model]
             Pry.config.pwn_ai_model = pi.config.pwn_ai_model
 
+            pi.config.pwn_ai_system_role_content = pi.config.p[ai_engine][:system_role_content]
+            Pry.config.pwn_ai_system_role_content = pi.config.pwn_ai_system_role_content
+
             pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
             Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
 
@@ -597,6 +604,8 @@ module PWN
             response_history = pi.config.pwn_ai_response_history
             speak_answer = pi.config.pwn_ai_speak
             model = pi.config.pwn_ai_model
+            system_role_content = pi.config.pwn_ai_system_role_content
+            temp = pi.config.pwn_ai_temp
 
             case ai_engine
             when :ollama
@@ -606,6 +615,8 @@ module PWN
                 fqdn: fqdn,
                 token: ai_key,
                 model: model,
+                system_role_content: system_role_content,
+                temp: temp,
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer,
@@ -615,6 +626,8 @@ module PWN
               response = PWN::Plugins::OpenAI.chat(
                 token: ai_key,
                 model: model,
+                system_role_content: system_role_content,
+                temp: temp,
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer,
@@ -624,7 +637,13 @@ module PWN
               raise "ERROR: Unsupported AI Engine: #{ai_engine}"
             end
 
-            last_response = response[:choices].last[:content]
+            # puts response[:choices].inspect
+            last_response = ''
+            if response[:choices].last.keys.include?(:text)
+              last_response = response[:choices].last[:text]
+            else
+              last_response = response[:choices].last[:content]
+            end
             puts "\n\001\e[32m\002#{last_response}\001\e[0m\002\n\n"
 
             response_history = {
