@@ -5,12 +5,14 @@ ai_engine: 'openai'
 openai:
   key: 'required - OpenAI API Key'
   model: 'optional - OpenAI model to use'
+  system_role_content: 'You are an ethically hacking OpenAI agent.'
   temp: 'optional - OpenAI temperature'
 
 ollama:
   fqdn: 'required - FQDN for Open WebUI - e.g. https://ollama.local'
   key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token'
   model: 'required - Ollama model to use'
+  system_role_content: 'You are an ethically hacking Ollama agent.'
   temp: 'optional - Ollama temperature'
 
 irc:
@@ -19,16 +21,16 @@ irc:
   ai_agent_nicks:
     browser:
       pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb'
-      system_role_content: ''
+      system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
     ninja:
       pwn_rb: ''
       system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
     nmap:
       pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb'
-      system_role_content: ''
+      system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
     shodan:
       pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb'
-      system_role_content: ''
+      system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
 
 meshtastic:
   psks:
