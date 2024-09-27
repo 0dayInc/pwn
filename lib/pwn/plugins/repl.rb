@@ -636,23 +636,27 @@ module PWN
             else
               raise "ERROR: Unsupported AI Engine: #{ai_engine}"
             end
+            # puts response.inspect
 
-            # puts response[:choices].inspect
             last_response = ''
-            if response[:choices].last.keys.include?(:text)
-              last_response = response[:choices].last[:text]
+            if response.nil?
+              last_response = "Model: #{model} not currently supported with API key."
             else
-              last_response = response[:choices].last[:content]
+              if response[:choices].last.keys.include?(:text)
+                last_response = response[:choices].last[:text]
+              else
+                last_response = response[:choices].last[:content]
+              end
+
+              response_history = {
+                id: response[:id],
+                object: response[:object],
+                model: response[:model],
+                usage: response[:usage]
+              }
+              response_history[:choices] ||= response[:choices]
             end
             puts "\n\001\e[32m\002#{last_response}\001\e[0m\002\n\n"
-
-            response_history = {
-              id: response[:id],
-              object: response[:object],
-              model: response[:model],
-              usage: response[:usage]
-            }
-            response_history[:choices] ||= response[:choices]
 
             if debug
               puts 'DEBUG: response_history => '
