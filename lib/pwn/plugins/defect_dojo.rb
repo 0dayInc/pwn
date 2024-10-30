@@ -2,6 +2,7 @@
 
 require 'json'
 require 'securerandom'
+require 'uri'
 
 module PWN
   module Plugins
@@ -204,13 +205,44 @@ module PWN
         dd_obj = opts[:dd_obj]
         opts[:id] ? (rest_call = "engagements/#{opts[:id].to_i}") : (rest_call = 'engagements')
 
+        params = {
+          o: 'name',
+          limit: 25
+        }
+
+        # Aggregate all engagements into a single hash
         response = rest_call(
           dd_obj: dd_obj,
-          rest_call: rest_call
+          rest_call: rest_call,
+          params: params
         )
 
-        # Return array containing the post-authenticated DefectDojo REST API token
-        JSON.parse(response, symbolize_names: true)
+        engagements = JSON.parse(response, symbolize_names: true)
+        total_engagements_avail = engagements[:count]
+        total_enagements_aggregated = engagements[:results]
+
+        while total_engagements_avail != total_enagements_aggregated.length
+          next_page = URI.parse(engagements[:next].to_s)
+          next_page_params = URI.decode_www_form(next_page.query).to_h
+          response = rest_call(
+            dd_obj: dd_obj,
+            rest_call: rest_call,
+            params: next_page_params
+          )
+          engagements = JSON.parse(response, symbolize_names: true)
+
+          # Append the next page of engagements to the existing total_enagements_aggregated array
+          total_enagements_aggregated += engagements[:results]
+        end
+
+        # Return all the engagements
+        {
+          count: total_engagements_avail,
+          next: nil,
+          previous: nil,
+          results: total_enagements_aggregated,
+          prefetch: {}
+        }
       rescue StandardError => e
         raise e
       end
