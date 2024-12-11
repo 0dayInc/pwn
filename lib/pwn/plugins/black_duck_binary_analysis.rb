@@ -39,7 +39,8 @@ module PWN
         }
 
         http_body = opts[:http_body]
-        base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
+        # base_bd_bin_analysis_api_uri = 'https://protecode-sc.com/api'
+        base_bd_bin_analysis_api_uri = 'https://bdba.blackduck.com/api'
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
