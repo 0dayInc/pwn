@@ -13,6 +13,7 @@ if (( $# == 3 )); then
   echo 'Updating Gems to Latest Versions in Gemfile...'
   ./find_latest_gem_versions_per_Gemfile.sh
   pwn_autoinc_version
+  pwn_rdoc_to_jsonl --rdoc-root-dir '/opt/pwn/rdoc/PWN' --jsonl-results '/opt/pwn/third_party/pwn_rdoc.jsonl'
 
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
   tag_this_version_bool=`ruby -r 'pwn' -e 'if (PWN::VERSION.split(".")[-1].to_i + 1) % 100 == 0; then print true; else print false; end'`

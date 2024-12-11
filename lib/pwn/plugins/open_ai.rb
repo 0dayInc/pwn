@@ -448,17 +448,14 @@ module PWN
         token = opts[:token]
         training_file = opts[:training_file]
         validation_file = opts[:validation_file]
-        model = opts[:model]
-        model ||= :davinci
+        model = opts[:model] ||= 'gpt-4o-mini'
 
-        n_epochs = opts[:n_epochs]
-        n_epochs ||= 4
+        n_epochs = opts[:n_epochs] ||= 4
 
         batch_size = opts[:batch_size]
         learning_rate_multipler = opts[:learning_rate_multipler]
 
-        prompt_loss_weight = opts[:prompt_loss_weight]
-        prompt_loss_weight ||= 0.01
+        prompt_loss_weight = opts[:prompt_loss_weight] ||= 0.01
 
         computer_classification_metrics = true if opts[:computer_classification_metrics]
         classification_n_classes = opts[:classification_n_classes]
@@ -498,7 +495,7 @@ module PWN
         response = open_ai_rest_call(
           http_method: :post,
           token: token,
-          rest_call: 'fine-tunes',
+          rest_call: 'fine_tuning/jobs',
           http_body: http_body,
           timeout: timeout
         )
@@ -520,7 +517,7 @@ module PWN
 
         response = open_ai_rest_call(
           token: token,
-          rest_call: 'fine-tunes',
+          rest_call: 'fine_tuning/jobs',
           timeout: timeout
         )
 
@@ -541,7 +538,7 @@ module PWN
         fine_tune_id = opts[:fine_tune_id]
         timeout = opts[:timeout]
 
-        rest_call = "fine-tunes/#{fine_tune_id}"
+        rest_call = "fine_tuning/jobs/#{fine_tune_id}"
 
         response = open_ai_rest_call(
           token: token,
@@ -566,7 +563,7 @@ module PWN
         fine_tune_id = opts[:fine_tune_id]
         timeout = opts[:timeout]
 
-        rest_call = "fine-tunes/#{fine_tune_id}/cancel"
+        rest_call = "fine_tuning/jobs/#{fine_tune_id}/cancel"
 
         response = open_ai_rest_call(
           http_method: :post,
@@ -592,7 +589,7 @@ module PWN
         fine_tune_id = opts[:fine_tune_id]
         timeout = opts[:timeout]
 
-        rest_call = "fine-tunes/#{fine_tune_id}/events"
+        rest_call = "fine_tuning/jobs/#{fine_tune_id}/events"
 
         response = open_ai_rest_call(
           token: token,
@@ -665,8 +662,7 @@ module PWN
         file = opts[:file]
         raise "ERROR: #{file} not found." unless File.exist?(file)
 
-        purpose = opts[:purpose]
-        purpose ||= 'fine-tune'
+        purpose = opts[:purpose] ||= 'fine-tune'
 
         timeout = opts[:timeout]
 
