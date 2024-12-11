@@ -64,11 +64,11 @@ begin
       prompt = "#{module_name}.#{method_name} Usage"
       completion = "`#{module_name}.#{method_name}`: #{method_description}"
 
-      jsonl = "{ \"prompt\": \"#{prompt}\", \"completion\": \"#{completion}\" }\n"
+      jsonl_hash = { prompt: prompt, completion: completion }
       # puts "JSONL: #{jsonl}"
       # gets
 
-      html_to_jsonl.push(jsonl)
+      html_to_jsonl.push("#{jsonl_hash.to_json}\n")
     end
   end
 
