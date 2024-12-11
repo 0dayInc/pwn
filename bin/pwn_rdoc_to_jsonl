@@ -61,10 +61,15 @@ begin
       # puts "Desc: #{method_description.inspect}"
       # gets
 
-      prompt = "#{module_name}.#{method_name} Usage"
-      completion = "`#{module_name}.#{method_name}`: #{method_description}"
+      user_content = "#{module_name}.#{method_name} Usage"
+      assistant_content = "`#{module_name}.#{method_name}`: #{method_description}"
 
-      jsonl_hash = { prompt: prompt, completion: completion }
+      jsonl_hash = {
+        messages: [
+          { role: 'user', content: user_content },
+          { role: 'assistant', content: assistant_content }
+        ]
+      }
       # puts "JSONL: #{jsonl}"
       # gets
 
