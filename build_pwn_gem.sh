@@ -23,7 +23,7 @@ if [[ $old_ruby_version == $new_ruby_version ]]; then
   rvmsudo rake
   rvmsudo rake install
   rvmsudo rake rerdoc
-  rvmsudo gem rdoc --rdoc --ri --overwrite -V pwn
+  rvmsudo gem rdoc --backtrace --rdoc --ri --overwrite -V pwn
   echo "Invoking bundle-audit Gemfile Scanner..."
   rvmsudo bundle-audit
 else
