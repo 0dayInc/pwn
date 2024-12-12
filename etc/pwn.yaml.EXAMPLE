@@ -2,6 +2,11 @@
 # ai_engine: 'openai' || 'ollama'
 ai_engine: 'openai'
 
+# Use PWN::Plugins::Assembly.list_supported_archs to list supported architectures
+asm:
+  arch: 'x86_64'
+  endian: 'little'
+
 openai:
   key: 'required - OpenAI API Key'
   model: 'optional - OpenAI model to use'

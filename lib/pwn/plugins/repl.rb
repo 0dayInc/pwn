@@ -31,7 +31,10 @@ module PWN
           dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
 
           if pi.config.pwn_asm
-            pi.config.prompt_name = 'pwn.asm'
+            arch = pi.config.pwn_asm_arch
+            endian = pi.config.pwn_asm_endian
+
+            pi.config.prompt_name = "pwn.asm:#{arch}/#{endian}"
             name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
             dchars = "\001\e[32m\002>>>\001\e[33m\002"
             dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
@@ -546,6 +549,12 @@ module PWN
             pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
             Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
 
+            pi.config.pwn_asm_arch = pi.config.p[:asm][:arch]
+            Pry.config.pwn_asm_arch = pi.config.pwn_asm_arch
+
+            pi.config.pwn_asm_endian = pi.config.p[:asm][:endian]
+            Pry.config.pwn_asm_endian = pi.config.pwn_asm_endian
+
             pi.config.pwn_irc = pi.config.p[:irc]
             Pry.config.pwn_irc = pi.config.pwn_irc
 
@@ -563,6 +572,9 @@ module PWN
           if pi.config.pwn_asm && !request.chomp.empty?
             request = pi.input.line_buffer
 
+            arch = pi.config.pwn_asm_arch
+            endian = pi.config.pwn_asm_endian
+
             # Analyze request to determine if it should be processed as opcodes or asm.
             straight_hex = /^[a-fA-F0-9\s]+$/
             hex_esc_strings = /\\x[\da-fA-F]{2}/
@@ -578,10 +590,16 @@ module PWN
 
               response = PWN::Plugins::Assembly.opcodes_to_asm(
                 opcodes: request,
-                opcodes_always_strings_obj: true
+                opcodes_always_strings_obj: true,
+                arch: arch,
+                endian: endian
               )
             else
-              response = PWN::Plugins::Assembly.asm_to_opcodes(asm: request)
+              response = PWN::Plugins::Assembly.asm_to_opcodes(
+                asm: request,
+                arch: arch,
+                endian: endian
+              )
             end
             puts "\001\e[31m\002#{response}\001\e[0m\002"
           end
