@@ -66,8 +66,8 @@ begin
 
       jsonl_hash = {
         messages: [
-          { role: 'user', content: user_content },
-          { role: 'assistant', content: assistant_content }
+          { role: :user, content: user_content },
+          { role: :assistant, content: assistant_content }
         ]
       }
       # puts "JSONL: #{jsonl}"

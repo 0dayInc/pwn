@@ -432,10 +432,9 @@ module PWN
       #   training_file: 'required - JSONL that contains OpenAI training data'
       #   validation_file: 'optional - JSONL that contains OpenAI validation data'
       #   model: 'optional - :ada||:babbage||:curie||:davinci (defaults to :davinci)',
-      #   n_epochs: 'optional - iterate N times through training_file to train the model (defaults to 4)',
-      #   batch_size: 'optional - batch size to use for training (defaults to nil)',
-      #   learning_rate_multipler: 'optional - fine-tuning learning rate is the original learning rate used for pretraining multiplied by this value (defaults to nil)',
-      #   prompt_loss_weight: 'optional -  (defaults to 0.01)',
+      #   n_epochs: 'optional - iterate N times through training_file to train the model (defaults to "auto")',
+      #   batch_size: 'optional - batch size to use for training (defaults to "auto")',
+      #   learning_rate_multiplier: 'optional - fine-tuning learning rate is the original learning rate used for pretraining multiplied by this value (defaults to "auto")',
       #   computer_classification_metrics: 'optional - calculate classification-specific metrics such as accuracy and F-1 score using the validation set at the end of every epoch (defaults to false)',
       #   classification_n_classes: 'optional - number of classes in a classification task (defaults to nil)',
       #   classification_positive_class: 'optional - generate precision, recall, and F1 metrics when doing binary classification (defaults to nil)',
@@ -448,14 +447,11 @@ module PWN
         token = opts[:token]
         training_file = opts[:training_file]
         validation_file = opts[:validation_file]
-        model = opts[:model] ||= 'gpt-4o-mini'
+        model = opts[:model] ||= 'gpt-4o-mini-2024-07-18'
 
-        n_epochs = opts[:n_epochs] ||= 4
-
-        batch_size = opts[:batch_size]
-        learning_rate_multipler = opts[:learning_rate_multipler]
-
-        prompt_loss_weight = opts[:prompt_loss_weight] ||= 0.01
+        n_epochs = opts[:n_epochs] ||= 'auto'
+        batch_size = opts[:batch_size] ||= 'auto'
+        learning_rate_multiplier = opts[:learning_rate_multiplier] ||= 'auto'
 
         computer_classification_metrics = true if opts[:computer_classification_metrics]
         classification_n_classes = opts[:classification_n_classes]
@@ -482,10 +478,12 @@ module PWN
         http_body[:training_file] = training_file
         http_body[:validation_file] = validation_file if validation_file
         http_body[:model] = model
-        http_body[:n_epochs] = n_epochs
-        http_body[:batch_size] = batch_size if batch_size
-        http_body[:learning_rate_multipler] = learning_rate_multipler if learning_rate_multipler
-        http_body[:prompt_loss_weight] = prompt_loss_weight if prompt_loss_weight
+        http_body[:hyperparameters] = {
+          n_epochs: n_epochs,
+          batch_size: batch_size,
+          learning_rate_multiplier: learning_rate_multiplier
+        }
+        # http_body[:prompt_loss_weight] = prompt_loss_weight if prompt_loss_weight
         http_body[:computer_classification_metrics] = computer_classification_metrics if computer_classification_metrics
         http_body[:classification_n_classes] = classification_n_classes if classification_n_classes
         http_body[:classification_positive_class] = classification_positive_class if classification_positive_class
@@ -797,10 +795,9 @@ module PWN
             training_file: 'required - JSONL that contains OpenAI training data'
             validation_file: 'optional - JSONL that contains OpenAI validation data'
             model: 'optional - :ada||:babbage||:curie||:davinci (defaults to :davinci)',
-            n_epochs: 'optional - iterate N times through training_file to train the model (defaults to 4)',
-            batch_size: 'optional - batch size to use for training (defaults to nil)',
-            learning_rate_multipler: 'optional - fine-tuning learning rate is the original learning rate used for pretraining multiplied by this value (defaults to nill)',
-            prompt_loss_weight: 'optional -  (defaults to nil)',
+            n_epochs: 'optional - iterate N times through training_file to train the model (defaults to \"auto\")',
+            batch_size: 'optional - batch size to use for training (defaults to \"auto\")',
+            learning_rate_multiplier: 'optional - fine-tuning learning rate is the original learning rate used for pretraining multiplied by this value (defaults to \"auto\")',
             computer_classification_metrics: 'optional - calculate classification-specific metrics such as accuracy and F-1 score using the validation set at the end of every epoch (defaults to false)',
             classification_n_classes: 'optional - number of classes in a classification task (defaults to nil)',
             classification_positive_class: 'optional - generate precision, recall, and F1 metrics when doing binary classification (defaults to nil)',
