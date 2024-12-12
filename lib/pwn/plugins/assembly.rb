@@ -21,6 +21,7 @@ module PWN
         opcodes_always_string_obj = opts[:opcodes_always_string_obj] ||= false
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
+        endian = endian.to_sym if opts[:endian]
 
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
 
@@ -124,6 +125,7 @@ module PWN
         asm = opts[:asm]
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
+        endian = endian.to_sym if opts[:endian]
 
         asm_tmp = Tempfile.new('pwn_asm')
 
@@ -183,6 +185,48 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::Assembly.list_archs
+
+      public_class_method def self.list_supported_archs
+        [
+          { name: 'i386', endian: 'little' },
+          { name: 'i686', endian: 'little' },
+          { name: 'x86', endian: 'little' },
+          { name: 'amd64', endian: 'little' },
+          { name: 'x86_64', endian: 'little' },
+          { name: 'arc', endian: 'little' },
+          { name: 'armv4l', endian: 'little' },
+          { name: 'armv4b', endian: 'big' },
+          { name: 'armv5l', endian: 'little' },
+          { name: 'armv5b', endian: 'big' },
+          { name: 'armv6l', endian: 'little' },
+          { name: 'armv6b', endian: 'big' },
+          { name: 'armv7b', endian: 'big' },
+          { name: 'armv7l', endian: 'little' },
+          { name: 'arm', endian: 'little' },
+          { name: 'armhf', endian: 'little' },
+          { name: 'aarch64', endian: 'little' },
+          { name: 'arm64', endian: 'little' },
+          { name: 'bpf', endian: 'little' },
+          { name: 'cy16', endian: 'little' },
+          { name: 'dalvik', endian: 'little' },
+          { name: 'ebpf', endian: 'little' },
+          { name: 'mcs51', endian: 'little' },
+          { name: 'mips', endian: 'little' },
+          { name: 'mips64', endian: 'little' },
+          { name: 'msp430', endian: 'little' },
+          { name: 'openrisc', endian: 'little' },
+          { name: 'ppc', endian: 'little' },
+          { name: 'sh4', endian: 'little' },
+          { name: 'st20', endian: 'little' },
+          { name: 'webasm', endian: 'little' },
+          { name: 'z80', endian: 'little' }
+        ]
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -207,6 +251,8 @@ module PWN
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
             endian: 'optional - endianess (defaults to :little)'
           )
+
+          #{self}.list_supported_archs
 
           #{self}.authors
         "
