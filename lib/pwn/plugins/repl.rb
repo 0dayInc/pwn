@@ -31,8 +31,13 @@ module PWN
           dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
 
           if pi.config.pwn_asm
-            arch = pi.config.pwn_asm_arch
+            arch = pi.config.pwn_asm_arch || PWN::Plugins::DetectOS.arch
             endian = pi.config.pwn_asm_endian
+          if endian.nil? && [1].pack('I') == [1].pack('N')
+            endian = 'big'
+          else
+            endian = 'little'
+          end
 
             pi.config.prompt_name = "pwn.asm:#{arch}/#{endian}"
             name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
