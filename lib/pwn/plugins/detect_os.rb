@@ -27,7 +27,7 @@ module PWN
       # PWN::Plugins::DetectOS.arch
 
       public_class_method def self.arch
-        RUBY_PLATFORM.split('-').first
+        OS.host_cpu
       rescue StandardError => e
         raise e
       end
