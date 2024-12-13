@@ -20,14 +20,7 @@ module PWN
         opcodes = opts[:opcodes]
         opcodes_always_string_obj = opts[:opcodes_always_string_obj] ||= false
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
-        endian = opts[:endian]
-
-        if opts[:endian].nil? && [1].pack('I') == [1].pack('N')
-          endian = :big
-        else
-          endian = :little
-        end
-
+        endian = opts[:endian] ||= PWN::Plugins::DetectOS.endian
         endian = endian.to_sym if opts[:endian]
 
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
@@ -131,14 +124,7 @@ module PWN
       public_class_method def self.asm_to_opcodes(opts = {})
         asm = opts[:asm]
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
-        endian = opts[:endian] ||= :little
-
-        if opts[:endian].nil? && [1].pack('I') == [1].pack('N')
-          endian = :big
-        else
-          endian = :little
-        end
-
+        endian = opts[:endian] ||= PWN::Plugins::DetectOS.endian
         endian = endian.to_sym if opts[:endian]
 
         asm_tmp = Tempfile.new('pwn_asm')

@@ -27,7 +27,20 @@ module PWN
       # PWN::Plugins::DetectOS.arch
 
       public_class_method def self.arch
-        RUBY_PLATFORM.split('-').first
+        OS.host_cpu
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::DetectOS.endian
+
+      public_class_method def self.endian
+        if [1].pack('I') == [1].pack('N')
+          :big
+        else
+          :little
+        end
       rescue StandardError => e
         raise e
       end
@@ -47,6 +60,8 @@ module PWN
           #{self}.type
 
           #{self}.arch
+
+          #{self}.endian
 
           #{self}.authors
         "
