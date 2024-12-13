@@ -32,6 +32,19 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::DetectOS.endian
+
+      public_class_method def self.endian
+        if [1].pack('I') == [1].pack('N')
+          :big
+        else
+          :little
+        end
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -47,6 +60,8 @@ module PWN
           #{self}.type
 
           #{self}.arch
+
+          #{self}.endian
 
           #{self}.authors
         "

@@ -31,8 +31,8 @@ module PWN
           dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
 
           if pi.config.pwn_asm
-            arch = pi.config.pwn_asm_arch
-            endian = pi.config.pwn_asm_endian
+            arch = pi.config.pwn_asm_arch ||= PWN::Plugins::DetectOS.arch
+            endian = pi.config.pwn_asm_endian ||= PWN::Plugins::DetectOS.endian
 
             pi.config.prompt_name = "pwn.asm:#{arch}/#{endian}"
             name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
@@ -549,15 +549,10 @@ module PWN
             pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
             Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
 
-            pi.config.pwn_asm_arch = pi.config.p[:asm][:arch] ||= PWN::Plugins::DetectOS.arch
+            pi.config.pwn_asm_arch = pi.config.p[:asm][:arch]
             Pry.config.pwn_asm_arch = pi.config.pwn_asm_arch
 
             pi.config.pwn_asm_endian = pi.config.p[:asm][:endian]
-            if pi.config.pwn_asm_endian.nil? && [1].pack('I') == [1].pack('N')
-              pi.config.pwn_asm_endian = 'big'
-            else
-              pi.config.pwn_asm_endian = 'little'
-            end
             Pry.config.pwn_asm_endian = pi.config.pwn_asm_endian
 
             pi.config.pwn_irc = pi.config.p[:irc]
