@@ -549,10 +549,15 @@ module PWN
             pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
             Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
 
-            pi.config.pwn_asm_arch = pi.config.p[:asm][:arch]
+            pi.config.pwn_asm_arch = pi.config.p[:asm][:arch] ||= PWN::Plugins::DetectOS.arch
             Pry.config.pwn_asm_arch = pi.config.pwn_asm_arch
 
             pi.config.pwn_asm_endian = pi.config.p[:asm][:endian]
+            if pi.config.pwn_asm_endian.nil? && [1].pack('I') == [1].pack('N')
+              pi.config.pwn_asm_endian = 'big'
+            else
+              pi.config.pwn_asm_endian = 'little'
+            end
             Pry.config.pwn_asm_endian = pi.config.pwn_asm_endian
 
             pi.config.pwn_irc = pi.config.p[:irc]

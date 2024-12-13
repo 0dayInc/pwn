@@ -13,14 +13,21 @@ module PWN
       #   opcodes: 'required - hex escaped opcode(s) (e.g. "\x90\x90\x90")',
       #   opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
       #   arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
-      #   endian: 'optional - endianess (defaults to :little)'
+      #   endian: 'optional - endianess :big|:little (defaults to current system endianess)'
       # )
 
       public_class_method def self.opcodes_to_asm(opts = {})
         opcodes = opts[:opcodes]
         opcodes_always_string_obj = opts[:opcodes_always_string_obj] ||= false
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
-        endian = opts[:endian] ||= :little
+        endian = opts[:endian]
+
+        if opts[:endian].nil? && [1].pack('I') == [1].pack('N')
+          endian = :big
+        else
+          endian = :little
+        end
+
         endian = endian.to_sym if opts[:endian]
 
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
@@ -118,13 +125,20 @@ module PWN
       # PWN::Plugins::Assembly.asm_to_opcodes(
       #   asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
       #   arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
-      #   endian: 'optional - endianess (defaults to :little)'
+      #   endian: 'optional - endianess :big|:little (defaults to current system endianess)'
       # )
 
       public_class_method def self.asm_to_opcodes(opts = {})
         asm = opts[:asm]
         arch = opts[:arch] ||= PWN::Plugins::DetectOS.arch
         endian = opts[:endian] ||= :little
+
+        if opts[:endian].nil? && [1].pack('I') == [1].pack('N')
+          endian = :big
+        else
+          endian = :little
+        end
+
         endian = endian.to_sym if opts[:endian]
 
         asm_tmp = Tempfile.new('pwn_asm')
@@ -243,13 +257,13 @@ module PWN
             opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")',
             opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
-            endian: 'optional - endianess (defaults to :little)'
+            endian: 'optional - endianess :big|:little (defaults to system endianess)'
           )
 
           #{self}.asm_to_opcodes(
             asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
-            endian: 'optional - endianess (defaults to :little)'
+            endian: 'optional - endianess :big|:little (defaults to system endianess)'
           )
 
           #{self}.list_supported_archs
