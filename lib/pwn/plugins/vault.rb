@@ -144,7 +144,8 @@ module PWN
       # PWN::Plugins::Vault.edit(
       #   file: 'required - file to edit',
       #   key: 'required - key to decrypt',
-      #   iv: 'required - iv to decrypt'
+      #   iv: 'required - iv to decrypt',
+      #   editor: 'optional - editor to use (default: "/usr/bin/vim")'
       # )
 
       def self.edit(opts = {})
@@ -268,7 +269,8 @@ module PWN
           #{self}.edit(
             file: 'required - file to edit',
             key: 'required - key to decrypt',
-            iv: 'required - iv to decrypt'
+            iv: 'required - iv to decrypt',
+            editor: 'optional - editor to use (default: \"/usr/bin/vim\")'
           )
 
           #{self}.encrypt(
