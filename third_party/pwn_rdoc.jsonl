@@ -575,6 +575,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::DefectDojo.user_list Usage"},{"role":"assistant","content":"`PWN::Plugins::DefectDojo.user_list`: Supported Method Parameters\n\nuser_list = PWN::Plugins::DefectDojo.user_list(\n\ndd_obj: 'required dd_obj returned from #login method',\nid: 'optional - retrieve single user by id, otherwise return all'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.arch Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.arch`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.arch\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.endian Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.endian`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.endian\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.help Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.type Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.type`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.type\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::EIN.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::EIN.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
