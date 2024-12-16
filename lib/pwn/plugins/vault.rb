@@ -159,13 +159,13 @@ module PWN
 
         editor = opts[:editor] ||= '/usr/bin/vim'
 
+        raise 'ERROR: Editor not found.' unless File.exist?(editor)
+
         decrypt(
           file: file,
           key: key,
           iv: iv
         )
-
-        raise 'ERROR: Editor not found.' unless File.exist?(editor)
 
         # Get realtive editor in case aliases are used
         relative_editor = File.basename(editor)
