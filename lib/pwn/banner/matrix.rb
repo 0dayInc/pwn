@@ -168,6 +168,20 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Banner::Matrix.has_you
+
+      public_class_method def self.you?
+        loop do
+          # Clear the screen
+          print "\e[2J\e[f"
+          puts get
+          sleep 0.09
+        end
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -181,6 +195,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           #{self}.get
+
+          #{self}.has_you
 
           #{self}.authors
         "
