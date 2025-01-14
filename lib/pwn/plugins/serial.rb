@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'serialport'
+require 'uart'
 require 'io/wait'
 
 module PWN
@@ -16,63 +16,34 @@ module PWN
       #   baud: 'optional - (defaults to 9600)',
       #   data_bits: 'optional - (defaults to 8)',
       #   stop_bits: 'optional - (defaults to 1)',
-      #   parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)',
-      #   flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
+      #   parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)'
       # )
 
       public_class_method def self.connect(opts = {})
-        block_dev = opts[:block_dev].to_s if File.exist?(
-          opts[:block_dev].to_s
-        )
-        block_dev = '/dev/ttyUSB0' if opts[:block_dev].nil?
+        block_dev = opts[:block_dev] ||= '/dev/ttyUSB0'
+        raise "Invalid block device: #{block_dev}" unless File.exist?(block_dev)
 
-        baud = if opts[:baud].nil?
-                 9_600
-               else
-                 opts[:baud].to_i
-               end
+        baud = opts[:baud] ||= 9_600
+        data_bits = opts[:data_bits] ||= 8
+        stop_bits = opts[:stop_bits] ||= 1
 
-        data_bits = if opts[:data_bits].nil?
-                      8
-                    else
-                      opts[:data_bits].to_i
-                    end
-
-        stop_bits = if opts[:stop_bits].nil?
-                      1
-                    else
-                      opts[:stop_bits].to_i
-                    end
-
+        parity = nil
         case opts[:parity].to_s.to_sym
         when :even
-          parity = SerialPort::EVEN
-        when :mark
-          parity = SerialPort::MARK
+          parity = 'E'
         when :odd
-          parity = SerialPort::ODD
-        when :space
-          parity = SerialPort::SPACE
-        else
-          parity = SerialPort::NONE
+          parity = 'O'
+        when :none
+          parity = 'N'
         end
+        raise "Invalid parity: #{opts[:parity]}" if parity.nil?
 
-        case opts[:flow_control].to_s.to_sym
-        when :hard
-          flow_control = SerialPort::HARD
-        when :soft
-          flow_control = SerialPort::SOFT
-        else
-          flow_control = SerialPort::NONE
-        end
+        mode = "#{data_bits}#{stop_bits}#{parity}"
 
-        serial_conn = SerialPort.new(
+        serial_conn = UART.open(
           block_dev,
           baud,
-          data_bits,
-          stop_bits,
-          parity,
-          flow_control
+          mode
         )
 
         serial_obj = {}
@@ -124,7 +95,9 @@ module PWN
       public_class_method def self.get_line_state(opts = {})
         serial_obj = opts[:serial_obj]
         serial_conn = serial_obj[:serial_conn]
-        serial_conn.get_signals
+        # Should return something like:
+        # {"rts"=>1, "dtr"=>1, "cts"=>1, "dsr"=>1, "dcd"=>0, "ri"=>0}
+        serial_conn.lstat
       rescue StandardError => e
         disconnect(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
@@ -138,6 +111,8 @@ module PWN
       public_class_method def self.get_modem_params(opts = {})
         serial_obj = opts[:serial_obj]
         serial_conn = serial_obj[:serial_conn]
+        # Should return something like:
+        # {"baud"=>9600, "data_bits"=>8, "stop_bits"=>1, "parity"=>0}
         serial_conn.get_modem_params
       rescue StandardError => e
         disconnect(serial_obj: serial_obj) unless serial_obj.nil?
@@ -155,8 +130,10 @@ module PWN
         payload = opts[:payload]
         serial_conn = serial_obj[:serial_conn]
 
-        byte_arr = payload
+        byte_arr = nil
+        byte_arr = payload if payload.instance_of?(Array)
         byte_arr = payload.chars if payload.instance_of?(String)
+        raise "ERROR: Invalid payload type: #{payload.class}" if byte_arr.nil?
 
         byte_arr.each do |byte|
           serial_conn.putc(byte)
@@ -167,18 +144,6 @@ module PWN
         disconnect(serial_obj: serial_obj) unless serial_obj.nil?
         raise e
       end
-
-      # public_class_method def self.request(opts = {})
-      #   serial_obj = opts[:serial_obj]
-      #   request = opts[:request].to_s.scrub
-      #   serial_conn = serial_obj[:serial_conn]
-      #   chars_written = serial_conn.write(request)
-      #   serial_conn.flush
-      #   chars_written
-      # rescue StandardError => e
-      #   disconnect(serial_obj: serial_obj) unless serial_obj.nil?
-      #   raise e
-      # end
 
       # Supported Method Parameters::
       # PWN::Plugins::Serial.response(
@@ -217,14 +182,6 @@ module PWN
 
         raise e
       end
-
-      # public_class_method def self.response(opts = {})
-      #   serial_obj = opts[:serial_obj]
-      #   @session_data.last
-      # rescue StandardError => e
-      #   disconnect(serial_obj: serial_obj) unless serial_obj.nil?
-      #   raise e
-      # end
 
       # Supported Method Parameters::
       # session_data = PWN::Plugins::Serial.dump_session_data
@@ -278,8 +235,7 @@ module PWN
             baud: 'optional (defaults to 9600)',
             data_bits: 'optional (defaults to 8)',
             stop_bits: 'optional (defaults to 1)',
-            parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)',
-            flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
+            parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)'
           )
 
           line_state = #{self}.get_line_state(
