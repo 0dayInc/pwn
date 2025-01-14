@@ -12,7 +12,18 @@ if (( $# == 3 )); then
   git add . --all
   echo 'Updating Gems to Latest Versions in Gemfile...'
   ./find_latest_gem_versions_per_Gemfile.sh
+  if [[ $? -ne 0 ]]; then
+    echo 'ERROR: find_latest_gem_versions_per_Gemfile.sh failed!'
+    exit 1
+  fi
+
   pwn_autoinc_version
+  if [[ $? -ne 0 ]]; then
+    echo 'ERROR: pwn_autoinc_version failed! Investigate and bump pwn version manually.'
+    exit 1
+  fi
+
+  # Generate RDoc JSONL for fine-tunning LLMs
   pwn_rdoc_to_jsonl --rdoc-root-dir '/opt/pwn/rdoc/PWN' --jsonl-results '/opt/pwn/third_party/pwn_rdoc.jsonl'
 
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
@@ -24,6 +35,10 @@ if (( $# == 3 )); then
 
   git commit -a -S --author="${1} <${2}>" -m "${3}"
   ./update_pwn.sh
+  if [[ $? -ne 0 ]]; then
+    echo 'ERROR: update_pwn.sh failed!'
+    exit 1
+  fi
 
   latest_gem=$(ls pkg/*.gem)
   if [[ $latest_gem != "" ]]; then

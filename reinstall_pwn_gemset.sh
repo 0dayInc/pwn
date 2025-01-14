@@ -20,11 +20,11 @@ export rvmsudo_secure_path=1
 rvmsudo gem install bundler
 if [[ $(uname -s) == "Darwin" ]]; then
   bundle config build.pg --with-pg-config=/opt/local/lib/postgresql96/bin/pg_config
-  bundle config build.serialport \
-    --with-cflags=-Wno-implicit-function-declaration \
-    --with-cflags=-Wno-int-conversion
+  # bundle config build.serialport \
+  #   --with-cflags=-Wno-implicit-function-declaration \
+  #   --with-cflags=-Wno-int-conversion
 fi
-bundle config build.serialport --with-cflags=-Wno-int-conversion
+# bundle config build.serialport --with-cflags=-Wno-int-conversion
 bundle install
 # bundle install --full-index
 rvm --default ruby-$ruby_version@$ruby_gemset

@@ -1169,8 +1169,7 @@ module PWN
             baud: 'optional (defaults to 9600)',
             data_bits: 'optional (defaults to 8)',
             stop_bits: 'optional (defaults to 1)',
-            parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none),'
-            flow_control: 'optional - :none|:hard|:soft (defaults to :none)'
+            parity: 'optional - :even||:odd|:none (defaults to :none)'
           )
 
           cmds = #{self}.list_cmds

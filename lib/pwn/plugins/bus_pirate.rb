@@ -127,8 +127,7 @@ module PWN
             baud: 'optional (defaults to 9600)',
             data_bits: 'optional (defaults to 8)',
             stop_bits: 'optional (defaults to 1)',
-            parity: 'optional (defaults to SerialPort::NONE)',
-            flow_control: 'optional (defaults to SerialPort::HARD) SerialPort::NONE|SerialPort::SOFT|SerialPort::HARD'
+            parity: 'optional - :even||:odd|:none (defaults to :none)'
           )
 
           #{self}.init_mode(
