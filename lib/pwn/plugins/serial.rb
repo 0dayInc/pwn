@@ -26,9 +26,9 @@ module PWN
         baud = opts[:baud] ||= 9_600
         data_bits = opts[:data_bits] ||= 8
         stop_bits = opts[:stop_bits] ||= 1
+        parity = opts[:parity] ||= :none
 
-        parity = nil
-        case opts[:parity].to_s.to_sym
+        case parity.to_s.to_sym
         when :even
           parity = 'E'
         when :odd
@@ -38,7 +38,8 @@ module PWN
         end
         raise "Invalid parity: #{opts[:parity]}" if parity.nil?
 
-        mode = "#{data_bits}#{stop_bits}#{parity}"
+        mode = "#{data_bits}#{parity}#{stop_bits}"
+        puts mode
 
         serial_conn = UART.open(
           block_dev,
@@ -68,7 +69,7 @@ module PWN
 
         # Spin up a serial_obj session_thread
         Thread.new do
-          serial_conn.read_timeout = -1
+          # serial_conn.read_timeout = -1
           serial_conn.flush
 
           loop do
