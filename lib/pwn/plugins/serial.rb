@@ -140,6 +140,7 @@ module PWN
           serial_conn.putc(byte)
         end
 
+        sleep(0.1)
         serial_conn.flush
       rescue StandardError => e
         disconnect(serial_obj: serial_obj) unless serial_obj.nil?

@@ -55,12 +55,19 @@ module PWN
       #   payload: 'required - payload to send to the device'
       # )
       public_class_method def self.request(opts = {})
-        opts[:payload] = "#{opts[:payload]}\r\n" if opts[:payload]
-        PWN::Plugins::Serial.request(opts)
-        response = PWN::Plugins::Serial.dump_session_data
+        serial_obj = opts[:flipper_zero_obj]
+        payload = "#{opts[:payload]}\r\n" if opts[:payload]
+        response_before = PWN::Plugins::Serial.dump_session_data
+
+        PWN::Plugins::Serial.request(
+          serial_obj: serial_obj,
+          payload: payload
+        )
+        # response = PWN::Plugins::Serial.dump_session_data.clone
         puts response.join
         PWN::Plugins::Serial.flush_session_data
-        response
+
+        # response
       rescue StandardError => e
         disconnect(flipper_zero_obj: opts[:flipper_zero_obj]) unless opts[:flipper_zero_obj].nil?
         raise e
