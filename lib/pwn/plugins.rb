@@ -25,6 +25,7 @@ module PWN
     autoload :DetectOS, 'pwn/plugins/detect_os'
     autoload :EIN, 'pwn/plugins/ein'
     autoload :FileFu, 'pwn/plugins/file_fu'
+    autoload :FlipperZero, 'pwn/plugins/flipper_zero'
     autoload :Fuzz, 'pwn/plugins/fuzz'
     autoload :Git, 'pwn/plugins/git'
     autoload :Github, 'pwn/plugins/github'
