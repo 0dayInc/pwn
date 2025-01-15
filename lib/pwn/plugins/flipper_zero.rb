@@ -56,18 +56,16 @@ module PWN
       # )
       public_class_method def self.request(opts = {})
         serial_obj = opts[:flipper_zero_obj]
-        payload = "#{opts[:payload]}\r\n" if opts[:payload]
+        payload = opts[:payload] ||= 'help'
+        payload = "#{payload}\r\n"
         response_before = PWN::Plugins::Serial.dump_session_data
 
         PWN::Plugins::Serial.request(
           serial_obj: serial_obj,
           payload: payload
         )
-        # response = PWN::Plugins::Serial.dump_session_data.clone
-        puts response.join
+        puts PWN::Plugins::Serial.dump_session_data.join
         PWN::Plugins::Serial.flush_session_data
-
-        # response
       rescue StandardError => e
         disconnect(flipper_zero_obj: opts[:flipper_zero_obj]) unless opts[:flipper_zero_obj].nil?
         raise e
@@ -110,7 +108,7 @@ module PWN
             parity: 'optional - :even||:odd|:none (defaults to :none)'
           )
 
-          response = #{self}.request(
+          #{self}.request(
             flipper_zero_obj: 'required - flipper_zero_obj returned from #connect method',
             payload: 'required - payload to send to the device'
           )
