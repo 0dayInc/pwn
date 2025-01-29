@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'shellwords'
 require 'rubygems/package'
 require 'zlib'
