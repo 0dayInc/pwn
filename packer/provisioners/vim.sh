@@ -1,7 +1,8 @@
 #!/bin/bash
 source /etc/profile.d/globals.sh
 
-default_vimrc='/usr/share/vim/vim90/defaults.vim'
+version=91
+default_vimrc="/usr/share/vim/vim${version}/defaults.vim"
 global_vimrc='/etc/vim/vimrc'
 
 $screen_cmd "${apt} install -y vim ${assess_update_errors}"
@@ -17,3 +18,6 @@ sudo /bin/bash --login -c "sed -i 's/  set mouse=a/  set mouse-=a/g' ${global_vi
 
 # Ensure Global vimrc overrides default vimrc
 sudo /bin/bash --login -c "echo 'let skip_defaults_vim=1' >> ${global_vimrc}"
+
+# Set scroll off to ensure scolling through the file isn't "jerky"
+sudo /bin/bash --login -c "sed -i 's/set scrolloff=5/set scrolloff=0/g' ${global_vimrc}"
