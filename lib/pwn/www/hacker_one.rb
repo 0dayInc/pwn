@@ -212,6 +212,145 @@ module PWN
         rest_client = nil if rest_client
         rest_request = nil if rest_request
       end
+
+      # Supported Method Parameters::
+      # hacktivity = PWN::WWW::HackerOne.get_hacktivity(
+      #   program_name: 'required - program name from #get_bounty_programs method',
+      #   proxy: 'optional - scheme://proxy_host:port || tor'
+      # )
+
+      public_class_method def self.get_hacktivity(opts = {})
+        program_name = opts[:program_name]
+        proxy = opts[:proxy]
+
+        browser_obj = PWN::Plugins::TransparentBrowser.open(
+          browser_type: :rest,
+          proxy: proxy
+        )
+        rest_client = browser_obj[:browser]
+        rest_request = rest_client::Request
+
+        graphql_endpoint = 'https://hackerone.com/graphql'
+        headers = { content_type: 'application/json' }
+        # NOTE: If you copy this payload to the pwn REPL
+        # the triple dots ... attempt to execute commands
+        # <cough>Pry CE</cough>
+        payload = {
+          operationName: 'HacktivitySearchQuery',
+          variables: {
+            from: 0,
+            product_area: 'other',
+            product_feature: 'other',
+            queryString: "team:(\"#{program_name}\")",
+            size: 100,
+            sort: {
+              field: 'disclosed_at',
+              direction: 'DESC'
+            }
+          },
+          query: 'query HacktivitySearchQuery(
+              $queryString: String!,
+              $from: Int,
+              $size: Int,
+              $sort: SortInput!
+            ) {
+              me {
+                id
+                __typename
+              }
+              search(
+                index: CompleteHacktivityReportIndex
+                query_string: $queryString
+                from: $from
+                size: $size
+                sort: $sort
+              ) {
+                __typename
+                total_count
+                nodes {
+                  __typename
+                  ... on HacktivityDocument {
+                    id
+                    _id
+                    reporter {
+                      id
+                      username
+                      name
+                      __typename
+                    }
+                    cve_ids
+                    cwe
+                    severity_rating
+                    upvoted: upvoted_by_current_user
+                    public
+                    report {
+                      id
+                      databaseId: _id
+                      title
+                      substate
+                      url
+                      disclosed_at
+                      report_generated_content {
+                        id
+                        hacktivity_summary
+                        __typename
+                      }
+                      __typename
+                    }
+                    votes
+                    team {
+                      id
+                      handle
+                      name
+                      medium_profile_picture: profile_picture(size: medium)
+                      url
+                      currency
+                      __typename
+                    }
+                    total_awarded_amount
+                    latest_disclosable_action
+                    latest_disclosable_activity_at
+                    submitted_at
+                    disclosed
+                    has_collaboration
+                    __typename
+                  }
+                }
+              }
+            }
+          '
+        }
+
+        rest_response = rest_request.execute(
+          method: :post,
+          url: graphql_endpoint,
+          headers: headers,
+          payload: payload.to_json.delete("\n"),
+          verify_ssl: false
+        )
+
+        json_resp_hash = JSON.parse(rest_response.body, symbolize_names: true)
+
+        json_resp = {
+          name: program_name,
+          hacktivity: json_resp_hash
+        }
+      rescue RestClient::ExceptionWithResponse => e
+        if e.response
+          puts "HTTP RESPONSE CODE: #{e.response.code}"
+          puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
+          puts "HTTP RESPONSE BODY:\n#{e.response.body}\n\n\n"
+        end
+
+        raise e
+      rescue StandardError => e
+        raise e
+      ensure
+        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) if browser_obj
+        rest_client = nil if rest_client
+        rest_request = nil if rest_request
+      end
+
       # Supported Method Parameters::
       # PWN::WWW::HackerOne.save_burp_target_config_file(
       #   programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
