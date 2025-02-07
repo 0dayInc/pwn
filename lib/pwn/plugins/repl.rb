@@ -128,18 +128,15 @@ module PWN
               suppress_progress: true
             )
             # Top 10 Programs
-            top_programs = h1_programs.sort_by { |s| s[:min_payout].delete('$').to_f }.reverse[0..9]
+            top_program = h1_programs.sort_by { |s| s[:min_payout].delete('$').to_f }.reverse.first
 
-            h1_scope_details = []
-            top_programs.each do |program|
-              program_name = program[:name]
-              this_h1_scope = PWN::WWW::HackerOne.get_scope_details(
-                program_name: program_name
-              )
-              h1_scope_details.push(this_h1_scope)
-            end
+            program_name = top_program[:name]
+            h1_scope_details = PWN::WWW::HackerOne.get_scope_details(
+              program_name: program_name
+            )
+            top_program_scope = h1_scope_details[:scope_details][:data][:team][:structured_scopes_search][:nodes]
 
-            h1_scope_details
+            top_program_scope
           rescue StandardError => e
             raise e
           ensure
@@ -227,7 +224,6 @@ module PWN
                 ! If PWN_Framework is defined, understand the purpose of the module and how it is used
                 ! Generate ruby examples using the capabilities of the PWN_Framework if applicable
                 ! `require 'pwn'` is the gem needed to using the PWN_Framework capabilities
-                ! Any agents with target_scope defined owns a portion of authorized targets in scope for exploitation
                 Your area of expertise is the following:
                 #{ai_system_role_content}
               "
