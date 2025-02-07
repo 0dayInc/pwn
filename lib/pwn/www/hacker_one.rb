@@ -195,7 +195,7 @@ module PWN
 
         json_resp = {
           name: program_name,
-          scope_details: json_resp_hash[:data][:team][:structured_scopes_search]
+          scope_details: json_resp_hash
         }
       rescue RestClient::ExceptionWithResponse => e
         if e.response
@@ -506,7 +506,12 @@ module PWN
             suppress_progress: 'optional - suppress output (defaults to false)'
           )
 
-          scope_details = PWN::WWW::HackerOne.get_scope_details(
+          scope_details = #{self}.get_scope_details(
+            program_name: 'required - program name from #get_bounty_programs method',
+            proxy: 'optional - scheme://proxy_host:port || tor'
+          )
+
+          hacktivity = #{self}.get_hacktivity(
             program_name: 'required - program name from #get_bounty_programs method',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
