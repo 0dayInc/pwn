@@ -120,7 +120,7 @@ module PWN
         Pry::Commands.create_command 'pwn-irc' do
           description 'Initiate pwn.irc chat interface.'
 
-          def h1_scope
+          def top_h1_program_scope
             browser_obj = PWN::WWW::HackerOne.open(browser_type: :headless)
             h1_programs = PWN::WWW::HackerOne.get_bounty_programs(
               browser_obj: browser_obj,
@@ -230,7 +230,7 @@ module PWN
 
               # Convention over Configuration \o/
               if nick == :h1
-                h1_scope_details = h1_scope
+                h1_scope_details = top_h1_program_scope
                 system_role_content = "
                   #{system_role_content}
                   target_scope :#{h1_scope_details}
