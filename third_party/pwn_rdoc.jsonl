@@ -840,8 +840,8 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.refresh_ps1_proc Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.refresh_ps1_proc`: Supported Method Parameters\n\nPWN::Plugins::REPL.refresh_ps1_proc(\n\nmode: 'required - :splat or nil'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.start Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.start`: Supported Method Parameters\n\nPWN::Plugins::REPL.start(\n\nopts: 'required - Hash object passed in via pwn OptParser'\n\n)\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.h1_scope Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.h1_scope`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.process Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.process`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL.top_h1_program_scope Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.top_h1_program_scope`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::RFIDler.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::RFIDler.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::RFIDler.connect_via_screen Usage"},{"role":"assistant","content":"`PWN::Plugins::RFIDler.connect_via_screen`: Supported Method Parameters\n\nPWN::Plugins::RFIDler.connect_via_screen(\n\nblock_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::RFIDler.help Usage"},{"role":"assistant","content":"`PWN::Plugins::RFIDler.help`: "}]}
