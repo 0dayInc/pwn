@@ -77,7 +77,7 @@ module PWN
 
         hexdump.each do |key, value|
           key_int = key.to_i(16)
-          value[:hex] = Array.new(16, byte) if key_int >= start_int && key_int <= end_int
+          value[:hex] = Array.new(16, byte) if key_int.between?(start_int, end_int)
         end
 
         hexdump
