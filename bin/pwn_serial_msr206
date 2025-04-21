@@ -36,18 +36,20 @@ OptionParser.new do |options|
   end
 end.parse!
 
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
+# if opts.empty?
+#   puts `#{File.basename($PROGRAM_NAME)} --help`
+#   exit 1
+# end
 
 begin
-  block_dev = opts[:block_dev] if File.exist?(opts[:block_dev])
-  baud = opts[:baud]
-  data_bits = opts[:data_bits]
-  stop_bits = opts[:stop_bits]
-  parity = opts[:parity]
-  flow_control = opts[:flow_control]
+  block_dev = opts[:block_dev] ||= '/dev/ttyUSB0'
+  raise "ERROR: Block device not found: #{block_dev}" unless File.exist?(block_dev)
+
+  baud = opts[:baud] ||= 9_600
+  data_bits = opts[:data_bits] ||= 8
+  stop_bits = opts[:stop_bits] ||= 1
+  parity = opts[:parity] ||= 'none'
+  flow_control = opts[:flow_control] ||= 'soft'
 
   msr206_obj = PWN::Plugins::MSR206.connect(
     block_dev: block_dev,
@@ -59,9 +61,9 @@ begin
   )
 
   puts "- Welcome to #{File.basename($PROGRAM_NAME)} -"
-  puts "Connected via: #{block_dev} @ #{msr206_obj[:serial_conn].modem_params}"
-  puts "Flow Control: #{msr206_obj[:serial_conn].flow_control}"
-  puts "Signals: #{msr206_obj[:serial_conn].signals}"
+  # puts "Connected via: #{block_dev} @ #{msr206_obj[:serial_conn].modem_params}"
+  # puts "Flow Control: #{msr206_obj[:serial_conn].flow_control}"
+  # puts "Signals: #{msr206_obj[:serial_conn].signals}"
 
   exec_resp = PWN::Plugins::MSR206.exec(
     msr206_obj: msr206_obj,
