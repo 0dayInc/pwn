@@ -42,14 +42,12 @@ end.parse!
 # end
 
 begin
-  block_dev = opts[:block_dev] ||= '/dev/ttyUSB0'
-  raise "ERROR: Block device not found: #{block_dev}" unless File.exist?(block_dev)
-
-  baud = opts[:baud] ||= 9_600
-  data_bits = opts[:data_bits] ||= 8
-  stop_bits = opts[:stop_bits] ||= 1
-  parity = opts[:parity] ||= 'none'
-  flow_control = opts[:flow_control] ||= 'soft'
+  block_dev = opts[:block_dev]
+  baud = opts[:baud]
+  data_bits = opts[:data_bits]
+  stop_bits = opts[:stop_bits]
+  parity = opts[:parity]
+  flow_control = opts[:flow_control]
 
   msr206_obj = PWN::Plugins::MSR206.connect(
     block_dev: block_dev,
@@ -61,10 +59,6 @@ begin
   )
 
   puts "- Welcome to #{File.basename($PROGRAM_NAME)} -"
-  # puts "Connected via: #{block_dev} @ #{msr206_obj[:serial_conn].modem_params}"
-  # puts "Flow Control: #{msr206_obj[:serial_conn].flow_control}"
-  # puts "Signals: #{msr206_obj[:serial_conn].signals}"
-
   exec_resp = PWN::Plugins::MSR206.exec(
     msr206_obj: msr206_obj,
     cmd: :simulate_power_cycle_warm_reset
@@ -103,6 +97,7 @@ begin
     puts '[(B)ackup Card]'
     puts '[(C)opy Card]'
     puts '[(L)oad Card from File]'
+    puts '[(U)pdate Card]'
     puts '[(W)arm Reset]'
     puts '[(Q)uit]'
     puts menu_msg
@@ -122,13 +117,18 @@ begin
         msr206_obj: msr206_obj
       )
     when :C
-      menu_msg = 'COPY CARD'
-      track_data = PWN::Plugins::MSR206.copy_card(
+      menu_msg = 'CLONE CARD'
+      track_data = PWN::Plugins::MSR206.clone_card(
         msr206_obj: msr206_obj
       )
     when :L
-      menu_msg = 'LOAD FROM FILE'
+      menu_msg = 'LOAD BACKUP FROM FILE AND WRITE TO CARD'
       track_data = PWN::Plugins::MSR206.load_card_from_file(
+        msr206_obj: msr206_obj
+      )
+    when :U
+      menu_msg = 'UPDATE CARD'
+      track_data = PWN::Plugins::MSR206.update_card(
         msr206_obj: msr206_obj
       )
     when :W
