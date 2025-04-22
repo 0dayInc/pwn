@@ -36,11 +36,6 @@ OptionParser.new do |options|
   end
 end.parse!
 
-# if opts.empty?
-#   puts `#{File.basename($PROGRAM_NAME)} --help`
-#   exit 1
-# end
-
 begin
   block_dev = opts[:block_dev]
   baud = opts[:baud]
@@ -95,8 +90,8 @@ begin
     puts "\n>> MAIN MENU OPTIONS:"
     puts '[(R)ead Card]'
     puts '[(B)ackup Card]'
-    puts '[(C)opy Card]'
-    puts '[(L)oad Card from File]'
+    puts '[(C)lone Card]'
+    puts '[(L)oad Data from File and Write to Card]'
     puts '[(U)pdate Card]'
     puts '[(W)arm Reset]'
     puts '[(Q)uit]'
@@ -122,7 +117,7 @@ begin
         msr206_obj: msr206_obj
       )
     when :L
-      menu_msg = 'LOAD BACKUP FROM FILE AND WRITE TO CARD'
+      menu_msg = 'LOAD DATA FROM FILE AND WRITE TO CARD'
       track_data = PWN::Plugins::MSR206.load_card_from_file(
         msr206_obj: msr206_obj
       )
