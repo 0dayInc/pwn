@@ -10,7 +10,7 @@ module PWN
     module SonMicroRFID
       # Logger instance for auditing and debugging
       private_class_method def self.logger
-        @logger ||= Logger.new('sonmicro_rfid.log')
+        @logger ||= Logger.new('/tmp/pwn-sonmicro_rfid.log')
       end
 
       # Supported Method Parameters::
@@ -335,11 +335,16 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::SonMicroRFID.read_tag(
-      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
+      #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
+      #   authn: 'optional - authentication flag (default: false)',
+      #   key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
       # )
 
       public_class_method def self.read_tag(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
+        authn = opts[:authn] ||= false
+        key = opts[:key] ||= [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+
         logger.info('Starting read_tag')
 
         print 'Reader Activated. Please Scan Tag...'
@@ -349,7 +354,7 @@ module PWN
         )
 
         rfid_data = exec_resp.last
-        logger.info("\n#{rfid_data.inspect}")
+        logger.info(rfid_data)
 
         if rfid_data[:resp_code_desc] == :no_tag_present
           logger.error('No RFID tag detected')
@@ -366,21 +371,23 @@ module PWN
           )
           rfid_data[:block_data] = exec_resp.last[:block_data] if exec_resp.last[:resp_code_desc] == :read_success
         when :mifare_classic_1k, :mifare_classic_4k
-          exec_resp = exec(
-            son_micro_rfid_obj: son_micro_rfid_obj,
-            cmd: :authenticate,
-            params: { block: 0, key_type: :key_a, key: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] }
-          )
-          if exec_resp.last[:resp_code_desc] == :auth_success
+          if authn
             exec_resp = exec(
               son_micro_rfid_obj: son_micro_rfid_obj,
-              cmd: :read_block,
-              params: { block: 0 }
+              cmd: :authenticate,
+              params: { block: 0, key_type: :key_a, key: key }
             )
-            rfid_data[:block_data] = exec_resp.last[:block_data] if exec_resp.last[:resp_code_desc] == :read_success
-          else
-            logger.error("Authentication failed for #{rfid_data[:resp_code_desc]}")
-            raise 'Authentication failed'
+            if exec_resp.last[:resp_code_desc] == :auth_success
+              exec_resp = exec(
+                son_micro_rfid_obj: son_micro_rfid_obj,
+                cmd: :read_block,
+                params: { block: 0 }
+              )
+              rfid_data[:block_data] = exec_resp.last[:block_data] if exec_resp.last[:resp_code_desc] == :read_success
+            else
+              logger.error("Authentication failed for #{rfid_data[:resp_code_desc]}")
+              raise 'Authentication failed'
+            end
           end
         end
 
@@ -397,12 +404,16 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::SonMicroRFID.write_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
-      #   rfid_data: 'required - RFID data to write (see #read_tag for structure)'
+      #   rfid_data: 'required - RFID data to write (see #read_tag for structure)',
+      #   authn: 'optional - authentication flag (default: false)',
+      #   key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
       # )
 
       public_class_method def self.write_tag(opts = {})
         son_micro_rfid_obj = opts[:son_micro_rfid_obj]
         rfid_data = opts[:rfid_data]
+        authn = opts[:authn] ||= false
+        key = opts[:key] ||= [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
         logger.info('Starting write_tag')
 
         unless rfid_data.is_a?(Hash) && rfid_data[:resp_code_desc] && rfid_data[:tag_id]
@@ -444,27 +455,29 @@ module PWN
             end
           end
         when :mifare_classic_1k, :mifare_classic_4k
-          exec_resp = exec(
-            son_micro_rfid_obj: son_micro_rfid_obj,
-            cmd: :authenticate,
-            params: { block: 0, key_type: :key_a, key: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] }
-          )
-          if exec_resp.last[:resp_code_desc] == :auth_success
-            if rfid_data[:block_data]
-              data = rfid_data[:block_data].split.map { |b| b.to_i(16) }
-              exec_resp = exec(
-                son_micro_rfid_obj: son_micro_rfid_obj,
-                cmd: :write_block,
-                params: { block: 0, data: data }
-              )
-              unless exec_resp.last[:resp_code_desc] == :write_success
-                logger.error('Failed to write block for Classic')
-                raise 'Failed to write block'
+          if authn
+            exec_resp = exec(
+              son_micro_rfid_obj: son_micro_rfid_obj,
+              cmd: :authenticate,
+              params: { block: 0, key_type: :key_a, key: key }
+            )
+            if exec_resp.last[:resp_code_desc] == :auth_success
+              if rfid_data[:block_data]
+                data = rfid_data[:block_data].split.map { |b| b.to_i(16) }
+                exec_resp = exec(
+                  son_micro_rfid_obj: son_micro_rfid_obj,
+                  cmd: :write_block,
+                  params: { block: 0, data: data }
+                )
+                unless exec_resp.last[:resp_code_desc] == :write_success
+                  logger.error('Failed to write block for Classic')
+                  raise 'Failed to write block'
+                end
               end
+            else
+              logger.error("Authentication failed for #{rfid_data[:resp_code_desc]}")
+              raise 'Authentication failed'
             end
-          else
-            logger.error("Authentication failed for #{rfid_data[:resp_code_desc]}")
-            raise 'Authentication failed'
           end
         else
           logger.error("Unsupported tag type: #{rfid_data[:resp_code_desc]}")
@@ -720,12 +733,16 @@ module PWN
           )
 
           rfid_data = #{self}.read_tag(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method'
+            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method',
+            authn: 'optional - authentication flag (default: false)',
+            key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
           )
 
           rfid_data = #{self}.write_tag(
             son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method',
-            rfid_data: 'required - RFID data to write'
+            rfid_data: 'required - RFID data to write',
+            authn: 'optional - authentication flag (default: false)',
+            key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
           )
 
           rfid_data = #{self}.backup_tag(
