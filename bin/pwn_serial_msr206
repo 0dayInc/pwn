@@ -36,11 +36,6 @@ OptionParser.new do |options|
   end
 end.parse!
 
-# if opts.empty?
-#   puts `#{File.basename($PROGRAM_NAME)} --help`
-#   exit 1
-# end
-
 begin
   block_dev = opts[:block_dev]
   baud = opts[:baud]
