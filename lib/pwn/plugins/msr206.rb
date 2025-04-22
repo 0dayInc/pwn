@@ -10,7 +10,7 @@ module PWN
     module MSR206
       # Logger instance for auditing and debugging
       private_class_method def self.logger
-        @logger ||= Logger.new('msr206.log')
+        @logger ||= Logger.new('/tmp/pwn-msr206.log')
       end
 
       # Supported Method Parameters::
