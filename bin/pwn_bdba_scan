@@ -28,15 +28,15 @@ OptionParser.new do |options|
     opts[:report_path] = r
   end
 
-  options.on('-q', '--queue-timeout', '<Optional - Duration in Seconds for a File to Remain in Queue Prior to Aborting (Default: 5_400)>') do |q|
+  options.on('-qSECONDS', '--queue-timeout=SECONDS', '<Optional - Duration in Seconds for a File to Remain in Queue Prior to Aborting (Default: 5_400)>') do |q|
     opts[:queue_timeout] = q
   end
 
-  options.on('-a', '--scan-attempts', '<Optional - Number of Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts or RestClient Exceptions (Default: 3)>') do |a|
+  options.on('-aATTEMPTS', '--scan-attempts=ATTEMPTS', '<Optional - Number of Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts or RestClient Exceptions (Default: 3)>') do |a|
     opts[:scan_attempts] = a
   end
 
-  options.on('-S', '--sleep-between-scan-attempts', '<Optional - Seconds to Sleep Between Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts or RestClient Exceptions (Default: 60)>') do |s|
+  options.on('-SSECONDS', '--sleep-between-scan-attempts=SECONDS', '<Optional - Seconds to Sleep Between Attempts to Scan a File if the Scan was Aborted Due to Queue Timeouts or RestClient Exceptions (Default: 60)>') do |s|
     opts[:sleep_between_scan_attempts] = s
   end
 
