@@ -84,6 +84,7 @@ case $pwn_deploy_type in
     export PWN_PROVIDER="ruby-gem"
     ./packer/provisioners/upload_globals.sh
     ./packer/provisioners/rvm.sh
+    ./packer/provisioners/bashrc.sh
     ./packer/provisioners/ruby.sh
     ./packer/provisioners/pwn.sh
     ;;
