@@ -26,4 +26,4 @@ ${r2_root}/r2pm -ci r2ghidra
 ${r2_root}/r2pm -ci r2frida
 
 mkdir -p ~/.local/share/radare2/r2panels
-cp $PWN_ROOT/third-party/r2-pwn-layout ~/.local/share/radare2/r2panels/
+cp $PWN_ROOT/third_party/r2-pwn-layout ~/.local/share/radare2/r2panels/
