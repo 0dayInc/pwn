@@ -2,6 +2,8 @@
 # frozen_string_literal: true
 
 alias_file = '/etc/profile.d/aliases.sh'
+r2_prompt = "Transform the output of pdga in r2.  The output is a two column disasm and decompilation pipe-delimited output using the Ghidra decompiler).  Your job is to respond ONLY with actual code (NO explanations, comments or markdown), Change 'goto' into if/else/for/while, Simplify as much as possible, use better variable names, take function arguments and strings from comments like 'string:', Reduce lines of code and fit everything in a single function, removing all dead code.  Most importantly, determine if this code is exploitable."
+
 system("sudo touch #{alias_file}")
 system("sudo chmod 777 #{alias_file}")
 File.open(alias_file, 'w') do |f|
@@ -12,7 +14,7 @@ File.open(alias_file, 'w') do |f|
   f.puts "alias ls='ls --color=auto'"
   f.puts "alias phantomjs='export QT_QPA_PLATFORM=offscreen; phantomjs'"
   f.puts "alias prep='ps -ef | grep'"
-  f.puts "alias r2='setarch $(uname -m) -R /usr/local/bin/r2 -c \"v r2-pwn-layout\" -c \"decai -e model=0dayInc:latest\" -c \"decai -e cmds=pdc\" -c \"decai -e prompt=Transform this pseudocode and respond ONLY with plain code (NO explanations, comments or markdown), Change \"goto\" into if/else/for/while, Simplify as much as possible, use better variable names, take function arguments and strings from comments like \"string:\", Reduce lines of code and fit everything in a single function, removing all dead code.  Most importantly, determine if this code is exploitable.\"'"
+  f.puts "alias r2='setarch $(uname -m) -R /usr/local/bin/r2 -c \"v r2-pwn-layout\" -c \"decai -e model=Radare2:latest\" -c \"decai -e cmds=pdga\" -c \"decai -e prompt=#{prompt}\"'"
   f.puts "alias sup='sudo -i'"
   f.puts "alias vi='vim -i NONE -b'"
   f.puts "alias vim='vim -i NONE -b'"
