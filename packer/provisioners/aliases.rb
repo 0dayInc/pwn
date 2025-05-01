@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 alias_file = '/etc/profile.d/aliases.sh'
-r2_prompt = "Transform the output of pdga in r2.  The output is a two column disasm and decompilation pipe-delimited output using the Ghidra decompiler).  Your job is to respond ONLY with actual code (NO explanations, comments or markdown), Change 'goto' into if/else/for/while, Simplify as much as possible, use better variable names, take function arguments and strings from comments like 'string:', Reduce lines of code and fit everything in a single function, removing all dead code.  Most importantly, determine if this code is exploitable."
+r2_prompt = "Transform the output of pdga in r2.  The output is a two column disasm and decompilation pipe-delimited output using the Ghidra decompiler).  Your job is to respond ONLY with actual code (NO explanations, comments or markdown), Change 'goto' into if/else/for/while, Simplify as much as possible, use better variable names, take function arguments and strings from comments like 'string:', Reduce lines of code and fit everything in a single function, removing all dead code.  Most important, determine if the actual code is vulnerable to exploitation."
 
 system("sudo touch #{alias_file}")
 system("sudo chmod 777 #{alias_file}")
