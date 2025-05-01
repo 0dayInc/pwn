@@ -18,6 +18,7 @@ module PWN
     autoload :OffTheAir, 'pwn/banner/off_the_air'
     autoload :Pirate, 'pwn/banner/pirate'
     autoload :Radare2, 'pwn/banner/radare2'
+    autoload :Radare2AI, 'pwn/banner/radare2_ai'
     autoload :WhiteRabbit, 'pwn/banner/white_rabbit'
 
     # Supported Method Parameters::
@@ -27,7 +28,7 @@ module PWN
 
     public_class_method def self.get(opts = {})
       index = opts[:index].to_i
-      index = Random.rand(1..14) unless index.positive?
+      index = Random.rand(1..15) unless index.positive?
 
       banner = ''
       case index
@@ -58,6 +59,8 @@ module PWN
       when 13
         banner = PWN::Banner::Radare2.get
       when 14
+        banner = PWN::Banner::Radare2AI.get
+      when 15
         banner = PWN::Banner::WhiteRabbit.get
       else
         raise 'Invalid Index.'
