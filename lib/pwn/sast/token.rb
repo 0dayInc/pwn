@@ -112,7 +112,7 @@ module PWN
         {
           sast_module: self,
           section: 'CRYPTOGRAPHIC MODULE AUTHENTICATION',
-          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=IA-7',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=IA-07',
           cwe_id: '798',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/798.html'
         }
