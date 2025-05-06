@@ -124,7 +124,7 @@ module PWN
         {
           sast_module: self,
           section: 'LEAST PRIVILEGE',
-          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=AC-6',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=AC-06',
           cwe_id: '546',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/546.html'
         }

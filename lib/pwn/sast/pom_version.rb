@@ -119,7 +119,7 @@ module PWN
         {
           sast_module: self,
           section: 'VULNERABILITY SCANNING',
-          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=RA-5',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=RA-05',
           cwe_id: '.0',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/1104.html'
         }

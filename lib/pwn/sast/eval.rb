@@ -111,7 +111,7 @@ module PWN
         {
           sast_module: self,
           section: 'MALICIOUS CODE PROTECTION',
-          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=SI-3',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=SI-03',
           cwe_id: '95',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/95.html'
         }
