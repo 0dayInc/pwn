@@ -110,7 +110,7 @@ module PWN
         {
           sast_module: self,
           section: 'ACCOUNT MANAGEMENT',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=AC-2',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=AC-02',
           cwe_id: '285',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/285.html'
         }

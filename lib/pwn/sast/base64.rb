@@ -108,7 +108,7 @@ module PWN
         {
           sast_module: self,
           section: 'PROTECTION OF INFORMATION AT REST',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SC-28',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=SC-28',
           cwe_id: '95',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/95.html'
         }
