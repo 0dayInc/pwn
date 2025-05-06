@@ -7,7 +7,7 @@ r2_root='/usr/local/bin'
 sudo apt install -y capstone-tool meson
 cd /opt && sudo git clone https://github.com/radareorg/radare2
 sudo chown -R $USER:$USER radare2
-cd radare2 && ./sys/install.sh
+cd radare2 && sudo ./sys/install.sh
 
 ${r2_root}/r2 -qq -c 'r2pm -U' /bin/id
 ${r2_root}/r2 -qq -c 'r2pm -ci decai' /bin/id

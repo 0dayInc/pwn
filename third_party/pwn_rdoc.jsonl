@@ -404,6 +404,9 @@
 {"messages":[{"role":"user","content":"PWN::Banner::Radare2.authors Usage"},{"role":"assistant","content":"`PWN::Banner::Radare2.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Radare2.get Usage"},{"role":"assistant","content":"`PWN::Banner::Radare2.get`: Supported Method Parameters\n\nPWN::Banner::Radare2.get\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Radare2.help Usage"},{"role":"assistant","content":"`PWN::Banner::Radare2.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::Radare2AI.authors Usage"},{"role":"assistant","content":"`PWN::Banner::Radare2AI.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Banner::Radare2AI.get Usage"},{"role":"assistant","content":"`PWN::Banner::Radare2AI.get`: Supported Method Parameters\n\nPWN::Banner::Radare2AI.get\n"}]}
+{"messages":[{"role":"user","content":"PWN::Banner::Radare2AI.help Usage"},{"role":"assistant","content":"`PWN::Banner::Radare2AI.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner::WhiteRabbit.authors Usage"},{"role":"assistant","content":"`PWN::Banner::WhiteRabbit.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::WhiteRabbit.get Usage"},{"role":"assistant","content":"`PWN::Banner::WhiteRabbit.get`: Supported Method Parameters\n\nPWN::Banner::WhiteRabbit.get\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::WhiteRabbit.help Usage"},{"role":"assistant","content":"`PWN::Banner::WhiteRabbit.help`: "}]}
