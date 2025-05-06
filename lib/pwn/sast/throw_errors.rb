@@ -110,7 +110,7 @@ module PWN
         {
           sast_module: self,
           section: 'ERROR HANDLING',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SI-11',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=SI-11',
           cwe_id: '209',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/209.html'
         }

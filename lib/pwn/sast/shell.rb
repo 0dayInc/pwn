@@ -118,7 +118,7 @@ module PWN
         {
           sast_module: self,
           section: 'DEVELOPER SECURITY AND PRIVACY ARCHITECTURE AND DESIGN',
-          nist_800_53_uri: 'https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#/control/?version=5.1&number=SA-17',
+          nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=SA-17',
           cwe_id: '553',
           cwe_uri: 'https://cwe.mitre.org/data/definitions/553.html'
         }
