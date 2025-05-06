@@ -14,7 +14,7 @@ File.open(alias_file, 'w') do |f|
   f.puts "alias ls='ls --color=auto'"
   f.puts "alias phantomjs='export QT_QPA_PLATFORM=offscreen; phantomjs'"
   f.puts "alias prep='ps -ef | grep'"
-  f.puts "alias r2='setarch $(uname -m) -R /usr/local/bin/r2 -c \"v r2-pwn-layout\" -c \"decai -e model=Radare2:latest\" -c \"decai -e cmds=pdga\" -c \"decai -e prompt=#{prompt}\"'"
+  f.puts "alias r2='setarch $(uname -m) -R /usr/local/bin/r2 -c \"v r2-pwn-layout\" -c \"decai -e model=Radare2:latest\" -c \"decai -e cmds=pdga\" -c \"decai -e prompt=#{r2_prompt}\"'"
   f.puts "alias sup='sudo -i'"
   f.puts "alias vi='vim -i NONE -b'"
   f.puts "alias vim='vim -i NONE -b'"
