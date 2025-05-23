@@ -11,7 +11,7 @@ else
   pwn_root="${PWN_ROOT}"
 fi
 
-$screen_cmd "${apt} install -y rpm alien nsis gvmd redis-server greenbone-security-assistant ${assess_update_errors}"
+$screen_cmd "${apt} install -y gvm ${assess_update_errors}"
 grok_error
 
 sudo systemctl enable redis-server
