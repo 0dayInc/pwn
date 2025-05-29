@@ -44,7 +44,7 @@ OptionParser.new do |options|
     opts[:report_only] = o
   end
 
-  options.on('-tTYPE', '--report-type=TYPE', '<Optional - Black Duck Binary Analysis Scan Report Type csv_libs|csv_vulns|pdf (Default: csv_vulns)>') do |t|
+  options.on('-tTYPE', '--report-type=TYPE', '<Optional - Black Duck Binary Analysis Scan Report Type csv_libs|csv_vulns|pdf|spdx (Default: csv_vulns)>') do |t|
     opts[:report_type] = t
   end
 
