@@ -269,7 +269,7 @@ module PWN
       #   token: 'required - Bearer token',
       #   product_id: 'required - product id',
       #   output_path: 'required - path to output file',
-      #   type: 'optional - report type csv_libs||csv_vulns|pdf (Defaults to csv_vulns)'
+      #   type: 'optional - report type csv_libs||csv_vulns|pdf|spdx (Defaults to csv_vulns)'
       # )
 
       public_class_method def self.generate_product_report(opts = {})
@@ -278,6 +278,7 @@ module PWN
         output_path = opts[:output_path]
         type = opts[:type] ||= :csv_vulns
 
+        params = {}
         case type.to_s.downcase.to_sym
         when :csv_libs
           rest_call = "product/#{product_id}/csv-libs"
@@ -285,13 +286,18 @@ module PWN
           rest_call = "product/#{product_id}/csv-vulns"
         when :pdf
           rest_call = "product/#{product_id}/pdf-report"
+        when :spdx
+          rest_call = "product/#{product_id}/"
+          params[:format] = 'spdx-2.3'
+          params[:include_paths] = 'true'
         else
           raise "ERROR: Invalid report type #{type}"
         end
 
         response = bd_bin_analysis_rest_call(
           token: token,
-          rest_call: rest_call
+          rest_call: rest_call,
+          params: params
         )
 
         File.write(output_path, response.body)
