@@ -695,7 +695,7 @@ module PWN
             token: 'required - Bearer token',
             product_id: 'required - product id',
             output_path: 'required - path to output file',
-            type: 'optional - report type csv_libs||csv_vulns|pdf (Defaults to csv_vulns)'
+            type: 'optional - report type csv_libs||csv_vulns|pdf|spdx (Defaults to csv_vulns)'
           )
 
           response = #{self}.get_tasks(
