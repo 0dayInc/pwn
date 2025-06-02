@@ -88,6 +88,8 @@ module PWN
         response
       rescue RestClient::ExceptionWithResponse => e
         if e.response
+          puts "HTTP BASE URI: #{base_bd_bin_analysis_api_uri}"
+          puts "HTTP PATH: #{rest_call}"
           puts "HTTP RESPONSE CODE: #{e.response.code}"
           puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
           puts "HTTP RESPONSE BODY:\n#{e.response.body.inspect}\n\n\n"
@@ -107,12 +109,7 @@ module PWN
 
         retry
       rescue StandardError => e
-        case e.message
-        when '400 Bad Request', '404 Resource Not Found'
-          "#{e.message}: #{e.response}"
-        else
-          raise e
-        end
+        raise e
       ensure
         spinner.stop unless spinner.nil?
       end
