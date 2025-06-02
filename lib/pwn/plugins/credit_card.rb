@@ -8,19 +8,49 @@ module PWN
     # This plugin provides useful credit card capabilities
     module CreditCard
       # Supported Method Parameters::
+      # PWN::Plugins::CreditCard.list_types
+
+      public_class_method def self.list_types
+        %i[
+          amex
+          unionpay
+          dankort
+          diners
+          elo
+          discover
+          hipercard
+          jcb
+          maestro
+          mastercard
+          mir
+          rupay
+          solo
+          switch
+          visa
+        ]
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::CreditCard.generate(
-      #   type: 'required - card to generate :amex|:unionpay|:dankort|:diners|:elo|:discover|:hipercard|:jcb|:maestro|:mastercard|:mir|:rupay|:solo|:switch|:visa',
+      #   type: 'optional - card type from #list_types method to generate (defaults to :random)',
       #   count: 'optional - number of numbers to generate (defaults to 1)'
       # )
 
       public_class_method def self.generate(opts = {})
-        type = opts[:type].to_s.scrub.strip.chomp.to_sym
+        type = opts[:type] ||= :random
+        type = type.to_s.strip.scrub.chomp.downcase.to_sym
+
         count = opts[:count].to_i
         count = 1 if count.zero?
 
         cc_result_arr = []
         (1..count).each do
-          cc_result_arr.push(CreditCardValidations::Factory.random(type))
+          gen_type = list_types.sample if type == :random
+          gen_type = type unless type == :random
+          cc_hash = type(cc: CreditCardValidations::Factory.random(gen_type))
+          cc_result_arr.push(cc_hash)
         end
 
         cc_result_arr
@@ -35,7 +65,11 @@ module PWN
 
       public_class_method def self.type(opts = {})
         cc = opts[:cc].to_s.scrub.strip.chomp
-        cc.credit_card_brand
+        cc_hash = {}
+        cc_hash[:number] = cc
+        cc_hash[:type] = cc.credit_card_brand
+
+        cc_hash
       rescue StandardError => e
         raise e
       end
@@ -52,8 +86,10 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          #{self}.list_types
+
           #{self}.generate(
-            type: 'required - card to generate :amex|:unionpay|:dankort|:diners|:elo|:discover|:hipercard|:jcb|:maestro|:mastercard|:mir|:rupay|:solo|:switch|:visa',
+            type: 'required - card to generate from #list_types method to generate',
             count: 'optional - number of numbers to generate (defaults to 1)'
           )
 

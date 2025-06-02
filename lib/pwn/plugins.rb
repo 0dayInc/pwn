@@ -72,6 +72,7 @@ module PWN
     autoload :TwitterAPI, 'pwn/plugins/twitter_api'
     autoload :URIScheme, 'pwn/plugins/uri_scheme'
     autoload :Vault, 'pwn/plugins/vault'
+    autoload :VIN, 'pwn/plugins/vin'
     autoload :Voice, 'pwn/plugins/voice'
     autoload :Vsphere, 'pwn/plugins/vsphere'
     autoload :XXD, 'pwn/plugins/xxd'
