@@ -72,7 +72,7 @@ module PWN
         end
 
         JSON.parse(response, symbolize_names: true)
-      rescue ExceptionWithResponse => e
+      rescue RestClient::ExceptionWithResponse => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
           "#{e.message}: #{e.response}"
@@ -164,6 +164,10 @@ module PWN
             token: 'required - bearer token',
             path: 'required - API path to call, without beginning forward slash'
           )
+
+          **********************************************************************
+          * For more information on the Jira Server REST API, see:
+          * https://developer.atlassian.com/server/jira/platform/rest-apis/
 
           #{self}.authors
         "
