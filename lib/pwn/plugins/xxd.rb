@@ -27,8 +27,15 @@ module PWN
             "%<s1>07x0: %<s2>-40s %<s3>-16s\n",
             s1: index,
             s2: row.map { |pair| pair.map { |b| b.to_s(16).rjust(2, '0') }.join }.join(' '),
-            s3: row.flat_map { |pair| pair.map { |b| (b >= 32 && b < 127 ? b.chr : '.') } }.flatten.join
+            s3: row.flat_map { |pair| pair.map { |b| (b >= 32 && b < 127 ? b.chr : '.') } }.join
           )
+
+          # fmt_row = format(
+          #   "%<s1>07x0: %<s2>-40s %<s3>-16s\n",
+          #   s1: index,
+          #   s2: row.map { |pair| pair.map { |b| b.to_s(16).rjust(2, '0') }.join }.join(' '),
+          #   s3: row.flat_map { |pair| pair.map { |b| (b >= 32 && b < 127 ? b.chr : '.') } }.flatten.join
+          # )
 
           io.write(fmt_row)
 

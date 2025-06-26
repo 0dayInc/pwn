@@ -24,6 +24,7 @@ module PWN
     autoload :Twitter, 'pwn/www/twitter'
     autoload :Uber, 'pwn/www/uber'
     autoload :Upwork, 'pwn/www/upwork'
+    autoload :WaybackMachine, 'pwn/www/wayback_machine'
     autoload :Youtube, 'pwn/www/youtube'
 
     # Display a List of Every PWN::WWW Module

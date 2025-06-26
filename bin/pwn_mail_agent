@@ -29,9 +29,7 @@ if opts.empty?
   exit 1
 end
 
-private
-
-def initiate_action
+private_methods def initiate_action
   puts @list_agent_opts
   if @list_agent_opts
     puts "The following is an example YAML file for #{@agent_type}:\n#{@example_msg_body_yaml}"
