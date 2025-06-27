@@ -90,7 +90,7 @@ module PWN
       # issue_resp = PWN::Plugins::JiraServer.get_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - bearer token',
-      #   issue: 'required - issue to lookup',
+      #   issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
       #   params: 'optional - additional parameters to pass in the URI'
       # )
 
@@ -163,7 +163,7 @@ module PWN
           issue_resp = #{self}.get_issue(
           base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - bearer token',
-            issue: 'required - issue to lookup',
+            issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
             params: 'optional - additional parameters to pass in the URI'
           )
 
