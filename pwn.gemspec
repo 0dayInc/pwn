@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
   spec.homepage = 'https://github.com/0dayinc/pwn'
   spec.license = 'MIT'
   spec.metadata['rubygems_mfa_required'] = 'true'
-  spec.metadata["funding_uri"] = 'https://github.com/sponsors/0dayInc'
+  spec.metadata['funding_uri'] = 'https://github.com/sponsors/0dayInc'
 
   spec.files = `git ls-files -z`.split("\x00")
   spec.executables = spec.files.grep(%r{^bin/}) do |f|
