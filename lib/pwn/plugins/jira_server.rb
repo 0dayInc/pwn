@@ -73,11 +73,12 @@ module PWN
 
         JSON.parse(response, symbolize_names: true)
       rescue RestClient::ExceptionWithResponse => e
-        case e.message
-        when '400 Bad Request', '404 Resource Not Found'
-          "#{e.message}: #{e.response}"
-        else
-          raise e
+        if e.response
+          puts "HTTP BASE URL: #{base_api_uri}"
+          puts "HTTP PATH: #{rest_call}"
+          puts "HTTP RESPONSE CODE: #{e.response.code}"
+          puts "HTTP RESPONSE HEADERS: #{e.response.headers}"
+          puts "HTTP RESPONSE BODY:\n#{e.response.body}\n\n\n"
         end
       rescue StandardError => e
         raise e
