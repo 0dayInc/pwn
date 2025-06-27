@@ -90,7 +90,8 @@ module PWN
       # issue_resp = PWN::Plugins::JiraServer.get_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
       #   token: 'required - bearer token',
-      #   issue: 'required - issue to lookup'
+      #   issue: 'required - issue to lookup',
+      #   params: 'optional - additional parameters to pass in the URI'
       # )
 
       public_class_method def self.get_issue(opts = {})
@@ -102,13 +103,15 @@ module PWN
         )
 
         issue = opts[:issue]
+        params = opts[:params]
 
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
         rest_call(
           base_api_uri: base_api_uri,
           token: token,
-          rest_call: "issue/#{issue}"
+          rest_call: "issue/#{issue}",
+          params: params
         )
       rescue StandardError => e
         raise e
@@ -118,7 +121,8 @@ module PWN
       # jira_resp = PWN::Plugins::JiraServer.manual_call(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
       #   token: 'required - bearer token',
-      #   path: 'required - API path to call, without beginning forward slash'
+      #   path: 'required - API path to call, without beginning forward slash',
+      #   params: 'optional - additional parameters to pass in the URI'
       # )
 
       public_class_method def self.manual_call(opts = {})
@@ -130,13 +134,15 @@ module PWN
         )
 
         path = opts[:path]
+        params = opts[:params]
 
         raise 'ERROR: path cannot be nil.' if path.nil?
 
         rest_call(
           base_api_uri: base_api_uri,
           token: token,
-          rest_call: path
+          rest_call: path,
+          params: params
         )
       rescue StandardError => e
         raise e
@@ -157,13 +163,15 @@ module PWN
           issue_resp = #{self}.get_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
             token: 'required - bearer token',
-            issue: 'required - issue to lookup'
+            issue: 'required - issue to lookup',
+            params: 'optional - additional parameters to pass in the URI'
           )
 
           jira_resp = #{self}.manual_call(
             base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
             token: 'required - bearer token',
-            path: 'required - API path to call, without beginning forward slash'
+            path: 'required - API path to call, without beginning forward slash',
+            params: 'optional - additional parameters to pass in the URI'
           )
 
           **********************************************************************
