@@ -88,7 +88,7 @@ module PWN
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.get_issue(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - bearer token',
       #   issue: 'required - issue to lookup',
       #   params: 'optional - additional parameters to pass in the URI'
@@ -119,7 +119,7 @@ module PWN
 
       # Supported Method Parameters::
       # jira_resp = PWN::Plugins::JiraServer.manual_call(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - bearer token',
       #   path: 'required - API path to call, without beginning forward slash',
       #   params: 'optional - additional parameters to pass in the URI'
@@ -161,14 +161,14 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           issue_resp = #{self}.get_issue(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
+          base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - bearer token',
             issue: 'required - issue to lookup',
             params: 'optional - additional parameters to pass in the URI'
           )
 
           jira_resp = #{self}.manual_call(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/corp.jira.com/rest/api/latest)',
+          base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - bearer token',
             path: 'required - API path to call, without beginning forward slash',
             params: 'optional - additional parameters to pass in the URI'
