@@ -103,8 +103,7 @@ module PWN
         rest_call(
           base_api_uri: base_api_uri,
           token: token,
-          rest_call: 'field',
-          params: params
+          rest_call: 'field'
         )
       rescue StandardError => e
         raise e
@@ -198,7 +197,6 @@ module PWN
           base_api_uri: base_api_uri,
           token: token,
           rest_call: "issue/#{issue}",
-          params: params,
           http_body: http_body
         )
       rescue StandardError => e
