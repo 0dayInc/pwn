@@ -198,7 +198,7 @@ module PWN
           http_method: :post,
           base_api_uri: base_api_uri,
           token: token,
-          rest_call: "issue/#{issue}",
+          rest_call: 'issue',
           http_body: http_body
         )
       rescue StandardError => e
