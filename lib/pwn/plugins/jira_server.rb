@@ -87,11 +87,35 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # all_fields = PWN::Plugins::JiraServer.get_all_fields(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+      #   token: 'required - bearer token'
+      # )
+
+      public_class_method def self.get_all_fields(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+
+        rest_call(
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: 'field',
+          params: params
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.get_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - bearer token',
       #   issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
-      #   params: 'optional - additional parameters to pass in the URI'
+      #   params: 'optional - additional parameters to pass in the URI (e.g. fields, expand, etc.)'
       # )
 
       public_class_method def self.get_issue(opts = {})
@@ -118,31 +142,64 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # jira_resp = PWN::Plugins::JiraServer.manual_call(
+      # issue_resp = PWN::Plugins::JiraServer.create_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - bearer token',
-      #   path: 'required - API path to call, without beginning forward slash',
-      #   params: 'optional - additional parameters to pass in the URI'
+      #   project_key: 'required - project key (e.g. PWN)',
+      #   summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
+      #   issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
+      #   description: 'optional - description of the issue',
+      #   additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
       # )
 
-      public_class_method def self.manual_call(opts = {})
+      public_class_method def self.create_issue(opts = {})
         base_api_uri = opts[:base_api_uri]
 
         token = opts[:token]
         token ||= PWN::Plugins::AuthenticationHelper.mask_password(
           prompt: 'Personal Access Token'
         )
+        project_key = opts[:project_key]
+        raise 'ERROR: project_key cannot be nil.' if project_key.nil?
 
-        path = opts[:path]
-        params = opts[:params]
+        summary = opts[:summary]
+        raise 'ERROR: summary cannot be nil.' if summary.nil?
 
-        raise 'ERROR: path cannot be nil.' if path.nil?
+        issue_type = opts[:issue_type]
+        raise 'ERROR: issue_type values must be one of :epic, :story, or :bug.' unless %i[epic story bug].include?(issue_type)
+
+        description = opts[:description]
+
+        additional_fields = opts[:additional_fields] ||= { fields: {} }
+
+        all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
+        epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
+
+        epic_name = summary
+
+        http_body = {
+          fields: {
+            project: {
+              key: project_key
+            },
+            summary: summary,
+            issuetype: {
+              name: issue_type.to_s.capitalize
+            },
+            "#{epic_name_filed_key}": epic_name,
+            description: description
+          }
+        }
+
+        http_body[:fields].merge!(additional_fields[:fields])
 
         rest_call(
+          http_method: :post,
           base_api_uri: base_api_uri,
           token: token,
-          rest_call: path,
-          params: params
+          rest_call: "issue/#{issue}",
+          params: params,
+          http_body: http_body
         )
       rescue StandardError => e
         raise e
@@ -160,18 +217,26 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          all_fields = #{self}.get_all_fields(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            token: 'required - bearer token'
+          )
+
           issue_resp = #{self}.get_issue(
-          base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - bearer token',
             issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
             params: 'optional - additional parameters to pass in the URI'
           )
 
-          jira_resp = #{self}.manual_call(
-          base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+          issue_resp = #{self}.create_issue(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - bearer token',
-            path: 'required - API path to call, without beginning forward slash',
-            params: 'optional - additional parameters to pass in the URI'
+            project_key: 'required - project key (e.g. PWN)',
+            summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
+            issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
+            description: 'optional - description of the issue',
+            additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
           )
 
           **********************************************************************
