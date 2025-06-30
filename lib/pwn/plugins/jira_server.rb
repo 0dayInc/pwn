@@ -170,6 +170,7 @@ module PWN
         description = opts[:description]
 
         additional_fields = opts[:additional_fields] ||= { fields: {} }
+        raise 'ERROR: additional_fields Hash must contain a :fields key.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields)
 
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
