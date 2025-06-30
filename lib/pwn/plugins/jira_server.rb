@@ -148,6 +148,7 @@ module PWN
       #   summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
       #   issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
       #   description: 'optional - description of the issue',
+      #   epic_name: 'optional - name of the epic',
       #   additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
       # )
 
@@ -175,7 +176,7 @@ module PWN
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
 
-        epic_name = summary
+        epic_name = opts[:epic_name]
 
         http_body = {
           fields: {
@@ -186,7 +187,7 @@ module PWN
             issuetype: {
               name: issue_type.to_s.capitalize
             },
-            "#{epic_name_filed_key}": epic_name,
+            "#{epic_name_field_key}": epic_name,
             description: description
           }
         }
@@ -235,6 +236,7 @@ module PWN
             summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
             issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
             description: 'optional - description of the issue',
+            epic_name: 'optional - name of the epic',
             additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
           )
 
