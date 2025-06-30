@@ -8,7 +8,6 @@ require 'pwn/version'
 module PWN
   $stdout.sync = true # < Ensure that all print statements output progress in realtime
   $stdout.flush       # < Ensure that all print statements output progress in realtime
-  # TODO: Determine best balance for namespace naming conventions
   autoload :AWS, 'pwn/aws'
   autoload :Banner, 'pwn/banner'
   autoload :FFI, 'pwn/ffi'
@@ -16,6 +15,7 @@ module PWN
   autoload :Reports, 'pwn/reports'
   autoload :SAST, 'pwn/sast'
   autoload :WWW, 'pwn/www'
+  # TODO: If pwn.yaml is present, attempt to decrypt it, and initialize the YAML config
 
   # Display a List of Every PWN Module
 
