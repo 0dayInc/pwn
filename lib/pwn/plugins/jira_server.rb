@@ -29,7 +29,7 @@ module PWN
                       end
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
-        http_body = opts[:http_body].to_s.scrub
+        http_body = opts[:http_body]
         base_api_uri = opts[:base_api_uri]
 
         raise 'ERROR: base_api_uri cannot be nil.' if base_api_uri.nil?
@@ -63,7 +63,7 @@ module PWN
               content_type: 'application/json; charset=UTF-8',
               authorization: "Bearer #{token}"
             },
-            payload: http_body,
+            payload: http_body.to_json,
             verify_ssl: false
           )
 
