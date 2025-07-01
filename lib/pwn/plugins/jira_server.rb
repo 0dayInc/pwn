@@ -14,7 +14,7 @@ module PWN
 
       # Supported Method Parameters::
       # rest_call(
-      #   token: 'required - bearer token',
+      #   token: 'required - personal access token',
       #   http_method: 'optional HTTP method (defaults to GET)',
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
@@ -124,7 +124,7 @@ module PWN
       # Supported Method Parameters::
       # all_fields = PWN::Plugins::JiraServer.get_all_fields(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - bearer token'
+      #   token: 'required - personal access token'
       # )
 
       public_class_method def self.get_all_fields(opts = {})
@@ -145,9 +145,39 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # user = PWN::Plugins::JiraServer.get_user(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+      #   token: 'required - personal access token',
+      #   username: 'required - username to lookup (e.g. jane.doe)'
+      # )
+
+      public_class_method def self.get_user(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+
+        username = opts[:username]
+        raise 'ERROR: username cannot be nil.' if username.nil?
+
+        params = { username: username }
+
+        rest_call(
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: 'user',
+          params: params
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.get_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - bearer token',
+      #   token: 'required - personal access token',
       #   issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
       #   params: 'optional - additional parameters to pass in the URI (e.g. fields, expand, etc.)'
       # )
@@ -178,7 +208,7 @@ module PWN
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.create_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - bearer token',
+      #   token: 'required - personal access token',
       #   project_key: 'required - project key (e.g. PWN)',
       #   summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
       #   issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
@@ -266,8 +296,9 @@ module PWN
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.update_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - bearer token',
-      #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)'
+      #   token: 'required - personal access token',
+      #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
+      #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/path/to/file1.txt", "/path/to/file2.png"])'
       # )
 
       public_class_method def self.update_issue(opts = {})
@@ -283,15 +314,34 @@ module PWN
         fields = opts[:fields] ||= { fields: {} }
         raise 'ERROR: fields Hash must contain a :fields key that is also a Hash.' unless fields.is_a?(Hash) && fields.key?(:fields) && fields[:fields].is_a?(Hash)
 
+        attachments = opts[:attachments] ||= []
+
         http_body = fields
 
-        rest_call(
+        issue_resp = rest_call(
           http_method: :put,
           base_api_uri: base_api_uri,
           token: token,
           rest_call: "issue/#{issue}",
           http_body: http_body
         )
+
+        if attachments.any?
+          http_body = {
+            multipart: true,
+            file: attachments.map { |attachment| File.new(attachment, 'rb') }
+          }
+
+          rest_call(
+            http_method: :post,
+            base_api_uri: base_api_uri,
+            token: token,
+            rest_call: "issue/#{issue}/attachments",
+            http_body: http_body
+          )
+        end
+
+        issue_resp
       rescue StandardError => e
         raise e
       end
@@ -299,7 +349,7 @@ module PWN
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.delete_issue(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - bearer token',
+      #   token: 'required - personal access token',
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
       # )
 
@@ -339,38 +389,45 @@ module PWN
         puts "USAGE:
           all_fields = #{self}.get_all_fields(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - bearer token'
+            token: 'required - personal access token'
+          )
+
+          user = #{self}.get_user(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            token: 'required - personal access token',
+            username: 'required - username to lookup (e.g. jane.doe')'
           )
 
           issue_resp = #{self}.get_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - bearer token',
+            token: 'required - personal access token',
             issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
             params: 'optional - additional parameters to pass in the URI'
           )
 
           issue_resp = #{self}.create_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - bearer token',
+            token: 'required - personal access token',
             project_key: 'required - project key (e.g. PWN)',
             summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
             issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
             description: 'optional - description of the issue',
             epic_name: 'optional - name of the epic',
             additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)',
-            attachments: 'optional - array of attachment paths to upload to the issue (e.g. ['/path/to/file1.txt', '/path/to/file2.png'])'
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/path/to/file1.txt\", \"/path/to/file2.png\"])'
           )
 
           issue_resp = #{self}.update_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - bearer token',
+            token: 'required - personal access token',
             issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
-            fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)'
+            fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/path/to/file1.txt\", \"/path/to/file2.png\"])'
           )
 
           issue_resp = #{self}.delete_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - bearer token',
+            token: 'required - personal access token',
             issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
           )
 
