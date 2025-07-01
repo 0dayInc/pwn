@@ -64,7 +64,7 @@ module PWN
           if http_body.is_a?(Hash)
             if http_body.key?(:multipart)
               headers[:content_type] = 'multipart/form-data'
-              headers[:x_atlassian_token] => 'no-check'
+              headers[:x_atlassian_token] = 'no-check'
             else
               http_body = http_body.to_json
             end
@@ -82,7 +82,10 @@ module PWN
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
 
-        JSON.parse(response, symbolize_names: true)
+        jira_response = response if response.is_a?(RestClient::Response) && response.code == 204
+        jira_response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response) && response.code != 204
+
+        jira_response
       rescue RestClient::ExceptionWithResponse => e
         if e.response
           puts "HTTP BASE URL: #{base_api_uri}"
