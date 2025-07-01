@@ -148,7 +148,8 @@ module PWN
       # user = PWN::Plugins::JiraServer.get_user(
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - personal access token',
-      #   username: 'required - username to lookup (e.g. jane.doe)'
+      #   username: 'required - username to lookup (e.g. jane.doe)',
+      #   params: 'optional - additional parameters to pass in the URI (e.g. expand, etc.)'
       # )
 
       public_class_method def self.get_user(opts = {})
@@ -162,7 +163,10 @@ module PWN
         username = opts[:username]
         raise 'ERROR: username cannot be nil.' if username.nil?
 
-        params = { username: username }
+        params = { key: username }
+        additional_params = opts[:params]
+
+        params.merge!(additional_params) if additional_params.is_a?(Hash)
 
         rest_call(
           base_api_uri: base_api_uri,
@@ -276,7 +280,7 @@ module PWN
 
           http_body = {
             multipart: true,
-            file: attachments.map { |attachment| File.new(attachment, 'rb') }
+            file: attachments.map { |attachment| File.binread(attachment) }
           }
 
           rest_call(
@@ -329,7 +333,7 @@ module PWN
         if attachments.any?
           http_body = {
             multipart: true,
-            file: attachments.map { |attachment| File.new(attachment, 'rb') }
+            file: attachments.map { |attachment| File.binread(attachment) }
           }
 
           rest_call(
@@ -395,7 +399,8 @@ module PWN
           user = #{self}.get_user(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - personal access token',
-            username: 'required - username to lookup (e.g. jane.doe')'
+            username: 'required - username to lookup (e.g. jane.doe')',
+            params: 'optional - additional parameters to pass in the URI (e.g. expand, etc.)'
           )
 
           issue_resp = #{self}.get_issue(
