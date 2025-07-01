@@ -22,6 +22,7 @@ module PWN
       # )
 
       private_class_method def self.rest_call(opts = {})
+        token = opts[:token]
         http_method = if opts[:http_method].nil?
                         :get
                       else
@@ -29,12 +30,15 @@ module PWN
                       end
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
+        headers = opts[:http_headers] ||= {
+          content_type: 'application/json; charset=UTF-8',
+          authorization: "Bearer #{token}"
+        }
+
         http_body = opts[:http_body]
         base_api_uri = opts[:base_api_uri]
 
         raise 'ERROR: base_api_uri cannot be nil.' if base_api_uri.nil?
-
-        token = opts[:token]
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
@@ -42,31 +46,38 @@ module PWN
         spinner = TTY::Spinner.new
         spinner.auto_spin
 
+        max_request_attempts = 3
+        tot_request_attempts ||= 1
+
         case http_method
         when :delete, :get
+          headers[:params] = params
           response = rest_client.execute(
             method: http_method,
             url: "#{base_api_uri}/#{rest_call}",
-            headers: {
-              content_type: 'application/json; charset=UTF-8',
-              authorization: "Bearer #{token}",
-              params: params
-            },
-            verify_ssl: false
+            headers: headers,
+            verify_ssl: false,
+            timeout: 180
           )
 
         when :post, :put
+          if http_body.is_a?(Hash)
+            if http_body.key?(:multipart)
+              headers[:content_type] = 'multipart/form-data'
+              headers[:x_atlassian_token] => 'no-check'
+            else
+              http_body = http_body.to_json
+            end
+          end
+
           response = rest_client.execute(
             method: http_method,
             url: "#{base_api_uri}/#{rest_call}",
-            headers: {
-              content_type: 'application/json; charset=UTF-8',
-              authorization: "Bearer #{token}"
-            },
-            payload: http_body.to_json,
-            verify_ssl: false
+            headers: headers,
+            payload: http_body,
+            verify_ssl: false,
+            timeout: 180
           )
-
         else
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
@@ -80,10 +91,31 @@ module PWN
           puts "HTTP RESPONSE HEADERS: #{e.response.headers}"
           puts "HTTP RESPONSE BODY:\n#{e.response.body}\n\n\n"
         end
+
+        raise e
+      rescue IO::TimeoutError => e
+        raise e if tot_request_attempts == max_request_attempts
+
+        tot_request_attempts += 1
+        @@logger.warn("Timeout Error: Retrying request (Attempt #{tot_request_attempts}/#{max_request_attempts})")
+        sleep(2)
+        retry
+      rescue Errno::ECONNREFUSED => e
+        raise e if tot_request_attempts == max_request_attempts
+
+        puts "\nTCP Connection Unavailable."
+        puts "Attempt (#{tot_request_attempts} of #{max_request_attempts}) in 60s"
+        60.downto(1) do
+          print '.'
+          sleep 1
+        end
+        tot_request_attempts += 1
+
+        retry
       rescue StandardError => e
         raise e
       ensure
-        spinner.stop
+        spinner.stop unless spinner.nil?
       end
 
       # Supported Method Parameters::
@@ -150,6 +182,7 @@ module PWN
       #   description: 'optional - description of the issue',
       #   epic_name: 'optional - name of the epic',
       #   additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
+      #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/path/to/file1.txt", "/path/to/file2.png"])'
       # )
 
       public_class_method def self.create_issue(opts = {})
@@ -173,6 +206,9 @@ module PWN
         additional_fields = opts[:additional_fields] ||= { fields: {} }
         raise 'ERROR: additional_fields Hash must contain a :fields key that is also a Hash.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields) && additional_fields[:fields].is_a?(Hash)
 
+        attachments = opts[:attachments] ||= []
+        raise 'ERROR: attachments must be an Array.' unless attachments.is_a?(Array)
+
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
 
@@ -194,13 +230,32 @@ module PWN
 
         http_body[:fields].merge!(additional_fields[:fields])
 
-        rest_call(
+        issue_resp = rest_call(
           http_method: :post,
           base_api_uri: base_api_uri,
           token: token,
           rest_call: 'issue',
           http_body: http_body
         )
+
+        if attachments.any?
+          issue = issue_resp[:key]
+
+          http_body = {
+            multipart: true,
+            file: attachments.map { |attachment| File.new(attachment, 'rb') }
+          }
+
+          rest_call(
+            http_method: :post,
+            base_api_uri: base_api_uri,
+            token: token,
+            rest_call: "issue/#{issue}/attachments",
+            http_body: http_body
+          )
+        end
+
+        issue_resp
       rescue StandardError => e
         raise e
       end
@@ -299,7 +354,8 @@ module PWN
             issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
             description: 'optional - description of the issue',
             epic_name: 'optional - name of the epic',
-            additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
+            additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)',
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. ['/path/to/file1.txt', '/path/to/file2.png'])'
           )
 
           issue_resp = #{self}.update_issue(
@@ -307,6 +363,12 @@ module PWN
             token: 'required - bearer token',
             issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
             fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)'
+          )
+
+          issue_resp = #{self}.delete_issue(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            token: 'required - bearer token',
+            issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
           )
 
           **********************************************************************
