@@ -43,9 +43,9 @@ module PWN
         spinner.auto_spin
 
         case http_method
-        when :get
+        when :delete, :get
           response = rest_client.execute(
-            method: :get,
+            method: http_method,
             url: "#{base_api_uri}/#{rest_call}",
             headers: {
               content_type: 'application/json; charset=UTF-8',
@@ -55,9 +55,9 @@ module PWN
             verify_ssl: false
           )
 
-        when :post
+        when :post, :put
           response = rest_client.execute(
-            method: :post,
+            method: http_method,
             url: "#{base_api_uri}/#{rest_call}",
             headers: {
               content_type: 'application/json; charset=UTF-8',
@@ -171,7 +171,7 @@ module PWN
         description = opts[:description].to_s.scrub
 
         additional_fields = opts[:additional_fields] ||= { fields: {} }
-        raise 'ERROR: additional_fields Hash must contain a :fields key.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields)
+        raise 'ERROR: additional_fields Hash must contain a :fields key that is also a Hash.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields) && additional_fields[:fields].is_a?(Hash)
 
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
@@ -200,6 +200,68 @@ module PWN
           token: token,
           rest_call: 'issue',
           http_body: http_body
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # issue_resp = PWN::Plugins::JiraServer.update_issue(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+      #   token: 'required - bearer token',
+      #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)'
+      # )
+
+      public_class_method def self.update_issue(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+        issue = opts[:issue]
+        raise 'ERROR: project_key cannot be nil.' if issue.nil?
+
+        fields = opts[:fields] ||= { fields: {} }
+        raise 'ERROR: fields Hash must contain a :fields key that is also a Hash.' unless fields.is_a?(Hash) && fields.key?(:fields) && fields[:fields].is_a?(Hash)
+
+        http_body = fields
+
+        rest_call(
+          http_method: :put,
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: "issue/#{issue}",
+          http_body: http_body
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # issue_resp = PWN::Plugins::JiraServer.delete_issue(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+      #   token: 'required - bearer token',
+      #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
+      # )
+
+      public_class_method def self.delete_issue(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+
+        issue = opts[:issue]
+
+        raise 'ERROR: issue cannot be nil.' if issue.nil?
+
+        rest_call(
+          http_method: :delete,
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: "issue/#{issue}"
         )
       rescue StandardError => e
         raise e
@@ -238,6 +300,13 @@ module PWN
             description: 'optional - description of the issue',
             epic_name: 'optional - name of the epic',
             additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
+          )
+
+          issue_resp = #{self}.update_issue(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            token: 'required - bearer token',
+            issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
+            fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)'
           )
 
           **********************************************************************
