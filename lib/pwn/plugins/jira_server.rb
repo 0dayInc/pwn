@@ -244,7 +244,6 @@ module PWN
         raise 'ERROR: additional_fields Hash must contain a :fields key that is also a Hash.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields) && additional_fields[:fields].is_a?(Hash)
 
         attachment = opts[:attachment]
-        raise "ERROR: #{attachment} not found." unless attachment.nil? || File.exist?(attachment)
 
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
@@ -275,7 +274,9 @@ module PWN
           http_body: http_body
         )
 
-        if attachment.any?
+        if attachment
+          raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
+
           issue = issue_resp[:key]
 
           http_body = {
@@ -319,7 +320,6 @@ module PWN
         raise 'ERROR: fields Hash must contain a :fields key that is also a Hash.' unless fields.is_a?(Hash) && fields.key?(:fields) && fields[:fields].is_a?(Hash)
 
         attachment = opts[:attachment]
-        raise "ERROR: #{attachment} not found." unless File.exist?(attachment) || attachment.nil?
 
         http_body = fields
 
@@ -331,7 +331,9 @@ module PWN
           http_body: http_body
         )
 
-        if attachment.any?
+        if attachment
+          raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
+
           http_body = {
             multipart: true,
             file: File.new(attachment, 'rb')
