@@ -168,7 +168,7 @@ module PWN
         issue_type = opts[:issue_type]
         raise 'ERROR: issue_type values must be one of :epic, :story, or :bug.' unless %i[epic story bug].include?(issue_type)
 
-        description = opts[:description]
+        description = opts[:description].to_s.scrub
 
         additional_fields = opts[:additional_fields] ||= { fields: {} }
         raise 'ERROR: additional_fields Hash must contain a :fields key.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields)
