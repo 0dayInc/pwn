@@ -16,6 +16,7 @@ module PWN
   autoload :SAST, 'pwn/sast'
   autoload :WWW, 'pwn/www'
   # TODO: If pwn.yaml is present, attempt to decrypt it, and initialize the YAML config
+  # Do this within PWN::Plugins::AuthenticationHelper?
 
   # Display a List of Every PWN Module
 

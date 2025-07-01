@@ -1,190 +1,180 @@
-110e615 Merge pull request #658 from ninp0/master
-6258d66 PWN::Plugins::TransparentBrowser module - update #open method to default to debugger view when devtools: true and browser_type: :firefox.  Implement #udpate_about_config method for Firefox as well
-ad70268 Merge pull request #657 from ninp0/master
-7c25f44 PWN::Plugins::TransparentBrowser module - incognito sessions by default in #open method #no_persistent_cookies?
-418029b Merge pull request #656 from ninp0/master
-fc484c1 PWN::Plugins::TransparentBrowser module - #bugfix in #open method to always start browsers maximized (when supported of course)
-e1cb5b8 Merge pull request #655 from ninp0/master
-48e4735 PWN::Plugins::TransparentBrowser module - #bugfix in #toggle_devtools method
-e5209a6 PWN::Plugins::TransparentBrowser module - update to #new_tab method which reduces complexity when opening tabs
-6849c76 Merge pull request #654 from ninp0/master
-49ed078 PWN::Plugins::TransparentBrowser module - #bugfixes centered around opening devtools with console drawer, switching devtools panels, toggling devtools, etc.
-ba54d2f PWN::Plugins::TransparentBrowser module - #bugfixes centered around opening devtools with console drawer, switching devtools panels, toggling devtools, etc.
-30d02ff PWN::Plugins::TransparentBrowser module - #bugfixes in #open method when devtools parameter == true
-b8f6d02 Merge pull request #653 from ninp0/master
-421b19d PWN::Plugins::TransparentBrowser module - #bugfixes in #close_tab method
-e2aadd0 PWN::Plugins::TransparentBrowser module - #bugfix in #close_tab method
-8435896 Merge pull request #652 from ninp0/master
-ac8e9b9 PWN::Plugins::TransparentBrowser module - #bugfix in #close_tab method
-7d2eaa8 Merge pull request #651 from ninp0/master
-a5f79ce PWN::Plugins::TransparentBrowser module - more bugfixes
-0e4c6b3 Merge pull request #650 from ninp0/master
-b5f4636 PWN::Plugins::TransparentBrowser module - if with_devtools, open console drawer by default in #open && #new_tab methods.  Also switch to an inactive tab if closing a tag thats currently active.
-ec1f6be Merge pull request #649 from ninp0/master
-bf79a6b PWN::Plugins::TransparentBrowser module - if with_devtools, open console drawer by default in #open && #new_tab methods
-d475c03 PWN::Plugins::TransparentBrowser module - add #jmp_devtools_panel && #toogle_devtools. Also rename #switch_tab method to #jmp_tab
-4468437 Merge pull request #648 from ninp0/master
-3bcbb26 PWN::Plugins::TransparentBrowser module - #bugfix in #new_tab method
-57bb78f Merge pull request #647 from ninp0/master
-6436eb1 PWN::Plugins::TransparentBrowser module - #bugfix in #new_tab method
-eda3c5d PWN::Plugins::TransparentBrowser module - #bugfix in #new_tab method
-fc0acd2 Merge pull request #646 from ninp0/master
-0647c7f PWN::Plugins::TransparentBrowser module - update default url in #new_tab method from "about:blank" to "about:about"
-37c4252 Merge pull request #645 from ninp0/master
-d5f443c PWN::Plugins::TransparentBrowser module - re-enable bidi as the tested chrome browser was running incompat chromedriver version + with_devtools #bugfix
-ca98e91 Merge pull request #644 from ninp0/master
-243102f PWN::Plugins::TransparentBrowser module - comment out browser_obj[:bidi] until this error is addressed: `Failed to initialize BiDi Mapper: TypeError: Failed to set the innerHTML property on Element: This document requires TrustedHTML assignment.`
-8cee663 Merge pull request #643 from ninp0/master
-2579702 PWN::Plugins::TransparentBrowser module - change active key in all tab methods return objects to state and return same object format as other tab methods in #close_tab method
-1f6667c Merge pull request #642 from ninp0/master
-b983acb PWN::Plugins::TransparentBrowser module - return hash object when calling #new_tab && #switch_tab methods + #bugfix
-75fbbcf PWN::Plugins::TransparentBrowser module - return hash object when calling #new_tab && #switch_tab methods + #bugfix
-70a452b Merge pull request #641 from ninp0/master
-a8a1c56 PWN::Plugins::TransparentBrowser module - return hash object when calling #new_tab method
-fba67cd Merge pull request #640 from ninp0/master
-d4fcaa2 PWN::Plugins::TransparentBrowser module - include headless as a browser_type for with_devtools
-185db0d Merge pull request #639 from ninp0/master
-47f3713 PWN::Plugins::TransparentBrowser module - return a bidi object in browser_obj when with_devtools option = true
-5124563 Merge pull request #638 from ninp0/master
-464319c PWN::Plugins::TransparentBrowser module - a lot of devtools enhancements
-e6c077d Merge pull request #637 from ninp0/master
-e3fcb45 PWN::Plugins::TransparentBrowser module - implement #devtools_console method for browser_type == :chrome && :firefox (including headless).  Overhaul #find_elements_by_text and #dump_links methods
-c563239 Merge pull request #636 from ninp0/master
-4cf676c PWN::Plugins::TransparentBrowser module - implement #devtools_console method for browser_type == :chrome
-88cf250 Merge pull request #635 from ninp0/master
-4ef3e2d .ruby-version - bump to 3.3.3
-42ead41 Merge pull request #634 from ninp0/master
-d584b49 PWN::AWS::IAM module - implement #decode_key method.  Useful for extracting account_id from access key ids
-a40a8a6 PWN::AWS::IAM module - implement #decode_key method.  Useful for extracting account_id from access key ids
-ead2b64 Merge pull request #633 from ninp0/master
-eb4ae6f pwn_crt_sh Driver - report_path #bugfix
-05c27ae Merge pull request #632 from ninp0/master
-d0251f6 pwn_crt_sh Driver - display result to STDOUT in addition to writing to JSON file
-be32d05 pwn_crt_sh Driver - Initial commit w/ basic list of subdomains
-f09efb9 pwn_crt_sh Driver - Initial commit w/ basic list of subdomains
-2a8ea88 Merge pull request #631 from ninp0/master
-6c74d5e PWN::Plugins::TransparentBrowser module - #bugfixes in #close method
-f18f61d Merge pull request #630 from ninp0/master
-a956e46 PWN::Plugins::TransparentBrowser module - #bugfixes in #close method
-4d3fe84 Merge pull request #629 from ninp0/master
-4e8a680 pwn_www_uri_buster Driver - implement --include-response-codes and --exclude-response-codes #rubocop
-c9ddb07 Merge pull request #628 from ninp0/master
-8835abe pwn_www_uri_buster Driver - implement --include-response-codes and --exclude-response-codes
-b6f6ce2 Merge pull request #627 from ninp0/master
-6052c71 PWN::Plugins::TransparentBrowser module - configure logger to display to STDOUT w/ log level of error
-dd57a5d Merge pull request #626 from ninp0/master
-dd197af PWN::Plugins::ThreadPool module - regress to previous method #faster
-1a4db55 Merge pull request #625 from ninp0/master
-4bb4dd9 PWN::Plugins::IPInfo module - #bugfixes in #bruteforce_subdomain method
-dfc3e9a Merge pull request #624 from ninp0/master
-5da2e6f PWN::Plugins::IPInfo module - handle multiple ip addresses if hostname returns more than one.
-f0f5d99 Merge pull request #623 from ninp0/master
-6b82bd8 PWN::Plugins::IPInfo module - #bugfixes && implement new method #check_rfc1918
-e25d821 Merge pull request #622 from ninp0/master
-c9a05d7 PWN::Plugins::ThreadPool module - overhaul #fill method
-d2cd876 Merge pull request #621 from ninp0/master
-8a28b6b PWN::Plugins::IPInfo module - proper JSON output to results_file within #bruteforce_subdomains method
-b1c7c0b Merge pull request #620 from ninp0/master
-d413c23 PWN::Plugins::IPInfo module - update usage in #help method
-05603df Merge pull request #619 from ninp0/master
-5a19084 PWN::Plugins::IPInfo module - implement #bruteforce_subdomains method
-9b085a9 PWN::Plugins::IPInfo module - implement #bruteforce_subdomains method
-9449de4 Merge pull request #618 from ninp0/master
-ac53e4f PWN::Plugins::OpenAI && PWN::Plugins::Ollama modules - implement spinner parameter for #chat methods when using pwn-irc command in pwn REPL
-94c5696 Merge pull request #617 from ninp0/master
-87f0763 pwn REPL - implement multiple LLM support for pwn-irc (e.g. OpenAI, Ollama via Open WebUI w/ its respective models, etc).  Update PWN::Plugins::Ollama module to get working #chat method that works identically to #PWN::Plugins::OpenAI.chat method.  This is to support AI agent collaboration / context switching / reduce cost of usage via pwn-irc command
-3be8b75 Merge pull request #616 from ninp0/master
-aac1bee etc/pwn.yaml.EXAMPLE - share ninja w/ the tubes.
-9be17b8 Merge pull request #615 from ninp0/master
-8efad4f pwn REPL driver - prefer weechat IRC client over irssi to reduce complexity
-33900ee Merge pull request #614 from ninp0/master
-b113f88 Merge branch 'master' of ssh://github.com/ninp0/pwn
-6cad32a pwn REPL driver - prefer weechat IRC client over irssi #tweaks
-867cf40 Merge pull request #613 from ninp0/master
-de679e6 pwn REPL driver - prefer weechat IRC client over irssi
-c01600c pwn REPL driver - prefer weechat IRC client over irssi
-e6ae14a Merge pull request #612 from ninp0/master
-64ee00f pwn REPL driver - initial implementation of pwn-irc REPL command for AI agent orchestration #agi
-6e350c5 Merge pull request #611 from ninp0/master
-01081c9 pwn REPL - implement pwn-irc commmand to begin implementing AI agents #rubocop
-9c99126 Merge branch 'master' of ssh://github.com/ninp0/pwn
-f23e9e5 pwn REPL - implement pwn-irc commmand to begin implementing AI agents #rubocop
-eef3e5d Merge pull request #610 from ninp0/master
-a93d908 pwn REPL - implement pwn-irc commmand to begin implementing AI agents
-3e42dd8 Merge pull request #609 from ninp0/master
-abc0fcf PWN::Plugins::IRC module - #bugfix in #privmsg method
-26db157 Merge pull request #608 from ninp0/master
-ccdcd17 PWN::Plugins::IRC module - change #send method to be privately scoped within the module.
-c25b6ff Merge pull request #607 from ninp0/master
-5e452a1 PWN::Plugins::IRC module - add #ping, #pong, and #privmsg methods
-4dce789 PWN::Plugins::IRC module - decouple join command from #connect method. Implement #join, #part, and #quits methods
-61ca618 Merge pull request #606 from ninp0/master
-e5bac30 PWN::Plugins::IRC module - #bugfix in #listen mehthod
-e4f0961 Merge pull request #605 from ninp0/master
-9d68d14 PWN::Plugins::IRC module - simplify #send mehthod
-e0cf1be Merge pull request #604 from ninp0/master
-1acc118 PWN::Plugins::IRC module - #chomp message when logging to STDOUT in #listen method.
-1e162e3 PWN::Plugins::IRC module - #chomp message when logging to STDOUT in #listen method.
-83843be Merge pull request #603 from ninp0/master
-7e440cd PWN::Plugins::IRC module - yield entire message when passing block to #listen method and replace #gets with #wait_readable method in #send method to ensure we can process a socket response in its entirety.
-46c2e49 PWN::Plugins::IRC module - yeild entire message when passing block to #listen method and replace #gets with #wait_readable method in #send method to ensure we can process a socket response in its entirety.
-d2ed62e Merge pull request #602 from ninp0/master
-6dfbf89 PWN::Plugins::IRC module - #bugfix in #listen method
-4da3cb6 Merge pull request #601 from ninp0/master
-332bbcb PWN::Plugins::IRC module - #rubocop_fix
-3125829 Merge pull request #600 from ninp0/master
-e70fbeb Gemfile - remove cinch gem in favor of native PWN::Plugins::IRC client module to support AI agents
-9fd5240 Merge pull request #599 from ninp0/master
-0f145f0 Gemfile - add cinch for AI agent rollout
-038de06 Merge pull request #598 from ninp0/master
-9fabf07 PWN::Plugins::REPL module - start in Pry.main instead of self (i.e. PWN::Plugins::REPL) to enable proper autocompletion, session method definitions, etc.
-8a6c57b Merge pull request #597 from ninp0/master
-f5e2343 PWN::Plugins::OpenAI module - change default model to gpt-4o for #chat method
-aedd2d0 Gemfile - bump altcomms
-2f171a8 Merge pull request #596 from ninp0/master
-50e8835 Gemfile - bump altcomms
-1f50cec Merge pull request #595 from ninp0/master
-7fc05e9 Gemfile - bump altcomms
-0fe7b33 Merge pull request #594 from ninp0/master
-0eca73f Gemfile - bump altcomms
-9e7fb26 Merge pull request #593 from ninp0/master
-a85391b Gemfile - mqtt tx / rx support
-c5e18c2 Merge pull request #592 from ninp0/master
-497c0b4 Gemfile - Bump alt comms to latest
-44e56f3 Merge pull request #591 from ninp0/master
-95a841f Gemfile - Bump alt comms to latest
-0d5a609 Merge pull request #590 from ninp0/master
-0992275 Gemfile - Bump alt comms to latest
-5a74e71 Gemfile - Bump alt comms to latest
-3b76005 Merge pull request #589 from ninp0/master
-8b7f2a5 Gemfile - Bump alt comms to latest
-26c0ca2 Merge pull request #588 from ninp0/master
-79ad44c Gemfile - Bump alt comms to latest
-a8d7425 Merge pull request #587 from ninp0/master
-97a5e0e Gemfile - Bump alt comms to latest
-25980d4 Merge pull request #586 from ninp0/master
-35679cc Gemfile - Bump alt comms to latest
-ab25b41 Merge pull request #585 from ninp0/master
-d6c8ec9 Gemfile - Bump alt comms to latest
-72a02ca Merge pull request #584 from ninp0/master
-5ad2a4b Gemfile - Bump alt comms to latest
-79950a3 Merge pull request #583 from ninp0/master
-087ab5b Gemfile - Bump alt comms to latest
-fd0be6d Merge pull request #582 from ninp0/master
-1a798d8 Gemfile - Bump alt comms to latest
-082aaf8 Merge pull request #581 from ninp0/master
-ae5c290 Gemfile - Bump alt comms to latest
-cdf7b22 Merge pull request #580 from ninp0/master
-0897768 Gemfile - Bump alt comms to latest
-295a0d0 Merge pull request #579 from ninp0/master
-da8e763 Replace request.pentest@0dayinc.com w/ support@0dayinc.com for all #authors methods and #rubocop tweaks
-f7de536 Merge pull request #578 from ninp0/master
-d412c52 Gemfile - Bump alt comms to latest
-c6c15f0 Merge pull request #577 from ninp0/master
-892937f Gemfile - Bump alt comms to latest
-4205355 Merge pull request #576 from ninp0/master
-0b9db19 Gemfile - Bump alt comms to latest
-fdf4546 Merge pull request #575 from ninp0/master
-66268ac Gemfile - Bump alt comms to latest
-43fa953 Merge pull request #574 from ninp0/master
-3575846 Merge pull request #573 from ninp0/master
+22b6ac6 Merge pull request #734 from ninp0/master
+2dd1517 PWN::Plugins::JiraServer module - attachment #bugfixes
+a60f75b Merge pull request #733 from ninp0/master
+303df8c PWN::Plugins::JiraServer module - implement attachment support in #update_issue method, create #get_user method, and update usage in #help method
+d50e2a0 Merge pull request #732 from ninp0/master
+4f43542 PWN::Plugins::JiraServer module - #bugfixes in #rest_call method
+96083c3 Merge pull request #731 from ninp0/master
+9671992 PWN::Plugins::JiraServer module - implement attachment support in #create_issue method and update usage in #help method
+fc201e5 Merge pull request #730 from ninp0/master
+eb14b6c PWN::Plugins::JiraServer module - add #update_issue && #delete_issue methods
+ecb8846 Merge pull request #729 from ninp0/master
+11e0418 PWN::Plugins::JiraServer module - #bugfix in #create_issue method
+3c569a2 Merge pull request #728 from ninp0/master
+d552c7c PWN::Plugins::JiraServer module - #bugfix in #rest_call method
+f670236 Merge pull request #727 from ninp0/master
+d2d9e8f PWN::Plugins::JiraServer module - #bugfix in #create_issue method
+74770c8 Merge pull request #726 from ninp0/master
+b56164e PWN::Plugins::JiraServer module - #bugfixes in #create_issue method
+4870083 Merge pull request #725 from ninp0/master
+4186563 PWN::Plugins::JiraServer module - ensure `additional_fields` parameter contains the `:fields` key for streamlined merging in #create_issue method
+0be22c2 Merge pull request #724 from ninp0/master
+94239bb PWN::Plugins::JiraServer module - #bugfix in #get_all_fields && #create_issue methods
+6f2adcf Merge pull request #723 from ninp0/master
+27b924d PWN::Plugins::JiraServer module - implement #create_issue && #get_all_fields methods
+c361ec5 Merge pull request #722 from ninp0/master
+f82f9ba build_pwn_gem.sh - display funding information at the end of script
+12f4679 Merge pull request #721 from ninp0/master
+4efd4f0 PWN::Plugins::JiraServer module - update example `issue` parameter examples in #get_issue method
+8238c1c Merge pull request #720 from ninp0/master
+bf8eead pwn.gemspec - Add sponsor link to support `bundle fund` command #rubocop_fix
+449792c Merge pull request #719 from ninp0/master
+db5dd43 PWN::Plugins::JiraServer module - update example `base_api_uri` parameter examples in #help method
+e7c2c20 Merge pull request #718 from ninp0/master
+fab3c3d pwn.gemspec - Add sponsor link to support `bundle fund` command
+e3742fa Merge pull request #717 from ninp0/master
+5ab2f40 PWN::Plugins::JiraServer module - add optional parameter `params` in #manual_call and #get_issue methods
+eb7527b Merge pull request #716 from ninp0/master
+19e80a0 PWN::Plugins::JiraServer module - more descriptive error handling in rescue `RestClient::ExceptionWithResponse`
+0a7167a Merge pull request #715 from ninp0/master
+6a1cdbf #rubocop fixes
+97deda5 PWN::Plugins::JiraServer module - bugfix in rescue within #rest_call method
+13c16a8 Merge pull request #714 from ninp0/master
+b3e8407 PWN::Plugins::VIN module - initial commit
+3543abe Merge pull request #713 from ninp0/master
+8e81734 PWN::Plugins::BlackDuckBinaryAnalysis module - update #help method
+e53e08f Merge pull request #712 from ninp0/master
+4516786 PWN::Plugins::BlackDuckBinaryAnalysis module && pwn_bdba_scan Driver - Support SPDX report type withing #generate_product_report method
+7a4afa9 Merge pull request #711 from ninp0/master
+8c6c270 Gemfile - bump to latest gem versions
+d11c5a1 Merge pull request #710 from ninp0/master
+af14e9f .ruby-version - Bump to ruby-3.4.4
+f864d02 Merge pull request #709 from ninp0/master
+aecb567 All modules within `PWN::SAST` namespace - update NIST 800-53 URI values for `nist_800_53_uri` key in #security_references method #bugfixes
+62414c8 Merge pull request #708 from ninp0/master
+f75da21 All modules within `PWN::SAST` namespace - update NIST 800-53 URI values for `nist_800_53_uri` key in #security_references method
+53fde1c Merge pull request #707 from ninp0/master
+a52bae2 Packer provisioners - #bugfixes in aliases.rb && radare2.sh
+c8e8a39 Merge pull request #706 from ninp0/master
+5317fb2 PWN::Banner::Radare2AI module - initial commmit
+9dee091 Packer aliases.sh provisioner - slight tweak to r2_prompt
+a25de35 Merge pull request #705 from ninp0/master
+cb42884 Packer aliases.sh provisioner - cleaner r2_prompt
+487080c Merge pull request #704 from ninp0/master
+cf54811 Packer provisioner Radare2 - #bugfix in path to r2-pwn-layout
+994de46 Rubocop fixes
+3c97de9 Packer provisioner Radare2 - install decompiler and AI plugins && add r2 alias to aliases.sh
+c30c6b1 Merge pull request #703 from ninp0/master
+f9322b4 Gemfile - bump gem versions to latest
+dacf572 install.sh - add Packer provisioner `bashrc.sh` to `ruby-gem` `pwn_deploy_type`
+f64826a Merge pull request #702 from ninp0/master
+1d25a30 pwn_bdba_scan Driver - #bugfix in `--queue-timeout`, `--scan-attempts`, and `--sleep-between-scan-attempts`
+b7466c0 Merge pull request #701 from ninp0/master
+32c4a79 PWN::Plugins::SonMicroRFID module - #rubocop
+275d477 PWN::Plugins::SonMicroRFID module - change authN in #read_tag method to be optional and false by default
+e7be0e6 Merge pull request #700 from ninp0/master
+e358e3c pwn_serial_son_micro_sm132_rfid Driver - add ability to update a single tag and refactor PWN::Plugins::SonMicroRFID for better stability
+5223320 pwn_serial_msr206 Driver - tweak in menu labels
+2064c4f Merge pull request #699 from ninp0/master
+11230fe pwn_serial_msr206 Driver - add ability to update a single card and refactor PWN::Plugins::MSR206 for better stability
+8d5b33f Merge pull request #698 from ninp0/master
+b06af52 pwn_serial_msr206 - Minor #bugfixes in MSR206 driver
+6b8ab7c Merge pull request #697 from ninp0/master
+7edea37 Rubocop - auto-gen-config and implement fix in PWN::Plugins::XXD module
+6a9c1ea Gemfile - pull in latest gem versions
+520179d Gemfile - pull in latest gem versions per Dependabot alerts
+5d37ba7 Merge pull request #696 from ninp0/master
+68735ea Gemfile - pull in latest gem versions
+6d20ac2 Merge pull request #695 from ninp0/master
+034afc4 Gemfile - pull in latest gem versions
+974a73c Merge pull request #694 from ninp0/master
+c030676 Gemfile - pull in latest gem versions
+bef4609 Gemfile - pull in latest gem versions
+2b3096b Merge pull request #693 from ninp0/master
+1c539f8 Gemfile - pull in latest gem versions
+d36a20b Merge pull request #692 from ninp0/master
+9cb54fc `rubocop --auto-gen-config`
+c331c05 Gemfile - pull in latest gem versions
+a26e739 Merge pull request #691 from ninp0/master
+e4c332f Gemfile - pull in latest gem versions
+8cd388f Merge pull request #690 from ninp0/master
+a048fc2 PWN::WWW::REPL module - #bugfixs in scope details for pwn-irc command (i.e. AI chat env)
+b8ec447 Merge pull request #689 from ninp0/master
+57ce056 PWN::WWW::HackerOne module - return all data from graphql query in #get_scope_details method
+85808bf Merge pull request #688 from ninp0/master
+e803d94 PWN::WWW::HackerOne module - implement #get_hacktivity method
+63ff432 Merge pull request #687 from ninp0/master
+4378666 Gemfile - pull in latest gem versions
+4278027 Merge pull request #686 from ninp0/master
+f9fbec5 Gemfile - pull in latest gem versions
+86641b2 Merge pull request #685 from ninp0/master
+fdede41 Gemfile - pull in latest gem versions
+255909a Merge pull request #684 from ninp0/master
+7f31110 Gemfile - pull in latest gem versions
+a8731f8 Merge pull request #683 from ninp0/master
+3b6cd2e Gemfile - pull in latest gem versions
+df928e0 Merge pull request #682 from ninp0/master
+69f2ed1 pwn_nmap_discover_tcp_udp - #bugfix in `unitialized constant FileUtils (NameError)`
+32b9752 Merge pull request #681 from ninp0/master
+65f69d7 Gemfile - bump version of meshtastic that eliminates conflict w/ wisper binaries and pulls in latest protobuf for meshtastic
+5e86d11 Merge pull request #680 from ninp0/master
+4be100e PWN::Plugins::FlipperZero module - #more_bugfixes
+8b74a2b PWN::Plugins::FlipperZero module - #bugfixes
+e06ba71 PWN::Plugins::FlipperZero module - #tweaks
+af5540e PWN::Plugins::FlipperZero module - Initial commit
+d152d16 Merge pull request #679 from ninp0/master
+2568761 Gemfile && PWN::Plugins::Serial module - #bugfixes / migration #tweaks
+93234f9 Merge pull request #678 from ninp0/master
+ea35d38 Gemfile && PWN::Plugins::Serial module - migrate deprecated serialport gem to uart gem :P
+8ede362 Ruby - bump version to 3.4.1
+8d9597e Merge pull request #677 from ninp0/master
+25354f1 PWN::Banners::Matrix module - add #you? method for fun animation
+353d3ed PWN::Banners::Matrix module - add #you? method for fun animation
+a36646d Merge pull request #676 from ninp0/master
+73a53c6 PWN::Plugins::Vault - update usage for #edit and #help methods to include editor parameter
+2a5554c Merge pull request #675 from ninp0/master
+512ff1d PWN::Plugins::Vault - ensure editor path exists prior to decrypting file.
+9c3ce45 Merge pull request #674 from ninp0/master
+778f3e9 PWN::Plugins::DetectOS module - simplify #arch method
+0fdb24d PWN::Plugins::DetectOS module - add #endian method to simply its use in other modules, drivers, && sub-commands
+ec5ad8b Merge pull request #673 from ninp0/master
+021ba5e pwn-asm sub-command in pwn REPL driver, PWN::Plugins::REPL, && PWN::Plugins::Assembly modules - Unless explicity overridden in pwn.yaml, ensure the pwn-asm subcommand in the pwn REPL driver defaults to the underlying CPU arch / endian values #minor_tweaks
+12628ea pwn-asm sub-command in pwn REPL driver, PWN::Plugins::REPL, && PWN::Plugins::Assembly modules - Unless explicity overridden in pwn.yaml, ensure the pwn-asm subcommand in the pwn REPL driver defaults to the underlying CPU arch / endian values
+5099dec Merge pull request #672 from ninp0/master
+4693f2e pwn-asm sub-command in pwn REPL driver, PWN::Plugins::REPL, && PWN::Plugins::Assembly modules - support manually overriding arch/endian in pwn-asm leveraging pwn.yaml config.  Also add method in PWN::Plugins::Assembly module to list supported archs.
+bf31499 Merge pull request #671 from ninp0/master
+7e8bcb9 PWN::Plugins::OpenAI module - #bugfixes in #create_fine_tune method
+9ac4b03 Merge pull request #670 from ninp0/master
+e4e109e PWN::Plugins::OpenAI module && pwn_rdoc_to_jsonl - update API calls for fine tuning and format of JSONL dataset to upload
+b56cbb8 PWN::Plugins::OpenAI module && pwn_rdoc_to_jsonl - update API calls for fine tuning and format of JSONL dataset to upload
+d5eb2c8 pwn_rdoc_to_jsonl driver - dynamically generate fine-tune JSONL data for training LLMs in AI #ai_pwn #slight_tweak
+4879528 pwn_rdoc_to_jsonl driver - dynamically generate fine-tune JSONL data for training LLMs in AI #ai_pwn
+766b2f6 Merge pull request #669 from ninp0/master
+9eea050 PWN::Plugins::BlackDuckBinaryAnalysis module - update base URI for API
+d4cf53c PWN::Plugins::BlackDuckBinaryAnalysis module - update base URI for API
+439e167 Merge pull request #668 from ninp0/master
+ac98160 PWN::Plugins::DefectDojo module - return all engagements without overloading server via #engagement_list method
+c7218e7 Merge pull request #667 from ninp0/master
+46d8c8f README.md - sync up PWN::VERSION value
+8c81963 Merge pull request #666 from ninp0/master
+11ad596 PWN drivers - ensure all PWN drivers contain "frozen_string_literal: true"
+6cac60b Merge pull request #665 from ninp0/master
+5e42dd8 PWN::Plugins::REPL module - #bugfix in pwn-ai command when API key does not support a given model
+04bbcf8 Merge pull request #664 from ninp0/master
+dd1e5e9 Gemfile - add ostruct gem to suppress warnings that it is no longer included in the standard library
+e23da99 reinstall_pwn_gemset.sh - workaround for serialport gem installation
+abe5ef3 Gemfile - bump versions to latest
+9fcdd41 Gemfile - bump versions to latest
+04c341f PWN::Plugins::OpenAI && PWN::Plugins::REPL modules - Enhance AI capabilities within pwn-ai REPL environment
+dfb5f81 Merge pull request #663 from ninp0/master
+3792cb1 .ruby-version - Bump to 3.3.5
+334ace0 Merge pull request #662 from ninp0/master
+147ca25 pwn_web_cache_deception Driver - Rubocop fix
+6f7e544 PWN::Plugins::OpenAI - update default LLM model to latest gpt-4o model made publicly available
+95e4655 Merge pull request #661 from ninp0/master
+8f3bd25 PWN::Plugins::TransparentBrowser module - reveal "optimized" JavaScript variables when devtools: true when using Firefox
+089fa4c PWN::Plugins::TransparentBrowser module - reveal "optimized" JavaScript variables when devtools: true when isong Firefox
+913a8a4 Merge pull request #660 from ninp0/master
+d2f2e82 pwn.gemspec - #rubocop && PWN::Plugins::OpenAI module - update default model to gpt-4o-2024-05-13
+eca0901 .ruby-version - Bump to 3.3.4
+36718ad Merge pull request #659 from ninp0/master

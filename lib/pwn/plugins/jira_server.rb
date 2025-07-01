@@ -219,7 +219,7 @@ module PWN
       #   description: 'optional - description of the issue',
       #   epic_name: 'optional - name of the epic',
       #   additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
-      #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/path/to/file1.txt", "/path/to/file2.png"])'
+      #   attachment: 'optional - attachment path to upload to the issue (e.g. "/path/to/file1.txt")'
       # )
 
       public_class_method def self.create_issue(opts = {})
@@ -243,8 +243,8 @@ module PWN
         additional_fields = opts[:additional_fields] ||= { fields: {} }
         raise 'ERROR: additional_fields Hash must contain a :fields key that is also a Hash.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields) && additional_fields[:fields].is_a?(Hash)
 
-        attachments = opts[:attachments] ||= []
-        raise 'ERROR: attachments must be an Array.' unless attachments.is_a?(Array)
+        attachment = opts[:attachment]
+        raise "ERROR: #{attachment} not found." unless attachment.nil? || File.exist?(attachment)
 
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
@@ -275,12 +275,12 @@ module PWN
           http_body: http_body
         )
 
-        if attachments.any?
+        if attachment.any?
           issue = issue_resp[:key]
 
           http_body = {
             multipart: true,
-            file: attachments.map { |attachment| File.binread(attachment) }
+            file: File.new(attachment, 'rb')
           }
 
           rest_call(
@@ -302,7 +302,7 @@ module PWN
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - personal access token',
       #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
-      #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/path/to/file1.txt", "/path/to/file2.png"])'
+      #   attachment: 'optional - attachment path to upload to the issue (e.g. "/path/to/file1.txt")'
       # )
 
       public_class_method def self.update_issue(opts = {})
@@ -318,7 +318,8 @@ module PWN
         fields = opts[:fields] ||= { fields: {} }
         raise 'ERROR: fields Hash must contain a :fields key that is also a Hash.' unless fields.is_a?(Hash) && fields.key?(:fields) && fields[:fields].is_a?(Hash)
 
-        attachments = opts[:attachments] ||= []
+        attachment = opts[:attachment]
+        raise "ERROR: #{attachment} not found." unless File.exist?(attachment) || attachment.nil?
 
         http_body = fields
 
@@ -330,10 +331,10 @@ module PWN
           http_body: http_body
         )
 
-        if attachments.any?
+        if attachment.any?
           http_body = {
             multipart: true,
-            file: attachments.map { |attachment| File.binread(attachment) }
+            file: File.new(attachment, 'rb')
           }
 
           rest_call(
@@ -419,7 +420,7 @@ module PWN
             description: 'optional - description of the issue',
             epic_name: 'optional - name of the epic',
             additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)',
-            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/path/to/file1.txt\", \"/path/to/file2.png\"])'
+            attachment: 'optional - attachment path to upload to the issue (e.g. \"/path/to/file1.txt\")'
           )
 
           issue_resp = #{self}.update_issue(
@@ -427,7 +428,7 @@ module PWN
             token: 'required - personal access token',
             issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
             fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
-            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/path/to/file1.txt\", \"/path/to/file2.png\"])'
+            attachment: 'optional - attachment path to upload to the issue (e.g. \"/path/to/file1.txt\")'
           )
 
           issue_resp = #{self}.delete_issue(
