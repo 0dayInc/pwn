@@ -282,10 +282,9 @@ module PWN
           rest_call: 'issue',
           http_body: http_body
         )
+        issue = issue_resp[:key]
 
         if attachments.any?
-          issue = issue_resp[:key]
-
           attachments.each do |attachment|
             raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
 
@@ -305,22 +304,20 @@ module PWN
         end
 
         if comment
-          issue = issue_resp[:key]
-
-          http_body = {
-            body: comment
-          }
-
-          rest_call(
-            http_method: :post,
+          issue_comment(
             base_api_uri: base_api_uri,
             token: token,
-            rest_call: "issue/#{issue}/comment",
-            http_body: http_body
+            issue: issue,
+            comment_action: :add,
+            comment: comment
           )
         end
 
-        issue_resp
+        get_issue(
+          base_api_uri: base_api_uri,
+          token: token,
+          issue: issue
+        )
       rescue StandardError => e
         raise e
       end
@@ -351,7 +348,7 @@ module PWN
 
         http_body = fields
 
-        issue_resp = rest_call(
+        rest_call(
           http_method: :put,
           base_api_uri: base_api_uri,
           token: token,
@@ -378,7 +375,11 @@ module PWN
           end
         end
 
-        issue_resp
+        get_issue(
+          base_api_uri: base_api_uri,
+          token: token,
+          issue: issue
+        )
       rescue StandardError => e
         raise e
       end
@@ -390,6 +391,7 @@ module PWN
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)',
       #   comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
       #   comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
+      #   author: 'optional - author of the comment (e.g. "jane.doe")',
       #   comment: 'optional - comment to add or update in the issue (e.g. "This is a comment")'
       # )
 
@@ -410,6 +412,7 @@ module PWN
         comment_id = opts[:comment_id]
         raise 'ERROR: comment_id cannot be nil when comment_action is :delete or :update.' unless %i[delete update].include?(comment_action) || comment_id.nil?
 
+        author = opts[:author]
         comment = opts[:comment].to_s.scrub
 
         case comment_action
@@ -417,6 +420,7 @@ module PWN
           http_method = :post
           rest_call = "issue/#{issue}/comment"
           http_body = { body: comment }
+          http_body[:author] = author if author
         when :delete
           http_method = :delete
           rest_call = "issue/#{issue}/comment/#{comment_id}"
@@ -425,6 +429,7 @@ module PWN
           http_method = :put
           rest_call = "issue/#{issue}/comment/#{comment_id}"
           http_body = { body: comment }
+          http_body[:author] = author if author
         end
 
         rest_call(
@@ -433,6 +438,12 @@ module PWN
           token: token,
           rest_call: rest_call,
           http_body: http_body
+        )
+
+        get_issue(
+          base_api_uri: base_api_uri,
+          token: token,
+          issue: issue
         )
       rescue StandardError => e
         raise e
@@ -534,7 +545,8 @@ module PWN
             description: 'optional - description of the issue',
             epic_name: 'optional - name of the epic',
             additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)',
-            attachment: 'optional - attachment path to upload to the issue (e.g. \"/path/to/file1.txt\")'
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])',
+            comment: 'optional - comment to add to the issue (e.g. \"This is a comment\")'
           )
 
           issue_resp = #{self}.update_issue(
@@ -542,7 +554,7 @@ module PWN
             token: 'required - personal access token',
             issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
             fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
-            attachment: 'optional - attachment path to upload to the issue (e.g. \"/path/to/file1.txt\")'
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])'
           )
 
           issue_resp = #{self}.issue_comment(
@@ -551,6 +563,7 @@ module PWN
             issue: 'required - issue to comment on (e.g. Bug, Issue, Story, or Epic ID)',
             comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
             comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
+            author: 'optional - author of the comment (e.g. \"jane.doe\")',
             comment: 'optional - comment to add or update in the issue (e.g. \"This is a comment\")'
           )
 
