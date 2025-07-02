@@ -420,7 +420,7 @@ module PWN
           http_method = :post
           rest_call = "issue/#{issue}/comment"
           http_body = { body: comment }
-          http_body[:author] = author if author
+          http_body[:author] = { key: author } if author
         when :delete
           http_method = :delete
           rest_call = "issue/#{issue}/comment/#{comment_id}"
@@ -429,7 +429,7 @@ module PWN
           http_method = :put
           rest_call = "issue/#{issue}/comment/#{comment_id}"
           http_body = { body: comment }
-          http_body[:author] = author if author
+          http_body[:author] = { key: author } if author
         end
 
         rest_call(
