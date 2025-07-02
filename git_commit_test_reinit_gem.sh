@@ -43,7 +43,7 @@ if (( $# == 3 )); then
   latest_gem=$(ls pkg/*.gem)
   if [[ $latest_gem != "" ]]; then
     echo "Pushing ${latest_gem} to RubyGems.org..."
-    rvmsudo gem push $latest_gem --debug
+    rvmsudo gem push $latest_gem
   fi
 
   if [[ $tag_this_version_bool == 'true' ]]; then
