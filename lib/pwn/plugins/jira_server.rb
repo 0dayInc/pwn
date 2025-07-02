@@ -82,10 +82,15 @@ module PWN
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
 
-        jira_response = response if response.is_a?(RestClient::Response) && response.code == 204
-        jira_response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response) && response.code != 204
+        case response.code
+        when 201, 204
+          response = { http_response_code: response.code }
+        else
+          response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response)
+          response[:http_response_code] = response.code if response.is_a?(RestClient::Response)
+        end
 
-        jira_response
+        response
       rescue RestClient::ExceptionWithResponse => e
         if e.response
           puts "HTTP BASE URL: #{base_api_uri}"
@@ -219,7 +224,8 @@ module PWN
       #   description: 'optional - description of the issue',
       #   epic_name: 'optional - name of the epic',
       #   additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)'
-      #   attachment: 'optional - attachment path to upload to the issue (e.g. "/path/to/file1.txt")'
+      #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/tmp/file1.txt", "/tmp/file2.txt"])',
+      #   comment: 'optional - comment to add to the issue (e.g. "This is a comment")'
       # )
 
       public_class_method def self.create_issue(opts = {})
@@ -243,7 +249,10 @@ module PWN
         additional_fields = opts[:additional_fields] ||= { fields: {} }
         raise 'ERROR: additional_fields Hash must contain a :fields key that is also a Hash.' unless additional_fields.is_a?(Hash) && additional_fields.key?(:fields) && additional_fields[:fields].is_a?(Hash)
 
-        attachment = opts[:attachment]
+        attachments = opts[:attachments] ||= []
+        raise 'ERROR: attachments must be an Array.' unless attachments.is_a?(Array)
+
+        comment = opts[:comment]
 
         all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
@@ -274,21 +283,39 @@ module PWN
           http_body: http_body
         )
 
-        if attachment
-          raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
+        if attachments.any?
+          issue = issue_resp[:key]
 
+          attachments.each do |attachment|
+            raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
+
+            http_body = {
+              multipart: true,
+              file: File.new(attachment, 'rb')
+            }
+
+            rest_call(
+              http_method: :post,
+              base_api_uri: base_api_uri,
+              token: token,
+              rest_call: "issue/#{issue}/attachments",
+              http_body: http_body
+            )
+          end
+        end
+
+        if comment
           issue = issue_resp[:key]
 
           http_body = {
-            multipart: true,
-            file: File.new(attachment, 'rb')
+            body: comment
           }
 
           rest_call(
             http_method: :post,
             base_api_uri: base_api_uri,
             token: token,
-            rest_call: "issue/#{issue}/attachments",
+            rest_call: "issue/#{issue}/comment",
             http_body: http_body
           )
         end
@@ -303,7 +330,7 @@ module PWN
       #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
       #   token: 'required - personal access token',
       #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
-      #   attachment: 'optional - attachment path to upload to the issue (e.g. "/path/to/file1.txt")'
+      #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/tmp/file1.txt", "/tmp/file2.txt"])',
       # )
 
       public_class_method def self.update_issue(opts = {})
@@ -319,7 +346,8 @@ module PWN
         fields = opts[:fields] ||= { fields: {} }
         raise 'ERROR: fields Hash must contain a :fields key that is also a Hash.' unless fields.is_a?(Hash) && fields.key?(:fields) && fields[:fields].is_a?(Hash)
 
-        attachment = opts[:attachment]
+        attachments = opts[:attachments] ||= []
+        raise 'ERROR: attachments must be an Array.' unless attachments.is_a?(Array)
 
         http_body = fields
 
@@ -331,24 +359,81 @@ module PWN
           http_body: http_body
         )
 
-        if attachment
-          raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
+        if attachments.any?
+          attachments.each do |attachment|
+            raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
 
-          http_body = {
-            multipart: true,
-            file: File.new(attachment, 'rb')
-          }
+            http_body = {
+              multipart: true,
+              file: File.new(attachment, 'rb')
+            }
 
-          rest_call(
-            http_method: :post,
-            base_api_uri: base_api_uri,
-            token: token,
-            rest_call: "issue/#{issue}/attachments",
-            http_body: http_body
-          )
+            rest_call(
+              http_method: :post,
+              base_api_uri: base_api_uri,
+              token: token,
+              rest_call: "issue/#{issue}/attachments",
+              http_body: http_body
+            )
+          end
         end
 
         issue_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # issue_resp = PWN::Plugins::JiraServer.issue_comment(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+      #   token: 'required - personal access token',
+      #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)',
+      #   comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
+      #   comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
+      #   comment: 'optional - comment to add or update in the issue (e.g. "This is a comment")'
+      # )
+
+      public_class_method def self.issue_comment(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+
+        issue = opts[:issue]
+        raise 'ERROR: issue cannot be nil.' if issue.nil?
+
+        comment_action = opts[:comment_action] ||= :add
+        raise 'ERROR: comment_action must be one of :delete, :add, or :update.' unless %i[delete add update].include?(comment_action)
+
+        comment_id = opts[:comment_id]
+        raise 'ERROR: comment_id cannot be nil when comment_action is :delete or :update.' unless %i[delete update].include?(comment_action) || comment_id.nil?
+
+        comment = opts[:comment].to_s.scrub
+
+        case comment_action
+        when :add
+          http_method = :post
+          rest_call = "issue/#{issue}/comment"
+          http_body = { body: comment }
+        when :delete
+          http_method = :delete
+          rest_call = "issue/#{issue}/comment/#{comment_id}"
+          http_body = nil
+        when :update
+          http_method = :put
+          rest_call = "issue/#{issue}/comment/#{comment_id}"
+          http_body = { body: comment }
+        end
+
+        rest_call(
+          http_method: http_method,
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: rest_call,
+          http_body: http_body
+        )
       rescue StandardError => e
         raise e
       end
@@ -369,7 +454,6 @@ module PWN
         )
 
         issue = opts[:issue]
-
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
         rest_call(
@@ -377,6 +461,34 @@ module PWN
           base_api_uri: base_api_uri,
           token: token,
           rest_call: "issue/#{issue}"
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # issue_resp = PWN::Plugins::JiraServer.delete_attachment(
+      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+      #   token: 'required - personal access token',
+      #   id: 'required - attachment ID to delete (e.g. 10000) found in #get_issue method'
+      # )
+
+      public_class_method def self.delete_attachment(opts = {})
+        base_api_uri = opts[:base_api_uri]
+
+        token = opts[:token]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Personal Access Token'
+        )
+
+        id = opts[:id]
+        raise 'ERROR: attachment_id cannot be nil.' if id.nil?
+
+        rest_call(
+          http_method: :delete,
+          base_api_uri: base_api_uri,
+          token: token,
+          rest_call: "attachment/#{id}"
         )
       rescue StandardError => e
         raise e
@@ -433,10 +545,25 @@ module PWN
             attachment: 'optional - attachment path to upload to the issue (e.g. \"/path/to/file1.txt\")'
           )
 
+          issue_resp = #{self}.issue_comment(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            token: 'required - personal access token',
+            issue: 'required - issue to comment on (e.g. Bug, Issue, Story, or Epic ID)',
+            comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
+            comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
+            comment: 'optional - comment to add or update in the issue (e.g. \"This is a comment\")'
+          )
+
           issue_resp = #{self}.delete_issue(
             base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
             token: 'required - personal access token',
             issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
+          )
+
+          issue_resp = #{self}.delete_attachment(
+            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
+            token: 'required - personal access token',
+            id: 'required - attachment ID to delete (e.g. 10000) found in #get_issue method'
           )
 
           **********************************************************************
