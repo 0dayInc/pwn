@@ -169,6 +169,7 @@ module PWN
             accept_insecure_certs: true
           )
 
+          # This is required for BiDi support
           options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
@@ -196,8 +197,8 @@ module PWN
             accept_insecure_certs: true
           )
 
-          # This is for bidi, once it's ready
-          # options.web_socket_url = true
+          # This is required for BiDi support
+          options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -259,8 +260,8 @@ module PWN
             accept_insecure_certs: true
           )
 
-          # This is for bidi, once it's ready
-          # options.web_socket_url = true
+          # This is required for BiDi support
+          options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -283,8 +284,8 @@ module PWN
             accept_insecure_certs: true
           )
 
-          # This is for bidi, once it's ready
-          # options.web_socket_url = true
+          # This is required for BiDi support
+          options.web_socket_url = true
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -327,17 +328,15 @@ module PWN
         if devtools_supported.include?(browser_type)
           if devtools
             driver = browser_obj[:browser].driver
-            browser_obj[:devtools] = driver.devtools
-
-            browser_obj[:devtools].send_cmd('DOM.enable')
-            browser_obj[:devtools].send_cmd('Log.enable')
-            browser_obj[:devtools].send_cmd('Network.enable')
-            browser_obj[:devtools].send_cmd('Page.enable')
-            browser_obj[:devtools].send_cmd('Runtime.enable')
-            browser_obj[:devtools].send_cmd('Security.enable')
-
             chrome_browser_types = %i[chrome headless_chrome]
             if chrome_browser_types.include?(browser_type)
+              browser_obj[:devtools] = driver.devtools
+              browser_obj[:devtools].send_cmd('DOM.enable')
+              browser_obj[:devtools].send_cmd('Log.enable')
+              browser_obj[:devtools].send_cmd('Network.enable')
+              browser_obj[:devtools].send_cmd('Page.enable')
+              browser_obj[:devtools].send_cmd('Runtime.enable')
+              browser_obj[:devtools].send_cmd('Security.enable')
               browser_obj[:devtools].send_cmd('Debugger.enable')
               browser_obj[:devtools].send_cmd('DOMStorage.enable')
               browser_obj[:devtools].send_cmd('DOMSnapshot.enable')
@@ -345,6 +344,7 @@ module PWN
 
             firefox_browser_types = %i[firefox headless_firefox]
             if firefox_browser_types.include?(browser_type)
+              browser_obj[:devtools] = driver.bidi
               # browser_obj[:devtools].send_cmd(
               #   'EventBreakpoints.setInstrumentationBreakpoint',
               #   eventName: 'script'
@@ -352,7 +352,7 @@ module PWN
             end
 
             # Future BiDi API that's more universally supported across browsers
-            # browser_obj[:bidi] = driver.bidi
+            browser_obj[:bidi] = driver.bidi
 
             jmp_devtools_panel(browser_obj: browser_obj, panel: :elements)
           end
@@ -981,7 +981,7 @@ module PWN
           * All DevTools Commands can be found here:
           * https://chromedevtools.github.io/devtools-protocol/
           * Examples
-          devtools = browser.driver.devtools
+          devtools = browser_obj1[:devtools]
           puts devtools.public_methods
           puts devtools.instance_variables
           puts devtools.instance_variable_get('@session_id')
