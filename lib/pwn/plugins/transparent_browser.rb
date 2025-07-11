@@ -537,16 +537,20 @@ module PWN
               console.log(`Mutation ${index + 1}:`, mutation.type);
 
               if (mutation.type === 'childList') {
-                // Log added or removed nodes
                 if (mutation.addedNodes.length) {
                   mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === Node.ELEMENT_NODE) {
-                      console.log('Added Element:', {
+                      let logObj = {
                         tagName: node.tagName,
                         id: node.id || 'N/A',
                         classList: node.className || 'N/A',
                         outerHTML: node.outerHTML,
-                      });
+                      };
+                      if (['SCRIPT', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'APPLET'].includes(node.tagName)) {
+                        console.warn('Potential XSS sink: Added', node.tagName, logObj);
+                      } else {
+                        console.log('Added Element:', logObj);
+                      }
                     } else if (node.nodeType === Node.TEXT_NODE) {
                       console.log('Added Text Node:', {
                         textContent: node.textContent,
@@ -573,23 +577,43 @@ module PWN
                   });
                 }
               } else if (mutation.type === 'attributes') {
-                // Log attribute changes
-                console.log(`Attribute "${mutation.attributeName}" modified on`, {
+                let logObj = {
                   element: mutation.target.tagName,
                   id: mutation.target.id || 'N/A',
+                  attribute: mutation.attributeName,
                   oldValue: mutation.oldValue,
                   newValue: mutation.target.getAttribute(mutation.attributeName),
                   outerHTML: mutation.target.outerHTML,
-                });
+                };
+                if (
+                  (mutation.attributeName === 'src' && ['SCRIPT', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED'].includes(mutation.target.tagName)) ||
+                  (mutation.attributeName === 'href' && ['A', 'AREA', 'LINK'].includes(mutation.target.tagName)) ||
+                  (mutation.attributeName === 'action' && mutation.target.tagName === 'FORM') ||
+                  mutation.attributeName.startsWith('on') ||
+                  (mutation.attributeName === 'srcdoc' && mutation.target.tagName === 'IFRAME') ||
+                  (mutation.attributeName === 'data' && mutation.target.tagName === 'OBJECT') ||
+                  (mutation.attributeName === 'codebase' && mutation.target.tagName === 'OBJECT')
+                ) {
+                  console.warn('Potential XSS sink: Attribute change', logObj);
+                } else {
+                  console.log('Attribute changed:', logObj);
+                }
               } else if (mutation.type === 'characterData') {
-                // Log text content changes (e.g., from user input in contenteditable or form fields)
-                console.log('Text Content Changed:', {
-                  element: mutation.target.parentElement?.tagName || 'N/A',
-                  id: mutation.target.parentElement?.id || 'N/A',
-                  oldValue: mutation.oldValue,
-                  newValue: mutation.target.textContent,
-                  innerHTML: mutation.target.parentElement?.innerHTML || 'N/A',
-                });
+                if (mutation.target.parentElement && mutation.target.parentElement.tagName === 'SCRIPT') {
+                  console.warn('Potential XSS sink: Script content changed', {
+                    scriptId: mutation.target.parentElement.id || 'N/A',
+                    oldValue: mutation.oldValue,
+                    newValue: mutation.target.textContent,
+                  });
+                } else {
+                  console.log('Text Content Changed:', {
+                    element: mutation.target.parentElement?.tagName || 'N/A',
+                    id: mutation.target.parentElement?.id || 'N/A',
+                    oldValue: mutation.oldValue,
+                    newValue: mutation.target.textContent,
+                    innerHTML: mutation.target.parentElement?.innerHTML || 'N/A',
+                  });
+                }
               }
             });
             console.groupEnd();
@@ -618,7 +642,7 @@ module PWN
           document.addEventListener('click', logUserInteraction); // For clicks
 
           // Function to stop the observer (run in console when needed)
-          window.stopObserving = () => {
+          window.hide_dom_mutations = () => {
             observer.disconnect();
             document.removeEventListener('input', logUserInteraction);
             document.removeEventListener('click', logUserInteraction);
@@ -626,7 +650,7 @@ module PWN
           };
 
           // Log instructions to console
-          console.log('MutationObserver started. To stop, run: stopObserving()');
+          console.log('MutationObserver started. To stop, run: hide_dom_mutations()');
         JAVASCRIPT
 
         console(browser_obj: browser_obj, js: 'clear();')
@@ -651,11 +675,11 @@ module PWN
         )
 
         js = <<~JAVASCRIPT
-          if (typeof stopObserving === 'function') {
-            stopObserving();
+          if (typeof hide_dom_mutations === 'function') {
+            hide_dom_mutations();
             console.log('DOM mutation observer and event listeners disabled.');
           } else {
-            console.log('Error: stopObserving function not found. DOM mutation observer was not active.');
+            console.log('Error: hide_dom_mutations function not found. DOM mutation observer was not active.');
           }
         JAVASCRIPT
 
