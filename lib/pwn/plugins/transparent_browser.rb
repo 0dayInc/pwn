@@ -504,12 +504,16 @@ module PWN
       # Supported Method Parameters::
       # console_resp = PWN::Plugins::TransparentBrowser.view_dom_mutations(
       #   browser_obj: browser_obj1,
+      #   tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)',
       #   target: 'optional - target JavaScript node to observe (defaults to document.body)'
       # )
 
       public_class_method def self.view_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
+
+        tab_keyword = opts[:tab_keyword]
+        jmp_tab(browser_obj: browser_obj, keyword: tab_keyword) if tab_keyword
 
         target = opts[:target] ||= 'undefined'
 
@@ -662,12 +666,16 @@ module PWN
 
       # Supported Method Parameters::
       # console_resp = PWN::Plugins::TransparentBrowser.hide_dom_mutations(
-      #   browser_obj: browser_obj1
+      #   browser_obj: browser_obj1,
+      #   tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)'
       # )
 
       public_class_method def self.hide_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
+
+        tab_keyword = opts[:tab_keyword]
+        jmp_tab(browser_obj: browser_obj, keyword: tab_keyword) if tab_keyword
 
         jmp_devtools_panel(
           browser_obj: browser_obj,
@@ -1279,12 +1287,13 @@ module PWN
 
           console_resp = #{self}.view_dom_mutations(
             browser_obj: 'required - browser_obj returned from #open method)',
+            tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)',
             target: 'optional - target JavaScript node to observe (defaults to document.body)'
           )
 
           console_resp = #{self}.hide_dom_mutations(
             browser_obj: 'required - browser_obj returned from #open method)',
-            target: 'optional - target JavaScript node to observe (defaults to document.body)'
+            tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)'
           )
 
           #{self}.update_about_config(
