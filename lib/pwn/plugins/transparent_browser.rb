@@ -494,12 +494,12 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # console_resp = PWN::Plugins::TransparentBrowser.enable_dom_mutations(
+      # console_resp = PWN::Plugins::TransparentBrowser.view_dom_mutations(
       #   browser_obj: browser_obj1,
       #   target: 'optional - target JavaScript node to observe (defaults to document.body)'
       # )
 
-      public_class_method def self.enable_dom_mutations(opts = {})
+      public_class_method def self.view_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
@@ -541,13 +541,16 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # console_resp = PWN::Plugins::TransparentBrowser.disable_dom_mutations(
-      #   browser_obj: browser_obj1
+      # console_resp = PWN::Plugins::TransparentBrowser.hide_dom_mutations(
+      #   browser_obj: browser_obj1,
+      #   target: 'optional - target JavaScript node to observe (defaults to document.body)'
       # )
 
-      public_class_method def self.disable_dom_mutations(opts = {})
+      public_class_method def self.hide_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
+
+        target = opts[:target] ||= 'undefined'
 
         jmp_devtools_panel(
           browser_obj: browser_obj,
@@ -1175,12 +1178,14 @@ module PWN
             js: 'required - JavaScript expression to evaluate'
           )
 
-          console_resp = #{self}.enable_dom_mutations(
-            browser_obj: 'required - browser_obj returned from #open method)'
+          console_resp = #{self}.view_dom_mutations(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            target: 'optional - target JavaScript node to observe (defaults to document.body)'
           )
 
-          console_resp = #{self}.disable_dom_mutations(
-            browser_obj: 'required - browser_obj returned from #open method)'
+          console_resp = #{self}.hide_dom_mutations(
+            browser_obj: 'required - browser_obj returned from #open method)',
+            target: 'optional - target JavaScript node to observe (defaults to document.body)'
           )
 
           #{self}.update_about_config(
