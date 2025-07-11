@@ -461,7 +461,8 @@ module PWN
       # Supported Method Parameters::
       # console_resp = PWN::Plugins::TransparentBrowser.console(
       #   browser_obj: browser_obj1,
-      #   js: 'required - JavaScript expression to evaluate'
+      #   js: 'required - JavaScript expression to evaluate',
+      #   return_to: 'optional - return to :console or :stdout (defaults to :console)'
       # )
 
       public_class_method def self.console(opts = {})
@@ -469,13 +470,20 @@ module PWN
         verify_devtools_browser(browser_obj: browser_obj)
 
         js = opts[:js] ||= "alert('ACK from => #{self}')"
+        return_to = opts[:return_to] ||= :console
+        raise 'ERROR: return_to parameter must be :console or :stdout' unless %i[console stdout].include?(return_to.to_s.downcase.to_sym)
 
         browser = browser_obj[:browser]
         case js
         when 'clear', 'clear;', 'clear()', 'clear();'
           script = 'console.clear()'
         else
-          script = "console.log(#{js})"
+          case return_to.to_s.downcase.to_sym
+          when :stdout
+            script = "return #{js}"
+          when :console
+            script = "console.log(#{js})"
+          end
         end
 
         console_resp = nil
@@ -511,29 +519,117 @@ module PWN
         )
 
         js = <<~JAVASCRIPT
-          // Select the target node to observe
+          // Select the target node to observe (replace 'target-id' with your element's ID or use document.body)
           const targetNode = document.getElementById(#{target}) || document.body;
 
-          // Configuration for observer
-          const config = { attributes: true, childList: true, subtree: true };
-
-          // Callback for mutations
-          const callback = (mutationList, observer) => {
-            for (const mutation of mutationList) {
-              if (mutation.type === 'childList') {
-                console.log('Child node added/removed:', mutation);
-              } else if (mutation.type === 'attributes') {
-                console.log(`Attribute ${mutation.attributeName} modified:`, mutation);
-              }
-            }
+          // Configuration for MutationObserver
+          const config = {
+            attributes: true, // Observe attribute changes
+            childList: true, // Observe additions/removals of child nodes
+            subtree: true, // Observe descendants
+            characterData: true, // Observe text content changes
           };
 
-          // Create and start observer
+          // Callback function to handle mutations
+          const callback = (mutationList, observer) => {
+            console.group('DOM Mutation Detected');
+            mutationList.forEach((mutation, index) => {
+              console.log(`Mutation ${index + 1}:`, mutation.type);
+
+              if (mutation.type === 'childList') {
+                // Log added or removed nodes
+                if (mutation.addedNodes.length) {
+                  mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                      console.log('Added Element:', {
+                        tagName: node.tagName,
+                        id: node.id || 'N/A',
+                        classList: node.className || 'N/A',
+                        outerHTML: node.outerHTML,
+                      });
+                    } else if (node.nodeType === Node.TEXT_NODE) {
+                      console.log('Added Text Node:', {
+                        textContent: node.textContent,
+                        parentTag: node.parentElement?.tagName || 'N/A',
+                      });
+                    }
+                  });
+                }
+                if (mutation.removedNodes.length) {
+                  mutation.removedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                      console.log('Removed Element:', {
+                        tagName: node.tagName,
+                        id: node.id || 'N/A',
+                        classList: node.className || 'N/A',
+                        outerHTML: node.outerHTML,
+                      });
+                    } else if (node.nodeType === Node.TEXT_NODE) {
+                      console.log('Removed Text Node:', {
+                        textContent: node.textContent,
+                        parentTag: node.parentElement?.tagName || 'N/A',
+                      });
+                    }
+                  });
+                }
+              } else if (mutation.type === 'attributes') {
+                // Log attribute changes
+                console.log(`Attribute "${mutation.attributeName}" modified on`, {
+                  element: mutation.target.tagName,
+                  id: mutation.target.id || 'N/A',
+                  oldValue: mutation.oldValue,
+                  newValue: mutation.target.getAttribute(mutation.attributeName),
+                  outerHTML: mutation.target.outerHTML,
+                });
+              } else if (mutation.type === 'characterData') {
+                // Log text content changes (e.g., from user input in contenteditable or form fields)
+                console.log('Text Content Changed:', {
+                  element: mutation.target.parentElement?.tagName || 'N/A',
+                  id: mutation.target.parentElement?.id || 'N/A',
+                  oldValue: mutation.oldValue,
+                  newValue: mutation.target.textContent,
+                  innerHTML: mutation.target.parentElement?.innerHTML || 'N/A',
+                });
+              }
+            });
+            console.groupEnd();
+          };
+
+          // Create and start the MutationObserver
           const observer = new MutationObserver(callback);
           observer.observe(targetNode, config);
+
+          // Optional: Add event listeners to capture user interactions
+          const logUserInteraction = (event) => {
+            console.group('User Interaction Detected');
+            console.log('Event Type:', event.type);
+            console.log('Target:', {
+              tagName: event.target.tagName,
+              id: event.target.id || 'N/A',
+              classList: event.target.className || 'N/A',
+              value: 'value' in event.target ? event.target.value : 'N/A',
+              innerHTML: event.target.innerHTML || 'N/A',
+            });
+            console.groupEnd();
+          };
+
+          // Attach listeners for keyboard and click events
+          document.addEventListener('input', logUserInteraction); // For form inputs, contenteditable
+          document.addEventListener('click', logUserInteraction); // For clicks
+
+          // Function to stop the observer (run in console when needed)
+          window.stopObserving = () => {
+            observer.disconnect();
+            document.removeEventListener('input', logUserInteraction);
+            document.removeEventListener('click', logUserInteraction);
+            console.log('MutationObserver and event listeners stopped.');
+          };
+
+          // Log instructions to console
+          console.log('MutationObserver started. To stop, run: stopObserving()');
         JAVASCRIPT
 
-        console(browser_obj: browser_obj, js: 'console.clear();')
+        console(browser_obj: browser_obj, js: 'clear();')
         browser = browser_obj[:browser]
         browser.execute_script(js)
       rescue StandardError => e
@@ -542,15 +638,12 @@ module PWN
 
       # Supported Method Parameters::
       # console_resp = PWN::Plugins::TransparentBrowser.hide_dom_mutations(
-      #   browser_obj: browser_obj1,
-      #   target: 'optional - target JavaScript node to observe (defaults to document.body)'
+      #   browser_obj: browser_obj1
       # )
 
       public_class_method def self.hide_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
-
-        target = opts[:target] ||= 'undefined'
 
         jmp_devtools_panel(
           browser_obj: browser_obj,
@@ -558,38 +651,20 @@ module PWN
         )
 
         js = <<~JAVASCRIPT
-          // Select the target node to observe
-          const targetNode = document.getElementById(#{target}) || document.body;
-
-          // Configuration for observer
-          const config = { attributes: true, childList: true, subtree: true };
-
-          // Callback for mutations
-          const callback = (mutationList, observer) => {
-            for (const mutation of mutationList) {
-              if (mutation.type === 'childList') {
-                console.log('Child node added/removed:', mutation);
-              } else if (mutation.type === 'attributes') {
-                console.log(`Attribute ${mutation.attributeName} modified:`, mutation);
-              }
-            }
-          };
-
-          // Create and start observer
-          const observer = new MutationObserver(callback);
-          observer.observe(targetNode, config);
-
-          // Later, stop observing if needed
-          observer.disconnect();
+          if (typeof stopObserving === 'function') {
+            stopObserving();
+            console.log('DOM mutation observer and event listeners disabled.');
+          } else {
+            console.log('Error: stopObserving function not found. DOM mutation observer was not active.');
+          }
         JAVASCRIPT
 
-        console(browser_obj: browser_obj, js: 'console.clear();')
+        console(browser_obj: browser_obj, js: 'clear();')
         browser = browser_obj[:browser]
         browser.execute_script(js)
       rescue StandardError => e
         raise e
       end
-
       # Supported Method Parameters::
       # PWN::Plugins::TransparentBrowser.update_about_config(
       #   browser_obj: browser_obj1,
