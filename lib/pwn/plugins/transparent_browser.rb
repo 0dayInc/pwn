@@ -503,15 +503,60 @@ module PWN
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
-        target = opts[:target] ||= 'document.body'
+        target = opts[:target] ||= 'undefined'
 
-        js = "
+        jmp_devtools_panel(
+          browser_obj: browser_obj,
+          panel: :console
+        )
+
+        js = <<~JAVASCRIPT
           // Select the target node to observe
-          const targetNode;
-          targetNode = document.getElementById('#{target}');
-          if (!targetNode) {
-            targetNode = document.body; // Fallback to body if target not found
-          }
+          const targetNode = document.getElementById(#{target}) || document.body;
+
+          // Configuration for observer
+          const config = { attributes: true, childList: true, subtree: true };
+
+          // Callback for mutations
+          const callback = (mutationList, observer) => {
+            for (const mutation of mutationList) {
+              if (mutation.type === 'childList') {
+                console.log('Child node added/removed:', mutation);
+              } else if (mutation.type === 'attributes') {
+                console.log(`Attribute ${mutation.attributeName} modified:`, mutation);
+              }
+            }
+          };
+
+          // Create and start observer
+          const observer = new MutationObserver(callback);
+          observer.observe(targetNode, config);
+        JAVASCRIPT
+
+        console(browser_obj: browser_obj, js: 'console.clear();')
+        browser = browser_obj[:browser]
+        browser.execute_script(js)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # console_resp = PWN::Plugins::TransparentBrowser.disable_dom_mutations(
+      #   browser_obj: browser_obj1
+      # )
+
+      public_class_method def self.disable_dom_mutations(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        jmp_devtools_panel(
+          browser_obj: browser_obj,
+          panel: :console
+        )
+
+        js = <<~JAVASCRIPT
+          // Select the target node to observe
+          const targetNode = document.getElementById(#{target}) || document.body;
 
           // Configuration for observer
           const config = { attributes: true, childList: true, subtree: true };
@@ -532,24 +577,12 @@ module PWN
           observer.observe(targetNode, config);
 
           // Later, stop observing if needed
-          // observer.disconnect();
-        "
-        console(browser_obj: browser_obj, js: js)
-      rescue StandardError => e
-        raise e
-      end
+          observer.disconnect();
+        JAVASCRIPT
 
-      # Supported Method Parameters::
-      # console_resp = PWN::Plugins::TransparentBrowser.disable_dom_mutations(
-      #   browser_obj: browser_obj1
-      # )
-
-      public_class_method def self.disable_dom_mutations(opts = {})
-        browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
-
-        js = 'observer.disconnect();'
-        console(browser_obj: browser_obj, js: js)
+        console(browser_obj: browser_obj, js: 'console.clear();')
+        browser = browser_obj[:browser]
+        browser.execute_script(js)
       rescue StandardError => e
         raise e
       end
