@@ -171,6 +171,7 @@ module PWN
 
           # This is required for BiDi support
           options.web_socket_url = true
+          options.add_preference('remote.active-protocols', 3)
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -199,6 +200,7 @@ module PWN
 
           # This is required for BiDi support
           options.web_socket_url = true
+          options.add_preference('remote.active-protocols', 3)
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -262,6 +264,7 @@ module PWN
 
           # This is required for BiDi support
           options.web_socket_url = true
+          options.add_preference('remote.active-protocols', 3)
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:firefox, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -286,6 +289,7 @@ module PWN
 
           # This is required for BiDi support
           options.web_socket_url = true
+          options.add_preference('remote.active-protocols', 3)
           options.profile = this_profile
           driver = Selenium::WebDriver.for(:chrome, options: options)
           browser_obj[:browser] = Watir::Browser.new(driver)
@@ -485,6 +489,67 @@ module PWN
         end
 
         console_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # console_resp = PWN::Plugins::TransparentBrowser.enable_dom_mutations(
+      #   browser_obj: browser_obj1,
+      #   target: 'optional - target JavaScript node to observe (defaults to document.body)'
+      # )
+
+      public_class_method def self.enable_dom_mutations(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        target = opts[:target] ||= 'document.body'
+
+        js = "
+          // Select the target node to observe
+          const targetNode;
+          targetNode = document.getElementById('#{target}');
+          if (!targetNode) {
+            targetNode = document.body; // Fallback to body if target not found
+          }
+
+          // Configuration for observer
+          const config = { attributes: true, childList: true, subtree: true };
+
+          // Callback for mutations
+          const callback = (mutationList, observer) => {
+            for (const mutation of mutationList) {
+              if (mutation.type === 'childList') {
+                console.log('Child node added/removed:', mutation);
+              } else if (mutation.type === 'attributes') {
+                console.log(`Attribute ${mutation.attributeName} modified:`, mutation);
+              }
+            }
+          };
+
+          // Create and start observer
+          const observer = new MutationObserver(callback);
+          observer.observe(targetNode, config);
+
+          // Later, stop observing if needed
+          // observer.disconnect();
+        "
+        console(browser_obj: browser_obj, js: js)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # console_resp = PWN::Plugins::TransparentBrowser.disable_dom_mutations(
+      #   browser_obj: browser_obj1
+      # )
+
+      public_class_method def self.disable_dom_mutations(opts = {})
+        browser_obj = opts[:browser_obj]
+        verify_devtools_browser(browser_obj: browser_obj)
+
+        js = 'observer.disconnect();'
+        console(browser_obj: browser_obj, js: js)
       rescue StandardError => e
         raise e
       end
@@ -1075,6 +1140,14 @@ module PWN
           console_resp = #{self}.console(
             browser_obj: 'required - browser_obj returned from #open method)',
             js: 'required - JavaScript expression to evaluate'
+          )
+
+          console_resp = #{self}.enable_dom_mutations(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          console_resp = #{self}.disable_dom_mutations(
+            browser_obj: 'required - browser_obj returned from #open method)'
           )
 
           #{self}.update_about_config(
