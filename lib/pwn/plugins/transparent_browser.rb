@@ -753,7 +753,7 @@ module PWN
       # Supported Method Parameters::
       # tab = PWN::Plugins::TransparentBrowser.jmp_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   keyword: 'required - keyword in title or url used to switch tabs',
+      #   keyword: 'optional - keyword in title or url used to switch tabs (defaults to switching to next tab)',
       #   explicit: 'optional - boolean to indicate if the keyword is an exact match (Defaults to false)'
       # )
 
@@ -762,7 +762,20 @@ module PWN
         verify_devtools_browser(browser_obj: browser_obj)
 
         keyword = opts[:keyword]
-        raise 'ERROR: keyword parameter is required' if keyword.nil?
+        if keyword.nil?
+          # If no keyword is provided, switch to the next tab in the list
+          tab_list = list_tabs(browser_obj: browser_obj)
+          active_tab = tab_list.find { |tab| tab[:state] == :active }
+          # Next tab in the tab_list.  If active tab is the last tab, switch to the first tab
+          next_tab_index = (tab_list.index(active_tab) + 1) % tab_list.size
+          next_tab = tab_list[next_tab_index]
+
+          if next_tab[:url] == active_tab[:url]
+            keyword = next_tab[:title]
+          else
+            keyword = next_tab[:url]
+          end
+        end
 
         explicit = opts[:explicit] ||= false
 
@@ -1308,7 +1321,7 @@ module PWN
 
           tab = #{self}.jmp_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
-            keyword: 'required - keyword in title or url used to switch tabs'
+            keyword: 'optional - keyword in title or url used to switch tabs (defaults to switching to next tab)',
           )
 
           tab = #{self}.new_tab(
