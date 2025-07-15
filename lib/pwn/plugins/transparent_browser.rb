@@ -491,7 +491,7 @@ module PWN
       # Supported Method Parameters::
       # console_resp = PWN::Plugins::TransparentBrowser.view_dom_mutations(
       #   browser_obj: browser_obj1,
-      #   tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)',
+      #   index: 'optional - index of tab to switch to (defaults to active tab)',
       #   target: 'optional - target JavaScript node to observe (defaults to document.body)'
       # )
 
@@ -499,8 +499,8 @@ module PWN
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
-        tab_keyword = opts[:tab_keyword]
-        jmp_tab(browser_obj: browser_obj, keyword: tab_keyword) if tab_keyword
+        index = opts[:index]
+        jmp_tab(browser_obj: browser_obj, index: index) if index
 
         target = opts[:target] ||= 'undefined'
 
@@ -653,15 +653,15 @@ module PWN
       # Supported Method Parameters::
       # console_resp = PWN::Plugins::TransparentBrowser.hide_dom_mutations(
       #   browser_obj: browser_obj1,
-      #   tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)'
+      #   index: 'optional - index of tab to switch to (defaults to active tab)'
       # )
 
       public_class_method def self.hide_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
-        tab_keyword = opts[:tab_keyword]
-        jmp_tab(browser_obj: browser_obj, keyword: tab_keyword) if tab_keyword
+        index = opts[:index]
+        jmp_tab(browser_obj: browser_obj, index: index) if index
 
         jmp_devtools_panel(
           browser_obj: browser_obj,
@@ -792,7 +792,7 @@ module PWN
       # Supported Method Parameters::
       # tab = PWN::Plugins::TransparentBrowser.new_tab(
       #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   url: 'optional - URL to open in new tab (defaults to about:about or chrome://chrome-urls/ for Chrome)',
+      #   url: 'optional - URL to open in new tab'
       # )
 
       public_class_method def self.new_tab(opts = {})
@@ -1301,13 +1301,13 @@ module PWN
 
           console_resp = #{self}.view_dom_mutations(
             browser_obj: 'required - browser_obj returned from #open method)',
-            tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)',
+            index: 'optional - index of tab to switch to (defaults to active tab)',
             target: 'optional - target JavaScript node to observe (defaults to document.body)'
           )
 
           console_resp = #{self}.hide_dom_mutations(
             browser_obj: 'required - browser_obj returned from #open method)',
-            tab_keyword: 'optional - keyword in title or url to switch to tab (defaults to active tab per list_tabs method)'
+            index: 'optional - index of tab to switch to (defaults to active tab)'
           )
 
           #{self}.update_about_config(
@@ -1327,7 +1327,8 @@ module PWN
           )
 
           tab = #{self}.new_tab(
-            browser_obj: 'required - browser_obj returned from #open method)'
+            browser_obj: 'required - browser_obj returned from #open method)',
+            url: 'optional - URL to open in new tab'
           )
 
           tab = #{self}.close_tab(
