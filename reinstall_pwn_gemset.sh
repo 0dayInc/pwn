@@ -17,7 +17,7 @@ fi
 
 rvm use ruby-$ruby_version@$ruby_gemset --create
 export rvmsudo_secure_path=1
-rvm gem install bundler
+gem install bundler
 if [[ $(uname -s) == "Darwin" ]]; then
   bundle config build.pg --with-pg-config=/opt/local/lib/postgresql96/bin/pg_config
   # bundle config build.serialport \
