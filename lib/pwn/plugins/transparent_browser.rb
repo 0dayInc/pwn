@@ -724,29 +724,37 @@ module PWN
         browser_obj = opts[:browser_obj]
         verify_devtools_browser(browser_obj: browser_obj)
 
-        idx = 0
         current_window_handle = browser_obj[:browser].driver.window_handle
 
-        tabs_arr_hash = browser_obj[:browser].windows.map do |tab|
-          next if tab.url.include?('devtools://')
+        tabs_arr_hash = []
+        browser_obj[:browser].driver.window_handles.each do |window_handle|
+          # Skip DevTools tabs
+          browser_obj[:browser].driver.switch_to.window(window_handle)
+          title = browser_obj[:browser].execute_script('return document.title')
+          url = browser_obj[:browser].execute_script('return document.location.href')
+          next if url.include?('devtools://')
 
-          state = :inactive
-          window_handle = browser_obj[:browser].driver.window_handles[idx]
-          state = :active if window_handle == current_window_handle
+          # Get title and URL without switching tabs
 
-          idx += 1
+          state = window_handle == current_window_handle ? :active : :inactive
 
-          { index: window_handle, title: tab.title, url: tab.url, state: state }
-        end.compact
+          tabs_arr_hash << { index: window_handle, title: title, url: url, state: state }
+        ensure
+          # Ensure we return to the original active tab
+          browser_obj[:browser].driver.switch_to.window(current_window_handle)
+        end
 
         # Ensure we have a visible tab that's active
         active_tab = tabs_arr_hash.find { |tab| tab[:state] == :active } || tabs_arr_hash.first
-        # Ensure we're back to the active tab
-        browser_obj[:browser].driver.switch_to.window(active_tab[:index])
+        # Switch to the active tab if it exists
+        browser_obj[:browser].driver.switch_to.window(active_tab[:index]) if active_tab
 
         tabs_arr_hash
+      rescue Selenium::WebDriver::Error::NoSuchWindowError => e
+        puts "Error: No valid window handles available (#{e.message})"
+        [] # Return empty array if no tabs are available
       rescue StandardError => e
-        raise e
+        raise "Failed to list tabs: #{e.message}"
       end
 
       # Supported Method Parameters::
