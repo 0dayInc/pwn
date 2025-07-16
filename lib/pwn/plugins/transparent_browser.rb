@@ -2,7 +2,7 @@
 
 require 'em/pure_ruby'
 require 'faye/websocket'
-require 'openapi3_parser'
+# require 'openapi3_parser'
 require 'openssl'
 require 'rest-client'
 require 'securerandom'
