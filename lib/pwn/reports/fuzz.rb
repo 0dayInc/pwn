@@ -142,6 +142,7 @@ module PWN
                 var oldStart = 0;
                 var table = $('#pwn_fuzz_net_app_proto').DataTable( {
                   "paging": true,
+                  "lengthMenu": [10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
                   "pagingType": "full_numbers",
                   "fnDrawCallback": function ( oSettings ) {
                     /* Need to redo the counters if filtered or sorted */
