@@ -346,15 +346,18 @@ module PWN
 
         report_url = Base64.strict_encode64(target_domain)
         # Ready scanreport API call in burpbuddy to support HTML & XML report generation
-        # report_resp = rest_browser.get(
-        #   "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
-        # )
+        # This is for the older burpbuddy-3.1.1-SNAPSHOT-all.jar
         report_resp = rest_browser.get(
-          "http://#{burpbuddy_api}/scanreport/#{report_url}"
+          "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
         )
+        # This is for the older burpbuddy-3.1.0-SNAPSHOT-all.jar
+        # report_resp = rest_browser.get(
+        #   "http://#{burpbuddy_api}/scanreport/#{report_url}"
+        # )
         File.open(output_path, 'w') do |f|
           f.puts(report_resp.body.gsub("\r\n", "\n"))
         end
+      rescue RestClient::Exceptions::NotFound
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
