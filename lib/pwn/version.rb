@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module PWN
-  VERSION = '0.5.319'
+  VERSION = '0.5.320'
 end
