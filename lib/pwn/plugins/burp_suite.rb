@@ -11,14 +11,14 @@ module PWN
     module BurpSuite
       # Supported Method Parameters::
       # burp_obj = PWN::Plugins::BurpSuite.start(
-      #   burp_jar_path: 'required - path of burp suite pro jar file',
+      #   burp_jar_path: 'options - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
       #   headless: 'optional - run burp headless if set to true',
       #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
       #   target_config: 'optional - path to burp suite pro target config JSON file'
       # )
 
       public_class_method def self.start(opts = {})
-        burp_jar_path = opts[:burp_jar_path]
+        burp_jar_path = opts[:burp_jar_path] ||= '/opt/burpsuite/burpsuite_pro.jar'
         raise 'Invalid path to burp jar file.  Please check your spelling and try again.' unless File.exist?(burp_jar_path)
 
         burp_root = File.dirname(burp_jar_path)
@@ -211,7 +211,8 @@ module PWN
 
           puts "Adding #{json_uri} to Active Scan"
           active_scan_url_arr.push(json_uri)
-          post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"useHttps\": #{use_https}, \"request\": \"#{json_req['raw']}\" }"
+          # post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"useHttps\": #{use_https}, \"request\": \"#{json_req['raw']}\" }"
+          post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"useHttps\": \"#{use_https}\", \"request\": \"#{json_req['raw']}\" }"
           # Kick off an active scan for each given page in the json_sitemap results
           rest_browser.post("http://#{burpbuddy_api}/scan/active", post_body, content_type: 'application/json')
         end
@@ -348,8 +349,12 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # PLEASE NOTE: IF RUNNING THIS MODULE THE FIRST TIME, YOU HAVE TO MANUALLY LOAD
+          # /opt/burpsuite/burpsuite_pro.jar INTO THE BURP SUITE PRO UI IN ORDER FOR
+          # THIS TO WORK PROPERLY MOVING FORWARD.  THIS SHOULD ONLY BE NECESSARY TO
+          # DO ONCE.
           burp_obj = #{self}.start(
-            burp_jar_path: 'required - path of burp suite pro jar file',
+            burp_jar_path: 'required - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
             headless: 'optional - run headless if set to true',
             browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
             target_config: 'optional - path to burp suite pro target config JSON file'
