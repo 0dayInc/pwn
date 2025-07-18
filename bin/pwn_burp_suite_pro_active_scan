@@ -10,7 +10,7 @@ OptionParser.new do |options|
     #{File.basename($PROGRAM_NAME)} [opts]
   "
 
-  options.on('-bBPATH', '--burp_path=BPATH', '<Required - Path to Burp Suite Pro Jar File>') do |b|
+  options.on('-bBPATH', '--burp_path=BPATH', '<Optional - Path to Burp Suite Pro Jar File (Defaults to /opt/burpsuite/burpsuite-pro.jar)>') do |b|
     opts[:burp_jar_path] = b
   end
 
@@ -43,7 +43,7 @@ end
 begin
   logger = PWN::Plugins::PWNLogger.create
 
-  burp_jar_path = opts[:burp_jar_path].to_s.scrub
+  burp_jar_path = opts[:burp_jar_path]
   headless = opts[:headless]
   target_url = opts[:target_url].to_s.scrub
   output_path = opts[:output_path].to_s.scrub
@@ -92,20 +92,19 @@ begin
   print "Waiting #{duration} seconds prior to kicking off active scan..."
   sleep duration # Sleep for now so everything loads the way we expect - blech.
 
-  active_scan_url_arr = PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: target_url)
+  PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: target_url)
 
   # Dump a list of scan issues from Active Scan result
-  # scan_issues = PWN::Plugins::BurpSuite.get_scan_issues(:burp_obj => burp_obj)
+  # scan_issues = PWN::Plugins::BurpSuite.get_scan_issues(burp_obj: burp_obj)
   # puts scan_issues
 
   # Once DefectDojo begins to support XML report results
   report_types = %i[html xml]
   report_types.each do |report_type|
-    if report_type == :html
-      this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
-    else
-      this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml"
-    end
+    this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
+
+    this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml" if report_type == :xml
+
     PWN::Plugins::BurpSuite.generate_scan_report(
       burp_obj: burp_obj,
       target_url: target_url,
