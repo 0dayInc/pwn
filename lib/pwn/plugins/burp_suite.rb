@@ -10,6 +10,37 @@ module PWN
     # This plugin was created to interact w/ Burp Suite Pro in headless mode to kick off spidering/live scanning
     module BurpSuite
       # Supported Method Parameters::
+      # uri = PWN::Plugins::BurpSuite.format_uri_from_sitemap_resp(
+      #   scheme: 'required - scheme of the URI (http|https)',
+      #   host: 'required - host of the URI',
+      #   port: 'optional - port of the URI',
+      #   path: 'optional - path of the URI'
+      # )
+      private_class_method def self.format_uri_from_sitemap_resp(opts = {})
+        scheme = opts[:scheme]
+        raise 'ERROR: scheme parameter is required' if scheme.nil?
+
+        host = opts[:host]
+        raise 'ERROR: host parameter is required' if host.nil?
+
+        port = opts[:port]
+        path = opts[:path]
+
+        implicit_http_ports_arr = [
+          80,
+          443
+        ]
+
+        if implicit_http_ports_arr.include?(port)
+          uri = "#{scheme}://#{host}#{path}"
+        else
+          uri = "#{scheme}://#{host}:#{port}#{path}"
+        end
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # burp_obj = PWN::Plugins::BurpSuite.start(
       #   burp_jar_path: 'options - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
       #   headless: 'optional - run burp headless if set to true',
@@ -167,6 +198,27 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # json_in_scope = PWN::Plugins::BurpSuite.add_to_scope(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   target_url: 'required - target url to add to scope'
+      # )
+
+      public_class_method def self.add_to_scope(opts = {})
+        burp_obj = opts[:burp_obj]
+        target_url = opts[:target_url]
+        rest_browser = burp_obj[:rest_browser]
+        burpbuddy_api = burp_obj[:burpbuddy_api]
+
+        post_body = { url: target_url }.to_json
+
+        in_scope = rest_browser.post("http://#{burpbuddy_api}/scope", post_body, content_type: 'application/json; charset=UTF8')
+        JSON.parse(in_scope)
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
       # active_scan_url_arr = PWN::Plugins::BurpSuite.invoke_active_scan(
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])'
@@ -178,7 +230,7 @@ module PWN
         burpbuddy_api = burp_obj[:burpbuddy_api]
         target_url = opts[:target_url].to_s.scrub.strip.chomp
         target_scheme = URI.parse(target_url).scheme
-        target_domain_name = URI.parse(target_url).host
+        target_host = URI.parse(target_url).host
         target_port = URI.parse(target_url).port.to_i
         if target_scheme == 'http'
           use_https = false
@@ -196,24 +248,25 @@ module PWN
           json_port = json_http_svc['port'].to_i
           json_path = json_req['path']
 
-          implicit_http_ports_arr = [
-            80,
-            443
-          ]
+          json_uri = format_uri_from_sitemap_resp(
+            scheme: json_protocol,
+            host: json_host,
+            port: json_port,
+            path: json_path
+          )
 
-          if implicit_http_ports_arr.include?(json_port)
-            json_uri = "#{json_protocol}://#{json_host}#{json_path}"
-          else
-            json_uri = "#{json_protocol}://#{json_host}:#{json_port}#{json_path}"
-          end
-
-          next unless json_host == target_domain_name && json_port == target_port
+          next unless json_host == target_host && json_port == target_port
 
           # More info on the BurpBuddy API can be found here:
           # https://github.com/tomsteele/burpbuddy/blob/master/src/main/kotlin/burp/API.kt
           puts "Adding #{json_uri} to Active Scan"
           active_scan_url_arr.push(json_uri)
-          post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"use_https\": #{use_https}, \"request\": \"#{json_req['raw']}\" }"
+          post_body = {
+            host: json_host,
+            port: json_port,
+            use_https: use_https,
+            request: json_req['raw']
+          }.to_json
           # Kick off an active scan for each given page in the json_sitemap results
           rest_browser.post("http://#{burpbuddy_api}/scan/active", post_body, content_type: 'application/json')
         end
@@ -285,25 +338,20 @@ module PWN
         host = URI.parse(target_url).host
         port = URI.parse(target_url).port
 
-        implicit_http_ports_arr = [
-          80,
-          443
-        ]
-
-        if implicit_http_ports_arr.include?(port)
-          target_domain = "#{scheme}://#{host}"
-        else
-          target_domain = "#{scheme}://#{host}:#{port}"
-        end
+        target_domain = format_uri_from_sitemap_resp(
+          scheme: scheme,
+          host: host,
+          port: port
+        )
 
         report_url = Base64.strict_encode64(target_domain)
         # Ready scanreport API call in burpbuddy to support HTML & XML report generation
-        report_resp = rest_browser.get(
-          "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
-        )
         # report_resp = rest_browser.get(
-        #   "http://#{burpbuddy_api}/scanreport/#{report_url}"
+        #   "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
         # )
+        report_resp = rest_browser.get(
+          "http://#{burpbuddy_api}/scanreport/#{report_url}"
+        )
         File.open(output_path, 'w') do |f|
           f.puts(report_resp.body.gsub("\r\n", "\n"))
         end
