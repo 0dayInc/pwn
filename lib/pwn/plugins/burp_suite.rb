@@ -209,10 +209,11 @@ module PWN
 
           next unless json_host == target_domain_name && json_port == target_port
 
+          # More info on the BurpBuddy API can be found here:
+          # https://github.com/tomsteele/burpbuddy/blob/master/src/main/kotlin/burp/API.kt
           puts "Adding #{json_uri} to Active Scan"
           active_scan_url_arr.push(json_uri)
-          # post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"useHttps\": #{use_https}, \"request\": \"#{json_req['raw']}\" }"
-          post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"useHttps\": \"#{use_https}\", \"request\": \"#{json_req['raw']}\" }"
+          post_body = "{ \"host\": \"#{json_host}\", \"port\": \"#{json_port}\", \"use_https\": #{use_https}, \"request\": \"#{json_req['raw']}\" }"
           # Kick off an active scan for each given page in the json_sitemap results
           rest_browser.post("http://#{burpbuddy_api}/scan/active", post_body, content_type: 'application/json')
         end
