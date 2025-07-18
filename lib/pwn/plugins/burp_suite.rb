@@ -202,9 +202,9 @@ module PWN
           ]
 
           if implicit_http_ports_arr.include?(json_port)
-            json_uri = "#{json_protocol}//#{json_host}#{json_path}"
+            json_uri = "#{json_protocol}://#{json_host}#{json_path}"
           else
-            json_uri = "#{json_protocol}//#{json_host}:#{json_port}#{json_path}"
+            json_uri = "#{json_protocol}://#{json_host}:#{json_port}#{json_path}"
           end
 
           next unless json_host == target_domain_name && json_port == target_port
