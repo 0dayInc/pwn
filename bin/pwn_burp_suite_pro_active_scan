@@ -99,7 +99,7 @@ begin
     # Look for any set method in this instruction and replace its value w/ asterisks
     redact_regex = /\.set\(['"]([^'"]*)['"]\)/
     redacted_instruction = instruction.gsub(redact_regex, ".set('********')")
-    puts "Executing Instruction: #{redacted_instruction}"
+    print "\nExecuting Instruction: #{redacted_instruction}"
     browser.instance_eval(instruction.to_s.scrub.strip.chomp)
   end
 
