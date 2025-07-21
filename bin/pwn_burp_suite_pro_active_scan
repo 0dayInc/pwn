@@ -79,6 +79,12 @@ begin
   # Disable Proxy Intercepting Capabilities for this Driver
   PWN::Plugins::BurpSuite.disable_proxy(burp_obj: burp_obj)
 
+  # Add URL to Target >> Scope >> Inclue in scope
+  PWN::Plugins::BurpSuite.add_to_scope(
+    burp_obj: burp_obj,
+    target_url: in_scope
+  )
+
   # Use a headless browser w/ JavaScript Support to Load Our Target
   # and Optionally Authenticate to Provide the Capability to Conduct
   # a Burp Active Scan in a Post-AuthN state.  Since our browsers
@@ -92,12 +98,6 @@ begin
   File.read(navigation_instruct).each_line do |instruction|
     browser.instance_eval(instruction.to_s.scrub.strip.chomp)
   end
-
-  # Add URL to Target >> Scope >> Inclue in scope
-  PWN::Plugins::BurpSuite.add_to_scope(
-    burp_obj: burp_obj,
-    target_url: in_scope
-  )
 
   duration = 9
   print "Waiting #{duration} seconds prior to kicking off active scan..."
