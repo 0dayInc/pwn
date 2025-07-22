@@ -427,6 +427,41 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::OwaspZap.import_openapi_spec_file(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   spec: 'required - path to OpenAPI spec file (e.g. /path/to/openapi.yaml)',
+      #   target: 'required - target URL to ovverride the service URL in the OpenAPI spec (e.g. https://fq.dn)',
+      #   context_id: 'optional - ID of the ZAP context (Defaults to first context, if any)',
+      #   user_id: 'optional - ID of the ZAP user (Defaults to first user, if any)'
+      # )
+
+      public_class_method def self.import_openapi_spec_file(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        spec = opts[:spec]
+        target = opts[:target]
+        context_id = opts[:context_id]
+        user_id = opts[:user_id]
+
+        params = {
+          apikey: api_key,
+          file: spec,
+          target: target,
+          contextId: context_id,
+          user_id: user_id
+        }
+
+        zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: "JSON/break/action/openapi/?zapapiformat=JSON&apikey=#{api_key}",
+          params: params
+        )
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
       # watir_resp = PWN::Plugins::OwaspZap.request(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   browser_obj: 'required - browser_obj w/ browser_type: :firefox||:headless returned from #open method',

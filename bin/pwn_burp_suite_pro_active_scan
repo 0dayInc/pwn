@@ -33,10 +33,6 @@ OptionParser.new do |options|
   options.on('-iURL', '---in_scope=URL', '<Optional - URL to add include in scope (Defaults to value of --target_url)>') do |s|
     opts[:in_scope] = s
   end
-
-  options.on('-cFILE', '--target-config=FILE', '<Optional - Path to Target Config JSON File>') do |c|
-    opts[:target_config] = c
-  end
 end.parse!
 
 if opts.empty?
@@ -56,7 +52,6 @@ begin
   raise 'Invalid path to browser instructions.  Please check your spelling and try again.' unless File.exist?(navigation_instruct)
 
   in_scope = opts[:in_scope] ||= target_url
-  target_config = opts[:target_config]
 
   # ------
   # Open Burp
@@ -64,14 +59,12 @@ begin
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
       headless: true,
-      browser_type: :headless,
-      target_config: target_config
+      browser_type: :headless
     )
   else
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
-      browser_type: :chrome,
-      target_config: target_config
+      browser_type: :chrome
     )
   end
 
