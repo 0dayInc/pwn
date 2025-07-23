@@ -44,8 +44,7 @@ module PWN
       # burp_obj = PWN::Plugins::BurpSuite.start(
       #   burp_jar_path: 'options - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
       #   headless: 'optional - run burp headless if set to true',
-      #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
-      #   target_config: 'optional - path to burp suite pro target config JSON file'
+      #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types'
       # )
 
       public_class_method def self.start(opts = {})
@@ -60,16 +59,9 @@ module PWN
                          opts[:browser_type]
                        end
 
-        target_config = opts[:target_config]
-
-        if opts[:headless]
-          # burp_cmd_string = "java -Xmx4G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
-          burp_cmd_string = "java -Xmx4G -Djava.awt.headless=true -classpath #{burp_root}/burpbuddy.jar -jar #{burp_jar_path}"
-        else
-          # burp_cmd_string = "java -Xmx4G -classpath #{burp_root}/burpbuddy.jar:#{burp_jar_path} burp.StartBurp"
-          burp_cmd_string = "java -Xmx4G -classpath #{burp_root}/burpbuddy.jar -jar #{burp_jar_path}"
-        end
-        burp_cmd_string = "#{burp_cmd_string} --config-file=#{target_config}" if target_config && File.exist?(target_config)
+        burp_cmd_string = "java -Xmx4G -jar #{burp_jar_path}"
+        burp_cmd_string = "java -Xmx4G -Djava.awt.headless=true -jar #{burp_jar_path}" if opts[:headless]
+        # burp_cmd_string = "#{burp_cmd_string} --user-config-file=#{user_config}" if File.exist?(user_config)
 
         # Construct burp_obj
         burp_obj = {}
@@ -78,10 +70,11 @@ module PWN
         rest_browser = browser_obj1[:browser]
 
         # random_mitm_port = PWN::Plugins::Sock.get_random_unused_port
-        # random_bb_port = random_mitm_port
-        # random_bb_port = PWN::Plugins::Sock.get_random_unused_port while random_bb_port == random_mitm_port
-        burp_obj[:mitm_proxy] = '127.0.0.1:8080'
-        burp_obj[:burpbuddy_api] = '127.0.0.1:8001'
+        random_mitm_port = 8080
+        # random_bb_port = PWN::Plugins::Sock.get_random_unused_port
+        random_bb_port = 8001
+        burp_obj[:mitm_proxy] = "127.0.0.1:#{random_mitm_port}"
+        burp_obj[:burpbuddy_api] = "127.0.0.1:#{random_bb_port}"
         burp_obj[:rest_browser] = rest_browser
 
         # Proxy always listens on localhost...use SSH tunneling if remote access is required
@@ -94,7 +87,7 @@ module PWN
 
         # Wait for TCP 8001 to open prior to returning burp_obj
         loop do
-          s = TCPSocket.new('127.0.0.1', 8001)
+          s = TCPSocket.new('127.0.0.1', random_bb_port)
           s.close
           break
         rescue Errno::ECONNREFUSED
@@ -401,15 +394,10 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          # PLEASE NOTE: IF RUNNING THIS MODULE THE FIRST TIME, YOU HAVE TO MANUALLY LOAD
-          # /opt/burpsuite/burpsuite_pro.jar INTO THE BURP SUITE PRO UI IN ORDER FOR
-          # THIS TO WORK PROPERLY MOVING FORWARD.  THIS SHOULD ONLY BE NECESSARY TO
-          # DO ONCE.
           burp_obj = #{self}.start(
             burp_jar_path: 'required - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
             headless: 'optional - run headless if set to true',
-            browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
-            target_config: 'optional - path to burp suite pro target config JSON file'
+            browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types'
           )
 
           uri_in_scope_bool = #{self}.uri_in_scope(
