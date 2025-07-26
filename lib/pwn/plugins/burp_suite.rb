@@ -31,24 +31,27 @@ module PWN
           443
         ]
 
-        if implicit_http_ports_arr.include?(port)
-          uri = "#{scheme}://#{host}#{path}"
-        else
-          uri = "#{scheme}://#{host}:#{port}#{path}"
-        end
+        uri = "#{scheme}://#{host}:#{port}#{path}"
+        uri = "#{scheme}://#{host}#{path}" if implicit_http_ports_arr.include?(port)
+
+        uri
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # burp_obj = PWN::Plugins::BurpSuite.start(
-      #   burp_jar_path: 'options - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
+      #   burp_jar_path: 'optional - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
       #   headless: 'optional - run burp headless if set to true',
-      #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types'
+      #   browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
+      #   burp_ip: 'optional - IP address for the Burp proxy (defaults to 127.0.0.1)',
+      #   burp_port: 'optional - port for the Burp proxy (defaults to a random unused port)',
+      #   pwn_burp_ip: 'optional - IP address for the PWN Burp API (defaults to 127.0.0.1)',
+      #   pwn_burp_port: 'optional - port for the PWN Burp API (defaults to a random unused port)'
       # )
 
       public_class_method def self.start(opts = {})
-        burp_jar_path = opts[:burp_jar_path] ||= '/opt/burpsuite/burpsuite_pro.jar'
+        burp_jar_path = opts[:burp_jar_path] ||= '/opt/burpsuite/burpsuite-pro.jar'
         raise 'Invalid path to burp jar file.  Please check your spelling and try again.' unless File.exist?(burp_jar_path)
 
         burp_root = File.dirname(burp_jar_path)
@@ -59,9 +62,20 @@ module PWN
                          opts[:browser_type]
                        end
 
-        burp_cmd_string = "java -Xmx4G -jar #{burp_jar_path}"
-        burp_cmd_string = "java -Xmx4G -Djava.awt.headless=true -jar #{burp_jar_path}" if opts[:headless]
-        # burp_cmd_string = "#{burp_cmd_string} --user-config-file=#{user_config}" if File.exist?(user_config)
+        burp_ip = opts[:burp_ip] ||= '127.0.0.1'
+        burp_port = opts[:burp_port] ||= 8080
+        # burp_port = opts[:burp_port] ||= PWN::Plugins::Sock.get_random_unused_port
+        #
+        pwn_burp_ip = opts[:pwn_burp_ip] ||= '127.0.0.1'
+        pwn_burp_port = opts[:pwn_burp_port] ||= 1337
+        # pwn_burp_port = opts[:pwn_burp_port] ||= PWN::Plugins::Sock.get_random_unused_port
+
+        burp_cmd_string = 'java -Xmx4G'
+        # burp_cmd_string = "#{burp_cmd_string} -Dhttp.proxyHost=#{burp_ip} -Dhttp.proxyPort=#{burp_port}"
+        # burp_cmd_string = "#{burp_cmd_string} -Dhttps.proxyHost=#{burp_ip} -Dhttps.proxyPort=#{burp_port}"
+        burp_cmd_string = "#{burp_cmd_string} -Djava.awt.headless=true" if opts[:headless]
+        burp_cmd_string = "#{burp_cmd_string} -Dserver.address=#{pwn_burp_ip} -Dserver.port=#{pwn_burp_port}"
+        burp_cmd_string = "#{burp_cmd_string} -jar #{burp_jar_path}"
 
         # Construct burp_obj
         burp_obj = {}
@@ -69,12 +83,8 @@ module PWN
         browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_browser = browser_obj1[:browser]
 
-        # random_mitm_port = PWN::Plugins::Sock.get_random_unused_port
-        random_mitm_port = 8080
-        # random_bb_port = PWN::Plugins::Sock.get_random_unused_port
-        random_bb_port = 8001
-        burp_obj[:mitm_proxy] = "127.0.0.1:#{random_mitm_port}"
-        burp_obj[:burpbuddy_api] = "127.0.0.1:#{random_bb_port}"
+        burp_obj[:mitm_proxy] = "#{burp_ip}:#{burp_port}"
+        burp_obj[:pwn_burp_api] = "#{pwn_burp_ip}:#{pwn_burp_port}"
         burp_obj[:rest_browser] = rest_browser
 
         # Proxy always listens on localhost...use SSH tunneling if remote access is required
@@ -85,9 +95,9 @@ module PWN
 
         burp_obj[:burp_browser] = browser_obj2
 
-        # Wait for TCP 8001 to open prior to returning burp_obj
+        # Wait for pwn_burp_port to open prior to returning burp_obj
         loop do
-          s = TCPSocket.new('127.0.0.1', random_bb_port)
+          s = TCPSocket.new(pwn_burp_ip, pwn_burp_port)
           s.close
           break
         rescue Errno::ECONNREFUSED
@@ -95,6 +105,15 @@ module PWN
           sleep 3
           next
         end
+
+        # USE THIS WHEN Updating Proxy Listener settings become
+        # available in the BurpSuite Montoya API
+        # Update proxy listener to use the burp_ip and burp_port
+        # update_proxy_listener(
+        #   burp_obj: burp_obj,
+        #   address: burp_ip,
+        #   port: burp_port
+        # )
 
         burp_obj
       rescue StandardError => e
@@ -149,9 +168,9 @@ module PWN
       public_class_method def self.enable_proxy(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
 
-        enable_resp = rest_browser.post("http://#{burpbuddy_api}/proxy/intercept/enable", nil)
+        enable_resp = rest_browser.post("http://#{pwn_burp_api}/proxy/intercept/enable", nil)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -165,9 +184,9 @@ module PWN
       public_class_method def self.disable_proxy(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
 
-        disable_resp = rest_browser.post("http://#{burpbuddy_api}/proxy/intercept/disable", nil)
+        disable_resp = rest_browser.post("http://#{pwn_burp_api}/proxy/intercept/disable", nil)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -181,10 +200,21 @@ module PWN
       public_class_method def self.get_current_sitemap(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
 
-        sitemap = rest_browser.get("http://#{burpbuddy_api}/sitemap", content_type: 'application/json; charset=UTF8')
-        JSON.parse(sitemap)
+        sitemap = rest_browser.get("http://#{pwn_burp_api}/sitemap", content_type: 'application/json; charset=UTF8')
+        # json_sitemap = JSON.parse(sitemap, symbolize_names: true)
+        # json_sitemap is an array of hashes.
+        # each hash contains a :request and :response key.
+        # both of these values are Base64 encoded strings.
+        # We want to decode them in an array of hashes.
+        # json_sitemap.map do |site|
+        #   site[:request] = Base64.decode64(site[:request]) if site[:request]
+        #   site[:response] = Base64.decode64(site[:response]) if site[:response]
+        # end
+
+        # json_sitemap
+        JSON.parse(sitemap, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -200,11 +230,11 @@ module PWN
         burp_obj = opts[:burp_obj]
         target_url = opts[:target_url]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
 
         post_body = { url: target_url }.to_json
 
-        in_scope = rest_browser.post("http://#{burpbuddy_api}/scope", post_body, content_type: 'application/json; charset=UTF8')
+        in_scope = rest_browser.post("http://#{pwn_burp_api}/scope", post_body, content_type: 'application/json; charset=UTF8')
         JSON.parse(in_scope)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -220,26 +250,27 @@ module PWN
       public_class_method def self.invoke_active_scan(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
         target_url = opts[:target_url].to_s.scrub.strip.chomp
         target_scheme = URI.parse(target_url).scheme
         target_host = URI.parse(target_url).host
         target_port = URI.parse(target_url).port.to_i
-        if target_scheme == 'http'
-          use_https = false
-        else
-          use_https = true
-        end
+        # if target_scheme == 'http'
+        #   use_https = false
+        # else
+        #   use_https = true
+        # end
 
         active_scan_url_arr = []
         json_sitemap = get_current_sitemap(burp_obj: burp_obj)
         json_sitemap.each do |site|
-          json_http_svc = site['http_service']
-          json_req = site['request']
-          json_protocol = json_http_svc['protocol']
-          json_host = json_http_svc['host'].to_s.scrub.strip.chomp
-          json_port = json_http_svc['port'].to_i
-          json_path = json_req['path']
+          json_req = site[:request]
+          json_path = json_req[:path]
+          b64_encoded_req = json_req[:raw]
+          json_http_svc = site[:http_service]
+          json_protocol = json_http_svc[:protocol]
+          json_host = json_http_svc[:host].to_s.scrub.strip.chomp
+          json_port = json_http_svc[:port].to_i
 
           json_uri = format_uri_from_sitemap_resp(
             scheme: json_protocol,
@@ -248,30 +279,32 @@ module PWN
             path: json_path
           )
 
+          # TODO: check if the URI is in scope
+          # next unless uri_in_scope(...)
           next unless json_host == target_host && json_port == target_port
 
-          # More info on the BurpBuddy API can be found here:
-          # https://github.com/tomsteele/burpbuddy/blob/master/src/main/kotlin/burp/API.kt
+          use_https = true if json_protocol == 'https'
+
           puts "Adding #{json_uri} to Active Scan"
           active_scan_url_arr.push(json_uri)
           post_body = {
             host: json_host,
             port: json_port,
             use_https: use_https,
-            request: json_req['raw']
+            request: b64_encoded_req
           }.to_json
           # Kick off an active scan for each given page in the json_sitemap results
-          rest_browser.post("http://#{burpbuddy_api}/scan/active", post_body, content_type: 'application/json')
+          rest_browser.post("http://#{pwn_burp_api}/scan/active", post_body, content_type: 'application/json')
         end
 
         # Wait for scan completion
-        scan_queue = rest_browser.get("http://#{burpbuddy_api}/scan/active")
+        scan_queue = rest_browser.get("http://#{pwn_burp_api}/scan/active")
         json_scan_queue = JSON.parse(scan_queue)
         scan_queue_total = json_scan_queue.count
         json_scan_queue.each do |scan_item|
           this_scan_item_id = scan_item['id']
           until scan_item['status'] == 'finished'
-            scan_item_resp = rest_browser.get("http://#{burpbuddy_api}/scan/active/#{this_scan_item_id}")
+            scan_item_resp = rest_browser.get("http://#{pwn_burp_api}/scan/active/#{this_scan_item_id}")
             scan_item = JSON.parse(scan_item_resp)
             scan_status = scan_item['status']
             puts "Target ID ##{this_scan_item_id} of ##{scan_queue_total}| #{scan_status}"
@@ -294,9 +327,9 @@ module PWN
       public_class_method def self.get_scan_issues(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
 
-        scan_issues = rest_browser.get("http://#{burpbuddy_api}/scanissues")
+        scan_issues = rest_browser.get("http://#{pwn_burp_api}/scanissues")
         JSON.parse(scan_issues)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -315,9 +348,9 @@ module PWN
         burp_obj = opts[:burp_obj]
         target_url = opts[:target_url]
         rest_browser = burp_obj[:rest_browser]
-        burpbuddy_api = burp_obj[:burpbuddy_api]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
         report_type = opts[:report_type]
-        # When burpbuddy begins to support XML report generation
+        # When pwn_burp begins to support XML report generation
         valid_report_types_arr = %i[
           html
           xml
@@ -330,27 +363,130 @@ module PWN
         scheme = URI.parse(target_url).scheme
         host = URI.parse(target_url).host
         port = URI.parse(target_url).port
+        path = URI.parse(target_url).path
 
         target_domain = format_uri_from_sitemap_resp(
           scheme: scheme,
           host: host,
-          port: port
+          port: port,
+          path: path
         )
 
+        puts "Generating #{report_type} report for #{target_domain}..."
         report_url = Base64.strict_encode64(target_domain)
-        # Ready scanreport API call in burpbuddy to support HTML & XML report generation
-        # This is for the older burpbuddy-3.1.1-SNAPSHOT-all.jar
+        # Ready scanreport API call in pwn_burp to support HTML & XML report generation
         report_resp = rest_browser.get(
-          "http://#{burpbuddy_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
+          "http://#{pwn_burp_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
         )
 
-        # This is for the older burpbuddy-3.1.0-SNAPSHOT-all.jar
-        # report_resp = rest_browser.get(
-        #   "http://#{burpbuddy_api}/scanreport/#{report_url}"
-        # )
         File.open(output_path, 'w') do |f|
           f.puts(report_resp.body.gsub("\r\n", "\n"))
         end
+      rescue RestClient::BadRequest => e
+        puts e.response
+      rescue StandardError => e
+        # stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_proxy_listeners = PWN::Plugins::BurpSuite.get_proxy_listeners(
+      #   burp_obj: 'required - burp_obj returned by #start method'
+      # )
+
+      public_class_method def self.get_proxy_listeners(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        listeners = rest_browser.get("http://#{pwn_burp_api}/proxy/listeners", content_type: 'application/json; charset=UTF8')
+        JSON.parse(listeners, symbolize_names: true)
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_proxy_listener = PWN::Plugins::BurpSuite.add_proxy_listener(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   bind_address: 'required - bind address for the proxy listener (e.g., "127.0.0.1")',
+      #   port: 'required - port for the proxy listener (e.g., 8081)',
+      #   enabled: 'optional - enable the listener (defaults to true)'
+      # )
+
+      public_class_method def self.add_proxy_listener(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+        bind_address = opts[:bind_address]
+        raise 'ERROR: bind_address parameter is required' if bind_address.nil?
+
+        port = opts[:port]
+        raise 'ERROR: port parameter is required' if port.nil?
+
+        enabled = opts[:enabled] != false # Default to true if not specified
+
+        post_body = {
+          id: "#{bind_address}:#{port}",
+          bind_address: bind_address,
+          port: port,
+          enabled: enabled
+        }.to_json
+
+        listener = rest_browser.post("http://#{pwn_burp_api}/proxy/listeners", post_body, content_type: 'application/json; charset=UTF8')
+        JSON.parse(listener, symbolize_names: true)
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_proxy_listener = PWN::Plugins::BurpSuite.update_proxy_listener(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   id: 'optional - ID of the proxy listener (defaults to "127.0.0.1:8080")',
+      #   bind_address: 'optional - bind address for the proxy listener (defaults to "127.0.0.1")',
+      #   port: 'optional - port for the proxy listener (defaults to 8080)',
+      #   enabled: 'optional - enable or disable the listener (defaults to true)'
+      # )
+
+      public_class_method def self.update_proxy_listener(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+        id = opts[:id] ||= '127.0.0.1:8080'
+        bind_address = opts[:bind_address] ||= '127.0.0.1'
+        port = opts[:port] ||= 8080
+        enabled = opts[:enabled] != false # Default to true if not specified
+
+        post_body = {
+          id: id,
+          bind_address: bind_address,
+          port: port,
+          enabled: enabled
+        }.to_json
+
+        listener = rest_browser.put("http://#{pwn_burp_api}/proxy/listeners/#{id}", post_body, content_type: 'application/json; charset=UTF8')
+        JSON.parse(listener, symbolize_names: true)
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::BurpSuite.delete_proxy_listener(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   id: 'required - ID of the proxy listener (e.g., "127.0.0.1:8080")'
+      # )
+
+      public_class_method def self.delete_proxy_listener(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+        id = opts[:id]
+        raise 'ERROR: id parameter is required' if id.nil?
+
+        rest_browser.delete("http://#{pwn_burp_api}/proxy/listeners/#{id}")
+        true # Return true to indicate successful deletion (or error if API fails)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -395,7 +531,7 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           burp_obj = #{self}.start(
-            burp_jar_path: 'required - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
+            burp_jar_path: 'optional - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
             headless: 'optional - run headless if set to true',
             browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types'
           )
@@ -417,6 +553,30 @@ module PWN
             burp_obj: 'required - burp_obj returned by #start method'
           )
 
+          json_proxy_listeners = #{self}.get_proxy_listeners(
+            burp_obj: 'required - burp_obj returned by #start method'
+          )
+
+          json_proxy_listener = #{self}.add_proxy_listener(
+            burp_obj: 'required - burp_obj returned by #start method',
+            bind_address: 'required - bind address for the proxy listener (e.g., \"127.0.0.1\")',
+            port: 'required - port for the proxy listener (e.g., 8081)',
+            enabled: 'optional - enable the listener (defaults to true)'
+          )
+
+          json_proxy_listener = #{self}.update_proxy_listener(
+            burp_obj: 'required - burp_obj returned by #start method',
+            id: 'required - ID of the proxy listener (e.g., \"127.0.0.1:8080\")',
+            bind_address: 'required - new bind address for the proxy listener',
+            port: 'required - new port for the proxy listener',
+            enabled: 'optional - enable or disable the listener (defaults to true)'
+          )
+
+          #{self}.delete_proxy_listener(
+            burp_obj: 'required - burp_obj returned by #start method',
+            id: 'required - ID of the proxy listener (e.g., \"127.0.0.1:8080\")'
+          )
+
           active_scan_url_arr = #{self}.invoke_active_scan(
             burp_obj: 'required - burp_obj returned by #start method',
             target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])'
@@ -428,7 +588,7 @@ module PWN
 
           #{self}.generate_scan_report(
             burp_obj: 'required - burp_obj returned by #start method',
-            active_scan_url_arr: 'required - active_scan_url_arr returned by #invoke_active_scan method',
+            target_url: 'required - target_url passed to #invoke_active_scan method',
             report_type: :html|:xml,
             output_path: 'required - path to save report results'
           )
