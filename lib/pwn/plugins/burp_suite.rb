@@ -194,29 +194,97 @@ module PWN
 
       # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::BurpSuite.get_current_sitemap(
-      #   burp_obj: 'required - burp_obj returned by #start method'
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   target_url: 'optional - target URL to filter sitemap results (defaults to entire sitemap)'
       # )
 
       public_class_method def self.get_current_sitemap(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         pwn_burp_api = burp_obj[:pwn_burp_api]
+        target_url = opts[:target_url]
 
-        sitemap = rest_browser.get("http://#{pwn_burp_api}/sitemap", content_type: 'application/json; charset=UTF8')
-        # json_sitemap = JSON.parse(sitemap, symbolize_names: true)
-        # json_sitemap is an array of hashes.
-        # each hash contains a :request and :response key.
-        # both of these values are Base64 encoded strings.
-        # We want to decode them in an array of hashes.
-        # json_sitemap.map do |site|
-        #   site[:request] = Base64.decode64(site[:request]) if site[:request]
-        #   site[:response] = Base64.decode64(site[:response]) if site[:response]
-        # end
+        sitemap = rest_browser.get(
+          "http://#{pwn_burp_api}/sitemap",
+          content_type: 'application/json; charset=UTF8'
+        )
 
-        # json_sitemap
         JSON.parse(sitemap, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_sitemap = PWN::Plugins::BurpSuite.add_to_sitemap(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   url: 'required - URL to add to sitemap',
+      #   method: 'required - HTTP method to use (e.g., GET, POST, PUT, DELETE)',
+      #   req_headers: 'optional - array of headers to include in the request (defaults to [])',
+      #   req_body: 'optional - body of the request (defaults to empty string)',
+      #   highlight: 'optional - highlight color :none|:red|:orange|:yellow|:green|:cyan|:blue|:pink|:magenta|:gray (defaults to :none)',
+      #   status_code: 'optional - HTTP status code to use in the response (defaults to 200)',
+      #   resp_headers: 'optional - array of response headers to include in the response (defaults to [])',
+      #   resp_body: 'optional - body of the response (defaults to empty JSON object "{}")',
+      #   comment: 'optional - comment to add to the sitemap entry (defaults to empty string)'
+      # )
+
+      public_class_method def self.add_to_sitemap(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+        url = opts[:url]
+        raise ArgumentError, 'url parameter is required' if url.nil?
+
+        valid_methods = %w[GET POST PUT DELETE PATCH OPTIONS HEAD TRACE CONNECT]
+        method = opts[:method].to_s.upcase
+        raise ArgumentError, "Invalid HTTP method: #{method}" unless valid_methods.include?(method)
+
+        req_headers = opts[:req_headers] ||= []
+        req_body = opts[:body].to_s
+        valid_highlights = %i[none red orange yellow green cyan blue pink magenta gray]
+        highlight = opts[:highlight] ||= :none
+        raise ArgumentError, "Invalid highlight color: #{highlight}" unless valid_highlights.include?(highlight)
+
+        status_code = opts[:status_code] ||= 200
+        resp_headers = opts[:resp_headers] ||= []
+        resp_body = opts[:resp_body] ||= '{}'
+        comment = opts[:comment].to_s
+
+        protocol = URI.parse(url).scheme
+        host = URI.parse(url).host
+        path = URI.parse(url).path
+        port = URI.parse(url).port || (url.start_with?('https') ? 443 : 80)
+
+        sitemap_message = {
+          request: {
+            method: method,
+            url: url,
+            path: path,
+            headers: req_headers,
+            body: req_body
+          },
+          response: {
+            statusCode: status_code.to_i,
+            headers: resp_headers,
+            body: resp_body
+          },
+          http_service: {
+            protocol: protocol,
+            host: host,
+            port: port
+          },
+          highlight: highlight,
+          comment: comment
+        }
+
+        RestClient.post(
+          "#{pwn_burp_api}/sitemap",
+          sitemap_message.to_json,
+          content_type: 'application/json; charset=UTF8'
+        )
+      rescue StandardError => e
+        # stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
       end
 
@@ -385,7 +453,7 @@ module PWN
       rescue RestClient::BadRequest => e
         puts e.response
       rescue StandardError => e
-        # stop(burp_obj: burp_obj) unless burp_obj.nil?
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
       end
 
