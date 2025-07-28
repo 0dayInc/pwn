@@ -49,6 +49,7 @@ module PWN
     autoload :OCR, 'pwn/plugins/ocr'
     autoload :Ollama, 'pwn/plugins/ollama'
     autoload :OpenAI, 'pwn/plugins/open_ai'
+    autoload :OpenAPI, 'pwn/plugins/open_api'
     autoload :OpenVAS, 'pwn/plugins/openvas'
     autoload :OwaspZap, 'pwn/plugins/owasp_zap'
     autoload :Packet, 'pwn/plugins/packet'
