@@ -34,7 +34,8 @@ module PWN
         supported = opts[:supported] ||= %i[chrome headless_chrome firefox headless_firefox headless]
 
         browser_type = browser_obj[:type]
-        raise "ERROR: browser_type must be #{supported}" unless supported.include?(browser_type)
+        verified = false
+        verified = true if supported.include?(browser_type)
       rescue StandardError => e
         raise e
       end
@@ -455,7 +456,9 @@ module PWN
 
       public_class_method def self.console(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         js = opts[:js] ||= "alert('ACK from => #{self}')"
         return_to = opts[:return_to] ||= :console
@@ -500,7 +503,9 @@ module PWN
 
       public_class_method def self.view_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         index = opts[:index]
         jmp_tab(browser_obj: browser_obj, index: index) if index
@@ -673,7 +678,9 @@ module PWN
 
       public_class_method def self.hide_dom_mutations(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         index = opts[:index]
         jmp_tab(browser_obj: browser_obj, index: index) if index
@@ -707,7 +714,9 @@ module PWN
       public_class_method def self.update_about_config(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[firefox headless_firefox]
-        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         key = opts[:key]
         raise 'ERROR: key parameter is required' if key.nil?
@@ -737,7 +746,9 @@ module PWN
 
       public_class_method def self.list_tabs(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         current_window_handle = browser_obj[:browser].driver.window_handle
 
@@ -781,7 +792,9 @@ module PWN
 
       public_class_method def self.jmp_tab(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         index = opts[:index]
         keyword = opts[:keyword]
@@ -820,7 +833,9 @@ module PWN
 
       public_class_method def self.new_tab(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         url = opts[:url]
         chrome_types = %i[chrome headless_chrome]
@@ -865,7 +880,9 @@ module PWN
 
       public_class_method def self.close_tab(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         index = opts[:index]
         keyword = opts[:keyword]
@@ -923,7 +940,10 @@ module PWN
       public_class_method def self.debugger(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[chrome headless_chrome]
-        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
+
         action = opts[:action] ||= :pause
         url = opts[:url]
 
@@ -978,7 +998,9 @@ module PWN
       public_class_method def self.dom(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[chrome headless_chrome]
-        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         computed_styles = %i[display color font-size font-family]
         browser_obj[:devtools].send_cmd(
@@ -998,7 +1020,9 @@ module PWN
       public_class_method def self.step_into(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[chrome headless_chrome]
-        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         steps = opts[:steps].to_i
         steps = 1 if steps.zero? || steps.negative?
@@ -1037,7 +1061,9 @@ module PWN
       public_class_method def self.step_out(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[chrome headless_chrome]
-        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         steps = opts[:steps].to_i
         steps = 1 if steps.zero? || steps.negative?
@@ -1076,7 +1102,9 @@ module PWN
       public_class_method def self.step_over(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[chrome headless_chrome]
-        verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         steps = opts[:steps].to_i
         steps = 1 if steps.zero? || steps.negative?
@@ -1113,7 +1141,9 @@ module PWN
 
       public_class_method def self.toggle_devtools(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         # TODO: Find replacement for hotkey - there must be a better way.
         browser_obj[:browser].send_keys(:f12)
@@ -1129,7 +1159,9 @@ module PWN
 
       public_class_method def self.jmp_devtools_panel(opts = {})
         browser_obj = opts[:browser_obj]
-        verify_devtools_browser(browser_obj: browser_obj)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
 
         panel = opts[:panel] ||= :elements
         browser = browser_obj[:browser]

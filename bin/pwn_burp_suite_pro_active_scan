@@ -100,7 +100,7 @@ begin
   print "Waiting #{duration} seconds prior to kicking off active scan..."
   sleep duration # Sleep for now so everything loads the way we expect - blech.
 
-  PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: target_url)
+  PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: in_scope)
 
   # Dump a list of scan issues from Active Scan result
   # scan_issues = PWN::Plugins::BurpSuite.get_scan_issues(burp_obj: burp_obj)
