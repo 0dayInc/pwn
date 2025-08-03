@@ -618,7 +618,7 @@ module PWN
           use_https = false
           use_https = true if json_protocol == 'https'
 
-          puts "Adding #{json_uri} to Active Scan"
+          print "Adding #{json_uri} to Active Scan"
           active_scan_url_arr.push(json_uri)
           post_body = {
             host: json_host,
@@ -627,7 +627,15 @@ module PWN
             request: json_req
           }.to_json
           # Kick off an active scan for each given page in the json_sitemap results
-          rest_browser.post("http://#{pwn_burp_api}/scan/active", post_body, content_type: 'application/json')
+          resp = rest_browser.post(
+            "http://#{pwn_burp_api}/scan/active",
+            post_body,
+            content_type: 'application/json'
+          )
+          puts " => #{resp.code}"
+        rescue RestClient::ExceptionWithResponse => e
+          puts " => #{e.response.code}"
+          next
         end
 
         # Wait for scan completion
