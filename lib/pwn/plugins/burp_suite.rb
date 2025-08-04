@@ -54,6 +54,8 @@ module PWN
         burp_jar_path = opts[:burp_jar_path] ||= '/opt/burpsuite/burpsuite-pro.jar'
         raise 'Invalid path to burp jar file.  Please check your spelling and try again.' unless File.exist?(burp_jar_path)
 
+        raise 'ERROR: /opt/burpsuite/pwn-burp.jar not found.  For more details about installing this extension, checkout https://github.com/0dayinc/pwn_burp' unless File.exist?('/opt/burpsuite/pwn-burp.jar'e
+
         burp_root = File.dirname(burp_jar_path)
 
         browser_type = opts[:browser_type] ||= :firefox
@@ -635,6 +637,9 @@ module PWN
           puts " => #{resp.code}"
         rescue RestClient::ExceptionWithResponse => e
           puts " => #{e.response.code}"
+          next
+        rescue RestClient::ServerBrokeConnection => e
+          puts ' => Server broke connection.'
           next
         end
 
