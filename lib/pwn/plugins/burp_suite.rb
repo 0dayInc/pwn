@@ -183,7 +183,8 @@ module PWN
 
         in_scope = rest_browser.post(
           "http://#{pwn_burp_api}/spider",
-          post_body, content_type: 'application/json; charset=UTF8'
+          post_body,
+          content_type: 'application/json; charset=UTF8'
         )
         spider_json = JSON.parse(in_scope, symbolize_names: true)
         spider_id = spider_json[:id]
@@ -705,7 +706,7 @@ module PWN
 
         active_scan_url_arr # Return array of targeted URIs to pass to #generate_scan_report method
       rescue StandardError => e
-        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        # stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
       end
 
