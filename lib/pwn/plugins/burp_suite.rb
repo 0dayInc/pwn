@@ -635,7 +635,10 @@ module PWN
         active_scan_url_arr = []
 
         json_sitemap = get_sitemap(burp_obj: burp_obj, target_url: target_url)
-        json_sitemap.each do |site|
+        json_sitemap.uniq.each do |site|
+          # Skip if the site does not have a request or http_service
+          next unless site[:request].is_a?(String) && site[:http_service].is_a?(Hash)
+
           json_req = site[:request]
           b64_decoded_req = Base64.strict_decode64(json_req)
           json_path = b64_decoded_req.split[1].to_s.scrub.strip.chomp
@@ -682,12 +685,6 @@ module PWN
         rescue RestClient::ExceptionWithResponse => e
           puts " => #{e.response.code}"
           next
-        rescue RestClient::ServerBrokeConnection
-          puts ' => Server broke connection.'
-          next
-        rescue Errno::ECONNRESET
-          puts ' => Connection reset by peer.'
-          next
         end
 
         # Wait for scan completion
@@ -709,6 +706,7 @@ module PWN
         active_scan_url_arr # Return array of targeted URIs to pass to #generate_scan_report method
       rescue StandardError => e
         # stop(burp_obj: burp_obj) unless burp_obj.nil?
+        puts e.backtrace
         raise e
       end
 
