@@ -193,9 +193,15 @@ module PWN
           spider_status_resp = rest_browser.get("http://#{pwn_burp_api}/spider/#{spider_id}")
           spider_status_json = JSON.parse(spider_status_resp, symbolize_names: true)
           spider_status = spider_status_json[:status]
-          break if spider_status == 'finished'
-
-          sleep 3
+          case spider_status
+          when 'queued', 'running'
+            sleep 3
+          when 'failed', 'finished'
+            break
+          else
+            puts "Unknown spider status detected: #{spider_status}"
+            break
+          end
         end
 
         spider_json.merge!(spider_status_json)
