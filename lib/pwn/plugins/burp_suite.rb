@@ -637,7 +637,8 @@ module PWN
         json_sitemap = get_sitemap(burp_obj: burp_obj, target_url: target_url)
         json_sitemap.uniq.each do |site|
           # Skip if the site does not have a request or http_service
-          next unless site[:request].is_a?(String) && site[:http_service].is_a?(Hash)
+          puts "Site: #{site.inspect}"
+          next if site[:request].empty?
 
           json_req = site[:request]
           b64_decoded_req = Base64.strict_decode64(json_req)
