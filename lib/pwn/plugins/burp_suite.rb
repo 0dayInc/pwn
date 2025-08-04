@@ -188,6 +188,8 @@ module PWN
         )
         spider_json = JSON.parse(in_scope, symbolize_names: true)
         spider_id = spider_json[:id]
+
+        spider_status_json = {}
         loop do
           print '.'
           spider_status_resp = rest_browser.get("http://#{pwn_burp_api}/spider/#{spider_id}")
