@@ -169,6 +169,42 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # json_in_scope = PWN::Plugins::BurpSuite.spider(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   target_url: 'required - target url to add to crawl / spider'
+      # )
+
+      public_class_method def self.spider(opts = {})
+        burp_obj = opts[:burp_obj]
+        target_url = opts[:target_url]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        post_body = { url: target_url }.to_json
+
+        in_scope = rest_browser.post(
+          "http://#{pwn_burp_api}/spider",
+          post_body, content_type: 'application/json; charset=UTF8'
+        )
+        spider_json = JSON.parse(in_scope, symbolize_names: true)
+        spider_id = spider_json[:id]
+        loop do
+          print '.'
+          spider_status_resp = rest_browser.get("http://#{pwn_burp_api}/spider/#{spider_id}")
+          spider_status_json = JSON.parse(spider_status_resp, symbolize_names: true)
+          spider_status = spider_status_json[:status]
+          break if spider_status == 'finished'
+
+          sleep 3
+        end
+
+        spider_json.merge!(spider_status_json)
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::BurpSuite.enable_proxy(
       #   burp_obj: 'required - burp_obj returned by #start method'
       # )
@@ -638,8 +674,11 @@ module PWN
         rescue RestClient::ExceptionWithResponse => e
           puts " => #{e.response.code}"
           next
-        rescue RestClient::ServerBrokeConnection => e
+        rescue RestClient::ServerBrokeConnection
           puts ' => Server broke connection.'
+          next
+        rescue Errno::ECONNRESET
+          puts ' => Connection reset by peer.'
           next
         end
 

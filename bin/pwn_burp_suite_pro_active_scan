@@ -18,6 +18,10 @@ OptionParser.new do |options|
     opts[:headless] = h
   end
 
+  options.on('-s', '--[no-]spider', '<Optional - Crawl / Spider Target Prior to Scanning (Defaults to false)>') do |s|
+    opts[:spider] = s
+  end
+
   options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
     opts[:target_url] = t
   end
@@ -45,6 +49,7 @@ begin
 
   burp_jar_path = opts[:burp_jar_path]
   headless = opts[:headless]
+  spider = opts[:spider] || false
   target_url = opts[:target_url].to_s.scrub
   output_path = opts[:output_path].to_s.scrub
 
@@ -95,6 +100,8 @@ begin
     print "\nExecuting Instruction: #{redacted_instruction}"
     browser.instance_eval(instruction.to_s.scrub.strip.chomp)
   end
+
+  PWN::Plugins::BurpSuite.spider(burp_obj: burp_obj, target_url: in_scope) if spider
 
   duration = 9
   print "Waiting #{duration} seconds prior to kicking off active scan..."
