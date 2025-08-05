@@ -142,7 +142,6 @@ module PWN
         json_in_scope = JSON.parse(in_scope_resp, symbolize_names: true)
         json_in_scope[:value]
       rescue StandardError => e
-        stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
       end
 
