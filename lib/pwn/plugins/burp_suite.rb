@@ -631,6 +631,7 @@ module PWN
         target_url = opts[:target_url].to_s.scrub.strip.chomp
         target_scheme = URI.parse(target_url).scheme
         target_host = URI.parse(target_url).host
+        target_path = URI.parse(target_url).path
         target_port = URI.parse(target_url).port.to_i
         active_scan_url_arr = []
 
@@ -675,7 +676,6 @@ module PWN
             use_https: use_https,
             request: json_req
           }.to_json
-          puts "POST BODY: #{post_body.inspect}"
           # Kick off an active scan for each given page in the json_sitemap results
           resp = rest_browser.post(
             "http://#{pwn_burp_api}/scan/active",
@@ -683,7 +683,6 @@ module PWN
             content_type: 'application/json'
           )
           puts " => #{resp.code}"
-          sleep 0.5 # Sleep to avoid overwhelming the Burp API
         rescue RestClient::ExceptionWithResponse => e
           puts " => #{e.response.code}"
           next

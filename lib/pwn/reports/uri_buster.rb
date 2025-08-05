@@ -108,6 +108,10 @@ module PWN
             <br /><br />
 
             <div>
+              Search tips: Use space-separated keywords for AND search, prefix with - to exclude (e.g., "security -password"), or enclose in / / for regex (e.g., "/^important.*$/i").
+            </div><br />
+
+            <div>
               <table id="pwn_www_uri_buster_results" class="display" cellspacing="0">
                 <thead>
                   <tr>
@@ -207,6 +211,56 @@ module PWN
                     }
                   ]
                 });
+
+                // Custom advanced search handling
+                $('.dataTables_filter input').unbind();
+                $('.dataTables_filter input').on('keyup', function() {
+                  var search = $(this).val();
+
+                  var filterFunc;
+                  if (search.match(/^\\/.*\\/$/)) {
+                    try {
+                      var regex = new RegExp(search.slice(1, -1), 'i');
+                      filterFunc = function(settings, data, dataIndex) {
+                        var rowData = data.join(' ');
+                        return regex.test(rowData);
+                      };
+                    } catch (e) {
+                      filterFunc = function(settings, data, dataIndex) {
+                        return true;
+                      };
+                    }
+                  } else {
+                    var positives = [];
+                    var negatives = [];
+                    var terms = search.split(/\\s+/).filter(function(t) { return t.length > 0; });
+                    for (var i = 0; i < terms.length; i++) {
+                      var term = terms[i];
+                      if (term.startsWith('-')) {
+                        var cleanTerm = term.substring(1).toLowerCase();
+                        if (cleanTerm) negatives.push(cleanTerm);
+                      } else {
+                        positives.push(term.toLowerCase());
+                      }
+                    }
+                    filterFunc = function(settings, data, dataIndex) {
+                      var rowData = data.join(' ').toLowerCase();
+                      for (var j = 0; j < positives.length; j++) {
+                        if (!rowData.includes(positives[j])) return false;
+                      }
+                      for (var k = 0; k < negatives.length; k++) {
+                        if (rowData.includes(negatives[k])) return false;
+                      }
+                      return true;
+                    };
+                  }
+
+                  $.fn.dataTable.ext.search.pop();
+                  $.fn.dataTable.ext.search.push(filterFunc);
+                  table.search('');
+                  table.draw();
+                });
+
                 // Toggle Columns
                 $('a.toggle-vis').on('click', function (e) {
                   e.preventDefault();
