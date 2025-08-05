@@ -167,7 +167,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # json_in_scope = PWN::Plugins::BurpSuite.spider(
+      # json_spider = PWN::Plugins::BurpSuite.spider(
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   target_url: 'required - target url to add to crawl / spider'
       # )
@@ -683,7 +683,7 @@ module PWN
           )
           puts " => #{resp.code}"
         rescue RestClient::ExceptionWithResponse => e
-          puts " => #{e.response.code}"
+          puts " => #{e.response.code}" if e.respond_to?(:response) && e.response
           next
         end
 
@@ -935,6 +935,11 @@ module PWN
           json_in_scope = #{self}.add_to_scope(
             burp_obj: 'required - burp_obj returned by #start method',
             target_url: 'required - target url to add to scope'
+          )
+
+          json_spider = #{self}.spider(
+            burp_obj: 'required - burp_obj returned by #start method',
+            target_url: 'required - target url to spider in scope'
           )
 
           #{self}.enable_proxy(
