@@ -50,7 +50,7 @@ module PWN
             begin
               case File.extname(path).downcase
               when '.yaml', '.yml'
-                specs[path] = YAML.load_file(path, permitted_classes: [Symbol, Date, Time])
+                specs[path] = YAML.safe_load_file(path, permitted_classes: [Symbol, Date, Time], aliases: true)
               when '.json'
                 specs[path] = JSON.parse(File.read(path))
               else
@@ -697,11 +697,10 @@ module PWN
 
                     case File.extname(ref_path).downcase
                     when '.yaml', '.yml'
-                      specs[ref_path] = YAML.load_file(ref_path, permitted_classes: [Symbol, Date, Time])
+                      specs[ref_path] = YAML.safe_load_file(ref_path, permitted_classes: [Symbol, Date, Time], aliases: true)
                       spec_paths << ref_path unless spec_paths.include?(ref_path)
                     when '.json'
                       specs[ref_path] = JSON.parse(File.read(ref_path))
-                      spec_paths << ref_path unless spec_paths.include?(ref_path)
                     else
                       log("Unsupported file type for $ref: #{ref_path} from #{referencing_file}", debug: debug)
                       return value
