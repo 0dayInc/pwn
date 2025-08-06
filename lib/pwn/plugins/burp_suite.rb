@@ -500,12 +500,12 @@ module PWN
                     param_name = param[:name].to_s
                     case param[:in]
                     when 'path'
-                      # Substitute path parameter with a default value (e.g., 'example')
-                      param_value = param[:schema]&.dig(:example) || 'example'
+                      # Substitute path parameter with a default value (e.g., 'PLACEHOLDER')
+                      param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
                       request_path.gsub!("{#{param_name}}", param_value.to_s)
                     when 'query'
                       # Collect query parameters
-                      param_value = param[:schema]&.dig(:example) || 'example'
+                      param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
                       query_params << "#{URI.encode_www_form_component(param_name)}=#{URI.encode_www_form_component(param_value.to_s)}"
                     end
                   end
