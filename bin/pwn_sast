@@ -53,8 +53,7 @@ begin
   green = "\e[32m"
   end_of_color = "\e[0m"
 
-  dir_path = opts[:dir_path]
-  dir_path ||= '.'
+  dir_path = opts[:dir_path] ||= '.'
 
   uri_source_root = opts[:uri_source_root].to_s.scrub
 
