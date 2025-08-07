@@ -13,7 +13,7 @@ module PWN
       # sock_obj = PWN::Plugins::Sock.connect(
       #   target: 'required - target host or ip',
       #   port: 'required - target port',
-      #   protocol: 'optional - :tcp || :udp (defaults to tcp)',
+      #   protocol: 'optional - :tcp || :udp (defaults to :tcp)',
       #   tls: 'optional - boolean connect to target socket using TLS (defaults to false)'
       # )
 
@@ -31,7 +31,7 @@ module PWN
 
         tls_min_version = OpenSSL::SSL::TLS1_VERSION if tls_min_version.nil?
 
-        case protocol
+        case protocol.to_s.to_sym
         when :tcp
           if tls
             sock = TCPSocket.open(target, port)

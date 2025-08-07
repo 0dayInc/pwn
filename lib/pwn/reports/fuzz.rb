@@ -79,8 +79,8 @@ module PWN
                 word-wrap: break-word !important;
               }
 
-              .highlighted {
-                background-color: #F2F5A9 !important;
+              tr.highlighted td {
+                background-color: #FFF396 !important;
               }
             </style>
 
@@ -98,7 +98,11 @@ module PWN
               &nbsp;~&nbsp;<a href="https://github.com/0dayinc/pwn/tree/master">pwn network fuzzer</a>
             </h1><br /><br />
 
-            <div><button type="button" id="button">Rows Selected</button></div><br />
+            <div>
+              <!--<button type="button" id="button">Rows Selected</button>-->
+              <button type="button" id="export_selected">Export Selected to JSON</button>
+            </div><br />
+
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
@@ -161,23 +165,11 @@ module PWN
                       $('html,body').animate({scrollTop: targetOffset}, 500);
                       oldStart = oSettings._iDisplayStart;
                     }
-                    // Select individual lines in a row
-                    $('#multi_line_select tbody').on('click', 'tr', function () {
-                      $(this).toggleClass('highlighted');
-                      if ($('#multi_line_select tr.highlighted').length > 0) {
-                        $('#multi_line_select tr td button').attr('disabled', 'disabled');
-                        // Remove multi-line bug button
-                      } else {
-                        $('#multi_line_select tr td button').removeAttr('disabled');
-                        // Add multi-line bug button
-                      }
-                    });
                   },
                   "ajax": "#{report_name}.json",
                   //"deferRender": true,
                   "dom": "fplitfpliS",
                   "autoWidth": false,
-                  "fixedColumns": true,
                   "columnDefs": [
                     {
                       targets: 3,
@@ -277,19 +269,72 @@ module PWN
                   column.visible( ! column.visible() );
                 });
 
-                // TODO: Open bug for highlighted rows ;)
                 $('#button').click( function () {
-                  alert($('#multi_line_select tr.highlighted').length +' row(s) highlighted');
+                  alert($('.multi_line_select tr.highlighted').length +' row(s) highlighted');
+                });
+
+                $('#export_selected').click( function () {
+                  if ($('.multi_line_select tr.highlighted').length === 0) {
+                    alert('No rows selected');
+                    return;
+                  }
+
+                  $.getJSON(table.ajax.url(), function(original_json) {
+                    var selected_results = {};
+
+                    $('.multi_line_select tr.highlighted').each(function() {
+                      var inner_tr = $(this);
+                      var main_tr = inner_tr.closest('td').parent();
+                      var row = table.row(main_tr);
+                      var row_index = row.index();
+                      var line_index = inner_tr.index();
+
+                      if (selected_results[row_index] === undefined) {
+                        selected_results[row_index] = {
+                          row: row,
+                          lines: []
+                        };
+                      }
+
+                      selected_results[row_index].lines.push(line_index);
+                    });
+
+                    var new_data = [];
+
+                    Object.keys(selected_results).forEach(function(ri) {
+                      var sel = selected_results[ri];
+                      var orig_row_data = sel.row.data();
+                      var new_row_data = JSON.parse(JSON.stringify(orig_row_data));
+
+                      sel.lines.sort((a, b) => a - b);
+                      new_row_data.line_no_and_contents = sel.lines.map(function(li) {
+                        return orig_row_data.line_no_and_contents[li];
+                      });
+
+                      new_row_data.raw_content = new_row_data.line_no_and_contents.map(l => l.contents).join('\\n');
+
+                      new_data.push(new_row_data);
+                    });
+
+                    original_json.data = new_data;
+
+                    if (original_json.report_name) {
+                      original_json.report_name += '_selected';
+                    }
+
+                    var json_str = JSON.stringify(original_json, null, 2);
+                    var blob = new Blob([json_str], { type: 'application/json' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = (original_json.report_name || 'selected') + '.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  });
                 });
               });
-
-              function multi_line_select() {
-                // Select all lines in a row
-                //$('#pwn_fuzz_net_app_proto tbody').on('click', 'tr', function () {
-                //  $(this).children('td').children('#multi_line_select').children('tbody').children('tr').toggleClass('highlighted');
-                //});
-
-              }
             </script>
           </body>
         </html>
