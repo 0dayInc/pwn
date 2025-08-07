@@ -204,6 +204,7 @@ module PWN
             break
           end
         end
+        print "\n"
 
         spider_json.merge!(spider_status_json)
       rescue StandardError => e
@@ -340,7 +341,7 @@ module PWN
         openapi_spec = opts[:openapi_spec]
         raise 'ERROR: openapi_spec parameter not found' unless File.exist?(openapi_spec)
 
-        additional_http_headers = opts[:additional_http_headers] || {}
+        additional_http_headers = opts[:additional_http_headers] ||= {}
         raise 'ERROR: additional_http_headers must be a Hash' unless additional_http_headers.is_a?(Hash)
 
         highlight = opts[:highlight] ||= 'NONE'
@@ -518,6 +519,16 @@ module PWN
                     host: host
                   }
                   request_headers.merge!(additional_http_headers)
+                  # Aggregate remaining HTTP header names from spec,
+                  # reference as keys, and assign their respective
+                  # values to the request_headers hash
+                  operation[:parameters]&.each do |param|
+                    next unless param.is_a?(Hash) && param[:in] == 'header' && param[:name]
+
+                    header_name = param[:name].to_s.downcase
+                    header_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
+                    request_headers[header_name] = header_value.to_s
+                  end
 
                   # Construct request lines, including all headers
                   request_lines = [
@@ -526,7 +537,7 @@ module PWN
                   request_headers.each do |key, value|
                     # Capitalize header keys (e.g., 'host' to 'Host', 'authorization' to 'Authorization')
                     header_key = key.to_s.split('-').map(&:capitalize).join('-')
-                    request_lines << "#{header_key}: #{value}"
+                    request_lines.push("#{header_key}: #{value}")
                   end
                   request_lines << '' << '' # Add blank lines for HTTP request body separation
 
