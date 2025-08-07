@@ -486,6 +486,12 @@ module PWN
                 end
 
                 begin
+                  # Construct HTTP request headers
+                  request_headers = {
+                    host: host
+                  }
+                  request_headers.merge!(additional_http_headers)
+
                   # Combine path-level and operation-level parameters
                   operation_parameters = operation[:parameters].is_a?(Array) ? operation[:parameters] : []
                   all_parameters = path_parameters + operation_parameters
@@ -500,6 +506,13 @@ module PWN
 
                     param_name = param[:name].to_s
                     case param[:in]
+                    when 'header'
+                      # Aggregate remaining HTTP header names from spec,
+                      # reference as keys, and assign their respective
+                      # values to the request_headers hash
+                      param_key = param_name.downcase
+                      param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
+                      request_headers[param_key] = param_value.to_s
                     when 'path'
                       # Substitute path parameter with a default value (e.g., 'PLACEHOLDER')
                       param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
@@ -507,28 +520,12 @@ module PWN
                     when 'query'
                       # Collect query parameters
                       param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
-                      query_params << "#{URI.encode_www_form_component(param_name)}=#{URI.encode_www_form_component(param_value.to_s)}"
+                      query_params.push("#{URI.encode_www_form_component(param_name)}=#{URI.encode_www_form_component(param_value.to_s)}")
                     end
                   end
 
                   # Append query parameters to path if any
                   request_path += "?#{query_params.join('&')}" if query_params.any?
-
-                  # Construct HTTP request headers
-                  request_headers = {
-                    host: host
-                  }
-                  request_headers.merge!(additional_http_headers)
-                  # Aggregate remaining HTTP header names from spec,
-                  # reference as keys, and assign their respective
-                  # values to the request_headers hash
-                  operation[:parameters]&.each do |param|
-                    next unless param.is_a?(Hash) && param[:in] == 'header' && param[:name]
-
-                    header_name = param[:name].to_s.downcase
-                    header_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
-                    request_headers[header_name] = header_value.to_s
-                  end
 
                   # Construct request lines, including all headers
                   request_lines = [

@@ -27,7 +27,7 @@ module PWN
           git_entity = `git log --since #{since_date} --stat-width=65535 --graph`.to_s.scrub
         else
           git_pull_output << "<h3>#{git_repo_name}->#{git_repo_branch} Diff Summary Since Last Pull</h3>"
-          git_entity = `git log ORIG_HEAD.. --stat-width=65535 --graph`.to_s.scrub
+          git_entity = `git log ORIG_HEAD.. --stat-width=65535 --graph 2> /dev/null`.to_s.scrub
         end
         # For debugging purposes
         @@logger.info(git_entity)
@@ -60,7 +60,7 @@ module PWN
         target_file.gsub!(%r{^#{repo_root}/}, '')
 
         if File.directory?(repo_root) && File.file?("#{repo_root}/#{target_file}")
-          `git --git-dir="#{Shellwords.escape(repo_root)}/.git" log -L #{from_line},#{to_line}:"#{Shellwords.escape(target_file)}" | grep Author | head -n 1`.to_s.scrub
+          `git --git-dir="#{Shellwords.escape(repo_root)}/.git" log -L #{from_line},#{to_line}:"#{Shellwords.escape(target_file)}" 2> /dev/null | grep Author | head -n 1`.to_s.scrub
         else
           -1
         end
@@ -75,7 +75,7 @@ module PWN
 
       public_class_method def self.dump_all_repo_branches(opts = {})
         git_url = opts[:git_url].to_s.scrub
-        `git ls-remote #{git_url}`.to_s.scrub
+        `git ls-remote #{git_url} 2> /dev/null`.to_s.scrub
       rescue StandardError => e
         raise e
       end

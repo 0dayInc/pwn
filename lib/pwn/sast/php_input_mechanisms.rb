@@ -27,7 +27,7 @@ module PWN
             entry_beautified = false
 
             if File.extname(entry) == '.js' && (`wc -l #{entry}`.split.first.to_i < 20 || entry.include?('.min.js') || entry.include?('-all.js'))
-              js_beautify = `js-beautify #{entry} > #{entry}.JS-BEAUTIFIED`.to_s.scrub
+              js_beautify = `js-beautify #{entry} > #{entry}.JS-BEAUTIFIED 2> /dev/null`.to_s.scrub
               entry = "#{entry}.JS-BEAUTIFIED"
               entry_beautified = true
             end
@@ -40,7 +40,7 @@ module PWN
               -e '$_POST' \
               -e '$_REQUEST' \
               -e '$_SERVER' \
-              -e '$_SESSION' #{entry}
+              -e '$_SESSION' #{entry} 2> /dev/null
             "
 
             str = `#{test_case_filter}`.to_s.scrub

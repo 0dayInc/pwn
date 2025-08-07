@@ -28,7 +28,7 @@ module PWN
             entry_beautified = false
 
             if File.extname(entry) == '.js' && (`wc -l #{entry}`.split.first.to_i < 20 || entry.include?('.min.js') || entry.include?('-all.js'))
-              js_beautify = `js-beautify #{entry} > #{entry}.JS-BEAUTIFIED`.to_s.scrub
+              js_beautify = `js-beautify #{entry} > #{entry}.JS-BEAUTIFIED 2> /dev/null`.to_s.scrub
               entry = "#{entry}.JS-BEAUTIFIED"
               entry_beautified = true
             end
@@ -36,7 +36,7 @@ module PWN
             test_case_filter = "
               grep -n \
               -e 'localStorage.getItem(' \
-              -e 'localStorage.setItem(' #{entry}
+              -e 'localStorage.setItem(' #{entry} 2> /dev/null
             "
 
             str = `#{test_case_filter}`.to_s.scrub

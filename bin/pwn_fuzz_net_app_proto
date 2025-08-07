@@ -1,9 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'pwn'
-require 'optparse'
+require 'htmlentities'
 require 'json'
+require 'optparse'
+require 'pwn'
 
 opts = {}
 OptionParser.new do |options|
@@ -93,7 +94,7 @@ else
   raise "PWN_PROVIDER env variable is not set to 'ruby-gem' or 'docker'"
 end
 
-dir_path = opts[:dir_path].to_s.scrub
+dir_path = opts[:dir_path] ||= '.'
 target = opts[:target]
 port = opts[:port]
 protocol = opts[:protocol]

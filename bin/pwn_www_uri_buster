@@ -259,8 +259,7 @@ begin
 
   raise 'ERROR: Flags --include-response-codes and --exclude-response-codes cannot be used together.' if include_http_response_codes && exclude_http_response_codes
 
-  dir_path = opts[:dir_path]
-  dir_path ||= '.'
+  dir_path = opts[:dir_path] ||= '.'
 
   report_name = opts[:report_name]
   report_name ||= "#{parsed_target_url.host}-#{File.basename(wordlist)}-#{Time.now.strftime('%Y-%m-%d_%H-%M-%S')}"

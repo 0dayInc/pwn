@@ -98,7 +98,11 @@ module PWN
             </h1><br /><br />
             <h2 id="report_name"></h2><br />
 
-            <div><button type="button" id="button">Rows Selected</button> <button type="button" id="export_selected">Export Selected to JSON</button></div><br />
+            <div>
+              <!--<button type="button" id="button">Rows Selected</button>-->
+              <button type="button" id="export_selected">Export Selected to JSON</button>
+            </div><br />
+
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
@@ -127,12 +131,20 @@ module PWN
                     <th>Test Case (Anti-Pattern) Filter</th>
                   </tr>
                 </thead>
+                <col width="30px" />
+                <col width="60px" />
+                <col width="300px" />
+                <col width="90px" />
+                <col width="90px" />
+                <col width="300px" />
+                <col width="90px" />
                 <!-- DataTables <tbody> -->
               </table>
             </div>
 
             <script>
               var htmlEntityEncode = $.fn.dataTable.render.text().display;
+
               var line_entry_uri = "";
               $(document).ready(function() {
                 var oldStart = 0;
@@ -196,17 +208,6 @@ module PWN
 
                           var filename_link = row.filename;
 
-                          var bug_comment = 'Timestamp: ' + row.timestamp + '\\n' +
-                                            'Test Case: http://' + window.location.hostname + ':8808/doc_root/pwn-0.1.0/' +
-                                              row.security_references['sast_module'].replace(/::/g, "/") + '\\n' +
-                                            'Source Code Impacted: ' + $("<div/>").html(filename_link).text() + '\\n\\n' +
-                                            'Test Case Request:\\n' +
-                                            $("<div/>").html(row.test_case_filter.replace(/\\s{2,}/g, " ")).text() + '\\n\\n' +
-                                            'Test Case Response:\\n' +
-                                            '\\tCommitted by: ' + $("<div/>").html(data[i]['author']).text() + '\\t' +
-                                              data[i]['line_no'] + ': ' +
-                                              $("<div/>").html(data[i]['contents'].replace(/\\s{2,}/g, " ")).text() + '\\n\\n';
-
                           var author_and_email_arr = data[i]['author'].split(" ");
                           var email = author_and_email_arr[author_and_email_arr.length - 1];
                           var email_user_arr = email.split("@");
@@ -214,13 +215,13 @@ module PWN
 
                           var uri = '#uri';
 
-                         var canned_email_results = 'Timestamp: ' + row.timestamp + '\\n' +
-                                                    'Source Code File Impacted: ' + $("<div/>").html(filename_link).text() + '\\n\\n' +
-                                                    'Source Code in Question:\\n\\n' +
-                                                    data[i]['line_no'] + ': ' +
-                                                    $("<div/>").html(data[i]['contents'].replace(/\\s{2,}/g, " ")).text() + '\\n\\n';
+                          var canned_email_results = 'Timestamp: ' + row.timestamp + '\\n' +
+                                                     'Source Code File Impacted: ' + $("<div/>").html(filename_link).text() + '\\n\\n' +
+                                                     'Source Code in Question:\\n\\n' +
+                                                     data[i]['line_no'] + ': ' +
+                                                     $("<div/>").html(data[i]['contents'].replace(/\\s{2,}/g, " ")).text() + '\\n\\n';
 
-                         var canned_email = email.replace("&lt;", "").replace("&gt;", "") + '?subject=Potential%20Bug%20within%20Source%20File:%20'+ encodeURIComponent(row.filename) +'&body=Greetings,%0A%0AThe%20following%20information%20likely%20represents%20a%20bug%20discovered%20through%20automated%20security%20testing%20initiatives:%0A%0A' + encodeURIComponent(canned_email_results) + 'Is%20this%20something%20that%20can%20be%20addressed%20immediately%20or%20would%20filing%20a%20bug%20be%20more%20appropriate?%20%20Please%20let%20us%20know%20at%20your%20earliest%20convenience%20to%20ensure%20we%20can%20meet%20security%20expectations%20for%20this%20release.%20%20Thanks%20and%20have%20a%20great%20day!';
+                          var canned_email = email.replace("&lt;", "").replace("&gt;", "") + '?subject=Potential%20Bug%20within%20Source%20File:%20'+ encodeURIComponent(row.filename) +'&body=Greetings,%0A%0AThe%20following%20information%20likely%20represents%20a%20bug%20discovered%20through%20automated%20security%20testing%20initiatives:%0A%0A' + encodeURIComponent(canned_email_results) + 'Is%20this%20something%20that%20can%20be%20addressed%20immediately%20or%20would%20filing%20a%20bug%20be%20more%20appropriate?%20%20Please%20let%20us%20know%20at%20your%20earliest%20convenience%20to%20ensure%20we%20can%20meet%20security%20expectations%20for%20this%20release.%20%20Thanks%20and%20have%20a%20great%20day!';
 
                           domain = line_entry_uri.replace('http://','').replace('https://','').split(/[/?#]/)[0];
                           if (domain.includes('stash') || domain.includes('bitbucket') || domain.includes('gerrit')) {

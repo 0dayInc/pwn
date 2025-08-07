@@ -80,8 +80,8 @@ begin
   seconds_to_record = opts[:seconds_to_record]
   baresip_bin = opts[:baresip_bin]
   sox_bin = opts[:sox_bin]
-  session_root = opts[:session_root]
-  session_root ||= Dir.pwd
+  session_root = opts[:session_root] ||= '.'
+  # session_root = opts[:session_root] ||= Dir.pwd
 
   # Optional Flag Variables
   randomize = opts[:randomize]

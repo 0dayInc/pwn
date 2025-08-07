@@ -70,17 +70,13 @@ module PWN
                 border-spacing:0px;
               }
 
-              table.squish {
-                table-layout: fixed;
-              }
-
               td {
                 vertical-align: top;
                 word-wrap: break-word !important;
               }
 
-              .highlighted {
-                background-color: #F2F5A9 !important;
+              tr.selected td {
+                background-color: #FFF396 !important;
               }
             </style>
 
@@ -98,15 +94,18 @@ module PWN
               &nbsp;~&nbsp;<a href="https://github.com/0dayinc/pwn/tree/master">pwn network fuzzer</a>
             </h1><br /><br />
 
-            <div><button type="button" id="button">Rows Selected</button></div><br />
+            <div>
+              <button type="button" id="export_selected">Export Selected to JSON</button>
+            </div><br />
+
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="2" href="#">Request</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Request Encoding</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="3" href="#">Request Length</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="3" href="#">Response</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="3" href="#">Response Length</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="4" href="#">Request Length</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="5" href="#">Response</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">Response Length</a>&nbsp;|&nbsp;
             </div>
             <br /><br />
 
@@ -115,7 +114,7 @@ module PWN
             </div><br />
 
             <div>
-              <table id="pwn_fuzz_net_app_proto" class="display squish" cellspacing="0">
+              <table id="pwn_fuzz_net_app_proto" class="display" cellspacing="0">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -141,7 +140,6 @@ module PWN
             <script>
               var htmlEntityEncode = $.fn.dataTable.render.text().display;
 
-              var line_entry_uri = "";
               $(document).ready(function() {
                 var oldStart = 0;
                 var table = $('#pwn_fuzz_net_app_proto').DataTable( {
@@ -161,30 +159,21 @@ module PWN
                       $('html,body').animate({scrollTop: targetOffset}, 500);
                       oldStart = oSettings._iDisplayStart;
                     }
-                    // Select individual lines in a row
-                    $('#multi_line_select tbody').on('click', 'tr', function () {
-                      $(this).toggleClass('highlighted');
-                      if ($('#multi_line_select tr.highlighted').length > 0) {
-                        $('#multi_line_select tr td button').attr('disabled', 'disabled');
-                        // Remove multi-line bug button
-                      } else {
-                        $('#multi_line_select tr td button').removeAttr('disabled');
-                        // Add multi-line bug button
-                      }
-                    });
                   },
                   "ajax": "#{report_name}.json",
                   //"deferRender": true,
                   "dom": "fplitfpliS",
                   "autoWidth": false,
-                  "fixedColumns": true,
+                  "select": {
+                    "style": "multi"
+                  },
                   "columnDefs": [
                     {
-                      targets: 3,
+                      targets: 4,
                       className: 'dt-body-center'
                     },
                     {
-                      targets: 5,
+                      targets: 6,
                       className: 'dt-body-center'
                     }
                   ],
@@ -277,19 +266,34 @@ module PWN
                   column.visible( ! column.visible() );
                 });
 
-                // TODO: Open bug for highlighted rows ;)
-                $('#button').click( function () {
-                  alert($('#multi_line_select tr.highlighted').length +' row(s) highlighted');
+                $('#export_selected').click( function () {
+                  var selectedRows = table.rows({ selected: true });
+                  if (selectedRows.count() === 0) {
+                    alert('No rows selected');
+                    return;
+                  }
+
+                  $.getJSON(table.ajax.url(), function(original_json) {
+                    var selected_data = selectedRows.data().toArray();
+                    original_json.data = selected_data;
+
+                    if (original_json.report_name) {
+                      original_json.report_name += '_selected';
+                    }
+
+                    var json_str = JSON.stringify(original_json, null, 2);
+                    var blob = new Blob([json_str], { type: 'application/json' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = (original_json.report_name || 'selected') + '.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  });
                 });
               });
-
-              function multi_line_select() {
-                // Select all lines in a row
-                //$('#pwn_fuzz_net_app_proto tbody').on('click', 'tr', function () {
-                //  $(this).children('td').children('#multi_line_select').children('tbody').children('tr').toggleClass('highlighted');
-                //});
-
-              }
             </script>
           </body>
         </html>
