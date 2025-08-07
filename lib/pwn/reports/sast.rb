@@ -78,8 +78,8 @@ module PWN
                 word-wrap: break-word !important;
               }
 
-              .highlighted {
-                background-color: #F2F5A9 !important;
+              tr.highlighted td {
+                background-color: #FFF396 !important;
               }
             </style>
 
@@ -98,7 +98,7 @@ module PWN
             </h1><br /><br />
             <h2 id="report_name"></h2><br />
 
-            <div><button type="button" id="button">Rows Selected</button></div><br />
+            <div><button type="button" id="button">Rows Selected</button> <button type="button" id="export_selected">Export Selected to JSON</button></div><br />
             <div>
               <b>Toggle Column(s):</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
@@ -153,17 +153,6 @@ module PWN
                       $('html,body').animate({scrollTop: targetOffset}, 500);
                       oldStart = oSettings._iDisplayStart;
                     }
-                    // Select individual lines in a row
-                    $('#multi_line_select tbody').on('click', 'tr', function () {
-                      $(this).toggleClass('highlighted');
-                      if ($('#multi_line_select tr.highlighted').length > 0) {
-                        $('#multi_line_select tr td button').attr('disabled', 'disabled');
-                        // Remove multi-line bug button
-                      } else {
-                        $('#multi_line_select tr td button').removeAttr('disabled');
-                        // Add multi-line bug button
-                      }
-                    });
                   },
                   "ajax": "#{report_name}.json",
                   //"deferRender": true,
@@ -182,7 +171,7 @@ module PWN
                         var sast_module = data['sast_module'].split('::')[2];
                         var sast_test_case = sast_module.replace(/\\.?([A-Z])/g, function (x,y){ if (sast_module.match(/\\.?([A-Z][a-z])/g) ) { return "_" + y.toLowerCase(); } else { return y.toLowerCase(); } }).replace(/^_/g, "");
 
-                        return '<tr><td style="width:150px;" align="left"><a href="https://github.com/0dayinc/pwn/tree/master/lib/' + htmlEntityEncode(sast_dirname) + '/' + htmlEntityEncode(sast_test_case) + '.rb" target="_blank">' + htmlEntityEncode(data['sast_module'].split("::")[2]) + '</a><br /><br /><a href="' + htmlEntityEncode(data['nist_800_53_uri']) + '" target="_blank">NIST 800-53: ' + htmlEntityEncode(data['section'])  + '</a><br /><br /><a href="' + htmlEntityEncode(data['cwe_uri']) + '" target="_blank">CWE:' + htmlEntityEncode(data['cwe_id'])  + '</a></td></tr>';
+                        return '<table class="squish"><tr><td style="width:150px;" align="left"><a href="https://github.com/0dayinc/pwn/tree/master/lib/' + htmlEntityEncode(sast_dirname) + '/' + htmlEntityEncode(sast_test_case) + '.rb" target="_blank">' + htmlEntityEncode(data['sast_module'].split("::")[2]) + '</a><br /><br /><a href="' + htmlEntityEncode(data['nist_800_53_uri']) + '" target="_blank">NIST 800-53: ' + htmlEntityEncode(data['section'])  + '</a><br /><br /><a href="' + htmlEntityEncode(data['cwe_uri']) + '" target="_blank">CWE:' + htmlEntityEncode(data['cwe_id'])  + '</a></td></tr></table>';
                       }
                     },
                     {
@@ -194,13 +183,13 @@ module PWN
 
                         file = htmlEntityEncode(data['entry']);
 
-                        return '<table class="squish"><tr class="highlighted"><td style="width:150px;" align="left"><a href="' + line_entry_uri + '" target="_blank">' + file + '</a></td></tr></table>';
+                        return '<table class="squish"><tr><td style="width:150px;" align="left"><a href="' + line_entry_uri + '" target="_blank">' + file + '</a></td></tr></table>';
                       }
                     },
                     {
                       "data": "line_no_and_contents",
                       "render": function (data, type, row, meta) {
-                        var pwn_rows = '<td style="width: 669px"><table id="multi_line_select" class="display squish" style="width: 665px"><tbody>';
+                        var pwn_rows = '<table class="multi_line_select squish" style="width: 665px"><tbody>';
                         for (var i = 0; i < data.length; i++) {
                           var tr_class;
                           if (i % 2 == 0) { tr_class = "odd"; } else { tr_class = "even"; }
@@ -243,7 +232,7 @@ module PWN
 
                           pwn_rows = pwn_rows.concat('<tr class="' + tr_class + '"><td style="width:90px" align="left"><a href="' + htmlEntityEncode(to_line_number) + '" target="_blank">' + htmlEntityEncode(data[i]['line_no']) + '</a>:&nbsp;</td><td style="width:300px" align="left">' + htmlEntityEncode(data[i]['contents']) + '</td><td style="width:200px" align="right"><a href="mailto:' + canned_email + '">' + htmlEntityEncode(data[i]['author']) + '</a></td></tr>');
                         }
-                        pwn_rows = pwn_rows.concat('</tbody></table></td>');
+                        pwn_rows = pwn_rows.concat('</tbody></table>');
                         return pwn_rows;
                       }
                     },
@@ -255,7 +244,14 @@ module PWN
                       "data": "test_case_filter",
                       "render": $.fn.dataTable.render.text()
                     }
-                  ]
+                  ],
+                  "initComplete": function(settings, json) {
+                    $('#report_name').text(json.report_name);
+                  }
+                });
+
+                $('#pwn_scan_git_source_results tbody').on('click', '.multi_line_select tr', function () {
+                  $(this).toggleClass('highlighted');
                 });
 
                 // Custom advanced search handling
@@ -318,19 +314,72 @@ module PWN
                   column.visible( ! column.visible() );
                 });
 
-                // TODO: Open bug for highlighted rows ;)
                 $('#button').click( function () {
-                  alert($('#multi_line_select tr.highlighted').length +' row(s) highlighted');
+                  alert($('.multi_line_select tr.highlighted').length +' row(s) highlighted');
+                });
+
+                $('#export_selected').click( function () {
+                  if ($('.multi_line_select tr.highlighted').length === 0) {
+                    alert('No rows selected');
+                    return;
+                  }
+
+                  $.getJSON(table.ajax.url(), function(original_json) {
+                    var selected_results = {};
+
+                    $('.multi_line_select tr.highlighted').each(function() {
+                      var inner_tr = $(this);
+                      var main_tr = inner_tr.closest('td').parent();
+                      var row = table.row(main_tr);
+                      var row_index = row.index();
+                      var line_index = inner_tr.index();
+
+                      if (selected_results[row_index] === undefined) {
+                        selected_results[row_index] = {
+                          row: row,
+                          lines: []
+                        };
+                      }
+
+                      selected_results[row_index].lines.push(line_index);
+                    });
+
+                    var new_data = [];
+
+                    Object.keys(selected_results).forEach(function(ri) {
+                      var sel = selected_results[ri];
+                      var orig_row_data = sel.row.data();
+                      var new_row_data = JSON.parse(JSON.stringify(orig_row_data));
+
+                      sel.lines.sort((a, b) => a - b);
+                      new_row_data.line_no_and_contents = sel.lines.map(function(li) {
+                        return orig_row_data.line_no_and_contents[li];
+                      });
+
+                      new_row_data.raw_content = new_row_data.line_no_and_contents.map(l => l.contents).join('\\n');
+
+                      new_data.push(new_row_data);
+                    });
+
+                    original_json.data = new_data;
+
+                    if (original_json.report_name) {
+                      original_json.report_name += '_selected';
+                    }
+
+                    var json_str = JSON.stringify(original_json, null, 2);
+                    var blob = new Blob([json_str], { type: 'application/json' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = (original_json.report_name || 'selected') + '.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  });
                 });
               });
-
-              function multi_line_select() {
-                // Select all lines in a row
-                //$('#pwn_scan_git_source_results tbody').on('click', 'tr', function () {
-                //  $(this).children('td').children('#multi_line_select').children('tbody').children('tr').toggleClass('highlighted');
-                //});
-
-              }
             </script>
           </body>
         </html>
