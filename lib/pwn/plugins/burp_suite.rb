@@ -800,20 +800,31 @@ module PWN
         end
 
         # Wait for scan completion
-        scan_queue = rest_browser.get("http://#{pwn_burp_api}/scan/active")
-        json_scan_queue = JSON.parse(scan_queue, symbolize_names: true)
-        scan_queue_total = json_scan_queue.count
-        json_scan_queue.each do |scan_item|
-          this_scan_item_id = scan_item[:id]
-          until scan_item[:status] == 'finished'
-            scan_item_resp = rest_browser.get("http://#{pwn_burp_api}/scan/active/#{this_scan_item_id}")
-            scan_item = JSON.parse(scan_item_resp, symbolize_names: true)
-            scan_status = scan_item[:status]
-            puts "Target ID ##{this_scan_item_id} of ##{scan_queue_total}| #{scan_status}"
-            sleep 3
+        loop do
+          scan_queue = rest_browser.get("http://#{pwn_burp_api}/scan/active")
+          json_scan_queue = JSON.parse(scan_queue, symbolize_names: true)
+          break if json_scan_queue.all? { |scan| scan[:status] == 'finished' }
+
+          puts "\n\n\n"
+          puts '-'* 90
+          json_scan_queue.each do |scan|
+            puts "Target ID: #{scan[:id]}, Request Count: #{scan[:request_count]}, Progress: #{scan[:percent_complete]}%, Status: #{scan[:status]}"
           end
-          puts "Target ID ##{this_scan_item_id} of ##{scan_queue_total}| 100% complete\n"
+
+          sleep 30
         end
+        # scan_queue_total = json_scan_queue.count
+        # json_scan_queue.each do |scan_item|
+        #   this_scan_item_id = scan_item[:id]
+        #   until scan_item[:status] == 'finished'
+        #     scan_item_resp = rest_browser.get("http://#{pwn_burp_api}/scan/active/#{this_scan_item_id}")
+        #     scan_item = JSON.parse(scan_item_resp, symbolize_names: true)
+        #     scan_status = scan_item[:status]
+        #     puts "Target ID ##{this_scan_item_id} of ##{scan_queue_total}| #{scan_status}"
+        #     sleep 3
+        #   end
+        #   puts "Target ID ##{this_scan_item_id} of ##{scan_queue_total}| 100% complete\n"
+        # end
 
         active_scan_url_arr # Return array of targeted URIs to pass to #generate_scan_report method
       rescue StandardError => e
