@@ -806,7 +806,7 @@ module PWN
           break if json_scan_queue.all? { |scan| scan[:status] == 'finished' }
 
           puts "\n\n\n"
-          puts '-'* 90
+          puts '-' * 90
           json_scan_queue.each do |scan|
             puts "Target ID: #{scan[:id]}, Request Count: #{scan[:request_count]}, Progress: #{scan[:percent_complete]}%, Status: #{scan[:status]}"
           end
