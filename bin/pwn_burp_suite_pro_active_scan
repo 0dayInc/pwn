@@ -10,6 +10,14 @@ OptionParser.new do |options|
     #{File.basename($PROGRAM_NAME)} [opts]
   "
 
+  options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
+    opts[:target_url] = t
+  end
+
+  options.on('-oPATH', '--report_output_path=PATH', '<Required - Output Path for Active Scan Issues>') do |o|
+    opts[:output_path] = o
+  end
+
   options.on('-bBPATH', '--burp_path=BPATH', '<Optional - Path to Burp Suite Pro Jar File (Defaults to /opt/burpsuite/burpsuite-pro.jar)>') do |b|
     opts[:burp_jar_path] = b
   end
@@ -22,15 +30,7 @@ OptionParser.new do |options|
     opts[:spider] = s
   end
 
-  options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
-    opts[:target_url] = t
-  end
-
-  options.on('-oPATH', '--report_output_path=PATH', '<Required - Output Path for Active Scan Issues>') do |o|
-    opts[:output_path] = o
-  end
-
-  options.on('-IINST', '--navigation_instruct=INST', '<Required - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/burpsuite/navigation.instruct.EXAMPLE)>') do |i|
+  options.on('-IINST', '--navigation_instruct=INST', '<Optional - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/burpsuite/navigation.instruct.EXAMPLE)>') do |i|
     opts[:navigation_instruct] = i
   end
 
@@ -48,13 +48,15 @@ begin
   logger = PWN::Plugins::PWNLogger.create
 
   burp_jar_path = opts[:burp_jar_path]
-  headless = opts[:headless]
+  headless = opts[:headless] || false
   spider = opts[:spider] || false
-  target_url = opts[:target_url].to_s.scrub
-  output_path = opts[:output_path].to_s.scrub
+  target_url = opts[:target_url]
+  raise 'ERROR: --target_url is required.' if target_url.nil?
+
+  output_path = opts[:output_path]
+  raise 'ERROR: --report_output_path is required.' if output_path.nil?
 
   navigation_instruct = opts[:navigation_instruct]
-  raise 'Invalid path to browser instructions.  Please check your spelling and try again.' unless File.exist?(navigation_instruct)
 
   in_scope = opts[:in_scope] ||= target_url
 
@@ -93,12 +95,14 @@ begin
   browser = browser_obj[:browser]
   browser.goto(target_url)
 
-  File.read(navigation_instruct).each_line do |instruction|
-    # Look for any set method in this instruction and replace its value w/ asterisks
-    redact_regex = /\.set\(['"]([^'"]*)['"]\)/
-    redacted_instruction = instruction.gsub(redact_regex, ".set('********')")
-    print "\nExecuting Instruction: #{redacted_instruction}"
-    browser.instance_eval(instruction.to_s.scrub.strip.chomp)
+  unless navigation_instruct.nil?
+    File.read(navigation_instruct).each_line do |instruction|
+      # Look for any set method in this instruction and replace its value w/ asterisks
+      redact_regex = /\.set\(['"]([^'"]*)['"]\)/
+      redacted_instruction = instruction.gsub(redact_regex, ".set('********')")
+      print "\nExecuting Instruction: #{redacted_instruction}"
+      browser.instance_eval(instruction.to_s.scrub.strip.chomp)
+    end
   end
 
   PWN::Plugins::BurpSuite.spider(burp_obj: burp_obj, target_url: in_scope) if spider
@@ -117,9 +121,11 @@ begin
   # Once DefectDojo begins to support XML report results
   report_types = %i[html xml]
   report_types.each do |report_type|
-    this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
+    this_output_path = "#{output_path}.html"
+    # this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
 
-    this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml" if report_type == :xml
+    this_output_path = "#{output_path}.xml" if report_type == :xml
+    # this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml" if report_type == :xml
 
     PWN::Plugins::BurpSuite.generate_scan_report(
       burp_obj: burp_obj,
