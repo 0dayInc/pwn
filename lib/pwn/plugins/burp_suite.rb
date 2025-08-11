@@ -605,7 +605,7 @@ module PWN
                   request_path = full_path.dup
                   query_params = []
 
-                  operation.each do |param|
+                  all_parameters.each do |param|
                     next unless param.is_a?(Hash) && param[:name] && param[:in]
 
                     param_name = param[:name].to_s
