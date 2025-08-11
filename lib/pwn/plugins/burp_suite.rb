@@ -843,7 +843,12 @@ module PWN
         rest_browser = burp_obj[:rest_browser]
         pwn_burp_api = burp_obj[:pwn_burp_api]
 
-        scan_issues = rest_browser.get("http://#{pwn_burp_api}/scanissues")
+        rest_client = rest_browser::Request
+        scan_issues = rest_client.execute(
+          method: :get,
+          url: "http://#{pwn_burp_api}/scanissues",
+          timeout: 540
+        )
         JSON.parse(scan_issues, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
