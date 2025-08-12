@@ -285,10 +285,6 @@ module PWN
                     var selected_data = selectedRows.data().toArray();
                     original_json.data = selected_data;
 
-                    if (original_json.report_name) {
-                      original_json.report_name += '_selected';
-                    }
-
                     var json_str = JSON.stringify(original_json, null, 2);
                     var blob = new Blob([json_str], { type: 'application/json' });
                     var url = URL.createObjectURL(blob);
