@@ -14,7 +14,8 @@ module PWN
       #   scheme: 'required - scheme of the URI (http|https)',
       #   host: 'required - host of the URI',
       #   port: 'optional - port of the URI',
-      #   path: 'optional - path of the URI'
+      #   path: 'optional - path of the URI',
+      #   query: 'optional - query string of the URI'
       # )
       private_class_method def self.format_uri_from_sitemap_resp(opts = {})
         scheme = opts[:scheme]
@@ -25,6 +26,7 @@ module PWN
 
         port = opts[:port]
         path = opts[:path]
+        query = opts[:query]
 
         implicit_http_ports_arr = [
           80,
@@ -33,6 +35,7 @@ module PWN
 
         uri = "#{scheme}://#{host}:#{port}#{path}"
         uri = "#{scheme}://#{host}#{path}" if implicit_http_ports_arr.include?(port)
+        uri = "#{uri}?#{query}" unless query.nil?
 
         uri
       rescue StandardError => e
@@ -790,6 +793,7 @@ module PWN
           json_req = site[:request]
           b64_decoded_req = Base64.strict_decode64(json_req)
           json_path = b64_decoded_req.split[1].to_s.scrub.strip.chomp
+          json_query = json_path.split('?')[1].to_s.scrub.strip.chomp
 
           json_http_svc = site[:http_service]
           json_protocol = json_http_svc[:protocol]
@@ -800,7 +804,8 @@ module PWN
             scheme: json_protocol,
             host: json_host,
             port: json_port,
-            path: json_path
+            path: json_path,
+            query: json_query
           )
 
           uri_in_scope = in_scope(
@@ -919,12 +924,14 @@ module PWN
         host = URI.parse(target_url).host
         port = URI.parse(target_url).port
         path = URI.parse(target_url).path
+        query = URI.parse(target_url).query
 
         target_domain = format_uri_from_sitemap_resp(
           scheme: scheme,
           host: host,
           port: port,
-          path: path
+          path: path,
+          query: query
         )
 
         puts "Generating #{report_type} report for #{target_domain}..."
