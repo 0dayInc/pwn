@@ -615,15 +615,15 @@ module PWN
                       # reference as keys, and assign their respective
                       # values to the request_headers hash
                       param_key = param_name.downcase
-                      param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
+                      param_value = param[:schema]&.dig(:example) || 'FUZZ'
                       request_headers[param_key] = param_value.to_s
                     when 'path'
-                      # Substitute path parameter with a default value (e.g., 'PLACEHOLDER')
-                      param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
+                      # Substitute path parameter with a default value (e.g., 'FUZZ')
+                      param_value = param[:schema]&.dig(:example) || 'FUZZ'
                       request_path.gsub!("{#{param_name}}", param_value.to_s)
                     when 'query'
                       # Collect query parameters
-                      param_value = param[:schema]&.dig(:example) || 'PLACEHOLDER'
+                      param_value = param[:schema]&.dig(:example) || 'FUZZ'
                       query_params.push("#{URI.encode_www_form_component(param_name)}=#{URI.encode_www_form_component(param_value.to_s)}")
                     end
                   end
@@ -648,8 +648,8 @@ module PWN
                   # Determine response code from operation[:responses].keys
                   fallback_response_code = 200
                   response_keys = operation[:responses].keys
-                  response_code = response_keys.find { |key| key.to_s.to_i.between?(100, 599) }.to_s.to_i
-                  response_code ||= fallback_response_code
+                  response_key = response_keys.find { |key| key.to_s.to_i.between?(100, 599) } || fallback_response_code.to_s
+                  response_code = response_key.to_s.to_i
 
                   response_status = case response_code
                                     when 200 then '200 OK'
@@ -672,17 +672,53 @@ module PWN
                                     else "#{fallback_response_code} OK"
                                     end
 
-                  # Construct response body
-                  response_body = operation[:responses][response_code]&.dig(:description) ||
-                                  "Endpoint #{method_str.upcase} #{request_path} response"
+                  # Construct response body from operation responses schema example, schema $ref example, etc.
+                  response_obj = operation[:responses][response_key] || {}
+                  content = response_obj[:content] || {}
+                  content_type = content.keys.first&.to_s || 'text/plain'
 
-                  # Safely determine Content-Type
-                  content_type = if operation[:responses][response_code]
-                                   content = operation[:responses][response_code][:content]
-                                   content&.keys&.first || 'text/plain'
-                                 else
-                                   'text/plain'
-                                 end
+                  response_body = ''
+                  unless [204, 304].include?(response_code)
+                    content_obj = content[content_type.to_sym] || {}
+                    example = content_obj[:example]
+                    if example.nil? && content_obj[:examples].is_a?(Hash)
+                      ex_key = content_obj[:examples].keys.first
+                      example = content_obj[:examples][ex_key][:value] if ex_key
+                    end
+
+                    if example.nil?
+                      schema = content_obj[:schema]
+                      if schema
+                        if schema[:$ref]
+                          ref = schema[:$ref]
+                          if ref.start_with?('#/')
+                            parts = ref.sub('#/', '').split('/')
+                            resolved = openapi
+                            parts.each do |part|
+                              resolved = resolved[part.to_sym]
+                              break unless resolved
+                            end
+                            schema = resolved if resolved
+                          end
+                        end
+
+                        example = schema[:example]
+                        if example.nil? && schema[:examples].is_a?(Hash)
+                          ex_key = schema[:examples].keys.first
+                          example = schema[:examples][ex_key][:value] if ex_key
+                        end
+                      end
+                    end
+
+                    response_body = example || response_obj[:description] || "INFO: Unable to resolve response body from #{openapi_spec} => { 'http_method': '#{method_str.upcase}', 'path': '#{request_path}', 'response_code': '#{response_code}' }"
+
+                    # Serialize based on content_type
+                    if content_type =~ /json/i && (response_body.is_a?(Hash) || response_body.is_a?(Array))
+                      response_body = JSON.generate(response_body)
+                    else
+                      response_body = response_body.to_s
+                    end
+                  end
 
                   response_lines = [
                     "HTTP/1.1 #{response_status}",
