@@ -38,7 +38,7 @@ OptionParser.new do |options|
     opts[:navigation_instruct] = i
   end
 
-  options.on('-iURL', '---in_scope=URL', '<Optional - URL to add include in scope (Defaults to value of --target_url)>') do |s|
+  options.on('-iURL', '--in_scope=URL', '<Optional - URL to add include in scope (Defaults to value of --target_url)>') do |s|
     opts[:in_scope] = s
   end
 end.parse!
