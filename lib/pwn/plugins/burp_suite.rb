@@ -967,10 +967,13 @@ module PWN
       public_class_method def self.stop(opts = {})
         burp_obj = opts[:burp_obj]
         browser_obj = burp_obj[:burp_browser]
-        burp_pid = burp_obj[:pid]
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+        # burp_pid = burp_obj[:pid]
 
         browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
-        Process.kill('TERM', burp_pid)
+        rest_browser.post("http://#{pwn_burp_api}/shutdown", '')
+        # Process.kill('TERM', burp_pid)
 
         burp_obj = nil
       rescue StandardError => e

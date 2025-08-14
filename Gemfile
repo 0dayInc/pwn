@@ -11,7 +11,7 @@ gemspec
 # In some circumstances custom flags are passed to gems in order
 # to build appropriately.  Defer to ./reinstall_pwn_gemset.sh
 # to review these custom flags (e.g. pg, serialport, etc).
-gem 'activesupport', '8.0.2'
+gem 'activesupport', '8.0.2.1'
 gem 'anemone', '0.7.2'
 gem 'authy', '3.0.1'
 gem 'aws-sdk', '3.3.0'
@@ -67,7 +67,7 @@ gem 'open3', '0.2.1'
 gem 'os', '1.1.4'
 gem 'ostruct', '0.6.3'
 gem 'packetfu', '2.0.0'
-gem 'packetgen', '4.1.0'
+gem 'packetgen', '4.1.1'
 gem 'pdf-reader', '2.15.0'
 gem 'pg', '1.6.1'
 gem 'pry', '0.15.2'
