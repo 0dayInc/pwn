@@ -771,7 +771,8 @@ module PWN
       # Supported Method Parameters::
       # active_scan_url_arr = PWN::Plugins::BurpSuite.invoke_active_scan(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])'
+      #   target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])',
+      #   exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
       # )
 
       public_class_method def self.invoke_active_scan(opts = {})
@@ -779,6 +780,10 @@ module PWN
         rest_browser = burp_obj[:rest_browser]
         pwn_burp_api = burp_obj[:pwn_burp_api]
         target_url = opts[:target_url].to_s.scrub.strip.chomp
+        raise 'ERROR: target_url parameter is required' if target_url.empty?
+
+        exclude_paths = opts[:exclude_paths] ||= []
+
         target_scheme = URI.parse(target_url).scheme
         target_host = URI.parse(target_url).host
         target_path = URI.parse(target_url).path
@@ -793,6 +798,8 @@ module PWN
           json_req = site[:request]
           b64_decoded_req = Base64.strict_decode64(json_req)
           json_path = b64_decoded_req.split[1].to_s.scrub.strip.chomp
+          next if exclude_paths.include?(json_path)
+
           json_query = json_path.split('?')[1].to_s.scrub.strip.chomp
 
           json_http_svc = site[:http_service]
@@ -1083,7 +1090,8 @@ module PWN
 
           active_scan_url_arr = #{self}.invoke_active_scan(
             burp_obj: 'required - burp_obj returned by #start method',
-            target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])'
+            target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])',
+            exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
           )
 
           json_scan_issues = #{self}.get_scan_issues(

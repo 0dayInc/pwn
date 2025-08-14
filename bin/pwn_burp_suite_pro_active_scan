@@ -18,6 +18,10 @@ OptionParser.new do |options|
     opts[:output_path] = o
   end
 
+  options.on('-eLIST', '--exclude_paths=LIST', '<Optional - Comma-delimited list of paths to exlude from scanning (e.g. "/api/login, /api/logout, /api/etc")>') do |e|
+    opts[:exclude_paths] = e
+  end
+
   options.on('-bBPATH', '--burp_path=BPATH', '<Optional - Path to Burp Suite Pro Jar File (Defaults to /opt/burpsuite/burpsuite-pro.jar)>') do |b|
     opts[:burp_jar_path] = b
   end
@@ -55,6 +59,9 @@ begin
 
   output_path = opts[:output_path]
   raise 'ERROR: --report_output_path is required.' if output_path.nil?
+
+  exlude_paths = opts[:exclude_paths]
+  exlude_paths = exlude_paths.split(',').map(&:strip) if exlude_paths.is_a?(String)
 
   navigation_instruct = opts[:navigation_instruct]
 
@@ -112,7 +119,7 @@ begin
   sleep duration # Sleep for now so everything loads the way we expect - blech.
   print "\n"
 
-  PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: in_scope)
+  PWN::Plugins::BurpSuite.invoke_active_scan(burp_obj: burp_obj, target_url: in_scope, exclude_paths: exlude_paths)
 
   # Dump a list of scan issues from Active Scan result
   # scan_issues = PWN::Plugins::BurpSuite.get_scan_issues(burp_obj: burp_obj)
