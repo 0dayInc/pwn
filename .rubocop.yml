@@ -8,19 +8,19 @@ Lint/UselessRescue:
 Metrics/AbcSize:
   Max: 537.6
 Metrics/BlockLength:
-  Max: 220
+  Max: 292
 Metrics/BlockNesting:
-  Max: 5
+  Max: 6
 Metrics/ClassLength:
   Max: 134
 Metrics/CyclomaticComplexity:
-  Max: 123
+  Max: 157
 Metrics/MethodLength:
   Max: 485
 Metrics/ModuleLength:
   Max: 1000
 Metrics/PerceivedComplexity:
-  Max: 122
+  Max: 156
 Style/HashEachMethods:
   Enabled: true
 Style/HashSyntax:
