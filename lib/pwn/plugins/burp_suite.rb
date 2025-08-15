@@ -438,7 +438,7 @@ module PWN
       # Supported Method Parameters:
       # json_sitemap = PWN::Plugins::BurpSuite.import_openapi_to_sitemap(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   openapi_spec: 'required - path to OpenAPI JSON specification file',
+      #   openapi_spec: 'required - path to OpenAPI JSON or YAML specification file',
       #   additional_http_headers: 'optional - hash of additional HTTP headers to include in requests (default: {})',
       #   highlight: 'optional - highlight color for the sitemap entry (default: "NONE")',
       #   comment: 'optional - comment for the sitemap entry (default: "")',
@@ -459,8 +459,10 @@ module PWN
 
         debug = opts[:debug] || false
 
-        # Parse the OpenAPI JSON
-        openapi = JSON.parse(File.read(openapi_spec), symbolize_names: true)
+        # Parse the OpenAPI JSON or YAML specification file
+        # If the opeenapi_spec is YAML, convert it to JSON
+        openapi = JSON.parse(File.read(openapi_spec), symbolize_names: true) if openapi_spec.end_with?('.json')
+        openapi = YAML.safe_load_file(openapi_spec, permitted_classes: [Symbol, Date, Time], aliases: true, symbolize_names: true) if openapi_spec.end_with?('.yaml', '.yml')
 
         # Initialize result array
         sitemap_arr = []
@@ -1084,7 +1086,7 @@ module PWN
 
           json_sitemap = #{self}.import_openapi_to_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
-            openapi_spec: 'required - path to OpenAPI JSON specification file',
+            openapi_spec: 'required - path to OpenAPI JSON or YAML specification file',
             additional_http_headers: 'optional - hash of additional HTTP headers to include in requests (default: {})',
             debug: 'optional - boolean to enable debug logging (default: false)',
             highlight: 'optional - highlight color for the sitemap entry (default: \"NONE\")',
