@@ -410,11 +410,13 @@ module PWN
         sitemap = opts[:sitemap] ||= {}
         debug = opts[:debug] || false
 
-        # Send POST request to /sitemap
-        response = RestClient.post(
-          "#{pwn_burp_api}/sitemap",
-          sitemap.to_json,
-          content_type: 'application/json; charset=UTF-8'
+        rest_client = rest_browser::Request
+        response = rest_client.execute(
+          method: :post,
+          url: "http://#{pwn_burp_api}/sitemap",
+          payload: sitemap.to_json,
+          headers: { content_type: 'application/json; charset=UTF-8' },
+          timeout: 540
         )
 
         if debug
