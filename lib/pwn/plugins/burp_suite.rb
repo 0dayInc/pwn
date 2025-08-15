@@ -460,9 +460,14 @@ module PWN
         debug = opts[:debug] || false
 
         # Parse the OpenAPI JSON or YAML specification file
-        # If the opeenapi_spec is YAML, convert it to JSON
-        openapi = JSON.parse(File.read(openapi_spec), symbolize_names: true) if openapi_spec.end_with?('.json')
-        openapi = YAML.safe_load_file(openapi_spec, permitted_classes: [Symbol, Date, Time], aliases: true, symbolize_names: true) if openapi_spec.end_with?('.yaml', '.yml')
+        # If the openapi_spec is YAML, convert it to JSON
+        openapi = if openapi_spec.end_with?('.json')
+                    JSON.parse(File.read(openapi_spec), symbolize_names: true)
+                  elsif openapi_spec.end_with?('.yaml', '.yml')
+                    YAML.safe_load_file(openapi_spec, permitted_classes: [Symbol, Date, Time], aliases: true, symbolize_names: true)
+                  else
+                    raise "ERROR: Unsupported file extension for #{openapi_spec}. Expected .json, .yaml, or .yml."
+                  end
 
         # Initialize result array
         sitemap_arr = []
@@ -476,6 +481,19 @@ module PWN
 
         # Valid HTTP methods for validation
         valid_methods = %w[get post put patch delete head options trace connect]
+
+        # Helper lambda to resolve $ref in schemas
+        resolve_ref = lambda do |openapi, ref|
+          return nil unless ref&.start_with?('#/')
+
+          parts = ref.sub('#/', '').split('/')
+          resolved = openapi
+          parts.each do |part|
+            resolved = resolved[part.to_sym]
+            return nil unless resolved
+          end
+          resolved
+        end
 
         # Iterate through each server
         servers.each do |server|
@@ -609,6 +627,88 @@ module PWN
                   all_parameters = path_parameters + operation_parameters
                   warn("[DEBUG] All parameters for #{method_str.upcase} #{full_path}: #{all_parameters.inspect}") if debug && !all_parameters.empty?
 
+                  # Determine response code from operation[:responses].keys
+                  fallback_response_code = 200
+                  response_keys = operation[:responses].keys
+                  response_key = response_keys.find { |key| key.to_s.to_i.between?(100, 599) } || fallback_response_code.to_s
+                  response_code = response_key.to_s.to_i
+
+                  # Construct response body from operation responses schema example, schema $ref example, etc.
+                  response_obj = operation[:responses][response_key] || {}
+                  content = response_obj[:content] || {}
+                  content_type = content.keys.first&.to_s || 'text/plain'
+
+                  response_body = ''
+                  unless [204, 304].include?(response_code)
+                    content_obj = content[content_type.to_sym] || {}
+                    example = content_obj[:example]
+                    if example.nil? && content_obj[:examples].is_a?(Hash)
+                      ex_key = content_obj[:examples].keys.first
+                      if ex_key
+                        ex = content_obj[:examples][ex_key]
+                        if ex[:$ref]
+                          resolved_ex = resolve_ref.call(openapi, ex[:$ref])
+                          example = resolved_ex[:value] if resolved_ex
+                        else
+                          example = ex[:value]
+                        end
+                      end
+                    end
+
+                    if example.nil?
+                      schema = content_obj[:schema]
+                      if schema
+                        if schema[:$ref]
+                          ref = schema[:$ref]
+                          if ref.start_with?('#/')
+                            parts = ref.sub('#/', '').split('/')
+                            resolved = openapi
+                            parts.each do |part|
+                              resolved = resolved[part.to_sym]
+                              break unless resolved
+                            end
+                            schema = resolved if resolved
+                          end
+                        end
+
+                        example = schema[:example]
+                        if example.nil? && schema[:examples].is_a?(Hash)
+                          ex_key = schema[:examples].keys.first
+                          if ex_key
+                            ex = schema[:examples][ex_key]
+                            if ex[:$ref]
+                              resolved_ex = resolve_ref.call(openapi, ex[:$ref])
+                              example = resolved_ex[:value] if resolved_ex
+                            else
+                              example = ex[:value]
+                            end
+                          end
+                        end
+                      end
+                    end
+
+                    response_body = example || response_obj[:description] || "INFO: Unable to resolve response body from #{openapi_spec} => { 'http_method': '#{method_str.upcase}', 'path': '#{full_path}', 'response_code': '#{response_code}' }"
+                  end
+
+                  # Try to extract query samples from response example if it's a links object
+                  query_hash = nil
+                  if response_body.is_a?(Hash) && response_body[:links]
+                    href = response_body.dig(:links, :self, :href)
+                    # href ||= response_body[:links].values.first&.dig(:href) rescue nil
+                    if href.nil? && response_body[:links].is_a?(Hash) && !response_body[:links].empty?
+                      first_value = response_body[:links].values.first
+                      href = first_value[:href] if first_value.is_a?(Hash)
+                    end
+                    if href
+                      begin
+                        parsed_uri = URI.parse(href)
+                        query_hash = URI.decode_www_form(parsed_uri.query).to_h if parsed_uri.path.end_with?(path_str) && parsed_uri.query
+                      rescue URI::InvalidURIError => e
+                        warn("[DEBUG] Invalid href in response example: #{href} - #{e.message}") if debug
+                      end
+                    end
+                  end
+
                   # Process path parameters for substitution
                   request_path = full_path.dup
                   query_params = []
@@ -617,21 +717,67 @@ module PWN
                     next unless param.is_a?(Hash) && param[:name] && param[:in]
 
                     param_name = param[:name].to_s
+
+                    # Get param_value with precedence: param.examples > param.example > schema.examples > schema.example > 'FUZZ'
+                    param_value = if param[:examples].is_a?(Hash) && !param[:examples].empty?
+                                    first_ex = param[:examples].values.first
+                                    if first_ex.is_a?(Hash)
+                                      if first_ex[:$ref]
+                                        # Resolve $ref for example if present
+                                        resolved_ex = resolve_ref.call(openapi, first_ex[:$ref])
+                                        resolved_ex[:value] if resolved_ex
+                                      else
+                                        first_ex[:value]
+                                      end
+                                    else
+                                      first_ex
+                                    end || 'FUZZ'
+                                  elsif param.key?(:example)
+                                    param[:example]
+                                  else
+                                    schema = param[:schema]
+                                    if schema
+                                      if schema[:$ref]
+                                        resolved_schema = resolve_ref.call(openapi, schema[:$ref])
+                                        schema = resolved_schema if resolved_schema
+                                      end
+                                      if schema[:examples].is_a?(Hash) && !schema[:examples].empty?
+                                        first_ex = schema[:examples].values.first
+                                        if first_ex.is_a?(Hash)
+                                          if first_ex[:$ref]
+                                            resolved_ex = resolve_ref.call(openapi, first_ex[:$ref])
+                                            resolved_ex[:value] if resolved_ex
+                                          else
+                                            first_ex[:value]
+                                          end
+                                        else
+                                          first_ex
+                                        end || 'FUZZ'
+                                      elsif schema.key?(:example)
+                                        schema[:example]
+                                      else
+                                        'FUZZ'
+                                      end
+                                    else
+                                      'FUZZ'
+                                    end
+                                  end
+
+                    # If still 'FUZZ' and it's a query param, try to get from response example query_hash
+                    param_value = query_hash[param_name] if param_value == 'FUZZ' && param[:in] == 'query' && query_hash&.key?(param_name)
+
                     case param[:in]
                     when 'header'
                       # Aggregate remaining HTTP header names from spec,
                       # reference as keys, and assign their respective
                       # values to the request_headers hash
                       param_key = param_name.downcase
-                      param_value = param[:schema]&.dig(:example) || 'FUZZ'
                       request_headers[param_key] = param_value.to_s
                     when 'path'
-                      # Substitute path parameter with a default value (e.g., 'FUZZ')
-                      param_value = param[:schema]&.dig(:example) || 'FUZZ'
+                      # Substitute path parameter with the resolved value
                       request_path.gsub!("{#{param_name}}", param_value.to_s)
                     when 'query'
                       # Collect query parameters
-                      param_value = param[:schema]&.dig(:example) || 'FUZZ'
                       query_params.push("#{URI.encode_www_form_component(param_name)}=#{URI.encode_www_form_component(param_value.to_s)}")
                     end
                   end
@@ -652,12 +798,6 @@ module PWN
 
                   request = request_lines.join("\r\n")
                   encoded_request = Base64.strict_encode64(request)
-
-                  # Determine response code from operation[:responses].keys
-                  fallback_response_code = 200
-                  response_keys = operation[:responses].keys
-                  response_key = response_keys.find { |key| key.to_s.to_i.between?(100, 599) } || fallback_response_code.to_s
-                  response_code = response_key.to_s.to_i
 
                   response_status = case response_code
                                     when 200 then '200 OK'
@@ -680,52 +820,11 @@ module PWN
                                     else "#{fallback_response_code} OK"
                                     end
 
-                  # Construct response body from operation responses schema example, schema $ref example, etc.
-                  response_obj = operation[:responses][response_key] || {}
-                  content = response_obj[:content] || {}
-                  content_type = content.keys.first&.to_s || 'text/plain'
-
-                  response_body = ''
-                  unless [204, 304].include?(response_code)
-                    content_obj = content[content_type.to_sym] || {}
-                    example = content_obj[:example]
-                    if example.nil? && content_obj[:examples].is_a?(Hash)
-                      ex_key = content_obj[:examples].keys.first
-                      example = content_obj[:examples][ex_key][:value] if ex_key
-                    end
-
-                    if example.nil?
-                      schema = content_obj[:schema]
-                      if schema
-                        if schema[:$ref]
-                          ref = schema[:$ref]
-                          if ref.start_with?('#/')
-                            parts = ref.sub('#/', '').split('/')
-                            resolved = openapi
-                            parts.each do |part|
-                              resolved = resolved[part.to_sym]
-                              break unless resolved
-                            end
-                            schema = resolved if resolved
-                          end
-                        end
-
-                        example = schema[:example]
-                        if example.nil? && schema[:examples].is_a?(Hash)
-                          ex_key = schema[:examples].keys.first
-                          example = schema[:examples][ex_key][:value] if ex_key
-                        end
-                      end
-                    end
-
-                    response_body = example || response_obj[:description] || "INFO: Unable to resolve response body from #{openapi_spec} => { 'http_method': '#{method_str.upcase}', 'path': '#{request_path}', 'response_code': '#{response_code}' }"
-
-                    # Serialize based on content_type
-                    if content_type =~ /json/i && (response_body.is_a?(Hash) || response_body.is_a?(Array))
-                      response_body = JSON.generate(response_body)
-                    else
-                      response_body = response_body.to_s
-                    end
+                  # Serialize response_body based on content_type
+                  if content_type =~ /json/i && (response_body.is_a?(Hash) || response_body.is_a?(Array))
+                    response_body = JSON.generate(response_body)
+                  else
+                    response_body = response_body.to_s
                   end
 
                   response_lines = [
