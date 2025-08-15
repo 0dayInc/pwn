@@ -765,9 +765,10 @@ module PWN
           end
         end
 
-        begin
-          sitemap_arr.each { |sitemap| add_to_sitemap(burp_obj: burp_obj, sitemap: sitemap) }
-        rescue RestClient::ExceptionWithResponse
+        sitemap_arr.each do |sitemap|
+          add_to_sitemap(burp_obj: burp_obj, sitemap: sitemap)
+        rescue RestClient::ExceptionWithResponse => e
+          puts e.message
           next
         end
 
