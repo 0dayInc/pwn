@@ -410,11 +410,13 @@ module PWN
         sitemap = opts[:sitemap] ||= {}
         debug = opts[:debug] || false
 
-        # Send POST request to /sitemap
-        response = RestClient.post(
-          "#{pwn_burp_api}/sitemap",
-          sitemap.to_json,
-          content_type: 'application/json; charset=UTF-8'
+        rest_client = rest_browser::Request
+        response = rest_client.execute(
+          method: :post,
+          url: "http://#{pwn_burp_api}/sitemap",
+          payload: sitemap.to_json,
+          headers: { content_type: 'application/json; charset=UTF-8' },
+          timeout: 30
         )
 
         if debug
@@ -426,7 +428,8 @@ module PWN
         # Return response body (assumed to be JSON)
         JSON.parse(response.body, symbolize_names: true)
       rescue RestClient::ExceptionWithResponse => e
-        raise StandardError, "HTTP error adding to sitemap: Status #{e.response.code}, Response: #{e.response.body}"
+        puts "ERROR: Failed to add to sitemap: #{e.message}"
+        puts "HTTP error adding to sitemap: Status #{e.response.code}, Response: #{e.response.body}" if e.responds_to?(:response) && e.response.respond_to?(:code) && e.response.respond_to?(:body)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e

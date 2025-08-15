@@ -11,7 +11,7 @@ else
   pwn_root="${PWN_ROOT}"
 fi
 
-target_jdk='openjdk-17-jdk'
+target_jdk='openjdk-21-jdk'
 jenkins_java_version=$(echo ${target_jdk} | sed 's/-/ /g' | awk '{print $2}')
 pwn_provider=`echo $PWN_PROVIDER`
 
@@ -49,7 +49,7 @@ sudo /bin/bash --login -c 'echo "jenkins ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.
 # Ensure Java version is supported by Jenkins
 sudo echo tee -a /etc/systemd/system/jenkins.service.d/override.conf << EOF
 [Service]
-Environment="JAVA_OPTS=-Djava.awt.headless=true -Dhudson.DNSMultiCast.disabled=true -Djava.net.preferIPv4Stack=true -Dmail.smtp.starttls.enable=true -Dhudson.model.DirectoryBrowserSupport.CSP= -Xmx2g"
+Environment="JAVA_OPTS=-Djava.awt.headless=true -Dhudson.DNSMultiCast.disabled=true -Djava.net.preferIPv4Stack=true -Dmail.smtp.starttls.enable=true -Dhudson.model.DirectoryBrowserSupport.CSP= -Xms4G -Xmx24G"
 Environment="JENKINS_LISTEN_ADDRESS=127.0.0.1"
 Environment="JENKINS_PORT=8888"
 Environment="JENKINS_JAVA_CMD=/usr/lib/jvm/java-${jenkins_java_version}-openjdk-amd64/bin/java"
