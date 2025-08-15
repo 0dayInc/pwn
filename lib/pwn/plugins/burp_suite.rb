@@ -68,7 +68,7 @@ module PWN
         pwn_burp_ip = opts[:pwn_burp_ip] ||= '127.0.0.1'
         pwn_burp_port = opts[:pwn_burp_port] ||= PWN::Plugins::Sock.get_random_unused_port
 
-        burp_cmd_string = 'java -Xmx4G'
+        burp_cmd_string = 'java -Xms4G -Xmx16G'
         burp_cmd_string = "#{burp_cmd_string} -Djava.awt.headless=true" if opts[:headless]
         burp_cmd_string = "#{burp_cmd_string} -Dproxy.address=#{burp_ip} -Dproxy.port=#{burp_port}"
         burp_cmd_string = "#{burp_cmd_string} -Dserver.address=#{pwn_burp_ip} -Dserver.port=#{pwn_burp_port}"
