@@ -4,6 +4,7 @@ require 'base64'
 require 'json'
 require 'socket'
 require 'uri'
+require 'yaml'
 
 module PWN
   module Plugins
