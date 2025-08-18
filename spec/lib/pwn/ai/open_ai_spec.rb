@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-describe PWN::Plugins::OpenAI do
+describe PWN::AI::OpenAI do
   it 'should display information for authors' do
-    authors_response = PWN::Plugins::OpenAI
+    authors_response = PWN::AI::OpenAI
     expect(authors_response).to respond_to :authors
   end
 
   it 'should display information for existing help method' do
-    help_response = PWN::Plugins::OpenAI
+    help_response = PWN::AI::OpenAI
     expect(help_response).to respond_to :help
   end
 end

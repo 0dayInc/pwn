@@ -6,7 +6,7 @@ require 'securerandom'
 require 'tty-spinner'
 
 module PWN
-  module Plugins
+  module AI
     # This plugin is used for interacting w/ OpenAI's REST API using
     # the 'rest' browser type of PWN::Plugins::TransparentBrowser.
     # This is based on the following OpenAI API Specification:
@@ -93,6 +93,8 @@ module PWN
           raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
         end
         response
+      rescue RestClient::ExceptionWithResponse => e
+        puts "ERROR: #{e.message}: #{e.response}"
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
@@ -105,7 +107,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.get_models(
+      # response = PWN::AI::OpenAI.get_models(
       #   token: 'required - Bearer token',
       #   timeout: 'optional timeout in seconds (defaults to 180)'
       # )
@@ -125,7 +127,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.chat(
+      # response = PWN::AI::OpenAI.chat(
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to chatgpt-4o-latest)',
@@ -280,7 +282,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.img_gen(
+      # response = PWN::AI::OpenAI.img_gen(
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT',
       #   n: 'optional - number of images to generate (defaults to 1)',
@@ -319,7 +321,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.vision(
+      # response = PWN::AI::OpenAI.vision(
       #   token: 'required - Bearer token',
       #   img_path: 'required - path or URI of image to analyze',
       #   request: 'optional - message to ChatGPT (defaults to, "what is in this image?")',
@@ -427,7 +429,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.create_fine_tune(
+      # response = PWN::AI::OpenAI.create_fine_tune(
       #   token: 'required - Bearer token',
       #   training_file: 'required - JSONL that contains OpenAI training data'
       #   validation_file: 'optional - JSONL that contains OpenAI validation data'
@@ -504,7 +506,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.list_fine_tunes(
+      # response = PWN::AI::OpenAI.list_fine_tunes(
       #   token: 'required - Bearer token',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
@@ -525,7 +527,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.get_fine_tune_status(
+      # response = PWN::AI::OpenAI.get_fine_tune_status(
       #   token: 'required - Bearer token',
       #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
@@ -550,7 +552,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.cancel_fine_tune(
+      # response = PWN::AI::OpenAI.cancel_fine_tune(
       #   token: 'required - Bearer token',
       #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
@@ -576,7 +578,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.get_fine_tune_events(
+      # response = PWN::AI::OpenAI.get_fine_tune_events(
       #   token: 'required - Bearer token',
       #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
@@ -601,7 +603,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.delete_fine_tune_model(
+      # response = PWN::AI::OpenAI.delete_fine_tune_model(
       #   token: 'required - Bearer token',
       #   model: 'required - model to delete',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
@@ -627,7 +629,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.list_files(
+      # response = PWN::AI::OpenAI.list_files(
       #   token: 'required - Bearer token',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
@@ -648,7 +650,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.upload_file(
+      # response = PWN::AI::OpenAI.upload_file(
       #   token: 'required - Bearer token',
       #   file: 'required - file to upload',
       #   purpose: 'optional - intended purpose of the uploaded documents (defaults to fine-tune',
@@ -684,7 +686,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.delete_file(
+      # response = PWN::AI::OpenAI.delete_file(
       #   token: 'required - Bearer token',
       #   file: 'required - file to delete',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
@@ -713,7 +715,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::OpenAI.get_file(
+      # response = PWN::AI::OpenAI.get_file(
       #   token: 'required - Bearer token',
       #   file: 'required - file to delete',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
@@ -779,7 +781,7 @@ module PWN
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
-          response = PWN::Plugins::OpenAI.vision(
+          response = #{self}.vision(
             token: 'required - Bearer token',
             img_path: 'required - path or URI of image to analyze',
             request: 'optional - message to ChatGPT (defaults to, \"what is in this image?\")',

@@ -8,6 +8,7 @@ require 'pwn/version'
 module PWN
   $stdout.sync = true # < Ensure that all print statements output progress in realtime
   $stdout.flush       # < Ensure that all print statements output progress in realtime
+  autoload :AI, 'pwn/ai'
   autoload :AWS, 'pwn/aws'
   autoload :Banner, 'pwn/banner'
   autoload :FFI, 'pwn/ffi'

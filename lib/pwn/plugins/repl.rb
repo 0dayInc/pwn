@@ -338,8 +338,19 @@ module PWN
                           message.
                         "
 
-                        if ai_engine == :ollama
-                          response = PWN::Plugins::Ollama.chat(
+                        case ai_engine
+                        when :grok
+                          response = PWN::AI::Grok.chat(
+                            token: ai_key,
+                            model: model,
+                            temp: ai_temp,
+                            system_role_content: system_role_content,
+                            request: request,
+                            response_history: response_history,
+                            spinner: false
+                          )
+                        when :ollama
+                          response = PWN::AI::Ollama.chat(
                             fqdn: ai_fqdn,
                             token: ai_key,
                             model: model,
@@ -349,8 +360,8 @@ module PWN
                             response_history: response_history,
                             spinner: false
                           )
-                        else
-                          response = PWN::Plugins::OpenAI.chat(
+                        when :openai
+                          response = PWN::AI::OpenAI.chat(
                             token: ai_key,
                             model: model,
                             temp: ai_temp,
@@ -520,6 +531,7 @@ module PWN
             Pry.config.p = yaml_config
 
             valid_ai_engines = %i[
+              grok
               openai
               ollama
             ]
@@ -622,10 +634,21 @@ module PWN
             temp = pi.config.pwn_ai_temp
 
             case ai_engine
+            when :grok
+              response = PWN::AI::Grok.chat(
+                token: ai_key,
+                model: model,
+                system_role_content: system_role_content,
+                temp: temp,
+                request: request.chomp,
+                response_history: response_history,
+                speak_answer: speak_answer,
+                spinner: true
+              )
             when :ollama
               fqdn = pi.config.pwn_ai_fqdn
 
-              response = PWN::Plugins::Ollama.chat(
+              response = PWN::AI::Ollama.chat(
                 fqdn: fqdn,
                 token: ai_key,
                 model: model,
@@ -637,7 +660,7 @@ module PWN
                 spinner: true
               )
             when :openai
-              response = PWN::Plugins::OpenAI.chat(
+              response = PWN::AI::OpenAI.chat(
                 token: ai_key,
                 model: model,
                 system_role_content: system_role_content,
