@@ -535,9 +535,9 @@ module PWN
               openai
               ollama
             ]
-            ai_engine = yaml_config[:ai_engine].to_s.to_sym
+            ai_engine = yaml_config[:ai_engine].to_s.downcase.to_sym
 
-            raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}" unless valid_ai_engines.include?(ai_engine)
+            raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(ai_engine)
 
             pi.config.pwn_ai_engine = ai_engine
             Pry.config.pwn_ai_engine = ai_engine

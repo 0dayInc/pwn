@@ -3,6 +3,7 @@
 *.swp
 *.gem
 *.rbc
+**/*.js.JS-BEAUTIFIED
 **/screenlog.*
 .bundle
 .config

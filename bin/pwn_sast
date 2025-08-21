@@ -35,6 +35,30 @@ OptionParser.new do |options|
     opts[:report_name] = n
   end
 
+  options.on('-aENGINE', '--ai-engine=ENGINE', '<Optional AI Engine to Analyze Results (grok, ollama, openai) [WARNING: CAN DRAMATICALLY INCREASE AI USAGE COSTS AND/OR SCAN DURATIONS]>') do |a|
+    opts[:ai_engine] = a
+  end
+
+  options.on('-fFQDN', '--ai-fqdn=FQDN', '<Optional AI FQDN (Only Required for "ollama" AI Engine)>') do |f|
+    opts[:ai_fqdn] = f
+  end
+
+  options.on('-mMODEL', '--ai-model=MODEL', '<Optional AI Model to Use for Respective AI Engine (e.g., grok-4i-0709, chargpt-4o-latest, llama-3.1, etc.)>') do |m|
+    opts[:ai_model] = m
+  end
+
+  options.on('-kTOKEN', '--ai-key=TOKEN', '<Optional AI Key/Token for Respective AI Engine>') do |k|
+    opts[:ai_key] = k
+  end
+
+  options.on('-SCONTENT', '--ai-system-content=CONTENT', '<Optional AI System Role Content for Respective AI Engine>') do |s|
+    opts[:ai_system_role_content] = s
+  end
+
+  options.on('-FTEMP', '--ai-temp=TEMP', '<Optional AI Temperature for Respective AI Engine (Default 0.9)>') do |t|
+    opts[:ai_temp] = t
+  end
+
   options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
     opts[:start_reporting_server] = s
   end
@@ -65,6 +89,23 @@ begin
 
   report_name = opts[:report_name]
   report_name ||= File.basename(Dir.pwd)
+
+  ai_engine = opts[:ai_engine]
+  if ai_engine
+    ai_engine = ai_engine.to_s.to_sym
+    valid_ai_engines = %i[grok ollama openai]
+    raise "ERROR: Invalid AI Engine. Valid options are: #{valid_ai_engines.join(', ')}" unless valid_ai_engines.include?(ai_engine)
+
+    ai_fqdn = opts[:ai_fqdn]
+    raise 'ERROR: FQDN for Ollama AI engine is required.' if ai_engine == :ollama && ai_fqdn.nil?
+
+    ai_model = opts[:ai_model]
+    raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
+
+    ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
+    ai_system_role_content = opts[:ai_system_role_content]
+    ai_temp = opts[:ai_temp]
+  end
 
   start_reporting_server = opts[:start_reporting_server]
 
@@ -148,18 +189,21 @@ begin
       git_repo_root_uri: uri_source_root
     )
 
-    sca_arr.each do |hash_line|
-      mutex.synchronize do
-        results_hash[:data].push(hash_line)
-      end
-    end
+    sca_arr.each { |hash_line| mutex.synchronize { results_hash[:data].push(hash_line) } }
   end
 
   # Generate HTML Report
   print "#{File.basename($PROGRAM_NAME)} Generating Report..."
   PWN::Reports::SAST.generate(
     dir_path: dir_path,
-    results_hash: results_hash
+    results_hash: results_hash,
+    report_name: report_name,
+    ai_engine: ai_engine,
+    ai_model: ai_model,
+    ai_key: ai_key,
+    ai_fqdn: ai_fqdn,
+    ai_system_role_content: ai_system_role_content,
+    ai_temp: ai_temp
   )
   puts 'complete.'
 

@@ -143,8 +143,7 @@ module PWN
         token = opts[:token]
         request = opts[:request]
 
-        model = opts[:model]
-        model ||= 'chatgpt-4o-latest'
+        model = opts[:model] ||= 'chatgpt-4o-latest'
 
         temp = opts[:temp].to_f
         temp = 1 if temp.zero?

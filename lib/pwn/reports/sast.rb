@@ -11,17 +11,102 @@ module PWN
     module SAST
       # Supported Method Parameters::
       # PWN::Reports::SAST.generate(
-      #   dir_path: dir_path,
-      #   results_hash: results_hash
+      #   dir_path: 'optional - Directory path to save the report (defaults to .)',
+      #   results_hash: 'optional - Hash containing the results of the SAST analysis (defaults to empty hash structure)',
+      #   report_name: 'optional - Name of the report file (defaults to current directory name)',
+      #   ai_engine: 'optional - AI engine to use for analysis (:grok, :ollama, or :openai)',
+      #   ai_model: 'optionnal - AI Model to Use for Respective AI Engine (e.g., grok-4i-0709, chargpt-4o-latest, llama-3.1, etc.)',
+      #   ai_key: 'optional -  AI Key/Token for Respective AI Engine',
+      #   ai_fqdn: 'optional -  AI FQDN (Only Required for "ollama" AI Engine)',
+      #   ai_system_role_content: 'optional - AI System Role Content (Defaults to "Is this code vulnerable or a false positive?  Valid responses are only: "VULNERABLE" or "FALSE+". DO NOT PROVIDE ANY OTHER TEXT OR EXPLANATIONS.")',
+      #   ai_temp: 'optional - AI Temperature (Defaults to 0.9)'
       # )
 
       public_class_method def self.generate(opts = {})
-        dir_path = opts[:dir_path].to_s if File.directory?(opts[:dir_path].to_s)
-        raise "PWN Error: Invalid Directory #{dir_path}" if dir_path.nil?
+        dir_path = opts[:dir_path] ||= '.'
+        results_hash = opts[:results_hash] ||= {
+          report_name: HTMLEntities.new.encode(report_name.to_s.scrub.strip.chomp),
+          data: []
+        }
+        report_name = opts[:report_name] ||= File.basename(Dir.pwd)
 
-        results_hash = opts[:results_hash]
-        report_name = results_hash[:report_name]
+        ai_engine = opts[:ai_engine]
+        if ai_engine
+          ai_engine = ai_engine.to_s.to_sym
+          valid_ai_engines = %i[grok ollama openai]
+          raise "ERROR: Invalid AI Engine. Valid options are: #{valid_ai_engines.join(', ')}" unless valid_ai_engines.include?(ai_engine)
 
+          ai_fqdn = opts[:ai_fqdn]
+          raise 'ERROR: FQDN for Ollama AI engine is required.' if ai_engine == :ollama && ai_fqdn.nil?
+
+          ai_model = opts[:ai_model]
+          raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
+
+          ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
+          ai_system_role_content = opts[:ai_system_role_content] ||= 'Is this code vulnerable or a false positive?  Valid responses are only: "VULNERABLE" or "FALSE+". DO NOT PROVIDE ANY OTHER TEXT OR EXPLANATIONS.'
+          ai_temp = opts[:ai_temp] ||= 0.9
+
+          puts "Analyzing source code using AI engine: #{ai_engine}\nModel: #{ai_model}\nSystem Role Content: #{ai_system_role_content}\nTemperature: #{ai_temp}"
+        end
+
+        # Calculate percentage of AI analysis based on the number of entries
+        total_entries = results_hash[:data].sum { |entry| entry[:line_no_and_contents].size }
+        puts "Total entries to analyze: #{total_entries}" if ai_engine
+        percent_complete = 0.0
+        entry_count = 0
+        results_hash[:data].each do |hash_line|
+          puts "AI Analyzing Source Code Entry: #{hash_line[:filename][:entry]}" if ai_engine
+          hash_line[:line_no_and_contents].each do |src_detail|
+            entry_count += 1
+            percent_complete = (entry_count.to_f / total_entries * 100).round(2)
+            request = src_detail[:contents]
+            response = nil
+            ai_analysis = nil
+            line_no = src_detail[:line_no]
+            author = src_detail[:author].to_s.scrub.chomp.strip
+
+            case ai_engine
+            when :grok
+              response = PWN::AI::Grok.chat(
+                token: ai_key,
+                model: ai_model,
+                system_role_content: ai_system_role_content,
+                temp: ai_temp,
+                request: request.chomp,
+                spinner: false
+              )
+            when :ollama
+              response = PWN::AI::Ollama.chat(
+                fqdn: ai_fqdn,
+                token: ai_key,
+                model: ai_model,
+                system_role_content: ai_system_role_content,
+                temp: ai_temp,
+                request: request.chomp,
+                spinner: false
+              )
+            when :openai
+              response = PWN::AI::OpenAI.chat(
+                token: ai_key,
+                model: ai_model,
+                system_role_content: ai_system_role_content,
+                temp: ai_temp,
+                request: request.chomp,
+                spinner: false
+              )
+            end
+
+            if response.is_a?(Hash)
+              ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
+              ai_analysis = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
+              # puts "AI Analysis Progress: #{percent_complete}% Line: #{line_no} | Author: #{author} | AI Analysis: #{ai_analysis}\n\n\n" if ai_analysis
+              puts "AI Analysis Progress: #{percent_complete}%" if ai_analysis
+            end
+
+            # results_hash[:data][r_idx][s_idx][:ai_analysis] = response.to_s.scrub.chomp.strip
+            src_detail[:ai_analysis] = ai_analysis.to_s.scrub.chomp.strip
+          end
+        end
         # JSON object Completion
         # File.open("#{dir_path}/pwn_scan_git_source.json", 'w') do |f|
         #   f.print(results_hash.to_json)
@@ -108,9 +193,9 @@ module PWN
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="2" href="#">Test Case / Security References</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Path</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, &amp; Last Committed By</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="5" href="#">Raw Content</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="6" href="#">Test Case (Anti-Pattern) Filter</a>
+              <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, AI Analysis, &amp; Last Committed By</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">Raw Content</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="7" href="#">Test Case (Anti-Pattern) Filter</a>
             </div>
             <br /><br />
 
@@ -126,7 +211,7 @@ module PWN
                     <th>Timestamp</th>
                     <th>Test Case / Security References</th>
                     <th>Path</th>
-                    <th>Line#, Formatted Content, &amp; Last Committed By</th>
+                    <th>Line#, Formatted Content, AI Analysis, &amp; Last Committed By</th>
                     <th>Raw Content</th>
                     <th>Test Case (Anti-Pattern) Filter</th>
                   </tr>
@@ -231,7 +316,7 @@ module PWN
                             to_line_number = line_entry_uri + '#L' + data[i]['line_no'];
                           }
 
-                          pwn_rows = pwn_rows.concat('<tr class="' + tr_class + '"><td style="width:90px" align="left"><a href="' + htmlEntityEncode(to_line_number) + '" target="_blank">' + htmlEntityEncode(data[i]['line_no']) + '</a>:&nbsp;</td><td style="width:300px" align="left">' + htmlEntityEncode(data[i]['contents']) + '</td><td style="width:200px" align="right"><a href="mailto:' + canned_email + '">' + htmlEntityEncode(data[i]['author']) + '</a></td></tr>');
+                          pwn_rows = pwn_rows.concat('<tr class="' + tr_class + '"><td style="width:90px" align="left"><a href="' + htmlEntityEncode(to_line_number) + '" target="_blank">' + htmlEntityEncode(data[i]['line_no']) + '</a>:&nbsp;</td><td style="width:300px" align="left">' + htmlEntityEncode(data[i]['contents']) + '</td><td style="width:100px" align=:left">' + htmlEntityEncode(data[i]['ai_analysis']) + '</td><td style="width:200px" align="right"><a href="mailto:' + canned_email + '">' + htmlEntityEncode(data[i]['author']) + '</a></td></tr>');
                         }
                         pwn_rows = pwn_rows.concat('</tbody></table>');
                         return pwn_rows;
