@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'tty-spinner'
 
 module PWN
   module Reports
@@ -52,16 +53,22 @@ module PWN
         # Calculate percentage of AI analysis based on the number of entries
         total_entries = results_hash[:data].sum { |entry| entry[:line_no_and_contents].size }
         puts "Total entries to analyze: #{total_entries}" if ai_engine
+
         percent_complete = 0.0
         entry_count = 0
+        spin = TTY::Spinner.new(
+          '[:spinner] Report Generation Progress: :percent_complete :entry_count of :total_entries',
+          format: :dots,
+          hide_cursor: true
+        )
+        spin.auto_spin
+
         results_hash[:data].each do |hash_line|
-          puts "AI Analyzing Source Code Entry: #{hash_line[:filename][:entry]}" if ai_engine
           hash_line[:line_no_and_contents].each do |src_detail|
             entry_count += 1
             percent_complete = (entry_count.to_f / total_entries * 100).round(2)
             request = src_detail[:contents]
             response = nil
-            ai_analysis = nil
             line_no = src_detail[:line_no]
             author = src_detail[:author].to_s.scrub.chomp.strip
 
@@ -96,15 +103,19 @@ module PWN
               )
             end
 
+            ai_analysis = nil
             if response.is_a?(Hash)
               ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
               ai_analysis = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
               # puts "AI Analysis Progress: #{percent_complete}% Line: #{line_no} | Author: #{author} | AI Analysis: #{ai_analysis}\n\n\n" if ai_analysis
-              puts "AI Analysis Progress: #{percent_complete}%" if ai_analysis
             end
-
-            # results_hash[:data][r_idx][s_idx][:ai_analysis] = response.to_s.scrub.chomp.strip
             src_detail[:ai_analysis] = ai_analysis.to_s.scrub.chomp.strip
+
+            spin.update(
+              percent_complete: "#{percent_complete}%",
+              entry_count: entry_count,
+              total_entries: total_entries
+            )
           end
         end
         # JSON object Completion
@@ -472,6 +483,8 @@ module PWN
         end
       rescue StandardError => e
         raise e
+      ensure
+        spin.stop unless spin.nil?
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
