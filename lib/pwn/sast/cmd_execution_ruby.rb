@@ -83,9 +83,9 @@ module PWN
                     target_file: entry,
                     entry_beautified: entry_beautified
                   )
-                else
-                  author = 'N/A'
                 end
+                author ||= 'N/A'
+
                 hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
                   line_no: line_no,
                   contents: contents,

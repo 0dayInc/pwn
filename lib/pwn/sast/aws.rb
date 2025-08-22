@@ -20,6 +20,7 @@ module PWN
         result_arr = []
         logger_results = ''
 
+        Dir.chdir(dir_path)
         PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/ && entry !~ /test/i
             line_no_and_contents_arr = []
@@ -73,9 +74,9 @@ module PWN
                     target_file: entry,
                     entry_beautified: entry_beautified
                   )
-                else
-                  author = 'N/A'
                 end
+                author ||= 'N/A'
+
                 hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
                   line_no: line_no,
                   contents: contents,
