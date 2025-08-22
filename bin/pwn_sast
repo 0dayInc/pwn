@@ -79,6 +79,8 @@ begin
   end_of_color = "\e[0m"
 
   dir_path = opts[:dir_path] ||= '.'
+  previous_dir = Dir.pwd
+  Dir.chdir(dir_path) unless dir_path == '.'
 
   uri_source_root = opts[:uri_source_root].to_s.scrub
 
@@ -211,8 +213,6 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    Dir.chdir(dir_path)
-
     listen_ip = '127.0.0.1'
     listen_ip = '0.0.0.0' if pwn_provider == 'docker'
     listen_port = PWN::Plugins::Sock.get_random_unused_port.to_s
@@ -228,4 +228,6 @@ begin
   end
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
+ensure
+  Dir.chdir(previous_dir) unless dir_path == '.'
 end
