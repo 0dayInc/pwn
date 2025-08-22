@@ -70,7 +70,7 @@ if opts.empty?
 end
 
 begin
-  timestamp = Time.now.strftime('%Y-%m-%d.%H:%M:%S%z')
+  timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S%z')
   pwn_provider = 'ruby-gem'
   # pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
@@ -92,7 +92,9 @@ begin
 
   report_name = opts[:report_name]
   report_name ||= "#{File.basename(Dir.pwd)}-#{timestamp}" if dir_path == '.'
+  # report_name ||= File.basename(Dir.pwd) if dir_path == '.'
   report_name ||= "#{File.basename(dir_path)}-#{timestamp}" unless dir_path == '.'
+  # report_name ||= File.basename(dir_path) unless dir_path == '.'
 
   ai_engine = opts[:ai_engine]
   if ai_engine
