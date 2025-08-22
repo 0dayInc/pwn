@@ -22,7 +22,7 @@ module PWN
         result_arr = []
         logger_results = ''
 
-        PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
+        PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.c' || File.extname(entry) == '.cpp' || File.extname(entry) == '.c++' || File.extname(entry) == '.cxx' || File.extname(entry) == '.h' || File.extname(entry) == '.hpp' || File.extname(entry) == '.h++' || File.extname(entry) == '.hh' || File.extname(entry) == '.hxx' || File.extname(entry) == '.ii' || File.extname(entry) == '.ixx' || File.extname(entry) == '.ipp' || File.extname(entry) == '.inl' || File.extname(entry) == '.txx' || File.extname(entry) == '.tpp' || File.extname(entry) == '.tpl') && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
@@ -190,11 +190,8 @@ module PWN
               while line_no_count > current_count
                 line_no = line_contents_split[current_count]
                 contents = line_contents_split[current_count + 1]
-                if Dir.exist?("#{dir_path}/.git") ||
-                   Dir.exist?('.git')
-
-                  repo_root = dir_path
-                  repo_root = '.' if Dir.exist?('.git')
+                if Dir.exist?('.git')
+                  repo_root = '.'
 
                   author = PWN::Plugins::Git.get_author(
                     repo_root: repo_root,
@@ -203,9 +200,9 @@ module PWN
                     target_file: entry,
                     entry_beautified: entry_beautified
                   )
-                else
-                  author = 'N/A'
                 end
+                author ||= 'N/A'
+
                 hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
                   line_no: line_no,
                   contents: contents,

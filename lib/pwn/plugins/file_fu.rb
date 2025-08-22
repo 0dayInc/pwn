@@ -13,17 +13,36 @@ module PWN
     # uses yield to interact with each entry on the fly).
     module FileFu
       # Supported Method Parameters::
+      # PWN::Plugins::FileFu.recurse_in_dir(
+      #   dir_path: 'optional path to dir defaults to .'
+      # )
+
+      public_class_method def self.recurse_in_dir(opts = {})
+        dir_path = opts[:dir_path] ||= '.'
+        dir_path = dir_path.to_s.scrub unless dir_path.is_a?(String)
+        raise "PWN Error: Invalid Directory #{dir_path}" unless Dir.exist?(dir_path)
+
+        previous_dir = Dir.pwd
+        Dir.chdir(dir_path)
+        # Execute this like this:
+        # recurse_in_dir(:dir_path => 'path to dir') {|entry| puts entry}
+        Dir.glob('./**/*').each { |entry| yield Shellwords.escape(entry) }
+      rescue StandardError => e
+        raise e
+      ensure
+        Dir.chdir(previous_dir) if Dir.exist?(previous_dir)
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::FileFu.recurse_dir(
       #   dir_path: 'optional path to dir defaults to .'
       # )
 
       public_class_method def self.recurse_dir(opts = {})
-        if opts[:dir_path].nil?
-          dir_path = '.'
-        else
-          dir_path = opts[:dir_path].to_s.scrub if File.directory?(opts[:dir_path].to_s.scrub)
-          raise "PWN Error: Invalid Directory #{dir_path}" if dir_path.nil?
-        end
+        dir_path = opts[:dir_path] ||= '.'
+        dir_path = dir_path.to_s.scrub unless dir_path.is_a?(String)
+        raise "PWN Error: Invalid Directory #{dir_path}" unless Dir.exist?(dir_path)
+
         # Execute this like this:
         # recurse_dir(:dir_path => 'path to dir') {|entry| puts entry}
         Dir.glob("#{dir_path}/**/*").each { |entry| yield Shellwords.escape(entry) }
@@ -59,6 +78,8 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          #{self}.recurse_in_dir(dir_path: 'optional path to dir defaults to .') {|entry| puts entry}
+
           #{self}.recurse_dir(dir_path: 'optional path to dir defaults to .') {|entry| puts entry}
 
           #{self}.untar_gz_file(

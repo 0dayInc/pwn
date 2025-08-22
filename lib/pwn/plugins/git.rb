@@ -49,11 +49,8 @@ module PWN
       # )
 
       private_class_method def self.get_author_by_line_range(opts = {})
-        repo_root = if opts[:repo_root].nil?
-                      '.'
-                    else
-                      opts[:repo_root].to_s
-                    end
+        repo_root = opts[:repo_root] ||= '.'
+        repo_root = opts[:repo_root].to_s unless repo_root.is_a?(String)
         from_line = opts[:from_line].to_i
         to_line = opts[:to_line].to_i
         target_file = opts[:target_file].to_s

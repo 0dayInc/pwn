@@ -44,7 +44,7 @@ module PWN
           raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
 
           ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
-          ai_system_role_content = opts[:ai_system_role_content] ||= 'Is this code vulnerable or a false positive?  Valid responses are only: "VULNERABLE" or "FALSE+". DO NOT PROVIDE ANY OTHER TEXT OR EXPLANATIONS.'
+          ai_system_role_content = opts[:ai_system_role_content] ||= 'Is this code vulnerable or a false positive?  Valid responses are only: "VULNERABLE" or "FALSE+". If this code is VULNERABLE, why?'
           ai_temp = opts[:ai_temp] ||= 0.9
 
           puts "Analyzing source code using AI engine: #{ai_engine}\nModel: #{ai_model}\nSystem Role Content: #{ai_system_role_content}\nTemperature: #{ai_temp}"
@@ -205,8 +205,8 @@ module PWN
               <a class="toggle-vis" data-column="2" href="#">Test Case / Security References</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Path</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, AI Analysis, &amp; Last Committed By</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="6" href="#">Raw Content</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="7" href="#">Test Case (Anti-Pattern) Filter</a>
+              <a class="toggle-vis" data-column="5" href="#">Raw Content</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">Test Case (Anti-Pattern) Filter</a>
             </div>
             <br /><br />
 
@@ -232,7 +232,7 @@ module PWN
                 <col width="300px" />
                 <col width="90px" />
                 <col width="90px" />
-                <col width="300px" />
+                <col width="90px" />
                 <col width="90px" />
                 <!-- DataTables <tbody> -->
               </table>
