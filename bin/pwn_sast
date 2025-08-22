@@ -71,6 +71,8 @@ end
 
 begin
   timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S%z')
+  previous_dir = Dir.pwd
+
   pwn_provider = 'ruby-gem'
   # pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
@@ -79,7 +81,6 @@ begin
   end_of_color = "\e[0m"
 
   dir_path = opts[:dir_path] ||= '.'
-  previous_dir = Dir.pwd
   Dir.chdir(dir_path) unless dir_path == '.'
 
   uri_source_root = opts[:uri_source_root].to_s.scrub
@@ -92,9 +93,7 @@ begin
 
   report_name = opts[:report_name]
   report_name ||= "#{File.basename(Dir.pwd)}-#{timestamp}" if dir_path == '.'
-  # report_name ||= File.basename(Dir.pwd) if dir_path == '.'
   report_name ||= "#{File.basename(dir_path)}-#{timestamp}" unless dir_path == '.'
-  # report_name ||= File.basename(dir_path) unless dir_path == '.'
 
   ai_engine = opts[:ai_engine]
   if ai_engine

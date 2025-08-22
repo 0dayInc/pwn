@@ -26,7 +26,7 @@ module PWN
         Dir.chdir(dir_path)
         # Execute this like this:
         # recurse_in_dir(:dir_path => 'path to dir') {|entry| puts entry}
-        Dir.glob('**/*').each { |entry| yield Shellwords.escape(entry) }
+        Dir.glob('./**/*').each { |entry| yield Shellwords.escape(entry) }
       rescue StandardError => e
         raise e
       ensure
