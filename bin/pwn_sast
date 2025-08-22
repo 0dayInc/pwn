@@ -43,7 +43,7 @@ OptionParser.new do |options|
     opts[:ai_fqdn] = f
   end
 
-  options.on('-mMODEL', '--ai-model=MODEL', '<Optional AI Model to Use for Respective AI Engine (e.g., grok-4i-0709, chargpt-4o-latest, llama-3.1, etc.)>') do |m|
+  options.on('-mMODEL', '--ai-model=MODEL', '<Optional AI Model to Use for Respective AI Engine (e.g., grok-4-0709, grok-3-mini-fast, gpt5-chat-latest, chargpt-4o-latest, llama-3.1, etc.)>') do |m|
     opts[:ai_model] = m
   end
 
@@ -70,6 +70,7 @@ if opts.empty?
 end
 
 begin
+  timestamp = Time.now.strftime('%Y-%m-%d.%H:%M:%S%z')
   pwn_provider = 'ruby-gem'
   # pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
@@ -88,7 +89,8 @@ begin
   list_test_cases = opts[:list_test_cases]
 
   report_name = opts[:report_name]
-  report_name ||= File.basename(Dir.pwd)
+  report_name ||= "#{File.basename(Dir.pwd)}-#{timestamp}" if dir_path == '.'
+  report_name ||= "#{File.basename(dir_path)}-#{timestamp}" unless dir_path == '.'
 
   ai_engine = opts[:ai_engine]
   if ai_engine
@@ -209,16 +211,13 @@ begin
 
   # Start Simple HTTP Server (If Requested)
   if start_reporting_server
-    listen_port = PWN::Plugins::Sock.get_random_unused_port.to_s
-
-    if pwn_provider == 'docker'
-      listen_ip = '0.0.0.0'
-    else
-      listen_ip = '127.0.0.1'
-    end
-
-    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
     Dir.chdir(dir_path)
+
+    listen_ip = '127.0.0.1'
+    listen_ip = '0.0.0.0' if pwn_provider == 'docker'
+    listen_port = PWN::Plugins::Sock.get_random_unused_port.to_s
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
+
     system(
       'pwn_simple_http_server',
       '-i',

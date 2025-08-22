@@ -22,7 +22,7 @@ module PWN
         result_arr = []
         logger_results = ''
 
-        PWN::Plugins::FileFu.recurse_dir(dir_path: dir_path) do |entry|
+        PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/ && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
@@ -63,11 +63,8 @@ module PWN
               while line_no_count > current_count
                 line_no = line_contents_split[current_count]
                 contents = line_contents_split[current_count + 1]
-                if Dir.exist?("#{dir_path}/.git") ||
-                   Dir.exist?('.git')
-
-                  repo_root = dir_path
-                  repo_root = '.' if Dir.exist?('.git')
+                if Dir.exist?('.git')
+                  repo_root = '.'
 
                   author = PWN::Plugins::Git.get_author(
                     repo_root: repo_root,
