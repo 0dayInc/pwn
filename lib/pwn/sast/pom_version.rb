@@ -22,7 +22,6 @@ module PWN
         result_arr = []
         logger_results = ''
 
-        Dir.chdir(dir_path)
         PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if File.file?(entry) && File.basename(entry) == 'pom.xml' && entry !~ /test/i
             line_no_and_contents_arr = []

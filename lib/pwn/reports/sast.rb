@@ -205,8 +205,8 @@ module PWN
               <a class="toggle-vis" data-column="2" href="#">Test Case / Security References</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Path</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, AI Analysis, &amp; Last Committed By</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="6" href="#">Raw Content</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="7" href="#">Test Case (Anti-Pattern) Filter</a>
+              <a class="toggle-vis" data-column="5" href="#">Raw Content</a>&nbsp;|&nbsp;
+              <a class="toggle-vis" data-column="6" href="#">Test Case (Anti-Pattern) Filter</a>
             </div>
             <br /><br />
 
@@ -232,7 +232,7 @@ module PWN
                 <col width="300px" />
                 <col width="90px" />
                 <col width="90px" />
-                <col width="300px" />
+                <col width="90px" />
                 <col width="90px" />
                 <!-- DataTables <tbody> -->
               </table>
@@ -327,7 +327,7 @@ module PWN
                             to_line_number = line_entry_uri + '#L' + data[i]['line_no'];
                           }
 
-                          pwn_rows = pwn_rows.concat('<tr class="' + tr_class + '"><td style="width:90px" align="left"><a href="' + htmlEntityEncode(to_line_number) + '" target="_blank">' + htmlEntityEncode(data[i]['line_no']) + '</a>:&nbsp;</td><td style="width:300px" align="left">' + htmlEntityEncode(data[i]['contents']) + '</td><td style="width:300px" align=:left">' + htmlEntityEncode(data[i]['ai_analysis']) + '</td><td style="width:200px" align="right"><a href="mailto:' + canned_email + '">' + htmlEntityEncode(data[i]['author']) + '</a></td></tr>');
+                          pwn_rows = pwn_rows.concat('<tr class="' + tr_class + '"><td style="width:90px" align="left"><a href="' + htmlEntityEncode(to_line_number) + '" target="_blank">' + htmlEntityEncode(data[i]['line_no']) + '</a>:&nbsp;</td><td style="width:300px" align="left">' + htmlEntityEncode(data[i]['contents']) + '</td><td style="width:100px" align=:left">' + htmlEntityEncode(data[i]['ai_analysis']) + '</td><td style="width:200px" align="right"><a href="mailto:' + canned_email + '">' + htmlEntityEncode(data[i]['author']) + '</a></td></tr>');
                         }
                         pwn_rows = pwn_rows.concat('</tbody></table>');
                         return pwn_rows;

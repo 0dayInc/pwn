@@ -21,7 +21,6 @@ module PWN
         result_arr = []
         logger_results = ''
 
-        Dir.chdir(dir_path)
         PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/ && entry !~ /test/i
             line_no_and_contents_arr = []
@@ -38,7 +37,6 @@ module PWN
               grep -Ein \
               -e 'BASE64' #{entry} 2> /dev/null
             "
-
             str = `#{test_case_filter}`.to_s.scrub
 
             if str.to_s.empty?
