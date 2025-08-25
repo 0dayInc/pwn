@@ -99,7 +99,7 @@ module PWN
             </div><br />
 
             <div>
-              <b>Toggle Column(s):</b>&nbsp;
+              <b>Toggle Column(s) Visibility:</b>&nbsp;
               <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="2" href="#">Request</a>&nbsp;|&nbsp;
               <a class="toggle-vis" data-column="3" href="#">Request Encoding</a>&nbsp;|&nbsp;
