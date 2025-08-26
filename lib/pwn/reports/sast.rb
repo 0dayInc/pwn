@@ -612,8 +612,8 @@ module PWN
                         flatData.push({
                           timestamp: row.timestamp,
                           test_case: row.security_references.sast_module.split('::')[2],
-                          nist: row.security_references.section,
-                          cwe: row.security_references.cwe_id,
+                          nist_800_53_security_control: row.security_references.nist_800_53_uri,
+                          cwe: row.security_references.cwe_uri,
                           path: row.filename.entry,
                           line_no: line.line_no,
                           contents: line.contents,
@@ -639,12 +639,12 @@ module PWN
 
                       // Set column widths by dividing desired column inches by 0.135
                       // column inches observed with Exce
-                      // e.g 2.83 inches / 0.135 ~ 209px
+                      // e.g 2.83 inches / 0.0135 ~ 209px
                       ws['!cols'] = [
                         {wpx: 209},
                         {wpx: 130},
-                        {wpx: 350},
-                        {wpx: 40},
+                        {wpx: 580},
+                        {wpx: 256},
                         {wpx: 110},
                         {wpx: 40},
                         {wpx: 370},
@@ -716,7 +716,7 @@ module PWN
                                 ...flatData.map(r => [
                                   r.timestamp,
                                   r.test_case,
-                                  r.nist,
+                                  r.nist_800_53_security_control,
                                   r.cwe,
                                   r.path,
                                   r.line_no,
