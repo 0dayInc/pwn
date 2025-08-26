@@ -431,19 +431,19 @@ module PWN
                         {
                           text: 'Export to JSON',
                           action: function () {
-                            export_selected();
+                            export_json();
                           }
                         },
                         {
-                          text: 'Export to Excel',
+                          text: 'Export to XLSX',
                           action: function () {
-                            exportToExcelOrPdf('excel');
+                            export_xlsx_or_pdf('xlsx');
                           }
                         },
                         {
                           text: 'Export to PDF',
                           action: function () {
-                            exportToExcelOrPdf('pdf');
+                            export_xlsx_or_pdf('pdf');
                           }
                         }
                       ]
@@ -578,7 +578,7 @@ module PWN
                   });
                 }
 
-                function export_selected() {
+                function export_json() {
                   if ($('.multi_line_select tr.highlighted').length === 0 && !confirm('No lines selected. Export all records?')) {
                     return;
                   }
@@ -599,7 +599,7 @@ module PWN
                   });
                 }
 
-                function exportToExcelOrPdf(type) {
+                function export_xlsx_or_pdf(type) {
                   if ($('.multi_line_select tr.highlighted').length === 0 && !confirm('No lines selected. Export all records?')) {
                     return;
                   }
@@ -623,8 +623,64 @@ module PWN
                       });
                     });
 
-                    if (type === 'excel') {
-                      var ws = XLSX.utils.json_to_sheet(flatData);
+                    var exportDate = new Date().toLocaleString();
+                    var title = '~ pwn sast >>> ' + report_name + ' (Exported on ' + exportDate + ')';
+
+                    if (type === 'xlsx') {
+                      // Add title row
+                      var titleRow = [{ v: title, t: 's', s: { font: { sz: 14, bold: true }, alignment: { horizontal: 'center' } } }];
+                      var ws = XLSX.utils.json_to_sheet(flatData, {skipHeader: true});
+                      XLSX.utils.sheet_add_aoa(ws, [titleRow], {origin: 'A1'});
+                      XLSX.utils.sheet_add_json(ws, flatData, {origin: 'A2', skipHeader: false});
+
+                      // Merge title cell across columns
+                      if (!ws['!merges']) ws['!merges'] = [];
+                      ws['!merges'].push({s: {r:0, c:0}, e: {r:0, c:8}}); // A1 to I1
+
+                      // Set column widths by dividing desired column inches by 0.135
+                      // column inches observed with Exce
+                      // e.g 2.83 inches / 0.135 ~ 209px
+                      ws['!cols'] = [
+                        {wpx: 209},
+                        {wpx: 130},
+                        {wpx: 350},
+                        {wpx: 40},
+                        {wpx: 110},
+                        {wpx: 40},
+                        {wpx: 370},
+                        {wpx: 370},
+                        {wpx: 185}
+                      ];
+
+                      // Style header row (row 2, since title at 1, header at 2, data from 3)
+                      var headerStyle = {
+                        font: { bold: true, color: { rgb: "000000" } },
+                        fill: { fgColor: { rgb: "999999" } },
+                        alignment: { horizontal: 'center', wrapText: true }
+                      };
+                      for (var col = 0; col < 9; col++) {
+                        var cellRef = XLSX.utils.encode_cell({r:1, c:col}); // Row 2 (0-based)
+                        if (ws[cellRef]) ws[cellRef].s = headerStyle;
+                      }
+
+                      // Alternate row colors for data rows (starting from row 3)
+                      var grayFill = { fgColor: { rgb: "DEDEDE" } };
+                      var whiteFill = { fgColor: { rgb: "FFFFFF" } };
+                      for (var rowNum = 3; rowNum < flatData.length + 2; rowNum++) { // Data rows 2-based from 3
+                        var fill = (rowNum % 2 === 0) ? whiteFill : grayFill;
+                        for (var col = 0; col < 9; col++) {
+                          var cellRef = XLSX.utils.encode_cell({r: rowNum, c: col});
+                          if (ws[cellRef]) {
+                            if (!ws[cellRef].s) ws[cellRef].s = {};
+                            ws[cellRef].s.fill = fill;
+                            ws[cellRef].s.alignment = { wrapText: true, vertical: 'top' };
+                          }
+                        }
+                      }
+
+                      // Freeze header
+                      ws['!freeze'] = { xSplit: 0, ySplit: 2 };
+
                       var wb = XLSX.utils.book_new();
                       XLSX.utils.book_append_sheet(wb, ws, 'PWN SAST Results');
                       XLSX.writeFile(wb, report_name + '.xlsx');
@@ -632,12 +688,29 @@ module PWN
                       var docDefinition = {
                         pageOrientation: 'landscape',
                         pageSize: 'LETTER',
+                        pageMargins: [10, 10, 10, 10],
+                        header: {
+                          text: title, margin: [20, 10, 20, 0],
+                          fontSize: 12, bold: true,
+                          alignment: 'center'
+                        },
+                        footer: function(currentPage, pageCount) {
+                          return {
+                            text: 'Page ' + currentPage.toString() + ' of ' + pageCount + ' | Exported on ' + exportDate,
+                            alignment: 'center',
+                            fontSize: 8,
+                            margin: [0, 0, 0, 10]
+                          };
+                        },
                         content: [
-                          { text: '~ pwn sast: ' + report_name, style: 'header' },
+                          {
+                            text: title,
+                            style: 'header'
+                          },
                           {
                             table: {
                               headerRows: 1,
-                              widths: [40, 30, 50, 30, 75, 30, 155, 155, 50],
+                              widths: [45, 40, 70, 30, 80, 30, 165, 165, 70],
                               body: [
                                 ['Timestamp', 'Test Case', 'NIST 800-53', 'CWE', 'Path', 'Line#', 'Content', 'AI Analysis', 'Author'],
                                 ...flatData.map(r => [
@@ -653,34 +726,35 @@ module PWN
                                 ])
                               ]
                             },
-                            layout: 'lightHorizontalLines'
+                            layout: {
+                              hLineWidth: function(i, node) { return (i === 0 || i === node.table.body.length) ? 1 : 0.5; },
+                              vLineWidth: function(i, node) { return 0.5; },
+                              hLineColor: function(i, node) { return '#aaaaaa'; },
+                              vLineColor: function(i, node) { return '#aaaaaa'; },
+                              fillColor: function (rowIndex, node, columnIndex) {
+                                if (rowIndex === 0) {
+                                  return '#999999'; // Dark header
+                                }
+                                return (rowIndex % 2 === 0) ? '#ffffff' : '#dedede'; // White even, gray odd
+                              },
+                              paddingLeft: function(i, node) { return 4; },
+                              paddingRight: function(i, node) { return 4; },
+                              paddingTop: function(i, node) { return 2; },
+                              paddingBottom: function(i, node) { return 2; }
+                            }
                           }
                         ],
                         styles: {
-                          title: {
-                            alignment: 'center',
-                            fontSize: 15
-                          },
-                          tableHeader: {
-                            bold: true,
+                          header: {
                             fontSize: 12,
-                            color: 'white',
-                            fillColor: '#2d4154',
-                            alignment: 'center'
-                          },
-                          tableBodyEven: {},
-                          tableBodyOdd: {
-                            fillColor: '#dedede'
-                          },
-                          tableFooter: {
                             bold: true,
-                            fontSize: 8,
-                            color: 'white',
-                            fillColor: '#2d4154'
-                          },
+                            margin: [0, 0, 0, 10]
+                          }
                         },
                         defaultStyle: {
-                          fontSize: 6
+                          fontSize: 8,
+                          color: '#000000',
+                          columnGap: 20
                         }
                       };
                       pdfMake.createPdf(docDefinition).download(report_name + '.pdf');
