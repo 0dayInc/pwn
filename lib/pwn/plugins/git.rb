@@ -56,11 +56,7 @@ module PWN
         target_file = opts[:target_file].to_s
         target_file.gsub!(%r{^#{repo_root}/}, '')
 
-        if File.directory?(repo_root) && File.file?("#{repo_root}/#{target_file}")
-          `git --git-dir="#{Shellwords.escape(repo_root)}/.git" log -L #{from_line},#{to_line}:"#{Shellwords.escape(target_file)}" 2> /dev/null | grep Author | head -n 1`.to_s.scrub
-        else
-          -1
-        end
+        `git --git-dir="#{Shellwords.escape(repo_root)}/.git" log -L #{from_line},#{to_line}:"#{Shellwords.escape(target_file)}" 2> /dev/null | grep Author | head -n 1`.to_s.scrub if File.directory?(repo_root) && File.file?("#{repo_root}/#{target_file}")
       rescue StandardError => e
         raise e
       end
@@ -120,7 +116,7 @@ module PWN
           )
         end
 
-        author
+        author ||= 'N/A'
       rescue StandardError => e
         raise e
       end

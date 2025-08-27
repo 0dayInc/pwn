@@ -207,22 +207,15 @@ module PWN
 
             <script src="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.3.3/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/b-print-3.2.4/fc-5.0.4/fh-4.0.3/kt-2.12.1/r-3.0.6/rg-1.5.2/rr-1.5.0/sc-2.4.3/sb-1.8.3/sp-2.3.5/sl-3.1.0/datatables.min.js" integrity="sha384-jvnxkXTB++rTO/pbg6w5nj0jm5HiSGtTcBW5vnoLGRfmSxw3eyqNA0bJ+m6Skjw/" crossorigin="anonymous"></script>
 
-            <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-
-            <!--
-            <script type="text/javascript" src="//code.jquery.com/jquery-3.6.0.min.js"></script>
-
-            <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/v/dt/dt-1.11.4/b-2.2.2/b-colvis-2.2.2/b-html5-2.2.2/b-print-2.2.2/cr-1.5.5/fc-4.0.1/fh-3.2.1/kt-2.6.4/r-2.2.9/rg-1.1.4/rr-1.2.8/sc-2.0.5/sp-1.4.0/sl-1.3.4/datatables.min.css"/>
-
-            <script type="text/javascript" src="//cdn.datatables.net/v/dt/dt-1.11.4/b-2.2.2/b-colvis-2.2.2/b-html5-2.2.2/b-print-2.2.2/cr-1.5.5/fc-4.0.1/fh-3.2.1/kt-2.6.4/r-2.2.9/rg-1.1.4/rr-1.2.8/sc-2.0.5/sp-1.4.0/sl-1.3.4/datatables.min.js"></script>
-            -->
+            <script src="https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js"></script>
           </head>
 
           <body id="pwn_body">
 
             <h1 style="display:inline">
-              <a href="https://github.com/0dayinc/pwn/tree/master">~ pwn sast</a>
-            </h1><br /><br />
+              <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIEAAACCCAQAAADLPWN1AAAAAXNSR0IB2cksfwAAAARnQU1BAACxjwv8YQUAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAJiS0dEAIKpO8E+AAAACXBIWXMAAAsTAAALEwEAmpwYAAADTElEQVR42u2dyY7jMBBDqxrz/7+sOTRycCKJpOwBBsjzrWO3F4Ks3XKPUV++/dTXb3+qqjr8p1/i9HLPa2uxZ0z+6s011HXPngMWAAEQvGzBXK+fW6b+uUJ7ebTWuL7+yXPAAiB4E8IdurV5XObs1rLQEZ37HLAACKZCcLcrIe8QXFF7wAKEAAT/sS2oSWbnuqUOz55dFxYAwQNCyKi1iwdbuEudOq0j0A6jUlgABLYQ+saJVP1vHB1X0XFnzwELgAAIXrbgLMLS3YS2LMdZoWO2b8AChPB0mjRLQ9okX9tSWcuiTUepos2dbGmoIYSLEDRxXYur+0Pne3bRYZv3OXtCWAAEQFBGyUSVPa52ZCydZ5lO1tXz7nwl7xYWAMGbD/ocumvTEenUpc0oci2sLM4zHndyNCwAgjchtJlyKOK6SUt8s5GkdAxLmoQQgOCeU8wyOzevHNFv6fkomSAEu2Qyo4xKk3QXOROWS/fZddOBf1gABDI67JC4KkrLxmt3tQv3v1qKAxYAARBcbUE6OZzZhzKjtCzeO7MSRXSIEM7SJOWiRljOUCR1644loz7teBECQrikSSUJqbtESg6usLKY0+9E9fIasAAIgKA2M8juaNXM3eiO8RN5IywAgn8aHaoE5XTZjJNoUzvo7FqUTBCCIYQsQXKjSHdk485c+lnNkjQJIQDBzha4M4ZnTjGr+9fyumddbjrLCGGTJqWlEHeecOaclHx091rf3/o3OssIwagXeHTzaazjzKySoGoSPZUPLAACIHiiZDJu6F5Flm6mmHavVXZLdIgQ7OjQXZVGL+2kSe+ObHREc7ejDQuA4G0VCzcNcY+bRXPKgj9RhchqErAACICgNivjP1fDc2dJynSe2vWt+xyz54AFQBAu7ZS2vLJFNmbnc1t86RvRsAAITI+gBXG2LLyb6gzhiTqscTQsQAhAIG3BmcPyoj3nfCOKIl3b4rp1WAAEt76Vso4En3gXWb39nA7yUzJBCKEQUnvuRXO741Qi41r8sxEQWAAEQHDPFqy/cjduaPzsrbX1ne3WY4QFQLARwtMvQWWLx6VncqPX9W+wAAge/FbK2p5nn6PU4x6uRNzCOiwAAiCozdwhLAACIPiq7S/uVkwm4fz8nQAAAABJRU5ErkJggg==" type="image/png" style="iheight:100px;width:100px;"/>
+              <a href="https://github.com/0dayInc/pwn/blob/master/bin/pwn_sast" target="_blank">~ pwn sast</a>
+            </h1>
             <h2 id="report_name"></h2><br />
 
             <div class="dt-buttons" id="button_group">
@@ -614,6 +607,8 @@ module PWN
                           test_case: row.security_references.sast_module.split('::')[2],
                           nist_800_53_security_control: row.security_references.nist_800_53_uri,
                           cwe: row.security_references.cwe_uri,
+                          nist_section: row.security_references.section,
+                          cwe_id: row.security_references.cwe_id,
                           path: row.filename.entry,
                           line_no: line.line_no,
                           contents: line.contents,
@@ -627,63 +622,70 @@ module PWN
                     var title = '~ pwn sast >>> ' + report_name + ' (Exported on ' + exportDate + ')';
 
                     if (type === 'xlsx') {
-                      // Add title row
-                      var titleRow = [{ v: title, t: 's', s: { font: { sz: 14, bold: true }, alignment: { horizontal: 'center' } } }];
-                      var ws = XLSX.utils.json_to_sheet(flatData, {skipHeader: true});
-                      XLSX.utils.sheet_add_aoa(ws, [titleRow], {origin: 'A1'});
-                      XLSX.utils.sheet_add_json(ws, flatData, {origin: 'A2', skipHeader: false});
+                      const workbook = new ExcelJS.Workbook();
+                      const worksheet = workbook.addWorksheet('PWN SAST Results');
 
-                      // Merge title cell across columns
-                      if (!ws['!merges']) ws['!merges'] = [];
-                      ws['!merges'].push({s: {r:0, c:0}, e: {r:0, c:8}}); // A1 to I1
+                      // Add title row and merge
+                      worksheet.mergeCells('A1:I1');
+                      const titleCell = worksheet.getCell('A1');
+                      titleCell.value = title;
+                      titleCell.font = { size: 14, bold: true };
+                      titleCell.alignment = { horizontal: 'center' };
 
-                      // Set column widths by dividing desired column inches by 0.135
-                      // column inches observed with Exce
-                      // e.g 2.83 inches / 0.0135 ~ 209px
-                      ws['!cols'] = [
-                        {wpx: 209},
-                        {wpx: 130},
-                        {wpx: 580},
-                        {wpx: 256},
-                        {wpx: 110},
-                        {wpx: 40},
-                        {wpx: 370},
-                        {wpx: 370},
-                        {wpx: 185}
-                      ];
+                      // Add header row
+                      worksheet.addRow(['Timestamp', 'Test Case', 'NIST 800-53', 'CWE', 'Path', 'Line#', 'Content', 'AI Analysis', 'Author']);
+                      const headerRow = worksheet.getRow(2);
+                      headerRow.eachCell((cell) => {
+                        cell.font = { bold: true, color: { argb: 'FF000000' } };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF999999' } };
+                        cell.alignment = { horizontal: 'center', wrapText: true };
+                      });
 
-                      // Style header row (row 2, since title at 1, header at 2, data from 3)
-                      var headerStyle = {
-                        font: { bold: true, color: { rgb: "000000" } },
-                        fill: { fgColor: { rgb: "999999" } },
-                        alignment: { horizontal: 'center', wrapText: true }
-                      };
-                      for (var col = 0; col < 9; col++) {
-                        var cellRef = XLSX.utils.encode_cell({r:1, c:col}); // Row 2 (0-based)
-                        if (ws[cellRef]) ws[cellRef].s = headerStyle;
-                      }
+                      // Add data rows with alternating fills and hyperlinks
+                      flatData.forEach((item, index) => {
+                        const row = worksheet.addRow([
+                          item.timestamp,
+                          item.test_case,
+                          { text: item.nist_section, hyperlink: item.nist_800_53_security_control },
+                          { text: item.cwe_id, hyperlink: item.cwe },
+                          item.path,
+                          item.line_no,
+                          item.contents,
+                          item.ai_analysis,
+                          item.author
+                        ]);
 
-                      // Alternate row colors for data rows (starting from row 3)
-                      var grayFill = { fgColor: { rgb: "DEDEDE" } };
-                      var whiteFill = { fgColor: { rgb: "FFFFFF" } };
-                      for (var rowNum = 3; rowNum < flatData.length + 2; rowNum++) { // Data rows 2-based from 3
-                        var fill = (rowNum % 2 === 0) ? whiteFill : grayFill;
-                        for (var col = 0; col < 9; col++) {
-                          var cellRef = XLSX.utils.encode_cell({r: rowNum, c: col});
-                          if (ws[cellRef]) {
-                            if (!ws[cellRef].s) ws[cellRef].s = {};
-                            ws[cellRef].s.fill = fill;
-                            ws[cellRef].s.alignment = { wrapText: true, vertical: 'top' };
-                          }
-                        }
-                      }
+                        const fill = (index % 2 === 0)
+                          ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDEDEDE' } }
+                          : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+
+                        row.eachCell((cell) => {
+                          cell.fill = fill;
+                          cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+                        });
+                      });
+
+                      // Set column widths (converted from pixels to character units approx.)
+                      const pixelWidthsInches = [1.0, 2.0, 4.5, 0.5, 2.5, 0.75, 3.5, 3.5, 2];
+                      worksheet.columns = pixelWidthsInches.map(inches => {
+                        let width;
+                        width = inches / 0.077
+                        return { width: width };
+                      });
 
                       // Freeze header
-                      ws['!freeze'] = { xSplit: 0, ySplit: 2 };
+                      worksheet.views = [{ state: 'frozen', ySplit: 2 }];
 
-                      var wb = XLSX.utils.book_new();
-                      XLSX.utils.book_append_sheet(wb, ws, 'PWN SAST Results');
-                      XLSX.writeFile(wb, report_name + '.xlsx');
+                      // Generate and download the file
+                      workbook.xlsx.writeBuffer().then(buffer => {
+                        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = report_name + '.xlsx';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      });
                     } else if (type === 'pdf') {
                       var docDefinition = {
                         pageOrientation: 'landscape',
@@ -716,8 +718,8 @@ module PWN
                                 ...flatData.map(r => [
                                   r.timestamp,
                                   r.test_case,
-                                  r.nist_800_53_security_control,
-                                  r.cwe,
+                                  { text: r.nist_section, link: r.nist_800_53_security_control, style: {decoration: 'underline'} },
+                                  { text: r.cwe_id, link: r.cwe, style: {decoration: 'underline'} },
                                   r.path,
                                   r.line_no,
                                   r.contents,
@@ -761,7 +763,6 @@ module PWN
                     }
                   });
                 }
-
                 // Detect window size changes and recalculate/update scrollY
                 $(window).resize(function() {
                   var newWindowHeight = $(window).height();
