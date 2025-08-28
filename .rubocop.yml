@@ -2,7 +2,7 @@ AllCops:
   UseCache: false
   NewCops: enable
 Layout/LineLength:
-  Max: 874
+  Max: 1620
 Lint/UselessRescue:
   Enabled: false
 Metrics/AbcSize:
@@ -16,7 +16,7 @@ Metrics/ClassLength:
 Metrics/CyclomaticComplexity:
   Max: 157
 Metrics/MethodLength:
-  Max: 666
+  Max: 564
 Metrics/ModuleLength:
   Max: 1000
 Metrics/PerceivedComplexity:

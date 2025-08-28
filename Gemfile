@@ -64,7 +64,7 @@ gem 'oily_png', '1.2.1'
 gem 'open3', '0.2.1'
 # Relies on cargo, which is not available in OpenBSD via pkg_add atm.
 # gem 'openapi3_parser', '0.10.1'
-gem 'os', '1.1.4'
+gem 'os', ''
 gem 'ostruct', '0.6.3'
 gem 'packetfu', '2.0.0'
 gem 'packetgen', '4.1.1'
