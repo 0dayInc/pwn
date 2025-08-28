@@ -59,6 +59,9 @@ Gem::Specification.new do |spec|
     gem_name = columns[1].delete("'").delete(',')
     gem_version = columns.last.delete("'")
 
+    # Good for debugging issues in Gemfile
+    # puts "pwn.gemspec: Adding dependency: #{gem_name} #{gem_version}"
+
     if dev_dependency_arr.include?(gem_name.to_sym)
       spec.add_development_dependency(
         gem_name,
