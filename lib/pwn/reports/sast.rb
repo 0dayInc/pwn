@@ -127,133 +127,18 @@ module PWN
           JSON.pretty_generate(results_hash)
         )
 
-        html_report = %{<!DOCTYPE HTML>
-        <html>
-          <head>
-            <!-- favicon.ico from https://0dayinc.com -->
-            <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABIXAAASFwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIkAAACJAgAAiSYAAIlbAACJcAAAiX0AAIlmAACJLQAAiQQAAIkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIkAAACJAAAAiS0AAIluAACJdwAAiXgAAIl+AACJeAAAiXQAAIk5AACJAQAAiQAAAAAAAAAAAAAAAAAAAAAAAACJAAAAiRgAAIlvAACJbQAAiXcAAIl7AACJcwAAiXEAAIl1AACJZwAAiR4AAIkAAACJAAAAAAAAAAAAAACJAAAAiQAAAIlEAACJfAAAiXIAAIlyAACJewAAiX4AAIl5AACJdQAAiXcAAIlIAACJAAAAiQAAAAAAAAAAAAAAiQAAAIkJAACJWQAAiXUAAIl9AACJdAAAiYYAAImLAACJdAAAiXkAAImNAACJfQAAiQwAAIkAAAAAAAAAAAAAAIkAAACJFQAAiWsAAIl2AACJfAAAiYIAAImCAACJfwAAiXYAAIl5AACJiQAAiYYAAIkWAACJAAAAAAAAAAAAAACJAAAAiSAAAIl2AACJeQAAiXkAAIl1AACJfwAAiYEAAIl8AACJbwAAiXoAAImBAACJFgAAiQAAAAAAAAAAAAAAiQAAAIkpAACJeAAAiXMAAIl3AACJeQAAiXUAAImAAACJfwAAiWYAAIl4AACJfwAAiR4AAIkAAAAAAAAAAAAAAIkAAACJKAAAiXkAAIlyAACJdQAAiXQAAIluAACJfAAAiXwAAIl3AACJewAAiXwAAIkvAACJAAAAAAAAAAAAAACJAAAAiSMAAIl4AACJdgAAiXsAAIl1AACJcQAAiXcAAIl6AACJeQAAiXoAAIl0AACJKQAAiQAAAAAAAAAAAAAAiQAAAIkXAACJaAAAiXgAAIl3AACJfAAAiXkAAIl3AACJZwAAiXcAAIl0AACJagAAiSgAAIkAAAAAAAAAAAAAAIkAAACJDgAAiV4AAIl5AACJbwAAiW4AAIl9AACJewAAiXcAAIl6AACJfQAAiW8AAIkWAACJAAAAAAAAAAAAAACJAAAAiQ0AAIllAACJewAAiXYAAIl4AACJdQAAiXUAAIl4AACJbQAAiXkAAIlNAACJAwAAiQAAAAAAAAAAAAAAiQAAAIkCAACJPQAAiXMAAIl2AACJeAAAiWgAAIlsAACJfQAAiXsAAIlwAACJGQAAiQAAAIkAAAAAAAAAAAAAAAAAAACJAAAAiQcAAIk4AACJXAAAiXoAAIl7AACJfAAAiYAAAIlsAACJJwAAiQMAAIkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIkAAACJAQAAiSsAAIluAACJewAAiXwAAIluAACJKgAAiQAAAIkAAAAAAAAAAAAAAAAA8A8AAPAHAADgBwAA4AcAAMADAADAAwAAwAMAAMADAADAAwAAwAMAAMADAADAAwAAwAMAAMAHAADgBwAA8B8AAA==" type="image/x-icon" />
-            <style>
-              body {
-                font-family: Verdana, Geneva, sans-serif;
-                font-size: 11px;
-                background-color: #FFFFFF;
-                color: #084B8A !important;
-              }
+        column_names = [
+          'Timestamp',
+          'Test Case / Security References',
+          'Path',
+          'Line# | Source | AI Analysis | Author',
+          'Raw Content',
+          'Test Case'
+        ]
 
-              a:link {
-                color: #0174DF;
-                text-decoration: none;
-              }
+        driver_src_uri = 'https://github.com/0dayinc/pwn/blob/master/bin/pwn_sast'
 
-              a:visited {
-                color: #B40404;
-                text-decoration: none;
-              }
-
-              a:hover {
-                color: #01A9DB;
-                text-decoration: underline;
-              }
-
-              a:active {
-                color: #610B5E;
-                text-decoration: underline;
-              }
-
-              div.dt-container {
-                width: 1275px !important;
-              }
-
-              div.dt-scroll-body {
-                width: 1275px !important;
-              }
-
-              table {
-                width: 100%;
-                border-spacing:0px;
-              }
-
-              table.squish {
-                table-layout: fixed;
-              }
-
-              td {
-                vertical-align: top;
-                word-wrap: break-word !important;
-                border: none !important;
-              }
-
-              table.multi_line_select tr.odd {
-                background-color: #dedede !important;  /* Gray for odd rows */
-              }
-
-              table.multi_line_select tr.even {
-                background-color: #ffffff !important;  /* White for even rows */
-              }
-
-              tr.highlighted td {
-                background-color: #FFF396 !important;
-              }
-            </style>
-
-            <!-- jQuery & DataTables -->
-            <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-            <link href="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.3.3/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/b-print-3.2.4/fc-5.0.4/fh-4.0.3/kt-2.12.1/r-3.0.6/rg-1.5.2/rr-1.5.0/sc-2.4.3/sb-1.8.3/sp-2.3.5/sl-3.1.0/datatables.min.css" rel="stylesheet" integrity="sha384-51NLFpi/9qR2x0LAjQHiFAjV765f0g9+05EmKQ/QWINR/y3qonty8mPy68vEbo0z" crossorigin="anonymous">
-
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js" integrity="sha384-VFQrHzqBh5qiJIU0uGU5CIW3+OWpdGGJM9LBnGbuIH2mkICcFZ7lPd/AAtI7SNf7" crossorigin="anonymous"></script>
-
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js" integrity="sha384-/RlQG9uf0M2vcTw3CX7fbqgbj/h8wKxw7C3zu9/GxcBPRKOEcESxaxufwRXqzq6n" crossorigin="anonymous"></script>
-
-            <script src="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.3.3/b-3.2.4/b-colvis-3.2.4/b-html5-3.2.4/b-print-3.2.4/fc-5.0.4/fh-4.0.3/kt-2.12.1/r-3.0.6/rg-1.5.2/rr-1.5.0/sc-2.4.3/sb-1.8.3/sp-2.3.5/sl-3.1.0/datatables.min.js" integrity="sha384-jvnxkXTB++rTO/pbg6w5nj0jm5HiSGtTcBW5vnoLGRfmSxw3eyqNA0bJ+m6Skjw/" crossorigin="anonymous"></script>
-
-            <script src="https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js"></script>
-          </head>
-
-          <body id="pwn_body">
-
-            <h1 style="display:inline">
-              <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIEAAACCCAQAAADLPWN1AAAAAXNSR0IB2cksfwAAAARnQU1BAACxjwv8YQUAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAJiS0dEAIKpO8E+AAAACXBIWXMAAAsTAAALEwEAmpwYAAADTElEQVR42u2dyY7jMBBDqxrz/7+sOTRycCKJpOwBBsjzrWO3F4Ks3XKPUV++/dTXb3+qqjr8p1/i9HLPa2uxZ0z+6s011HXPngMWAAEQvGzBXK+fW6b+uUJ7ebTWuL7+yXPAAiB4E8IdurV5XObs1rLQEZ37HLAACKZCcLcrIe8QXFF7wAKEAAT/sS2oSWbnuqUOz55dFxYAwQNCyKi1iwdbuEudOq0j0A6jUlgABLYQ+saJVP1vHB1X0XFnzwELgAAIXrbgLMLS3YS2LMdZoWO2b8AChPB0mjRLQ9okX9tSWcuiTUepos2dbGmoIYSLEDRxXYur+0Pne3bRYZv3OXtCWAAEQFBGyUSVPa52ZCydZ5lO1tXz7nwl7xYWAMGbD/ocumvTEenUpc0oci2sLM4zHndyNCwAgjchtJlyKOK6SUt8s5GkdAxLmoQQgOCeU8wyOzevHNFv6fkomSAEu2Qyo4xKk3QXOROWS/fZddOBf1gABDI67JC4KkrLxmt3tQv3v1qKAxYAARBcbUE6OZzZhzKjtCzeO7MSRXSIEM7SJOWiRljOUCR1644loz7teBECQrikSSUJqbtESg6usLKY0+9E9fIasAAIgKA2M8juaNXM3eiO8RN5IywAgn8aHaoE5XTZjJNoUzvo7FqUTBCCIYQsQXKjSHdk485c+lnNkjQJIQDBzha4M4ZnTjGr+9fyumddbjrLCGGTJqWlEHeecOaclHx091rf3/o3OssIwagXeHTzaazjzKySoGoSPZUPLAACIHiiZDJu6F5Flm6mmHavVXZLdIgQ7OjQXZVGL+2kSe+ObHREc7ejDQuA4G0VCzcNcY+bRXPKgj9RhchqErAACICgNivjP1fDc2dJynSe2vWt+xyz54AFQBAu7ZS2vLJFNmbnc1t86RvRsAAITI+gBXG2LLyb6gzhiTqscTQsQAhAIG3BmcPyoj3nfCOKIl3b4rp1WAAEt76Vso4En3gXWb39nA7yUzJBCKEQUnvuRXO741Qi41r8sxEQWAAEQHDPFqy/cjduaPzsrbX1ne3WY4QFQLARwtMvQWWLx6VncqPX9W+wAAge/FbK2p5nn6PU4x6uRNzCOiwAAiCozdwhLAACIPiq7S/uVkwm4fz8nQAAAABJRU5ErkJggg==" type="image/png" style="iheight:100px;width:100px;"/>
-              <a href="https://github.com/0dayInc/pwn/blob/master/bin/pwn_sast" target="_blank">~ pwn sast</a>
-            </h1>
-            <h2 id="report_name"></h2><br />
-
-            <div class="dt-buttons" id="button_group">
-              <!--<button type="button" id="debug_rows_selected">Rows Selected</button>-->
-            </div>
-
-            <div>
-              <b>Toggle Column(s) Visibility:</b>&nbsp;
-              <a class="toggle-vis" data-column="1" href="#">Timestamp</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="2" href="#">Test Case / Security References</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="3" href="#">Path</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="4" href="#">Line#, Formatted Content, AI Analysis, &amp; Last Committed By</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="5" href="#">Raw Content</a>&nbsp;|&nbsp;
-              <a class="toggle-vis" data-column="6" href="#">Test Case (Anti-Pattern) Filter</a>
-            </div>
-            <br /><br />
-
-            <div>
-              Search tips: Use space-separated keywords for AND search, prefix with - to exclude (e.g., "security -password"), or enclose in / / for regex (e.g., "/^important.*$/i").
-            </div><br />
-
-            <div>
-              <table id="pwn_scan_git_source_results" class="display" cellspacing="0">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Timestamp</th>
-                    <th>Test Case / Security References</th>
-                    <th>Path</th>
-                    <th>Line#, Formatted Content, AI Analysis, &amp; Last Committed By</th>
-                    <th>Raw Content</th>
-                    <th>Test Case (Anti-Pattern) Filter</th>
-                  </tr>
-                </thead>
-                <!-- DataTables <tbody> -->
-              </table>
-            </div>
-
+        html_report = %(#{PWN::Reports::HTMLHeader.generate(column_names: column_names, driver_src_uri: driver_src_uri)}
             <script>
               var htmlEntityEncode = $.fn.dataTable.render.text().display;
 
@@ -266,10 +151,11 @@ module PWN
                 var offset = 400;
                 var min_scroll_height = 100;
                 var scrollYHeight = Math.max(min_scroll_height, windowHeight - offset);  // Ensure minimum of 600px
-                var table = $('#pwn_scan_git_source_results').DataTable( {
+                var table = $('#pwn_results').DataTable( {
                   "order": [[2, 'asc']],
                   "scrollY": scrollYHeight + "px",
                   "scrollCollapse": true,
+                  "searchHighlight": true,
                   "paging": true,
                   "lengthMenu": [25, 50, 100, 250, 500, 1000, 2500, 5000],
                   "drawCallback": function () {
@@ -442,61 +328,52 @@ module PWN
                       ]
                     });
 
-                    table.buttons().container().insertAfter('#button_group');
+                    table.buttons().container().appendTo('#toggle_col_and_button_group');
                   }
                 });
 
-                $('#pwn_scan_git_source_results tbody').on('click', '.multi_line_select tr', function () {
+                $('#pwn_results tbody').on('click', '.multi_line_select tr', function () {
                   $(this).toggleClass('highlighted');
                 });
 
+                // Dynamically create the smart toggle label and input
+                var smartLabel = $('<label for="smart-toggle">Smart Search (e.g., "security !password")</label>');
+                var smartInput = $('<input type="radio" id="smart-toggle" name="searchMode" value="" checked>');
+                smartLabel.prepend(smartInput);  // Prepend input inside label for proper association
+
+                // Dynamically create the regex toggle label and input
+                var regexLabel = $('<label for="regex-toggle">Regex Search (e.g., "^important.*$")</label>');
+                var regexInput = $('<input type="radio" id="regex-toggle" name="searchMode" value="">');
+                regexLabel.prepend(regexInput);  // Prepend input inside label
+
+                // Now relocate them as before (insert before the search input)
+                smartLabel.insertBefore('#dt-search-0');
+                regexLabel.insertBefore('#dt-search-0');
+
+                // Style for inline display and spacing
+                smartLabel.css({ display: 'inline-block', marginRight: '10px' });
+                regexLabel.css({ display: 'inline-block', marginRight: '10px' });
+
+                // Optional: Hide the default "Search:" label if not needed
+                $('.dt-search label:first-of-type').hide();
+
                 // Custom advanced search handling
-                $('.dataTables_filter input').unbind();
-                $('.dataTables_filter input').on('keyup', function() {
-                  var search = $(this).val();
+                $('#dt-search-0').unbind();
+                $('#dt-search-0').on('input', function() {
+                  var table = $('#pwn_results').DataTable();
+                  var searchTerm = this.value;
+                  var isRegex = $('#regex-toggle').prop('checked');
+                  var isSmart = $('#smart-toggle').prop('checked');
+                  table.search(searchTerm, isRegex, isSmart).draw();
+                });
 
-                  var filterFunc;
-                  if (search.match(/^\\/.*\\/$/)) {
-                    try {
-                      var regex = new RegExp(search.slice(1, -1), 'i');
-                      filterFunc = function(settings, data, dataIndex) {
-                        var rowData = data.join(' ');
-                        return regex.test(rowData);
-                      };
-                    } catch (e) {
-                      filterFunc = function(settings, data, dataIndex) {
-                        return true;
-                      };
-                    }
-                  } else {
-                    var positives = [];
-                    var negatives = [];
-                    var terms = search.split(/\\s+/).filter(function(t) { return t.length > 0; });
-                    for (var i = 0; i < terms.length; i++) {
-                      var term = terms[i];
-                      if (term.startsWith('-')) {
-                        var cleanTerm = term.substring(1).toLowerCase();
-                        if (cleanTerm) negatives.push(cleanTerm);
-                      } else {
-                        positives.push(term.toLowerCase());
-                      }
-                    }
-                    filterFunc = function(settings, data, dataIndex) {
-                      var rowData = data.join(' ').toLowerCase();
-                      for (var j = 0; j < positives.length; j++) {
-                        if (!rowData.includes(positives[j])) return false;
-                      }
-                      for (var k = 0; k < negatives.length; k++) {
-                        if (rowData.includes(negatives[k])) return false;
-                      }
-                      return true;
-                    };
-                  }
-
-                  $.fn.dataTable.ext.search.pop();
-                  $.fn.dataTable.ext.search.push(filterFunc);
-                  table.search('');
-                  table.draw();
+                // Additionally, reapply search on toggle changes (assuming radios exist in HTML)
+                $('#regex-toggle, #smart-toggle').on('input', function() {
+                  var table = $('#pwn_results').DataTable();
+                  var searchTerm = this.value;
+                  var isRegex = $('#regex-toggle').prop('checked');
+                  var isSmart = $('#smart-toggle').prop('checked');
+                  table.search(searchTerm, isRegex, isSmart).draw();
                 });
 
                 // Toggle Columns
@@ -516,10 +393,12 @@ module PWN
 
                 // Select All and Deselect All
                 function select_deselect_all() {
-                  if ($('.multi_line_select tr.highlighted').length === $('.multi_line_select tr').length) {
-                    $('.multi_line_select tr.highlighted').removeClass('highlighted');
+                  var visible_multi_line_trs = $('#pwn_results tbody tr:visible .multi_line_select tr');
+                  var highlighted_in_visible = visible_multi_line_trs.filter('.highlighted');
+                  if (highlighted_in_visible.length === visible_multi_line_trs.length) {
+                    highlighted_in_visible.removeClass('highlighted');
                   } else {
-                    $('.multi_line_select tr:not(.highlighted)').addClass('highlighted');
+                    visible_multi_line_trs.filter(':not(.highlighted)').addClass('highlighted');
                   }
                 }
 
@@ -774,7 +653,7 @@ module PWN
             </script>
           </body>
         </html>
-        }
+        )
 
         File.open("#{dir_path}/#{report_name}.html", 'w') do |f|
           f.print(html_report)

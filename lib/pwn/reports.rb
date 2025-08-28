@@ -9,6 +9,7 @@ module PWN
     # autoload :JSON, 'pwn/reports/json'
     # autoload :PDF, 'pwn/reports/pdf'
     autoload :Fuzz, 'pwn/reports/fuzz'
+    autoload :HTMLHeader, 'pwn/reports/html_header'
     autoload :Phone, 'pwn/reports/phone'
     autoload :SAST, 'pwn/reports/sast'
     autoload :URIBuster, 'pwn/reports/uri_buster'
