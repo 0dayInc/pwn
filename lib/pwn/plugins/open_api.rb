@@ -27,7 +27,7 @@ module PWN
         base_url = opts[:base_url]
         raise ArgumentError, 'base_url is required' if base_url.nil? || base_url.empty?
 
-        target_version = opts[:target_version] || '3.0.3'
+        target_version = opts[:target_version] ||= '3.0.3'
         raise ArgumentError, "Unsupported OpenAPI version: #{target_version}" unless %w[3.0.0 3.0.1 3.0.2 3.0.3 3.1.0].include?(target_version)
 
         output_json_path = opts[:output_json_path]

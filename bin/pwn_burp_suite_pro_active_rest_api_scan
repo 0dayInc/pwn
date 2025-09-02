@@ -1,8 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'pwn'
 require 'optparse'
+require 'uri'
 
 opts = {}
 OptionParser.new do |options|
@@ -18,6 +20,30 @@ OptionParser.new do |options|
     opts[:output_path] = o
   end
 
+  options.on('-dSWAGGER', '--swagger_definitions=SWAGGER', '<Required - Comma-delimited list of Swagger JSON/YAML files to import>') do |s|
+    opts[:swagger_definitions] = s
+  end
+
+  options.on('-D', '--[no-]debug', '<Optional - Enable Debug Output and Do Not Delete Temporary OpenAPI Spec>') do |d|
+    opts[:debug] = d
+  end
+
+  options.on('-vVERSION', '--openapi_spec_version=VERSION', '<Optional - OpenAPI/Swagger Specification Version (Defaults to 3.0.3)>') do |o|
+    opts[:openapi_spec_version] = o
+  end
+
+  options.on('-HJSON', '--additional_http_headers=JSON', '<Optional - JSON string of additional HTTP headers to include in requests (e.g. \'{"Header1":"Value1","Header2":"Value2"}\')>') do |h|
+    opts[:additional_http_headers] = h
+  end
+
+  options.on('-cCOLOR', '--highlight-color=COLOR', '<Optional - Highlight Color to use when importing OpenAPI/Swagger definitions  NONE||RED||ORANGE||YELLOW||GREEN||CYAN||BLUE||PINK||MAGENTA||GRAY (Defaults to GREEN)>') do |h|
+    opts[:highlight_color] = h
+  end
+
+  options.on('-nCOMMENTS', '--notes=COMMENTS', '<Optional - Comments to add when importing OpenAPI/Swagger definitions (Defaults to "Imported via <openapi_spec> on <timestamp>")>') do |n|
+    opts[:notes] = n
+  end
+
   options.on('-eLIST', '--exclude_paths=LIST', '<Optional - Comma-delimited list of paths to exlude from scanning (e.g. "/api/login, /api/logout, /api/etc")>') do |e|
     opts[:exclude_paths] = e
   end
@@ -28,14 +54,6 @@ OptionParser.new do |options|
 
   options.on('-h', '--[no-]headless', '<Optional - Run Burp and Browser Headless>') do |h|
     opts[:headless] = h
-  end
-
-  options.on('-s', '--[no-]spider', '<Optional - Crawl / Spider Target Prior to Scanning (Defaults to false)>') do |s|
-    opts[:spider] = s
-  end
-
-  options.on('-IINST', '--navigation_instruct=INST', '<Optional - Path to Navigation Instructions (e.g. Auth w/ Target - see /pwn/etc/burpsuite/navigation.instruct.EXAMPLE)>') do |i|
-    opts[:navigation_instruct] = i
   end
 
   options.on('-iURL', '--in_scope=URL', '<Optional - URL to add include in scope (Defaults to value of --target_url)>') do |s|
@@ -49,21 +67,46 @@ if opts.empty?
 end
 
 begin
+  timestamp = Time.now.strftime('%Y-%m-%d_%H-%M-%S%Z')
   logger = PWN::Plugins::PWNLogger.create
 
   burp_jar_path = opts[:burp_jar_path]
   headless = opts[:headless] || false
-  spider = opts[:spider] || false
   target_url = opts[:target_url]
   raise 'ERROR: --target_url is required.' if target_url.nil?
 
   output_path = opts[:output_path]
   raise 'ERROR: --report_output_path is required.' if output_path.nil?
 
+  swagger_definitions = opts[:swagger_definitions]
+  raise 'ERROR: --swagger_definitions is required.' if swagger_definitions.nil?
+
+  debug = opts[:debug] || false
+
+  swagger_defs_arr = swagger_definitions.split(',').map(&:strip)
+  scheme = URI.parse(target_url).scheme
+  target_host = URI.parse(target_url).host
+  base_url = "#{scheme}://#{target_host}"
+
+  openapi_spec_version = opts[:openapi_spec_version]
+  openapi_spec = "/tmp/openapi_spec-#{target_host}-#{timestamp}.json"
+
+  PWN::Plugins::OpenAPI.generate_spec(
+    spec_paths: swagger_defs_arr,
+    base_url: base_url,
+    output_json_path: openapi_spec,
+    target_version: openapi_spec_version,
+    debug: debug
+  )
+
+  additional_http_headers = opts[:additional_http_headers]
+  additional_http_headers = JSON.parse(additional_http_headers, symbolize_names: true) if additional_http_headers.is_a?(String)
+
+  highlight_color = opts[:highlight_color] ||= 'GREEN'
+  notes = opts[:notes] ||= "Imported via #{openapi_spec} on #{timestamp}"
+
   exlude_paths = opts[:exclude_paths]
   exlude_paths = exlude_paths.split(',').map(&:strip) if exlude_paths.is_a?(String)
-
-  navigation_instruct = opts[:navigation_instruct]
 
   in_scope = opts[:in_scope] ||= target_url
 
@@ -91,32 +134,16 @@ begin
     target_url: in_scope
   )
 
-  # Use a headless browser w/ JavaScript Support to Load Our Target
-  # and Optionally Authenticate to Provide the Capability to Conduct
-  # a Burp Active Scan in a Post-AuthN state.  Since our browsers
-  # support JavaScript, DOM-based XSS vuln attempts are
-  # possible as well since we have a DOM to interact w/
-  # (Burp's DOM-XSS checks are based on static code analysis)
-  browser_obj = burp_obj[:burp_browser]
-  browser = browser_obj[:browser]
-  browser.goto(target_url)
+  json_sitemap = PWN::Plugins::BurpSuite.import_openapi_to_sitemap(
+    burp_obj: burp_obj,
+    openapi_spec: openapi_spec,
+    additional_http_headers: additional_http_headers,
+    highlight: highlight_color,
+    comment: notes,
+    debug: debug
+  )
 
-  unless navigation_instruct.nil?
-    File.read(navigation_instruct).each_line do |instruction|
-      # Look for any set method in this instruction and replace its value w/ asterisks
-      redact_regex = /\.set\(['"]([^'"]*)['"]\)/
-      redacted_instruction = instruction.gsub(redact_regex, ".set('********')")
-      print "\nExecuting Instruction: #{redacted_instruction}"
-      browser.instance_eval(instruction.to_s.scrub.strip.chomp)
-    end
-  end
-
-  PWN::Plugins::BurpSuite.spider(burp_obj: burp_obj, target_url: in_scope) if spider
-
-  duration = 9
-  print "Waiting #{duration} seconds prior to kicking off active scan..."
-  sleep duration # Sleep for now so everything loads the way we expect - blech.
-  print "\n"
+  raise "ERROR: Failed to import OpenAPI/Swagger spec #{openapi_spec} into Burp Suite Pro's Sitemap." if json_sitemap.nil? || json_sitemap.empty?
 
   PWN::Plugins::BurpSuite.invoke_active_scan(
     burp_obj: burp_obj,
@@ -149,5 +176,6 @@ begin
 rescue StandardError => e
   raise e
 ensure
+  FileUtils.rm_f(openapi_spec) unless debug
   burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj) unless burp_obj.nil?
 end
