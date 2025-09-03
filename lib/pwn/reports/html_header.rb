@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require 'cgi'
-require 'json'
-require 'tty-spinner'
 
 module PWN
   module Reports

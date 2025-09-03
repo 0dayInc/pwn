@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require 'cgi'
-require 'json'
-require 'tty-spinner'
-
 module PWN
   module Reports
     # This plugin generates the HTML header and includes external JS/CSS libraries for PWN reports.
