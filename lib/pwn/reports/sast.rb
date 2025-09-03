@@ -139,18 +139,7 @@ module PWN
         driver_src_uri = 'https://github.com/0dayinc/pwn/blob/master/bin/pwn_sast'
 
         html_report = %(#{PWN::Reports::HTMLHeader.generate(column_names: column_names, driver_src_uri: driver_src_uri)}
-            <script>
-              var htmlEntityEncode = $.fn.dataTable.render.text().display;
-
-              var line_entry_uri = "";
               $(document).ready(function() {
-                var oldStart = 0;
-                var windowHeight = $(window).height();
-
-                // Calculate scrollY: Subtract an offset for non-table elements
-                var offset = 400;
-                var min_scroll_height = 100;
-                var scrollYHeight = Math.max(min_scroll_height, windowHeight - offset);  // Ensure minimum of 600px
                 var table = $('#pwn_results').DataTable( {
                   "order": [[2, 'asc']],
                   "scrollY": scrollYHeight + "px",
@@ -310,7 +299,7 @@ module PWN
                         {
                           text: 'Export to JSON',
                           action: function () {
-                            export_json();
+                            export_json(table);
                           }
                         },
                         {
@@ -332,151 +321,12 @@ module PWN
                   }
                 });
 
-                $('#pwn_results tbody').on('click', '.multi_line_select tr', function () {
-                  $(this).toggleClass('highlighted');
-                });
-
-                // Dynamically create the smart toggle label and input
-                var smartLabel = $('<label for="smart-toggle">Smart Search (e.g., "security !password")</label>');
-                var smartInput = $('<input type="radio" id="smart-toggle" name="searchMode" value="" checked>');
-                smartLabel.prepend(smartInput);  // Prepend input inside label for proper association
-
-                // Dynamically create the regex toggle label and input
-                var regexLabel = $('<label for="regex-toggle">Regex Search (e.g., "^important.*$")</label>');
-                var regexInput = $('<input type="radio" id="regex-toggle" name="searchMode" value="">');
-                regexLabel.prepend(regexInput);  // Prepend input inside label
-
-                // Now relocate them as before (insert before the search input)
-                smartLabel.insertBefore('#dt-search-0');
-                regexLabel.insertBefore('#dt-search-0');
-
-                // Style for inline display and spacing
-                smartLabel.css({ display: 'inline-block', marginRight: '10px' });
-                regexLabel.css({ display: 'inline-block', marginRight: '10px' });
-
-                // Optional: Hide the default "Search:" label if not needed
-                $('.dt-search label:first-of-type').hide();
-
-                // Custom advanced search handling
-                $('#dt-search-0').unbind();
-                $('#dt-search-0').on('input', function() {
-                  var table = $('#pwn_results').DataTable();
-                  var searchTerm = this.value;
-                  var isRegex = $('#regex-toggle').prop('checked');
-                  var isSmart = $('#smart-toggle').prop('checked');
-                  table.search(searchTerm, isRegex, isSmart).draw();
-                });
-
-                // Additionally, reapply search on toggle changes (assuming radios exist in HTML)
-                $('#regex-toggle, #smart-toggle').on('input', function() {
-                  var table = $('#pwn_results').DataTable();
-                  var searchTerm = this.value;
-                  var isRegex = $('#regex-toggle').prop('checked');
-                  var isSmart = $('#smart-toggle').prop('checked');
-                  table.search(searchTerm, isRegex, isSmart).draw();
-                });
-
-                // Toggle Columns
-                $('a.toggle-vis').on('click', function (e) {
-                  e.preventDefault();
-
-                  // Get the column API object
-                  var column = table.column( $(this).attr('data-column') );
-
-                  // Toggle the visibility
-                  column.visible( ! column.visible() );
-                });
-
-                $('#debug_rows_selected').click( function () {
-                  alert($('.multi_line_select tr.highlighted').length +' row(s) highlighted');
-                });
-
-                // Select All and Deselect All
-                function select_deselect_all() {
-                  var visible_multi_line_trs = $('#pwn_results tbody tr:visible .multi_line_select tr');
-                  var highlighted_in_visible = visible_multi_line_trs.filter('.highlighted');
-                  if (highlighted_in_visible.length === visible_multi_line_trs.length) {
-                    highlighted_in_visible.removeClass('highlighted');
-                  } else {
-                    visible_multi_line_trs.filter(':not(.highlighted)').addClass('highlighted');
-                  }
-                }
-
-                function getExportData() {
-                  return new Promise((resolve) => {
-                    $.getJSON(table.ajax.url(), function(original_json) {
-                      let new_data;
-                      if ($('.multi_line_select tr.highlighted').length === 0) {
-                        new_data = original_json.data;
-                      } else {
-                        var selected_results = {};
-
-                        $('.multi_line_select tr.highlighted').each(function() {
-                          var inner_tr = $(this);
-                          var main_tr = inner_tr.closest('td').parent();
-                          var row = table.row(main_tr);
-                          var row_index = row.index();
-                          var line_index = inner_tr.index();
-
-                          if (selected_results[row_index] === undefined) {
-                            selected_results[row_index] = {
-                              row: row,
-                              lines: []
-                            };
-                          }
-
-                          selected_results[row_index].lines.push(line_index);
-                        });
-
-                        new_data = [];
-
-                        Object.keys(selected_results).forEach(function(ri) {
-                          var sel = selected_results[ri];
-                          var orig_row_data = sel.row.data();
-                          var new_row_data = JSON.parse(JSON.stringify(orig_row_data));
-
-                          sel.lines.sort((a, b) => a - b);
-                          new_row_data.line_no_and_contents = sel.lines.map(function(li) {
-                            return orig_row_data.line_no_and_contents[li];
-                          });
-
-                          new_row_data.raw_content = new_row_data.line_no_and_contents.map(l => l.contents).join('\\n');
-
-                          new_data.push(new_row_data);
-                        });
-                      }
-                      resolve({data: new_data, report_name: original_json.report_name});
-                    });
-                  });
-                }
-
-                function export_json() {
-                  if ($('.multi_line_select tr.highlighted').length === 0 && !confirm('No lines selected. Export all records?')) {
-                    return;
-                  }
-
-                  getExportData().then(({data, report_name}) => {
-                    var original_json = {report_name: report_name, data: data};
-
-                    var json_str = JSON.stringify(original_json, null, 2);
-                    var blob = new Blob([json_str], { type: 'application/json' });
-                    var url = URL.createObjectURL(blob);
-                    var a = document.createElement('a');
-                    a.href = url;
-                    a.download = report_name + '.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  });
-                }
-
                 function export_xlsx_or_pdf(type) {
                   if ($('.multi_line_select tr.highlighted').length === 0 && !confirm('No lines selected. Export all records?')) {
                     return;
                   }
 
-                  getExportData().then(({data, report_name}) => {
+                  getExportData(table).then(({data, report_name}) => {
                     // Flatten data for export
                     var flatData = [];
                     data.forEach(function(row) {
@@ -642,17 +492,8 @@ module PWN
                     }
                   });
                 }
-                // Detect window size changes and recalculate/update scrollY
-                $(window).resize(function() {
-                  var newWindowHeight = $(window).height();
-                  var newScrollYHeight = Math.max(min_scroll_height, newWindowHeight - offset);  // Your offset
-                  $('.dt-scroll-body').css('max-height', newScrollYHeight + 'px')
-                  table.columns.adjust().draw(false);  // Adjust columns first, then redraw without data reload
-                });
               });
-            </script>
-          </body>
-        </html>
+              #{PWN::Reports::HTMLFooter.generate}
         )
 
         File.open("#{dir_path}/#{report_name}.html", 'w') do |f|

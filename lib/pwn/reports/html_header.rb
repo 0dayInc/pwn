@@ -73,13 +73,6 @@ module PWN
             <!-- favicon.ico from https://0dayinc.com -->
             <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABIXAAASFwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIkAAACJAgAAiSYAAIlbAACJcAAAiX0AAIlmAACJLQAAiQQAAIkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIkAAACJAAAAiS0AAIluAACJdwAAiXgAAIl+AACJeAAAiXQAAIk5AACJAQAAiQAAAAAAAAAAAAAAAAAAAAAAAACJAAAAiRgAAIlvAACJbQAAiXcAAIl7AACJcwAAiXEAAIl1AACJZwAAiR4AAIkAAACJAAAAAAAAAAAAAACJAAAAiQAAAIlEAACJfAAAiXIAAIlyAACJewAAiX4AAIl5AACJdQAAiXcAAIlIAACJAAAAiQAAAAAAAAAAAAAAiQAAAIkJAACJWQAAiXUAAIl9AACJdAAAiYYAAImLAACJdAAAiXkAAImNAACJfQAAiQwAAIkAAAAAAAAAAAAAAIkAAACJFQAAiWsAAIl2AACJfAAAiYIAAImCAACJfwAAiXYAAIl5AACJiQAAiYYAAIkWAACJAAAAAAAAAAAAAACJAAAAiSAAAIl2AACJeQAAiXkAAIl1AACJfwAAiYEAAIl8AACJbwAAiXoAAImBAACJFgAAiQAAAAAAAAAAAAAAiQAAAIkpAACJeAAAiXMAAIl3AACJeQAAiXUAAImAAACJfwAAiWYAAIl4AACJfwAAiR4AAIkAAAAAAAAAAAAAAIkAAACJKAAAiXkAAIlyAACJdQAAiXQAAIluAACJfAAAiXwAAIl3AACJewAAiXwAAIkvAACJAAAAAAAAAAAAAACJAAAAiSMAAIl4AACJdgAAiXsAAIl1AACJcQAAiXcAAIl6AACJeQAAiXoAAIl0AACJKQAAiQAAAAAAAAAAAAAAiQAAAIkXAACJaAAAiXgAAIl3AACJfAAAiXkAAIl3AACJZwAAiXcAAIl0AACJagAAiSgAAIkAAAAAAAAAAAAAAIkAAACJDgAAiV4AAIl5AACJbwAAiW4AAIl9AACJewAAiXcAAIl6AACJfQAAiW8AAIkWAACJAAAAAAAAAAAAAACJAAAAiQ0AAIllAACJewAAiXYAAIl4AACJdQAAiXUAAIl4AACJbQAAiXkAAIlNAACJAwAAiQAAAAAAAAAAAAAAiQAAAIkCAACJPQAAiXMAAIl2AACJeAAAiWgAAIlsAACJfQAAiXsAAIlwAACJGQAAiQAAAIkAAAAAAAAAAAAAAAAAAACJAAAAiQcAAIk4AACJXAAAiXoAAIl7AACJfAAAiYAAAIlsAACJJwAAiQMAAIkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIkAAACJAQAAiSsAAIluAACJewAAiXwAAIluAACJKgAAiQAAAIkAAAAAAAAAAAAAAAAA8A8AAPAHAADgBwAA4AcAAMADAADAAwAAwAMAAMADAADAAwAAwAMAAMADAADAAwAAwAMAAMAHAADgBwAA8B8AAA==" type="image/x-icon" />
             <style>
-              body {
-                font-family: Verdana, Geneva, sans-serif;
-                font-size: 11px;
-                background-color: #FFFFFF;
-                color: #084B8A !important;
-              }
-
               a:link {
                 color: #0174DF;
                 text-decoration: none;
@@ -100,15 +93,27 @@ module PWN
                 text-decoration: underline;
               }
 
+              body {
+                font-family: Verdana, Geneva, sans-serif;
+                font-size: 11px;
+                background-color: #FFFFFF;
+                color: #084B8A !important;
+                margin: 3px 3px 3px 3px !important;
+                padding: 0px 0px 0px 0px !important;
+                overflow-y: hidden;
+                min-height: 100vh !important;
+                height: 100% !important;
+              }
+
               div.toggle_col_and_button_group {
                 display: flex; /* Makes the container a flex container */
                 justify-content: none; /* Aligns items along the main axis */
                 align-items: flex-start; /* Aligns items to the start of the cross-axis */
                 width: 1275px !important;
-              }}
+              }
 
               div.cols_to_toggle {
-                width: 300px !important;
+                width: 855px !important;
                 text-align: left !important;
                 vertical-align: middle !important;
               }
@@ -119,6 +124,8 @@ module PWN
               }
 
               div.dt-container {
+                min-height: 100vh !important;
+                height: 100% !important;
                 width: 1275px !important;
               }
 
@@ -129,6 +136,7 @@ module PWN
               span.highlight {
                 background-color: cyan  !important;
               }
+
               table {
                 width: 100%;
                 border-spacing:0px;
@@ -226,6 +234,16 @@ module PWN
                 <!-- DataTables <tbody> -->
               </table>
             </div>
+            <script>
+              var htmlEntityEncode = $.fn.dataTable.render.text().display;
+              var line_entry_uri = "";
+              var oldStart = 0;
+              var windowHeight = $(window).height();
+
+              // Calculate scrollY: Subtract an offset for non-table elements
+              var offset = 325;
+              var min_scroll_height = 50;
+              var scrollYHeight = Math.max(min_scroll_height, windowHeight - offset);  // Ensure minimum of 600px
         )
       rescue StandardError => e
         raise e
