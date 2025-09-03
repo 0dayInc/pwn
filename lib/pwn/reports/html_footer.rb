@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require 'cgi'
-require 'json'
-require 'tty-spinner'
-
 module PWN
   module Reports
     # This plugin generates the HTML header and includes external JS/CSS libraries for PWN reports.
@@ -130,8 +126,8 @@ module PWN
                   var newScrollYHeight = Math.max(min_scroll_height, newWindowHeight - offset);  // Your offset
                   $('.dt-scroll-body').css('max-height', newScrollYHeight + 'px')
                   table.columns.adjust().draw(false);  // Adjust columns first, then redraw without data reload
-                  console.log('Window resized. New scrollY height: ' + newScrollYHeight + 'px');
                 });
+
             </script>
           </body>
         </html>
