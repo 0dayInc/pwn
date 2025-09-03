@@ -318,6 +318,9 @@ module PWN
                     });
 
                     table.buttons().container().appendTo('#toggle_col_and_button_group');
+
+                    // Update Smart Search Label with Example
+                    $('.dt-search label').text('Smart Search (e.g., "password !secure"):').css({'font-weight': 'bold', color: '#B40404'});
                   }
                 });
 

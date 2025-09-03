@@ -243,7 +243,7 @@ module PWN
               // Calculate scrollY: Subtract an offset for non-table elements
               var offset = 325;
               var min_scroll_height = 50;
-              var scrollYHeight = Math.max(min_scroll_height, windowHeight - offset);  // Ensure minimum of 600px
+              var scrollYHeight = Math.max(min_scroll_height, windowHeight - offset);
         )
       rescue StandardError => e
         raise e
