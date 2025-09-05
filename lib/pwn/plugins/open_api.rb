@@ -40,6 +40,9 @@ module PWN
         validation_fixes = []
 
         begin
+          spec_path_root = File.dirname(spec_paths.first)
+          Dir.chdir(spec_path_root)
+
           # Parse base_url to extract host and default base path
           normalized_base_url, default_base_path = normalize_url(url: base_url)
           default_base_path ||= '' # Fallback if base_url has no path
