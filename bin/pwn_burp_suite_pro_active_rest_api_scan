@@ -89,7 +89,8 @@ begin
   base_url = "#{scheme}://#{target_host}"
 
   openapi_spec_version = opts[:openapi_spec_version]
-  openapi_spec = "/tmp/openapi_spec-#{target_host}-#{timestamp}.json"
+  openapi_spec_root = File.dirname(swagger_defs_arr.first)
+  openapi_spec = "#{openapi_spec_root}/openapi_spec-#{target_host}-#{timestamp}.json"
 
   PWN::Plugins::OpenAPI.generate_spec(
     spec_paths: swagger_defs_arr,
