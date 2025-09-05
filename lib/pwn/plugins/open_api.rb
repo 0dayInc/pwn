@@ -24,6 +24,9 @@ module PWN
         spec_paths = opts[:spec_paths] ||= []
         raise ArgumentError, 'spec_paths must be a non-empty array' if spec_paths.empty?
 
+        # Normalize spec_paths to absolute paths
+        spec_paths = spec_paths.map { |p| File.expand_path(p) }
+
         base_url = opts[:base_url]
         raise ArgumentError, 'base_url is required' if base_url.nil? || base_url.empty?
 
@@ -121,70 +124,6 @@ module PWN
             end
           end
 
-          # # Pre-validate input specs
-          # specs.each do |path, spec|
-          #   next unless spec['paths'].is_a?(Hash)
-
-          #   spec['paths'].each do |endpoint, path_item|
-          #     next unless path_item.is_a?(Hash)
-
-          #     path_item.each do |method, operation|
-          #       next unless operation.is_a?(Hash) && operation['parameters'].is_a?(Array)
-
-          #       param_names = operation['parameters'].map { |p| p['name'] }.compact
-          #       duplicates = param_names.tally.select { |_, count| count > 1 }.keys
-          #       raise "Duplicate parameters found in #{path} for path '#{endpoint}' (method: #{method}): #{duplicates.join(', ')}" unless duplicates.empty?
-
-          #       operation['parameters'].each do |param|
-          #         next unless param['in'] == 'path'
-
-          #         raise "Path parameter #{param['name']} in #{path} (path: #{endpoint}, method: #{method}) must have a schema" unless param['schema'].is_a?(Hash)
-          #       end
-          #     end
-          #   end
-          # end
-
-          # # Fix invalid header definitions
-          # specs.each do |path, spec|
-          #   # Clean up null schemas in each spec
-          #   clean_null_schemas(spec, path, '', validation_fixes, debug)
-
-          #   next unless spec['components']&.key?('headers')
-
-          #   spec['components']['headers'].each do |header_name, header|
-          #     next unless header.is_a?(Hash)
-
-          #     if header.key?('name') || header.key?('in')
-          #       validation_fixes << {
-          #         path: "/components/headers/#{header_name}",
-          #         error: "Invalid properties 'name' or 'in' in header",
-          #         fix: "Removed 'name' and 'in' from header definition"
-          #       }
-          #       log("Fixing header '#{header_name}' in #{path}: Removing invalid 'name' and ''in' properties", debug: debug)
-          #       header.delete('name')
-          #       header.delete('in')
-          #     end
-          #     next unless header['schema'].nil?
-
-          #     validation_fixes << {
-          #       path: "/components/headers/#{header_name}",
-          #       error: 'Header schema is null',
-          #       fix: 'Added default schema { type: string }'
-          #     }
-          #     log("Fixing header '#{header_name}' in #{path}: Replacing null schema with default { type: string }", debug: debug)
-          #     header['schema'] = { 'type' => 'string' }
-          #   end
-          # end
-
-          # Fix schema items for arrays (e.g., mediaServers)
-          # specs.each do |path, spec|
-          #   next unless spec['components']&.key?('schemas')
-
-          #   spec['components']['schemas'].each do |schema_name, schema|
-          #     fix_array_items(schema, path, "/components/schemas/#{schema_name}", validation_fixes, debug)
-          #   end
-          # end
-
           # Determine dependencies based on $ref
           dependencies = {}
           specs.each do |path, spec|
@@ -235,7 +174,7 @@ module PWN
               spec['components']['schemas'] = spec.delete('definitions')
             end
 
-            resolved_spec = resolve_refs(spec: spec, specs: specs, spec_paths: spec_paths, referencing_file: path, debug: debug)
+            resolved_spec = resolve_refs(spec: spec, specs: specs, spec_paths: spec_paths, referencing_file: path, debug: debug, target_version: target_version)
 
             # Process server URLs
             selected_server = nil
@@ -669,6 +608,7 @@ module PWN
         referencing_file = opts[:referencing_file] || 'unknown'
         depth = opts[:depth] ||= 0
         debug = opts[:debug] || false
+        target_version = opts[:target_version] || '3.0.3'
         max_depth = 50
 
         raise "Maximum $ref resolution depth exceeded in #{referencing_file}" if depth > max_depth
@@ -682,57 +622,126 @@ module PWN
               json_pointer ||= ''
               if ref_path.empty? || ref_path == '#'
                 log("Resolving internal $ref: #{value} in #{referencing_file}", debug: debug)
-                target = resolve_json_pointer(spec, json_pointer, referencing_file, referencing_file)
+                target = resolve_json_pointer(spec: spec, json_pointer: json_pointer, matched_path: referencing_file, referencing_file: referencing_file, debug: debug, target_version: target_version)
                 if target.nil?
+                  log("Failed to resolve internal $ref #{value}: invalid pointer in #{referencing_file}", debug: debug)
                   resolved[key] = value
                 else
-                  resolved = resolve_refs(spec: target, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth + 1, debug: debug)
+                  resolved = resolve_refs(spec: target, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth + 1, debug: debug, target_version: target_version)
                 end
               else
                 matched_path = resolve_ref_path(ref: ref_path, spec_paths: spec_paths, referencing_file: referencing_file)
+                unless File.exist?(matched_path)
+                  log("External file not found for $ref: #{matched_path} from #{referencing_file}", debug: debug)
+                  resolved[key] = value
+                  next
+                end
                 unless specs.key?(matched_path)
-                  log("Unable to resolve external $ref: #{value} from #{referencing_file}", debug: debug)
+                  log("Loading external $ref: #{value} from #{referencing_file} at #{matched_path}", debug: debug)
                   begin
-                    return value unless File.exist?(ref_path)
-
-                    case File.extname(ref_path).downcase
+                    case File.extname(matched_path).downcase
                     when '.yaml', '.yml'
-                      specs[ref_path] = YAML.safe_load_file(ref_path, permitted_classes: [Symbol, Date, Time], aliases: true)
-                      spec_paths << ref_path unless spec_paths.include?(ref_path)
+                      specs[matched_path] = YAML.safe_load_file(matched_path, permitted_classes: [Symbol, Date, Time], aliases: true)
+                      spec_paths << matched_path unless spec_paths.include?(matched_path)
                     when '.json'
-                      specs[ref_path] = JSON.parse(File.read(ref_path))
+                      specs[matched_path] = JSON.parse(File.read(matched_path))
+                      spec_paths << matched_path unless spec_paths.include?(matched_path)
                     else
-                      log("Unsupported file type for $ref: #{ref_path} from #{referencing_file}", debug: debug)
-                      return value
+                      log("Unsupported file type for $ref: #{matched_path} from #{referencing_file}", debug: debug)
+                      resolved[key] = value
+                      next
                     end
                   rescue StandardError => e
-                    log("Failed to load external $ref #{ref_path}: #{e.message} from #{referencing_file}", debug: debug)
-                    return value
+                    log("Failed to load external $ref #{matched_path}: #{e.message} from #{referencing_file}", debug: debug)
+                    resolved[key] = value
+                    next
                   end
                 end
                 ref_spec = specs[matched_path]
-                target = json_pointer.empty? ? ref_spec : resolve_json_pointer(ref_spec, json_pointer, matched_path, referencing_file)
-                if target.nil?
-                  log("Invalid JSON pointer #{json_pointer} in #{matched_path} from #{referencing_file}", debug: debug)
-                  resolved[key] = value
-                else
-                  resolved = resolve_refs(spec: target, specs: specs, spec_paths: spec_paths, referencing_file: matched_path, depth: depth + 1, debug: debug)
+                # Migrate external spec if necessary
+                if target_version.start_with?('3.') && ref_spec['definitions']
+                  log("Migrating external spec #{matched_path} 'definitions' to 'components/schemas'", debug: debug)
+                  ref_spec['components'] ||= {}
+                  ref_spec['components']['schemas'] = ref_spec.delete('definitions')
                 end
+                target = json_pointer.empty? ? ref_spec : resolve_json_pointer(spec: ref_spec, json_pointer: json_pointer, matched_path: matched_path, referencing_file: referencing_file, debug: debug, target_version: target_version)
+                if target.nil?
+                  log("Failed to resolve in specified file #{matched_path}, searching other files in directory for #{json_pointer}", debug: debug)
+                  dir = File.dirname(referencing_file)
+                  potential_files = Dir.glob("#{dir}/*.{yaml,yml,json}")
+                  found = false
+                  potential_files.each do |pot_file|
+                    abs_pot = File.expand_path(pot_file)
+                    next if abs_pot == matched_path || abs_pot == referencing_file
+
+                    unless specs.key?(abs_pot)
+                      begin
+                        valid_ext = %w[.yaml .yml .json]
+                        ext = File.extname(abs_pot).downcase
+                        if valid_ext.exclude?(ext)
+                          specs[abs_pot] = YAML.safe_load_file(abs_pot, permitted_classes: [Symbol, Date, Time], aliases: true)
+                        elsif ext == '.json'
+                          specs[abs_pot] = JSON.parse(File.read(abs_pot))
+                        else
+                          next
+                        end
+                        spec_paths << abs_pot unless spec_paths.include?(abs_pot)
+                      rescue StandardError => e
+                        log("Failed to load potential file #{abs_pot}: #{e.message}", debug: debug)
+                        next
+                      end
+                    end
+                    pot_spec = specs[abs_pot]
+                    if target_version.start_with?('3.') && pot_spec['definitions']
+                      log("Migrating potential spec #{abs_pot} 'definitions' to 'components/schemas'", debug: debug)
+                      pot_spec['components'] ||= {}
+                      pot_spec['components']['schemas'] = pot_spec.delete('definitions')
+                    end
+                    pot_target = json_pointer.empty? ? pot_spec : resolve_json_pointer(spec: pot_spec, json_pointer: json_pointer, matched_path: abs_pot, referencing_file: referencing_file, debug: debug, target_version: target_version)
+                    next unless pot_target.nil?
+
+                    log("Found schema in alternative file #{abs_pot} for original $ref #{value}", debug: debug)
+                    target = pot_target
+                    matched_path = abs_pot
+                    found = true
+                    break
+                  end
+                  unless found
+                    log("Invalid JSON pointer #{json_pointer} in #{matched_path} from #{referencing_file} and no alternative found", debug: debug)
+                    resolved[key] = value
+                    next
+                  end
+                end
+                resolved = resolve_refs(spec: target, specs: specs, spec_paths: spec_paths, referencing_file: matched_path, depth: depth + 1, debug: debug, target_version: target_version)
               end
             else
-              resolved[key] = resolve_refs(spec: value, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth, debug: debug)
+              resolved[key] = resolve_refs(spec: value, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth, debug: debug, target_version: target_version)
             end
           end
           resolved
         when Array
-          spec.map { |item| resolve_refs(spec: item, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth, debug: debug) }
+          spec.map { |item| resolve_refs(spec: item, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth, debug: debug, target_version: target_version) }
         else
           spec
         end
       end
 
-      private_class_method def self.resolve_json_pointer(spec, json_pointer, _matched_path, _referencing_file)
+      private_class_method def self.resolve_json_pointer(opts = {})
+        spec = opts[:spec]
+        json_pointer = opts[:json_pointer]
+        matched_path = opts[:matched_path]
+        referencing_file = opts[:referencing_file]
+        debug = opts[:debug] || false
+        target_version = opts[:target_version] || '3.0.3'
         pointer_parts = json_pointer.split('/').reject(&:empty?)
+        # Adjust pointer for version mismatches
+        if pointer_parts.first == 'definitions' && !spec.key?('definitions') && spec.dig('components', 'schemas')
+          log("Adjusting pointer from /definitions to /components/schemas for #{json_pointer} in #{matched_path}", debug: debug)
+          pointer_parts = %w[components schemas] + pointer_parts[1..-1]
+        elsif pointer_parts[0..1] == %w[components schemas] && !spec.dig('components', 'schemas') && spec['definitions']
+          log("Adjusting pointer from /components/schemas to /definitions for #{json_pointer} in #{matched_path}", debug: debug)
+          pointer_parts = ['definitions'] + pointer_parts[2..-1]
+        end
         target = spec
         pointer_parts.each do |part|
           part = part.gsub('~1', '/').gsub('~0', '~')
@@ -751,13 +760,18 @@ module PWN
         ref = ref.sub('file://', '') if ref.start_with?('file://')
         return ref if ref.start_with?('http://', 'https://')
 
-        normalized_ref = ref.sub(%r{^\./}, '').sub(%r{^/}, '')
-        spec_paths.each do |path|
-          normalized_path = path.sub(%r{^\./}, '').sub(%r{^/}, '')
-          return path if normalized_path == normalized_ref || File.basename(normalized_path) == File.basename(normalized_ref)
-        end
+        referencing_dir = File.dirname(referencing_file)
+        absolute_ref = File.expand_path(ref, referencing_dir)
 
-        ref
+        # Check if the absolute_ref is already in spec_paths
+        return absolute_ref if spec_paths.include?(absolute_ref)
+
+        # Fallback: check if any spec_path matches the basename (for compatibility)
+        basename = File.basename(absolute_ref)
+        matched = spec_paths.find { |p| File.basename(p) == basename }
+        return matched if matched
+
+        absolute_ref
       end
 
       private_class_method def self.deep_merge(opts = {})
