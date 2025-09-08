@@ -51,7 +51,6 @@ module PWN
     autoload :OpenAI, 'pwn/plugins/open_ai'
     autoload :OpenAPI, 'pwn/plugins/open_api'
     autoload :OpenVAS, 'pwn/plugins/openvas'
-    autoload :OwaspZap, 'pwn/plugins/owasp_zap'
     autoload :Packet, 'pwn/plugins/packet'
     autoload :PDFParse, 'pwn/plugins/pdf_parse'
     autoload :Pony, 'pwn/plugins/pony'
@@ -77,6 +76,7 @@ module PWN
     autoload :Voice, 'pwn/plugins/voice'
     autoload :Vsphere, 'pwn/plugins/vsphere'
     autoload :XXD, 'pwn/plugins/xxd'
+    autoload :Zaproxy, 'pwn/plugins/zaproxy'
 
     # Display a List of Every PWN::Plugins Module
 

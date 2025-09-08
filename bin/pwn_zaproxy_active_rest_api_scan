@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'pwn'
 require 'optparse'
 require 'uri'
@@ -11,23 +12,27 @@ OptionParser.new do |options|
     #{File.basename($PROGRAM_NAME)} [opts]
   "
 
+  options.on('-aAPIKEY', '--api_key=APIKEY', '<Required - OWASP Zap API Key (Tools>Options>API)>') do |a|
+    opts[:api_key] = a
+  end
+
   options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
     opts[:target_url] = t
   end
 
-  options.on('-oDIR', '--report_output_dir=DIR', '<Required - Output Directory for Active Scan Report>') do |o|
-    opts[:output_dir] = o
+  options.on('-oPATH', '--report_output_path=PATH', '<Required - Output Path for Active Scan Issues>') do |o|
+    opts[:output_path] = o
   end
 
   options.on('-dSWAGGER', '--swagger_definitions=SWAGGER', '<Required - Comma-delimited list of Swagger JSON/YAML files to import>') do |s|
     opts[:swagger_definitions] = s
   end
 
-  options.on('-bBPATH', '--burp_path=BPATH', '<Optional - Path to Burp Suite Pro Jar File (Defaults to /opt/burpsuite/burpsuite-pro.jar)>') do |b|
-    opts[:burp_jar_path] = b
+  options.on('-zZPATH', '--zap_bin_path=ZPATH', '<Optional - Path to zap.sh>') do |z|
+    opts[:zap_bin_path] = z
   end
 
-  options.on('-h', '--[no-]headless', '<Optional - Run Burp and Browser Headless>') do |h|
+  options.on('-h', '--[no-]headless', '<Optional - Run ZAP and Browser Headless>') do |h|
     opts[:headless] = h
   end
 
@@ -41,14 +46,6 @@ OptionParser.new do |options|
 
   options.on('-HJSON', '--additional_http_headers=JSON', '<Optional - JSON string of additional HTTP headers to include in requests (e.g. \'{"Header1":"Value1","Header2":"Value2"}\')>') do |h|
     opts[:additional_http_headers] = h
-  end
-
-  options.on('-cCOLOR', '--highlight-color=COLOR', '<Optional - Highlight Color to use when importing OpenAPI/Swagger definitions  NONE||RED||ORANGE||YELLOW||GREEN||CYAN||BLUE||PINK||MAGENTA||GRAY (Defaults to GREEN)>') do |h|
-    opts[:highlight_color] = h
-  end
-
-  options.on('-nCOMMENTS', '--notes=COMMENTS', '<Optional - Comments to add when importing OpenAPI/Swagger definitions (Defaults to "Imported via <openapi_spec> on <timestamp>")>') do |n|
-    opts[:notes] = n
   end
 
   options.on('-eLIST', '--exclude_paths=LIST', '<Optional - Comma-delimited list of paths to exlude from scanning (e.g. "/api/login, /api/logout, /api/etc")>') do |e|
@@ -69,16 +66,19 @@ begin
   timestamp = Time.now.strftime('%Y-%m-%d_%H-%M-%S%Z')
   logger = PWN::Plugins::PWNLogger.create
 
+  api_key = opts[:api_key]
+  raise 'ERROR: --api_key is required.' if api_key.nil?
+
   target_url = opts[:target_url]
   raise 'ERROR: --target_url is required.' if target_url.nil?
 
-  output_dir = opts[:output_dir]
-  raise 'ERROR: --report_output_dir is required.' if output_dir.nil?
+  output_path = opts[:output_path]
+  raise 'ERROR: --report_output_path is required.' if output_path.nil?
 
   swagger_definitions = opts[:swagger_definitions]
   raise 'ERROR: --swagger_definitions is required.' if swagger_definitions.nil?
 
-  burp_jar_path = opts[:burp_jar_path]
+  zap_bin_path = opts[:zap_bin_path]
   headless = opts[:headless] || false
   debug = opts[:debug] || false
 
@@ -102,73 +102,65 @@ begin
   additional_http_headers = opts[:additional_http_headers]
   additional_http_headers = JSON.parse(additional_http_headers, symbolize_names: true) if additional_http_headers.is_a?(String)
 
-  highlight_color = opts[:highlight_color] ||= 'GREEN'
-  notes = opts[:notes] ||= "Imported via #{openapi_spec} on #{timestamp}"
-
   exlude_paths = opts[:exclude_paths]
   exlude_paths = exlude_paths.split(',').map(&:strip) if exlude_paths.is_a?(String)
 
   in_scope = opts[:in_scope] ||= target_url
 
   # ------
-  # Open Burp
+  # Open ZAP
   if headless
-    burp_obj = PWN::Plugins::BurpSuite.start(
-      burp_jar_path: burp_jar_path,
-      browser_type: :headless
+    zap_obj = PWN::Plugins::Zaproxy.start(
+      zap_bin_path: zap_bin_path,
+      headless: headless
     )
   else
-    burp_obj = PWN::Plugins::BurpSuite.start(
-      burp_jar_path: burp_jar_path,
+    zap_obj = PWN::Plugins::Zaproxy.start(
+      zap_bin_path: zap_bin_path,
       browser_type: :chrome
     )
   end
 
-  logger.info(burp_obj)
-  # Disable Proxy Intercepting Capabilities for this Driver
-  PWN::Plugins::BurpSuite.disable_proxy(burp_obj: burp_obj)
+  logger.info(zap_obj)
 
-  # Add URL to Target >> Scope >> Inclue in scope
-  PWN::Plugins::BurpSuite.add_to_scope(
-    burp_obj: burp_obj,
-    target_url: in_scope
+  json_sitemap = PWN::Plugins::Zaproxy.import_openapi_to_sitemap(
+    zap_obj: zap_obj,
+    openapi_spec: openapi_spec
   )
 
-  json_sitemap = PWN::Plugins::BurpSuite.import_openapi_to_sitemap(
-    burp_obj: burp_obj,
-    openapi_spec: openapi_spec,
-    additional_http_headers: additional_http_headers,
-    highlight: highlight_color,
-    comment: notes,
-    debug: debug
-  )
+  raise "ERROR: Failed to import OpenAPI/Swagger spec #{openapi_spec} into ZAP's Sitemap." if json_sitemap.nil? || json_sitemap.empty?
 
-  raise "ERROR: Failed to import OpenAPI/Swagger spec #{openapi_spec} into Burp Suite Pro's Sitemap." if json_sitemap.nil? || json_sitemap.empty?
-
-  PWN::Plugins::BurpSuite.active_scan(
-    burp_obj: burp_obj,
-    target_url: in_scope,
+  PWN::Plugins::Zaproxy.active_scan(
+    zap_obj: zap_obj,
+    target_url: target_url,
     exclude_paths: exlude_paths
   )
 
   # Dump a list of scan issues from Active Scan result
-  # scan_issues = PWN::Plugins::BurpSuite.get_scan_issues(burp_obj: burp_obj)
+  # scan_issues = PWN::Plugins::Zaproxy.get_scan_issues(zap_obj: zap_obj)
   # puts scan_issues
 
   # Once DefectDojo begins to support XML report results
   report_types = %i[html xml]
   report_types.each do |report_type|
-    PWN::Plugins::BurpSuite.generate_scan_report(
-      burp_obj: burp_obj,
+    this_output_path = "#{output_path}.html"
+    # this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
+
+    this_output_path = "#{output_path}.xml" if report_type == :xml
+    # this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml" if report_type == :xml
+
+    PWN::Plugins::Zaproxy.generate_scan_report(
+      zap_obj: zap_obj,
       target_url: in_scope,
       report_type: report_type,
-      output_dir: output_dir
+      output_path: this_output_path
     )
   end
 
-  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj)
+  zap_obj = PWN::Plugins::Zaproxy.stop(zap_obj: zap_obj)
 rescue StandardError => e
   raise e
 ensure
-  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj) unless burp_obj.nil?
+  FileUtils.rm_f(openapi_spec) unless debug
+  zap_obj = PWN::Plugins::Zaproxy.stop(zap_obj: zap_obj) unless zap_obj.nil?
 end

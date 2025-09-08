@@ -879,13 +879,13 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # active_scan_url_arr = PWN::Plugins::BurpSuite.invoke_active_scan(
+      # active_scan_url_arr = PWN::Plugins::BurpSuite.active_scan(
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])',
       #   exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
       # )
 
-      public_class_method def self.invoke_active_scan(opts = {})
+      public_class_method def self.active_scan(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         pwn_burp_api = burp_obj[:pwn_burp_api]
@@ -1016,9 +1016,9 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::BurpSuite.generate_scan_report(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   target_url: 'required - target_url passed to #invoke_active_scan method',
-      #   report_type: :html|:xml|:both,
-      #   output_path: 'required - path to save report results'
+      #   target_url: 'required - target_url passed to #active_scan method',
+      #   output_dir: 'required - directory to save the report',
+      #   report_type: required - <:html|:xml>'
       # )
 
       public_class_method def self.generate_scan_report(opts = {})
@@ -1026,16 +1026,20 @@ module PWN
         target_url = opts[:target_url]
         rest_browser = burp_obj[:rest_browser]
         pwn_burp_api = burp_obj[:pwn_burp_api]
+        output_dir = opts[:output_dir]
+        raise "ERROR: #{output_dir} does not exist." unless Dir.exist?(output_dir)
+
         report_type = opts[:report_type]
-        # When pwn_burp begins to support XML report generation
-        valid_report_types_arr = %i[
-          html
-          xml
-        ]
 
-        raise 'INVALID Report Type' unless valid_report_types_arr.include?(report_type)
+        valid_report_types_arr = %i[html xml]
+        raise "ERROR: INVALID Report Type => #{report_type}" unless valid_report_types_arr.include?(report_type)
 
-        output_path = opts[:output_path].to_s.scrub
+        case report_type
+        when :html
+          report_path = "#{output_dir}/burp_active_scan_results.html"
+        when :xml
+          report_path = "#{output_dir}/burp_active_scan_results.xml"
+        end
 
         scheme = URI.parse(target_url).scheme
         host = URI.parse(target_url).host
@@ -1058,7 +1062,7 @@ module PWN
           "http://#{pwn_burp_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
         )
 
-        File.open(output_path, 'w') do |f|
+        File.open(report_path, 'w') do |f|
           f.puts(report_resp.body.gsub("\r\n", "\n"))
         end
       rescue RestClient::BadRequest => e
@@ -1198,7 +1202,7 @@ module PWN
             comment: 'optional - comment for the sitemap entry (default: \"\")',
           )
 
-          active_scan_url_arr = #{self}.invoke_active_scan(
+          active_scan_url_arr = #{self}.active_scan(
             burp_obj: 'required - burp_obj returned by #start method',
             target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])',
             exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
@@ -1210,9 +1214,9 @@ module PWN
 
           #{self}.generate_scan_report(
             burp_obj: 'required - burp_obj returned by #start method',
-            target_url: 'required - target_url passed to #invoke_active_scan method',
-            report_type: :html|:xml,
-            output_path: 'required - path to save report results'
+            target_url: 'required - target_url passed to #active_scan method',
+            output_dir: 'required - directory to save the report',
+            report_type: 'required - <:html|:xml>'
           )
 
           #{self}.stop(

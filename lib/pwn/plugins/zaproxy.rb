@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'cgi'
 require 'pty'
 require 'securerandom'
 require 'json'
@@ -9,7 +10,7 @@ module PWN
   module Plugins
     # This plugin converts images to readable text
     # TODO: Convert all rest requests to POST instead of GET
-    module OwaspZap
+    module Zaproxy
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
@@ -30,12 +31,10 @@ module PWN
                       end
         params = opts[:params]
         http_body = opts[:http_body].to_s.scrub
-        host = zap_obj[:host]
-        port = zap_obj[:port]
-        base_zap_api_uri = "http://#{host}:#{port}"
+        zap_rest_api = zap_obj[:zap_rest_api]
+        base_zap_api_uri = "http://#{zap_rest_api}"
 
-        browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
-        rest_client = browser_obj[:browser]::Request
+        rest_client = zap_obj[:rest_browser]::Request
 
         case http_method
         when :get
@@ -72,10 +71,11 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # zap_obj = PWN::Plugins::OwaspZap.start(
+      # zap_obj = PWN::Plugins::Zaproxy.start(
       #   api_key: 'required - api key for API authorization',
       #   zap_bin_path: 'optional - path to zap.sh file'
       #   headless: 'optional - run zap headless if set to true',
+      #   browser_type: 'optional - defaults to :firefox.  See PWN::Plugins::TransparentBrowser.help for a list of types',
       #   proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:<Random 1024-65535>)',
       # )
 
@@ -84,14 +84,9 @@ module PWN
         api_key = opts[:api_key].to_s.scrub.strip.chomp
         zap_obj[:api_key] = api_key
 
-        headless = if opts[:headless]
-                     true
-                   else
-                     false
-                   end
-
         if opts[:zap_bin_path]
-          zap_bin_path = opts[:zap_bin_path].to_s.scrub.strip.chomp if File.exist?(opts[:zap_bin_path].to_s.scrub.strip.chomp)
+          zap_bin_path = opts[:zap_bin_path]
+          raise "ERROR: zap.sh not found at #{zap_bin_path}" unless File.exist?(zap_bin_path)
         else
           underlying_os = PWN::Plugins::DetectOS.type
 
@@ -108,21 +103,36 @@ module PWN
         zap_bin = File.basename(zap_bin_path)
         zap_dir = File.dirname(zap_bin_path)
 
+        headless = opts[:headless] || false
+        browser_type = opts[:browser_type] ||= :firefox
+        zap_ip = opts[:zap_ip] ||= '127.0.0.1'
+        zap_port = opts[:zap_port] ||= PWN::Plugins::Sock.get_random_unused_port
+
+        zap_rest_ip = opts[:pwn_zap_ip] ||= '127.0.0.1'
+        zap_rest_port = opts[:pwn_zap_port] ||= PWN::Plugins::Sock.get_random_unused_port
+
         if headless
-          owasp_zap_cmd = "cd #{zap_dir} && ./#{zap_bin} -daemon"
+          zaproxy_cmd = "cd #{zap_dir} && ./#{zap_bin} -daemon"
         else
-          owasp_zap_cmd = "cd #{zap_dir} && ./#{zap_bin}"
+          zaproxy_cmd = "cd #{zap_dir} && ./#{zap_bin}"
         end
 
-        random_port = PWN::Plugins::Sock.get_random_unused_port
+        browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_browser = browser_obj1[:browser]
 
-        proxy = "http://127.0.0.1:#{random_port}"
-        proxy = opts[:proxy].to_s.scrub.strip.chomp if opts[:proxy]
+        zap_obj[:mitm_proxy] = "#{zap_ip}:#{zap_port}"
+        zap_obj[:zap_rest_api] = zap_obj[:mitm_proxy]
+        zap_obj[:rest_browser] = rest_browser
 
-        proxy_uri = URI.parse(proxy)
-        owasp_zap_cmd = "#{owasp_zap_cmd} -host #{proxy_uri.host} -port #{proxy_uri.port}"
-        zap_obj[:host] = proxy_uri.host.to_s.scrub
-        zap_obj[:port] = proxy_uri.port.to_i
+        zaproxy_cmd = "#{zaproxy_cmd} -host #{zap_ip} -port #{zap_port}"
+
+        browser_obj2 = PWN::Plugins::TransparentBrowser.open(
+          browser_type: browser_type,
+          proxy: "http://#{zap_obj[:mitm_proxy]}",
+          devtools: true
+        )
+
+        zap_obj[:zap_browser] = browser_obj2
 
         pwn_stdout_log_path = "/tmp/pwn_plugins_owasp-#{SecureRandom.hex}.log"
         pwn_stdout_log = File.new(pwn_stdout_log_path, 'w')
@@ -131,7 +141,7 @@ module PWN
         pwn_stdout_log.fsync
 
         fork_pid = Process.fork do
-          PTY.spawn(owasp_zap_cmd) do |stdout, _stdin, _pid|
+          PTY.spawn(zaproxy_cmd) do |stdout, _stdin, _pid|
             stdout.each do |line|
               puts line
               pwn_stdout_log.puts line
@@ -176,25 +186,57 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.spider(
+      # PWN::Plugins::Zaproxy.import_openapi_to_sitemap(
       #   zap_obj: 'required - zap_obj returned from #open method',
-      #   target: 'required - url to spider'
+      #   openapi_spec: 'required - path to OpenAPI JSON or YAML spec file'
+      # )
+
+      public_class_method def self.import_openapi_to_sitemap(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        openapi_spec = opts[:openapi_spec]
+        raise "ERROR: openapi_spec file #{openapi_spec} does not exist" unless File.exist?(openapi_spec)
+
+        openapi_spec_root = File.dirname(openapi_spec)
+        Dir.chdir(openapi_spec_root)
+
+        params = {
+          apikey: api_key,
+          file: openapi_spec
+        }
+
+        response = zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'JSON/openapi/action/importFile/',
+          params: params
+        )
+
+        JSON.parse(response.body, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.spider(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   target_url: 'required - url to spider'
       # )
 
       public_class_method def self.spider(opts = {})
         zap_obj = opts[:zap_obj]
-        target = opts[:target].to_s.scrub
+        target_url = opts[:target_url].to_s.scrub
         api_key = zap_obj[:api_key].to_s.scrub
 
-        # target_domain_name = URI.parse(target).host
+        # target_domain_name = URI.parse(target_url).host
 
         params = {
           apikey: api_key,
-          url: target,
+          url: target_url,
           maxChildren: 9,
           recurse: 3,
           contextName: '',
-          subtreeOnly: target
+          subtreeOnly: target_url
         }
 
         response = zap_rest_call(
@@ -229,26 +271,26 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.active_scan(
+      # PWN::Plugins::Zaproxy.active_scan(
       #   zap_obj: 'required - zap_obj returned from #open method',
-      #   target:  'required - url to scan',
+      #   target_url:  'required - url to scan',
       #   scan_policy: 'optional - scan policy to use (defaults to Default Policy)'
       # )
 
       public_class_method def self.active_scan(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
-        target = opts[:target]
+        target_url = opts[:target_url]
         if opts[:scan_policy].nil?
           scan_policy = 'Default Policy'
         else
           scan_policy = opts[:scan_policy].to_s.scrub.strip.chomp
         end
 
-        # TODO: Implement adding target to scope so that inScopeOnly can be changed to true
+        # TODO: Implement adding target_url to scope so that inScopeOnly can be changed to true
         params = {
           apikey: api_key,
-          url: target,
+          url: target_url,
           recurse: true,
           inScopeOnly: true,
           scanPolicyName: scan_policy
@@ -286,19 +328,19 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.alerts(
+      # PWN::Plugins::Zaproxy.alerts(
       #   zap_obj: 'required - zap_obj returned from #open method',
-      #   target: 'required - base url to return alerts'
+      #   target_url: 'required - base url to return alerts'
       # )
 
       public_class_method def self.alerts(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
-        target = opts[:target]
+        target_url = opts[:target_url]
 
         params = {
           apikey: api_key,
-          url: target
+          url: target_url
         }
 
         response = zap_rest_call(
@@ -314,35 +356,38 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # report_path = PWN::Plugins::OwaspZap.generate_report(
+      # report_path = PWN::Plugins::Zaproxy.generate_scan_report(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   output_dir: 'required - directory to save report',
-      #   report_type: 'required - <html|markdown|xml>'
+      #   report_type: 'required - <:html|:markdown|:xml>'
       # )
 
-      public_class_method def self.generate_report(opts = {})
+      public_class_method def self.generate_scan_report(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
-        output_dir = opts[:output_dir] if Dir.exist?(opts[:output_dir])
-        report_type = opts[:report_type].to_s.strip.chomp.scrub.to_sym
+        output_dir = opts[:output_dir]
+        raise "ERROR: output_dir #{output_dir} does not exist." unless Dir.exist?(output_dir)
+
+        report_type = opts[:report_type]
+
+        valid_report_types_arr = %i[html markdown xml]
+        raise "ERROR: Invalid report_type => #{report_type}" unless valid_report_types_arr.include?(report_type)
+
+        case report_type
+        when :html
+          report_path = "#{output_dir}/zaproxy_active_scan_results.html"
+          rest_call = 'OTHER/core/other/htmlreport/'
+        when :markdown
+          report_path = "#{output_dir}/zaproxy_active_scan_results.md"
+          rest_call = 'OTHER/core/other/mdreport/'
+        when :xml
+          report_path = "#{output_dir}/zaproxy_active_scan_results.xml"
+          rest_call = 'OTHER/core/other/xmlreport/'
+        end
 
         params = {
           apikey: api_key
         }
-
-        case report_type
-        when :html
-          report_path = "#{output_dir}/OWASP_Zap_Results.html"
-          rest_call = 'OTHER/core/other/htmlreport/'
-        when :markdown
-          report_path = "#{output_dir}/OWASP_Zap_Results.md"
-          rest_call = 'OTHER/core/other/mdreport/'
-        when :xml
-          report_path = "#{output_dir}/OWASP_Zap_Results.xml"
-          rest_call = 'OTHER/core/other/xmlreport/'
-        else
-          raise @@logger.error("ERROR: Unsupported report type: #{report_type}\nValid report types are <html|markdown|xml>")
-        end
 
         response = zap_rest_call(
           zap_obj: zap_obj,
@@ -361,7 +406,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.breakpoint(
+      # PWN::Plugins::Zaproxy.breakpoint(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   regex_type: 'required - :url, :request_header, :request_body, :response_header or :response_body',
       #   regex_pattern: 'required - regex pattern to search for respective regex_type',
@@ -395,7 +440,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.tamper(
+      # PWN::Plugins::Zaproxy.tamper(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   domain: 'required - FQDN to tamper (e.g. test.domain.local)',
       #   enabled: 'optional - boolean (defaults to true)'
@@ -427,42 +472,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.import_openapi_spec_file(
-      #   zap_obj: 'required - zap_obj returned from #open method',
-      #   spec: 'required - path to OpenAPI spec file (e.g. /path/to/openapi.yaml)',
-      #   target: 'required - target URL to ovverride the service URL in the OpenAPI spec (e.g. https://fq.dn)',
-      #   context_id: 'optional - ID of the ZAP context (Defaults to first context, if any)',
-      #   user_id: 'optional - ID of the ZAP user (Defaults to first user, if any)'
-      # )
-
-      public_class_method def self.import_openapi_spec_file(opts = {})
-        zap_obj = opts[:zap_obj]
-        api_key = zap_obj[:api_key].to_s.scrub
-        spec = opts[:spec]
-        target = opts[:target]
-        context_id = opts[:context_id]
-        user_id = opts[:user_id]
-
-        params = {
-          apikey: api_key,
-          file: spec,
-          target: target,
-          contextId: context_id,
-          user_id: user_id
-        }
-
-        zap_rest_call(
-          zap_obj: zap_obj,
-          rest_call: "JSON/break/action/openapi/?zapapiformat=JSON&apikey=#{api_key}",
-          params: params
-        )
-      rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # watir_resp = PWN::Plugins::OwaspZap.request(
+      # watir_resp = PWN::Plugins::Zaproxy.request(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   browser_obj: 'required - browser_obj w/ browser_type: :firefox||:headless returned from #open method',
       #   instruction: 'required - watir instruction to make (e.g. button(text: "Google Search").click)'
@@ -502,14 +512,28 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::OwaspZap.stop(
-      #   :zap_obj => 'required - zap_obj returned from #start method'
+      # PWN::Plugins::Zaproxy.stop(
+      #   zap_obj: 'required - zap_obj returned from #open method'
       # )
 
       public_class_method def self.stop(opts = {})
         zap_obj = opts[:zap_obj]
-        Process.kill('TERM', zap_obj[:pid]) unless zap_obj.nil?
-      rescue StandardError => e
+        api_key = zap_obj[:api_key]
+        browser_obj = zap_obj[:zap_browser]
+        rest_browser = zap_obj[:rest_browser]
+
+        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
+
+        params = { apikey: api_key }
+        zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'JSON/core/action/shutdown/',
+          params: params
+        )
+
+        zap_obj = nil
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -531,28 +555,32 @@ module PWN
             headless: 'optional - run zap headless if set to true',
             proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:<Random 1024-65535>)'
           )
-          puts zap_obj.public_methods
 
           #{self}.spider(
             zap_obj: 'required - zap_obj returned from #open method',
-            target: 'required - url to spider'
+            target_url: 'required - url to spider'
+          )
+
+          #{self}.import_openapi_to_sitemap(
+            zap_obj: 'required - zap_obj returned from #open method',
+            openapi_spec: 'required - path to OpenAPI JSON or YAML spec file'
           )
 
           #{self}.active_scan(
             zap_obj: 'required - zap_obj returned from #open method'
-            target: 'required - url to scan',
+            target_url: 'required - url to scan',
             scan_policy: 'optional - scan policy to use (defaults to Default Policy)'
           )
 
           json_alerts = #{self}.alerts(
             zap_obj: 'required - zap_obj returned from #open method'
-            target: 'required - base url to return alerts'
+            target_url: 'required - base url to return alerts'
           )
 
-          report_path = #{self}.generate_report(
+          report_path = #{self}.generate_scan_report(
             zap_obj: 'required - zap_obj returned from #open method',
             output_dir: 'required - directory to save report',
-            report_type: 'required - <html|markdown|xml>'
+            report_type: 'required - <:html|:markdown|:xml>'
           )
 
           #{self}.breakpoint(
