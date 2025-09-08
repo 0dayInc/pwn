@@ -104,7 +104,7 @@ begin
   browser = browser_obj[:browser]
   browser.goto(target_url)
 
-  unless navigation_instruct.nil?
+  if navigation_instruct
     File.read(navigation_instruct).each_line do |instruction|
       # Look for any set method in this instruction and replace its value w/ asterisks
       redact_regex = /\.set\(['"]([^'"]*)['"]\)/

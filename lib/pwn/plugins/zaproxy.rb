@@ -81,50 +81,40 @@ module PWN
 
       public_class_method def self.start(opts = {})
         zap_obj = {}
-        api_key = opts[:api_key].to_s.scrub.strip.chomp
+        api_key = opts[:api_key]
+        raise 'ERROR: api_key must be provided' if api_key.nil?
+
         zap_obj[:api_key] = api_key
 
-        if opts[:zap_bin_path]
-          zap_bin_path = opts[:zap_bin_path]
-          raise "ERROR: zap.sh not found at #{zap_bin_path}" unless File.exist?(zap_bin_path)
-        else
-          underlying_os = PWN::Plugins::DetectOS.type
-
-          case underlying_os
-          when :linux
-            zap_bin_path = '/usr/share/zaproxy/zap.sh'
-          when :osx
-            zap_bin_path = '/Applications/OWASP\ ZAP.app/Contents/Java/zap.sh'
-          else
-            raise "ERROR: zap.sh not found for #{underlying_os}. Please pass the :zap_bin_path parameter to this method for proper execution"
-          end
-        end
+        zap_bin_path = opts[:zap_bin_path] ||= '/usr/share/zaproxy/zap.sh'
+        raise "ERROR: #{zap_bin_path} not found." unless File.exist?(zap_bin_path)
 
         zap_bin = File.basename(zap_bin_path)
-        zap_dir = File.dirname(zap_bin_path)
+        zap_root = File.dirname(zap_bin_path)
 
         headless = opts[:headless] || false
         browser_type = opts[:browser_type] ||= :firefox
         zap_ip = opts[:zap_ip] ||= '127.0.0.1'
         zap_port = opts[:zap_port] ||= PWN::Plugins::Sock.get_random_unused_port
 
-        zap_rest_ip = opts[:pwn_zap_ip] ||= '127.0.0.1'
-        zap_rest_port = opts[:pwn_zap_port] ||= PWN::Plugins::Sock.get_random_unused_port
+        zap_rest_ip = zap_ip
+        zap_rest_port = zap_port
 
         if headless
-          zaproxy_cmd = "cd #{zap_dir} && ./#{zap_bin} -daemon"
+          zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin} -daemon"
         else
-          zaproxy_cmd = "cd #{zap_dir} && ./#{zap_bin}"
+          zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin}"
         end
 
+        zaproxy_cmd = "#{zaproxy_cmd} -host #{zap_ip} -port #{zap_port}"
+
+        zap_obj[:pid] = Process.spawn(zaproxy_cmd)
         browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_browser = browser_obj1[:browser]
 
         zap_obj[:mitm_proxy] = "#{zap_ip}:#{zap_port}"
         zap_obj[:zap_rest_api] = zap_obj[:mitm_proxy]
         zap_obj[:rest_browser] = rest_browser
-
-        zaproxy_cmd = "#{zaproxy_cmd} -host #{zap_ip} -port #{zap_port}"
 
         browser_obj2 = PWN::Plugins::TransparentBrowser.open(
           browser_type: browser_type,
@@ -134,52 +124,18 @@ module PWN
 
         zap_obj[:zap_browser] = browser_obj2
 
-        pwn_stdout_log_path = "/tmp/pwn_plugins_owasp-#{SecureRandom.hex}.log"
-        pwn_stdout_log = File.new(pwn_stdout_log_path, 'w')
-        # Immediately writes all buffered data in IO to disk
-        pwn_stdout_log.sync = true
-        pwn_stdout_log.fsync
-
-        fork_pid = Process.fork do
-          PTY.spawn(zaproxy_cmd) do |stdout, _stdin, _pid|
-            stdout.each do |line|
-              puts line
-              pwn_stdout_log.puts line
-            end
-          end
-        rescue PTY::ChildExited, SystemExit, Interrupt, Errno::EIO
-          puts 'Spawned OWASP Zap PTY exiting...'
-          File.unlink(pwn_stdout_log_path)
-        rescue StandardError => e
-          puts 'Spawned process exiting...'
-          File.unlink(pwn_stdout_log_path)
-          raise e
-        end
-        Process.detach(fork_pid)
-
-        zap_obj[:pid] = fork_pid
-        zap_obj[:stdout_log] = pwn_stdout_log_path
-        # This is how we'll know OWSAP Zap is in a ready state.
-        # if headless
-        #   return_pattern = '[ZAP-daemon] INFO org.zaproxy.zap.DaemonBootstrap  - ZAP is now listening'
-        # else
-        #   case underlying_os
-        #   when :linux
-        #     return_pattern = '[AWT-EventQueue-1] INFO hsqldb.db..ENGINE  - Database closed'
-        #   when :osx
-        #     return_pattern = '[AWT-EventQueue-0] INFO hsqldb.db..ENGINE  - Database closed'
-        #   end
-        # end
-        return_pattern = 'Started callback service on'
-
+        # Wait for pwn_burp_port to open prior to returning burp_obj
         loop do
-          return zap_obj if File.exist?(pwn_stdout_log_path) &&
-                            File.read(
-                              pwn_stdout_log_path
-                            ).include?(return_pattern)
-
+          s = TCPSocket.new(zap_rest_ip, zap_rest_port)
+          s.close
+          break
+        rescue Errno::ECONNREFUSED
+          print '.'
           sleep 3
+          next
         end
+
+        zap_obj
       rescue StandardError, SystemExit, Interrupt => e
         stop(zap_obj) unless zap_obj.nil?
         raise e

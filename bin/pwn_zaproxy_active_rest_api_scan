@@ -20,8 +20,8 @@ OptionParser.new do |options|
     opts[:target_url] = t
   end
 
-  options.on('-oPATH', '--report_output_path=PATH', '<Required - Output Path for Active Scan Issues>') do |o|
-    opts[:output_path] = o
+  options.on('-oDIR', '--report_output_dir=DIR', '<Required -  Output Directory for Active Scan Report>') do |o|
+    opts[:output_dir] = o
   end
 
   options.on('-dSWAGGER', '--swagger_definitions=SWAGGER', '<Required - Comma-delimited list of Swagger JSON/YAML files to import>') do |s|
@@ -72,8 +72,8 @@ begin
   target_url = opts[:target_url]
   raise 'ERROR: --target_url is required.' if target_url.nil?
 
-  output_path = opts[:output_path]
-  raise 'ERROR: --report_output_path is required.' if output_path.nil?
+  output_dir = opts[:output_dir]
+  raise 'ERROR: --report_output_dir is required.' if output_dir.nil?
 
   swagger_definitions = opts[:swagger_definitions]
   raise 'ERROR: --swagger_definitions is required.' if swagger_definitions.nil?
@@ -141,19 +141,13 @@ begin
   # puts scan_issues
 
   # Once DefectDojo begins to support XML report results
-  report_types = %i[html xml]
+  report_types = %i[html markdown xml]
   report_types.each do |report_type|
-    this_output_path = "#{output_path}.html"
-    # this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.html"
-
-    this_output_path = "#{output_path}.xml" if report_type == :xml
-    # this_output_path = "#{File.dirname(output_path)}/#{File.basename(output_path, File.extname(output_path))}.xml" if report_type == :xml
-
     PWN::Plugins::Zaproxy.generate_scan_report(
       zap_obj: zap_obj,
       target_url: in_scope,
       report_type: report_type,
-      output_path: this_output_path
+      output_dir: output_dir
     )
   end
 
@@ -161,6 +155,5 @@ begin
 rescue StandardError => e
   raise e
 ensure
-  FileUtils.rm_f(openapi_spec) unless debug
   zap_obj = PWN::Plugins::Zaproxy.stop(zap_obj: zap_obj) unless zap_obj.nil?
 end
