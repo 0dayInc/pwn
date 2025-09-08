@@ -59,7 +59,8 @@ end
 begin
   logger = PWN::Plugins::PWNLogger.create
 
-  api_key = opts[:api_key].to_s.strip.chomp.scrub
+  api_key = opts[:api_key]
+  raise 'ERROR: --api_key is required.' if api_key.nil?
 
   if opts[:browser_type].nil?
     browser_type = :chrome
@@ -101,20 +102,16 @@ begin
 
   logger.info(zap_obj)
 
-  browser_obj = PWN::Plugins::TransparentBrowser.open(
-    browser_type: browser_type,
-    proxy: proxy
-  )
+  browser_obj = zap_obj[:zap_browser]
   browser = browser_obj[:browser]
-
-  if browser_type == :rest
-    browser.get(target_url)
-  else
-    browser.goto(target_url)
-  end
+  browser.goto(target_url)
 
   if navigation_instruct
     File.read(navigation_instruct).each_line do |instruction|
+      # Look for any set method in this instruction and replace its value w/ asterisks
+      redact_regex = /\.set\(['"]([^'"]*)['"]\)/
+      redacted_instruction = instruction.gsub(redact_regex, ".set('********')")
+      print "\nExecuting Instruction: #{redacted_instruction}"
       browser.instance_eval(instruction.to_s.scrub.strip.chomp)
     end
   end
