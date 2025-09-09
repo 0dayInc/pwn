@@ -1014,6 +1014,183 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # repeater_id = PWN::Plugins::BurpSuite.add_repeater_tab(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   name: 'required - name of the repeater tab (max 30 characters)',
+      #   request: 'optional - base64 encoded HTTP request string'
+      # )
+
+      public_class_method def self.add_repeater_tab(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        name = opts[:name]
+        raise 'ERROR: name parameter is required' if name.nil?
+
+        request = opts[:request]
+        raise 'ERROR: request parameter is required' if request.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        post_body = {
+          name: name[0..29],
+          request: request
+        }.to_json
+
+        repeater_resp = rest_browser.post(
+          "http://#{pwn_burp_api}/repeater",
+          post_body,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        repeater_resp = JSON.parse(repeater_resp, symbolize_names: true)
+        { id: repeater_resp[:value] }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # repeater_tabs = PWN::Plugins::BurpSuite.get_all_repeater_tabs(
+      #   burp_obj: 'required - burp_obj returned by #start method'
+      # )
+
+      public_class_method def self.get_all_repeater_tabs(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        repeater_resp = rest_browser.get(
+          "http://#{pwn_burp_api}/repeater",
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(repeater_resp, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # repeater_tab = PWN::Plugins::BurpSuite.get_repeater_tab(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   id: 'required - id of the repeater tab to get'
+      # )
+
+      public_class_method def self.get_repeater_tab(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        id = opts[:id]
+        raise 'ERROR: id parameter is required' if id.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        repeater_resp = rest_browser.get(
+          "http://#{pwn_burp_api}/repeater/#{id}",
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(repeater_resp, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # repeater_resp = PWN::Plugins::BurpSuite.send_repeater_request(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   id: 'required - id of the repeater tab to send'
+      # )
+
+      public_class_method def self.send_repeater_request(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        id = opts[:id]
+        raise 'ERROR: id parameter is required' if id.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        repeater_resp = rest_browser.post(
+          "http://#{pwn_burp_api}/repeater/#{id}/send",
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(repeater_resp, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # repeater_obj = PWN::Plugins::BurpSuite.update_repeater_tab(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   id: 'required - id of the repeater tab to update',
+      #   name: 'required - name of the repeater tab (max 30 characters)',
+      #   request: 'required - base64 encoded HTTP request string'
+      # )
+
+      public_class_method def self.update_repeater_tab(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        id = opts[:id]
+        raise 'ERROR: id parameter is required' if id.nil?
+
+        name = opts[:name]
+        raise 'ERROR: name parameter is required' if name.nil?
+
+        request = opts[:request]
+        raise 'ERROR: request parameter is required' if request.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        put_body = {
+          name: name[0..29],
+          request: request
+        }.to_json
+
+        repeater_resp = rest_browser.put(
+          "http://#{pwn_burp_api}/repeater/#{id}",
+          put_body,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(repeater_resp, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # uri_in_scope = PWN::Plugins::BurpSuite.delete_repeater_tab(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   id: 'required - id of the repeater tab to delete'
+      # )
+
+      public_class_method def self.delete_repeater_tab(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        id = opts[:id]
+        raise 'ERROR: id parameter is required' if id.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        pwn_burp_api = burp_obj[:pwn_burp_api]
+
+        rest_browser.delete(
+          "http://#{pwn_burp_api}/repeater/#{id}",
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        { id: id }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::BurpSuite.generate_scan_report(
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   target_url: 'required - target_url passed to #active_scan method',
@@ -1211,6 +1388,38 @@ module PWN
           json_scan_issues = #{self}.get_scan_issues(
             burp_obj: 'required - burp_obj returned by #start method'
           ).to_json
+
+          repeater_id = #{self}.add_repeater_tab(
+            burp_obj: 'required - burp_obj returned by #start method',
+            name: 'required - name of the repeater tab (max 30 characters)',
+            request: 'optional - base64 encoded HTTP request string'
+          )
+
+          repeater_tabs = #{self}.get_all_repeater_tabs(
+            burp_obj: 'required - burp_obj returned by #start method'
+          )
+
+          repeater_tab = #{self}.get_repeater_tab(
+            burp_obj: 'required - burp_obj returned by #start method',
+            id: 'required - id of the repeater tab to get'
+          )
+
+          repeater_resp = #{self}.send_repeater_request(
+            burp_obj: 'required - burp_obj returned by #start method',
+            id: 'required - id of the repeater tab to send'
+          )
+
+          repeater_obj = #{self}.update_repeater_tab(
+            burp_obj: 'required - burp_obj returned by #start method',
+            id: 'required - id of the repeater tab to update',
+            name: 'required - name of the repeater tab (max 30 characters)',
+            request: 'required - base64 encoded HTTP request string'
+          )
+
+          repeater_obj = #{self}.delete_repeater_tab(
+            burp_obj: 'required - burp_obj returned by #start method',
+            id: 'required - id of the repeater tab to delete'
+          )
 
           #{self}.generate_scan_report(
             burp_obj: 'required - burp_obj returned by #start method',
