@@ -82,7 +82,7 @@ module PWN
         rest_browser = browser_obj1[:browser]
 
         burp_obj[:mitm_proxy] = "#{burp_ip}:#{burp_port}"
-        burp_obj[:pwn_burp_api] = "#{pwn_burp_ip}:#{pwn_burp_port}"
+        burp_obj[:mitm_rest_api] = "#{pwn_burp_ip}:#{pwn_burp_port}"
         burp_obj[:rest_browser] = rest_browser
 
         # Proxy always listens on localhost...use SSH tunneling if remote access is required
@@ -92,7 +92,7 @@ module PWN
           devtools: true
         )
 
-        burp_obj[:burp_browser] = browser_obj2
+        burp_obj[:mitm_browser] = browser_obj2
 
         # Wait for pwn_burp_port to open prior to returning burp_obj
         loop do
@@ -133,11 +133,11 @@ module PWN
         raise 'ERROR: uri parameter is required' if uri.nil?
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         base64_encoded_uri = Base64.strict_encode64(uri.to_s.scrub.strip.chomp)
 
         in_scope_resp = rest_browser.get(
-          "http://#{pwn_burp_api}/scope/#{base64_encoded_uri}",
+          "http://#{mitm_rest_api}/scope/#{base64_encoded_uri}",
           content_type: 'application/json; charset=UTF8'
         )
         json_in_scope = JSON.parse(in_scope_resp, symbolize_names: true)
@@ -156,11 +156,11 @@ module PWN
         burp_obj = opts[:burp_obj]
         target_url = opts[:target_url]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         post_body = { url: target_url }.to_json
 
-        in_scope = rest_browser.post("http://#{pwn_burp_api}/scope", post_body, content_type: 'application/json; charset=UTF8')
+        in_scope = rest_browser.post("http://#{mitm_rest_api}/scope", post_body, content_type: 'application/json; charset=UTF8')
         JSON.parse(in_scope, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -177,12 +177,12 @@ module PWN
         burp_obj = opts[:burp_obj]
         target_url = opts[:target_url]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         post_body = { url: target_url }.to_json
 
         in_scope = rest_browser.post(
-          "http://#{pwn_burp_api}/spider",
+          "http://#{mitm_rest_api}/spider",
           post_body,
           content_type: 'application/json; charset=UTF8'
         )
@@ -192,7 +192,7 @@ module PWN
         spider_status_json = {}
         loop do
           print '.'
-          spider_status_resp = rest_browser.get("http://#{pwn_burp_api}/spider/#{spider_id}")
+          spider_status_resp = rest_browser.get("http://#{mitm_rest_api}/spider/#{spider_id}")
           spider_status_json = JSON.parse(spider_status_resp, symbolize_names: true)
           spider_status = spider_status_json[:status]
           case spider_status
@@ -221,9 +221,9 @@ module PWN
       public_class_method def self.enable_proxy(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
-        enable_resp = rest_browser.post("http://#{pwn_burp_api}/proxy/intercept/enable", nil)
+        enable_resp = rest_browser.post("http://#{mitm_rest_api}/proxy/intercept/enable", nil)
         JSON.parse(enable_resp, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -238,9 +238,9 @@ module PWN
       public_class_method def self.disable_proxy(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
-        disable_resp = rest_browser.post("http://#{pwn_burp_api}/proxy/intercept/disable", nil)
+        disable_resp = rest_browser.post("http://#{mitm_rest_api}/proxy/intercept/disable", nil)
         JSON.parse(disable_resp, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -255,9 +255,9 @@ module PWN
       public_class_method def self.get_proxy_listeners(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
-        listeners = rest_browser.get("http://#{pwn_burp_api}/proxy/listeners", content_type: 'application/json; charset=UTF8')
+        listeners = rest_browser.get("http://#{mitm_rest_api}/proxy/listeners", content_type: 'application/json; charset=UTF8')
         JSON.parse(listeners, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -275,7 +275,7 @@ module PWN
       public_class_method def self.add_proxy_listener(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         bind_address = opts[:bind_address]
         raise 'ERROR: bind_address parameter is required' if bind_address.nil?
 
@@ -295,7 +295,7 @@ module PWN
           enabled: enabled
         }.to_json
 
-        listener = rest_browser.post("http://#{pwn_burp_api}/proxy/listeners", post_body, content_type: 'application/json; charset=UTF8')
+        listener = rest_browser.post("http://#{mitm_rest_api}/proxy/listeners", post_body, content_type: 'application/json; charset=UTF8')
         JSON.parse(listener, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -314,7 +314,7 @@ module PWN
       public_class_method def self.update_proxy_listener(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         id = opts[:id] ||= '0'
         bind_address = opts[:bind_address] ||= '127.0.0.1'
         port = opts[:port] ||= 8080
@@ -327,7 +327,7 @@ module PWN
           enabled: enabled
         }.to_json
 
-        listener = rest_browser.put("http://#{pwn_burp_api}/proxy/listeners/#{id}", post_body, content_type: 'application/json; charset=UTF8')
+        listener = rest_browser.put("http://#{mitm_rest_api}/proxy/listeners/#{id}", post_body, content_type: 'application/json; charset=UTF8')
         JSON.parse(listener, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -343,11 +343,11 @@ module PWN
       public_class_method def self.delete_proxy_listener(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         id = opts[:id] ||= '0'
         raise 'ERROR: id parameter is required' if id.nil?
 
-        rest_browser.delete("http://#{pwn_burp_api}/proxy/listeners/#{id}")
+        rest_browser.delete("http://#{mitm_rest_api}/proxy/listeners/#{id}")
         true # Return true to indicate successful deletion (or error if API fails)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
@@ -363,12 +363,12 @@ module PWN
       public_class_method def self.get_sitemap(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         target_url = opts[:target_url]
 
         base64_encoded_target_url = Base64.strict_encode64(target_url.to_s.scrub.strip.chomp) if target_url
 
-        rest_call = "http://#{pwn_burp_api}/sitemap"
+        rest_call = "http://#{mitm_rest_api}/sitemap"
         rest_call = "#{rest_call}/#{base64_encoded_target_url}" if target_url
 
         sitemap = rest_browser.get(
@@ -407,14 +407,14 @@ module PWN
       public_class_method def self.add_to_sitemap(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         sitemap = opts[:sitemap] ||= {}
         debug = opts[:debug] || false
 
         rest_client = rest_browser::Request
         response = rest_client.execute(
           method: :post,
-          url: "http://#{pwn_burp_api}/sitemap",
+          url: "http://#{mitm_rest_api}/sitemap",
           payload: sitemap.to_json,
           headers: { content_type: 'application/json; charset=UTF-8' },
           timeout: 10
@@ -881,14 +881,14 @@ module PWN
       # Supported Method Parameters::
       # active_scan_url_arr = PWN::Plugins::BurpSuite.active_scan(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])',
+      #   target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:mitm_browser])',
       #   exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
       # )
 
       public_class_method def self.active_scan(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         target_url = opts[:target_url].to_s.scrub.strip.chomp
         raise 'ERROR: target_url parameter is required' if target_url.empty?
 
@@ -947,7 +947,7 @@ module PWN
           }.to_json
           # Kick off an active scan for each given page in the json_sitemap results
           resp = rest_browser.post(
-            "http://#{pwn_burp_api}/scan/active",
+            "http://#{mitm_rest_api}/scan/active",
             post_body,
             content_type: 'application/json'
           )
@@ -959,7 +959,7 @@ module PWN
 
         # Wait for scan completion
         loop do
-          scan_queue = rest_browser.get("http://#{pwn_burp_api}/scan/active")
+          scan_queue = rest_browser.get("http://#{mitm_rest_api}/scan/active")
           json_scan_queue = JSON.parse(scan_queue, symbolize_names: true)
           break if json_scan_queue.all? { |scan| scan[:status] == 'finished' }
 
@@ -975,7 +975,7 @@ module PWN
         # json_scan_queue.each do |scan_item|
         #   this_scan_item_id = scan_item[:id]
         #   until scan_item[:status] == 'finished'
-        #     scan_item_resp = rest_browser.get("http://#{pwn_burp_api}/scan/active/#{this_scan_item_id}")
+        #     scan_item_resp = rest_browser.get("http://#{mitm_rest_api}/scan/active/#{this_scan_item_id}")
         #     scan_item = JSON.parse(scan_item_resp, symbolize_names: true)
         #     scan_status = scan_item[:status]
         #     puts "Target ID ##{this_scan_item_id} of ##{scan_queue_total}| #{scan_status}"
@@ -999,12 +999,12 @@ module PWN
       public_class_method def self.get_scan_issues(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         rest_client = rest_browser::Request
         scan_issues = rest_client.execute(
           method: :get,
-          url: "http://#{pwn_burp_api}/scanissues",
+          url: "http://#{mitm_rest_api}/scanissues",
           timeout: 540
         )
         JSON.parse(scan_issues, symbolize_names: true)
@@ -1031,7 +1031,7 @@ module PWN
         raise 'ERROR: request parameter is required' if request.nil?
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         post_body = {
           name: name[0..29],
@@ -1039,7 +1039,7 @@ module PWN
         }.to_json
 
         repeater_resp = rest_browser.post(
-          "http://#{pwn_burp_api}/repeater",
+          "http://#{mitm_rest_api}/repeater",
           post_body,
           content_type: 'application/json; charset=UTF8'
         )
@@ -1060,10 +1060,10 @@ module PWN
         raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         repeater_resp = rest_browser.get(
-          "http://#{pwn_burp_api}/repeater",
+          "http://#{mitm_rest_api}/repeater",
           content_type: 'application/json; charset=UTF8'
         )
 
@@ -1086,10 +1086,10 @@ module PWN
         raise 'ERROR: id parameter is required' if id.nil?
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         repeater_resp = rest_browser.get(
-          "http://#{pwn_burp_api}/repeater/#{id}",
+          "http://#{mitm_rest_api}/repeater/#{id}",
           content_type: 'application/json; charset=UTF8'
         )
 
@@ -1112,10 +1112,10 @@ module PWN
         raise 'ERROR: id parameter is required' if id.nil?
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         repeater_resp = rest_browser.post(
-          "http://#{pwn_burp_api}/repeater/#{id}/send",
+          "http://#{mitm_rest_api}/repeater/#{id}/send",
           content_type: 'application/json; charset=UTF8'
         )
 
@@ -1146,7 +1146,7 @@ module PWN
         raise 'ERROR: request parameter is required' if request.nil?
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         put_body = {
           name: name[0..29],
@@ -1154,7 +1154,7 @@ module PWN
         }.to_json
 
         repeater_resp = rest_browser.put(
-          "http://#{pwn_burp_api}/repeater/#{id}",
+          "http://#{mitm_rest_api}/repeater/#{id}",
           put_body,
           content_type: 'application/json; charset=UTF8'
         )
@@ -1178,10 +1178,10 @@ module PWN
         raise 'ERROR: id parameter is required' if id.nil?
 
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
 
         rest_browser.delete(
-          "http://#{pwn_burp_api}/repeater/#{id}",
+          "http://#{mitm_rest_api}/repeater/#{id}",
           content_type: 'application/json; charset=UTF8'
         )
 
@@ -1202,7 +1202,7 @@ module PWN
         burp_obj = opts[:burp_obj]
         target_url = opts[:target_url]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         output_dir = opts[:output_dir]
         raise "ERROR: #{output_dir} does not exist." unless Dir.exist?(output_dir)
 
@@ -1236,7 +1236,7 @@ module PWN
         report_url = Base64.strict_encode64(target_domain)
         # Ready scanreport API call in pwn_burp to support HTML & XML report generation
         report_resp = rest_browser.get(
-          "http://#{pwn_burp_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
+          "http://#{mitm_rest_api}/scanreport/#{report_type.to_s.upcase}/#{report_url}"
         )
 
         File.open(report_path, 'w') do |f|
@@ -1264,13 +1264,13 @@ module PWN
 
       public_class_method def self.stop(opts = {})
         burp_obj = opts[:burp_obj]
-        browser_obj = burp_obj[:burp_browser]
+        browser_obj = burp_obj[:mitm_browser]
         rest_browser = burp_obj[:rest_browser]
-        pwn_burp_api = burp_obj[:pwn_burp_api]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
         # burp_pid = burp_obj[:pid]
 
-        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
-        rest_browser.post("http://#{pwn_burp_api}/shutdown", '')
+        PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
+        rest_browser.post("http://#{mitm_rest_api}/shutdown", '')
         # Process.kill('TERM', burp_pid)
 
         burp_obj = nil
@@ -1381,7 +1381,7 @@ module PWN
 
           active_scan_url_arr = #{self}.active_scan(
             burp_obj: 'required - burp_obj returned by #start method',
-            target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:burp_browser])',
+            target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:mitm_browser])',
             exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
           )
 

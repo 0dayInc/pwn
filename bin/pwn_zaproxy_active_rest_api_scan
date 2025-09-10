@@ -36,6 +36,10 @@ OptionParser.new do |options|
     opts[:headless] = h
   end
 
+  options.on('-bTYPE', '--browser_type=TYPE', '<Optional - Browser Type <firefox|chrome|headless|rest> (Defaults to firefox)>') do |b|
+    opts[:browser_type] = b
+  end
+
   options.on('-D', '--[no-]debug', '<Optional - Enable Debug Output and Do Not Delete Temporary OpenAPI Spec>') do |d|
     opts[:debug] = d
   end
@@ -52,7 +56,7 @@ OptionParser.new do |options|
     opts[:exclude_paths] = e
   end
 
-  options.on('-iURL', '--in_scope=URL', '<Optional - URL to add include in scope (Defaults to value of --target_url)>') do |s|
+  options.on('-iURL', '--in_scope=URL', '<Optional - URL regex to include in scope (Defaults to "<target_url>.*")>') do |s|
     opts[:in_scope] = s
   end
 end.parse!
@@ -80,6 +84,8 @@ begin
 
   zap_bin_path = opts[:zap_bin_path]
   headless = opts[:headless] || false
+  browser_type = opts[:browser_type] ||= :firefox
+  browser_type = browser_type.to_s.downcase.to_sym unless browser_type.is_a?(Symbol)
   debug = opts[:debug] || false
 
   swagger_defs_arr = swagger_definitions.split(',').map(&:strip)
@@ -105,7 +111,7 @@ begin
   exlude_paths = opts[:exclude_paths]
   exlude_paths = exlude_paths.split(',').map(&:strip) if exlude_paths.is_a?(String)
 
-  in_scope = opts[:in_scope] ||= target_url
+  in_scope = opts[:in_scope] ||= "#{target_url}.*"
 
   # ------
   # Open ZAP
@@ -117,7 +123,7 @@ begin
   else
     zap_obj = PWN::Plugins::Zaproxy.start(
       zap_bin_path: zap_bin_path,
-      browser_type: :chrome
+      browser_type: browser_type
     )
   end
 
@@ -128,11 +134,18 @@ begin
     openapi_spec: openapi_spec
   )
 
+  # TODO: Initialize authorization header if required by API
+
   raise "ERROR: Failed to import OpenAPI/Swagger spec #{openapi_spec} into ZAP's Sitemap." if json_sitemap.nil? || json_sitemap.empty?
+
+  PWN::Plugins::Zaproxy.add_to_scope(
+    zap_obj: zap_obj,
+    target_regex: in_scope
+  )
 
   PWN::Plugins::Zaproxy.active_scan(
     zap_obj: zap_obj,
-    target_url: target_url,
+    target_url: in_scope,
     exclude_paths: exlude_paths
   )
 
@@ -150,10 +163,8 @@ begin
       output_dir: output_dir
     )
   end
-
-  zap_obj = PWN::Plugins::Zaproxy.stop(zap_obj: zap_obj)
 rescue StandardError => e
   raise e
 ensure
-  zap_obj = PWN::Plugins::Zaproxy.stop(zap_obj: zap_obj) unless zap_obj.nil?
+  PWN::Plugins::Zaproxy.stop(zap_obj: zap_obj) unless zap_obj.nil?
 end
