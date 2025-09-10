@@ -31,6 +31,10 @@ OptionParser.new do |options|
     opts[:headless] = h
   end
 
+  options.on('-bTYPE', '--browser_type=TYPE', '<Optional - Browser Type <firefox|chrome|headless|rest> (Defaults to firefox)>') do |b|
+    opts[:browser_type] = b
+  end
+
   options.on('-D', '--[no-]debug', '<Optional - Enable Debug Output and Do Not Delete Temporary OpenAPI Spec>') do |d|
     opts[:debug] = d
   end
@@ -55,7 +59,7 @@ OptionParser.new do |options|
     opts[:exclude_paths] = e
   end
 
-  options.on('-iURL', '--in_scope=URL', '<Optional - URL to add include in scope (Defaults to value of --target_url)>') do |s|
+  options.on('-iURL', '--in_scope=URL', '<Optional - URL to include in scope (Defaults to value of --target_url)>') do |s|
     opts[:in_scope] = s
   end
 end.parse!
@@ -80,6 +84,8 @@ begin
 
   burp_jar_path = opts[:burp_jar_path]
   headless = opts[:headless] || false
+  browser_type = opts[:browser_type] ||= :firefox
+  browser_type = browser_type.to_s.downcase.to_sym unless browser_type.is_a?(Symbol)
   debug = opts[:debug] || false
 
   swagger_defs_arr = swagger_definitions.split(',').map(&:strip)
@@ -120,7 +126,7 @@ begin
   else
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
-      browser_type: :chrome
+      browser_type: browser_type
     )
   end
 
@@ -165,10 +171,8 @@ begin
       output_dir: output_dir
     )
   end
-
-  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj)
 rescue StandardError => e
   raise e
 ensure
-  burp_obj = PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj) unless burp_obj.nil?
+  PWN::Plugins::BurpSuite.stop(burp_obj: burp_obj) unless burp_obj.nil?
 end

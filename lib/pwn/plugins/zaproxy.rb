@@ -24,17 +24,15 @@ module PWN
       private_class_method def self.zap_rest_call(opts = {})
         zap_obj = opts[:zap_obj]
         rest_call = opts[:rest_call].to_s.scrub
-        http_method = if opts[:http_method].nil?
-                        :get
-                      else
-                        opts[:http_method].to_s.scrub.to_sym
-                      end
+        http_method = opts[:http_method] ||= :get
+        http_method = http_method.to_s.downcase.to_sym unless http_method.is_a?(Symbol)
         params = opts[:params]
         http_body = opts[:http_body].to_s.scrub
-        zap_rest_api = zap_obj[:zap_rest_api]
-        base_zap_api_uri = "http://#{zap_rest_api}"
 
         rest_client = zap_obj[:rest_browser]::Request
+        mitm_rest_api = zap_obj[:mitm_rest_api]
+
+        base_zap_api_uri = "http://#{mitm_rest_api}"
 
         case http_method
         when :get
@@ -66,7 +64,7 @@ module PWN
 
         response
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -100,6 +98,21 @@ module PWN
         zap_rest_ip = zap_ip
         zap_rest_port = zap_port
 
+        browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
+        rest_browser = browser_obj1[:browser]
+
+        zap_obj[:mitm_proxy] = "#{zap_ip}:#{zap_port}"
+        zap_obj[:mitm_rest_api] = zap_obj[:mitm_proxy]
+        zap_obj[:rest_browser] = rest_browser
+
+        browser_obj2 = PWN::Plugins::TransparentBrowser.open(
+          browser_type: browser_type,
+          proxy: "http://#{zap_obj[:mitm_proxy]}",
+          devtools: true
+        )
+
+        zap_obj[:mitm_browser] = browser_obj2
+
         if headless
           zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin} -daemon"
         else
@@ -109,21 +122,6 @@ module PWN
         zaproxy_cmd = "#{zaproxy_cmd} -host #{zap_ip} -port #{zap_port}"
 
         zap_obj[:pid] = Process.spawn(zaproxy_cmd)
-        browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
-        rest_browser = browser_obj1[:browser]
-
-        zap_obj[:mitm_proxy] = "#{zap_ip}:#{zap_port}"
-        zap_obj[:zap_rest_api] = zap_obj[:mitm_proxy]
-        zap_obj[:rest_browser] = rest_browser
-
-        browser_obj2 = PWN::Plugins::TransparentBrowser.open(
-          browser_type: browser_type,
-          proxy: "http://#{zap_obj[:mitm_proxy]}",
-          devtools: true
-        )
-
-        zap_obj[:zap_browser] = browser_obj2
-
         # Wait for pwn_burp_port to open prior to returning burp_obj
         loop do
           s = TCPSocket.new(zap_rest_ip, zap_rest_port)
@@ -136,8 +134,8 @@ module PWN
         end
 
         zap_obj
-      rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+      rescue Selenium::WebDriver::Error::SessionNotCreatedError, StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -169,7 +167,40 @@ module PWN
 
         JSON.parse(response.body, symbolize_names: true)
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.add_to_scope(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
+      #   context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
+      # )
+
+      public_class_method def self.add_to_scope(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        target_regex = opts[:target_regex]
+        raise 'ERROR: target_url must be provided' if target_regex.nil?
+
+        context_name = opts[:context_name] ||= 'Default Context'
+
+        params = {
+          apikey: api_key,
+          contextName: context_name,
+          regex: target_regex
+        }
+
+        response = zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'JSON/context/action/includeInContext/',
+          params: params
+        )
+
+        JSON.parse(response.body, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -222,7 +253,7 @@ module PWN
           break if status == 100
         end
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -230,6 +261,7 @@ module PWN
       # PWN::Plugins::Zaproxy.active_scan(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   target_url:  'required - url to scan',
+      #   exclude_paths: 'optional - array of paths to exclude from scan (default: [])',
       #   scan_policy: 'optional - scan policy to use (defaults to Default Policy)'
       # )
 
@@ -237,10 +269,23 @@ module PWN
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
         target_url = opts[:target_url]
-        if opts[:scan_policy].nil?
-          scan_policy = 'Default Policy'
-        else
-          scan_policy = opts[:scan_policy].to_s.scrub.strip.chomp
+        raise 'ERROR: target_url must be provided' if target_url.nil?
+
+        exclude_paths = opts[:exclude_paths] ||= []
+        scan_policy = opts[:scan_policy] ||= 'Default Policy'
+
+        exclude_paths.each do |exclude_path|
+          exclude_path_regex = "#{target_url}#{exclude_path}.*"
+          params = {
+            apikey: api_key,
+            regex: exclude_path_regex
+          }
+          zap_rest_call(
+            zap_obj: zap_obj,
+            rest_call: 'JSON/ascan/action/excludeFromScan/',
+            params: params
+          )
+          puts "Excluding #{exclude_path_regex} from Active Scan"
         end
 
         # TODO: Implement adding target_url to scope so that inScopeOnly can be changed to true
@@ -279,17 +324,17 @@ module PWN
           break if status == 100
         end
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Zaproxy.alerts(
+      # PWN::Plugins::Zaproxy.get_alerts(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   target_url: 'required - base url to return alerts'
       # )
 
-      public_class_method def self.alerts(opts = {})
+      public_class_method def self.get_alerts(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
         target_url = opts[:target_url]
@@ -307,7 +352,7 @@ module PWN
 
         JSON.parse(response.body, symbolize_names: true)
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -357,7 +402,7 @@ module PWN
 
         report_path
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -391,7 +436,7 @@ module PWN
           http_method: :get
         )
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -423,47 +468,7 @@ module PWN
           http_method: :get
         )
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # watir_resp = PWN::Plugins::Zaproxy.request(
-      #   zap_obj: 'required - zap_obj returned from #open method',
-      #   browser_obj: 'required - browser_obj w/ browser_type: :firefox||:headless returned from #open method',
-      #   instruction: 'required - watir instruction to make (e.g. button(text: "Google Search").click)'
-      # )
-
-      public_class_method def self.request(opts = {})
-        zap_obj = opts[:zap_obj]
-        api_key = zap_obj[:api_key].to_s.scrub
-        this_browser_obj = opts[:browser_obj]
-        instruction = opts[:instruction].to_s.strip.chomp.scrub
-
-        raise "\nbrowser_obj.class == #{this_browser_obj.class} browser_obj == #{this_browser_obj}\n#{self}.nonblocking_goto only supports browser_obj.class == Watir::Browser" unless this_browser_obj.is_a?(Watir::Browser)
-        raise "\nthis_browser_obj.driver.browser == #{this_browser_obj.driver.browser}\n#{self}.nonblocking_goto only supports this_browser_obj.driver.browser == :firefox" unless this_browser_obj.driver.browser == :firefox
-
-        timeout = 0
-        # this_browser_obj.driver.manage.timeouts.implicit_wait = timeout
-        this_browser_obj.driver.manage.timeouts.page_load = timeout
-        # this_browser_obj.driver.manage.timeouts.script_timeout = timeout
-
-        watir_resp = this_browser_obj.instance_eval(instruction)
-      rescue Timeout::Error
-        sleep 0.9
-        request_content = zap_rest_call(
-          zap_obj: zap_obj,
-          rest_call: "JSON/break/view/httpMessage/?zapapiformat=JSON&apikey=#{api_key}",
-          http_method: :get
-        ).body
-
-        # Now set all the timeouts back to default:
-        # this_browser_obj.driver.manage.timeouts.implicit_wait = b.driver.capabilities[:implicit_timeout]
-        this_browser_obj.driver.manage.timeouts.page_load = this_browser_obj.driver.capabilities[:page_load_timeout]
-        # this_browser_obj.driver.manage.timeouts.script_timeout = b.driver.capabilities[:script_timeout]
-
-        request_content
-      rescue StandardError => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -475,10 +480,9 @@ module PWN
       public_class_method def self.stop(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key]
-        browser_obj = zap_obj[:zap_browser]
-        rest_browser = zap_obj[:rest_browser]
+        browser_obj = zap_obj[:mitm_browser]
 
-        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
+        PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
 
         params = { apikey: api_key }
         zap_rest_call(
@@ -489,7 +493,6 @@ module PWN
 
         zap_obj = nil
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -525,10 +528,11 @@ module PWN
           #{self}.active_scan(
             zap_obj: 'required - zap_obj returned from #open method'
             target_url: 'required - url to scan',
+            exclude_paths: 'optional - array of paths to exclude from scan (default: [])',
             scan_policy: 'optional - scan policy to use (defaults to Default Policy)'
           )
 
-          json_alerts = #{self}.alerts(
+          json_alerts = #{self}.get_alerts(
             zap_obj: 'required - zap_obj returned from #open method'
             target_url: 'required - base url to return alerts'
           )
@@ -546,10 +550,10 @@ module PWN
             enabled: 'optional - boolean (defaults to true)'
           )
 
-          watir_resp = #{self}.request(
+          #{self}.tamper(
             zap_obj: 'required - zap_obj returned from #open method',
-            browser_obj: 'required - browser_obj w/ browser_type: :firefox||:headless returned from #open method',
-            instruction: 'required - watir instruction to make (e.g. button(text: \"Google Search\").click)'
+            domain: 'required - FQDN to tamper (e.g. test.domain.local)',
+            enabled: 'optional - boolean (defaults to true)'
           )
 
           #{self}.stop(
