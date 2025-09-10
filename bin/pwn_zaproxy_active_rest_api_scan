@@ -106,8 +106,6 @@ begin
   )
 
   additional_http_headers = opts[:additional_http_headers]
-  additional_http_headers = JSON.parse(additional_http_headers, symbolize_names: true) if additional_http_headers.is_a?(String)
-
   exlude_paths = opts[:exclude_paths]
   exlude_paths = exlude_paths.split(',').map(&:strip) if exlude_paths.is_a?(String)
 
@@ -133,10 +131,16 @@ begin
     zap_obj: zap_obj,
     openapi_spec: openapi_spec
   )
-
-  # TODO: Initialize authorization header if required by API
-
   raise "ERROR: Failed to import OpenAPI/Swagger spec #{openapi_spec} into ZAP's Sitemap." if json_sitemap.nil? || json_sitemap.empty?
+
+  if additional_http_headers.is_a?(String)
+    additional_http_headers = JSON.parse(additional_http_headers, symbolize_names: true)
+    PWN::Plugins::Zaproxy.inject_additional_http_headers(
+      zap_obj: zap_obj,
+      target_regex: in_scope,
+      additional_http_headers: additional_http_headers
+    )
+  end
 
   PWN::Plugins::Zaproxy.add_to_scope(
     zap_obj: zap_obj,
