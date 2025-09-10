@@ -133,19 +133,19 @@ begin
   )
   raise "ERROR: Failed to import OpenAPI/Swagger spec #{openapi_spec} into ZAP's Sitemap." if json_sitemap.nil? || json_sitemap.empty?
 
+  PWN::Plugins::Zaproxy.add_to_scope(
+    zap_obj: zap_obj,
+    target_regex: in_scope
+  )
+
   if additional_http_headers.is_a?(String)
     additional_http_headers = JSON.parse(additional_http_headers, symbolize_names: true)
     PWN::Plugins::Zaproxy.inject_additional_http_headers(
       zap_obj: zap_obj,
       target_regex: in_scope,
-      additional_http_headers: additional_http_headers
+      headers: additional_http_headers
     )
   end
-
-  PWN::Plugins::Zaproxy.add_to_scope(
-    zap_obj: zap_obj,
-    target_regex: in_scope
-  )
 
   PWN::Plugins::Zaproxy.active_scan(
     zap_obj: zap_obj,
