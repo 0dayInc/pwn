@@ -282,7 +282,7 @@ module PWN
             matchType: 'REQ_HEADER',
             matchRegex: false,
             matchString: header_key,
-            replacement: "#{header_key}: #{headers[header_key]}",
+            replacement: headers[header_key],
             initiators: '',
             url: target_regex
           }
