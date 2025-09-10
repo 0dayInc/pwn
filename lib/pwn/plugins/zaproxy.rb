@@ -205,6 +205,192 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.add_requester_tab(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   request: 'required - base64 encoded HTTP request (e.g. from #get_sitemap method)'
+      # )
+
+      public_class_method def self.add_requester_tab(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        request = opts[:request]
+
+        dec_request = Base64.strict_decode64(request).force_encoding('ASCII-8BIT')
+
+        # Parse the full request string
+        parts = dec_request.split("\r\n\r\n", 2)
+        headers_part = parts[0]
+        body = parts[1] || ''
+
+        header_lines = headers_part.split("\r\n")
+        first_line = header_lines.shift
+        method, full_url, http_version = first_line.split
+
+        headers = []
+        header_lines.each do |line|
+          name, value = line.split(': ', 2)
+          headers << { name: name, value: value }
+        end
+
+        # Parse URL for queryString and adjust url
+        uri = URI.parse(full_url)
+        query_string = []
+        if uri.query
+          URI.decode_www_form(uri.query).each do |name, value|
+            query_string << { name: name, value: value }
+          end
+        end
+        url = "#{uri.scheme}://#{uri.host}"
+        url += ":#{uri.port}" if uri.port && uri.port != (uri.scheme == 'https' ? 443 : 80)
+        url += uri.path
+
+        # Determine content-type
+        content_type_header = headers.find { |h| h[:name].downcase == 'content-type' }
+        mime_type = content_type_header ? content_type_header[:value] : 'application/octet-stream'
+
+        # Handle postData
+        post_data = nil
+        methods_with_body = %w[POST PUT PATCH]
+        if methods_with_body.include?(method) && !body.empty?
+          post_data = {
+            mimeType: mime_type,
+            params: [],
+            text: body
+          }
+
+          temp_body = body.dup.force_encoding('UTF-8')
+          if temp_body.valid_encoding?
+            if mime_type.include?('application/x-www-form-urlencoded')
+              URI.decode_www_form(temp_body).each do |name, value|
+                post_data[:params] << { name: name, value: value }
+              end
+            end
+          else
+            post_data[:text] = Base64.encode64(body)
+            post_data[:encoding] = 'base64'
+          end
+        end
+
+        # Construct HAR request
+        har_request = {
+          method: method,
+          url: url,
+          httpVersion: http_version,
+          cookies: [],
+          headers: headers,
+          queryString: query_string,
+          headersSize: -1,
+          bodySize: -1
+        }
+        har_request[:postData] = post_data if post_data
+
+        har_json = JSON.generate(har_request)
+
+        params = {
+          apikey: api_key,
+          request: har_json,
+          followRedirects: 'true'
+        }
+
+        response = zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'OTHER/core/other/sendHarRequest/',
+          params: params
+        )
+
+        JSON.parse(response.body, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_sitemap = PWN::Plugins::Zaproxy.get_sitemap(
+      #   zap_obj: 'required - zap_obj returned from #open method'
+      # )
+
+      public_class_method def self.get_sitemap(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+
+        entries = []
+        start = 0
+        count = 1000
+
+        loop do
+          params = { apikey: api_key, start: start, count: count }
+
+          response = zap_rest_call(
+            zap_obj: zap_obj,
+            rest_call: 'OTHER/exim/other/exportHar/',
+            params: params
+          )
+
+          har_data = JSON.parse(response.body, symbolize_names: true)
+          new_entries = har_data[:log][:entries]
+          break if new_entries.empty?
+
+          entries += new_entries
+          start += count
+        end
+
+        # Deduplicate entries based on method + url
+        seen = Set.new
+        converted_messages = []
+
+        entries.each do |entry|
+          req = entry[:request]
+          key = [req[:method], req[:url]]
+          next if seen.include?(key)
+
+          seen.add(key)
+
+          # Build full request string
+          req_line = "#{req[:method]} #{req[:url]} #{req[:httpVersion]}\r\n"
+          req_headers = req[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
+          req_body = ''
+          if req[:postData] && req[:postData][:text]
+            req_body = req[:postData][:text]
+            req_body = Base64.decode64(req_body) if req[:postData][:encoding] == 'base64'
+          end
+          full_req = "#{req_line}#{req_headers}\r\n#{req_body}".force_encoding('ASCII-8BIT')
+          encoded_req = Base64.strict_encode64(full_req)
+
+          # Build full response string
+          res = entry[:response]
+          res_line = "#{res[:httpVersion]} #{res[:status]} #{res[:statusText]}\r\n"
+          res_headers = res[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
+          res_body = ''
+          if res[:content] && res[:content][:text]
+            res_body = res[:content][:text]
+            res_body = Base64.decode64(res_body) if res[:content][:encoding] == 'base64'
+          end
+          full_res = "#{res_line}#{res_headers}\r\n#{res_body}".force_encoding('ASCII-8BIT')
+          encoded_res = Base64.strict_encode64(full_res)
+
+          # Extract http_service
+          uri = URI.parse(req[:url])
+          http_service = {
+            host: uri.host,
+            port: uri.port,
+            protocol: uri.scheme
+          }
+
+          # Add to array
+          converted_messages << {
+            request: encoded_req,
+            response: encoded_res,
+            http_service: http_service
+          }
+        end
+
+        converted_messages
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::Zaproxy.spider(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   target_url: 'required - url to spider'
@@ -273,14 +459,41 @@ module PWN
         headers = opts[:headers] ||= {}
         raise 'ERROR: headers must be provided' if headers.empty? || !headers.is_a?(Hash)
 
+        # Check if replacer rule already exists
+        params = { apikey: api_key }
+        response = zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'JSON/replacer/view/rules/',
+          params: params
+        )
+        replacer = JSON.parse(response.body, symbolize_names: true)
+
         replacer_resp_arr = []
         headers.each_key do |header_key|
+          this_header = { header: header_key }
+          rule_exists = replacer[:rules].any? { |rule| rule[:description] == header_key.to_s && rule[:url] == target_regex }
+
+          if rule_exists
+            # Remove existing rule first
+            puts "Removing existing replacer rule for header key: #{header_key}..."
+            params = {
+              apikey: api_key,
+              description: header_key
+            }
+            zap_rest_call(
+              zap_obj: zap_obj,
+              rest_call: 'JSON/replacer/action/removeRule/',
+              params: params
+            )
+          end
+
+          puts "Adding replacer rule for header key: #{header_key}..."
           params = {
             apikey: api_key,
             description: header_key,
-            enabled: true,
+            enabled: 'true',
             matchType: 'REQ_HEADER',
-            matchRegex: false,
+            matchRegex: 'false',
             matchString: header_key,
             replacement: headers[header_key],
             initiators: '',
@@ -294,7 +507,8 @@ module PWN
           )
 
           json_resp = JSON.parse(response.body, symbolize_names: true)
-          replacer_resp_arr.push(json_resp)
+          this_header[:Result] = json_resp[:Result]
+          replacer_resp_arr.push(this_header)
         end
 
         replacer_resp_arr
@@ -575,6 +789,19 @@ module PWN
             zap_obj: 'required - zap_obj returned from #open method',
             target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
             context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
+          )
+
+          #{self}.add_requester_tab(
+            zap_obj: 'required - zap_obj returned from #open method',
+            request: 'required - base64 encoded HTTP request (e.g. from #get_sitemap method)'
+          )
+
+          #{self}.get_sitemap(
+            zap_obj: 'required - zap_obj returned from #open method'
+          )
+
+          json_sitemap = #{self}.spider(
+            zap_obj: 'required - zap_obj returned from #open method'
           )
 
           #{self}.inject_additional_http_headers(
