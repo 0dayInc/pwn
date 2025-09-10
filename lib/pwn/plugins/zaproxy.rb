@@ -258,6 +258,52 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.inject_additional_http_headers(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   target_regex: 'required - url regex to inject headers into (e.g. https://test.domain.local.*)',
+      #   headers: 'required - hash of additional headers to inject into each request',
+      # )
+
+      public_class_method def self.inject_additional_http_headers(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        target_regex = opts[:target_regex]
+        raise 'ERROR: target_regex must be provided' if target_regex.nil?
+
+        headers = opts[:headers] ||= {}
+        raise 'ERROR: headers must be provided' if headers.empty? || !headers.is_a?(Hash)
+
+        replacer_resp_arr = []
+        headers.each_key do |header_key|
+          params = {
+            apikey: api_key,
+            description: header_key,
+            enabled: true,
+            matchType: 'REQ_HEADER',
+            matchRegex: false,
+            matchString: header_key,
+            replacement: "#{header_key}: #{headers[header_key]}",
+            initiators: '',
+            url: target_regex
+          }
+
+          response = zap_rest_call(
+            zap_obj: zap_obj,
+            rest_call: 'JSON/replacer/action/addRule/',
+            params: params
+          )
+
+          json_resp = JSON.parse(response.body, symbolize_names: true)
+          replacer_resp_arr.push(json_resp)
+        end
+
+        replacer_resp_arr
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::Zaproxy.active_scan(
       #   zap_obj: 'required - zap_obj returned from #open method',
       #   target_url:  'required - url to scan',
@@ -523,6 +569,18 @@ module PWN
           #{self}.import_openapi_to_sitemap(
             zap_obj: 'required - zap_obj returned from #open method',
             openapi_spec: 'required - path to OpenAPI JSON or YAML spec file'
+          )
+
+          #{self}.add_to_scope(
+            zap_obj: 'required - zap_obj returned from #open method',
+            target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
+            context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
+          )
+
+          #{self}.inject_additional_http_headers(
+            zap_obj: 'required - zap_obj returned from #open method',
+            target_regex: 'required - url regex to inject headers into (e.g. https://test.domain.local.*)',
+            headers: 'required - hash of additional headers to inject into each request'
           )
 
           #{self}.active_scan(
