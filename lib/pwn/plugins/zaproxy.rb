@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'cgi'
+require 'fileutils'
 require 'pty'
 require 'securerandom'
 require 'json'
@@ -113,10 +114,15 @@ module PWN
 
         zap_obj[:mitm_browser] = browser_obj2
 
+        timestamp = Time.now.strftime('%Y-%m-%d_%H-%M-%S%z')
+        session_path = "/tmp/zaproxy-#{timestamp}.session"
+        zap_obj[:session_path] = session_path
+
         if headless
-          zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin} -daemon"
+          # TODO: Ensure Default Context still exists and is default context
+          zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin} -daemon -newsession #{session_path}"
         else
-          zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin}"
+          zaproxy_cmd = "cd #{zap_root} && ./#{zap_bin} -newsession #{session_path}"
         end
 
         zaproxy_cmd = "#{zaproxy_cmd} -host #{zap_ip} -port #{zap_port}"
@@ -501,6 +507,8 @@ module PWN
         scan_policy = opts[:scan_policy] ||= 'Default Policy'
 
         exclude_paths.each do |exclude_path|
+          # Remove trailing .* from target_url if it exists
+          target_url = target_url.delete_suffix('.*') if target_url.end_with?('.*')
           exclude_path_regex = "#{target_url}#{exclude_path}.*"
           params = {
             apikey: api_key,
@@ -716,6 +724,11 @@ module PWN
           rest_call: 'JSON/core/action/shutdown/',
           params: params
         )
+
+        session_path = zap_obj[:session_path]
+        session_path_files = Dir.glob("#{session_path}*")
+        # Remove session files - need to add a slight delay between each unlink to work around file locks
+        session_path_files.each { |f| FileUtils.rm_f(f); sleep 0.3 }
 
         zap_obj = nil
       rescue StandardError, SystemExit, Interrupt => e
