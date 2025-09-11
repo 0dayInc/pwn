@@ -436,6 +436,31 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # repeater_id = PWN::Plugins::BurpSuite.find_sitemap_entries(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   search_string: 'required - string to search for in the sitemap entries'
+      # )
+
+      public_class_method def self.find_sitemap_entries(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        search_string = opts[:search_string]
+        raise 'ERROR: search_string parameter is required' if search_string.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        json_sitemap = get_sitemap(burp_obj: burp_obj)
+        matching_entries = json_sitemap.select do |entry|
+          decoded_request = Base64.strict_decode64(entry[:request])
+          decoded_request.include?(search_string)
+        end
+      rescue StandardError => e
+        raise e
+      end
+
       # Supported Method Parameters:
       # json_sitemap = PWN::Plugins::BurpSuite.import_openapi_to_sitemap(
       #   burp_obj: 'required - burp_obj returned by #start method',
@@ -1014,31 +1039,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # repeater_id = PWN::Plugins::BurpSuite.find_sitemap_entries(
-      #   burp_obj: 'required - burp_obj returned by #start method',
-      #   search_string: 'required - string to search for in the sitemap entries'
-      # )
-
-      public_class_method def self.find_sitemap_entries(opts = {})
-        burp_obj = opts[:burp_obj]
-        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
-
-        search_string = opts[:search_string]
-        raise 'ERROR: search_string parameter is required' if search_string.nil?
-
-        rest_browser = burp_obj[:rest_browser]
-        mitm_rest_api = burp_obj[:mitm_rest_api]
-
-        json_sitemap = get_sitemap(burp_obj: burp_obj)
-        matching_entries = json_sitemap.select do |entry|
-          decoded_request = Base64.strict_decode64(entry[:request])
-          decoded_request.include?(search_string)
-        end
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
       # repeater_id = PWN::Plugins::BurpSuite.add_repeater_tab(
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   name: 'required - name of the repeater tab (max 30 characters)',
@@ -1393,6 +1393,11 @@ module PWN
                 protocol: 'http'
               }
             }
+          )
+
+          #{self}.find_sitemap_entry(
+            burp_obj: 'required - burp_obj returned by #start method',
+            search_string: 'required - string to search for in the sitemap entries'
           )
 
           json_sitemap = #{self}.import_openapi_to_sitemap(
