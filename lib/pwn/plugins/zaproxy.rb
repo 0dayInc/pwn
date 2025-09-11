@@ -296,40 +296,23 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Zaproxy.find_har_entries(
       #   zap_obj: 'required - zap_obj returned from #open method',
-      #   request: 'required - base64 encoded request or HAR entry :request (e.g. from #get_sitemap method)'
+      #   search_string: 'required - string to search for in the sitemap entries'
       # )
 
       public_class_method def self.find_har_entries(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
-        request = opts[:request]
-        raise 'ERROR: request must be provided' if request.nil?
+        search_string = opts[:search_string]
+        raise 'ERROR: search_string must be provided' if search_string.nil?
 
         har_sitemap = get_sitemap(
           zap_obj: zap_obj,
           return_as: :har
         )
 
-        # HAR entry
-        if request.is_a?(Hash) && request.key?(:method) && request.key?(:url) && request.key?(:httpVersion)
-          har_entries = har_sitemap.select { |entry| entry[:request] == request }
-        else
-          # Base64 encoded string
-          dec_request = Base64.strict_decode64(request).force_encoding('ASCII-8BIT') unless dec_request.is_a?(Hash)
-
-          # Find the har request for the given base64 decoded dec_request value
-          har_entries = har_sitemap.select do |entry|
-            req = entry[:request]
-            req_line = "#{req[:method]} #{req[:url]} #{req[:httpVersion]}\r\n"
-            req_headers = req[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
-            req_body = ''
-            if req[:postData] && req[:postData][:text]
-              req_body = req[:postData][:text]
-              req_body = Base64.decode64(req_body) if req[:postData][:encoding] == 'base64'
-            end
-            full_req = "#{req_line}#{req_headers}\r\n#{req_body}".force_encoding('ASCII-8BIT')
-            full_req == dec_request
-          end
+        har_entries = har_sitemap.select do |entry|
+          json_request = entry[:request].to_json
+          json_request.include?(search_string)
         end
 
         har_entries
@@ -781,7 +764,7 @@ module PWN
 
           #{self}.find_har_entries(
             zap_obj: 'required - zap_obj returned from #open method',
-            request: 'required - base64 encoded request or HAR entry :request (e.g. from #get_sitemap method)'
+            search_string: 'required - string to search for in the sitemap entries'
           )
 
           #{self}.requester(
