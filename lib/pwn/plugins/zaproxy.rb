@@ -172,146 +172,15 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Zaproxy.add_to_scope(
-      #   zap_obj: 'required - zap_obj returned from #open method',
-      #   target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
-      #   context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
-      # )
-
-      public_class_method def self.add_to_scope(opts = {})
-        zap_obj = opts[:zap_obj]
-        api_key = zap_obj[:api_key].to_s.scrub
-        target_regex = opts[:target_regex]
-        raise 'ERROR: target_url must be provided' if target_regex.nil?
-
-        context_name = opts[:context_name] ||= 'Default Context'
-
-        params = {
-          apikey: api_key,
-          contextName: context_name,
-          regex: target_regex
-        }
-
-        response = zap_rest_call(
-          zap_obj: zap_obj,
-          rest_call: 'JSON/context/action/includeInContext/',
-          params: params
-        )
-
-        JSON.parse(response.body, symbolize_names: true)
-      rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj: zap_obj) unless zap_obj.nil?
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::Zaproxy.add_requester_tab(
-      #   zap_obj: 'required - zap_obj returned from #open method',
-      #   request: 'required - base64 encoded HTTP request (e.g. from #get_sitemap method)'
-      # )
-
-      public_class_method def self.add_requester_tab(opts = {})
-        zap_obj = opts[:zap_obj]
-        api_key = zap_obj[:api_key].to_s.scrub
-        request = opts[:request]
-
-        dec_request = Base64.strict_decode64(request).force_encoding('ASCII-8BIT')
-
-        # Parse the full request string
-        parts = dec_request.split("\r\n\r\n", 2)
-        headers_part = parts[0]
-        body = parts[1] || ''
-
-        header_lines = headers_part.split("\r\n")
-        first_line = header_lines.shift
-        method, full_url, http_version = first_line.split
-
-        headers = []
-        header_lines.each do |line|
-          name, value = line.split(': ', 2)
-          headers << { name: name, value: value }
-        end
-
-        # Parse URL for queryString and adjust url
-        uri = URI.parse(full_url)
-        query_string = []
-        if uri.query
-          URI.decode_www_form(uri.query).each do |name, value|
-            query_string << { name: name, value: value }
-          end
-        end
-        url = "#{uri.scheme}://#{uri.host}"
-        url += ":#{uri.port}" if uri.port && uri.port != (uri.scheme == 'https' ? 443 : 80)
-        url += uri.path
-
-        # Determine content-type
-        content_type_header = headers.find { |h| h[:name].downcase == 'content-type' }
-        mime_type = content_type_header ? content_type_header[:value] : 'application/octet-stream'
-
-        # Handle postData
-        post_data = nil
-        methods_with_body = %w[POST PUT PATCH]
-        if methods_with_body.include?(method) && !body.empty?
-          post_data = {
-            mimeType: mime_type,
-            params: [],
-            text: body
-          }
-
-          temp_body = body.dup.force_encoding('UTF-8')
-          if temp_body.valid_encoding?
-            if mime_type.include?('application/x-www-form-urlencoded')
-              URI.decode_www_form(temp_body).each do |name, value|
-                post_data[:params] << { name: name, value: value }
-              end
-            end
-          else
-            post_data[:text] = Base64.encode64(body)
-            post_data[:encoding] = 'base64'
-          end
-        end
-
-        # Construct HAR request
-        har_request = {
-          method: method,
-          url: url,
-          httpVersion: http_version,
-          cookies: [],
-          headers: headers,
-          queryString: query_string,
-          headersSize: -1,
-          bodySize: -1
-        }
-        har_request[:postData] = post_data if post_data
-
-        har_json = JSON.generate(har_request)
-
-        params = {
-          apikey: api_key,
-          request: har_json,
-          followRedirects: 'true'
-        }
-
-        response = zap_rest_call(
-          zap_obj: zap_obj,
-          rest_call: 'OTHER/core/other/sendHarRequest/',
-          params: params
-        )
-
-        JSON.parse(response.body, symbolize_names: true)
-      rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj: zap_obj) unless zap_obj.nil?
-        raise e
-      end
-
-      # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::Zaproxy.get_sitemap(
-      #   zap_obj: 'required - zap_obj returned from #open method'
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
 
       public_class_method def self.get_sitemap(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
+        return_as = opts[:return_as] ||= :base64
 
         entries = []
         start = 0
@@ -333,6 +202,7 @@ module PWN
           entries += new_entries
           start += count
         end
+        return entries if return_as == :har
 
         # Deduplicate entries based on method + url
         seen = Set.new
@@ -385,6 +255,119 @@ module PWN
         end
 
         converted_messages
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.add_to_scope(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
+      #   context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
+      # )
+
+      public_class_method def self.add_to_scope(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        target_regex = opts[:target_regex]
+        raise 'ERROR: target_url must be provided' if target_regex.nil?
+
+        context_name = opts[:context_name] ||= 'Default Context'
+
+        params = {
+          apikey: api_key,
+          contextName: context_name,
+          regex: target_regex
+        }
+
+        response = zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'JSON/context/action/includeInContext/',
+          params: params
+        )
+
+        JSON.parse(response.body, symbolize_names: true)
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.find_har_entries(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   request: 'required - base64 encoded request or HAR entry :request (e.g. from #get_sitemap method)'
+      # )
+
+      public_class_method def self.find_har_entries(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        request = opts[:request]
+        raise 'ERROR: request must be provided' if request.nil?
+
+        har_sitemap = get_sitemap(
+          zap_obj: zap_obj,
+          return_as: :har
+        )
+
+        # HAR entry
+        if request.is_a?(Hash) && request.key?(:method) && request.key?(:url) && request.key?(:httpVersion)
+          har_entries = har_sitemap.select { |entry| entry[:request] == request }
+        else
+          # Base64 encoded string
+          dec_request = Base64.strict_decode64(request).force_encoding('ASCII-8BIT') unless dec_request.is_a?(Hash)
+
+          # Find the har request for the given base64 decoded dec_request value
+          har_entries = har_sitemap.select do |entry|
+            req = entry[:request]
+            req_line = "#{req[:method]} #{req[:url]} #{req[:httpVersion]}\r\n"
+            req_headers = req[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
+            req_body = ''
+            if req[:postData] && req[:postData][:text]
+              req_body = req[:postData][:text]
+              req_body = Base64.decode64(req_body) if req[:postData][:encoding] == 'base64'
+            end
+            full_req = "#{req_line}#{req_headers}\r\n#{req_body}".force_encoding('ASCII-8BIT')
+            full_req == dec_request
+          end
+        end
+
+        har_entries
+      rescue StandardError, SystemExit, Interrupt => e
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::Zaproxy.requester(
+      #   zap_obj: 'required - zap_obj returned from #open method',
+      #   har_entry: 'required - har entry (e.g. from #get_sitemap method or #find_har_entries method)',
+      #   redirect: 'optional - follow redirects if set to true (defaults to false)'
+      # )
+
+      public_class_method def self.requester(opts = {})
+        zap_obj = opts[:zap_obj]
+        api_key = zap_obj[:api_key].to_s.scrub
+        har_entry = opts[:har_entry]
+        raise 'ERROR: har_entry must be provided and be a valid HAR entry' unless har_entry.is_a?(Hash) && har_entry.key?(:request) && har_entry.key?(:response)
+
+        redirect = opts[:redirect] || false
+        raise 'ERROR: redirect must be a boolean' unless redirect.is_a?(TrueClass) || redirect.is_a?(FalseClass)
+
+        har_json = har_entry.to_json
+        params = {
+          apikey: api_key,
+          request: har_json,
+          followRedirects: redirect.to_s
+        }
+
+        response = zap_rest_call(
+          zap_obj: zap_obj,
+          rest_call: 'OTHER/exim/other/sendHarRequest/',
+          params: params
+        )
+
+        JSON.parse(response.body, symbolize_names: true)
       rescue StandardError, SystemExit, Interrupt => e
         stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
@@ -785,19 +768,26 @@ module PWN
             openapi_spec: 'required - path to OpenAPI JSON or YAML spec file'
           )
 
+          #{self}.get_sitemap(
+            zap_obj: 'required - zap_obj returned from #open method',
+            return_as: 'optional - :base64 or :har (defaults to :base64)'
+          )
+
           #{self}.add_to_scope(
             zap_obj: 'required - zap_obj returned from #open method',
             target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
             context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
           )
 
-          #{self}.add_requester_tab(
+          #{self}.find_har_entries(
             zap_obj: 'required - zap_obj returned from #open method',
-            request: 'required - base64 encoded HTTP request (e.g. from #get_sitemap method)'
+            request: 'required - base64 encoded request or HAR entry :request (e.g. from #get_sitemap method)'
           )
 
-          #{self}.get_sitemap(
-            zap_obj: 'required - zap_obj returned from #open method'
+          #{self}.requester(
+            zap_obj: 'required - zap_obj returned from #open method',
+            har_entry: 'required - har entry (e.g. from #get_sitemap method or #find_har_entries method)',
+            redirect: 'optional - follow redirects if set to true (defaults to true)'
           )
 
           json_sitemap = #{self}.spider(
