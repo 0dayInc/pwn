@@ -450,7 +450,7 @@ module PWN
         raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
 
         openapi_spec = opts[:openapi_spec]
-        raise 'ERROR: openapi_spec parameter not found' unless File.exist?(openapi_spec)
+        raise 'ERROR: openapi_spec parameter is required' if openapi_spec.nil?
 
         additional_http_headers = opts[:additional_http_headers] ||= {}
         raise 'ERROR: additional_http_headers must be a Hash' unless additional_http_headers.is_a?(Hash)
@@ -1010,6 +1010,31 @@ module PWN
         JSON.parse(scan_issues, symbolize_names: true)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # repeater_id = PWN::Plugins::BurpSuite.find_sitemap_entries(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   search_string: 'required - string to search for in the sitemap entries'
+      # )
+
+      public_class_method def self.find_sitemap_entries(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        search_string = opts[:search_string]
+        raise 'ERROR: search_string parameter is required' if search_string.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        json_sitemap = get_sitemap(burp_obj: burp_obj)
+        matching_entries = json_sitemap.select do |entry|
+          decoded_request = Base64.strict_decode64(entry[:request])
+          decoded_request.include?(search_string)
+        end
+      rescue StandardError => e
         raise e
       end
 
