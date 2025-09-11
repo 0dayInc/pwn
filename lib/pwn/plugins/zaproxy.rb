@@ -728,7 +728,10 @@ module PWN
         session_path = zap_obj[:session_path]
         session_path_files = Dir.glob("#{session_path}*")
         # Remove session files - need to add a slight delay between each unlink to work around file locks
-        session_path_files.each { |f| FileUtils.rm_f(f); sleep 0.3 }
+        session_path_files.each do |f|
+          FileUtils.rm_f(f)
+          sleep 0.3
+        end
 
         zap_obj = nil
       rescue StandardError, SystemExit, Interrupt => e
