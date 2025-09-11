@@ -121,6 +121,7 @@ begin
   if headless
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
+      headless: headless,
       browser_type: :headless
     )
   else

@@ -116,11 +116,14 @@ begin
   if headless
     zap_obj = PWN::Plugins::Zaproxy.start(
       zap_bin_path: zap_bin_path,
-      headless: headless
+      api_key: api_key,
+      headless: headless,
+      browser_type: :headless
     )
   else
     zap_obj = PWN::Plugins::Zaproxy.start(
       zap_bin_path: zap_bin_path,
+      api_key: api_key,
       browser_type: browser_type
     )
   end
