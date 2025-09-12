@@ -93,6 +93,8 @@ module PWN
 
         headless = opts[:headless] || false
         browser_type = opts[:browser_type] ||= :firefox
+        browser_type = browser_type.to_s.downcase.to_sym unless browser_type.is_a?(Symbol)
+        browser_type = :headless if headless
         zap_ip = opts[:zap_ip] ||= '127.0.0.1'
         zap_port = opts[:zap_port] ||= PWN::Plugins::Sock.get_random_unused_port
 
