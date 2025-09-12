@@ -85,7 +85,6 @@ begin
   zap_bin_path = opts[:zap_bin_path]
   headless = opts[:headless] || false
   browser_type = opts[:browser_type] ||= :firefox
-  browser_type = browser_type.to_s.downcase.to_sym unless browser_type.is_a?(Symbol)
   debug = opts[:debug] || false
 
   swagger_defs_arr = swagger_definitions.split(',').map(&:strip)
@@ -117,8 +116,7 @@ begin
     zap_obj = PWN::Plugins::Zaproxy.start(
       zap_bin_path: zap_bin_path,
       api_key: api_key,
-      headless: headless,
-      browser_type: :headless
+      headless: headless
     )
   else
     zap_obj = PWN::Plugins::Zaproxy.start(

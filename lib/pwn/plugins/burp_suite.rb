@@ -62,7 +62,10 @@ module PWN
 
         burp_root = File.dirname(burp_jar_path)
 
+        headless = opts[:headless] || false
         browser_type = opts[:browser_type] ||= :firefox
+        browser_type = browser_type.to_s.downcase.to_sym unless browser_type.is_a?(Symbol)
+        browser_type = :headless if headless
         burp_ip = opts[:burp_ip] ||= '127.0.0.1'
         burp_port = opts[:burp_port] ||= PWN::Plugins::Sock.get_random_unused_port
 
@@ -70,7 +73,7 @@ module PWN
         pwn_burp_port = opts[:pwn_burp_port] ||= PWN::Plugins::Sock.get_random_unused_port
 
         burp_cmd_string = 'java -Xms4G -Xmx16G'
-        burp_cmd_string = "#{burp_cmd_string} -Djava.awt.headless=true" if opts[:headless]
+        burp_cmd_string = "#{burp_cmd_string} -Djava.awt.headless=true" if headless
         burp_cmd_string = "#{burp_cmd_string} -Dproxy.address=#{burp_ip} -Dproxy.port=#{burp_port}"
         burp_cmd_string = "#{burp_cmd_string} -Dserver.address=#{pwn_burp_ip} -Dserver.port=#{pwn_burp_port}"
         burp_cmd_string = "#{burp_cmd_string} -jar #{burp_jar_path}"
@@ -484,6 +487,9 @@ module PWN
         comment = opts[:comment].to_s.scrub
 
         debug = opts[:debug] || false
+
+        openapi_spec_root = File.dirname(openapi_spec)
+        Dir.chdir(openapi_spec_root)
 
         # Parse the OpenAPI JSON or YAML specification file
         # If the openapi_spec is YAML, convert it to JSON

@@ -85,7 +85,6 @@ begin
   burp_jar_path = opts[:burp_jar_path]
   headless = opts[:headless] || false
   browser_type = opts[:browser_type] ||= :firefox
-  browser_type = browser_type.to_s.downcase.to_sym unless browser_type.is_a?(Symbol)
   debug = opts[:debug] || false
 
   swagger_defs_arr = swagger_definitions.split(',').map(&:strip)
@@ -121,8 +120,7 @@ begin
   if headless
     burp_obj = PWN::Plugins::BurpSuite.start(
       burp_jar_path: burp_jar_path,
-      headless: headless,
-      browser_type: :headless
+      headless: headless
     )
   else
     burp_obj = PWN::Plugins::BurpSuite.start(
