@@ -380,8 +380,8 @@ module PWN
 
         if keyword
           sitmap_arr = sitemap_arr.select do |site|
-            dec_request = Base64.strict_decode64(site[:request])
-            site if dec_request.include?(keyword)
+            decoded_request = Base64.strict_decode64(site[:request])
+            decoded_request.include?(keyword)
           end
         end
 
