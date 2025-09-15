@@ -360,16 +360,14 @@ module PWN
       # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::BurpSuite.get_sitemap(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   target_url: 'optional - target URL to filter sitemap results (defaults to entire sitemap)'
+      #   keyword: 'optional - keyword to filter sitemap entries (default: nil)',
       # )
 
       public_class_method def self.get_sitemap(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
-        target_url = opts[:target_url]
-
-        base64_encoded_target_url = Base64.strict_encode64(target_url.to_s.scrub.strip.chomp) if target_url
+        keyword = opts[:keyword]
 
         rest_call = "http://#{mitm_rest_api}/sitemap"
         rest_call = "#{rest_call}/#{base64_encoded_target_url}" if target_url
@@ -379,7 +377,16 @@ module PWN
           content_type: 'application/json; charset=UTF8'
         )
 
-        JSON.parse(sitemap, symbolize_names: true)
+        sitemap_arr = JSON.parse(sitemap, symbolize_names: true)
+
+        if keyword
+          sitmap_arr = sitemap_arr.select do |site|
+            dec_request = Base64.strict_decode64(site[:request])
+            site if dec_request.include?(keyword)
+          end
+        end
+
+        sitemap_arr
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -436,31 +443,6 @@ module PWN
         puts "HTTP error adding to sitemap: Status #{e.response.code}, Response: #{e.response.body}" if e.respond_to?(:response) && e.response.respond_to?(:code) && e.response.respond_to?(:body)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # repeater_id = PWN::Plugins::BurpSuite.find_sitemap_entries(
-      #   burp_obj: 'required - burp_obj returned by #start method',
-      #   search_string: 'required - string to search for in the sitemap entries'
-      # )
-
-      public_class_method def self.find_sitemap_entries(opts = {})
-        burp_obj = opts[:burp_obj]
-        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
-
-        search_string = opts[:search_string]
-        raise 'ERROR: search_string parameter is required' if search_string.nil?
-
-        rest_browser = burp_obj[:rest_browser]
-        mitm_rest_api = burp_obj[:mitm_rest_api]
-
-        json_sitemap = get_sitemap(burp_obj: burp_obj)
-        matching_entries = json_sitemap.select do |entry|
-          decoded_request = Base64.strict_decode64(entry[:request])
-          decoded_request.include?(search_string)
-        end
-      rescue StandardError => e
         raise e
       end
 
@@ -1376,7 +1358,7 @@ module PWN
 
           json_sitemap = #{self}.get_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
-            target_url: 'optional - target URL to filter sitemap results (defaults to entire sitemap)'
+            keyword: 'optional - keyword to filter sitemap results (default: nil)',
           )
 
           json_sitemap = #{self}.add_to_sitemap(
@@ -1399,11 +1381,6 @@ module PWN
                 protocol: 'http'
               }
             }
-          )
-
-          #{self}.find_sitemap_entry(
-            burp_obj: 'required - burp_obj returned by #start method',
-            search_string: 'required - string to search for in the sitemap entries'
           )
 
           json_sitemap = #{self}.import_openapi_to_sitemap(

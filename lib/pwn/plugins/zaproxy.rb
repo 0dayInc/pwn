@@ -197,18 +197,21 @@ module PWN
       # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::Zaproxy.get_sitemap(
       #   zap_obj: 'required - zap_obj returned from #open method',
+      #   keyword: 'optional - string to search for in the sitemap entries (defaults to nil)',
       #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
 
       public_class_method def self.get_sitemap(opts = {})
         zap_obj = opts[:zap_obj]
         api_key = zap_obj[:api_key].to_s.scrub
+        keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
 
         entries = []
         start = 0
         count = 1000
 
+        # Get all entries in sitemap
         loop do
           params = { apikey: api_key, start: start, count: count }
 
@@ -225,59 +228,71 @@ module PWN
           entries += new_entries
           start += count
         end
-        return entries if return_as == :har
 
-        # Deduplicate entries based on method + url
-        seen = Set.new
-        converted_messages = []
-
-        entries.each do |entry|
-          req = entry[:request]
-          key = [req[:method], req[:url]]
-          next if seen.include?(key)
-
-          seen.add(key)
-
-          # Build full request string
-          req_line = "#{req[:method]} #{req[:url]} #{req[:httpVersion]}\r\n"
-          req_headers = req[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
-          req_body = ''
-          if req[:postData] && req[:postData][:text]
-            req_body = req[:postData][:text]
-            req_body = Base64.decode64(req_body) if req[:postData][:encoding] == 'base64'
+        case return_as
+        when :har
+          if keyword
+            entries = har_sitemap.select do |site|
+              json_request = site[:request].to_json
+              json_request.include?(keyword)
+            end
           end
-          full_req = "#{req_line}#{req_headers}\r\n#{req_body}".force_encoding('ASCII-8BIT')
-          encoded_req = Base64.strict_encode64(full_req)
+        when :base64
+          # Deduplicate entries based on method + url
+          entries.each do |entry|
+            entry_hash = {}
+            req = entry[:request]
+            key = [req[:method], req[:url]]
 
-          # Build full response string
-          res = entry[:response]
-          res_line = "#{res[:httpVersion]} #{res[:status]} #{res[:statusText]}\r\n"
-          res_headers = res[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
-          res_body = ''
-          if res[:content] && res[:content][:text]
-            res_body = res[:content][:text]
-            res_body = Base64.decode64(res_body) if res[:content][:encoding] == 'base64'
+            # Build full request string
+            req_line = "#{req[:method]} #{req[:url]} #{req[:httpVersion]}\r\n"
+            req_headers = req[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
+            req_body = ''
+            if req[:postData] && req[:postData][:text]
+              req_body = req[:postData][:text]
+              req_body = Base64.decode64(req_body) if req[:postData][:encoding] == 'base64'
+            end
+            full_req = "#{req_line}#{req_headers}\r\n#{req_body}".force_encoding('ASCII-8BIT')
+            encoded_req = Base64.strict_encode64(full_req)
+
+            # Build full response string
+            res = entry[:response]
+            res_line = "#{res[:httpVersion]} #{res[:status]} #{res[:statusText]}\r\n"
+            res_headers = res[:headers].map { |h| "#{h[:name]}: #{h[:value]}\r\n" }.join
+            res_body = ''
+            if res[:content] && res[:content][:text]
+              res_body = res[:content][:text]
+              res_body = Base64.decode64(res_body) if res[:content][:encoding] == 'base64'
+            end
+            full_res = "#{res_line}#{res_headers}\r\n#{res_body}".force_encoding('ASCII-8BIT')
+            encoded_res = Base64.strict_encode64(full_res)
+
+            # Extract http_service
+            uri = URI.parse(req[:url])
+            http_service = {
+              host: uri.host,
+              port: uri.port,
+              protocol: uri.scheme
+            }
+
+            # Add to array
+            entry_hash[:request] = encoded_req
+            entry_hash[:response] = encoded_res
+            entry_hash[:http_service] = http_service
+            entries.push(entry_hash)
           end
-          full_res = "#{res_line}#{res_headers}\r\n#{res_body}".force_encoding('ASCII-8BIT')
-          encoded_res = Base64.strict_encode64(full_res)
 
-          # Extract http_service
-          uri = URI.parse(req[:url])
-          http_service = {
-            host: uri.host,
-            port: uri.port,
-            protocol: uri.scheme
-          }
-
-          # Add to array
-          converted_messages << {
-            request: encoded_req,
-            response: encoded_res,
-            http_service: http_service
-          }
+          if keyword
+            entries = entries.select do |site|
+              deccoded_request = Base64.strict_decode64(site[:request])
+              deccoded_request.include?(keyword)
+            end
+          end
+        else
+          raise "ERROR: Invalid return_as option #{return_as}.  Valid options are :base64 or :har"
         end
 
-        converted_messages
+        entries.uniq
       rescue StandardError, SystemExit, Interrupt => e
         stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
@@ -317,37 +332,9 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Zaproxy.find_har_entries(
-      #   zap_obj: 'required - zap_obj returned from #open method',
-      #   search_string: 'required - string to search for in the sitemap entries'
-      # )
-
-      public_class_method def self.find_har_entries(opts = {})
-        zap_obj = opts[:zap_obj]
-        api_key = zap_obj[:api_key].to_s.scrub
-        search_string = opts[:search_string]
-        raise 'ERROR: search_string must be provided' if search_string.nil?
-
-        har_sitemap = get_sitemap(
-          zap_obj: zap_obj,
-          return_as: :har
-        )
-
-        har_entries = har_sitemap.select do |entry|
-          json_request = entry[:request].to_json
-          json_request.include?(search_string)
-        end
-
-        har_entries
-      rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj: zap_obj) unless zap_obj.nil?
-        raise e
-      end
-
-      # Supported Method Parameters::
       # PWN::Plugins::Zaproxy.requester(
       #   zap_obj: 'required - zap_obj returned from #open method',
-      #   har_entry: 'required - har entry (e.g. from #get_sitemap method or #find_har_entries method)',
+      #   har_entry: 'required - har entry (e.g. from #get_sitemap method method)',
       #   redirect: 'optional - follow redirects if set to true (defaults to false)'
       # )
 
@@ -788,6 +775,7 @@ module PWN
 
           #{self}.get_sitemap(
             zap_obj: 'required - zap_obj returned from #open method',
+            keyword: 'optional - string to search for in the sitemap entries (defaults to nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
@@ -797,14 +785,9 @@ module PWN
             context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
           )
 
-          #{self}.find_har_entries(
-            zap_obj: 'required - zap_obj returned from #open method',
-            search_string: 'required - string to search for in the sitemap entries'
-          )
-
           #{self}.requester(
             zap_obj: 'required - zap_obj returned from #open method',
-            har_entry: 'required - har entry (e.g. from #get_sitemap method or #find_har_entries method)',
+            har_entry: 'required - har entry (e.g. from #get_sitemap method method)',
             redirect: 'optional - follow redirects if set to true (defaults to true)'
           )
 
