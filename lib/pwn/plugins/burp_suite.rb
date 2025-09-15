@@ -370,7 +370,6 @@ module PWN
         keyword = opts[:keyword]
 
         rest_call = "http://#{mitm_rest_api}/sitemap"
-        rest_call = "#{rest_call}/#{base64_encoded_target_url}" if target_url
 
         sitemap = rest_browser.get(
           rest_call,
@@ -386,7 +385,7 @@ module PWN
           end
         end
 
-        sitemap_arr
+        sitemap_arr.uniq
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
