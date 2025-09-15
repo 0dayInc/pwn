@@ -150,7 +150,9 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::Zaproxy.import_openapi_to_sitemap(
       #   zap_obj: 'required - zap_obj returned from #open method',
-      #   openapi_spec: 'required - path to OpenAPI JSON or YAML spec file'
+      #   openapi_spec: 'required - path to OpenAPI JSON or YAML spec file',
+      #   additional_http_headers: 'optional - hash of additional HTTP headers to include in requests (default: {})',
+      #   target_regex: 'optional - url regex to inject additional_http_headers into (e.g. https://test.domain.local.*)'
       # )
 
       public_class_method def self.import_openapi_to_sitemap(opts = {})
@@ -161,6 +163,19 @@ module PWN
 
         openapi_spec_root = File.dirname(openapi_spec)
         Dir.chdir(openapi_spec_root)
+
+        additional_http_headers = opts[:additional_http_headers] ||= {}
+        raise 'ERROR: additional_http_headers must be a Hash' unless additional_http_headers.is_a?(Hash)
+
+        target_regex = opts[:target_regex]
+
+        if additional_http_headers.any?
+          inject_additional_http_headers(
+            zap_obj: zap_obj,
+            target_regex: target_regex,
+            headers: additional_http_headers
+          )
+        end
 
         params = {
           apikey: api_key,
@@ -766,7 +781,9 @@ module PWN
 
           #{self}.import_openapi_to_sitemap(
             zap_obj: 'required - zap_obj returned from #open method',
-            openapi_spec: 'required - path to OpenAPI JSON or YAML spec file'
+            openapi_spec: 'required - path to OpenAPI JSON or YAML spec file',
+            additional_http_headers: 'optional - hash of additional HTTP headers to include in requests (default: {})',
+            target_regex: 'optional - url regex to inject additional_http_headers into (e.g. https://test.domain.local.*)'
           )
 
           #{self}.get_sitemap(
