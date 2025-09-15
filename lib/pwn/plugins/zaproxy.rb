@@ -211,6 +211,7 @@ module PWN
         start = 0
         count = 1000
 
+        # Get all entries in sitemap
         loop do
           params = { apikey: api_key, start: start, count: count }
 
@@ -236,11 +237,8 @@ module PWN
               json_request.include?(keyword)
             end
           end
-          return entries.uniq
         when :base64
           # Deduplicate entries based on method + url
-          entries = []
-
           entries.each do |entry|
             entry_hash = {}
             req = entry[:request]
@@ -290,11 +288,11 @@ module PWN
               deccoded_request.include?(keyword)
             end
           end
-
-          entries.uniq
         else
           raise "ERROR: Invalid return_as option #{return_as}.  Valid options are :base64 or :har"
         end
+
+        entries.uniq
       rescue StandardError, SystemExit, Interrupt => e
         stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
@@ -777,6 +775,7 @@ module PWN
 
           #{self}.get_sitemap(
             zap_obj: 'required - zap_obj returned from #open method',
+            keyword: 'optional - string to search for in the sitemap entries (defaults to nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
