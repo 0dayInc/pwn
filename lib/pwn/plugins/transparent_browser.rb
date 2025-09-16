@@ -1225,8 +1225,7 @@ module PWN
         PWN::Plugins::Tor.stop(tor_obj: browser_obj[:tor_obj]) if tor_obj
 
         # Close the browser unless browser.nil? (thus the &)
-        # browser&.close unless browser.to_s == 'RestClient'
-        browser&.close unless browser.is_a?(RestClient)
+        browser&.close unless browser == RestClient
 
         nil
       rescue StandardError => e

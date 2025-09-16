@@ -27,55 +27,128 @@ module PWN
 
       # Supported Method Parameters::
       # programs_arr = PWN::WWW::HackerOne.get_bounty_programs(
-      #   browser_obj: 'required - browser_obj returned from #open method',
-      #   proxy: 'optional - scheme://proxy_host:port || tor',
       #   min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)',
-      #   suppress_progress: 'optional - suppress output (defaults to false)'
+      #   suppress_progress: 'optional - suppress output (defaults to false)',
+      #   proxy: 'optional - scheme://proxy_host:port || tor'
       # )
 
       public_class_method def self.get_bounty_programs(opts = {})
-        browser_obj = opts[:browser_obj]
-        browser = browser_obj[:browser]
-        min_payouts_enabled = true if opts[:min_payouts_enabled]
-        min_payouts_enabled ||= false
-        suppress_progress = opts[:suppress_progress] ||= false
+        min_payouts_enabled = opts[:min_payouts_enabled] || false
+        raise 'ERROR: min_payouts_enabled should be true or false' unless [true, false].include?(min_payouts_enabled)
 
-        browser.goto('https://hackerone.com/bug-bounty-programs')
-        # Wait for JavaScript to load the DOM
+        suppress_progress = opts[:suppress_progress] || false
+        raise 'ERROR: suppress_progress should be true or false' unless [true, false].include?(suppress_progress)
+
+        proxy = opts[:proxy]
+
+        browser_obj = PWN::Plugins::TransparentBrowser.open(
+          browser_type: :rest,
+          proxy: proxy
+        )
+        rest_client = browser_obj[:browser]
+        rest_request = rest_client::Request
+
+        graphql_endpoint = 'https://hackerone.com/graphql'
+        headers = { content_type: 'application/json' }
+        # NOTE: If you copy this payload to the pwn REPL
+        # the triple dots ... attempt to execute commands
+        # <cough>Pry CE</cough>
+        query = "
+          query GetBountyPrograms($after: String) {
+            teams(
+              first: 100,
+              after: $after,
+              where: { state: {_in: [soft_launched, public_mode]} }
+            ) {
+              edges {
+                node {
+                  handle
+                  name
+                  minimum_bounty
+                }
+              }
+              pageInfo {
+                endCursor
+                hasNextPage
+              }
+            }
+          }
+        "
 
         programs_arr = []
-        browser.ul(class: 'program__meta-data').wait_until(&:present?)
-        browser.uls(class: 'program__meta-data').each do |ul|
-          min_payout = ul.text.split('$').last.split.first.to_f
+        cursor = nil
 
-          next if min_payouts_enabled && min_payout.zero?
-
-          print '.' unless suppress_progress
-
-          link = "https://#{ul.first.text}"
-          min_payout_fmt = format('$%0.2f', min_payout)
-          scheme = URI.parse(link).scheme
-          host = URI.parse(link).host
-          path = URI.parse(link).path
-          burp_target_config = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
-
-          bounty_program_hash = {
-            name: link.split('/').last,
-            min_payout: min_payout_fmt,
-            policy: "#{link}?view_policy=true",
-            burp_target_config: burp_target_config,
-            scope: "#{link}/policy_scopes",
-            hacktivity: "#{link}/hacktivity",
-            thanks: "#{link}/thanks",
-            updates: "#{link}/updates",
-            collaborators: "#{link}/collaborators"
+        loop do
+          payload = {
+            operationName: 'GetBountyPrograms',
+            variables: { after: cursor },
+            query: query
           }
-          programs_arr.push(bounty_program_hash)
+
+          rest_response = rest_request.execute(
+            method: :post,
+            url: graphql_endpoint,
+            headers: headers,
+            payload: payload.to_json.delete("\n"),
+            verify_ssl: false
+          )
+
+          data = JSON.parse(rest_response.body, symbolize_names: true)
+
+          teams = data[:data][:teams][:edges]
+          teams.each do |edge|
+            team = edge[:node]
+            min_payout = team[:minimum_bounty] ? team[:minimum_bounty].to_f : 0.0
+            next if min_payouts_enabled && min_payout.zero?
+
+            # next if min_payouts_enabled && min_payout.zero?
+
+            print '.' unless suppress_progress
+
+            min_payout_fmt = format('$%0.2f', min_payout)
+            handle = team[:handle]
+            link = "https://hackerone.com/#{handle}"
+            scheme = URI.parse(link).scheme
+            host = URI.parse(link).host
+            path = URI.parse(link).path
+            burp_target_config = "#{scheme}://#{host}/teams#{path}/assets/download_burp_project_file.json"
+
+            bounty_program_hash = {
+              name: handle,
+              min_payout: min_payout_fmt,
+              policy: "#{link}?view_policy=true",
+              burp_target_config: burp_target_config,
+              scope: "#{link}/policy_scopes",
+              hacktivity: "#{link}/hacktivity",
+              thanks: "#{link}/thanks",
+              updates: "#{link}/updates",
+              collaborators: "#{link}/collaborators"
+            }
+            programs_arr.push(bounty_program_hash)
+          end
+
+          page_info = data[:data][:teams][:pageInfo]
+          cursor = page_info[:endCursor]
+          break unless page_info[:hasNextPage]
         end
 
+        programs_arr.sort_by! { |p| -p[:min_payout].gsub('$', '').gsub(',', '').to_f }
+
         programs_arr
+      rescue RestClient::ExceptionWithResponse => e
+        if e.response
+          puts "HTTP RESPONSE CODE: #{e.response.code}"
+          puts "HTTP RESPONSE HEADERS:\n#{e.response.headers}"
+          puts "HTTP RESPONSE BODY:\n#{e.response.body}\n\n\n"
+        end
+
+        raise e
       rescue StandardError => e
         raise e
+      ensure
+        browser_obj = PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj) if browser_obj
+        rest_client = nil if rest_client
+        rest_request = nil if rest_request
       end
 
       # Supported Method Parameters::
@@ -500,10 +573,9 @@ module PWN
           )
 
           programs_arr = #{self}.get_bounty_programs(
-            browser_obj: 'required - browser_obj returned from #open method',
-            proxy: 'optional - scheme://proxy_host:port || tor',
             min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)',
-            suppress_progress: 'optional - suppress output (defaults to false)'
+            suppress_progress: 'optional - suppress output (defaults to false)',
+            proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
           scope_details = #{self}.get_scope_details(
