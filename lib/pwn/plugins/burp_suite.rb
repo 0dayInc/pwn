@@ -360,7 +360,7 @@ module PWN
       # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::BurpSuite.get_sitemap(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   keyword: 'optional - keyword to filter sitemap entries (default: nil)',
+      #   keyword: 'optional - keyword to filter sitemap entries (default: nil)'
       # )
 
       public_class_method def self.get_sitemap(opts = {})
@@ -379,7 +379,7 @@ module PWN
         sitemap_arr = JSON.parse(sitemap, symbolize_names: true)
 
         if keyword
-          sitmap_arr = sitemap_arr.select do |site|
+          sitemap_arr = sitemap_arr.select do |site|
             decoded_request = Base64.strict_decode64(site[:request])
             decoded_request.include?(keyword)
           end
@@ -1357,7 +1357,7 @@ module PWN
 
           json_sitemap = #{self}.get_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
-            keyword: 'optional - keyword to filter sitemap results (default: nil)',
+            keyword: 'optional - keyword to filter sitemap results (default: nil)'
           )
 
           json_sitemap = #{self}.add_to_sitemap(
