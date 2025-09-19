@@ -348,7 +348,8 @@ module PWN
           File.write(output_json_path, JSON.pretty_generate(merged_spec))
           log("Merged OpenAPI specification written to: #{output_json_path}", debug: debug)
 
-          { individual_specs: specs, merged_spec: merged_spec }
+          # { individual_specs: specs, merged_spec: merged_spec }
+          output_json_path
         rescue Errno::ENOENT => e
           raise "Error accessing file: #{e.message}"
         rescue StandardError => e
@@ -882,7 +883,7 @@ module PWN
           openapi_spec = #{self}.generate_spec(
             spec_paths: 'required - array of OpenAPI file paths to merge',
             base_url: 'required - base URL for OpenAPI endpoints (e.g., http://fqdn.com)',
-            output_json_path: 'optional - path to save the merged OpenAPI JSON file',
+            output_json_path: 'required - path to save the merged OpenAPI JSON file',
             target_version: 'optional - target OpenAPI version (default: 3.0.3)',
             debug: 'optional - boolean to enable debug logging (default: false)'
           )

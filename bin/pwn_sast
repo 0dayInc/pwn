@@ -51,7 +51,7 @@ OptionParser.new do |options|
     opts[:ai_key] = k
   end
 
-  options.on('-SCONTENT', '--ai-system-content=CONTENT', '<Optional AI System Role Content for Respective AI Engine>') do |s|
+  options.on('-SCONTENT', '--ai-system-content=CONTENT', '<Optional AI System Role Content for Respective AI Engine (Defaults to, "Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.")>') do |s|
     opts[:ai_system_role_content] = s
   end
 
