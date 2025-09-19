@@ -19,7 +19,7 @@ module PWN
       #   ai_model: 'optionnal - AI Model to Use for Respective AI Engine (e.g., grok-4i-0709, chargpt-4o-latest, llama-3.1, etc.)',
       #   ai_key: 'optional -  AI Key/Token for Respective AI Engine',
       #   ai_fqdn: 'optional -  AI FQDN (Only Required for "ollama" AI Engine)',
-      #   ai_system_role_content: 'optional - AI System Role Content (Defaults to "Is this code vulnerable or a false positive?  Valid responses are only: "VULNERABLE" or "FALSE+". DO NOT PROVIDE ANY OTHER TEXT OR EXPLANATIONS.")',
+      #   ai_system_role_content: 'optional - AI System Role Content (Defaults to "Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.")',
       #   ai_temp: 'optional - AI Temperature (Defaults to 0.9)'
       # )
 
@@ -44,7 +44,7 @@ module PWN
           raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
 
           ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
-          ai_system_role_content = opts[:ai_system_role_content] ||= 'Is this code vulnerable or a false positive?  Valid responses are only: "VULNERABLE" or "FALSE+". If this code is VULNERABLE, why?'
+          ai_system_role_content = opts[:ai_system_role_content] ||= 'Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.'
           ai_temp = opts[:ai_temp] ||= 0.9
 
           puts "Analyzing source code using AI engine: #{ai_engine}\nModel: #{ai_model}\nSystem Role Content: #{ai_system_role_content}\nTemperature: #{ai_temp}"
