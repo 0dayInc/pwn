@@ -1504,7 +1504,8 @@ module PWN
 
           json_sitemap = #{self}.get_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
-            keyword: 'optional - keyword to filter sitemap results (default: nil)'
+            keyword: 'optional - keyword to filter sitemap results (default: nil)',
+            return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
           json_sitemap = #{self}.add_to_sitemap(
