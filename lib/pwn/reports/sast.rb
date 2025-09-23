@@ -20,7 +20,7 @@ module PWN
       #   ai_key: 'optional -  AI Key/Token for Respective AI Engine',
       #   ai_fqdn: 'optional -  AI FQDN (Only Required for "ollama" AI Engine)',
       #   ai_system_role_content: 'optional - AI System Role Content (Defaults to "Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.")',
-      #   ai_temp: 'optional - AI Temperature (Defaults to 0.9)'
+      #   ai_temp: 'optional - AI Temperature (Defaults to 0.1)'
       # )
 
       public_class_method def self.generate(opts = {})
@@ -45,7 +45,7 @@ module PWN
 
           ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
           ai_system_role_content = opts[:ai_system_role_content] ||= 'Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.'
-          ai_temp = opts[:ai_temp] ||= 0.9
+          ai_temp = opts[:ai_temp] ||= 0.1
 
           puts "Analyzing source code using AI engine: #{ai_engine}\nModel: #{ai_model}\nSystem Role Content: #{ai_system_role_content}\nTemperature: #{ai_temp}"
         end

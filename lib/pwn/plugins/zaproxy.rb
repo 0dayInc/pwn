@@ -206,6 +206,7 @@ module PWN
         api_key = zap_obj[:api_key].to_s.scrub
         keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
+        raise 'ERROR: return_as must be :base64 or :har' unless %i[base64 har].include?(return_as)
 
         entries = []
         start = 0
@@ -229,16 +230,16 @@ module PWN
           start += count
         end
 
-        case return_as
-        when :har
-          if keyword
-            entries = har_sitemap.select do |site|
-              json_request = site[:request].to_json
-              json_request.include?(keyword)
-            end
+        if keyword
+          entries = har_sitemap.select do |site|
+            json_request = site[:request].to_json
+            json_request.include?(keyword)
           end
-        when :base64
+        end
+
+        if return_as == :base64
           # Deduplicate entries based on method + url
+          base64_entries = []
           entries.each do |entry|
             entry_hash = {}
             req = entry[:request]
@@ -279,17 +280,9 @@ module PWN
             entry_hash[:request] = encoded_req
             entry_hash[:response] = encoded_res
             entry_hash[:http_service] = http_service
-            entries.push(entry_hash)
+            base64_entries.push(entry_hash)
           end
-
-          if keyword
-            entries = entries.select do |site|
-              deccoded_request = Base64.strict_decode64(site[:request])
-              deccoded_request.include?(keyword)
-            end
-          end
-        else
-          raise "ERROR: Invalid return_as option #{return_as}.  Valid options are :base64 or :har"
+          entries = base64_entries
         end
 
         entries.uniq

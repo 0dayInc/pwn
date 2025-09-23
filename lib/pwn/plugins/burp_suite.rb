@@ -360,7 +360,8 @@ module PWN
       # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::BurpSuite.get_sitemap(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   keyword: 'optional - keyword to filter sitemap entries (default: nil)'
+      #   keyword: 'optional - keyword to filter sitemap entries (default: nil)',
+      #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
 
       public_class_method def self.get_sitemap(opts = {})
@@ -368,6 +369,7 @@ module PWN
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
         keyword = opts[:keyword]
+        return_as = opts[:return_as] ||= :base64
 
         rest_call = "http://#{mitm_rest_api}/sitemap"
 
@@ -383,6 +385,151 @@ module PWN
             decoded_request = Base64.strict_decode64(site[:request])
             decoded_request.include?(keyword)
           end
+        end
+
+        if return_as == :har
+          # Convert to HAR format
+          har_entries = sitemap_arr.map do |site|
+            decoded_request = Base64.strict_decode64(site[:request])
+
+            # Parse request head and body
+            if decoded_request.include?("\r\n\r\n")
+              request_head, request_body = decoded_request.split("\r\n\r\n", 2)
+            else
+              request_head = decoded_request
+              request_body = ''
+            end
+            request_lines = request_head.split("\r\n")
+            request_line = request_lines.shift
+            method, full_path, http_version = request_line.split(' ', 3)
+            headers = {}
+            request_lines.each do |line|
+              next if line.empty?
+
+              key, value = line.split(': ', 2)
+              headers[key] = value if key && value
+            end
+
+            host = headers['Host'] || raise('No Host header found in request')
+            scheme = 'http' # Hardcoded as protocol is not available; consider enhancing if available in site
+            url = "#{scheme}://#{host}#{full_path}"
+            uri = URI.parse(url)
+            query_string = uri.query ? URI.decode_www_form(uri.query).map { |k, v| { name: k, value: v.to_s } } : []
+
+            request_headers_size = request_head.bytesize + 4 # Account for \r\n\r\n
+            request_body_size = request_body.bytesize
+
+            request_obj = {
+              method: method,
+              url: uri.to_s,
+              httpVersion: http_version,
+              headers: headers.map { |k, v| { name: k, value: v } },
+              queryString: query_string,
+              headersSize: request_headers_size,
+              bodySize: request_body_size
+            }
+
+            if request_body_size.positive?
+              mime_type = headers['Content-Type'] || 'application/octet-stream'
+              post_data = {
+                mimeType: mime_type,
+                text: request_body
+              }
+              post_data[:params] = URI.decode_www_form(request_body).map { |k, v| { name: k, value: v.to_s } } if mime_type.include?('x-www-form-urlencoded')
+              request_obj[:postData] = post_data
+            end
+
+            if site[:response]
+              decoded_response = Base64.strict_decode64(site[:response])
+
+              # Parse response head and body
+              if decoded_response.include?("\r\n\r\n")
+                response_head, response_body = decoded_response.split("\r\n\r\n", 2)
+              else
+                response_head = decoded_response
+                response_body = ''
+              end
+              response_lines = response_head.split("\r\n")
+              status_line = response_lines.shift
+              version, status_str, status_text = status_line.split(' ', 3)
+              status = status_str.to_i
+              status_text ||= ''
+              response_headers = {}
+              response_lines.each do |line|
+                next if line.empty?
+
+                key, value = line.split(': ', 2)
+                response_headers[key] = value if key && value
+              end
+
+              response_headers_size = response_head.bytesize + 4 # Account for \r\n\r\n
+              response_body_size = response_body.bytesize
+              mime_type = response_headers['Content-Type'] || 'text/plain'
+
+              response_obj = {
+                status: status,
+                statusText: status_text,
+                httpVersion: version,
+                headers: response_headers.map { |k, v| { name: k, value: v } },
+                content: {
+                  size: response_body_size,
+                  mimeType: mime_type,
+                  text: response_body
+                },
+                redirectURL: response_headers['Location'] || '',
+                headersSize: response_headers_size,
+                bodySize: response_body_size
+              }
+            else
+              response_obj = {
+                status: 0,
+                statusText: 'No response',
+                httpVersion: 'unknown',
+                headers: [],
+                content: {
+                  size: 0,
+                  mimeType: 'text/plain',
+                  text: ''
+                },
+                redirectURL: '',
+                headersSize: -1,
+                bodySize: 0
+              }
+            end
+
+            {
+              startedDateTime: Time.now.iso8601,
+              time: 0,
+              request: request_obj,
+              response: response_obj,
+              cache: {},
+              timings: {
+                send: 0,
+                wait: 0,
+                receive: 0
+              },
+              pageref: 'page_1'
+            }
+          end
+
+          har_log = {
+            log: {
+              version: '1.2',
+              creator: {
+                name: 'BurpSuite via PWN::Plugins::BurpSuite',
+                version: '1.0'
+              },
+              pages: [{
+                startedDateTime: Time.now.iso8601,
+                id: 'page_1',
+                title: 'Sitemap Export',
+                pageTimings: {}
+              }],
+              entries: har_entries
+            }
+          }
+
+          sitemap_arr = har_log
         end
 
         sitemap_arr.uniq
