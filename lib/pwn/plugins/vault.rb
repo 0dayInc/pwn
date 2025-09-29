@@ -172,6 +172,9 @@ module PWN
         relative_editor = File.basename(editor)
         system(relative_editor, file)
 
+        # If the Pry object exists, set reload_config to true
+        Pry.config.reload_config = true if defined?(Pry)
+
         encrypt(
           file: file,
           key: key,

@@ -14,7 +14,7 @@ module PWN
     module Ollama
       # Supported Method Parameters::
       # ollama_rest_call(
-      #   fqdn: 'required - base URI for the Ollama API',
+      #   base_uri: 'required - base URI for the Ollama API',
       #   token: 'required - ollama bearer token',
       #   http_method: 'optional HTTP method (defaults to GET)
       #   rest_call: 'required rest call to make per the schema',
@@ -25,7 +25,7 @@ module PWN
       # )
 
       private_class_method def self.ollama_rest_call(opts = {})
-        fqdn = opts[:fqdn]
+        base_uri = opts[:base_uri]
         token = opts[:token]
         http_method = if opts[:http_method].nil?
                         :get
@@ -61,7 +61,7 @@ module PWN
           headers[:params] = params
           response = rest_client.execute(
             method: http_method,
-            url: "#{fqdn}/#{rest_call}",
+            url: "#{base_uri}/#{rest_call}",
             headers: headers,
             verify_ssl: false,
             timeout: timeout
@@ -73,7 +73,7 @@ module PWN
 
             response = rest_client.execute(
               method: http_method,
-              url: "#{fqdn}/#{rest_call}",
+              url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body,
               verify_ssl: false,
@@ -82,7 +82,7 @@ module PWN
           else
             response = rest_client.execute(
               method: http_method,
-              url: "#{fqdn}/#{rest_call}",
+              url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body.to_json,
               verify_ssl: false,
@@ -109,16 +109,16 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::Ollama.get_models(
-      #   fqdn: 'required - base URI for the Ollama API',
+      #   base_uri: 'required - base URI for the Ollama API',
       #   token: 'required - Bearer token'
       # )
 
       public_class_method def self.get_models(opts = {})
-        fqdn = opts[:fqdn]
+        base_uri = opts[:base_uri]
         token = opts[:token]
 
         response = ollama_rest_call(
-          fqdn: fqdn,
+          base_uri: base_uri,
           token: token,
           rest_call: 'ollama/api/tags'
         )
@@ -130,7 +130,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::Ollama.chat(
-      #   fqdn: 'required - base URI for the Ollama API',
+      #   base_uri: 'required - base URI for the Ollama API',
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to gpt-3.5-turbo-0613)',
@@ -143,7 +143,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        fqdn = opts[:fqdn]
+        base_uri = opts[:base_uri]
         token = opts[:token]
         request = opts[:request]
 
@@ -195,7 +195,7 @@ module PWN
         spinner = opts[:spinner]
 
         response = ollama_rest_call(
-          fqdn: fqdn,
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: rest_call,
@@ -238,12 +238,12 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           response = #{self}.get_models(
-            fqdn: 'required - base URI for the Ollama API',
+            base_uri: 'required - base URI for the Ollama API',
             token: 'required - Bearer token'
           )
 
           response = #{self}.chat(
-            fqdn: 'required - base URI for the Ollama API',
+            base_uri: 'required - base URI for the Ollama API',
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
             model: 'optional - model to use for text generation (defaults to llama2:latest)',
