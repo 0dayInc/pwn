@@ -463,13 +463,13 @@ module PWN
 
           def process
             pi = pry_instance
-            yaml_config_path = pi.config.yaml_config_path ||= "#{Dir.home}/pwn.yaml"
+            yaml_config_path = pi.config.yaml_config_path ||= "#{Dir.home}/.pwn/pwn.yaml"
             unless File.exist?(yaml_config_path)
               puts "ERROR: pwn.yaml not found: #{yaml_config_path}"
               return
             end
 
-            decryption_file = pi.config.decryption_file ||= "#{Dir.home}/pwn.decryptor.yaml"
+            decryption_file = pi.config.decryption_file ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
             unless File.exist?(decryption_file)
               puts "ERROR: pwn.decryptor.yaml not found: #{decryption_file}"
               return
