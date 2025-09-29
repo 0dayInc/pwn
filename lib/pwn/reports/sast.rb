@@ -18,7 +18,7 @@ module PWN
       #   ai_engine: 'optional - AI engine to use for analysis (:grok, :ollama, or :openai)',
       #   ai_model: 'optionnal - AI Model to Use for Respective AI Engine (e.g., grok-4i-0709, chargpt-4o-latest, llama-3.1, etc.)',
       #   ai_key: 'optional -  AI Key/Token for Respective AI Engine',
-      #   ai_fqdn: 'optional -  AI FQDN (Only Required for "ollama" AI Engine)',
+      #   ai_base_uri: 'optional -  AI FQDN (Only Required for "ollama" AI Engine)',
       #   ai_system_role_content: 'optional - AI System Role Content (Defaults to "Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.")',
       #   ai_temp: 'optional - AI Temperature (Defaults to 0.1)'
       # )
@@ -37,8 +37,8 @@ module PWN
           valid_ai_engines = %i[grok ollama openai]
           raise "ERROR: Invalid AI Engine. Valid options are: #{valid_ai_engines.join(', ')}" unless valid_ai_engines.include?(ai_engine)
 
-          ai_fqdn = opts[:ai_fqdn]
-          raise 'ERROR: FQDN for Ollama AI engine is required.' if ai_engine == :ollama && ai_fqdn.nil?
+          ai_base_uri = opts[:ai_base_uri]
+          raise 'ERROR: FQDN for Ollama AI engine is required.' if ai_engine == :ollama && ai_base_uri.nil?
 
           ai_model = opts[:ai_model]
           raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
@@ -75,6 +75,7 @@ module PWN
             case ai_engine
             when :grok
               response = PWN::AI::Grok.chat(
+                base_uri: ai_base_uri,
                 token: ai_key,
                 model: ai_model,
                 system_role_content: ai_system_role_content,
@@ -84,7 +85,7 @@ module PWN
               )
             when :ollama
               response = PWN::AI::Ollama.chat(
-                fqdn: ai_fqdn,
+                base_uri: ai_base_uri,
                 token: ai_key,
                 model: ai_model,
                 system_role_content: ai_system_role_content,
@@ -94,6 +95,7 @@ module PWN
               )
             when :openai
               response = PWN::AI::OpenAI.chat(
+                base_uri: ai_base_uri,
                 token: ai_key,
                 model: ai_model,
                 system_role_content: ai_system_role_content,

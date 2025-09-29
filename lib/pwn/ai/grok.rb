@@ -15,6 +15,7 @@ module PWN
       # grok_ai_rest_call(
       #   token: 'required - grok_ai bearer token',
       #   http_method: 'optional HTTP method (defaults to GET)
+      #   base_uri: 'optional base grok api URI (defaults to https://api.x.ai/v1)',
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
@@ -29,6 +30,8 @@ module PWN
                       else
                         opts[:http_method].to_s.scrub.to_sym
                       end
+
+        base_uri = opts[:base_uri] ||= 'https://api.x.ai/v1'
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
         headers = {
@@ -44,8 +47,6 @@ module PWN
 
         spinner = opts[:spinner] || false
 
-        base_grok_api_uri = 'https://api.x.ai/v1'
-
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
@@ -59,7 +60,7 @@ module PWN
           headers[:params] = params
           response = rest_client.execute(
             method: http_method,
-            url: "#{base_grok_api_uri}/#{rest_call}",
+            url: "#{base_uri}/#{rest_call}",
             headers: headers,
             verify_ssl: false,
             timeout: timeout
@@ -71,7 +72,7 @@ module PWN
 
             response = rest_client.execute(
               method: http_method,
-              url: "#{base_grok_api_uri}/#{rest_call}",
+              url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body,
               verify_ssl: false,
@@ -80,7 +81,7 @@ module PWN
           else
             response = rest_client.execute(
               method: http_method,
-              url: "#{base_grok_api_uri}/#{rest_call}",
+              url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body.to_json,
               verify_ssl: false,
@@ -107,13 +108,16 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::Grok.get_models(
+      #   base_uri: 'optional - base grok api URI (defaults to https://api.x.ai/v1)',
       #   token: 'required - Bearer token'
       # )
 
       public_class_method def self.get_models(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
 
         response = grok_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: 'models'
         )
@@ -125,6 +129,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::Grok.chat(
+      #   base_uri: 'optional - base grok api URI (defaults to https://api.x.ai/v1)',
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to grok-4-0709)',
@@ -137,6 +142,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         request = opts[:request]
 
@@ -188,6 +194,7 @@ module PWN
         spinner = opts[:spinner]
 
         response = grok_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: rest_call,
@@ -230,10 +237,12 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           response = #{self}.get_models(
+            base_uri: 'optional - base grok api URI (defaults to https://api.x.ai/v1)',
             token: 'required - Bearer token'
           )
 
           response = #{self}.chat(
+            base_uri: 'optional - base grok api URI (defaults to https://api.x.ai/v1)',
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
             model: 'optional - model to use for text generation (defaults to grok-4-0709)',

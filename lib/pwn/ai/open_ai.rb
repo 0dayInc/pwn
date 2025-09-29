@@ -16,6 +16,7 @@ module PWN
       # open_ai_rest_call(
       #   token: 'required - open_ai bearer token',
       #   http_method: 'optional HTTP method (defaults to GET)
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
@@ -30,6 +31,8 @@ module PWN
                       else
                         opts[:http_method].to_s.scrub.to_sym
                       end
+
+        base_uri = opts[:base_uri] ||= 'https://api.openai.com/v1'
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
         headers = {
@@ -45,8 +48,6 @@ module PWN
 
         spinner = opts[:spinner] || false
 
-        base_open_ai_api_uri = 'https://api.openai.com/v1'
-
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
@@ -60,7 +61,7 @@ module PWN
           headers[:params] = params
           response = rest_client.execute(
             method: http_method,
-            url: "#{base_open_ai_api_uri}/#{rest_call}",
+            url: "#{base_uri}/#{rest_call}",
             headers: headers,
             verify_ssl: false,
             timeout: timeout
@@ -72,7 +73,7 @@ module PWN
 
             response = rest_client.execute(
               method: http_method,
-              url: "#{base_open_ai_api_uri}/#{rest_call}",
+              url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body,
               verify_ssl: false,
@@ -81,7 +82,7 @@ module PWN
           else
             response = rest_client.execute(
               method: http_method,
-              url: "#{base_open_ai_api_uri}/#{rest_call}",
+              url: "#{base_uri}/#{rest_call}",
               headers: headers,
               payload: http_body.to_json,
               verify_ssl: false,
@@ -108,15 +109,18 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.get_models(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   timeout: 'optional timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.get_models(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         timeout = opts[:timeout]
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: 'models'
         )
@@ -128,6 +132,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.chat(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to gpt-5-chat-latest)',
@@ -140,6 +145,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         request = opts[:request]
 
@@ -224,6 +230,7 @@ module PWN
         spinner = opts[:spinner]
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: rest_call,
@@ -282,6 +289,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.img_gen(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   request: 'required - message to ChatGPT',
       #   n: 'optional - number of images to generate (defaults to 1)',
@@ -290,6 +298,7 @@ module PWN
       # )
 
       public_class_method def self.img_gen(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         request = opts[:request]
         n = opts[:n]
@@ -307,6 +316,7 @@ module PWN
         }
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: rest_call,
@@ -321,6 +331,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.vision(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   img_path: 'required - path or URI of image to analyze',
       #   request: 'optional - message to ChatGPT (defaults to, "what is in this image?")',
@@ -332,6 +343,7 @@ module PWN
       # )
 
       public_class_method def self.vision(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         img_path = opts[:img_path]
 
@@ -399,6 +411,7 @@ module PWN
         timeout = opts[:timeout]
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: rest_call,
@@ -429,6 +442,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.create_fine_tune(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   training_file: 'required - JSONL that contains OpenAI training data'
       #   validation_file: 'optional - JSONL that contains OpenAI validation data'
@@ -445,6 +459,7 @@ module PWN
       # )
 
       public_class_method def self.create_fine_tune(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         training_file = opts[:training_file]
         validation_file = opts[:validation_file]
@@ -462,6 +477,7 @@ module PWN
         timeout = opts[:timeout]
 
         response = upload_file(
+          base_uri: base_uri,
           token: token,
           file: training_file
         )
@@ -469,6 +485,7 @@ module PWN
 
         if validation_file
           response = upload_file(
+            base_uri: base_uri,
             token: token,
             file: validation_file
           )
@@ -492,6 +509,7 @@ module PWN
         http_body[:suffix] = suffix if suffix
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: 'fine_tuning/jobs',
@@ -506,15 +524,18 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.list_fine_tunes(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.list_fine_tunes(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         timeout = opts[:timeout]
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: 'fine_tuning/jobs',
           timeout: timeout
@@ -527,12 +548,14 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.get_fine_tune_status(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.get_fine_tune_status(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         fine_tune_id = opts[:fine_tune_id]
         timeout = opts[:timeout]
@@ -540,6 +563,7 @@ module PWN
         rest_call = "fine_tuning/jobs/#{fine_tune_id}"
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: rest_call,
           timeout: timeout
@@ -552,12 +576,14 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.cancel_fine_tune(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.cancel_fine_tune(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         fine_tune_id = opts[:fine_tune_id]
         timeout = opts[:timeout]
@@ -565,6 +591,7 @@ module PWN
         rest_call = "fine_tuning/jobs/#{fine_tune_id}/cancel"
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: rest_call,
@@ -578,12 +605,14 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.get_fine_tune_events(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.get_fine_tune_events(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         fine_tune_id = opts[:fine_tune_id]
         timeout = opts[:timeout]
@@ -591,6 +620,7 @@ module PWN
         rest_call = "fine_tuning/jobs/#{fine_tune_id}/events"
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: rest_call,
           timeout: timeout
@@ -603,12 +633,14 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.delete_fine_tune_model(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   model: 'required - model to delete',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.delete_fine_tune_model(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         model = opts[:model]
         timeout = opts[:timeout]
@@ -616,6 +648,7 @@ module PWN
         rest_call = "models/#{model}"
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :delete,
           token: token,
           rest_call: rest_call,
@@ -629,15 +662,18 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.list_files(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.list_files(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         timeout = opts[:timeout]
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: 'files',
           timeout: timeout
@@ -650,6 +686,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.upload_file(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   file: 'required - file to upload',
       #   purpose: 'optional - intended purpose of the uploaded documents (defaults to fine-tune',
@@ -657,6 +694,7 @@ module PWN
       # )
 
       public_class_method def self.upload_file(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         file = opts[:file]
         raise "ERROR: #{file} not found." unless File.exist?(file)
@@ -672,6 +710,7 @@ module PWN
         }
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :post,
           token: token,
           rest_call: 'files',
@@ -686,12 +725,14 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.delete_file(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   file: 'required - file to delete',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.delete_file(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         file = opts[:file]
         timeout = opts[:timeout]
@@ -702,6 +743,7 @@ module PWN
         rest_call = "files/#{file_id}"
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           http_method: :delete,
           token: token,
           rest_call: rest_call,
@@ -715,12 +757,14 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::OpenAI.get_file(
+      #   base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
       #   token: 'required - Bearer token',
       #   file: 'required - file to delete',
       #   timeout: 'optional - timeout in seconds (defaults to 180)'
       # )
 
       public_class_method def self.get_file(opts = {})
+        base_uri = opts[:base_uri]
         token = opts[:token]
         file = opts[:file]
         raise "ERROR: #{file} not found." unless File.exist?(file)
@@ -733,6 +777,7 @@ module PWN
         rest_call = "files/#{file_id}"
 
         response = open_ai_rest_call(
+          base_uri: base_uri,
           token: token,
           rest_call: rest_call,
           timeout: timeout
@@ -756,11 +801,13 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           response = #{self}.get_models(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.chat(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
             model: 'optional - model to use for text generation (defaults to gpt-5-chat-latest)',
@@ -773,6 +820,7 @@ module PWN
           )
 
           response = #{self}.img_gen(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             request: 'required - message to ChatGPT',
             n: 'optional - number of images to generate (defaults to 1)',
@@ -781,6 +829,7 @@ module PWN
           )
 
           response = #{self}.vision(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             img_path: 'required - path or URI of image to analyze',
             request: 'optional - message to ChatGPT (defaults to, \"what is in this image?\")',
@@ -792,6 +841,7 @@ module PWN
           )
 
           response = #{self}.create_fine_tune(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             training_file: 'required - JSONL that contains OpenAI training data'
             validation_file: 'optional - JSONL that contains OpenAI validation data'
@@ -808,52 +858,61 @@ module PWN
           )
 
           response = #{self}.list_fine_tunes(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.get_fine_tune_status(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.cancel_fine_tune(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.get_fine_tune_events(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             fine_tune_id: 'required - respective :id value returned from #list_fine_tunes',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.delete_fine_tune_model(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             model: 'required - model to delete',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.list_files(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.upload_file(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             file: 'required - file to upload',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.delete_file(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             file: 'required - file to delete',
             timeout: 'optional - timeout in seconds (defaults to 180)'
           )
 
           response = #{self}.get_file(
+            base_uri: 'optional - base OpenAI API URI (defaults to https://api.openai.com/v1)',
             token: 'required - Bearer token',
             file: 'required - file to delete',
             timeout: 'optional - timeout in seconds (defaults to 180)'
