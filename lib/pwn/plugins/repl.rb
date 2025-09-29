@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'pry'
 require 'tty-prompt'
 require 'yaml'
@@ -685,8 +686,12 @@ module PWN
         # Monkey Patch Pry, add commands, && hooks
         PWN::Plugins::MonkeyPatch.pry
         add_commands
-        opts[:yaml_config_path] ||= "#{Dir.home}/pwn.yaml"
-        opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
+
+        pwn_config_root = "#{Dir.home}/.pwn"
+        FileUtils.mkdir_p(pwn_config_root)
+        opts[:yaml_config_path] ||= "#{pwn_config_root}/pwn.yaml"
+        opts[:decryption_file] ||= "#{pwn_config_root}/pwn.decryptor.yaml"
+
         add_hooks(opts)
 
         # Define PS1 Prompt

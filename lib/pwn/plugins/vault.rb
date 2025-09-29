@@ -243,10 +243,9 @@ module PWN
       public_class_method def self.refresh_config_for_repl(opts = {})
         yaml_config_path = opts[:yaml_config_path]
 
-        return false unless yaml_config_path
+        return false unless File.exist?(yaml_config_path)
 
         pi = opts[:pi] ||= Pry
-        raise "ERROR: #{yaml_config_path} does not exist." unless File.exist?(yaml_config_path)
 
         is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: yaml_config_path)
 
