@@ -1,4 +1,5 @@
-# If you rely upon this file, it should be out-of-band
+# Drop this file in $HOME/.pwn/pwn.decryptor.yaml
+# If you rely upon this file, it should be out-of-band for optimal security
 # (e.g. not available in code repos, permission protected, limited access, etc.) 
 key: 'KEY PROVIDED WHEN USING PWN::Plugins::Vault.create(file: "pwn.yaml") TO ENCRYPT pwn.yaml'
 iv: 'KEY PROVIDED WHEN USING PWN::Plugins::Vault.create(file: "pwn.yaml") TO ENCRYPT pwn.yaml'
