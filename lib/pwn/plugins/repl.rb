@@ -457,6 +457,36 @@ module PWN
           end
         end
 
+        Pry::Commands.create_command 'pwn-vault-edit' do
+          description 'Edit the pwn.yaml configuration file.'
+
+          def process
+            pi = pry_instance
+            yaml_config_path = pi.config.yaml_config_path ||= "#{Dir.home}/pwn.yaml"
+            unless File.exist?(yaml_config_path)
+              puts "ERROR: pwn.yaml not found: #{yaml_config_path}"
+              return
+            end
+
+            decryption_file = pi.config.decryption_file ||= "#{Dir.home}/pwn.decryptor.yaml"
+            unless File.exist?(decryption_file)
+              puts "ERROR: pwn.decryptor.yaml not found: #{decryption_file}"
+              return
+            end
+            decryptor = YAML.load_file(decryption_file, symbolize_names: true)
+            key = decryptor[:key]
+            iv = decryptor[:iv]
+
+            PWN::Plugins::Vault.edit(
+              file: yaml_config_path,
+              key: key,
+              iv: iv
+            )
+          rescue StandardError => e
+            raise e
+          end
+        end
+
         Pry::Commands.create_command 'toggle-pwn-ai-debug' do
           description 'Display the response_history object while using pwn.ai'
 
@@ -507,6 +537,9 @@ module PWN
         # Initialize pwn.yaml Configuration using :before_session Hook
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
           opts[:pi] = pi
+          Pry.config.yaml_config_path = opts[:yaml_config_path]
+          Pry.config.decryption_file = opts[:decryption_file]
+
           PWN::Plugins::Vault.refresh_config_for_repl(opts)
         end
 
@@ -652,6 +685,8 @@ module PWN
         # Monkey Patch Pry, add commands, && hooks
         PWN::Plugins::MonkeyPatch.pry
         add_commands
+        opts[:yaml_config_path] ||= "#{Dir.home}/pwn.yaml"
+        opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
         add_hooks(opts)
 
         # Define PS1 Prompt
