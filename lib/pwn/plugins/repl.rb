@@ -9,96 +9,6 @@ module PWN
     # This module contains methods related to the pwn REPL Driver.
     module REPL
       # Supported Method Parameters::
-      # PWN::Plugins::REPL.load_config(
-      #    pi: 'required - Pry Instance object',
-      #    yaml_config_path: 'required - full path to pwn.yaml file',
-      #    decryption_file: 'optional - full path to decryption YAML file'
-      #  )
-      public_class_method def self.load_config(opts = {})
-        yaml_config_path = opts[:yaml_config_path]
-
-        return false unless yaml_config_path
-
-        pi = opts[:pi] ||= Pry
-        raise "ERROR: #{yaml_config_path} does not exist." unless File.exist?(yaml_config_path)
-
-        is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: yaml_config_path)
-
-        if is_encrypted
-          # TODO: Implement "something you know, something you have, && something you are?"
-          decryption_file = opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
-          raise "ERROR: #{decryption_file} does not exist." unless File.exist?(decryption_file)
-
-          yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true)
-
-          key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
-          key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
-
-          iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
-          iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
-
-          yaml_config = PWN::Plugins::Vault.dump(
-            file: yaml_config_path,
-            key: key,
-            iv: iv
-          )
-        else
-          yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
-        end
-        pi.config.p = yaml_config
-        Pry.config.p = yaml_config
-
-        valid_ai_engines = %i[
-          grok
-          openai
-          ollama
-        ]
-        ai_engine = yaml_config[:ai_engine].to_s.downcase.to_sym
-
-        raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(ai_engine)
-
-        pi.config.pwn_ai_engine = ai_engine
-        Pry.config.pwn_ai_engine = ai_engine
-
-        pi.config.pwn_ai_base_uri = pi.config.p[ai_engine][:base_uri]
-        Pry.config.pwn_ai_base_uri = pi.config.pwn_ai_base_uri
-
-        pi.config.pwn_ai_key = pi.config.p[ai_engine][:key]
-        Pry.config.pwn_ai_key = pi.config.pwn_ai_key
-
-        pi.config.pwn_ai_model = pi.config.p[ai_engine][:model]
-        Pry.config.pwn_ai_model = pi.config.pwn_ai_model
-
-        pi.config.pwn_ai_system_role_content = pi.config.p[ai_engine][:system_role_content]
-        Pry.config.pwn_ai_system_role_content = pi.config.pwn_ai_system_role_content
-
-        pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
-        Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
-
-        pi.config.pwn_asm_arch = pi.config.p[:asm][:arch]
-        Pry.config.pwn_asm_arch = pi.config.pwn_asm_arch
-
-        pi.config.pwn_asm_endian = pi.config.p[:asm][:endian]
-        Pry.config.pwn_asm_endian = pi.config.pwn_asm_endian
-
-        pi.config.pwn_irc = pi.config.p[:irc]
-        Pry.config.pwn_irc = pi.config.pwn_irc
-
-        pi.config.pwn_hunter = pi.config.p[:hunter][:api_key]
-        Pry.config.pwn_hunter = pi.config.pwn_hunter
-
-        pi.config.pwn_shodan = pi.config.p[:shodan][:api_key]
-        Pry.config.pwn_shodan = pi.config.pwn_shodan
-
-        pi.config.reload_config = false
-        Pry.config.reload_config = false
-
-        true
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
       # PWN::Plugins::REPL.refresh_ps1_proc(
       #   mode: 'required - :splat or nil'
       # )
@@ -107,7 +17,7 @@ module PWN
         mode = opts[:mode]
 
         proc do |_target_self, _nest_level, pi|
-          load_config(opts) if Pry.config.reload_config
+          PWN::Plugins::Vault.refresh_config_for_repl(opts) if Pry.config.refresh_config
 
           pi.config.pwn_repl_line += 1
           line_pad = format(
@@ -597,7 +507,7 @@ module PWN
         # Initialize pwn.yaml Configuration using :before_session Hook
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
           opts[:pi] = pi
-          load_config(opts)
+          PWN::Plugins::Vault.refresh_config_for_repl(opts)
         end
 
         Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
