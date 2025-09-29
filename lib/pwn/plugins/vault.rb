@@ -172,8 +172,8 @@ module PWN
         relative_editor = File.basename(editor)
         system(relative_editor, file)
 
-        # If the Pry object exists, set reload_config to true
-        Pry.config.reload_config = true if defined?(Pry)
+        # If the Pry object exists, set refresh_config to true
+        Pry.config.refresh_config = true if defined?(Pry)
 
         encrypt(
           file: file,
@@ -234,6 +234,95 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::Vault.refresh_config_for_repl(
+      #    yaml_config_path: 'required - full path to pwn.yaml file',
+      #    pi: 'optional - Pry instance (default: Pry)',
+      #    decryption_file: 'optional - full path to decryption YAML file'
+      #  )
+      public_class_method def self.refresh_config_for_repl(opts = {})
+        yaml_config_path = opts[:yaml_config_path]
+
+        return false unless yaml_config_path
+
+        pi = opts[:pi] ||= Pry
+        raise "ERROR: #{yaml_config_path} does not exist." unless File.exist?(yaml_config_path)
+
+        is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: yaml_config_path)
+
+        if is_encrypted
+          # TODO: Implement "something you know, something you have, && something you are?"
+          decryption_file = opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
+          raise "ERROR: #{decryption_file} does not exist." unless File.exist?(decryption_file)
+
+          yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true)
+
+          key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
+          key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
+
+          iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
+          iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
+
+          yaml_config = PWN::Plugins::Vault.dump(
+            file: yaml_config_path,
+            key: key,
+            iv: iv
+          )
+        else
+          yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
+        end
+        pi.config.p = yaml_config
+        Pry.config.p = yaml_config
+
+        valid_ai_engines = %i[
+          grok
+          openai
+          ollama
+        ]
+        ai_engine = yaml_config[:ai_engine].to_s.downcase.to_sym
+
+        raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(ai_engine)
+
+        pi.config.pwn_ai_engine = ai_engine
+        Pry.config.pwn_ai_engine = ai_engine
+
+        pi.config.pwn_ai_base_uri = pi.config.p[ai_engine][:base_uri]
+        Pry.config.pwn_ai_base_uri = pi.config.pwn_ai_base_uri
+
+        pi.config.pwn_ai_key = pi.config.p[ai_engine][:key]
+        Pry.config.pwn_ai_key = pi.config.pwn_ai_key
+
+        pi.config.pwn_ai_model = pi.config.p[ai_engine][:model]
+        Pry.config.pwn_ai_model = pi.config.pwn_ai_model
+
+        pi.config.pwn_ai_system_role_content = pi.config.p[ai_engine][:system_role_content]
+        Pry.config.pwn_ai_system_role_content = pi.config.pwn_ai_system_role_content
+
+        pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
+        Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
+
+        pi.config.pwn_asm_arch = pi.config.p[:asm][:arch]
+        Pry.config.pwn_asm_arch = pi.config.pwn_asm_arch
+
+        pi.config.pwn_asm_endian = pi.config.p[:asm][:endian]
+        Pry.config.pwn_asm_endian = pi.config.pwn_asm_endian
+
+        pi.config.pwn_irc = pi.config.p[:irc]
+        Pry.config.pwn_irc = pi.config.pwn_irc
+
+        pi.config.pwn_hunter = pi.config.p[:hunter][:api_key]
+        Pry.config.pwn_hunter = pi.config.pwn_hunter
+
+        pi.config.pwn_shodan = pi.config.p[:shodan][:api_key]
+        Pry.config.pwn_shodan = pi.config.pwn_shodan
+
+        Pry.config.refresh_config = false
+
+        true
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -284,6 +373,12 @@ module PWN
 
           #{self}.file_encrypted?(
             file: 'required - file to check if encrypted'
+          )
+
+          #{self}.refresh_config_for_repl(
+            yaml_config_path: 'required - full path to pwn.yaml file',
+            pi: 'optional - Pry instance (default: Pry)',
+            decryption_file: 'optional - full path to decryption YAML file'
           )
 
           #{self}.authors
