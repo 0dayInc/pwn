@@ -469,12 +469,13 @@ module PWN
               return
             end
 
-            decryption_file = pi.config.decryption_file ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
-            unless File.exist?(decryption_file)
-              puts "ERROR: pwn.decryptor.yaml not found: #{decryption_file}"
+            yaml_decryptor_path = pi.config.yaml_decryptor_path ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
+            unless File.exist?(yaml_decryptor_path)
+              puts "ERROR: pwn.decryptor.yaml not found: #{yaml_decryptor_path}"
               return
             end
-            decryptor = YAML.load_file(decryption_file, symbolize_names: true)
+
+            decryptor = YAML.load_file(yaml_decryptor_path, symbolize_names: true)
             key = decryptor[:key]
             iv = decryptor[:iv]
 
@@ -539,7 +540,7 @@ module PWN
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
           opts[:pi] = pi
           Pry.config.yaml_config_path = opts[:yaml_config_path]
-          Pry.config.decryption_file = opts[:decryption_file]
+          Pry.config.yaml_decryptor_path = opts[:yaml_decryptor_path]
 
           PWN::Plugins::Vault.refresh_config_for_repl(opts)
         end
@@ -690,7 +691,7 @@ module PWN
         pwn_config_root = "#{Dir.home}/.pwn"
         FileUtils.mkdir_p(pwn_config_root)
         opts[:yaml_config_path] ||= "#{pwn_config_root}/pwn.yaml"
-        opts[:decryption_file] ||= "#{pwn_config_root}/pwn.decryptor.yaml"
+        opts[:yaml_decryptor_path] ||= "#{pwn_config_root}/pwn.decryptor.yaml"
 
         add_hooks(opts)
 

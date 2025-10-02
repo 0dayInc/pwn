@@ -238,7 +238,7 @@ module PWN
       # PWN::Plugins::Vault.refresh_config_for_repl(
       #    yaml_config_path: 'required - full path to pwn.yaml file',
       #    pi: 'optional - Pry instance (default: Pry)',
-      #    decryption_file: 'optional - full path to decryption YAML file'
+      #    yaml_decryptor_path: 'optional - full path to decryption YAML file'
       #  )
       public_class_method def self.refresh_config_for_repl(opts = {})
         yaml_config_path = opts[:yaml_config_path]
@@ -251,10 +251,10 @@ module PWN
 
         if is_encrypted
           # TODO: Implement "something you know, something you have, && something you are?"
-          decryption_file = opts[:decryption_file] ||= "#{Dir.home}/pwn.decryptor.yaml"
-          raise "ERROR: #{decryption_file} does not exist." unless File.exist?(decryption_file)
+          yaml_decryptor_path = opts[:yaml_decryptor_path] ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
+          raise "ERROR: #{yaml_decryptor_path} does not exist." unless File.exist?(yaml_decryptor_path)
 
-          yaml_decryptor = YAML.load_file(decryption_file, symbolize_names: true)
+          yaml_decryptor = YAML.load_file(yaml_decryptor_path, symbolize_names: true)
 
           key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
           key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
@@ -377,7 +377,7 @@ module PWN
           #{self}.refresh_config_for_repl(
             yaml_config_path: 'required - full path to pwn.yaml file',
             pi: 'optional - Pry instance (default: Pry)',
-            decryption_file: 'optional - full path to decryption YAML file'
+            yaml_decryptor_path: 'optional - full path to decryption YAML file'
           )
 
           #{self}.authors

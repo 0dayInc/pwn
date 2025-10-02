@@ -14,16 +14,8 @@ OptionParser.new do |options|
     opts[:yaml_config_path] = p
   end
 
-  options.on('-dPATH', '--decryptor=PATH', '<Optional - File Containing Decryption Key && IV>') do |d|
-    opts[:decryption_file] = d
-  end
-
-  options.on('-kKEY', '--decryption-key=KEY', '<Optional - Decryption Key>') do |k|
-    opts[:key] = k
-  end
-
-  options.on('-iIV', '--decryption-iv=PATH', '<Optional - Decryption IV>') do |i|
-    opts[:iv] = i
+  options.on('-dPATH', '--yaml-decryptor=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
+    opts[:yaml_decryptor_path] = d
   end
 end.parse!
 
