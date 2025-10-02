@@ -11,6 +11,7 @@ module PWN
   autoload :AI, 'pwn/ai'
   autoload :AWS, 'pwn/aws'
   autoload :Banner, 'pwn/banner'
+  autoload :Blockchain, 'pwn/blockchain'
   autoload :FFI, 'pwn/ffi'
   autoload :Plugins, 'pwn/plugins'
   autoload :Reports, 'pwn/reports'
