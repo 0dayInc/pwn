@@ -18,7 +18,11 @@ module PWN
         mode = opts[:mode]
 
         proc do |_target_self, _nest_level, pi|
-          PWN::Plugins::Vault.refresh_config_for_repl(opts) if Pry.config.refresh_config
+          if Pry.config.refresh
+            # puts "Refreshing PWN env via #{opts[:yaml_config_path]}"
+            opts[:pi] = pi
+            PWN::Plugins::Vault.refresh_config_for_repl(opts)
+          end
 
           pi.config.pwn_repl_line += 1
           line_pad = format(
@@ -34,8 +38,8 @@ module PWN
           dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
 
           if pi.config.pwn_asm
-            arch = pi.config.pwn_asm_arch ||= PWN::Plugins::DetectOS.arch
-            endian = pi.config.pwn_asm_endian ||= PWN::Plugins::DetectOS.endian
+            arch = pi.config.pwn[:asm][:arch] ||= PWN::Plugins::DetectOS.arch
+            endian = pi.config.pwn[:asm][:endian] ||= PWN::Plugins::DetectOS.endian
 
             pi.config.prompt_name = "pwn.asm:#{arch}/#{endian}"
             name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
@@ -44,10 +48,10 @@ module PWN
           end
 
           if pi.config.pwn_ai
-            ai_engine = pi.config.pwn_ai_engine
-            model = pi.config.pwn_ai_model
-            system_role_content = pi.config.pwn_ai_system_role_content
-            temp = pi.config.pwn_ai_temp
+            ai_engine = pi.config.pwn[:ai_engine]
+            model = pi.config.pwn[ai_engine][:model]
+            system_role_content = pi.config.pwn[ai_engine][:system_role_content]
+            temp = pi.config.pwn[ai_engine][:temp]
             pname = "pwn.ai:#{ai_engine}"
             pname = "pwn.ai:#{ai_engine}/#{model}" if model
             pname = "pwn.ai:#{ai_engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
@@ -173,10 +177,10 @@ module PWN
 
             reply = nil
             response_history = nil
-            shared_chan = pi.config.pwn_irc[:shared_chan]
+            shared_chan = pi.config.pwn[:irc][:shared_chan]
             mem_chan = '#mem'
-            ai_agents = pi.config.pwn_irc[:ai_agent_nicks]
-            ai_agents_arr = pi.config.pwn_irc[:ai_agent_nicks].keys
+            ai_agents = pi.config.pwn[:irc][:ai_agent_nicks]
+            ai_agents_arr = pi.config.pwn[:irc][:ai_agent_nicks].keys
             total_ai_agents = ai_agents_arr.length
             mutex = Mutex.new
             PWN::Plugins::ThreadPool.fill(
@@ -302,15 +306,12 @@ module PWN
                         next unless dm_agent == nick
 
                         response_history = ai_agents[dm_agent.to_sym][:response_history]
-                        ai_engine = pi.config.pwn_ai_engine
-                        ai_base_uri = pi.config.pwn_ai_base_uri
-                        ai_key = pi.config.pwn_ai_key
-                        ai_key ||= ''
-                        ai_temp = pi.config.pwn_ai_temp
-
-                        model = pi.config.pwn_ai_model
-                        system_role_content = pi.config.pwn_ai_system_role_content
-                        temp = pi.config.pwn_ai_temp
+                        ai_engine = pi.config.pwn[:ai_engine]
+                        base_uri = pi.config.pwn[ai_engine][:base_uri]
+                        key = pi.config.pwn[ai_engine][:key] ||= ''
+                        temp = pi.config.pwn[ai_engine][:temp]
+                        model = pi.config.pwn[ai_engine][:model]
+                        system_role_content = pi.config.pwn[ai_engine][:system_role_content]
 
                         users_in_chan = PWN::Plugins::IRC.names(
                           irc_obj: irc_obj,
@@ -344,10 +345,10 @@ module PWN
                         case ai_engine
                         when :grok
                           response = PWN::AI::Grok.chat(
-                            base_uri: ai_base_uri,
-                            token: ai_key,
+                            base_uri: base_uri,
+                            token: key,
                             model: model,
-                            temp: ai_temp,
+                            temp: temp,
                             system_role_content: system_role_content,
                             request: request,
                             response_history: response_history,
@@ -355,10 +356,10 @@ module PWN
                           )
                         when :ollama
                           response = PWN::AI::Ollama.chat(
-                            base_uri: ai_base_uri,
-                            token: ai_key,
+                            base_uri: base_uri,
+                            token: key,
                             model: model,
-                            temp: ai_temp,
+                            temp: temp,
                             system_role_content: system_role_content,
                             request: request,
                             response_history: response_history,
@@ -366,10 +367,10 @@ module PWN
                           )
                         when :openai
                           response = PWN::AI::OpenAI.chat(
-                            base_uri: ai_base_uri,
-                            token: ai_key,
+                            base_uri: base_uri,
+                            token: key,
                             model: model,
-                            temp: ai_temp,
+                            temp: temp,
                             system_role_content: system_role_content,
                             request: request,
                             response_history: response_history,
@@ -434,7 +435,7 @@ module PWN
 
             # TODO: Use TLS for IRC Connections
             # Use an IRC nCurses CLI Client
-            ui_nick = pi.config.pwn_irc[:ui_nick]
+            ui_nick = pi.config.pwn[:irc][:ui_nick]
             join_channels = ai_agents_arr.map { |ai_chan| "##{ai_chan}" }.join(',')
 
             cmd0 = "/server add pwn #{host}/#{port} -notls"
@@ -538,10 +539,8 @@ module PWN
 
         # Initialize pwn.yaml Configuration using :before_session Hook
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
+          # puts "Refreshing PWN env via #{opts[:yaml_config_path]}"
           opts[:pi] = pi
-          Pry.config.yaml_config_path = opts[:yaml_config_path]
-          Pry.config.yaml_decryptor_path = opts[:yaml_decryptor_path]
-
           PWN::Plugins::Vault.refresh_config_for_repl(opts)
         end
 
@@ -549,8 +548,8 @@ module PWN
           if pi.config.pwn_asm && !request.chomp.empty?
             request = pi.input.line_buffer
 
-            arch = pi.config.pwn_asm_arch
-            endian = pi.config.pwn_asm_endian
+            arch = pi.config.pwn[:asm][:arch]
+            endian = pi.config.pwn[:asm][:endian]
 
             # Analyze request to determine if it should be processed as opcodes or asm.
             straight_hex = /^[a-fA-F0-9\s]+$/
@@ -586,29 +585,27 @@ module PWN
           if pi.config.pwn_ai && !request.chomp.empty?
             request = pi.input.line_buffer.to_s
             debug = pi.config.pwn_ai_debug
-            ai_engine = pi.config.pwn_ai_engine.to_s.to_sym
-            ai_key = pi.config.pwn_ai_key
-            ai_key ||= ''
-            if ai_key.empty?
-              ai_key = PWN::Plugins::AuthenticationHelper.mask_password(
+            ai_engine = pi.config.pwn[:ai_engine]
+            base_uri = pi.config.pwn[ai_engine][:base_uri]
+            key = pi.config.pwn[ai_engine][:key] ||= ''
+            if key.empty?
+              key = PWN::Plugins::AuthenticationHelper.mask_password(
                 prompt: 'pwn-ai Key'
               )
-              pi.config.pwn_ai_key = ai_key
+              pi.config.pwn[ai_engine][:key] = key
             end
 
             response_history = pi.config.pwn_ai_response_history
             speak_answer = pi.config.pwn_ai_speak
-            model = pi.config.pwn_ai_model
-            system_role_content = pi.config.pwn_ai_system_role_content
-            temp = pi.config.pwn_ai_temp
-
-            ai_base_uri = pi.config.pwn_ai_base_uri
+            model = pi.config.pwn[ai_engine][:model]
+            system_role_content = pi.config.pwn[ai_engine][:system_role_content]
+            temp = pi.config.pwn[ai_engine][:temp]
 
             case ai_engine
             when :grok
               response = PWN::AI::Grok.chat(
-                base_uri: ai_base_uri,
-                token: ai_key,
+                base_uri: base_uri,
+                token: key,
                 model: model,
                 system_role_content: system_role_content,
                 temp: temp,
@@ -619,8 +616,8 @@ module PWN
               )
             when :ollama
               response = PWN::AI::Ollama.chat(
-                base_uri: ai_base_uri,
-                token: ai_key,
+                base_uri: base_uri,
+                token: key,
                 model: model,
                 system_role_content: system_role_content,
                 temp: temp,
@@ -631,8 +628,8 @@ module PWN
               )
             when :openai
               response = PWN::AI::OpenAI.chat(
-                base_uri: ai_base_uri,
-                token: ai_key,
+                base_uri: base_uri,
+                token: key,
                 model: model,
                 system_role_content: system_role_content,
                 temp: temp,

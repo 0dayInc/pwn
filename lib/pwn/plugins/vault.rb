@@ -173,7 +173,7 @@ module PWN
         system(relative_editor, file)
 
         # If the Pry object exists, set refresh_config to true
-        Pry.config.refresh_config = true if defined?(Pry)
+        Pry.config.refresh = true if defined?(Pry)
 
         encrypt(
           file: file,
@@ -245,7 +245,8 @@ module PWN
 
         return false unless File.exist?(yaml_config_path)
 
-        pi = opts[:pi] ||= Pry
+        pi = opts[:pi]
+        raise 'ERROR: Pry instance is required.' if pi.nil?
 
         is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: yaml_config_path)
 
@@ -270,52 +271,41 @@ module PWN
         else
           yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
         end
-        pi.config.p = yaml_config
-        Pry.config.p = yaml_config
 
         valid_ai_engines = %i[
           grok
           openai
           ollama
         ]
-        ai_engine = yaml_config[:ai_engine].to_s.downcase.to_sym
 
+        # Convert ai_engine to symbol and downcase to ensure stability
+        yaml_config[:ai_engine] = yaml_config[:ai_engine].to_s.downcase.to_sym
+        pi.config.pwn = yaml_config
+        ai_engine = pi.config.pwn[:ai_engine]
         raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(ai_engine)
 
-        pi.config.pwn_ai_engine = ai_engine
-        Pry.config.pwn_ai_engine = ai_engine
+        model = pi.config.pwn[ai_engine][:model]
+        system_role_content = pi.config.pwn[ai_engine][:system_role_content]
 
-        pi.config.pwn_ai_base_uri = pi.config.p[ai_engine][:base_uri]
-        Pry.config.pwn_ai_base_uri = pi.config.pwn_ai_base_uri
+        # Reset the ai response history for new configurations
+        pi.config.pwn_ai_response_history = {
+          id: '',
+          object: '',
+          model: model,
+          usage: {},
+          choices: [
+            {
+              role: 'system',
+              content: system_role_content
+            }
+          ]
+        }
 
-        pi.config.pwn_ai_key = pi.config.p[ai_engine][:key]
-        Pry.config.pwn_ai_key = pi.config.pwn_ai_key
+        # These two lines should be immutable for the session
+        pi.config.pwn[:yaml_config_path] = yaml_config_path
+        pi.config.pwn[:yaml_decryptor_path] = yaml_decryptor_path if is_encrypted
 
-        pi.config.pwn_ai_model = pi.config.p[ai_engine][:model]
-        Pry.config.pwn_ai_model = pi.config.pwn_ai_model
-
-        pi.config.pwn_ai_system_role_content = pi.config.p[ai_engine][:system_role_content]
-        Pry.config.pwn_ai_system_role_content = pi.config.pwn_ai_system_role_content
-
-        pi.config.pwn_ai_temp = pi.config.p[ai_engine][:temp]
-        Pry.config.pwn_ai_temp = pi.config.pwn_ai_temp
-
-        pi.config.pwn_asm_arch = pi.config.p[:asm][:arch]
-        Pry.config.pwn_asm_arch = pi.config.pwn_asm_arch
-
-        pi.config.pwn_asm_endian = pi.config.p[:asm][:endian]
-        Pry.config.pwn_asm_endian = pi.config.pwn_asm_endian
-
-        pi.config.pwn_irc = pi.config.p[:irc]
-        Pry.config.pwn_irc = pi.config.pwn_irc
-
-        pi.config.pwn_hunter = pi.config.p[:hunter][:api_key]
-        Pry.config.pwn_hunter = pi.config.pwn_hunter
-
-        pi.config.pwn_shodan = pi.config.p[:shodan][:api_key]
-        Pry.config.pwn_shodan = pi.config.pwn_shodan
-
-        Pry.config.refresh_config = false
+        Pry.config.refresh = false
 
         true
       rescue StandardError => e
