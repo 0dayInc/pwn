@@ -44,7 +44,7 @@ module PWN
           raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
 
           ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
-          ai_system_role_content = opts[:ai_system_role_content] ||= 'Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.'
+          ai_system_role_content = opts[:ai_system_role_content] ||= 'Your sole purpose is to analyze source code snippets and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  Just generate a score unless score is higher than 75% in which a code fic should also be included.'
           ai_temp = opts[:ai_temp] ||= 0.1
 
           puts "Analyzing source code using AI engine: #{ai_engine}\nModel: #{ai_model}\nSystem Role Content: #{ai_system_role_content}\nTemperature: #{ai_temp}"
@@ -64,12 +64,19 @@ module PWN
         spin.auto_spin
 
         results_hash[:data].each do |hash_line|
+          git_repo_root_uri = hash_line[:filename][:git_repo_root_uri]
+          filename = hash_line[:filename][:entry]
           hash_line[:line_no_and_contents].each do |src_detail|
             entry_count += 1
             percent_complete = (entry_count.to_f / total_entries * 100).round(2)
-            request = src_detail[:contents]
-            response = nil
             line_no = src_detail[:line_no]
+            source_code_snippet = src_detail[:contents]
+            request = {
+              scm_uri: "#{git_repo_root_uri}/#{filename}",
+              line: line_no,
+              source_code_snippet: source_code_snippet
+            }.to_json
+            response = nil
             author = src_detail[:author].to_s.scrub.chomp.strip
 
             case ai_engine
