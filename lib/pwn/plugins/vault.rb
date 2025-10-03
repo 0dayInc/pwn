@@ -235,12 +235,12 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::Vault.refresh_config_for_repl(
+      # PWN::Plugins::Vault.refresh_config(
       #    yaml_config_path: 'required - full path to pwn.yaml file',
       #    pi: 'optional - Pry instance (default: Pry)',
       #    yaml_decryptor_path: 'optional - full path to decryption YAML file'
       #  )
-      public_class_method def self.refresh_config_for_repl(opts = {})
+      public_class_method def self.refresh_config(opts = {})
         yaml_config_path = opts[:yaml_config_path]
 
         return false unless File.exist?(yaml_config_path)
@@ -279,16 +279,15 @@ module PWN
         ]
 
         # Convert ai_engine to symbol and downcase to ensure stability
-        yaml_config[:ai_engine] = yaml_config[:ai_engine].to_s.downcase.to_sym
         pi.config.pwn = yaml_config
-        ai_engine = pi.config.pwn[:ai_engine]
-        raise "ERROR: Unsupported AI Engine: #{ai_engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(ai_engine)
+        engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
+        raise "ERROR: Unsupported AI Engine: #{engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(engine)
 
-        model = pi.config.pwn[ai_engine][:model]
-        system_role_content = pi.config.pwn[ai_engine][:system_role_content]
+        model = pi.config.pwn[:ai][engine][:model]
+        system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
 
-        # Reset the ai response history for new configurations
-        pi.config.pwn_ai_response_history = {
+        # Reset the ai response history on config refresh
+        pi.config.pwn[:ai][engine][:response_history] = {
           id: '',
           object: '',
           model: model,
@@ -364,7 +363,7 @@ module PWN
             file: 'required - file to check if encrypted'
           )
 
-          #{self}.refresh_config_for_repl(
+          #{self}.refresh_config(
             yaml_config_path: 'required - full path to pwn.yaml file',
             pi: 'optional - Pry instance (default: Pry)',
             yaml_decryptor_path: 'optional - full path to decryption YAML file'

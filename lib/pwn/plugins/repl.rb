@@ -21,7 +21,7 @@ module PWN
           if Pry.config.refresh
             # puts "Refreshing PWN env via #{opts[:yaml_config_path]}"
             opts[:pi] = pi
-            PWN::Plugins::Vault.refresh_config_for_repl(opts)
+            PWN::Plugins::Vault.refresh_config(opts)
           end
 
           pi.config.pwn_repl_line += 1
@@ -48,13 +48,13 @@ module PWN
           end
 
           if pi.config.pwn_ai
-            ai_engine = pi.config.pwn[:ai_engine]
-            model = pi.config.pwn[ai_engine][:model]
-            system_role_content = pi.config.pwn[ai_engine][:system_role_content]
-            temp = pi.config.pwn[ai_engine][:temp]
-            pname = "pwn.ai:#{ai_engine}"
-            pname = "pwn.ai:#{ai_engine}/#{model}" if model
-            pname = "pwn.ai:#{ai_engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
+            engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
+            model = pi.config.pwn[:ai][engine][:model]
+            system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
+            temp = pi.config.pwn[:ai][engine][:temp]
+            pname = "pwn.ai:#{engine}"
+            pname = "pwn.ai:#{engine}/#{model}" if model
+            pname = "pwn.ai:#{engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
             pi.config.prompt_name = pname
 
             name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
@@ -306,12 +306,12 @@ module PWN
                         next unless dm_agent == nick
 
                         response_history = ai_agents[dm_agent.to_sym][:response_history]
-                        ai_engine = pi.config.pwn[:ai_engine]
-                        base_uri = pi.config.pwn[ai_engine][:base_uri]
-                        key = pi.config.pwn[ai_engine][:key] ||= ''
-                        temp = pi.config.pwn[ai_engine][:temp]
-                        model = pi.config.pwn[ai_engine][:model]
-                        system_role_content = pi.config.pwn[ai_engine][:system_role_content]
+                        engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
+                        base_uri = pi.config.pwn[:ai][engine][:base_uri]
+                        key = pi.config.pwn[:ai][engine][:key] ||= ''
+                        temp = pi.config.pwn[:ai][engine][:temp]
+                        model = pi.config.pwn[:ai][engine][:model]
+                        system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
 
                         users_in_chan = PWN::Plugins::IRC.names(
                           irc_obj: irc_obj,
@@ -342,7 +342,7 @@ module PWN
                           message.
                         "
 
-                        case ai_engine
+                        case engine
                         when :grok
                           response = PWN::AI::Grok.chat(
                             base_uri: base_uri,
@@ -459,7 +459,7 @@ module PWN
           end
         end
 
-        Pry::Commands.create_command 'pwn-vault-edit' do
+        Pry::Commands.create_command 'pwn-vault' do
           description 'Edit the pwn.yaml configuration file.'
 
           def process
@@ -541,7 +541,7 @@ module PWN
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
           # puts "Refreshing PWN env via #{opts[:yaml_config_path]}"
           opts[:pi] = pi
-          PWN::Plugins::Vault.refresh_config_for_repl(opts)
+          PWN::Plugins::Vault.refresh_config(opts)
         end
 
         Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
@@ -585,23 +585,23 @@ module PWN
           if pi.config.pwn_ai && !request.chomp.empty?
             request = pi.input.line_buffer.to_s
             debug = pi.config.pwn_ai_debug
-            ai_engine = pi.config.pwn[:ai_engine]
-            base_uri = pi.config.pwn[ai_engine][:base_uri]
-            key = pi.config.pwn[ai_engine][:key] ||= ''
+            engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
+            base_uri = pi.config.pwn[:ai][engine][:base_uri]
+            key = pi.config.pwn[:ai][engine][:key] ||= ''
             if key.empty?
               key = PWN::Plugins::AuthenticationHelper.mask_password(
                 prompt: 'pwn-ai Key'
               )
-              pi.config.pwn[ai_engine][:key] = key
+              pi.config.pwn[:ai][engine][:key] = key
             end
 
-            response_history = pi.config.pwn_ai_response_history
+            response_history = pi.config.pwn[:ai][engine][:response_history]
             speak_answer = pi.config.pwn_ai_speak
-            model = pi.config.pwn[ai_engine][:model]
-            system_role_content = pi.config.pwn[ai_engine][:system_role_content]
-            temp = pi.config.pwn[ai_engine][:temp]
+            model = pi.config.pwn[:ai][engine][:model]
+            system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
+            temp = pi.config.pwn[:ai][engine][:temp]
 
-            case ai_engine
+            case engine
             when :grok
               response = PWN::AI::Grok.chat(
                 base_uri: base_uri,
@@ -639,7 +639,7 @@ module PWN
                 spinner: true
               )
             else
-              raise "ERROR: Unsupported AI Engine: #{ai_engine}"
+              raise "ERROR: Unsupported AI Engine: #{engine}"
             end
             # puts response.inspect
 
@@ -668,7 +668,7 @@ module PWN
               pp response_history
               puts "\nresponse_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
             end
-            pi.config.pwn_ai_response_history = response_history
+            pi.config.pwn[:ai][engine][:response_history] = response_history
           end
         end
       rescue StandardError => e
@@ -687,6 +687,9 @@ module PWN
 
         pwn_config_root = "#{Dir.home}/.pwn"
         FileUtils.mkdir_p(pwn_config_root)
+
+        Pry.config.history_file = "#{pwn_config_root}/pwn_history"
+
         opts[:yaml_config_path] ||= "#{pwn_config_root}/pwn.yaml"
         opts[:yaml_decryptor_path] ||= "#{pwn_config_root}/pwn.decryptor.yaml"
 
