@@ -2,6 +2,9 @@
 # Use PWN::Plugins::Vault.create(file: 'pwn.yaml') to encrypt this file
 
 # ai_engine: 'openai' || 'ollama'
+# WARNING::
+# If PWN::CONFIG[:ai][:instrospection] = true, the active ai agent will be used
+# wherever possible throughout pwn. Proceeds with caution, as this may incur additional costs
 ai:
   active: 'grok'
   introspection: false

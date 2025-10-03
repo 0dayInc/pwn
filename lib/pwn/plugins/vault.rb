@@ -15,7 +15,7 @@ module PWN
       #   iv: 'required - iv to decrypt'
       # )
 
-      def self.refresh_encryption_secrets(opts = {})
+      public_class_method def self.refresh_encryption_secrets(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
         key = opts[:key]
         iv = opts[:iv]
@@ -234,83 +234,6 @@ module PWN
         raise e
       end
 
-      # Supported Method Parameters::
-      # PWN::Plugins::Vault.refresh_config(
-      #    yaml_config_path: 'required - full path to pwn.yaml file',
-      #    pi: 'optional - Pry instance (default: Pry)',
-      #    yaml_decryptor_path: 'optional - full path to decryption YAML file'
-      #  )
-      public_class_method def self.refresh_config(opts = {})
-        yaml_config_path = opts[:yaml_config_path]
-
-        return false unless File.exist?(yaml_config_path)
-
-        pi = opts[:pi]
-        raise 'ERROR: Pry instance is required.' if pi.nil?
-
-        is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: yaml_config_path)
-
-        if is_encrypted
-          # TODO: Implement "something you know, something you have, && something you are?"
-          yaml_decryptor_path = opts[:yaml_decryptor_path] ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
-          raise "ERROR: #{yaml_decryptor_path} does not exist." unless File.exist?(yaml_decryptor_path)
-
-          yaml_decryptor = YAML.load_file(yaml_decryptor_path, symbolize_names: true)
-
-          key = opts[:key] ||= yaml_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
-          key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
-
-          iv = opts[:iv] ||= yaml_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
-          iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
-
-          yaml_config = PWN::Plugins::Vault.dump(
-            file: yaml_config_path,
-            key: key,
-            iv: iv
-          )
-        else
-          yaml_config = YAML.load_file(yaml_config_path, symbolize_names: true)
-        end
-
-        valid_ai_engines = %i[
-          grok
-          openai
-          ollama
-        ]
-
-        # Convert ai_engine to symbol and downcase to ensure stability
-        pi.config.pwn = yaml_config
-        engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
-        raise "ERROR: Unsupported AI Engine: #{engine} in #{yaml_config_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(engine)
-
-        model = pi.config.pwn[:ai][engine][:model]
-        system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
-
-        # Reset the ai response history on config refresh
-        pi.config.pwn[:ai][engine][:response_history] = {
-          id: '',
-          object: '',
-          model: model,
-          usage: {},
-          choices: [
-            {
-              role: 'system',
-              content: system_role_content
-            }
-          ]
-        }
-
-        # These two lines should be immutable for the session
-        pi.config.pwn[:yaml_config_path] = yaml_config_path
-        pi.config.pwn[:yaml_decryptor_path] = yaml_decryptor_path if is_encrypted
-
-        Pry.config.refresh = false
-
-        true
-      rescue StandardError => e
-        raise e
-      end
-
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -361,12 +284,6 @@ module PWN
 
           #{self}.file_encrypted?(
             file: 'required - file to check if encrypted'
-          )
-
-          #{self}.refresh_config(
-            yaml_config_path: 'required - full path to pwn.yaml file',
-            pi: 'optional - Pry instance (default: Pry)',
-            yaml_decryptor_path: 'optional - full path to decryption YAML file'
           )
 
           #{self}.authors

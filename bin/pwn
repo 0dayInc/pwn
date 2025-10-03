@@ -10,12 +10,12 @@ OptionParser.new do |options|
     #{File.basename($PROGRAM_NAME)} [opts]
   "
 
-  options.on('-cPATH', '--yaml-config=PATH', '<Optional - PWN YAML File>') do |p|
-    opts[:yaml_config_path] = p
+  options.on('-YPATH', '--pwn-config=PATH', '<Optional - PWN YAML File>') do |p|
+    opts[:pwn_config_path] = p
   end
 
-  options.on('-dPATH', '--yaml-decryptor=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
-    opts[:yaml_decryptor_path] = d
+  options.on('-ZPATH', '--pwn-decryptor=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
+    opts[:pwn_decryptor_path] = d
   end
 end.parse!
 

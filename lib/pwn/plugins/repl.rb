@@ -18,11 +18,7 @@ module PWN
         mode = opts[:mode]
 
         proc do |_target_self, _nest_level, pi|
-          if Pry.config.refresh
-            # puts "Refreshing PWN env via #{opts[:yaml_config_path]}"
-            opts[:pi] = pi
-            PWN::Plugins::Vault.refresh_config(opts)
-          end
+          pi.config.pwn = PWN::Config.refresh(opts) if Pry.config.refresh
 
           pi.config.pwn_repl_line += 1
           line_pad = format(
@@ -464,24 +460,24 @@ module PWN
 
           def process
             pi = pry_instance
-            yaml_config_path = pi.config.yaml_config_path ||= "#{Dir.home}/.pwn/pwn.yaml"
-            unless File.exist?(yaml_config_path)
-              puts "ERROR: pwn.yaml not found: #{yaml_config_path}"
+            pwn_config_path = pi.config.pwn_config_path ||= "#{Dir.home}/.pwn/pwn.yaml"
+            unless File.exist?(pwn_config_path)
+              puts "ERROR: pwn.yaml not found: #{pwn_config_path}"
               return
             end
 
-            yaml_decryptor_path = pi.config.yaml_decryptor_path ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
-            unless File.exist?(yaml_decryptor_path)
-              puts "ERROR: pwn.decryptor.yaml not found: #{yaml_decryptor_path}"
+            pwn_decryptor_path = pi.config.pwn_decryptor_path ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
+            unless File.exist?(pwn_decryptor_path)
+              puts "ERROR: pwn.decryptor.yaml not found: #{pwn_decryptor_path}"
               return
             end
 
-            decryptor = YAML.load_file(yaml_decryptor_path, symbolize_names: true)
+            decryptor = YAML.load_file(pwn_decryptor_path, symbolize_names: true)
             key = decryptor[:key]
             iv = decryptor[:iv]
 
             PWN::Plugins::Vault.edit(
-              file: yaml_config_path,
+              file: pwn_config_path,
               key: key,
               iv: iv
             )
@@ -539,9 +535,7 @@ module PWN
 
         # Initialize pwn.yaml Configuration using :before_session Hook
         Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
-          # puts "Refreshing PWN env via #{opts[:yaml_config_path]}"
-          opts[:pi] = pi
-          PWN::Plugins::Vault.refresh_config(opts)
+          pi.config.pwn = PWN::Config.refresh(opts)
         end
 
         Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
@@ -588,13 +582,6 @@ module PWN
             engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
             base_uri = pi.config.pwn[:ai][engine][:base_uri]
             key = pi.config.pwn[:ai][engine][:key] ||= ''
-            if key.empty?
-              key = PWN::Plugins::AuthenticationHelper.mask_password(
-                prompt: 'pwn-ai Key'
-              )
-              pi.config.pwn[:ai][engine][:key] = key
-            end
-
             response_history = pi.config.pwn[:ai][engine][:response_history]
             speak_answer = pi.config.pwn_ai_speak
             model = pi.config.pwn[:ai][engine][:model]
@@ -683,16 +670,10 @@ module PWN
       public_class_method def self.start(opts = {})
         # Monkey Patch Pry, add commands, && hooks
         PWN::Plugins::MonkeyPatch.pry
-        add_commands
-
         pwn_config_root = "#{Dir.home}/.pwn"
-        FileUtils.mkdir_p(pwn_config_root)
-
         Pry.config.history_file = "#{pwn_config_root}/pwn_history"
 
-        opts[:yaml_config_path] ||= "#{pwn_config_root}/pwn.yaml"
-        opts[:yaml_decryptor_path] ||= "#{pwn_config_root}/pwn.decryptor.yaml"
-
+        add_commands
         add_hooks(opts)
 
         # Define PS1 Prompt
