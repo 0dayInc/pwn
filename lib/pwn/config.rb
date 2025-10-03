@@ -17,7 +17,7 @@ module PWN
       FileUtils.mkdir_p(pwn_config_root)
 
       pwn_config_path = opts[:pwn_config_path] ||= "#{pwn_config_root}/pwn.yaml"
-      raise "PWN Config (#{pwn_config_path}) does not exist!" unless File.exist?(pwn_config_path)
+      return unless File.exist?(pwn_config_path)
 
       is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: pwn_config_path)
 
