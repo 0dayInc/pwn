@@ -12,19 +12,22 @@ module PWN
   autoload :AWS, 'pwn/aws'
   autoload :Banner, 'pwn/banner'
   autoload :Blockchain, 'pwn/blockchain'
+  autoload :Config, 'pwn/config'
   autoload :FFI, 'pwn/ffi'
   autoload :Plugins, 'pwn/plugins'
   autoload :Reports, 'pwn/reports'
   autoload :SAST, 'pwn/sast'
   autoload :WWW, 'pwn/www'
-  # TODO: If pwn.yaml is present, attempt to decrypt it, and initialize the YAML config
-  # Do this within PWN::Plugins::AuthenticationHelper?
 
   # Display a List of Every PWN Module
 
   public_class_method def self.help
     constants.sort
   end
+
+  # Initialize PWN configuration file
+  # PWN::CONFIG is the constant that stores the configuration data
+  PWN::Config.refresh
 rescue StandardError => e
   puts e.backtrace
   raise e

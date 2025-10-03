@@ -14,13 +14,7 @@ module PWN
       # PWN::Reports::SAST.generate(
       #   dir_path: 'optional - Directory path to save the report (defaults to .)',
       #   results_hash: 'optional - Hash containing the results of the SAST analysis (defaults to empty hash structure)',
-      #   report_name: 'optional - Name of the report file (defaults to current directory name)',
-      #   ai_engine: 'optional - AI engine to use for analysis (:grok, :ollama, or :openai)',
-      #   ai_model: 'optionnal - AI Model to Use for Respective AI Engine (e.g., grok-4i-0709, chargpt-4o-latest, llama-3.1, etc.)',
-      #   ai_key: 'optional -  AI Key/Token for Respective AI Engine',
-      #   ai_base_uri: 'optional -  AI FQDN (Only Required for "ollama" AI Engine)',
-      #   ai_system_role_content: 'optional - AI System Role Content (Defaults to "Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.")',
-      #   ai_temp: 'optional - AI Temperature (Defaults to 0.1)'
+      #   report_name: 'optional - Name of the report file (defaults to current directory name)'
       # )
 
       public_class_method def self.generate(opts = {})
@@ -31,28 +25,21 @@ module PWN
         }
         report_name = opts[:report_name] ||= File.basename(Dir.pwd)
 
-        ai_engine = opts[:ai_engine]
-        if ai_engine
-          ai_engine = ai_engine.to_s.to_sym
-          valid_ai_engines = %i[grok ollama openai]
-          raise "ERROR: Invalid AI Engine. Valid options are: #{valid_ai_engines.join(', ')}" unless valid_ai_engines.include?(ai_engine)
+        ai_instrospection = PWN::CONFIG[:ai][:introspection]
+        if ai_instrospection
+          engine = PWN::CONFIG[:ai][:active].to_s.downcase.to_sym
+          base_uri = PWN::CONFIG[:ai][engine][:base_uri]
+          model = PWN::CONFIG[:ai][engine][:model]
+          key = PWN::CONFIG[:ai][engine][:key]
+          system_role_content = PWN::CONFIG[:ai][engine][:system_role_content]
+          temp = PWN::CONFIG[:ai][engine][:temp]
 
-          ai_base_uri = opts[:ai_base_uri]
-          raise 'ERROR: FQDN for Ollama AI engine is required.' if ai_engine == :ollama && ai_base_uri.nil?
-
-          ai_model = opts[:ai_model]
-          raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
-
-          ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
-          ai_system_role_content = opts[:ai_system_role_content] ||= 'Your sole purpose is to analyze source code snippets and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  Just generate a score unless score is higher than 75% in which a code fic should also be included.'
-          ai_temp = opts[:ai_temp] ||= 0.1
-
-          puts "Analyzing source code using AI engine: #{ai_engine}\nModel: #{ai_model}\nSystem Role Content: #{ai_system_role_content}\nTemperature: #{ai_temp}"
+          puts "Analyzing source code using AI engine: #{engine}\nModel: #{model}\nSystem Role Content: #{system_role_content}\nTemperature: #{temp}"
         end
 
         # Calculate percentage of AI analysis based on the number of entries
         total_entries = results_hash[:data].sum { |entry| entry[:line_no_and_contents].size }
-        puts "Total entries to analyze: #{total_entries}" if ai_engine
+        puts "Total entries to analyze: #{total_entries}" if engine
 
         percent_complete = 0.0
         entry_count = 0
@@ -79,37 +66,39 @@ module PWN
             response = nil
             author = src_detail[:author].to_s.scrub.chomp.strip
 
-            case ai_engine
-            when :grok
-              response = PWN::AI::Grok.chat(
-                base_uri: ai_base_uri,
-                token: ai_key,
-                model: ai_model,
-                system_role_content: ai_system_role_content,
-                temp: ai_temp,
-                request: request.chomp,
-                spinner: false
-              )
-            when :ollama
-              response = PWN::AI::Ollama.chat(
-                base_uri: ai_base_uri,
-                token: ai_key,
-                model: ai_model,
-                system_role_content: ai_system_role_content,
-                temp: ai_temp,
-                request: request.chomp,
-                spinner: false
-              )
-            when :openai
-              response = PWN::AI::OpenAI.chat(
-                base_uri: ai_base_uri,
-                token: ai_key,
-                model: ai_model,
-                system_role_content: ai_system_role_content,
-                temp: ai_temp,
-                request: request.chomp,
-                spinner: false
-              )
+            if ai_instrospection
+              case engine
+              when :grok
+                response = PWN::AI::Grok.chat(
+                  base_uri: base_uri,
+                  token: key,
+                  model: model,
+                  system_role_content: system_role_content,
+                  temp: temp,
+                  request: request.chomp,
+                  spinner: false
+                )
+              when :ollama
+                response = PWN::AI::Ollama.chat(
+                  base_uri: base_uri,
+                  token: key,
+                  model: model,
+                  system_role_content: system_role_content,
+                  temp: temp,
+                  request: request.chomp,
+                  spinner: false
+                )
+              when :openai
+                response = PWN::AI::OpenAI.chat(
+                  base_uri: base_uri,
+                  token: key,
+                  model: model,
+                  system_role_content: system_role_content,
+                  temp: temp,
+                  request: request.chomp,
+                  spinner: false
+                )
+              end
             end
 
             ai_analysis = nil
@@ -118,6 +107,7 @@ module PWN
               ai_analysis = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
               # puts "AI Analysis Progress: #{percent_complete}% Line: #{line_no} | Author: #{author} | AI Analysis: #{ai_analysis}\n\n\n" if ai_analysis
             end
+            # TODO: Make results prettier in the HTML report
             src_detail[:ai_analysis] = ai_analysis.to_s.scrub.chomp.strip
 
             spin.update(

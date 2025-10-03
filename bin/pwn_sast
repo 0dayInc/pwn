@@ -11,6 +11,15 @@ OptionParser.new do |options|
     #{File.basename($PROGRAM_NAME)} [opts]
   "
 
+  # TODO: HOW TO LOAD THE pwn.yaml CONFIGURATION FILE FOR EVERYTHING UNLESS OVERRIDDEN???
+  options.on('-YPATH', '--pwn-config=PATH', '<Optional - PWN YAML File>') do |p|
+    opts[:pwn_config_path] = p
+  end
+
+  options.on('-ZPATH', '--pwn-decryptor=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
+    opts[:pwn_decryptor_path] = d
+  end
+
   options.on('-uGITURI', '--uri-source-root=GITURI', '<Required - HTTP URI of Git Repo Scanned e.g. https://github.com/0dayInc/pwn/tree/master>') do |u|
     opts[:uri_source_root] = u
   end
@@ -35,30 +44,6 @@ OptionParser.new do |options|
     opts[:report_name] = n
   end
 
-  options.on('-aENGINE', '--ai-engine=ENGINE', '<Optional AI Engine to Analyze Results (grok, ollama, openai) [WARNING: CAN DRAMATICALLY INCREASE AI USAGE COSTS AND/OR SCAN DURATIONS]>') do |a|
-    opts[:ai_engine] = a
-  end
-
-  options.on('-bURI', '--ai-base-uri=URI', '<Optional AI Base API URI (Only Required for "ollama" AI Engine.  Supported by other LLMs when hosted privately)>') do |b|
-    opts[:ai_base_uri] = b
-  end
-
-  options.on('-mMODEL', '--ai-model=MODEL', '<Optional AI Model to Use for Respective AI Engine (e.g., grok-4-0709, grok-3-mini-fast, gpt5-chat-latest, chargpt-4o-latest, llama-3.1, etc.)>') do |m|
-    opts[:ai_model] = m
-  end
-
-  options.on('-kTOKEN', '--ai-key=TOKEN', '<Optional AI Key/Token for Respective AI Engine>') do |k|
-    opts[:ai_key] = k
-  end
-
-  options.on('-SCONTENT', '--ai-system-content=CONTENT', '<Optional AI System Role Content for Respective AI Engine (Defaults to, "Confidence score of 0-10 this is vulnerable (0 being not vulnerable, moving upwards in confidence of exploitation). Provide additional context to assist penetration tester assessment.")>') do |s|
-    opts[:ai_system_role_content] = s
-  end
-
-  options.on('-FTEMP', '--ai-temp=TEMP', '<Optional AI Temperature for Respective AI Engine (Default 0.9)>') do |t|
-    opts[:ai_temp] = t
-  end
-
   options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
     opts[:start_reporting_server] = s
   end
@@ -71,6 +56,16 @@ end
 
 begin
   timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S%z')
+
+  pwn_config_path = opts[:pwn_config_path]
+  pwn_decryptor_path = opts[:pwn_decryptor_path]
+  if pwn_config_path
+    PWN::Config.refresh(
+      pwn_config_path: pwn_config_path,
+      pwn_decryptor_path: pwn_decryptor_path
+    )
+  end
+
   previous_dir = Dir.pwd
 
   pwn_provider = 'ruby-gem'
@@ -94,23 +89,6 @@ begin
   report_name = opts[:report_name]
   report_name ||= "#{File.basename(Dir.pwd)}-#{timestamp}" if dir_path == '.'
   report_name ||= "#{File.basename(dir_path)}-#{timestamp}" unless dir_path == '.'
-
-  ai_engine = opts[:ai_engine]
-  if ai_engine
-    ai_engine = ai_engine.to_s.to_sym
-    valid_ai_engines = %i[grok ollama openai]
-    raise "ERROR: Invalid AI Engine. Valid options are: #{valid_ai_engines.join(', ')}" unless valid_ai_engines.include?(ai_engine)
-
-    ai_base_uri = opts[:ai_base_uri]
-    raise 'ERROR: --base-uri Parameter for Ollama AI engine is required.' if ai_engine == :ollama && ai_base_uri.nil?
-
-    ai_model = opts[:ai_model]
-    raise 'ERROR: AI Model is required for AI engine ollama.' if ai_engine == :ollama && ai_model.nil?
-
-    ai_key = opts[:ai_key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: "#{ai_engine} Token")
-    ai_system_role_content = opts[:ai_system_role_content]
-    ai_temp = opts[:ai_temp]
-  end
 
   start_reporting_server = opts[:start_reporting_server]
 
@@ -202,13 +180,7 @@ begin
   PWN::Reports::SAST.generate(
     dir_path: dir_path,
     results_hash: results_hash,
-    report_name: report_name,
-    ai_engine: ai_engine,
-    ai_model: ai_model,
-    ai_key: ai_key,
-    ai_base_uri: ai_base_uri,
-    ai_system_role_content: ai_system_role_content,
-    ai_temp: ai_temp
+    report_name: report_name
   )
   puts 'complete.'
 

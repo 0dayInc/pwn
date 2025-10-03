@@ -26,6 +26,13 @@ module PWN
 
       private_class_method def self.open_ai_rest_call(opts = {})
         token = opts[:token]
+        if token.nil?
+          PWN::Plugins::AuthenticationHelper.mask_password(
+            prompt: 'OpenAI Key'
+          )
+          PWN::CONFIG[:ai][:openai][:key] = token
+        end
+
         http_method = if opts[:http_method].nil?
                         :get
                       else
