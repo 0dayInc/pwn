@@ -49,16 +49,22 @@ module PWN
             percent_complete = (entry_count.to_f / total_entries * 100).round(2)
             line_no = src_detail[:line_no]
             source_code_snippet = src_detail[:contents]
-            request = {
-              scm_uri: "#{git_repo_root_uri}/#{filename}",
-              line: line_no,
-              source_code_snippet: source_code_snippet
-            }.to_json
             author = src_detail[:author].to_s.scrub.chomp.strip
 
-            # TODO: move PWN::AI::Introspection.reflect into each PWN::SAST::* module
-            # This will drastically speed up the overall SAST analysis process
-            response = PWN::AI::Introspection.reflect if ai_instrospection
+            # TODO: >>>
+            # 1. Move PWN::AI::Introspection.reflect into each PWN::SAST::* module
+            #    This will drastically speed up the overall SAST analysis process
+            # 2. Have PWN::AI::Introspection.reflect assess test case effectiveness
+            response = nil
+            if ai_instrospection
+              request = {
+                scm_uri: "#{git_repo_root_uri}/#{filename}",
+                line: line_no,
+                source_code_snippet: source_code_snippet
+              }.to_json
+              response = PWN::AI::Introspection.reflect(request: request)
+            end
+
             ai_analysis = nil
             if response.is_a?(Hash)
               ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)

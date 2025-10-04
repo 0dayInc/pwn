@@ -42,11 +42,7 @@ module PWN
         env = YAML.load_file(pwn_env_path, symbolize_names: true)
       end
 
-      valid_ai_engines = %i[
-        grok
-        openai
-        ollama
-      ]
+      valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
 
       engine = env[:ai][:active].to_s.downcase.to_sym
       raise "ERROR: Unsupported AI Engine: #{engine} in #{pwn_env_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(engine)
