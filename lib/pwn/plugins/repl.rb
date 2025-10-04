@@ -18,7 +18,7 @@ module PWN
         mode = opts[:mode]
 
         proc do |_target_self, _nest_level, pi|
-          pi.config.pwn = PWN::Config.refresh(opts) if Pry.config.refresh
+          PWN::Config.refresh_env(opts) if Pry.config.refresh
 
           pi.config.pwn_repl_line += 1
           line_pad = format(
@@ -34,8 +34,8 @@ module PWN
           dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
 
           if pi.config.pwn_asm
-            arch = pi.config.pwn[:asm][:arch] ||= PWN::Plugins::DetectOS.arch
-            endian = pi.config.pwn[:asm][:endian] ||= PWN::Plugins::DetectOS.endian
+            arch = PWN::Env[:asm][:arch] ||= PWN::Plugins::DetectOS.arch
+            endian = PWN::Env[:asm][:endian] ||= PWN::Plugins::DetectOS.endian
 
             pi.config.prompt_name = "pwn.asm:#{arch}/#{endian}"
             name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
@@ -44,10 +44,10 @@ module PWN
           end
 
           if pi.config.pwn_ai
-            engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
-            model = pi.config.pwn[:ai][engine][:model]
-            system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
-            temp = pi.config.pwn[:ai][engine][:temp]
+            engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+            model = PWN::Env[:ai][engine][:model]
+            system_role_content = PWN::Env[:ai][engine][:system_role_content]
+            temp = PWN::Env[:ai][engine][:temp]
             pname = "pwn.ai:#{engine}"
             pname = "pwn.ai:#{engine}/#{model}" if model
             pname = "pwn.ai:#{engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
@@ -173,10 +173,10 @@ module PWN
 
             reply = nil
             response_history = nil
-            shared_chan = pi.config.pwn[:irc][:shared_chan]
+            shared_chan = PWN::Env[:irc][:shared_chan]
             mem_chan = '#mem'
-            ai_agents = pi.config.pwn[:irc][:ai_agent_nicks]
-            ai_agents_arr = pi.config.pwn[:irc][:ai_agent_nicks].keys
+            ai_agents = PWN::Env[:irc][:ai_agent_nicks]
+            ai_agents_arr = PWN::Env[:irc][:ai_agent_nicks].keys
             total_ai_agents = ai_agents_arr.length
             mutex = Mutex.new
             PWN::Plugins::ThreadPool.fill(
@@ -302,12 +302,12 @@ module PWN
                         next unless dm_agent == nick
 
                         response_history = ai_agents[dm_agent.to_sym][:response_history]
-                        engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
-                        base_uri = pi.config.pwn[:ai][engine][:base_uri]
-                        key = pi.config.pwn[:ai][engine][:key] ||= ''
-                        temp = pi.config.pwn[:ai][engine][:temp]
-                        model = pi.config.pwn[:ai][engine][:model]
-                        system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
+                        engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+                        base_uri = PWN::Env[:ai][engine][:base_uri]
+                        key = PWN::Env[:ai][engine][:key] ||= ''
+                        temp = PWN::Env[:ai][engine][:temp]
+                        model = PWN::Env[:ai][engine][:model]
+                        system_role_content = PWN::Env[:ai][engine][:system_role_content]
 
                         users_in_chan = PWN::Plugins::IRC.names(
                           irc_obj: irc_obj,
@@ -431,7 +431,7 @@ module PWN
 
             # TODO: Use TLS for IRC Connections
             # Use an IRC nCurses CLI Client
-            ui_nick = pi.config.pwn[:irc][:ui_nick]
+            ui_nick = PWN::Env[:irc][:ui_nick]
             join_channels = ai_agents_arr.map { |ai_chan| "##{ai_chan}" }.join(',')
 
             cmd0 = "/server add pwn #{host}/#{port} -notls"
@@ -460,24 +460,24 @@ module PWN
 
           def process
             pi = pry_instance
-            pwn_config_path = pi.config.pwn_config_path ||= "#{Dir.home}/.pwn/pwn.yaml"
-            unless File.exist?(pwn_config_path)
-              puts "ERROR: pwn.yaml not found: #{pwn_config_path}"
+            pwn_env_path = PWN::Env[:pwn_env_path] ||= "#{Dir.home}/.pwn/pwn.yaml"
+            unless File.exist?(pwn_env_path)
+              puts "ERROR: pwn environment file not found: #{pwn_env_path}"
               return
             end
 
-            pwn_decryptor_path = pi.config.pwn_decryptor_path ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
-            unless File.exist?(pwn_decryptor_path)
-              puts "ERROR: pwn.decryptor.yaml not found: #{pwn_decryptor_path}"
+            pwn_dec_path = PWN::Env[:pwn_dec_path] ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
+            unless File.exist?(pwn_dec_path)
+              puts "ERROR: pwn decryptor file not found: #{pwn_dec_path}"
               return
             end
 
-            decryptor = YAML.load_file(pwn_decryptor_path, symbolize_names: true)
+            decryptor = YAML.load_file(pwn_dec_path, symbolize_names: true)
             key = decryptor[:key]
             iv = decryptor[:iv]
 
             PWN::Plugins::Vault.edit(
-              file: pwn_config_path,
+              file: pwn_env_path,
               key: key,
               iv: iv
             )
@@ -530,20 +530,16 @@ module PWN
         # Define REPL Hooks
         # Welcome Banner Hook
         Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
+          PWN::Config.refresh_env(opts)
           output.puts PWN::Banner.welcome
-        end
-
-        # Initialize pwn.yaml Configuration using :before_session Hook
-        Pry.config.hooks.add_hook(:before_session, :init_opts) do |_output, _binding, pi|
-          pi.config.pwn = PWN::Config.refresh(opts)
         end
 
         Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
           if pi.config.pwn_asm && !request.chomp.empty?
             request = pi.input.line_buffer
 
-            arch = pi.config.pwn[:asm][:arch]
-            endian = pi.config.pwn[:asm][:endian]
+            arch = PWN::Env[:asm][:arch]
+            endian = PWN::Env[:asm][:endian]
 
             # Analyze request to determine if it should be processed as opcodes or asm.
             straight_hex = /^[a-fA-F0-9\s]+$/
@@ -579,14 +575,14 @@ module PWN
           if pi.config.pwn_ai && !request.chomp.empty?
             request = pi.input.line_buffer.to_s
             debug = pi.config.pwn_ai_debug
-            engine = pi.config.pwn[:ai][:active].to_s.downcase.to_sym
-            base_uri = pi.config.pwn[:ai][engine][:base_uri]
-            key = pi.config.pwn[:ai][engine][:key] ||= ''
-            response_history = pi.config.pwn[:ai][engine][:response_history]
+            engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+            base_uri = PWN::Env[:ai][engine][:base_uri]
+            key = PWN::Env[:ai][engine][:key] ||= ''
+            response_history = PWN::Env[:ai][engine][:response_history]
             speak_answer = pi.config.pwn_ai_speak
-            model = pi.config.pwn[:ai][engine][:model]
-            system_role_content = pi.config.pwn[:ai][engine][:system_role_content]
-            temp = pi.config.pwn[:ai][engine][:temp]
+            model = PWN::Env[:ai][engine][:model]
+            system_role_content = PWN::Env[:ai][engine][:system_role_content]
+            temp = PWN::Env[:ai][engine][:temp]
 
             case engine
             when :grok
@@ -655,7 +651,7 @@ module PWN
               pp response_history
               puts "\nresponse_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
             end
-            pi.config.pwn[:ai][engine][:response_history] = response_history
+            PWN::Env[:ai][engine][:response_history] = response_history
           end
         end
       rescue StandardError => e
@@ -670,8 +666,8 @@ module PWN
       public_class_method def self.start(opts = {})
         # Monkey Patch Pry, add commands, && hooks
         PWN::Plugins::MonkeyPatch.pry
-        pwn_config_root = "#{Dir.home}/.pwn"
-        Pry.config.history_file = "#{pwn_config_root}/pwn_history"
+        pwn_env_root = "#{Dir.home}/.pwn"
+        Pry.config.history_file = "#{pwn_env_root}/pwn_history"
 
         add_commands
         add_hooks(opts)

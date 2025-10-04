@@ -12,12 +12,12 @@ OptionParser.new do |options|
   "
 
   # TODO: HOW TO LOAD THE pwn.yaml CONFIGURATION FILE FOR EVERYTHING UNLESS OVERRIDDEN???
-  options.on('-YPATH', '--pwn-config=PATH', '<Optional - PWN YAML File>') do |p|
-    opts[:pwn_config_path] = p
+  options.on('-YPATH', '--pwn-env=PATH', '<Optional - PWN YAML File>') do |p|
+    opts[:pwn_env_path] = p
   end
 
-  options.on('-ZPATH', '--pwn-decryptor=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
-    opts[:pwn_decryptor_path] = d
+  options.on('-ZPATH', '--pwn-dec=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
+    opts[:pwn_dec_path] = d
   end
 
   options.on('-uGITURI', '--uri-source-root=GITURI', '<Required - HTTP URI of Git Repo Scanned e.g. https://github.com/0dayInc/pwn/tree/master>') do |u|
@@ -57,12 +57,12 @@ end
 begin
   timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S%z')
 
-  pwn_config_path = opts[:pwn_config_path]
-  pwn_decryptor_path = opts[:pwn_decryptor_path]
-  if pwn_config_path
+  pwn_env_path = opts[:pwn_env_path]
+  pwn_dec_path = opts[:pwn_dec_path]
+  if pwn_env_path
     PWN::Config.refresh(
-      pwn_config_path: pwn_config_path,
-      pwn_decryptor_path: pwn_decryptor_path
+      pwn_env_path: pwn_env_path,
+      pwn_dec_path: pwn_dec_path
     )
   end
 
