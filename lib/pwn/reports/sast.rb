@@ -25,17 +25,8 @@ module PWN
         }
         report_name = opts[:report_name] ||= File.basename(Dir.pwd)
 
-        ai_instrospection = PWN::CONFIG[:ai][:introspection]
-        if ai_instrospection
-          engine = PWN::CONFIG[:ai][:active].to_s.downcase.to_sym
-          base_uri = PWN::CONFIG[:ai][engine][:base_uri]
-          model = PWN::CONFIG[:ai][engine][:model]
-          key = PWN::CONFIG[:ai][engine][:key]
-          system_role_content = PWN::CONFIG[:ai][engine][:system_role_content]
-          temp = PWN::CONFIG[:ai][engine][:temp]
-
-          puts "Analyzing source code using AI engine: #{engine}\nModel: #{model}\nSystem Role Content: #{system_role_content}\nTemperature: #{temp}"
-        end
+        ai_instrospection = PWN::Env[:ai][:introspection]
+        puts "Analyzing source code using AI engine: #{engine}\nModel: #{model}\nSystem Role Content: #{system_role_content}\nTemperature: #{temp}" if ai_instrospection
 
         # Calculate percentage of AI analysis based on the number of entries
         total_entries = results_hash[:data].sum { |entry| entry[:line_no_and_contents].size }
@@ -63,44 +54,11 @@ module PWN
               line: line_no,
               source_code_snippet: source_code_snippet
             }.to_json
-            response = nil
             author = src_detail[:author].to_s.scrub.chomp.strip
 
-            if ai_instrospection
-              case engine
-              when :grok
-                response = PWN::AI::Grok.chat(
-                  base_uri: base_uri,
-                  token: key,
-                  model: model,
-                  system_role_content: system_role_content,
-                  temp: temp,
-                  request: request.chomp,
-                  spinner: false
-                )
-              when :ollama
-                response = PWN::AI::Ollama.chat(
-                  base_uri: base_uri,
-                  token: key,
-                  model: model,
-                  system_role_content: system_role_content,
-                  temp: temp,
-                  request: request.chomp,
-                  spinner: false
-                )
-              when :openai
-                response = PWN::AI::OpenAI.chat(
-                  base_uri: base_uri,
-                  token: key,
-                  model: model,
-                  system_role_content: system_role_content,
-                  temp: temp,
-                  request: request.chomp,
-                  spinner: false
-                )
-              end
-            end
-
+            # TODO: move PWN::AI::Introspection.reflect into each PWN::SAST::* module
+            # This will drastically speed up the overall SAST analysis process
+            response = PWN::AI::Introspection.reflect if ai_instrospection
             ai_analysis = nil
             if response.is_a?(Hash)
               ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)

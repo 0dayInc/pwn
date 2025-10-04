@@ -27,13 +27,6 @@ module PWN
       private_class_method def self.ollama_rest_call(opts = {})
         base_uri = opts[:base_uri]
         token = opts[:token]
-        if token.nil?
-          PWN::Plugins::AuthenticationHelper.mask_password(
-            prompt: 'Ollama Key'
-          )
-          PWN::CONFIG[:ai][:ollama][:key] = token
-        end
-
         http_method = if opts[:http_method].nil?
                         :get
                       else

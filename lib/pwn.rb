@@ -26,8 +26,8 @@ module PWN
   end
 
   # Initialize PWN configuration file
-  # PWN::CONFIG is the constant that stores the configuration data
-  PWN::Config.refresh
+  # PWN::Env is the constant that stores the configuration data
+  PWN::Config.refresh_env
 rescue StandardError => e
   puts e.backtrace
   raise e

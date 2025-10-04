@@ -2,19 +2,14 @@
 
 require 'spec_helper'
 
-describe PWN::Config do
-  it 'should return data for refresh method' do
-    config_response = PWN::Config.refresh
-    expect(config_response).not_to be_nil
-  end
-
+describe PWN::AI::Introspection do
   it 'should display information for authors' do
-    authors_response = PWN::Config
+    authors_response = PWN::AI::Introspection
     expect(authors_response).to respond_to :authors
   end
 
   it 'should display information for existing help method' do
-    help_response = PWN::Config
+    help_response = PWN::AI::Introspection
     expect(help_response).to respond_to :help
   end
 end
