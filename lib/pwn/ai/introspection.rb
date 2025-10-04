@@ -10,10 +10,20 @@ module PWN
     # when `PWN::Env[:ai][:introspection]` is set to `true`.
     module Introspection
       # Supported Method Parameters::
-      # response = PWN::AI::Introspection.reflect
+      # response = PWN::AI::Introspection.reflect(
+      #   request: 'required - String - What you want the AI to reflect on'
+      # )
 
-      public_class_method def self.reflect
+      public_class_method def self.reflect(opts = {})
+        request = opts[:request]
+        raise 'ERROR: request must be provided' if request.nil?
+
+        response = nil
+
+        valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
         engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+        raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
+
         base_uri = PWN::Env[:ai][engine][:base_uri]
         model = PWN::Env[:ai][engine][:model]
         key = PWN::Env[:ai][engine][:key]
@@ -70,7 +80,9 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.reflect
+          #{self}.reflect(
+            request: 'required - String - What you want the AI to reflect on'
+          )
 
           #{self}.authors
         "
