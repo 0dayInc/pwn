@@ -75,10 +75,26 @@ module PWN
                 end
                 author ||= 'N/A'
 
+                ai_instrospection = PWN::Env[:ai][:introspection]
+                ai_analysis = nil
+                if ai_instrospection
+                  request = {
+                    scm_uri: "#{hash_line[:filename][:git_repo_root_uri]}/#{hash_line[:filename][:entry]}",
+                    line_no: line_no,
+                    source_code_snippet: contents
+                  }.to_json
+                  response = PWN::AI::Introspection.reflect(request: request)
+                  if response.is_a?(Hash)
+                    ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
+                    ai_analysis = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
+                  end
+                end
+
                 hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
                   line_no: line_no,
                   contents: contents,
-                  author: author
+                  author: author,
+                  ai_analysis: ai_analysis
                 )
 
                 current_count += 2
