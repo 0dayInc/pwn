@@ -7,6 +7,101 @@ module PWN
   # Used to manage PWN configuration settings within PWN drivers.
   module Config
     # Supported Method Parameters::
+    # env = PWN::Config.minimal_env
+    public_class_method def self.minimal_env(opts = {})
+      pwn_env_path = opts[:pwn_env_path]
+      pwn_dec_path = "#{File.dirname(pwn_env_path)}/pwn.decryptor.yaml"
+
+      puts "
+        [*] NOTICE:
+        1. Writing minimal PWN::Env to:
+           #{pwn_env_path}
+        2. Your decryptor file will be written to:
+           #{pwn_dec_path}
+        3. Use the pwn-vault command in the pwn prototyping driver to update:
+           #{pwn_env_path}
+        4. For optimal security, it's recommended to move:
+           #{pwn_dec_path}
+           to a secure location and use the --pwn-dec parameter for PWN drivers.
+      "
+      env = {
+        ai: {
+          active: 'grok',
+          introspection: false,
+          grok: {
+            base_uri: 'optional - Base URI for Grok - Use private base OR defaults to https://api.x.ai/v1',
+            key: 'required - OpenAI API Key',
+            model: 'optional - Grok model to use',
+            system_role_content: 'You are an ethically hacking OpenAI agent.',
+            temp: 'optional - OpenAI temperature'
+          },
+          openai: {
+            base_uri: 'optional - Base URI for OpenAI - Use private base OR defaults to https://api.openai.com/v1',
+            key: 'required - OpenAI API Key',
+            model: 'optional - OpenAI model to use',
+            system_role_content: 'You are an ethically hacking OpenAI agent.',
+            temp: 'optional - OpenAI temperature'
+          },
+          ollama: {
+            base_uri: 'required - Base URI for Open WebUI - e.g. https://ollama.local',
+            key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token',
+            model: 'required - Ollama model to use',
+            system_role_content: 'You are an ethically hacking Ollama agent.',
+            temp: 'optional - Ollama temperature'
+          }
+        },
+        asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian },
+        irc: {
+          ui_nick: '_human_',
+          shared_chan: '#pwn',
+          ai_agent_nicks: {
+            browser: {
+              pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb',
+              system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
+            },
+            nimjeh: {
+              pwn_rb: '',
+              system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
+            },
+            nmap: {
+              pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb',
+              system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
+            },
+            shodan: {
+              pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb',
+              system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
+            }
+          }
+        },
+        hunter: { api_key: 'hunter.how API Key' },
+        meshtastic: {
+          psks: {
+            LongFast: 'AQ==',
+            PWN: 'required - PSK for pwn channel'
+          }
+        },
+        shodan: { api_key: 'SHODAN API Key' }
+      }
+      # Remove beginning colon from key names
+      yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')
+      File.write(pwn_env_path, yaml_env)
+
+      env[:pwn_env_path] = pwn_env_path
+      env[:pwn_dec_path] = pwn_dec_path
+
+      PWN::Plugins::Vault.create(
+        file: pwn_env_path,
+        decryptor_file: pwn_dec_path
+      )
+
+      Pry.config.refresh_pwn_env = false if defined?(Pry)
+      PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
+      PWN.const_set(:Env, env.freeze)
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
     # PWN::Config.refresh_env(
     #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',
     #   pwn_dec_path: 'optional - Path to pwn.decryptor.yaml file.  Defaults to ~/.pwn/pwn.decryptor.yaml'
@@ -17,7 +112,7 @@ module PWN
       FileUtils.mkdir_p(pwn_env_root)
 
       pwn_env_path = opts[:pwn_env_path] ||= "#{pwn_env_root}/pwn.yaml"
-      return {} unless File.exist?(pwn_env_path)
+      return minimal_env(pwn_env_path: pwn_env_path) unless File.exist?(pwn_env_path)
 
       is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: pwn_env_path)
 
@@ -76,8 +171,7 @@ module PWN
       env[:pwn_env_path] = pwn_env_path
       env[:pwn_dec_path] = pwn_dec_path if is_encrypted
 
-      Pry.config.refresh = false if defined?(Pry)
-
+      Pry.config.refresh_pwn_env = false if defined?(Pry)
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
       PWN.const_set(:Env, env.freeze)
     rescue StandardError => e
@@ -96,6 +190,10 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
+        #{self}.minimal_env(
+          pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+        )
+
         #{self}.refresh_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',
           pwn_dec_path: 'optional - Path to pwn.decryptor.yaml file.  Defaults to ~/.pwn/pwn.decryptor.yaml'
