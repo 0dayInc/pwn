@@ -37,19 +37,27 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::Vault.create(
-      #   file: 'required - encrypted file to create'
+      #   file: 'required - encrypted file to create',
+      #   decryptor_file: 'optional - file to save the key && iv values'
       # )
 
       public_class_method def self.create(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
+        decryptor_file = opts[:decryptor_file]
 
         cipher = OpenSSL::Cipher.new('aes-256-cbc')
         key = Base64.strict_encode64(cipher.random_key)
         iv = Base64.strict_encode64(cipher.random_iv)
 
-        puts 'Please store the Key && IV in a secure location as they are required for decryption.'
-        puts "Key: #{key}"
-        puts "IV: #{iv}"
+        if decryptor_file
+          decryptor_hash = { key: key, iv: iv }
+          yaml_decryptor = YAML.dump(decryptor_hash).gsub(/^(\s*):/, '\1')
+          File.write(decryptor_file, yaml_decryptor)
+        else
+          puts 'Please store the Key && IV in a secure location as they are required for decryption.'
+          puts "Key: #{key}"
+          puts "IV: #{iv}"
+        end
 
         encrypt(
           file: file,
@@ -173,7 +181,7 @@ module PWN
         system(relative_editor, file)
 
         # If the Pry object exists, set refresh_config to true
-        Pry.config.refresh = true if defined?(Pry)
+        Pry.config.refresh_pwn_env = true if defined?(Pry)
 
         encrypt(
           file: file,
@@ -253,7 +261,8 @@ module PWN
           )
 
           #{self}.create(
-            file: 'required - file to encrypt'
+            file: 'required - file to encrypt',
+            decryptor_file: 'optional - file to save the key && iv values'
           )
 
           #{self}.decrypt(

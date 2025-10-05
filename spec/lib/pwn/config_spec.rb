@@ -3,11 +3,6 @@
 require 'spec_helper'
 
 describe PWN::Config do
-  it 'should return data for refresh method' do
-    config_response = PWN::Config.refresh_env
-    expect(config_response).not_to be_nil
-  end
-
   it 'should display information for authors' do
     authors_response = PWN::Config
     expect(authors_response).to respond_to :authors

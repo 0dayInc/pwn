@@ -18,7 +18,7 @@ module PWN
         mode = opts[:mode]
 
         proc do |_target_self, _nest_level, pi|
-          PWN::Config.refresh_env(opts) if Pry.config.refresh
+          PWN::Config.refresh_env(opts) if Pry.config.refresh_pwn_env
 
           pi.config.pwn_repl_line += 1
           line_pad = format(
@@ -530,8 +530,8 @@ module PWN
         # Define REPL Hooks
         # Welcome Banner Hook
         Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
-          PWN::Config.refresh_env(opts)
           output.puts PWN::Banner.welcome
+          PWN::Config.refresh_env(opts)
         end
 
         Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|
