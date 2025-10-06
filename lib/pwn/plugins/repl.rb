@@ -460,13 +460,13 @@ module PWN
 
           def process
             pi = pry_instance
-            pwn_env_path = PWN::Env[:pwn_env_path] ||= "#{Dir.home}/.pwn/pwn.yaml"
+            pwn_env_path = PWN::Env[:driver_opts][:pwn_env_path] ||= "#{Dir.home}/.pwn/pwn.yaml"
             unless File.exist?(pwn_env_path)
               puts "ERROR: pwn environment file not found: #{pwn_env_path}"
               return
             end
 
-            pwn_dec_path = PWN::Env[:pwn_dec_path] ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
+            pwn_dec_path = PWN::Env[:driver_opts][:pwn_dec_path] ||= "#{Dir.home}/.pwn/pwn.decryptor.yaml"
             unless File.exist?(pwn_dec_path)
               puts "ERROR: pwn decryptor file not found: #{pwn_dec_path}"
               return
@@ -531,7 +531,6 @@ module PWN
         # Welcome Banner Hook
         Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
           output.puts PWN::Banner.welcome
-          PWN::Config.refresh_env(opts)
         end
 
         Pry.config.hooks.add_hook(:after_read, :pwn_asm_hook) do |request, pi|

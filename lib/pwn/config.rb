@@ -86,8 +86,10 @@ module PWN
       yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')
       File.write(pwn_env_path, yaml_env)
 
-      env[:pwn_env_path] = pwn_env_path
-      env[:pwn_dec_path] = pwn_dec_path
+      env[:driver_opts] = {
+        pwn_env_path: pwn_env_path,
+        pwn_dec_path: pwn_dec_path
+      }
 
       PWN::Plugins::Vault.create(
         file: pwn_env_path,
@@ -168,8 +170,10 @@ module PWN
       }
 
       # These two lines should be immutable for the session
-      env[:pwn_env_path] = pwn_env_path
-      env[:pwn_dec_path] = pwn_dec_path if is_encrypted
+      env[:driver_opts] = {
+        pwn_env_path: pwn_env_path,
+        pwn_dec_path: pwn_dec_path
+      }
 
       Pry.config.refresh_pwn_env = false if defined?(Pry)
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)

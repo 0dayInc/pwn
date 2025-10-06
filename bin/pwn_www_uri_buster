@@ -1,16 +1,14 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'time'
-require 'pwn'
-require 'optparse'
-require 'uri'
 require 'cgi'
-require 'htmlentities'
 require 'faker'
-require 'json'
+require 'htmlentities'
+require 'pwn'
+require 'time'
+require 'uri'
 
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]

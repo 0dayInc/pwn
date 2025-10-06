@@ -2,11 +2,9 @@
 # frozen_string_literal: true
 
 require 'cgi'
-require 'optparse'
 require 'pwn'
-require 'yaml'
 
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]

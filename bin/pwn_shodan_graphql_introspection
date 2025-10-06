@@ -2,11 +2,9 @@
 # frozen_string_literal: true
 
 require 'faker'
-require 'json'
-require 'optparse'
 require 'pwn'
 
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.on('-jFILE', '--json-results=FILE', 'Required - JSON results file from pwn_shodan_search driver') do |j|
     opts[:json_results] = j
