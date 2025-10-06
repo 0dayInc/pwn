@@ -56,44 +56,53 @@ module PWN
           spin.auto_spin
         end
 
-        case http_method
-        when :delete, :get
-          headers[:params] = params
-          response = rest_client.execute(
-            method: http_method,
-            url: "#{base_uri}/#{rest_call}",
-            headers: headers,
-            verify_ssl: false,
-            timeout: timeout
-          )
-
-        when :post
-          if http_body.key?(:multipart)
-            headers[:content_type] = 'multipart/form-data'
-
+        retry_count = 0
+        begin
+          case http_method
+          when :delete, :get
+            headers[:params] = params
             response = rest_client.execute(
               method: http_method,
               url: "#{base_uri}/#{rest_call}",
               headers: headers,
-              payload: http_body,
               verify_ssl: false,
               timeout: timeout
             )
+
+          when :post
+            if http_body.key?(:multipart)
+              headers[:content_type] = 'multipart/form-data'
+
+              response = rest_client.execute(
+                method: http_method,
+                url: "#{base_uri}/#{rest_call}",
+                headers: headers,
+                payload: http_body,
+                verify_ssl: false,
+                timeout: timeout
+              )
+            else
+              response = rest_client.execute(
+                method: http_method,
+                url: "#{base_uri}/#{rest_call}",
+                headers: headers,
+                payload: http_body.to_json,
+                verify_ssl: false,
+                timeout: timeout
+              )
+            end
+
           else
-            response = rest_client.execute(
-              method: http_method,
-              url: "#{base_uri}/#{rest_call}",
-              headers: headers,
-              payload: http_body.to_json,
-              verify_ssl: false,
-              timeout: timeout
-            )
+            raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
           end
+          response
+        rescue RestClient::TooManyRequests => e
+          retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
+          sleep(retry_after + rand(0.3..5.0))
+          retry_count += 1
 
-        else
-          raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
+          retry
         end
-        response
       rescue RestClient::ExceptionWithResponse => e
         puts "ERROR: #{e.message}: #{e.response}"
       rescue StandardError => e
