@@ -2,7 +2,6 @@
 
 require 'json'
 require 'rest-client'
-require 'tty-spinner'
 
 module PWN
   module AI
