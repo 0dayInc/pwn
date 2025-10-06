@@ -1,5 +1,6 @@
 # frozen_string_literal: false
 
+require 'json'
 require 'socket'
 
 module PWN
@@ -20,7 +21,8 @@ module PWN
         dir_path = opts[:dir_path]
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
         result_arr = []
-        logger_results = ''
+        ai_introspection = PWN::Env[:ai][:introspection]
+        logger_results = "AI Introspection => #{ai_introspection} => "
 
         PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if (File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/) && (File.extname(entry) == '.c' || File.extname(entry) == '.cpp' || File.extname(entry) == '.c++' || File.extname(entry) == '.cxx' || File.extname(entry) == '.h' || File.extname(entry) == '.hpp' || File.extname(entry) == '.h++' || File.extname(entry) == '.hh' || File.extname(entry) == '.hxx' || File.extname(entry) == '.ii' || File.extname(entry) == '.ixx' || File.extname(entry) == '.ipp' || File.extname(entry) == '.inl' || File.extname(entry) == '.txx' || File.extname(entry) == '.tpp' || File.extname(entry) == '.tpl') && entry !~ /test/i
@@ -203,9 +205,8 @@ module PWN
                 end
                 author ||= 'N/A'
 
-                ai_instrospection = PWN::Env[:ai][:introspection]
                 ai_analysis = nil
-                if ai_instrospection
+                if ai_introspection
                   request = {
                     scm_uri: "#{hash_line[:filename][:git_repo_root_uri]}/#{hash_line[:filename][:entry]}",
                     line_no: line_no,
