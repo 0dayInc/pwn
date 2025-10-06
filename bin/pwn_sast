@@ -60,7 +60,7 @@ begin
   pwn_env_path = opts[:pwn_env_path]
   pwn_dec_path = opts[:pwn_dec_path]
   if pwn_env_path
-    PWN::Config.refresh(
+    PWN::Config.refresh_env(
       pwn_env_path: pwn_env_path,
       pwn_dec_path: pwn_dec_path
     )
