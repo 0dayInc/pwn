@@ -522,11 +522,9 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::REPL.add_hooks(
-      #   opts: 'required - Hash object passed in via pwn OptParser'
-      # )
+      # PWN::Plugins::REPL.add_hooks
 
-      public_class_method def self.add_hooks(opts = {})
+      public_class_method def self.add_hooks
         # Define REPL Hooks
         # Welcome Banner Hook
         Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
@@ -669,7 +667,7 @@ module PWN
         Pry.config.history_file = "#{pwn_env_root}/pwn_history"
 
         add_commands
-        add_hooks(opts)
+        add_hooks
 
         # Define PS1 Prompt
         Pry.config.pwn_repl_line = 0
