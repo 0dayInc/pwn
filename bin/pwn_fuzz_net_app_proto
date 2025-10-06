@@ -2,11 +2,9 @@
 # frozen_string_literal: true
 
 require 'htmlentities'
-require 'json'
-require 'optparse'
 require 'pwn'
 
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]

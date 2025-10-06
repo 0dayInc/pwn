@@ -1,14 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'pwn'
-require 'optparse'
-require 'fileutils'
-require 'ruby-audio'
 require 'fftw3'
+require 'fileutils'
+require 'pwn'
+require 'ruby-audio'
 require 'waveform'
 
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]

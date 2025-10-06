@@ -1,13 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'pwn'
-require 'json'
 require 'nokogiri'
-require 'optparse'
+require 'pwn'
 
 # Set the path to your project directory
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]

@@ -1,11 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'pwn'
-require 'optparse'
 require 'htmlentities'
+require 'pwn'
 
-opts = {}
+opts = PWN::Env[:driver_opts]
 OptionParser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]
@@ -193,9 +192,9 @@ begin
 
     system(
       'pwn_simple_http_server',
-      '-i',
+      '--bind-ip',
       listen_ip,
-      '-p',
+      '--port',
       listen_port
     )
   end
