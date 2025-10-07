@@ -46,6 +46,10 @@ module PWN
     autoload :SSL, 'pwn/sast/ssl'
     autoload :Sudo, 'pwn/sast/sudo'
     autoload :TaskTag, 'pwn/sast/task_tag'
+
+    # This module executes all the other SAST modules
+    autoload :TestCaseEngine, 'pwn/sast/test_case_engine'
+
     autoload :ThrowErrors, 'pwn/sast/throw_errors'
     autoload :Token, 'pwn/sast/token'
     autoload :TypeScriptTypeJuggling, 'pwn/sast/type_script_type_juggling'

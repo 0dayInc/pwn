@@ -37,7 +37,7 @@ module PWN
 
             test_case_filter = "
               grep -in -B2 \
-              -e 'version' #{entry} 2> /dev/null
+              -e 'version' {PWN_SAST_SRC_TARGET} 2> /dev/null
             "
 
             str = `#{test_case_filter}`.to_s.scrub
