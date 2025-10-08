@@ -189,6 +189,7 @@ module PWN
       # PWN::Blockchain::BTC.get_block_details(
       #   height: 'required - block height as an integer (0 for genesis block / Defaults to latest block)'
       # )
+
       public_class_method def self.get_block_details(opts = {})
         latest_block = get_latest_block[:result][:blocks]
         height = opts[:height] ||= latest_block

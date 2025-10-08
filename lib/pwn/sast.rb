@@ -54,6 +54,7 @@ module PWN
     autoload :ThrowErrors, 'pwn/sast/throw_errors'
     autoload :Token, 'pwn/sast/token'
     autoload :TypeScriptTypeJuggling, 'pwn/sast/type_script_type_juggling'
+    autoload :UseAfterFree, 'pwn/sast/use_after_free'
     autoload :Version, 'pwn/sast/version'
     autoload :WindowLocationHash, 'pwn/sast/window_location_hash'
 

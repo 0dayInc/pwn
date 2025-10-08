@@ -140,6 +140,7 @@ begin
       ThrowErrors
       Token
       TypeScriptTypeJuggling
+      UseAfterFree
       Version
       WindowLocationHash
     ].sort.uniq
