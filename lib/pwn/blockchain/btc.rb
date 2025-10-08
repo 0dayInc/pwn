@@ -187,12 +187,21 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Blockchain::BTC.get_block_details(
-      #   height: 'required - block height number',
-      #   token: 'optional - API token for higher rate limits'
+      #   height: 'required - block height as an integer (0 for genesis block / Defaults to latest block)'
       # )
       public_class_method def self.get_block_details(opts = {})
-        height = opts[:height]
-        btc_rpc_call(method: 'getblockhash', params: [height])
+        latest_block = get_latest_block[:result][:blocks]
+        height = opts[:height] ||= latest_block
+
+        raise "ERROR: height must be >= 0 && <= #{latest_block}" if height.negative? || height > latest_block
+
+        hash_res = btc_rpc_call(method: 'getblockhash', params: [height])
+        block_hash = hash_res[:result]
+
+        # Verbosity 1: block details with tx IDs
+        block_res = btc_rpc_call(method: 'getblock', params: [block_hash, 1])
+
+        block_res[:result]
       rescue StandardError => e
         raise e
       end
@@ -246,7 +255,7 @@ module PWN
           latest_block = #{self}.get_latest_block
 
           block_details = #{self}.get_block_details(
-            height: 'required - block height number'
+            height: 'required - block height as an integer (0 for genesis block / Defaults to latest block)'
           )
 
           transactions = #{self}.get_transactions(
