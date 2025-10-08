@@ -2,7 +2,7 @@
 
 module PWN
   module Plugins
-    # This module provides the abilty to centralize monkey patches used in PWN
+    # This module provides the ability to centralize monkey patches used in PWN
     module MonkeyPatch
       # Supported Method Parameters::
       # PWN::Plugins::MonkeyPatch.pry
@@ -29,6 +29,21 @@ module PWN
             line
           end
           alias << push
+        end
+
+        require 'method_source'
+        MethodSource::CodeHelpers.module_eval do
+          alias_method :original_complete_expression?, :complete_expression?
+
+          def complete_expression?(expression)
+            original_complete_expression?(expression)
+          rescue SyntaxError => e
+            if e.message =~ /expected a `.*` to close the .* literal/ || e.message =~ /unterminated list/
+              false
+            else
+              raise e
+            end
+          end
         end
 
         Pry.class_eval do
