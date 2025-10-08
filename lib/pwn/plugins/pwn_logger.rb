@@ -29,7 +29,7 @@ module PWN
           logger.level = Logger::INFO
         end
 
-        logger.datetime_format = '%Y-%m-%d %H:%M:%S.%N'
+        logger.datetime_format = '%Y-%m-%d %H:%M:%S.%N%z'
 
         logger.formatter = proc do |severity, _datetime, _progname, msg|
           # TODO: Include datetime & progname vars
