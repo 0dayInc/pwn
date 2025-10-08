@@ -10,10 +10,13 @@ module PWN
     # of other SP plugins/modules.
     module AuthenticationHelper
       # Supported Method Parameters::
-      # PWN::Plugins::AuthenticationHelper.username
+      # PWN::Plugins::AuthenticationHelper.username(
+      #   prompt: 'optional - string to display at prompt (Default: Username)'
+      # )
 
       public_class_method def self.username
-        user = TTY::Prompt.new.ask('Username: ')
+        prompt = opts[:prompt] ||= 'Username'
+        user = TTY::Prompt.new.ask("#{prompt}: ")
         user.to_s.strip.chomp.scrub
       rescue StandardError => e
         raise e
@@ -21,11 +24,11 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::AuthenticationHelper.mask_password(
-      #   prompt: 'optional - string to display at prompt'
+      #   prompt: 'optional - string to display at prompt (Default: Password)'
       # )
 
       public_class_method def self.mask_password(opts = {})
-        opts[:prompt].nil? ? prompt = 'Password' : prompt = opts[:prompt].to_s.scrub.strip.chomp
+        prompt = opts[:prompt] ||= 'Password'
 
         pass = TTY::Prompt.new.mask("#{prompt}: ")
         pass.to_s.strip.chomp.scrub
@@ -37,11 +40,11 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::AuthenticationHelper.mfa(
-      #   prompt: 'optional - string to display at prompt'
+      #   prompt: 'optional - string to display at prompt (Default: MFA Token)'
       # )
 
       public_class_method def self.mfa(opts = {})
-        opts[:prompt].nil? ? prompt = 'MFA Token' : prompt = opts[:prompt].to_s.scrub.strip.chomp
+        prompt = opts[:prompt] ||= 'MFA Token'
 
         mfa = TTY::Prompt.new.ask("#{prompt}: ")
         mfa.to_s.strip.chomp.scrub
@@ -63,9 +66,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.username
+          #{self}.username(
+            prompt: 'optional - string to display at prompt'
+          )
 
-          #{self}.mask_password
+          #{self}.mask_password(
+            prompt: 'optional - string to display at prompt'
+          )
 
           #{self}.mfa(
             prompt: 'optional - string to display at prompt'
