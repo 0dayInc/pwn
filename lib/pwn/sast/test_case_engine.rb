@@ -149,7 +149,8 @@ module PWN
           end
         end
         sast_module = security_references[:sast_module].to_s.scrub.gsub('::', '/')
-        logger_banner = "http://#{Socket.gethostname}:8808/doc_root/pwn-#{PWN::VERSION.to_s.scrub}/#{sast_module}.html"
+        logger_banner = "https://www.rubydoc.info/gems/pwn/#{sast_module}"
+
         if logger_results.empty?
           @@logger.info("#{logger_banner}: No files applicable to this test case.\n")
         else
