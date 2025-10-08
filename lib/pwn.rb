@@ -30,8 +30,6 @@ module PWN
 
   # Initialize PWN configuration file
   # PWN::Env is the constant that stores the configuration data
-  # Only call this if the program name is not pwn
-  # driver = File.basename($PROGRAM_NAME)
   PWN::Config.refresh_env
 rescue StandardError => e
   puts e.backtrace

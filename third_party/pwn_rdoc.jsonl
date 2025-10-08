@@ -894,7 +894,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Pony.standard_options Usage"},{"role":"assistant","content":"`PWN::Plugins::Pony.standard_options`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Pony.subject_prefix Usage"},{"role":"assistant","content":"`PWN::Plugins::Pony.subject_prefix`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.add_commands Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.add_commands`: Supported Method Parameters\n\nPWN::Plugins::REPL.add_commands\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.add_hooks Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.add_hooks`: Supported Method Parameters\n\nPWN::Plugins::REPL.add_hooks(\n\nopts: 'required - Hash object passed in via pwn OptParser'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL.add_hooks Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.add_hooks`: Supported Method Parameters\n\nPWN::Plugins::REPL.add_hooks\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL.refresh_ps1_proc Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.refresh_ps1_proc`: Supported Method Parameters\n\nPWN::Plugins::REPL.refresh_ps1_proc(\n\nmode: 'required - :splat or nil'\n\n)\n"}]}

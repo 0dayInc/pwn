@@ -12,6 +12,7 @@ module PWN
     autoload :BannedFunctionCallsC, 'pwn/sast/banned_function_calls_c'
     autoload :Base64, 'pwn/sast/base64'
     autoload :BeefHook, 'pwn/sast/beef_hook'
+    autoload :CmdExecutionGoLang, 'pwn/sast/cmd_execution_go_lang'
     autoload :CmdExecutionJava, 'pwn/sast/cmd_execution_java'
     autoload :CmdExecutionPython, 'pwn/sast/cmd_execution_python'
     autoload :CmdExecutionRuby, 'pwn/sast/cmd_execution_ruby'
@@ -46,6 +47,10 @@ module PWN
     autoload :SSL, 'pwn/sast/ssl'
     autoload :Sudo, 'pwn/sast/sudo'
     autoload :TaskTag, 'pwn/sast/task_tag'
+
+    # This module executes all the other SAST modules
+    autoload :TestCaseEngine, 'pwn/sast/test_case_engine'
+
     autoload :ThrowErrors, 'pwn/sast/throw_errors'
     autoload :Token, 'pwn/sast/token'
     autoload :TypeScriptTypeJuggling, 'pwn/sast/type_script_type_juggling'

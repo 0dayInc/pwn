@@ -102,6 +102,7 @@ begin
       BannedFunctionCallsC
       Base64
       BeefHook
+      CmdExecutionGoLang
       CmdExecutionJava
       CmdExecutionPython
       CmdExecutionRuby

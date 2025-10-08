@@ -9,8 +9,6 @@ module PWN
     # of dependent software within source repos to ensure patching
     # requirements for those dependencies can be met.
     module PomVersion
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::PomVersion.scan(
       #   dir_path: 'optional path to dir defaults to .'
@@ -37,7 +35,7 @@ module PWN
 
             test_case_filter = "
               grep -in -B2 \
-              -e 'version' #{entry} 2> /dev/null
+              -e 'version' {PWN_SAST_SRC_TARGET} 2> /dev/null
             "
 
             str = `#{test_case_filter}`.to_s.scrub

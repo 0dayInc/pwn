@@ -14,7 +14,9 @@ module PWN
     module FileFu
       # Supported Method Parameters::
       # PWN::Plugins::FileFu.recurse_in_dir(
-      #   dir_path: 'optional path to dir defaults to .'
+      #   dir_path: 'optional path to dir defaults to .',
+      #   include_extensions: 'optional - array of file extensions to search for in scan (e.g. ['.js', '.php'])',
+      #   exclude_extensions: 'optional - array of file extensions to exclude from scan (e.g. ['.log', '.txt', '.spec'])'
       # )
 
       public_class_method def self.recurse_in_dir(opts = {})
@@ -22,32 +24,24 @@ module PWN
         dir_path = dir_path.to_s.scrub unless dir_path.is_a?(String)
         raise "PWN Error: Invalid Directory #{dir_path}" unless Dir.exist?(dir_path)
 
+        include_extensions = opts[:include_extensions] ||= []
+        exclude_extensions = opts[:exclude_extensions] ||= []
+
         previous_dir = Dir.pwd
         Dir.chdir(dir_path)
         # Execute this like this:
         # recurse_in_dir(:dir_path => 'path to dir') {|entry| puts entry}
-        Dir.glob('./**/*').each { |entry| yield Shellwords.escape(entry) }
+        Dir.glob('./**/*').each do |entry|
+          next if exclude_extensions.include?(File.extname(entry))
+
+          next unless include_extensions.empty? || include_extensions.include?(File.extname(entry))
+
+          yield Shellwords.escape(entry)
+        end
       rescue StandardError => e
         raise e
       ensure
         Dir.chdir(previous_dir) if Dir.exist?(previous_dir)
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::FileFu.recurse_dir(
-      #   dir_path: 'optional path to dir defaults to .'
-      # )
-
-      public_class_method def self.recurse_dir(opts = {})
-        dir_path = opts[:dir_path] ||= '.'
-        dir_path = dir_path.to_s.scrub unless dir_path.is_a?(String)
-        raise "PWN Error: Invalid Directory #{dir_path}" unless Dir.exist?(dir_path)
-
-        # Execute this like this:
-        # recurse_dir(:dir_path => 'path to dir') {|entry| puts entry}
-        Dir.glob("#{dir_path}/**/*").each { |entry| yield Shellwords.escape(entry) }
-      rescue StandardError => e
-        raise e
       end
 
       # Supported Method Parameters::
@@ -78,9 +72,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.recurse_in_dir(dir_path: 'optional path to dir defaults to .') {|entry| puts entry}
-
-          #{self}.recurse_dir(dir_path: 'optional path to dir defaults to .') {|entry| puts entry}
+          #{self}.recurse_in_dir(
+            dir_path: 'optional path to dir defaults to .',
+            include_extensions: 'optional - array of file extensions to search for in scan (e.g. ['.js', '.php'])',
+            exclude_extensions: 'optional - array of file extensions to exclude from scan (e.g. ['.log', '.txt', '.spec'])'
+          ) do |entry|
+            puts entry
+          end
 
           #{self}.untar_gz_file(
             tar_gz_file: 'required - path to .tar.gz file',
