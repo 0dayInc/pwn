@@ -10,8 +10,6 @@ module PWN
     # For more information see:
     # https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html
     module DeserialJava
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::DeserialJava.scan(
       #   :dir_path => 'optional path to dir defaults to .'
@@ -34,10 +32,13 @@ module PWN
           -e Serializable {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
+        include_extensions = %w[.java .class .jar .war .ear .nar .properties .aj .jsp .jspx .jstm .jsptml .jnlp .jad .ser .gsp]
+
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       end

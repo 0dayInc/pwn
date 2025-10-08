@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify the potential
     # for DOM-based XSS in the application.
     module WindowLocationHash
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::WindowLocationHash.scan(
       #   dir_path: 'optional path to dir defaults to .'

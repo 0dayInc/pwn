@@ -12,6 +12,7 @@ module PWN
     autoload :BannedFunctionCallsC, 'pwn/sast/banned_function_calls_c'
     autoload :Base64, 'pwn/sast/base64'
     autoload :BeefHook, 'pwn/sast/beef_hook'
+    autoload :CmdExecutionGoLang, 'pwn/sast/cmd_execution_go_lang'
     autoload :CmdExecutionJava, 'pwn/sast/cmd_execution_java'
     autoload :CmdExecutionPython, 'pwn/sast/cmd_execution_python'
     autoload :CmdExecutionRuby, 'pwn/sast/cmd_execution_ruby'

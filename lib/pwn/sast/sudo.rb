@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify if cmd execution and/or
     # privilege escalation is possible.
     module Sudo
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Sudo.scan(
       #   dir_path: 'optional path to dir defaults to .'

@@ -5,12 +5,11 @@ require 'socket'
 
 module PWN
   module SAST
-    # SAST Module used to identify any
-    # reference within source code that may contain SQL to
-    # determine if SQL injeciton is possible.
-    module SQL
+    # SAST Module used to identify command
+    # execution residing within GoLang source code.
+    module CmdExecutionGoLang
       # Supported Method Parameters::
-      # PWN::SAST::SQL.scan(
+      # PWN::SAST::CmdExecutionGoLang.scan(
       #   dir_path: 'optional path to dir defaults to .'
       #   git_repo_root_uri: 'optional http uri of git repo scanned'
       # )
@@ -20,23 +19,22 @@ module PWN
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
         test_case_filter = "
-          grep -in \
-          -e 'select .*from ' \
-          -e 'insert into .*values' \
-          -e 'update .*set ' \
-          -e 'delete from ' {PWN_SAST_SRC_TARGET} 2> /dev/null | \
-          grep -ivE \
-          -e '^[0-9]:.*\\?.*$' \
-          -e '^[0-9]:.*@.*$' \
-          -e '^[0-9]:.*\\$[0-9].*$' \
-          -e '^[0-9]:.*:[0-9].*$' \
-          -e '^[0-9]:.*:[a-zA-Z_][a-zA-Z0-9_].*$'
+          grep -Fn \
+          -e 'exec.Command(' \
+          -e 'exec.CommandContext(' \
+          -e 'Cmd.CombinedOutput(' \
+          -e 'Cmd.Output(' \
+          -e 'Cmd.Run(' \
+          -e 'Cmd.Start(' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
+
+        include_extensions = %w[.go .s .o .a .mod]
 
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e
@@ -53,8 +51,8 @@ module PWN
           sast_module: self,
           section: 'INFORMATION INPUT VALIDATION',
           nist_800_53_uri: 'https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?element=SI-10',
-          cwe_id: '89',
-          cwe_uri: 'https://cwe.mitre.org/data/definitions/89.html'
+          cwe_id: '78',
+          cwe_uri: 'https://cwe.mitre.org/data/definitions/78.html'
         }
       rescue StandardError => e
         raise e
@@ -73,8 +71,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           sast_arr = #{self}.scan(
-            dir_path: 'optional path to dir defaults to .',
-            git_repo_root_uri: 'optional http uri of git repo scanned'
+            :dir_path => 'optional path to dir defaults to .',
+            :git_repo_root_uri => 'optional http uri of git repo scanned'
           )
 
           #{self}.authors

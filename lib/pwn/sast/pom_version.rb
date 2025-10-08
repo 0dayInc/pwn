@@ -9,8 +9,6 @@ module PWN
     # of dependent software within source repos to ensure patching
     # requirements for those dependencies can be met.
     module PomVersion
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::PomVersion.scan(
       #   dir_path: 'optional path to dir defaults to .'

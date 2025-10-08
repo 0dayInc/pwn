@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify if applications
     # allow arbritrary redirects to third-party URLs w/o a whitelist
     module Redirect
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Redirect.scan(
       #   dir_path: 'optional path to dir defaults to .'

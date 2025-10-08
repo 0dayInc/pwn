@@ -9,8 +9,6 @@ module PWN
     # within source code.  For more information, see:
     # https://www.owasp.org/index.php/Regular_expression_Denial_of_Service_-_ReDoS
     module ReDOS
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::ReDOS.scan(
       #   dir_path: 'optional path to dir defaults to .'

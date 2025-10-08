@@ -10,8 +10,6 @@ module PWN
     # code to get a sense around appropriate secure network
     # communications in place.
     module Port
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Port.scan(
       #   dir_path: 'optional path to dir defaults to .'

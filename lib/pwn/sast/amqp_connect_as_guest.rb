@@ -9,8 +9,6 @@ module PWN
     # within source code to determine if connections to RabbitMQ servers
     # are using guest accounts.
     module AMQPConnectAsGuest
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::AMQPConnectAsGuest.scan(
       #   dir_path: 'optional path to dir defaults to .'

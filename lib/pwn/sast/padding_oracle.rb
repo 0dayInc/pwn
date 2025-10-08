@@ -7,8 +7,6 @@ module PWN
   module SAST
     # SAST Module used to identify padding oracle vulnerabilities involving weak CBC block cipher padding.
     module PaddingOracle
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::PaddingOracle.scan(
       #   dir_path: 'optional path to dir defaults to .'

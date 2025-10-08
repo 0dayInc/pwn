@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify arbitrary command execution
     # within Apache Common's API Class, org.apache.commons.io.FileSystemUtils
     module ApacheFileSystemUtilAPI
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::ApacheFileSystemUtilAPI.scan(
       #   :dir_path => 'optional path to dir defaults to .'

@@ -9,8 +9,6 @@ module PWN
     # artifacts such as passwords, pre-auth tokens, etc are persisted
     # to log files (which may lead to unauthorized access).
     module Logger
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Logger.scan(
       #   dir_path: 'optional path to dir defaults to .'

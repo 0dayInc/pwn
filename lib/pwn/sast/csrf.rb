@@ -9,8 +9,6 @@ module PWN
     # CSRF protection.  If nothing appears in the report,
     # this may be an indicator of NO CSRF protection.
     module CSRF
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::CSRF.scan(
       #   :dir_path => 'optional path to dir defaults to .'

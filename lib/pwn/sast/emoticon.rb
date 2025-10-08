@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify portions of
     # code marked by developers as interesting for whatever reason.
     module Emoticon
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Emoticon.scan(
       #   dir_path: 'optional path to dir defaults to .'

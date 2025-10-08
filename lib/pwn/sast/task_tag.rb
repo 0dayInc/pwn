@@ -9,8 +9,6 @@ module PWN
     # such as TODO, SECURITY, FIXME, etc to ensure developers
     # aren't introducing security-related bugs into source code.
     module TaskTag
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::TaskTag.scan(
       #   dir_path: 'optional path to dir defaults to .'

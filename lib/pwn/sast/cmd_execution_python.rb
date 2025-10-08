@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify command execution
     # residing within Python source code.
     module CmdExecutionPython
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::CmdExecutionPython.scan(
       #   dir_path: 'optional path to dir defaults to .'
@@ -29,10 +27,13 @@ module PWN
           -e 'subprocess.Popen' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
+        include_extensions = %w[.py .pyc .pyd .pyo .pyw .pyi .pyx .pxd .ipynb .pyz .whl .egg .pth]
+
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e

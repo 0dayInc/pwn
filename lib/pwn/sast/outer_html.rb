@@ -9,8 +9,6 @@ module PWN
     # declarations within source code in an effort to
     # determine if XSS is possible.
     module OuterHTML
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::OuterHTML.scan(
       #   dir_path: 'optional path to dir defaults to .'

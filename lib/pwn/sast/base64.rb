@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify Base64 encoded strings
     # that may have sensitive artifacts when decoded.
     module Base64
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Base64.scan(
       #   dir_path: 'optional path to dir defaults to .'
@@ -23,7 +21,7 @@ module PWN
         test_case_filter = "
           grep -Ein \
           -e 'BASE64' \
-          -e '^[A-Za-z0-9+/]{4}([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$' \
+          -e '^[A-Za-z0-9+/]{12}([A-Za-z0-9+/]{4})*$|^[A-Za-z0-9+/]{8}([A-Za-z0-9+/]{4})*[A-Za-z0-9+/]{2}==$|^[A-Za-z0-9+/]{8}([A-Za-z0-9+/]{4})*[A-Za-z0-9+/]{3}=$' \
           {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 

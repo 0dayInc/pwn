@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify whether
     # error messages are sanitized properly.
     module ThrowErrors
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::ThrowErrors.scan(
       #   dir_path: 'optional path to dir defaults to .'

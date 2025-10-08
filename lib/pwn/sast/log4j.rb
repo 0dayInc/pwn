@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify command
     # execution residing within Java source code.
     module Log4J
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Log4J.scan(
       #   dir_path: 'optional path to dir defaults to .'
@@ -25,10 +23,13 @@ module PWN
           -e 'log4j' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
+        include_extensions = %w[.java .class .jar .war .ear .nar .properties .aj .jsp .jspx .jstm .jsptml .jnlp .jad .ser .gsp]
+
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e

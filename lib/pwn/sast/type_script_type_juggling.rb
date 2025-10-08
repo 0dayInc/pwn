@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify loose comparisons
     # (i.e. == instead of ===) within TypeScript source code.
     module TypeScriptTypeJuggling
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::TypeScriptTypeJuggling.scan(
       #   dir_path: 'optional path to dir defaults to .'
@@ -29,10 +27,13 @@ module PWN
             -e '!=='
         "
 
+        include_extensions = %w[.ts .tsx .mts .cts .d.ts .d.mts .d.cts .js .mjs .cjs .map .tsbuildinfo]
+
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e

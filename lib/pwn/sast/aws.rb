@@ -7,8 +7,6 @@ module PWN
   module SAST
     # SAST Module used to identify sensitive AWS AuthN artifacts.
     module AWS
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Port.scan(
       #   dir_path: 'optional path to dir defaults to .'

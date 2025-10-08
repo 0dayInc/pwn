@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify if application is
     # shelling-out which may lead to arbitrary command execution
     module Shell
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Shell.scan(
       #   dir_path: 'optional path to dir defaults to .'

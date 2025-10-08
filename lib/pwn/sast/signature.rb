@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify private keys used for authenticating
     # with remote hosts.
     module Signature
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Signature(
       #   dir_path: 'optional path to dir defaults to .'

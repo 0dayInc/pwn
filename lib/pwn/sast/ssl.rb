@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify any SSL/TLS
     # reference within source code.
     module SSL
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::SSL.scan(
       #   dir_path: 'optional path to dir defaults to .'

@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to detect if the default BeEF
     # exploitation hooks reside within source code.
     module BeefHook
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::BeefHook.scan(
       #   dir_path: 'optional path to dir defaults to .'

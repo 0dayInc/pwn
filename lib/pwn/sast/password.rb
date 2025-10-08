@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify hard-code/plain-text
     # passwords within source code.
     module Password
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Password.scan(
       #   :dir_path => 'optional path to dir defaults to .'

@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to detect version
     # information within all files in a source repo
     module Version
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Version.scan(
       #   dir_path: 'optional path to dir defaults to .'

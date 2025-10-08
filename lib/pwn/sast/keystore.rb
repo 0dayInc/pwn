@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify weak
     # passwords/configurations around key stores.
     module Keystore
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Keystore.scan(
       #   dir_path: 'optional path to dir defaults to .'

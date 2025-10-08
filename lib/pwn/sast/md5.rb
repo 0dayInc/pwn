@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify MD5 hash related objects, methods, classes, etc.
     # to determine if deprecated hashing is still supported.
     module MD5
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::MD5.scan(
       #   dir_path: 'optional path to dir defaults to .'

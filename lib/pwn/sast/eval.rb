@@ -9,8 +9,6 @@ module PWN
     # declarations within source code in an effort to
     # determine if arbitrary command/code execution is possible
     module Eval
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Eval.scan(
       #   dir_path: 'optional path to dir defaults to .'

@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify command
     # execution residing within scala source code.
     module CmdExecutionScala
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::CmdExecutionScala.scan(
       #   dir_path: 'optional path to dir defaults to .'
@@ -27,10 +25,13 @@ module PWN
           -e '.!!' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
+        include_extensions = %w[.scala .sc .sbt .class .jar .war .tasty .scala.html .scala.js .scala.txt .properties]
+
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e

@@ -9,8 +9,6 @@ module PWN
     # calls in C & C++ code per:
     # https://msdn.microsoft.com/en-us/library/bb288454.aspx
     module BannedFunctionCallsC
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::BannedFunctionCallsC.scan(
       #   :dir_path => 'optional path to dir defaults to .'
@@ -154,10 +152,13 @@ module PWN
           -e 'wmemcpy' {PWN_SAST_SRC_TARGET} 2> /dev/null
         "
 
+        include_extensions = %w[.c .cats .idc .cpp .cc .cxx .c++ .cp .CPP .C .cppm .ixx .h .hpp .hxx .hh .h++ .inc .inl .ipp .tcc .tpp .txx .i .s .asm .o .obj .a .so .lib .dll .exe .pdb .vcxproj .sln .dsp .dsw .cbp .cmake .make .mk]
+
         PWN::SAST::TestCaseEngine.execute(
           test_case_filter: test_case_filter,
           security_references: security_references,
           dir_path: dir_path,
+          include_extensions: include_extensions,
           git_repo_root_uri: git_repo_root_uri
         )
       rescue StandardError => e

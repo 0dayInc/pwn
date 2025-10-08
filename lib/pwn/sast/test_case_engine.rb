@@ -13,7 +13,9 @@ module PWN
       # PWN::SAST::TestCaseEngine.execute(
       #   test_case_filter: 'required - grep command to filter results',
       #   security_references: 'required - Hash with keys :sast_module, :section, :nist_800_53_uri, :cwe_id, :cwe_uri',
-      #   dir_path: 'optional - path to dir defaults to .'
+      #   dir_path: 'optional - path to dir defaults to .',
+      #   include_extensions: 'optional - array of file extensions to search for in scan (Defaults to all file types / i.e. [])',
+      #   exclude_extensions: 'optional - array of file extensions to exclude from scan (Defaults to [.bin, .dat, .JS-BEAUTIFIED, .o, .test, .png, .jpg, .jpeg, .gif, .svg, .ico, .so, .spec, .zip, .tar, .gz, .tgz, .7z, .mp3, .mp4, .mov, .avi, .wmv, .flv, .mkv])',
       #   git_repo_root_uri: 'optional - http uri of git repo scanned'
       # )
 
@@ -25,14 +27,51 @@ module PWN
         raise 'ERROR: security_references must be a Hash' unless security_references.is_a?(Hash)
 
         dir_path = opts[:dir_path] ||= '.'
+        include_extensions = opts[:include_extensions] ||= []
+        exclude_extensions = opts[:exclude_extentions] ||= %w[
+          .7z
+          .avi
+          .bin
+          .dat
+          .dll
+          .flv
+          .gif
+          .gz
+          .ico
+          .jpg
+          .jpeg
+          .JS-BEAUTIFIED
+          .markdown
+          .md
+          .mkv
+          .mov
+          .mp3
+          .mp4
+          .o
+          .png
+          .svg
+          .test
+          .so
+          .spec
+          .tar
+          .tgz
+          .webm
+          .wmv
+          .zip
+        ]
+
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
         result_arr = []
         ai_introspection = PWN::Env[:ai][:introspection]
         logger_results = "AI Introspection => #{ai_introspection} => "
 
-        PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
-          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && File.basename(entry) !~ /\.JS-BEAUTIFIED$/ && entry !~ /test/i
+        PWN::Plugins::FileFu.recurse_in_dir(
+          dir_path: dir_path,
+          include_extensions: include_extensions,
+          exclude_extensions: exclude_extensions
+        ) do |entry|
+          if File.file?(entry) && File.basename(entry) !~ /^pwn.+(html|json|db)$/ && entry !~ /test/i
             line_no_and_contents_arr = []
             entry_beautified = false
 
@@ -58,7 +97,7 @@ module PWN
                 filename: { git_repo_root_uri: git_repo_root_uri, entry: entry },
                 line_no_and_contents: '',
                 raw_content: str,
-                test_case_filter: test_case_filter
+                test_case_filter: this_test_case_filter
               }
 
               # COMMMENT: Must be a better way to implement this (regex is kinda funky)
@@ -136,6 +175,8 @@ module PWN
             test_case_filter: 'required grep command to filter results',
             security_references: 'required Hash with keys :sast_module, :section, :nist_800_53_uri, :cwe_id, :cwe_uri',
             dir_path: 'optional path to dir defaults to .',
+            include_extensions: 'optional array of file extensions to search for in scan (Defaults to all file types / i.e. [])',
+            exclude_extensions: 'optional array of file extensions to exclude from scan (Defaults to [.bin, .dat, .JS-BEAUTIFIED, .o, .test, .png, .jpg, .jpeg, .gif, .svg, .ico, .so, .spec, .zip, .tar, .gz, .tgz, .7z, .mp3, .mp4, .mov, .avi, .wmv, .flv, .mkv])',
             git_repo_root_uri: 'optional http uri of git repo scanned'
           )
 

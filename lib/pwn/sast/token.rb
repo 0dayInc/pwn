@@ -8,8 +8,6 @@ module PWN
     # SAST Module used to identify any
     # reference within source code of authorization tokens.
     module Token
-      @@logger = PWN::Plugins::PWNLogger.create
-
       # Supported Method Parameters::
       # PWN::SAST::Token.scan(
       #   dir_path: 'optional path to dir defaults to .'
