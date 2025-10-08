@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require 'bitcoin'
 require 'base64'
 require 'json'
 require 'rest-client'
 require 'tty-spinner'
+require 'date'
 
 module PWN
   module Blockchain
@@ -37,7 +37,7 @@ module PWN
 
         basic_auth = Base64.strict_encode64("#{rpc_user}:#{rpc_pass}")
 
-        headers = { 
+        headers = {
           content_type: 'application/json; charset=UTF-8',
           authorization: "Basic #{basic_auth}"
         }
@@ -111,15 +111,12 @@ module PWN
         spin.stop if spinner
       end
 
-      # Supported Method Parameters::
-      # latest_block = PWN::Blockchain::BTC.get_latest_block
-
-      public_class_method def self.get_latest_block
+      private_class_method def self.btc_rpc_call(method:, params: [])
         http_body = {
           jsonrpc: '1.0',
           id: self,
-          method: 'getblockchaininfo',
-          params: []
+          method: method,
+          params: params
         }
 
         response = btc_rest_call(
@@ -127,7 +124,63 @@ module PWN
           http_body: http_body
         )
 
-        JSON.parse(response.body, symbolize_names: true)
+        res = JSON.parse(response.body, symbolize_names: true)
+        raise "RPC Error: #{res[:error][:code]} - #{res[:error][:message]}" if res[:error]
+
+        res
+      rescue StandardError => e
+        raise e
+      end
+
+      private_class_method def self.get_block_timestamp(height)
+        res = btc_rpc_call(method: 'getblockhash', params: [height])
+        block_hash = res[:result]
+
+        res = btc_rpc_call(method: 'getblockheader', params: [block_hash])
+        res[:result][:time]
+      end
+
+      private_class_method def self.find_first_block_ge_timestamp(target_ts)
+        chain_info = get_latest_block[:result]
+        low = 0
+        high = chain_info[:blocks]
+        result = nil
+        while low <= high
+          mid = (low + high) / 2
+          ts = get_block_timestamp(mid)
+          if ts >= target_ts
+            result = mid
+            high = mid - 1
+          else
+            low = mid + 1
+          end
+        end
+        result
+      end
+
+      private_class_method def self.find_last_block_le_timestamp(target_ts)
+        chain_info = get_latest_block[:result]
+        low = 0
+        high = chain_info[:blocks]
+        result = nil
+        while low <= high
+          mid = (low + high) / 2
+          ts = get_block_timestamp(mid)
+          if ts <= target_ts
+            result = mid
+            low = mid + 1
+          else
+            high = mid - 1
+          end
+        end
+        result
+      end
+
+      # Supported Method Parameters::
+      # latest_block = PWN::Blockchain::BTC.get_latest_block
+
+      public_class_method def self.get_latest_block
+        btc_rpc_call(method: 'getblockchaininfo', params: [])
       rescue StandardError => e
         raise e
       end
@@ -139,13 +192,41 @@ module PWN
       # )
       public_class_method def self.get_block_details(opts = {})
         height = opts[:height]
-        params = {}
-        params[:token] = opts[:token] if opts[:token]
+        btc_rpc_call(method: 'getblockhash', params: [height])
+      rescue StandardError => e
+        raise e
+      end
 
-        rest_call = "main/blocks/#{height}"
-        response = btc_rest_call(rest_call: rest_call, params: params)
+      # Supported Method Parameters::
+      # transactions = PWN::Blockchain::BTC.get_transactions(
+      #   from: 'required - start date in YYYY-MM-DD format',
+      #   to: 'required - end date in YYYY-MM-DD format'
+      # )
 
-        JSON.parse(response.body, symbolize_names: true)
+      public_class_method def self.get_transactions(opts = {})
+        from_date = opts[:from]
+        to_date = opts[:to]
+
+        raise ArgumentError, 'from and to dates are required' if from_date.nil? || to_date.nil?
+
+        start_ts = Date.parse(from_date).to_time.to_i
+        end_ts = Date.parse(to_date).to_time.to_i + 86_399 # Include the entire end day
+
+        start_height = find_first_block_ge_timestamp(start_ts)
+        end_height = find_last_block_le_timestamp(end_ts)
+
+        txs = []
+        if start_height && end_height && start_height <= end_height
+          (start_height..end_height).each do |height|
+            block_hash_res = btc_rpc_call(method: 'getblockhash', params: [height])
+            block_hash = block_hash_res[:result]
+
+            block_res = btc_rpc_call(method: 'getblock', params: [block_hash, 1])
+            txs.concat(block_res[:result][:tx])
+          end
+        end
+
+        txs
       rescue StandardError => e
         raise e
       end
@@ -166,6 +247,11 @@ module PWN
 
           block_details = #{self}.get_block_details(
             height: 'required - block height number'
+          )
+
+          transactions = #{self}.get_transactions(
+            from: 'required - start date in YYYY-MM-DD format',
+            to: 'required - end date in YYYY-MM-DD format'
           )
 
           #{self}.authors
