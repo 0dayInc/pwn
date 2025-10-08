@@ -34,6 +34,13 @@ asm:
   arch: 'x86_64'
   endian: 'little'
 
+blockchain:
+  bitcoin:
+    rpc_host: '127.0.0.1'
+    rpc_port: 8332
+    rpc_user: 'bitcoin rpc user'
+    rpc_pass: 'bitcoin rpc password'
+
 irc:
   ui_nick: '_human_'
   shared_chan: '#pwn'

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'bitcoin'
+require 'base64'
 require 'json'
 require 'rest-client'
 require 'tty-spinner'
@@ -25,10 +27,20 @@ module PWN
                         opts[:http_method].to_s.scrub.to_sym
                       end
 
-        base_uri = 'https://api.blockcypher.com/v1/btc/'
+        rpc_host = PWN::Env[:blockchain][:bitcoin][:rpc_host] ||= '127.0.0.1'
+        rpc_port = PWN::Env[:blockchain][:bitcoin][:rpc_port] ||= '8332'
+        base_uri = "http://#{rpc_host}:#{rpc_port}"
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
-        headers = { content_type: 'application/json; charset=UTF-8' }
+        rpc_user = PWN::Env[:blockchain][:bitcoin][:rpc_user] ||= PWN::Plugins::AuthenticationHelper.username(prompt: 'Bitcoin Node RPC Username')
+        rpc_pass = PWN::Env[:blockchain][:bitcoin][:rpc_pass] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Bitcoin Node RPC Password')
+
+        basic_auth = Base64.strict_encode64("#{rpc_user}:#{rpc_pass}")
+
+        headers = { 
+          content_type: 'application/json; charset=UTF-8',
+          authorization: "Basic #{basic_auth}"
+        }
 
         http_body = opts[:http_body]
         http_body ||= {}
@@ -100,16 +112,20 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # latest_block = PWN::Blockchain::BTC.get_latest_block(
-      #   token: 'optional - API token for higher rate limits'
-      # )
+      # latest_block = PWN::Blockchain::BTC.get_latest_block
 
-      public_class_method def self.get_latest_block(opts = {})
-        params = {}
-        params[:token] = opts[:token] if opts[:token]
+      public_class_method def self.get_latest_block
+        http_body = {
+          jsonrpc: '1.0',
+          id: self,
+          method: 'getblockchaininfo',
+          params: []
+        }
 
-        rest_call = 'main'
-        response = btc_rest_call(rest_call: rest_call, params: params)
+        response = btc_rest_call(
+          http_method: :post,
+          http_body: http_body
+        )
 
         JSON.parse(response.body, symbolize_names: true)
       rescue StandardError => e

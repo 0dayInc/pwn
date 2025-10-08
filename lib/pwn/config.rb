@@ -51,6 +51,14 @@ module PWN
           }
         },
         asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian },
+        blockchain: {
+          bitcoin: {
+            rpc_host: 'localhost',
+            rpc_port: 8332,
+            rpc_user: 'bitcoin RPC Username',
+            rpc_pass: 'bitcoin RPC Password'
+          }
+        },
         irc: {
           ui_nick: '_human_',
           shared_chan: '#pwn',
