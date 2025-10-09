@@ -336,14 +336,21 @@ module PWN
           chrome_types = %i[chrome headless_chrome]
           firefox_types = %i[firefox headless_firefox]
 
-          # Future BiDi API that's more universally supported across browsers
-          sleep 0.01 until browser_obj[:browser].driver.window_handles.any?
+          # Switch to the last opened window which should be the active tab
+          # if it doesn't work, try the first window handle.  In chrome they
+          # get reversed sometimes ¯\_(ツ)_/¯
           target_window_handle = browser_obj[:browser].driver.window_handles.last
-          browser_obj[:browser].driver.switch_to.window(target_window_handle)
+          begin
+            browser_obj[:browser].driver.switch_to.window(target_window_handle)
 
-          url = 'about:about'
-          url = 'chrome://chrome-urls/' if chrome_types.include?(browser_type)
-          browser_obj[:browser].goto(url)
+            url = 'about:about'
+            url = 'chrome://chrome-urls' if chrome_types.include?(browser_type)
+            browser_obj[:browser].goto(url)
+          rescue Selenium::WebDriver::Error::WebDriverError
+            target_window_handle = browser_obj[:browser].driver.window_handles.first
+            retry
+          end
+
           rand_tab = SecureRandom.hex(8)
           browser_obj[:browser].execute_script("document.title = 'about:about-#{rand_tab}'")
 
