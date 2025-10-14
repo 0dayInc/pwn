@@ -27,13 +27,13 @@ module PWN
                         opts[:http_method].to_s.scrub.to_sym
                       end
 
-        rpc_host = PWN::Env[:blockchain][:bitcoin][:rpc_host] ||= '127.0.0.1'
-        rpc_port = PWN::Env[:blockchain][:bitcoin][:rpc_port] ||= '8332'
+        rpc_host = PWN::Env[:plugins][:blockchain][:bitcoin][:rpc_host] ||= '127.0.0.1'
+        rpc_port = PWN::Env[:plugins][:blockchain][:bitcoin][:rpc_port] ||= '8332'
         base_uri = "http://#{rpc_host}:#{rpc_port}"
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
-        rpc_user = PWN::Env[:blockchain][:bitcoin][:rpc_user] ||= PWN::Plugins::AuthenticationHelper.username(prompt: 'Bitcoin Node RPC Username')
-        rpc_pass = PWN::Env[:blockchain][:bitcoin][:rpc_pass] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Bitcoin Node RPC Password')
+        rpc_user = PWN::Env[:plugins][:blockchain][:bitcoin][:rpc_user] ||= PWN::Plugins::AuthenticationHelper.username(prompt: 'Bitcoin Node RPC Username')
+        rpc_pass = PWN::Env[:plugins][:blockchain][:bitcoin][:rpc_pass] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Bitcoin Node RPC Password')
 
         basic_auth = Base64.strict_encode64("#{rpc_user}:#{rpc_pass}")
 
