@@ -50,45 +50,47 @@ module PWN
             temp: 'optional - Ollama temperature'
           }
         },
-        asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian },
-        blockchain: {
-          bitcoin: {
-            rpc_host: 'localhost',
-            rpc_port: 8332,
-            rpc_user: 'bitcoin RPC Username',
-            rpc_pass: 'bitcoin RPC Password'
-          }
-        },
-        irc: {
-          ui_nick: '_human_',
-          shared_chan: '#pwn',
-          ai_agent_nicks: {
-            browser: {
-              pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb',
-              system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
-            },
-            nimjeh: {
-              pwn_rb: '',
-              system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
-            },
-            nmap: {
-              pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb',
-              system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
-            },
-            shodan: {
-              pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb',
-              system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
+        plugins: {
+          asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian },
+          blockchain: {
+            bitcoin: {
+              rpc_host: 'localhost',
+              rpc_port: 8332,
+              rpc_user: 'bitcoin RPC Username',
+              rpc_pass: 'bitcoin RPC Password'
             }
-          }
-        },
-        hunter: { api_key: 'hunter.how API Key' },
-        meshtastic: {
-          psks: {
-            LongFast: 'AQ==',
-            PWN: 'required - PSK for pwn channel'
-          }
-        },
-        shodan: { api_key: 'SHODAN API Key' }
+          },
+          irc: {
+            ui_nick: '_human_',
+            shared_chan: '#pwn',
+            ai_agent_nicks: {
+              browser: {
+                pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb',
+                system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
+              },
+              nimjeh: {
+                pwn_rb: '',
+                system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
+              },
+              nmap: {
+                pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb',
+                system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
+              },
+              shodan: {
+                pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb',
+                system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
+              }
+            }
+          },
+          hunter: { api_key: 'hunter.how API Key' },
+          meshtastic: {
+            psks: {
+              LongFast: 'AQ==',
+              PWN: 'required - PSK for pwn channel'
+            }
+          },
+          shodan: { api_key: 'SHODAN API Key' }
+        }
       }
       # Remove beginning colon from key names
       yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')

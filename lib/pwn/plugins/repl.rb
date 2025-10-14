@@ -34,8 +34,8 @@ module PWN
           dchars = "\001\e[33m\002***\001\e[0m\002" if mode == :splat
 
           if pi.config.pwn_asm
-            arch = PWN::Env[:asm][:arch] ||= PWN::Plugins::DetectOS.arch
-            endian = PWN::Env[:asm][:endian] ||= PWN::Plugins::DetectOS.endian
+            arch = PWN::Env[:plugins][:asm][:arch] ||= PWN::Plugins::DetectOS.arch
+            endian = PWN::Env[:plugins][:asm][:endian] ||= PWN::Plugins::DetectOS.endian
 
             pi.config.prompt_name = "pwn.asm:#{arch}/#{endian}"
             name = "\001\e[1m\002\001\e[37m\002#{pi.config.prompt_name}\001\e[0m\002"
@@ -173,10 +173,10 @@ module PWN
 
             reply = nil
             response_history = nil
-            shared_chan = PWN::Env[:irc][:shared_chan]
+            shared_chan = PWN::Env[:plugins][:irc][:shared_chan]
             mem_chan = '#mem'
-            ai_agents = PWN::Env[:irc][:ai_agent_nicks]
-            ai_agents_arr = PWN::Env[:irc][:ai_agent_nicks].keys
+            ai_agents = PWN::Env[:plugins][:irc][:ai_agent_nicks]
+            ai_agents_arr = PWN::Env[:plugins][:irc][:ai_agent_nicks].keys
             total_ai_agents = ai_agents_arr.length
             mutex = Mutex.new
             PWN::Plugins::ThreadPool.fill(
@@ -392,7 +392,7 @@ module PWN
 
             # TODO: Use TLS for IRC Connections
             # Use an IRC nCurses CLI Client
-            ui_nick = PWN::Env[:irc][:ui_nick]
+            ui_nick = PWN::Env[:plugins][:irc][:ui_nick]
             join_channels = ai_agents_arr.map { |ai_chan| "##{ai_chan}" }.join(',')
 
             cmd0 = "/server add pwn #{host}/#{port} -notls"
@@ -496,8 +496,8 @@ module PWN
           if pi.config.pwn_asm && !request.chomp.empty?
             request = pi.input.line_buffer
 
-            arch = PWN::Env[:asm][:arch]
-            endian = PWN::Env[:asm][:endian]
+            arch = PWN::Env[:plugins][:asm][:arch]
+            endian = PWN::Env[:plugins][:asm][:endian]
 
             # Analyze request to determine if it should be processed as opcodes or asm.
             straight_hex = /^[a-fA-F0-9\s]+$/

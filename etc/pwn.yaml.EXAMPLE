@@ -12,7 +12,7 @@ ai:
     base_uri: 'optional - Base URI for Grok - Use private base OR defaults to https://api.x.ai/v1'
     key: 'required - OpenAI API Key'
     model: 'optional - Grok model to use'
-    system_role_content: 'You are an ethically hacking OpenAI agent.'
+    system_role_content: 'You are an ethically hacking Grok agent.'
     temp: 'optional - OpenAI temperature'
 
   openai:
@@ -30,41 +30,42 @@ ai:
     temp: 'optional - Ollama temperature'
 
 # Use PWN::Plugins::Assembly.list_supported_archs to list supported architectures
-asm:
-  arch: 'x86_64'
-  endian: 'little'
+plugins:
+  asm:
+    arch: 'x86_64'
+    endian: 'little'
 
-blockchain:
+  blockchain:
   bitcoin:
-    rpc_host: '127.0.0.1'
-    rpc_port: 8332
-    rpc_user: 'bitcoin rpc user'
-    rpc_pass: 'bitcoin rpc password'
+      rpc_host: '127.0.0.1'
+      rpc_port: 8332
+      rpc_user: 'bitcoin rpc user'
+      rpc_pass: 'bitcoin rpc password'
 
-irc:
-  ui_nick: '_human_'
-  shared_chan: '#pwn'
-  ai_agent_nicks:
-    browser:
-      pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb'
-      system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
-    nimjeh:
-      pwn_rb: ''
-      system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
-    nmap:
-      pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb'
-      system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
-    shodan:
-      pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb'
-      system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
+  irc:
+    ui_nick: '_human_'
+    shared_chan: '#pwn'
+    ai_agent_nicks:
+      browser:
+        pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb'
+        system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
+      nimjeh:
+        pwn_rb: ''
+        system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
+      nmap:
+        pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb'
+        system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
+      shodan:
+        pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb'
+        system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
 
-hunter:
-  api_key: 'hunter.how API Key'
+  hunter:
+    api_key: 'hunter.how API Key'
 
-meshtastic:
-  psks:
-    LongFast: 'required - PSK for LongFast channel'
-    PWN: 'required - PSK for pwn channel'
+  meshtastic:
+    psks:
+      LongFast: 'required - PSK for LongFast channel'
+      PWN: 'required - PSK for pwn channel'
 
-shodan:
-  api_key: 'SHODAN API Key'
+  shodan:
+    api_key: 'SHODAN API Key'
