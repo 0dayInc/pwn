@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
+require 'diffy'
 require 'em/pure_ruby'
 require 'faye/websocket'
-# require 'openapi3_parser'
+require 'nokogiri'
 require 'openssl'
 require 'rest-client'
 require 'securerandom'
+require 'selenium/devtools/v140'
 require 'selenium/webdriver'
-require 'selenium/devtools'
 require 'socksify'
 require 'timeout'
 require 'watir'
@@ -474,6 +475,8 @@ module PWN
         case js
         when 'clear', 'clear;', 'clear()', 'clear();'
           script = 'console.clear()'
+        when 'debugger', 'debugger;', 'debugger()', 'debugger();'
+          script = 'debugger'
         else
           case return_to.to_s.downcase.to_sym
           when :stdout
@@ -938,205 +941,387 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::TransparentBrowser.debugger(
-      #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   action: 'optional - action to take :pause|:resume (Defaults to :pause)',
-      #   url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
-      # )
-
-      public_class_method def self.debugger(opts = {})
-        browser_obj = opts[:browser_obj]
-        supported = %i[chrome headless_chrome]
-        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
-        puts 'This browser is not supported for DevTools operations.' unless verified
-        return unless verified
-
-        action = opts[:action] ||= :pause
-        url = opts[:url]
-
-        case action.to_s.downcase.to_sym
-        when :pause
-          browser_obj[:devtools].send_cmd(
-            'EventBreakpoints.setInstrumentationBreakpoint',
-            eventName: 'scriptFirstStatement'
-          )
-          # browser_obj[:devtools].send_cmd('Debugger.enable')
-          # browser_obj[:devtools].send_cmd(
-          #   'Debugger.setInstrumentationBreakpoint',
-          #   instrumentation: 'beforeScriptExecution'
-          # )
-
-          # browser_obj[:devtools].send_cmd(
-          #   'EventBreakpoints.setInstrumentationBreakpoint',
-          #   eventName: 'load'
-          # )
-
-          # browser_obj[:devtools].send_cmd(
-          #   'Debugger.setPauseOnExceptions',
-          #   state: 'all'
-          # )
-
-          begin
-            Timeout.timeout(1) do
-              browser_obj[:browser].refresh if url.nil?
-              browser_obj[:browser].goto(url) unless url.nil?
-            end
-          rescue Timeout::Error
-            url
-          end
-        when :resume
-          browser_obj[:devtools].send_cmd(
-            'EventBreakpoints.removeInstrumentationBreakpoint',
-            eventName: 'scriptFirstStatement'
-          )
-          browser_obj[:devtools].send_cmd('Debugger.resume')
-        else
-          raise 'ERROR: action parameter must be :pause or :resume'
-        end
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
       # current_dom = PWN::Plugins::TransparentBrowser.dom(
       #   browser_obj: 'required - browser_obj returned from #open method)'
       # )
 
       public_class_method def self.dom(opts = {})
         browser_obj = opts[:browser_obj]
-        supported = %i[chrome headless_chrome]
-        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        verified = verify_devtools_browser(browser_obj: browser_obj)
         puts 'This browser is not supported for DevTools operations.' unless verified
         return unless verified
 
-        computed_styles = %i[display color font-size font-family]
-        browser_obj[:devtools].send_cmd(
-          'DOMSnapshot.captureSnapshot',
-          computedStyles: computed_styles
-        ).transform_keys(&:to_sym)
+        dom_str = console(browser_obj: browser_obj, js: 'document.documentElement.outerHTML', return_to: :stdout)
+        raise 'DOM capture failed: returned nil or empty string. Check DevTools connection.' if dom_str.nil? || dom_str.strip.empty?
+
+        Nokogiri::HTML.parse(dom_str)
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::TransparentBrowser.step_into(
+      # page_state = PWN::Plugins::TransparentBrowser.get_page_state(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.get_page_state(opts = {})
+        browser_obj = opts[:browser_obj]
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
+
+        js = <<~JS.strip
+          (function() {
+            try {
+              let ls = {};
+              for (let i = 0; i < localStorage.length; i++) {
+                let key = localStorage.key(i);
+                ls[key] = localStorage.getItem(key);
+              }
+              let ss = {};
+              for (let i = 0; i < sessionStorage.length; i++) {
+                let key = sessionStorage.key(i);
+                ss[key] = sessionStorage.getItem(key);
+              }
+
+              let scripts = Array.from(document.scripts).map(s => ({
+                src: s.src,
+                innerHTML: s.innerHTML
+              })).filter(s => s.src || s.innerHTML);
+
+              let stylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href).filter(h => h);
+
+              let inline_styles = Array.from(document.querySelectorAll('style')).map(s => s.innerHTML).filter(c => c);
+
+              let forms = Array.from(document.forms).map(f => ({
+                action: f.action,
+                method: f.method,
+                elements: Array.from(f.elements).map(e => ({
+                  name: e.name,
+                  type: e.type,
+                  value: e.value
+                }))
+              }));
+
+              let iframes = Array.from(document.querySelectorAll('iframe')).map(i => i.src).filter(s => s);
+
+              let csp_meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+              let csp = csp_meta ? csp_meta.content : null;
+
+              let feature_policy = [];
+              if (document.featurePolicy) {
+                feature_policy = document.featurePolicy.allowedFeatures().sort();
+              }
+
+              let is_framed = false;
+              try {
+                if (window.top !== window.self) {
+                  is_framed = true;
+                }
+              } catch (e) {
+                is_framed = true;
+              }
+
+              let resources = window.performance.getEntriesByType('resource').map(e => ({
+                name: e.name,
+                initiatorType: e.initiatorType
+              }));
+
+              // Enhanced globals capture with values
+              let globals = {};
+              let propNames = Object.getOwnPropertyNames(window).sort();
+              const safeStringify = (value, depth = 0) => {
+                if (depth > 5) return '[Max depth exceeded]'; // Prevent deep recursion
+                try {
+                  return JSON.stringify(value, (key, val) => {
+                    if (typeof val === 'function') {
+                      return val.toString(); // Capture function source
+                    } else if (typeof val === 'symbol') {
+                      return val.toString();
+                    } else if (val === window) {
+                      return '[Window reference]'; // Avoid circularity
+                    } else if (val && typeof val === 'object') {
+                      if (depth > 5) return '[Object (depth limit)]';
+                      return val; // Let JSON handle, recurse with depth
+                    }
+                    return val;
+                  });
+                } catch (e) {
+                  return '[Stringify error: ' + e.message + ']';
+                }
+              };
+
+              for (let name of propNames) {
+                try {
+                  let value = window[name];
+                  globals[name] = safeStringify(value);
+                } catch (e) {
+                  globals[name] = '[Access error: ' + e.message + ']';
+                }
+              }
+
+              return JSON.stringify({
+                cookies: document.cookie,
+                localStorage: ls,
+                sessionStorage: ss,
+                globals: globals,  // Now an object with name: stringified_value
+                scripts: scripts,
+                stylesheets: stylesheets,
+                inline_styles: inline_styles,
+                stack: new Error().stack,
+                location: {
+                  href: location.href,
+                  origin: location.origin,
+                  pathname: location.pathname,
+                  search: location.search,
+                  hash: location.hash
+                },
+                referrer: document.referrer,
+                userAgent: navigator.userAgent,
+                html_snapshot: document.documentElement.outerHTML,
+                forms: forms,
+                iframes: iframes,
+                csp: csp,
+                feature_policy: feature_policy,
+                is_framed: is_framed,
+                has_service_worker: 'serviceWorker' in navigator,
+                resources: resources
+              });
+            } catch (e) {
+              return JSON.stringify({
+                error: e.message,
+                stack: e.stack
+              });
+            }
+          })()
+        JS
+
+        browser_obj[:devtools].send_cmd('Console.clearMessages')
+        browser_obj[:devtools].send_cmd('Log.clear')
+        console_events = []
+        browser_obj[:browser].driver.on_log_event(:console) { |event| console_events.push(event) }
+
+        # page_state = console(browser_obj: browser_obj, js: js, return_to: :stdout)
+        console_cmd = { expression: js }
+        runtime_resp = browser_obj[:devtools].send_cmd('Runtime.evaluate', **console_cmd)
+        page_state = runtime_resp['result']['result']['value']
+        JSON.parse(page_state, symbolize_names: true)
+      rescue JSON::ParserError => e
+        raise "Failed to parse state JSON: #{e.message}. Raw output: #{state_json.inspect}"
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # messages = PWN::Plugins::TransparentBrowser.devtools_websocket_messages(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.devtools_websocket_messages(opts = {})
+        browser_obj = opts[:browser_obj]
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
+
+        devtools = browser_obj[:devtools]
+        websocket = devtools.instance_variable_get(:@ws)
+        websocket.instance_variable_get(:@messages)[nil]
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::TransparentBrowser.debugger(
       #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   action: 'optional - action to take :enable|:pause|:resume|:disable (Defaults to :enable)',
+      # )
+
+      public_class_method def self.debugger(opts = {})
+        browser_obj = opts[:browser_obj]
+        verified = verify_devtools_browser(browser_obj: browser_obj)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
+
+        valid_actions = %i[enable pause resume disable]
+        action = opts[:action] ||= :enable
+        action = action.to_s.downcase.to_sym
+        raise 'ERROR: action parameter must be :enable|:pause|:resume|:disable' unless valid_actions.include?(action)
+
+        devtools = browser_obj[:devtools]
+        debugger_state = devtools.instance_variable_get(:@debugger_state)
+
+        case action
+        when :enable
+          if debugger_state.is_a?(Hash)
+            debugger_state = devtools.instance_variable_get(:@debugger_state)
+            devtools.remove_instance_variable(:@debugger_state) if debugger_state.is_a?(Hash)
+            devtools.debugger.disable
+          end
+          debugger_state = {}
+          breakpoint_arr = []
+
+          # breakpoint = devtools.debugger.set_instrumentation_breakpoint(instrumentation: 'beforeScriptExecution')
+          bcmd = 'EventBreakpoints.setInstrumentationBreakpoint'
+          event = 'load'
+          breakpoint = devtools.send_cmd(bcmd, eventName: event)
+          breakpoint['result']['breakpointId'] = "#{bcmd}.#{event}.#{SecureRandom.uuid}"
+          breakpoint_arr.push(breakpoint)
+          debugger_state[:breakpoints] = breakpoint_arr
+
+          devtools.runtime.disable
+          devtools.log.disable
+          devtools.network.disable
+          devtools.page.disable
+          devtools.debugger.enable
+        when :pause
+          devtools.debugger.pause
+          Timeout.timeout(5) { browser_obj[:browser].refresh }
+        when :resume
+          devtools.debugger.resume
+        when :disable
+          debugger_state = devtools.instance_variable_get(:@debugger_state)
+          devtools.remove_instance_variable(:@debugger_state) if debugger_state.is_a?(Hash)
+          devtools.debugger.disable
+        end
+
+        devtools_websocket_messages = devtools_websocket_messages(browser_obj: browser_obj)
+        debugger_state[:method] = devtools_websocket_messages['method']
+        devtools.instance_variable_set(:@debugger_state, debugger_state)
+        devtools
+      rescue Timeout::Error
+        devtools
+      rescue Selenium::WebDriver::Error::WebDriverError => e
+        puts e.message
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # page_state_arr = PWN::Plugins::TransparentBrowser.step(
+      #   browser_obj: 'required - browser_obj returned from #open method)',
+      #   action: 'optional - action to take :into|:out|:over (Defaults to :into)',
       #   steps: 'optional - number of steps taken (Defaults to 1)'
       # )
 
-      public_class_method def self.step_into(opts = {})
+      public_class_method def self.step(opts = {})
         browser_obj = opts[:browser_obj]
         supported = %i[chrome headless_chrome]
         verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
         puts 'This browser is not supported for DevTools operations.' unless verified
         return unless verified
 
-        steps = opts[:steps].to_i
-        steps = 1 if steps.zero? || steps.negative?
-
-        diff_arr = []
-        steps.times do |s|
-          diff_hash = {}
-          step = s + 1
-          diff_hash[:step] = step
-
-          dom_before = dom(browser_obj: browser_obj)
-          diff_hash[:dom_before_step] = dom_before
-
-          browser_obj[:devtools].send_cmd('Debugger.stepInto')
-
-          dom_after = dom(browser_obj: browser_obj)
-          diff_hash[:dom_after_step] = dom_after
-
-          da = dom_before.to_a - dom_after.to_a
-          diff_hash[:diff_dom] = da.to_h.transform_keys(&:to_sym)
-
-          diff_arr.push(diff_hash)
-        end
-
-        diff_arr
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::TransparentBrowser.step_out(
-      #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   steps: 'optional - number of steps taken (Defaults to 1)'
-      # )
-
-      public_class_method def self.step_out(opts = {})
-        browser_obj = opts[:browser_obj]
-        supported = %i[chrome headless_chrome]
-        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
-        puts 'This browser is not supported for DevTools operations.' unless verified
-        return unless verified
+        valid_actions = %i[into out over]
+        action = opts[:action] ||= :into
+        action = action.to_s.downcase.to_sym
+        raise 'ERROR: action parameter must be :into|:out|:over' unless valid_actions.include?(action)
 
         steps = opts[:steps].to_i
         steps = 1 if steps.zero? || steps.negative?
 
-        diff_arr = []
-        steps.times do |s|
-          diff_hash = {}
-          step = s + 1
-          diff_hash[:step] = step
-
-          dom_before = dom(browser_obj: browser_obj)
-          diff_hash[:pre_step] = dom_before
-
-          browser_obj[:devtools].send_cmd('Debugger.stepOut')
-
-          dom_after = dom(browser_obj: browser_obj, step_sum: step_sum)
-          diff_hash[:post_step] = dom_after
-
-          da = dom_before.to_a - dom_after.to_a
-          diff_hash[:diff] = da.to_h.transform_keys(&:to_sym)
-
-          diff_arr.push(diff_hash)
+        devtools = browser_obj[:devtools]
+        debugger_state = devtools.instance_variable_get(:@debugger_state)
+        method = debugger_state[:method]
+        if method != 'Debugger.paused'
+          puts 'The debugger must be paused before stepping. Pausing now...'
+          return devtools
         end
 
-        diff_arr
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::TransparentBrowser.step_over(
-      #   browser_obj: 'required - browser_obj returned from #open method)',
-      #   steps: 'optional - number of steps taken (Defaults to 1)'
-      # )
-
-      public_class_method def self.step_over(opts = {})
-        browser_obj = opts[:browser_obj]
-        supported = %i[chrome headless_chrome]
-        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
-        puts 'This browser is not supported for DevTools operations.' unless verified
-        return unless verified
-
-        steps = opts[:steps].to_i
-        steps = 1 if steps.zero? || steps.negative?
-
-        diff_arr = []
+        page_state_arr = []
         steps.times do |s|
-          diff_hash = {}
-          step = s + 1
-          diff_hash[:step] = step
+          step_num = s + 1
+          puts "Stepping #{action} (step #{step_num}/#{steps})..."
 
-          dom_before = dom(browser_obj: browser_obj)
-          diff_hash[:dom_before_step] = dom_before
+          # before = get_page_state(browser_obj: browser_obj)
+          # puts before.inspect
+          before = devtools_websocket_messages(browser_obj: browser_obj)
+          method = before['method']
+          # puts before
+          puts "\n"
 
-          browser_obj[:devtools].send_cmd('Debugger.stepOver')
+          if method == 'Debugger.paused'
+            before_location = before['params']['callFrames'].first['location']
+            start_location = before['params']['callFrames'].first['scopeChain'].first['startLocation']
+            before_script_id = start_location['scriptId']
+            from_line_num = start_location['lineNumber']
+            from_column_num = start_location['columnNumber']
 
-          dom_after = dom(browser_obj: browser_obj, step_sum: step_sum)
-          diff_hash[:dom_after_step] = dom_after
+            end_location = before['params']['callFrames'].first['scopeChain'].first['endLocation']
+            to_line_num = end_location['lineNumber']
+            to_column_num = end_location['columnNumber']
 
-          da = dom_before.to_a - dom_after.to_a
-          diff_hash[:diff_dom] = da.to_h.transform_keys(&:to_sym)
+            source_obj = devtools.debugger.get_script_source(script_id: before_script_id)
+            source_code = source_obj['result']['scriptSource']
+            # puts source_code
+            # gets
 
-          diff_arr.push(diff_hash)
+            source_lines = source_code.split("\n")
+            source_lines_str = source_lines[from_line_num..to_line_num].join("\n")
+            source_to_review = source_lines_str[from_column_num..to_column_num]
+
+            puts source_to_review
+            request = source_lines_str[from_column_num..to_column_num]
+            ai_analysis = PWN::AI::Introspection.reflect_on(request: request)
+            puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
+            # gets
+          end
+
+          case action
+          when :into
+            devtools.debugger.step_into
+          when :out
+            devtools.debugger.step_out
+          when :over
+            devtools.debugger.step_over
+          end
+
+          puts "\n" * 3
+          after = devtools_websocket_messages(browser_obj: browser_obj)
+          method = after['method']
+          # puts after
+          puts "\n"
+
+          if method == 'Debugger.paused'
+            after_location = after['params']['callFrames'].first['scopeChain'].first['object']
+            start_location = after['params']['callFrames'].first['scopeChain'].first['startLocation']
+            after_script_id = start_location['scriptId']
+            from_line_num = start_location['lineNumber']
+            from_column_num = start_location['columnNumber']
+
+            end_location = after['params']['callFrames'].first['scopeChain'].first['endLocation']
+            to_line_num = end_location['lineNumber']
+            to_column_num = end_location['columnNumber']
+
+            source_obj = devtools.debugger.get_script_source(script_id: after_script_id)
+            source_code = source_obj['result']['scriptSource']
+            # puts source_code
+            # gets
+
+            source_lines = source_code.split("\n")
+            source_lines_str = source_lines[from_line_num..to_line_num].join("\n")
+            source_to_review = source_lines_str[from_column_num..to_column_num]
+
+            puts source_to_review
+            request = source_lines_str[from_column_num..to_column_num]
+            ai_analysis = PWN::AI::Introspection.reflect_on(request: request)
+            puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
+            # gets
+          end
+          puts "\n" * 6
+
+          # step_hash = {
+          #   step: step_num,
+          #   action: action,
+          #   before: before,
+          #   after: after,
+          #   diff: diff.to_s(:text)
+          # }
+
+          # page_state_arr.push(step_hash)
         end
 
-        diff_arr
+        devtools
+      rescue Selenium::WebDriver::Error::WebDriverError
+        devtools
       rescue StandardError => e
         raise e
       end
@@ -1399,28 +1584,22 @@ module PWN
             keyword: 'optional - keyword in title or url used to close tabs (defaults to closing active tab)'
           )
 
-          #{self}.debugger(
-            browser_obj: 'required - browser_obj returned from #open method)',
-            action: 'optional - action to take :pause|:resume (Defaults to :pause)',
-            url: 'optional - URL to navigate to after pausing debugger (Defaults to nil)'
-          )
-
           current_dom = #{self}.dom(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          #{self}.step_into(
-            browser_obj: 'required - browser_obj returned from #open method)',
-            steps: 'optional - number of steps taken (Defaults to 1)'
+          page_state = #{self}.get_page_state(
+            browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          #{self}.step_out(
+          #{self}.debugger(
             browser_obj: 'required - browser_obj returned from #open method)',
-            steps: 'optional - number of steps taken (Defaults to 1)'
+            action: 'optional - action to take :enable|:pause|:resume|:disable (Defaults to :enable)'
           )
 
-          #{self}.step_over(
+          #{self}.step(
             browser_obj: 'required - browser_obj returned from #open method)',
+            action: 'optional - action to take :into|:out|:over (Defaults to :into)',
             steps: 'optional - number of steps taken (Defaults to 1)'
           )
 

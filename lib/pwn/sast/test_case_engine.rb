@@ -63,8 +63,7 @@ module PWN
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
         result_arr = []
-        ai_introspection = PWN::Env[:ai][:introspection]
-        logger_results = "AI Introspection => #{ai_introspection} => "
+        logger_results = "AI Introspection => #{PWN::Env[:ai][:introspection]} => "
 
         PWN::Plugins::FileFu.recurse_in_dir(
           dir_path: dir_path,
@@ -120,19 +119,13 @@ module PWN
                 end
                 author ||= 'N/A'
 
-                ai_analysis = nil
-                if ai_introspection
-                  request = {
-                    scm_uri: "#{hash_line[:filename][:git_repo_root_uri]}/#{hash_line[:filename][:entry]}",
-                    line_no: line_no,
-                    source_code_snippet: contents
-                  }.to_json
-                  response = PWN::AI::Introspection.reflect(request: request)
-                  if response.is_a?(Hash)
-                    ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
-                    ai_analysis = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
-                  end
-                end
+                request = {
+                  scm_uri: "#{hash_line[:filename][:git_repo_root_uri]}/#{hash_line[:filename][:entry]}",
+                  line_no: line_no,
+                  source_code_snippet: contents
+                }.to_json
+                ai_analysis = PWN::AI::Introspection.reflect_on(request: request)
+                ai_analysis ||= 'N/A'
 
                 hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(
                   line_no: line_no,

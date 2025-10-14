@@ -9,57 +9,54 @@ module PWN
     # when `PWN::Env[:ai][:introspection]` is set to `true`.
     module Introspection
       # Supported Method Parameters::
-      # response = PWN::AI::Introspection.reflect(
-      #   request: 'required - String - What you want the AI to reflect on'
+      # response = PWN::AI::Introspection.reflect_on(
+      #   request: 'required - String - What you want the AI to reflect on',
+      #   system_role_content: 'optional - context to set up the model behavior for reflection'
       # )
 
-      public_class_method def self.reflect(opts = {})
+      public_class_method def self.reflect_on(opts = {})
         request = opts[:request]
         raise 'ERROR: request must be provided' if request.nil?
 
+        system_role_content = opts[:system_role_content]
+
         response = nil
 
-        valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
-        engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
-        raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
+        ai_introspection = PWN::Env[:ai][:introspection]
 
-        base_uri = PWN::Env[:ai][engine][:base_uri]
-        model = PWN::Env[:ai][engine][:model]
-        key = PWN::Env[:ai][engine][:key]
-        system_role_content = PWN::Env[:ai][engine][:system_role_content]
-        temp = PWN::Env[:ai][engine][:temp]
+        if ai_introspection && request.length.positive?
+          valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
+          engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+          raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
 
-        case engine
-        when :grok
-          response = PWN::AI::Grok.chat(
-            base_uri: base_uri,
-            token: key,
-            model: model,
-            system_role_content: system_role_content,
-            temp: temp,
-            request: request.chomp,
-            spinner: false
-          )
-        when :ollama
-          response = PWN::AI::Ollama.chat(
-            base_uri: base_uri,
-            token: key,
-            model: model,
-            system_role_content: system_role_content,
-            temp: temp,
-            request: request.chomp,
-            spinner: false
-          )
-        when :openai
-          response = PWN::AI::OpenAI.chat(
-            base_uri: base_uri,
-            token: key,
-            model: model,
-            system_role_content: system_role_content,
-            temp: temp,
-            request: request.chomp,
-            spinner: false
-          )
+          case engine
+          when :grok
+            response = PWN::AI::Grok.chat(
+              request: request.chomp,
+              system_role_content: system_role_content,
+              spinner: false
+            )
+            response = response[:choices].last[:content] if response.is_a?(Hash) &&
+                                                            response.key?(:choices) &&
+                                                            response[:choices].last.keys.include?(:content)
+          when :ollama
+            response = PWN::AI::Ollama.chat(
+              request: request.chomp,
+              system_role_content: system_role_content,
+              spinner: false
+            )
+            puts response
+          when :openai
+            response = PWN::AI::OpenAI.chat(
+              request: request.chomp,
+              system_role_content: system_role_content,
+              spinner: false
+            )
+            if response.is_a?(Hash) && response.key?(:choices)
+              response = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
+              response = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
+            end
+          end
         end
 
         response
@@ -79,8 +76,9 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.reflect(
-            request: 'required - String - What you want the AI to reflect on'
+          #{self}.reflect_on(
+            request: 'required - String - What you want the AI to reflect on',
+            system_role_content: 'optional - context to set up the model behavior for reflection'
           )
 
           #{self}.authors

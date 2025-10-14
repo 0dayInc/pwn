@@ -22,61 +22,8 @@ module PWN
           report_name: HTMLEntities.new.encode(report_name.to_s.scrub.strip.chomp),
           data: []
         }
+
         report_name = opts[:report_name] ||= File.basename(Dir.pwd)
-
-        # Calculate percentage of AI analysis based on the number of entries
-        # total_entries = results_hash[:data].sum { |entry| entry[:line_no_and_contents].size }
-        # puts "Total entries to analyze: #{total_entries}" if engine
-
-        # percent_complete = 0.0
-        # entry_count = 0
-        # spin = TTY::Spinner.new(
-        #   '[:spinner] Report Generation Progress: :percent_complete :entry_count of :total_entries',
-        #   format: :dots,
-        #   hide_cursor: true
-        # )
-        # spin.auto_spin
-
-        # ai_instrospection = PWN::Env[:ai][:introspection]
-        # puts "Analyzing source code using AI engine: #{engine}\nModel: #{model}\nSystem Role Content: #{system_role_content}\nTemperature: #{temp}" if ai_instrospection
-
-        # results_hash[:data].each do |hash_line|
-        #   git_repo_root_uri = hash_line[:filename][:git_repo_root_uri]
-        #   filename = hash_line[:filename][:entry]
-        #   hash_line[:line_no_and_contents].each do |src_detail|
-        #     entry_count += 1
-        #     percent_complete = (entry_count.to_f / total_entries * 100).round(2)
-        #     line_no = src_detail[:line_no]
-        #     source_code_snippet = src_detail[:contents]
-        #     author = src_detail[:author].to_s.scrub.chomp.strip
-        #     response = nil
-        #     if ai_instrospection
-        #       request = {
-        #         scm_uri: "#{git_repo_root_uri}/#{filename}",
-        #         line: line_no,
-        #         source_code_snippet: source_code_snippet
-        #       }.to_json
-        #       response = PWN::AI::Introspection.reflect(request: request)
-        #     end
-        #     ai_analysis = nil
-        #     if response.is_a?(Hash)
-        #       ai_analysis = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
-        #       ai_analysis = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
-        #       puts "AI Analysis Progress: #{percent_complete}% Line: #{line_no} | Author: #{author} | AI Analysis: #{ai_analysis}\n\n\n" if ai_analysis
-        #     end
-        #     src_detail[:ai_analysis] = ai_analysis.to_s.scrub.chomp.strip
-        #    spin.update(
-        #      percent_complete: "#{percent_complete}%",
-        #      entry_count: entry_count,
-        #      total_entries: total_entries
-        #    )
-        #  end
-        # end
-
-        # JSON object Completion
-        # File.open("#{dir_path}/pwn_scan_git_source.json", 'w') do |f|
-        #   f.print(results_hash.to_json)
-        # end
         File.write(
           "#{dir_path}/#{report_name}.json",
           JSON.pretty_generate(results_hash)

@@ -303,11 +303,6 @@ module PWN
 
                         response_history = ai_agents[dm_agent.to_sym][:response_history]
                         engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
-                        base_uri = PWN::Env[:ai][engine][:base_uri]
-                        key = PWN::Env[:ai][engine][:key] ||= ''
-                        temp = PWN::Env[:ai][engine][:temp]
-                        model = PWN::Env[:ai][engine][:model]
-                        system_role_content = PWN::Env[:ai][engine][:system_role_content]
 
                         users_in_chan = PWN::Plugins::IRC.names(
                           irc_obj: irc_obj,
@@ -319,55 +314,21 @@ module PWN
                           chan: shared_chan
                         )
 
-                        system_role_content = "
-                          #{system_role_content}
-                          You joined the IRC channel #{shared_chan}
-                          with the following users: #{users_in_shared_chan}
-                        "
-
-                        system_role_content = "
-                          #{system_role_content}
-                          You also joined your own IRC channel #{chan}
-                          with the following users: #{users_in_chan}
-                        "
-
-                        system_role_content = "
-                          #{system_role_content}
-                          You can dm/collaborate/speak with users to
-                          achieve your goals using '@<nick>' in your
-                          message.
-                        "
-
                         case engine
                         when :grok
                           response = PWN::AI::Grok.chat(
-                            base_uri: base_uri,
-                            token: key,
-                            model: model,
-                            temp: temp,
-                            system_role_content: system_role_content,
                             request: request,
                             response_history: response_history,
                             spinner: false
                           )
                         when :ollama
                           response = PWN::AI::Ollama.chat(
-                            base_uri: base_uri,
-                            token: key,
-                            model: model,
-                            temp: temp,
-                            system_role_content: system_role_content,
                             request: request,
                             response_history: response_history,
                             spinner: false
                           )
                         when :openai
                           response = PWN::AI::OpenAI.chat(
-                            base_uri: base_uri,
-                            token: key,
-                            model: model,
-                            temp: temp,
-                            system_role_content: system_role_content,
                             request: request,
                             response_history: response_history,
                             spinner: false
@@ -573,22 +534,12 @@ module PWN
             request = pi.input.line_buffer.to_s
             debug = pi.config.pwn_ai_debug
             engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
-            base_uri = PWN::Env[:ai][engine][:base_uri]
-            key = PWN::Env[:ai][engine][:key] ||= ''
             response_history = PWN::Env[:ai][engine][:response_history]
             speak_answer = pi.config.pwn_ai_speak
-            model = PWN::Env[:ai][engine][:model]
-            system_role_content = PWN::Env[:ai][engine][:system_role_content]
-            temp = PWN::Env[:ai][engine][:temp]
 
             case engine
             when :grok
               response = PWN::AI::Grok.chat(
-                base_uri: base_uri,
-                token: key,
-                model: model,
-                system_role_content: system_role_content,
-                temp: temp,
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer,
@@ -596,11 +547,6 @@ module PWN
               )
             when :ollama
               response = PWN::AI::Ollama.chat(
-                base_uri: base_uri,
-                token: key,
-                model: model,
-                system_role_content: system_role_content,
-                temp: temp,
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer,
@@ -608,11 +554,6 @@ module PWN
               )
             when :openai
               response = PWN::AI::OpenAI.chat(
-                base_uri: base_uri,
-                token: key,
-                model: model,
-                system_role_content: system_role_content,
-                temp: temp,
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer,

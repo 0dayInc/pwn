@@ -25,6 +25,12 @@ module PWN
 
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
 
+        system_role_content = "Analyze the #{endian} endian #{arch} assembly opcodes below and provide a concise summary of their functionality."
+        ai_analysis = PWN::AI::Introspection.reflect_on(
+          request: opcodes,
+          system_role_content: system_role_content
+        )
+
         case arch.to_s.downcase
         when 'i386', 'i686', 'x86'
           arch_obj = Metasm::Ia32.new(endian)
@@ -109,7 +115,7 @@ module PWN
         opcodes = [opcodes].pack('H*')
         # puts opcodes.inspect
 
-        Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s.squeeze("\n")
+        "#{ai_analysis}\n\n* Assembly Instructions >>>#{Metasm::Shellcode.disassemble(arch_obj, opcodes).to_s.squeeze("\n")}\n"
       rescue StandardError => e
         raise e
       end
@@ -130,6 +136,12 @@ module PWN
         asm_tmp = Tempfile.new('pwn_asm')
 
         raise 'ERROR: asm parameter is required.' if asm.nil?
+
+        system_role_content = "Analyze the #{endian} endian #{arch} assembly instructions below and provide a concise summary of their functionality."
+        ai_analysis = PWN::AI::Introspection.reflect_on(
+          request: asm,
+          system_role_content: system_role_content
+        )
 
         case arch.to_s.downcase
         when 'i386', 'i686', 'x86'
@@ -175,9 +187,8 @@ module PWN
         end
 
         opcodes = Metasm::Shellcode.assemble(arch_obj, asm).encode_string
-        hex_encoded_opcodes = opcodes.bytes.map { |b| format('\x%02x', b) }.join
 
-        "\n#{hex_encoded_opcodes}\n"
+        "#{ai_analysis}\n\n* Hex-Escaped Opcodes >>>\n#{opcodes.bytes.map { |b| format('\x%02x', b) }.join}\n"
       rescue Metasm::ParseError
         puts "Invalid assembly instruction(s) provided:\n#{asm}"
         # Should we try to call opcode_to_asm here or just raise the error?
