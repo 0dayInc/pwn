@@ -7,11 +7,7 @@ require 'pwn'
 require 'time'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-fFILE', '--target-file=FILE', '<Required if --target-range excluded - File containing one supported nmap target / line e.g. foo.bar, 10.1.1.1, 192.168.1.1-20, 192.168.1.0/24, etc>') do |f|
     opts[:target_file] = f
   end
@@ -40,11 +36,6 @@ OptionParser.new do |options|
     opts[:with_tor] = t
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 ftimestr = '%Y-%m-%d %H:%M:%S.%N%z'
 started_at = Time.now.strftime(ftimestr)

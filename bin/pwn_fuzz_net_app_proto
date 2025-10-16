@@ -5,11 +5,7 @@ require 'htmlentities'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-dDIR', '--dir-path=DIR', '<Required - Report Output Directory>') do |d|
     opts[:dir_path] = d
   end
@@ -74,11 +70,6 @@ OptionParser.new do |options|
     opts[:start_reporting_server] = s
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 pwn_provider = 'ruby-gem'
 # pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.select { |s| s == 'PWN_PROVIDER' }.any?

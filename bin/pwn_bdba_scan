@@ -5,11 +5,7 @@ require 'cgi'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-cCONFIG', '--config=CONFG', '<Required - Black Duck Binary Analysis YAML config>') do |g|
     opts[:config] = g
   end
@@ -50,11 +46,6 @@ OptionParser.new do |options|
     opts[:version] = v
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 abort_total = 1
 begin

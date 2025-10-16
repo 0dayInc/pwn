@@ -5,16 +5,11 @@ require 'faker'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
+PWN::Driver::Parser.new do |options|
   options.on('-jFILE', '--json-results=FILE', 'Required - JSON results file from pwn_shodan_search driver') do |j|
     opts[:json_results] = j
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 json_results_path = opts[:json_results]
 raise "ERROR: Shodan JSON Results File #{json_results_path} Does Not Exist." unless File.exist?(json_results_path)

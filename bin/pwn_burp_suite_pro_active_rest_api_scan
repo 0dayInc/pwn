@@ -5,11 +5,7 @@ require 'pwn'
 require 'uri'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-tTARGET', '--target_url=TARGET', '<Required - Target URI to Scan>') do |t|
     opts[:target_url] = t
   end
@@ -62,11 +58,6 @@ OptionParser.new do |options|
     opts[:in_scope] = s
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   timestamp = Time.now.strftime('%Y-%m-%d_%H-%M-%S%Z')

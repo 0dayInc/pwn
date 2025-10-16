@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-cCONFIG', '--config=CONFIG', '<Required - Black Duck Binary Analysis YAML config>') do |c|
     opts[:config] = c
   end
@@ -33,11 +29,6 @@ OptionParser.new do |options|
     opts[:product_cleanup_age] = p
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   pwn_provider = 'ruby-gem'

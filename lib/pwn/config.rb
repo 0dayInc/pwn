@@ -7,8 +7,44 @@ module PWN
   # Used to manage PWN configuration settings within PWN drivers.
   module Config
     # Supported Method Parameters::
-    # env = PWN::Config.minimal_env
-    public_class_method def self.minimal_env(opts = {})
+    # PWN::Config.redact_sensitive_artifacts(
+    #   config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
+    # )
+    public_class_method def self.redact_sensitive_artifacts(opts = {})
+      config = opts[:config] ||= PWN::Env
+
+      sensitive_keys = %i[api_key key paswword psks token]
+
+      # Transform values at the current level: redact sensitive keys
+      config.transform_values.with_index do |v, k|
+        if sensitive_keys.include?(config.keys[k])
+          '>>> REDACTED >>> USE `pwn-vault` FOR ADMINISTRATION <<< REDACTED <<<'
+        else
+          v.is_a?(Hash) ? redact_sensitive_artifacts(config: v) : v
+        end
+      end
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
+    # env = PWN::Config.init_driver_options
+    public_class_method def self.init_driver_options
+      env = {
+        driver_opts: {
+          pwn_env_path: nil,
+          pwn_dec_path: nil
+        }
+      }
+      PWN.const_set(:Env, env)
+      # puts '[*] Loaded driver options.'
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
+    # env = PWN::Config.default_env
+    public_class_method def self.default_env(opts = {})
       pwn_env_path = opts[:pwn_env_path]
       pwn_dec_path = "#{File.dirname(pwn_env_path)}/pwn.decryptor.yaml"
 
@@ -124,7 +160,7 @@ module PWN
       FileUtils.mkdir_p(pwn_env_root)
 
       pwn_env_path = opts[:pwn_env_path] ||= "#{pwn_env_root}/pwn.yaml"
-      return minimal_env(pwn_env_path: pwn_env_path) unless File.exist?(pwn_env_path)
+      return default_env(pwn_env_path: pwn_env_path) unless File.exist?(pwn_env_path)
 
       is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: pwn_env_path)
 
@@ -185,9 +221,18 @@ module PWN
         pwn_dec_path: pwn_dec_path
       }
 
-      Pry.config.refresh_pwn_env = false if defined?(Pry)
+      # Assign the refreshed env to PWN::Env
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
       PWN.const_set(:Env, env.freeze)
+
+      # Redact sensitive artifacts from PWN::Env and store in PWN::EnvRedacted
+      env_redacted = redact_sensitive_artifacts(config: env)
+      PWN.send(:remove_const, :EnvRedacted) if PWN.const_defined?(:EnvRedacted)
+      PWN.const_set(:EnvRedacted, env_redacted.freeze)
+
+      Pry.config.refresh_pwn_env = false if defined?(Pry)
+
+      puts "[*] PWN::Env loaded via: #{pwn_env_path}\n"
     rescue StandardError => e
       raise e
     end
@@ -204,7 +249,7 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        #{self}.minimal_env(
+        #{self}.default_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
         )
 

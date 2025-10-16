@@ -8,11 +8,7 @@ require 'ruby-audio'
 require 'waveform'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-tPATH', '--target-file=PATH', '<Required - File Containing List of Targets to Dial>') do |t|
     opts[:target_file] = t
   end
@@ -61,11 +57,6 @@ OptionParser.new do |options|
   # TODO: Add a resume feature to resume session following an interruption.
   # TODO: Append results to pwn_phone_results.json as things are running #save_memory.
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   pwn_provider = 'ruby-gem'

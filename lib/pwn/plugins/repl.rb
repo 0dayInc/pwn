@@ -489,6 +489,7 @@ module PWN
         # Define REPL Hooks
         # Welcome Banner Hook
         Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
+          Pry.config.refresh_pwn_env = false
           output.puts PWN::Banner.welcome
         end
 
@@ -597,11 +598,11 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::REPL.start(
-      #   opts: 'required - Hash object passed in via pwn OptParser'
-      # )
+      # PWN::Plugins::REPL.start
 
-      public_class_method def self.start(opts = {})
+      public_class_method def self.start
+        opts = PWN::Env[:driver_opts]
+
         # Monkey Patch Pry, add commands, && hooks
         PWN::Plugins::MonkeyPatch.pry
         pwn_env_root = "#{Dir.home}/.pwn"
@@ -646,13 +647,9 @@ module PWN
 
           #{self}.add_commands
 
-          #{self}.add_hooks(
-            opts: 'required - Hash object passed in via pwn OptParser'
-          )
+          #{self}.add_hooks
 
-          #{self}.start(
-            opts: 'required - Hash object passed in via pwn OptParser'
-          )
+          #{self}.start
 
           #{self}.authors
         "

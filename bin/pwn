@@ -3,24 +3,13 @@
 
 require 'pwn'
 
-opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
-  options.on('-YPATH', '--pwn-env=PATH', '<Optional - PWN YAML File>') do |p|
-    opts[:pwn_env_path] = p
-  end
-
-  options.on('-ZPATH', '--pwn-dec=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
-    opts[:pwn_dec_path] = d
-  end
-end.parse!
+pwn_driver = PWN::Driver::Parser.new
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
 
 begin
   pwn_pid = Process.pid
-  PWN::Plugins::REPL.start(opts)
+  PWN::Plugins::REPL.start
 rescue StandardError => e
   raise e
 ensure

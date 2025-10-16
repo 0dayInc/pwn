@@ -5,11 +5,7 @@ require 'aws-sdk'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-rREGION', '--region=REGION', "<Optional - AWS STS Region (Defaults to 'us-west-1')>") do |sts_region|
     opts[:sts_region] = sts_region
   end
@@ -36,11 +32,6 @@ OptionParser.new do |options|
     opts[:backup_root] = backup_root
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 sts_region = if opts[:sts_region].nil?
                'us-west-1'

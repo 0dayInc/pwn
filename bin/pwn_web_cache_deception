@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-tURL', '--target-url=URL', '<Required - URL to Target>') do |t|
     opts[:target_url] = t
   end
@@ -41,11 +37,6 @@ OptionParser.new do |options|
     opts[:proxy] = p
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 # Colors!
 @dark_red = "\e[1m\e[31m"

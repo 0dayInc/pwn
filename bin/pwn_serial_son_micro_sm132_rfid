@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+pwn_driver = PWN::Driver::Parser.new do |options|
   options.on('-dDEV', '--block-dev=DEV', '<Optional - SonMicroRFID block device path (defaults to /dev/ttyUSB0)>') do |d|
     opts[:block_dev] = d
   end
@@ -36,7 +32,9 @@ OptionParser.new do |options|
   options.on('-v', '--verbose', '<Optional - Enable verbose output>') do
     opts[:verbose] = true
   end
-end.parse!
+end
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
 
 begin
   block_dev = opts[:block_dev] if opts[:block_dev] && File.exist?(opts[:block_dev])

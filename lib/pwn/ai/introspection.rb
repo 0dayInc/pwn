@@ -45,7 +45,9 @@ module PWN
               system_role_content: system_role_content,
               spinner: false
             )
-            puts response
+            response = response[:choices].last[:content] if response.is_a?(Hash) &&
+                                                            response.key?(:choices) &&
+                                                            response[:choices].last.keys.include?(:content)
           when :openai
             response = PWN::AI::OpenAI.chat(
               request: request.chomp,

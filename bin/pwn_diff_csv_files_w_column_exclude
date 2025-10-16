@@ -5,7 +5,7 @@ require 'csv'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
+PWN::Driver::Parser.new do |options|
   options.banner = "USAGE:
     #{File.basename($PROGRAM_NAME)} [opts]
     EXAMPLE w/ Tenable Nessus Results:
@@ -43,11 +43,6 @@ OptionParser.new do |options|
     opts[:no_headers] = h
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 def ommit_columns_by_index(opts = {})
   csv = opts[:csv]

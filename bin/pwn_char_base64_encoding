@@ -5,20 +5,11 @@ require 'base64'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-pSTRING', '--payload=STRING', '<Required - String to Encode>') do |p|
     opts[:payload] = p
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 payload = opts[:payload].to_s.scrub
 puts Base64.strict_encode64(payload)

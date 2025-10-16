@@ -5,20 +5,7 @@ require 'htmlentities'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
-  # TODO: HOW TO LOAD THE pwn.yaml CONFIGURATION FILE FOR EVERYTHING UNLESS OVERRIDDEN???
-  options.on('-YPATH', '--pwn-env=PATH', '<Optional - PWN YAML File>') do |p|
-    opts[:pwn_env_path] = p
-  end
-
-  options.on('-ZPATH', '--pwn-dec=PATH', '<Optional - Out-of-Band YAML File with :key && :iv>') do |d|
-    opts[:pwn_dec_path] = d
-  end
-
+PWN::Driver::Parser.new do |options|
   options.on('-uGITURI', '--uri-source-root=GITURI', '<Required - HTTP URI of Git Repo Scanned e.g. https://github.com/0dayInc/pwn/tree/master>') do |u|
     opts[:uri_source_root] = u
   end
@@ -48,22 +35,11 @@ OptionParser.new do |options|
   end
 end.parse!
 
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
-
 begin
   timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S%z')
 
   pwn_env_path = opts[:pwn_env_path]
   pwn_dec_path = opts[:pwn_dec_path]
-  if pwn_env_path
-    PWN::Config.refresh_env(
-      pwn_env_path: pwn_env_path,
-      pwn_dec_path: pwn_dec_path
-    )
-  end
 
   previous_dir = Dir.pwd
 
