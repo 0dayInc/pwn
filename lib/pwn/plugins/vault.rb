@@ -53,6 +53,8 @@ module PWN
           decryptor_hash = { key: key, iv: iv }
           yaml_decryptor = YAML.dump(decryptor_hash).gsub(/^(\s*):/, '\1')
           File.write(decryptor_file, yaml_decryptor)
+          # Change permissions to 400
+          File.chmod(0o400, decryptor_file)
         else
           puts 'Please store the Key && IV in a secure location as they are required for decryption.'
           puts "Key: #{key}"
