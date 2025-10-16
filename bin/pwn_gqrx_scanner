@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-aPROFILE', '--assume-profile=PROFILE', '<Required if "--target-freq" is Nil - Profile to assume for common radio protocols.  Use "--list-profiles" to display supported protocols (Defaults to nil)') do |p|
     opts[:profile] = p
   end
@@ -73,11 +69,6 @@ OptionParser.new do |options|
     opts[:baseband_gain] = b
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   pwn_provider = 'ruby-gem'

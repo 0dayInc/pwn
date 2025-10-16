@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-cYPATH', '--yaml-config=YPATH', '<Required - YAML Config Containing Access & Secret Keys for Authentication>') do |c|
     opts[:yaml_config] = c
   end
@@ -25,11 +21,6 @@ OptionParser.new do |options|
     opts[:format] = f
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   yaml_config = opts[:yaml_config]

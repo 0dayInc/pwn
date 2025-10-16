@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+pwn_driver = PWN::Driver::Parser.new do |options|
   options.on('-dDEV', '--block-dev=DEV', '<Optional - MSR206 block device path (defaults to /dev/ttyUSB0)>') do |d|
     opts[:block_dev] = d
   end
@@ -32,7 +28,9 @@ OptionParser.new do |options|
   options.on('-fFLOWCTRL', '--flow-control=FLOWCTRL', '<Optional - none||hard||soft (defaults to soft)>') do |f|
     opts[:flow_control] = f
   end
-end.parse!
+end
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
 
 begin
   block_dev = opts[:block_dev]

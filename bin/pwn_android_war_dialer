@@ -5,11 +5,7 @@ require 'pwn'
 require 'waveform'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-fFROM', '--from=FROM', '<Required - Dial Range from (Beginning Number)>') do |f|
     opts[:from_num] = f
   end
@@ -42,11 +38,6 @@ OptionParser.new do |options|
     opts[:seconds_to_delay_between_calls] = d
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 # Required Flag Variables
 from_num = opts[:from_num].to_s.scrub.strip.chomp.delete('(').delete(')').delete('-').delete('.').delete('+').to_i

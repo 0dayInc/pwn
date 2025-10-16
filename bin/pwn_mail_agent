@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-aTYPE', '--agent-type=TYPE', '<Required - Mail Agent Type office365|gmail|hotmail_n_live|yahoo|manual>') do |a|
     opts[:agent_type] = a
   end
@@ -21,11 +17,6 @@ OptionParser.new do |options|
     opts[:msg_body_yaml] = m
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 private_methods def initiate_action
   puts @list_agent_opts

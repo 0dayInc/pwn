@@ -6,19 +6,17 @@ require 'pwn'
 
 # Set the path to your project directory
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+pwn_driver = PWN::Driver::Parser.new do |options|
   options.on('-rPATH', '--rdoc-root-dir=PATH', '<Optional - RDoc root directory (Default: "/opt/pwn/rdoc/PWN")>') do |r|
     opts[:rdoc_root] = r
   end
 
-  options.on('-jPATH', '--jsonl-results=PATH', '<Optional - Path to save JSONL file (Default: "/tmp/RDoc_Parent_Basename-TIMESTAMP.jsonl">') do |j|
+  options.on('-jPATH', '--jsonl-results=PATH', '<Optional - Path to save JSONL file (Default: "/tmp/PWN-[TIMESTAMP].jsonl">') do |j|
     opts[:jsonl_results] = j
   end
-end.parse!
+end
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
 
 begin
   rdoc_root = opts[:rdoc_root] ||= '/opt/pwn/rdoc/PWN'

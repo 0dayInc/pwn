@@ -5,11 +5,7 @@ require 'nokogiri'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-tDOMAIN', '--target-domain=DOMAIN', '<Required - Target Domain>') do |t|
     opts[:target_domain] = t
   end
@@ -22,11 +18,6 @@ OptionParser.new do |options|
     opts[:report_path] = r
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   target_domain = opts[:target_domain]

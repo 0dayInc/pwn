@@ -4,10 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
+pwn_driver = PWN::Driver::Parser.new do |options|
   options.on('-tIP_HOST', '--target=IP_HOST', '<Optional - IP or Host to Check (Default - Your Public IP)>') do |t|
     opts[:target] = t
   end
@@ -23,7 +20,12 @@ OptionParser.new do |options|
   options.on('-pPROXY', '--proxy=PROXY', '<Optional - HTTP or Socks Proxy || tor>') do |p|
     opts[:proxy] = p
   end
-end.parse!
+end
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
+
+pwn_env_path = opts[:pwn_env_path]
+pwn_dec_path = opts[:pwn_dec_path]
 
 target = opts[:target]
 tls_port = opts[:tls_port]

@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-uURL', '--url=URL', '<Required - DefectDojo URL>') do |u|
     opts[:url] = u
   end
@@ -81,11 +77,6 @@ OptionParser.new do |options|
     opts[:push_to_jira] = j
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 # Construct AuthN Args
 url = opts[:url]

@@ -9,11 +9,7 @@ require 'time'
 require 'uri'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-uURL', '--target-url=URL', '<Required - Target URL)>') do |t|
     opts[:target_url] = t
   end
@@ -66,11 +62,6 @@ OptionParser.new do |options|
     opts[:start_reporting_server] = s
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 def request_path(opts = {})
   target_url = opts[:target_url]

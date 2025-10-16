@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-vNUM', '--voicemail_num=num', '<Required - Number to Voicemail Service>') do |num|
     opts[:voicemail_num] = num
   end
@@ -16,11 +12,6 @@ OptionParser.new do |options|
     opts[:voicemail_pin] = pin
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 voicemail_num = opts[:voicemail_num].to_s.scrub.strip.chomp.delete('-').delete('.').to_i
 

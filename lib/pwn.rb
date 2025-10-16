@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'optparse'
 require 'pwn/version'
 require 'yaml'
 
@@ -16,11 +15,16 @@ module PWN
   autoload :Banner, 'pwn/banner'
   autoload :Blockchain, 'pwn/blockchain'
   autoload :Config, 'pwn/config'
+  autoload :Driver, 'pwn/driver'
   autoload :FFI, 'pwn/ffi'
   autoload :Plugins, 'pwn/plugins'
   autoload :Reports, 'pwn/reports'
   autoload :SAST, 'pwn/sast'
   autoload :WWW, 'pwn/www'
+
+  # Initialize Options for Drivers
+
+  PWN::Config.init_driver_options
 
   # Display a List of Every PWN Module
 
@@ -28,9 +32,6 @@ module PWN
     constants.sort
   end
 
-  # Initialize PWN configuration file
-  # PWN::Env is the constant that stores the configuration data
-  PWN::Config.refresh_env
 rescue StandardError => e
   puts e.backtrace
   raise e

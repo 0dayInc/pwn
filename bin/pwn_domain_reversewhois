@@ -6,11 +6,7 @@ require 'nokogiri'
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-sRFILTER', '--registrant-filter=RFILTER', '<Required - Registrant Name or Email Address>') do |s|
     opts[:registrant_filter] = s
   end
@@ -23,11 +19,6 @@ OptionParser.new do |options|
     opts[:proxy] = p
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 registrant_filter = opts[:registrant_filter].to_s.strip.chomp.scrub
 output_results = opts[:output_results].to_s.strip.chomp.scrub

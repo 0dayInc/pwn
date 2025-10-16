@@ -4,10 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
+pwn_driver = PWN::Driver::Parser.new do |options|
   options.on('-iIP', '--bind-ip=IP', '<Optional - HTTP Bind IP to Listen> (Defaults to Localhost)') do |i|
     opts[:bind_ip] = i
   end
@@ -15,7 +12,9 @@ OptionParser.new do |options|
   options.on('-pPORT', '--port=PORT', '<Optional - HTTP Port to Listen (Defaults to 3333)>') do |p|
     opts[:port] = p
   end
-end.parse!
+end
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
 
 bind_ip = opts[:bind_ip] ||= '127.0.0.1'
 

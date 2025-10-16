@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-aAPIKEY', '--api_key=APIKEY', '<Required - OWASP Zap API Key (Tools>Options>API)>') do |a|
     opts[:api_key] = a
   end
@@ -49,11 +45,6 @@ OptionParser.new do |options|
     opts[:in_scope] = s
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 begin
   logger = PWN::Plugins::PWNLogger.create

@@ -4,11 +4,7 @@
 require 'pwn'
 
 opts = PWN::Env[:driver_opts]
-OptionParser.new do |options|
-  options.banner = "USAGE:
-    #{File.basename($PROGRAM_NAME)} [opts]
-  "
-
+PWN::Driver::Parser.new do |options|
   options.on('-rPATTERN', '--regex=PATTERN', "<Required - Regex Pattern for Interesting Pastes ('.*' for All)>") do |r|
     opts[:regex] = r
   end
@@ -17,11 +13,6 @@ OptionParser.new do |options|
     opts[:proxy] = p
   end
 end.parse!
-
-if opts.empty?
-  puts `#{File.basename($PROGRAM_NAME)} --help`
-  exit 1
-end
 
 proxy = opts[:proxy]
 regex = opts[:regex]
