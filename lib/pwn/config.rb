@@ -13,7 +13,7 @@ module PWN
     public_class_method def self.redact_sensitive_artifacts(opts = {})
       config = opts[:config] ||= PWN::Env
 
-      sensitive_keys = %i[api_key key paswword psks token]
+      sensitive_keys = %i[api_key key pass password psk token]
 
       # Transform values at the current level: redact sensitive keys
       config.transform_values.with_index do |v, k|
@@ -46,7 +46,7 @@ module PWN
     # env = PWN::Config.default_env
     public_class_method def self.default_env(opts = {})
       pwn_env_path = opts[:pwn_env_path]
-      pwn_dec_path = "#{File.dirname(pwn_env_path)}/pwn.decryptor.yaml"
+      pwn_dec_path = "#{pwn_env_path}.decryptor"
 
       puts "
         [*] NOTICE:
@@ -87,7 +87,7 @@ module PWN
           }
         },
         plugins: {
-          asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian },
+          asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian.to_s },
           blockchain: {
             bitcoin: {
               rpc_host: 'localhost',
@@ -120,9 +120,23 @@ module PWN
           },
           hunter: { api_key: 'hunter.how API Key' },
           meshtastic: {
-            psks: {
-              LongFast: 'AQ==',
-              PWN: 'required - PSK for pwn channel'
+            mqtt: {
+              host: 'mqtt.meshtastic.org',
+              port: 1883,
+              user: 'meshdev',
+              pass: 'large4cats'
+            },
+            channel: {
+              LongFast: {
+                psk: 'AQ==',
+                region: 'US/<STATE>',
+                channel_topic: '2/e/#'
+              },
+              PWN: {
+                psk: 'required - PSK for pwn channel',
+                region: 'US/<STATE>',
+                channel_topic: '2/e/PWN/#'
+              }
             }
           },
           shodan: { api_key: 'SHODAN API Key' }
@@ -152,7 +166,7 @@ module PWN
     # Supported Method Parameters::
     # PWN::Config.refresh_env(
     #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',
-    #   pwn_dec_path: 'optional - Path to pwn.decryptor.yaml file.  Defaults to ~/.pwn/pwn.decryptor.yaml'
+    #   pwn_dec_path: 'optional - Path to pwn.yaml.decryptor file.  Defaults to ~/.pwn/pwn.yaml.decryptor'
     # )
 
     public_class_method def self.refresh_env(opts = {})
@@ -163,27 +177,24 @@ module PWN
       return default_env(pwn_env_path: pwn_env_path) unless File.exist?(pwn_env_path)
 
       is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: pwn_env_path)
+      raise "PWN Environment (#{pwn_env_path}) is not encrypted!  Use PWN::Vault.create(file: '#{pwn_env_path}', decryptor_file: '#{pwn_env_path}.decryptor') to encrypt it." unless is_encrypted
 
-      if is_encrypted
-        pwn_dec_path = opts[:pwn_dec_path] ||= "#{pwn_env_root}/pwn.decryptor.yaml"
-        raise "PWN Decryptor (#{pwn_dec_path}) does not exist!" unless File.exist?(pwn_dec_path)
+      pwn_dec_path = opts[:pwn_dec_path] ||= "#{pwn_env_path}.decryptor"
+      raise "PWN Decryptor (#{pwn_dec_path}) does not exist!" unless File.exist?(pwn_dec_path)
 
-        pwn_decryptor = YAML.load_file(pwn_dec_path, symbolize_names: true)
+      pwn_decryptor = YAML.load_file(pwn_dec_path, symbolize_names: true)
 
-        key = opts[:key] ||= pwn_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
-        key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
+      key = opts[:key] ||= pwn_decryptor[:key] ||= ENV.fetch('PWN_DECRYPTOR_KEY')
+      key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption Key') if key.nil?
 
-        iv = opts[:iv] ||= pwn_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
-        iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
+      iv = opts[:iv] ||= pwn_decryptor[:iv] ||= ENV.fetch('PWN_DECRYPTOR_IV')
+      iv = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Decryption IV') if iv.nil?
 
-        env = PWN::Plugins::Vault.dump(
-          file: pwn_env_path,
-          key: key,
-          iv: iv
-        )
-      else
-        env = YAML.load_file(pwn_env_path, symbolize_names: true)
-      end
+      env = PWN::Plugins::Vault.dump(
+        file: pwn_env_path,
+        key: key,
+        iv: iv
+      )
 
       valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
 
@@ -255,7 +266,7 @@ module PWN
 
         #{self}.refresh_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',
-          pwn_dec_path: 'optional - Path to pwn.decryptor.yaml file.  Defaults to ~/.pwn/pwn.decryptor.yaml'
+        pwn_dec_path: 'optional - Path to pwn.yaml.decryptor file.  Defaults to ~/.pwn/pwn.yaml.decryrptor'
         )
 
         #{self}.authors
