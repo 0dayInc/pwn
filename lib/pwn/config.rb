@@ -145,6 +145,8 @@ module PWN
       # Remove beginning colon from key names
       yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')
       File.write(pwn_env_path, yaml_env)
+      # Change file permission to 600
+      File.chmod(0o600, pwn_env_path)
 
       env[:driver_opts] = {
         pwn_env_path: pwn_env_path,
