@@ -387,7 +387,7 @@ module PWN
       # Supported Method Parameters::
       # issue_type_metadata = PWN::Plugins::JiraServer.get_issue_type_metadata(
       #   project_key: 'required - project key (e.g. PWN)',
-      #   issue_type_id: 'required - issue type ID (e.g. 10000)'
+      #   issue_type_id: 'required - issue type ID (e.g. issue[:fields][:issuetype][:id] from #get_issue method)'
       # )
 
       public_class_method def self.get_issue_type_metadata(opts = {})
@@ -415,36 +415,44 @@ module PWN
 
         project_key = issue_data[:fields][:project][:key]
         summary = "CLONE - #{issue_data[:fields][:summary]}"
-        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
-        issue_type_id = issue_data[:fields][:issuetype][:id]
 
-        epic_name = nil
-        if issue_type == :epic
-          all_fields = get_all_fields
-          epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
-          epic_name = issue_data[:fields][epic_name_field_key.to_sym]
-        end
-        description = issue_data[:fields][:description]
+        http_body = { summary: summary }
+
+        rest_call(
+          http_method: :post,
+          rest_call: "issue/#{issue}/clone",
+          http_body: http_body
+        )
+        # issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
+        # issue_type_id = issue_data[:fields][:issuetype][:id]
+
+        # epic_name = nil
+        # if issue_type == :epic
+        #   all_fields = get_all_fields
+        #   epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
+        #   epic_name = issue_data[:fields][epic_name_field_key.to_sym]
+        # end
+        # description = issue_data[:fields][:description]
         # TODO: Better Field Handling:
         # GET issue/createmeta/{projectIdOrKey}/issuetypes/{issueTypeId}
         # to discover required/allowed fields dynamically before
         # building the payload. Copy only what makes sense—some fields
         # (e.g., status, created date) can't be set on creation.
-        issue_type_metadata = get_issue_type_metadata(
-          project_key: project_key,
-          issue_type_id: issue_type_id
-        )
-        filtered_fields = issue_data[:fields].compact
-        additional_fields = { fields: filtered_fields }
+        # issue_type_metadata = get_issue_type_metadata(
+        #   project_key: project_key,
+        #   issue_type_id: issue_type_id
+        # )
+        # filtered_fields = issue_data[:fields].compact
+        # additional_fields = { fields: filtered_fields }
 
-        create_issue(
-          project_key: project_key,
-          summary: summary,
-          issue_type: issue_type,
-          epic_name: epic_name,
-          description: description,
-          additional_fields: additional_fields
-        )
+        # create_issue(
+        #   project_key: project_key,
+        #   summary: summary,
+        #   issue_type: issue_type,
+        #   epic_name: epic_name,
+        #   description: description,
+        #   additional_fields: additional_fields
+        # )
       rescue StandardError => e
         raise e
       end
@@ -534,7 +542,7 @@ module PWN
 
           issue_type_metadata = #{self}.get_issue_type_metadata(
             project_key: 'required - project key (e.g. PWN)',
-            issue_type_id: 'required - issue type ID (e.g. 10000)'
+            issue_type_id: 'required - issue type ID (e.g. issue[:fields][:issuetype][:id] from #get_issue method)'
           )
 
           issue_resp = #{self}.clone_issue(
