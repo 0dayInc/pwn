@@ -53,45 +53,61 @@ module PWN
         max_request_attempts = 3
         tot_request_attempts ||= 1
 
-        case http_method
-        when :delete, :get
-          headers[:params] = params
-          response = rest_client.execute(
-            method: http_method,
-            url: "#{base_uri}/#{rest_call}",
-            headers: headers,
-            verify_ssl: false,
-            timeout: 180
-          )
+        begin
+          case http_method
+          when :delete, :get
+            headers[:params] = params
+            response = rest_client.execute(
+              method: http_method,
+              url: "#{base_uri}/#{rest_call}",
+              headers: headers,
+              verify_ssl: false,
+              timeout: 180
+            )
 
-        when :post, :put
-          if http_body.is_a?(Hash)
-            if http_body.key?(:multipart)
-              headers[:content_type] = 'multipart/form-data'
-              headers[:x_atlassian_token] = 'no-check'
-            else
-              http_body = http_body.to_json
+          when :post, :put
+            if http_body.is_a?(Hash)
+              if http_body.key?(:multipart)
+                headers[:content_type] = 'multipart/form-data'
+                headers[:x_atlassian_token] = 'no-check'
+              else
+                http_body = http_body.to_json
+              end
             end
+
+            response = rest_client.execute(
+              method: http_method,
+              url: "#{base_uri}/#{rest_call}",
+              headers: headers,
+              payload: http_body,
+              verify_ssl: false,
+              timeout: 180
+            )
+          else
+            raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
           end
 
-          response = rest_client.execute(
-            method: http_method,
-            url: "#{base_uri}/#{rest_call}",
-            headers: headers,
-            payload: http_body,
-            verify_ssl: false,
-            timeout: 180
-          )
-        else
-          raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
-        end
+          case response.code
+          when 201, 204
+            response = { http_response_code: response.code }
+          else
+            response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response)
+            response[:http_response_code] = response.code if response.is_a?(RestClient::Response)
+          end
+        rescue RestClient::ExceptionWithResponse => e
+          # Do our best to clone issues with custom fields that
+          # may not be compatible for the current context.
+          if rest_call == 'issue' &&
+             http_method == :post &&
+             e.response.body.keys.include?(:errors) &&
+             e.response.code == 400
 
-        case response.code
-        when 201, 204
-          response = { http_response_code: response.code }
-        else
-          response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response)
-          response[:http_response_code] = response.code if response.is_a?(RestClient::Response)
+            errors = e.response.body[:errors]
+            incompatible_fields = errors.keys
+            http_body[:fields] = http_body[:fields].except(*incompatible_fields)
+
+            retry
+          end
         end
 
         response
