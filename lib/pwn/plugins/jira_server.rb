@@ -214,7 +214,7 @@ module PWN
 
         comment = opts[:comment]
 
-        all_fields = get_all_fields(base_uri: base_uri, token: token)
+        all_fields = get_all_fields
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
 
         epic_name = opts[:epic_name]
