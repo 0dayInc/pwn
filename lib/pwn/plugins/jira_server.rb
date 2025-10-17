@@ -53,61 +53,45 @@ module PWN
         max_request_attempts = 3
         tot_request_attempts ||= 1
 
-        begin
-          case http_method
-          when :delete, :get
-            headers[:params] = params
-            response = rest_client.execute(
-              method: http_method,
-              url: "#{base_uri}/#{rest_call}",
-              headers: headers,
-              verify_ssl: false,
-              timeout: 180
-            )
+        case http_method
+        when :delete, :get
+          headers[:params] = params
+          response = rest_client.execute(
+            method: http_method,
+            url: "#{base_uri}/#{rest_call}",
+            headers: headers,
+            verify_ssl: false,
+            timeout: 180
+          )
 
-          when :post, :put
-            if http_body.is_a?(Hash)
-              if http_body.key?(:multipart)
-                headers[:content_type] = 'multipart/form-data'
-                headers[:x_atlassian_token] = 'no-check'
-              else
-                http_body = http_body.to_json
-              end
+        when :post, :put
+          if http_body.is_a?(Hash)
+            if http_body.key?(:multipart)
+              headers[:content_type] = 'multipart/form-data'
+              headers[:x_atlassian_token] = 'no-check'
+            else
+              http_body = http_body.to_json
             end
-
-            response = rest_client.execute(
-              method: http_method,
-              url: "#{base_uri}/#{rest_call}",
-              headers: headers,
-              payload: http_body,
-              verify_ssl: false,
-              timeout: 180
-            )
-          else
-            raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
           end
 
-          case response.code
-          when 201, 204
-            response = { http_response_code: response.code }
-          else
-            response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response)
-            response[:http_response_code] = response.code if response.is_a?(RestClient::Response)
-          end
-        rescue RestClient::ExceptionWithResponse => e
-          # Do our best to clone issues with custom fields that
-          # may not be compatible for the current context.
-          if rest_call == 'issue' &&
-             http_method == :post &&
-             e.response.body.keys.include?(:errors) &&
-             e.response.code == 400
+          response = rest_client.execute(
+            method: http_method,
+            url: "#{base_uri}/#{rest_call}",
+            headers: headers,
+            payload: http_body,
+            verify_ssl: false,
+            timeout: 180
+          )
+        else
+          raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
+        end
 
-            errors = e.response.body[:errors]
-            incompatible_fields = errors.keys
-            http_body[:fields] = http_body[:fields].except(*incompatible_fields)
-
-            retry
-          end
+        case response.code
+        when 201, 204
+          response = { http_response_code: response.code }
+        else
+          response = JSON.parse(response, symbolize_names: true) if response.is_a?(RestClient::Response)
+          response[:http_response_code] = response.code if response.is_a?(RestClient::Response)
         end
 
         response
@@ -401,6 +385,24 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # issue_type_metadata = PWN::Plugins::JiraServer.get_issue_type_metadata(
+      #   project_key: 'required - project key (e.g. PWN)',
+      #   issue_type_id: 'required - issue type ID (e.g. 10000)'
+      # )
+
+      public_class_method def self.get_issue_type_metadata(opts = {})
+        project_key = opts[:project_key]
+        raise 'ERROR: project_key cannot be nil.' if project_key.nil?
+
+        issue_type_id = opts[:issue_type_id]
+        raise 'ERROR: issue_type_id cannot be nil.' if issue_type_id.nil?
+
+        rest_call(rest_call: "issue/createmeta/#{project_key}/issuetypes/#{issue_type_id}")
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.clone_issue(
       #   issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)'
       # )
@@ -414,6 +416,8 @@ module PWN
         project_key = issue_data[:fields][:project][:key]
         summary = "CLONE - #{issue_data[:fields][:summary]}"
         issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
+        issue_type_id = issue_data[:fields][:issuetype][:id]
+
         epic_name = nil
         if issue_type == :epic
           all_fields = get_all_fields
@@ -421,9 +425,15 @@ module PWN
           epic_name = issue_data[:fields][epic_name_field_key.to_sym]
         end
         description = issue_data[:fields][:description]
-        # Filter out nil values from the additional fields
-        # which can be problematic during issue creation if
-        # custom fields aren't in the proper context.
+        # TODO: Better Field Handling:
+        # GET issue/createmeta/{projectIdOrKey}/issuetypes/{issueTypeId}
+        # to discover required/allowed fields dynamically before
+        # building the payload. Copy only what makes sense—some fields
+        # (e.g., status, created date) can't be set on creation.
+        issue_type_metadata = get_issue_type_metadata(
+          project_key: project_key,
+          issue_type_id: issue_type_id
+        )
         filtered_fields = issue_data[:fields].compact
         additional_fields = { fields: filtered_fields }
 
@@ -520,6 +530,11 @@ module PWN
             comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
             author: 'optional - author of the comment (e.g. \"jane.doe\")',
             comment: 'optional - comment to add or update in the issue (e.g. \"This is a comment\")'
+          )
+
+          issue_type_metadata = #{self}.get_issue_type_metadata(
+            project_key: 'required - project key (e.g. PWN)',
+            issue_type_id: 'required - issue type ID (e.g. 10000)'
           )
 
           issue_resp = #{self}.clone_issue(
