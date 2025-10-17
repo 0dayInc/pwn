@@ -26,6 +26,8 @@ module PWN
 
       private_class_method def self.ollama_rest_call(opts = {})
         engine = PWN::Env[:ai][:ollama]
+        raise 'ERROR: Jira Server Hash not found in PWN::Env.  Run i`pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
+
         base_uri = engine[:base_uri]
         raise 'ERROR: base_uri must be provided in PWN::Env[:ai][:ollama][:base_uri]' if base_uri.nil?
 

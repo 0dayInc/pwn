@@ -22,7 +22,12 @@ module PWN
       # )
 
       private_class_method def self.rest_call(opts = {})
-        token = opts[:token]
+        jserver = PWN::Env[:plugins][:jira_server]
+        raise 'ERROR: Jira Server Hash not found in PWN::Env.  Run i`pwn -Y default.yaml`, then `PWN::Env` for usage.' if jserver.nil?
+
+        base_uri = jserver[:base_uri]
+        token = jserver[:token]
+
         http_method = if opts[:http_method].nil?
                         :get
                       else
@@ -36,9 +41,8 @@ module PWN
         }
 
         http_body = opts[:http_body]
-        base_api_uri = opts[:base_api_uri]
 
-        raise 'ERROR: base_api_uri cannot be nil.' if base_api_uri.nil?
+        raise 'ERROR: base_uri cannot be nil.' if base_uri.nil?
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
@@ -54,7 +58,7 @@ module PWN
           headers[:params] = params
           response = rest_client.execute(
             method: http_method,
-            url: "#{base_api_uri}/#{rest_call}",
+            url: "#{base_uri}/#{rest_call}",
             headers: headers,
             verify_ssl: false,
             timeout: 180
@@ -72,7 +76,7 @@ module PWN
 
           response = rest_client.execute(
             method: http_method,
-            url: "#{base_api_uri}/#{rest_call}",
+            url: "#{base_uri}/#{rest_call}",
             headers: headers,
             payload: http_body,
             verify_ssl: false,
@@ -93,7 +97,7 @@ module PWN
         response
       rescue RestClient::ExceptionWithResponse => e
         if e.response
-          puts "HTTP BASE URL: #{base_api_uri}"
+          puts "HTTP BASE URL: #{base_uri}"
           puts "HTTP PATH: #{rest_call}"
           puts "HTTP RESPONSE CODE: #{e.response.code}"
           puts "HTTP RESPONSE HEADERS: #{e.response.headers}"
@@ -127,45 +131,22 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # all_fields = PWN::Plugins::JiraServer.get_all_fields(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token'
-      # )
+      # all_fields = PWN::Plugins::JiraServer.get_all_fields
 
-      public_class_method def self.get_all_fields(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
-
-        rest_call(
-          base_api_uri: base_api_uri,
-          token: token,
-          rest_call: 'field'
-        )
+      public_class_method def self.get_all_fields
+        rest_call(rest_call: 'field')
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # user = PWN::Plugins::JiraServer.get_user(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   username: 'required - username to lookup (e.g. jane.doe)',
       #   params: 'optional - additional parameters to pass in the URI (e.g. expand, etc.)'
       # )
 
       public_class_method def self.get_user(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
-
-        username = opts[:username]
+        username = opts[:username] || PWN::Plugins::AuthenticationHelper.username
         raise 'ERROR: username cannot be nil.' if username.nil?
 
         params = { key: username }
@@ -174,8 +155,6 @@ module PWN
         params.merge!(additional_params) if additional_params.is_a?(Hash)
 
         rest_call(
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: 'user',
           params: params
         )
@@ -185,28 +164,17 @@ module PWN
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.get_issue(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
       #   params: 'optional - additional parameters to pass in the URI (e.g. fields, expand, etc.)'
       # )
 
       public_class_method def self.get_issue(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
-
         issue = opts[:issue]
         params = opts[:params]
 
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
         rest_call(
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: "issue/#{issue}",
           params: params
         )
@@ -216,8 +184,6 @@ module PWN
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.create_issue(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   project_key: 'required - project key (e.g. PWN)',
       #   summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
       #   issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
@@ -229,12 +195,6 @@ module PWN
       # )
 
       public_class_method def self.create_issue(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
         project_key = opts[:project_key]
         raise 'ERROR: project_key cannot be nil.' if project_key.nil?
 
@@ -254,7 +214,7 @@ module PWN
 
         comment = opts[:comment]
 
-        all_fields = get_all_fields(base_api_uri: base_api_uri, token: token)
+        all_fields = get_all_fields(base_uri: base_uri, token: token)
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
 
         epic_name = opts[:epic_name]
@@ -277,8 +237,6 @@ module PWN
 
         issue_resp = rest_call(
           http_method: :post,
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: 'issue',
           http_body: http_body
         )
@@ -295,8 +253,6 @@ module PWN
 
             rest_call(
               http_method: :post,
-              base_api_uri: base_api_uri,
-              token: token,
               rest_call: "issue/#{issue}/attachments",
               http_body: http_body
             )
@@ -305,38 +261,24 @@ module PWN
 
         if comment
           issue_comment(
-            base_api_uri: base_api_uri,
-            token: token,
             issue: issue,
             comment_action: :add,
             comment: comment
           )
         end
 
-        get_issue(
-          base_api_uri: base_api_uri,
-          token: token,
-          issue: issue
-        )
+        get_issue(issue: issue)
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.update_issue(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
       #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/tmp/file1.txt", "/tmp/file2.txt"])',
       # )
 
       public_class_method def self.update_issue(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
         issue = opts[:issue]
         raise 'ERROR: project_key cannot be nil.' if issue.nil?
 
@@ -350,8 +292,6 @@ module PWN
 
         rest_call(
           http_method: :put,
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: "issue/#{issue}",
           http_body: http_body
         )
@@ -367,8 +307,6 @@ module PWN
 
             rest_call(
               http_method: :post,
-              base_api_uri: base_api_uri,
-              token: token,
               rest_call: "issue/#{issue}/attachments",
               http_body: http_body
             )
@@ -376,8 +314,6 @@ module PWN
         end
 
         get_issue(
-          base_api_uri: base_api_uri,
-          token: token,
           issue: issue
         )
       rescue StandardError => e
@@ -386,8 +322,6 @@ module PWN
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.issue_comment(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)',
       #   comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
       #   comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
@@ -396,13 +330,6 @@ module PWN
       # )
 
       public_class_method def self.issue_comment(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
-
         issue = opts[:issue]
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
@@ -434,43 +361,26 @@ module PWN
 
         rest_call(
           http_method: http_method,
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: rest_call,
           http_body: http_body
         )
 
-        get_issue(
-          base_api_uri: base_api_uri,
-          token: token,
-          issue: issue
-        )
+        get_issue(issue: issue)
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.delete_issue(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
       # )
 
       public_class_method def self.delete_issue(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
-
         issue = opts[:issue]
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
         rest_call(
           http_method: :delete,
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: "issue/#{issue}"
         )
       rescue StandardError => e
@@ -479,26 +389,15 @@ module PWN
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.delete_attachment(
-      #   base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-      #   token: 'required - personal access token',
       #   id: 'required - attachment ID to delete (e.g. 10000) found in #get_issue method'
       # )
 
       public_class_method def self.delete_attachment(opts = {})
-        base_api_uri = opts[:base_api_uri]
-
-        token = opts[:token]
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Personal Access Token'
-        )
-
         id = opts[:id]
         raise 'ERROR: attachment_id cannot be nil.' if id.nil?
 
         rest_call(
           http_method: :delete,
-          base_api_uri: base_api_uri,
-          token: token,
           rest_call: "attachment/#{id}"
         )
       rescue StandardError => e
@@ -517,28 +416,19 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          all_fields = #{self}.get_all_fields(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token'
-          )
+          all_fields = #{self}.get_all_fields
 
           user = #{self}.get_user(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             username: 'required - username to lookup (e.g. jane.doe')',
             params: 'optional - additional parameters to pass in the URI (e.g. expand, etc.)'
           )
 
           issue_resp = #{self}.get_issue(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
             params: 'optional - additional parameters to pass in the URI'
           )
 
           issue_resp = #{self}.create_issue(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             project_key: 'required - project key (e.g. PWN)',
             summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
             issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
@@ -550,16 +440,12 @@ module PWN
           )
 
           issue_resp = #{self}.update_issue(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
             fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
             attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])'
           )
 
           issue_resp = #{self}.issue_comment(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             issue: 'required - issue to comment on (e.g. Bug, Issue, Story, or Epic ID)',
             comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
             comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
@@ -568,14 +454,10 @@ module PWN
           )
 
           issue_resp = #{self}.delete_issue(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
           )
 
           issue_resp = #{self}.delete_attachment(
-            base_api_uri: 'required - base URI for Jira (e.g. https:/jira.corp.com/rest/api/latest)',
-            token: 'required - personal access token',
             id: 'required - attachment ID to delete (e.g. 10000) found in #get_issue method'
           )
 
