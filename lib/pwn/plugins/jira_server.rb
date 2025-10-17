@@ -385,6 +385,41 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # issue_resp = PWN::Plugins::JiraServer.clone_issue(
+      #   issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)'
+      # )
+
+      public_class_method def self.clone_issue(opts = {})
+        issue = opts[:issue]
+        raise 'ERROR: issue cannot be nil.' if issue.nil?
+
+        issue_data = get_issue(issue: issue)
+
+        project_key = issue_data[:fields][:project][:key]
+        summary = "CLONE - #{issue_data[:fields][:summary]}"
+        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
+        epic_name = nil
+        if issue_type == :epic
+          all_fields = get_all_fields
+          epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
+          epic_name = issue_data[:fields][epic_name_field_key.to_sym]
+        end
+        description = issue_data[:fields][:description]
+        additional_fields = { fields: issue_data[:fields] }
+
+        create_issue(
+          project_key: project_key,
+          summary: summary,
+          issue_type: issue_type,
+          epic_name: epic_name,
+          description: description,
+          additional_fields: additional_fields
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraServer.delete_issue(
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
       # )
@@ -465,6 +500,10 @@ module PWN
             comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
             author: 'optional - author of the comment (e.g. \"jane.doe\")',
             comment: 'optional - comment to add or update in the issue (e.g. \"This is a comment\")'
+          )
+
+          issue_resp = #{self}.clone_issue(
+            issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)'
           )
 
           issue_resp = #{self}.delete_issue(
