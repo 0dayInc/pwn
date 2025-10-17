@@ -218,6 +218,7 @@ module PWN
         epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
 
         epic_name = opts[:epic_name]
+        raise 'ERROR: epic_name cannot be nil when issue_type is :epic.' if issue_type == :epic && epic_name.nil?
 
         http_body = {
           fields: {
@@ -267,7 +268,20 @@ module PWN
           )
         end
 
-        get_issue(issue: issue)
+        created_issue = nil
+        get_issue_attempts = 0
+        max_get_issue_attempts = 7
+        begin
+          created_issue = get_issue(issue: issue)
+        rescue RuntimeError
+          raise 'ERROR: Max attempts reached for retrieving created issue.' if get_issue_attempts > max_get_issue_attempts
+
+          get_issue_attempts += 1
+          sleep 1
+          retry
+        end
+
+        created_issue
       rescue StandardError => e
         raise e
       end
