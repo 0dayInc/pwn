@@ -7,43 +7,9 @@ module PWN
   # Used to manage PWN configuration settings within PWN drivers.
   module Config
     # Supported Method Parameters::
-    # PWN::Config.redact_sensitive_artifacts(
-    #   config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
+    # env = PWN::Config.default_env(
+    #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
     # )
-    public_class_method def self.redact_sensitive_artifacts(opts = {})
-      config = opts[:config] ||= PWN::Env
-
-      sensitive_keys = %i[api_key key pass password psk token]
-
-      # Transform values at the current level: redact sensitive keys
-      config.transform_values.with_index do |v, k|
-        if sensitive_keys.include?(config.keys[k])
-          '>>> REDACTED >>> USE `pwn-vault` FOR ADMINISTRATION <<< REDACTED <<<'
-        else
-          v.is_a?(Hash) ? redact_sensitive_artifacts(config: v) : v
-        end
-      end
-    rescue StandardError => e
-      raise e
-    end
-
-    # Supported Method Parameters::
-    # env = PWN::Config.init_driver_options
-    public_class_method def self.init_driver_options
-      env = {
-        driver_opts: {
-          pwn_env_path: nil,
-          pwn_dec_path: nil
-        }
-      }
-      PWN.const_set(:Env, env)
-      # puts '[*] Loaded driver options.'
-    rescue StandardError => e
-      raise e
-    end
-
-    # Supported Method Parameters::
-    # env = PWN::Config.default_env
     public_class_method def self.default_env(opts = {})
       pwn_env_path = opts[:pwn_env_path]
       pwn_dec_path = "#{pwn_env_path}.decryptor"
@@ -119,6 +85,10 @@ module PWN
             }
           },
           hunter: { api_key: 'hunter.how API Key' },
+          jira_server: {
+            base_uri: 'Jira Server Base API URI (e.g. https://jira.company.com/rest/api/latest)',
+            token: 'Jira Server API Token'
+          },
           meshtastic: {
             mqtt: {
               host: 'mqtt.meshtastic.org',
@@ -161,6 +131,42 @@ module PWN
       Pry.config.refresh_pwn_env = false if defined?(Pry)
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
       PWN.const_set(:Env, env.freeze)
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
+    # PWN::Config.redact_sensitive_artifacts(
+    #   config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
+    # )
+    public_class_method def self.redact_sensitive_artifacts(opts = {})
+      config = opts[:config] ||= PWN::Env
+
+      sensitive_keys = %i[api_key key pass password psk token]
+
+      # Transform values at the current level: redact sensitive keys
+      config.transform_values.with_index do |v, k|
+        if sensitive_keys.include?(config.keys[k])
+          '>>> REDACTED >>> USE `pwn-vault` FOR ADMINISTRATION <<< REDACTED <<<'
+        else
+          v.is_a?(Hash) ? redact_sensitive_artifacts(config: v) : v
+        end
+      end
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
+    # env = PWN::Config.init_driver_options
+    public_class_method def self.init_driver_options
+      env = {
+        driver_opts: {
+          pwn_env_path: nil,
+          pwn_dec_path: nil
+        }
+      }
+      PWN.const_set(:Env, env)
+      # puts '[*] Loaded driver options.'
     rescue StandardError => e
       raise e
     end
@@ -264,6 +270,10 @@ module PWN
       puts "USAGE:
         #{self}.default_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+        )
+
+        #{self}.redact_sensitive_artifacts(
+          config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
         )
 
         #{self}.refresh_env(

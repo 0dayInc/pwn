@@ -25,6 +25,8 @@ module PWN
 
       private_class_method def self.grok_rest_call(opts = {})
         engine = PWN::Env[:ai][:grok]
+        raise 'ERROR: Jira Server Hash not found in PWN::Env.  Run i`pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
+
         token = engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key')
 
         http_method = if opts[:http_method].nil?
