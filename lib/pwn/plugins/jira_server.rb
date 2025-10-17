@@ -405,7 +405,11 @@ module PWN
           epic_name = issue_data[:fields][epic_name_field_key.to_sym]
         end
         description = issue_data[:fields][:description]
-        additional_fields = { fields: issue_data[:fields] }
+        # Filter out nil values from the additional fields
+        # which can be problematic during issue creation if
+        # custom fields aren't in the proper context.
+        filtered_fields = issue_data[:fields].compact
+        additional_fields = { fields: filtered_fields }
 
         create_issue(
           project_key: project_key,
