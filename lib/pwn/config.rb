@@ -85,7 +85,7 @@ module PWN
             }
           },
           hunter: { api_key: 'hunter.how API Key' },
-          jira_server: {
+          jira_data_center: {
             base_uri: 'Jira Server Base API URI (e.g. https://jira.company.com/rest/api/latest)',
             token: 'Jira Server API Token'
           },

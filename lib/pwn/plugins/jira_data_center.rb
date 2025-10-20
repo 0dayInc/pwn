@@ -9,7 +9,7 @@ module PWN
     # the 'rest' browser type of PWN::Plugins::TransparentBrowser.
     # This is based on the following Jira API Specification:
     # https://developer.atlassian.com/server/jira/platform/rest-apis/
-    module JiraServer
+    module JiraDataCenter
       @@logger = PWN::Plugins::PWNLogger.create
 
       # Supported Method Parameters::
@@ -22,7 +22,7 @@ module PWN
       # )
 
       private_class_method def self.rest_call(opts = {})
-        jserver = PWN::Env[:plugins][:jira_server]
+        jserver = PWN::Env[:plugins][:jira_data_center]
         raise 'ERROR: Jira Server Hash not found in PWN::Env.  Run i`pwn -Y default.yaml`, then `PWN::Env` for usage.' if jserver.nil?
 
         base_uri = jserver[:base_uri]
@@ -131,7 +131,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # all_fields = PWN::Plugins::JiraServer.get_all_fields
+      # all_fields = PWN::Plugins::JiraDataCenter.get_all_fields
 
       public_class_method def self.get_all_fields
         rest_call(rest_call: 'field')
@@ -140,7 +140,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # user = PWN::Plugins::JiraServer.get_user(
+      # user = PWN::Plugins::JiraDataCenter.get_user(
       #   username: 'required - username to lookup (e.g. jane.doe)',
       #   params: 'optional - additional parameters to pass in the URI (e.g. expand, etc.)'
       # )
@@ -163,7 +163,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.get_issue(
+      # issue_resp = PWN::Plugins::JiraDataCenter.get_issue(
       #   issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
       #   params: 'optional - additional parameters to pass in the URI (e.g. fields, expand, etc.)'
       # )
@@ -183,7 +183,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.create_issue(
+      # issue_resp = PWN::Plugins::JiraDataCenter.create_issue(
       #   project_key: 'required - project key (e.g. PWN)',
       #   summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
       #   issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
@@ -287,7 +287,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.update_issue(
+      # issue_resp = PWN::Plugins::JiraDataCenter.update_issue(
       #   fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
       #   attachments: 'optional - array of attachment paths to upload to the issue (e.g. ["/tmp/file1.txt", "/tmp/file2.txt"])',
       # )
@@ -335,7 +335,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.issue_comment(
+      # issue_resp = PWN::Plugins::JiraDataCenter.issue_comment(
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)',
       #   comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
       #   comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
@@ -385,7 +385,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_type_metadata = PWN::Plugins::JiraServer.get_issue_type_metadata(
+      # issue_type_metadata = PWN::Plugins::JiraDataCenter.get_issue_type_metadata(
       #   project_key: 'required - project key (e.g. PWN)',
       #   issue_type_id: 'required - issue type ID (e.g. issue[:fields][:issuetype][:id] from #get_issue method)'
       # )
@@ -403,7 +403,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.clone_issue(
+      # issue_resp = PWN::Plugins::JiraDataCenter.clone_issue(
       #   issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)'
       # )
 
@@ -416,49 +416,51 @@ module PWN
         project_key = issue_data[:fields][:project][:key]
         summary = "CLONE - #{issue_data[:fields][:summary]}"
 
-        http_body = { summary: summary }
+        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
+        issue_type_id = issue_data[:fields][:issuetype][:id]
 
-        rest_call(
-          http_method: :post,
-          rest_call: "issue/#{issue}/clone",
-          http_body: http_body
-        )
-        # issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
-        # issue_type_id = issue_data[:fields][:issuetype][:id]
-
-        # epic_name = nil
-        # if issue_type == :epic
-        #   all_fields = get_all_fields
-        #   epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
-        #   epic_name = issue_data[:fields][epic_name_field_key.to_sym]
-        # end
-        # description = issue_data[:fields][:description]
+        epic_name = nil
+        if issue_type == :epic
+          all_fields = get_all_fields
+          epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
+          epic_name = issue_data[:fields][epic_name_field_key.to_sym]
+        end
+        description = issue_data[:fields][:description]
         # TODO: Better Field Handling:
         # GET issue/createmeta/{projectIdOrKey}/issuetypes/{issueTypeId}
         # to discover required/allowed fields dynamically before
         # building the payload. Copy only what makes sense—some fields
         # (e.g., status, created date) can't be set on creation.
-        # issue_type_metadata = get_issue_type_metadata(
-        #   project_key: project_key,
-        #   issue_type_id: issue_type_id
-        # )
-        # filtered_fields = issue_data[:fields].compact
-        # additional_fields = { fields: filtered_fields }
+        issue_type_metadata = get_issue_type_metadata(
+          project_key: project_key,
+          issue_type_id: issue_type_id
+        )
+        issue_type_metadata_filter = issue_type_metadata[:fields].select do |field_key, field_value|
+          issue_data[:fields].key?(field_key.to_sym) &&
+            !field_value[:required] == false &&
+            !%w[status created updated resolution].include?(field_key)
+        end
 
-        # create_issue(
-        #   project_key: project_key,
-        #   summary: summary,
-        #   issue_type: issue_type,
-        #   epic_name: epic_name,
-        #   description: description,
-        #   additional_fields: additional_fields
-        # )
+        filtered_fields = issue_type_metadata_filter.each_with_object({}) do |(field_key, _field_value), acc|
+          acc[field_key.to_sym] = issue_data[:fields][field_key.to_sym]
+        end
+
+        additional_fields = { fields: filtered_fields }
+
+        create_issue(
+          project_key: project_key,
+          summary: summary,
+          issue_type: issue_type,
+          epic_name: epic_name,
+          description: description,
+          additional_fields: additional_fields
+        )
       rescue StandardError => e
         raise e
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.delete_issue(
+      # issue_resp = PWN::Plugins::JiraDataCenter.delete_issue(
       #   issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
       # )
 
@@ -475,7 +477,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # issue_resp = PWN::Plugins::JiraServer.delete_attachment(
+      # issue_resp = PWN::Plugins::JiraDataCenter.delete_attachment(
       #   id: 'required - attachment ID to delete (e.g. 10000) found in #get_issue method'
       # )
 

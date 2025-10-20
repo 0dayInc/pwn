@@ -35,7 +35,7 @@ module PWN
     autoload :IPInfo, 'pwn/plugins/ip_info'
     autoload :IRC, 'pwn/plugins/irc'
     autoload :Jenkins, 'pwn/plugins/jenkins'
-    autoload :JiraServer, 'pwn/plugins/jira_server'
+    autoload :JiraDataCenter, 'pwn/plugins/jira_data_center'
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
     autoload :Log, 'pwn/plugins/log'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
