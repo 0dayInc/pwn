@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-describe PWN::Plugins::JiraServer do
+describe PWN::Plugins::JiraDataCenter do
   it 'should display information for authors' do
-    authors_response = PWN::Plugins::JiraServer
+    authors_response = PWN::Plugins::JiraDataCenter
     expect(authors_response).to respond_to :authors
   end
 
   it 'should display information for existing help method' do
-    help_response = PWN::Plugins::JiraServer
+    help_response = PWN::Plugins::JiraDataCenter
     expect(help_response).to respond_to :help
   end
 end
