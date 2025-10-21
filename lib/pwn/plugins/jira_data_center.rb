@@ -405,10 +405,11 @@ module PWN
             rest_call: "issue/createmeta/#{project_key}/issuetypes/#{issue_type_id}",
             params: params
           )
+          is_last = this_resp[:isLast]
           response[:maxResults] = this_resp[:maxResults]
           response[:startAt] = this_resp[:startAt]
           response[:total] = this_resp[:total]
-          response[:isLast] = this_resp[:isLast]
+          response[:isLast] = is_last
           response[:values].concat(this_resp[:values])
           break if is_last
 
