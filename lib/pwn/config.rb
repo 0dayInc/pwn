@@ -100,20 +100,22 @@ module PWN
             mqtt: {
               host: 'mqtt.meshtastic.org',
               port: 1883,
+              tls: false,
               user: 'meshdev',
               pass: 'large4cats'
             },
             channel: {
+              active: 'LongFast',
               LongFast: {
                 psk: 'AQ==',
                 region: 'US/<STATE>',
-                channel_topic: '2/e/#',
+                topic: '2/e/#',
                 channel_num: 8
               },
               PWN: {
                 psk: 'required - PSK for pwn channel',
                 region: 'US/<STATE>',
-                channel_topic: '2/e/PWN/#',
+                topic: '2/e/PWN/#',
                 channel_num: 99
               }
             }

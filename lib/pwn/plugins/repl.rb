@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'meshtastic'
 require 'pry'
 require 'tty-prompt'
 require 'yaml'
@@ -60,6 +61,18 @@ module PWN
               dchars = "\001\e[32m\002(DEBUG) >>>\001\e[33m\002"
               dchars = "\001\e[33m\002(DEBUG) ***\001\e[33m\002" if mode == :splat
             end
+          end
+
+          if pi.config.pwn_mesh
+            active_channel = PWN::Env[:plugins][:meshtastic][:channel][:active].to_s.to_sym
+            region = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:region]
+            topic = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:topic]
+            channel_num = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:channel_num]
+
+            pi.config.prompt_name = "pwn.mesh:#{region}/#{topic}:#{channel_num}"
+            name = "\001\e[1m\002\001\e[32m\002#{pi.config.prompt_name}\001\e[0m\002"
+            dchars = "\001\e[32m\002>>>\001\e[33m\002"
+            dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
           end
 
           "#{name}[#{version}]:#{line_count} #{dchars} ".to_s.scrub
@@ -416,6 +429,40 @@ module PWN
           end
         end
 
+        Pry::Commands.create_command 'pwn-mesh' do
+          description 'Communicate with Meshtastic network within pwn REPL.'
+
+          def process
+            pi = pry_instance
+            pi.config.pwn_mesh = true
+            meshtastic_env = PWN::Env[:plugins][:meshtastic]
+
+            mqtt_env = meshtastic_env[:mqtt]
+            host = mqtt_env[:host]
+            port = mqtt_env[:port]
+            tls = mqtt_env[:tls]
+            username = mqtt_env[:user]
+            password = mqtt_env[:pass]
+
+            mqtt_obj = Meshtastic::MQTT.connect(
+              host: host,
+              port: port,
+              tls: tls,
+              username: username,
+              password: password
+            )
+            PWN.const_set(:MqttObj, mqtt_obj)
+
+            active_channel = meshtastic_env[:channel][:active].to_s.to_sym
+            channel_env = meshtastic_env[:channel][active_channel]
+            psk = channel_env[:psk]
+            region = channel_env[:region]
+            topic = channel_env[:topic]
+          rescue StandardError => e
+            raise e
+          end
+        end
+
         Pry::Commands.create_command 'pwn-vault' do
           description 'Edit the pwn.yaml configuration file.'
 
@@ -476,6 +523,8 @@ module PWN
             pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
+            PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
+            pi.config.pwn_mesh = false if pi.config.pwn_mesh
           end
         end
       rescue StandardError => e
@@ -591,6 +640,43 @@ module PWN
               puts "\nresponse_history[:choices] Length: #{response_history[:choices].length}\n" unless response_history.nil?
             end
             PWN::Env[:ai][engine][:response_history] = response_history
+          end
+        end
+
+        Pry.config.hooks.add_hook(:after_read, :pwn_mesh_hook) do |request, pi|
+          if pi.config.pwn_mesh && !request.chomp.empty?
+            mqtt_obj = PWN.const_get(:MqttObj)
+            from = "!#{mqtt_obj.client_id}"
+            active_channel = PWN::Env[:plugins][:meshtastic][:channel][:active].to_s.to_sym
+            topic = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:topic]
+            channel_num = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:channel_num]
+            psk = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:psk]
+
+            psks = {}
+            psks[active_channel] = psk
+
+            text = pi.input.line_buffer
+            to = '!ffffffff'
+            # If text include @! with 8 byte length OR
+            if text.include?('@!')
+              to_raw = text.split('@').last.chomp[0..8]
+              # If to_raw[1..-1] is hex than set to = to_raw
+              to = to_raw if to_raw[1..-1].match?(/^[a-fA-F0-9]{8}$/)
+            end
+            puts "\nFrom: #{from}"
+            puts "To: #{to}"
+            puts "Topic: #{topic}"
+            puts "Channel: #{channel_num}"
+            puts "Text: #{text}\n\n"
+            Meshtastic::MQTT.send_text(
+              mqtt_obj: mqtt_obj,
+              from: from,
+              to: to,
+              topic: topic,
+              channel: channel_num,
+              text: text,
+              psks: psks
+            )
           end
         end
       rescue StandardError => e
