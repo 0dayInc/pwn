@@ -405,10 +405,11 @@ module PWN
             rest_call: "issue/createmeta/#{project_key}/issuetypes/#{issue_type_id}",
             params: params
           )
-          max_results = this_resp[:maxResults]
-          total = this_resp[:total]
-          is_last = this_resp[:isLast]
-          response[:values].push(this_resp[:values])
+          response[:maxResults] = this_resp[:maxResults]
+          response[:startAt] = this_resp[:startAt]
+          response[:total] = this_resp[:total]
+          response[:isLast] = this_resp[:isLast]
+          response[:values].concat(this_resp[:values])
           break if is_last
 
           start_at += max_results
@@ -432,40 +433,68 @@ module PWN
 
         project_key = issue_data[:fields][:project][:key]
         summary = "CLONE - #{issue_data[:fields][:summary]}"
-
-        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
-        issue_type_id = issue_data[:fields][:issuetype][:id]
-
-        reject_keys = %i[
-          project
-          summary
-          issuetype
-          description
-          created
-          updated
-          resolution
-          status
-          resolutiondate
-          environment
-          comment
-          attachment
-        ]
-
         epic_name = nil
         epic_name_field_key = nil
         if issue_type == :epic
           all_fields = get_all_fields
           epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
           epic_name = issue_data[:fields][epic_name_field_key.to_sym]
-          reject_keys << epic_name_field_key.to_sym
         end
 
         description = issue_data[:fields][:description]
 
-        clone_fields = issue_data[:fields].dup
-        clone_fields.reject! { |key, value| reject_keys.include?(key) || value.nil? }
+        # Determine issue type (was previously missing) and create metadata
+        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
+        issue_type_id = issue_data[:fields][:issuetype][:id]
 
-        additional_fields = { fields: clone_fields }
+        meta = get_issue_type_metadata(
+          project_key: project_key,
+          issue_type_id: issue_type_id
+        )
+        candidate_array = meta[:values] ||= []
+
+        # Build list of fields we can 'set' on create (per create metadata)
+        allowed_fields = []
+        candidate_array.each do |field_obj|
+          next unless field_obj.is_a?(Hash)
+
+          ops = field_obj[:operations] ||= []
+          next unless ops.include?('set')
+
+          field_key = field_obj[:key] || field_obj[:id] || field_obj[:fieldId]
+          next if field_key.nil? || field_key.to_s.empty?
+
+          allowed_fields.push(field_key.to_s)
+        end
+
+        reserved_fields = %i[project summary issuetype description]
+        reserved_fields.push(epic_name_field_key.to_sym) if epic_name_field_key
+
+        filtered_fields = {}
+        issue_data[:fields].each do |k, v|
+          next if v.nil?
+
+          k_str = k.to_s
+          next if reserved_fields.include?(k) || reserved_fields.include?(k_str.to_sym)
+
+          next unless allowed_fields.include?(k_str)
+
+          case v
+          when Array
+            filtered_fields[k] = v.map { |elem| elem.is_a?(Hash) ? elem.slice(*%i[id key name value]) : elem }
+          when Hash
+            filtered_fields[k] =
+              if v.keys.any? { |kk| %i[id key name value].include?(kk) }
+                v.slice(*%i[id key name value])
+              else
+                v
+              end
+          else
+            filtered_fields[k] = v
+          end
+        end
+
+        additional_fields = { fields: filtered_fields }
 
         create_issue(
           project_key: project_key,
