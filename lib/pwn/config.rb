@@ -90,6 +90,13 @@ module PWN
             token: 'Jira Server API Token'
           },
           meshtastic: {
+            serial: {
+              port: '/dev/ttyUSB0',
+              baud: 115_200,
+              bits: 8,
+              stop: 1,
+              parity: :none
+            },
             mqtt: {
               host: 'mqtt.meshtastic.org',
               port: 1883,
@@ -100,18 +107,21 @@ module PWN
               LongFast: {
                 psk: 'AQ==',
                 region: 'US/<STATE>',
-                channel_topic: '2/e/#'
+                channel_topic: '2/e/#',
+                channel_num: 8
               },
               PWN: {
                 psk: 'required - PSK for pwn channel',
                 region: 'US/<STATE>',
-                channel_topic: '2/e/PWN/#'
+                channel_topic: '2/e/PWN/#',
+                channel_num: 99
               }
             }
           },
           shodan: { api_key: 'SHODAN API Key' }
         }
       }
+
       # Remove beginning colon from key names
       yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')
       File.write(pwn_env_path, yaml_env)
