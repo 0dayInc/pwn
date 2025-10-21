@@ -405,12 +405,17 @@ module PWN
             rest_call: "issue/createmeta/#{project_key}/issuetypes/#{issue_type_id}",
             params: params
           )
+          max_results = this_resp[:maxResults]
+          start_at = this_resp[:startAt]
+          total = this_resp[:total]
           is_last = this_resp[:isLast]
-          response[:maxResults] = this_resp[:maxResults]
-          response[:startAt] = this_resp[:startAt]
-          response[:total] = this_resp[:total]
+          values = this_resp[:values]
+
+          response[:maxResults] = max_results
+          response[:startAt] = start_at
+          response[:total] = total
           response[:isLast] = is_last
-          response[:values].concat(this_resp[:values])
+          response[:values].concat(values)
           break if is_last
 
           start_at += max_results
@@ -423,53 +428,63 @@ module PWN
 
       # Supported Method Parameters::
       # issue_resp = PWN::Plugins::JiraDataCenter.clone_issue(
-      #   issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)'
+      #   issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)',
+      #   copy_attachments: 'optional - boolean to indicate whether to copy attachments (Defaults to false)'
       # )
 
       public_class_method def self.clone_issue(opts = {})
         issue = opts[:issue]
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
+        copy_attachments = opts[:copy_attachments] ||= false
+
+        # Expand editmeta so we have full field set + attachment info
         issue_data = get_issue(issue: issue, params: { expand: 'editmeta' })
 
         project_key = issue_data[:fields][:project][:key]
-        summary = "CLONE - #{issue_data[:fields][:summary]}"
+        original_summary = issue_data[:fields][:summary]
+        summary = "CLONE - #{original_summary}"
+
+        # Determine issue type early
+        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
+        issue_type_id = issue_data[:fields][:issuetype][:id]
+
+        # Epic name handling (only if original issue is an epic)
         epic_name = nil
         epic_name_field_key = nil
         if issue_type == :epic
           all_fields = get_all_fields
-          epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
-          epic_name = issue_data[:fields][epic_name_field_key.to_sym]
+          epic_field_obj = all_fields.find { |field| field[:name] == 'Epic Name' }
+          epic_name_field_key = epic_field_obj[:id] if epic_field_obj
+          epic_name = issue_data[:fields][epic_name_field_key.to_sym] if epic_name_field_key
         end
 
         description = issue_data[:fields][:description]
 
-        # Determine issue type (was previously missing) and create metadata
-        issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
-        issue_type_id = issue_data[:fields][:issuetype][:id]
-
+        # Fetch create metadata to understand which fields can be set
         meta = get_issue_type_metadata(
           project_key: project_key,
           issue_type_id: issue_type_id
         )
         candidate_array = meta[:values] ||= []
 
-        # Build list of fields we can 'set' on create (per create metadata)
+        # Build list of fields we can set on create (operations include 'set' OR empty operations)
         allowed_fields = []
         candidate_array.each do |field_obj|
           next unless field_obj.is_a?(Hash)
 
           ops = field_obj[:operations] ||= []
-          next unless ops.include?('set')
+          # Permit if 'set' allowed or operations list empty (often still creatable)
+          next unless ops.empty? || ops.include?('set')
 
           field_key = field_obj[:key] || field_obj[:id] || field_obj[:fieldId]
           next if field_key.nil? || field_key.to_s.empty?
 
-          allowed_fields.push(field_key.to_s)
+          allowed_fields << field_key.to_s
         end
 
         reserved_fields = %i[project summary issuetype description]
-        reserved_fields.push(epic_name_field_key.to_sym) if epic_name_field_key
+        reserved_fields << epic_name_field_key.to_sym if epic_name_field_key
 
         filtered_fields = {}
         issue_data[:fields].each do |k, v|
@@ -482,11 +497,21 @@ module PWN
 
           case v
           when Array
-            filtered_fields[k] = v.map { |elem| elem.is_a?(Hash) ? elem.slice(*%i[id key name value]) : elem }
+            # Preserve minimal identifying attributes for each element; if element is primitive keep as-is
+            filtered_fields[k] = v.map do |elem|
+              if elem.is_a?(Hash)
+                # Retain common identifier keys; if none present keep full hash
+                keys_to_keep = %i[id key name value]
+                elem.keys.any? { |kk| keys_to_keep.include?(kk) } ? elem.slice(*keys_to_keep) : elem
+              else
+                elem
+              end
+            end
           when Hash
+            keys_to_keep = %i[id key name value]
             filtered_fields[k] =
-              if v.keys.any? { |kk| %i[id key name value].include?(kk) }
-                v.slice(*%i[id key name value])
+              if v.keys.any? { |kk| keys_to_keep.include?(kk) }
+                v.slice(*keys_to_keep)
               else
                 v
               end
@@ -497,14 +522,27 @@ module PWN
 
         additional_fields = { fields: filtered_fields }
 
-        create_issue(
+        attachments = []
+        if copy_attachments
+          attachments_obj = issue_data[:fields][:attachment] ||= []
+          attachments_obj.each do |att_obj|
+            attachments.push(att_obj[:filename])
+          end
+        end
+
+        # Create the cloned issue
+        cloned_issue = create_issue(
           project_key: project_key,
           summary: summary,
           issue_type: issue_type,
           epic_name: epic_name,
           description: description,
-          additional_fields: additional_fields
+          additional_fields: additional_fields,
+          attachments: attachments
         )
+
+        # Return the fully fetched cloned issue
+        get_issue(issue: cloned_issue[:key])
       rescue StandardError => e
         raise e
       end
@@ -598,7 +636,8 @@ module PWN
           )
 
           issue_resp = #{self}.clone_issue(
-            issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)'
+            issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)',
+            copy_attachments: 'optional - boolean to indicate whether to copy attachments (Defaults to false)'
           )
 
           issue_resp = #{self}.delete_issue(
