@@ -397,7 +397,24 @@ module PWN
         issue_type_id = opts[:issue_type_id]
         raise 'ERROR: issue_type_id cannot be nil.' if issue_type_id.nil?
 
-        rest_call(rest_call: "issue/createmeta/#{project_key}/issuetypes/#{issue_type_id}")
+        response = { values: [] }
+        start_at = 0
+        loop do
+          params = { startAt: start_at }
+          this_resp = rest_call(
+            rest_call: "issue/createmeta/#{project_key}/issuetypes/#{issue_type_id}",
+            params: params
+          )
+          max_results = this_resp[:maxResults]
+          total = this_resp[:total]
+          is_last = this_resp[:isLast]
+          response[:values].push(this_resp[:values])
+          break if is_last
+
+          start_at += max_results
+        end
+
+        response
       rescue StandardError => e
         raise e
       end
@@ -411,7 +428,7 @@ module PWN
         issue = opts[:issue]
         raise 'ERROR: issue cannot be nil.' if issue.nil?
 
-        issue_data = get_issue(issue: issue)
+        issue_data = get_issue(issue: issue, params: { expand: 'editmeta' })
 
         project_key = issue_data[:fields][:project][:key]
         summary = "CLONE - #{issue_data[:fields][:summary]}"
@@ -419,33 +436,36 @@ module PWN
         issue_type = issue_data[:fields][:issuetype][:name].downcase.to_sym
         issue_type_id = issue_data[:fields][:issuetype][:id]
 
+        reject_keys = %i[
+          project
+          summary
+          issuetype
+          description
+          created
+          updated
+          resolution
+          status
+          resolutiondate
+          environment
+          comment
+          attachment
+        ]
+
         epic_name = nil
+        epic_name_field_key = nil
         if issue_type == :epic
           all_fields = get_all_fields
           epic_name_field_key = all_fields.find { |field| field[:name] == 'Epic Name' }[:id]
           epic_name = issue_data[:fields][epic_name_field_key.to_sym]
+          reject_keys << epic_name_field_key.to_sym
         end
+
         description = issue_data[:fields][:description]
-        # TODO: Better Field Handling:
-        # GET issue/createmeta/{projectIdOrKey}/issuetypes/{issueTypeId}
-        # to discover required/allowed fields dynamically before
-        # building the payload. Copy only what makes sense—some fields
-        # (e.g., status, created date) can't be set on creation.
-        issue_type_metadata = get_issue_type_metadata(
-          project_key: project_key,
-          issue_type_id: issue_type_id
-        )
-        issue_type_metadata_filter = issue_type_metadata[:fields].select do |field_key, field_value|
-          issue_data[:fields].key?(field_key.to_sym) &&
-            !field_value[:required] == false &&
-            !%w[status created updated resolution].include?(field_key)
-        end
 
-        filtered_fields = issue_type_metadata_filter.each_with_object({}) do |(field_key, _field_value), acc|
-          acc[field_key.to_sym] = issue_data[:fields][field_key.to_sym]
-        end
+        clone_fields = issue_data[:fields].dup
+        clone_fields.reject! { |key, value| reject_keys.include?(key) || value.nil? }
 
-        additional_fields = { fields: filtered_fields }
+        additional_fields = { fields: clone_fields }
 
         create_issue(
           project_key: project_key,
@@ -514,7 +534,7 @@ module PWN
 
           issue_resp = #{self}.get_issue(
             issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
-            params: 'optional - additional parameters to pass in the URI'
+            params: 'optional - additional parameters to pass in the URI (e.g. fields, expand, etc.)'
           )
 
           issue_resp = #{self}.create_issue(
