@@ -11,7 +11,7 @@ gemspec
 # In some circumstances custom flags are passed to gems in order
 # to build appropriately.  Defer to ./reinstall_pwn_gemset.sh
 # to review these custom flags (e.g. pg, serialport, etc).
-gem 'activesupport', '8.0.3'
+gem 'activesupport', '<8.1.0'
 gem 'anemone', '0.7.2'
 gem 'authy', '3.0.1'
 gem 'aws-sdk', '3.3.0'
@@ -48,7 +48,7 @@ gem 'jwt', '3.1.2'
 gem 'libusb', '0.7.2'
 gem 'luhn', '3.0.0'
 gem 'mail', '2.8.1'
-gem 'meshtastic', '0.0.129'
+gem 'meshtastic', '0.0.132'
 gem 'metasm', '1.0.5'
 gem 'mongo', '2.21.3'
 gem 'msfrpc-client', '1.1.2'
