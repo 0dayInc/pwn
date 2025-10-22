@@ -483,7 +483,7 @@ module PWN
           allowed_fields << field_key.to_s
         end
 
-        reserved_fields = %i[project summary issuetype description]
+        reserved_fields = %i[project summary issuetype description attachment]
         reserved_fields << epic_name_field_key.to_sym if epic_name_field_key
 
         filtered_fields = {}

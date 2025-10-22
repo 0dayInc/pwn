@@ -663,6 +663,7 @@ module PWN
               to_raw = text.split('@').last.chomp[0..8]
               # If to_raw[1..-1] is hex than set to = to_raw
               to = to_raw if to_raw[1..-1].match?(/^[a-fA-F0-9]{8}$/)
+              text.gsub!("@#{to_raw}", '')
             end
             puts "\nFrom: #{from}"
             puts "To: #{to}"
