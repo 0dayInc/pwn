@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'curses'
 require 'fileutils'
 require 'meshtastic'
 require 'pry'
@@ -437,6 +438,14 @@ module PWN
             pi.config.pwn_mesh = true
             meshtastic_env = PWN::Env[:plugins][:meshtastic]
 
+            PWN.send(:remove_const, :MeshTxEchoThread) if PWN.const_defined?(:MeshTxEchoThread)
+            PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
+            PWN.send(:remove_const, :MeshRxWin) if PWN.const_defined?(:MeshRxWin)
+            PWN.send(:remove_const, :MeshTxWin) if PWN.const_defined?(:MeshTxWin)
+            PWN.send(:remove_const, :MeshPi) if PWN.const_defined?(:MeshPi)
+            PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
+            PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
+
             mqtt_env = meshtastic_env[:mqtt]
             host = mqtt_env[:host]
             port = mqtt_env[:port]
@@ -458,6 +467,101 @@ module PWN
             psk = channel_env[:psk]
             region = channel_env[:region]
             topic = channel_env[:topic]
+            channel_num = channel_env[:channel_num]
+
+            # Init ncurses UI (idempotent) with separate RX (top) and TX (bottom) panes
+            Curses.init_screen
+            Curses.curs_set(0)
+            # Curses.crmode
+            # Curses.ESCDELAY = 0
+            Curses.start_color
+            Curses.use_default_colors
+
+            rx_height = Curses.lines - 4
+            rx_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
+            rx_win.scrollok(true)
+            rx_win.nodelay = true
+            rx_win.box('|', "\u2500")
+            rx_win.addstr("#{host}:#{port} >>> #{region}/#{topic}:#{channel_num} >>> Messages >>>\n")
+            rx_win.refresh
+
+            tx_win = Curses::Window.new(4, Curses.cols, rx_height, 0)
+            tx_win.scrollok(false)
+            tx_win.nodelay = true
+            tx_win.box('|', "\u2500")
+            tx_win.addstr("TX Pane (echo while typing, last sent shown after Enter)\n")
+            tx_win.refresh
+
+            PWN.const_set(:MeshRxWin, rx_win)
+            PWN.const_set(:MeshTxWin, tx_win)
+            PWN.const_set(:MeshMutex, Mutex.new)
+            PWN.const_set(:MeshPi, pi)
+
+            # Live typing echo thread (idempotent)
+            tx_prompt = "#{region}/#{topic}:#{channel_num} >>> "
+            echo_thread = Thread.new do
+              loop do
+                break unless pi.config.pwn_mesh
+
+                tx_win = PWN.const_get(:MeshTxWin)
+                mutex = PWN.const_get(:MeshMutex)
+                msg_input = pi.input.line_buffer.to_s
+                ts = Time.now.strftime('%H:%M:%S')
+                mutex.synchronize do
+                  # Only show draft if after_read hook hasn't just written final TX (heuristic)
+                  tx_win.clear
+                  tx_win.box('|', "\u2500")
+                  tx_win.setpos(1, 1)
+                  tx_win.addstr("[#{ts}] [TX] #{tx_prompt} #{msg_input}")
+                  tx_win.refresh
+                end
+                sleep 0.01
+              end
+            end
+            echo_thread.abort_on_exception = false
+            PWN.const_set(:MeshTxEchoThread, echo_thread)
+
+            # Start single subscriber thread (idempotent)
+            #  {packet: {from: 2868848892, to: 4294967295, channel: 93, encrypted: :decrypted, id: 3144461425, hop_limit: 3, topic: "msh/US/UT/2/e/BroadSec/!aaff28fc", node_id_from: "!aaff28fc", node_id_to: "!ffffffff", decoded: {portnum: :TEXT_MESSAGE_APP, payload: "testy"}}, channel_id: "BroadSec", gateway_id: "!aaff28fc"}
+            psks = { active_channel => psk }
+            PWN::Plugins::ThreadPool.fill(
+              enumerable_array: [:mesh_sub],
+              max_threads: 1,
+              detach: true
+            ) do |_|
+              Meshtastic::MQTT.subscribe(
+                mqtt_obj: mqtt_obj,
+                region: region,
+                topic: topic,
+                channel: channel_num,
+                psks: psks
+              ) do |msg|
+                next unless msg.key?(:packet) && msg[:packet].key?(:decoded) && msg[:packet][:decoded].is_a?(Hash)
+
+                packet = msg[:packet]
+                decoded = packet[:decoded]
+                next unless decoded.key?(:portnum) && decoded[:portnum] == :TEXT_MESSAGE_APP
+
+                rx_win = PWN.const_get(:MeshRxWin)
+                mutex = PWN.const_get(:MeshMutex)
+
+                from = packet[:node_id_from]
+                absolute_topic = "#{region}/#{topic.gsub('#', from)}:#{channel_num}"
+                to = packet[:node_id_to]
+                rx_text = decoded[:payload]
+                ts = Time.now.strftime('%H:%M:%S')
+                mutex.synchronize do
+                  # rx_win.addstr("#{msg.inspect}\n")
+                  if to == '!ffffffff'
+                    rx_win.addstr("[#{ts}] [RX] #{absolute_topic}: #{rx_text}\n")
+                  else
+                    rx_win.addstr("[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} >>> #{to}: #{rx_text}\n")
+                  end
+                  rx_win.refresh
+                end
+              end
+            end
+            PWN.const_set(:MqttSubThread, true)
           rescue StandardError => e
             raise e
           end
@@ -523,8 +627,32 @@ module PWN
             pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
-            PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
-            pi.config.pwn_mesh = false if pi.config.pwn_mesh
+            return unless pi.config.pwn_mesh
+
+            pi.config.pwn_mesh = false
+            # Stop echo thread
+            if PWN.const_defined?(:MeshTxEchoThread)
+              PWN.const_get(:MeshTxEchoThread).kill
+              PWN.send(:remove_const, :MeshTxEchoThread)
+            end
+
+            if PWN.const_defined?(:MqttObj)
+              Meshtastic::MQTT.disconnect(mqtt_obj: PWN.const_get(:MqttObj))
+              PWN.send(:remove_const, :MqttObj)
+            end
+
+            if PWN.const_defined?(:MeshRxWin)
+              PWN.const_get(:MeshRxWin).close
+              PWN.send(:remove_const, :MeshRxWin)
+            end
+            if PWN.const_defined?(:MeshTxWin)
+              PWN.const_get(:MeshTxWin).close
+              PWN.send(:remove_const, :MeshTxWin)
+            end
+            PWN.send(:remove_const, :MeshPi) if PWN.const_defined?(:MeshPi)
+            PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
+            PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
+            Curses.close_screen
           end
         end
       rescue StandardError => e
@@ -656,21 +784,18 @@ module PWN
             psks = {}
             psks[active_channel] = psk
 
-            text = pi.input.line_buffer
+            tx_text = pi.input.line_buffer.to_s
             to = '!ffffffff'
-            # If text include @! with 8 byte length OR
-            if text.include?('@!')
-              to_raw = text.split('@').last.chomp[0..8]
+            # If text include @! with 8 byte length,
+            # send DM to that address
+            if tx_text.include?('@!')
+              to_raw = tx_text.split('@').last.chomp[0..8]
               # If to_raw[1..-1] is hex than set to = to_raw
               to = to_raw if to_raw[1..-1].match?(/^[a-fA-F0-9]{8}$/)
-              text.gsub!("@#{to_raw}", '')
+              # Remove any spaces from beginning of to_raw
+              tx_text.gsub!("@#{to_raw}", '').strip!
             end
-            puts "\nFrom: #{from}"
-            puts "To: #{to}"
-            puts "Region: #{region}"
-            puts "Topic: #{topic}"
-            puts "Channel #: #{channel_num}"
-            puts "Text: #{text}\n\n"
+
             Meshtastic::MQTT.send_text(
               mqtt_obj: mqtt_obj,
               from: from,
@@ -678,9 +803,24 @@ module PWN
               region: region,
               topic: topic,
               channel: channel_num,
-              text: text,
+              text: tx_text,
               psks: psks
             )
+
+            # Update TX pane (bottom) with last sent message
+            if PWN.const_defined?(:MeshTxWin)
+              tx_win = PWN.const_get(:MeshTxWin)
+              mutex = PWN.const_get(:MeshMutex)
+              absolute_topic = "#{region}/#{topic.gsub('#', from)}:#{channel_num}"
+              ts = Time.now.strftime('%H:%M:%S')
+              mutex.synchronize do
+                tx_win.clear
+                tx_win.box('|', "\u2500")
+                tx_win.setpos(1, 1)
+                tx_win.addstr("[#{ts}] [TX] #{absolute_topic} >>> #{to}: #{tx_text}")
+                tx_win.refresh
+              end
+            end
           end
         end
       rescue StandardError => e

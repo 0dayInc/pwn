@@ -530,16 +530,38 @@ module PWN
           end
         end
 
-        # Create the cloned issue
-        cloned_issue = create_issue(
-          project_key: project_key,
-          summary: summary,
-          issue_type: issue_type,
-          epic_name: epic_name,
-          description: description,
-          additional_fields: additional_fields,
-          attachments: attachments
-        )
+        # Attempt create, dynamically omit unlicensed fields on failure
+        attempt = 1
+        max_attempts = 5
+        cloned_issue = nil
+        begin
+          cloned_issue = create_issue(
+            project_key: project_key,
+            summary: summary,
+            issue_type: issue_type,
+            epic_name: epic_name,
+            description: description,
+            additional_fields: additional_fields,
+            attachments: attachments
+          )
+        rescue RestClient::ExceptionWithResponse => e
+          raise e if attempt >= max_attempts || e.response.body.to_s.empty?
+
+          json = JSON.parse(e.response.body, symbolize_names: true)
+          errors_hash = json[:errors] if json.is_a?(Hash)
+          if errors_hash.is_a?(Hash)
+            unlicensed_field_keys = errors_hash.select { |_fk, msg| msg.to_s =~ /unlicensed/i }.keys
+            if unlicensed_field_keys.any?
+              unlicensed_field_keys.each do |fk|
+                additional_fields[:fields].delete(fk.to_sym)
+                additional_fields[:fields].delete(fk.to_s)
+              end
+              @@logger.warn("Omitting unlicensed fields: #{unlicensed_field_keys.join(', ')} (attempt #{attempt}/#{max_attempts}). Retrying clone.") if defined?(@@logger)
+              attempt += 1
+              retry
+            end
+          end
+        end
 
         # Return the fully fetched cloned issue
         get_issue(issue: cloned_issue[:key])
