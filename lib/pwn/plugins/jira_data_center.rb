@@ -277,7 +277,7 @@ module PWN
           raise 'ERROR: Max attempts reached for retrieving created issue.' if get_issue_attempts > max_get_issue_attempts
 
           get_issue_attempts += 1
-          sleep 1
+          sleep 7
           retry
         end
 
@@ -563,8 +563,7 @@ module PWN
           end
         end
 
-        # Return the fully fetched cloned issue
-        get_issue(issue: cloned_issue[:key])
+        cloned_issue
       rescue StandardError => e
         raise e
       end
