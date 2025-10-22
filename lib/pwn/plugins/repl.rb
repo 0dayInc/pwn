@@ -648,6 +648,7 @@ module PWN
             mqtt_obj = PWN.const_get(:MqttObj)
             from = "!#{mqtt_obj.client_id}"
             active_channel = PWN::Env[:plugins][:meshtastic][:channel][:active].to_s.to_sym
+            region = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:region]
             topic = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:topic]
             channel_num = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:channel_num]
             psk = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:psk]
@@ -665,13 +666,15 @@ module PWN
             end
             puts "\nFrom: #{from}"
             puts "To: #{to}"
+            puts "Region: #{region}"
             puts "Topic: #{topic}"
-            puts "Channel: #{channel_num}"
+            puts "Channel #: #{channel_num}"
             puts "Text: #{text}\n\n"
             Meshtastic::MQTT.send_text(
               mqtt_obj: mqtt_obj,
               from: from,
               to: to,
+              region: region,
               topic: topic,
               channel: channel_num,
               text: text,
