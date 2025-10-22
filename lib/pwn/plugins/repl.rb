@@ -773,11 +773,11 @@ module PWN
         Pry.config.hooks.add_hook(:after_read, :pwn_mesh_hook) do |request, pi|
           if pi.config.pwn_mesh && !request.chomp.empty?
             mqtt_obj = PWN.const_get(:MqttObj)
-            from = "!#{mqtt_obj.client_id}"
             active_channel = PWN::Env[:plugins][:meshtastic][:channel][:active].to_s.to_sym
             region = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:region]
             topic = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:topic]
             channel_num = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:channel_num]
+            from = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:from] ||= "!#{mqtt_obj.client_id}"
             psk = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:psk]
 
             psks = {}
