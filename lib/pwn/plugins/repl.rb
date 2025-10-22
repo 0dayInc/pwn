@@ -522,7 +522,6 @@ module PWN
             PWN.const_set(:MeshTxEchoThread, echo_thread)
 
             # Start single subscriber thread (idempotent)
-            #  {packet: {from: 2868848892, to: 4294967295, channel: 93, encrypted: :decrypted, id: 3144461425, hop_limit: 3, topic: "msh/US/UT/2/e/BroadSec/!aaff28fc", node_id_from: "!aaff28fc", node_id_to: "!ffffffff", decoded: {portnum: :TEXT_MESSAGE_APP, payload: "testy"}}, channel_id: "BroadSec", gateway_id: "!aaff28fc"}
             psks = { active_channel => psk }
             PWN::Plugins::ThreadPool.fill(
               enumerable_array: [:mesh_sub],
@@ -551,12 +550,12 @@ module PWN
                 rx_text = decoded[:payload]
                 ts = Time.now.strftime('%H:%M:%S')
                 mutex.synchronize do
-                  # rx_win.addstr("#{msg.inspect}\n")
                   if to == '!ffffffff'
                     rx_win.addstr("[#{ts}] [RX] #{absolute_topic}: #{rx_text}\n")
                   else
                     rx_win.addstr("[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} >>> #{to}: #{rx_text}\n")
                   end
+                  # rx_win.addstr("#{msg.inspect}\n\n\n")
                   rx_win.refresh
                 end
               end
