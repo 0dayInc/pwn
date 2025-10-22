@@ -81,8 +81,8 @@ module PWN
             exec_hook :after_read, eval_string, self
 
             begin
-              complete_expr = true if config.pwn_ai || config.pwn_asm
-              complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.pwn_ai || config.pwn_asm
+              complete_expr = true if config.pwn_ai || config.pwn_asm || config.pwn_mesh
+              complete_expr = Pry::Code.complete_expression?(@eval_string) unless config.pwn_ai || config.pwn_asm || config.pwn_mesh
             rescue SyntaxError => e
               output.puts e.message.gsub(/^.*syntax error, */, 'SyntaxError: ')
               reset_eval_string
@@ -93,7 +93,8 @@ module PWN
                                          @eval_string.empty? ||
                                          @eval_string =~ /\A *#.*\n\z/ ||
                                          config.pwn_ai ||
-                                         config.pwn_asm
+                                         config.pwn_asm ||
+                                         config.pwn_mesh
 
               # A bug in jruby makes java.lang.Exception not rescued by
               # `rescue Pry::RescuableException` clause.
@@ -116,10 +117,12 @@ module PWN
                 reset_eval_string
 
                 result = evaluate_ruby(eval_string) unless config.pwn_ai ||
-                                                           config.pwn_asm
+                                                           config.pwn_asm ||
+                                                           config.pwn_mesh
 
                 result = eval_string if config.pwn_ai ||
-                                        config.pwn_asm
+                                        config.pwn_asm ||
+                                        config.pwn_mesh
               rescue Pry::RescuableException, *jruby_exceptions => e
                 # Eliminate following warning:
                 # warning: singleton on non-persistent Java type X
