@@ -478,11 +478,11 @@ module PWN
             Curses.use_default_colors
 
             rx_height = Curses.lines - 4
-            rx_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
+            rx_win = Curses::Window.new(rx_height, Curses.cols, -1, 0)
             rx_win.scrollok(true)
             rx_win.nodelay = true
             rx_win.box('|', "\u2500")
-            rx_win.addstr("#{host}:#{port} >>> #{region}/#{topic}:#{channel_num} >>> Messages >>>\n")
+            rx_win.addstr("<<< #{host}:#{port} | #{region}/#{topic} | ch:#{channel_num} >>>\n")
             rx_win.refresh
 
             tx_win = Curses::Window.new(4, Curses.cols, rx_height, 0)
