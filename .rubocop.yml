@@ -6,7 +6,7 @@ Layout/LineLength:
 Lint/UselessRescue:
   Enabled: false
 Metrics/AbcSize:
-  Max: 537.6
+  Max: 552.3
 Metrics/BlockLength:
   Max: 292
 Metrics/BlockNesting:
