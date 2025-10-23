@@ -594,7 +594,7 @@ module PWN
                   end
                   last_drawn = current_line
                 end
-                sleep 0.001
+                sleep 0.0001
               end
             end
             echo_thread.abort_on_exception = false
@@ -624,7 +624,7 @@ module PWN
                 rx_win = PWN.const_get(:MeshRxWin)
                 mutex = PWN.const_get(:MeshMutex)
 
-                from = packet[:node_id_from]
+                from = packet[:node_id_from].to_s.ljust(9, ' ')
                 absolute_topic = "#{region}/#{topic.gsub('#', from)}"
                 to = packet[:node_id_to]
                 rx_text = decoded[:payload]
@@ -633,26 +633,25 @@ module PWN
                 # Select a random color pair different from the last used one
                 colors_arr = PWN.const_get(:MeshColors)
                 last_pair = PWN.const_get(:MeshLastPair)
-                PWN.send(:remove_const, :MeshLastPair)
-                if last_from != from
+                pair = last_pair
+                unless last_from == from
+                  PWN.send(:remove_const, :MeshLastPair)
                   pair_choices = colors_arr.reject { |c| c == last_pair }
                   pair = pair_choices.sample
-                else
-                  pair = last_pair
+                  PWN.const_set(:MeshLastPair, pair)
                 end
-                PWN.const_set(:MeshLastPair, pair)
                 rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
 
                 current_line = "\n[#{ts}] [RX] #{absolute_topic} >>> #{rx_text}"
                 current_line = "\n[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} to: #{to} >>> #{rx_text}" unless to == '!ffffffff'
 
                 mutex.synchronize do
-                  inner_width = Curses.cols - 2
+                  inner_width = Curses.cols
                   content = current_line.sub(/\A\n/, '')
                   segments = content.scan(/.{1,#{inner_width}}/)
                   segments.each do |seg|
-                    rx_win.addstr("\n")
-                    rx_win.setpos(rx_win.cury, 1)
+                    # rx_win.addstr("\n")
+                    rx_win.setpos(rx_win.cury, 0)
                     line = seg.ljust(inner_width)
                     rx_win.addstr(line)
                   end
