@@ -220,65 +220,85 @@ module PWN
         epic_name = opts[:epic_name]
         raise 'ERROR: epic_name cannot be nil when issue_type is :epic.' if issue_type == :epic && epic_name.nil?
 
-        http_body = {
-          fields: {
-            project: {
-              key: project_key
-            },
-            summary: summary,
-            issuetype: {
-              name: issue_type.to_s.capitalize
-            },
-            "#{epic_name_field_key}": epic_name,
-            description: description
-          }
-        }
-
-        http_body[:fields].merge!(additional_fields[:fields])
-
-        issue_resp = rest_call(
-          http_method: :post,
-          rest_call: 'issue',
-          http_body: http_body
-        )
-        issue = issue_resp[:key]
-
-        if attachments.any?
-          attachments.each do |attachment|
-            raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
-
-            http_body = {
-              multipart: true,
-              file: File.new(attachment, 'rb')
+        # Attempt create, dynamically omit unlicensed fields on failure
+        create_attempts, get_issue_attempts = 1
+        max_create_attempts, max_get_issue_attempts = 7
+        created_issue = nil
+        begin
+          http_body = {
+            fields: {
+              project: {
+                key: project_key
+              },
+              summary: summary,
+              issuetype: {
+                name: issue_type.to_s.capitalize
+              },
+              "#{epic_name_field_key}": epic_name,
+              description: description
             }
+          }
 
-            rest_call(
-              http_method: :post,
-              rest_call: "issue/#{issue}/attachments",
-              http_body: http_body
+          http_body[:fields].merge!(additional_fields[:fields])
+
+          issue_resp = rest_call(
+            http_method: :post,
+            rest_call: 'issue',
+            http_body: http_body
+          )
+          issue = issue_resp[:key]
+
+          if attachments.any?
+            attachments.each do |attachment|
+              raise "ERROR: #{attachment} not found." unless File.exist?(attachment)
+
+              http_body = {
+                multipart: true,
+                file: File.new(attachment, 'rb')
+              }
+
+              rest_call(
+                http_method: :post,
+                rest_call: "issue/#{issue}/attachments",
+                http_body: http_body
+              )
+            end
+          end
+
+          if comment
+            issue_comment(
+              issue: issue,
+              comment_action: :add,
+              comment: comment
             )
           end
-        end
 
-        if comment
-          issue_comment(
-            issue: issue,
-            comment_action: :add,
-            comment: comment
-          )
-        end
+          begin
+            created_issue = get_issue(issue: issue)
+          rescue RuntimeError
+            raise 'ERROR: Max attempts reached for retrieving created issue.' if get_issue_attempts > max_get_issue_attempts
 
-        created_issue = nil
-        get_issue_attempts = 0
-        max_get_issue_attempts = 7
-        begin
-          created_issue = get_issue(issue: issue)
-        rescue RuntimeError
-          raise 'ERROR: Max attempts reached for retrieving created issue.' if get_issue_attempts > max_get_issue_attempts
+            get_issue_attempts += 1
+            sleep 3
+            retry
+          end
+        rescue RestClient::ExceptionWithResponse => e
+          raise e if create_attempts >= max_create_attempts || e.response.body.to_s.empty?
 
-          get_issue_attempts += 1
-          sleep 7
-          retry
+          json = JSON.parse(e.response.body, symbolize_names: true)
+          errors_hash = json[:errors] if json.is_a?(Hash)
+          if errors_hash.is_a?(Hash)
+            unlicensed_field_keys = errors_hash.select { |_fk, msg| msg.to_s =~ /unlicensed/i }.keys
+            if unlicensed_field_keys.any?
+              unlicensed_field_keys.each do |fk|
+                additional_fields[:fields].delete(fk.to_sym)
+                additional_fields[:fields].delete(fk.to_s)
+              end
+              @@logger.warn("Omitting unlicensed fields: #{unlicensed_field_keys.join(', ')} (attempt #{create_attempts}/#{max_create_attempts}). Retrying issue creation.") if defined?(@@logger)
+              create_attempts += 1
+              retry
+            end
+          end
         end
 
         created_issue
@@ -530,40 +550,15 @@ module PWN
           end
         end
 
-        # Attempt create, dynamically omit unlicensed fields on failure
-        attempt = 1
-        max_attempts = 5
-        cloned_issue = nil
-        begin
-          cloned_issue = create_issue(
-            project_key: project_key,
-            summary: summary,
-            issue_type: issue_type,
-            epic_name: epic_name,
-            description: description,
-            additional_fields: additional_fields,
-            attachments: attachments
-          )
-        rescue RestClient::ExceptionWithResponse => e
-          raise e if attempt >= max_attempts || e.response.body.to_s.empty?
-
-          json = JSON.parse(e.response.body, symbolize_names: true)
-          errors_hash = json[:errors] if json.is_a?(Hash)
-          if errors_hash.is_a?(Hash)
-            unlicensed_field_keys = errors_hash.select { |_fk, msg| msg.to_s =~ /unlicensed/i }.keys
-            if unlicensed_field_keys.any?
-              unlicensed_field_keys.each do |fk|
-                additional_fields[:fields].delete(fk.to_sym)
-                additional_fields[:fields].delete(fk.to_s)
-              end
-              @@logger.warn("Omitting unlicensed fields: #{unlicensed_field_keys.join(', ')} (attempt #{attempt}/#{max_attempts}). Retrying clone.") if defined?(@@logger)
-              attempt += 1
-              retry
-            end
-          end
-        end
-
-        cloned_issue
+        create_issue(
+          project_key: project_key,
+          summary: summary,
+          issue_type: issue_type,
+          epic_name: epic_name,
+          description: description,
+          additional_fields: additional_fields,
+          attachments: attachments
+        )
       rescue StandardError => e
         raise e
       end
