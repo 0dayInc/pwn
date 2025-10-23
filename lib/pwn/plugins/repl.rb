@@ -522,11 +522,11 @@ module PWN
             rx_win.addstr(rx_header)
             rx_win.attroff(Curses.color_pair(green) | Curses::A_BOLD)
             # Jump two lines below header before messages begin
-            rx_win.setpos(2, 1)
+            rx_win.setpos(2, 0)
             rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
-            rx_header_bottom_line = "\u2014" * (Curses.cols - 2)
-            rx_header_bottom_line_pos = (Curses.cols / 2) - (rx_header_bottom_line.length / 2)
-            rx_win.addstr(rx_header_bottom_line)
+            header_line = "\u2014" * Curses.cols
+            rx_header_bottom_line_pos = (Curses.cols / 2) - (header_line.length / 2)
+            rx_win.addstr(header_line)
             rx_win.attroff(Curses.color_pair(cyan) | Curses::A_BOLD)
 
             rx_win.refresh
@@ -552,29 +552,27 @@ module PWN
                 mutex = PWN.const_get(:MeshMutex)
                 msg_input = pi.input.line_buffer.to_s
                 ts = Time.now.strftime('%H:%M:%S%z')
-                cursor_pos = (Readline.respond_to?(:point) ? Readline.point : msg_input.length)
+                cursor_pos = Readline.point
                 prefix = "[#{ts}] [TX] #{tx_prompt} "
                 base_line = "#{prefix}#{msg_input}"
                 cursor_abs_index = prefix.length + cursor_pos
                 current_line = base_line
                 if current_line != last_drawn
                   mutex.synchronize do
-                    # Only show draft if after_read hook hasn't just written final TX (heuristic)
                     tx_win.clear
                     tx_win.attron(Curses.color_pair(red) | Curses::A_BOLD)
-                    tx_header_bottom_line = "\u2014" * (Curses.cols - 2)
-                    tx_header_bottom_line_pos = (Curses.cols / 2) - (rx_header_bottom_line.length / 2)
-                    tx_win.addstr(rx_header_bottom_line)
+                    tx_header_line_pos = (Curses.cols / 2) - (header_line.length / 2)
+                    tx_win.addstr(header_line)
                     tx_win.attroff(Curses.color_pair(red) | Curses::A_BOLD)
-                    tx_win.attron(Curses.color_pair(yellow) | Curses::A_BOLD)
 
-                    inner_width = Curses.cols - 2
+                    tx_win.attron(Curses.color_pair(yellow) | Curses::A_BOLD)
+                    inner_width = Curses.cols
                     segments = current_line.chars.each_slice(inner_width).map(&:join)
-                    available_rows = tx_win.maxy - 2
+                    available_rows = tx_win.maxy - 1
                     segments.first(available_rows).each_with_index do |seg, idx|
-                      tx_win.setpos(1 + idx, 1)
+                      tx_win.setpos(1 + idx, 0)
                       start_index = idx * inner_width
-                      end_index = start_index + inner_width - 1
+                      end_index = start_index + inner_width
                       if cursor_abs_index.between?(start_index, end_index)
                         cursor_col = cursor_abs_index - start_index
                         (0..inner_width).each do |col|
@@ -596,7 +594,7 @@ module PWN
                   end
                   last_drawn = current_line
                 end
-                sleep 0.005
+                sleep 0.001
               end
             end
             echo_thread.abort_on_exception = false
@@ -609,6 +607,7 @@ module PWN
               max_threads: 1,
               detach: true
             ) do |_|
+              last_from = nil
               Meshtastic::MQTT.subscribe(
                 mqtt_obj: mqtt_obj,
                 region: region,
@@ -635,8 +634,12 @@ module PWN
                 colors_arr = PWN.const_get(:MeshColors)
                 last_pair = PWN.const_get(:MeshLastPair)
                 PWN.send(:remove_const, :MeshLastPair)
-                pair_choices = colors_arr.reject { |c| c == last_pair }
-                pair = pair_choices.sample
+                if last_from != from
+                  pair_choices = colors_arr.reject { |c| c == last_pair }
+                  pair = pair_choices.sample
+                else
+                  pair = last_pair
+                end
                 PWN.const_set(:MeshLastPair, pair)
                 rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
 
@@ -656,6 +659,8 @@ module PWN
                   rx_win.refresh
                 end
                 rx_win.attroff(Curses.color_pair(pair) | Curses::A_REVERSE)
+
+                last_from = from
               end
             end
           rescue StandardError => e
