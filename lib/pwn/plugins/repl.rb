@@ -64,19 +64,10 @@ module PWN
             end
           end
 
-          if pi.config.pwn_mesh
-            active_channel = PWN::Env[:plugins][:meshtastic][:channel][:active].to_s.to_sym
-            region = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:region]
-            topic = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:topic]
-            channel_num = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:channel_num]
+          ps1_proc = "#{name}[#{version}]:#{line_count} #{dchars} ".to_s.scrub
+          ps1_proc = '' if pi.config.pwn_mesh
 
-            pi.config.prompt_name = "pwn.mesh:#{region}/#{topic}:#{channel_num}"
-            name = "\001\e[1m\002\001\e[32m\002#{pi.config.prompt_name}\001\e[0m\002"
-            dchars = "\001\e[32m\002>>>\001\e[33m\002"
-            dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
-          end
-
-          "#{name}[#{version}]:#{line_count} #{dchars} ".to_s.scrub
+          ps1_proc
         end
       rescue StandardError => e
         raise e
@@ -472,24 +463,77 @@ module PWN
             # Init ncurses UI (idempotent) with separate RX (top) and TX (bottom) panes
             Curses.init_screen
             Curses.curs_set(0)
-            # Curses.crmode
-            # Curses.ESCDELAY = 0
+            Curses.noecho
+            Curses.cbreak
+            Curses.crmode
+            Curses.ESCDELAY = 0
             Curses.start_color
             Curses.use_default_colors
 
+            mesh_highlight_colors = [
+              { fg: Curses::COLOR_RED, bg: Curses::COLOR_WHITE },
+              { fg: Curses::COLOR_GREEN, bg: Curses::COLOR_BLACK },
+              { fg: Curses::COLOR_YELLOW, bg: Curses::COLOR_BLACK },
+              { fg: Curses::COLOR_BLUE, bg: Curses::COLOR_WHITE },
+              { fg: Curses::COLOR_CYAN, bg: Curses::COLOR_BLACK },
+              { fg: Curses::COLOR_MAGENTA, bg: Curses::COLOR_WHITE },
+              { fg: Curses::COLOR_WHITE, bg: Curses::COLOR_BLUE }
+            ]
+            mesh_highlight_colors.each_with_index do |hash, idx|
+              color_id = idx + 1
+              color_fg = hash[:fg]
+              color_bg = hash[:bg]
+              Curses.init_pair(color_id, color_fg, color_bg)
+            end
+            PWN.const_set(:MeshColors, (1..mesh_highlight_colors.length).to_a)
+            PWN.const_set(:MeshLastPair, PWN::MeshColors.sample)
+
+            mesh_ui_colors = []
+            mesh_highlight_colors.each_with_index do |hl_hash, idx|
+              ui_hash = {
+                color_id: idx + 10,
+                fg: hl_hash[:fg],
+                bg: -1
+              }
+              Curses.init_pair(ui_hash[:color_id], ui_hash[:fg], ui_hash[:bg])
+              mesh_ui_colors.push(ui_hash)
+            end
+
+            red = mesh_ui_colors[0][:color_id]
+            green = mesh_ui_colors[1][:color_id]
+            yellow = mesh_ui_colors[2][:color_id]
+            blue = mesh_ui_colors[3][:color_id]
+            cyan = mesh_ui_colors[4][:color_id]
+            magenta = mesh_ui_colors[5][:color_id]
+            white = mesh_ui_colors[6][:color_id]
+
             rx_height = Curses.lines - 4
-            rx_win = Curses::Window.new(rx_height, Curses.cols, -1, 0)
+            rx_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
             rx_win.scrollok(true)
             rx_win.nodelay = true
-            rx_win.box('|', "\u2500")
-            rx_win.addstr("<<< #{host}:#{port} | #{region}/#{topic} | ch:#{channel_num} >>>\n")
+            rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
+
+            # Make rx_header bold and green
+            rx_win.attron(Curses.color_pair(green) | Curses::A_BOLD)
+            rx_header = "<<< #{host}:#{port} | #{region}/#{topic} | ch:#{channel_num} >>>"
+            rx_header_len = rx_header.length
+            rx_header_pos = (Curses.cols / 2) - (rx_header_len / 2)
+            rx_win.setpos(1, rx_header_pos)
+            rx_win.addstr(rx_header)
+            rx_win.attroff(Curses.color_pair(green) | Curses::A_BOLD)
+            # Jump two lines below header before messages begin
+            rx_win.setpos(2, 0)
+            rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
+            header_line = "\u2014" * Curses.cols
+            rx_header_bottom_line_pos = (Curses.cols / 2) - (header_line.length / 2)
+            rx_win.addstr(header_line)
+            rx_win.attroff(Curses.color_pair(cyan) | Curses::A_BOLD)
+
             rx_win.refresh
 
             tx_win = Curses::Window.new(4, Curses.cols, rx_height, 0)
             tx_win.scrollok(false)
             tx_win.nodelay = true
-            tx_win.box('|', "\u2500")
-            tx_win.addstr("TX Pane (echo while typing, last sent shown after Enter)\n")
             tx_win.refresh
 
             PWN.const_set(:MeshRxWin, rx_win)
@@ -498,24 +542,59 @@ module PWN
             PWN.const_set(:MeshPi, pi)
 
             # Live typing echo thread (idempotent)
-            tx_prompt = "#{region}/#{topic}:#{channel_num} >>> "
+            tx_prompt = "#{region}/#{topic} >>>"
             echo_thread = Thread.new do
+              last_drawn = nil
               loop do
                 break unless pi.config.pwn_mesh
 
                 tx_win = PWN.const_get(:MeshTxWin)
                 mutex = PWN.const_get(:MeshMutex)
                 msg_input = pi.input.line_buffer.to_s
-                ts = Time.now.strftime('%H:%M:%S')
-                mutex.synchronize do
-                  # Only show draft if after_read hook hasn't just written final TX (heuristic)
-                  tx_win.clear
-                  tx_win.box('|', "\u2500")
-                  tx_win.setpos(1, 1)
-                  tx_win.addstr("[#{ts}] [TX] #{tx_prompt} #{msg_input}")
-                  tx_win.refresh
+                ts = Time.now.strftime('%H:%M:%S%z')
+                cursor_pos = Readline.point
+                prefix = "[#{ts}] [TX] #{tx_prompt} "
+                base_line = "#{prefix}#{msg_input}"
+                cursor_abs_index = prefix.length + cursor_pos
+                current_line = base_line
+                if current_line != last_drawn
+                  mutex.synchronize do
+                    tx_win.clear
+                    tx_win.attron(Curses.color_pair(red) | Curses::A_BOLD)
+                    tx_header_line_pos = (Curses.cols / 2) - (header_line.length / 2)
+                    tx_win.addstr(header_line)
+                    tx_win.attroff(Curses.color_pair(red) | Curses::A_BOLD)
+
+                    tx_win.attron(Curses.color_pair(yellow) | Curses::A_BOLD)
+                    inner_width = Curses.cols
+                    segments = current_line.chars.each_slice(inner_width).map(&:join)
+                    available_rows = tx_win.maxy - 1
+                    segments.first(available_rows).each_with_index do |seg, idx|
+                      tx_win.setpos(1 + idx, 0)
+                      start_index = idx * inner_width
+                      end_index = start_index + inner_width
+                      if cursor_abs_index.between?(start_index, end_index)
+                        cursor_col = cursor_abs_index - start_index
+                        (0..inner_width).each do |col|
+                          ch = seg[col] || ' '
+                          if col == cursor_col
+                            tx_win.attron(Curses.color_pair(red) | Curses::A_REVERSE | Curses::A_BOLD)
+                            tx_win.addch(ch)
+                            tx_win.attroff(Curses.color_pair(red) | Curses::A_REVERSE | Curses::A_BOLD)
+                          else
+                            tx_win.addch(ch)
+                          end
+                        end
+                      else
+                        tx_win.addstr(seg.ljust(inner_width))
+                      end
+                    end
+                    tx_win.attroff(Curses.color_pair(yellow) | Curses::A_BOLD)
+                    tx_win.refresh
+                  end
+                  last_drawn = current_line
                 end
-                sleep 0.01
+                sleep 0.001
               end
             end
             echo_thread.abort_on_exception = false
@@ -528,6 +607,7 @@ module PWN
               max_threads: 1,
               detach: true
             ) do |_|
+              last_from = nil
               Meshtastic::MQTT.subscribe(
                 mqtt_obj: mqtt_obj,
                 region: region,
@@ -545,22 +625,44 @@ module PWN
                 mutex = PWN.const_get(:MeshMutex)
 
                 from = packet[:node_id_from]
-                absolute_topic = "#{region}/#{topic.gsub('#', from)}:#{channel_num}"
+                absolute_topic = "#{region}/#{topic.gsub('#', from)}"
                 to = packet[:node_id_to]
                 rx_text = decoded[:payload]
-                ts = Time.now.strftime('%H:%M:%S')
+                ts = Time.now.strftime('%H:%M:%S%z')
+
+                # Select a random color pair different from the last used one
+                colors_arr = PWN.const_get(:MeshColors)
+                last_pair = PWN.const_get(:MeshLastPair)
+                PWN.send(:remove_const, :MeshLastPair)
+                if last_from != from
+                  pair_choices = colors_arr.reject { |c| c == last_pair }
+                  pair = pair_choices.sample
+                else
+                  pair = last_pair
+                end
+                PWN.const_set(:MeshLastPair, pair)
+                rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
+
+                current_line = "\n[#{ts}] [RX] #{absolute_topic} >>> #{rx_text}"
+                current_line = "\n[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} to: #{to} >>> #{rx_text}" unless to == '!ffffffff'
+
                 mutex.synchronize do
-                  if to == '!ffffffff'
-                    rx_win.addstr("[#{ts}] [RX] #{absolute_topic}: #{rx_text}\n")
-                  else
-                    rx_win.addstr("[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} >>> #{to}: #{rx_text}\n")
+                  inner_width = Curses.cols - 2
+                  content = current_line.sub(/\A\n/, '')
+                  segments = content.scan(/.{1,#{inner_width}}/)
+                  segments.each do |seg|
+                    rx_win.addstr("\n")
+                    rx_win.setpos(rx_win.cury, 1)
+                    line = seg.ljust(inner_width)
+                    rx_win.addstr(line)
                   end
-                  # rx_win.addstr("#{msg.inspect}\n\n\n")
                   rx_win.refresh
                 end
+                rx_win.attroff(Curses.color_pair(pair) | Curses::A_REVERSE)
+
+                last_from = from
               end
             end
-            PWN.const_set(:MqttSubThread, true)
           rescue StandardError => e
             raise e
           end
@@ -648,6 +750,8 @@ module PWN
               PWN.const_get(:MeshTxWin).close
               PWN.send(:remove_const, :MeshTxWin)
             end
+            PWN.send(:remove_const, :MeshColors) if PWN.const_defined?(:MeshColors)
+            PWN.send(:remove_const, :MeshLastPair) if PWN.const_defined?(:MeshLastPair)
             PWN.send(:remove_const, :MeshPi) if PWN.const_defined?(:MeshPi)
             PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
             PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
@@ -805,21 +909,6 @@ module PWN
               text: tx_text,
               psks: psks
             )
-
-            # Update TX pane (bottom) with last sent message
-            if PWN.const_defined?(:MeshTxWin)
-              tx_win = PWN.const_get(:MeshTxWin)
-              mutex = PWN.const_get(:MeshMutex)
-              absolute_topic = "#{region}/#{topic.gsub('#', from)}:#{channel_num}"
-              ts = Time.now.strftime('%H:%M:%S')
-              mutex.synchronize do
-                tx_win.clear
-                tx_win.box('|', "\u2500")
-                tx_win.setpos(1, 1)
-                tx_win.addstr("[#{ts}] [TX] #{absolute_topic} >>> #{to}: #{tx_text}")
-                tx_win.refresh
-              end
-            end
           end
         end
       rescue StandardError => e
