@@ -432,7 +432,8 @@ module PWN
 
             PWN.send(:remove_const, :MeshTxEchoThread) if PWN.const_defined?(:MeshTxEchoThread)
             PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
-            PWN.send(:remove_const, :MeshRxWin) if PWN.const_defined?(:MeshRxWin)
+            PWN.send(:remove_const, :MeshRxHeaderWin) if PWN.const_defined?(:MeshRxHeaderWin)
+            PWN.send(:remove_const, :MeshRxBodyWin) if PWN.const_defined?(:MeshRxBodyWin)
             PWN.send(:remove_const, :MeshTxWin) if PWN.const_defined?(:MeshTxWin)
             PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
             PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
@@ -508,29 +509,37 @@ module PWN
             white = mesh_ui_colors[6][:color_id]
 
             rx_height = Curses.lines - 4
-            rx_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
+            rx_header_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
             # TODO: Scrollable but should stay below header_line
-            rx_win.scrollok(true)
-            rx_win.nodelay = true
-            rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
+            rx_header_win.scrollok(false)
+            rx_header_win.nodelay = true
+            rx_header_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
 
             # Make rx_header bold and green
-            rx_win.attron(Curses.color_pair(green) | Curses::A_BOLD)
+            rx_header_win.attron(Curses.color_pair(green) | Curses::A_BOLD)
             rx_header = "<<< #{host}:#{port} | #{region}/#{topic} | ch:#{channel_num} >>>"
             rx_header_len = rx_header.length
             rx_header_pos = (Curses.cols / 2) - (rx_header_len / 2)
-            rx_win.setpos(1, rx_header_pos)
-            rx_win.addstr(rx_header)
-            rx_win.attroff(Curses.color_pair(green) | Curses::A_BOLD)
+            rx_header_win.setpos(1, rx_header_pos)
+            rx_header_win.addstr(rx_header)
+            rx_header_win.attroff(Curses.color_pair(green) | Curses::A_BOLD)
             # Jump two lines below header before messages begin
-            rx_win.setpos(2, 0)
-            rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
+            rx_header_win.setpos(2, 0)
+            rx_header_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
             header_line = "\u2014" * Curses.cols
             rx_header_bottom_line_pos = (Curses.cols / 2) - (header_line.length / 2)
-            rx_win.addstr(header_line)
-            rx_win.attroff(Curses.color_pair(cyan) | Curses::A_BOLD)
+            rx_header_win.addstr(header_line)
+            rx_header_win.attroff(Curses.color_pair(cyan) | Curses::A_BOLD)
+            rx_header_win.refresh
+            PWN.const_set(:MeshRxHeaderWin, rx_header_win)
 
-            rx_win.refresh
+            body_start_row = 3
+            body_height = rx_height - body_start_row
+            rx_body_win = Curses::Window.new(body_height, Curses.cols, body_start_row, 0)
+            rx_body_win.scrollok(true)
+            rx_body_win.nodelay = true
+            rx_body_win.refresh
+            PWN.const_set(:MeshRxBodyWin, rx_body_win)
 
             tx_height = rx_height - 1
             tx_win = Curses::Window.new(4, Curses.cols, tx_height, 0)
@@ -538,7 +547,6 @@ module PWN
             tx_win.nodelay = true
             tx_win.refresh
 
-            PWN.const_set(:MeshRxWin, rx_win)
             PWN.const_set(:MeshTxWin, tx_win)
             PWN.const_set(:MeshMutex, Mutex.new)
 
@@ -622,7 +630,7 @@ module PWN
                 decoded = packet[:decoded]
                 next unless decoded.key?(:portnum) && decoded[:portnum] == :TEXT_MESSAGE_APP
 
-                rx_win = PWN.const_get(:MeshRxWin)
+                # rx_header_win = PWN.const_get(:MeshRxHeaderWin)
                 mutex = PWN.const_get(:MeshMutex)
 
                 from = "#{packet[:node_id_from]} ".ljust(9, ' ')
@@ -646,22 +654,24 @@ module PWN
                 to_label = 'DM' unless to == '!ffffffff'
                 current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text}"
 
-                rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
+                rx_body_win = PWN.const_get(:MeshRxBodyWin)
+                rx_body_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
                 mutex.synchronize do
+                  inner_height = Curses.lines - 5
                   inner_width = Curses.cols
                   segments = current_line.scan(/.{1,#{inner_width}}/)
                   segments.each do |seg|
-                    rx_win.setpos(rx_win.cury, 0)
+                    rx_body_win.setpos(rx_body_win.cury, 0)
                     # Handle wide Unicode characters for proper alignment
                     display_width = Unicode::DisplayWidth.of(seg)
                     width_diff = seg.length - display_width
                     inner_width = Curses.cols + width_diff
                     line = seg.ljust(inner_width)
-                    rx_win.addstr(line)
+                    rx_body_win.addstr(line)
                   end
-                  rx_win.refresh
+                  rx_body_win.refresh
                 end
-                rx_win.attroff(Curses.color_pair(pair) | Curses::A_REVERSE)
+                rx_body_win.attroff(Curses.color_pair(pair) | Curses::A_REVERSE)
 
                 last_from = from
               end
@@ -745,10 +755,16 @@ module PWN
               PWN.send(:remove_const, :MqttObj)
             end
 
-            if PWN.const_defined?(:MeshRxWin)
-              PWN.const_get(:MeshRxWin).close
-              PWN.send(:remove_const, :MeshRxWin)
+            if PWN.const_defined?(:MeshRxHeaderWin)
+              PWN.const_get(:MeshRxHeaderWin).close
+              PWN.send(:remove_const, :MeshRxHeaderWin)
             end
+
+            if PWN.const_defined?(:MeshRxBodyWin)
+              PWN.const_get(:MeshRxBodyWin).close
+              PWN.send(:remove_const, :MeshRxBodyWin)
+            end
+
             if PWN.const_defined?(:MeshTxWin)
               PWN.const_get(:MeshTxWin).close
               PWN.send(:remove_const, :MeshTxWin)
