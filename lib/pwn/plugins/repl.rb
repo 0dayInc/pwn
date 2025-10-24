@@ -551,9 +551,10 @@ module PWN
             PWN.const_set(:MeshMutex, Mutex.new)
 
             # Live typing echo thread (idempotent)
-            tx_prompt = "#{region}/#{topic} >>>"
+            tx_prompt = "pwn.mesh:#{region}/#{topic} >>> "
             echo_thread = Thread.new do
               last_line = nil
+              last_cursor_pos = -1
               loop do
                 break unless pi.config.pwn_mesh
 
@@ -562,11 +563,10 @@ module PWN
                 msg_input = pi.input.line_buffer.to_s
                 ts = Time.now.strftime('%H:%M:%S%z')
                 cursor_pos = Readline.point
-                prefix = "[#{ts}] [TX] #{tx_prompt} "
-                base_line = "#{prefix}#{msg_input}"
-                cursor_abs_index = prefix.length + cursor_pos
+                base_line = "#{tx_prompt}#{msg_input}"
+                cursor_abs_index = tx_prompt.length + cursor_pos
                 current_line = base_line
-                if last_line != current_line
+                if last_line != current_line || cursor_pos != last_cursor_pos
                   mutex.synchronize do
                     tx_win.clear
                     tx_win.attron(Curses.color_pair(red) | Curses::A_BOLD)
@@ -602,6 +602,7 @@ module PWN
                     tx_win.refresh
                   end
                   last_line = current_line
+                  last_cursor_pos = cursor_pos
                 end
                 sleep 0.00001
               end
