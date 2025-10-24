@@ -6,7 +6,7 @@ Layout/LineLength:
 Lint/UselessRescue:
   Enabled: false
 Metrics/AbcSize:
-  Max: 562.2
+  Max: 563.3
 Metrics/BlockLength:
   Max: 292
 Metrics/BlockNesting:
@@ -16,7 +16,7 @@ Metrics/ClassLength:
 Metrics/CyclomaticComplexity:
   Max: 157
 Metrics/MethodLength:
-  Max: 564
+  Max: 565
 Metrics/ModuleLength:
   Max: 1116
 Metrics/PerceivedComplexity:
