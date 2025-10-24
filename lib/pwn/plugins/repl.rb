@@ -509,7 +509,8 @@ module PWN
 
             rx_height = Curses.lines - 4
             rx_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
-            rx_win.scrollok(false)
+            # TODO: Scrollable but should stay below header_line
+            rx_win.scrollok(true)
             rx_win.nodelay = true
             rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
 
@@ -625,11 +626,11 @@ module PWN
                 rx_win = PWN.const_get(:MeshRxWin)
                 mutex = PWN.const_get(:MeshMutex)
 
-                from = "#{packet[:node_id_from]} ".ljust(11, '>')
+                from = "#{packet[:node_id_from]} ".ljust(9, ' ')
                 absolute_topic = "#{region}/#{topic.gsub('#', from)}"
                 to = packet[:node_id_to]
                 rx_text = decoded[:payload]
-                ts = Time.now.strftime('%H:%M:%S%z')
+                ts = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
 
                 # Select a random color pair different from the last used one
                 colors_arr = PWN.const_get(:MeshColors)
@@ -643,9 +644,9 @@ module PWN
                 end
                 rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
 
-                current_line = "\n[#{ts}] [RX] #{absolute_topic} #{rx_text}"
-                current_line = "\n[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} to: #{to} >>> #{rx_text}" unless to == '!ffffffff'
-
+                to_label = 'To'
+                to_label = 'DM' unless to == '!ffffffff'
+                current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text}"
                 mutex.synchronize do
                   inner_width = Curses.cols
                   content = current_line.sub(/\A\n/, '')
