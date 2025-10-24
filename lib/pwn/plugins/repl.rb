@@ -658,7 +658,6 @@ module PWN
                     inner_width = Curses.cols + width_diff
                     line = seg.ljust(inner_width)
                     rx_win.addstr(line)
-                    # rx_win.addstr("Inner Width: #{inner_width} width_diff: #{width_diff} display_width: #{display_width} seg.length: #{seg.length}\n")
                   end
                   rx_win.refresh
                 end
