@@ -5,6 +5,7 @@ require 'fileutils'
 require 'meshtastic'
 require 'pry'
 require 'tty-prompt'
+require 'unicode/display_width'
 require 'yaml'
 
 module PWN
@@ -433,7 +434,6 @@ module PWN
             PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
             PWN.send(:remove_const, :MeshRxWin) if PWN.const_defined?(:MeshRxWin)
             PWN.send(:remove_const, :MeshTxWin) if PWN.const_defined?(:MeshTxWin)
-            PWN.send(:remove_const, :MeshPi) if PWN.const_defined?(:MeshPi)
             PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
             PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
 
@@ -541,7 +541,6 @@ module PWN
             PWN.const_set(:MeshRxWin, rx_win)
             PWN.const_set(:MeshTxWin, tx_win)
             PWN.const_set(:MeshMutex, Mutex.new)
-            PWN.const_set(:MeshPi, pi)
 
             # Live typing echo thread (idempotent)
             tx_prompt = "#{region}/#{topic} >>>"
@@ -642,18 +641,21 @@ module PWN
                   pair = pair_choices.sample
                   PWN.const_set(:MeshLastPair, pair)
                 end
-                rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
 
                 to_label = 'To'
                 to_label = 'DM' unless to == '!ffffffff'
                 current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text}"
+
+                rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
                 mutex.synchronize do
                   inner_width = Curses.cols
-                  content = current_line.sub(/\A\n/, '')
-                  segments = content.scan(/.{1,#{inner_width}}/)
+                  segments = current_line.scan(/.{1,#{inner_width}}/)
                   segments.each do |seg|
-                    # rx_win.addstr("\n")
                     rx_win.setpos(rx_win.cury, 0)
+                    # Handle wide Unicode characters for proper alignment
+                    display_width = Unicode::DisplayWidth.of(seg)
+                    width_diff = seg.length - display_width
+                    inner_width = Curses.cols + width_diff
                     line = seg.ljust(inner_width)
                     rx_win.addstr(line)
                   end
@@ -753,7 +755,6 @@ module PWN
             end
             PWN.send(:remove_const, :MeshColors) if PWN.const_defined?(:MeshColors)
             PWN.send(:remove_const, :MeshLastPair) if PWN.const_defined?(:MeshLastPair)
-            PWN.send(:remove_const, :MeshPi) if PWN.const_defined?(:MeshPi)
             PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
             PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
             Curses.close_screen
