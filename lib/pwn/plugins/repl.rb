@@ -509,7 +509,7 @@ module PWN
 
             rx_height = Curses.lines - 4
             rx_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
-            rx_win.scrollok(true)
+            rx_win.scrollok(false)
             rx_win.nodelay = true
             rx_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
 
@@ -531,7 +531,8 @@ module PWN
 
             rx_win.refresh
 
-            tx_win = Curses::Window.new(4, Curses.cols, rx_height, 0)
+            tx_height = rx_height - 1
+            tx_win = Curses::Window.new(4, Curses.cols, tx_height, 0)
             tx_win.scrollok(false)
             tx_win.nodelay = true
             tx_win.refresh
@@ -624,7 +625,7 @@ module PWN
                 rx_win = PWN.const_get(:MeshRxWin)
                 mutex = PWN.const_get(:MeshMutex)
 
-                from = packet[:node_id_from].to_s.ljust(9, ' ')
+                from = "#{packet[:node_id_from]} ".ljust(11, '>')
                 absolute_topic = "#{region}/#{topic.gsub('#', from)}"
                 to = packet[:node_id_to]
                 rx_text = decoded[:payload]
@@ -642,7 +643,7 @@ module PWN
                 end
                 rx_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
 
-                current_line = "\n[#{ts}] [RX] #{absolute_topic} >>> #{rx_text}"
+                current_line = "\n[#{ts}] [RX] #{absolute_topic} #{rx_text}"
                 current_line = "\n[#{ts}] [RX][DM INTERCEPTED] #{absolute_topic} to: #{to} >>> #{rx_text}" unless to == '!ffffffff'
 
                 mutex.synchronize do
