@@ -487,7 +487,7 @@ module PWN
               Curses.init_pair(color_id, color_fg, color_bg)
             end
             PWN.const_set(:MeshColors, (1..mesh_highlight_colors.length).to_a)
-            PWN.const_set(:MeshLastPair, PWN::MeshColors.sample)
+            PWN.const_set(:MeshLastColor, PWN::MeshColors.sample)
 
             mesh_ui_colors = []
             mesh_highlight_colors.each_with_index do |hl_hash, idx|
@@ -553,7 +553,7 @@ module PWN
             # Live typing echo thread (idempotent)
             tx_prompt = "#{region}/#{topic} >>>"
             echo_thread = Thread.new do
-              last_drawn = nil
+              last_line = nil
               loop do
                 break unless pi.config.pwn_mesh
 
@@ -566,7 +566,7 @@ module PWN
                 base_line = "#{prefix}#{msg_input}"
                 cursor_abs_index = prefix.length + cursor_pos
                 current_line = base_line
-                if current_line != last_drawn
+                if last_line != current_line
                   mutex.synchronize do
                     tx_win.clear
                     tx_win.attron(Curses.color_pair(red) | Curses::A_BOLD)
@@ -601,9 +601,9 @@ module PWN
                     tx_win.attroff(Curses.color_pair(yellow) | Curses::A_BOLD)
                     tx_win.refresh
                   end
-                  last_drawn = current_line
+                  last_line = current_line
                 end
-                sleep 0.0001
+                sleep 0.00001
               end
             end
             echo_thread.abort_on_exception = false
@@ -617,6 +617,7 @@ module PWN
               detach: true
             ) do |_|
               last_from = nil
+              last_line = nil
               Meshtastic::MQTT.subscribe(
                 mqtt_obj: mqtt_obj,
                 region: region,
@@ -639,41 +640,43 @@ module PWN
                 rx_text = decoded[:payload]
                 ts = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
 
-                # Select a random color pair different from the last used one
+                # Select a random color different from the last used one
                 colors_arr = PWN.const_get(:MeshColors)
-                last_pair = PWN.const_get(:MeshLastPair)
-                pair = last_pair
+                last_color = PWN.const_get(:MeshLastColor)
+                color = last_color
                 unless last_from == from
-                  PWN.send(:remove_const, :MeshLastPair)
-                  pair_choices = colors_arr.reject { |c| c == last_pair }
-                  pair = pair_choices.sample
-                  PWN.const_set(:MeshLastPair, pair)
+                  PWN.send(:remove_const, :MeshLastColor)
+                  color_choices = colors_arr.reject { |c| c == last_color }
+                  color = color_choices.sample
+                  PWN.const_set(:MeshLastColor, color)
                 end
 
                 to_label = 'To'
                 to_label = 'DM' unless to == '!ffffffff'
                 current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text}"
 
-                rx_body_win = PWN.const_get(:MeshRxBodyWin)
-                rx_body_win.attron(Curses.color_pair(pair) | Curses::A_REVERSE)
-                mutex.synchronize do
-                  inner_height = Curses.lines - 5
-                  inner_width = Curses.cols
-                  segments = current_line.scan(/.{1,#{inner_width}}/)
-                  segments.each do |seg|
-                    rx_body_win.setpos(rx_body_win.cury, 0)
-                    # Handle wide Unicode characters for proper alignment
-                    display_width = Unicode::DisplayWidth.of(seg)
-                    width_diff = seg.length - display_width
-                    inner_width = Curses.cols + width_diff
-                    line = seg.ljust(inner_width)
-                    rx_body_win.addstr(line)
+                if last_line != current_line
+                  rx_body_win = PWN.const_get(:MeshRxBodyWin)
+                  mutex.synchronize do
+                    inner_height = rx_body_win.maxy - 5
+                    inner_width = rx_body_win.maxx
+                    segments = current_line.scan(/.{1,#{inner_width}}/)
+                    rx_body_win.attron(Curses.color_pair(color) | Curses::A_REVERSE)
+                    segments.each do |seg|
+                      rx_body_win.setpos(rx_body_win.cury, 0)
+                      # Handle wide Unicode characters for proper alignment
+                      display_width = Unicode::DisplayWidth.of(seg)
+                      width_diff = seg.length - display_width
+                      shift_width = inner_width + width_diff
+                      line = seg.ljust(shift_width)
+                      rx_body_win.addstr(line)
+                    end
+                    rx_body_win.attroff(Curses.color_pair(color) | Curses::A_REVERSE)
+                    rx_body_win.refresh
                   end
-                  rx_body_win.refresh
+                  last_line = current_line
+                  last_from = from
                 end
-                rx_body_win.attroff(Curses.color_pair(pair) | Curses::A_REVERSE)
-
-                last_from = from
               end
             end
           rescue StandardError => e
@@ -770,7 +773,7 @@ module PWN
               PWN.send(:remove_const, :MeshTxWin)
             end
             PWN.send(:remove_const, :MeshColors) if PWN.const_defined?(:MeshColors)
-            PWN.send(:remove_const, :MeshLastPair) if PWN.const_defined?(:MeshLastPair)
+            PWN.send(:remove_const, :MeshLastColor) if PWN.const_defined?(:MeshLastColor)
             PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
             PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
             Curses.close_screen
