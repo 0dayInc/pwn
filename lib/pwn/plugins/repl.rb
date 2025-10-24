@@ -654,7 +654,7 @@ module PWN
 
                 to_label = 'To'
                 to_label = 'DM' unless to == '!ffffffff'
-                current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text}"
+                current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text.gsub("\n", "\n> ")}"
 
                 if last_line != current_line
                   rx_body_win = PWN.const_get(:MeshRxBodyWin)
