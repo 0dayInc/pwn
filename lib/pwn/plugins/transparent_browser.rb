@@ -1150,43 +1150,60 @@ module PWN
         devtools = browser_obj[:devtools]
         debugger_state = devtools.instance_variable_get(:@debugger_state)
 
+        method = nil
         case action
         when :enable
-          if debugger_state.is_a?(Hash)
-            debugger_state = devtools.instance_variable_get(:@debugger_state)
-            devtools.remove_instance_variable(:@debugger_state) if debugger_state.is_a?(Hash)
-            devtools.debugger.disable
+          while method != 'Debugger.scriptParsed'
+            if debugger_state.is_a?(Hash)
+              debugger_state = devtools.instance_variable_get(:@debugger_state)
+              devtools.remove_instance_variable(:@debugger_state) unless debugger_state.nil?
+              devtools.debugger.disable
+            end
+            debugger_state = {}
+            breakpoint_arr = []
+
+            devtools.debugger.enable
+            ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+            method = ws_msg['method']
+
+            bcmd = 'EventBreakpoints.setInstrumentationBreakpoint'
+            event = 'load'
+            breakpoint = devtools.send_cmd(bcmd, eventName: event)
+            breakpoint['result']['breakpointId'] = "#{bcmd}.#{event}.#{SecureRandom.uuid}"
+            # bcmd = 'Debugger.setInstrumentationBreakpoint'
+            # instrumentation = 'beforeScriptExecution'
+            # breakpoint = devtools.send_cmd(bcmd, instrumentation: instrumentation)
+            # breakpoint['result']['breakpointId'] = "#{bcmd}.#{instrumentation}.#{SecureRandom.uuid}"
+            breakpoint_arr.push(breakpoint)
+            debugger_state[:breakpoints] = breakpoint_arr
+
+            devtools.runtime.disable
+            devtools.log.disable
+            devtools.network.disable
+            devtools.page.disable
+            puts debugger_state.inspect
           end
-          debugger_state = {}
-          breakpoint_arr = []
-
-          # breakpoint = devtools.debugger.set_instrumentation_breakpoint(instrumentation: 'beforeScriptExecution')
-          bcmd = 'EventBreakpoints.setInstrumentationBreakpoint'
-          event = 'load'
-          breakpoint = devtools.send_cmd(bcmd, eventName: event)
-          breakpoint['result']['breakpointId'] = "#{bcmd}.#{event}.#{SecureRandom.uuid}"
-          breakpoint_arr.push(breakpoint)
-          debugger_state[:breakpoints] = breakpoint_arr
-
-          devtools.runtime.disable
-          devtools.log.disable
-          devtools.network.disable
-          devtools.page.disable
-          devtools.debugger.enable
         when :pause
-          devtools.debugger.pause
-          Timeout.timeout(5) { browser_obj[:browser].refresh }
+          while method != 'Debugger.paused'
+            Timeout.timeout(9) { browser_obj[:browser].refresh }
+            devtools.debugger.pause
+            ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+            method = ws_msg['method']
+          end
         when :resume
-          devtools.debugger.resume
+          while method != 'Debugger.resumed'
+            devtools.debugger.resume
+            ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+            method = ws_msg['method']
+          end
         when :disable
           debugger_state = devtools.instance_variable_get(:@debugger_state)
           devtools.remove_instance_variable(:@debugger_state) if debugger_state.is_a?(Hash)
           devtools.debugger.disable
         end
 
-        devtools_websocket_messages = devtools_websocket_messages(browser_obj: browser_obj)
-        debugger_state[:method] = devtools_websocket_messages['method']
-        devtools.instance_variable_set(:@debugger_state, debugger_state)
+        debugger_state[:method] = method
+        devtools.instance_variable_set(:@debugger_state, debugger_state) if debugger_state.is_a?(Hash)
         devtools
       rescue Timeout::Error
         devtools
@@ -1226,6 +1243,8 @@ module PWN
           return devtools
         end
 
+        system_role_content = 'Being an expert penetration tester skilled in code analysis, debugging, and exploitation while stepping through JavaScript in a Chrome DevTools debugging session:  1. Your sole purpose is to analyze each JavaScript step and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  2. If the score is >= 75%, generate a JavaScript proof-of-concept that would allow a threat actor to directly exploit or target a user for exploitation (i.e. no self-exploit).  3. If the EPSS score is >= 75% also provide a code fix. *** If the EPSS score is < 75%, no explanations or summaries - just the EPSS score.'
+
         page_state_arr = []
         steps.times do |s|
           step_num = s + 1
@@ -1257,12 +1276,17 @@ module PWN
             source_lines = source_code.split("\n")
             source_lines_str = source_lines[from_line_num..to_line_num].join("\n")
             source_to_review = source_lines_str[from_column_num..to_column_num]
+            source_before = source_to_review.dup
 
-            puts source_to_review
-            request = source_lines_str[from_column_num..to_column_num]
-            ai_analysis = PWN::AI::Introspection.reflect_on(request: request)
-            puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
-            # gets
+            if source_to_review.length.positive?
+              puts source_to_review
+              ai_analysis = PWN::AI::Introspection.reflect_on(
+                system_role_content: system_role_content,
+                request: source_to_review
+              )
+              puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
+              # gets
+            end
           end
 
           case action
@@ -1299,12 +1323,17 @@ module PWN
             source_lines = source_code.split("\n")
             source_lines_str = source_lines[from_line_num..to_line_num].join("\n")
             source_to_review = source_lines_str[from_column_num..to_column_num]
+            source_after = source_to_review.dup
 
-            puts source_to_review
-            request = source_lines_str[from_column_num..to_column_num]
-            ai_analysis = PWN::AI::Introspection.reflect_on(request: request)
-            puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
-            # gets
+            if source_to_review.length.positive? && source_to_review != source_before
+              puts source_to_review
+              ai_analysis = PWN::AI::Introspection.reflect_on(
+                system_role_content: system_role_content,
+                request: source_to_review
+              )
+              puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
+              # gets
+            end
           end
           puts "\n" * 6
 
