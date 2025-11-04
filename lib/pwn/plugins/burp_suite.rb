@@ -108,12 +108,20 @@ module PWN
           next
         end
 
-        # Update proxy listener to use the burp_ip and burp_port
-        update_proxy_listener(
+        # Delete existing proxy listener and add new one
+        # in favor of weird update behavior in event the port is alread in use
+        # by another application which refuses to enable the listener even when
+        # the port is changed via the update method.
+        delete_proxy_listener(
           burp_obj: burp_obj,
-          id: '0',
-          address: burp_ip,
-          port: burp_port
+          id: 0
+        )
+
+        add_proxy_listener(
+          burp_obj: burp_obj,
+          bindAddress: burp_ip,
+          port: burp_port,
+          enabled: true
         )
 
         burp_obj
@@ -270,7 +278,7 @@ module PWN
       # Supported Method Parameters::
       # json_proxy_listener = PWN::Plugins::BurpSuite.add_proxy_listener(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   bind_address: 'required - bind address for the proxy listener (e.g., "127.0.0.1")',
+      #   bindAddress: 'required - bind address for the proxy listener (e.g., "127.0.0.1")',
       #   port: 'required - port for the proxy listener (e.g., 8081)',
       #   enabled: 'optional - enable the listener (defaults to true)'
       # )
@@ -279,8 +287,8 @@ module PWN
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
-        bind_address = opts[:bind_address]
-        raise 'ERROR: bind_address parameter is required' if bind_address.nil?
+        bind_address = opts[:bindAddress]
+        raise 'ERROR: bindAddress parameter is required' if bind_address.nil?
 
         port = opts[:port]
         raise 'ERROR: port parameter is required' if port.nil?
@@ -288,12 +296,14 @@ module PWN
         enabled = opts[:enabled] != false # Default to true if not specified
 
         proxy_listeners = get_proxy_listeners(burp_obj: burp_obj)
-        last_known_proxy_id = proxy_listeners.last[:id].to_i ||= 0
+        puts "Proxy Listeners: #{proxy_listeners.inspect}"
+        last_known_proxy_id = 0
+        last_known_proxy_id = proxy_listeners.last[:id].to_i if proxy_listeners.any?
         next_id = last_known_proxy_id + 1
 
         post_body = {
           id: next_id.to_s,
-          bind_address: bind_address,
+          bindAddress: bind_address,
           port: port,
           enabled: enabled
         }.to_json
@@ -308,24 +318,29 @@ module PWN
       # Supported Method Parameters::
       # json_proxy_listener = PWN::Plugins::BurpSuite.update_proxy_listener(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   id: 'optional - ID of the proxy listener (defaults to "0")',
-      #   bind_address: 'optional - bind address for the proxy listener (defaults to "127.0.0.1")',
-      #   port: 'optional - port for the proxy listener (defaults to 8080)',
-      #   enabled: 'optional - enable or disable the listener (defaults to true)'
+      #   id: 'optional - ID of the proxy listener (defaults to 0)',
+      #   bindAddress: 'optional - bind address for the proxy listener (defaults to value of existing listener)',
+      #   port: 'optional - port for the proxy listener (defaults to value of existing listener)',
+      #   enabled: 'optional - enable or disable the listener (defaults to value of existing listener)'
       # )
 
       public_class_method def self.update_proxy_listener(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
-        id = opts[:id] ||= '0'
-        bind_address = opts[:bind_address] ||= '127.0.0.1'
-        port = opts[:port] ||= 8080
-        enabled = opts[:enabled] != false # Default to true if not specified
+        id = opts[:id] ||= 0
+
+        proxy_listeners = get_proxy_listeners(burp_obj: burp_obj)
+        listener_by_id = proxy_listeners.find { |listener| listener[:id].to_i == id.to_i }
+        raise "ERROR: No proxy listener found with ID #{id}" if listener_by_id.nil?
+
+        bind_address = opts[:bindAddress] ||= listener_by_id[:bindAddress]
+        port = opts[:port] ||= listener_by_id[:port]
+        enabled = opts[:enabled] ||= listener_by_id[:enabled]
 
         post_body = {
-          id: id,
-          bind_address: bind_address,
+          id: id.to_s,
+          bindAddress: bind_address,
           port: port,
           enabled: enabled
         }.to_json
@@ -340,15 +355,17 @@ module PWN
       # Supported Method Parameters::
       # PWN::Plugins::BurpSuite.delete_proxy_listener(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   id: 'required - ID of the proxy listener (defaults to "0")'
+      #   id: 'optional - ID of the proxy listener (defaults to 0)'
       # )
 
       public_class_method def self.delete_proxy_listener(opts = {})
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
-        id = opts[:id] ||= '0'
-        raise 'ERROR: id parameter is required' if id.nil?
+        id = opts[:id] ||= 0
+        proxy_listeners = get_proxy_listeners(burp_obj: burp_obj)
+        listener_by_id = proxy_listeners.find { |listener| listener[:id].to_i == id.to_i }
+        raise "ERROR: No proxy listener found with ID #{id}" if listener_by_id.nil?
 
         rest_browser.delete("http://#{mitm_rest_api}/proxy/listeners/#{id}")
         true # Return true to indicate successful deletion (or error if API fails)
@@ -566,6 +583,22 @@ module PWN
         mitm_rest_api = burp_obj[:mitm_rest_api]
         sitemap = opts[:sitemap] ||= {}
         debug = opts[:debug] || false
+
+        decoded_sitemap = {
+          request: Base64.strict_decode64(sitemap[:request]),
+          http_service: {
+            host: sitemap[:http_service][:host],
+            port: sitemap[:http_service][:port],
+            protocol: sitemap[:http_service][:protocol]
+          }
+        }
+        system_role_content = 'Your sole purpose is to analyze each `protocol`, `host`, `port`, and `request` and generate an Exploit Prediction Scoring System (EPSS) score from 0%-100%.  Just generate a score unless the score is >= 75% in which a PoC should also be generated to communicate the threat.  You can always generate an score - provide the score at _the beggining of your analysis_.  Be concise and to the point.'
+        ai_analysis = PWN::AI::Introspection.reflect_on(
+          system_role: system_role_content,
+          request: decoded_sitemap.to_json,
+          spinner: true
+        )
+        sitemap[:comment] = ai_analysis unless ai_analysis.nil?
 
         rest_client = rest_browser::Request
         response = rest_client.execute(
@@ -1484,22 +1517,22 @@ module PWN
 
           json_proxy_listener = #{self}.add_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
-            bind_address: 'required - bind address for the proxy listener (e.g., \"127.0.0.1\")',
+            bindAddress: 'required - bind address for the proxy listener (e.g., \"127.0.0.1\")',
             port: 'required - port for the proxy listener (e.g., 8081)',
             enabled: 'optional - enable the listener (defaults to true)'
           )
 
           json_proxy_listener = #{self}.update_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
-            id: 'optional - ID of the proxy listener (defaults to \"0\")',
-            bind_address: 'required - bind address for the proxy listener (e.g., \"127.0.0.1\")',
-            port: 'required - port for the proxy listener (e.g., 8081)',
-            enabled: 'optional - enable the listener (defaults to true)'
+            id: 'optional - ID of the proxy listener (defaults to 0)',
+            bindAddress: 'optional - bind address for the proxy listener (defaults to value of existing listener)',
+            port: 'optional - port for the proxy listener (defaults to value of existing listener)',
+            enabled: 'optional - enable the listener (defaults to value of existing listener)'
           )
 
           #{self}.delete_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
-            id: 'required - ID of the proxy listener (defaults to \"0\")'
+            id: 'optional - ID of the proxy listener (defaults to 0)'
           )
 
           json_sitemap = #{self}.get_sitemap(
