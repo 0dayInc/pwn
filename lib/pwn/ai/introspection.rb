@@ -83,7 +83,8 @@ module PWN
         puts "USAGE:
           #{self}.reflect_on(
             request: 'required - String - What you want the AI to reflect on',
-            system_role_content: 'optional - context to set up the model behavior for reflection'
+            system_role_content: 'optional - context to set up the model behavior for reflection',
+            spinner: 'optional - Boolean - Display spinner during operation (default: false)'
           )
 
           #{self}.authors

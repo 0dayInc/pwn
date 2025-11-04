@@ -594,11 +594,28 @@ module PWN
         }
         system_role_content = 'Your sole purpose is to analyze each `protocol`, `host`, `port`, and `request` and generate an Exploit Prediction Scoring System (EPSS) score from 0%-100%.  Just generate a score unless the score is >= 75% in which a PoC should also be generated to communicate the threat.  You can always generate an score - provide the score at _the beggining of your analysis_.  Be concise and to the point.'
         ai_analysis = PWN::AI::Introspection.reflect_on(
-          system_role: system_role_content,
+          system_role_content: system_role_content,
           request: decoded_sitemap.to_json,
           spinner: true
         )
         sitemap[:comment] = ai_analysis unless ai_analysis.nil?
+        # Extract score and assign color highlight based on severity
+        if ai_analysis =~ /(\d{1,3})%/
+          score = Regexp.last_match(1).to_i
+          highlight_color = case score
+                            when 0..24
+                              'GREEN'
+                            when 25..49
+                              'YELLOW'
+                            when 50..74
+                              'ORANGE'
+                            when 75..100
+                              'RED'
+                            else
+                              'NONE'
+                            end
+          sitemap[:highlight] = highlight_color
+        end
 
         rest_client = rest_browser::Request
         response = rest_client.execute(
