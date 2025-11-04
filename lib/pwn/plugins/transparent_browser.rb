@@ -190,17 +190,19 @@ module PWN
             args.push("--proxy-server=#{proxy}")
           end
 
-          if devtools
-            args.push('--auto-open-devtools-for-tabs')
-            args.push('--disable-hang-monitor')
-          end
-
           # Incognito browsing mode
           args.push('--incognito')
           options = Selenium::WebDriver::Chrome::Options.new(
             args: args,
             accept_insecure_certs: true
           )
+
+          if devtools
+            args.push('--auto-open-devtools-for-tabs')
+            args.push('--disable-hang-monitor')
+            options.add_preference('devtools.preferences.enable-ignore-listing', false)
+            options.add_preference('devtools.preferences.default-indentation', '2 spaces')
+          end
 
           # This is required for BiDi support
           options.web_socket_url = true
@@ -1148,67 +1150,148 @@ module PWN
         raise 'ERROR: action parameter must be :enable|:pause|:resume|:disable' unless valid_actions.include?(action)
 
         devtools = browser_obj[:devtools]
-        debugger_state = devtools.instance_variable_get(:@debugger_state)
+        debugger_state = devtools.instance_variable_get(:@debugger_state) || {}
+        breakpoint_arr = debugger_state[:breakpoints] || []
 
         method = nil
         case action
         when :enable
-          while method != 'Debugger.scriptParsed'
-            if debugger_state.is_a?(Hash)
-              debugger_state = devtools.instance_variable_get(:@debugger_state)
-              devtools.remove_instance_variable(:@debugger_state) unless debugger_state.nil?
-              devtools.debugger.disable
+          devtools.dom.enable
+          devtools.log.disable
+          devtools.network.disable
+          devtools.page.disable
+          devtools.runtime.disable
+
+          method = 'Debugger.scriptParsed'
+          callbacks_to_delete = devtools.callbacks.keys.reject { |k| k == 'Target.atta`chedToTarget' }
+          # until devtools.callbacks.keys.include?(method) && breakpoint_arr.any?
+          until breakpoint_arr.any?
+            callbacks_to_delete.each { |method| devtools.callbacks.delete(method) }
+            breakpoint_set = false
+            # devtools.dom.disable
+            devtools.debugger.disable
+            devtools.debugger.on(:script_parsed) do |params|
+              url = params['url']
+              next if breakpoint_set || url.include?('devtools://') || url.empty?
+
+              breakpoint_set = true
+              puts url
+              bcmd = 'Debugger.setBreakpoint'
+              script_id = params['scriptId']
+              line = params['startLine']
+              column = params['startColumn']
+              location = { scriptId: script_id, lineNumber: line, columnNumber: column }
+              breakpoint = devtools.send_cmd(bcmd, location: location)
+              breakpoint['result']['breakpointId'] = "#{bcmd}.#{script_id}.#{line}.#{column}.#{SecureRandom.uuid}"
+              breakpoint['id'] = breakpoint['id'].to_s
+              breakpoint['url'] = url
+              breakpoint['caught'] = false
+              breakpoint_arr.push(breakpoint)
+              debugger_state[:breakpoints] = breakpoint_arr
+              devtools.instance_variable_set(:@debugger_state, debugger_state)
+
+              puts "Breakpoint set in #{url} at line #{line}, column #{column}: #{breakpoint}"
+              puts params.inspect
             end
-            debugger_state = {}
-            breakpoint_arr = []
-
             devtools.debugger.enable
-            ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
-            method = ws_msg['method']
-
-            bcmd = 'EventBreakpoints.setInstrumentationBreakpoint'
-            event = 'load'
-            breakpoint = devtools.send_cmd(bcmd, eventName: event)
-            breakpoint['result']['breakpointId'] = "#{bcmd}.#{event}.#{SecureRandom.uuid}"
-            # bcmd = 'Debugger.setInstrumentationBreakpoint'
-            # instrumentation = 'beforeScriptExecution'
-            # breakpoint = devtools.send_cmd(bcmd, instrumentation: instrumentation)
-            # breakpoint['result']['breakpointId'] = "#{bcmd}.#{instrumentation}.#{SecureRandom.uuid}"
-            breakpoint_arr.push(breakpoint)
-            debugger_state[:breakpoints] = breakpoint_arr
-
-            devtools.runtime.disable
-            devtools.log.disable
-            devtools.network.disable
-            devtools.page.disable
-            puts debugger_state.inspect
           end
+          devtools.callbacks.delete(method)
+          method = 'Debugger.enabled'
         when :pause
-          while method != 'Debugger.paused'
-            Timeout.timeout(9) { browser_obj[:browser].refresh }
+          method = 'Debugger.paused'
+          callbacks_to_delete = devtools.callbacks.keys.reject { |k| k == 'Target.attachedToTarget' }
+          Timeout.timeout(30) { browser_obj[:browser].refresh }
+          until devtools.callbacks.keys.include?(method) && breakpoint_arr.any? { |bp| bp['caught'] == true }
+            callbacks_to_delete.each { |method| devtools.callbacks.delete(method) }
+            devtools.debugger.on(:paused) do |params|
+              breakpoint_id_caught = params['callFrames'].first['location']['scriptId']
+              breakpoint_arr.each_with_index do |bp, idx|
+                next unless  bp['id'] == breakpoint_id_caught
+
+                bp['caught'] = true
+                breakpoint_arr[idx] = bp
+                debugger_state[:breakpoints] = breakpoint_arr
+                devtools.instance_variable_set(:@debugger_state, debugger_state)
+              end
+              puts "TARGET BREAKPOINTS: #{breakpoint_arr.inspect}"
+              puts "PARAMS Observerd: #{params.inspect}"
+            end
             devtools.debugger.pause
-            ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
-            method = ws_msg['method']
+            # browser_obj[:browser].refresh
+            debugger_state = devtools.instance_variable_get(:@debugger_state)
+            breakpoint_arr = debugger_state[:breakpoints]
           end
+          devtools.callbacks.delete(method)
         when :resume
-          while method != 'Debugger.resumed'
-            devtools.debugger.resume
-            ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
-            method = ws_msg['method']
-          end
+          method = 'Debugger.resumed'
+          callbacks_to_delete = devtools.callbacks.keys.reject { |k| k == 'Target.attachedToTarget' }
+          callbacks_to_delete.each { |method| devtools.callbacks.delete(method) }
+          devtools.debugger.resume until devtools.callbacks.keys.include?(method)
         when :disable
-          debugger_state = devtools.instance_variable_get(:@debugger_state)
-          devtools.remove_instance_variable(:@debugger_state) if debugger_state.is_a?(Hash)
+          callbacks_to_delete = devtools.callbacks.keys.reject { |k| k == 'Target.attachedToTarget' }
+          callbacks_to_delete.each { |method| devtools.callbacks.delete(method) }
           devtools.debugger.disable
+          method = 'Debugger.disabled'
         end
 
-        debugger_state[:method] = method
-        devtools.instance_variable_set(:@debugger_state, debugger_state) if debugger_state.is_a?(Hash)
-        devtools
-      rescue Timeout::Error
         devtools
       rescue Selenium::WebDriver::Error::WebDriverError => e
         puts e.message
+      rescue StandardError => e
+        raise e
+      ensure
+        debugger_state[:method] = method
+        devtools.instance_variable_set(:@debugger_state, debugger_state) if debugger_state.is_a?(Hash)
+      end
+
+      # Supported Method Parameters::
+      # page_state_arr = PWN::Plugins::TransparentBrowser.get_targets(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.get_targets(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
+
+        devtools = browser_obj[:devtools]
+        bcmd = 'Target.getTargets'
+        devtools.send_cmd(bcmd)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # page_state_arr = PWN::Plugins::TransparentBrowser.breakpoint_locations(
+      #   browser_obj: 'required - browser_obj returned from #open method)'
+      # )
+
+      public_class_method def self.breakpoint_locations(opts = {})
+        browser_obj = opts[:browser_obj]
+        supported = %i[chrome headless_chrome]
+        verified = verify_devtools_browser(browser_obj: browser_obj, supported: supported)
+        puts 'This browser is not supported for DevTools operations.' unless verified
+        return unless verified
+
+        valid_methods = %w[Debugger.scriptParsed Debugger.paused Debugger.resumed]
+        devtools = browser_obj[:devtools]
+        ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+        method = ws_msg['method']
+        raise "ERROR: Unsupported method: #{method}" unless valid_methods.include?(method)
+
+        case method
+        when 'Debugger.resumed', 'Debugger.paused'
+          script_id = ws_msg['params']['callFrames'].first['location']['scriptId'].to_s
+        when 'Debugger.scriptParsed'
+          script_id = ws_msg['params']['scriptId'].to_s
+        end
+
+        puts "Method: #{method}"
+        puts "Fetching possible breakpoints for script ID: #{script_id}..."
+        bcmd = 'Debugger.getPossibleBreakpoints'
+        devtools.send_cmd(bcmd, start: { scriptId: script_id, lineNumber: 0, columnNumber: 0 })
       rescue StandardError => e
         raise e
       end
@@ -1236,119 +1319,116 @@ module PWN
         steps = 1 if steps.zero? || steps.negative?
 
         devtools = browser_obj[:devtools]
+        ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+        method = ws_msg['method']
+
         debugger_state = devtools.instance_variable_get(:@debugger_state)
-        method = debugger_state[:method]
-        if method != 'Debugger.paused'
-          puts 'The debugger must be paused before stepping. Pausing now...'
-          return devtools
-        end
+        debugger_state[:method] = method
+        devtools.instance_variable_set(:@debugger_state, debugger_state)
 
-        system_role_content = 'Being an expert penetration tester skilled in code analysis, debugging, and exploitation while stepping through JavaScript in a Chrome DevTools debugging session:  1. Your sole purpose is to analyze each JavaScript step and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  2. If the score is >= 75%, generate a JavaScript proof-of-concept that would allow a threat actor to directly exploit or target a user for exploitation (i.e. no self-exploit).  3. If the EPSS score is >= 75% also provide a code fix. *** If the EPSS score is < 75%, no explanations or summaries - just the EPSS score.'
+        valid_methods = %w[Debugger.scriptParsed Debugger.paused Debugger.resumed]
+        devtools = browser_obj[:devtools]
+        ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+        method = ws_msg['method']
+        raise "ERROR: Unsupported method: #{method}" unless valid_methods.include?(method)
 
-        page_state_arr = []
+        steps_arr = []
+        cursor_termination_chars = %w[; , . ( ) { } = |]
         steps.times do |s|
           step_num = s + 1
           puts "Stepping #{action} (step #{step_num}/#{steps})..."
 
-          # before = get_page_state(browser_obj: browser_obj)
-          # puts before.inspect
-          before = devtools_websocket_messages(browser_obj: browser_obj)
-          method = before['method']
-          # puts before
-          puts "\n"
-
-          if method == 'Debugger.paused'
-            before_location = before['params']['callFrames'].first['location']
-            start_location = before['params']['callFrames'].first['scopeChain'].first['startLocation']
-            before_script_id = start_location['scriptId']
-            from_line_num = start_location['lineNumber']
-            from_column_num = start_location['columnNumber']
-
-            end_location = before['params']['callFrames'].first['scopeChain'].first['endLocation']
-            to_line_num = end_location['lineNumber']
-            to_column_num = end_location['columnNumber']
-
-            source_obj = devtools.debugger.get_script_source(script_id: before_script_id)
-            source_code = source_obj['result']['scriptSource']
-            # puts source_code
-            # gets
-
-            source_lines = source_code.split("\n")
-            source_lines_str = source_lines[from_line_num..to_line_num].join("\n")
-            source_to_review = source_lines_str[from_column_num..to_column_num]
-            source_before = source_to_review.dup
-
-            if source_to_review.length.positive?
-              puts source_to_review
-              ai_analysis = PWN::AI::Introspection.reflect_on(
-                system_role_content: system_role_content,
-                request: source_to_review
-              )
-              puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
-              # gets
-            end
-          end
-
+          method = 'Debugger.resumed'
           case action
           when :into
-            devtools.debugger.step_into
+            devtools.debugger.step_into until devtools.callbacks.keys.include?(method)
           when :out
-            devtools.debugger.step_out
+            devtools.debugger.step_out until devtools.callbacks.keys.include?(method)
           when :over
-            devtools.debugger.step_over
+            devtools.debugger.step_over until devtools.callbacks.keys.include?(method)
           end
+          devtools.callbacks.delete(method)
 
-          puts "\n" * 3
-          after = devtools_websocket_messages(browser_obj: browser_obj)
-          method = after['method']
-          # puts after
-          puts "\n"
+          method = 'Debugger.paused'
+          devtools.debugger.pause until devtools.callbacks.keys.include?(method)
+          devtools.callbacks.delete(method)
 
-          if method == 'Debugger.paused'
-            after_location = after['params']['callFrames'].first['scopeChain'].first['object']
-            start_location = after['params']['callFrames'].first['scopeChain'].first['startLocation']
-            after_script_id = start_location['scriptId']
-            from_line_num = start_location['lineNumber']
-            from_column_num = start_location['columnNumber']
+          ws_msg = devtools_websocket_messages(browser_obj: browser_obj)
+          ws_msg_params = ws_msg['params']
+          ws_msg_call_frames = ws_msg_params['callFrames'].first
+          ws_msg_scope_chain_local = ws_msg_call_frames['scopeChain'].find { |scope| scope['type'] == 'local' }
+          next unless ws_msg_scope_chain_local.is_a?(Hash)
 
-            end_location = after['params']['callFrames'].first['scopeChain'].first['endLocation']
-            to_line_num = end_location['lineNumber']
-            to_column_num = end_location['columnNumber']
+          ws_msg_scope_chain_block = ws_msg_call_frames['scopeChain'].find { |scope| scope['type'] == 'block' }
 
-            source_obj = devtools.debugger.get_script_source(script_id: after_script_id)
-            source_code = source_obj['result']['scriptSource']
-            # puts source_code
-            # gets
+          cursor_location = ws_msg_call_frames['location']
+          cursor_line_num = cursor_location['lineNumber']
+          cursor_column_num = cursor_location['columnNumber']
 
-            source_lines = source_code.split("\n")
-            source_lines_str = source_lines[from_line_num..to_line_num].join("\n")
-            source_to_review = source_lines_str[from_column_num..to_column_num]
-            source_after = source_to_review.dup
+          script_id = cursor_location['scriptId']
 
-            if source_to_review.length.positive? && source_to_review != source_before
-              puts source_to_review
-              ai_analysis = PWN::AI::Introspection.reflect_on(
-                system_role_content: system_role_content,
-                request: source_to_review
-              )
-              puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
-              # gets
+          start_location = ws_msg_scope_chain_local['startLocation']
+          start_line_num = start_location['lineNumber']
+          start_column_num = start_location['columnNumber']
+
+          end_location = ws_msg_scope_chain_local['endLocation']
+          # end_location_block = ws_msg_scope_chain_block['endLocation']
+          # puts "TEST: #{end_location - end_location_block}"
+          end_line_num = end_location['lineNumber']
+          end_column_num = end_location['columnNumber']
+
+          source_obj = devtools.debugger.get_script_source(script_id: script_id)
+          full_source_code = source_obj['result']['scriptSource']
+
+          source_lines = full_source_code.split("\n")
+          # puts source_lines.inspect
+          source_lines_range = source_lines[start_line_num..end_line_num]
+          next if source_lines_range.nil?
+
+          source_lines_str = source_lines_range.join("\n")
+          source_to_review = source_lines_str[start_column_num..end_column_num]
+          current_step = source_lines_str[cursor_column_num..end_column_num]
+
+          # TODO: leverage ANSI escape codes to highlight current_step to red
+          # puts ws_msg.inspect
+          # puts "\n"
+          # puts ws_msg_call_frames['scopeChain'].inspect
+          # puts "\n"
+          cursor_terminated = false
+          source_to_review.each_char.with_index do |char, idx|
+            cursor_start_offset = cursor_column_num - start_column_num
+            cursor_end_offset = end_column_num - start_column_num
+
+            if idx >= cursor_start_offset && !cursor_terminated
+              cursor_terminated = true if cursor_termination_chars.include?(char)
+              print char if cursor_terminated
+              print "\001\e[31m\002#{char}\001\e[0m\002" unless cursor_terminated
+            else
+              print char
             end
           end
-          puts "\n" * 6
 
-          # step_hash = {
-          #   step: step_num,
-          #   action: action,
-          #   before: before,
-          #   after: after,
-          #   diff: diff.to_s(:text)
-          # }
+          if current_step.length.positive?
+            system_role_content = "Being an expert penetration tester skilled in code analysis, debugging, and exploitation while stepping through JavaScript in a Chrome DevTools debugging session:  1. Your sole purpose is to analyze each JavaScript step and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  The step currently resides in this block of JavaScript:\n```\n#{source_to_review}\n```\n2. If the score is >= 75%, generate a JavaScript proof-of-concept that would allow a threat actor to directly exploit or target a user for exploitation (i.e. no self-exploit).  3. If the EPSS score is >= 75% also provide a code fix. *** If the EPSS score is < 75%, no explanations or summaries - just the EPSS score."
 
-          # page_state_arr.push(step_hash)
+            ai_analysis = PWN::AI::Introspection.reflect_on(
+              system_role_content: system_role_content,
+              request: current_step
+            )
+            puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
+          end
+          puts "\n" * 3
+
+          step_hash = {
+            step: step_num,
+            action: action,
+            source: current_step
+          }
+
+          steps_arr.push(step_hash)
         end
 
-        devtools
+        steps_arr
       rescue Selenium::WebDriver::Error::WebDriverError
         devtools
       rescue StandardError => e

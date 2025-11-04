@@ -158,16 +158,12 @@ module PWN
           case model
           when 'gpt-3.5-turbo', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-3.5-turbo-instruct',
                'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-4-turbo-preview', 'gpt-4-0125-preview', 'gpt-4-1106-preview'
-            max_completion_tokens = 4_096 - (request.to_s.length / 4)
+            max_completion_tokens = 4_096
           when 'gpt-4', 'gpt-4-0613', 'gpt-4-0314',
                'gpt-4o', 'gpt-4o-2024-05-13'
-            max_completion_tokens = 8_192 - (request.to_s.length / 4)
-          when 'gpt-4o-mini', 'gpt-4o-mini-2024-07-18', 'gpt-4o-2024-08-06', 'chatgpt-4o-latest', 'gpt-5-chat-latest'
-            max_completion_tokens = 16_384 - (request.to_s.length / 4)
-          when 'o1-preview', 'o1-preview-2024-09-12'
-            max_completion_tokens = 32_768 - (request.to_s.length / 4)
-          when 'o1-mini', 'o1-mini-2024-09-12'
-            max_completion_tokens = 65_536 - (request.to_s.length / 4)
+            max_completion_tokens = 8_192
+          else
+            max_completion_tokens = 16_384
           end
 
           response_history = opts[:response_history]

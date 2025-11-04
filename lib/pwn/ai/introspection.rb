@@ -11,7 +11,8 @@ module PWN
       # Supported Method Parameters::
       # response = PWN::AI::Introspection.reflect_on(
       #   request: 'required - String - What you want the AI to reflect on',
-      #   system_role_content: 'optional - context to set up the model behavior for reflection'
+      #   system_role_content: 'optional - context to set up the model behavior for reflection',
+      #   spinner: 'optional - Boolean - Display spinner during operation (default: false)'
       # )
 
       public_class_method def self.reflect_on(opts = {})
@@ -19,6 +20,8 @@ module PWN
         raise 'ERROR: request must be provided' if request.nil?
 
         system_role_content = opts[:system_role_content]
+
+        spinner = opts[:spinner] || false
 
         response = nil
 
@@ -34,7 +37,7 @@ module PWN
             response = PWN::AI::Grok.chat(
               request: request.chomp,
               system_role_content: system_role_content,
-              spinner: false
+              spinner: spinner
             )
             response = response[:choices].last[:content] if response.is_a?(Hash) &&
                                                             response.key?(:choices) &&
@@ -43,7 +46,7 @@ module PWN
             response = PWN::AI::Ollama.chat(
               request: request.chomp,
               system_role_content: system_role_content,
-              spinner: false
+              spinner: spinner
             )
             response = response[:choices].last[:content] if response.is_a?(Hash) &&
                                                             response.key?(:choices) &&
@@ -52,7 +55,7 @@ module PWN
             response = PWN::AI::OpenAI.chat(
               request: request.chomp,
               system_role_content: system_role_content,
-              spinner: false
+              spinner: spinner
             )
             if response.is_a?(Hash) && response.key?(:choices)
               response = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)

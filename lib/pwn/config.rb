@@ -90,6 +90,7 @@ module PWN
             token: 'Jira Server API Token'
           },
           meshtastic: {
+            admin_key: 'Public key authorized to send admin messages to nodes',
             serial: {
               port: '/dev/ttyUSB0',
               baud: 115_200,

@@ -131,8 +131,17 @@ module PWN
           cursor = page_info[:endCursor]
           break unless page_info[:hasNextPage]
         end
+        puts "\n"
 
         programs_arr.sort_by! { |p| -p[:min_payout].gsub('$', '').gsub(',', '').to_f }
+
+        system_role_content = 'Suggest an optimal bug bounty program to target on HackerOne to maximize potential earnings based on values within `min_payout` and publicly known vulnerabilities that have surfaced for the `name` of the program.'
+        ai_analysis = PWN::AI::Introspection.reflect_on(
+          request: programs_arr.to_json,
+          system_role_content: system_role_content,
+          spinner: true
+        )
+        puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 
         programs_arr
       rescue RestClient::ExceptionWithResponse => e
@@ -270,6 +279,16 @@ module PWN
           name: program_name,
           scope_details: json_resp_hash
         }
+
+        system_role_content = 'Analyze the scope details for the given bug bounty program on HackerOne. Identify key areas of interest, potential vulnerabilities, and any patterns that could inform a targeted security assessment based on the provided scope information.'
+        ai_analysis = PWN::AI::Introspection.reflect_on(
+          request: json_resp.to_json,
+          system_role_content: system_role_content,
+          spinner: true
+        )
+        puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
+
+        json_resp
       rescue RestClient::ExceptionWithResponse => e
         if e.response
           puts "HTTP RESPONSE CODE: #{e.response.code}"
@@ -408,6 +427,16 @@ module PWN
           name: program_name,
           hacktivity: json_resp_hash
         }
+
+        system_role_content = 'Analyze the hacktivity details for the given bug bounty program on HackerOne. Identify significant disclosed reports, common vulnerability types, and any trends that could inform future security assessments based on the provided hacktivity information.'
+        ai_analysis = PWN::AI::Introspection.reflect_on(
+          request: json_resp.to_json,
+          system_role_content: system_role_content,
+          spinner: true
+        )
+        puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
+
+        json_resp
       rescue RestClient::ExceptionWithResponse => e
         if e.response
           puts "HTTP RESPONSE CODE: #{e.response.code}"
