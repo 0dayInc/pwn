@@ -80,7 +80,7 @@ module PWN
 
         # Construct burp_obj
         burp_obj = {}
-        burp_obj[:pid] = Process.spawn(burp_cmd_string)
+        burp_obj[:pid] = Process.spawn(burp_cmd_string, pgroup: true)
         browser_obj1 = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_browser = browser_obj1[:browser]
 
@@ -123,6 +123,116 @@ module PWN
           port: burp_port,
           enabled: true
         )
+
+        #  if PWN::Env[:ai][:introspection] is true,
+        #  spin up PWN::Plugins::ThreadPool to
+        #  1. Periodically call get_proxy_history(burp_obj: burp_obj) method
+        #  2. For each entry w/ empty comment,
+        #     generate AI analysis via PWN::AI::Introspection.reflect_on
+        #     and populate the comment field for the entry.
+        #  3. Update the highlight field based on EPSS score extracted from AI analysis.
+        #  4. Call update_proxy_history(burp_obj: burp_obj, entry: updated_entry)
+        if PWN::Env[:ai][:introspection]
+          proxy_history_introspection = Thread.new do
+            loop do
+              proxy_history = get_proxy_history(burp_obj: burp_obj)
+              proxy_history.each do |entry|
+                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                request = entry[:request]
+                response = entry[:response]
+                host = entry[:http_service][:host]
+                port = entry[:http_service][:port]
+                protocol = entry[:http_service][:protocol]
+                next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
+
+                request = Base64.strict_decode64(request)
+                response = Base64.strict_decode64(response)
+
+                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                system_role_content = '
+                  Your expertise lies in dissecting HTTP request/response pairs to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
+
+                  When analyzing HTTP request/response pairs:
+
+                  1. **Parse and Contextualize Traffic**:
+                     - Break down every element: HTTP method, URI (path, query parameters), headers (e.g., Host, User-Agent, Cookies, Authorization, Referer, Origin, Content-Type), request body (e.g., form data, JSON payloads), response status code, response headers, and response body (HTML, JSON, XML, etc.).
+                     - Identify dynamic elements: User-controlled inputs (e.g., query params, POST data, headers like X-Forwarded-For), server-side echoes, redirects, and client-side processing.
+                     - Trace data flow: Map how inputs propagate from request to response, including any client-side JavaScript execution where exploitation may be possible in the client without communicating with the server (e.g. DOM-XSS).
+
+                  2. **Vulnerability Hunting Framework**:
+                     - **Input Validation & Sanitization**: Check for unescaped/lack of encoding in outputs (e.g., HTML context for XSS, URL context for open redirects).
+                     - **XSS Focus**: Hunt for sinks like innerHTML/outerHTML, document.write, eval, setTimeout/setInterval with strings, location.href/assign/replace, and history.pushState. Test payloads like <script>alert(1)</script>, javascript:alert(1), and polyglots. For DOM-based, simulate client-side execution.
+                     - **JavaScript Library Analysis**: If JS is present (e.g., in response body or referenced scripts), deobfuscate and inspect:
+                       - Objects/properties that could clobber DOM (e.g., window.name, document.cookie manipulation leading to prototype pollution).
+                       - DOM XSS vectors: Analyze event handlers, querySelector, addEventListener with unsanitized data from location.hash/search, postMessage, or localStorage.
+                       - Third-party libs (e.g., jQuery, React): Flag known sink patterns like .html(), dangerouslySetInnerHTML, or eval-like functions.
+                     - **Server-Side Issues**: Probe for SSRF (e.g., via URL params fetching internal resources), IDOR (e.g., manipulating IDs in paths/bodies), rate limiting bypass, and insecure deserialization (e.g., in JSON/PHP objects).
+                     - **Headers & Misc**: Examine for exposed sensitive info (e.g., debug headers, stack traces), misconfigured security headers (CSP, HSTS), and upload flaws (e.g., file extension bypass).
+                     - **Chaining Opportunities**: Always consider multi-step exploits, like XSS leading to CSRF token theft or SSRF to internal metadata endpoints.
+
+                  3. **PoC Generation**:
+                     - Produce concise, step-by-step PoCs in a standardized format:
+                       - **Description**: Clear vuln summary, CVSS-like severity, and impact.
+                       - **Steps to Reproduce**: Numbered HTTP requests (use curl or Burp syntax, e.g., `curl -X POST -d "param=<payload>" https://target.com/endpoint`).
+                       - **Payloads**: Provide working, minimal payloads with variations for evasion (e.g., encoded, obfuscated).
+                       - **Screenshots/Evidence**: Suggest what to capture (e.g., alert popup for XSS, response diff for IDOR).
+                       - **Mitigation Advice**: Recommend fixes (e.g., output encoding, input validation).
+                     - Ensure PoCs are ethical: Target only in-scope assets, avoid DoS, and emphasize disclosure via proper channels (e.g., HackerOne, Bugcrowd).
+                     - If no vuln found, explain why and suggest further tests (e.g., fuzzing params).
+                  4. Risk Score:
+                    For each analysis generate a risk score between 0% - 100% based on exploitability and impact.  This should be reflected as { "risk_score": "nnn%" } in the final output JSON.
+
+                  Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.
+                '
+
+                ai_analysis = PWN::AI::Introspection.reflect_on(
+                  system_role_content: system_role_content,
+                  request: http_request_response,
+                  suppress_pii_warning: true
+                )
+
+                next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                entry[:comment] = ai_analysis
+                # Extract score and assign color highlight based on severity
+                if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
+                  score = Regexp.last_match(1).to_i
+                  highlight_color = case score
+                                    when 0..24
+                                      'GREEN'
+                                    when 25..49
+                                      'YELLOW'
+                                    when 50..74
+                                      'ORANGE'
+                                    when 75..100
+                                      'RED'
+                                    end
+                end
+                highlight_color ||= 'GRAY'
+                entry[:highlight] = highlight_color
+
+                entry.delete(:request)
+                entry.delete(:response)
+                entry.delete(:http_service)
+
+                update_proxy_history(
+                  burp_obj: burp_obj,
+                  entry: entry
+                )
+              end
+              sleep 10
+            end
+          rescue Errno::ECONNREFUSED
+            puts 'BurpSuite Proxy History AI Introspection Thread Terminating...'
+          rescue StandardError => e
+            puts "BurpSuite Proxy History AI Introspection Thread Error: #{e}"
+            puts e.backtrace
+            raise e
+          end
+
+          burp_obj[:proxy_history_introspection_thread] = proxy_history_introspection
+        end
 
         burp_obj
       rescue StandardError => e
@@ -296,7 +406,6 @@ module PWN
         enabled = opts[:enabled] != false # Default to true if not specified
 
         proxy_listeners = get_proxy_listeners(burp_obj: burp_obj)
-        puts "Proxy Listeners: #{proxy_listeners.inspect}"
         last_known_proxy_id = 0
         last_known_proxy_id = proxy_listeners.last[:id].to_i if proxy_listeners.any?
         next_id = last_known_proxy_id + 1
@@ -371,6 +480,219 @@ module PWN
         true # Return true to indicate successful deletion (or error if API fails)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_proxy_history = PWN::Plugins::BurpSuite.get_proxy_history(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   keyword: 'optional - keyword to filter proxy history entries (default: nil)',
+      #   return_as: 'optional - :base64 or :har (defaults to :base64)'
+      # )
+
+      public_class_method def self.get_proxy_history(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+        keyword = opts[:keyword]
+        return_as = opts[:return_as] ||= :base64
+
+        rest_call = "http://#{mitm_rest_api}/proxyhistory"
+
+        sitemap = rest_browser.get(
+          rest_call,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        sitemap_arr = JSON.parse(sitemap, symbolize_names: true)
+
+        if keyword
+          sitemap_arr = sitemap_arr.select do |site|
+            decoded_request = Base64.strict_decode64(site[:request])
+            decoded_request.include?(keyword)
+          end
+        end
+
+        if return_as == :har
+          # Convert to HAR format
+          har_entries = sitemap_arr.map do |site|
+            decoded_request = Base64.strict_decode64(site[:request])
+
+            # Parse request head and body
+            if decoded_request.include?("\r\n\r\n")
+              request_head, request_body = decoded_request.split("\r\n\r\n", 2)
+            else
+              request_head = decoded_request
+              request_body = ''
+            end
+            request_lines = request_head.split("\r\n")
+            request_line = request_lines.shift
+            method, full_path, http_version = request_line.split(' ', 3)
+            headers = {}
+            request_lines.each do |line|
+              next if line.empty?
+
+              key, value = line.split(': ', 2)
+              headers[key] = value if key && value
+            end
+
+            host = headers['Host'] || raise('No Host header found in request')
+            scheme = 'http' # Hardcoded as protocol is not available; consider enhancing if available in site
+            url = "#{scheme}://#{host}#{full_path}"
+            uri = URI.parse(url)
+            query_string = uri.query ? URI.decode_www_form(uri.query).map { |k, v| { name: k, value: v.to_s } } : []
+
+            request_headers_size = request_head.bytesize + 4 # Account for \r\n\r\n
+            request_body_size = request_body.bytesize
+
+            request_obj = {
+              method: method,
+              url: uri.to_s,
+              httpVersion: http_version,
+              headers: headers.map { |k, v| { name: k, value: v } },
+              queryString: query_string,
+              headersSize: request_headers_size,
+              bodySize: request_body_size
+            }
+
+            if request_body_size.positive?
+              mime_type = headers['Content-Type'] || 'application/octet-stream'
+              post_data = {
+                mimeType: mime_type,
+                text: request_body
+              }
+              post_data[:params] = URI.decode_www_form(request_body).map { |k, v| { name: k, value: v.to_s } } if mime_type.include?('x-www-form-urlencoded')
+              request_obj[:postData] = post_data
+            end
+
+            if site[:response]
+              decoded_response = Base64.strict_decode64(site[:response])
+
+              # Parse response head and body
+              if decoded_response.include?("\r\n\r\n")
+                response_head, response_body = decoded_response.split("\r\n\r\n", 2)
+              else
+                response_head = decoded_response
+                response_body = ''
+              end
+              response_lines = response_head.split("\r\n")
+              status_line = response_lines.shift
+              version, status_str, status_text = status_line.split(' ', 3)
+              status = status_str.to_i
+              status_text ||= ''
+              response_headers = {}
+              response_lines.each do |line|
+                next if line.empty?
+
+                key, value = line.split(': ', 2)
+                response_headers[key] = value if key && value
+              end
+
+              response_headers_size = response_head.bytesize + 4 # Account for \r\n\r\n
+              response_body_size = response_body.bytesize
+              mime_type = response_headers['Content-Type'] || 'text/plain'
+
+              response_obj = {
+                status: status,
+                statusText: status_text,
+                httpVersion: version,
+                headers: response_headers.map { |k, v| { name: k, value: v } },
+                content: {
+                  size: response_body_size,
+                  mimeType: mime_type,
+                  text: response_body
+                },
+                redirectURL: response_headers['Location'] || '',
+                headersSize: response_headers_size,
+                bodySize: response_body_size
+              }
+            else
+              response_obj = {
+                status: 0,
+                statusText: 'No response',
+                httpVersion: 'unknown',
+                headers: [],
+                content: {
+                  size: 0,
+                  mimeType: 'text/plain',
+                  text: ''
+                },
+                redirectURL: '',
+                headersSize: -1,
+                bodySize: 0
+              }
+            end
+
+            {
+              startedDateTime: Time.now.iso8601,
+              time: 0,
+              request: request_obj,
+              response: response_obj,
+              cache: {},
+              timings: {
+                send: 0,
+                wait: 0,
+                receive: 0
+              },
+              pageref: 'page_1'
+            }
+          end
+
+          har_log = {
+            log: {
+              version: '1.2',
+              creator: {
+                name: 'BurpSuite via PWN::Plugins::BurpSuite',
+                version: '1.0'
+              },
+              pages: [{
+                startedDateTime: Time.now.iso8601,
+                id: 'page_1',
+                title: 'Sitemap Export',
+                pageTimings: {}
+              }],
+              entries: har_entries
+            }
+          }
+
+          sitemap_arr = har_log
+        end
+
+        sitemap_arr.uniq
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # repeater_obj = PWN::Plugins::BurpSuite.update_proxy_history(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   entry: 'required - hash of the proxy history entry to update'
+      # )
+
+      public_class_method def self.update_proxy_history(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        entry = opts[:entry]
+        raise 'ERROR: entry parameter is required and must be a hash' unless entry.is_a?(Hash)
+
+        id = entry[:id]
+        raise 'ERROR: id key value pair is required within entry hash' if id.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        put_body = entry.to_json
+
+        proxy_history_resp = rest_browser.put(
+          "http://#{mitm_rest_api}/proxyhistory/#{id}",
+          put_body,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(proxy_history_resp, symbolize_names: true)
+      rescue StandardError => e
         raise e
       end
 
@@ -584,23 +906,55 @@ module PWN
         sitemap = opts[:sitemap] ||= {}
         debug = opts[:debug] || false
 
-        decoded_sitemap = {
-          request: Base64.strict_decode64(sitemap[:request]),
-          http_service: {
-            host: sitemap[:http_service][:host],
-            port: sitemap[:http_service][:port],
-            protocol: sitemap[:http_service][:protocol]
-          }
-        }
-        system_role_content = 'Your sole purpose is to analyze each `protocol`, `host`, `port`, and `request` and generate an Exploit Prediction Scoring System (EPSS) score from 0%-100%.  Just generate a score unless the score is >= 75% in which a PoC should also be generated to communicate the threat.  You can always generate an score - provide the score at _the beggining of your analysis_.  Be concise and to the point.'
+        request = Base64.strict_decode64(sitemap[:request])
+        response = Base64.strict_decode64(sitemap[:response])
+
+        http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+
+        system_role_content = '
+          Your expertise lies in dissecting HTTP request/response pairs to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
+
+          When analyzing HTTP request/response pairs:
+
+          1. **Parse and Contextualize Traffic**:
+             - Break down every element: HTTP method, URI (path, query parameters), headers (e.g., Host, User-Agent, Cookies, Authorization, Referer, Origin, Content-Type), request body (e.g., form data, JSON payloads), response status code, response headers, and response body (HTML, JSON, XML, etc.).
+             - Identify dynamic elements: User-controlled inputs (e.g., query params, POST data, headers like X-Forwarded-For), server-side echoes, redirects, and client-side processing.
+             - Trace data flow: Map how inputs propagate from request to response, including any client-side JavaScript execution where exploitation may be possible in the client without communicating with the server (e.g. DOM-XSS).
+
+          2. **Vulnerability Hunting Framework**:
+             - **Input Validation & Sanitization**: Check for unescaped/lack of encoding in outputs (e.g., HTML context for XSS, URL context for open redirects).
+             - **XSS Focus**: Hunt for sinks like innerHTML/outerHTML, document.write, eval, setTimeout/setInterval with strings, location.href/assign/replace, and history.pushState. Test payloads like <script>alert(1)</script>, javascript:alert(1), and polyglots. For DOM-based, simulate client-side execution.
+             - **JavaScript Library Analysis**: If JS is present (e.g., in response body or referenced scripts), deobfuscate and inspect:
+               - Objects/properties that could clobber DOM (e.g., window.name, document.cookie manipulation leading to prototype pollution).
+               - DOM XSS vectors: Analyze event handlers, querySelector, addEventListener with unsanitized data from location.hash/search, postMessage, or localStorage.
+               - Third-party libs (e.g., jQuery, React): Flag known sink patterns like .html(), dangerouslySetInnerHTML, or eval-like functions.
+             - **Server-Side Issues**: Probe for SSRF (e.g., via URL params fetching internal resources), IDOR (e.g., manipulating IDs in paths/bodies), rate limiting bypass, and insecure deserialization (e.g., in JSON/PHP objects).
+             - **Headers & Misc**: Examine for exposed sensitive info (e.g., debug headers, stack traces), misconfigured security headers (CSP, HSTS), and upload flaws (e.g., file extension bypass).
+             - **Chaining Opportunities**: Always consider multi-step exploits, like XSS leading to CSRF token theft or SSRF to internal metadata endpoints.
+
+          3. **PoC Generation**:
+             - Produce concise, step-by-step PoCs in a standardized format:
+               - **Description**: Clear vuln summary, CVSS-like severity, and impact.
+               - **Steps to Reproduce**: Numbered HTTP requests (use curl or Burp syntax, e.g., `curl -X POST -d "param=<payload>" https://target.com/endpoint`).
+               - **Payloads**: Provide working, minimal payloads with variations for evasion (e.g., encoded, obfuscated).
+               - **Screenshots/Evidence**: Suggest what to capture (e.g., alert popup for XSS, response diff for IDOR).
+               - **Mitigation Advice**: Recommend fixes (e.g., output encoding, input validation).
+             - Ensure PoCs are ethical: Target only in-scope assets, avoid DoS, and emphasize disclosure via proper channels (e.g., HackerOne, Bugcrowd).
+             - If no vuln found, explain why and suggest further tests (e.g., fuzzing params).
+          4. Risk Score:
+            For each analysis generate a risk score between 0% - 100% based on exploitability and impact.  This should be reflected as { "risk_score": "nnn%" } in the final output JSON.
+
+          Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.
+        '
+
         ai_analysis = PWN::AI::Introspection.reflect_on(
           system_role_content: system_role_content,
-          request: decoded_sitemap.to_json,
+          request: http_request_response,
           spinner: true
         )
         sitemap[:comment] = ai_analysis unless ai_analysis.nil?
         # Extract score and assign color highlight based on severity
-        if ai_analysis =~ /(\d{1,3})%/
+        if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
           score = Regexp.last_match(1).to_i
           highlight_color = case score
                             when 0..24
@@ -611,11 +965,10 @@ module PWN
                               'ORANGE'
                             when 75..100
                               'RED'
-                            else
-                              'NONE'
                             end
-          sitemap[:highlight] = highlight_color
         end
+        highlight_color ||= 'GRAY'
+        sitemap[:highlight] = highlight_color
 
         rest_client = rest_browser::Request
         response = rest_client.execute(
@@ -1476,8 +1829,10 @@ module PWN
         browser_obj = burp_obj[:mitm_browser]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
+        proxy_intruder_thread = burp_obj[:proxy_intruder_thread]
         # burp_pid = burp_obj[:pid]
 
+        proxy_intruder_thread.kill unless proxy_intruder_thread.nil?
         PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
         rest_browser.post("http://#{mitm_rest_api}/shutdown", '')
         # Process.kill('TERM', burp_pid)
@@ -1550,6 +1905,12 @@ module PWN
           #{self}.delete_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'optional - ID of the proxy listener (defaults to 0)'
+          )
+
+          json_proxy_history = #{self}.get_proxy_history(
+            burp_obj: 'required - burp_obj returned by #start method',
+            keyword: 'optional - keyword to filter proxy history results (default: nil)',
+            return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
           json_sitemap = #{self}.get_sitemap(

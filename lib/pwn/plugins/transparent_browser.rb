@@ -1202,7 +1202,8 @@ module PWN
           callbacks_to_delete = devtools.callbacks.keys.reject { |k| k == 'Target.attachedToTarget' }
           Timeout.timeout(30) { browser_obj[:browser].refresh }
           until devtools.callbacks.keys.include?(method) && breakpoint_arr.any? { |bp| bp['caught'] == true }
-            callbacks_to_delete.each { |method| devtools.callbacks.delete(method) }
+            devtools.callbacks.delete(method)
+            devtools.debugger.resume
             devtools.debugger.on(:paused) do |params|
               breakpoint_id_caught = params['callFrames'].first['location']['scriptId']
               breakpoint_arr.each_with_index do |bp, idx|
@@ -1213,8 +1214,11 @@ module PWN
                 debugger_state[:breakpoints] = breakpoint_arr
                 devtools.instance_variable_set(:@debugger_state, debugger_state)
               end
-              puts "TARGET BREAKPOINTS: #{breakpoint_arr.inspect}"
-              puts "PARAMS Observerd: #{params.inspect}"
+              # puts "TARGET BREAKPOINTS: #{breakpoint_arr.inspect}"
+              # puts "PARAMS Observerd: #{params.inspect}"
+              debugger_state = devtools.instance_variable_get(:@debugger_state)
+              puts devtools.callbacks.inspect
+              puts debugger_state.inspect
             end
             devtools.debugger.pause
             # browser_obj[:browser].refresh
@@ -1413,7 +1417,8 @@ module PWN
 
             ai_analysis = PWN::AI::Introspection.reflect_on(
               system_role_content: system_role_content,
-              request: current_step
+              request: current_step,
+              suppress_pii_output: true
             )
             puts "^^^ #{ai_analysis}" unless ai_analysis.nil?
           end

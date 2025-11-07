@@ -134,7 +134,7 @@ module PWN
 
       # Supported Method Parameters::
       # response = PWN::AI::Ollama.chat(
-      #   request: 'required - message to ChatGPT'
+      #   request: 'required - message to Ollama'
       #   model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:ollama][:model])',
       #   temp: 'optional - creative response float (deafults to PWN::Env[:ai][:ollama][:temp])',
       #   system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',
@@ -147,6 +147,9 @@ module PWN
       public_class_method def self.chat(opts = {})
         engine = PWN::Env[:ai][:ollama]
         request = opts[:request]
+        max_prompt_length = engine[:max_prompt_length] ||= 1_000_000
+        request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor
+        request = request[0..request_trunc_idx]
 
         model = opts[:model] ||= engine[:model]
         raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
@@ -239,7 +242,7 @@ module PWN
           models = #{self}.get_models
 
           response = #{self}.chat(
-            request: 'required - message to ChatGPT',
+            request: 'required - message to Ollama',
             model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:ollama][:model])',
             temp: 'optional - creative response float (defaults to PWN::Env[:ai][:ollama][:temp])',
             system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',

@@ -82,7 +82,13 @@ module PWN
                     line_no: line_no,
                     source_code_snippet: contents
                   }.to_json
-                  ai_analysis = PWN::AI::Introspection.reflect_on(request: request)
+
+                  system_role_content = 'Your sole purpose is to analyze source code snippets and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  Just generate a score unless score is >= 75% in which a PoC and code fix should also be included.'
+                  ai_analysis = PWN::AI::Introspection.reflect_on(
+                    system_role_content: system_role_content,
+                    request: request,
+                    suppress_pii_warning: true
+                  )
                   ai_analysis ||= 'N/A'
 
                   hash_line[:line_no_and_contents] = line_no_and_contents_arr.push(

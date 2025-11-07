@@ -8,6 +8,23 @@ module PWN
     # This plugin was created to generate various characters for fuzzing
     module Char
       # Supported Method Parameters::
+      # PWN::Plugins::Char.force_utf8(
+      #  obj: 'required - object to force to UTF-8'
+      #  )
+      public_class_method def self.force_utf8(obj)
+        case obj
+        when String
+          obj.force_encoding('ISO-8859-1').encode('UTF-8', invalid: :replace, undef: :replace)
+        when Array
+          obj.map { |item| force_utf8(item) }
+        when Hash
+          obj.transform_values { |value| force_utf8(value) }
+        else
+          obj
+        end
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::Char.generate_by_range(
       #   from: 'required - integer to start from',
       #   to: 'required - integer to end UTF-8 generation'
