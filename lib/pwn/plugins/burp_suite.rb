@@ -44,6 +44,136 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # burp_obj = PWN::Plugins::BurpSuite.init_introspection_thread(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   enumerable_array: 'required - array of items to process in the thread'
+      # )
+      private_class_method def self.init_introspection_thread(opts = {})
+        #  if PWN::Env[:ai][:introspection] is true,
+        #  spin up PWN::Plugins::ThreadPool to
+        #  1. Periodically call get_proxy_history(burp_obj: burp_obj) method
+        #  2. For each entry w/ empty comment,
+        #     generate AI analysis via PWN::AI::Introspection.reflect_on
+        #     and populate the comment field for the entry.
+        #  3. Update the highlight field based on EPSS score extracted from AI analysis.
+        #  4. Call update_proxy_history(burp_obj: burp_obj, entry: updated_entry)
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        if PWN::Env[:ai][:introspection]
+          introspection_thread = Thread.new do
+            system_role_content = '
+              Your expertise lies in dissecting HTTP request/response pairs to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
+
+              When analyzing HTTP request/response pairs:
+
+              1. **Parse and Contextualize Traffic**:
+                 - Break down every element: HTTP method, URI (path, query parameters), headers (e.g., Host, User-Agent, Cookies, Authorization, Referer, Origin, Content-Type), request body (e.g., form data, JSON payloads), response status code, response headers, and response body (HTML, JSON, XML, etc.).
+                 - Identify dynamic elements: User-controlled inputs (e.g., query params, POST data, headers like X-Forwarded-For), server-side echoes, redirects, and client-side processing.
+                 - Trace data flow: Map how inputs propagate from request to response, including any client-side JavaScript execution where exploitation may be possible in the client without communicating with the server (e.g. DOM-XSS).
+
+              2. **Vulnerability Hunting Framework**:
+                 - **Input Validation & Sanitization**: Check for unescaped/lack of encoding in outputs (e.g., HTML context for XSS, URL context for open redirects).
+                 - **XSS Focus**: Hunt for sinks like innerHTML/outerHTML, document.write, eval, setTimeout/setInterval with strings, location.href/assign/replace, and history.pushState. Test payloads like <script>alert(1)</script>, javascript:alert(1), and polyglots. For DOM-based, simulate client-side execution.
+                 - **JavaScript Library Analysis**: If JS is present (e.g., in response body or referenced scripts), deobfuscate and inspect:
+                   - Objects/properties that could clobber DOM (e.g., window.name, document.cookie manipulation leading to prototype pollution).
+                   - DOM XSS vectors: Analyze event handlers, querySelector, addEventListener with unsanitized data from location.hash/search, postMessage, or localStorage.
+                   - Third-party libs (e.g., jQuery, React): Flag known sink patterns like .html(), dangerouslySetInnerHTML, or eval-like functions.
+                 - **Server-Side Issues**: Probe for SSRF (e.g., via URL params fetching internal resources), IDOR (e.g., manipulating IDs in paths/bodies), rate limiting bypass, and insecure deserialization (e.g., in JSON/PHP objects).
+                 - **Headers & Misc**: Examine for exposed sensitive info (e.g., debug headers, stack traces), misconfigured security headers (CSP, HSTS), and upload flaws (e.g., file extension bypass).
+                 - **Chaining Opportunities**: Always consider multi-step exploits, like XSS leading to CSRF token theft or SSRF to internal metadata endpoints.
+
+              3. **PoC Generation**:
+                 - Produce concise, step-by-step PoCs in a standardized format:
+                   - **Description**: Clear vuln summary, CVSS-like severity, and impact.
+                   - **Steps to Reproduce**: Numbered HTTP requests (use curl or Burp syntax, e.g., `curl -X POST -d "param=<payload>" https://target.com/endpoint`).
+                   - **Payloads**: Provide working, minimal payloads with variations for evasion (e.g., encoded, obfuscated).
+                   - **Screenshots/Evidence**: Suggest what to capture (e.g., alert popup for XSS, response diff for IDOR).
+                   - **Mitigation Advice**: Recommend fixes (e.g., output encoding, input validation).
+                 - Ensure PoCs are ethical: Target only in-scope assets, avoid DoS, and emphasize disclosure via proper channels (e.g., HackerOne, Bugcrowd).
+                 - If no vuln found, explain why and suggest further tests (e.g., fuzzing params).
+              4. Risk Score:
+                For each analysis generate a risk score between 0% - 100% based on exploitability and impact.  This should be reflected as { "risk_score": "nnn%" } in the final output JSON.
+
+              Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.
+            '
+
+            loop do
+              # TODO: Implement sitemap and repeater into the loop.
+              # Sitemap should work the same as proxy history.
+              # Repeater should analyze the reqesut/response pair and suggest
+              # modifications to the request to further probe for vulnerabilities.
+              proxy_history = get_proxy_history(burp_obj: burp_obj)
+              proxy_history.each do |entry|
+                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                request = entry[:request]
+                response = entry[:response]
+                host = entry[:http_service][:host]
+                port = entry[:http_service][:port]
+                protocol = entry[:http_service][:protocol]
+                next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
+
+                request = Base64.strict_decode64(request)
+                response = Base64.strict_decode64(response)
+
+                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                ai_analysis = PWN::AI::Introspection.reflect_on(
+                  system_role_content: system_role_content,
+                  request: http_request_response,
+                  suppress_pii_warning: true
+                )
+
+                next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                entry[:comment] = ai_analysis
+                # Extract score and assign color highlight based on severity
+                if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
+                  score = Regexp.last_match(1).to_i
+                  highlight_color = case score
+                                    when 0..24
+                                      'GREEN'
+                                    when 25..49
+                                      'YELLOW'
+                                    when 50..74
+                                      'ORANGE'
+                                    when 75..100
+                                      'RED'
+                                    end
+                end
+                highlight_color ||= 'GRAY'
+                entry[:highlight] = highlight_color
+
+                entry.delete(:request)
+                entry.delete(:response)
+                entry.delete(:http_service)
+
+                update_proxy_history(
+                  burp_obj: burp_obj,
+                  entry: entry
+                )
+              end
+              sleep 10
+            end
+          rescue Errno::ECONNREFUSED
+            puts 'Thread Terminating...'
+          rescue StandardError => e
+            puts "BurpSuite AI Introspection Thread Error: #{e}"
+            puts e.backtrace
+            raise e
+          ensure
+            puts 'BurpSuite AI Introspection Thread >>> Goodbye.'
+          end
+
+          burp_obj[:introspection_thread] = introspection_thread
+        end
+
+        burp_obj
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # burp_obj1 = PWN::Plugins::BurpSuite.start(
       #   burp_jar_path: 'optional - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
       #   headless: 'optional - run burp headless if set to true',
@@ -124,117 +254,7 @@ module PWN
           enabled: true
         )
 
-        #  if PWN::Env[:ai][:introspection] is true,
-        #  spin up PWN::Plugins::ThreadPool to
-        #  1. Periodically call get_proxy_history(burp_obj: burp_obj) method
-        #  2. For each entry w/ empty comment,
-        #     generate AI analysis via PWN::AI::Introspection.reflect_on
-        #     and populate the comment field for the entry.
-        #  3. Update the highlight field based on EPSS score extracted from AI analysis.
-        #  4. Call update_proxy_history(burp_obj: burp_obj, entry: updated_entry)
-        if PWN::Env[:ai][:introspection]
-          proxy_history_introspection = Thread.new do
-            loop do
-              proxy_history = get_proxy_history(burp_obj: burp_obj)
-              proxy_history.each do |entry|
-                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
-
-                request = entry[:request]
-                response = entry[:response]
-                host = entry[:http_service][:host]
-                port = entry[:http_service][:port]
-                protocol = entry[:http_service][:protocol]
-                next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
-
-                request = Base64.strict_decode64(request)
-                response = Base64.strict_decode64(response)
-
-                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-                system_role_content = '
-                  Your expertise lies in dissecting HTTP request/response pairs to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
-
-                  When analyzing HTTP request/response pairs:
-
-                  1. **Parse and Contextualize Traffic**:
-                     - Break down every element: HTTP method, URI (path, query parameters), headers (e.g., Host, User-Agent, Cookies, Authorization, Referer, Origin, Content-Type), request body (e.g., form data, JSON payloads), response status code, response headers, and response body (HTML, JSON, XML, etc.).
-                     - Identify dynamic elements: User-controlled inputs (e.g., query params, POST data, headers like X-Forwarded-For), server-side echoes, redirects, and client-side processing.
-                     - Trace data flow: Map how inputs propagate from request to response, including any client-side JavaScript execution where exploitation may be possible in the client without communicating with the server (e.g. DOM-XSS).
-
-                  2. **Vulnerability Hunting Framework**:
-                     - **Input Validation & Sanitization**: Check for unescaped/lack of encoding in outputs (e.g., HTML context for XSS, URL context for open redirects).
-                     - **XSS Focus**: Hunt for sinks like innerHTML/outerHTML, document.write, eval, setTimeout/setInterval with strings, location.href/assign/replace, and history.pushState. Test payloads like <script>alert(1)</script>, javascript:alert(1), and polyglots. For DOM-based, simulate client-side execution.
-                     - **JavaScript Library Analysis**: If JS is present (e.g., in response body or referenced scripts), deobfuscate and inspect:
-                       - Objects/properties that could clobber DOM (e.g., window.name, document.cookie manipulation leading to prototype pollution).
-                       - DOM XSS vectors: Analyze event handlers, querySelector, addEventListener with unsanitized data from location.hash/search, postMessage, or localStorage.
-                       - Third-party libs (e.g., jQuery, React): Flag known sink patterns like .html(), dangerouslySetInnerHTML, or eval-like functions.
-                     - **Server-Side Issues**: Probe for SSRF (e.g., via URL params fetching internal resources), IDOR (e.g., manipulating IDs in paths/bodies), rate limiting bypass, and insecure deserialization (e.g., in JSON/PHP objects).
-                     - **Headers & Misc**: Examine for exposed sensitive info (e.g., debug headers, stack traces), misconfigured security headers (CSP, HSTS), and upload flaws (e.g., file extension bypass).
-                     - **Chaining Opportunities**: Always consider multi-step exploits, like XSS leading to CSRF token theft or SSRF to internal metadata endpoints.
-
-                  3. **PoC Generation**:
-                     - Produce concise, step-by-step PoCs in a standardized format:
-                       - **Description**: Clear vuln summary, CVSS-like severity, and impact.
-                       - **Steps to Reproduce**: Numbered HTTP requests (use curl or Burp syntax, e.g., `curl -X POST -d "param=<payload>" https://target.com/endpoint`).
-                       - **Payloads**: Provide working, minimal payloads with variations for evasion (e.g., encoded, obfuscated).
-                       - **Screenshots/Evidence**: Suggest what to capture (e.g., alert popup for XSS, response diff for IDOR).
-                       - **Mitigation Advice**: Recommend fixes (e.g., output encoding, input validation).
-                     - Ensure PoCs are ethical: Target only in-scope assets, avoid DoS, and emphasize disclosure via proper channels (e.g., HackerOne, Bugcrowd).
-                     - If no vuln found, explain why and suggest further tests (e.g., fuzzing params).
-                  4. Risk Score:
-                    For each analysis generate a risk score between 0% - 100% based on exploitability and impact.  This should be reflected as { "risk_score": "nnn%" } in the final output JSON.
-
-                  Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.
-                '
-
-                ai_analysis = PWN::AI::Introspection.reflect_on(
-                  system_role_content: system_role_content,
-                  request: http_request_response,
-                  suppress_pii_warning: true
-                )
-
-                next if ai_analysis.nil? || ai_analysis.strip.empty?
-
-                entry[:comment] = ai_analysis
-                # Extract score and assign color highlight based on severity
-                if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
-                  score = Regexp.last_match(1).to_i
-                  highlight_color = case score
-                                    when 0..24
-                                      'GREEN'
-                                    when 25..49
-                                      'YELLOW'
-                                    when 50..74
-                                      'ORANGE'
-                                    when 75..100
-                                      'RED'
-                                    end
-                end
-                highlight_color ||= 'GRAY'
-                entry[:highlight] = highlight_color
-
-                entry.delete(:request)
-                entry.delete(:response)
-                entry.delete(:http_service)
-
-                update_proxy_history(
-                  burp_obj: burp_obj,
-                  entry: entry
-                )
-              end
-              sleep 10
-            end
-          rescue Errno::ECONNREFUSED
-            puts 'BurpSuite Proxy History AI Introspection Thread Terminating...'
-          rescue StandardError => e
-            puts "BurpSuite Proxy History AI Introspection Thread Error: #{e}"
-            puts e.backtrace
-            raise e
-          end
-
-          burp_obj[:proxy_history_introspection_thread] = proxy_history_introspection
-        end
-
-        burp_obj
+        init_introspection_thread(burp_obj: burp_obj)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -905,70 +925,6 @@ module PWN
         mitm_rest_api = burp_obj[:mitm_rest_api]
         sitemap = opts[:sitemap] ||= {}
         debug = opts[:debug] || false
-
-        request = Base64.strict_decode64(sitemap[:request])
-        response = Base64.strict_decode64(sitemap[:response])
-
-        http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-
-        system_role_content = '
-          Your expertise lies in dissecting HTTP request/response pairs to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
-
-          When analyzing HTTP request/response pairs:
-
-          1. **Parse and Contextualize Traffic**:
-             - Break down every element: HTTP method, URI (path, query parameters), headers (e.g., Host, User-Agent, Cookies, Authorization, Referer, Origin, Content-Type), request body (e.g., form data, JSON payloads), response status code, response headers, and response body (HTML, JSON, XML, etc.).
-             - Identify dynamic elements: User-controlled inputs (e.g., query params, POST data, headers like X-Forwarded-For), server-side echoes, redirects, and client-side processing.
-             - Trace data flow: Map how inputs propagate from request to response, including any client-side JavaScript execution where exploitation may be possible in the client without communicating with the server (e.g. DOM-XSS).
-
-          2. **Vulnerability Hunting Framework**:
-             - **Input Validation & Sanitization**: Check for unescaped/lack of encoding in outputs (e.g., HTML context for XSS, URL context for open redirects).
-             - **XSS Focus**: Hunt for sinks like innerHTML/outerHTML, document.write, eval, setTimeout/setInterval with strings, location.href/assign/replace, and history.pushState. Test payloads like <script>alert(1)</script>, javascript:alert(1), and polyglots. For DOM-based, simulate client-side execution.
-             - **JavaScript Library Analysis**: If JS is present (e.g., in response body or referenced scripts), deobfuscate and inspect:
-               - Objects/properties that could clobber DOM (e.g., window.name, document.cookie manipulation leading to prototype pollution).
-               - DOM XSS vectors: Analyze event handlers, querySelector, addEventListener with unsanitized data from location.hash/search, postMessage, or localStorage.
-               - Third-party libs (e.g., jQuery, React): Flag known sink patterns like .html(), dangerouslySetInnerHTML, or eval-like functions.
-             - **Server-Side Issues**: Probe for SSRF (e.g., via URL params fetching internal resources), IDOR (e.g., manipulating IDs in paths/bodies), rate limiting bypass, and insecure deserialization (e.g., in JSON/PHP objects).
-             - **Headers & Misc**: Examine for exposed sensitive info (e.g., debug headers, stack traces), misconfigured security headers (CSP, HSTS), and upload flaws (e.g., file extension bypass).
-             - **Chaining Opportunities**: Always consider multi-step exploits, like XSS leading to CSRF token theft or SSRF to internal metadata endpoints.
-
-          3. **PoC Generation**:
-             - Produce concise, step-by-step PoCs in a standardized format:
-               - **Description**: Clear vuln summary, CVSS-like severity, and impact.
-               - **Steps to Reproduce**: Numbered HTTP requests (use curl or Burp syntax, e.g., `curl -X POST -d "param=<payload>" https://target.com/endpoint`).
-               - **Payloads**: Provide working, minimal payloads with variations for evasion (e.g., encoded, obfuscated).
-               - **Screenshots/Evidence**: Suggest what to capture (e.g., alert popup for XSS, response diff for IDOR).
-               - **Mitigation Advice**: Recommend fixes (e.g., output encoding, input validation).
-             - Ensure PoCs are ethical: Target only in-scope assets, avoid DoS, and emphasize disclosure via proper channels (e.g., HackerOne, Bugcrowd).
-             - If no vuln found, explain why and suggest further tests (e.g., fuzzing params).
-          4. Risk Score:
-            For each analysis generate a risk score between 0% - 100% based on exploitability and impact.  This should be reflected as { "risk_score": "nnn%" } in the final output JSON.
-
-          Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.
-        '
-
-        ai_analysis = PWN::AI::Introspection.reflect_on(
-          system_role_content: system_role_content,
-          request: http_request_response,
-          spinner: true
-        )
-        sitemap[:comment] = ai_analysis unless ai_analysis.nil?
-        # Extract score and assign color highlight based on severity
-        if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
-          score = Regexp.last_match(1).to_i
-          highlight_color = case score
-                            when 0..24
-                              'GREEN'
-                            when 25..49
-                              'YELLOW'
-                            when 50..74
-                              'ORANGE'
-                            when 75..100
-                              'RED'
-                            end
-        end
-        highlight_color ||= 'GRAY'
-        sitemap[:highlight] = highlight_color
 
         rest_client = rest_browser::Request
         response = rest_client.execute(
@@ -1826,16 +1782,15 @@ module PWN
 
       public_class_method def self.stop(opts = {})
         burp_obj = opts[:burp_obj]
+
         browser_obj = burp_obj[:mitm_browser]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
-        proxy_intruder_thread = burp_obj[:proxy_intruder_thread]
-        # burp_pid = burp_obj[:pid]
+        introspection_thread = burp_obj[:introspection_thread]
+        introspection_thread.kill unless introspection_thread.nil?
 
-        proxy_intruder_thread.kill unless proxy_intruder_thread.nil?
         PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
         rest_browser.post("http://#{mitm_rest_api}/shutdown", '')
-        # Process.kill('TERM', burp_pid)
 
         burp_obj = nil
       rescue StandardError => e
