@@ -129,7 +129,7 @@ module PWN
 
         zaproxy_cmd = "#{zaproxy_cmd} -host #{zap_ip} -port #{zap_port}"
 
-        zap_obj[:pid] = Process.spawn(zaproxy_cmd)
+        zap_obj[:pid] = Process.spawn(zaproxy_cmd, pgroup: true)
         # Wait for pwn_burp_port to open prior to returning burp_obj
         loop do
           s = TCPSocket.new(zap_rest_ip, zap_rest_port)

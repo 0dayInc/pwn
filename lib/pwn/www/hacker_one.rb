@@ -139,7 +139,8 @@ module PWN
         ai_analysis = PWN::AI::Introspection.reflect_on(
           request: programs_arr.to_json,
           system_role_content: system_role_content,
-          spinner: true
+          spinner: true,
+          suppress_pii_warning: true
         )
         puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 
@@ -284,7 +285,8 @@ module PWN
         ai_analysis = PWN::AI::Introspection.reflect_on(
           request: json_resp.to_json,
           system_role_content: system_role_content,
-          spinner: true
+          spinner: true,
+          suppress_pii_warning: true
         )
         puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 
@@ -432,7 +434,8 @@ module PWN
         ai_analysis = PWN::AI::Introspection.reflect_on(
           request: json_resp.to_json,
           system_role_content: system_role_content,
-          spinner: true
+          spinner: true,
+          suppress_pii_warning: true
         )
         puts "\n\n#{ai_analysis}" unless ai_analysis.nil?
 

@@ -143,6 +143,9 @@ module PWN
       public_class_method def self.chat(opts = {})
         engine = PWN::Env[:ai][:openai]
         request = opts[:request]
+        max_prompt_length = engine[:max_prompt_length] ||= 128_000
+        request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor
+        request = request[0..request_trunc_idx]
 
         model = opts[:model] ||= engine[:model]
 

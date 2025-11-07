@@ -25,10 +25,11 @@ module PWN
 
         raise 'ERROR: opcodes parameter is required.' if opcodes.nil?
 
-        system_role_content = "Analyze the #{endian} endian #{arch} assembly opcodes below and provide a concise summary of their functionality."
+        system_role_content = "Analyze the #{endian} endian #{arch} assembly opcodes below and provide a concise summary of their functionality.  If possible, also convert the assembly to c/c++ code."
         ai_analysis = PWN::AI::Introspection.reflect_on(
           request: opcodes,
-          system_role_content: system_role_content
+          system_role_content: system_role_content,
+          suppress_pii_warning: true
         )
 
         case arch.to_s.downcase
@@ -140,7 +141,8 @@ module PWN
         system_role_content = "Analyze the #{endian} endian #{arch} assembly instructions below and provide a concise summary of their functionality."
         ai_analysis = PWN::AI::Introspection.reflect_on(
           request: asm,
-          system_role_content: system_role_content
+          system_role_content: system_role_content,
+          suppress_pii_warning: true
         )
 
         case arch.to_s.downcase

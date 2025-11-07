@@ -35,21 +35,24 @@ module PWN
             key: 'required - OpenAI API Key',
             model: 'optional - Grok model to use',
             system_role_content: 'You are an ethically hacking OpenAI agent.',
-            temp: 'optional - OpenAI temperature'
+            temp: 'optional - OpenAI temperature',
+            max_prompt_length: 256_000
           },
           openai: {
             base_uri: 'optional - Base URI for OpenAI - Use private base OR defaults to https://api.openai.com/v1',
             key: 'required - OpenAI API Key',
             model: 'optional - OpenAI model to use',
             system_role_content: 'You are an ethically hacking OpenAI agent.',
-            temp: 'optional - OpenAI temperature'
+            temp: 'optional - OpenAI temperature',
+            max_prompt_length: 128_000
           },
           ollama: {
             base_uri: 'required - Base URI for Open WebUI - e.g. https://ollama.local',
             key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token',
             model: 'required - Ollama model to use',
             system_role_content: 'You are an ethically hacking Ollama agent.',
-            temp: 'optional - Ollama temperature'
+            temp: 'optional - Ollama temperature',
+            max_prompt_length: 32_000
           }
         },
         plugins: {

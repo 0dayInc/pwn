@@ -12,7 +12,8 @@ module PWN
       # response = PWN::AI::Introspection.reflect_on(
       #   request: 'required - String - What you want the AI to reflect on',
       #   system_role_content: 'optional - context to set up the model behavior for reflection',
-      #   spinner: 'optional - Boolean - Display spinner during operation (default: false)'
+      #   spinner: 'optional - Boolean - Display spinner during operation (default: false)',
+      #   suppress_pii_warning: 'optional - Boolean - Suppress PII Warnings (default: false)'
       # )
 
       public_class_method def self.reflect_on(opts = {})
@@ -23,6 +24,8 @@ module PWN
 
         spinner = opts[:spinner] || false
 
+        suppress_pii_warning = opts[:suppress_pii_warning] || false
+
         response = nil
 
         ai_introspection = PWN::Env[:ai][:introspection]
@@ -32,6 +35,7 @@ module PWN
           engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
           raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
 
+          puts "WARNING: AI Introspection is enabled.  Ensure #{engine} has been authorized for use and/or requests are sanitized properly." unless suppress_pii_warning
           case engine
           when :grok
             response = PWN::AI::Grok.chat(
@@ -83,7 +87,9 @@ module PWN
         puts "USAGE:
           #{self}.reflect_on(
             request: 'required - String - What you want the AI to reflect on',
-            system_role_content: 'optional - context to set up the model behavior for reflection'
+            system_role_content: 'optional - context to set up the model behavior for reflection',
+            spinner: 'optional - Boolean - Display spinner during operation (default: false)',
+            suppress_pii_warning: 'optional - Boolean - Suppress PII Warnings (default: false)'
           )
 
           #{self}.authors

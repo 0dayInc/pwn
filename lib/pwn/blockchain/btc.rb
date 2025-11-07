@@ -185,7 +185,8 @@ module PWN
         system_role_content = 'Provide a useful summary of this latest bitcoin block returned from a bitcoin node via getblockchaininfo.'
         ai_analysis = PWN::AI::Introspection.reflect_on(
           request: latest_block.to_s,
-          system_role_content: system_role_content
+          system_role_content: system_role_content,
+          suppress_pii_warning: true
         )
         puts ai_analysis
 
