@@ -50,7 +50,7 @@ module PWN
       # )
       private_class_method def self.init_introspection_thread(opts = {})
         #  if PWN::Env[:ai][:introspection] is true,
-        #  spin up PWN::Plugins::ThreadPool to
+        #  spin up Thread to:
         #  1. Periodically call get_proxy_history(burp_obj: burp_obj) method
         #  2. For each entry w/ empty comment,
         #     generate AI analysis via PWN::AI::Introspection.reflect_on
@@ -98,11 +98,63 @@ module PWN
               Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.
             '
 
+            get_highlight_color = lambda do |opts = {}|
+              ai_analysis = opts[:ai_analysis]
+
+              highlight_color = 'GRAY'
+              if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
+                score = Regexp.last_match(1).to_i
+                highlight_color = case score
+                                  when 0..24
+                                    'GREEN'
+                                  when 25..49
+                                    'YELLOW'
+                                  when 50..74
+                                    'ORANGE'
+                                  when 75..100
+                                    'RED'
+                                  end
+              end
+
+              highlight_color
+            end
+
             loop do
               # TODO: Implement sitemap and repeater into the loop.
               # Sitemap should work the same as proxy history.
               # Repeater should analyze the reqesut/response pair and suggest
               # modifications to the request to further probe for vulnerabilities.
+              sitemap = get_sitemap(burp_obj: burp_obj)
+              sitemap.each do |entry|
+                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                request = entry[:request]
+                response = entry[:response]
+                host = entry[:http_service][:host]
+                port = entry[:http_service][:port]
+                protocol = entry[:http_service][:protocol]
+                next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
+
+                request = Base64.strict_decode64(request)
+                response = Base64.strict_decode64(response)
+                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                ai_analysis = PWN::AI::Introspection.reflect_on(
+                  system_role_content: system_role_content,
+                  request: http_request_response,
+                  suppress_pii_warning: true
+                )
+
+                next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                entry[:comment] = ai_analysis
+                entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+
+                update_sitemap(
+                  burp_obj: burp_obj,
+                  entry: entry
+                )
+              end
+
               proxy_history = get_proxy_history(burp_obj: burp_obj)
               proxy_history.each do |entry|
                 next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
@@ -117,43 +169,40 @@ module PWN
                 request = Base64.strict_decode64(request)
                 response = Base64.strict_decode64(response)
 
-                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-                ai_analysis = PWN::AI::Introspection.reflect_on(
-                  system_role_content: system_role_content,
-                  request: http_request_response,
-                  suppress_pii_warning: true
-                )
-
-                next if ai_analysis.nil? || ai_analysis.strip.empty?
-
-                entry[:comment] = ai_analysis
-                # Extract score and assign color highlight based on severity
-                if ai_analysis =~ /"risk_score":\s*"(\d{1,3})%"/
-                  score = Regexp.last_match(1).to_i
-                  highlight_color = case score
-                                    when 0..24
-                                      'GREEN'
-                                    when 25..49
-                                      'YELLOW'
-                                    when 50..74
-                                      'ORANGE'
-                                    when 75..100
-                                      'RED'
-                                    end
+                # If sitemap comment and highlight color exists, use that instead of re-analyzing
+                sitemap_entry = nil
+                if sitemap.any?
+                  sitemap_entry = sitemap.find do |site|
+                    site[:http_service][:host] == host &&
+                      site[:http_service][:port] == port &&
+                      site[:http_service][:protocol] == protocol &&
+                      site[:request] == entry[:request]
+                  end
                 end
-                highlight_color ||= 'GRAY'
-                entry[:highlight] = highlight_color
 
-                entry.delete(:request)
-                entry.delete(:response)
-                entry.delete(:http_service)
+                if sitemap_entry.nil?
+                  http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                  ai_analysis = PWN::AI::Introspection.reflect_on(
+                    system_role_content: system_role_content,
+                    request: http_request_response,
+                    suppress_pii_warning: true
+                  )
+
+                  next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                  entry[:comment] = ai_analysis
+                  entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                else
+                  entry[:comment] = sitemap_entry[:comment]
+                  entry[:highlight] = sitemap_entry[:highlight]
+                end
 
                 update_proxy_history(
                   burp_obj: burp_obj,
                   entry: entry
                 )
               end
-              sleep 10
+              sleep 3
             end
           rescue Errno::ECONNREFUSED
             puts 'Thread Terminating...'
@@ -685,7 +734,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # repeater_obj = PWN::Plugins::BurpSuite.update_proxy_history(
+      # json_proxy_history = PWN::Plugins::BurpSuite.update_proxy_history(
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   entry: 'required - hash of the proxy history entry to update'
       # )
@@ -702,6 +751,11 @@ module PWN
 
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        # Only allow updating of comment and highlight fields
+        entry.delete(:request)
+        entry.delete(:response)
+        entry.delete(:http_service)
 
         put_body = entry.to_json
 
@@ -948,6 +1002,40 @@ module PWN
         puts "HTTP error adding to sitemap: Status #{e.response.code}, Response: #{e.response.body}" if e.respond_to?(:response) && e.response.respond_to?(:code) && e.response.respond_to?(:body)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_sitemap = PWN::Plugins::BurpSuite.update_sitemap(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   entry: 'required - hash of the sitemap entry to update'
+      # )
+
+      public_class_method def self.update_sitemap(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        entry = opts[:entry]
+        raise 'ERROR: entry parameter is required and must be a hash' unless entry.is_a?(Hash)
+
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        # Only allow updating of comment and highlight fields
+        # NOTE we need the request as its used to identify the sitemap entry to update
+        entry.delete(:response)
+        entry.delete(:http_service)
+
+        put_body = entry.to_json
+
+        sitemap_resp = rest_browser.put(
+          "http://#{mitm_rest_api}/sitemap",
+          put_body,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(sitemap_resp, symbolize_names: true)
+      rescue StandardError => e
         raise e
       end
 
@@ -1868,6 +1956,11 @@ module PWN
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
+          json_proxy_history = #{self}.update_proxy_history(
+            burp_obj: 'required - burp_obj returned by #start method',
+            entry: 'required - proxy history entry hash to update'
+          )
+
           json_sitemap = #{self}.get_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
             keyword: 'optional - keyword to filter sitemap results (default: nil)',
@@ -1894,6 +1987,11 @@ module PWN
                 protocol: 'http'
               }
             }
+          )
+
+          json_sitemap = #{self}.update_sitemap(
+            burp_obj: 'required - burp_obj returned by #start method',
+            entry: 'required - sitemap entry hash to update'
           )
 
           json_sitemap = #{self}.import_openapi_to_sitemap(
