@@ -119,6 +119,7 @@ module PWN
               highlight_color
             end
 
+            proxy_history = []
             loop do
               # TODO: Implement sitemap and repeater into the loop.
               # Sitemap should work the same as proxy history.
@@ -135,19 +136,35 @@ module PWN
                 protocol = entry[:http_service][:protocol]
                 next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
 
-                request = Base64.strict_decode64(request)
-                response = Base64.strict_decode64(response)
-                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-                ai_analysis = PWN::AI::Introspection.reflect_on(
-                  system_role_content: system_role_content,
-                  request: http_request_response,
-                  suppress_pii_warning: true
-                )
+                proxy_history_entry = nil
+                if proxy_history.any?
+                  proxy_history_entry = proxy_history.find do |proxy_entry|
+                    next unless proxy_entry.key?(:http_service) && proxy_entry.key?(:request)
 
-                next if ai_analysis.nil? || ai_analysis.strip.empty?
+                    proxy_entry[:http_service][:host] == host &&
+                      proxy_entry[:http_service][:port] == port &&
+                      proxy_entry[:http_service][:protocol] == protocol &&
+                      proxy_entry[:request] == entry[:request]
+                  end
+                end
+                if proxy_history_entry.nil?
+                  request = Base64.strict_decode64(request)
+                  response = Base64.strict_decode64(response)
+                  http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                  ai_analysis = PWN::AI::Introspection.reflect_on(
+                    system_role_content: system_role_content,
+                    request: http_request_response,
+                    suppress_pii_warning: true
+                  )
 
-                entry[:comment] = ai_analysis
-                entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                  next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                  entry[:comment] = ai_analysis
+                  entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                else
+                  entry[:comment] = proxy_history_entry[:comment]
+                  entry[:highlight] = proxy_history_entry[:highlight]
+                end
 
                 update_sitemap(
                   burp_obj: burp_obj,
@@ -166,13 +183,12 @@ module PWN
                 protocol = entry[:http_service][:protocol]
                 next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
 
-                request = Base64.strict_decode64(request)
-                response = Base64.strict_decode64(response)
-
                 # If sitemap comment and highlight color exists, use that instead of re-analyzing
                 sitemap_entry = nil
                 if sitemap.any?
                   sitemap_entry = sitemap.find do |site|
+                    next unless site.key?(:http_service) && site.key?(:request)
+
                     site[:http_service][:host] == host &&
                       site[:http_service][:port] == port &&
                       site[:http_service][:protocol] == protocol &&
@@ -181,6 +197,9 @@ module PWN
                 end
 
                 if sitemap_entry.nil?
+                  request = Base64.strict_decode64(request)
+                  response = Base64.strict_decode64(response)
+
                   http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
                   ai_analysis = PWN::AI::Introspection.reflect_on(
                     system_role_content: system_role_content,
