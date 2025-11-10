@@ -147,7 +147,11 @@ module PWN
                       proxy_entry[:request] == entry[:request]
                   end
                 end
-                if proxy_history_entry.nil?
+
+                if proxy_history_entry.is_a?(Hash) && proxy_history_entry[:comment].length.positive?
+                  entry[:comment] = proxy_history_entry[:comment]
+                  entry[:highlight] = proxy_history_entry[:highlight]
+                else
                   request = Base64.strict_decode64(request)
                   response = Base64.strict_decode64(response)
                   http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
@@ -161,9 +165,6 @@ module PWN
 
                   entry[:comment] = ai_analysis
                   entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
-                else
-                  entry[:comment] = proxy_history_entry[:comment]
-                  entry[:highlight] = proxy_history_entry[:highlight]
                 end
 
                 update_sitemap(
@@ -196,7 +197,10 @@ module PWN
                   end
                 end
 
-                if sitemap_entry.nil?
+                if sitemap_entry.is_a?(Hash) && sitemap_entry[:comment].length.positive?
+                  entry[:comment] = sitemap_entry[:comment]
+                  entry[:highlight] = sitemap_entry[:highlight]
+                else
                   request = Base64.strict_decode64(request)
                   response = Base64.strict_decode64(response)
 
@@ -211,9 +215,6 @@ module PWN
 
                   entry[:comment] = ai_analysis
                   entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
-                else
-                  entry[:comment] = sitemap_entry[:comment]
-                  entry[:highlight] = sitemap_entry[:highlight]
                 end
 
                 update_proxy_history(
