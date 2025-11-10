@@ -169,17 +169,33 @@ module PWN
                 request = Base64.strict_decode64(request)
                 response = Base64.strict_decode64(response)
 
-                http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-                ai_analysis = PWN::AI::Introspection.reflect_on(
-                  system_role_content: system_role_content,
-                  request: http_request_response,
-                  suppress_pii_warning: true
-                )
+                # If sitemap comment and highlight color exists, use that instead of re-analyzing
+                sitemap_entry = nil
+                if sitemap.any?
+                  sitemap_entry = sitemap.find do |site|
+                    site[:http_service][:host] == host &&
+                      site[:http_service][:port] == port &&
+                      site[:http_service][:protocol] == protocol &&
+                      site[:request] == entry[:request]
+                  end
+                end
 
-                next if ai_analysis.nil? || ai_analysis.strip.empty?
+                if sitemap_entry.nil?
+                  http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                  ai_analysis = PWN::AI::Introspection.reflect_on(
+                    system_role_content: system_role_content,
+                    request: http_request_response,
+                    suppress_pii_warning: true
+                  )
 
-                entry[:comment] = ai_analysis
-                entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                  next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                  entry[:comment] = ai_analysis
+                  entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                else
+                  entry[:comment] = sitemap_entry[:comment]
+                  entry[:highlight] = sitemap_entry[:highlight]
+                end
 
                 update_proxy_history(
                   burp_obj: burp_obj,

@@ -1,181 +1,185 @@
-0e6a161 Merge pull request #815 from ninp0/master
-cd06863 pwn_burp_*, pwn_zaproxy*, PWN::Plugins::BurpSuite, && PWN::Plugins::Zaproxy - sync dev patterns as closely as possible - iteration 1
-e619eb4 Merge pull request #814 from ninp0/master
-c91ef60 pwn_burp_suite_pro_active_rest_api_scan Driver - location in which the openapi_spec is dropped matters.
-b083176 Merge pull request #813 from ninp0/master
-2dbe8df PWN::Plugins::OpenAPI module - #bugfixes resolving properties $ref attributes when generating openapi spec #slight_tweak
-d98e54b Merge pull request #812 from ninp0/master
-125b69f PWN::Plugins::OpenAPI module - #bugfixes resolving properties $ref attributes when generating openapi spec
-77e110b Merge pull request #811 from ninp0/master
-ac7d1cf PWN::SAST::Logger && PWN::SAST::ThrowErrors modules - refine anti-patterns
-8074714 Merge pull request #810 from ninp0/master
-4db65d9 PWN::Reports::HTMLHeader && PWN::Reports::HTMLFooter modules - remove unncessary require statements
-9350072 PWN::Reports::SAST - slight UI tweaks / change search label value to provide search example
-e080194 Merge pull request #809 from ninp0/master
-4399586 PWN::Reports::SAST - offload reusable footer code into PWN::Reports::HTMLFooter module
-9968e44 Merge pull request #808 from ninp0/master
-0ecc452 pwn_burp_suite_pro_active_rest_api_scan Driver - initial commit
-6b47120 Merge pull request #807 from ninp0/master
-0bc36c9 Gemfile and pwn.gemspec tweaks
-4c969cd pwn_sast Driver && PWN::Reports::SAST module - UI enhancements
-4aa4616 Merge pull request #806 from ninp0/master
-bab13ac pwn_sast Driver && PWN::Reports::SAST module - Enhanced PDF and XLSX report exports, cell formatting fixes, include hyperlinks in reports, slight tweak to UI header
-31960c5 Merge pull request #805 from ninp0/master
-0de729f pwn_sast Driver && PWN::Reports::SAST module - Enhanced PDF and XLSX report exports #slight_tweaks
-13027dd Merge pull request #804 from ninp0/master
-f005e98 pwn_sast Driver && PWN::Reports::SAST module - Enhanced PDF and XLSX report exports
-990fa89 pwn_sast Driver && PWN::Reports::SAST module - UI overhaul, implement export to PDF and XLSX in addition to JSON
-6d40c0b Merge pull request #803 from ninp0/master
-0c8c4b1 pwn_sast Driver - #bugfixes
-78f98d4 pwn_sast Driver - #bugfixes
-39f1853 pwn_sast Driver - #bugfixes
-376f7bc pwn_sast Driver - #bugfixes
-69a5f7f pwn_sast Driver - #bugfixes
-60efd51 PWN::Plugins::FileFu module - create #recurse_in_dir method to support pwn_sast Driver scanning repos that are explicitly passed instead of scanning in current working directory.  Update PWN::SAST::* modules to support this as well.
-2332dc6 Merge pull request #802 from ninp0/master
-a207630 PWN::AI::OpenAI module - update default model to gpt-5-chat-latest in #chat method
-4ca1f58 Merge pull request #801 from ninp0/master
-de7ebe5 pwn_sast Driver && PWN::Reports::SAST module - enhanced progress reporting when generating report.
-abbb0d5 pwn_sast Driver && PWN::Reports::SAST module - implement optional AI analysis of SAST results
-62a6e88 Merge pull request #800 from ninp0/master
-29f8925 Add new namespace, `PWN::AI` and move PWN::Plugins::OpenAI and PWN::Plugins::Ollama modules to the new namespace.  Also new initial commit for `PWN::AI::Grok` module.
-0f427b7 Merge pull request #799 from ninp0/master
-18809bf PWN::Plugins::BurpSuite module - `require "yaml"` for brevity
-9292522 Merge pull request #798 from ninp0/master
-f60a31f PWN::Plugins::BurpSuite module - more robust example handling to reconstuct accurate HTTP requests for #import_openapi_to_sitemap method
-7df2319 Merge pull request #797 from ninp0/master
-2d83e69 PWN::Plugins::BurpSuite module - #bugfix in #add_to_sitemap
-b7af7c3 PWN::Plugins::BurpSuite module - #bugfix in #add_to_sitemap
-99e7070 Merge pull request #796 from ninp0/master
-9f7b78e PWN::Plugins::BurpSuite module - update #import_openapi_to_sitemap method to support YAML for openapi_spec parameter
-6959f27 Merge pull request #795 from ninp0/master
-56db7de PWN::Plugins::BurpSuite module - crank up timeouts for adding requests to sitemap for really slow test envs
-4a6a8f5 PWN::Plugins::BurpSuite module - crank up timeouts for adding requests to sitemap for really slow test envs
-4eb9c03 Merge pull request #794 from ninp0/master
-82a76a1 PWN::Plugins::BurpSuite module - crank up max heap memory constraints and set min heap memory to 4G within #start method
-e9360cd Merge pull request #793 from ninp0/master
-daffbe1 pwn_burp_suite_pro_active_scan Driver - #bugfix change ---in_scope to --in_scope parameter
-f0b4139 Merge pull request #792 from ninp0/master
-4956561 pwn_burp_suite_pro_active_scan Driver && PWN::Plugins::BurpSuite module - implement --exlude-path parameter to avoid scanning URLs that may terminate sessions prematurely
-7e01c8e Merge pull request #791 from ninp0/master
-a5b6b2b PWN::Plugins::BurpSuite module - update #stop method to gracefullly shutdown Burp UI and preserve any Extensions installed during the session
-f49f25f Merge pull request #790 from ninp0/master
-b55870e Nuke burp mock test reports
-c56d5d9 Merge pull request #789 from ninp0/master
-342dd5b PWN::Plugins::BurpSuite module - include query parameter in format_uri_from_sitemap_resp method
-346393a Merge pull request #788 from ninp0/master
-03e9e37 PWN::Reports::* modules - retain original report name for selected lines exported to JSON file
-5c86dcb Merge pull request #787 from ninp0/master
-5fa1cdf PWN::Plugins::BurpSuite module - #enhancements in #import_openapi_to_sitemap method to constuct more accurate http response in the Sitemap
-bae133e Merge pull request #786 from ninp0/master
-b1249c8 PWN::Plugins::BurpSuite module - #bugfix in #import_openapi_to_sitemap method
-1141fdf Merge pull request #785 from ninp0/master
-40d3f72 pwn_burp_suite_pro_active_scan Driver - optimize for both authenticated and unauthenticated scanning
-3129c28 Merge pull request #784 from ninp0/master
-e348a61 Merge branch 'master' of ssh://github.com/ninp0/pwn
-f4cf106 PWN::Plugins::BurpSuite module - cleaner status output to STDOUT when running #invoke_active_scan method #rubocop
-b30e6e1 Merge pull request #783 from ninp0/master
-929d818 PWN::Plugins::BurpSuite module - cleaner status output to STDOUT when running #invoke_active_scan method
-02e0b17 PWN::Plugins::BurpSuite module - implement proxy listener CRUD and allow for concurrent burp active scan sessions
-1890ed8 Merge pull request #782 from ninp0/master
-1d2a495 PWN::Reports::* modules - support multi-line select and exporting selected lines to external JSON file
-1e072e8 pwn_fuzz_net_app_proto Driver - #bugfixes && PWN::Reports::* modules begin extending all reports to support multi-line select and exporting selecting lines to external JSON file
-de63465 Merge pull request #781 from ninp0/master
-d39dd94 PWN::Reports::SAST module - implement multi-line select/highlighting and export highlighted results to JSON file for consumption by tools like DefectDojo
-ccf4692 Merge pull request #780 from ninp0/master
-5b08c3b PWN::Plugins::BurpSuite module - update #import_openapi_to_sitemap method to aggregate remaining HTTP header names from spec, reference as keys, and assign their respective values to the request_headers hash
-1fe2155 Merge pull request #779 from ninp0/master
-2afb327 PWN::Plugins::BurpSuite module - update #import_openapi_to_sitemap method to include more obvious placeholders when schema examples cannot be found in the spec
-a2e3ff5 Merge pull request #778 from ninp0/master
-d5673d4 PWN::Plugins::OpenAPI module - suppoort aliases when parsing YAML documents
-0411777 Merge pull request #777 from ninp0/master
-70b6ceb PWN::Plugins::BurpSuite module - update usage in #help method && prettier STDOUT in pwn_burp_suite_pro_active_scan Driver
-8f28ff1 Merge pull request #776 from ninp0/master
-1917900 PWN::Plugins::BurpSuite module - #bugfix remove #stop method from #in_scope method
-1431ad9 Merge pull request #775 from ninp0/master
-cec08c6 PWN::Plugins::BurpSuite module - #bugfix remove #stop method from #in_scope method
-a490ed7 Merge pull request #774 from ninp0/master
-5d8ecfb PWN::Plugins::BurpSuite module - more debugging in #invoke_active_scan method && Enhanced search capabilities for PWN::Reports::* modules
-3447154 Merge pull request #773 from ninp0/master
-226d7df PWN::Plugins::BurpSuite module - more debugging in #invoke_active_scan method
-cb8d237 Merge pull request #772 from ninp0/master
-9245fe1 Merge branch 'master' of ssh://github.com/ninp0/pwn
-5ef6539 Merge pull request #771 from ninp0/master
-11c6bac PWN::Plugins::BurpSuite module - more debugging in #invoke_active_scan method
-94d17f9 PWN::Plugins::BurpSuite module - more debugging in #invoke_active_scan method
-fa54fe9 Merge pull request #770 from ninp0/master
-f4a32fe PWN::Plugins::BurpSuite module - #bugfix in #spider method
-9007671 Merge pull request #769 from ninp0/master
-574301b PWN::Plugins::BurpSuite module - temporarily remove stop in ensure block for #invoke_active_scan method
-3fc144b Merge pull request #768 from ninp0/master
-47f2828 PWN::Plugins::BurpSuite module - begin working towards supporting proxy listener settings within #start method
-857cab9 PWN::Plugins::BurpSuite module - implement a #spider method and include this feature as an option within the pwn_burp_suite_pro_active_scan Driver. #enhancements
-663c25d Merge pull request #767 from ninp0/master
-0f3c593 PWN::Plugins::BurpSuite module - implement a #spider method and include this feature as an option within the pwn_burp_suite_pro_active_scan Driver.
-f302712 Merge pull request #766 from ninp0/master
-83812a4 PWN::Plugins::BurpSuite module - #bugfix when attempting to scan URI that responds w code other than 200 #keepitmoving
-70fea2b PWN::Plugins::BurpSuite module - #bugfix when attempting to scan URI that responds w code other than 200 #keepitmoving
-1eedf4b Merge pull request #765 from ninp0/master
-0f72609 PWN::Plugins::BurpSuite module - #bugfix when attempting to scan URI that responds w code other than 200 #keepitmoving
-4d8469b Merge pull request #764 from ninp0/master
-4942a7b PWN::Plugins::BurpSuite module - a lot of integrations for pwn-burp.jar Burp Extension && PWN::Plugins::OpenAPI module - oh buddy...
-4126d2f Merge pull request #763 from ninp0/master
-72f8a5a PWN::Plugins::OpenAPI module - initial commit
-da3de9e Merge pull request #762 from ninp0/master
-ed0272c VERSION.rb - bump version to align w/ rubygems
-a4d508d third_party/*.jar - remove burp extensions
-1cd05db Merge pull request #761 from ninp0/master
-9fdd26f third party - replace BurpSuite extension, BurpBuddy w/ PWNBurpRestAPI
-1a97d75 Merge pull request #760 from ninp0/master
-806e5a2 pwn_burp_suite_pro_active_scan Driver - output each instruction to STDOUT while redacting sensitive data. #slight_tweak
-87984b9 Merge pull request #759 from ninp0/master
-ad0db78 pwn_burp_suite_pro_active_scan Driver - output each instruction to STDOUT while redacting sensitive data.
-b953b32 Merge pull request #758 from ninp0/master
-b2c8755 pwn_burp_suite_pro_active_scan Driver - Add to scope prior to executing navigation instructions
-2dcee71 Merge pull request #757 from ninp0/master
-7ee1968 PWN::Plugins::BurpSuite - #bugfix within #generate_scan_report method
-3e9d42b PWN::Plugins::BurpSuite - #bugfix within #generate_scan_report  method
-ffdf5c1 PWN::Plugins::BurpSuite - #bugfix within #generate_scan_report  method
-41e7d90 Merge pull request #756 from ninp0/master
-180c187 PWN::Plugins::BurpSuite - test use_https values in post_body variable within #invoke_scan_method
-88fb7790 Merge pull request #755 from ninp0/master
-5abaf61 PWN::Plugins::BurpSuite - #bugfix in json_uri generation within #invoke_active_scan method
-b59b53b Merge pull request #754 from ninp0/master
-cd30423 PWN::Plugins::BurpSuite - test useHttps values in post_body variable within #invoke_scan_method
-2dad6b1 Merge pull request #753 from ninp0/master
-9620af0 PWN::Reports::* modules - Update # of entries / page options to be 10, 25, 50, 100, 250, 500, 1000, 2500, 5000
-703564f Merge pull request #752 from ninp0/master
-2a04764 PWN::Plugins::TransparentBrowser module - more efficient / stable #list_tabs method
-c52492e Merge pull request #751 from ninp0/master
-5a1a72c Gemfile - comment out openapi3_parser for REST API testing as dependencies break pwn install in OpenBSD
-dbf3bb3 Merge pull request #750 from ninp0/master
-a0a3af6 PWN::Plugins::TransparentBrowser module - specify optional `index` parameter to dictate which DOM mutations to view or hide
-10f9d15 Merge pull request #749 from ninp0/master
-94abfa8 Gemfile - pull in openapi3_parser for REST API testing && PWN::Plugins::TransparentBrowser module - overhaul on tab management
-5ba895a Merge pull request #748 from ninp0/master
-ac80447 PWN::Plugins::TransparentBrowser module - change `keyword` parameter in #jmp_tab method to optional, defaulting to switching to the next  inactive tab from the list returned by the #list_tabs method
-651a7e0 Merge pull request #747 from ninp0/master
-efcc3af PWN::Plugins::TransparentBrowser module - multi-tab support within #view_dom_mutations #hide_dom_mutations methods
-317c7f8 Merge pull request #746 from ninp0/master
-c9a9917 PWN::Plugins::TransparentBrowser module - enhancements in #view_dom_mutations methods to include common sinks for DOM XSS
-30184bd Merge pull request #745 from ninp0/master
-99de13a PWN::Plugins::TransparentBrowser module - enhancements in #console and #view_dom_mutations methods.  #bugfixes in #hide_dom_mutations method
-c113537 Merge pull request #744 from ninp0/master
-4db450b PWN::Plugins::TransparentBrowser module - add methods to output DOM mutations in the console when devtools = true #bugfixes
-5efdc25 Merge pull request #743 from ninp0/master
-6223de5 PWN::Plugins::TransparentBrowser module - add methods to output DOM mutations in the console when devtools = true
-924f1d5 Merge pull request #742 from ninp0/master
-4bf4f16 PWN::Plugins::TransparentBrowser module - add methods to output DOM mutations in the console when devtools = true
-c0c716c Merge pull request #741 from ninp0/master
-0aa8cd5 PWN::Plugins::TransparentBrowser module - begin supporting BiDi for browsers that support this more standardized approach to automating browser navigation
-c0770a1 Merge pull request #740 from ninp0/master
-30627ca PWN::Report::SAST module - extend proper line anchor formatting for different git source code managment software solutions
-ee79c1d Merge pull request #739 from ninp0/master
-a6e05f5 PWN::Plugins::JiraServer module - #bugfix in #issue_comment method
-a8d9da7 Merge pull request #738 from ninp0/master
-0226316 PWN::Plugins::JiraServer module - always return value of #get_issue when performing issue CRUD actions within other methods (except delete, cause well, issue == nil)
-7bd820b Merge pull request #737 from ninp0/master
-624738f PWN::Plugins::JiraServer module - support attaching multiple files in issue w/ one call to either #create_issue or #update_issue.  Additionally, implement the ability to delete attachments via #delete_attachment method and manage comments for an issue via #issue_comment method.
-33f1303 Merge pull request #736 from ninp0/master
-4dd158d PWN::Plugins::JiraServer module - attachment #bugfixes
-720bdb9 Merge pull request #735 from ninp0/master
+412035f PWN::Plugins::BurpSuite module - implment sitemap analysis (in addition to proxy history) in AI introspection thread to update notes and highlight accordingly.
+a1cfa2c Merge pull request #896 from ninp0/master
+4558fad PWN::Plugins::BurpSuite module - remove sitemap introspection for now, and cleanup the proxy_history thread to begin supporting introspection within sitemap, repeater, etc.
+91e4ca5 Merge pull request #895 from ninp0/master
+8dc34fd PWN::Plugins::BurpSuite module - implement introspection within sitemap and proxy history
+009fb44 PWN::Plugins::BurpSuite module - #bugfix when passing system_role_content while AI introspection is enabled in PWN::Env
+28441d2 Merge pull request #894 from ninp0/master
+72d8ff9 PWN::Plugins::TransparentBrowser && PWN::Plugins::BurpSuite modules - implement PWN::AI::Introspection.reflect_on when introspection is enabled in PWN::Env
+03d46de Merge pull request #893 from ninp0/master
+8258b7a PWN::Plugins::TransparentBrowser module - hardcode system_role_content for PWN::AI::Introscpection.reflect_on within #debugger method.  Increase efficiency of #step method ass well
+a348af6 Merge pull request #892 from ninp0/master
+b0bbbf5 PWN::Plugins::REPL - #cleaner_rx
+54cd690 Merge pull request #891 from ninp0/master
+1a065fa PWN::Plugins::REPL - #cleaner_rx
+b5f2ce2 Merge pull request #890 from ninp0/master
+03a72da Gemfile - update to latest versions
+782f35b Merge pull request #889 from ninp0/master
+9609d5c Merge branch 'master' of ssh://github.com/ninp0/pwn
+9e62d59 Gemfile - update to latest versions
+58cad93 Merge pull request #888 from ninp0/master
+90e13ba Merge branch 'master' of ssh://github.com/ninp0/pwn
+9b753c1 Merge pull request #887 from ninp0/master
+9f2bdaf PWN::Plugins::REPL - #minor_tweaks
+568c036 PWN::Plugins::REPL - #minor_tweaks
+f4eaf17 Merge pull request #886 from ninp0/master
+8c7a913 Gemfile - update to latest versions
+88be485 Merge branch 'master' of ssh://github.com/ninp0/pwn
+bb79392 PWN::Plugins::REPL - #minor_tweaks
+f28f339 Merge pull request #885 from ninp0/master
+87e8956 PWN::Plugins::REPL - #minor_tweaks
+09946fc Merge pull request #884 from ninp0/master
+6107861 PWN::Plugins::REPL - #minor_tweaks
+90a2b27 Merge pull request #883 from ninp0/master
+7d2735f PWN::Plugins::REPL - #minor_tweaks
+e12cc3c Merge pull request #882 from ninp0/master
+1eb75ce PWN::Plugins::REPL - #minor_tweaks
+8ed262e PWN::Plugins::REPL - UI tweaks, cleaner interface
+59c9ec6 Merge pull request #881 from ninp0/master
+5aa6cb5 PWN::Plugins::JiraDataCenter - move begin/rescue logic from clone_issue method to create_issue method (i.e. retrieving newly createed issue && reattempting to create an issue when Jira throws errors about unlicensed fields.
+341eb8e Merge pull request #880 from ninp0/master
+f25eac0 PWN::Plugins::JiraDataCenter - eliminate redudant call to return issue at the end of clone_issue method.  Just return the issue returned by the create_issue method
+fa9b2c5 PWN::Plugins::REPL - flexible from in pwn-mesh
+8e1ad4d Merge pull request #879 from ninp0/master
+e8b1b60 PWN::Plugins::JiraDataCenter - ommit fields that are currently unlicensed
+eba30bc Merge pull request #878 from ninp0/master
+ba06ea5 PWN::Plugins::JiraDataCenter - ommit fields that are currently unlicensed
+12a9337 Merge pull request #877 from ninp0/master
+a5b3468 PWN::Plugins::JiraDataCenter - attachment #bugfix in #clone_issus method
+c03b0fd Merge pull request #876 from ninp0/master
+1ea9554 PWN::Plugins::REPL module - pwn-mesh command >>> implement send only capability via MQTT
+9e671ce Gemfile - pull in latest
+7f61639 Merge pull request #875 from ninp0/master
+075ad68 PWN::Plugins::JiraDataCenter module - another clone_issue fix attempt and more robust get_issue_type_metadata method #bugfixes #include_attachment_cloning
+730fc9a Merge branch 'master' of ssh://github.com/ninp0/pwn
+6f73b37 PWN::Plugins::JiraDataCenter module - another clone_issue fix attempt and more robust get_issue_type_metadata method #bugfixes #include_attachment_cloning
+21a4560 PWN::Plugins::JiraDataCenter module - another clone_issue fix attempt and more robust get_issue_type_metadata method #bugfixes #include_attachment_cloning
+f734ae2 PWN::Plugins::JiraDataCenter module - another clone_issue fix attempt and more robust get_issue_type_metadata method #bugfixes
+46e8712 Merge pull request #874 from ninp0/master
+fb74590 PWN::Plugins::JiraDataCenter module - another clone_issue fix attempt and more robust get_issue_type_metadata method #bugfixes
+c3cd819 Merge pull request #873 from ninp0/master
+5ac6fbe PWN::Plugins::JiraDataCenter module - another clone_issue fix attempt and more robust get_issue_type_metadata method
+f18a29f Merge pull request #872 from ninp0/master
+8ff89a7 PWN::Plugins::JiraServer module - attempt to drastically simplify #clone_issue method #robocop_fix
+72ac3ce Merge pull request #871 from ninp0/master
+2962423 PWN::Plugins::JiraServer module - attempt to drastically simplify #clone_issue method
+85635ba Merge pull request #870 from ninp0/master
+384e884 PWN::Plugins::JiraServer module - attempt to drastically simplify #clone_issue method
+5c20154 Merge pull request #869 from ninp0/master
+f9d6edf PWN::Plugins::JiraServer module - begin implementing better logic for dealing with incompatible fields when cloning an issue
+6e00e9c Merge pull request #868 from ninp0/master
+868527e PWN::Plugins::JiraServer module - filter out incompatible fields when cloning an issue
+c2c6a17 Merge pull request #867 from ninp0/master
+b3fa3ff PWN::Plugins::JiraServer module - implement #clone_issue method #bugfixes
+dcc64de Merge pull request #866 from ninp0/master
+de4aade PWN::Plugins::JiraServer module - implement #clone_issue method
+4dab4cc Merge pull request #865 from ninp0/master
+9d2ea0d PWN::Plugins::JiraServer module - #race_condition_bugfix when returning new issue from #create_issue method
+46b9458 Merge pull request #864 from ninp0/master
+d478fd1 PWN::Plugins::JiraServer module - credential management overhaul / rely upon pwn-vault for credential management #bugfix
+fd0aeb7 Merge pull request #863 from ninp0/master
+2e51b55 PWN::Plugins::JiraServer module - credential management overhaul / rely upon pwn-vault for credential management.
+ee231d7 Merge pull request #862 from ninp0/master
+4dbb1c1 PWN::Config && PWN::Plugins::Vault modules - ensure permissions for YAML config are 0600 and decryptor are 0400 by default
+4471061 Merge pull request #861 from ninp0/master
+b7a1ae0 PWN::Config module - refactor #default_env is encrypted by default
+2309a44 Merge pull request #860 from ninp0/master
+0c4c4f0 PWN::Config module - #bugfixes / PWN::Driver module - initial commit to auto-initialize PWN::Env, implement standard options, and reduce redundant driver code
+1642f77 Merge pull request #859 from ninp0/master
+e96a868 PWN::Plugins::Assembly, PWN::Plugins::TransparentBrowser, PWN::SAST::PomVersion, PWN::SAST::TestCaseEngine, && PWN::AI::Instrospection modules - simplify intrumentation for implementing AI introspection into modules && instrument aforementioned modules with AI introspection
+bca35f1 PWN::Plugins::Assembly, PWN::Plugins::TransparentBrowser, PWN::SAST::PomVersion, PWN::SAST::TestCaseEngine, && PWN::AI::Instrospection modules - simplify intrumentation for implementing AI introspection into modules && instrument aforementioned modules with AI introspection
+096bc34 Merge pull request #858 from ninp0/master
+79d2b64 PWN::Plugins::TransparentBrowser module - #bugfix in `browser_type: :chrome` when `devtools: true`
+40e0dbe Merge pull request #857 from ninp0/master
+94633d9 PWN::SAST::TestCaseEngine - Change default rdoc FQDN to https://www.rubydoc.info
+97a9a17 PWN::SAST::UseAfterFree module - initial commit
+0b0bdab Merge pull request #856 from ninp0/master
+ce3bc17 PWN::Blockchain::BTC - #bugfixes in #get_block_details method
+bed84e1 PWN::Blockchain::BTC - add get_transactions method
+0d4f60e PWN::Blockchain::BTC - implement the means to interact with private BTC nodes to eliminate HTTP 429 (rate limiting) issues
+5c8c210 Merge pull request #855 from ninp0/master
+2c69b53 PWN::Plugins::MonkeyPatch module - update monkey patch for Pry that properly handles splat mode for Hashes just as it does for Arrays and Strings
+b58e591 Merge pull request #854 from ninp0/master
+06916e5 PWN::SAST::* modules - continued overhaul / #bugfixes
+f7090f9 PWN::SAST::* modules - reduce redundant code in #scan methods and centralize test case execution within PWN::SAST::TestCaseEngine module
+3dc7714 Merge pull request #853 from ninp0/master
+1f26cd3 PWN module - Initialize PWN::Env[:driver_opts] key for easier / standardized approach for driver development, options parsing, and custom environmental configs via --pwn-env --pwn-dec #rubocop_fix
+d9a0435 Merge pull request #852 from ninp0/master
+ba40358 PWN module - Initialize PWN::Env[:driver_opts] key for easier / standardized approach for driver development, options parsing, and custom environmental configs via --pwn-env --pwn-dec
+f4d2cbb Merge pull request #851 from ninp0/master
+3ff6722 PWN::AI::* modules - Implement HTTP 429 response handling to deal w/ multi-threaded pwn_sast Driver
+927374a Merge pull request #850 from ninp0/master
+172c98c pwn_sast Driver - #bugfix when passing in custom --pwn-env && --pwn-dec parameters
+3b4b176 Merge pull request #849 from ninp0/master
+7117649 PWN::Reports::SAST - move ai_introspection logic to PWN::SAST::* modules to dramatically increase result generation #bugfixes and #enhancements
+a6b632f Merge pull request #848 from ninp0/master
+7791f5b PWN::Reports::SAST - move ai_introspection logic to PWN::SAST::* modules to dramatically increase result generation
+5d79b84 Merge pull request #847 from ninp0/master
+5e5d069 Create default encrypted ~/.pwn/pwn.yaml && ~/.pwn/pwn.decryptor.yaml if they dont exist during first run of pwn prototyping driver
+e8ae9ac Merge pull request #846 from ninp0/master
+9d4a253 PWN::Reports::SAST && PWN::AI::Introspection modules - #bugfix to pass in request parameter. PWN::Config module - leverage PWN::AI.help to define valid AI engines
+dd4945e config_spec - #bugfix in method call
+46e5669 Merge pull request #845 from ninp0/master
+cdf908f PWN::AI::Instrospection module - initial commit.  #freeze contents of PWN::Env (Replaced PWN::CONFIG) unless PWN::Config.refresh_env is called.  Update PWN::REPL module to use PWN::Env instead of decprecated pry_instance.config.pwn Hash
+6ff2b17 Merge pull request #844 from ninp0/master
+99c4f0b Begin implementing AI introspection throughout PWN.  Also create PWN::Config module which maintains PWN::CONFIG constant #spec_bugfix
+b4be7d4 Merge pull request #843 from ninp0/master
+5231947 Begin implementing AI introspection throughout PWN.  Also create PWN::Config module which maintains PWN::CONFIG constant #bugfix
+13d0ed8 Begin implementing AI introspection throughout PWN.  Also create PWN::Config module which maintains PWN::CONFIG constant
+954462f Merge pull request #842 from ninp0/master
+9bb42bb Update format of etc/pwn.yaml.EXAMPLE #non_backwards_compat_change, PWN::Reports::REPL && PWN::Plugins::Vault modules - begin rolling out Vault configuration convention, AI introspection, and the pwn prototyping driver / repl to have its respective history reside in ~/.pwn/pwn_history
+c7c7cdb Merge pull request #841 from ninp0/master
+280c348 PWN::Reports::SAST module - update request to include more context for LLM to analyze
+01a445d Merge pull request #840 from ninp0/master
+f939b6c PWN::Plugins::REPL && PWN::Plugins::Vault modules - multiple bugfixes around reloading pwn.yaml config
+d552591 PWN::Blockchain module namespace - Initial commit of namespace and _VERY LIMITED_ PWN::Blockchain::BTC && PWN::Blockchain::ETH modules
+e06f3d6 Merge pull request #839 from ninp0/master
+c881c49 PWN::Plugins::REPL module - create .pwn directory if it doesnt exist #bugfix
+54a8aac Merge pull request #838 from ninp0/master
+1e67aae PWN::Plugins::REPL module - create .pwn directory if it doesnt exist
+564d720 Merge pull request #837 from ninp0/master
+92cf453 PWN::Plugins::REPL module - convention over configuation when you want to load your configuration without having to configure the convention :P
+ab03252 Merge pull request #836 from ninp0/master
+8a51f7e PWN::Plugins::REPL module - move method to refresh pwn.yaml config to PWN::Plugins::Vault module
+0cf013f Merge pull request #835 from ninp0/master
+5c5d2fc Standardize all modules within PWN::AI namespace to use :base_uri parameter.  Update etc/pwn.yaml.example to reflect this functionality.  Update PWN::Plugins::REPL && PWN::Plugins::Vault modules to support pwn.yaml reload if the config is edited.
+494cc09 Merge pull request #834 from ninp0/master
+0fa8e0a PWN::Plugins::BurpSuite module - implement return_as parameter within #get_sitemap method with :har choice (defaults to :base64).  PWN::Plugins::Zaproxy module - #bugfix in #get_sitemap method
+6ec31ce PWN::Plugins::BurpSuite module - implement return_as parameter within #get_sitemap method with :har choice (defaults to :base64).  PWN::Plugins::Zaproxy module - #bugfix in #get_sitemap method
+4245c0e Merge pull request #833 from ninp0/master
+2d14a54 PWN::Reports::SAST module and pwn_sast Driver - change default --ai-system-content value in an effort for AI to provide better contextual assessments of anti-pattern results.
+1483544 Merge pull request #832 from ninp0/master
+6848a23 PWN::WWW::HackerOne module - #bugfixes in #get_bounty_programs method #convert_to_graphql_query
+9c58555 Merge pull request #831 from ninp0/master
+0d81a36 Merge branch '0dayInc:master' into master
+380493f PWN::Plugins::BurpSuite module - #bugfix in #get_sitemap method when returning subset of sitemap via #keyword parameter
+a7c9538 Merge pull request #830 from ninp0/master
+2873f32 PWN::Plugins::BurpSuite module - #bugfix in #get_sitemap method when returning subset of sitemap via #keyword parameter
+7402465 Merge pull request #829 from ninp0/master
+4f93681 PWN::Plugins::Zaproxy module - remove isolated variable
+d4c1857 Merge pull request #828 from ninp0/master
+b76054b PWN::Plugins::Zaproxy module - simplify obtaining sitemap / sitemap subset #rubocop_fixes
+95fe7a6 PWN::Plugins::BurpSuite && PWN::Plugins::Zaproxy modules - simplify obtaining sitemap / sitemap subset
+19a207f Merge pull request #827 from ninp0/master
+a2105c5 pwn_zaproxy_rest_api_scan Driver - pass additional_http_headers to #import_openapi_to_sitemap method
+719a2f6 Merge pull request #826 from ninp0/master
+8a2220a PWN::Plugins::BurpSuite && PWN::Plugins::Zaproxy modules / pwn_burp_suite_pro_active_* && pwn_zaproxy_active_* Drivers - cleaner headless handling, code cleanup, etc.
+3a2981f Merge pull request #825 from ninp0/master
+74cc01c pwn_zaproxy_rest_api_scan Driver - pass the api_key to #start method && headless #bugixes in zaproxy/burpsuite pro drivers
+6311bbc Merge pull request #824 from ninp0/master
+e1cb1fa PWN::Plugins::Zaproxy module - session #bugfixes and enhancements when running headless
+27a7794 Merge pull request #823 from ninp0/master
+f3a3dea PWN::Plugins::Zaproxy module - enhance search capability within #find_har_entries method
+bb9e7ae Merge pull request #822 from ninp0/master
+c82f6e1 PWN::Plugins::Zaproxy && PWN::Plugins::BurpSuite modules - multiple #bugfixes and enhancements
+1caf1a0 Merge pull request #821 from ninp0/master
+62aa5a8 PWN::Plugins::Zaproxy module - implement methods: #get_sitemap, #add_requester_tab, && multiple #bugfixes
+32be1d5 Merge pull request #820 from ninp0/master
+f754d75 pwn_zaproxy_active_rest_api_scan Driver - implement --additional_http_headers parameter #bugfix
+dfba781 Merge pull request #819 from ninp0/master
+ab7f1f7 pwn_zaproxy_active_rest_api_scan Driver - implement --additional_http_headers parameter
+fc1ef3b Merge pull request #818 from ninp0/master
+feb3be9 pwn_zaproxy_active_scan Driver - implement --in_scope and --exclude_paths parameters
+cff0a5c Merge pull request #817 from ninp0/master
+6b81168 PWN::Plugins::BurpSuite module - Implement CRUD methods for repeater
+78a943c Merge pull request #816 from ninp0/master
