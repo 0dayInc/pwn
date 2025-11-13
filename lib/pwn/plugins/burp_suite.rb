@@ -63,9 +63,9 @@ module PWN
         if PWN::Env[:ai][:introspection]
           introspection_thread = Thread.new do
             system_role_content = '
-              Your expertise lies in dissecting HTTP request/response pairs to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
+              Your expertise lies in dissecting HTTP request/response pairs and WebSocket messages to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, race conditions, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
 
-              When analyzing HTTP request/response pairs:
+              During analysis:
 
               1. **Parse and Contextualize Traffic**:
                  - Break down every element: HTTP method, URI (path, query parameters), headers (e.g., Host, User-Agent, Cookies, Authorization, Referer, Origin, Content-Type), request body (e.g., form data, JSON payloads), response status code, response headers, and response body (HTML, JSON, XML, etc.).
@@ -222,10 +222,39 @@ module PWN
                   entry: entry
                 )
               end
+
+              websocket_history = get_websocket_history(burp_obj: burp_obj)
+              websocket_history.each do |entry|
+                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                web_socket_id = entry[:web_socket_id]
+                direction = entry[:direction]
+                payload = entry[:payload]
+                next if web_socket_id.nil? || direction.nil? || payload.nil?
+
+                payload = Base64.strict_decode64(payload)
+                websocket_req = PWN::Plugins::Char.force_utf8("WebSocket ID: #{web_socket_id}\nDirection: #{direction}\nPayload:\n#{payload}")
+                ai_analysis = PWN::AI::Introspection.reflect_on(
+                  system_role_content: system_role_content,
+                  request: websocket_req,
+                  suppress_pii_warning: true
+                )
+
+                next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                entry[:comment] = ai_analysis
+                entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+
+                update_websocket_history(
+                  burp_obj: burp_obj,
+                  entry: entry
+                )
+              end
+
               sleep 3
             end
           rescue Errno::ECONNREFUSED
-            puts 'Thread Terminating...'
+            puts 'BurpSuite AI Introspection Thread >>> Terminating API Calls...'
           rescue StandardError => e
             puts "BurpSuite AI Introspection Thread Error: #{e}"
             puts e.backtrace
@@ -586,7 +615,7 @@ module PWN
         keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
 
-        rest_call = "http://#{mitm_rest_api}/proxyhistory"
+        rest_call = "http://#{mitm_rest_api}/proxy/history"
 
         sitemap = rest_browser.get(
           rest_call,
@@ -780,7 +809,78 @@ module PWN
         put_body = entry.to_json
 
         proxy_history_resp = rest_browser.put(
-          "http://#{mitm_rest_api}/proxyhistory/#{id}",
+          "http://#{mitm_rest_api}/proxy/history/#{id}",
+          put_body,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        JSON.parse(proxy_history_resp, symbolize_names: true)
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_web_socket_history = PWN::Plugins::BurpSuite.get_websocket_history(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   keyword: 'optional - keyword to filter websocket history entries (default: nil)'
+      # )
+
+      public_class_method def self.get_websocket_history(opts = {})
+        burp_obj = opts[:burp_obj]
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+        keyword = opts[:keyword]
+
+        rest_call = "http://#{mitm_rest_api}/websocket/history"
+
+        sitemap = rest_browser.get(
+          rest_call,
+          content_type: 'application/json; charset=UTF8'
+        )
+
+        sitemap_arr = JSON.parse(sitemap, symbolize_names: true)
+
+        if keyword
+          sitemap_arr = sitemap_arr.select do |site|
+            decoded_request = Base64.strict_decode64(site[:request])
+            decoded_request.include?(keyword)
+          end
+        end
+
+        sitemap_arr.uniq
+      rescue StandardError => e
+        stop(burp_obj: burp_obj) unless burp_obj.nil?
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # json_proxy_history = PWN::Plugins::BurpSuite.update_proxy_history(
+      #   burp_obj: 'required - burp_obj returned by #start method',
+      #   entry: 'required - hash of the websocket history entry to update'
+      # )
+
+      public_class_method def self.update_websocket_history(opts = {})
+        burp_obj = opts[:burp_obj]
+        raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
+
+        entry = opts[:entry]
+        raise 'ERROR: entry parameter is required and must be a hash' unless entry.is_a?(Hash)
+
+        id = entry[:id]
+        raise 'ERROR: id key value pair is required within entry hash' if id.nil?
+
+        rest_browser = burp_obj[:rest_browser]
+        mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        # Only allow updating of comment and highlight fields
+        entry.delete(:web_socket_id)
+        entry.delete(:direction)
+        entry.delete(:payload)
+
+        put_body = entry.to_json
+
+        proxy_history_resp = rest_browser.put(
+          "http://#{mitm_rest_api}/websocket/history/#{id}",
           put_body,
           content_type: 'application/json; charset=UTF8'
         )
@@ -1979,6 +2079,16 @@ module PWN
           json_proxy_history = #{self}.update_proxy_history(
             burp_obj: 'required - burp_obj returned by #start method',
             entry: 'required - proxy history entry hash to update'
+          )
+
+          json_proxy_history = #{self}.get_websocket_history(
+            burp_obj: 'required - burp_obj returned by #start method',
+            keyword: 'optional - keyword to filter websocket history results (default: nil)'
+          )
+
+          json_proxy_history = #{self}.update_websocket_history(
+            burp_obj: 'required - burp_obj returned by #start method',
+            entry: 'required - websocket history entry hash to update'
           )
 
           json_sitemap = #{self}.get_sitemap(
