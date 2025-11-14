@@ -60,7 +60,7 @@ module PWN
         burp_obj = opts[:burp_obj]
         raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
 
-        valid_types = %i[sitemap proxy_history websocket_history]
+        valid_types = %i[proxy_history sitemap websocket_history]
         type = opts[:type]
         raise "ERROR: type parameter is required and must be one of: #{valid_types.join(', ')}" unless valid_types.include?(type)
 
@@ -129,56 +129,6 @@ module PWN
               # Repeater should analyze the reqesut/response pair and suggest
               # modifications to the request to further probe for vulnerabilities _quickly_.
               case type
-              when :sitemap
-                proxy_history = get_proxy_history(burp_obj: burp_obj)
-                sitemap = get_sitemap(burp_obj: burp_obj)
-                sitemap.each do |entry|
-                  next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
-
-                  request = entry[:request]
-                  response = entry[:response]
-                  host = entry[:http_service][:host]
-                  port = entry[:http_service][:port]
-                  protocol = entry[:http_service][:protocol]
-                  next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
-
-                  proxy_history_entry = nil
-                  if proxy_history.any?
-                    proxy_history_entry = proxy_history.find do |proxy_entry|
-                      next unless proxy_entry.key?(:http_service) && proxy_entry.key?(:request)
-
-                      proxy_entry[:http_service][:host] == host &&
-                        proxy_entry[:http_service][:port] == port &&
-                        proxy_entry[:http_service][:protocol] == protocol &&
-                        proxy_entry[:request] == entry[:request]
-                    end
-                  end
-
-                  if proxy_history_entry.is_a?(Hash) && proxy_history_entry[:comment].length.positive?
-                    entry[:comment] = proxy_history_entry[:comment]
-                    entry[:highlight] = proxy_history_entry[:highlight]
-                  else
-                    request = Base64.strict_decode64(request)
-                    response = Base64.strict_decode64(response)
-                    http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-                    ai_analysis = PWN::AI::Introspection.reflect_on(
-                      system_role_content: system_role_content,
-                      request: http_request_response,
-                      suppress_pii_warning: true
-                    )
-
-                    next if ai_analysis.nil? || ai_analysis.strip.empty?
-
-                    entry[:comment] = ai_analysis
-                    entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
-                  end
-
-                  update_sitemap(
-                    burp_obj: burp_obj,
-                    entry: entry
-                  )
-                end
-
               when :proxy_history
                 sitemap = get_sitemap(burp_obj: burp_obj)
                 proxy_history = get_proxy_history(burp_obj: burp_obj)
@@ -230,6 +180,58 @@ module PWN
                     entry: entry
                   )
                 end
+                sleep Random.rand(30..60)
+
+              when :sitemap
+                proxy_history = get_proxy_history(burp_obj: burp_obj)
+                sitemap = get_sitemap(burp_obj: burp_obj)
+                sitemap.each do |entry|
+                  next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                  request = entry[:request]
+                  response = entry[:response]
+                  host = entry[:http_service][:host]
+                  port = entry[:http_service][:port]
+                  protocol = entry[:http_service][:protocol]
+                  next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
+
+                  proxy_history_entry = nil
+                  if proxy_history.any?
+                    proxy_history_entry = proxy_history.find do |proxy_entry|
+                      next unless proxy_entry.key?(:http_service) && proxy_entry.key?(:request)
+
+                      proxy_entry[:http_service][:host] == host &&
+                        proxy_entry[:http_service][:port] == port &&
+                        proxy_entry[:http_service][:protocol] == protocol &&
+                        proxy_entry[:request] == entry[:request]
+                    end
+                  end
+
+                  if proxy_history_entry.is_a?(Hash) && proxy_history_entry[:comment].length.positive?
+                    entry[:comment] = proxy_history_entry[:comment]
+                    entry[:highlight] = proxy_history_entry[:highlight]
+                  else
+                    request = Base64.strict_decode64(request)
+                    response = Base64.strict_decode64(response)
+                    http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                    ai_analysis = PWN::AI::Introspection.reflect_on(
+                      system_role_content: system_role_content,
+                      request: http_request_response,
+                      suppress_pii_warning: true
+                    )
+
+                    next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                    entry[:comment] = ai_analysis
+                    entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                  end
+
+                  update_sitemap(
+                    burp_obj: burp_obj,
+                    entry: entry
+                  )
+                end
+                sleep Random.rand(60..90)
 
               when :websocket_history
                 websocket_history = get_websocket_history(burp_obj: burp_obj)
@@ -259,9 +261,8 @@ module PWN
                     entry: entry
                   )
                 end
+                sleep Random.rand(3..10)
               end
-
-              sleep Random.rand(30..60)
             end
           rescue Errno::ECONNREFUSED
             puts 'BurpSuite AI Introspection Thread >>> Terminating API Calls...'
