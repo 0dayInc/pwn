@@ -46,7 +46,7 @@ module PWN
       # Supported Method Parameters::
       # burp_obj = PWN::Plugins::BurpSuite.init_introspection_thread(
       #   burp_obj: 'required - burp_obj returned by #start method',
-      #   enumerable_array: 'required - array of items to process in the thread'
+      #   type: 'required - type of history to introspect (:sitemap, :proxy_history, :websocket_history)'
       # )
       private_class_method def self.init_introspection_thread(opts = {})
         #  if PWN::Env[:ai][:introspection] is true,
@@ -60,7 +60,12 @@ module PWN
         burp_obj = opts[:burp_obj]
         raise 'ERROR: burp_obj parameter is required' unless burp_obj.is_a?(Hash)
 
+        valid_types = %i[sitemap proxy_history websocket_history]
+        type = opts[:type]
+        raise "ERROR: type parameter is required and must be one of: #{valid_types.join(', ')}" unless valid_types.include?(type)
+
         if PWN::Env[:ai][:introspection]
+          introspection_thread_arr = burp_obj[:introspection_threads] ||= []
           introspection_thread = Thread.new do
             system_role_content = '
               Your expertise lies in dissecting HTTP request/response pairs and WebSocket messages to identify high-impact vulnerabilities, including but not limited to XSS (reflected, stored, DOM-based), CSRF, SSRF, IDOR, open redirects, CORS misconfigurations, authentication bypasses, SQLi/NoSQLi, command/code injection, business logic flaws, race conditions, and API abuse. You prioritize zero-days and novel chains, always focusing on exploitability, impact (e.g., account takeover, data exfiltration, RCE), and reproducibility.
@@ -119,45 +124,128 @@ module PWN
               highlight_color
             end
 
-            proxy_history = []
             loop do
-              # TODO: Implement sitemap and repeater into the loop.
-              # Sitemap should work the same as proxy history.
+              # TODO: Implement repeater into the loop?  This reduces load to LLM but is slooow.
               # Repeater should analyze the reqesut/response pair and suggest
-              # modifications to the request to further probe for vulnerabilities.
-              sitemap = get_sitemap(burp_obj: burp_obj)
-              sitemap.each do |entry|
-                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+              # modifications to the request to further probe for vulnerabilities _quickly_.
+              case type
+              when :sitemap
+                proxy_history = get_proxy_history(burp_obj: burp_obj)
+                sitemap = get_sitemap(burp_obj: burp_obj)
+                sitemap.each do |entry|
+                  next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
 
-                request = entry[:request]
-                response = entry[:response]
-                host = entry[:http_service][:host]
-                port = entry[:http_service][:port]
-                protocol = entry[:http_service][:protocol]
-                next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
+                  request = entry[:request]
+                  response = entry[:response]
+                  host = entry[:http_service][:host]
+                  port = entry[:http_service][:port]
+                  protocol = entry[:http_service][:protocol]
+                  next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
 
-                proxy_history_entry = nil
-                if proxy_history.any?
-                  proxy_history_entry = proxy_history.find do |proxy_entry|
-                    next unless proxy_entry.key?(:http_service) && proxy_entry.key?(:request)
+                  proxy_history_entry = nil
+                  if proxy_history.any?
+                    proxy_history_entry = proxy_history.find do |proxy_entry|
+                      next unless proxy_entry.key?(:http_service) && proxy_entry.key?(:request)
 
-                    proxy_entry[:http_service][:host] == host &&
-                      proxy_entry[:http_service][:port] == port &&
-                      proxy_entry[:http_service][:protocol] == protocol &&
-                      proxy_entry[:request] == entry[:request]
+                      proxy_entry[:http_service][:host] == host &&
+                        proxy_entry[:http_service][:port] == port &&
+                        proxy_entry[:http_service][:protocol] == protocol &&
+                        proxy_entry[:request] == entry[:request]
+                    end
                   end
+
+                  if proxy_history_entry.is_a?(Hash) && proxy_history_entry[:comment].length.positive?
+                    entry[:comment] = proxy_history_entry[:comment]
+                    entry[:highlight] = proxy_history_entry[:highlight]
+                  else
+                    request = Base64.strict_decode64(request)
+                    response = Base64.strict_decode64(response)
+                    http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                    ai_analysis = PWN::AI::Introspection.reflect_on(
+                      system_role_content: system_role_content,
+                      request: http_request_response,
+                      suppress_pii_warning: true
+                    )
+
+                    next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                    entry[:comment] = ai_analysis
+                    entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                  end
+
+                  update_sitemap(
+                    burp_obj: burp_obj,
+                    entry: entry
+                  )
                 end
 
-                if proxy_history_entry.is_a?(Hash) && proxy_history_entry[:comment].length.positive?
-                  entry[:comment] = proxy_history_entry[:comment]
-                  entry[:highlight] = proxy_history_entry[:highlight]
-                else
-                  request = Base64.strict_decode64(request)
-                  response = Base64.strict_decode64(response)
-                  http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+              when :proxy_history
+                sitemap = get_sitemap(burp_obj: burp_obj)
+                proxy_history = get_proxy_history(burp_obj: burp_obj)
+                proxy_history.each do |entry|
+                  next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                  request = entry[:request]
+                  response = entry[:response]
+                  host = entry[:http_service][:host]
+                  port = entry[:http_service][:port]
+                  protocol = entry[:http_service][:protocol]
+                  next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
+
+                  # If sitemap comment and highlight color exists, use that instead of re-analyzing
+                  sitemap_entry = nil
+                  if sitemap.any?
+                    sitemap_entry = sitemap.find do |site|
+                      next unless site.key?(:http_service) && site.key?(:request)
+
+                      site[:http_service][:host] == host &&
+                        site[:http_service][:port] == port &&
+                        site[:http_service][:protocol] == protocol &&
+                        site[:request] == entry[:request]
+                    end
+                  end
+
+                  if sitemap_entry.is_a?(Hash) && sitemap_entry[:comment].length.positive?
+                    entry[:comment] = sitemap_entry[:comment]
+                    entry[:highlight] = sitemap_entry[:highlight]
+                  else
+                    request = Base64.strict_decode64(request)
+                    response = Base64.strict_decode64(response)
+
+                    http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                    ai_analysis = PWN::AI::Introspection.reflect_on(
+                      system_role_content: system_role_content,
+                      request: http_request_response,
+                      suppress_pii_warning: true
+                    )
+
+                    next if ai_analysis.nil? || ai_analysis.strip.empty?
+
+                    entry[:comment] = ai_analysis
+                    entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
+                  end
+
+                  update_proxy_history(
+                    burp_obj: burp_obj,
+                    entry: entry
+                  )
+                end
+
+              when :websocket_history
+                websocket_history = get_websocket_history(burp_obj: burp_obj)
+                websocket_history.each do |entry|
+                  next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                  web_socket_id = entry[:web_socket_id]
+                  direction = entry[:direction]
+                  payload = entry[:payload]
+                  next if web_socket_id.nil? || direction.nil? || payload.nil?
+
+                  payload = Base64.strict_decode64(payload)
+                  websocket_req = PWN::Plugins::Char.force_utf8("WebSocket ID: #{web_socket_id}\nDirection: #{direction}\nPayload:\n#{payload}")
                   ai_analysis = PWN::AI::Introspection.reflect_on(
                     system_role_content: system_role_content,
-                    request: http_request_response,
+                    request: websocket_req,
                     suppress_pii_warning: true
                   )
 
@@ -165,93 +253,15 @@ module PWN
 
                   entry[:comment] = ai_analysis
                   entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
-                end
 
-                update_sitemap(
-                  burp_obj: burp_obj,
-                  entry: entry
-                )
-              end
-
-              proxy_history = get_proxy_history(burp_obj: burp_obj)
-              proxy_history.each do |entry|
-                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
-
-                request = entry[:request]
-                response = entry[:response]
-                host = entry[:http_service][:host]
-                port = entry[:http_service][:port]
-                protocol = entry[:http_service][:protocol]
-                next if request.nil? || response.nil? || host.nil? || port.nil? || protocol.nil?
-
-                # If sitemap comment and highlight color exists, use that instead of re-analyzing
-                sitemap_entry = nil
-                if sitemap.any?
-                  sitemap_entry = sitemap.find do |site|
-                    next unless site.key?(:http_service) && site.key?(:request)
-
-                    site[:http_service][:host] == host &&
-                      site[:http_service][:port] == port &&
-                      site[:http_service][:protocol] == protocol &&
-                      site[:request] == entry[:request]
-                  end
-                end
-
-                if sitemap_entry.is_a?(Hash) && sitemap_entry[:comment].length.positive?
-                  entry[:comment] = sitemap_entry[:comment]
-                  entry[:highlight] = sitemap_entry[:highlight]
-                else
-                  request = Base64.strict_decode64(request)
-                  response = Base64.strict_decode64(response)
-
-                  http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
-                  ai_analysis = PWN::AI::Introspection.reflect_on(
-                    system_role_content: system_role_content,
-                    request: http_request_response,
-                    suppress_pii_warning: true
+                  update_websocket_history(
+                    burp_obj: burp_obj,
+                    entry: entry
                   )
-
-                  next if ai_analysis.nil? || ai_analysis.strip.empty?
-
-                  entry[:comment] = ai_analysis
-                  entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
                 end
-
-                update_proxy_history(
-                  burp_obj: burp_obj,
-                  entry: entry
-                )
               end
 
-              websocket_history = get_websocket_history(burp_obj: burp_obj)
-              websocket_history.each do |entry|
-                next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
-
-                web_socket_id = entry[:web_socket_id]
-                direction = entry[:direction]
-                payload = entry[:payload]
-                next if web_socket_id.nil? || direction.nil? || payload.nil?
-
-                payload = Base64.strict_decode64(payload)
-                websocket_req = PWN::Plugins::Char.force_utf8("WebSocket ID: #{web_socket_id}\nDirection: #{direction}\nPayload:\n#{payload}")
-                ai_analysis = PWN::AI::Introspection.reflect_on(
-                  system_role_content: system_role_content,
-                  request: websocket_req,
-                  suppress_pii_warning: true
-                )
-
-                next if ai_analysis.nil? || ai_analysis.strip.empty?
-
-                entry[:comment] = ai_analysis
-                entry[:highlight] = get_highlight_color.call(ai_analysis: ai_analysis)
-
-                update_websocket_history(
-                  burp_obj: burp_obj,
-                  entry: entry
-                )
-              end
-
-              sleep 3
+              sleep Random.rand(30..60)
             end
           rescue Errno::ECONNREFUSED
             puts 'BurpSuite AI Introspection Thread >>> Terminating API Calls...'
@@ -263,7 +273,7 @@ module PWN
             puts 'BurpSuite AI Introspection Thread >>> Goodbye.'
           end
 
-          burp_obj[:introspection_thread] = introspection_thread
+          burp_obj[:introspection_threads] = introspection_thread_arr.push(introspection_thread)
         end
 
         burp_obj
@@ -352,7 +362,9 @@ module PWN
           enabled: true
         )
 
-        init_introspection_thread(burp_obj: burp_obj)
+        burp_obj = init_introspection_thread(burp_obj: burp_obj, type: :sitemap)
+        burp_obj = init_introspection_thread(burp_obj: burp_obj, type: :proxy_history)
+        init_introspection_thread(burp_obj: burp_obj, type: :websocket_history)
       rescue StandardError => e
         stop(burp_obj: burp_obj) unless burp_obj.nil?
         raise e
@@ -1994,8 +2006,9 @@ module PWN
         browser_obj = burp_obj[:mitm_browser]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
-        introspection_thread = burp_obj[:introspection_thread]
-        introspection_thread.kill unless introspection_thread.nil?
+        introspection_thread_arr = burp_obj[:introspection_threads]
+        introspection_thread_arr.each(&:kill) if introspection_thread_arr.is_a?(Array) && introspection_thread_arr.any?
+        # introspection_thread.kill unless introspection_thread.nil?
 
         PWN::Plugins::TransparentBrowser.close(browser_obj: browser_obj)
         rest_browser.post("http://#{mitm_rest_api}/shutdown", '')
