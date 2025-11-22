@@ -44,7 +44,7 @@ begin
   parity = opts[:parity]
   flow_control = opts[:flow_control]
 
-  son_micro_rfid_obj = PWN::Plugins::SonMicroRFID.connect(
+  son_micro_rfid_obj = PWN::SDR::SonMicroRFID.connect(
     block_dev: block_dev,
     baud: baud,
     data_bits: data_bits,
@@ -60,7 +60,7 @@ begin
     puts "Signals: #{son_micro_rfid_obj[:serial_conn].signals}"
   end
 
-  exec_resp = PWN::Plugins::SonMicroRFID.exec(
+  exec_resp = PWN::SDR::SonMicroRFID.exec(
     son_micro_rfid_obj: son_micro_rfid_obj,
     cmd: :firmware
   )
@@ -76,7 +76,7 @@ begin
   menu_msg = ''
   loop do
     unless menu_msg.include?('ERROR')
-      exec_resp = PWN::Plugins::SonMicroRFID.exec(
+      exec_resp = PWN::SDR::SonMicroRFID.exec(
         son_micro_rfid_obj: son_micro_rfid_obj,
         cmd: :antenna_power,
         params: :on
@@ -100,7 +100,7 @@ begin
     when :R
       menu_msg = 'READ TAG'
       begin
-        rfid_data = PWN::Plugins::SonMicroRFID.read_tag(son_micro_rfid_obj: son_micro_rfid_obj)
+        rfid_data = PWN::SDR::SonMicroRFID.read_tag(son_micro_rfid_obj: son_micro_rfid_obj)
         puts "\nRFID Data:"
         puts "Tag ID: #{rfid_data[:tag_id]}"
         puts "Block Data: #{rfid_data[:block_data]}" if rfid_data[:block_data]
@@ -110,7 +110,7 @@ begin
     when :B
       menu_msg = 'BACKUP TAG TO FILE'
       begin
-        rfid_data = PWN::Plugins::SonMicroRFID.backup_tag(son_micro_rfid_obj: son_micro_rfid_obj)
+        rfid_data = PWN::SDR::SonMicroRFID.backup_tag(son_micro_rfid_obj: son_micro_rfid_obj)
         puts "\nBackup successful. RFID Data:"
         puts "Tag ID: #{rfid_data[:tag_id]}"
         puts "Block Data: #{rfid_data[:block_data]}" if rfid_data[:block_data]
@@ -123,7 +123,7 @@ begin
       next unless gets.chomp.strip.upcase == 'Y'
 
       begin
-        rfid_data = PWN::Plugins::SonMicroRFID.clone_tag(son_micro_rfid_obj: son_micro_rfid_obj)
+        rfid_data = PWN::SDR::SonMicroRFID.clone_tag(son_micro_rfid_obj: son_micro_rfid_obj)
         puts "\nClone successful. RFID Data:"
         puts "Tag ID: #{rfid_data[:tag_id]}"
         puts "Block Data: #{rfid_data[:block_data]}" if rfid_data[:block_data]
@@ -136,7 +136,7 @@ begin
       next unless gets.chomp.strip.upcase == 'Y'
 
       begin
-        rfid_data = PWN::Plugins::SonMicroRFID.load_tag_from_file(son_micro_rfid_obj: son_micro_rfid_obj)
+        rfid_data = PWN::SDR::SonMicroRFID.load_tag_from_file(son_micro_rfid_obj: son_micro_rfid_obj)
         puts "\nLoad successful. RFID Data:"
         puts "Tag ID: #{rfid_data[:tag_id]}"
         puts "Block Data: #{rfid_data[:block_data]}" if rfid_data[:block_data]
@@ -149,7 +149,7 @@ begin
       next unless gets.chomp.strip.upcase == 'Y'
 
       begin
-        rfid_data = PWN::Plugins::SonMicroRFID.update_tag(son_micro_rfid_obj: son_micro_rfid_obj)
+        rfid_data = PWN::SDR::SonMicroRFID.update_tag(son_micro_rfid_obj: son_micro_rfid_obj)
         puts "\nUpdate successful. RFID Data:"
         puts "Tag ID: #{rfid_data[:tag_id]}"
         puts "Block Data: #{rfid_data[:block_data]}" if rfid_data[:block_data]
@@ -159,7 +159,7 @@ begin
     when :W
       menu_msg = 'WARM RESET'
       begin
-        exec_resp = PWN::Plugins::SonMicroRFID.exec(
+        exec_resp = PWN::SDR::SonMicroRFID.exec(
           son_micro_rfid_obj: son_micro_rfid_obj,
           cmd: :reset
         )
@@ -171,7 +171,7 @@ begin
       exit
     else
       menu_msg = '****** ERROR: Invalid Menu Option Selected ******'
-      exec_resp = PWN::Plugins::SonMicroRFID.exec(
+      exec_resp = PWN::SDR::SonMicroRFID.exec(
         son_micro_rfid_obj: son_micro_rfid_obj,
         cmd: :antenna_power,
         params: :off
@@ -184,5 +184,5 @@ rescue StandardError => e
 rescue SystemExit, Interrupt
   puts "\nGoodbye."
 ensure
-  PWN::Plugins::SonMicroRFID.disconnect(son_micro_rfid_obj: son_micro_rfid_obj) if son_micro_rfid_obj
+  PWN::SDR::SonMicroRFID.disconnect(son_micro_rfid_obj: son_micro_rfid_obj) if son_micro_rfid_obj
 end

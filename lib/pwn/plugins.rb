@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module PWN
-  # This file, using the autoload directive loads SP plugins
+  # This file, using the autoload directive loads Plugins modules
   # into memory only when they're needed. For more information, see:
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module Plugins
@@ -25,11 +25,9 @@ module PWN
     autoload :DetectOS, 'pwn/plugins/detect_os'
     autoload :EIN, 'pwn/plugins/ein'
     autoload :FileFu, 'pwn/plugins/file_fu'
-    autoload :FlipperZero, 'pwn/plugins/flipper_zero'
     autoload :Fuzz, 'pwn/plugins/fuzz'
     autoload :Git, 'pwn/plugins/git'
     autoload :Github, 'pwn/plugins/github'
-    autoload :GQRX, 'pwn/plugins/gqrx'
     autoload :HackerOne, 'pwn/plugins/hacker_one'
     autoload :Hunter, 'pwn/plugins/hunter'
     autoload :IPInfo, 'pwn/plugins/ip_info'
@@ -47,8 +45,6 @@ module PWN
     autoload :NmapIt, 'pwn/plugins/nmap_it'
     autoload :OAuth2, 'pwn/plugins/oauth2'
     autoload :OCR, 'pwn/plugins/ocr'
-    autoload :Ollama, 'pwn/plugins/ollama'
-    autoload :OpenAI, 'pwn/plugins/open_ai'
     autoload :OpenAPI, 'pwn/plugins/open_api'
     autoload :OpenVAS, 'pwn/plugins/openvas'
     autoload :Packet, 'pwn/plugins/packet'
@@ -57,13 +53,11 @@ module PWN
     autoload :PS, 'pwn/plugins/ps'
     autoload :RabbitMQ, 'pwn/plugins/rabbit_mq'
     autoload :REPL, 'pwn/plugins/repl'
-    autoload :RFIDler, 'pwn/plugins/rfidler'
     autoload :ScannableCodes, 'pwn/plugins/scannable_codes'
     autoload :Serial, 'pwn/plugins/serial'
     autoload :Shodan, 'pwn/plugins/shodan'
     autoload :SlackClient, 'pwn/plugins/slack_client'
     autoload :Sock, 'pwn/plugins/sock'
-    autoload :SonMicroRFID, 'pwn/plugins/son_micro_rfid'
     autoload :Spider, 'pwn/plugins/spider'
     autoload :SSN, 'pwn/plugins/ssn'
     autoload :ThreadPool, 'pwn/plugins/thread_pool'

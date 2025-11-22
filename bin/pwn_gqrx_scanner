@@ -9,8 +9,8 @@ PWN::Driver::Parser.new do |options|
     opts[:profile] = p
   end
 
-  options.on('-l', '--list-profiles', '<Optional - List supported profiles and exit>') do |l|
-    opts[:list_profiles] = l
+  options.on('-l', '--list-scan-profiles', '<Optional - List supported scan profiles and exit>') do |l|
+    opts[:list_scan_profiles] = l
   end
 
   options.on('-tFREQ', '--target-freq=FREQ', '<Required if "--assume-profile" is Nil - Frequency to Conclude Scanning (e.g. 900.000.000 == 900 mHz>') do |e|
@@ -74,15 +74,15 @@ begin
   pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
 
-  list_profiles = opts[:list_profiles]
-  if list_profiles
-    profiles_available = PWN::Plugins::GQRX.list_profiles
+  list_scan_profiles = opts[:list_scan_profiles]
+  if list_scan_profiles
+    profiles_available = PWN::SDR::GQRX.list_scan_profiles
     puts JSON.pretty_generate(profiles_available)
     exit 0
   end
 
   profile = opts[:profile]
-  opts = PWN::Plugins::GQRX.assume_profile(profile: profile) unless profile.nil?
+  opts = PWN::SDR::GQRX.assume_profile(profile: profile) unless profile.nil?
 
   target_freq = opts[:target_freq]
   target_freq = target_freq.to_s.delete('.') unless target_freq.nil?
@@ -93,13 +93,13 @@ begin
   port = opts[:port]
 
   puts "Connecting to GQRX at #{host}:#{port}..."
-  gqrx_sock = PWN::Plugins::GQRX.connect(target: host, port: port)
+  gqrx_sock = PWN::SDR::GQRX.connect(target: host, port: port)
 
   start_freq = opts[:start_freq]
   start_freq = start_freq.to_s.delete('.') unless start_freq.nil?
   start_freq = start_freq.to_i
   if start_freq.zero?
-    start_freq = PWN::Plugins::GQRX.gqrx_cmd(
+    start_freq = PWN::SDR::GQRX.gqrx_cmd(
       gqrx_sock: gqrx_sock, cmd: 'f',
       resp_ok: 'RPRT 0'
     ).to_i
@@ -115,7 +115,7 @@ begin
 
   puts "Setting demodulator mode to #{demodulator_mode} and bandwidth to #{bandwidth}..."
   bandwidth = bandwidth.to_s.delete('.').to_i unless bandwidth.nil?
-  demod_resp = PWN::Plugins::GQRX.gqrx_cmd(
+  demod_resp = PWN::SDR::GQRX.gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "M #{demodulator_mode} #{bandwidth}",
     resp_ok: 'RPRT 0'
@@ -123,7 +123,7 @@ begin
 
   audio_gain_db = opts[:audio_gain_db] ||= 1.0
   audio_gain_db = audio_gain_db.to_f
-  audio_gain_db_resp = PWN::Plugins::GQRX.gqrx_cmd(
+  audio_gain_db_resp = PWN::SDR::GQRX.gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L AF #{audio_gain_db}",
     resp_ok: 'RPRT 0'
@@ -131,7 +131,7 @@ begin
 
   squelch = opts[:squelch] ||= -63.0
   squelch = squelch.to_f
-  squelch_resp = PWN::Plugins::GQRX.gqrx_cmd(
+  squelch_resp = PWN::SDR::GQRX.gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L SQL #{squelch}",
     resp_ok: 'RPRT 0'
@@ -149,7 +149,7 @@ begin
 
   rf_gain = opts[:rf_gain] ||= 0.0
   rf_gain = rf_gain.to_f
-  rf_gain_resp = PWN::Plugins::GQRX.gqrx_cmd(
+  rf_gain_resp = PWN::SDR::GQRX.gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L RF_GAIN #{rf_gain}",
     resp_ok: 'RPRT 0'
@@ -157,7 +157,7 @@ begin
 
   intermediate_gain = opts[:intermediate_gain] ||= 32.0
   intermediate_gain = intermediate_gain.to_f
-  intermediate_resp = PWN::Plugins::GQRX.gqrx_cmd(
+  intermediate_resp = PWN::SDR::GQRX.gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L IF_GAIN #{intermediate_gain}",
     resp_ok: 'RPRT 0'
@@ -165,7 +165,7 @@ begin
 
   baseband_gain = opts[:baseband_gain] ||= 10.0
   baseband_gain = baseband_gain.to_f
-  baseband_resp = PWN::Plugins::GQRX.gqrx_cmd(
+  baseband_resp = PWN::SDR::GQRX.gqrx_cmd(
     gqrx_sock: gqrx_sock,
     cmd: "L BB_GAIN #{baseband_gain}",
     resp_ok: 'RPRT 0'
@@ -175,7 +175,7 @@ begin
   t_freq_pretty = target_freq.to_s.chars.insert(-4, '.').insert(-8, '.').join
   puts "*** Scanning from #{s_freq_pretty} to #{t_freq_pretty}\n\n\n"
 
-  PWN::Plugins::GQRX.scan_range(
+  PWN::SDR::GQRX.scan_range(
     gqrx_sock: gqrx_sock,
     demodulator_mode: demodulator_mode,
     bandwidth: bandwidth,
@@ -192,5 +192,5 @@ rescue StandardError => e
 rescue Interrupt, SystemExit
   puts "\nGoodbye."
 ensure
-  gqrx_sock = PWN::Plugins::GQRX.disconnect(gqrx_sock: gqrx_sock) unless gqrx_sock.nil?
+  gqrx_sock = PWN::SDR::GQRX.disconnect(gqrx_sock: gqrx_sock) unless gqrx_sock.nil?
 end

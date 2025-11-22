@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 module PWN
-  module Plugins
+  module SDR
     # This plugin is used for interacting with an RFIDler using the
     # the screen command as a terminal emulator.
     module RFIDler
       # Supported Method Parameters::
-      # PWN::Plugins::RFIDler.connect_via_screen(
+      # PWN::SDR::RFIDler.connect_via_screen(
       #   block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)'
       # )
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module PWN
-  # This file, using the autoload directive loads SP reports
+  # This file, using the autoload directive loads Report modules
   # into memory only when they're needed. For more information, see:
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module Reports

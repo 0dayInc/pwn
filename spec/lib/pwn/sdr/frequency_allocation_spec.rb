@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-describe PWN::Plugins::FlipperZero do
+describe PWN::SDR::FrequencyAllocation do
   it 'should display information for authors' do
-    authors_response = PWN::Plugins::FlipperZero
+    authors_response = PWN::SDR::FrequencyAllocation
     expect(authors_response).to respond_to :authors
   end
 
   it 'should display information for existing help method' do
-    help_response = PWN::Plugins::FlipperZero
+    help_response = PWN::SDR::FrequencyAllocation
     expect(help_response).to respond_to :help
   end
 end
