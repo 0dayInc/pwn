@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 module PWN
-  module Plugins
+  module SDR
     # This plugin is used for interacting with Bus Pirate v3.6
     # This plugin may be compatible with other versions, however,
     # has not been tested with anything other than v3.6.
     module FlipperZero
       # Supported Method Parameters::
-      # PWN::Plugins::FlipperZero.connect_via_screen(
+      # PWN::SDR::FlipperZero.connect_via_screen(
       #   block_dev: 'optional - serial block device path (defaults to /dev/ttyACM0)'
       # )
 
@@ -34,7 +34,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # flipper_zero_obj = PWN::Plugins::FlipperZero.connect(
+      # flipper_zero_obj = PWN::SDR::FlipperZero.connect(
       #   block_dev: 'optional serial block device path (defaults to /dev/ttyACM0)',
       #   baud: 'optional (defaults to 9600)',
       #   data_bits: 'optional (defaults to 8)',
@@ -50,7 +50,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::Plugins::FlipperZero.request(
+      # response = PWN::SDR::FlipperZero.request(
       #   flipper_zero_obj: 'required - flipper_zero_obj returned from #connect method',
       #   payload: 'optional - payload to send to the device (defaults to help)'
       # )
@@ -75,7 +75,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::FlipperZero.disconnect(
+      # PWN::SDR::FlipperZero.disconnect(
       #   flipper_zero_obj: 'required - flipper_zero_obj returned from #connect method'
       # )
 

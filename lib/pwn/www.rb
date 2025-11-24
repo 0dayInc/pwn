@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module PWN
-  # This file, using the autoload directive loads SP plugins
+  # This file, using the autoload directive loads WWW modules
   # into memory only when they're needed. For more information, see:
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module WWW

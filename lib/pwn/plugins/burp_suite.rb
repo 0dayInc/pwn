@@ -265,13 +265,13 @@ module PWN
               end
             end
           rescue Errno::ECONNREFUSED
-            puts 'BurpSuite AI Introspection Thread >>> Terminating API Calls...'
+            puts "BurpSuite:#{type} AI Introspection Thread >>> Terminating API Calls..."
           rescue StandardError => e
             puts "BurpSuite AI Introspection Thread Error: #{e}"
             puts e.backtrace
             raise e
           ensure
-            puts 'BurpSuite AI Introspection Thread >>> Goodbye.'
+            puts "BurpSuite:#{type} AI Introspection Thread >>> Goodbye."
           end
 
           burp_obj[:introspection_threads] = introspection_thread_arr.push(introspection_thread)

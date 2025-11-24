@@ -4,7 +4,7 @@ require 'logger'
 require 'timeout'
 
 module PWN
-  module Plugins
+  module SDR
     # This plugin is used for interacting with a SonMicro
     # SM132 USB RFID Reader / Writer (PCB V3) && SM2330-USB Rev.0
     module SonMicroRFID
@@ -14,7 +14,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # son_micro_rfid_obj = PWN::Plugins::SonMicroRFID.connect(
+      # son_micro_rfid_obj = PWN::SDR::SonMicroRFID.connect(
       #   block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',
       #   baud: 'optional - (defaults to 19_200)',
       #   data_bits: 'optional - (defaults to 8)',
@@ -40,7 +40,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # cmds = PWN::Plugins::SonMicroRFID.list_cmds
+      # cmds = PWN::SDR::SonMicroRFID.list_cmds
       public_class_method def self.list_cmds
         %i[
           reset
@@ -69,7 +69,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # params = PWN::Plugins::SonMicroRFID.list_params(
+      # params = PWN::SDR::SonMicroRFID.list_params(
       #   cmd: 'required - cmd returned from #list_cmds method'
       # )
 
@@ -230,7 +230,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.exec(
+      # PWN::SDR::SonMicroRFID.exec(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
       #   cmd: 'required - cmd returned from #list_cmds method',
       #   params: 'optional - parameters for specific command returned from #list_params method'
@@ -334,7 +334,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.read_tag(
+      # PWN::SDR::SonMicroRFID.read_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
       #   authn: 'optional - authentication flag (default: false)',
       #   key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
@@ -402,7 +402,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.write_tag(
+      # PWN::SDR::SonMicroRFID.write_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
       #   rfid_data: 'required - RFID data to write (see #read_tag for structure)',
       #   authn: 'optional - authentication flag (default: false)',
@@ -504,7 +504,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.backup_tag(
+      # PWN::SDR::SonMicroRFID.backup_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       # )
 
@@ -537,7 +537,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.clone_tag(
+      # PWN::SDR::SonMicroRFID.clone_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       # )
 
@@ -564,7 +564,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.load_tag_from_file(
+      # PWN::SDR::SonMicroRFID.load_tag_from_file(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       # )
 
@@ -602,7 +602,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.update_tag(
+      # PWN::SDR::SonMicroRFID.update_tag(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       # )
 
@@ -677,7 +677,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # PWN::Plugins::SonMicroRFID.disconnect(
+      # PWN::SDR::SonMicroRFID.disconnect(
       #   son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
       # )
 

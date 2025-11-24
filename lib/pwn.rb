@@ -20,6 +20,7 @@ module PWN
   autoload :Plugins, 'pwn/plugins'
   autoload :Reports, 'pwn/reports'
   autoload :SAST, 'pwn/sast'
+  autoload :SDR, 'pwn/sdr'
   autoload :WWW, 'pwn/www'
 
   # Initialize Options for Drivers
