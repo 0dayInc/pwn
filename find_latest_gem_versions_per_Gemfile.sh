@@ -8,7 +8,7 @@ cat Gemfile | awk '{print $2}' | grep -E "^'.+$" | grep -v -e rubygems.org | whi
   echo "${this_gem} => $latest_version"
   if [[ $this_gem == 'activesupport' ]]; then
     sed -i "s/^gem '${this_gem}'.*$/gem '${this_gem}', '<${latest_version}'/g" Gemfile
-  elif [[ $this_gem == 'bundler' ]]; then
+  elif [[ $this_gem == 'bundler' || $this_gem == 'bundler-audit' ]]; then
     sed -i "s/^gem '${this_gem}'.*$/gem '${this_gem}', '>=${latest_version}'/g" Gemfile
   elif [[ $this_gem == 'json' ]]; then
     # Shakes fist at selenium-webdriver

@@ -1,22 +1,12 @@
 # frozen_string_literal: true
 
-require 'open3'
-require 'json'
-require 'fileutils'
-
 module PWN
   module SDR
     # This plugin interacts with the remote control interface of GQRX.
     module FrequencyAllocation
       # Supported Method Parameters::
       # profiles = PWN::SDR::FrequencyAllocation.profiles
-      # Supported Method Parameters::
-      # profiles = PWN::SDR::FrequencyAllocation.profiles
       public_class_method def self.profiles
-        # TODO: Wifi5 / Wifi6 profiles,
-        # migrate to a YAML file, and add
-        # rSpec test to ensure all profiles
-        # contain consistent key-value pairs
         {
           ads_b978: {
             start_freq: '978.000.000',
@@ -34,17 +24,89 @@ module PWN
             precision: 5,
             overlap_protection: true
           },
-          analog_tv_vhf: {
-            start_freq: '54.000.000',
-            target_freq: '216.000.000',
-            demodulator_mode: 'WFM',
-            bandwidth: 600_000,
-            precision: 5,
+          aeronautical_lf: {
+            start_freq: '200.000',
+            target_freq: '415.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 3,
+            overlap_protection: true
+          },
+          aeronautical_mf: {
+            start_freq: '285.000',
+            target_freq: '325.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 3,
+            overlap_protection: true
+          },
+          amateur_1_25m: {
+            start_freq: '222.000.000',
+            target_freq: '225.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          amateur_160m: {
+            start_freq: '1.800.000',
+            target_freq: '2.000.000',
+            demodulator_mode: 'LSB',
+            bandwidth: 2_700,
+            precision: 6,
+            overlap_protection: true
+          },
+          amateur_2m: {
+            start_freq: '144.000.000',
+            target_freq: '148.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 15_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          amateur_30m: {
+            start_freq: '10.100.000',
+            target_freq: '10.150.000',
+            demodulator_mode: 'CW',
+            bandwidth: 150,
+            precision: 3,
+            overlap_protection: true
+          },
+          amateur_60m: {
+            start_freq: '5.351.500',
+            target_freq: '5.366.500',
+            demodulator_mode: 'USB',
+            bandwidth: 2_700,
+            precision: 6,
+            overlap_protection: true
+          },
+          amateur_6m: {
+            start_freq: '50.000.000',
+            target_freq: '54.000.000',
+            demodulator_mode: 'USB',
+            bandwidth: 2_700,
+            precision: 6,
+            overlap_protection: true
+          },
+          amateur_70cm: {
+            start_freq: '420.000.000',
+            target_freq: '450.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
             overlap_protection: true
           },
           analog_tv_uhf: {
             start_freq: '470.000.000',
             target_freq: '890.000.000',
+            demodulator_mode: 'WFM',
+            bandwidth: 600_000,
+            precision: 5,
+            overlap_protection: true
+          },
+          analog_tv_vhf: {
+            start_freq: '54.000.000',
+            target_freq: '216.000.000',
             demodulator_mode: 'WFM',
             bandwidth: 600_000,
             precision: 5,
@@ -58,12 +120,44 @@ module PWN
             precision: 4,
             overlap_protection: true
           },
+          aviation_nav: {
+            start_freq: '108.000.000',
+            target_freq: '118.000.000',
+            demodulator_mode: 'AM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          aviation_vhf: {
+            start_freq: '118.000.000',
+            target_freq: '137.000.000',
+            demodulator_mode: 'AM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          aws: {
+            start_freq: '1.710.000.000',
+            target_freq: '1.755.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 200_000,
+            precision: 6,
+            overlap_protection: false
+          },
           bluetooth: {
             start_freq: '2.402.000.000',
             target_freq: '2.480.000.000',
             demodulator_mode: 'RAW',
             bandwidth: 100_000,
             precision: 5,
+            overlap_protection: true
+          },
+          cb: {
+            start_freq: '26.965.000',
+            target_freq: '27.405.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 3,
             overlap_protection: true
           },
           cdma: {
@@ -96,6 +190,14 @@ module PWN
             demodulator_mode: 'CW',
             bandwidth: 150,
             precision: 3,
+            overlap_protection: true
+          },
+          dect: {
+            start_freq: '1.880.000.000',
+            target_freq: '1.900.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 100_000,
+            precision: 5,
             overlap_protection: true
           },
           fm_radio: {
@@ -162,28 +264,28 @@ module PWN
             precision: 3,
             overlap_protection: true
           },
-          lora433: {
-            start_freq: '432.000.000',
-            target_freq: '434.000.000',
+          iridium: {
+            start_freq: '1.616.000.000',
+            target_freq: '1.626.500.000',
             demodulator_mode: 'RAW',
-            bandwidth: 50_000,
-            precision: 3,
+            bandwidth: 200_000,
+            precision: 6,
+            overlap_protection: false
+          },
+          ism_5g: {
+            start_freq: '5.725.000.000',
+            target_freq: '5.875.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 200_000,
+            precision: 7,
             overlap_protection: true
           },
-          lora915: {
+          ism_902: {
             start_freq: '902.000.000',
             target_freq: '928.000.000',
             demodulator_mode: 'RAW',
             bandwidth: 50_000,
             precision: 3,
-            overlap_protection: true
-          },
-          low_rfid: {
-            start_freq: '125.000',
-            target_freq: '134.000',
-            demodulator_mode: 'RAW',
-            bandwidth: 200_000,
-            precision: 1,
             overlap_protection: true
           },
           keyfob300: {
@@ -234,6 +336,102 @@ module PWN
             precision: 4,
             overlap_protection: true
           },
+          land_mobile_uhf: {
+            start_freq: '450.000.000',
+            target_freq: '470.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          land_mobile_vhf: {
+            start_freq: '150.000.000',
+            target_freq: '174.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          longwave_broadcast: {
+            start_freq: '148.500',
+            target_freq: '283.500',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 3,
+            overlap_protection: true
+          },
+          lora433: {
+            start_freq: '432.000.000',
+            target_freq: '434.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 50_000,
+            precision: 3,
+            overlap_protection: true
+          },
+          lora915: {
+            start_freq: '902.000.000',
+            target_freq: '928.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 50_000,
+            precision: 3,
+            overlap_protection: true
+          },
+          low_rfid: {
+            start_freq: '125.000',
+            target_freq: '134.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 200_000,
+            precision: 1,
+            overlap_protection: true
+          },
+          marine_vhf: {
+            start_freq: '156.000.000',
+            target_freq: '162.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          maritime_mf: {
+            start_freq: '415.000',
+            target_freq: '535.000',
+            demodulator_mode: 'USB',
+            bandwidth: 2_700,
+            precision: 6,
+            overlap_protection: true
+          },
+          noaa_weather: {
+            start_freq: '162.400.000',
+            target_freq: '162.550.000',
+            demodulator_mode: 'FM',
+            bandwidth: 16_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          pager: {
+            start_freq: '929.000.000',
+            target_freq: '932.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          pcs: {
+            start_freq: '1.850.000.000',
+            target_freq: '1.990.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 200_000,
+            precision: 6,
+            overlap_protection: false
+          },
+          public_safety_700: {
+            start_freq: '698.000.000',
+            target_freq: '806.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 25_000,
+            precision: 4,
+            overlap_protection: false
+          },
           rtty20: {
             start_freq: '14.000.000',
             target_freq: '14.350.000',
@@ -256,6 +454,54 @@ module PWN
             demodulator_mode: 'RTTY',
             bandwidth: 170,
             precision: 3,
+            overlap_protection: true
+          },
+          shortwave1: {
+            start_freq: '5.900.000',
+            target_freq: '6.200.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          shortwave2: {
+            start_freq: '7.200.000',
+            target_freq: '7.450.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          shortwave3: {
+            start_freq: '9.400.000',
+            target_freq: '9.900.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          shortwave4: {
+            start_freq: '11.600.000',
+            target_freq: '12.100.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          shortwave5: {
+            start_freq: '13.570.000',
+            target_freq: '13.870.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 4,
+            overlap_protection: true
+          },
+          shortwave6: {
+            start_freq: '15.100.000',
+            target_freq: '15.800.000',
+            demodulator_mode: 'AM',
+            bandwidth: 10_000,
+            precision: 4,
             overlap_protection: true
           },
           ssb10: {
@@ -330,11 +576,51 @@ module PWN
             precision: 4,
             overlap_protection: false
           },
+          tv_high_vhf: {
+            start_freq: '174.000.000',
+            target_freq: '216.000.000',
+            demodulator_mode: 'WFM',
+            bandwidth: 600_000,
+            precision: 5,
+            overlap_protection: true
+          },
+          tv_low_vhf: {
+            start_freq: '54.000.000',
+            target_freq: '88.000.000',
+            demodulator_mode: 'WFM',
+            bandwidth: 600_000,
+            precision: 5,
+            overlap_protection: true
+          },
+          tv_uhf: {
+            start_freq: '470.000.000',
+            target_freq: '698.000.000',
+            demodulator_mode: 'WFM',
+            bandwidth: 600_000,
+            precision: 5,
+            overlap_protection: true
+          },
           uhf_rfid: {
             start_freq: '860.000.000',
             target_freq: '960.000.000',
             demodulator_mode: 'RAW',
             bandwidth: 100_000,
+            precision: 5,
+            overlap_protection: true
+          },
+          umts: {
+            start_freq: '1.920.000.000',
+            target_freq: '2.170.000.000',
+            demodulator_mode: 'RAW',
+            bandwidth: 200_000,
+            precision: 6,
+            overlap_protection: false
+          },
+          weather_sat: {
+            start_freq: '137.000.000',
+            target_freq: '138.000.000',
+            demodulator_mode: 'FM',
+            bandwidth: 40_000,
             precision: 5,
             overlap_protection: true
           },

@@ -194,6 +194,37 @@ module PWN
             puts "Cleaned up recording: #{record_path}"
           end
         end
+
+        # Author(s):: 0day Inc. <support@0dayinc.com>
+
+        public_class_method def self.authors
+          "AUTHOR(S):
+            0day Inc. <support@0dayinc.com>
+          "
+        end
+
+        # Display Usage for this Module
+
+        public_class_method def self.help
+          puts "USAGE:
+            gsm_decoder_thread = PWN::SDR::Decoder::GSM.start(
+              gqrx_obj: {
+                record_path: 'path/to/record.wav',
+                frequency: 935_000_000, # Frequency in Hz
+                bandwidth: 200_000,     # Sample rate in Hz
+                gqrx_sock: gqrx_socket_object
+              }
+            )
+
+            # To stop the decoder thread:
+            PWN::SDR::Decoder::GSM.stop(
+              thread: gsm_decoder_thread,
+              gqrx_obj: gqrx_object_used_to_start_decoder
+            )
+
+            #{self}.authors
+          "
+        end
       end
     end
   end
