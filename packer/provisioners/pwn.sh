@@ -53,7 +53,7 @@ case $os in
       grok_error
 
       echo "Installing fontmatrix..."
-      $screen_cmd "${apt} install -y fontmatrix ${assess_update_errors}"
+      $screen_cmd "${apt} install -y cmatrix-xfont ${assess_update_errors}"
       grok_error
 
       echo "Installing Postgres Libraries for pg gem..."

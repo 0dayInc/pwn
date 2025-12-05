@@ -231,55 +231,10 @@ module PWN
           cmd: 'f'
         )
 
-        # Start recording and decoding if decoder provided
-        decoder_module = nil
-        decoder_thread = nil
-        record_path = nil
-        if decoder
-          # Resolve decoder module via case statement for extensibility
-          case decoder
-          when :gsm
-            decoder_module = PWN::SDR::Decoder::GSM
-          else
-            raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
-          end
-
-          # Ensure recording is off before starting
-          record_status = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'u RECORD')
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if record_status == '1'
-
-          # Start recording
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 1', resp_ok: 'RPRT 0')
-
-          # Prepare for decoder
-          start_time = Time.now
-          expected_filename = "gqrx_#{start_time.strftime('%Y%m%d_%H%M%S')}_#{current_freq_raw}.wav"
-          record_path = File.join(record_dir, expected_filename)
-
-          # Build partial gqrx_obj for decoder start
-          gqrx_obj_partial = {
-            gqrx_sock: gqrx_sock,
-            record_path: record_path,
-            frequency: current_freq,
-            bandwidth: bandwidth,
-            demodulator_mode: demodulator_mode
-          }
-
-          # Initialize and start decoder (module style: .start returns thread)
-          decoder_thread = decoder_module.start(
-            gqrx_obj: gqrx_obj_partial,
-            **decoder_opts
-          )
-        end
-
         init_freq_hash = {
           demod_mode_n_passband: demod_n_passband,
           frequency: current_freq,
-          bandwidth: bandwidth,
-          decoder: decoder,
-          decoder_module: decoder_module,
-          decoder_thread: decoder_thread,
-          record_path: record_path
+          bandwidth: bandwidth
         }
 
         unless suppress_details
@@ -314,21 +269,58 @@ module PWN
             cmd: 'l BB_GAIN'
           )
 
-          init_freq_hash = {
-            demod_mode_n_passband: demod_n_passband,
-            frequency: current_freq,
-            bandwidth: bandwidth,
-            audio_gain_db: audio_gain_db,
-            squelch: current_squelch,
-            rf_gain: rf_gain,
-            if_gain: if_gain,
-            bb_gain: bb_gain,
-            strength_db: strength_db,
-            decoder: decoder,
-            decoder_module: decoder_module,
-            decoder_thread: decoder_thread,
-            record_path: record_path
-          }
+          init_freq_hash[:audio_gain_db] = audio_gain_db
+          init_freq_hash[:squelch_set] = current_squelch
+          init_freq_hash[:rf_gain] = rf_gain
+          init_freq_hash[:if_gain] = if_gain
+          init_freq_hash[:bb_gain] = bb_gain
+          init_freq_hash[:strength_db] = strength_db
+
+          # Start recording and decoding if decoder provided
+          decoder_module = nil
+          decoder_thread = nil
+          record_path = nil
+          if decoder
+            # Resolve decoder module via case statement for extensibility
+            case decoder
+            when :gsm
+              decoder_module = PWN::SDR::Decoder::GSM
+            else
+              raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
+            end
+
+            # Ensure recording is off before starting
+            record_status = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'u RECORD')
+            gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if record_status == '1'
+
+            # Start recording
+            gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 1', resp_ok: 'RPRT 0')
+
+            # Prepare for decoder
+            start_time = Time.now
+            expected_filename = "gqrx_#{start_time.strftime('%Y%m%d_%H%M%S')}_#{current_freq_raw}.wav"
+            record_path = File.join(record_dir, expected_filename)
+
+            # Build partial gqrx_obj for decoder start
+            gqrx_obj_partial = {
+              gqrx_sock: gqrx_sock,
+              record_path: record_path,
+              frequency: current_freq,
+              bandwidth: bandwidth,
+              demodulator_mode: demodulator_mode
+            }
+
+            # Initialize and start decoder (module style: .start returns thread)
+            decoder_thread = decoder_module.start(
+              gqrx_obj: gqrx_obj_partial,
+              **decoder_opts
+            )
+
+            init_freq_hash[:decoder] = decoder
+            init_freq_hash[:decoder_module] = decoder_module
+            init_freq_hash[:decoder_thread] = decoder_thread
+            init_freq_hash[:record_path] = record_path
+          end
         end
 
         init_freq_hash
@@ -347,6 +339,7 @@ module PWN
       #   target_freq: 'required - Target frequency of scan range',
       #   demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
       #   bandwidth: 'optional - Bandwidth in Hz (Defaults to 200_000)',
+      #   overlap_protection: 'optional - Boolean to enable/disable bandwidth overlap protection (defaults to false)',
       #   precision: 'optional - Frequency step precision (number of digits; defaults to 1)',
       #   lock_freq_duration: 'optional - Lock frequency duration in seconds (defaults to 0.04)',
       #   strength_lock: 'optional - Strength lock in dBFS (defaults to -70.0)',
@@ -360,6 +353,7 @@ module PWN
         target_freq = opts[:target_freq]
         demodulator_mode = opts[:demodulator_mode]
         bandwidth = opts[:bandwidth] ||= 200_000
+        overlap_protection = opts[:overlap_protection] || false
         precision = opts[:precision] ||= 1
         lock_freq_duration = opts[:lock_freq_duration] ||= 0.04
         strength_lock = opts[:strength_lock] ||= -70.0
@@ -370,8 +364,7 @@ module PWN
 
         hz_start = start_freq.to_s.raw_hz
         hz_target = target_freq.to_s.raw_hz
-        # step_hz = 10**(precision - 1)
-        step_hz = [10**(precision - 1), (bandwidth.to_i / 4)].max
+        step_hz = 10**(precision - 1)
         step = hz_start > hz_target ? -step_hz : step_hz
 
         # Set demodulator mode & passband once
@@ -518,7 +511,7 @@ module PWN
             current_strength = (strength_history.sum / strength_history.size).round(1)
 
             print '.'
-            # puts "#{hz.pretty_hz} => #{strength_db}"
+            puts "#{hz.pretty_hz} => #{strength_db}"
 
             candidate = { hz: hz, freq: hz.pretty_hz, strength: current_strength }
             candidate_signals.push(candidate)
@@ -528,8 +521,13 @@ module PWN
               # Previous max step_hz was actually the top of the signal
               top_of_signal_hz = candidate_signals.map { |s| s[:hz] }.max - step_hz
 
-              distance_from_prev_freq_hz = (beg_of_signal_hz - prev_freq_hash[:frequency].to_s.raw_hz).abs
-              next unless distance_from_prev_freq_hz > (bandwidth.to_i / 2)
+              skip_signal = false
+              prev_frequency = prev_freq_hash[:frequency].to_s.raw_hz
+              distance_from_prev_detected_freq_hz = (beg_of_signal_hz - prev_frequency).abs
+              half_bandwidth = (bandwidth / 2).to_i
+              skip_signal = true if distance_from_prev_detected_freq_hz < half_bandwidth && overlap_protection
+              puts "Prev Dect Freq: #{prev_frequency} | New Freq Edge: #{beg_of_signal_hz} | Distance from Prev Dect Freq: #{distance_from_prev_detected_freq_hz} Hz | Step Hz: #{step_hz} | Bandwidth: #{bandwidth} Hz | Half Bandwidth: #{half_bandwidth} Hz | Overlap Protection? #{overlap_protection} | Skip Signal? #{skip_signal}"
+              next if skip_signal
 
               best_peak = find_best_peak.call(
                 beg_of_signal_hz: beg_of_signal_hz,
@@ -537,7 +535,7 @@ module PWN
               )
 
               if best_peak[:hz] && best_peak[:strength_db] > strength_lock
-                detailed = init_freq(
+                prev_freq_hash = init_freq(
                   gqrx_sock: gqrx_sock,
                   freq: best_peak[:hz],
                   demodulator_mode: demodulator_mode,
@@ -545,19 +543,19 @@ module PWN
                   squelch: squelch,
                   suppress_details: true
                 )
-                detailed[:lock_freq_duration] = lock_freq_duration
-                detailed[:strength_lock] = strength_lock
+                prev_freq_hash[:lock_freq_duration] = lock_freq_duration
+                prev_freq_hash[:strength_lock] = strength_lock
 
                 system_role_content = "Analyze signal data captured by a software-defined-radio using GQRX at the following location: #{location}. Respond with just FCC information about the transmission if available.  If the frequency is unlicensed or not found in FCC records, state that clearly.  Be clear and concise in your analysis."
                 ai_analysis = PWN::AI::Introspection.reflect_on(
-                  request: detailed.to_json,
+                  request: prev_freq_hash.to_json,
                   system_role_content: system_role_content,
                   suppress_pii_warning: true
                 )
-                detailed[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+                prev_freq_hash[:ai_analysis] = ai_analysis unless ai_analysis.nil?
                 puts "\n**** Detected Signal ****"
-                puts JSON.pretty_generate(detailed)
-                signals_arr.push(detailed)
+                puts JSON.pretty_generate(prev_freq_hash)
+                signals_arr.push(prev_freq_hash)
               end
               candidate_signals.clear
               sleep lock_freq_duration
@@ -637,6 +635,7 @@ module PWN
             target_freq: 'required - Target frequency',
             demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
             bandwidth: 'optional - Bandwidth in Hz (Defaults to 200_000)',
+            overlap_protection: 'optional - Boolean to enable/disable bandwidth overlap protection (defaults to false)',
             precision: 'optional - Precision (Defaults to 1)',
             lock_freq_duration: 'optional - Lock frequency duration in seconds (defaults to 0.04)',
             strength_lock: 'optional - Strength lock (defaults to -70.0)',
