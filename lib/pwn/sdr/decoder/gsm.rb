@@ -15,15 +15,13 @@ module PWN
 
         # Starts the live decoding thread.
         def self.start(opts = {})
-          gqrx_obj = opts[:gqrx_obj]
-          raise ':ERROR: :gqrx_obj is required' unless gqrx_obj.is_a?(Hash)
+          freq_obj = opts[:freq_obj]
+          raise ':ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
 
-          record_path = gqrx_obj[:record_path]
-          frequency = gqrx_obj[:frequency]
-          sample_rate = gqrx_obj[:bandwidth].to_i
-          gqrx_sock = gqrx_obj[:gqrx_sock]
-
-          gqrx_obj[:decoder_stop_flag] ||= [false]
+          gqrx_sock = freq_obj[:gqrx_sock]
+          freq = freq_obj[:freq]
+          bandwidth = freq_obj[:bandwidth].to_i
+          record_path = freq_obj[:record_path]
 
           sleep 0.1 until File.exist?(record_path)
 
@@ -32,12 +30,10 @@ module PWN
 
           bytes_read = HEADER_SIZE
 
-          puts "GSM Decoder started for frequency: #{frequency}, sample_rate: #{sample_rate}"
+          puts "GSM Decoder started for freq: #{freq}, bandwidth: #{bandwidth}"
 
           Thread.new do
             loop do
-              break if gqrx_obj[:decoder_stop_flag][0]
-
               current_size = File.size(record_path)
               if current_size > bytes_read
                 new_bytes = current_size - bytes_read
@@ -46,8 +42,8 @@ module PWN
                 data = File.binread(record_path, new_bytes, bytes_read)
                 process_chunk(
                   data: data,
-                  sample_rate: sample_rate,
-                  frequency: frequency
+                  bandwidth: bandwidth,
+                  freq: freq
                 )
                 bytes_read = current_size
               end
@@ -63,12 +59,11 @@ module PWN
 
         # Stops the decoding thread.
         def self.stop(opts = {})
-          thread = opts[:thread]
-          gqrx_obj = opts[:gqrx_obj]
-          raise ':ERROR: :thread and :gqrx_obj are required' unless thread && gqrx_obj.is_a?(Hash)
+          freq_obj = opts[:freq_obj]
+          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
 
-          gqrx_obj[:decoder_stop_flag][0] = true
-          thread.join(1.0)
+          decoder_thread = freq_obj[:decoder_thread]
+          decoder_thread.kill if decoder_thread.is_a?(Thread)
         end
 
         class << self
@@ -76,9 +71,9 @@ module PWN
 
           def process_chunk(opts = {})
             data = opts[:data]
-            sample_rate = opts[:sample_rate]
-            frequency = opts[:frequency]
-            raise ':ERROR: :data, :sample_rate, and :frequency are required' unless data && sample_rate && frequency
+            bandwidth = opts[:bandwidth]
+            freq = opts[:freq]
+            raise ':ERROR: :data, :bandwidth, and :freq are required' unless data && bandwidth && freq
 
             samples = data.unpack('f< *')
             return if samples.length.odd? # Skip incomplete
@@ -88,7 +83,7 @@ module PWN
               complex_samples << Complex(samples[i], samples[i + 1])
             end
 
-            window_size = [(sample_rate * BURST_DURATION_SEC).round, complex_samples.length].min
+            window_size = [(bandwidth * BURST_DURATION_SEC).round, complex_samples.length].min
             return if window_size <= 0
 
             # Simplified power on sliding windows
@@ -112,10 +107,10 @@ module PWN
             return unless burst_start >= 0 && burst_start + 148 <= bits.length
 
             data_bits = extract_data_bits(bits, burst_start)
-            puts "Burst synchronized at offset #{sync_offset} for #{frequency} Hz (power: #{max_power.round(4)})"
+            puts "Burst synchronized at offset #{sync_offset} for #{freq} Hz (power: #{max_power.round(4)})"
             decode_imsi(
               data_bits: data_bits,
-              frequency: frequency
+              freq: freq
             )
           end
 
@@ -159,8 +154,8 @@ module PWN
 
           def decode_imsi(opts = {})
             data_bits = opts[:data_bits]
-            frequency = opts[:frequency]
-            raise ':ERROR: :data_bits and :frequency are required' unless data_bits && frequency
+            freq = opts[:freq]
+            raise ':ERROR: :data_bits and :freq are required' unless data_bits && freq
 
             # Simplified "IMSI extraction": Interpret first ~60 bits as packed digits (4 bits per digit, BCD-like).
             # In reality: Deinterleave (over bursts), Viterbi decode convolutional code (polys G0=10011b, G1=11011b),
@@ -180,7 +175,7 @@ module PWN
             msin = imsi_digits[6, 9].join
             imsi = "#{mcc.ljust(3, '0')}#{mnc.ljust(3, '0')}#{msin.ljust(9, '0')}"
 
-            puts "Decoded IMSI: #{imsi} at #{frequency} Hz"
+            puts "Decoded IMSI: #{imsi} at #{freq} Hz"
             # TODO: Integrate full L3 parser (e.g., from ruby-gsm gem or custom).
           end
 
@@ -208,18 +203,12 @@ module PWN
         public_class_method def self.help
           puts "USAGE:
             gsm_decoder_thread = PWN::SDR::Decoder::GSM.start(
-              gqrx_obj: {
-                record_path: 'path/to/record.wav',
-                frequency: 935_000_000, # Frequency in Hz
-                bandwidth: 200_000,     # Sample rate in Hz
-                gqrx_sock: gqrx_socket_object
-              }
+              freq_obj: 'required - freq_obj returned from PWN::SDR::Receiver::GQRX.init_freq method'
             )
 
             # To stop the decoder thread:
             PWN::SDR::Decoder::GSM.stop(
-              thread: gsm_decoder_thread,
-              gqrx_obj: gqrx_object_used_to_start_decoder
+              freq_obj: 'required - freq_obj returned from PWN::SDR::Receiver::GQRX.init_freq method'
             )
 
             #{self}.authors
