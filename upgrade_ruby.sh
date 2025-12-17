@@ -7,7 +7,7 @@ else
 fi
 
 function usage() {
-  echo $"Usage: $0 <new ruby version e.g. 2.4.4> <optional bool running from build_pwn_gem.sh>"
+  echo $"Usage: $0 <new ruby version e.g. 2.4.4> <optional bool running from build_gem.sh>"
   exit 1
 }
 
@@ -38,5 +38,5 @@ cd $pwn_root && ./vagrant/provisioners/gem.sh
 rvmsudo rvm install ruby-$new_ruby_version
 echo $new_ruby_version > $pwn_root/.ruby-version
 
-cd / && cd $pwn_root && rvm use $new_ruby_version@$ruby_gemset && ./build_pwn_gem.sh
+cd / && cd $pwn_root && rvm use $new_ruby_version@$ruby_gemset && ./build_gem.sh
 rvmsudo gem pristine --all

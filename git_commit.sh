@@ -11,9 +11,9 @@ if (( $# == 3 )); then
   git pull
   git add . --all
   echo 'Updating Gems to Latest Versions in Gemfile...'
-  ./find_latest_gem_versions_per_Gemfile.sh
+  ./upgrade_Gemfile_gems.sh
   if [[ $? -ne 0 ]]; then
-    echo 'ERROR: find_latest_gem_versions_per_Gemfile.sh failed!'
+    echo 'ERROR: upgrade_Gemfile_gems.sh failed!'
     exit 1
   fi
 
@@ -34,9 +34,9 @@ if (( $# == 3 )); then
   fi
 
   git commit -a -S --author="${1} <${2}>" -m "${3}"
-  ./update_pwn.sh
+  ./upgrade_pwn.sh
   if [[ $? -ne 0 ]]; then
-    echo 'ERROR: update_pwn.sh failed!'
+    echo 'ERROR: upgrade_pwn.sh failed!'
     exit 1
   fi
 

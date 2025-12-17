@@ -97,4 +97,4 @@ case $os in
     exit 1
 esac
 
-rvmsudo /bin/bash --login -c "cd ${pwn_root} && cp etc/userland/${pwn_provider}/metasploit/vagrant.yaml.EXAMPLE etc/userland/${pwn_provider}/metasploit/vagrant.yaml && ./reinstall_pwn_gemset.sh && ./build_pwn_gem.sh && rubocop"
+rvmsudo /bin/bash --login -c "cd ${pwn_root} && cp etc/userland/${pwn_provider}/metasploit/vagrant.yaml.EXAMPLE etc/userland/${pwn_provider}/metasploit/vagrant.yaml && ./reinstall_gemset.sh && ./build_gem.sh && rubocop"

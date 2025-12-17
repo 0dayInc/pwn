@@ -399,7 +399,7 @@ module PWN
       #   lock_freq_duration: 'optional - Lock frequency duration in seconds (defaults to 0.04)',
       #   strength_lock: 'optional - Strength lock in dBFS (defaults to -70.0)',
       #   squelch: 'optional - Squelch level in dBFS (defaults to strength_lock - 3.0)',
-      #   audio_gain_db: 'optional - Audio gain in dB (defaults to 1.0)',
+      #   audio_gain_db: 'optional - Audio gain in dB (defaults to 6.0)',
       #   rf_gain: 'optional - RF gain (defaults to 0.0)',
       #   intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
       #   baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
@@ -448,7 +448,7 @@ module PWN
           resp_ok: 'RPRT 0'
         )
 
-        audio_gain_db = opts[:audio_gain_db] ||= 9.0
+        audio_gain_db = opts[:audio_gain_db] ||= 6.0
         audio_gain_db = audio_gain_db.to_f
         audio_gain_db_resp = PWN::SDR::GQRX.gqrx_cmd(
           gqrx_sock: gqrx_sock,
@@ -791,6 +791,10 @@ module PWN
             lock_freq_duration: 'optional - Lock frequency duration in seconds (defaults to 0.04)',
             strength_lock: 'optional - Strength lock (defaults to -70.0)',
             squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
+            audio_gain_db: 'optional - Audio gain in dB (defaults to 6.0)',
+            rf_gain: 'optional - RF gain (defaults to 0.0)',
+            intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
+            baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
             scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
             location: 'optional - Location string to include in AI analysis (e.g., \"New York, NY\", 90210, GPS coords, etc.)'
           )

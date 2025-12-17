@@ -10,4 +10,4 @@ else
 fi
 
 export rvmsudo_secure_path=1
-rvmsudo /bin/bash --login -c "cd ${pwn_root} && git config --global --add safe.directory ${pwn_root} && ./build_pwn_gem.sh"
+rvmsudo /bin/bash --login -c "cd ${pwn_root} && git config --global --add safe.directory ${pwn_root} && ./build_gem.sh"
