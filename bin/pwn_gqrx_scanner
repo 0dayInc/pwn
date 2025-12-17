@@ -13,12 +13,12 @@ PWN::Driver::Parser.new do |options|
     opts[:list_scan_profiles] = l
   end
 
-  options.on('-tFREQ', '--target-freq=FREQ', '<Required if "--assume-profile" is Nil - Frequency to Conclude Scanning (e.g. 900.000.000 == 900 mHz>') do |e|
-    opts[:target_freq] = e
+  options.on('-sFREQ', '--start-freq=FREQ', '<Required if "--assume-profile" is Nil - Frequency to Start Scanning (e.g. 800.000.000 == 800 mHz>') do |s|
+    opts[:start_freq] = s
   end
 
-  options.on('-sFREQ', '--start-freq=FREQ', '<Optional - Frequency to Set when Scanning Begins (Defaults to last known frequency)>') do |s|
-    opts[:start_freq] = s
+  options.on('-tFREQ', '--target-freq=FREQ', '<Required if "--assume-profile" is Nil - Frequency to Conclude Scanning (e.g. 900.000.000 == 900 mHz>') do |e|
+    opts[:target_freq] = e
   end
 
   options.on('-hHOST', '--host=HOST', '<Optional - GQRX Host (Defaults to 127.0.0.1)>') do |h|
@@ -29,12 +29,16 @@ PWN::Driver::Parser.new do |options|
     opts[:port] = p
   end
 
-  options.on('-AFLOAT', '--audio-gain=FLOAT', '<Optional - Set audio gain -80.0 to 50.0 (Defaults to 1.0)>') do |a|
+  options.on('-AFLOAT', '--audio-gain=FLOAT', '<Optional - Set audio gain -80.0 to 50.0 (Defaults to 9.0)>') do |a|
     opts[:audio_gain_db] = a
   end
 
   options.on('-bHZ', '--bandwidth=HZ', '<Optional - Set Bandwidth 0.0 - SDR Bandwidth Limit, e.g. 20.000.000 (Defaults to 270.000)>') do |b|
     opts[:bandwidth] = b
+  end
+
+  options.on('-OLAP', '--overlap-protection', '<Optional - Enable Overlap Protection to prevent false positives when scanning (Defaults to false)>') do |o|
+    opts[:overlap_protection] = o
   end
 
   options.on('-DMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator Mode OFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB | USB | CW | CWL | CWU (Defaults to WFM_ST)>') do |d|
@@ -45,28 +49,36 @@ PWN::Driver::Parser.new do |options|
     opts[:precision] = p
   end
 
-  options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to lock onto frequency (Defaults to -45.0)>') do |s|
+  options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to lock onto frequency (Defaults to -70.0)>') do |s|
     opts[:strength_lock] = s
   end
 
-  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.5)>') do |l|
+  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.04)>') do |l|
     opts[:lock_freq_duration] = l
   end
 
-  options.on('-QFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold -150.0 to 0 (Defaults to -50.0)>') do |q|
+  options.on('-QFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold -150.0 to 0 (Defaults to --strength-lock - 3)>') do |q|
     opts[:squelch] = q
   end
 
-  options.on('-RFLOAT', '--rf-gain=FLOAT', '<Optional - RF Gain 0.0-16.0(Defaults to 16.0)>') do |r|
+  options.on('-RFLOAT', '--rf-gain=FLOAT', '<Optional - RF Gain 0.0-16.0(Defaults to 0.0)>') do |r|
     opts[:rf_gain] = r
   end
 
-  options.on('-IFLOAT', '--intermediate-gain=FLOAT', '<Optional - Intermediate Gain 0.0-40.0 (Defaults to 40.0)>') do |i|
+  options.on('-IFLOAT', '--intermediate-gain=FLOAT', '<Optional - Intermediate Gain 0.0-40.0 (Defaults to 32.0)>') do |i|
     opts[:intermediate_gain] = i
   end
 
   options.on('-BFLOAT', '--basedband-gain=FLOAT', '<Optional - Baseband Gain 0.0-62.0 (Defaults to 10.0)>') do |b|
     opts[:baseband_gain] = b
+  end
+
+  options.on('-LFILE', '--scan-log=FILE', '<Optional - Path to log scan results to (Defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)>') do |l|
+    opts[:scan_log] = l
+  end
+
+  options.on('-LOC', '--location', '<Optional - Location string to include in AI analysis (e.g. "New York, NY", 90210, GPS coords, etc.)>') do |l|
+    opts[:location] = l
   end
 end.parse!
 
@@ -74,15 +86,21 @@ begin
   pwn_provider = 'ruby-gem'
   pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
 
+  profiles_available = PWN::SDR::FrequencyAllocation.profiles
+
   list_scan_profiles = opts[:list_scan_profiles]
   if list_scan_profiles
-    profiles_available = PWN::SDR::GQRX.list_scan_profiles
     puts JSON.pretty_generate(profiles_available)
     exit 0
   end
 
   profile = opts[:profile]
-  opts = PWN::SDR::GQRX.assume_profile(profile: profile) unless profile.nil?
+  opts.merge!(profiles_available[profile.to_sym]) unless profile.nil?
+
+  start_freq = opts[:start_freq]
+  start_freq = start_freq.to_s.delete('.') unless start_freq.nil?
+  start_freq = start_freq.to_i
+  raise 'ERROR: Invalid start frequency.' if !start_freq.nil? && start_freq.zero?
 
   target_freq = opts[:target_freq]
   target_freq = target_freq.to_s.delete('.') unless target_freq.nil?
@@ -95,96 +113,53 @@ begin
   puts "Connecting to GQRX at #{host}:#{port}..."
   gqrx_sock = PWN::SDR::GQRX.connect(target: host, port: port)
 
-  start_freq = opts[:start_freq]
-  start_freq = start_freq.to_s.delete('.') unless start_freq.nil?
-  start_freq = start_freq.to_i
-  if start_freq.zero?
-    start_freq = PWN::SDR::GQRX.gqrx_cmd(
-      gqrx_sock: gqrx_sock, cmd: 'f',
-      resp_ok: 'RPRT 0'
-    ).to_i
-  end
+  demodulator_mode = opts[:demodulator_mode]
+  bandwidth = opts[:bandwidth]
+  overlap_protection = opts[:overlap_protection]
 
-  demodulator_mode = opts[:demodulator_mode] ||= 'WFM_ST'
-  puts "Demodulator Mode: #{demodulator_mode}"
-  # demodulator_mode.upcase! if opts[:demodulator_mode]
-  demodulator_modes = %i[OFF RAW AM FM WFM WFM_ST WFM_ST_OIRT LSB USB CW CWL CWU]
-  raise "ERROR: Invalid demodulator mode: #{demodulator_mode}" unless demodulator_modes.include?(demodulator_mode)
+  audio_gain_db = opts[:audio_gain_db]
+  audio_gain_db = audio_gain_db.to_f unless audio_gain_db.nil?
 
-  bandwidth = opts[:bandwidth] ||= '200.000'
-
-  puts "Setting demodulator mode to #{demodulator_mode} and bandwidth to #{bandwidth}..."
-  bandwidth = bandwidth.to_s.delete('.').to_i unless bandwidth.nil?
-  demod_resp = PWN::SDR::GQRX.gqrx_cmd(
-    gqrx_sock: gqrx_sock,
-    cmd: "M #{demodulator_mode} #{bandwidth}",
-    resp_ok: 'RPRT 0'
-  )
-
-  audio_gain_db = opts[:audio_gain_db] ||= 1.0
-  audio_gain_db = audio_gain_db.to_f
-  audio_gain_db_resp = PWN::SDR::GQRX.gqrx_cmd(
-    gqrx_sock: gqrx_sock,
-    cmd: "L AF #{audio_gain_db}",
-    resp_ok: 'RPRT 0'
-  )
-
-  squelch = opts[:squelch] ||= -63.0
-  squelch = squelch.to_f
-  squelch_resp = PWN::SDR::GQRX.gqrx_cmd(
-    gqrx_sock: gqrx_sock,
-    cmd: "L SQL #{squelch}",
-    resp_ok: 'RPRT 0'
-  )
+  squelch = opts[:squelch]
+  squelch = squelch.to_f unless squelch.nil?
 
   precision = opts[:precision] ||= 5
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
-  lock_freq_duration = opts[:lock_freq_duration] ||= 0.5
-  lock_freq_duration = lock_freq_duration.to_f
+  lock_freq_duration = opts[:lock_freq_duration]
+  strength_lock = opts[:strength_lock]
+  strength_lock = strength_lock.to_f unless strength_lock.nil?
 
-  strength_lock = opts[:strength_lock] ||= -60.0
-  strength_lock = strength_lock.to_f
+  rf_gain = opts[:rf_gain]
+  rf_gain = rf_gain.to_f unless rf_gain.nil?
 
-  rf_gain = opts[:rf_gain] ||= 0.0
-  rf_gain = rf_gain.to_f
-  rf_gain_resp = PWN::SDR::GQRX.gqrx_cmd(
-    gqrx_sock: gqrx_sock,
-    cmd: "L RF_GAIN #{rf_gain}",
-    resp_ok: 'RPRT 0'
-  )
+  intermediate_gain = opts[:intermediate_gain]
+  intermediate_gain = intermediate_gain.to_f unless intermediate_gain.nil?
 
-  intermediate_gain = opts[:intermediate_gain] ||= 32.0
-  intermediate_gain = intermediate_gain.to_f
-  intermediate_resp = PWN::SDR::GQRX.gqrx_cmd(
-    gqrx_sock: gqrx_sock,
-    cmd: "L IF_GAIN #{intermediate_gain}",
-    resp_ok: 'RPRT 0'
-  )
+  baseband_gain = opts[:baseband_gain]
+  baseband_gain = baseband_gain.to_f unless baseband_gain.nil?
 
-  baseband_gain = opts[:baseband_gain] ||= 10.0
-  baseband_gain = baseband_gain.to_f
-  baseband_resp = PWN::SDR::GQRX.gqrx_cmd(
-    gqrx_sock: gqrx_sock,
-    cmd: "L BB_GAIN #{baseband_gain}",
-    resp_ok: 'RPRT 0'
-  )
-
-  s_freq_pretty = start_freq.to_s.chars.insert(-4, '.').insert(-8, '.').join
-  t_freq_pretty = target_freq.to_s.chars.insert(-4, '.').insert(-8, '.').join
-  puts "*** Scanning from #{s_freq_pretty} to #{t_freq_pretty}\n\n\n"
+  scan_log = opts[:scan_log]
+  location = opts[:location]
 
   PWN::SDR::GQRX.scan_range(
     gqrx_sock: gqrx_sock,
-    demodulator_mode: demodulator_mode,
-    bandwidth: bandwidth,
     start_freq: start_freq,
     target_freq: target_freq,
+    demodulator_mode: demodulator_mode,
+    bandwidth: bandwidth,
+    overlap_protection: overlap_protection,
     precision: precision,
     lock_freq_duration: lock_freq_duration,
     strength_lock: strength_lock,
-    squelch: squelch
+    squelch: squelch,
+    audio_gain_db: audio_gain_db,
+    rf_gain: rf_gain,
+    intermediate_gain: intermediate_gain,
+    baseband_gain: baseband_gain,
+    scan_log: scan_log,
+    location: location
   )
   puts 'Scan Complete.'
 rescue StandardError => e

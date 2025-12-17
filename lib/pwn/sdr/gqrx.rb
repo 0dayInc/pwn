@@ -31,6 +31,43 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # scan_resp = PWN::SDR::GQRX.log_signals(
+      #   signals_arr: 'required - Array of detected signals',
+      #   timestamp_start: 'required - Scan start timestamp',
+      #   scan_log: 'required - Path to save detected signals log'
+      # )
+      private_class_method def self.log_signals(opts = {})
+        signals_arr = opts[:signals_arr]
+        timestamp_start = opts[:timestamp_start]
+        scan_log = opts[:scan_log]
+
+        signals = signals_arr.sort_by { |s| s[:freq].to_s.raw_hz }
+        timestamp_end = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+        duration_secs = Time.parse(timestamp_end) - Time.parse(timestamp_start)
+        # Convert duration seconds to hours minutes seconds
+        hours = (duration_secs / 3600).to_i
+        minutes = ((duration_secs % 3600) / 60).to_i
+        seconds = (duration_secs % 60).to_i
+        duration = format('%<hrs>02d:%<mins>02d:%<secs>02d', hrs: hours, mins: minutes, secs: seconds)
+
+        scan_resp = {
+          signals: signals,
+          timestamp_start: timestamp_start,
+          timestamp_end: timestamp_end,
+          duration: duration
+        }
+
+        File.write(
+          scan_log,
+          JSON.pretty_generate(scan_resp)
+        )
+
+        scan_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # gqrx_sock = PWN::SDR::GQRX.connect(
       #   target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
       #   port: 'optional - GQRX target port (defaults to 7356)'
@@ -170,33 +207,48 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # init_freq_hash = PWN::SDR::GQRX.init_freq(
+      # freq_obj = PWN::SDR::GQRX.init_freq(
       #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
       #   freq: 'required - Frequency to set',
       #   demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
       #   bandwidth: 'optional - Bandwidth (defaults to 200_000)',
       #   squelch: 'optional - Squelch level to set (Defaults to current value)',
       #   decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
-      #   record_dir: 'optional - Directory where GQRX saves recordings (required if decoder provided; defaults to Dir.home)',
-      #   decoder_opts: 'optional - Hash of additional options for the decoder',
-      #   suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)'
+      #   record_dir: 'optional - Directory where GQRX saves recordings (required if decoder provided; defaults to /tmp/gqrx_recordings)',
+      #   suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
+      #   keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)'
       # )
       public_class_method def self.init_freq(opts = {})
         gqrx_sock = opts[:gqrx_sock]
         freq = opts[:freq]
-        demodulator_mode = opts[:demodulator_mode] ||= 'WFM'
+        valid_demodulator_modes = %i[
+          AM
+          AM_SYNC
+          CW
+          CWL
+          CWU
+          FM
+          OFF
+          LSB
+          RAW
+          USB
+          WFM
+          WFM_ST
+          WFM_ST_OIRT
+        ]
+        demodulator_mode = opts[:demodulator_mode] ||= :WFM
+        raise "ERROR: Invalid demodulator_mode '#{demodulator_mode}'. Valid modes: #{valid_demodulator_modes.join(', ')}" unless valid_demodulator_modes.include?(demodulator_mode.to_sym)
+
         bandwidth = opts[:bandwidth] ||= 200_000
         squelch = opts[:squelch]
         decoder = opts[:decoder]
-        record_dir = opts[:record_dir] ||= Dir.home
-        decoder_opts = opts[:decoder_opts] ||= {}
+        record_dir = opts[:record_dir] ||= '/tmp'
         suppress_details = opts[:suppress_details] || false
+        keep_alive = opts[:keep_alive] || false
 
         raise "ERROR: record_dir '#{record_dir}' does not exist. Please create it or provide a valid path." if decoder && !Dir.exist?(record_dir)
 
-        hz = freq.to_s.raw_hz
-
-        if squelch.is_a?(Float) && squelch >= -100.0 && squelch <= 0.0
+        if squelch.is_a?(Float) && squelch >= -100.0 && squelch <= 0.0 && !keep_alive
           change_squelch_resp = gqrx_cmd(
             gqrx_sock: gqrx_sock,
             cmd: "L SQL #{squelch}",
@@ -206,18 +258,20 @@ module PWN
 
         change_freq_resp = gqrx_cmd(
           gqrx_sock: gqrx_sock,
-          cmd: "F #{hz}",
+          cmd: "F #{freq.to_s.raw_hz}",
           resp_ok: 'RPRT 0'
         )
 
         # Set demod mode and bandwidth (always, using defaults if not provided)
-        mode_str = demodulator_mode.to_s.upcase
-        passband_hz = bandwidth.to_s.raw_hz
-        gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "M #{mode_str} #{passband_hz}",
-          resp_ok: 'RPRT 0'
-        )
+        unless keep_alive
+          mode_str = demodulator_mode.to_s.upcase
+          passband_hz = bandwidth.to_s.raw_hz
+          gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "M #{mode_str} #{passband_hz}",
+            resp_ok: 'RPRT 0'
+          )
+        end
 
         # Get demodulator mode n passband
         demod_n_passband = gqrx_cmd(
@@ -231,9 +285,10 @@ module PWN
           cmd: 'f'
         )
 
-        init_freq_hash = {
+        freq_obj = {
+          demodulator_mode: demodulator_mode,
           demod_mode_n_passband: demod_n_passband,
-          frequency: current_freq,
+          freq: current_freq,
           bandwidth: bandwidth
         }
 
@@ -269,67 +324,67 @@ module PWN
             cmd: 'l BB_GAIN'
           )
 
-          init_freq_hash[:audio_gain_db] = audio_gain_db
-          init_freq_hash[:squelch_set] = current_squelch
-          init_freq_hash[:rf_gain] = rf_gain
-          init_freq_hash[:if_gain] = if_gain
-          init_freq_hash[:bb_gain] = bb_gain
-          init_freq_hash[:strength_db] = strength_db
-
-          # Start recording and decoding if decoder provided
-          decoder_module = nil
-          decoder_thread = nil
-          record_path = nil
-          if decoder
-            # Resolve decoder module via case statement for extensibility
-            case decoder
-            when :gsm
-              decoder_module = PWN::SDR::Decoder::GSM
-            else
-              raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
-            end
-
-            # Ensure recording is off before starting
-            record_status = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'u RECORD')
-            gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if record_status == '1'
-
-            # Start recording
-            gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 1', resp_ok: 'RPRT 0')
-
-            # Prepare for decoder
-            start_time = Time.now
-            expected_filename = "gqrx_#{start_time.strftime('%Y%m%d_%H%M%S')}_#{current_freq_raw}.wav"
-            record_path = File.join(record_dir, expected_filename)
-
-            # Build partial gqrx_obj for decoder start
-            gqrx_obj_partial = {
-              gqrx_sock: gqrx_sock,
-              record_path: record_path,
-              frequency: current_freq,
-              bandwidth: bandwidth,
-              demodulator_mode: demodulator_mode
-            }
-
-            # Initialize and start decoder (module style: .start returns thread)
-            decoder_thread = decoder_module.start(
-              gqrx_obj: gqrx_obj_partial,
-              **decoder_opts
-            )
-
-            init_freq_hash[:decoder] = decoder
-            init_freq_hash[:decoder_module] = decoder_module
-            init_freq_hash[:decoder_thread] = decoder_thread
-            init_freq_hash[:record_path] = record_path
-          end
+          freq_obj[:audio_gain_db] = audio_gain_db
+          freq_obj[:squelch_set] = current_squelch
+          freq_obj[:rf_gain] = rf_gain
+          freq_obj[:if_gain] = if_gain
+          freq_obj[:bb_gain] = bb_gain
+          freq_obj[:strength_db] = strength_db
         end
 
-        init_freq_hash
+        # Start recording and decoding if decoder provided
+        decoder_module = nil
+        decoder_thread = nil
+        record_path = nil
+        if decoder
+          # Resolve decoder module via case statement for extensibility
+          case decoder
+          when :gsm
+            decoder_module = PWN::SDR::Decoder::GSM
+          else
+            raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
+          end
+
+          # Ensure recording is off before starting
+          record_status = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'u RECORD')
+          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if record_status == '1'
+
+          # Start recording
+          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 1', resp_ok: 'RPRT 0')
+
+          # Prepare for decoder
+          start_time = Time.now
+          expected_filename = "gqrx_#{start_time.strftime('%Y%m%d_%H%M%S')}_#{current_freq_raw}.wav"
+          record_path = File.join(record_dir, expected_filename)
+
+          # Build partial gqrx_obj for decoder start
+          freq_obj[:record_path] = record_path
+
+          # Initialize and start decoder (module style: .start returns thread)
+          freq_obj[:gqrx_sock] = gqrx_sock
+          decoder_thread = decoder_module.start(freq_obj: freq_obj)
+          freq_obj.delete(:gqrx_sock)
+
+          freq_obj[:decoder] = decoder
+          freq_obj[:decoder_module] = decoder_module
+          freq_obj[:decoder_thread] = decoder_thread
+          freq_obj[:record_path] = record_path
+        end
+
+        freq_obj
       rescue StandardError => e
         raise e
       ensure
-        # Ensure recording is stopped and decoder is stopped on error
-        gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if gqrx_sock && decoder
-        decoder_module.stop(thread: decoder_thread, gqrx_obj: init_freq_hash) if decoder_module && decoder_thread
+        # Ensure decoder recording stops
+        if decoder
+          gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: 'U RECORD 0',
+            resp_ok: 'RPRT 0'
+          )
+          decoder_module.stop(freq_obj: freq_obj)
+        end
+        disconnect(gqrx_sock: gqrx_sock) if gqrx_sock.is_a?(TCPSocket) && !keep_alive
       end
 
       # Supported Method Parameters::
@@ -344,13 +399,26 @@ module PWN
       #   lock_freq_duration: 'optional - Lock frequency duration in seconds (defaults to 0.04)',
       #   strength_lock: 'optional - Strength lock in dBFS (defaults to -70.0)',
       #   squelch: 'optional - Squelch level in dBFS (defaults to strength_lock - 3.0)',
+      #   audio_gain_db: 'optional - Audio gain in dB (defaults to 6.0)',
+      #   rf_gain: 'optional - RF gain (defaults to 0.0)',
+      #   intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
+      #   baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
+      #   scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
       #   location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)'
       # )
 
       public_class_method def self.scan_range(opts = {})
+        timestamp_start = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+        log_timestamp = Time.now.strftime('%Y-%m-%d')
+
         gqrx_sock = opts[:gqrx_sock]
+
         start_freq = opts[:start_freq]
+        hz_start = start_freq.to_s.raw_hz
+
         target_freq = opts[:target_freq]
+        hz_target = target_freq.to_s.raw_hz
+
         demodulator_mode = opts[:demodulator_mode]
         bandwidth = opts[:bandwidth] ||= 200_000
         overlap_protection = opts[:overlap_protection] || false
@@ -358,16 +426,20 @@ module PWN
         lock_freq_duration = opts[:lock_freq_duration] ||= 0.04
         strength_lock = opts[:strength_lock] ||= -70.0
         squelch = opts[:squelch] ||= (strength_lock - 3.0)
+        scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{hz_start.pretty_hz}-#{hz_target.pretty_hz}_#{log_timestamp}.json"
         location = opts[:location] ||= 'United States'
 
-        timestamp_start = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-
-        hz_start = start_freq.to_s.raw_hz
-        hz_target = target_freq.to_s.raw_hz
         step_hz = 10**(precision - 1)
         step = hz_start > hz_target ? -step_hz : step_hz
 
-        # Set demodulator mode & passband once
+        # Set squelch once for the scan
+        change_squelch_resp = gqrx_cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L SQL #{squelch}",
+          resp_ok: 'RPRT 0'
+        )
+
+        # Set demodulator mode & passband once for the scan
         mode_str = demodulator_mode.to_s.upcase
         passband_hz = bandwidth.to_s.raw_hz
         gqrx_cmd(
@@ -376,26 +448,46 @@ module PWN
           resp_ok: 'RPRT 0'
         )
 
-        # Prime radio at starting frequency
-        prev_freq_hash = init_freq(
+        audio_gain_db = opts[:audio_gain_db] ||= 6.0
+        audio_gain_db = audio_gain_db.to_f
+        audio_gain_db_resp = PWN::SDR::GQRX.gqrx_cmd(
           gqrx_sock: gqrx_sock,
-          freq: start_freq,
-          demodulator_mode: demodulator_mode,
-          bandwidth: bandwidth,
-          squelch: squelch,
-          suppress_details: true
+          cmd: "L AF #{audio_gain_db}",
+          resp_ok: 'RPRT 0'
         )
-        prev_freq_hash[:lock_freq_duration] = lock_freq_duration
-        prev_freq_hash[:strength_lock] = strength_lock
+
+        rf_gain = opts[:rf_gain] ||= 0.0
+        rf_gain = rf_gain.to_f
+        rf_gain_resp = PWN::SDR::GQRX.gqrx_cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L RF_GAIN #{rf_gain}",
+          resp_ok: 'RPRT 0'
+        )
+
+        intermediate_gain = opts[:intermediate_gain] ||= 32.0
+        intermediate_gain = intermediate_gain.to_f
+        intermediate_resp = PWN::SDR::GQRX.gqrx_cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L IF_GAIN #{intermediate_gain}",
+          resp_ok: 'RPRT 0'
+        )
+
+        baseband_gain = opts[:baseband_gain] ||= 10.0
+        baseband_gain = baseband_gain.to_f
+        baseband_resp = PWN::SDR::GQRX.gqrx_cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L BB_GAIN #{baseband_gain}",
+          resp_ok: 'RPRT 0'
+        )
+
+        prev_freq_obj = {}
 
         in_signal = false
         candidate_signals = []
         strength_history = []
 
-        # ──────────────────────────────────────────────────────────────
         # Adaptive peak finder – trims weakest ends after each pass
         # Converges quickly to the true center of the bell curve
-        # ──────────────────────────────────────────────────────────────
         find_best_peak = lambda do |opts = {}|
           beg_of_signal_hz = opts[:beg_of_signal_hz].to_s.raw_hz
           top_of_signal_hz = opts[:top_of_signal_hz].to_s.raw_hz
@@ -497,6 +589,7 @@ module PWN
         puts "INFO: Scanning from #{hz_start.pretty_hz} to #{hz_target.pretty_hz} in steps of #{step.abs.pretty_hz} Hz.\nIf scans are slow and/or you're experiencing false positives/negatives, consider adjusting:\n1. The SDR's sample rate in GQRX\n\s\s- Click on `Configure I/O devices`.\n\s\s- A lower `Input rate` value seems counter-intuitive but works well (e.g. ADALM PLUTO ~ 1000000).\n2. Adjust the :strength_lock parameter.\n3. Adjust the :lock_freq_duration parameter.\n4. Adjust the :precision parameter.\n5. Disable AI introspection in PWN::Env\nHappy scanning!\n\n"
 
         signals_arr = []
+        # Format timestamp_start for filename
         hz_start.step(by: step, to: hz_target) do |hz|
           gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{hz}")
           sleep lock_freq_duration
@@ -522,11 +615,11 @@ module PWN
               top_of_signal_hz = candidate_signals.map { |s| s[:hz] }.max - step_hz
 
               skip_signal = false
-              prev_frequency = prev_freq_hash[:frequency].to_s.raw_hz
-              distance_from_prev_detected_freq_hz = (beg_of_signal_hz - prev_frequency).abs
+              prev_freq = prev_freq_obj[:freq].to_s.raw_hz
+              distance_from_prev_detected_freq_hz = (beg_of_signal_hz - prev_freq).abs
               half_bandwidth = (bandwidth / 2).to_i
               skip_signal = true if distance_from_prev_detected_freq_hz < half_bandwidth && overlap_protection
-              puts "Prev Dect Freq: #{prev_frequency} | New Freq Edge: #{beg_of_signal_hz} | Distance from Prev Dect Freq: #{distance_from_prev_detected_freq_hz} Hz | Step Hz: #{step_hz} | Bandwidth: #{bandwidth} Hz | Half Bandwidth: #{half_bandwidth} Hz | Overlap Protection? #{overlap_protection} | Skip Signal? #{skip_signal}"
+              puts "Prev Dect Freq: #{prev_freq} | New Freq Edge: #{beg_of_signal_hz} | Distance from Prev Dect Freq: #{distance_from_prev_detected_freq_hz} Hz | Step Hz: #{step_hz} | Bandwidth: #{bandwidth} Hz | Half Bandwidth: #{half_bandwidth} Hz | Overlap Protection? #{overlap_protection} | Skip Signal? #{skip_signal}"
               next if skip_signal
 
               best_peak = find_best_peak.call(
@@ -535,27 +628,33 @@ module PWN
               )
 
               if best_peak[:hz] && best_peak[:strength_db] > strength_lock
-                prev_freq_hash = init_freq(
+                prev_freq_obj = init_freq(
                   gqrx_sock: gqrx_sock,
                   freq: best_peak[:hz],
                   demodulator_mode: demodulator_mode,
                   bandwidth: bandwidth,
                   squelch: squelch,
-                  suppress_details: true
+                  suppress_details: true,
+                  keep_alive: true
                 )
-                prev_freq_hash[:lock_freq_duration] = lock_freq_duration
-                prev_freq_hash[:strength_lock] = strength_lock
+                prev_freq_obj[:lock_freq_duration] = lock_freq_duration
+                prev_freq_obj[:strength_lock] = strength_lock
 
                 system_role_content = "Analyze signal data captured by a software-defined-radio using GQRX at the following location: #{location}. Respond with just FCC information about the transmission if available.  If the frequency is unlicensed or not found in FCC records, state that clearly.  Be clear and concise in your analysis."
                 ai_analysis = PWN::AI::Introspection.reflect_on(
-                  request: prev_freq_hash.to_json,
+                  request: prev_freq_obj.to_json,
                   system_role_content: system_role_content,
                   suppress_pii_warning: true
                 )
-                prev_freq_hash[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+                prev_freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
                 puts "\n**** Detected Signal ****"
-                puts JSON.pretty_generate(prev_freq_hash)
-                signals_arr.push(prev_freq_hash)
+                puts JSON.pretty_generate(prev_freq_obj)
+                signals_arr.push(prev_freq_obj)
+                log_signals(
+                  signals_arr: signals_arr,
+                  timestamp_start: timestamp_start,
+                  scan_log: scan_log
+                )
               end
               candidate_signals.clear
               sleep lock_freq_duration
@@ -564,21 +663,73 @@ module PWN
             strength_history = []
           end
         end
-        signals = signals_arr.sort_by { |s| s[:frequency].to_s.raw_hz }
-        timestamp_end = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-        duration_secs = Time.parse(timestamp_end) - Time.parse(timestamp_start)
-        # Convert duration seconds to hours minutes seconds
-        hours = (duration_secs / 3600).to_i
-        minutes = ((duration_secs % 3600) / 60).to_i
-        seconds = (duration_secs % 60).to_i
-        duration = format('%<hrs>02d:%<mins>02d:%<secs>02d', hrs: hours, mins: minutes, secs: seconds)
 
-        {
-          signals: signals,
+        log_signals(
+          signals_arr: signals_arr,
           timestamp_start: timestamp_start,
-          timestamp_end: timestamp_end,
-          duration: duration
-        }
+          scan_log: scan_log
+        )
+      rescue StandardError => e
+        raise e
+      ensure
+        disconnect(gqrx_sock: gqrx_sock)
+      end
+
+      # Supported Method Parameters::
+      # PWN::SDR::GQRX.analyze_scan(
+      #   scan_resp: 'required - Scan response hash returned from #scan_range method',
+      #   target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+      #   port: 'optional - GQRX target port (defaults to 7356)'
+      # )
+      public_class_method def self.analyze_scan(opts = {})
+        scan_resp = opts[:scan_resp]
+        raise 'ERROR: scan_resp is required.' if scan_resp.nil? || scan_resp[:signals].nil? || scan_resp[:signals].empty?
+
+        target = opts[:target]
+        port = opts[:port]
+        gqrx_sock = connect(
+          target: target,
+          port: port
+        )
+
+        scan_resp[:signals].each do |signal|
+          freq_obj = { gqrx_sock: gqrx_sock, keep_alive: true }
+          freq_obj = signal.merge(freq_obj)
+          freq_obj = init_freq(freq_obj)
+          # Redact gqrx_sock from output
+          freq_obj.delete(:gqrx_sock)
+          puts JSON.pretty_generate(freq_obj)
+          print 'Press [ENTER] to continue...'
+          gets
+          puts "\n" * 3
+        end
+      rescue StandardError => e
+        raise e
+      ensure
+        disconnect(gqrx_sock: gqrx_sock)
+      end
+
+      # Supported Method Parameters::
+      # PWN::SDR::GQRX.analyze_log(
+      #   scan_log: 'required - Path to signals log file',
+      #   target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+      #   port: 'optional - GQRX target port (defaults to 7356)'
+      # )
+      public_class_method def self.analyze_log(opts = {})
+        scan_log = opts[:scan_log]
+        raise 'ERROR: scan_log path is required.' unless File.exist?(scan_log)
+
+        scan_resp = JSON.parse(File.read(scan_log), symbolize_names: true)
+        raise 'ERROR: No signals found in log.' if scan_resp[:signals].nil? || scan_resp[:signals].empty?
+
+        target = opts[:target]
+        port = opts[:port]
+
+        analyze_scan(
+          scan_resp: scan_resp,
+          target: target,
+          port: port
+        )
       rescue StandardError => e
         raise e
       end
@@ -608,7 +759,7 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           gqrx_sock = #{self}.connect(
-          target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
             port: 'optional - GQRX target port (defaults to 7356)'
           )
 
@@ -618,15 +769,15 @@ module PWN
             resp_ok: 'optional - Expected response from GQRX to indicate success'
           )
 
-          init_freq_hash = #{self}.init_freq(
+          freq_obj = #{self}.init_freq(
             gqrx_sock: 'required - GQRX socket object returned from #connect method',
             freq: 'required - Frequency to set',
             demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
             bandwidth: 'optional - Bandwidth (defaults to 200_000)',
             decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
-            record_dir: 'optional - Directory where GQRX saves recordings (required if decoder provided; defaults to ~/gqrx_recordings)',
-            decoder_opts: 'optional - Hash of additional options for the decoder',
-            suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)'
+            record_dir: 'optional - Directory where GQRX saves recordings (required if decoder provided; defaults to /tmp/gqrx_recordings)',
+            suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
+            keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)'
           )
 
           scan_resp = #{self}.scan_range(
@@ -640,7 +791,24 @@ module PWN
             lock_freq_duration: 'optional - Lock frequency duration in seconds (defaults to 0.04)',
             strength_lock: 'optional - Strength lock (defaults to -70.0)',
             squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
+            audio_gain_db: 'optional - Audio gain in dB (defaults to 6.0)',
+            rf_gain: 'optional - RF gain (defaults to 0.0)',
+            intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
+            baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
+            scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
             location: 'optional - Location string to include in AI analysis (e.g., \"New York, NY\", 90210, GPS coords, etc.)'
+          )
+
+          #{self}.analyze_scan(
+            scan_resp: 'required - Scan response object from #scan_range method',
+            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+            port: 'optional - GQRX target port (defaults to 7356)'
+          )
+
+          #{self}.analyze_log(
+            scan_log: 'required - Path to signals log file',
+            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+            port: 'optional - GQRX target port (defaults to 7356)'
           )
 
           #{self}.disconnect(
