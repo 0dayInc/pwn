@@ -188,6 +188,7 @@ module PWN
           break if strength_db <= prev_strength_db
 
           prev_strength_db = strength_db
+          sleep 0.0001
         end
 
         strength_db
@@ -287,7 +288,7 @@ module PWN
 
         signals = signals_arr.sort_by { |s| s[:freq].to_s.cast_to_raw_hz }
         # Unique signals by frequency
-        signals.uniq! { |s| s[:hz] }
+        signals.uniq! { |s| s[:freq].to_s.cast_to_raw_hz }
 
         timestamp_end = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
         duration_secs = Time.parse(timestamp_end) - Time.parse(timestamp_start)
