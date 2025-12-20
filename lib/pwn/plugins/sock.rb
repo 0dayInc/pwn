@@ -229,10 +229,20 @@ module PWN
 
       public_class_method def self.disconnect(opts = {})
         sock_obj = opts[:sock_obj]
+        return unless sock_obj.respond_to?(:close)
+
+        # Shutdown both directions to terminate flows immediately
+        # sock_obj.shutdown(Socket::SHUT_RDWR)
+
+        # Set SO_LINGER=0 to force RST (skips TIME_WAIT; ideal for fuzzing)
+        # linger = [1, 0].pack('ii')
+        # sock_obj.setsockopt(Socket::SOL_SOCKET, Socket::SO_LINGER, linger)
+
         sock_obj.close
-        sock_obj = nil
       rescue StandardError => e
         raise e
+      ensure
+        sock_obj = nil
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
