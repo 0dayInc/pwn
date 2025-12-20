@@ -45,6 +45,10 @@ PWN::Driver::Parser.new do |options|
     opts[:demodulator_mode] = d
   end
 
+  options.on('-rRDS', '--rds', '<Optional - Enable RDS Decoding when in WFM or WFM_ST Demodulator Mode (Defaults to false)>') do |r|
+    opts[:rds] = r
+  end
+
   options.on('-PINT', '--precision=INT', '<Optional - Precision of Frequency 1-12 (Defaults to 5)>') do |p|
     opts[:precision] = p
   end
@@ -69,7 +73,7 @@ PWN::Driver::Parser.new do |options|
     opts[:intermediate_gain] = i
   end
 
-  options.on('-BFLOAT', '--basedband-gain=FLOAT', '<Optional - Baseband Gain 0.0-62.0 (Defaults to 10.0)>') do |b|
+  options.on('-BFLOAT', '--baseband-gain=FLOAT', '<Optional - Baseband Gain 0.0-62.0 (Defaults to 10.0)>') do |b|
     opts[:baseband_gain] = b
   end
 
@@ -109,11 +113,10 @@ begin
 
   host = opts[:host]
   port = opts[:port]
-
-  puts "Connecting to GQRX at #{host}:#{port}..."
   gqrx_sock = PWN::SDR::GQRX.connect(target: host, port: port)
 
   demodulator_mode = opts[:demodulator_mode]
+  rds = opts[:rds]
   bandwidth = opts[:bandwidth]
   overlap_protection = opts[:overlap_protection]
 
@@ -143,18 +146,20 @@ begin
   scan_log = opts[:scan_log]
   location = opts[:location]
 
+  # Merge opts again to ensure we override profile values with CLI values
   PWN::SDR::GQRX.scan_range(
     gqrx_sock: gqrx_sock,
     start_freq: start_freq,
     target_freq: target_freq,
     demodulator_mode: demodulator_mode,
+    rds: rds,
     bandwidth: bandwidth,
     overlap_protection: overlap_protection,
-    precision: precision,
-    lock_freq_duration: lock_freq_duration,
-    strength_lock: strength_lock,
-    squelch: squelch,
     audio_gain_db: audio_gain_db,
+    squelch: squelch,
+    precision: precision,
+    strength_lock: strength_lock,
+    lock_freq_duration: lock_freq_duration,
     rf_gain: rf_gain,
     intermediate_gain: intermediate_gain,
     baseband_gain: baseband_gain,
@@ -165,7 +170,7 @@ begin
 rescue StandardError => e
   raise e
 rescue Interrupt, SystemExit
-  puts "\nGoodbye."
+  puts "\nCTRL+C detected - goodbye."
 ensure
-  gqrx_sock = PWN::SDR::GQRX.disconnect(gqrx_sock: gqrx_sock) unless gqrx_sock.nil?
+  PWN::SDR::GQRX.disconnect(gqrx_sock: gqrx_sock) unless gqrx_sock.closed?
 end
