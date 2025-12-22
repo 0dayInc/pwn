@@ -141,11 +141,7 @@ module PWN
           response.push(gqrx_sock.readline.chomp)
           # Drain any additional lines quickly
           loop do
-            # This is the main contributing factor to this scanner being slow.
-            # We're trading speed for accuracy here.
-            # break if gqrx_sock.wait_readable(0.0625).nil? && cmd == 'l STRENGTH'
-            break if gqrx_sock.wait_readable(0.04).nil? && cmd == 'l STRENGTH'
-            break if gqrx_sock.wait_readable(0.001).nil? && cmd != 'l STRENGTH'
+            break if gqrx_sock.wait_readable(0.0001).nil?
 
             response.push(gqrx_sock.readline.chomp)
           end
@@ -175,23 +171,68 @@ module PWN
 
       # Supported Method Parameters::
       # strength_db = PWN::SDR::GQRX.measure_signal_strength(
-      #   gqrx_sock: 'required - GQRX socket object returned from #connect method'
+      #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
+      #   strength_lock: 'optional - Strength lock in dBFS to determine signal edges (defaults to -70.0)'
       # )
       private_class_method def self.measure_signal_strength(opts = {})
         gqrx_sock = opts[:gqrx_sock]
+        strength_lock = opts[:strength_lock] ||= -70.0
 
+        attempts = 0
         strength_db = -99.9
-        prev_strength_db = strength_db
-        # While strength_db is rising, keep measuring
+        prev_strength_db = -99.9
         loop do
+          attempts += 1
           strength_db = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'l STRENGTH').to_f
-          break if strength_db <= prev_strength_db
 
+          # Suprisingly accurate but takes longer
+          # `break if strength_db < prev_strength_db` || attempts >= 300
+          # is VERY accurate with
+          # `sleep 0.0001`
+          # but with more sampling == longer time
+          # break if attempts >= 100 && (strength_lock > strength_db || strength_db < prev_strength_db)
+
+          break if attempts >= 30 && strength_lock > strength_db
+
+          break if attempts >= 300 || strength_db < prev_strength_db
+
+          sleep 0.001
           prev_strength_db = strength_db
-          sleep 0.0001
         end
+        puts "Strength Measurement Attempts: #{attempts}"
 
         strength_db
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # tune_resp = PWN::SDR::GQRX.tune_to(
+      #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
+      #   hz: 'required - Frequency to tune to'
+      # )
+      private_class_method def self.tune_to(opts = {})
+        gqrx_sock = opts[:gqrx_sock]
+        hz = opts[:hz].to_s.cast_to_raw_hz
+
+        current_freq = 0
+        attempts = 0
+        loop do
+          attempts += 1
+          gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "F #{hz}",
+            resp_ok: 'RPRT 0'
+          )
+
+          current_freq = gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: 'f'
+          )
+
+          break if current_freq.to_s.cast_to_raw_hz == hz
+        end
+        # puts "Tuned to #{current_freq} in #{attempts} attempt(s)."
       rescue StandardError => e
         raise e
       end
@@ -217,15 +258,11 @@ module PWN
         strength_db = 99.9
         puts 'Finding Beginning Edge of Signal...'
         while strength_db >= strength_lock
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{hz}")
-          current_freq = 0
-          while current_freq.to_s.cast_to_raw_hz != hz.to_s.cast_to_raw_hz
-            current_freq = gqrx_cmd(
-              gqrx_sock: gqrx_sock,
-              cmd: 'f'
-            )
-          end
-          strength_db = measure_signal_strength(gqrx_sock: gqrx_sock)
+          tune_to(gqrx_sock: gqrx_sock, hz: hz)
+          strength_db = measure_signal_strength(
+            gqrx_sock: gqrx_sock,
+            strength_lock: strength_lock
+          )
           candidate = {
             hz: hz.to_s.cast_to_raw_hz,
             freq: hz.to_i.cast_to_pretty_hz,
@@ -246,15 +283,11 @@ module PWN
         strength_db = 99.9
         puts 'Finding Ending Edge of Signal...'
         while strength_db >= strength_lock
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{hz}")
-          current_freq = 0
-          while current_freq.to_s.cast_to_raw_hz != hz.to_s.cast_to_raw_hz
-            current_freq = gqrx_cmd(
-              gqrx_sock: gqrx_sock,
-              cmd: 'f'
-            )
-          end
-          strength_db = measure_signal_strength(gqrx_sock: gqrx_sock)
+          tune_to(gqrx_sock: gqrx_sock, hz: hz)
+          strength_db = measure_signal_strength(
+            gqrx_sock: gqrx_sock,
+            strength_lock: strength_lock
+          )
           candidate = {
             hz: hz.to_s.cast_to_raw_hz,
             freq: hz.to_i.cast_to_pretty_hz,
@@ -440,24 +473,16 @@ module PWN
           )
         end
 
-        change_freq_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "F #{freq.to_s.cast_to_raw_hz}",
-          resp_ok: 'RPRT 0'
+        tune_to(gqrx_sock: gqrx_sock, hz: freq)
+        strength_db = measure_signal_strength(
+          gqrx_sock: gqrx_sock
         )
-
-        current_freq = 0
-        while current_freq.to_s.cast_to_raw_hz != freq.to_s.cast_to_raw_hz
-          current_freq = gqrx_cmd(
-            gqrx_sock: gqrx_sock,
-            cmd: 'f'
-          )
-        end
 
         freq_obj = {
           bandwidth: bandwidth,
           demodulator_mode: demodulator_mode,
           rds: rds,
+          strength_db: strength_db,
           freq: freq
         }
 
@@ -471,8 +496,6 @@ module PWN
             gqrx_sock: gqrx_sock,
             cmd: 'l AF'
           ).to_f
-
-          strength_db = measure_signal_strength(gqrx_sock: gqrx_sock)
 
           squelch = gqrx_cmd(
             gqrx_sock: gqrx_sock,
@@ -503,7 +526,6 @@ module PWN
           freq_obj[:if_gain] = if_gain
           freq_obj[:rf_gain] = rf_gain
           freq_obj[:squelch] = squelch
-          freq_obj[:strength_db] = strength_db
           freq_obj[:rds] = rds_resp
         end
 
@@ -708,8 +730,11 @@ module PWN
             start_hz_direction.step(by: step_hz_direction, to: end_hz_direction) do |hz|
               print '>' if direction_up
               print '<' unless direction_up
-              gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{hz}")
-              strength_db = measure_signal_strength(gqrx_sock: gqrx_sock)
+              tune_to(gqrx_sock: gqrx_sock, hz: hz)
+              strength_db = measure_signal_strength(
+                gqrx_sock: gqrx_sock,
+                strength_lock: strength_lock
+              )
               samples.push({ hz: hz, strength_db: strength_db })
 
               # current_hz = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f').to_s.cast_to_raw_hz
@@ -788,16 +813,11 @@ module PWN
         signals_arr = []
         hz = hz_start
         while hz <= hz_target
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: "F #{hz}")
-          current_freq = 0
-          while current_freq.to_s.cast_to_raw_hz != hz.to_s.cast_to_raw_hz
-            current_freq = gqrx_cmd(
-              gqrx_sock: gqrx_sock,
-              cmd: 'f'
-            )
-          end
-
-          strength_db = measure_signal_strength(gqrx_sock: gqrx_sock)
+          tune_to(gqrx_sock: gqrx_sock, hz: hz)
+          strength_db = measure_signal_strength(
+            gqrx_sock: gqrx_sock,
+            strength_lock: strength_lock
+          )
 
           if strength_db >= strength_lock
             puts '-' * 86
