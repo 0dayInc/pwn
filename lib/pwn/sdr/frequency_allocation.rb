@@ -13,7 +13,7 @@ module PWN
             target_freq: '979.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 100_000,
+            bandwidth: '100.000',
             precision: 5
           },
           ads_b1090: {
@@ -21,7 +21,7 @@ module PWN
             target_freq: '1.091.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 100_000,
+            bandwidth: '100.000',
             precision: 5
           },
           aeronautical_lf: {
@@ -29,7 +29,7 @@ module PWN
             target_freq: '415.000',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 3
           },
           aeronautical_mf: {
@@ -37,7 +37,7 @@ module PWN
             target_freq: '325.000',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 3
           },
           amateur_1_25m: {
@@ -45,7 +45,7 @@ module PWN
             target_freq: '225.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           amateur_160m: {
@@ -53,7 +53,7 @@ module PWN
             target_freq: '2.000.000',
             demodulator_mode: :LSB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '2.700',
             precision: 6
           },
           amateur_2m: {
@@ -61,7 +61,7 @@ module PWN
             target_freq: '148.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 15_000,
+            bandwidth: '15.000',
             precision: 4
           },
           amateur_30m: {
@@ -69,7 +69,7 @@ module PWN
             target_freq: '10.150.000',
             demodulator_mode: :CW,
             rds: false,
-            bandwidth: 150,
+            bandwidth: '150',
             precision: 3
           },
           amateur_60m: {
@@ -77,7 +77,7 @@ module PWN
             target_freq: '5.366.500',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '2.700',
             precision: 6
           },
           amateur_6m: {
@@ -85,7 +85,7 @@ module PWN
             target_freq: '54.000.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '2.700',
             precision: 6
           },
           amateur_70cm: {
@@ -93,7 +93,7 @@ module PWN
             target_freq: '450.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           analog_tv_uhf: {
@@ -101,7 +101,7 @@ module PWN
             target_freq: '890.000.000',
             demodulator_mode: :WFM_ST,
             rds: false,
-            bandwidth: 600_000,
+            bandwidth: '600.000',
             precision: 5
           },
           analog_tv_vhf: {
@@ -109,7 +109,7 @@ module PWN
             target_freq: '216.000.000',
             demodulator_mode: :WFM_ST,
             rds: false,
-            bandwidth: 600_000,
+            bandwidth: '600.000',
             precision: 5
           },
           am_radio: {
@@ -117,7 +117,7 @@ module PWN
             target_freq: '1.700.000',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           aviation_nav: {
@@ -125,7 +125,7 @@ module PWN
             target_freq: '118.000.000',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           aviation_vhf: {
@@ -133,7 +133,7 @@ module PWN
             target_freq: '137.000.000',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           aws: {
@@ -141,7 +141,7 @@ module PWN
             target_freq: '1.755.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '200.000',
             precision: 6
           },
           bluetooth: {
@@ -149,7 +149,7 @@ module PWN
             target_freq: '2.480.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 100_000,
+            bandwidth: '1.000.000',
             precision: 5
           },
           cb: {
@@ -157,7 +157,7 @@ module PWN
             target_freq: '27.405.000',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 3
           },
           cdma: {
@@ -165,7 +165,7 @@ module PWN
             target_freq: '849.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 125_000,
+            bandwidth: '1.250.000',
             precision: 6
           },
           cw20: {
@@ -173,7 +173,7 @@ module PWN
             target_freq: '14.350.000',
             demodulator_mode: :CW,
             rds: false,
-            bandwidth: 150,
+            bandwidth: '150',
             precision: 3
           },
           cw40: {
@@ -181,7 +181,7 @@ module PWN
             target_freq: '7.300.000',
             demodulator_mode: :CW,
             rds: false,
-            bandwidth: 150,
+            bandwidth: '150',
             precision: 3
           },
           cw80: {
@@ -189,7 +189,7 @@ module PWN
             target_freq: '3.800.000',
             demodulator_mode: :CW,
             rds: false,
-            bandwidth: 150,
+            bandwidth: '150',
             precision: 3
           },
           dect: {
@@ -197,7 +197,7 @@ module PWN
             target_freq: '1.900.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 100_000,
+            bandwidth: '100.000',
             precision: 5
           },
           fm_radio: {
@@ -205,7 +205,7 @@ module PWN
             target_freq: '108.000.000',
             demodulator_mode: :WFM_ST,
             rds: true,
-            bandwidth: 200_000,
+            bandwidth: '200.000',
             precision: 6
           },
           frs: {
@@ -213,7 +213,7 @@ module PWN
             target_freq: '467.725.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '200.000',
             precision: 3
           },
           gmrs: {
@@ -221,7 +221,7 @@ module PWN
             target_freq: '467.725.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '200.000',
             precision: 3
           },
           gprs: {
@@ -229,7 +229,7 @@ module PWN
             target_freq: '915.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '171.200',
             precision: 4
           },
           gps_l1: {
@@ -237,7 +237,7 @@ module PWN
             target_freq: '1.576.420.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '30.000.000',
             precision: 6
           },
           gps_l2: {
@@ -245,7 +245,7 @@ module PWN
             target_freq: '1.228.600.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '11.000.000',
             precision: 6
           },
           gsm: {
@@ -253,7 +253,7 @@ module PWN
             target_freq: '894.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '200.000',
             precision: 4
           },
           high_rfid: {
@@ -261,7 +261,7 @@ module PWN
             target_freq: '13.570.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '400.000',
             precision: 3
           },
           iridium: {
@@ -269,7 +269,7 @@ module PWN
             target_freq: '1.626.500.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '704.000',
             precision: 6
           },
           ism_5g: {
@@ -277,7 +277,7 @@ module PWN
             target_freq: '5.875.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '150.000.000',
             precision: 7
           },
           ism_902: {
@@ -285,7 +285,7 @@ module PWN
             target_freq: '928.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '26.000.000',
             precision: 3
           },
           keyfob300: {
@@ -293,7 +293,7 @@ module PWN
             target_freq: '300.100.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '50.000',
             precision: 4
           },
           keyfob310: {
@@ -301,7 +301,7 @@ module PWN
             target_freq: '310.100.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '50.000',
             precision: 4
           },
           keyfob315: {
@@ -309,7 +309,7 @@ module PWN
             target_freq: '315.100.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '50.000',
             precision: 4
           },
           keyfob390: {
@@ -317,7 +317,7 @@ module PWN
             target_freq: '390.100.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '50.000',
             precision: 4
           },
           keyfob433: {
@@ -325,7 +325,7 @@ module PWN
             target_freq: '434.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '50.000',
             precision: 4
           },
           keyfob868: {
@@ -333,7 +333,7 @@ module PWN
             target_freq: '869.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '50.000',
             precision: 4
           },
           land_mobile_uhf: {
@@ -341,7 +341,7 @@ module PWN
             target_freq: '470.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           land_mobile_vhf: {
@@ -349,7 +349,7 @@ module PWN
             target_freq: '174.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           longwave_broadcast: {
@@ -357,7 +357,7 @@ module PWN
             target_freq: '283.500',
             demodulator_mode: :AM,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 3
           },
           lora433: {
@@ -365,7 +365,7 @@ module PWN
             target_freq: '434.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '500.000',
             precision: 3
           },
           lora915: {
@@ -373,7 +373,7 @@ module PWN
             target_freq: '928.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 50_000,
+            bandwidth: '500.000',
             precision: 3
           },
           low_rfid: {
@@ -381,7 +381,7 @@ module PWN
             target_freq: '134.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '40.000',
             precision: 1
           },
           marine_vhf: {
@@ -389,7 +389,7 @@ module PWN
             target_freq: '162.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           maritime_mf: {
@@ -397,7 +397,7 @@ module PWN
             target_freq: '535.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '2.700',
             precision: 6
           },
           noaa_weather: {
@@ -405,7 +405,7 @@ module PWN
             target_freq: '162.550.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 16_000,
+            bandwidth: '16.000',
             precision: 4
           },
           pager: {
@@ -413,7 +413,7 @@ module PWN
             target_freq: '932.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '12.500',
             precision: 4
           },
           pcs: {
@@ -421,7 +421,7 @@ module PWN
             target_freq: '1.990.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '200.000',
             precision: 6
           },
           public_safety_700: {
@@ -429,7 +429,7 @@ module PWN
             target_freq: '806.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 25_000,
+            bandwidth: '25.000',
             precision: 4
           },
           rtty20: {
@@ -437,7 +437,7 @@ module PWN
             target_freq: '14.350.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 170,
+            bandwidth: '170',
             precision: 3
           },
           rtty40: {
@@ -445,7 +445,7 @@ module PWN
             target_freq: '7.300.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 170,
+            bandwidth: '170',
             precision: 3
           },
           rtty80: {
@@ -453,7 +453,7 @@ module PWN
             target_freq: '3.800.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 170,
+            bandwidth: '170',
             precision: 3
           },
           shortwave1: {
@@ -461,7 +461,7 @@ module PWN
             target_freq: '6.200.000',
             demodulator_mode: :AM_SYNC,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           shortwave2: {
@@ -469,7 +469,7 @@ module PWN
             target_freq: '7.450.000',
             demodulator_mode: :AM_SYNC,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           shortwave3: {
@@ -477,7 +477,7 @@ module PWN
             target_freq: '9.900.000',
             demodulator_mode: :AM_SYNC,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           shortwave4: {
@@ -485,7 +485,7 @@ module PWN
             target_freq: '12.100.000',
             demodulator_mode: :AM_SYNC,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           shortwave5: {
@@ -493,7 +493,7 @@ module PWN
             target_freq: '13.870.000',
             demodulator_mode: :AM_SYNC,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           shortwave6: {
@@ -501,7 +501,7 @@ module PWN
             target_freq: '15.800.000',
             demodulator_mode: :AM_SYNC,
             rds: false,
-            bandwidth: 10_000,
+            bandwidth: '10.000',
             precision: 4
           },
           ssb10: {
@@ -509,7 +509,7 @@ module PWN
             target_freq: '29.700.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb12: {
@@ -517,7 +517,7 @@ module PWN
             target_freq: '24.990.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb15: {
@@ -525,7 +525,7 @@ module PWN
             target_freq: '21.450.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb17: {
@@ -533,7 +533,7 @@ module PWN
             target_freq: '18.168.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb20: {
@@ -541,7 +541,7 @@ module PWN
             target_freq: '14.350.000',
             demodulator_mode: :USB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb40: {
@@ -549,7 +549,7 @@ module PWN
             target_freq: '7.300.000',
             demodulator_mode: :LSB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb80: {
@@ -557,7 +557,7 @@ module PWN
             target_freq: '3.800.000',
             demodulator_mode: :LSB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           ssb160: {
@@ -565,7 +565,7 @@ module PWN
             target_freq: '2.000.000',
             demodulator_mode: :LSB,
             rds: false,
-            bandwidth: 2_700,
+            bandwidth: '3.000',
             precision: 6
           },
           tempest: {
@@ -573,7 +573,7 @@ module PWN
             target_freq: '430.000.000',
             demodulator_mode: :WFM,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '6.000.000',
             precision: 4
           },
           tv_high_vhf: {
@@ -581,7 +581,7 @@ module PWN
             target_freq: '216.000.000',
             demodulator_mode: :WFM_ST,
             rds: false,
-            bandwidth: 600_000,
+            bandwidth: '6.000.000',
             precision: 5
           },
           tv_low_vhf: {
@@ -589,7 +589,7 @@ module PWN
             target_freq: '88.000.000',
             demodulator_mode: :WFM_ST,
             rds: false,
-            bandwidth: 600_000,
+            bandwidth: '6.000.000',
             precision: 5
           },
           tv_uhf: {
@@ -597,7 +597,7 @@ module PWN
             target_freq: '698.000.000',
             demodulator_mode: :WFM_ST,
             rds: false,
-            bandwidth: 600_000,
+            bandwidth: '6.000.000',
             precision: 5
           },
           uhf_rfid: {
@@ -605,7 +605,7 @@ module PWN
             target_freq: '960.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 100_000,
+            bandwidth: '400.000',
             precision: 5
           },
           umts: {
@@ -613,7 +613,7 @@ module PWN
             target_freq: '2.170.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '5.000.000',
             precision: 6
           },
           weather_sat: {
@@ -621,7 +621,7 @@ module PWN
             target_freq: '138.000.000',
             demodulator_mode: :FM,
             rds: false,
-            bandwidth: 40_000,
+            bandwidth: '15.000',
             precision: 5
           },
           wifi24: {
@@ -629,7 +629,7 @@ module PWN
             target_freq: '2.500.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '20.000.000',
             precision: 7
           },
           wifi5: {
@@ -637,7 +637,7 @@ module PWN
             target_freq: '5.850.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '20.000.000',
             precision: 7
           },
           wifi6: {
@@ -645,7 +645,7 @@ module PWN
             target_freq: '7.125.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '20.000.000',
             precision: 7
           },
           zigbee: {
@@ -653,7 +653,7 @@ module PWN
             target_freq: '2.485.000.000',
             demodulator_mode: :RAW,
             rds: false,
-            bandwidth: 200_000,
+            bandwidth: '2.000.000',
             precision: 7
           }
         }
