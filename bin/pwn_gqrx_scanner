@@ -138,6 +138,7 @@ begin
   keep_looping = opts[:keep_looping] ||= false
 
   # Merge opts again to ensure we override profile values with CLI values
+  loop_count = 1
   loop do
     PWN::SDR::GQRX.scan_range(
       gqrx_sock: gqrx_sock,
@@ -157,7 +158,10 @@ begin
       location: location
     )
     break unless keep_looping
-    scan_log = "scan_log_#{Time.now.to_i}.json" if scan_log
+
+    loop_count += 1
+    log_timestamp = Time.now.strftime('%Y-%m-%d')
+    scan_log = "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(start_freq)}-#{PWN::SDR.hz_to_s(target_freq)}_#{log_timestamp}-l#{loop_count}.json"
   end
   puts 'Scan Complete.'
 rescue StandardError => e
