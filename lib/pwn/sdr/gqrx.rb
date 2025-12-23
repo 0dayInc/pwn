@@ -178,7 +178,7 @@ module PWN
             distance_between_unique_samples = (strength_db - prev_strength_db).abs.round(2)
             strength_measured = true if distance_between_unique_samples.positive? && strength_lock > strength_db
           end
-          strength_measured = true if (distance_between_unique_samples.positive? && distance_between_unique_samples < 5) || attempts >= 500
+          strength_measured = true if (distance_between_unique_samples.positive? && distance_between_unique_samples < 5) || attempts >= 700
 
           break if strength_measured
 
@@ -652,205 +652,214 @@ module PWN
       #   intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
       #   baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
       #   scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
-      #   location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)'
+      #   location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)',
+      #   keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)'
       # )
 
       public_class_method def self.scan_range(opts = {})
         timestamp_start = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-        log_timestamp = Time.now.strftime('%Y-%m-%d')
 
-        gqrx_sock = opts[:gqrx_sock]
+        loop_count = 1
+        loop do
+          gqrx_sock = opts[:gqrx_sock]
 
-        start_freq = opts[:start_freq]
-        hz_start = PWN::SDR.hz_to_i(start_freq)
+          start_freq = opts[:start_freq]
+          hz_start = PWN::SDR.hz_to_i(start_freq)
 
-        target_freq = opts[:target_freq]
-        hz_target = PWN::SDR.hz_to_i(target_freq)
+          target_freq = opts[:target_freq]
+          hz_target = PWN::SDR.hz_to_i(target_freq)
 
-        demodulator_mode = opts[:demodulator_mode]
+          demodulator_mode = opts[:demodulator_mode]
 
-        bandwidth = opts[:bandwidth] ||= '200.000'
+          bandwidth = opts[:bandwidth] ||= '200.000'
 
-        precision = opts[:precision] ||= 1
-        strength_lock = opts[:strength_lock] ||= -70.0
-        squelch = opts[:squelch] ||= (strength_lock - 3.0)
-        scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(hz_start)}-#{PWN::SDR.hz_to_s(hz_target)}_#{log_timestamp}.json"
-        decoder = opts[:decoder]
-        location = opts[:location] ||= 'United States'
+          precision = opts[:precision] ||= 1
+          strength_lock = opts[:strength_lock] ||= -70.0
+          squelch = opts[:squelch] ||= (strength_lock - 3.0)
+          decoder = opts[:decoder]
 
-        step_hz = 10**(precision - 1)
-        step_hz_direction = hz_start > hz_target ? -step_hz : step_hz
+          log_timestamp = Time.now.strftime('%Y-%m-%d')
+          scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(hz_start)}-#{PWN::SDR.hz_to_s(hz_target)}_#{log_timestamp}_l#{loop_count}.json"
+          location = opts[:location] ||= 'United States'
+          keep_looping = opts[:keep_looping] || false
 
-        # Set squelch once for the scan
-        change_squelch_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "L SQL #{squelch}",
-          resp_ok: 'RPRT 0'
-        )
+          step_hz = 10**(precision - 1)
+          step_hz_direction = hz_start > hz_target ? -step_hz : step_hz
 
-        # We always disable RDS decoding at during the scan
-        # to prevent unnecessary processing overhead.
-        # We return the rds boolean in the scan_resp object
-        # so it will be picked up and used appropriately
-        # when calling analyze_scan or analyze_log methods.
-        rds_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: 'U RDS 0',
-          resp_ok: 'RPRT 0'
-        )
-
-        # Set demodulator mode & passband once for the scan
-        mode_str = demodulator_mode.to_s.upcase
-        passband_hz = PWN::SDR.hz_to_i(bandwidth)
-        gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "M #{mode_str} #{passband_hz}",
-          resp_ok: 'RPRT 0'
-        )
-
-        audio_gain_db = opts[:audio_gain_db] ||= 6.0
-        audio_gain_db = audio_gain_db.to_f
-        audio_gain_db_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "L AF #{audio_gain_db}",
-          resp_ok: 'RPRT 0'
-        )
-
-        rf_gain = opts[:rf_gain] ||= 0.0
-        rf_gain = rf_gain.to_f
-        rf_gain_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "L RF_GAIN #{rf_gain}",
-          resp_ok: 'RPRT 0'
-        )
-
-        intermediate_gain = opts[:intermediate_gain] ||= 32.0
-        intermediate_gain = intermediate_gain.to_f
-        intermediate_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "L IF_GAIN #{intermediate_gain}",
-          resp_ok: 'RPRT 0'
-        )
-
-        baseband_gain = opts[:baseband_gain] ||= 10.0
-        baseband_gain = baseband_gain.to_f
-        baseband_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: "L BB_GAIN #{baseband_gain}",
-          resp_ok: 'RPRT 0'
-        )
-
-        prev_freq_obj = init_freq(
-          gqrx_sock: gqrx_sock,
-          freq: hz_start,
-          demodulator_mode: demodulator_mode,
-          bandwidth: bandwidth,
-          squelch: squelch,
-          decoder: decoder,
-          suppress_details: true,
-          keep_alive: true
-        )
-
-        candidate_signals = []
-
-        # Begin scanning range
-        puts "\n"
-        puts '-' * 86
-        puts "INFO: Scanning from #{PWN::SDR.hz_to_s(hz_start)} to #{PWN::SDR.hz_to_s(hz_target)} in steps of #{PWN::SDR.hz_to_s(step_hz_direction.abs)} Hz."
-        puts "If scans are slow and/or you're experiencing false positives/negatives,"
-        puts 'consider adjusting the following:'
-        puts "1. The SDR's sample rate in GQRX"
-        puts "\s\s- Click on `Configure I/O devices`."
-        puts "\s\s- A lower `Input rate` value seems counter-intuitive but works well (e.g. ADALM PLUTO ~ 1000000)."
-        puts '2. Adjust the :strength_lock parameter.'
-        puts '3. Adjust the :precision parameter.'
-        puts '4. Disable AI introspection in PWN::Env'
-        puts 'Happy scanning!'
-        puts '-' * 86
-        puts "\n\n\n"
-
-        signals_arr = []
-        hz = hz_start
-
-        while step_hz_direction.positive? ? hz <= hz_target : hz >= hz_target
-          tune_to(gqrx_sock: gqrx_sock, hz: hz)
-          strength_db = measure_signal_strength(
+          # Set squelch once for the scan
+          change_squelch_resp = gqrx_cmd(
             gqrx_sock: gqrx_sock,
-            freq: hz,
-            strength_lock: strength_lock,
-            phase: :find_candidates
+            cmd: "L SQL #{squelch}",
+            resp_ok: 'RPRT 0'
           )
 
-          if strength_db >= strength_lock
-            puts '-' * 86
-            # Find left and right edges of the signal
-            candidate_signals = edge_detection(
+          # We always disable RDS decoding at during the scan
+          # to prevent unnecessary processing overhead.
+          # We return the rds boolean in the scan_resp object
+          # so it will be picked up and used appropriately
+          # when calling analyze_scan or analyze_log methods.
+          rds_resp = gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: 'U RDS 0',
+            resp_ok: 'RPRT 0'
+          )
+
+          # Set demodulator mode & passband once for the scan
+          mode_str = demodulator_mode.to_s.upcase
+          passband_hz = PWN::SDR.hz_to_i(bandwidth)
+          gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "M #{mode_str} #{passband_hz}",
+            resp_ok: 'RPRT 0'
+          )
+
+          audio_gain_db = opts[:audio_gain_db] ||= 6.0
+          audio_gain_db = audio_gain_db.to_f
+          audio_gain_db_resp = gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "L AF #{audio_gain_db}",
+            resp_ok: 'RPRT 0'
+          )
+
+          rf_gain = opts[:rf_gain] ||= 0.0
+          rf_gain = rf_gain.to_f
+          rf_gain_resp = gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "L RF_GAIN #{rf_gain}",
+            resp_ok: 'RPRT 0'
+          )
+
+          intermediate_gain = opts[:intermediate_gain] ||= 32.0
+          intermediate_gain = intermediate_gain.to_f
+          intermediate_resp = gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "L IF_GAIN #{intermediate_gain}",
+            resp_ok: 'RPRT 0'
+          )
+
+          baseband_gain = opts[:baseband_gain] ||= 10.0
+          baseband_gain = baseband_gain.to_f
+          baseband_resp = gqrx_cmd(
+            gqrx_sock: gqrx_sock,
+            cmd: "L BB_GAIN #{baseband_gain}",
+            resp_ok: 'RPRT 0'
+          )
+
+          prev_freq_obj = init_freq(
+            gqrx_sock: gqrx_sock,
+            freq: hz_start,
+            demodulator_mode: demodulator_mode,
+            bandwidth: bandwidth,
+            squelch: squelch,
+            decoder: decoder,
+            suppress_details: true,
+            keep_alive: true
+          )
+
+          candidate_signals = []
+
+          # Begin scanning range
+          puts "\n"
+          puts '-' * 86
+          puts "INFO: Scanning from #{PWN::SDR.hz_to_s(hz_start)} to #{PWN::SDR.hz_to_s(hz_target)} in steps of #{PWN::SDR.hz_to_s(step_hz_direction.abs)} Hz."
+          puts "If scans are slow and/or you're experiencing false positives/negatives,"
+          puts 'consider adjusting the following:'
+          puts "1. The SDR's sample rate in GQRX"
+          puts "\s\s- Click on `Configure I/O devices`."
+          puts "\s\s- A lower `Input rate` value seems counter-intuitive but works well (e.g. ADALM PLUTO ~ 1000000)."
+          puts '2. Adjust the :strength_lock parameter.'
+          puts '3. Adjust the :precision parameter.'
+          puts '4. Disable AI introspection in PWN::Env'
+          puts 'Happy scanning!'
+          puts '-' * 86
+          puts "\n\n\n"
+
+          signals_arr = []
+          hz = hz_start
+
+          while step_hz_direction.positive? ? hz <= hz_target : hz >= hz_target
+            tune_to(gqrx_sock: gqrx_sock, hz: hz)
+            strength_db = measure_signal_strength(
               gqrx_sock: gqrx_sock,
-              hz: hz,
-              step_hz: step_hz,
-              strength_lock: strength_lock
-            )
-          elsif candidate_signals.length.positive?
-            best_peak = find_best_peak(
-              gqrx_sock: gqrx_sock,
-              candidate_signals: candidate_signals,
-              step_hz: step_hz,
-              strength_lock: strength_lock
+              freq: hz,
+              strength_lock: strength_lock,
+              phase: :find_candidates
             )
 
-            if best_peak[:hz] && best_peak[:strength_db] > strength_lock
-              puts "\n**** Detected Signal ****"
-              best_freq = PWN::SDR.hz_to_s(best_peak[:hz])
-              best_strength_db = best_peak[:strength_db]
-              prev_freq_obj = init_freq(
-                gqrx_sock: gqrx_sock,
-                freq: best_freq,
-                demodulator_mode: demodulator_mode,
-                bandwidth: bandwidth,
-                squelch: squelch,
-                decoder: decoder,
-                suppress_details: true,
-                keep_alive: true
-              )
-              prev_freq_obj[:strength_lock] = strength_lock
-              prev_freq_obj[:strength_db] = best_strength_db
-
-              system_role_content = "Analyze signal data captured by a software-defined-radio using GQRX at the following location: #{location}. Respond with just FCC information about the transmission if available.  If the frequency is unlicensed or not found in FCC records, state that clearly.  Be clear and concise in your analysis."
-              ai_analysis = PWN::AI::Introspection.reflect_on(
-                request: prev_freq_obj.to_json,
-                system_role_content: system_role_content,
-                suppress_pii_warning: true
-              )
-
-              prev_freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
-              puts JSON.pretty_generate(prev_freq_obj)
+            if strength_db >= strength_lock
               puts '-' * 86
-              puts "\n\n\n"
-              signals_arr.push(prev_freq_obj)
-              log_signals(
-                signals_arr: signals_arr,
-                timestamp_start: timestamp_start,
-                scan_log: scan_log
+              # Find left and right edges of the signal
+              candidate_signals = edge_detection(
+                gqrx_sock: gqrx_sock,
+                hz: hz,
+                step_hz: step_hz,
+                strength_lock: strength_lock
               )
-              hz = candidate_signals.last[:hz]
-              # gets
-            end
-            candidate_signals.clear
-          end
-          hz += step_hz_direction
-        end
+            elsif candidate_signals.length.positive?
+              best_peak = find_best_peak(
+                gqrx_sock: gqrx_sock,
+                candidate_signals: candidate_signals,
+                step_hz: step_hz,
+                strength_lock: strength_lock
+              )
 
-        log_signals(
-          signals_arr: signals_arr,
-          timestamp_start: timestamp_start,
-          scan_log: scan_log
-        )
+              if best_peak[:hz] && best_peak[:strength_db] > strength_lock
+                puts "\n**** Detected Signal ****"
+                best_freq = PWN::SDR.hz_to_s(best_peak[:hz])
+                best_strength_db = best_peak[:strength_db]
+                prev_freq_obj = init_freq(
+                  gqrx_sock: gqrx_sock,
+                  freq: best_freq,
+                  demodulator_mode: demodulator_mode,
+                  bandwidth: bandwidth,
+                  squelch: squelch,
+                  decoder: decoder,
+                  suppress_details: true,
+                  keep_alive: true
+                )
+                prev_freq_obj[:strength_lock] = strength_lock
+                prev_freq_obj[:strength_db] = best_strength_db
+
+                system_role_content = "Analyze signal data captured by a software-defined-radio using GQRX at the following location: #{location}. Respond with just FCC information about the transmission if available.  If the frequency is unlicensed or not found in FCC records, state that clearly.  Be clear and concise in your analysis."
+                ai_analysis = PWN::AI::Introspection.reflect_on(
+                  request: prev_freq_obj.to_json,
+                  system_role_content: system_role_content,
+                  suppress_pii_warning: true
+                )
+
+                prev_freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+                puts JSON.pretty_generate(prev_freq_obj)
+                puts '-' * 86
+                puts "\n\n\n"
+                signals_arr.push(prev_freq_obj)
+                log_signals(
+                  signals_arr: signals_arr,
+                  timestamp_start: timestamp_start,
+                  scan_log: scan_log
+                )
+                hz = candidate_signals.last[:hz]
+                # gets
+              end
+              candidate_signals.clear
+            end
+            hz += step_hz_direction
+          end
+
+          log_signals(
+            signals_arr: signals_arr,
+            timestamp_start: timestamp_start,
+            scan_log: scan_log
+          )
+          break unless keep_looping
+
+          loop_count += 1
+        end
       rescue Interrupt
         puts "\nCTRL+C detected - goodbye."
       rescue StandardError => e
         raise e
       ensure
-        disconnect(gqrx_sock: gqrx_sock)
+        disconnect(gqrx_sock: gqrx_sock) if defined?(gqrx_sock) && gqrx_sock.is_a?(TCPSocket)
       end
 
       # Supported Method Parameters::
