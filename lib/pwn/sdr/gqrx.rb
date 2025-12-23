@@ -651,9 +651,9 @@ module PWN
       #   rf_gain: 'optional - RF gain (defaults to 0.0)',
       #   intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
       #   baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
-      #   scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
-      #   location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)',
-      #   keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)'
+      #   keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)',
+      #   scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>_lN.json)',
+      #   location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)'
       # )
 
       public_class_method def self.scan_range(opts = {})
@@ -678,10 +678,21 @@ module PWN
           squelch = opts[:squelch] ||= (strength_lock - 3.0)
           decoder = opts[:decoder]
 
-          log_timestamp = Time.now.strftime('%Y-%m-%d')
-          scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(hz_start)}-#{PWN::SDR.hz_to_s(hz_target)}_#{log_timestamp}_l#{loop_count}.json"
-          location = opts[:location] ||= 'United States'
           keep_looping = opts[:keep_looping] || false
+
+          log_timestamp = Time.now.strftime('%Y-%m-%d')
+          scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(hz_start)}-#{PWN::SDR.hz_to_s(hz_target)}_#{log_timestamp}.json"
+
+          if keep_looping
+            # inject _lN before file extension if keep_looping is true
+            scan_log.gsub!("_l#{loop_count}", '')
+            scan_log = File.join(
+              File.dirname(scan_log),
+              "#{File.basename(scan_log, '.*')}_l#{loop_count}#{File.extname(scan_log)}"
+            )
+          end
+
+          location = opts[:location] ||= 'United States'
 
           step_hz = 10**(precision - 1)
           step_hz_direction = hz_start > hz_target ? -step_hz : step_hz
@@ -818,7 +829,7 @@ module PWN
                   keep_alive: true
                 )
                 prev_freq_obj[:strength_lock] = strength_lock
-                prev_freq_obj[:strength_db] = best_strength_db
+                prev_freq_obj[:strength_db] = best_strength_db.round(1)
 
                 system_role_content = "Analyze signal data captured by a software-defined-radio using GQRX at the following location: #{location}. Respond with just FCC information about the transmission if available.  If the frequency is unlicensed or not found in FCC records, state that clearly.  Be clear and concise in your analysis."
                 ai_analysis = PWN::AI::Introspection.reflect_on(
@@ -993,6 +1004,7 @@ module PWN
             rf_gain: 'optional - RF gain (defaults to 0.0)',
             intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
             baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
+            keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)',
             scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
             location: 'optional - Location string to include in AI analysis (e.g., \"New York, NY\", 90210, GPS coords, etc.)'
           )
