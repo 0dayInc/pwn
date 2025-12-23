@@ -38,7 +38,12 @@ module PWN
           )
 
           # Spinner setup with dynamic terminal width awareness
-          spinner = TTY::Spinner.new('[:spinner] :decoding', format: :arrow_pulse)
+          spinner = TTY::Spinner.new(
+            '[:spinner] :decoding',
+            format: :arrow_pulse,
+            clear: true,
+            hide_cursor: true
+          )
 
           # Conservative overhead for spinner animation, colors, and spacing
           spinner_overhead = 12
