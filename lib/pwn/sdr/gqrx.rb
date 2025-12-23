@@ -805,8 +805,11 @@ module PWN
               prev_freq_obj = init_freq(
                 gqrx_sock: gqrx_sock,
                 freq: best_freq,
-                suppress_details: true,
+                demodulator_mode: demodulator_mode,
+                bandwidth: bandwidth,
+                squelch: squelch,
                 decoder: decoder,
+                suppress_details: true,
                 keep_alive: true
               )
               prev_freq_obj[:strength_lock] = strength_lock

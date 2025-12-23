@@ -5,7 +5,7 @@ require 'pwn'
 
 opts = PWN::Env[:driver_opts]
 PWN::Driver::Parser.new do |options|
-  options.on('-aPROFILE', '--assume-profile=PROFILE', '<Required if "--target-freq" is Nil - Profile to assume for common radio protocols.  Use "--list-profiles" to display supported protocols (Defaults to nil)') do |p|
+  options.on('-aPROFILE', '--assume-profile=PROFILE', '<Required if "--target-freq" is Nil - Profile to assume for common radio protocols.  Use "--list-scan-profiles" to display supported protocols (Defaults to nil)') do |p|
     opts[:profile] = p
   end
 
@@ -37,10 +37,6 @@ PWN::Driver::Parser.new do |options|
     opts[:bandwidth] = b
   end
 
-  options.on('-OLAP', '--overlap-protection', '<Optional - Enable Overlap Protection to prevent false positives when scanning (Defaults to false)>') do |o|
-    opts[:overlap_protection] = o
-  end
-
   options.on('-DMODE', '--demodulator-mode=MODE', '<Optional - Set Demodulator Mode OFF | RAW | AM | FM | WFM | WFM_ST | WFM_ST_OIRT | LSB | USB | CW | CWL | CWU (Defaults to WFM_ST)>') do |d|
     opts[:demodulator_mode] = d
   end
@@ -51,10 +47,6 @@ PWN::Driver::Parser.new do |options|
 
   options.on('-SFLOAT', '--strength-lock=FLOAT', '<Optional - Strength to lock onto frequency (Defaults to -70.0)>') do |s|
     opts[:strength_lock] = s
-  end
-
-  options.on('-LFLOAT', '--lock-freq-duration=FLOAT', '<Optional - Duration to lock onto Freqency when Strength < --strength-lock value (Defaults to 0.04)>') do |l|
-    opts[:lock_freq_duration] = l
   end
 
   options.on('-QFLOAT', '--squelch=FLOAT', '<Optional - Squelch Threshold -150.0 to 0 (Defaults to --strength-lock - 3)>') do |q|
@@ -77,8 +69,12 @@ PWN::Driver::Parser.new do |options|
     opts[:scan_log] = l
   end
 
-  options.on('-LOC', '--location', '<Optional - Location string to include in AI analysis (e.g. "New York, NY", 90210, GPS coords, etc.)>') do |l|
+  options.on('-wLOC', '--location=LOC', '<Optional - Location string to include in AI analysis (e.g. "New York, NY", 90210, GPS coords, etc.)>') do |l|
     opts[:location] = l
+  end
+
+  options.on('-k', '--keep-looping', '<Optional - Keep looping over the scan range indefinitely until CTRL+C is caught (Defaults to false)>') do |k|
+    opts[:keep_looping] = k
   end
 end.parse!
 
@@ -113,7 +109,6 @@ begin
 
   demodulator_mode = opts[:demodulator_mode]
   bandwidth = opts[:bandwidth]
-  overlap_protection = opts[:overlap_protection]
 
   audio_gain_db = opts[:audio_gain_db]
   audio_gain_db = audio_gain_db.to_f unless audio_gain_db.nil?
@@ -125,7 +120,6 @@ begin
   precision = precision.to_i
   raise "ERROR: Invalid precision: #{precision}" unless (1..12).include?(precision)
 
-  lock_freq_duration = opts[:lock_freq_duration]
   strength_lock = opts[:strength_lock]
   strength_lock = strength_lock.to_f unless strength_lock.nil?
 
@@ -141,27 +135,34 @@ begin
   scan_log = opts[:scan_log]
   decoder = opts[:decoder]
   location = opts[:location]
+  keep_looping = opts[:keep_looping] ||= false
 
   # Merge opts again to ensure we override profile values with CLI values
-  PWN::SDR::GQRX.scan_range(
-    gqrx_sock: gqrx_sock,
-    start_freq: start_freq,
-    target_freq: target_freq,
-    demodulator_mode: demodulator_mode,
-    bandwidth: bandwidth,
-    overlap_protection: overlap_protection,
-    audio_gain_db: audio_gain_db,
-    squelch: squelch,
-    precision: precision,
-    strength_lock: strength_lock,
-    lock_freq_duration: lock_freq_duration,
-    rf_gain: rf_gain,
-    intermediate_gain: intermediate_gain,
-    baseband_gain: baseband_gain,
-    scan_log: scan_log,
-    decoder: decoder,
-    location: location
-  )
+  loop_count = 1
+  loop do
+    PWN::SDR::GQRX.scan_range(
+      gqrx_sock: gqrx_sock,
+      start_freq: start_freq,
+      target_freq: target_freq,
+      demodulator_mode: demodulator_mode,
+      bandwidth: bandwidth,
+      audio_gain_db: audio_gain_db,
+      squelch: squelch,
+      precision: precision,
+      strength_lock: strength_lock,
+      rf_gain: rf_gain,
+      intermediate_gain: intermediate_gain,
+      baseband_gain: baseband_gain,
+      scan_log: scan_log,
+      decoder: decoder,
+      location: location
+    )
+    break unless keep_looping
+
+    loop_count += 1
+    log_timestamp = Time.now.strftime('%Y-%m-%d')
+    scan_log = "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(start_freq)}-#{PWN::SDR.hz_to_s(target_freq)}_#{log_timestamp}-l#{loop_count}.json"
+  end
   puts 'Scan Complete.'
 rescue StandardError => e
   raise e
