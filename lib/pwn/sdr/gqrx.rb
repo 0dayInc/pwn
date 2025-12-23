@@ -178,7 +178,7 @@ module PWN
             distance_between_unique_samples = (strength_db - prev_strength_db).abs.round(2)
             strength_measured = true if distance_between_unique_samples.positive? && strength_lock > strength_db
           end
-          strength_measured = true if distance_between_unique_samples.positive? && distance_between_unique_samples < 5
+          strength_measured = true if (distance_between_unique_samples.positive? && distance_between_unique_samples < 5) || attempts >= 500
 
           break if strength_measured
 
@@ -187,7 +187,8 @@ module PWN
         end
         # Uncomment for debugging strength measurement attempts
         # which translates to speed and accuracy refinement
-        puts "\tStrength Measurement Attempts: #{attempts} | Freq: #{freq} | Phase: #{phase} | Unique Samples: #{unique_samples} | dbFS Distance Unique Samples: #{distance_between_unique_samples}"
+        puts "\tStrength Measurement Attempts: #{attempts} | Freq: #{freq} | Phase: #{phase}"
+        puts "\tUnique Samples: #{unique_samples} | dbFS Distance Unique Samples: #{distance_between_unique_samples}"
 
         strength_db.round(1)
       rescue StandardError => e
@@ -469,7 +470,6 @@ module PWN
       #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
       #   freq: 'required - Frequency to set',
       #   demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
-      #   rds: 'optional - Boolean to enable/disable RDS decoding (defaults to false)',
       #   bandwidth: 'optional - Bandwidth (defaults to "200.000")',
       #   squelch: 'optional - Squelch level to set (Defaults to current value)',
       #   decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
@@ -497,8 +497,6 @@ module PWN
         ]
         demodulator_mode = opts[:demodulator_mode] ||= :WFM
         raise "ERROR: Invalid demodulator_mode '#{demodulator_mode}'. Valid modes: #{valid_demodulator_modes.join(', ')}" unless valid_demodulator_modes.include?(demodulator_mode.to_sym)
-
-        rds = opts[:rds] ||= false
 
         bandwidth = opts[:bandwidth] ||= '200.000'
         squelch = opts[:squelch]
@@ -537,8 +535,8 @@ module PWN
           freq: freq,
           demodulator_mode: demodulator_mode,
           bandwidth: bandwidth,
-          rds: rds,
-          strength_db: strength_db
+          strength_db: strength_db,
+          decoder: decoder
         }
 
         unless suppress_details
@@ -572,58 +570,56 @@ module PWN
             cmd: 'l BB_GAIN'
           )
 
-          rds_resp = nil
-          rds_resp = PWN::SDR::Decoder::RDS.decode(gqrx_sock: gqrx_sock) if rds
-
           freq_obj[:audio_gain_db] = audio_gain_db
           freq_obj[:demod_mode_n_passband] = demod_n_passband
           freq_obj[:bb_gain] = bb_gain
           freq_obj[:if_gain] = if_gain
           freq_obj[:rf_gain] = rf_gain
           freq_obj[:squelch] = squelch
-          freq_obj[:rds] = rds_resp
-        end
 
-        # Start recording and decoding if decoder provided
-        decoder_module = nil
-        decoder_thread = nil
-        record_path = nil
-        if decoder
-          # Resolve decoder module via case statement for extensibility
-          case decoder
-          when :gsm
-            decoder_module = PWN::SDR::Decoder::GSM
-          when :rds
-            decoder_module = PWN::SDR::Decoder::RDS
-          else
-            raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
+          # Start recording and decoding if decoder provided
+          if decoder
+            decoder = decoder.to_s.to_sym
+            decoder_module = nil
+            decoder_thread = nil
+            record_path = nil
+
+            # Resolve decoder module via case statement for extensibility
+            case decoder
+            when :gsm
+              decoder_module = PWN::SDR::Decoder::GSM
+            when :rds
+              decoder_module = PWN::SDR::Decoder::RDS
+            else
+              raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
+            end
+
+            # Ensure recording is off before starting
+            # unless decoder == :rds
+            #   puts decoder.inspect
+            #   record_status = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'u RECORD')
+            #   gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if record_status == '1'
+
+            #   # Start recording
+            #   gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 1', resp_ok: 'RPRT 0')
+
+            #   # Prepare for decoder
+            #   start_time = Time.now
+            #   expected_filename = "gqrx_#{start_time.strftime('%Y%m%d_%H%M%S')}_#{current_freq_raw}.wav"
+            #   record_path = File.join(record_dir, expected_filename)
+
+            #   # Build partial gqrx_obj for decoder start
+            #   freq_obj[:record_path] = record_path
+            # end
+
+            # Initialize and start decoder (module style: .start returns thread)
+            freq_obj[:gqrx_sock] = gqrx_sock
+            freq_obj[:decoder_module] = decoder_module
+            freq_obj[:record_path] = record_path
+            decoder_module.decode(freq_obj: freq_obj)
+            # decoder_thread = decoder_module.start(freq_obj: freq_obj)
+            # freq_obj[:decoder_thread] = decoder_thread
           end
-
-          # Ensure recording is off before starting
-          record_status = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'u RECORD')
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 0', resp_ok: 'RPRT 0') if record_status == '1'
-
-          # Start recording
-          gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'U RECORD 1', resp_ok: 'RPRT 0')
-
-          # Prepare for decoder
-          start_time = Time.now
-          expected_filename = "gqrx_#{start_time.strftime('%Y%m%d_%H%M%S')}_#{current_freq_raw}.wav"
-          record_path = File.join(record_dir, expected_filename)
-
-          # Build partial gqrx_obj for decoder start
-          freq_obj[:record_path] = record_path
-
-          # Initialize and start decoder (module style: .start returns thread)
-          freq_obj[:gqrx_sock] = gqrx_sock
-          decoder_thread = decoder_module.start(freq_obj: freq_obj)
-          freq_obj.delete(:gqrx_sock)
-
-          freq_obj[:freq] = current_freq
-          freq_obj[:decoder] = decoder
-          freq_obj[:decoder_module] = decoder_module
-          freq_obj[:decoder_thread] = decoder_thread
-          freq_obj[:record_path] = record_path
         end
 
         freq_obj
@@ -631,14 +627,13 @@ module PWN
         raise e
       ensure
         # Ensure decoder recording stops
-        if decoder
-          gqrx_cmd(
-            gqrx_sock: gqrx_sock,
-            cmd: 'U RECORD 0',
-            resp_ok: 'RPRT 0'
-          )
-          decoder_module.stop(freq_obj: freq_obj)
-        end
+        # if decoder && decoder != :rds
+        #   gqrx_cmd(
+        #     gqrx_sock: gqrx_sock,
+        #     cmd: 'U RECORD 0',
+        #     resp_ok: 'RPRT 0'
+        #   )
+        # end
         disconnect(gqrx_sock: gqrx_sock) if gqrx_sock.is_a?(TCPSocket) && !keep_alive
       end
 
@@ -648,7 +643,6 @@ module PWN
       #   start_freq: 'required - Start frequency of scan range',
       #   target_freq: 'required - Target frequency of scan range',
       #   demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
-      #   rds: 'optional - Boolean to enable/disable RDS decoding (defaults to false)',
       #   bandwidth: 'optional - Bandwidth in Hz (Defaults to "200.000")',
       #   precision: 'optional - Frequency step precision (number of digits; defaults to 1)',
       #   strength_lock: 'optional - Strength lock in dBFS (defaults to -70.0)',
@@ -674,7 +668,6 @@ module PWN
         hz_target = PWN::SDR.hz_to_i(target_freq)
 
         demodulator_mode = opts[:demodulator_mode]
-        rds = opts[:rds] ||= false
 
         bandwidth = opts[:bandwidth] ||= '200.000'
 
@@ -682,6 +675,7 @@ module PWN
         strength_lock = opts[:strength_lock] ||= -70.0
         squelch = opts[:squelch] ||= (strength_lock - 3.0)
         scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(hz_start)}-#{PWN::SDR.hz_to_s(hz_target)}_#{log_timestamp}.json"
+        decoder = opts[:decoder]
         location = opts[:location] ||= 'United States'
 
         step_hz = 10**(precision - 1)
@@ -750,9 +744,9 @@ module PWN
           gqrx_sock: gqrx_sock,
           freq: hz_start,
           demodulator_mode: demodulator_mode,
-          rds: rds,
           bandwidth: bandwidth,
           squelch: squelch,
+          decoder: decoder,
           suppress_details: true,
           keep_alive: true
         )
@@ -811,8 +805,8 @@ module PWN
               prev_freq_obj = init_freq(
                 gqrx_sock: gqrx_sock,
                 freq: best_freq,
-                rds: rds,
                 suppress_details: true,
+                decoder: decoder,
                 keep_alive: true
               )
               prev_freq_obj[:strength_lock] = strength_lock
@@ -874,6 +868,7 @@ module PWN
         )
 
         scan_resp[:signals].each do |signal|
+          # puts JSON.pretty_generate(signal)
           signal[:gqrx_sock] = gqrx_sock
           # This is required to keep connection alive during analysis
           signal[:keep_alive] = true
@@ -881,9 +876,11 @@ module PWN
           freq_obj = signal.merge(freq_obj)
           # Redact gqrx_sock from output
           freq_obj.delete(:gqrx_sock)
-          puts JSON.pretty_generate(freq_obj)
-          print 'Press [ENTER] to continue...'
-          gets
+          unless freq_obj[:decoder]
+            puts JSON.pretty_generate(freq_obj)
+            print 'Press [ENTER] to continue...'
+            gets
+          end
           puts "\n" * 3
         end
       rescue Interrupt
@@ -958,7 +955,6 @@ module PWN
             gqrx_sock: 'required - GQRX socket object returned from #connect method',
             freq: 'required - Frequency to set',
             demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
-            rds: 'optional - Boolean to enable/disable RDS decoding (defaults to false)',
             bandwidth: 'optional - Bandwidth (defaults to \"200.000\")',
             decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
             record_dir: 'optional - Directory where GQRX saves recordings (required if decoder provided; defaults to /tmp/gqrx_recordings)',

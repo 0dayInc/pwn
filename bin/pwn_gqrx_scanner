@@ -45,10 +45,6 @@ PWN::Driver::Parser.new do |options|
     opts[:demodulator_mode] = d
   end
 
-  options.on('-rRDS', '--rds', '<Optional - Enable RDS Decoding when in WFM or WFM_ST Demodulator Mode (Defaults to false)>') do |r|
-    opts[:rds] = r
-  end
-
   options.on('-PINT', '--precision=INT', '<Optional - Precision of Frequency 1-12 (Defaults to 5)>') do |p|
     opts[:precision] = p
   end
@@ -116,7 +112,6 @@ begin
   gqrx_sock = PWN::SDR::GQRX.connect(target: host, port: port)
 
   demodulator_mode = opts[:demodulator_mode]
-  rds = opts[:rds]
   bandwidth = opts[:bandwidth]
   overlap_protection = opts[:overlap_protection]
 
@@ -144,6 +139,7 @@ begin
   baseband_gain = baseband_gain.to_f unless baseband_gain.nil?
 
   scan_log = opts[:scan_log]
+  decoder = opts[:decoder]
   location = opts[:location]
 
   # Merge opts again to ensure we override profile values with CLI values
@@ -152,7 +148,6 @@ begin
     start_freq: start_freq,
     target_freq: target_freq,
     demodulator_mode: demodulator_mode,
-    rds: rds,
     bandwidth: bandwidth,
     overlap_protection: overlap_protection,
     audio_gain_db: audio_gain_db,
@@ -164,6 +159,7 @@ begin
     intermediate_gain: intermediate_gain,
     baseband_gain: baseband_gain,
     scan_log: scan_log,
+    decoder: decoder,
     location: location
   )
   puts 'Scan Complete.'

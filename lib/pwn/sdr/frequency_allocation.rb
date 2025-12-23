@@ -180,9 +180,9 @@ module PWN
             start_freq: '87.900.000',
             target_freq: '108.000.000',
             demodulator_mode: :WFM_ST,
-            rds: true,
             bandwidth: '200.000',
-            precision: 6
+            precision: 6,
+            decoder: :rds
           },
           frs: {
             start_freq: '462.562.500',
