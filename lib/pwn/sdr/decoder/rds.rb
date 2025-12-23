@@ -37,7 +37,7 @@ module PWN
           )
 
           # Use TTY::Spinner correctly with a dynamic :title token
-          spinner = TTY::Spinner.new('[:spinner] :title', format: :pong)
+          spinner = TTY::Spinner.new('[:spinner] :title', format: :arrow_pulse)
           spinner.update(title: 'INFO: Decoding FM radio RDS data...')
           spinner.auto_spin # Background thread handles smooth animation
 
@@ -45,17 +45,13 @@ module PWN
 
           loop do
             rds_resp = {
-              rds_pi: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI').to_s.strip,
-              rds_ps_name: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME').to_s.strip,
-              rds_radiotext: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT').to_s.strip
+              rds_pi: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI').to_s.strip.chomp,
+              rds_ps_name: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME').to_s.strip.chomp,
+              rds_radiotext: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT').to_s.strip.chomp
             }
 
             # Only update the displayed message when we have new, complete, valid RDS data
-            if rds_resp[:rds_pi] != '0000' &&
-               !rds_resp[:rds_ps_name].empty? &&
-               !rds_resp[:rds_radiotext].empty? &&
-               rds_resp != last_resp
-
+            if rds_resp[:rds_pi] != '0000' && rds_resp != last_resp
               status = "Program ID: #{rds_resp[:rds_pi]} | Station Name: #{rds_resp[:rds_ps_name].ljust(8)} | Radio Text: #{rds_resp[:rds_radiotext]}"
               spinner.update(title: status)
               last_resp = rds_resp.dup
