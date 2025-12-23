@@ -852,6 +852,12 @@ module PWN
           )
           break unless keep_looping
 
+          print "\nScan iteration ##{loop_count} complete.  Resuming in 30 seconds.  Press CTRL+C to exit"
+          30.times do
+            print '.'
+            sleep 1
+          end
+          puts "\n"
           loop_count += 1
         end
       rescue Interrupt
