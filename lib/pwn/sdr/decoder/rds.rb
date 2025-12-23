@@ -22,7 +22,7 @@ module PWN
           skip_rds = "\n"
           puts JSON.pretty_generate(freq_obj)
           puts "\n*** FM Radio RDS Decoder ***"
-          puts '(Press [ENTER] to continue)...'
+          puts 'Press [ENTER] to continue...'
 
           # Toggle RDS off and on to reset the decoder
           PWN::SDR::GQRX.gqrx_cmd(
