@@ -14,7 +14,7 @@ module PWN
       #   resp_ok: 'optional - Expected response from GQRX to indicate success'
       # )
 
-      private_class_method def self.gqrx_cmd(opts = {})
+      public_class_method def self.gqrx_cmd(opts = {})
         gqrx_sock = opts[:gqrx_sock]
         cmd = opts[:cmd]
         resp_ok = opts[:resp_ok]
@@ -175,7 +175,7 @@ module PWN
           unique_samples = samples.uniq
           if unique_samples.length > 1
             prev_strength_db = unique_samples[-2]
-            distance_between_unique_samples = (strength_db - prev_strength_db).abs
+            distance_between_unique_samples = (strength_db - prev_strength_db).abs.round(2)
             strength_measured = true if distance_between_unique_samples.positive? && strength_lock > strength_db
           end
           strength_measured = true if distance_between_unique_samples.positive? && distance_between_unique_samples < 5
@@ -573,7 +573,7 @@ module PWN
           )
 
           rds_resp = nil
-          rds_resp = PWN::SDR::Decoder.rds(gqrx_sock: gqrx_sock) if rds
+          rds_resp = PWN::SDR::Decoder::RDS.decode(gqrx_sock: gqrx_sock) if rds
 
           freq_obj[:audio_gain_db] = audio_gain_db
           freq_obj[:demod_mode_n_passband] = demod_n_passband
@@ -946,6 +946,12 @@ module PWN
           gqrx_sock = #{self}.connect(
             target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
             port: 'optional - GQRX target port (defaults to 7356)'
+          )
+
+          gqrx_resp = #{self}.gqrx_cmd(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            cmd: 'required - GQRX command to send',
+            resp_ok: 'optional - Expected OK response (defaults to nil / no check)'
           )
 
           freq_obj = #{self}.init_freq(

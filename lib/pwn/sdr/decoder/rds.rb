@@ -11,17 +11,17 @@ module PWN
         # )
 
         # private_class_method def self.rds(opts = {})
-        public_class_method def self.rds(opts = {})
+        public_class_method def self.decode(opts = {})
           gqrx_sock = opts[:gqrx_sock]
 
           # We toggle RDS off and on to reset the decoder
-          rds_resp = gqrx_cmd(
+          rds_resp = PWN::SDR::GQRX.gqrx_cmd(
             gqrx_sock: gqrx_sock,
             cmd: 'U RDS 0',
             resp_ok: 'RPRT 0'
           )
 
-          rds_resp = gqrx_cmd(
+          rds_resp = PWN::SDR::GQRX.gqrx_cmd(
             gqrx_sock: gqrx_sock,
             cmd: 'U RDS 1',
             resp_ok: 'RPRT 0'
@@ -34,9 +34,9 @@ module PWN
           print 'INFO: Decoding FM radio RDS data (Press ENTER to skip)...'
           max_attempts.times do
             attempts += 1
-            rds_resp[:rds_pi] = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI')
-            rds_resp[:rds_ps_name] = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME')
-            rds_resp[:rds_radiotext] = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT')
+            rds_resp[:rds_pi] = PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI')
+            rds_resp[:rds_ps_name] = PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME')
+            rds_resp[:rds_radiotext] = PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT')
 
             # Break if ENTER key pressed
             # This is useful if no RDS data is available
