@@ -12,7 +12,6 @@ module PWN
             start_freq: '978.000.000',
             target_freq: '979.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '100.000',
             precision: 5
           },
@@ -20,7 +19,6 @@ module PWN
             start_freq: '1.090.000.000',
             target_freq: '1.091.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '100.000',
             precision: 5
           },
@@ -28,7 +26,6 @@ module PWN
             start_freq: '200.000',
             target_freq: '415.000',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '10.000',
             precision: 3
           },
@@ -36,7 +33,6 @@ module PWN
             start_freq: '285.000',
             target_freq: '325.000',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '10.000',
             precision: 3
           },
@@ -44,7 +40,6 @@ module PWN
             start_freq: '222.000.000',
             target_freq: '225.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -52,7 +47,6 @@ module PWN
             start_freq: '1.800.000',
             target_freq: '2.000.000',
             demodulator_mode: :LSB,
-            rds: false,
             bandwidth: '2.700',
             precision: 6
           },
@@ -60,7 +54,6 @@ module PWN
             start_freq: '144.000.000',
             target_freq: '148.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '15.000',
             precision: 4
           },
@@ -68,7 +61,6 @@ module PWN
             start_freq: '10.100.000',
             target_freq: '10.150.000',
             demodulator_mode: :CW,
-            rds: false,
             bandwidth: '150',
             precision: 3
           },
@@ -76,7 +68,6 @@ module PWN
             start_freq: '5.351.500',
             target_freq: '5.366.500',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '2.700',
             precision: 6
           },
@@ -84,7 +75,6 @@ module PWN
             start_freq: '50.000.000',
             target_freq: '54.000.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '2.700',
             precision: 6
           },
@@ -92,7 +82,6 @@ module PWN
             start_freq: '420.000.000',
             target_freq: '450.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -100,7 +89,6 @@ module PWN
             start_freq: '470.000.000',
             target_freq: '890.000.000',
             demodulator_mode: :WFM_ST,
-            rds: false,
             bandwidth: '600.000',
             precision: 5
           },
@@ -108,7 +96,6 @@ module PWN
             start_freq: '54.000.000',
             target_freq: '216.000.000',
             demodulator_mode: :WFM_ST,
-            rds: false,
             bandwidth: '600.000',
             precision: 5
           },
@@ -116,7 +103,6 @@ module PWN
             start_freq: '540.000',
             target_freq: '1.700.000',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -124,7 +110,6 @@ module PWN
             start_freq: '108.000.000',
             target_freq: '118.000.000',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -132,7 +117,6 @@ module PWN
             start_freq: '118.000.000',
             target_freq: '137.000.000',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -140,7 +124,6 @@ module PWN
             start_freq: '1.710.000.000',
             target_freq: '1.755.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '200.000',
             precision: 6
           },
@@ -148,7 +131,6 @@ module PWN
             start_freq: '2.402.000.000',
             target_freq: '2.480.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '1.000.000',
             precision: 5
           },
@@ -156,7 +138,6 @@ module PWN
             start_freq: '26.965.000',
             target_freq: '27.405.000',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '10.000',
             precision: 3
           },
@@ -164,7 +145,6 @@ module PWN
             start_freq: '824.000.000',
             target_freq: '849.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '1.250.000',
             precision: 6
           },
@@ -172,7 +152,6 @@ module PWN
             start_freq: '14.000.000',
             target_freq: '14.350.000',
             demodulator_mode: :CW,
-            rds: false,
             bandwidth: '150',
             precision: 3
           },
@@ -180,7 +159,6 @@ module PWN
             start_freq: '7.000.000',
             target_freq: '7.300.000',
             demodulator_mode: :CW,
-            rds: false,
             bandwidth: '150',
             precision: 3
           },
@@ -188,7 +166,6 @@ module PWN
             start_freq: '3.500.000',
             target_freq: '3.800.000',
             demodulator_mode: :CW,
-            rds: false,
             bandwidth: '150',
             precision: 3
           },
@@ -196,7 +173,6 @@ module PWN
             start_freq: '1.880.000.000',
             target_freq: '1.900.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '100.000',
             precision: 5
           },
@@ -212,7 +188,6 @@ module PWN
             start_freq: '462.562.500',
             target_freq: '467.725.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '200.000',
             precision: 3
           },
@@ -220,7 +195,6 @@ module PWN
             start_freq: '462.550.000',
             target_freq: '467.725.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '200.000',
             precision: 3
           },
@@ -228,7 +202,6 @@ module PWN
             start_freq: '880.000.000',
             target_freq: '915.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '171.200',
             precision: 4
           },
@@ -236,7 +209,6 @@ module PWN
             start_freq: '1.574.420.000',
             target_freq: '1.576.420.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '30.000.000',
             precision: 6
           },
@@ -244,7 +216,6 @@ module PWN
             start_freq: '1.226.600.000',
             target_freq: '1.228.600.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '11.000.000',
             precision: 6
           },
@@ -252,7 +223,6 @@ module PWN
             start_freq: '824.000.000',
             target_freq: '894.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '200.000',
             precision: 4
           },
@@ -260,7 +230,6 @@ module PWN
             start_freq: '13.560.000',
             target_freq: '13.570.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '400.000',
             precision: 3
           },
@@ -268,7 +237,6 @@ module PWN
             start_freq: '1.616.000.000',
             target_freq: '1.626.500.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '704.000',
             precision: 6
           },
@@ -276,7 +244,6 @@ module PWN
             start_freq: '5.725.000.000',
             target_freq: '5.875.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '150.000.000',
             precision: 7
           },
@@ -284,7 +251,6 @@ module PWN
             start_freq: '902.000.000',
             target_freq: '928.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '26.000.000',
             precision: 3
           },
@@ -292,7 +258,6 @@ module PWN
             start_freq: '300.000.000',
             target_freq: '300.100.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '50.000',
             precision: 4
           },
@@ -300,7 +265,6 @@ module PWN
             start_freq: '310.000.000',
             target_freq: '310.100.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '50.000',
             precision: 4
           },
@@ -308,7 +272,6 @@ module PWN
             start_freq: '315.000.000',
             target_freq: '315.100.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '50.000',
             precision: 4
           },
@@ -316,7 +279,6 @@ module PWN
             start_freq: '390.000.000',
             target_freq: '390.100.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '50.000',
             precision: 4
           },
@@ -324,7 +286,6 @@ module PWN
             start_freq: '433.000.000',
             target_freq: '434.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '50.000',
             precision: 4
           },
@@ -332,7 +293,6 @@ module PWN
             start_freq: '868.000.000',
             target_freq: '869.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '50.000',
             precision: 4
           },
@@ -340,7 +300,6 @@ module PWN
             start_freq: '450.000.000',
             target_freq: '470.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -348,7 +307,6 @@ module PWN
             start_freq: '150.000.000',
             target_freq: '174.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -356,7 +314,6 @@ module PWN
             start_freq: '148.500',
             target_freq: '283.500',
             demodulator_mode: :AM,
-            rds: false,
             bandwidth: '10.000',
             precision: 3
           },
@@ -364,7 +321,6 @@ module PWN
             start_freq: '432.000.000',
             target_freq: '434.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '500.000',
             precision: 3
           },
@@ -372,7 +328,6 @@ module PWN
             start_freq: '902.000.000',
             target_freq: '928.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '500.000',
             precision: 3
           },
@@ -380,7 +335,6 @@ module PWN
             start_freq: '125.000',
             target_freq: '134.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '40.000',
             precision: 1
           },
@@ -388,7 +342,6 @@ module PWN
             start_freq: '156.000.000',
             target_freq: '162.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -396,7 +349,6 @@ module PWN
             start_freq: '415.000',
             target_freq: '535.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '2.700',
             precision: 6
           },
@@ -404,7 +356,6 @@ module PWN
             start_freq: '162.400.000',
             target_freq: '162.550.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '16.000',
             precision: 4
           },
@@ -412,7 +363,6 @@ module PWN
             start_freq: '929.000.000',
             target_freq: '932.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '12.500',
             precision: 4
           },
@@ -420,7 +370,6 @@ module PWN
             start_freq: '1.850.000.000',
             target_freq: '1.990.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '200.000',
             precision: 6
           },
@@ -428,7 +377,6 @@ module PWN
             start_freq: '698.000.000',
             target_freq: '806.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '25.000',
             precision: 4
           },
@@ -436,7 +384,6 @@ module PWN
             start_freq: '14.000.000',
             target_freq: '14.350.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '170',
             precision: 3
           },
@@ -444,7 +391,6 @@ module PWN
             start_freq: '7.000.000',
             target_freq: '7.300.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '170',
             precision: 3
           },
@@ -452,7 +398,6 @@ module PWN
             start_freq: '3.500.000',
             target_freq: '3.800.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '170',
             precision: 3
           },
@@ -460,7 +405,6 @@ module PWN
             start_freq: '5.900.000',
             target_freq: '6.200.000',
             demodulator_mode: :AM_SYNC,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -468,7 +412,6 @@ module PWN
             start_freq: '7.200.000',
             target_freq: '7.450.000',
             demodulator_mode: :AM_SYNC,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -476,7 +419,6 @@ module PWN
             start_freq: '9.400.000',
             target_freq: '9.900.000',
             demodulator_mode: :AM_SYNC,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -484,7 +426,6 @@ module PWN
             start_freq: '11.600.000',
             target_freq: '12.100.000',
             demodulator_mode: :AM_SYNC,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -492,7 +433,6 @@ module PWN
             start_freq: '13.570.000',
             target_freq: '13.870.000',
             demodulator_mode: :AM_SYNC,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -500,7 +440,6 @@ module PWN
             start_freq: '15.100.000',
             target_freq: '15.800.000',
             demodulator_mode: :AM_SYNC,
-            rds: false,
             bandwidth: '10.000',
             precision: 4
           },
@@ -508,7 +447,6 @@ module PWN
             start_freq: '28.000.000',
             target_freq: '29.700.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -516,7 +454,6 @@ module PWN
             start_freq: '24.890.000',
             target_freq: '24.990.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -524,7 +461,6 @@ module PWN
             start_freq: '21.000.000',
             target_freq: '21.450.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -532,7 +468,6 @@ module PWN
             start_freq: '18.068.000',
             target_freq: '18.168.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -540,7 +475,6 @@ module PWN
             start_freq: '14.000.000',
             target_freq: '14.350.000',
             demodulator_mode: :USB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -548,7 +482,6 @@ module PWN
             start_freq: '7.000.000',
             target_freq: '7.300.000',
             demodulator_mode: :LSB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -556,7 +489,6 @@ module PWN
             start_freq: '3.500.000',
             target_freq: '3.800.000',
             demodulator_mode: :LSB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -564,7 +496,6 @@ module PWN
             start_freq: '1.800.000',
             target_freq: '2.000.000',
             demodulator_mode: :LSB,
-            rds: false,
             bandwidth: '3.000',
             precision: 6
           },
@@ -572,7 +503,6 @@ module PWN
             start_freq: '400.000.000',
             target_freq: '430.000.000',
             demodulator_mode: :WFM,
-            rds: false,
             bandwidth: '6.000.000',
             precision: 4
           },
@@ -580,7 +510,6 @@ module PWN
             start_freq: '174.000.000',
             target_freq: '216.000.000',
             demodulator_mode: :WFM_ST,
-            rds: false,
             bandwidth: '6.000.000',
             precision: 5
           },
@@ -588,7 +517,6 @@ module PWN
             start_freq: '54.000.000',
             target_freq: '88.000.000',
             demodulator_mode: :WFM_ST,
-            rds: false,
             bandwidth: '6.000.000',
             precision: 5
           },
@@ -596,7 +524,6 @@ module PWN
             start_freq: '470.000.000',
             target_freq: '698.000.000',
             demodulator_mode: :WFM_ST,
-            rds: false,
             bandwidth: '6.000.000',
             precision: 5
           },
@@ -604,7 +531,6 @@ module PWN
             start_freq: '860.000.000',
             target_freq: '960.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '400.000',
             precision: 5
           },
@@ -612,7 +538,6 @@ module PWN
             start_freq: '1.920.000.000',
             target_freq: '2.170.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '5.000.000',
             precision: 6
           },
@@ -620,7 +545,6 @@ module PWN
             start_freq: '137.000.000',
             target_freq: '138.000.000',
             demodulator_mode: :FM,
-            rds: false,
             bandwidth: '15.000',
             precision: 5
           },
@@ -628,7 +552,6 @@ module PWN
             start_freq: '2.400.000.000',
             target_freq: '2.500.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '20.000.000',
             precision: 7
           },
@@ -636,7 +559,6 @@ module PWN
             start_freq: '5.150.000.000',
             target_freq: '5.850.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '20.000.000',
             precision: 7
           },
@@ -644,7 +566,6 @@ module PWN
             start_freq: '5.925.000.000',
             target_freq: '7.125.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '20.000.000',
             precision: 7
           },
@@ -652,7 +573,6 @@ module PWN
             start_freq: '2.405.000.000',
             target_freq: '2.485.000.000',
             demodulator_mode: :RAW,
-            rds: false,
             bandwidth: '2.000.000',
             precision: 7
           }

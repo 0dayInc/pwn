@@ -7,29 +7,6 @@ module PWN
   module SDR
     # This plugin interacts with the remote control interface of GQRX.
     module GQRX
-      # Monkey patches for frequency handling
-      String.class_eval do
-        def cast_to_raw_hz
-          gsub('.', '').to_i
-        end
-      end
-
-      Integer.class_eval do
-        # Should always return format of X.XXX.XXX.XXX
-        # So 002_450_000_000 becomes 2.450.000.000 = 2.45 GHz
-        # So 2_450_000_000 becomes 2.450.000.000 = 2.45 GHz
-        # So 960_000_000 becomes 960.000.000 = 960 MHz
-        # 1000 should be 1.000 = 1 kHz
-        def cast_to_pretty_hz
-          str_hz = to_s
-          # Nuke leading zeros
-          # E.g., 002450000000 -> 2450000000
-          str_hz = str_hz.sub(/^0+/, '') unless str_hz == '0'
-          # Insert dots every 3 digits from the right
-          str_hz.reverse.scan(/.{1,3}/).join('.').reverse
-        end
-      end
-
       # Supported Method Parameters::
       # gqrx_resp = PWN::SDR::GQRX.gqrx_cmd(
       #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
@@ -154,7 +131,7 @@ module PWN
         raise "ERROR!!! Command: #{cmd} Expected Resp: #{resp_ok}, Got: #{response_str}" if resp_ok && response_str != resp_ok
 
         # Reformat positive integer frequency responses (e.g., from 'f')
-        response_str = response_str.to_i.cast_to_pretty_hz if response_str.match?(/^\d+$/) && response_str.to_i.positive?
+        response_str = PWN::SDR.hz_to_s(response_str) if response_str.match?(/^\d+$/) && response_str.to_i.positive?
 
         response_str
       rescue RuntimeError => e
@@ -176,8 +153,8 @@ module PWN
       # )
       private_class_method def self.measure_signal_strength(opts = {})
         gqrx_sock = opts[:gqrx_sock]
-        freq = opts[:freq].to_s.cast_to_raw_hz
-        freq = freq.to_i.cast_to_pretty_hz
+        freq = PWN::SDR.hz_to_i(opts[:freq])
+        freq = PWN::SDR.hz_to_s(freq)
 
         strength_lock = opts[:strength_lock] ||= -70.0
         phase = opts[:phase] ||= :find_candidates
@@ -224,7 +201,7 @@ module PWN
       # )
       private_class_method def self.tune_to(opts = {})
         gqrx_sock = opts[:gqrx_sock]
-        hz = opts[:hz].to_s.cast_to_raw_hz
+        hz = PWN::SDR.hz_to_i(opts[:hz])
 
         current_freq = 0
         attempts = 0
@@ -241,7 +218,7 @@ module PWN
             cmd: 'f'
           )
 
-          break if current_freq.to_s.cast_to_raw_hz == hz
+          break if PWN::SDR.hz_to_i(current_freq) == hz
         end
         # puts "Tuned to #{current_freq} in #{attempts} attempt(s)."
       rescue StandardError => e
@@ -276,8 +253,8 @@ module PWN
             phase: :edge_left
           )
           candidate = {
-            hz: hz.to_s.cast_to_raw_hz,
-            freq: hz.to_i.cast_to_pretty_hz,
+            hz: PWN::SDR.hz_to_i(hz),
+            freq: PWN::SDR.hz_to_s(hz),
             strength: strength_db,
             edge: :left
           }
@@ -302,8 +279,8 @@ module PWN
             phase: :edge_right
           )
           candidate = {
-            hz: hz.to_s.cast_to_raw_hz,
-            freq: hz.to_i.cast_to_pretty_hz,
+            hz: PWN::SDR.hz_to_i(hz),
+            freq: PWN::SDR.hz_to_s(hz),
             strength: strength_db,
             edge: :right
           }
@@ -332,9 +309,9 @@ module PWN
         timestamp_start = opts[:timestamp_start]
         scan_log = opts[:scan_log]
 
-        signals = signals_arr.sort_by { |s| s[:freq].to_s.cast_to_raw_hz }
+        signals = signals_arr.sort_by { |s| PWN::SDR.hz_to_i(s[:freq]) }
         # Unique signals by frequency
-        signals.uniq! { |s| s[:freq].to_s.cast_to_raw_hz }
+        signals.uniq! { |s| PWN::SDR.hz_to_i(s[:freq]) }
 
         timestamp_end = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
         duration_secs = Time.parse(timestamp_end).to_f - Time.parse(timestamp_start).to_f
@@ -368,54 +345,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # rds_resp = PWN::SDR::GQRX.decode_rds(
-      #   gqrx_sock: 'required - GQRX socket object returned from #connect method'
-      # )
-
-      private_class_method def self.decode_rds(opts = {})
-        gqrx_sock = opts[:gqrx_sock]
-
-        # We toggle RDS off and on to reset the decoder
-        rds_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: 'U RDS 0',
-          resp_ok: 'RPRT 0'
-        )
-
-        rds_resp = gqrx_cmd(
-          gqrx_sock: gqrx_sock,
-          cmd: 'U RDS 1',
-          resp_ok: 'RPRT 0'
-        )
-
-        rds_resp = {}
-        attempts = 0
-        max_attempts = 120
-        skip_rds = "\n"
-        print 'INFO: Decoding FM radio RDS data (Press ENTER to skip)...'
-        max_attempts.times do
-          attempts += 1
-          rds_resp[:rds_pi] = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI')
-          rds_resp[:rds_ps_name] = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME')
-          rds_resp[:rds_radiotext] = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT')
-
-          # Break if ENTER key pressed
-          # This is useful if no RDS data is available
-          # on the current frequency (e.g. false+)
-          break if $stdin.ready? && $stdin.read_nonblock(1) == skip_rds
-
-          break if rds_resp[:rds_pi] != '0000' && !rds_resp[:rds_ps_name].empty? && !rds_resp[:rds_radiotext].empty?
-
-          print '.'
-          sleep 0.1
-        end
-        puts 'complete.'
-        rds_resp
-      rescue StandardError => e
-        raise e
-      end
-
-      # Supported Method Parameters::
       # best_peak = PWN::SDR::GQRX.find_best_peak(
       #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
       #   candidate_signals: 'required - Array of candidate signals from edge_detection',
@@ -428,10 +357,10 @@ module PWN
         step_hz = opts[:step_hz]
         strength_lock = opts[:strength_lock]
 
-        beg_of_signal_hz = candidate_signals.first[:hz].to_s.cast_to_raw_hz
-        end_of_signal_hz = candidate_signals.last[:hz].to_s.cast_to_raw_hz
+        beg_of_signal_hz = PWN::SDR.hz_to_i(candidate_signals.first[:hz])
+        end_of_signal_hz = PWN::SDR.hz_to_i(candidate_signals.last[:hz])
 
-        puts "*** Analyzing Best Peak in Frequency Range: #{beg_of_signal_hz.to_i.cast_to_pretty_hz} Hz - #{end_of_signal_hz.to_i.cast_to_pretty_hz} Hz"
+        puts "*** Analyzing Best Peak in Frequency Range: #{PWN::SDR.hz_to_s(beg_of_signal_hz)} Hz - #{PWN::SDR.hz_to_s(end_of_signal_hz)} Hz"
         # puts JSON.pretty_generate(candidate_signals)
 
         samples = []
@@ -466,9 +395,6 @@ module PWN
               phase: :find_best_peak
             )
             samples.push({ hz: hz, strength_db: strength_db })
-
-            # current_hz = gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'f').to_s.cast_to_raw_hz
-            # puts "Sampled Frequency: #{current_hz.to_i.cast_to_pretty_hz} => Strength: #{strength_db} dBFS"
           end
 
           # Compute fresh averaged_samples from all cumulative samples
@@ -513,7 +439,7 @@ module PWN
           # Dup to avoid reference issues
           prev_best_sample = best_sample.dup
 
-          puts "Pass #{pass_count}: Best #{best_sample[:hz].to_i.cast_to_pretty_hz} => #{best_sample[:strength_db]} dBFS, consecutive best count: #{consecutive_best}"
+          puts "Pass #{pass_count}: Best #{PWN::SDR.hz_to_s(best_sample[:hz])} => #{best_sample[:strength_db]} dBFS, consecutive best count: #{consecutive_best}"
 
           # Break if we have a stable best sample or only one sample remains
           break if consecutive_best.positive? || averaged_samples.length == 1
@@ -592,7 +518,7 @@ module PWN
           )
 
           mode_str = demodulator_mode.to_s.upcase
-          passband_hz = bandwidth.to_s.cast_to_raw_hz
+          passband_hz = PWN::SDR.hz_to_i(bandwidth)
           gqrx_cmd(
             gqrx_sock: gqrx_sock,
             cmd: "M #{mode_str} #{passband_hz}",
@@ -647,7 +573,7 @@ module PWN
           )
 
           rds_resp = nil
-          rds_resp = decode_rds(gqrx_sock: gqrx_sock) if rds
+          rds_resp = PWN::SDR::Decoder.rds(gqrx_sock: gqrx_sock) if rds
 
           freq_obj[:audio_gain_db] = audio_gain_db
           freq_obj[:demod_mode_n_passband] = demod_n_passband
@@ -667,6 +593,8 @@ module PWN
           case decoder
           when :gsm
             decoder_module = PWN::SDR::Decoder::GSM
+          when :rds
+            decoder_module = PWN::SDR::Decoder::RDS
           else
             raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
           end
@@ -740,10 +668,10 @@ module PWN
         gqrx_sock = opts[:gqrx_sock]
 
         start_freq = opts[:start_freq]
-        hz_start = start_freq.to_s.cast_to_raw_hz
+        hz_start = PWN::SDR.hz_to_i(start_freq)
 
         target_freq = opts[:target_freq]
-        hz_target = target_freq.to_s.cast_to_raw_hz
+        hz_target = PWN::SDR.hz_to_i(target_freq)
 
         demodulator_mode = opts[:demodulator_mode]
         rds = opts[:rds] ||= false
@@ -753,7 +681,7 @@ module PWN
         precision = opts[:precision] ||= 1
         strength_lock = opts[:strength_lock] ||= -70.0
         squelch = opts[:squelch] ||= (strength_lock - 3.0)
-        scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{hz_start.to_i.cast_to_pretty_hz}-#{hz_target.to_i.cast_to_pretty_hz}_#{log_timestamp}.json"
+        scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(hz_start)}-#{PWN::SDR.hz_to_s(hz_target)}_#{log_timestamp}.json"
         location = opts[:location] ||= 'United States'
 
         step_hz = 10**(precision - 1)
@@ -779,7 +707,7 @@ module PWN
 
         # Set demodulator mode & passband once for the scan
         mode_str = demodulator_mode.to_s.upcase
-        passband_hz = bandwidth.to_s.cast_to_raw_hz
+        passband_hz = PWN::SDR.hz_to_i(bandwidth)
         gqrx_cmd(
           gqrx_sock: gqrx_sock,
           cmd: "M #{mode_str} #{passband_hz}",
@@ -834,7 +762,7 @@ module PWN
         # Begin scanning range
         puts "\n"
         puts '-' * 86
-        puts "INFO: Scanning from #{hz_start.to_i.cast_to_pretty_hz} to #{hz_target.to_i.cast_to_pretty_hz} in steps of #{step_hz_direction.abs.to_i.cast_to_pretty_hz} Hz."
+        puts "INFO: Scanning from #{PWN::SDR.hz_to_s(hz_start)} to #{PWN::SDR.hz_to_s(hz_target)} in steps of #{PWN::SDR.hz_to_s(step_hz_direction.abs)} Hz."
         puts "If scans are slow and/or you're experiencing false positives/negatives,"
         puts 'consider adjusting the following:'
         puts "1. The SDR's sample rate in GQRX"
@@ -878,7 +806,7 @@ module PWN
 
             if best_peak[:hz] && best_peak[:strength_db] > strength_lock
               puts "\n**** Detected Signal ****"
-              best_freq = best_peak[:hz].to_i.cast_to_pretty_hz
+              best_freq = PWN::SDR.hz_to_s(best_peak[:hz])
               best_strength_db = best_peak[:strength_db]
               prev_freq_obj = init_freq(
                 gqrx_sock: gqrx_sock,
