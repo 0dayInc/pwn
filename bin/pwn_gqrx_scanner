@@ -160,6 +160,7 @@ begin
     break unless keep_looping
 
     loop_count += 1
+    gqrx_sock = PWN::SDR::GQRX.connect(target: host, port: port)
     log_timestamp = Time.now.strftime('%Y-%m-%d')
     scan_log = "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(start_freq)}-#{PWN::SDR.hz_to_s(target_freq)}_#{log_timestamp}-l#{loop_count}.json"
   end
