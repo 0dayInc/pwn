@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'json'
+require 'tty-spinner'
+
 module PWN
   module SDR
     module Decoder
@@ -7,90 +10,105 @@ module PWN
       module RDS
         # Supported Method Parameters::
         # rds_resp = PWN::SDR::GQRX.decode_rds(
-        #   gqrx_sock: 'required - GQRX socket object returned from #connect method'
+        #   freq_obj: 'required - GQRX socket object returned from #connect method'
         # )
 
-        # private_class_method def self.rds(opts = {})
         public_class_method def self.decode(opts = {})
-          gqrx_sock = opts[:gqrx_sock]
+          freq_obj = opts[:freq_obj]
+          gqrx_sock = freq_obj[:gqrx_sock]
 
-          # We toggle RDS off and on to reset the decoder
-          rds_resp = PWN::SDR::GQRX.gqrx_cmd(
+          freq_obj = freq_obj.dup
+          freq_obj.delete(:gqrx_sock)
+          skip_rds = "\n"
+          puts JSON.pretty_generate(freq_obj)
+          puts "\n*** FM Radio RDS Decoder ***"
+          puts '(Press [ENTER] to continue)...'
+
+          # Toggle RDS off and on to reset the decoder
+          PWN::SDR::GQRX.gqrx_cmd(
             gqrx_sock: gqrx_sock,
             cmd: 'U RDS 0',
             resp_ok: 'RPRT 0'
           )
 
-          rds_resp = PWN::SDR::GQRX.gqrx_cmd(
+          PWN::SDR::GQRX.gqrx_cmd(
             gqrx_sock: gqrx_sock,
             cmd: 'U RDS 1',
             resp_ok: 'RPRT 0'
           )
 
-          rds_resp = {}
-          attempts = 0
-          max_attempts = 120
-          skip_rds = "\n"
-          print 'INFO: Decoding FM radio RDS data (Press ENTER to skip)...'
-          max_attempts.times do
-            attempts += 1
-            rds_resp[:rds_pi] = PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI')
-            rds_resp[:rds_ps_name] = PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME')
-            rds_resp[:rds_radiotext] = PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT')
+          # Spinner setup with dynamic terminal width awareness
+          spinner = TTY::Spinner.new(
+            '[:spinner] :decoding',
+            format: :arrow_pulse,
+            clear: true,
+            hide_cursor: true
+          )
 
-            # Break if ENTER key pressed
-            # This is useful if no RDS data is available
-            # on the current frequency (e.g. false+)
-            break if $stdin.ready? && $stdin.read_nonblock(1) == skip_rds
+          # Conservative overhead for spinner animation, colors, and spacing
+          spinner_overhead = 12
+          max_title_length = [TTY::Screen.width - spinner_overhead, 50].max
 
-            break if rds_resp[:rds_pi] != '0000' && !rds_resp[:rds_ps_name].empty? && !rds_resp[:rds_radiotext].empty?
+          initial_title = 'INFO: Decoding FM radio RDS data...'
+          initial_title = initial_title[0...max_title_length] if initial_title.length > max_title_length
+          spinner.update(title: initial_title)
+          spinner.auto_spin
 
-            print '.'
-            sleep 0.1
-          end
-          puts 'complete.'
-          rds_resp
-        rescue StandardError => e
-          raise e
-        end
+          last_resp = {}
 
-        # Starts the live decoding thread.
-        def self.start(opts = {})
-          freq_obj = opts[:freq_obj]
-          raise ':ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
+          loop do
+            rds_resp = {
+              rds_pi: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI').to_s.strip.chomp.delete('.'),
+              rds_ps_name: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME').to_s.strip.chomp,
+              rds_radiotext: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT').to_s.strip.chomp
+            }
 
-          gqrx_sock = freq_obj[:gqrx_sock]
-          freq = freq_obj[:freq]
-          bandwidth = freq_obj[:bandwidth].to_i
-          record_path = freq_obj[:record_path]
+            # Only update when we have valid new data
+            if rds_resp[:rds_pi] != '0000' && rds_resp != last_resp
+              # --- Enforce RDS specification bounds and clean formatting ---
+              # PI: 16-bit code >>> exactly 4 uppercase hex digits, zero-padded
+              rds_pi = rds_resp[:rds_pi].upcase
+              rds_pi = rds_pi.rjust(4, '0')[0, 4]
 
-          sleep 0.1 until File.exist?(record_path)
+              # PS: exactly 8 ASCII characters (pad short with spaces, truncate long)
+              rds_ps = "#{rds_resp[:rds_ps_name]}        "[0, 8]
 
-          header = File.binread(record_path, HEADER_SIZE)
-          raise 'Invalid WAV header' unless header.start_with?('RIFF') && header.include?('WAVE')
+              # RadioText: strip trailing spaces (stations often pad to clear)
+              rds_rt = rds_resp[:rds_radiotext].rstrip
 
-          bytes_read = HEADER_SIZE
+              # Fixed prefix: always exactly 28 characters for predictable layout
+              # Breakdown: "PI: " (4) + 4 hex (4) + " | PS: " (7) + 8 chars (8) + " | RT: " (7) = 28
+              prefix = "Program ID: #{rds_pi} | Station Name: #{rds_ps} | Radio Txt: "
 
-          puts "GSM Decoder started for freq: #{freq}, bandwidth: #{bandwidth}"
+              # minimum visibility
+              available_for_rt = max_title_length - prefix.length
+              available_for_rt = [available_for_rt, 10].max
 
-          Thread.new do
-            loop do
-              sleep 1
+              rt_display = rds_rt
+              rt_display = "#{rt_display[0...available_for_rt]}..." if rt_display.length > available_for_rt
+
+              msg = prefix + rt_display
+              spinner.update(decoding: msg)
+              last_resp = rds_resp.dup
             end
-          rescue StandardError => e
-            puts "Decoder error: #{e.message}"
-          ensure
-            cleanup(record_path: record_path)
+
+            # Non-blocking check for ENTER key to exit
+            if $stdin.wait_readable(0)
+              begin
+                char = $stdin.read_nonblock(1)
+                break if char == skip_rds
+              rescue IO::WaitReadable, EOFError
+                # No-op
+              end
+            end
+
+            sleep 0.01
           end
-        end
-
-        # Stops the decoding thread.
-        def self.stop(opts = {})
-          freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          decoder_thread = freq_obj[:decoder_thread]
-          decoder_thread.kill if decoder_thread.is_a?(Thread)
+        rescue StandardError => e
+          spinner.error('Decoding failed') if defined?(spinner)
+          raise e
+        ensure
+          spinner.stop if defined?(spinner) && spinner
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -105,12 +123,7 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            gsm_decoder_thread = #{self}.start(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::Receiver::GQRX.init_freq method'
-            )
-
-            # To stop the decoder thread:
-            #{self}.stop(
+            #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::Receiver::GQRX.init_freq method'
             )
 
