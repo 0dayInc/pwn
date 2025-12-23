@@ -8,6 +8,7 @@ module PWN
     # Deocder Module for SDR signals.
     module Decoder
       autoload :GSM, 'pwn/sdr/decoder/gsm'
+      autoload :RDS, 'pwn/sdr/decoder/rds'
 
       # Display a List of Every PWN::AI Module
 
