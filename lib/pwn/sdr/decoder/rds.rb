@@ -12,6 +12,7 @@ module PWN
         # rds_resp = PWN::SDR::GQRX.decode_rds(
         #   freq_obj: 'required - GQRX socket object returned from #connect method'
         # )
+
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
           gqrx_sock = freq_obj[:gqrx_sock]
@@ -36,28 +37,57 @@ module PWN
             resp_ok: 'RPRT 0'
           )
 
-          # Use TTY::Spinner correctly with a dynamic :title token
-          spinner = TTY::Spinner.new('[:spinner] :title', format: :arrow_pulse)
-          spinner.update(title: 'INFO: Decoding FM radio RDS data...')
-          spinner.auto_spin # Background thread handles smooth animation
+          # Spinner setup with dynamic terminal width awareness
+          spinner = TTY::Spinner.new('[:spinner] :decoding', format: :arrow_pulse)
+
+          # Conservative overhead for spinner animation, colors, and spacing
+          spinner_overhead = 12
+          max_title_length = [TTY::Screen.width - spinner_overhead, 50].max
+
+          initial_title = 'INFO: Decoding FM radio RDS data...'
+          initial_title = initial_title[0...max_title_length] if initial_title.length > max_title_length
+          spinner.update(title: initial_title)
+          spinner.auto_spin
 
           last_resp = {}
 
           loop do
             rds_resp = {
-              rds_pi: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI').to_s.strip.chomp,
+              rds_pi: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PI').to_s.strip.chomp.delete('.'),
               rds_ps_name: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_PS_NAME').to_s.strip.chomp,
               rds_radiotext: PWN::SDR::GQRX.gqrx_cmd(gqrx_sock: gqrx_sock, cmd: 'p RDS_RADIOTEXT').to_s.strip.chomp
             }
 
-            # Only update the displayed message when we have new, complete, valid RDS data
+            # Only update when we have valid new data
             if rds_resp[:rds_pi] != '0000' && rds_resp != last_resp
-              status = "Program ID: #{rds_resp[:rds_pi]} | Station Name: #{rds_resp[:rds_ps_name].ljust(8)} | Radio Text: #{rds_resp[:rds_radiotext]}"
-              spinner.update(title: status)
+              # --- Enforce RDS specification bounds and clean formatting ---
+              # PI: 16-bit code >>> exactly 4 uppercase hex digits, zero-padded
+              rds_pi = rds_resp[:rds_pi].upcase
+              rds_pi = rds_pi.rjust(4, '0')[0, 4]
+
+              # PS: exactly 8 ASCII characters (pad short with spaces, truncate long)
+              rds_ps = "#{rds_resp[:rds_ps_name]}        "[0, 8]
+
+              # RadioText: strip trailing spaces (stations often pad to clear)
+              rds_rt = rds_resp[:rds_radiotext].rstrip
+
+              # Fixed prefix: always exactly 28 characters for predictable layout
+              # Breakdown: "PI: " (4) + 4 hex (4) + " | PS: " (7) + 8 chars (8) + " | RT: " (7) = 28
+              prefix = "Program ID: #{rds_pi} | Station Name: #{rds_ps} | Radio Txt: "
+
+              # minimum visibility
+              available_for_rt = max_title_length - prefix.length
+              available_for_rt = [available_for_rt, 10].max
+
+              rt_display = rds_rt
+              rt_display = "#{rt_display[0...available_for_rt]}..." if rt_display.length > available_for_rt
+
+              msg = prefix + rt_display
+              spinner.update(decoding: msg)
               last_resp = rds_resp.dup
             end
 
-            # Non-blocking check for ENTER key
+            # Non-blocking check for ENTER key to exit
             if $stdin.wait_readable(0)
               begin
                 char = $stdin.read_nonblock(1)
@@ -73,7 +103,7 @@ module PWN
           spinner.error('Decoding failed') if defined?(spinner)
           raise e
         ensure
-          spinner.stop if spinner
+          spinner.stop if defined?(spinner) && spinner
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
