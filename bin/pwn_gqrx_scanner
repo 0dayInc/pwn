@@ -65,16 +65,16 @@ PWN::Driver::Parser.new do |options|
     opts[:baseband_gain] = b
   end
 
+  options.on('-k', '--keep-looping', '<Optional - Keep looping over the scan range indefinitely until CTRL+C is caught (Defaults to false)>') do |k|
+    opts[:keep_looping] = k
+  end
+
   options.on('-LFILE', '--scan-log=FILE', '<Optional - Path to log scan results to (Defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)>') do |l|
     opts[:scan_log] = l
   end
 
   options.on('-wLOC', '--location=LOC', '<Optional - Location string to include in AI analysis (e.g. "New York, NY", 90210, GPS coords, etc.)>') do |l|
     opts[:location] = l
-  end
-
-  options.on('-k', '--keep-looping', '<Optional - Keep looping over the scan range indefinitely until CTRL+C is caught (Defaults to false)>') do |k|
-    opts[:keep_looping] = k
   end
 end.parse!
 
@@ -132,37 +132,30 @@ begin
   baseband_gain = opts[:baseband_gain]
   baseband_gain = baseband_gain.to_f unless baseband_gain.nil?
 
+  keep_looping = opts[:keep_looping]
   scan_log = opts[:scan_log]
   decoder = opts[:decoder]
   location = opts[:location]
-  keep_looping = opts[:keep_looping] ||= false
 
   # Merge opts again to ensure we override profile values with CLI values
-  loop_count = 1
-  loop do
-    PWN::SDR::GQRX.scan_range(
-      gqrx_sock: gqrx_sock,
-      start_freq: start_freq,
-      target_freq: target_freq,
-      demodulator_mode: demodulator_mode,
-      bandwidth: bandwidth,
-      audio_gain_db: audio_gain_db,
-      squelch: squelch,
-      precision: precision,
-      strength_lock: strength_lock,
-      rf_gain: rf_gain,
-      intermediate_gain: intermediate_gain,
-      baseband_gain: baseband_gain,
-      scan_log: scan_log,
-      decoder: decoder,
-      location: location
-    )
-    break unless keep_looping
-
-    loop_count += 1
-    log_timestamp = Time.now.strftime('%Y-%m-%d')
-    scan_log = "/tmp/pwn_sdr_gqrx_scan_#{PWN::SDR.hz_to_s(start_freq)}-#{PWN::SDR.hz_to_s(target_freq)}_#{log_timestamp}-l#{loop_count}.json"
-  end
+  PWN::SDR::GQRX.scan_range(
+    gqrx_sock: gqrx_sock,
+    start_freq: start_freq,
+    target_freq: target_freq,
+    demodulator_mode: demodulator_mode,
+    bandwidth: bandwidth,
+    audio_gain_db: audio_gain_db,
+    squelch: squelch,
+    precision: precision,
+    strength_lock: strength_lock,
+    rf_gain: rf_gain,
+    intermediate_gain: intermediate_gain,
+    baseband_gain: baseband_gain,
+    keep_looping: keep_looping,
+    scan_log: scan_log,
+    decoder: decoder,
+    location: location
+  )
   puts 'Scan Complete.'
 rescue StandardError => e
   raise e
