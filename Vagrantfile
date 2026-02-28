@@ -3,7 +3,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 require 'yaml'
-require 'pathname'
 
 API_VERSION = '2'
 pwn_root = Pathname.new(__FILE__).realpath.expand_path.parent

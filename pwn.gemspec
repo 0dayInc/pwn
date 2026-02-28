@@ -8,7 +8,7 @@ require 'pwn/version'
 Gem::Specification.new do |spec|
   ruby_version = ">= #{File.read('.ruby-version').split('-').last.chomp}".freeze
   # spec.required_ruby_version = ruby_version
-  spec.required_ruby_version = '>= 3.3.0'
+  spec.required_ruby_version = '>= 4.0.0'
   spec.name = 'pwn'
   spec.version = PWN::VERSION
   spec.authors = ['0day Inc.']
