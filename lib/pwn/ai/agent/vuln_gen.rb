@@ -7,15 +7,34 @@ module PWN
       module VulnGen
         # Supported Method Parameters::
         # ai_analysis = PWN::AI::Agent::VulnGen.analyze(
-        #   request: 'required - high level description of vulnerability discovered (e.g. "Discovered a SQLi vulnerability in /login"'
+        #   request: 'required - high level description of vulnerability discovered (e.g. "Discovered a SQLi vulnerability in /login"',
+        #   markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :jira)'
         # )
 
         public_class_method def self.analyze(opts = {})
           request = opts[:request]
           raise 'ERROR: request parameter is required' if request.nil? || request.empty?
 
-          system_role_content = '
-          _ALWAYS_ Generate markdown security findings for the message provided with the following content:
+          markup_type = opts[:markup_type] ||= :jira
+
+          markup = ''
+          case markup_type
+          when :jira
+            markup = 'Jira Wiki Markup'
+          when :markdown
+            markup = 'Markdown'
+          when :html
+            markup = 'HTML'
+          when :confluence
+            markup = 'Confluence Wiki Markup'
+          when :xml
+            markup = 'XML'
+          else
+            raise "ERROR: Unsupported markup_type '#{markup_type}'. Supported types are :jira, :markdown, :html, :confluence, :xml."
+          end
+
+          system_role_content = "
+          _ALWAYS_ Generate #{markup} security findings for the message provided with the following content:
 
           1. Detailed Finding Description: This should be a deep, detailed technical description that should include exploit proof-of-concepts when possible.
 
@@ -28,7 +47,7 @@ module PWN
           5. CWE Category, Brief CWE description, and CWE URI
 
           6. NIST 800-53 Security Control that is impacted by this vulnerability.
-          '
+          "
 
           PWN::AI::Introspection.reflect_on(
             system_role_content: system_role_content,
@@ -51,6 +70,10 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            ai_analysis = #{self}.analyze(
+              request: 'required - high level description of vulnerability discovered (e.g. \"Discovered a SQLi vulnerability in /login\"',
+              markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :jira)'
+            )
 
             #{self}.authors
           "

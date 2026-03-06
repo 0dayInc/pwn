@@ -71,6 +71,9 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            ai_analysis = PWN::AI::Agent::BurpSuite.analyze(
+              request: 'required HTTP request/response pair or WebSocket message as a string'
+            )
 
             #{self}.authors
           "

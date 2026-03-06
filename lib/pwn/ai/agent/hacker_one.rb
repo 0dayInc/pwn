@@ -51,6 +51,10 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            ai_analysis = PWN::AI::Agent::HackerOne.analyze(
+              request: 'required - dataset to analyze, such as bounty program details, scope details, or hacktivity details'
+              type: 'required - type of analysis to perform, such as :bounty_programs, :scope_details, or :hacktivity'
+            )
 
             #{self}.authors
           "

@@ -37,6 +37,9 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            ai_analysis = PWN::AI::Agent::BTC.analyze(
+              request: 'required - latest block information retrieved from a bitcoin node via `PWN::Blockchain::BTC.get_latest_block`'
+            )
 
             #{self}.authors
           "
