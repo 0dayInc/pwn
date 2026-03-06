@@ -56,6 +56,12 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            ai_analysis = PWN::AI::Agent::Assembly.analyze(
+              request: 'required - the assembly opcodes or instructions to be analyzed',
+              type: 'required - :opcodes_to_asm|:asm_to_opcodes - specify the type of analysis to perform',
+              arch: 'required - name of arch returned from `PWN::Plugins::Assembly.list_supported_archs` (e.g., :i386|:i686|:x86|:x64|:arm|:arm64, etc.)',
+              endian: 'required - the endianness of the assembly code (e.g., :little|:big)'
+            )
 
             #{self}.authors
           "

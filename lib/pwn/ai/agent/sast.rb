@@ -37,6 +37,9 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            ai_analysis = PWN::AI::Agent::SAST.analyze(
+              request: 'required - A string containing the source code snippet to be analyzed for SAST antipatterns and vulnerabilities.'
+            )
 
             #{self}.authors
           "
