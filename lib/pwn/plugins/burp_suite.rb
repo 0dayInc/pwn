@@ -3,6 +3,7 @@
 require 'base64'
 require 'json'
 require 'socket'
+require 'tempfile'
 require 'uri'
 require 'yaml'
 
@@ -241,9 +242,11 @@ module PWN
           rescue StandardError => e
             puts "BurpSuite AI Introspection Thread Error: #{e}"
             puts e.backtrace
+            backtrace_file = Tempfile.new(["PWN_Plugins_BurpSuite_AI_Thread-#{type}", '.log'])
+            File.write(backtrace_file.path, "#{e}\n#{e.backtrace.join("\n")}")
             raise e
           ensure
-            puts "BurpSuite:#{type} AI Introspection Thread >>> Goodbye."
+            puts "BurpSuite: #{type} AI Introspection Thread >>> Goodbye."
           end
 
           burp_obj[:introspection_threads] = introspection_thread_arr.push(introspection_thread)
