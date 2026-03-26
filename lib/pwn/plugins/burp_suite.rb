@@ -243,7 +243,7 @@ module PWN
             puts "BurpSuite AI Introspection Thread Error: #{e}"
             puts e.backtrace
             backtrace_file = Tempfile.new(["PWN_Plugins_BurpSuite_AI_Thread-#{type}", '.log'])
-            File.write(backtrace_file.path, "#{e}\n#{e.backtrace.join("\n")}")
+            backtrace_file.write("#{e}\n#{e.backtrace.join("\n")}")
             raise e
           ensure
             puts "BurpSuite: #{type} AI Introspection Thread >>> Goodbye."
