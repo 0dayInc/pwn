@@ -90,10 +90,11 @@ module PWN
             end
 
             default_http_ports = [80, 443]
-            offset = 0
             limit = 10
+            offset = 0
 
             loop do
+              keep_offset = false
               # TODO: Implement repeater into the loop?  This reduces load to LLM but is slooow.
               # Repeater should analyze the reqesut/response pair and suggest
               # modifications to the request to further probe for vulnerabilities _quickly_.
@@ -120,6 +121,8 @@ module PWN
                   next unless in_scope(burp_obj: burp_obj, uri: uri)
 
                   next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
+
+                  keep_offset = true
 
                   # If sitemap comment and highlight color exists, use that instead of re-analyzing
                   sitemap_entry = nil
@@ -182,6 +185,8 @@ module PWN
 
                   next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
 
+                  keep_offset = true
+
                   proxy_history_entry = nil
                   proxy_history = get_proxy_history(burp_obj: burp_obj, uri: uri)
                   if proxy_history.any?
@@ -232,6 +237,8 @@ module PWN
 
                   next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
 
+                  keep_offset = true
+
                   web_socket_id = entry[:web_socket_id]
                   direction = entry[:direction]
                   payload = entry[:payload]
@@ -255,7 +262,7 @@ module PWN
                 end
                 sleep Random.rand(3..10)
               end
-              offset += limit
+              offset += limit unless keep_offset
             end
           rescue Errno::ECONNREFUSED
             puts "BurpSuite:#{type} AI Introspection Thread >>> Terminating API Calls..."
