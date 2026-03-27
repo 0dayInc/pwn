@@ -90,14 +90,22 @@ module PWN
             end
 
             default_http_ports = [80, 443]
+            offset = 0
+            limit = 200
+
             loop do
               # TODO: Implement repeater into the loop?  This reduces load to LLM but is slooow.
               # Repeater should analyze the reqesut/response pair and suggest
               # modifications to the request to further probe for vulnerabilities _quickly_.
               case type
               when :proxy_history
-                sitemap = get_sitemap(burp_obj: burp_obj)
-                proxy_history = get_proxy_history(burp_obj: burp_obj)
+                proxy_history = get_proxy_history(
+                  burp_obj: burp_obj,
+                  limit: limit,
+                  offset: offset
+                )
+
+                offset = 0 if proxy_history.empty?
                 proxy_history.each do |entry|
                   request = entry[:request]
                   response = entry[:response]
@@ -115,6 +123,7 @@ module PWN
 
                   # If sitemap comment and highlight color exists, use that instead of re-analyzing
                   sitemap_entry = nil
+                  sitemap = get_sitemap(burp_obj: burp_obj, uri: uri)
                   if sitemap.any?
                     sitemap_entry = sitemap.find do |site|
                       next unless site.key?(:http_service) && site.key?(:request)
@@ -152,8 +161,12 @@ module PWN
                 sleep Random.rand(30..60)
 
               when :sitemap
-                proxy_history = get_proxy_history(burp_obj: burp_obj)
-                sitemap = get_sitemap(burp_obj: burp_obj)
+                sitemap = get_sitemap(
+                  burp_obj: burp_obj,
+                  limit: limit,
+                  offset: offset
+                )
+                offset = 0 if sitemap.empty?
                 sitemap.each do |entry|
                   request = entry[:request]
                   response = entry[:response]
@@ -170,6 +183,7 @@ module PWN
                   next unless entry.key?(:comment) && entry[:comment].to_s.strip.empty?
 
                   proxy_history_entry = nil
+                  proxy_history = get_proxy_history(burp_obj: burp_obj, uri: uri)
                   if proxy_history.any?
                     proxy_history_entry = proxy_history.find do |proxy_entry|
                       next unless proxy_entry.key?(:http_service) && proxy_entry.key?(:request)
@@ -206,7 +220,12 @@ module PWN
                 sleep Random.rand(60..90)
 
               when :websocket_history
-                websocket_history = get_websocket_history(burp_obj: burp_obj)
+                websocket_history = get_websocket_history(
+                  burp_obj: burp_obj,
+                  limit: limit,
+                  offset: offset
+                )
+                offset = 0 if websocket_history.empty?
                 websocket_history.each do |entry|
                   uri = entry[:url]
                   next unless in_scope(burp_obj: burp_obj, uri: uri)
@@ -236,6 +255,7 @@ module PWN
                 end
                 sleep Random.rand(3..10)
               end
+              offset += limit
             end
           rescue Errno::ECONNREFUSED
             puts "BurpSuite:#{type} AI Introspection Thread >>> Terminating API Calls..."
@@ -592,6 +612,9 @@ module PWN
       # Supported Method Parameters::
       # json_proxy_history = PWN::Plugins::BurpSuite.get_proxy_history(
       #   burp_obj: 'required - burp_obj returned by #start method',
+      #   limit: 'optional - number of proxy history entries to return (default: 200)',
+      #   offset: 'optional - offset for pagination of proxy history entries (default: 0)',
+      #   uri: 'optional - filter proxy history entries by URI (default: nil)',
       #   keyword: 'optional - keyword to filter proxy history entries (default: nil)',
       #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
@@ -600,10 +623,19 @@ module PWN
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        limit = opts[:limit] ||= 200
+        offset = opts[:offset] ||= 0
+        uri = opts[:uri]
         keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
 
-        rest_call = "http://#{mitm_rest_api}/proxy/history"
+        if uri.nil?
+          rest_call = "http://#{mitm_rest_api}/proxy/history?limit=#{limit}&offset=#{offset}"
+        else
+          base64_encoded_uri = Base64.strict_encode64(uri.to_s.scrub.strip.chomp)
+          rest_call = "http://#{mitm_rest_api}/proxy/history/#{base64_encoded_uri}?limit=#{limit}&offset=#{offset}"
+        end
 
         sitemap = rest_browser.get(
           rest_call,
@@ -810,6 +842,8 @@ module PWN
       # Supported Method Parameters::
       # json_web_socket_history = PWN::Plugins::BurpSuite.get_websocket_history(
       #   burp_obj: 'required - burp_obj returned by #start method',
+      #   limit: 'optional - number of websocket history entries to return (default: 200)',
+      #   offset: 'optional - offset for pagination of websocket history entries (default: 0)',
       #   keyword: 'optional - keyword to filter websocket history entries (default: nil)'
       # )
 
@@ -817,9 +851,12 @@ module PWN
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        limit = opts[:limit] ||= 200
+        offset = opts[:offset] ||= 0
         keyword = opts[:keyword]
 
-        rest_call = "http://#{mitm_rest_api}/websocket/history"
+        rest_call = "http://#{mitm_rest_api}/websocket/history?limit=#{limit}&offset=#{offset}"
 
         sitemap = rest_browser.get(
           rest_call,
@@ -881,6 +918,9 @@ module PWN
       # Supported Method Parameters::
       # json_sitemap = PWN::Plugins::BurpSuite.get_sitemap(
       #   burp_obj: 'required - burp_obj returned by #start method',
+      #   limit: 'optional - number of sitemap entries to return (default: 200)',
+      #   offset: 'optional - offset for pagination of sitemap entries (default: 0)',
+      #   uri: 'optional - URI to filter sitemap entries (default: nil)',
       #   keyword: 'optional - keyword to filter sitemap entries (default: nil)',
       #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
@@ -889,10 +929,19 @@ module PWN
         burp_obj = opts[:burp_obj]
         rest_browser = burp_obj[:rest_browser]
         mitm_rest_api = burp_obj[:mitm_rest_api]
+
+        limit = opts[:limit] ||= 200
+        offset = opts[:offset] ||= 0
+        uri = opts[:uri]
         keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
 
-        rest_call = "http://#{mitm_rest_api}/sitemap"
+        if uri.nil?
+          rest_call = "http://#{mitm_rest_api}/sitemap?limit=#{limit}&offset=#{offset}"
+        else
+          base64_encoded_uri = Base64.strict_encode64(uri.to_s.scrub.strip.chomp)
+          rest_call = "http://#{mitm_rest_api}/sitemap/#{base64_encoded_uri}?limit=#{limit}&offset=#{offset}"
+        end
 
         sitemap = rest_browser.get(
           rest_call,
@@ -1614,7 +1663,7 @@ module PWN
         target_port = URI.parse(target_url).port.to_i
         active_scan_url_arr = []
 
-        json_sitemap = get_sitemap(burp_obj: burp_obj, target_url: target_url)
+        json_sitemap = get_sitemap(burp_obj: burp_obj, url: target_url)
         json_sitemap.uniq.each do |site|
           # Skip if the site does not have a request or http_service
           next if site[:request].empty?
@@ -2061,6 +2110,9 @@ module PWN
 
           json_proxy_history = #{self}.get_proxy_history(
             burp_obj: 'required - burp_obj returned by #start method',
+            limit: 'optional - integer to limit number of proxy history entries returned (default: 200)',
+            offset: 'optional - integer to offset proxy history results (default: 0)',
+            uri: 'optional - URI to filter proxy history results (default: nil)',
             keyword: 'optional - keyword to filter proxy history results (default: nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
@@ -2072,6 +2124,8 @@ module PWN
 
           json_proxy_history = #{self}.get_websocket_history(
             burp_obj: 'required - burp_obj returned by #start method',
+            limit: 'optional - integer to limit number of websocket history entries returned (default: 200)',
+            offset: 'optional - integer to offset websocket history results (default: 0)',
             keyword: 'optional - keyword to filter websocket history results (default: nil)'
           )
 
@@ -2082,6 +2136,9 @@ module PWN
 
           json_sitemap = #{self}.get_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
+            limit: 'optional - integer to limit number of sitemap entries returned (default: 200)',
+            offset: 'optional - integer to offset sitemap results (default: 0)',
+            uri: 'optional - URI to filter sitemap results (default: nil)',
             keyword: 'optional - keyword to filter sitemap results (default: nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
