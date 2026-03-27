@@ -161,7 +161,6 @@ module PWN
                     entry: entry
                   )
                 end
-                sleep Random.rand(30..60)
 
               when :sitemap
                 sitemap = get_sitemap(
@@ -222,7 +221,6 @@ module PWN
                     entry: entry
                   )
                 end
-                sleep Random.rand(60..90)
 
               when :websocket_history
                 websocket_history = get_websocket_history(
@@ -260,8 +258,8 @@ module PWN
                     entry: entry
                   )
                 end
-                sleep Random.rand(3..10)
               end
+              sleep Random.rand(3..10)
               offset += limit unless keep_offset
             end
           rescue Errno::ECONNREFUSED
