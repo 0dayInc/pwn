@@ -6,6 +6,7 @@ usage() {
 
 if (( $# == 3 )); then
   # Default Strategy is to merge codebase
+  sudo chown -R $USER:$USER /opt/pwn
   git config pull.rebase false
   git config commit.gpgsign true
   git pull

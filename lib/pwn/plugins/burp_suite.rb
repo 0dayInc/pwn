@@ -90,7 +90,7 @@ module PWN
             end
 
             default_http_ports = [80, 443]
-            limit = 10
+            limit = 3
             offset = 0
 
             loop do
