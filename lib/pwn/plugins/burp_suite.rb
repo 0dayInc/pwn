@@ -91,7 +91,7 @@ module PWN
 
             default_http_ports = [80, 443]
             offset = 0
-            limit = 200
+            limit = 10
 
             loop do
               # TODO: Implement repeater into the loop?  This reduces load to LLM but is slooow.
