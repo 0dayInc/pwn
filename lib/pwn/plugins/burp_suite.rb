@@ -620,6 +620,7 @@ module PWN
       #   limit: 'optional - number of proxy history entries to return (default: 200)',
       #   offset: 'optional - offset for pagination of proxy history entries (default: 0)',
       #   uri: 'optional - filter proxy history entries by URI (default: nil)',
+      #   highlight: 'optional - highlight color to filter proxy history results (default: "NONE")',
       #   keyword: 'optional - keyword to filter proxy history entries (default: nil)',
       #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
@@ -632,14 +633,15 @@ module PWN
         limit = opts[:limit] ||= 200
         offset = opts[:offset] ||= 0
         uri = opts[:uri]
+        highlight = opts[:highlight] ||= 'NONE'
         keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
 
         if uri.nil?
-          rest_call = "http://#{mitm_rest_api}/proxy/history?limit=#{limit}&offset=#{offset}"
+          rest_call = "http://#{mitm_rest_api}/proxy/history?limit=#{limit}&offset=#{offset}&highlight=#{highlight}"
         else
           base64_encoded_uri = Base64.strict_encode64(uri.to_s.scrub.strip.chomp)
-          rest_call = "http://#{mitm_rest_api}/proxy/history/#{base64_encoded_uri}?limit=#{limit}&offset=#{offset}"
+          rest_call = "http://#{mitm_rest_api}/proxy/history/#{base64_encoded_uri}?limit=#{limit}&offset=#{offset}&highlight=#{highlight}"
         end
 
         sitemap = rest_browser.get(
@@ -849,6 +851,7 @@ module PWN
       #   burp_obj: 'required - burp_obj returned by #start method',
       #   limit: 'optional - number of websocket history entries to return (default: 200)',
       #   offset: 'optional - offset for pagination of websocket history entries (default: 0)',
+      #   highlight: 'optional - highlight color to filter websocket history results (default: "NONE")',
       #   keyword: 'optional - keyword to filter websocket history entries (default: nil)'
       # )
 
@@ -859,9 +862,10 @@ module PWN
 
         limit = opts[:limit] ||= 200
         offset = opts[:offset] ||= 0
+        highlight = opts[:highlight] ||= 'NONE'
         keyword = opts[:keyword]
 
-        rest_call = "http://#{mitm_rest_api}/websocket/history?limit=#{limit}&offset=#{offset}"
+        rest_call = "http://#{mitm_rest_api}/websocket/history?limit=#{limit}&offset=#{offset}&highlight=#{highlight}"
 
         sitemap = rest_browser.get(
           rest_call,
@@ -926,6 +930,7 @@ module PWN
       #   limit: 'optional - number of sitemap entries to return (default: 200)',
       #   offset: 'optional - offset for pagination of sitemap entries (default: 0)',
       #   uri: 'optional - URI to filter sitemap entries (default: nil)',
+      #   highlight: 'optional - highlight color to filter proxy history results (default: "NONE")',
       #   keyword: 'optional - keyword to filter sitemap entries (default: nil)',
       #   return_as: 'optional - :base64 or :har (defaults to :base64)'
       # )
@@ -938,14 +943,15 @@ module PWN
         limit = opts[:limit] ||= 200
         offset = opts[:offset] ||= 0
         uri = opts[:uri]
+        highlight = opts[:highlight] ||= 'NONE'
         keyword = opts[:keyword]
         return_as = opts[:return_as] ||= :base64
 
         if uri.nil?
-          rest_call = "http://#{mitm_rest_api}/sitemap?limit=#{limit}&offset=#{offset}"
+          rest_call = "http://#{mitm_rest_api}/sitemap?limit=#{limit}&offset=#{offset}&highlight=#{highlight}"
         else
           base64_encoded_uri = Base64.strict_encode64(uri.to_s.scrub.strip.chomp)
-          rest_call = "http://#{mitm_rest_api}/sitemap/#{base64_encoded_uri}?limit=#{limit}&offset=#{offset}"
+          rest_call = "http://#{mitm_rest_api}/sitemap/#{base64_encoded_uri}?limit=#{limit}&offset=#{offset}&highlight=#{highlight}"
         end
 
         sitemap = rest_browser.get(
@@ -2118,6 +2124,7 @@ module PWN
             limit: 'optional - integer to limit number of proxy history entries returned (default: 200)',
             offset: 'optional - integer to offset proxy history results (default: 0)',
             uri: 'optional - URI to filter proxy history results (default: nil)',
+            highlight: 'optional - highlight color to filter proxy history results (default: \"NONE\")',
             keyword: 'optional - keyword to filter proxy history results (default: nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
@@ -2131,6 +2138,7 @@ module PWN
             burp_obj: 'required - burp_obj returned by #start method',
             limit: 'optional - integer to limit number of websocket history entries returned (default: 200)',
             offset: 'optional - integer to offset websocket history results (default: 0)',
+            highlight: 'optional - highlight color to filter proxy history results (default: \"NONE\")',
             keyword: 'optional - keyword to filter websocket history results (default: nil)'
           )
 
@@ -2144,6 +2152,7 @@ module PWN
             limit: 'optional - integer to limit number of sitemap entries returned (default: 200)',
             offset: 'optional - integer to offset sitemap results (default: 0)',
             uri: 'optional - URI to filter sitemap results (default: nil)',
+            highlight: 'optional - highlight color to filter proxy history results (default: \"NONE\")',
             keyword: 'optional - keyword to filter sitemap results (default: nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
