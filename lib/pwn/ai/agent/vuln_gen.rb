@@ -69,7 +69,7 @@ module PWN
 
           analysis
         rescue StandardError => e
-          raise e.backtrace
+          raise e
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
