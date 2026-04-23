@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'fileutils'
+
 module PWN
   module AI
     module Agent
@@ -10,20 +12,21 @@ module PWN
       # 4. CVSS score, vector string, and first.org calculator URI
       # 5. CWE category, brief description, and CWE URI
       # 6. Relevant NIST 800-53 control
-      # It leverages the PWN::AI::Introspection.reflect_on method. Defaults to Markdown for bug bounty report readiness.
+      # It leverages the PWN::AI::Introspection.reflect_on method. Defaults to Jira for existing workflow compatibility.
       module VulnGen
         # Supported Method Parameters::
         # ai_analysis = PWN::AI::Agent::VulnGen.analyze(
         #   request: 'required - high level description of vulnerability discovered (e.g. "Discovered a SQLi vulnerability in /login"',
-        #   markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :markdown)',
+        #   markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :jira)',
         #   output_path: 'optional - path to save the generated markdown report'
         # )
 
         public_class_method def self.analyze(opts = {})
           request = opts[:request]
+          output_path = opts[:output_path]
           raise 'ERROR: request parameter is required' if request.nil? || request.empty?
 
-          markup_type = opts[:markup_type] ||= :markdown
+          markup_type = opts[:markup_type] ||= :jira
 
           markup = ''
           case markup_type
@@ -60,11 +63,10 @@ module PWN
             suppress_pii_warning: true
           )
 
-          if opts[:output_path]
-            require 'fileutils'
-            FileUtils.mkdir_p(File.dirname(opts[:output_path]))
-            File.write(opts[:output_path], analysis.to_s)
-            puts "\n✅ Vulnerability report written to: #{opts[:output_path]}"
+          if output_path
+            FileUtils.mkdir_p(File.dirname(output_path))
+            File.write(output_path, analysis.to_s)
+            puts "\nVulnerability report written to: #{output_path}"
           end
 
           analysis
@@ -86,7 +88,7 @@ module PWN
           puts "USAGE:
             ai_analysis = #{self}.analyze(
               request: 'required - high level description of vulnerability discovered (e.g. \"Discovered a SQLi vulnerability in /login\"',
-              markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :markdown)',
+              markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :jira)',
               output_path: 'optional - full path to save the generated report as .md (e.g. /home/claw/reports/sqli-finding.md)'
             )
 
