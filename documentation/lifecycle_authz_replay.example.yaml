@@ -1,0 +1,27 @@
+campaign:
+  id: github-collaborator-revoke
+  label: GitHub collaborator removal replay
+  target: https://github.com/acme/private-repo
+  change_event: remove_collaborator
+  notes: Capture access before and after collaborator removal.
+
+actors:
+  - id: owner
+    label: Repository owner account
+  - id: revoked_user
+    label: User removed from repository
+
+surfaces:
+  - id: repo_settings_page
+    label: Repository settings HTML page
+  - id: repo_metadata_api
+    label: Repository metadata API endpoint
+
+checkpoints:
+  - pre_change
+  - post_change_t0
+  - post_change_tn
+
+expected_denied_after:
+  - post_change_t0
+  - post_change_tn
