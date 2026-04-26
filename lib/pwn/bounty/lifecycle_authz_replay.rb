@@ -23,7 +23,7 @@ module PWN
         raise 'yaml_path is required' if yaml_path.to_s.strip.empty?
         raise "YAML plan does not exist: #{yaml_path}" unless File.exist?(yaml_path)
 
-        raw_plan = YAML.safe_load(File.read(yaml_path), aliases: true) || {}
+        raw_plan = YAML.safe_load_file(yaml_path, aliases: true) || {}
         normalize_plan(plan: symbolize_obj(raw_plan), plan_id_hint: File.basename(yaml_path, File.extname(yaml_path)))
       rescue StandardError => e
         raise e
@@ -217,9 +217,7 @@ module PWN
         checkpoints = DEFAULT_CHECKPOINTS if checkpoints.empty?
 
         expected_denied_after = Array(plan[:expected_denied_after]).map { |checkpoint| normalize_token(checkpoint) }.reject(&:empty?)
-        if expected_denied_after.empty?
-          expected_denied_after = checkpoints.select { |checkpoint| checkpoint.start_with?('post_change') }
-        end
+        expected_denied_after = checkpoints.select { |checkpoint| checkpoint.start_with?('post_change') } if expected_denied_after.empty?
 
         {
           campaign: {
@@ -337,7 +335,7 @@ module PWN
         runbook_path = File.join(run_obj[:run_root], 'RUNBOOK.md')
 
         runbook_lines = []
-        runbook_lines << "# Lifecycle Authz Replay Runbook"
+        runbook_lines << '# Lifecycle Authz Replay Runbook'
         runbook_lines <<
           "Run ID: `#{run_obj[:run_id]}`  " \
           "Campaign: `#{plan[:campaign][:id]}`  " \
