@@ -13,6 +13,7 @@ module PWN
   autoload :AI, 'pwn/ai'
   autoload :AWS, 'pwn/aws'
   autoload :Banner, 'pwn/banner'
+  autoload :Bounty, 'pwn/bounty'
   autoload :Blockchain, 'pwn/blockchain'
   autoload :Config, 'pwn/config'
   autoload :Driver, 'pwn/driver'
