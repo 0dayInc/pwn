@@ -117,7 +117,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai' do
-          description 'Initiate pwn.ai Hermes-equivalent autonomous agent TUI (instruct tasks using PWN modules + CLI tools; skills-aware from PWN::Config).'
+          description 'Initiate pwn.ai autonomous agent TUI (instruct tasks using PWN modules + CLI tools; skills-aware from PWN::Config).'
 
           def process
             pi = pry_instance
@@ -134,8 +134,8 @@ module PWN
             PWN::Config.load_skills(pwn_skills_path: skills_path)
             skills_count = (PWN.const_defined?(:Skills) ? PWN::Skills.keys.length : 0)
 
-            puts "
-[*] pwn-ai Hermes-equivalent agent TUI activated (PWN REPL driver)."
+            puts "\
+[*] pwn-ai agent TUI activated (PWN REPL driver)."
             puts '[*] Instruct the AI agent to carry out a task, e.g.:'
             puts "    'Use NmapIt to port scan target.com then use TransparentBrowser to spider and SAST::TestCaseEngine to analyze code if cloned. Generate report with PWN::Reports.'"
             puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"

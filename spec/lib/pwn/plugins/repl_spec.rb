@@ -14,7 +14,7 @@ describe PWN::Plugins::REPL do
   end
 end
 
-it 'should support pwn-ai (Hermes-equivalent agent) via REPL' do
+it 'should support pwn-ai agent via REPL' do
   # The pwn-ai command is registered in add_commands; basic module responds
   expect(PWN::Plugins::REPL).to respond_to :help
   expect(PWN::Plugins::REPL).to respond_to :authors
