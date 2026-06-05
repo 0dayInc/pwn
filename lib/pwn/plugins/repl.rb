@@ -4,6 +4,7 @@ require 'curses'
 require 'fileutils'
 require 'meshtastic'
 require 'pry'
+require 'reline'
 require 'tty-prompt'
 require 'unicode/display_width'
 require 'yaml'
@@ -12,10 +13,52 @@ module PWN
   module Plugins
     # This module contains methods related to the pwn REPL Driver.
     module REPL
-      # Supported Method Parameters::
-      # PWN::Plugins::REPL.refresh_ps1_proc(
-      #   mode: 'required - :splat or nil'
-      # )
+      # Custom input handler for pwn-ai to support multi-line submissions:
+      # - SHIFT+ENTER (common terminal sequences) or Ctrl+J / Alt+Enter inserts a newline (continue editing)
+      # - plain ENTER submits the full prompt (possibly multi-line) to the AI
+      # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER)
+      class PwnAIInput
+        attr_reader :line_buffer
+
+        def initialize
+          @line_buffer = ''
+        end
+
+        def readline(prompt)
+          # Common escape sequences for SHIFT+ENTER across terminals (xterm, modern, etc.)
+          shift_enter_seqs = [
+            "\e[13;2~",
+            "\e[1;2~",
+            "\e\r",
+            "\e\n",
+            "\e[13;2u",
+            "\u001b[13;2u"
+          ]
+          shift_enter_seqs.each do |seq|
+            Reline.config.add_oneshot_key_binding(seq.bytes, :key_newline)
+          end
+
+          begin
+            # readmultiline with confirm block that *always* returns true:
+            #   => normal ENTER triggers finish/submit of the (multi-line) buffer
+            # The bound SHIFT+ENTER (and built-in Ctrl+J / M-^M) trigger key_newline (insert \n, stay in edit)
+            # Reline in multiline mode also handles multi-line pastes by splitting on \n in the buffer.
+            @line_buffer = Reline.readmultiline(prompt, true) { |_buffer| true } || ''
+          ensure
+            Reline.config.reset_oneshot_key_bindings
+          end
+          @line_buffer
+        end
+
+        # Compatibility with Pry input expectations (used by hooks for line_buffer, and possibly completer/tty checks)
+        def tty?
+          true
+        end
+
+        def winsize
+          [TTY::Screen.rows || 24, TTY::Screen.columns || 80]
+        end
+      end
 
       public_class_method def self.refresh_ps1_proc(opts = {})
         mode = opts[:mode]
@@ -124,6 +167,10 @@ module PWN
             pi.config.pwn_ai = true
             pi.config.pwn_ai_agent = true
             pi.config.color = false if pi.config.pwn_ai
+
+            # Switch to custom multi-line input for pwn-ai (SHIFT+ENTER newline, ENTER submit)
+            pi.config.pwn_ai_original_input ||= Pry.config.input
+            Pry.config.input = PwnAIInput.new
 
             # Load and make aware of skills folder (scaled in PWN::Config per user pwn_env_path parent)
             skills_path = begin
@@ -882,6 +929,10 @@ module PWN
             pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
+            if pi.config.pwn_ai_original_input
+              Pry.config.input = pi.config.pwn_ai_original_input
+              pi.config.pwn_ai_original_input = nil
+            end
             return unless pi.config.pwn_mesh
 
             pi.config.pwn_mesh = false
