@@ -30,6 +30,15 @@ module PWN
         ) do |o|
           @opts[:pwn_dec_path] = o
         end
+
+        on_tail(
+          '-v',
+          '--version',
+          'Print PWN version and exit'
+        ) do
+          puts PWN::VERSION
+          exit 0
+        end
       end
 
       def parse!
