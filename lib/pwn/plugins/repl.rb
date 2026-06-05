@@ -117,7 +117,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai' do
-          description 'Initiate pwn.ai autonomous agent TUI (instruct tasks using PWN modules + CLI tools; skills-aware from PWN::Config).'
+          description 'Initiate pwn.ai autonomous agent TUI (instruct tasks using PWN modules + CLI tools; memory/sessions/agents/cron/skills-aware from PWN::Config/PWN::Memory etc).'
 
           def process
             pi = pry_instance
@@ -134,14 +134,126 @@ module PWN
             PWN::Config.load_skills(pwn_skills_path: skills_path)
             skills_count = (PWN.const_defined?(:Skills) ? PWN::Skills.keys.length : 0)
 
+            # Hermes-equivalent memory/sessions/cron init for this pwn-ai activation
+            PWN::Config.load_memory
+            mem_count = (PWN.const_defined?(:Memory) ? PWN::Memory.load.keys.length : 0)
+            sess = begin
+              PWN::Sessions.create(title: "pwn-ai #{Time.now.strftime('%Y-%m-%d %H:%M')}", source: 'pwn-ai-repl')
+            rescue StandardError
+              nil
+            end
+            pi.config.pwn_ai_session_id = sess[:id] if sess
+            cron_count = (PWN.const_defined?(:Cron) ? PWN::Cron.list.keys.length : 0)
+
             puts "\
-[*] pwn-ai agent TUI activated (PWN REPL driver)."
+[*] pwn-ai agent TUI activated (PWN REPL driver w/ memory, sessions, delegation, cron)."
+            puts "[*] Memory facts: #{mem_count} | Session: #{pi.config.pwn_ai_session_id} | Cron jobs: #{cron_count} | Skills: #{skills_count}"
             puts '[*] Instruct the AI agent to carry out a task, e.g.:'
             puts "    'Use NmapIt to port scan target.com then use TransparentBrowser to spider and SAST::TestCaseEngine to analyze code if cloned. Generate report with PWN::Reports.'"
             puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"
-            puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) to expand autonomous capabilities."
+            puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) + memory/sessions/cron to expand autonomous capabilities."
             puts "[*] Type 'toggle-pwn-ai' or normal pwn commands to exit agent mode.
 "
+          end
+        end
+
+        Pry::Commands.create_command 'pwn-ai-memory' do
+          description 'Manage pwn-ai persistent memory (Hermes equiv).'
+
+          def process
+            cmd = args[0]
+            case cmd
+            when 'list', 'recall', nil
+              q = args[1]
+              res = PWN::Memory.recall(query: q)
+              puts res.inspect
+            when 'remember'
+              key = args[1]
+              val = args[2..-1].join(' ')
+              PWN::Memory.remember(key: key, value: val)
+              puts "Remembered #{key}"
+            when 'forget'
+              PWN::Memory.forget(args[1])
+              puts "Forgot #{args[1]}"
+            when 'clear'
+              PWN::Memory.clear
+              puts 'Memory cleared'
+            else
+              puts PWN::Memory.help
+            end
+          end
+        end
+
+        Pry::Commands.create_command 'pwn-ai-sessions' do
+          description 'List/resume/delete pwn-ai sessions (Hermes equiv).'
+
+          def process
+            cmd = args[0]
+            case cmd
+            when 'list', nil
+              puts PWN::Sessions.list.inspect
+            when 'resume'
+              sid = args[1]
+              hist = PWN::Sessions.to_response_history(session_id: sid)
+              puts "Loaded session #{sid} with #{hist[:choices].size} entries (set manually into response_history if needed)"
+            when 'delete'
+              PWN::Sessions.delete(session_id: args[1])
+              puts "Deleted #{args[1]}"
+            when 'stats'
+              puts PWN::Sessions.stats
+            else
+              puts PWN::Sessions.help
+            end
+          end
+        end
+
+        Pry::Commands.create_command 'pwn-ai-cron' do
+          description 'Manage scheduled pwn-ai / cron jobs (Hermes equiv).'
+
+          def process
+            cmd = args[0]
+            case cmd
+            when 'list', nil
+              puts PWN::Cron.list.inspect
+            when 'create'
+              # simplistic: pwn-ai-cron create '0 * * * *' 'prompt here'
+              sched = args[1]
+              pr = args[2..-1].join(' ')
+              job = PWN::Cron.create(schedule: sched, prompt: pr)
+              puts "Created #{job}"
+            when 'run'
+              res = PWN::Cron.run(id: args[1])
+              puts res
+            when 'remove'
+              PWN::Cron.remove(id: args[1])
+              puts 'Removed'
+            else
+              puts PWN::Cron.help
+            end
+          end
+        end
+
+        Pry::Commands.create_command 'pwn-ai-delegate' do
+          description 'Delegate sub-task to a PWN::AI::Agent or simple sub-chat (Hermes delegation equiv).'
+
+          def process
+            goal = args.join(' ')
+            puts "[*] Delegating: #{goal}"
+            # Simple delegation: use a specialized agent if matches, else another chat turn
+            if goal =~ /sast|code|scan/i
+              res = PWN::AI::Agent::SAST.analyze(request: goal)
+            elsif goal =~ /vuln|report/i
+              res = PWN::AI::Agent::VulnGen.analyze(request: goal)
+            else
+              # fallback sub call to active engine (no full loop here)
+              engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+              case engine
+              when :anthropic then res = PWN::AI::Anthropic.chat(request: goal)
+              when :grok then res = PWN::AI::Grok.chat(request: goal)
+              else res = PWN::AI::Ollama.chat(request: goal)
+              end
+            end
+            puts res
           end
         end
 
@@ -871,9 +983,25 @@ module PWN
             skills_context = ''
             PWN::Skills.each { |n, m| skills_context += "\n--- SKILL #{n} ---\n#{m[:content].to_s[0, 1200]}\n" } if is_agent && PWN.const_defined?(:Skills) && PWN::Skills.is_a?(Hash)
 
+            memory_context = ''
+            memory_context = PWN::Memory.to_context(limit: 25) if is_agent && PWN.const_defined?(:Memory)
+
+            sess_id = begin
+              pi.config.pwn_ai_session_id
+            rescue StandardError
+              nil
+            end
+
             # Pre-process for clear CLI execution intent (e.g. "what does `id` return?")
             # This makes the agent actually *run* commands instead of just explaining them.
             curr_req = request.chomp
+            if is_agent && sess_id && PWN.const_defined?(:Sessions)
+              begin
+                PWN::Sessions.append(session_id: sess_id, role: 'user', content: orig_request)
+              rescue StandardError
+                nil
+              end
+            end
             if is_agent && request =~ /`([^`]+)`/
               potential = ::Regexp.last_match(1).strip
               # Looks like a shell command (not PWN ruby)
@@ -890,26 +1018,36 @@ module PWN
               base = PWN::Env[:ai][engine][:system_role_content] || 'You are an ethical hacker.'
               system_role = base + <<~PROMPT
 
-                You are operating as a Hermes-style autonomous agent inside the PWN REPL driver.
+                                You are operating as a Hermes-style autonomous agent inside the PWN REPL driver.
 
-                PRIMARY RULE FOR CLI AND TOOLS: When the user asks for the output of a command, "what does X return?", "run X", or anything that requires real execution, you MUST use a tool call.#{' '}
-                NEVER just explain what a command does or what its output "would be".#{' '}
-                To execute anything:
-                  - Output *exactly and only* a fenced code block.
-                  - For shell/CLI: ```bash
-                <exact command here>
-                ```
-                  - For PWN Ruby modules: ```ruby
-                PWN::Plugins::NmapIt.port_scan(...)
-                ```
-                The host will execute it (Ruby in full PWN context, bash via shell) and reply with an OBSERVATION containing the real result.#{' '}
-                Then continue or give the final answer.
+                                PRIMARY RULE FOR CLI AND TOOLS: When the user asks for the output of a command, "what does X return?", "run X", or anything that requires real execution, you MUST use a tool call.#{' '}
+                                NEVER just explain what a command does or what its output "would be".#{' '}
+                                To execute anything:
+                                  - Output *exactly and only* a fenced code block.
+                                  - For shell/CLI: ```bash
+                                <exact command here>
+                                ```
+                                  - For PWN Ruby modules: ```ruby
+                                PWN::Plugins::NmapIt.port_scan(...)
+                                ```
+                                The host will execute it (Ruby in full PWN context, bash via shell) and reply with an OBSERVATION containing the real result.#{' '}
+                                Then continue or give the final answer.
 
-                Available tools include all PWN::Plugins (NmapIt, TransparentBrowser, etc.), SAST, Reports, and any CLI via bash blocks.
-                Skills available this session:#{skills_context}
+                                Available tools include all PWN::Plugins (NmapIt, TransparentBrowser, etc.), SAST, Reports, and any CLI via bash blocks.
+                                Skills available this session:#{skills_context}
+                #{memory_context}
 
-                After receiving an observation, decide the next step or conclude.
-                If you output text without a code block, it will be treated as your final answer to the user.
+                                PERSISTENT CAPABILITIES (use via ruby code blocks or direct calls):
+                                - Memory (cross-session): PWN::Memory.remember(key: :key, value: val, category: :fact|:preference|:lesson)
+                                  PWN::Memory.recall(query: 'foo'), PWN::Memory.forget(key)
+                                - Sessions: current session id = #{sess_id}; PWN::Sessions.append(session_id: '#{sess_id}', role: 'observation', content: obs)
+                                - Cron: PWN::Cron.create(schedule: '0 * * * *', prompt: 'task here', name: 'foo')
+                                  PWN::Cron.run(id: 'id'); list with PWN::Cron.list
+                                - Agents/Delegation: PWN::AI::Agent::SAST.analyze(request: ...); PWN::AI::Agent::VulnGen etc.
+                                  For sub-agents use threads or separate eval calls and feed results back as OBS.
+
+                                After receiving an observation, decide the next step or conclude.
+                                If you output text without a code block, it will be treated as your final answer to the user.
               PROMPT
             end
 
@@ -958,6 +1096,13 @@ module PWN
               end
 
               puts "\n\001\e[32m\002#{last_response}\001\e[0m\002\n\n"
+              if is_agent && sess_id && PWN.const_defined?(:Sessions)
+                begin
+                  PWN::Sessions.append(session_id: sess_id, role: 'assistant', content: last_response)
+                rescue StandardError
+                  nil
+                end
+              end
 
               if debug
                 puts 'DEBUG: response_history => '
@@ -1000,6 +1145,13 @@ module PWN
                   end
 
                   puts "\001\e[36m\002[OBSERVATION from #{lang}]\001\e[0m\002\n#{obs[0..700]}\n"
+                  if is_agent && sess_id && PWN.const_defined?(:Sessions)
+                    begin
+                      PWN::Sessions.append(session_id: sess_id, role: 'observation', content: obs)
+                    rescue StandardError
+                      nil
+                    end
+                  end
 
                   # Feed real result back to the model as the next "user" message in the loop
                   curr_req = "OBSERVATION (#{lang} execution result for previous block):\n#{obs}\n\n" \

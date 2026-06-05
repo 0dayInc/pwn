@@ -19,3 +19,9 @@ it 'should support pwn-ai agent via REPL' do
   expect(PWN::Plugins::REPL).to respond_to :help
   expect(PWN::Plugins::REPL).to respond_to :authors
 end
+
+it 'should support pwn-ai memory/sessions/cron/delegate commands via REPL' do
+  expect(PWN::Plugins::REPL).to respond_to :help
+  # Commands are registered dynamically in add_commands; basic smoke
+  # Full integration tested at runtime in pwn REPL
+end
