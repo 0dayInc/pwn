@@ -117,13 +117,31 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai' do
-          description 'Initiate pwn.ai chat interface.'
+          description 'Initiate pwn.ai Hermes-equivalent autonomous agent TUI (instruct tasks using PWN modules + CLI tools; skills-aware from PWN::Config).'
 
           def process
             pi = pry_instance
             pi.config.pwn_ai = true
+            pi.config.pwn_ai_agent = true
             pi.config.color = false if pi.config.pwn_ai
-            pi.config.color = true unless pi.config.pwn_ai
+
+            # Load and make aware of skills folder (scaled in PWN::Config per user pwn_env_path parent)
+            skills_path = begin
+              PWN::Config.pwn_skills_path
+            rescue StandardError
+              "#{Dir.home}/.pwn/skills"
+            end
+            PWN::Config.load_skills(pwn_skills_path: skills_path)
+            skills_count = (PWN.const_defined?(:Skills) ? PWN::Skills.keys.length : 0)
+
+            puts "
+[*] pwn-ai Hermes-equivalent agent TUI activated (PWN REPL driver)."
+            puts '[*] Instruct the AI agent to carry out a task, e.g.:'
+            puts "    'Use NmapIt to port scan target.com then use TransparentBrowser to spider and SAST::TestCaseEngine to analyze code if cloned. Generate report with PWN::Reports.'"
+            puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"
+            puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) to expand autonomous capabilities."
+            puts "[*] Type 'toggle-pwn-ai' or normal pwn commands to exit agent mode.
+"
           end
         end
 
@@ -748,6 +766,7 @@ module PWN
             pi.config.color = true
             pi.config.pwn_asm = false if pi.config.pwn_asm
             pi.config.pwn_ai = false if pi.config.pwn_ai
+            pi.config.pwn_ai_agent = false if pi.config.pwn_ai_agent
             pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
@@ -845,6 +864,11 @@ module PWN
             engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
             response_history = PWN::Env[:ai][engine][:response_history]
             speak_answer = pi.config.pwn_ai_speak
+            is_agent = !pi.config.pwn_ai_agent.nil?
+
+            # pwn-ai agent mode (Hermes TUI equiv): load skills context for autonomous task carrying
+            skills_context = ''
+            PWN::Skills.each { |n, m| skills_context += "\n--- SKILL #{n} ---\n#{m[:content].to_s[0, 1200]}\n" } if is_agent && PWN.const_defined?(:Skills) && PWN::Skills.is_a?(Hash)
 
             case engine
             when :grok

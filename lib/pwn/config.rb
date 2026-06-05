@@ -142,6 +142,11 @@ module PWN
       # Change file permission to 600
       File.chmod(0o600, pwn_env_path)
 
+      # Ensure skills dir for pwn-ai agent (in parent of pwn_env_path)
+      pwn_env_root = File.dirname(pwn_env_path)
+      pwn_skills_path = File.join(pwn_env_root, 'skills')
+      FileUtils.mkdir_p(pwn_skills_path)
+
       env[:driver_opts] = {
         pwn_env_path: pwn_env_path,
         pwn_dec_path: pwn_dec_path
@@ -153,6 +158,9 @@ module PWN
       )
 
       Pry.config.refresh_pwn_env = false if defined?(Pry)
+      env[:pwn_skills_path] = pwn_skills_path
+      PWN::Config.load_skills(pwn_skills_path: pwn_skills_path)
+
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
       PWN.const_set(:Env, env.freeze)
     rescue StandardError => e
@@ -203,9 +211,13 @@ module PWN
 
     public_class_method def self.refresh_env(opts = {})
       pwn_env_root = "#{Dir.home}/.pwn"
+      pwn_env_path = opts[:pwn_env_path] ||= "#{pwn_env_root}/pwn.yaml"
+      pwn_env_root = File.dirname(pwn_env_path)
       FileUtils.mkdir_p(pwn_env_root)
 
-      pwn_env_path = opts[:pwn_env_path] ||= "#{pwn_env_root}/pwn.yaml"
+      pwn_skills_path = File.join(pwn_env_root, 'skills')
+      FileUtils.mkdir_p(pwn_skills_path)
+
       return default_env(pwn_env_path: pwn_env_path) unless File.exist?(pwn_env_path)
 
       is_encrypted = PWN::Plugins::Vault.file_encrypted?(file: pwn_env_path)
@@ -264,11 +276,16 @@ module PWN
         pwn_dec_path: pwn_dec_path
       }
 
+      # Make pwn-ai (Hermes agent TUI equiv) aware of skills folder in pwn_env parent (before freeze)
+      env[:pwn_skills_path] = pwn_skills_path if defined?(pwn_skills_path)
+      PWN::Config.load_skills(pwn_skills_path: pwn_skills_path) if defined?(pwn_skills_path)
+
       # Assign the refreshed env to PWN::Env
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
       PWN.const_set(:Env, env.freeze)
 
       # Redact sensitive artifacts from PWN::Env and store in PWN::EnvRedacted
+
       env_redacted = redact_sensitive_artifacts(config: env)
       PWN.send(:remove_const, :EnvRedacted) if PWN.const_defined?(:EnvRedacted)
       PWN.const_set(:EnvRedacted, env_redacted.freeze)
@@ -276,6 +293,55 @@ module PWN
       Pry.config.refresh_pwn_env = false if defined?(Pry)
 
       puts "[*] PWN::Env loaded via: #{pwn_env_path}\n"
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
+    # pwn_skills_path = PWN::Config.pwn_skills_path(
+    #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+    # )
+    public_class_method def self.pwn_skills_path(opts = {})
+      pwn_env_path = opts[:pwn_env_path] ||= "#{Dir.home}/.pwn/pwn.yaml"
+      File.join(File.dirname(pwn_env_path), 'skills')
+    end
+
+    # Supported Method Parameters::
+    # skills = PWN::Config.load_skills(
+    #   pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'
+    # )
+    #
+    # Loads instruction-based skills (.md, .txt, .skill, .yaml) and executable Ruby skills (.rb)
+    # into PWN::Skills constant (hash of basename => {type, path, content, loaded?}).
+    # The pwn-ai command (REPL driver) loads and is aware of this folder to expand
+    # autonomous agent capabilities (equivalent to Hermes agent TUI skills for task execution).
+    public_class_method def self.load_skills(opts = {})
+      pwn_skills_path = opts[:pwn_skills_path] || PWN::Env[:pwn_skills_path] || pwn_skills_path
+      FileUtils.mkdir_p(pwn_skills_path) if pwn_skills_path && !Dir.exist?(pwn_skills_path.to_s)
+
+      skills = {}
+      return skills unless pwn_skills_path && Dir.exist?(pwn_skills_path.to_s)
+
+      Dir.glob(File.join(pwn_skills_path, '*.{rb,md,txt,skill,yml,yaml}')).each do |skill_file|
+        basename = File.basename(skill_file, '.*').to_sym
+        content = File.read(skill_file)
+        ext = File.extname(skill_file).downcase
+
+        if ext == '.rb'
+          begin
+            require skill_file
+            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: true }
+          rescue StandardError => e
+            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: false, error: e.message }
+          end
+        else
+          skills[basename] = { type: :instruction, path: skill_file, content: content }
+        end
+      end
+
+      PWN.send(:remove_const, :Skills) if PWN.const_defined?(:Skills)
+      PWN.const_set(:Skills, skills.freeze)
+      skills
     rescue StandardError => e
       raise e
     end

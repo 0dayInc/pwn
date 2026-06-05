@@ -4,6 +4,7 @@ require 'minitest/autorun'
 require 'tmpdir'
 require 'pwn'
 
+# Smoke test for lifecycle authz replay (minitest, not rspec). Docs in main spec.
 class LifecycleAuthzReplaySmokeTest < Minitest::Test
   def test_builds_evidence_bundle_and_flags_stale_access
     Dir.mktmpdir('lifecycle-authz-replay-smoke-') do |tmp_dir|
