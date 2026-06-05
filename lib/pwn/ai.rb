@@ -6,6 +6,7 @@ module PWN
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module AI
     autoload :Agent, 'pwn/ai/agent'
+    autoload :Anthropic, 'pwn/ai/anthropic'
     autoload :Grok, 'pwn/ai/grok'
     autoload :Introspection, 'pwn/ai/introspection'
     autoload :Ollama, 'pwn/ai/ollama'
