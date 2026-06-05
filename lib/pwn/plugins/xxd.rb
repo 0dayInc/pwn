@@ -146,6 +146,25 @@ module PWN
 
       # Supported Method Parameters::
       # PWN::Plugins::XXD.reverse_dump(
+      #   string: 'required - continuous hex string to reverse (i.e. "68656c6c6f")',
+      #   file: 'required - path to binary file to dump'
+      # )
+
+      def self.reverse_hex_string(opts = {})
+        string = opts[:string]
+        file = opts[:file]
+
+        raise ArgumentError, 'string is required' if string.nil?
+
+        raise ArgumentError, 'output file is required' if file.nil?
+
+        File.binwrite(file, [string].pack('H*'))
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # PWN::Plugins::XXD.reverse_dump(
       #   hexdump: 'required - hexdump returned from #dump method',
       #   file: 'required - path to binary file to dump',
       #   byte_chunks: 'optional - if set, will write n byte chunks of hexdump to multiple files'
@@ -283,6 +302,11 @@ module PWN
           #    [0x5558c3101ffb]> v
           #    <step through via F7, F8, F9, etc. to get to desired instruction>
           #    ```
+
+          #{self}.reverse_hex_string(
+            string: 'required - continuous hex string to reverse (i.e. \"68656c6f\")',
+            file: 'required - path to binary file to dump'
+          )
 
           #{self}.reverse_dump(
             hexdump: 'required - hexdump returned from #dump method',
