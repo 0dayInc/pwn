@@ -53,6 +53,14 @@ module PWN
             system_role_content: 'You are an ethically hacking Ollama agent.',
             temp: 'optional - Ollama temperature',
             max_prompt_length: 32_000
+          },
+          anthropic: {
+            base_uri: 'optional - Base URI for Anthropic - Use private base OR defaults to https://api.anthropic.com/v1',
+            key: 'required - Anthropic API Key',
+            model: 'optional - Anthropic model to use (e.g. claude-3-5-sonnet-20240620)',
+            system_role_content: 'You are an ethically hacking Anthropic agent.',
+            temp: 'optional - Anthropic temperature',
+            max_prompt_length: 200_000
           }
         },
         plugins: {

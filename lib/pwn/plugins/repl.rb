@@ -339,6 +339,12 @@ module PWN
                             response_history: response_history,
                             spinner: false
                           )
+                        when :anthropic
+                          response = PWN::AI::Anthropic.chat(
+                            request: request,
+                            response_history: response_history,
+                            spinner: false
+                          )
                         end
 
                         response_history = {
@@ -857,6 +863,13 @@ module PWN
               )
             when :openai
               response = PWN::AI::OpenAI.chat(
+                request: request.chomp,
+                response_history: response_history,
+                speak_answer: speak_answer,
+                spinner: true
+              )
+            when :anthropic
+              response = PWN::AI::Anthropic.chat(
                 request: request.chomp,
                 response_history: response_history,
                 speak_answer: speak_answer,

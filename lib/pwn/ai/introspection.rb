@@ -65,6 +65,15 @@ module PWN
               response = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
               response = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
             end
+          when :anthropic
+            response = PWN::AI::Anthropic.chat(
+              request: request.chomp,
+              system_role_content: system_role_content,
+              spinner: spinner
+            )
+            response = response[:choices].last[:content] if response.is_a?(Hash) &&
+                                                            response.key?(:choices) &&
+                                                            response[:choices].last.keys.include?(:content)
           end
         end
 
