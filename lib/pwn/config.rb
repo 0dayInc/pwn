@@ -133,10 +133,23 @@ module PWN
             }
           },
           shodan: { api_key: 'SHODAN API Key' }
+        },
+        memory: {
+          enabled: true,
+          provider: 'file' # file | sqlite (future)
+        },
+        sessions: {
+          enabled: true,
+          provider: 'jsonl'
+        },
+        cron: {
+          enabled: true,
+          provider: 'yaml'
         }
       }
 
       # Remove beginning colon from key names
+
       yaml_env = YAML.dump(env).gsub(/^(\s*):/, '\1')
       File.write(pwn_env_path, yaml_env)
       # Change file permission to 600
@@ -161,7 +174,13 @@ module PWN
       env[:pwn_skills_path] = pwn_skills_path
       PWN::Config.load_skills(pwn_skills_path: pwn_skills_path)
 
+      # Hermes-equivalent memory/sessions/cron paths (pwn-ai agent)
+      env[:pwn_memory_path] = PWN::Memory::MEMORY_FILE if defined?(PWN::Memory)
+      env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
+      env[:pwn_cron_path] = PWN::Cron.cron_dir if defined?(PWN::Cron)
+
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
+
       PWN.const_set(:Env, env.freeze)
     rescue StandardError => e
       raise e
@@ -280,7 +299,14 @@ module PWN
       env[:pwn_skills_path] = pwn_skills_path if defined?(pwn_skills_path)
       PWN::Config.load_skills(pwn_skills_path: pwn_skills_path) if defined?(pwn_skills_path)
 
+      # Hermes-equivalent: memory, sessions, cron for pwn-ai agent (before freeze)
+      env[:pwn_memory_path] = PWN::Memory::MEMORY_FILE if defined?(PWN::Memory)
+      PWN::Memory.load if defined?(PWN::Memory)
+      env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
+      env[:pwn_cron_path] = PWN::Cron.cron_dir if defined?(PWN::Cron)
+
       # Assign the refreshed env to PWN::Env
+
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
       PWN.const_set(:Env, env.freeze)
 
@@ -344,6 +370,30 @@ module PWN
       skills
     rescue StandardError => e
       raise e
+    end
+
+    # Supported Method Parameters::
+    #   path = PWN::Config.pwn_memory_path
+    public_class_method def self.pwn_memory_path
+      defined?(PWN::Memory) ? PWN::Memory::MEMORY_FILE : File.join(Dir.home, '.pwn', 'memory.json')
+    end
+
+    # Supported Method Parameters::
+    #   PWN::Config.load_memory
+    public_class_method def self.load_memory
+      defined?(PWN::Memory) ? PWN::Memory.load : {}
+    end
+
+    # Supported Method Parameters::
+    #   path = PWN::Config.pwn_sessions_path
+    public_class_method def self.pwn_sessions_path
+      defined?(PWN::Sessions) ? PWN::Sessions.sessions_dir : File.join(Dir.home, '.pwn', 'sessions')
+    end
+
+    # Supported Method Parameters::
+    #   path = PWN::Config.pwn_cron_path
+    public_class_method def self.pwn_cron_path
+      defined?(PWN::Cron) ? PWN::Cron.cron_dir : File.join(Dir.home, '.pwn', 'cron')
     end
 
     # Author(s):: 0day Inc. <support@0dayinc.com>
