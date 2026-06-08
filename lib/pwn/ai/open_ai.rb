@@ -98,8 +98,12 @@ module PWN
           end
           response
         rescue RestClient::TooManyRequests => e
-          retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
-          sleep(retry_after + rand(0.3..5.0))
+          duration = 0
+          if e.response
+            retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
+            duration = retry_after.to_i
+          end
+          sleep(duration + rand(0.3..5.0))
           retry_count += 1
 
           retry
