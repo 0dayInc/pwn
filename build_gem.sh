@@ -14,8 +14,9 @@ for previous_gem in pkg/*.gem; do
 done
 old_ruby_version=`cat ${pwn_root}/.ruby-version`
 # Default Strategy is to merge codebase
-rvmsudo git config pull.rebase false 
-rvmsudo git pull
+sudo chown -R $USER:$USER $pwn_root
+git config pull.rebase false 
+git pull
 new_ruby_version=`cat ${pwn_root}/.ruby-version`
 
 rvmsudo gem update --system

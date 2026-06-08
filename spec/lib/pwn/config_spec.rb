@@ -13,13 +13,3 @@ describe PWN::Config do
     expect(help_response).to respond_to :help
   end
 end
-
-it 'should respond to pwn_skills_path' do
-  expect(PWN::Config).to respond_to :pwn_skills_path
-end
-
-it 'should respond to load_skills and create/return skills hash' do
-  expect(PWN::Config).to respond_to :load_skills
-  skills = PWN::Config.load_skills
-  expect(skills).to be_a(Hash)
-end

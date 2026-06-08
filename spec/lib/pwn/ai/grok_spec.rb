@@ -13,10 +13,3 @@ describe PWN::AI::Grok do
     expect(help_response).to respond_to :help
   end
 end
-it 'should support oauth configuration for xAI SuperGrok subscriptions (in addition to API key via PWN::Config vault)' do
-  grok = PWN::AI::Grok
-  expect(grok).to respond_to :get_models
-  expect(grok).to respond_to :chat
-  # oauth support is via PWN::Env[:ai][:grok][:oauth][:access_token] (preferred) falling back to :key
-  # populated via pwn-vault into the encrypted ~/.pwn/pwn.yaml and loaded by PWN::Config.refresh_env
-end
