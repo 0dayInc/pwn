@@ -27,12 +27,19 @@ module PWN
         def readline(prompt)
           # Common escape sequences for SHIFT+ENTER across terminals (xterm, modern, etc.)
           shift_enter_seqs = [
-            "\e[13;2~",
-            "\e[1;2~",
-            "\e\r",
-            "\e\n",
-            "\e[13;2u",
-            "\u001b[13;2u"
+            # Common SHIFT+ENTER sequences across terminals (xterm, gnome-terminal, kitty, wezterm, recent xterm w/ modifyOtherKeys, etc.)
+            # If SHIFT+ENTER still submits in your terminal, try Ctrl+J or Alt+Enter (M-^J) as alternatives (terminals vary in emitted bytes for SHIFT+ENTER)
+            '\\e[13;2~',
+            '\\e[1;2~',
+            '\\e\\r',
+            '\\e\\n',
+            '\\e[13;2u',
+            '\\u001b[13;2u',
+            '\\e[27;2;13~',
+            '\\e[27;2;13u',
+            '\\e[13;2u',
+            '\\e[1;2~',
+            '\\e[27;2;13~'
           ]
           shift_enter_seqs.each do |seq|
             Reline.config.add_oneshot_key_binding(seq.bytes, :key_newline)

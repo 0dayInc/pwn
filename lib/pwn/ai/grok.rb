@@ -25,9 +25,14 @@ module PWN
 
       private_class_method def self.grok_rest_call(opts = {})
         engine = PWN::Env[:ai][:grok]
-        raise 'ERROR: Jira Server Hash not found in PWN::Env.  Run i`pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
+        raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
-        token = engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key')
+        oauth = engine[:oauth] || {}
+        token = if oauth[:access_token] && !oauth[:access_token].to_s.empty? && !oauth[:access_token].to_s.match?(/optional/i)
+                  oauth[:access_token]
+                else
+                  engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (or set oauth:access_token in pwn-vault for xAI SuperGrok subscriptions)')
+                end
 
         http_method = if opts[:http_method].nil?
                         :get
