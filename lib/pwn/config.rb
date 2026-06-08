@@ -32,11 +32,20 @@ module PWN
           introspection: false,
           grok: {
             base_uri: 'optional - Base URI for Grok - Use private base OR defaults to https://api.x.ai/v1',
-            key: 'required - OpenAI API Key',
+            key: 'required - xAI Grok API Key',
             model: 'optional - Grok model to use',
-            system_role_content: 'You are an ethically hacking OpenAI agent.',
-            temp: 'optional - OpenAI temperature',
-            max_prompt_length: 256_000
+            system_role_content: 'You are an ethically hacking xAI Grok agent.',
+            temp: 'optional - Grok temperature',
+            max_prompt_length: 256_000,
+            # OAuth support for xAI SuperGrok subscriptions (in addition to API key)
+            # Populate via pwn-vault command (values stored encrypted in ~/.pwn/pwn.yaml)
+            oauth: {
+              client_id: 'optional - xAI SuperGrok OAuth Client ID (for subscriptions without API key)',
+              client_secret: 'optional - xAI SuperGrok OAuth Client Secret',
+              access_token: 'optional - xAI SuperGrok OAuth Access Token (preferred for SuperGrok subs; used as Bearer)',
+              refresh_token: 'optional - xAI SuperGrok OAuth Refresh Token',
+              token_uri: 'optional - OAuth token endpoint (defaults handled in PWN::AI::Grok if needed)'
+            }
           },
           openai: {
             base_uri: 'optional - Base URI for OpenAI - Use private base OR defaults to https://api.openai.com/v1',
@@ -265,9 +274,14 @@ module PWN
       raise "ERROR: Unsupported AI Engine: #{engine} in #{pwn_env_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(engine)
 
       key = env[:ai][engine][:key]
-      if key.nil?
+      oauth_access = nil
+      if engine == :grok
+        oauth = env[:ai][engine][:oauth] ||= {}
+        oauth_access = oauth[:access_token] if oauth[:access_token] && !oauth[:access_token].to_s.match?(/optional/i) && !oauth[:access_token].to_s.empty?
+      end
+      if key.nil? && oauth_access.nil?
         key = PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: "#{engine} API Key"
+          prompt: "#{engine} API Key (or configure oauth:access_token in pwn-vault for xAI SuperGrok subscriptions)"
         )
         env[:ai][engine][:key] = key
       end
