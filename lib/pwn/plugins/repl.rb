@@ -44,9 +44,18 @@ module PWN
             [27, 10]                                 # \e\n (ESC+LF)
           ]
 
+          # Save current key bindings so we can restore after this pwn-ai prompt read.
+          # Use persistent add_key_binding (not oneshot) so multiple SHIFT+ENTER presses
+          # work while building a multi-line prompt to the LLM.
+          original_key_bindings = begin
+            Reline.config.key_bindings.dup
+          rescue StandardError
+            nil
+          end
+
           shift_enter_seqs.each do |seq|
             # Pass the byte array directly (per Reline API and user requirements — no .to_s or strings)
-            Reline.config.add_oneshot_key_binding(seq, :key_newline)
+            Reline.config.add_key_binding(seq, :key_newline)
           end
 
           begin
@@ -56,7 +65,12 @@ module PWN
             # Reline handles multi-line pastes by splitting on \n in the buffer.
             @line_buffer = Reline.readmultiline(prompt, true) { |_buffer| true } || ''
           ensure
-            Reline.config.reset_oneshot_key_bindings
+            # Restore original bindings (or reset oneshots if no saved state)
+            if original_key_bindings
+              Reline.config.key_bindings = original_key_bindings
+            else
+              Reline.config.reset_oneshot_key_bindings
+            end
           end
           @line_buffer
         end
