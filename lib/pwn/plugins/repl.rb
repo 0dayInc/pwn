@@ -14,7 +14,7 @@ module PWN
     # This module contains methods related to the pwn REPL Driver.
     module REPL
       # Custom input handler for pwn-ai to support multi-line submissions:
-      # - SHIFT+ENTER (common terminal sequences) or Ctrl+J / Alt+Enter inserts a newline (continue editing)
+      # - SHIFT+ENTER inserts a newline (continue editing)
       # - plain ENTER submits the full prompt (possibly multi-line) to the AI
       # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER)
       class PwnAIInput
@@ -27,19 +27,17 @@ module PWN
         def readline(prompt)
           # Common escape sequences for SHIFT+ENTER across terminals (xterm, modern, etc.)
           shift_enter_seqs = [
-            # Common SHIFT+ENTER sequences across terminals (xterm, gnome-terminal, kitty, wezterm, recent xterm w/ modifyOtherKeys, etc.)
-            # If SHIFT+ENTER still submits in your terminal, try Ctrl+J or Alt+Enter (M-^J) as alternatives (terminals vary in emitted bytes for SHIFT+ENTER)
-            '\\e[13;2~',
-            '\\e[1;2~',
-            '\\e\\r',
-            '\\e\\n',
-            '\\e[13;2u',
-            '\\u001b[13;2u',
-            '\\e[27;2;13~',
-            '\\e[27;2;13u',
-            '\\e[13;2u',
-            '\\e[1;2~',
-            '\\e[27;2;13~'
+            # Only SHIFT+ENTER (user requirement). Plain ENTER = submit.
+            [27, 91, 49, 51, 59, 50, 126],      # \e[13;2~
+            [27, 91, 49, 59, 50, 126],          # \e[1;2~
+            [27, 13],                           # \e\r
+            [27, 10],                           # \e\n
+            [27, 91, 49, 51, 59, 50, 117],      # \e[13;2u
+            [27, 91, 50, 55, 59, 50, 59, 49, 51, 126], # \e[27;2;13~
+            [27, 91, 50, 55, 59, 50, 59, 49, 51, 117], # \e[27;2;13u
+            [27, 91, 49, 51, 59, 50, 117],
+            [27, 91, 49, 59, 50, 126],
+            [27, 91, 50, 55, 59, 50, 59, 49, 51, 126]
           ]
           shift_enter_seqs.each do |seq|
             Reline.config.add_oneshot_key_binding(seq.bytes, :key_newline)
@@ -48,7 +46,7 @@ module PWN
           begin
             # readmultiline with confirm block that *always* returns true:
             #   => normal ENTER triggers finish/submit of the (multi-line) buffer
-            # The bound SHIFT+ENTER (and built-in Ctrl+J / M-^M) trigger key_newline (insert \n, stay in edit)
+            # SHIFT+ENTER bytes trigger key_newline (insert \n, stay in edit)
             # Reline in multiline mode also handles multi-line pastes by splitting on \n in the buffer.
             @line_buffer = Reline.readmultiline(prompt, true) { |_buffer| true } || ''
           ensure

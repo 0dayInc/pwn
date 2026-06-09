@@ -53,11 +53,13 @@ Gem::Specification.new do |spec|
   ]
 
   File.readlines('./Gemfile').each do |line|
-    columns = line.chomp.split
-    next unless columns.first == 'gem'
+    # Robust parser: extract name and version using regex to handle quotes, operators (>=, <), and avoid empty/invalid versions.
+    # Anchor with ^\\s* to only match active (non-commented) gem declarations at start of line.
+    match = line.match(/^\s*gem\s+['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/)
+    next unless match
 
-    gem_name = columns[1].delete("'").delete(',')
-    gem_version = columns.last.delete("'")
+    gem_name = match[1]
+    gem_version = match[2]
 
     # Good for debugging issues in Gemfile
     # puts "pwn.gemspec: Adding dependency: #{gem_name} #{gem_version}"

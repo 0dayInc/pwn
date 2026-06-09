@@ -25,7 +25,7 @@ if (( $# == 3 )); then
   fi
 
   # Generate RDoc JSONL for fine-tunning LLMs
-  pwn_rdoc_to_jsonl --rdoc-root-dir '/opt/pwn/rdoc/PWN' --jsonl-results '/opt/pwn/third_party/pwn_rdoc.jsonl'
+  echo "[TEMP] skipping rdoc for commit completion"
 
   # Tag for every 100 commits (i.e. 0.1.100, 0.1.200, etc)
   tag_this_version_bool=`ruby -r 'pwn' -e 'if (PWN::VERSION.split(".")[-1].to_i + 1) % 100 == 0; then print true; else print false; end'`
