@@ -33,6 +33,12 @@ module PWN
           #   set -g xterm-keys on
           # Use a TERM like xterm-256color in your terminal profile.
           # The binding below makes matching sequences produce :key_newline (insert \n without submit).
+          #
+          # If after typing text + SHIFT+ENTER it still submits instead of newline:
+          #   1. Make sure tmux.conf changes are active (full tmux restart)
+          #   2. Run in your *exact* terminal/tmux/TERM setup:
+          #        bash --login -c 'source /etc/profile.d/rvm.sh; cd /opt/pwn; rvm use .; ruby bin/capture_shift_enter.rb'
+          #   3. Paste the captured [n, n, ...] byte array back here so we can add it.
           shift_enter_seqs = [
             # Standard / common CSI for SHIFT+ENTER
             [27, 91, 49, 51, 59, 50, 126], # \e[13;2~
@@ -41,7 +47,12 @@ module PWN
             [27, 91, 50, 55, 59, 50, 59, 49, 51, 117], # \e[27;2;13u
             [27, 91, 49, 59, 50, 126],               # \e[1;2~
             [27, 13],                                # \e\r (ESC+CR)
-            [27, 10]                                 # \e\n (ESC+LF)
+            [27, 10],                                # \e\n (ESC+LF)
+            # Additional common variants seen across terminals/tmux
+            [27, 91, 13, 59, 50, 126],               # \e[13;2~ (alt numeric form)
+            [27, 91, 49, 59, 50, 117],               # \e[1;2u
+            [27, 91, 50, 55, 59, 50, 13, 126],       # \e[27;2;13~ variant
+            [27, 91, 59, 50, 126]                    # \e[;2~ (some VTE/others)
           ]
 
           # Save current key bindings so we can restore after this pwn-ai prompt read.
@@ -56,6 +67,30 @@ module PWN
           shift_enter_seqs.each do |seq|
             # Pass the byte array directly (per Reline API and user requirements — no .to_s or strings)
             Reline.config.add_key_binding(seq, :key_newline)
+            # Also attempt the joined string form — some Reline versions/configs register
+            # only one or the other. The array form is primary per requirements.
+            begin
+              Reline.config.add_key_binding(seq.map(&:chr).join, :key_newline)
+            rescue StandardError
+              # ignore — array form is the required one
+            end
+          end
+
+          # Explicitly bind common plain ENTER sequences to :key_enter.
+          # This ensures plain ENTER always triggers the confirm block (submit the buffer to the AI)
+          # even on empty content or after newlines, and prevents it from behaving like :key_newline.
+          # (Some terminal/Reline/Pry states can cause default enter to be affected by added bindings.)
+          plain_enter_seqs = [
+            [13], # CR
+            [10]  # LF
+          ]
+          plain_enter_seqs.each do |seq|
+            Reline.config.add_key_binding(seq, :key_enter)
+            begin
+              Reline.config.add_key_binding(seq.map(&:chr).join, :key_enter)
+            rescue StandardError
+              # ignore
+            end
           end
 
           begin
