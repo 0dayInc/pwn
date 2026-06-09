@@ -16,6 +16,11 @@ old_ruby_version=`cat ${pwn_root}/.ruby-version`
 # Default Strategy is to merge codebase
 sudo chown -R $USER:$USER $pwn_root
 git config pull.rebase false 
+# Sync fork with upstream to avoid merge conflicts and ensure we are building the latest codebase
+git remote -v | grep 'upstream' || git remote add upstream https://github.com/0dayinc/pwn.git
+git fetch upstream
+git checkout master
+git merge upstream/master
 git pull
 new_ruby_version=`cat ${pwn_root}/.ruby-version`
 

@@ -2,11 +2,7 @@
 
 require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
-begin
-  require 'rdoc/task'
-rescue LoadError
-  warn 'rdoc/task not available (rdoc gem not installed or Ruby >= 4.0 default gem change); skipping rdoc task'
-end
+require 'rdoc/task'
 require 'rubocop/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)
