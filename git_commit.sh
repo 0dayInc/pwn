@@ -9,6 +9,11 @@ if (( $# == 3 )); then
   sudo chown -R $USER:$USER /opt/pwn
   git config pull.rebase false
   git config commit.gpgsign true
+  # Sync fork with upstream to avoid merge conflicts and ensure latest code is being worked on
+  git remote -v | grep 'upstream' || git remote add upstream https://github.com/0dayinc/pwn.git
+  git fetch upstream
+  git checkout master
+  git merge upstream/master
   git pull
   git add . --all
   echo 'Updating Gems to Latest Versions in Gemfile...'
