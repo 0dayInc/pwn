@@ -14,9 +14,10 @@ module PWN
     # This module contains methods related to the pwn REPL Driver.
     module REPL
       # Custom input handler for pwn-ai to support multi-line submissions:
-      # - SHIFT+ENTER inserts a newline (continue editing)
-      # - plain ENTER submits the full prompt (possibly multi-line) to the AI
-      # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER)
+      # - Use *only* SHIFT+ENTER to insert a newline (continue editing the prompt to the AI).
+      # - Plain ENTER submits the full (possibly multi-line) prompt to the AI.
+      # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER).
+      # Strict SHIFT+ENTER only — no Ctrl+J, Alt-Enter, or other fallbacks (per requirements).
       class PwnAIInput
         attr_reader :line_buffer
 
@@ -25,29 +26,47 @@ module PWN
         end
 
         def readline(prompt)
-          # Common escape sequences for SHIFT+ENTER across terminals (xterm, modern, etc.)
+          # SHIFT+ENTER escape sequences (byte arrays). These are terminal-dependent.
+          # Listed common ones for xterm, VTE (terminator), kitty, wezterm, etc.
+          # (with modifyOtherKeys / extended-keys enabled).
+          #
+          # For tmux + terminator (or similar):
+          #   In ~/.tmux.conf (then `tmux kill-server` + new session):
+          #     set -g extended-keys on
+          #     set -g xterm-keys on
+          #   Use TERM=xterm-256color (or equivalent that supports the CSI) in your terminal profile.
+          #
+          # The bindings make matching sequences produce :key_newline (insert \n without submit).
+          #
+          # If after typing text + SHIFT+ENTER it still submits instead of newline:
+          #   1. Apply the tmux.conf + TERM changes above and fully restart tmux.
+          #   2. In your *real* terminal (the one running `pwn`), run a capture script from /tmp ONLY:
+          #        ruby /tmp/capture_keys.rb
+          #      (Debugging scripts must live in /tmp per user rule; never commit them to /opt/pwn.)
+          #   3. Paste the exact bytes array for the SHIFT+ENTER press here so it can be added to the list.
           shift_enter_seqs = [
-            # Only SHIFT+ENTER (user requirement). Plain ENTER = submit.
-            [27, 91, 49, 51, 59, 50, 126],      # \e[13;2~
-            [27, 91, 49, 59, 50, 126],          # \e[1;2~
-            [27, 13],                           # \e\r
-            [27, 10],                           # \e\n
-            [27, 91, 49, 51, 59, 50, 117],      # \e[13;2u
+            [27, 91, 49, 51, 59, 50, 126],             # \e[13;2~
             [27, 91, 50, 55, 59, 50, 59, 49, 51, 126], # \e[27;2;13~
+            [27, 91, 49, 51, 59, 50, 117],             # \e[13;2u (CSI u)
             [27, 91, 50, 55, 59, 50, 59, 49, 51, 117], # \e[27;2;13u
-            [27, 91, 49, 51, 59, 50, 117],
-            [27, 91, 49, 59, 50, 126],
-            [27, 91, 50, 55, 59, 50, 59, 49, 51, 126]
+            [27, 91, 49, 59, 50, 126],                 # \e[1;2~
+            [27, 13],                                  # \e\r (ESC+CR variant)
+            [27, 10],                                  # \e\n (ESC+LF variant)
+            [27, 91, 13, 59, 50, 126],                 # \e[13;2~ alt numeric
+            [27, 91, 49, 59, 50, 117],                 # \e[1;2u
+            [27, 91, 50, 55, 59, 50, 13, 126]          # \e[27;2;13~ variant
           ]
+
           shift_enter_seqs.each do |seq|
-            Reline.config.add_oneshot_key_binding(seq.bytes, :key_newline)
+            # Pass the byte array *directly* (required pattern; no .bytes, no string forms)
+            Reline.config.add_oneshot_key_binding(seq, :key_newline)
           end
 
           begin
             # readmultiline with confirm block that *always* returns true:
-            #   => normal ENTER triggers finish/submit of the (multi-line) buffer
-            # SHIFT+ENTER bytes trigger key_newline (insert \n, stay in edit)
-            # Reline in multiline mode also handles multi-line pastes by splitting on \n in the buffer.
+            #   => default (plain) ENTER triggers finish/submit of the (multi-line) buffer
+            # SHIFT+ENTER (matched seq) triggers :key_newline (insert \n, stay in edit mode)
+            # Reline handles multi-line pastes by splitting on \n in the buffer.
             @line_buffer = Reline.readmultiline(prompt, true) { |_buffer| true } || ''
           ensure
             Reline.config.reset_oneshot_key_bindings
@@ -55,7 +74,7 @@ module PWN
           @line_buffer
         end
 
-        # Compatibility with Pry input expectations (used by hooks for line_buffer, and possibly completer/tty checks)
+        # Compatibility with Pry input expectations
         def tty?
           true
         end
@@ -204,8 +223,9 @@ module PWN
             puts "    'Use NmapIt to port scan target.com then use TransparentBrowser to spider and SAST::TestCaseEngine to analyze code if cloned. Generate report with PWN::Reports.'"
             puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"
             puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) + memory/sessions/cron to expand autonomous capabilities."
-            puts "[*] Type 'toggle-pwn-ai' or normal pwn commands to exit agent mode.
-"
+            puts "[*] Type 'toggle-pwn-ai' or normal pwn commands to exit agent mode."
+            puts '[*] MULTILINE in pwn-ai: Use ONLY SHIFT+ENTER for newlines (plain ENTER submits to AI).'
+            puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -g extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
           end
         end
 
