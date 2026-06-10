@@ -97,28 +97,28 @@ module PWN
               )
             end
           else
-            raise @@logger.error("Unsupported HTTP Method #{http_method} for #{self} Plugin")
+            raise "Unsupported HTTP Method #{http_method} for #{self} Plugin"
           end
 
-          response
+          response.body
         rescue RestClient::TooManyRequests => e
-          retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
+          retry_after = e.response.headers[:retry_after]&.to_i || (0.5 * (retry_count + 1))
           sleep(retry_after + rand(0.3..5.0))
           retry_count += 1
 
           retry
+        rescue RestClient::ExceptionWithResponse => e
+          raise "Anthropic API Error: #{e.message}: #{e.response}"
+        rescue StandardError => e
+          case e.message
+          when '400 Bad Request', '404 Resource Not Found'
+            raise "#{e.message}: #{e.response}"
+          else
+            raise e
+          end
+        ensure
+          spin.stop if spinner
         end
-      rescue RestClient::ExceptionWithResponse => e
-        puts "ERROR: #{e.message}: #{e.response}"
-      rescue StandardError => e
-        case e.message
-        when '400 Bad Request', '404 Resource Not Found'
-          "#{e.message}: #{e.response}"
-        else
-          raise e
-        end
-      ensure
-        spin.stop if spinner
       end
 
       # Supported Method Parameters::
@@ -206,6 +206,8 @@ module PWN
         )
 
         json_resp = JSON.parse(response, symbolize_names: true)
+        raise "Anthropic API Error: #{json_resp[:error] || json_resp}" if json_resp[:error] || json_resp[:type] == 'error'
+
         assistant_content = if json_resp[:content] && json_resp[:content].is_a?(Array) && json_resp[:content].first
                               json_resp[:content].first[:text]
                             else
