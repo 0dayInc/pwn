@@ -1048,7 +1048,9 @@ module PWN
         Pry.config.hooks.add_hook(:after_read, :pwn_ai_hook) do |request, pi|
           if pi.config.pwn_ai && !request.chomp.empty?
             orig_request = pi.input.line_buffer.to_s
-            request = orig_request
+            # Do NOT rebind the 'request' parameter (the string object passed by Pry's after_read hook).
+            # We will mutate it to 'nil' at the end of handling so Pry does not eval the natural-language
+            # prompt text as Ruby (which was causing noisy exceptions *after* the green AI response print).
             debug = pi.config.pwn_ai_debug
             engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
             response_history = PWN::Env[:ai][engine][:response_history]
@@ -1070,7 +1072,7 @@ module PWN
 
             # Pre-process for clear CLI execution intent (e.g. "what does `id` return?")
             # This makes the agent actually *run* commands instead of just explaining them.
-            curr_req = request.chomp
+            curr_req = orig_request.chomp
             if is_agent && sess_id && PWN.const_defined?(:Sessions)
               begin
                 PWN::Sessions.append(session_id: sess_id, role: 'user', content: orig_request)

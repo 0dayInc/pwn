@@ -162,7 +162,6 @@ module PWN
         response_history = opts[:response_history]
 
         system_role_content = opts[:system_role_content] ||= engine[:system_role_content]
-        system_role_content = response_history[:choices].first[:content] if response_history && response_history[:choices]
 
         system_role = {
           role: 'system',
