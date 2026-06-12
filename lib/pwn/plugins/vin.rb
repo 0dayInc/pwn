@@ -268,24 +268,26 @@ module PWN
 
         # Fixed VDS for simplicity
         vds = '12345'
-        year_code = get_year_code(year)
+        year_code = get_year_code(year: year)
         plant_code = 'A'
         serial = format('%06d', rand(1_000_000))
 
         vin = "#{wmi}#{vds}0#{year_code}#{plant_code}#{serial}"
-        check_digit = calculate_check_digit(vin)
+        check_digit = calculate_check_digit(vin: vin)
         vin[8] = check_digit
         vin
       end
 
       # Helper method to get the year code for a given year
-      private_class_method def self.get_year_code(year)
+      private_class_method def self.get_year_code(opts = {})
+        year = opts[:year]
         index = (year - 1980) % 30
         YEAR_CODES[index]
       end
 
       # Helper method to calculate the check digit for a VIN
-      private_class_method def self.calculate_check_digit(vin)
+      private_class_method def self.calculate_check_digit(opts = {})
+        vin = opts[:vin]
         raise "Invalid VIN length: #{vin.length}" unless vin.length == 17
 
         total = 0

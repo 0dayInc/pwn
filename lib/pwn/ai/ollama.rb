@@ -133,6 +133,59 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::AI::Ollama.chat_raw(
+      #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
+      #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
+      #   tool_choice: 'optional - "auto" | "none" | {type:"function", function:{name:..}}',
+      #   model: 'optional - overrides PWN::Env[:ai][:ollama][:model]',
+      #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:ollama][:temp] || 1)',
+      #   timeout: 'optional - seconds (default 300)',
+      #   spinner: 'optional - display spinner (default false)'
+      # )
+      #
+      # Returns the raw /v1/chat/completions response Hash with :choices intact
+      # (including :message[:tool_calls]) — used by PWN::AI::Agent::Loop.
+      # Ollama's OpenAI-compat endpoint supports tools since 0.3.x; tool_calls
+      # come back with function.arguments as a JSON object (not string), which
+      # PWN::AI::Agent::Dispatch.parse_args handles transparently.
+
+      public_class_method def self.chat_raw(opts = {})
+        engine   = PWN::Env[:ai][:ollama]
+        messages = opts[:messages]
+        raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
+
+        model = opts[:model] ||= engine[:model]
+        raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
+
+        temp = opts[:temp].to_f
+        temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
+
+        http_body = {
+          model: model,
+          messages: messages,
+          temperature: temp,
+          stream: false
+        }
+        http_body[:tools]       = opts[:tools]       if opts[:tools] && !opts[:tools].empty?
+        http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
+
+        response = ollama_rest_call(
+          http_method: :post,
+          rest_call: 'ollama/v1/chat/completions',
+          http_body: http_body,
+          timeout: opts[:timeout],
+          spinner: opts[:spinner]
+        )
+        return nil if response.nil?
+
+        json_resp = JSON.parse(response, symbolize_names: true)
+        json_resp[:assistant_message] = json_resp.dig(:choices, 0, :message)
+        json_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # response = PWN::AI::Ollama.chat(
       #   request: 'required - message to Ollama'
       #   model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:ollama][:model])',

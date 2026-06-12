@@ -10,6 +10,12 @@ module PWN
 
     # Display a List of Every PWN::Blockchain Module
 
+    # Author(s):: 0day Inc. <support@0dayinc.com>
+
+    public_class_method def self.authors
+      "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+    end
+
     public_class_method def self.help
       constants.sort
     end

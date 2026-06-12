@@ -145,7 +145,7 @@ module PWN
                     request = Base64.strict_decode64(request)
                     response = Base64.strict_decode64(response)
 
-                    http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                    http_request_response = PWN::Plugins::Char.force_utf8(obj: "#{request}\r\n\r\n#{response}")
                     ai_analysis = PWN::AI::Agent::BurpSuite.analyze(
                       request: http_request_response
                     )
@@ -205,7 +205,7 @@ module PWN
                   else
                     request = Base64.strict_decode64(request)
                     response = Base64.strict_decode64(response)
-                    http_request_response = PWN::Plugins::Char.force_utf8("#{request}\r\n\r\n#{response}")
+                    http_request_response = PWN::Plugins::Char.force_utf8(obj: "#{request}\r\n\r\n#{response}")
                     ai_analysis = PWN::AI::Agent::BurpSuite.analyze(
                       request: http_request_response
                     )
@@ -243,7 +243,7 @@ module PWN
                   next if web_socket_id.nil? || direction.nil? || payload.nil?
 
                   payload = Base64.strict_decode64(payload)
-                  websocket_req = PWN::Plugins::Char.force_utf8("WebSocket ID: #{web_socket_id}\nDirection: #{direction}\nPayload:\n#{payload}")
+                  websocket_req = PWN::Plugins::Char.force_utf8(obj: "WebSocket ID: #{web_socket_id}\nDirection: #{direction}\nPayload:\n#{payload}")
                   ai_analysis = PWN::AI::Agent::BurpSuite.analyze(
                     request: websocket_req
                   )

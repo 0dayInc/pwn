@@ -17,7 +17,20 @@ module PWN
       autoload :TransparentBrowser, 'pwn/ai/agent/transparent_browser'
       autoload :VulnGen, 'pwn/ai/agent/vuln_gen'
 
+      # ---- pwn-ai native tool-calling harness ----
+      autoload :Registry,      'pwn/ai/agent/registry'
+      autoload :Dispatch,      'pwn/ai/agent/dispatch'
+      autoload :Result,        'pwn/ai/agent/result'
+      autoload :PromptBuilder, 'pwn/ai/agent/prompt_builder'
+      autoload :Loop,          'pwn/ai/agent/loop'
+
       # Display a List of Every PWN::AI Module
+
+      # Author(s):: 0day Inc. <support@0dayinc.com>
+
+      public_class_method def self.authors
+        "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+      end
 
       public_class_method def self.help
         constants.sort

@@ -112,7 +112,9 @@ module PWN
         spin.stop if spinner
       end
 
-      private_class_method def self.btc_rpc_call(method:, params: [])
+      private_class_method def self.btc_rpc_call(opts = {})
+        method = opts[:method]
+        params = opts[:params] ||= []
         http_body = {
           jsonrpc: '1.0',
           id: self,
@@ -133,7 +135,8 @@ module PWN
         raise e
       end
 
-      private_class_method def self.get_block_timestamp(height)
+      private_class_method def self.get_block_timestamp(opts = {})
+        height = opts[:height]
         res = btc_rpc_call(method: 'getblockhash', params: [height])
         block_hash = res[:result]
 
@@ -141,14 +144,15 @@ module PWN
         res[:result][:time]
       end
 
-      private_class_method def self.find_first_block_ge_timestamp(target_ts)
+      private_class_method def self.find_first_block_ge_timestamp(opts = {})
+        target_ts = opts[:target_ts]
         chain_info = get_latest_block[:result]
         low = 0
         high = chain_info[:blocks]
         result = nil
         while low <= high
           mid = (low + high) / 2
-          ts = get_block_timestamp(mid)
+          ts = get_block_timestamp(height: mid)
           if ts >= target_ts
             result = mid
             high = mid - 1
@@ -159,14 +163,15 @@ module PWN
         result
       end
 
-      private_class_method def self.find_last_block_le_timestamp(target_ts)
+      private_class_method def self.find_last_block_le_timestamp(opts = {})
+        target_ts = opts[:target_ts]
         chain_info = get_latest_block[:result]
         low = 0
         high = chain_info[:blocks]
         result = nil
         while low <= high
           mid = (low + high) / 2
-          ts = get_block_timestamp(mid)
+          ts = get_block_timestamp(height: mid)
           if ts <= target_ts
             result = mid
             low = mid + 1
@@ -229,8 +234,8 @@ module PWN
         start_ts = Date.parse(from_date).to_time.to_i
         end_ts = Date.parse(to_date).to_time.to_i + 86_399 # Include the entire end day
 
-        start_height = find_first_block_ge_timestamp(start_ts)
-        end_height = find_last_block_le_timestamp(end_ts)
+        start_height = find_first_block_ge_timestamp(target_ts: start_ts)
+        end_height = find_last_block_le_timestamp(target_ts: end_ts)
 
         txs = []
         if start_height && end_height && start_height <= end_height

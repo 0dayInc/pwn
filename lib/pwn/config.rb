@@ -70,6 +70,19 @@ module PWN
             system_role_content: 'You are an ethically hacking Anthropic agent.',
             temp: 'optional - Anthropic temperature',
             max_prompt_length: 200_000
+          },
+          gemini: {
+            base_uri: 'optional - Base URI for Gemini - Use private base OR defaults to https://generativelanguage.googleapis.com/v1beta',
+            key: 'required - Google Gemini API Key',
+            model: 'optional - Gemini model to use (e.g. gemini-2.5-pro, gemini-2.5-flash)',
+            system_role_content: 'You are an ethically hacking Gemini agent.',
+            temp: 'optional - Gemini temperature',
+            max_prompt_length: 1_000_000
+          },
+          agent: {
+            native_tools: true,
+            max_iters: 25,
+            toolsets: nil
           }
         },
         plugins: {
@@ -183,7 +196,7 @@ module PWN
       env[:pwn_skills_path] = pwn_skills_path
       PWN::Config.load_skills(pwn_skills_path: pwn_skills_path)
 
-      # Hermes-equivalent memory/sessions/cron paths (pwn-ai agent)
+      # pwn-ai agent: memory/sessions/cron paths
       env[:pwn_memory_path] = PWN::Memory::MEMORY_FILE if defined?(PWN::Memory)
       env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
       env[:pwn_cron_path] = PWN::Cron.cron_dir if defined?(PWN::Cron)
@@ -309,11 +322,11 @@ module PWN
         pwn_dec_path: pwn_dec_path
       }
 
-      # Make pwn-ai (Hermes agent TUI equiv) aware of skills folder in pwn_env parent (before freeze)
+      # Make pwn-ai aware of the skills folder in pwn_env parent (before freeze)
       env[:pwn_skills_path] = pwn_skills_path if defined?(pwn_skills_path)
       PWN::Config.load_skills(pwn_skills_path: pwn_skills_path) if defined?(pwn_skills_path)
 
-      # Hermes-equivalent: memory, sessions, cron for pwn-ai agent (before freeze)
+      # pwn-ai agent: memory, sessions, cron paths (before freeze)
       env[:pwn_memory_path] = PWN::Memory::MEMORY_FILE if defined?(PWN::Memory)
       PWN::Memory.load if defined?(PWN::Memory)
       env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
@@ -354,7 +367,7 @@ module PWN
     # Loads instruction-based skills (.md, .txt, .skill, .yaml) and executable Ruby skills (.rb)
     # into PWN::Skills constant (hash of basename => {type, path, content, loaded?}).
     # The pwn-ai command (REPL driver) loads and is aware of this folder to expand
-    # autonomous agent capabilities (equivalent to Hermes agent TUI skills for task execution).
+    # autonomous agent capabilities (skill documents loaded for task execution).
     public_class_method def self.load_skills(opts = {})
       pwn_skills_path = opts[:pwn_skills_path] || PWN::Env[:pwn_skills_path] || pwn_skills_path
       FileUtils.mkdir_p(pwn_skills_path) if pwn_skills_path && !Dir.exist?(pwn_skills_path.to_s)

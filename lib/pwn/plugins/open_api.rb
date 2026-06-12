@@ -20,7 +20,7 @@ module PWN
       #   target_version: 'optional - target OpenAPI version (default: 3.0.3)',
       #   debug: 'optional - boolean to enable debug logging (default: false)'
       # )
-      def self.generate_spec(opts = {})
+      public_class_method def self.generate_spec(opts = {})
         spec_paths = opts[:spec_paths] ||= []
         raise ArgumentError, 'spec_paths must be a non-empty array' if spec_paths.empty?
 
@@ -46,7 +46,7 @@ module PWN
           # Parse base_url to extract host and default base path
           normalized_base_url, default_base_path = normalize_url(url: base_url)
           default_base_path ||= '' # Fallback if base_url has no path
-          log("Using normalized base URL: #{normalized_base_url}, default base path: #{default_base_path}", debug: debug)
+          log(message: "Using normalized base URL: #{normalized_base_url}, default base path: #{default_base_path}", debug: debug)
 
           # Load and parse all OpenAPI files
           specs = {}
@@ -90,7 +90,7 @@ module PWN
             end
 
             # Clean up null schemas in each spec
-            clean_null_schemas(spec, path, '', validation_fixes, debug)
+            clean_null_schemas(spec: spec, file_path: path, current_path: '', validation_fixes: validation_fixes, debug: debug)
 
             # Fix invalid header definitions
             if spec['components']&.key?('headers')
@@ -103,7 +103,7 @@ module PWN
                     error: "Invalid properties 'name' or 'in' in header",
                     fix: "Removed 'name' and 'in' from header definition"
                   }
-                  log("Fixing header '#{header_name}' in #{path}: Removing invalid 'name' and 'in' properties", debug: debug)
+                  log(message: "Fixing header '#{header_name}' in #{path}: Removing invalid 'name' and 'in' properties", debug: debug)
                   header.delete('name')
                   header.delete('in')
                 end
@@ -114,7 +114,7 @@ module PWN
                   error: 'Header schema is null',
                   fix: 'Added default schema { type: string }'
                 }
-                log("Fixing header '#{header_name}' in #{path}: Replacing null schema with default { type: string }", debug: debug)
+                log(message: "Fixing header '#{header_name}' in #{path}: Replacing null schema with default { type: string }", debug: debug)
                 header['schema'] = { 'type' => 'string' }
               end
             end
@@ -123,7 +123,7 @@ module PWN
             next unless spec['components']&.key?('schemas')
 
             spec['components']['schemas'].each do |schema_name, schema|
-              fix_array_items(schema, path, "/components/schemas/#{schema_name}", validation_fixes, debug)
+              fix_array_items(schema: schema, file_path: path, schema_path: "/components/schemas/#{schema_name}", validation_fixes: validation_fixes, debug: debug)
             end
           end
 
@@ -141,7 +141,7 @@ module PWN
           # Sort files by dependencies
           ordered_paths, cycle_info = topological_sort(dependencies: dependencies, spec_paths: spec_paths)
           if cycle_info
-            log("Cyclic dependencies detected: #{cycle_info.join(' -> ')}. Processing files in provided order.", debug: debug)
+            log(message: "Cyclic dependencies detected: #{cycle_info.join(' -> ')}. Processing files in provided order.", debug: debug)
             ordered_paths = spec_paths
           end
 
@@ -165,14 +165,14 @@ module PWN
           ordered_paths.each do |path|
             spec = specs[path]
             unless spec.is_a?(Hash)
-              log("Skipping #{path}: Invalid OpenAPI specification", debug: debug)
+              log(message: "Skipping #{path}: Invalid OpenAPI specification", debug: debug)
               next
             end
 
-            log("Warning: #{path} uses OpenAPI version #{spec['openapi']}, which may not be compatible with target version #{target_version}", debug: debug) if spec['openapi'] && !spec['openapi'].start_with?(target_version.split('.')[0..1].join('.'))
+            log(message: "Warning: #{path} uses OpenAPI version #{spec['openapi']}, which may not be compatible with target version #{target_version}", debug: debug) if spec['openapi'] && !spec['openapi'].start_with?(target_version.split('.')[0..1].join('.'))
 
             if spec['definitions'] && target_version.start_with?('3.')
-              log("Migrating OpenAPI 2.0 'definitions' to 'components/schemas' for #{path}", debug: debug)
+              log(message: "Migrating OpenAPI 2.0 'definitions' to 'components/schemas' for #{path}", debug: debug)
               spec['components'] ||= {}
               spec['components']['schemas'] = spec.delete('definitions')
             end
@@ -195,7 +195,7 @@ module PWN
               if server_url.is_a?(String)
                 absolute_url, server_base_path = normalize_url(url: server_url, base_url: normalized_base_url)
                 server_base_path ||= default_base_path
-                log("Selected server URL: #{server_url}, normalized: #{absolute_url}, base path: #{server_base_path} for #{path}", debug: debug)
+                log(message: "Selected server URL: #{server_url}, normalized: #{absolute_url}, base path: #{server_base_path} for #{path}", debug: debug)
                 server_obj = selected_server.is_a?(Hash) ? selected_server.merge('url' => absolute_url) : { 'url' => absolute_url }
                 unless merged_spec['servers'].any? { |s| s['url'] == absolute_url }
                   merged_spec['servers'] << server_obj
@@ -204,11 +204,11 @@ module PWN
                     last_server_url = merged_spec['servers'].last['url']
                     new_base_path = URI.parse(last_server_url).path&.sub(%r{^/+}, '')&.sub(%r{/+$}, '')
                     default_base_path = new_base_path || default_base_path
-                    log("Updated default_base_path to '#{default_base_path}' based on last server: #{last_server_url}", debug: debug)
+                    log(message: "Updated default_base_path to '#{default_base_path}' based on last server: #{last_server_url}", debug: debug)
                   end
                 end
               else
-                log("No valid server URL in #{path}, using default base path: #{default_base_path}", debug: debug)
+                log(message: "No valid server URL in #{path}, using default base path: #{default_base_path}", debug: debug)
                 absolute_url = normalized_base_url
                 server_base_path = default_base_path
               end
@@ -225,7 +225,7 @@ module PWN
                 dep_server_url = dep_server['url']
                 absolute_url, server_base_path = normalize_url(url: dep_server_url, base_url: normalized_base_url)
                 server_base_path ||= default_base_path
-                log("Using dependency server URL: #{dep_server_url}, normalized: #{absolute_url}, base path: #{server_base_path} for #{path}", debug: debug)
+                log(message: "Using dependency server URL: #{dep_server_url}, normalized: #{absolute_url}, base path: #{server_base_path} for #{path}", debug: debug)
                 server_obj = dep_server.merge('url' => absolute_url)
                 unless merged_spec['servers'].any? { |s| s['url'] == absolute_url }
                   merged_spec['servers'] << server_obj
@@ -234,13 +234,13 @@ module PWN
                     last_server_url = merged_spec['servers'].last['url']
                     new_base_path = URI.parse(last_server_url).path&.sub(%r{^/+}, '')&.sub(%r{/+$}, '')
                     default_base_path = new_base_path || default_base_path
-                    log("Updated default_base_path to '#{default_base_path}' based on last server: #{last_server_url}", debug: debug)
+                    log(message: "Updated default_base_path to '#{default_base_path}' based on last server: #{last_server_url}", debug: debug)
                   end
                 end
                 break
               end
               unless absolute_url
-                log("No servers defined in #{path} or dependencies, using default base path: #{default_base_path}", debug: debug)
+                log(message: "No servers defined in #{path} or dependencies, using default base path: #{default_base_path}", debug: debug)
                 absolute_url = normalized_base_url
                 server_base_path = default_base_path
               end
@@ -250,8 +250,8 @@ module PWN
             # Normalize paths
             if resolved_spec['paths'].is_a?(Hash)
               resolved_spec['paths'] = validate_path_parameters(
-                resolved_spec['paths'],
-                path,
+                paths: resolved_spec['paths'],
+                file_path: path,
                 server_base_path: server_base_path,
                 debug: debug
               )
@@ -274,16 +274,16 @@ module PWN
                   prefix_pattern = Regexp.new("^#{Regexp.escape(effective_base_path)}/")
                   while normalized_endpoint.match?(prefix_pattern)
                     normalized_endpoint = normalized_endpoint.sub(prefix_pattern, '')
-                    log("Stripped '#{effective_base_path}' from endpoint '#{endpoint}' to '#{normalized_endpoint}' during merge in #{path}", debug: debug)
+                    log(message: "Stripped '#{effective_base_path}' from endpoint '#{endpoint}' to '#{normalized_endpoint}' during merge in #{path}", debug: debug)
                   end
                 end
                 normalized_endpoint = '/' if normalized_endpoint.empty?
-                combined_path = combine_paths(effective_base_path, normalized_endpoint)
-                log("Merging path '#{endpoint}' as '#{combined_path}' from #{path}", debug: debug)
+                combined_path = combine_paths(base_path: effective_base_path, endpoint: normalized_endpoint)
+                log(message: "Merging path '#{endpoint}' as '#{combined_path}' from #{path}", debug: debug)
                 combined_path
               end
               merged_spec['paths'].merge!(resolved_paths) do |api_endpoint, _existing, new|
-                log("Path '#{api_endpoint}' in #{path} conflicts with existing path. Overwriting.", debug: debug)
+                log(message: "Path '#{api_endpoint}' in #{path} conflicts with existing path. Overwriting.", debug: debug)
                 new
               end
             end
@@ -309,7 +309,7 @@ module PWN
               path_segments = path.sub(%r{^/+}, '').split('/')
               path_segments.first if path_segments.any?
             end.compact.uniq
-            log("First folders in paths: #{path_first_folders}", debug: debug)
+            log(message: "First folders in paths: #{path_first_folders}", debug: debug)
 
             if path_first_folders.any?
               merged_spec['servers'] = merged_spec['servers'].select do |server|
@@ -317,21 +317,21 @@ module PWN
                 server_path = URI.parse(server_url).path&.sub(%r{^/+}, '')&.sub(%r{/+$}, '')
                 server_path && path_first_folders.include?(server_path)
               end
-              log("Filtered servers to: #{merged_spec['servers'].map { |s| s['url'] }}", debug: debug)
+              log(message: "Filtered servers to: #{merged_spec['servers'].map { |s| s['url'] }}", debug: debug)
             end
           end
 
           # Ensure at least one server remains
           if merged_spec['servers'].empty?
             merged_spec['servers'] = [{ 'url' => normalized_base_url, 'description' => 'Default server' }]
-            log("No servers matched path prefixes. Reverted to default: #{normalized_base_url}", debug: debug)
+            log(message: "No servers matched path prefixes. Reverted to default: #{normalized_base_url}", debug: debug)
           end
 
           # Remove server path prefixes from path keys
-          merged_spec = remove_server_path_prefixes(merged_spec, debug: debug)
+          merged_spec = remove_server_path_prefixes(merged_spec: merged_spec, debug: debug)
 
           # Clean up null schemas in the merged spec
-          clean_null_schemas(merged_spec, 'merged_spec', '', validation_fixes, debug)
+          clean_null_schemas(spec: merged_spec, file_path: 'merged_spec', current_path: '', validation_fixes: validation_fixes, debug: debug)
 
           merged_spec, schema_validation_errors = validate_openapi_spec(
             merged_spec: merged_spec,
@@ -341,12 +341,12 @@ module PWN
 
           unless validation_fixes.empty? && schema_validation_errors.empty?
             merged_spec['x-validation-fixes'] = validation_fixes + schema_validation_errors
-            log("Added validation fixes to spec: #{merged_spec['x-validation-fixes'].map { |f| f[:error] }.join(', ')}", debug: debug)
+            log(message: "Added validation fixes to spec: #{merged_spec['x-validation-fixes'].map { |f| f[:error] }.join(', ')}", debug: debug)
           end
 
           FileUtils.mkdir_p(File.dirname(output_json_path))
           File.write(output_json_path, JSON.pretty_generate(merged_spec))
-          log("Merged OpenAPI specification written to: #{output_json_path}", debug: debug)
+          log(message: "Merged OpenAPI specification written to: #{output_json_path}", debug: debug)
 
           # { individual_specs: specs, merged_spec: merged_spec }
           output_json_path
@@ -358,7 +358,12 @@ module PWN
       end
 
       # Recursively clean null schemas
-      private_class_method def self.clean_null_schemas(spec, file_path, current_path, validation_fixes, debug)
+      private_class_method def self.clean_null_schemas(opts = {})
+        spec = opts[:spec]
+        file_path = opts[:file_path]
+        current_path = opts[:current_path] ||= ''
+        validation_fixes = opts[:validation_fixes] ||= []
+        debug = opts[:debug] || false
         case spec
         when Hash
           spec.each do |key, value|
@@ -369,20 +374,25 @@ module PWN
                 error: 'Schema is null',
                 fix: 'Replaced with default schema { type: string }'
               }
-              log("Fixing null schema at #{new_path} in #{file_path}: Replacing with default { type: string }", debug: debug)
+              log(message: "Fixing null schema at #{new_path} in #{file_path}: Replacing with default { type: string }", debug: debug)
               spec[key] = { 'type' => 'string' }
             else
-              clean_null_schemas(value, file_path, new_path, validation_fixes, debug)
+              clean_null_schemas(spec: value, file_path: file_path, current_path: new_path, validation_fixes: validation_fixes, debug: debug)
             end
           end
         when Array
           spec.each_with_index do |item, i|
-            clean_null_schemas(item, file_path, "#{current_path}/#{i}", validation_fixes, debug)
+            clean_null_schemas(spec: item, file_path: file_path, current_path: "#{current_path}/#{i}", validation_fixes: validation_fixes, debug: debug)
           end
         end
       end
 
-      private_class_method def self.fix_array_items(schema, file_path, schema_path, validation_fixes, debug)
+      private_class_method def self.fix_array_items(opts = {})
+        schema = opts[:schema]
+        file_path = opts[:file_path]
+        schema_path = opts[:schema_path]
+        validation_fixes = opts[:validation_fixes] ||= []
+        debug = opts[:debug] || false
         return unless schema.is_a?(Hash)
 
         if schema['type'] == 'array'
@@ -392,7 +402,7 @@ module PWN
               error: 'Array schema missing items',
               fix: 'Added default items { type: string }'
             }
-            log("Fixing missing items at #{schema_path}/items in #{file_path}: Adding default { type: string }", debug: debug)
+            log(message: "Fixing missing items at #{schema_path}/items in #{file_path}: Adding default { type: string }", debug: debug)
             schema['items'] = { 'type' => 'string' }
           elsif schema['items'].is_a?(Array)
             validation_fixes << {
@@ -400,14 +410,14 @@ module PWN
               error: 'Array items must be an object, not an array',
               fix: 'Converted items to object with type: string'
             }
-            log("Fixing invalid array items at #{schema_path}/items in #{file_path}: Converting array to object", debug: debug)
+            log(message: "Fixing invalid array items at #{schema_path}/items in #{file_path}: Converting array to object", debug: debug)
             schema['items'] = { 'type' => 'string' }
           end
         end
 
         if schema['properties'].is_a?(Hash)
           schema['properties'].each do |prop_name, prop_schema|
-            fix_array_items(prop_schema, file_path, "#{schema_path}/properties/#{prop_name}", validation_fixes, debug)
+            fix_array_items(schema: prop_schema, file_path: file_path, schema_path: "#{schema_path}/properties/#{prop_name}", validation_fixes: validation_fixes, debug: debug)
           end
         end
 
@@ -415,14 +425,16 @@ module PWN
           next unless schema[keyword].is_a?(Array)
 
           schema[keyword].each_with_index do |sub_schema, i|
-            fix_array_items(sub_schema, file_path, "#{schema_path}/#{keyword}/#{i}", validation_fixes, debug)
+            fix_array_items(schema: sub_schema, file_path: file_path, schema_path: "#{schema_path}/#{keyword}/#{i}", validation_fixes: validation_fixes, debug: debug)
           end
         end
 
-        fix_array_items(schema['items'], file_path, "#{schema_path}/items", validation_fixes, debug) if schema['items'].is_a?(Hash)
+        fix_array_items(schema: schema['items'], file_path: file_path, schema_path: "#{schema_path}/items", validation_fixes: validation_fixes, debug: debug) if schema['items'].is_a?(Hash)
       end
 
-      private_class_method def self.combine_paths(base_path, endpoint)
+      private_class_method def self.combine_paths(opts = {})
+        base_path = opts[:base_path]
+        endpoint = opts[:endpoint]
         base_path = base_path.to_s.sub(%r{^/+}, '').sub(%r{/+$}, '')
         endpoint = endpoint.to_s.sub(%r{^/+}, '').sub(%r{/+$}, '')
         combined_path = if base_path.empty?
@@ -463,20 +475,22 @@ module PWN
                 error: error['error'],
                 fix: 'Validation failed; manual correction required'
               }
-              log("Validation error: #{error['error']} at #{error['data_pointer']}", debug: debug)
+              log(message: "Validation error: #{error['error']} at #{error['data_pointer']}", debug: debug)
             end
           end
           [merged_spec, validation_errors]
         rescue OpenURI::HTTPError => e
-          log("Failed to fetch OpenAPI schema from #{schema_url}: #{e.message}", debug: debug)
+          log(message: "Failed to fetch OpenAPI schema from #{schema_url}: #{e.message}", debug: debug)
           raise "Failed to validate OpenAPI specification: #{e.message}"
         rescue StandardError => e
-          log("Error validating OpenAPI specification: #{e.message}", debug: debug)
+          log(message: "Error validating OpenAPI specification: #{e.message}", debug: debug)
           raise "Failed to validate OpenAPI specification: #{e.message}"
         end
       end
 
-      private_class_method def self.validate_path_parameters(paths, file_path, opts = {})
+      private_class_method def self.validate_path_parameters(opts = {})
+        paths = opts[:paths] ||= {}
+        file_path = opts[:file_path]
         debug = opts[:debug] || false
         server_base_path = opts[:server_base_path]&.sub(%r{^/+}, '')&.sub(%r{/+$}, '')
 
@@ -491,12 +505,12 @@ module PWN
             prefix_pattern = Regexp.new("^#{Regexp.escape(server_base_path)}/")
             while normalized_endpoint.match?(prefix_pattern)
               normalized_endpoint = normalized_endpoint.sub(prefix_pattern, '')
-              log("Stripped '#{server_base_path}' from endpoint '#{endpoint}' to '#{normalized_endpoint}' in #{file_path}", debug: debug)
+              log(message: "Stripped '#{server_base_path}' from endpoint '#{endpoint}' to '#{normalized_endpoint}' in #{file_path}", debug: debug)
             end
           end
           normalized_endpoint = '/' if normalized_endpoint.empty?
 
-          log("Validating path '#{endpoint}' as '#{normalized_endpoint}' in #{file_path}", debug: debug)
+          log(message: "Validating path '#{endpoint}' as '#{normalized_endpoint}' in #{file_path}", debug: debug)
 
           path_params = path_item['parameters']&.select { |p| p['in'] == 'path' }&.map { |p| p['name'] }&.compact || []
 
@@ -509,7 +523,7 @@ module PWN
 
             missing_params = required_params - all_params
             unless missing_params.empty?
-              log("In #{file_path}, path '#{normalized_endpoint}' (method: #{method}) has undeclared path parameters: #{missing_params.join(', ')}. Adding default definitions.", debug: debug)
+              log(message: "In #{file_path}, path '#{normalized_endpoint}' (method: #{method}) has undeclared path parameters: #{missing_params.join(', ')}. Adding default definitions.", debug: debug)
               operation['parameters'] ||= []
               missing_params.each do |param|
                 operation['parameters'] << {
@@ -526,7 +540,7 @@ module PWN
               raise "Path parameter #{param['name']} in #{file_path} (path: #{normalized_endpoint}, method: #{method}) must be required" unless param['required']
               next unless param['schema'].nil?
 
-              log("Path parameter #{param['name']} in #{file_path} (path: #{normalized_endpoint}, method: #{method}) has null schema. Adding default schema (type: string).", debug: debug)
+              log(message: "Path parameter #{param['name']} in #{file_path} (path: #{normalized_endpoint}, method: #{method}) has null schema. Adding default schema (type: string).", debug: debug)
               validation_fixes << {
                 path: "#{normalized_endpoint}/parameters/#{param['name']}",
                 error: 'Path parameter schema is null',
@@ -544,7 +558,9 @@ module PWN
         transformed_paths
       end
 
-      private_class_method def self.remove_server_path_prefixes(merged_spec, debug: false)
+      private_class_method def self.remove_server_path_prefixes(opts = {})
+        merged_spec = opts[:merged_spec]
+        debug = opts[:debug] || false
         return merged_spec unless merged_spec['paths'].is_a?(Hash) && merged_spec['servers'].is_a?(Array)
 
         transformed_paths = {}
@@ -571,7 +587,7 @@ module PWN
             new_path = path_segments[1..-1].join('/')
             new_path = '/' if new_path.empty?
             new_path = "/#{new_path}" unless new_path.start_with?('/')
-            log("Removing server path prefix '#{first_segment}' from path '#{path}' to '#{new_path}'", debug: debug)
+            log(message: "Removing server path prefix '#{first_segment}' from path '#{path}' to '#{new_path}'", debug: debug)
             transformed_paths[new_path] = path_item
           else
             transformed_paths[path] = path_item
@@ -625,10 +641,10 @@ module PWN
               ref_path, json_pointer = value.split('#', 2)
               json_pointer ||= ''
               if ref_path.empty? || ref_path == '#'
-                log("Resolving internal $ref: #{value} in #{referencing_file}", debug: debug)
+                log(message: "Resolving internal $ref: #{value} in #{referencing_file}", debug: debug)
                 target = resolve_json_pointer(spec: spec, json_pointer: json_pointer, matched_path: referencing_file, referencing_file: referencing_file, debug: debug, target_version: target_version)
                 if target.nil?
-                  log("Failed to resolve internal $ref #{value}: invalid pointer in #{referencing_file}", debug: debug)
+                  log(message: "Failed to resolve internal $ref #{value}: invalid pointer in #{referencing_file}", debug: debug)
                   resolved[key] = value
                 else
                   resolved = resolve_refs(spec: target, specs: specs, spec_paths: spec_paths, referencing_file: referencing_file, depth: depth + 1, debug: debug, target_version: target_version)
@@ -636,12 +652,12 @@ module PWN
               else
                 matched_path = resolve_ref_path(ref: ref_path, spec_paths: spec_paths, referencing_file: referencing_file)
                 unless File.exist?(matched_path)
-                  log("External file not found for $ref: #{matched_path} from #{referencing_file}", debug: debug)
+                  log(message: "External file not found for $ref: #{matched_path} from #{referencing_file}", debug: debug)
                   resolved[key] = value
                   next
                 end
                 unless specs.key?(matched_path)
-                  log("Loading external $ref: #{value} from #{referencing_file} at #{matched_path}", debug: debug)
+                  log(message: "Loading external $ref: #{value} from #{referencing_file} at #{matched_path}", debug: debug)
                   begin
                     case File.extname(matched_path).downcase
                     when '.yaml', '.yml'
@@ -651,12 +667,12 @@ module PWN
                       specs[matched_path] = JSON.parse(File.read(matched_path))
                       spec_paths << matched_path unless spec_paths.include?(matched_path)
                     else
-                      log("Unsupported file type for $ref: #{matched_path} from #{referencing_file}", debug: debug)
+                      log(message: "Unsupported file type for $ref: #{matched_path} from #{referencing_file}", debug: debug)
                       resolved[key] = value
                       next
                     end
                   rescue StandardError => e
-                    log("Failed to load external $ref #{matched_path}: #{e.message} from #{referencing_file}", debug: debug)
+                    log(message: "Failed to load external $ref #{matched_path}: #{e.message} from #{referencing_file}", debug: debug)
                     resolved[key] = value
                     next
                   end
@@ -664,13 +680,13 @@ module PWN
                 ref_spec = specs[matched_path]
                 # Migrate external spec if necessary
                 if target_version.start_with?('3.') && ref_spec['definitions']
-                  log("Migrating external spec #{matched_path} 'definitions' to 'components/schemas'", debug: debug)
+                  log(message: "Migrating external spec #{matched_path} 'definitions' to 'components/schemas'", debug: debug)
                   ref_spec['components'] ||= {}
                   ref_spec['components']['schemas'] = ref_spec.delete('definitions')
                 end
                 target = json_pointer.empty? ? ref_spec : resolve_json_pointer(spec: ref_spec, json_pointer: json_pointer, matched_path: matched_path, referencing_file: referencing_file, debug: debug, target_version: target_version)
                 if target.nil?
-                  log("Failed to resolve in specified file #{matched_path}, searching other files in directory for #{json_pointer}", debug: debug)
+                  log(message: "Failed to resolve in specified file #{matched_path}, searching other files in directory for #{json_pointer}", debug: debug)
                   dir = File.dirname(referencing_file)
                   potential_files = Dir.glob("#{dir}/*.{yaml,yml,json}")
                   found = false
@@ -691,27 +707,27 @@ module PWN
                         end
                         spec_paths << abs_pot unless spec_paths.include?(abs_pot)
                       rescue StandardError => e
-                        log("Failed to load potential file #{abs_pot}: #{e.message}", debug: debug)
+                        log(message: "Failed to load potential file #{abs_pot}: #{e.message}", debug: debug)
                         next
                       end
                     end
                     pot_spec = specs[abs_pot]
                     if target_version.start_with?('3.') && pot_spec['definitions']
-                      log("Migrating potential spec #{abs_pot} 'definitions' to 'components/schemas'", debug: debug)
+                      log(message: "Migrating potential spec #{abs_pot} 'definitions' to 'components/schemas'", debug: debug)
                       pot_spec['components'] ||= {}
                       pot_spec['components']['schemas'] = pot_spec.delete('definitions')
                     end
                     pot_target = json_pointer.empty? ? pot_spec : resolve_json_pointer(spec: pot_spec, json_pointer: json_pointer, matched_path: abs_pot, referencing_file: referencing_file, debug: debug, target_version: target_version)
                     next unless pot_target.nil?
 
-                    log("Found schema in alternative file #{abs_pot} for original $ref #{value}", debug: debug)
+                    log(message: "Found schema in alternative file #{abs_pot} for original $ref #{value}", debug: debug)
                     target = pot_target
                     matched_path = abs_pot
                     found = true
                     break
                   end
                   unless found
-                    log("Invalid JSON pointer #{json_pointer} in #{matched_path} from #{referencing_file} and no alternative found", debug: debug)
+                    log(message: "Invalid JSON pointer #{json_pointer} in #{matched_path} from #{referencing_file} and no alternative found", debug: debug)
                     resolved[key] = value
                     next
                   end
@@ -740,10 +756,10 @@ module PWN
         pointer_parts = json_pointer.split('/').reject(&:empty?)
         # Adjust pointer for version mismatches
         if pointer_parts.first == 'definitions' && !spec.key?('definitions') && spec.dig('components', 'schemas')
-          log("Adjusting pointer from /definitions to /components/schemas for #{json_pointer} in #{matched_path}", debug: debug)
+          log(message: "Adjusting pointer from /definitions to /components/schemas for #{json_pointer} in #{matched_path}", debug: debug)
           pointer_parts = %w[components schemas] + pointer_parts[1..-1]
         elsif pointer_parts[0..1] == %w[components schemas] && !spec.dig('components', 'schemas') && spec['definitions']
-          log("Adjusting pointer from /components/schemas to /definitions for #{json_pointer} in #{matched_path}", debug: debug)
+          log(message: "Adjusting pointer from /components/schemas to /definitions for #{json_pointer} in #{matched_path}", debug: debug)
           pointer_parts = ['definitions'] + pointer_parts[2..-1]
         end
         target = spec
@@ -867,7 +883,8 @@ module PWN
         [cycle ? spec_paths : result.reverse, cycle]
       end
 
-      private_class_method def self.log(message, opts = {})
+      private_class_method def self.log(opts = {})
+        message = opts[:message]
         debug = opts[:debug] || false
         warn("[DEBUG] #{message}") if debug
       end

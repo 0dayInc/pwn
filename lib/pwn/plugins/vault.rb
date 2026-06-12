@@ -113,7 +113,7 @@ module PWN
       #   yaml: 'optional - dump as parsed yaml hash (default: true)'
       # )
 
-      def self.dump(opts = {})
+      public_class_method def self.dump(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
         key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
           prompt: 'Key'
@@ -158,7 +158,7 @@ module PWN
       #   editor: 'optional - editor to use (default: "/usr/bin/vim")'
       # )
 
-      def self.edit(opts = {})
+      public_class_method def self.edit(opts = {})
         file = opts[:file].to_s.scrub if File.exist?(opts[:file].to_s.scrub)
         key = opts[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(
           prompt: 'Key'

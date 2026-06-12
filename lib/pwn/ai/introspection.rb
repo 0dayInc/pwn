@@ -74,6 +74,15 @@ module PWN
             response = response[:choices].last[:content] if response.is_a?(Hash) &&
                                                             response.key?(:choices) &&
                                                             response[:choices].last.keys.include?(:content)
+          when :gemini
+            response = PWN::AI::Gemini.chat(
+              request: request.chomp,
+              system_role_content: system_role_content,
+              spinner: spinner
+            )
+            response = response[:choices].last[:content] if response.is_a?(Hash) &&
+                                                            response.key?(:choices) &&
+                                                            response[:choices].last.keys.include?(:content)
           end
         end
 

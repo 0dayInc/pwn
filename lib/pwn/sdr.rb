@@ -12,7 +12,12 @@ module PWN
     autoload :RFIDler, 'pwn/sdr/rfidler'
     autoload :SonMicroRFID, 'pwn/sdr/son_micro_rfid'
 
-    public_class_method def self.hz_to_s(freq)
+    # Supported Method Parameters::
+    # PWN::SDR.hz_to_s(
+    #   freq: 'required - frequency in Hz (Integer or String)'
+    # )
+    public_class_method def self.hz_to_s(opts = {})
+      freq = opts[:freq]
       str_hz = freq.to_s
       # Nuke leading zeros
       # E.g., 002450000000 -> 2450000000
@@ -21,11 +26,22 @@ module PWN
       str_hz.reverse.scan(/.{1,3}/).join('.').reverse
     end
 
-    public_class_method def self.hz_to_i(freq)
+    # Supported Method Parameters::
+    # PWN::SDR.hz_to_i(
+    #   freq: 'required - frequency string (e.g. "2.450.000.000")'
+    # )
+    public_class_method def self.hz_to_i(opts = {})
+      freq = opts[:freq]
       freq.to_s.gsub('.', '').to_i
     end
 
     # Display a List of Every PWN::AI Module
+
+    # Author(s):: 0day Inc. <support@0dayinc.com>
+
+    public_class_method def self.authors
+      "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+    end
 
     public_class_method def self.help
       constants.sort

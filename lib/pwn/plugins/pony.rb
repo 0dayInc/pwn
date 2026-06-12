@@ -44,8 +44,8 @@ module PWN
 
       # Method usage N/A
 
-      public_class_method def self.subject_prefix(value)
-        @@subject_prefix = value
+      public_class_method def self.subject_prefix(opts = {})
+        @@subject_prefix = opts[:value]
       end
 
       # Method usage N/A
@@ -58,24 +58,24 @@ module PWN
       #   Pony.mail(:to => 'you@example.com', :from => 'me@example.com', :subject => 'hi', :body => 'Hello there.')
       #   Pony.mail(:to => 'you@example.com', :html_body => '<h1>Hello there!</h1>', :body => "In case you can't read html, Hello there.")
       #   Pony.mail(:to => 'you@example.com', :cc => 'him@example.com', :from => 'me@example.com', :subject => 'hi', :body => 'Howsit!')
-      public_class_method def self.mail(options)
-        options[:body] = "#{options[:body]}/n #{options}" if @@append_inputs
+      public_class_method def self.mail(opts = {})
+        opts[:body] = "#{opts[:body]}/n #{opts}" if @@append_inputs
 
-        options = @@options.merge options
-        options = options.merge @@override_options
+        opts = @@options.merge opts
+        opts = opts.merge @@override_options
 
-        options[:subject] = "#{@@subject_prefix}#{options[:subject]}" if @@subject_prefix
+        opts[:subject] = "#{@@subject_prefix}#{opts[:subject]}" if @@subject_prefix
 
-        raise ArgumentError, ':to is required' unless options[:to]
+        raise ArgumentError, ':to is required' unless opts[:to]
 
-        options[:via] = default_delivery_method unless options.key?(:via)
+        opts[:via] = default_delivery_method unless opts.key?(:via)
 
-        if options.key?(:via) && options[:via] == :sendmail
-          options[:via_options] ||= {}
-          options[:via_options][:location] ||= sendmail_binary
+        if opts.key?(:via) && opts[:via] == :sendmail
+          opts[:via_options] ||= {}
+          opts[:via_options][:location] ||= sendmail_binary
         end
 
-        deliver build_mail(options)
+        deliver(mail: build_mail(opts))
       end
 
       # Method usage N/A
@@ -86,8 +86,8 @@ module PWN
 
       # Method usage N/A
 
-      private_class_method def self.deliver(mail)
-        mail.deliver!
+      private_class_method def self.deliver(opts = {})
+        opts[:mail].deliver!
       end
 
       # Method usage N/A
@@ -133,13 +133,13 @@ module PWN
 
       # Method usage N/A
 
-      public_class_method def self.build_mail(options)
+      public_class_method def self.build_mail(opts = {})
         mail = Mail.new do |m|
-          options[:date] ||= Time.now
-          options[:from] ||= 'pony@unknown'
-          options[:via_options] ||= {}
+          opts[:date] ||= Time.now
+          opts[:from] ||= 'pony@unknown'
+          opts[:via_options] ||= {}
 
-          options.each do |k, v|
+          opts.each do |k, v|
             next if non_standard_options.include?(k)
 
             m.send(k, v)
@@ -151,48 +151,48 @@ module PWN
           # we need to explicitly define a second multipart/alternative
           # boundary to encapsulate the body-parts within the
           # multipart/mixed boundary that will be created automatically.
-          if options[:attachments] && options[:html_body] && options[:body]
+          if opts[:attachments] && opts[:html_body] && opts[:body]
             part(content_type: 'multipart/alternative') do |p|
-              p.html_part = build_html_part(options)
-              p.text_part = build_text_part(options)
+              p.html_part = build_html_part(opts)
+              p.text_part = build_text_part(opts)
             end
 
           # Otherwise if there is more than one part we still need to
           # ensure that they are all declared to be separate.
-          elsif options[:html_body] || options[:attachments]
-            m.html_part = build_html_part(options) if options[:html_body]
+          elsif opts[:html_body] || opts[:attachments]
+            m.html_part = build_html_part(opts) if opts[:html_body]
 
-            m.text_part = build_text_part(options) if options[:body]
+            m.text_part = build_text_part(opts) if opts[:body]
 
-          elsif options[:body]
+          elsif opts[:body]
             # If all we have is a text body, we don't need to worry about parts.
-            body options[:body]
+            body opts[:body]
           end
 
-          m.delivery_method options[:via], options[:via_options]
+          m.delivery_method opts[:via], opts[:via_options]
         end
 
-        (options[:headers] ||= {}).each do |key, value|
+        (opts[:headers] ||= {}).each do |key, value|
           mail[key] = value
         end
 
-        add_attachments(mail, options[:attachments]) if options[:attachments]
+        add_attachments(mail: mail, attachments: opts[:attachments]) if opts[:attachments]
 
-        mail.charset = options[:charset] if options[:charset] # charset must be set after setting content_type
+        mail.charset = opts[:charset] if opts[:charset] # charset must be set after setting content_type
 
-        mail.text_part.charset = options[:text_part_charset] if mail.multipart? && options[:text_part_charset]
-        set_content_type(mail, options[:content_type])
+        mail.text_part.charset = opts[:text_part_charset] if mail.multipart? && opts[:text_part_charset]
+        set_content_type(mail: mail, user_content_type: opts[:content_type])
         mail
       end
 
       # Method usage N/A
 
-      public_class_method def self.build_html_part(options)
+      public_class_method def self.build_html_part(opts = {})
         Mail::Part.new(content_type: 'text/html;charset=UTF-8') do
           content_transfer_encoding 'quoted-printable'
-          body Mail::Encodings::QuotedPrintable.encode(options[:html_body])
-          if options[:html_body_part_header] && options[:html_body_part_header].is_a?(Hash)
-            options[:html_body_part_header].each do |k, v|
+          body Mail::Encodings::QuotedPrintable.encode(opts[:html_body])
+          if opts[:html_body_part_header] && opts[:html_body_part_header].is_a?(Hash)
+            opts[:html_body_part_header].each do |k, v|
               header[k] = v
             end
           end
@@ -201,12 +201,12 @@ module PWN
 
       # Method usage N/A
 
-      public_class_method def self.build_text_part(options)
+      public_class_method def self.build_text_part(opts = {})
         Mail::Part.new(content_type: 'text/plain') do
-          content_type options[:charset] if options[:charset]
-          body options[:body]
-          if options[:body_part_header] && options[:body_part_header].is_a?(Hash)
-            options[:body_part_header].each do |k, v|
+          content_type opts[:charset] if opts[:charset]
+          body opts[:body]
+          if opts[:body_part_header] && opts[:body_part_header].is_a?(Hash)
+            opts[:body_part_header].each do |k, v|
               header[k] = v
             end
           end
@@ -215,7 +215,9 @@ module PWN
 
       # Method usage N/A
 
-      public_class_method def self.set_content_type(mail, user_content_type)
+      public_class_method def self.set_content_type(opts = {})
+        mail = opts[:mail]
+        user_content_type = opts[:user_content_type]
         params = mail.content_type_parameters || {}
         case params
         when user_content_type
@@ -236,7 +238,9 @@ module PWN
 
       # Method usage N/A
 
-      public_class_method def self.add_attachments(mail, attachments)
+      public_class_method def self.add_attachments(opts = {})
+        mail = opts[:mail]
+        attachments = opts[:attachments] ||= {}
         attachments.each do |name, body|
           name = name.gsub(/\s+/, ' ')
 

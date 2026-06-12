@@ -14,7 +14,7 @@ module PWN
         TSC_0 = [0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1].freeze
 
         # Starts the live decoding thread.
-        def self.start(opts = {})
+        public_class_method def self.start(opts = {})
           freq_obj = opts[:freq_obj]
           raise ':ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
 
@@ -58,7 +58,7 @@ module PWN
         end
 
         # Stops the decoding thread.
-        def self.stop(opts = {})
+        public_class_method def self.stop(opts = {})
           freq_obj = opts[:freq_obj]
           raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
 

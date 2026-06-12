@@ -11,14 +11,15 @@ module PWN
       # PWN::Plugins::Char.force_utf8(
       #  obj: 'required - object to force to UTF-8'
       #  )
-      public_class_method def self.force_utf8(obj)
+      public_class_method def self.force_utf8(opts = {})
+        obj = opts[:obj]
         case obj
         when String
           obj.force_encoding('ISO-8859-1').encode('UTF-8', invalid: :replace, undef: :replace)
         when Array
-          obj.map { |item| force_utf8(item) }
+          obj.map { |item| force_utf8(obj: item) }
         when Hash
-          obj.transform_values { |value| force_utf8(value) }
+          obj.transform_values { |value| force_utf8(obj: value) }
         else
           obj
         end

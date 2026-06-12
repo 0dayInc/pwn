@@ -330,7 +330,7 @@ module PWN
       #   view_path: 'required view path associate job',
       #   job_name: 'required view path attach to a view',
       # )
-      def self.add_job_to_nested_view(opts = {})
+      public_class_method def self.add_job_to_nested_view(opts = {})
         jenkins_obj = opts[:jenkins_obj]
         view_path = opts[:view_path].to_s.scrub
         job_name = opts[:job_name].to_s.scrub

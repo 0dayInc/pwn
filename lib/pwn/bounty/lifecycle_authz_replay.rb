@@ -24,7 +24,7 @@ module PWN
         raise "YAML plan does not exist: #{yaml_path}" unless File.exist?(yaml_path)
 
         raw_plan = YAML.safe_load_file(yaml_path, aliases: true) || {}
-        normalize_plan(plan: symbolize_obj(raw_plan), plan_id_hint: File.basename(yaml_path, File.extname(yaml_path)))
+        normalize_plan(plan: symbolize_obj(obj: raw_plan), plan_id_hint: File.basename(yaml_path, File.extname(yaml_path)))
       rescue StandardError => e
         raise e
       end
@@ -90,10 +90,10 @@ module PWN
         run_obj = opts[:run_obj]
         raise 'run_obj is required' unless run_obj.is_a?(Hash)
 
-        checkpoint = normalize_token(opts[:checkpoint])
-        actor = normalize_token(opts[:actor])
-        surface = normalize_token(opts[:surface])
-        status = normalize_token(opts[:status])
+        checkpoint = normalize_token(token: opts[:checkpoint])
+        actor = normalize_token(token: opts[:actor])
+        surface = normalize_token(token: opts[:surface])
+        status = normalize_token(token: opts[:status])
 
         raise 'checkpoint is required' if checkpoint.empty?
         raise 'actor is required' if actor.empty?
@@ -117,8 +117,8 @@ module PWN
           actor: actor,
           surface: surface,
           status: status,
-          request: symbolize_obj(opts[:request] || {}),
-          response: symbolize_obj(opts[:response] || {}),
+          request: symbolize_obj(obj: opts[:request] || {}),
+          response: symbolize_obj(obj: opts[:response] || {}),
           notes: opts[:notes].to_s,
           artifact_paths: Array(opts[:artifact_paths]).map(&:to_s)
         }
@@ -192,12 +192,12 @@ module PWN
       #   }
       # )
       public_class_method def self.normalize_plan(opts = {})
-        plan = symbolize_obj(opts[:plan] || {})
-        plan_id_hint = normalize_token(opts[:plan_id_hint])
+        plan = symbolize_obj(obj: opts[:plan] || {})
+        plan_id_hint = normalize_token(token: opts[:plan_id_hint])
 
-        campaign = symbolize_obj(plan[:campaign] || {})
-        campaign_id = normalize_token(campaign[:id])
-        campaign_id = normalize_token(campaign[:name]) if campaign_id.empty?
+        campaign = symbolize_obj(obj: plan[:campaign] || {})
+        campaign_id = normalize_token(token: campaign[:id])
+        campaign_id = normalize_token(token: campaign[:name]) if campaign_id.empty?
         campaign_id = plan_id_hint if campaign_id.empty?
         campaign_id = 'lifecycle-authz-replay' if campaign_id.empty?
 
@@ -213,10 +213,10 @@ module PWN
           default_prefix: 'surface'
         )
 
-        checkpoints = Array(plan[:checkpoints]).map { |checkpoint| normalize_token(checkpoint) }.reject(&:empty?)
+        checkpoints = Array(plan[:checkpoints]).map { |checkpoint| normalize_token(token: checkpoint) }.reject(&:empty?)
         checkpoints = DEFAULT_CHECKPOINTS if checkpoints.empty?
 
-        expected_denied_after = Array(plan[:expected_denied_after]).map { |checkpoint| normalize_token(checkpoint) }.reject(&:empty?)
+        expected_denied_after = Array(plan[:expected_denied_after]).map { |checkpoint| normalize_token(token: checkpoint) }.reject(&:empty?)
         expected_denied_after = checkpoints.select { |checkpoint| checkpoint.start_with?('post_change') } if expected_denied_after.empty?
 
         {
@@ -231,7 +231,7 @@ module PWN
           surfaces: surfaces,
           checkpoints: checkpoints,
           expected_denied_after: expected_denied_after,
-          metadata: symbolize_obj(plan[:metadata] || {})
+          metadata: symbolize_obj(obj: plan[:metadata] || {})
         }
       rescue StandardError => e
         raise e
@@ -430,7 +430,7 @@ module PWN
       private_class_method def self.normalize_named_records(opts = {})
         list = opts[:list]
         fallback = opts[:fallback]
-        default_prefix = normalize_token(opts[:default_prefix])
+        default_prefix = normalize_token(token: opts[:default_prefix])
 
         list = fallback if list.empty?
 
@@ -438,10 +438,10 @@ module PWN
         list.each_with_index do |entry, index|
           item = entry
           item = { id: entry.to_s, label: entry.to_s } unless item.is_a?(Hash)
-          item = symbolize_obj(item)
+          item = symbolize_obj(obj: item)
 
-          id = normalize_token(item[:id])
-          id = normalize_token(item[:name]) if id.empty?
+          id = normalize_token(token: item[:id])
+          id = normalize_token(token: item[:name]) if id.empty?
           id = "#{default_prefix}_#{index + 1}" if id.empty?
 
           label = item[:label].to_s.strip
@@ -451,7 +451,7 @@ module PWN
           normalized << {
             id: id,
             label: label,
-            metadata: symbolize_obj(item[:metadata] || {})
+            metadata: symbolize_obj(obj: item[:metadata] || {})
           }
         end
 
@@ -460,14 +460,15 @@ module PWN
         raise e
       end
 
-      private_class_method def self.symbolize_obj(obj)
+      private_class_method def self.symbolize_obj(opts = {})
+        obj = opts[:obj]
         case obj
         when Array
-          obj.map { |entry| symbolize_obj(entry) }
+          obj.map { |entry| symbolize_obj(obj: entry) }
         when Hash
           obj.each_with_object({}) do |(key, value), accum|
             symbolized_key = key.respond_to?(:to_sym) ? key.to_sym : key
-            accum[symbolized_key] = symbolize_obj(value)
+            accum[symbolized_key] = symbolize_obj(obj: value)
           end
         else
           obj
@@ -476,7 +477,8 @@ module PWN
         raise e
       end
 
-      private_class_method def self.normalize_token(token)
+      private_class_method def self.normalize_token(opts = {})
+        token = opts[:token]
         token.to_s.strip.downcase.gsub(/[^a-z0-9]+/, '_').gsub(/^_+|_+$/, '')
       rescue StandardError => e
         raise e
