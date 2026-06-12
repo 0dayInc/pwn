@@ -70,6 +70,7 @@ Metrics/MethodLength:
 Naming/AccessorMethodName:
   Exclude:
     - 'lib/pwn/ai/anthropic.rb'
+    - 'lib/pwn/ai/gemini.rb'
     - 'lib/pwn/ai/grok.rb'
     - 'lib/pwn/ai/ollama.rb'
     - 'lib/pwn/ai/open_ai.rb'

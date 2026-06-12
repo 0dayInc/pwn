@@ -133,6 +133,74 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # response = PWN::AI::OpenAI.chat_raw(
+      #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
+      #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
+      #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
+      #   model: 'optional - overrides PWN::Env[:ai][:openai][:model]',
+      #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:openai][:temp] || 1)',
+      #   timeout: 'optional - seconds (default 180)',
+      #   spinner: 'optional - display spinner (default false)'
+      # )
+      #
+      # Returns the raw chat/completions response Hash with :choices intact
+      # (including :message[:tool_calls]) — used by PWN::AI::Agent::Loop.
+      # Unlike .chat, this does NOT flatten the assistant message into
+      # response_history; the caller owns the messages array.
+
+      public_class_method def self.chat_raw(opts = {})
+        engine   = PWN::Env[:ai][:openai]
+        messages = opts[:messages]
+        raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
+
+        model = opts[:model] ||= engine[:model]
+
+        reasoning = reasoning_model?(model: model)
+        http_body = {
+          model: model,
+          messages: reasoning ? remap_system_to_developer(messages: messages) : messages
+        }
+        unless reasoning
+          temp = opts[:temp].to_f
+          temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
+          http_body[:temperature] = temp
+        end
+        http_body[:tools]       = opts[:tools]       if opts[:tools] && !opts[:tools].empty?
+        http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
+
+        response = open_ai_rest_call(
+          http_method: :post,
+          rest_call: 'chat/completions',
+          http_body: http_body,
+          timeout: opts[:timeout],
+          spinner: opts[:spinner]
+        )
+        return nil if response.nil?
+
+        json_resp = JSON.parse(response, symbolize_names: true)
+        json_resp[:assistant_message] = json_resp.dig(:choices, 0, :message)
+        json_resp
+      rescue StandardError => e
+        raise e
+      end
+
+      # OpenAI reasoning-family models (o1 / o3 / o4 / gpt-5 reasoning) reject
+      # `temperature`, `top_p`, etc. and use role 'developer' in place of
+      # 'system'. Detect by prefix so future minor revisions still match.
+      private_class_method def self.reasoning_model?(opts = {})
+        m = opts[:model].to_s.downcase
+        m.start_with?('o1', 'o3', 'o4', 'o5') || m.include?('reason')
+      end
+
+      private_class_method def self.remap_system_to_developer(opts = {})
+        messages = opts[:messages] ||= []
+        messages.map do |msg|
+          r = (msg[:role] || msg['role']).to_s
+          r == 'system' ? msg.merge(role: 'developer') : msg
+        end
+      end
+
+      # Supported Method Parameters::
       # response = PWN::AI::OpenAI.chat(
       #   request: 'required - message to ChatGPT'
       #   model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:openai][:model])',
@@ -145,138 +213,97 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine = PWN::Env[:ai][:openai]
+        engine  = PWN::Env[:ai][:openai]
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 128_000
-        request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor
-        request = request[0..request_trunc_idx]
+        request = request.to_s[0, ((max_prompt_length - 1) / 3.36).floor]
 
         model = opts[:model] ||= engine[:model]
+        raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
 
-        temp = opts[:temp].to_f ||= engine[:temp].to_f
-        temp = 1 if temp.zero?
+        temp = opts[:temp].to_f
+        temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
 
-        gpt = true if model.include?('gpt') || model.include?('o1')
+        reasoning = reasoning_model?(model: model)
 
-        if gpt
-          rest_call = 'chat/completions'
+        system_role_content = opts[:system_role_content] ||= engine[:system_role_content]
+        system_role = {
+          role: reasoning ? 'developer' : 'system',
+          content: system_role_content
+        }
+        user_role = { role: 'user', content: request }
 
-          max_completion_tokens = 4096
-          case model
-          when 'gpt-3.5-turbo', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-3.5-turbo-instruct',
-               'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-4-turbo-preview', 'gpt-4-0125-preview', 'gpt-4-1106-preview'
-            max_completion_tokens = 4_096
-          when 'gpt-4', 'gpt-4-0613', 'gpt-4-0314',
-               'gpt-4o', 'gpt-4o-2024-05-13'
-            max_completion_tokens = 8_192
-          else
-            max_completion_tokens = 16_384
+        response_history = opts[:response_history]
+        response_history ||= { choices: [system_role] }
+        choices_len = response_history[:choices].length
+
+        # Build messages: system/developer + prior history (minus any prior
+        # system entry) + new user turn.
+        messages = [system_role]
+        if response_history[:choices].length > 1
+          response_history[:choices][1..].each do |msg|
+            r = (msg[:role] || msg['role']).to_s
+            next if %w[system developer].include?(r)
+
+            messages.push(msg)
           end
-
-          response_history = opts[:response_history]
-
-          max_completion_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
-
-          system_role_content = opts[:system_role_content] ||= engine[:system_role_content]
-
-          system_role = {
-            role: 'system',
-            content: system_role_content
-          }
-
-          user_role = {
-            role: 'user',
-            content: request
-          }
-
-          response_history ||= { choices: [system_role] }
-          choices_len = response_history[:choices].length
-
-          http_body = {
-            model: model,
-            messages: [system_role],
-            temperature: temp,
-            max_completion_tokens: max_completion_tokens
-          }
-
-          if response_history[:choices].length > 1
-            response_history[:choices][1..-1].each do |message|
-              http_body[:messages].push(message)
-            end
-          end
-
-          http_body[:messages].push(user_role)
-        else
-          # Per https://openai.com/pricing:
-          # For English text, 1 token is approximately 4 characters or 0.75 words.
-          max_tokens = 16_384 - (request.to_s.length / 4)
-          max_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
-
-          rest_call = 'completions'
-          http_body = {
-            model: model,
-            prompt: request,
-            temperature: temp,
-            max_tokens: max_tokens,
-            echo: true
-          }
         end
+        messages.push(user_role)
 
-        timeout = opts[:timeout]
-        spinner = opts[:spinner]
+        # `max_tokens` is deprecated on /v1/chat/completions; the unified
+        # parameter is `max_completion_tokens` and works for every chat model
+        # including the reasoning family. Don't try to guess per-model caps —
+        # let the server clamp; default to a generous ceiling that the
+        # operator can override via PWN::Env[:ai][:openai][:max_completion_tokens].
+        max_completion_tokens = (engine[:max_completion_tokens] || 16_384).to_i
+
+        http_body = {
+          model: model,
+          messages: messages,
+          max_completion_tokens: max_completion_tokens
+        }
+        # Reasoning models reject sampler params (temperature, top_p, etc.)
+        http_body[:temperature] = temp unless reasoning
+        http_body[:reasoning_effort] = opts[:reasoning_effort] if reasoning && opts[:reasoning_effort]
 
         response = open_ai_rest_call(
           http_method: :post,
-          rest_call: rest_call,
+          rest_call: 'chat/completions',
           http_body: http_body,
-          timeout: timeout,
-          spinner: spinner
+          timeout: opts[:timeout],
+          spinner: opts[:spinner]
         )
 
         json_resp = JSON.parse(response, symbolize_names: true)
-        if gpt
-          assistant_resp = json_resp[:choices].first[:message]
-          json_resp[:choices] = http_body[:messages]
-          json_resp[:choices].push(assistant_resp)
-        end
+        assistant_resp = json_resp.dig(:choices, 0, :message) || { role: 'assistant', content: '' }
+        json_resp[:choices] = messages
+        json_resp[:choices].push(assistant_resp)
 
-        speak_answer = true if opts[:speak_answer]
-
-        if speak_answer
+        if opts[:speak_answer]
           text_path = "/tmp/#{SecureRandom.hex}.pwn_voice"
-          answer = json_resp[:choices].last[:text]
-          answer = json_resp[:choices].last[:content] if gpt
-          File.write(text_path, answer)
+          File.write(text_path, assistant_resp[:content].to_s)
           PWN::Plugins::Voice.text_to_speech(text_path: text_path)
           File.unlink(text_path)
         end
 
         json_resp
       rescue JSON::ParserError => e
-        # TODO: Leverage PWN::Plugins::Log & log to JSON file
-        # in order to manage memory
-        if e.message.include?('exceeded')
-          if request.length > max_tokens
-            puts "Request Length Too Long: #{request.length}\n"
-          else
-            # TODO: make this as tight as possible.
-            keep_in_memory = (choices_len - 2) * -1
-            response_history[:choices] = response_history[:choices].slice(keep_in_memory..)
-
-            response = chat(
-              token: token,
-              system_role_content: system_role_content,
-              request: "summarize what we've already discussed",
-              response_history: response_history,
-              speak_answer: speak_answer,
-              timeout: timeout
-            )
-            keep_in_memory = (choices_len / 2) * -1
-            response_history[:choices] = response[:choices].slice(keep_in_memory..)
-
-            retry
-          end
+        # Context-window overflow: drop the oldest half of history and retry
+        # with a self-summary request. (Legacy compaction behaviour.)
+        if e.message.include?('exceeded') && choices_len.to_i > 2
+          keep = (choices_len / 2) * -1
+          response_history[:choices] = response_history[:choices].slice(keep..)
+          response = chat(
+            system_role_content: system_role_content,
+            request: "summarize what we've already discussed",
+            response_history: response_history,
+            speak_answer: opts[:speak_answer],
+            timeout: opts[:timeout]
+          )
+          response_history[:choices] = response[:choices].slice(keep..)
+          retry
         end
+        raise e
       rescue StandardError => e
         raise e
       end

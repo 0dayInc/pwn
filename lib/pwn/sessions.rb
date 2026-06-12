@@ -7,7 +7,7 @@ require 'securerandom'
 
 module PWN
   # PWN::Sessions provides session management for pwn-ai (and other drivers)
-  # equivalent to Hermes sessions (list, resume, transcripts, stats).
+  # — list, resume, transcripts, and stats.
   # Sessions are stored as JSONL transcripts in ~/.pwn/sessions/ for durability
   # and easy search/append. pwn-ai agent mode auto-creates and appends to a
   # session on each activation.

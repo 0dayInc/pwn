@@ -13,7 +13,7 @@ module PWN
       #   oauth2_token: 'required oauth2 token'
       # )
 
-      public_class_method def self.decode(opts)
+      public_class_method def self.decode(opts = {})
         oauth2_token = opts[:oauth2_token]
         Base64.decode64(oauth2_token)
       rescue StandardError => e
@@ -26,7 +26,7 @@ module PWN
       #   key: 'required oauth2 token key name located within the Base64 encoded token as symbol, e.g. :company_id'
       # )
 
-      public_class_method def self.get_value_by_key(opts)
+      public_class_method def self.get_value_by_key(opts = {})
         oauth2_token = opts[:oauth2_token]
         # Make sure we're receiving a symbol.  Convert to string first in case an int is passed.
         key = opts[:key].to_s.to_sym

@@ -5,8 +5,8 @@ require 'fileutils'
 require 'time'
 
 module PWN
-  # PWN::Memory provides persistent cross-session memory for the pwn-ai agent
-  # (equivalent to Hermes agent memory providers). Facts, user preferences,
+  # PWN::Memory provides persistent cross-session memory for the pwn-ai agent.
+  # Facts, user preferences,
   # environment details, lessons learned, and task state are stored in
   # ~/.pwn/memory.json and survive across REPL restarts / pwn-ai sessions.
   #
@@ -28,8 +28,9 @@ module PWN
     end
 
     # Supported Method Parameters::
-    #   PWN::Memory.save(memory_hash)
-    public_class_method def self.save(mem = {})
+    #   PWN::Memory.save(mem: memory_hash)
+    public_class_method def self.save(opts = {})
+      mem = opts[:mem] ||= {}
       FileUtils.mkdir_p(File.dirname(MEMORY_FILE))
       File.write(MEMORY_FILE, JSON.pretty_generate(mem))
       mem
@@ -55,7 +56,7 @@ module PWN
         timestamp: Time.now.utc.iso8601,
         source: 'pwn-ai'
       }
-      save(mem)
+      save(mem: mem)
       mem[key.to_sym]
     end
 
@@ -82,11 +83,12 @@ module PWN
     end
 
     # Supported Method Parameters::
-    #   PWN::Memory.forget(key)
-    public_class_method def self.forget(key) # rubocop:disable Naming/PredicateMethod
+    #   PWN::Memory.forget(key: :some_key)
+    public_class_method def self.forget(opts = {}) # rubocop:disable Naming/PredicateMethod
+      key = opts[:key]
       mem = load
       mem.delete(key.to_sym)
-      save(mem)
+      save(mem: mem)
       true
     end
 
@@ -125,7 +127,7 @@ module PWN
           mem = PWN::Memory.load
           PWN::Memory.remember(key: :user_prefers_ruby, value: 'Always prefer pure Ruby + RestClient patterns', category: :preference)
           facts = PWN::Memory.recall(query: 'recon', category: :fact, limit: 10)
-          PWN::Memory.forget(:some_key)
+          PWN::Memory.forget(key: :some_key)
           PWN::Memory.clear
           context_str = PWN::Memory.to_context
 

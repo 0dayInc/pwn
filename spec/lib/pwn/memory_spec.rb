@@ -18,7 +18,7 @@ describe PWN::Memory do
     PWN::Memory.remember(key: :test_fact, value: 'pwn-ai test memory', category: :fact)
     res = PWN::Memory.recall(query: 'test')
     expect(res.keys).to include(:test_fact)
-    PWN::Memory.forget(:test_fact)
+    PWN::Memory.forget(key: :test_fact)
     expect(PWN::Memory.recall(query: 'test').keys).to be_empty
   end
 end

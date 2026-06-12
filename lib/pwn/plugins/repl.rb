@@ -13,53 +13,118 @@ module PWN
   module Plugins
     # This module contains methods related to the pwn REPL Driver.
     module REPL
-      # Custom input handler for pwn-ai to support multi-line submissions:
-      # - Use *only* SHIFT+ENTER to insert a newline (continue editing the prompt to the AI).
-      # - Plain ENTER submits the full (possibly multi-line) prompt to the AI.
+      # Custom input handler for pwn-ai and pwn-asm to support multi-line
+      # submissions:
+      # - Use *only* SHIFT+ENTER to insert a newline (continue editing).
+      # - Plain ENTER submits the full (possibly multi-line) buffer.
       # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER).
       # Strict SHIFT+ENTER only — no Ctrl+J, Alt-Enter, or other fallbacks (per requirements).
       class PwnAIInput
         attr_reader :line_buffer
 
+        # SHIFT+ENTER escape sequences (byte arrays). These are terminal-dependent.
+        # Listed common ones for xterm, VTE (terminator), kitty, wezterm, etc.
+        # (with modifyOtherKeys / extended-keys enabled).
+        #
+        # For tmux + terminator (or similar):
+        #   In ~/.tmux.conf (then `tmux kill-server` + new session):
+        #     set -g extended-keys on
+        #     set -g xterm-keys on
+        #   Use TERM=xterm-256color (or equivalent that supports the CSI) in your terminal profile.
+        #
+        # The bindings make matching sequences produce :key_newline (insert \n without submit).
+        #
+        # If after typing text + SHIFT+ENTER it still submits instead of newline:
+        #   1. Apply the tmux.conf + TERM changes above and fully restart tmux.
+        #   2. In your *real* terminal (the one running `pwn`), run a capture script from /tmp ONLY:
+        #        ruby /tmp/capture_keys.rb
+        #      (Debugging scripts must live in /tmp per user rule; never commit them to /opt/pwn.)
+        #   3. Paste the exact bytes array for the SHIFT+ENTER press here so it can be added to the list.
+        SHIFT_ENTER_SEQS = [
+          [27, 91, 49, 51, 59, 50, 126],             # \e[13;2~
+          [27, 91, 50, 55, 59, 50, 59, 49, 51, 126], # \e[27;2;13~
+          [27, 91, 49, 51, 59, 50, 117],             # \e[13;2u (CSI u)
+          [27, 91, 50, 55, 59, 50, 59, 49, 51, 117], # \e[27;2;13u
+          [27, 91, 49, 59, 50, 126],                 # \e[1;2~
+          [27, 13],                                  # \e\r (ESC+CR variant)
+          [27, 10],                                  # \e\n (ESC+LF variant)
+          [27, 91, 13, 59, 50, 126],                 # \e[13;2~ alt numeric
+          [27, 91, 49, 59, 50, 117],                 # \e[1;2u
+          [27, 91, 50, 55, 59, 50, 13, 126],         # \e[27;2;13~ variant
+          [27, 79, 77]                               # \eOM (application-keypad Enter; some emulators emit this for S-Enter)
+        ].freeze
+
+        # CSI sequences that ask the terminal to start/stop encoding
+        # Shift+Enter (and other modified keys) distinctly from plain Enter.
+        # Without one of these active, most emulators send the SAME byte
+        # (0x0D) for both, so SHIFT_ENTER_SEQS can never match.
+        #
+        #   \e[>4;1m / \e[>4;0m   xterm modifyOtherKeys on/off (level 1 —
+        #                         disambiguates Shift+Enter without altering
+        #                         Ctrl-C). xterm, VTE/Terminator, iTerm2,
+        #                         Konsole. tmux ≥3.2 with `extended-keys on`
+        #                         honours this request and re-encodes as
+        #                         CSI-u to the inner app.
+        #   \e[>1u   / \e[<u      kitty keyboard protocol push/pop, flags=1
+        #                         "disambiguate escape codes". kitty, wezterm,
+        #                         foot, ghostty, alacritty, recent tmux.
+        #
+        # Emitting both is harmless on terminals that support neither —
+        # they're DEC-private CSIs and get silently ignored.
+        ENABLE_EXTENDED_KEYS  = "\e[>4;1m\e[>1u"
+        DISABLE_EXTENDED_KEYS = "\e[<u\e[>4;0m"
+
         def initialize
           @line_buffer = ''
+          install_shift_enter_bindings
+        end
+
+        # Reline ≤ 0.5.x exposed a top-level `Reline.config` delegator.
+        # Reline ≥ 0.6.x removed it; the Config object now lives only on
+        # the (private) singleton `Reline.core`. Probe in order of
+        # preference so the same code works across both.
+        def reline_config
+          return Reline.config if Reline.respond_to?(:config)
+          return Reline.core.config if Reline.respond_to?(:core)
+
+          Reline.send(:core).config
+        end
+
+        # Register SHIFT+ENTER → :key_newline on Reline's default keymaps.
+        #
+        # IMPORTANT: do NOT use add_oneshot_key_binding for this. Reline's
+        # LineEditor#input_key calls reset_oneshot_key_bindings on EVERY
+        # keystroke (it's designed for dialog trap-keys = "next keypress
+        # only"), so oneshot bindings are wiped the moment the user types
+        # their first character — Shift+Enter then falls through as an
+        # unrecognised CSI and is silently swallowed. Default-keymap
+        # bindings persist for the life of the Config object.
+        #
+        # Scoping is handled by the input-handler swap, not the binding
+        # lifetime: outside pwn-ai/pwn-asm, Pry uses its own input,
+        # PwnAIInput#readline never runs, ENABLE_EXTENDED_KEYS is never
+        # emitted, the terminal sends plain 0x0D for Shift+Enter, and these
+        # bindings never match. So registering once at construction is safe.
+        def install_shift_enter_bindings
+          return if self.class.instance_variable_get(:@shift_enter_installed)
+
+          cfg = reline_config
+          %i[emacs vi_insert].each do |keymap|
+            SHIFT_ENTER_SEQS.each do |seq|
+              cfg.add_default_key_binding_by_keymap(keymap, seq, :key_newline)
+            end
+          end
+          self.class.instance_variable_set(:@shift_enter_installed, true)
         end
 
         def readline(prompt)
-          # SHIFT+ENTER escape sequences (byte arrays). These are terminal-dependent.
-          # Listed common ones for xterm, VTE (terminator), kitty, wezterm, etc.
-          # (with modifyOtherKeys / extended-keys enabled).
-          #
-          # For tmux + terminator (or similar):
-          #   In ~/.tmux.conf (then `tmux kill-server` + new session):
-          #     set -g extended-keys on
-          #     set -g xterm-keys on
-          #   Use TERM=xterm-256color (or equivalent that supports the CSI) in your terminal profile.
-          #
-          # The bindings make matching sequences produce :key_newline (insert \n without submit).
-          #
-          # If after typing text + SHIFT+ENTER it still submits instead of newline:
-          #   1. Apply the tmux.conf + TERM changes above and fully restart tmux.
-          #   2. In your *real* terminal (the one running `pwn`), run a capture script from /tmp ONLY:
-          #        ruby /tmp/capture_keys.rb
-          #      (Debugging scripts must live in /tmp per user rule; never commit them to /opt/pwn.)
-          #   3. Paste the exact bytes array for the SHIFT+ENTER press here so it can be added to the list.
-          shift_enter_seqs = [
-            [27, 91, 49, 51, 59, 50, 126],             # \e[13;2~
-            [27, 91, 50, 55, 59, 50, 59, 49, 51, 126], # \e[27;2;13~
-            [27, 91, 49, 51, 59, 50, 117],             # \e[13;2u (CSI u)
-            [27, 91, 50, 55, 59, 50, 59, 49, 51, 117], # \e[27;2;13u
-            [27, 91, 49, 59, 50, 126],                 # \e[1;2~
-            [27, 13],                                  # \e\r (ESC+CR variant)
-            [27, 10],                                  # \e\n (ESC+LF variant)
-            [27, 91, 13, 59, 50, 126],                 # \e[13;2~ alt numeric
-            [27, 91, 49, 59, 50, 117],                 # \e[1;2u
-            [27, 91, 50, 55, 59, 50, 13, 126]          # \e[27;2;13~ variant
-          ]
-
-          shift_enter_seqs.each do |seq|
-            # Pass the byte array *directly* (required pattern; no .bytes, no string forms)
-            Reline.config.add_oneshot_key_binding(seq, :key_newline)
+          # Ask the terminal to encode Shift+Enter distinctly from Enter for
+          # the duration of this read. Without this, most emulators send 0x0D
+          # for both and SHIFT_ENTER_SEQS can never match. Reset in `ensure`.
+          tty = $stdout.respond_to?(:tty?) && $stdout.tty?
+          if tty
+            $stdout.write(ENABLE_EXTENDED_KEYS)
+            $stdout.flush
           end
 
           begin
@@ -69,7 +134,10 @@ module PWN
             # Reline handles multi-line pastes by splitting on \n in the buffer.
             @line_buffer = Reline.readmultiline(prompt, true) { |_buffer| true } || ''
           ensure
-            Reline.config.reset_oneshot_key_bindings
+            if tty
+              $stdout.write(DISABLE_EXTENDED_KEYS)
+              $stdout.flush
+            end
           end
           @line_buffer
         end
@@ -175,11 +243,17 @@ module PWN
           def process
             pi = pry_instance
             pi.config.pwn_asm = true
+
+            # Switch to custom multi-line input (SHIFT+ENTER newline, ENTER submit) —
+            # same handler pwn-ai uses; restored by `back`.
+            pi.config.pwn_ai_original_input ||= Pry.config.input
+            Pry.config.input = PwnAIInput.new
+
             pi.custom_completions = proc do
-              prompt = TTY::Prompt.new
               [pi.input.line_buffer]
-              # prompt.select(pi.input.line_buffer)
             end
+
+            puts '[*] MULTILINE in pwn-asm: SHIFT+ENTER inserts a newline (e.g. multi-instruction asm); ENTER submits.'
           end
         end
 
@@ -205,7 +279,7 @@ module PWN
             PWN::Config.load_skills(pwn_skills_path: skills_path)
             skills_count = (PWN.const_defined?(:Skills) ? PWN::Skills.keys.length : 0)
 
-            # Hermes-equivalent memory/sessions/cron init for this pwn-ai activation
+            # pwn-ai activation: initialise memory/sessions/cron stores
             PWN::Config.load_memory
             mem_count = (PWN.const_defined?(:Memory) ? PWN::Memory.load.keys.length : 0)
             sess = begin
@@ -230,7 +304,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai-memory' do
-          description 'Manage pwn-ai persistent memory (Hermes equiv).'
+          description 'Manage pwn-ai persistent memory.'
 
           def process
             cmd = args[0]
@@ -245,7 +319,7 @@ module PWN
               PWN::Memory.remember(key: key, value: val)
               puts "Remembered #{key}"
             when 'forget'
-              PWN::Memory.forget(args[1])
+              PWN::Memory.forget(key: args[1])
               puts "Forgot #{args[1]}"
             when 'clear'
               PWN::Memory.clear
@@ -257,7 +331,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai-sessions' do
-          description 'List/resume/delete pwn-ai sessions (Hermes equiv).'
+          description 'List/resume/delete pwn-ai sessions.'
 
           def process
             cmd = args[0]
@@ -280,7 +354,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai-cron' do
-          description 'Manage scheduled pwn-ai / cron jobs (Hermes equiv).'
+          description 'Manage scheduled pwn-ai / cron jobs.'
 
           def process
             cmd = args[0]
@@ -306,7 +380,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'pwn-ai-delegate' do
-          description 'Delegate sub-task to a PWN::AI::Agent or simple sub-chat (Hermes delegation equiv).'
+          description 'Delegate sub-task to a PWN::AI::Agent or simple sub-chat.'
 
           def process
             goal = args.join(' ')
@@ -321,6 +395,7 @@ module PWN
               engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
               case engine
               when :anthropic then res = PWN::AI::Anthropic.chat(request: goal)
+              when :gemini then res = PWN::AI::Gemini.chat(request: goal)
               when :grok then res = PWN::AI::Grok.chat(request: goal)
               else res = PWN::AI::Ollama.chat(request: goal)
               end
@@ -543,6 +618,12 @@ module PWN
                           )
                         when :anthropic
                           response = PWN::AI::Anthropic.chat(
+                            request: request,
+                            response_history: response_history,
+                            spinner: false
+                          )
+                        when :gemini
+                          response = PWN::AI::Gemini.chat(
                             request: request,
                             response_history: response_history,
                             spinner: false
@@ -1048,6 +1129,50 @@ module PWN
         Pry.config.hooks.add_hook(:after_read, :pwn_ai_hook) do |request, pi|
           if pi.config.pwn_ai && !request.chomp.empty?
             orig_request = pi.input.line_buffer.to_s
+
+            # ----------------------------------------------------------------
+            # NATIVE TOOL-CALLING AGENT LOOP (default path)
+            #
+            # Routes through PWN::AI::Agent::Loop, which uses real
+            # function-calling (tools: array on the chat/completions request,
+            # role:'tool' result messages) instead of the regex-ReAct below.
+            #
+            # Disable by setting in pwn.yaml:
+            #   ai:
+            #     agent:
+            #       native_tools: false
+            # ----------------------------------------------------------------
+            native = PWN::Env.dig(:ai, :agent, :native_tools)
+            native = true if native.nil?
+            if pi.config.pwn_ai_agent && native
+              begin
+                sess_id = pi.config.pwn_ai_session_id
+                on_tool = lambda do |name, args, result|
+                  arg_preview = args.is_a?(String) ? args[0, 80] : args.inspect[0, 80]
+                  puts "\001\e[33m\002[ pwn-ai → #{name} ]\001\e[0m\002 #{arg_preview}"
+                  puts "\001\e[36m\002#{result[0, 700]}\001\e[0m\002\n"
+                end
+                final = PWN::AI::Agent::Loop.run(
+                  user_text: orig_request,
+                  session_id: sess_id,
+                  enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+                  on_tool: on_tool
+                )
+                puts "\n\001\e[32m\002#{final}\001\e[0m\002\n\n"
+                pp PWN::Sessions.load(session_id: sess_id) if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
+                request.replace('nil')
+                next
+              rescue StandardError => e
+                warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}); " \
+                     'falling back to legacy regex-ReAct.'
+              end
+            end
+
+            # ----------------------------------------------------------------
+            # LEGACY regex-ReAct path (kept as fallback; remove once all
+            # engines have a working .chat_raw and the native loop has had
+            # real-API smoke time on each).
+            # ----------------------------------------------------------------
             # Do NOT rebind the 'request' parameter (the string object passed by Pry's after_read hook).
             # We will mutate it to 'nil' at the end of handling so Pry does not eval the natural-language
             # prompt text as Ruby (which was causing noisy exceptions *after* the green AI response print).
@@ -1057,7 +1182,7 @@ module PWN
             speak_answer = pi.config.pwn_ai_speak
             is_agent = (pi.config.pwn_ai_agent == true)
 
-            # pwn-ai agent mode (Hermes TUI equiv): load skills context for autonomous task carrying
+            # pwn-ai agent mode: load skills context for autonomous task carrying
             skills_context = ''
             PWN::Skills.each { |n, m| skills_context += "\n--- SKILL #{n} ---\n#{m[:content].to_s[0, 1200]}\n" } if is_agent && PWN.const_defined?(:Skills) && PWN::Skills.is_a?(Hash)
 
@@ -1096,7 +1221,7 @@ module PWN
               base = PWN::Env[:ai][engine][:system_role_content] || 'You are an ethical hacker.'
               system_role = base + <<~PROMPT
 
-                                You are operating as a Hermes-style autonomous agent inside the PWN REPL driver.
+                                You are operating as an autonomous agent inside the PWN REPL driver.
 
                                 PRIMARY RULE FOR CLI AND TOOLS: When the user asks for the output of a command, "what does X return?", "run X", or anything that requires real execution, you MUST use a tool call.#{' '}
                                 NEVER just explain what a command does or what its output "would be".#{' '}
@@ -1117,7 +1242,7 @@ module PWN
 
                                 PERSISTENT CAPABILITIES (use via ruby code blocks or direct calls):
                                 - Memory (cross-session): PWN::Memory.remember(key: :key, value: val, category: :fact|:preference|:lesson)
-                                  PWN::Memory.recall(query: 'foo'), PWN::Memory.forget(key)
+                                  PWN::Memory.recall(query: 'foo'), PWN::Memory.forget(key: key)
                                 - Sessions: current session id = #{sess_id}; PWN::Sessions.append(session_id: '#{sess_id}', role: 'observation', content: obs)
                                 - Cron: PWN::Cron.create(schedule: '0 * * * *', prompt: 'task here', name: 'foo')
                                   PWN::Cron.run(id: 'id'); list with PWN::Cron.list
@@ -1152,6 +1277,8 @@ module PWN
                 response = PWN::AI::OpenAI.chat(**chat_opts)
               when :anthropic
                 response = PWN::AI::Anthropic.chat(**chat_opts)
+              when :gemini
+                response = PWN::AI::Gemini.chat(**chat_opts)
               else
                 raise "ERROR: Unsupported AI Engine: #{engine}"
               end
@@ -1303,6 +1430,52 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # PWN::Plugins::REPL.enable_autocomplete(
+      #   enabled: 'optional - Boolean (default true). false reverts to single-line cycling.'
+      # )
+      #
+      # IRB-style suggest-as-you-type for the pwn REPL.
+      #
+      # Replaces Pry's default input (rb-readline — single-candidate TAB
+      # cycling) with Reline and turns on Reline.autocompletion, which
+      # renders a live dropdown of candidates below the cursor as you
+      # type (the same widget IRB uses).  Pry already wires
+      # Reline.completion_proc → @pry.complete (Pry::InputCompleter) when
+      # input == Reline, so the menu is fed by the full Ruby/PWN object
+      # graph: constants (PWN::Plugins::Nm<TAB>), instance methods,
+      # local/global variables, and Pry slash-commands.
+      #
+      # Navigate with ↑/↓ or TAB, accept with → or ENTER, dismiss with ESC.
+      #
+      # Scope: this drives the MAIN pwn REPL (Ruby).  pwn-ai / pwn-asm
+      # swap to PwnAIInput, which bypasses Pry's Reline path on purpose
+      # (natural-language / opcode input — Ruby completion isn't useful
+      # there); SHIFT+ENTER multi-line continues to work in those modes.
+
+      public_class_method def self.enable_autocomplete(opts = {})
+        enabled = opts.fetch(:enabled, true)
+
+        require 'reline'
+        Pry.config.input     = Reline
+        Pry.config.completer = Pry::InputCompleter
+        Reline.autocompletion = enabled
+
+        if enabled && defined?(Reline::Face) && Reline::Face.respond_to?(:config)
+          # Readable dropdown on dark terminals (matches the pwn red/cyan PS1).
+          Reline::Face.config(:completion_dialog) do |face|
+            face.define :default,        foreground: :bright_white, background: :black
+            face.define :enhanced,       foreground: :black,        background: :bright_cyan
+            face.define :scrollbar,      foreground: :bright_red,   background: :black
+          end
+        end
+
+        enabled
+      rescue StandardError => e
+        warn "[pwn] autocomplete unavailable (#{e.class}: #{e.message}); falling back to default input."
+        false
+      end
+
+      # Supported Method Parameters::
       # PWN::Plugins::REPL.start
 
       public_class_method def self.start
@@ -1315,6 +1488,11 @@ module PWN
 
         add_commands
         add_hooks
+
+        # IRB-style suggest-as-you-type dropdown (off via
+        # PWN::Env[:driver_opts][:autocomplete] = false in pwn.yaml).
+        ac = opts.key?(:autocomplete) ? opts[:autocomplete] : true
+        enable_autocomplete(enabled: ac)
 
         # Define PS1 Prompt
         Pry.config.pwn_repl_line = 0

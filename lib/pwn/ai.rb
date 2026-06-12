@@ -7,12 +7,19 @@ module PWN
   module AI
     autoload :Agent, 'pwn/ai/agent'
     autoload :Anthropic, 'pwn/ai/anthropic'
+    autoload :Gemini, 'pwn/ai/gemini'
     autoload :Grok, 'pwn/ai/grok'
     autoload :Introspection, 'pwn/ai/introspection'
     autoload :Ollama, 'pwn/ai/ollama'
     autoload :OpenAI, 'pwn/ai/open_ai'
 
     # Display a List of Every PWN::AI Module
+
+    # Author(s):: 0day Inc. <support@0dayinc.com>
+
+    public_class_method def self.authors
+      "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+    end
 
     public_class_method def self.help
       constants.sort

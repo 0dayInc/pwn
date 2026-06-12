@@ -73,7 +73,7 @@ module PWN
       #   byte: 'required - byte to fill range with'
       # )
 
-      def self.fill_range_w_byte(opts = {})
+      public_class_method def self.fill_range_w_byte(opts = {})
         hexdump = opts[:hexdump]
         start_addr = opts[:start_addr]
         end_addr = opts[:end_addr]
@@ -134,7 +134,7 @@ module PWN
       #    <step through via F7, F8, F9, etc. to get to desired instruction>
       #    ```
 
-      def self.calc_addr_offset(opts = {})
+      public_class_method def self.calc_addr_offset(opts = {})
         start_addr = opts[:start_addr]
         target_addr = opts[:target_addr]
 
@@ -150,7 +150,7 @@ module PWN
       #   file: 'required - path to binary file to dump'
       # )
 
-      def self.reverse_hex_string(opts = {})
+      public_class_method def self.reverse_hex_string(opts = {})
         string = opts[:string]
         file = opts[:file]
 
@@ -170,7 +170,7 @@ module PWN
       #   byte_chunks: 'optional - if set, will write n byte chunks of hexdump to multiple files'
       # )
 
-      def self.reverse_dump(opts = {})
+      public_class_method def self.reverse_dump(opts = {})
         hexdump = opts[:hexdump]
         file = opts[:file]
         byte_chunks = opts[:byte_chunks].to_i

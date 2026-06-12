@@ -6,8 +6,7 @@ require 'time'
 require 'securerandom'
 
 module PWN
-  # PWN::Cron provides cron / scheduled task management for the pwn-ai agent
-  # (equivalent to Hermes cron jobs + scheduler).
+  # PWN::Cron provides cron / scheduled task management for the pwn-ai agent.
   # Jobs are defined in ~/.pwn/cron/jobs.yml and can be triggered by system
   # cron, manual run, or from within pwn-ai agent loops.
   #
@@ -59,10 +58,10 @@ module PWN
         last_status: nil
       }
       jobs[id] = job
-      save_jobs(jobs)
+      save_jobs(jobs: jobs)
 
       # Optionally install a crontab entry (user must have permission)
-      install_crontab_entry(job) if opts[:install_crontab]
+      install_crontab_entry(job: job) if opts[:install_crontab]
 
       job
     end
@@ -97,6 +96,8 @@ module PWN
             result = PWN::AI::OpenAI.chat(request: job[:prompt], spinner: false)
           when :anthropic
             result = PWN::AI::Anthropic.chat(request: job[:prompt], spinner: false)
+          when :gemini
+            result = PWN::AI::Gemini.chat(request: job[:prompt], spinner: false)
           end
           result = begin
             result[:choices].last[:content]
@@ -125,7 +126,7 @@ module PWN
       job[:last_run] = Time.now.utc.iso8601
       job[:last_status] = status
       jobs[job[:id]] = job
-      save_jobs(jobs)
+      save_jobs(jobs: jobs)
 
       { job: job, result: result, duration: Time.now - start, status: status }
     end
@@ -136,23 +137,24 @@ module PWN
       id = opts[:id]
       jobs = load_jobs
       jobs.delete(id)
-      save_jobs(jobs)
+      save_jobs(jobs: jobs)
       true
     end
 
     # Supported Method Parameters::
     #   PWN::Cron.enable/disable(id:)
     public_class_method def self.enable(opts = {})
-      toggle(opts[:id], true)
+      toggle(id: opts[:id], enabled: true)
     end
 
     public_class_method def self.disable(opts = {})
-      toggle(opts[:id], false)
+      toggle(id: opts[:id], enabled: false)
     end
 
     # Install a crontab line that invokes this job via pwn
     # (assumes /opt/pwn and rvm ruby-4.0.1@pwn - user can edit crontab)
-    public_class_method def self.install_crontab_entry(job)
+    public_class_method def self.install_crontab_entry(opts = {})
+      job = opts[:job]
       cron_line = "#{job[:schedule]} cd /opt/pwn && /usr/local/rvm/bin/rvm ruby-4.0.1@pwn do ruby -I lib -e 'require \"pwn\"; PWN::Cron.run(id: \"#{job[:id]}\")' >> #{File.join(cron_dir, 'cron.log')} 2>&1"
       # Append to user's crontab (non-destructive)
       existing = `crontab -l 2>/dev/null || true`
@@ -172,15 +174,18 @@ module PWN
       {}
     end
 
-    private_class_method def self.save_jobs(jobs)
+    private_class_method def self.save_jobs(opts = {})
+      jobs = opts[:jobs] ||= {}
       File.write(JOBS_FILE, YAML.dump(jobs))
     end
 
-    private_class_method def self.toggle(id, enabled)
+    private_class_method def self.toggle(opts = {})
+      id = opts[:id]
+      enabled = opts[:enabled]
       jobs = load_jobs
       if jobs[id]
         jobs[id][:enabled] = enabled
-        save_jobs(jobs)
+        save_jobs(jobs: jobs)
       end
       jobs[id]
     end

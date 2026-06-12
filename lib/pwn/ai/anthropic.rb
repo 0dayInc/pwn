@@ -132,6 +132,204 @@ module PWN
         raise e
       end
 
+      # ----------------------------------------------------------------------
+      # Native tool-calling adapter for PWN::AI::Agent::Loop.
+      #
+      # Accepts an OpenAI-shape conversation (messages: + tools:), translates
+      # it to Anthropic's /v1/messages wire format (top-level system string,
+      # tool_use / tool_result content blocks, input_schema), POSTs, then
+      # translates the response back to the canonical OpenAI shape:
+      #   { choices: [{ message: { role:, content:, tool_calls:[...] } }],
+      #     assistant_message: <same hash> }
+      #
+      # The returned assistant message ALSO carries :_native_content (the raw
+      # content-block array) so that on the next loop iteration we can
+      # round-trip tool_use blocks exactly, which Anthropic requires for a
+      # tool_result to be accepted.
+      # ----------------------------------------------------------------------
+
+      # Supported Method Parameters::
+      # response = PWN::AI::Anthropic.chat_raw(
+      #   messages: 'required - OpenAI-format messages array (system/user/assistant/tool)',
+      #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
+      #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
+      #   model: 'optional - overrides PWN::Env[:ai][:anthropic][:model]',
+      #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:anthropic][:temp] || 1)',
+      #   max_tokens: 'optional - defaults to 4096',
+      #   timeout: 'optional - seconds (default 300)',
+      #   spinner: 'optional - display spinner (default false)'
+      # )
+
+      public_class_method def self.chat_raw(opts = {})
+        engine   = PWN::Env[:ai][:anthropic]
+        messages = opts[:messages]
+        raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
+
+        model = opts[:model] ||= engine[:model]
+        raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
+
+        temp = opts[:temp].to_f
+        temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
+
+        system_str, anth_messages = oa_messages_to_anthropic(messages: messages)
+
+        http_body = {
+          model: model,
+          max_tokens: opts[:max_tokens] || 4096,
+          temperature: temp,
+          messages: anth_messages
+        }
+        http_body[:system] = system_str if system_str && !system_str.empty?
+
+        if opts[:tools] && !opts[:tools].empty?
+          http_body[:tools] = opts[:tools].map do |t|
+            fn = t[:function] || t['function'] || t
+            {
+              name: fn[:name] || fn['name'],
+              description: fn[:description] || fn['description'],
+              input_schema: fn[:parameters] || fn['parameters'] || { type: 'object', properties: {} }
+            }
+          end
+          http_body[:tool_choice] = anth_tool_choice(choice: opts[:tool_choice]) if opts[:tool_choice]
+        end
+
+        response = anthropic_rest_call(
+          http_method: :post,
+          rest_call: 'messages',
+          http_body: http_body,
+          timeout: opts[:timeout],
+          spinner: opts[:spinner]
+        )
+        return nil if response.nil?
+
+        json_resp = JSON.parse(response, symbolize_names: true)
+        raise "Anthropic API Error: #{json_resp[:error] || json_resp}" if json_resp[:error] || json_resp[:type] == 'error'
+
+        anthropic_resp_to_oa(response: json_resp)
+      rescue StandardError => e
+        raise e
+      end
+
+      # OpenAI messages[] -> [system_string, anthropic messages[]]
+      private_class_method def self.oa_messages_to_anthropic(opts = {})
+        messages = opts[:messages] ||= []
+        system_parts = []
+        out = []
+        pending_tool_results = []
+
+        flush_tool_results = lambda do
+          return if pending_tool_results.empty?
+
+          out << { role: 'user', content: pending_tool_results.dup }
+          pending_tool_results.clear
+        end
+
+        messages.each do |m|
+          role = (m[:role] || m['role']).to_s
+          case role
+          when 'system', 'developer'
+            system_parts << (m[:content] || m['content']).to_s
+          when 'user'
+            flush_tool_results.call
+            out << { role: 'user', content: (m[:content] || m['content']).to_s }
+          when 'assistant'
+            flush_tool_results.call
+            # Prefer the raw content-block array if a prior chat_raw round
+            # attached it — guarantees byte-exact tool_use round-trip.
+            raw = m[:_native_content] || m['_native_content']
+            if raw.is_a?(Array) && !raw.empty?
+              out << { role: 'assistant', content: raw }
+              next
+            end
+
+            blocks = []
+            txt = (m[:content] || m['content']).to_s
+            blocks << { type: 'text', text: txt } unless txt.empty?
+            Array(m[:tool_calls] || m['tool_calls']).each do |tc|
+              fn   = tc[:function] || tc['function'] || {}
+              args = fn[:arguments] || fn['arguments']
+              input = if args.is_a?(Hash)
+                        args
+                      elsif args.is_a?(String) && !args.strip.empty?
+                        begin
+                          JSON.parse(args)
+                        rescue StandardError
+                          { _raw: args }
+                        end
+                      else
+                        {}
+                      end
+              blocks << {
+                type: 'tool_use',
+                id: tc[:id] || tc['id'] || "toolu_#{SecureRandom.hex(8)}",
+                name: fn[:name] || fn['name'],
+                input: input
+              }
+            end
+            blocks << { type: 'text', text: '' } if blocks.empty?
+            out << { role: 'assistant', content: blocks }
+          when 'tool'
+            pending_tool_results << {
+              type: 'tool_result',
+              tool_use_id: (m[:tool_call_id] || m['tool_call_id']).to_s,
+              content: (m[:content] || m['content']).to_s
+            }
+          end
+        end
+        flush_tool_results.call
+
+        [system_parts.join("\n\n"), out]
+      end
+
+      # Anthropic /v1/messages response -> OpenAI chat/completions shape
+      private_class_method def self.anthropic_resp_to_oa(opts = {})
+        resp = opts[:response] ||= {}
+        blocks     = Array(resp[:content])
+        text       = blocks.select { |b| b[:type] == 'text' }.map { |b| b[:text] }.join
+        tool_calls = blocks.select { |b| b[:type] == 'tool_use' }.map do |b|
+          {
+            id: b[:id],
+            type: 'function',
+            function: { name: b[:name], arguments: JSON.generate(b[:input] || {}) }
+          }
+        end
+
+        msg = {
+          role: 'assistant',
+          content: text.empty? && !tool_calls.empty? ? nil : text,
+          tool_calls: tool_calls,
+          _native_content: blocks
+        }
+
+        usage = resp[:usage] || {}
+        {
+          id: resp[:id],
+          object: 'chat.completion',
+          model: resp[:model],
+          stop_reason: resp[:stop_reason],
+          usage: {
+            prompt_tokens: usage[:input_tokens],
+            completion_tokens: usage[:output_tokens],
+            total_tokens: (usage[:input_tokens] || 0) + (usage[:output_tokens] || 0)
+          },
+          choices: [{ index: 0, message: msg, finish_reason: resp[:stop_reason] }],
+          assistant_message: msg
+        }
+      end
+
+      private_class_method def self.anth_tool_choice(opts = {})
+        choice = opts[:choice]
+        case choice
+        when 'none', :none then { type: 'none' }
+        when 'required', :required, 'any', :any then { type: 'any' }
+        when Hash
+          fn = choice[:function] || choice['function'] || choice
+          { type: 'tool', name: fn[:name] || fn['name'] }
+        else # 'auto', :auto, nil, anything else
+          { type: 'auto' }
+        end
+      end
+
       # Supported Method Parameters::
       # response = PWN::AI::Anthropic.chat(
       #   request: 'required - message to Anthropic',
