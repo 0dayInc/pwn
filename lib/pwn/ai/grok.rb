@@ -28,10 +28,10 @@ module PWN
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         oauth = engine[:oauth] || {}
-        token = if oauth[:access_token] && !oauth[:access_token].to_s.empty? && !oauth[:access_token].to_s.match?(/optional/i)
-                  oauth[:access_token]
+        token = if oauth[:bearer_token] && !oauth[:bearer_token].to_s.empty? && !oauth[:bearer_token].to_s.match?(/optional/i)
+                  oauth[:bearer_token]
                 else
-                  engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (or set oauth:access_token in pwn-vault for xAI SuperGrok subscriptions)')
+                  engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (or set oauth:bearer_token in pwn-vault for xAI SuperGrok subscriptions)')
                 end
 
         http_method = if opts[:http_method].nil?
