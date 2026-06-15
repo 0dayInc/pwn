@@ -42,7 +42,7 @@ module PWN
             oauth: {
               client_id: 'optional - xAI SuperGrok OAuth Client ID (for subscriptions without API key)',
               client_secret: 'optional - xAI SuperGrok OAuth Client Secret',
-              access_token: 'optional - xAI SuperGrok OAuth Access Token (preferred for SuperGrok subs; used as Bearer)',
+              bearer_token: 'optional - xAI SuperGrok OAuth Access Token (preferred for SuperGrok subs; used as Bearer)',
               refresh_token: 'optional - xAI SuperGrok OAuth Refresh Token',
               token_uri: 'optional - OAuth token endpoint (defaults handled in PWN::AI::Grok if needed)'
             }
@@ -215,7 +215,20 @@ module PWN
     public_class_method def self.redact_sensitive_artifacts(opts = {})
       config = opts[:config] ||= PWN::Env
 
-      sensitive_keys = %i[api_key key pass password psk token]
+      sensitive_keys = %i[
+        admin_key
+        api_key
+        auth_client_secret
+        bearer_token
+        client_secret
+        consumer_key
+        key
+        pass
+        password
+        psk
+        secret_key
+        token
+      ]
 
       # Transform values at the current level: redact sensitive keys
       config.transform_values.with_index do |v, k|
@@ -290,11 +303,11 @@ module PWN
       oauth_access = nil
       if engine == :grok
         oauth = env[:ai][engine][:oauth] ||= {}
-        oauth_access = oauth[:access_token] if oauth[:access_token] && !oauth[:access_token].to_s.match?(/optional/i) && !oauth[:access_token].to_s.empty?
+        oauth_access = oauth[:bearer_token] if oauth[:bearer_token] && !oauth[:bearer_token].to_s.match?(/optional/i) && !oauth[:bearer_token].to_s.empty?
       end
       if key.nil? && oauth_access.nil?
         key = PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: "#{engine} API Key (or configure oauth:access_token in pwn-vault for xAI SuperGrok subscriptions)"
+          prompt: "#{engine} API Key (or configure oauth:bearer_token in pwn-vault for xAI SuperGrok subscriptions)"
         )
         env[:ai][engine][:key] = key
       end

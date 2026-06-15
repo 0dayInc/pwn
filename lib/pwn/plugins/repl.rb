@@ -19,7 +19,7 @@ module PWN
       # - Plain ENTER submits the full (possibly multi-line) buffer.
       # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER).
       # Strict SHIFT+ENTER only — no Ctrl+J, Alt-Enter, or other fallbacks (per requirements).
-      class PwnAIInput
+      class PWNMultiLineInput
         attr_reader :line_buffer
 
         # SHIFT+ENTER escape sequences (byte arrays). These are terminal-dependent.
@@ -74,8 +74,9 @@ module PWN
         ENABLE_EXTENDED_KEYS  = "\e[>4;1m\e[>1u"
         DISABLE_EXTENDED_KEYS = "\e[<u\e[>4;0m"
 
-        def initialize
+        def initialize(pry_instance)
           @line_buffer = ''
+          pry_instance.config.pwn_ai_original_input = Pry.input
           install_shift_enter_bindings
         end
 
@@ -102,7 +103,7 @@ module PWN
         #
         # Scoping is handled by the input-handler swap, not the binding
         # lifetime: outside pwn-ai/pwn-asm, Pry uses its own input,
-        # PwnAIInput#readline never runs, ENABLE_EXTENDED_KEYS is never
+        # PWNMultiLineInput#readline never runs, ENABLE_EXTENDED_KEYS is never
         # emitted, the terminal sends plain 0x0D for Shift+Enter, and these
         # bindings never match. So registering once at construction is safe.
         def install_shift_enter_bindings
@@ -246,8 +247,7 @@ module PWN
 
             # Switch to custom multi-line input (SHIFT+ENTER newline, ENTER submit) —
             # same handler pwn-ai uses; restored by `back`.
-            pi.config.pwn_ai_original_input ||= Pry.config.input
-            Pry.config.input = PwnAIInput.new
+            pi.config.input = PWNMultiLineInput.new(pi)
 
             pi.custom_completions = proc do
               [pi.input.line_buffer]
@@ -267,8 +267,7 @@ module PWN
             pi.config.color = false if pi.config.pwn_ai
 
             # Switch to custom multi-line input for pwn-ai (SHIFT+ENTER newline, ENTER submit)
-            pi.config.pwn_ai_original_input ||= Pry.config.input
-            Pry.config.input = PwnAIInput.new
+            pi.config.input = PWNMultiLineInput.new(pi)
 
             # Load and make aware of skills folder (scaled in PWN::Config per user pwn_env_path parent)
             skills_path = begin
@@ -1035,8 +1034,9 @@ module PWN
             pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
+            # pi.config.pwn_ai_original_input ||= Pry.config.input.clone
             if pi.config.pwn_ai_original_input
-              Pry.config.input = pi.config.pwn_ai_original_input
+              pi.config.input = pi.config.pwn_ai_original_input
               pi.config.pwn_ai_original_input = nil
             end
             return unless pi.config.pwn_mesh
@@ -1448,7 +1448,7 @@ module PWN
       # Navigate with ↑/↓ or TAB, accept with → or ENTER, dismiss with ESC.
       #
       # Scope: this drives the MAIN pwn REPL (Ruby).  pwn-ai / pwn-asm
-      # swap to PwnAIInput, which bypasses Pry's Reline path on purpose
+      # swap to PWNMultiLineInput, which bypasses Pry's Reline path on purpose
       # (natural-language / opcode input — Ruby completion isn't useful
       # there); SHIFT+ENTER multi-line continues to work in those modes.
 
