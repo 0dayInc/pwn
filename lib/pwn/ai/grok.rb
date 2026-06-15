@@ -3,6 +3,7 @@
 require 'json'
 require 'rest-client'
 require 'tty-spinner'
+require 'uri'
 
 module PWN
   module AI
@@ -28,10 +29,10 @@ module PWN
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         oauth = engine[:oauth] || {}
-        token = if oauth[:bearer_token] && !oauth[:bearer_token].to_s.empty? && !oauth[:bearer_token].to_s.match?(/optional/i)
-                  oauth[:bearer_token]
+        token = if opts[:bearer_token] && !opts[:bearer_token].to_s.empty? && !opts[:bearer_token].to_s.match?(/optional/i)
+                  opts[:bearer_token]
                 else
-                  engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (or set oauth:bearer_token in pwn-vault for xAI SuperGrok subscriptions)')
+                  engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (oauth:client_id will auto-trigger authorize flow for bearer_token if configured)')
                 end
 
         http_method = if opts[:http_method].nil?
@@ -122,6 +123,71 @@ module PWN
         end
       ensure
         spin.stop if spinner
+      end
+
+      # Supported Method Parameters::
+      # bearer = PWN::AI::Grok.obtain_oauth_bearer_token(oauth)
+      #
+      # Internal: only invoked when oauth config (client_id etc) is present and no valid bearer_token.
+      # Constructs the authorize URL (https://auth.x.ai/oauth2/authorize) for the user to complete
+      # consent in browser (standard for authorization_code flow). Prompts for the code returned
+      # after redirect (OOB), then exchanges at token_uri for the bearer_token.
+      # This fulfills calling the authorize endpoint (via URL) only when oauth configured.
+      # Uses xAI's supported scopes like grok-cli:access. Stores result in the oauth hash for the session.
+      private_class_method def self.obtain_oauth_bearer_token(opts = {})
+        oauth = opts
+        client_id = opts[:client_id]
+        client_secret = opts[:client_secret]
+        return nil unless client_id && client_secret
+
+        scope = 'grok-cli:access'
+        redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+        auth_uri = 'https://auth.x.ai/oauth2/authorize'
+        token_uri = opts[:token_uri] || 'https://auth.x.ai/oauth2/token'
+
+        # Build authorize URL -- this is the "call" to the authorize endpoint (user opens to consent)
+        params = {
+          client_id: client_id,
+          response_type: 'code',
+          scope: scope,
+          redirect_uri: redirect_uri
+        }
+        authorize_url = "#{auth_uri}?#{URI.encode_www_form(params)}"
+
+        puts "\n[*] OAuth configured for Grok (xAI SuperGrok). Authorize by visiting:"
+        puts "    #{authorize_url}"
+        puts '    Complete consent in browser, then paste the code shown (or from redirect).'
+
+        code = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Enter the authorization code from xAI OAuth')
+
+        # Exchange code for bearer at token endpoint (client_secret_post)
+        payload = {
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: redirect_uri,
+          client_id: client_id,
+          client_secret: client_secret
+        }
+
+        response = RestClient.post(
+          token_uri,
+          payload,
+          { content_type: 'application/x-www-form-urlencoded' }
+        )
+
+        data = JSON.parse(response.body)
+        access_token = data['access_token']
+
+        if access_token
+          opts[:bearer_token] = access_token
+          opts[:refresh_token] = data['refresh_token'] if data['refresh_token']
+          puts '[*] Bearer token obtained via authorize + token exchange and cached for this session.'
+          return access_token
+        end
+
+        raise 'No access_token received from xAI OAuth token endpoint'
+      rescue StandardError => e
+        raise "Failed to obtain Grok OAuth bearer token: #{e.message}"
       end
 
       # Supported Method Parameters::
