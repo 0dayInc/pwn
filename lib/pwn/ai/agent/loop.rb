@@ -15,7 +15,7 @@ module PWN
       # externalised — Loop.run is stateless aside from the messages array it
       # builds.
       module Loop
-        DEFAULT_MAX_ITERS = 25
+        DEFAULT_MAX_ITERS = 777
 
         ENGINE_MODS = {
           openai: 'PWN::AI::OpenAI',
@@ -103,20 +103,28 @@ module PWN
           raise "ERROR: Unsupported AI engine for agent loop: #{engine}" unless mod_name
 
           mod = Object.const_get(mod_name)
-          if mod.respond_to?(:chat_raw)
-            normalise_openai(response: mod.chat_raw(messages: messages, tools: tools, spinner: true))
+          if mod.respond_to?(:chat_with_tools)
+            puts "MESSAGES:\n#{messages.inspect}\nTOOLS:\n#{tools.inspect}" if Pry.config.pwn_ai_debug
+            normalize_llm(
+              response: mod.chat_with_tools(
+                messages: messages,
+                tools: tools,
+                spinner: true
+              )
+            )
           else
             degrade_text_only(mod: mod, messages: messages)
           end
         end
 
         # Supported Method Parameters::
-        # msg = PWN::AI::Agent::Loop.normalise_openai(
-        #   response: 'required - raw chat_raw response Hash from any provider'
+        # msg = PWN::AI::Agent::Loop.normalize_llm(
+        #   response: 'required - chat_with_tools response Hash from any provider'
         # )
 
-        public_class_method def self.normalise_openai(opts = {})
+        public_class_method def self.normalize_llm(opts = {})
           resp = opts[:response]
+          puts "RESPONSE: #{resp.inspect}" if Pry.config.pwn_ai_debug
           return nil unless resp.is_a?(Hash)
 
           msg = resp.dig(:choices, 0, :message) || resp[:assistant_message]
@@ -136,7 +144,7 @@ module PWN
               }
             end
           }
-          # Preserve provider-native content blocks so chat_raw can round-trip
+          # Preserve provider-native content blocks so chat can round-trip
           # them exactly on the next iteration (e.g. Anthropic requires the
           # original tool_use block to precede a tool_result).
           out[:_native_content] = msg[:_native_content] if msg[:_native_content]
@@ -147,7 +155,7 @@ module PWN
           mod      = opts[:mod]
           messages = opts[:messages]
 
-          warn "[pwn-ai] #{mod} has no chat_raw — falling back to text-only (no tool-calling)"
+          warn "[pwn-ai] #{mod} has no chat — falling back to text-only (no tool-calling)"
           sys  = messages.find { |m| m[:role] == 'system' }
           user = messages.rfind { |m| m[:role] == 'user' }
           r = mod.chat(request: user[:content], system_role_content: sys&.[](:content), spinner: true)

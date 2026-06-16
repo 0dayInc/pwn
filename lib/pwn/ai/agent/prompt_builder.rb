@@ -22,7 +22,7 @@ module PWN
           base   = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) ||
                    'You are an offensive-security AI named Sonny operating inside the pwn REPL.'
 
-          <<~SYS.rstrip
+          "
             #{base}
 
             ENVIRONMENT
@@ -37,7 +37,7 @@ module PWN
               no tool_calls is treated as your FINAL answer to the user.
               Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
               for OS commands. Save durable facts with `memory_remember`.
-          SYS
+          "
         end
 
         private_class_method def self.active_engine

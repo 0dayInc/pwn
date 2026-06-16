@@ -149,7 +149,7 @@ module PWN
       # ----------------------------------------------------------------------
 
       # Supported Method Parameters::
-      # response = PWN::AI::Anthropic.chat_raw(
+      # response = PWN::AI::Anthropic.chat_with_tools(
       #   messages: 'required - OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
@@ -160,7 +160,7 @@ module PWN
       #   spinner: 'optional - display spinner (default false)'
       # )
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:anthropic]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
@@ -234,7 +234,7 @@ module PWN
             out << { role: 'user', content: (m[:content] || m['content']).to_s }
           when 'assistant'
             flush_tool_results.call
-            # Prefer the raw content-block array if a prior chat_raw round
+            # Prefer the raw content-block array if a prior chat_with_tools round
             # attached it — guarantees byte-exact tool_use round-trip.
             raw = m[:_native_content] || m['_native_content']
             if raw.is_a?(Array) && !raw.empty?

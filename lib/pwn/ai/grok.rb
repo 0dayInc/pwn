@@ -13,6 +13,74 @@ module PWN
     # Obtain an API key from https://x.ai/api
     module Grok
       # Supported Method Parameters::
+      # bearer = PWN::AI::Grok.obtain_oauth_bearer_token(
+      #   client_id: 'xAI OAuth Client ID',
+      #   client_secret: 'xAI OAuth Client Secret'
+      #   token_uri: 'optional - xAI OAuth token endpoint (defaults to https://auth.x.ai/oauth2/token)'
+      # )
+      #
+      # Internal: only invoked when oauth config (client_id etc) is present and no valid bearer_token.
+      # Constructs the authorize URL (https://auth.x.ai/oauth2/authorize) for the user to complete
+      # consent in browser (standard for authorization_code flow). Prompts for the code returned
+      # after redirect (OOB), then exchanges at token_uri for the bearer_token.
+      # This fulfills calling the authorize endpoint (via URL) only when oauth configured.
+      # Uses xAI's supported scopes like grok-cli:access. Stores result in the oauth hash for the session.
+      private_class_method def self.obtain_oauth_bearer_token(opts = {})
+        client_id = opts[:client_id]
+        client_secret = opts[:client_secret]
+        return nil unless client_id && client_secret
+
+        scope = 'grok-cli:access'
+        redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+        auth_uri = 'https://auth.x.ai/oauth2/authorize'
+        token_uri = opts[:token_uri] || 'https://auth.x.ai/oauth2/token'
+
+        # Build authorize URL -- this is the "call" to the authorize endpoint (user opens to consent)
+        params = {
+          client_id: client_id,
+          response_type: 'code',
+          scope: scope,
+          redirect_uri: redirect_uri
+        }
+        authorize_url = "#{auth_uri}?#{URI.encode_www_form(params)}"
+
+        puts "\n[*] OAuth configured for Grok (xAI SuperGrok). Authorize by visiting:"
+        puts "    #{authorize_url}"
+        puts '    Complete consent in browser, then paste the code shown (or from redirect).'
+
+        code = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Enter the authorization code from xAI OAuth')
+
+        # Exchange code for bearer at token endpoint (client_secret_post)
+        payload = {
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: redirect_uri,
+          client_id: client_id,
+          client_secret: client_secret
+        }
+
+        response = RestClient.post(
+          token_uri,
+          payload,
+          { content_type: 'application/x-www-form-urlencoded' }
+        )
+
+        data = JSON.parse(response.body)
+        access_token = data['access_token']
+
+        if access_token
+          opts[:bearer_token] = access_token
+          opts[:refresh_token] = data['refresh_token'] if data['refresh_token']
+          puts '[*] Bearer token obtained via authorize + token exchange and cached for this session.'
+          return access_token
+        end
+
+        raise 'No access_token received from xAI OAuth token endpoint'
+      rescue StandardError => e
+        raise "Failed to obtain Grok OAuth bearer token: #{e.message}"
+      end
+
+      # Supported Method Parameters::
       # grok_ai_rest_call(
       #   token: 'required - grok_ai bearer token',
       #   http_method: 'optional HTTP method (defaults to GET)
@@ -28,18 +96,18 @@ module PWN
         engine = PWN::Env[:ai][:grok]
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
-        oauth = engine[:oauth] || {}
-        token = if opts[:bearer_token] && !opts[:bearer_token].to_s.empty? && !opts[:bearer_token].to_s.match?(/optional/i)
-                  opts[:bearer_token]
-                else
-                  engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (oauth:client_id will auto-trigger authorize flow for bearer_token if configured)')
-                end
+        oauth = engine[:oauth] ||= {}
+        if !oauth.empty? && oauth[:bearer_token].nil?
+          token = obtain_oauth_bearer_token
+          puts 'made it'
+          puts token
+          oauth[:bearer_token] = token if token
+        end
 
-        http_method = if opts[:http_method].nil?
-                        :get
-                      else
-                        opts[:http_method].to_s.scrub.to_sym
-                      end
+        token ||= engine[:key]
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Grok API Key (oauth:client_id will auto-trigger authorize flow for bearer_token if configured)')
+
+        http_method = opts[:http_method].to_s.scrub.to_sym ||= :get
 
         base_uri = engine[:base_uri] ||= 'https://api.x.ai/v1'
         rest_call = opts[:rest_call].to_s.scrub
@@ -126,71 +194,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # bearer = PWN::AI::Grok.obtain_oauth_bearer_token(oauth)
-      #
-      # Internal: only invoked when oauth config (client_id etc) is present and no valid bearer_token.
-      # Constructs the authorize URL (https://auth.x.ai/oauth2/authorize) for the user to complete
-      # consent in browser (standard for authorization_code flow). Prompts for the code returned
-      # after redirect (OOB), then exchanges at token_uri for the bearer_token.
-      # This fulfills calling the authorize endpoint (via URL) only when oauth configured.
-      # Uses xAI's supported scopes like grok-cli:access. Stores result in the oauth hash for the session.
-      private_class_method def self.obtain_oauth_bearer_token(opts = {})
-        oauth = opts
-        client_id = opts[:client_id]
-        client_secret = opts[:client_secret]
-        return nil unless client_id && client_secret
-
-        scope = 'grok-cli:access'
-        redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-        auth_uri = 'https://auth.x.ai/oauth2/authorize'
-        token_uri = opts[:token_uri] || 'https://auth.x.ai/oauth2/token'
-
-        # Build authorize URL -- this is the "call" to the authorize endpoint (user opens to consent)
-        params = {
-          client_id: client_id,
-          response_type: 'code',
-          scope: scope,
-          redirect_uri: redirect_uri
-        }
-        authorize_url = "#{auth_uri}?#{URI.encode_www_form(params)}"
-
-        puts "\n[*] OAuth configured for Grok (xAI SuperGrok). Authorize by visiting:"
-        puts "    #{authorize_url}"
-        puts '    Complete consent in browser, then paste the code shown (or from redirect).'
-
-        code = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Enter the authorization code from xAI OAuth')
-
-        # Exchange code for bearer at token endpoint (client_secret_post)
-        payload = {
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: redirect_uri,
-          client_id: client_id,
-          client_secret: client_secret
-        }
-
-        response = RestClient.post(
-          token_uri,
-          payload,
-          { content_type: 'application/x-www-form-urlencoded' }
-        )
-
-        data = JSON.parse(response.body)
-        access_token = data['access_token']
-
-        if access_token
-          opts[:bearer_token] = access_token
-          opts[:refresh_token] = data['refresh_token'] if data['refresh_token']
-          puts '[*] Bearer token obtained via authorize + token exchange and cached for this session.'
-          return access_token
-        end
-
-        raise 'No access_token received from xAI OAuth token endpoint'
-      rescue StandardError => e
-        raise "Failed to obtain Grok OAuth bearer token: #{e.message}"
-      end
-
-      # Supported Method Parameters::
       # models = PWN::AI::Grok.get_models
 
       public_class_method def self.get_models
@@ -202,7 +205,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::Grok.chat_raw(
+      # response = PWN::AI::Grok.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
@@ -215,9 +218,9 @@ module PWN
       # Returns the raw chat/completions response Hash with :choices intact
       # (including :message[:tool_calls]) — used by PWN::AI::Agent::Loop.
       # xAI's API is OpenAI-compatible for tool calling, so the request and
-      # response shapes are identical to PWN::AI::OpenAI.chat_raw.
+      # response shapes are identical to PWN::AI::OpenAI.chat_with_tools.
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:grok]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?

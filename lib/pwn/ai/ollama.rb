@@ -133,7 +133,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::Ollama.chat_raw(
+      # response = PWN::AI::Ollama.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | {type:"function", function:{name:..}}',
@@ -149,7 +149,7 @@ module PWN
       # come back with function.arguments as a JSON object (not string), which
       # PWN::AI::Agent::Dispatch.parse_args handles transparently.
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:ollama]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?

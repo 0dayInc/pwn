@@ -133,7 +133,7 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::OpenAI.chat_raw(
+      # response = PWN::AI::OpenAI.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
@@ -148,7 +148,7 @@ module PWN
       # Unlike .chat, this does NOT flatten the assistant message into
       # response_history; the caller owns the messages array.
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:openai]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?

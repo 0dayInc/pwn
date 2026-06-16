@@ -9,7 +9,7 @@ module PWN
   module AI
     # This plugin interacts with Google's Gemini API (Generative Language).
     # It provides methods to list models, generate completions, and chat,
-    # plus a native tool-calling adapter (`chat_raw`) for PWN::AI::Agent::Loop.
+    # plus a native tool-calling adapter (`chat_with_tools`) for PWN::AI::Agent::Loop.
     #
     # API documentation: https://ai.google.dev/api
     # Obtain an API key from https://aistudio.google.com/app/apikey
@@ -135,7 +135,7 @@ module PWN
       # ----------------------------------------------------------------------
 
       # Supported Method Parameters::
-      # response = PWN::AI::Gemini.chat_raw(
+      # response = PWN::AI::Gemini.chat_with_tools(
       #   messages: 'required - OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
@@ -146,7 +146,7 @@ module PWN
       #   spinner: 'optional - display spinner (default false)'
       # )
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:gemini]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
@@ -356,7 +356,7 @@ module PWN
         response_history ||= { choices: [system_role] }
 
         # Build the OpenAI-shape messages array, then reuse the Gemini
-        # translator so .chat and .chat_raw share one wire path.
+        # translator so .chat and .chat_with_tools share one wire path.
         messages = [system_role]
         if response_history[:choices].length > 1
           response_history[:choices][1..].each do |msg|
@@ -443,7 +443,7 @@ module PWN
             spinner: 'optional - display spinner (defaults to false)'
           )
 
-          response = #{self}.chat_raw(
+          response = #{self}.chat_with_tools(
             messages: 'required - OpenAI-format messages array',
             tools: 'optional - OpenAI tools array',
             tool_choice: 'optional - auto | none | required | {function:{name:..}}',
