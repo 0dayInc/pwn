@@ -88,7 +88,7 @@ module PWN
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
-      #   timeout: 'optional timeout in seconds (defaults to 180)',
+      #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
@@ -121,7 +121,7 @@ module PWN
         http_body ||= {}
 
         timeout = opts[:timeout]
-        timeout ||= 180
+        timeout ||= 900
 
         spinner = opts[:spinner] || false
 
@@ -211,7 +211,7 @@ module PWN
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
       #   model: 'optional - overrides PWN::Env[:ai][:grok][:model]',
       #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:grok][:temp] || 1)',
-      #   timeout: 'optional - seconds (default 180)',
+      #   timeout: 'optional - seconds (default 900)',
       #   spinner: 'optional - display spinner (default false)'
       # )
       #
@@ -264,7 +264,7 @@ module PWN
       #   system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:grok][:system_role_content])',
       #   response_history: 'optional - pass response back in to have a conversation',
       #   speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-      #   timeout: 'optional timeout in seconds (defaults to 300)',
+      #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
@@ -371,7 +371,7 @@ module PWN
             system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:grok][:system_role_content])',
             response_history: 'optional - pass response back in to have a conversation',
             speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-            timeout: 'optional - timeout in seconds (defaults to 300)'.
+            timeout: 'optional - timeout in seconds (defaults to 900)'.
             spinner: 'optional - display spinner (defaults to false)'
           )
 
