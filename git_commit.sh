@@ -25,8 +25,15 @@ if (( $# == 3 )); then
 
   pwn_autoinc_version
   if [[ $? -ne 0 ]]; then
-    echo 'ERROR: pwn_autoinc_version failed! Investigate and bump pwn version manually.'
-    exit 1
+    echo 'ERROR: pwn_autoinc_version failed! Reinstalling pwn gemset...'
+    rvmsudo ./reinstall_pwn_gemset.sh
+    rvmsudo rake
+    rvmsudo rake install
+    if [[ $? -ne 0 ]]; then
+      echo 'ERROR: Attempt to reinstall pwn gemset failed! Please investigate and fix before trying again.'
+      exit 1
+    fi
+    pwn_autoinc_version
   fi
 
   # Generate RDoc JSONL for fine-tunning LLMs

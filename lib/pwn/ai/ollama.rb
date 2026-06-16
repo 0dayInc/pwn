@@ -20,7 +20,7 @@ module PWN
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
-      #   timeout: 'optional timeout in seconds (defaults to 300)',
+      #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
@@ -49,7 +49,7 @@ module PWN
         http_body ||= {}
 
         timeout = opts[:timeout]
-        timeout ||= 300
+        timeout ||= 900
 
         spinner = opts[:spinner] || false
 
@@ -133,13 +133,13 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::Ollama.chat_raw(
+      # response = PWN::AI::Ollama.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | {type:"function", function:{name:..}}',
       #   model: 'optional - overrides PWN::Env[:ai][:ollama][:model]',
       #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:ollama][:temp] || 1)',
-      #   timeout: 'optional - seconds (default 300)',
+      #   timeout: 'optional - seconds (default 900)',
       #   spinner: 'optional - display spinner (default false)'
       # )
       #
@@ -149,7 +149,7 @@ module PWN
       # come back with function.arguments as a JSON object (not string), which
       # PWN::AI::Agent::Dispatch.parse_args handles transparently.
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:ollama]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
@@ -193,7 +193,7 @@ module PWN
       #   system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',
       #   response_history: 'optional - pass response back in to have a conversation',
       #   speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-      #   timeout: 'optional timeout in seconds (defaults to 300)',
+      #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
@@ -300,7 +300,7 @@ module PWN
             system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',
             response_history: 'optional - pass response back in to have a conversation',
             speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-            timeout: 'optional - timeout in seconds (defaults to 300)',
+            timeout: 'optional - timeout in seconds (defaults to 900)',
             spinner: 'optional - display spinner (defaults to false)'
           )
 

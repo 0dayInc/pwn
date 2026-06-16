@@ -9,7 +9,7 @@ module PWN
   module AI
     # This plugin interacts with Google's Gemini API (Generative Language).
     # It provides methods to list models, generate completions, and chat,
-    # plus a native tool-calling adapter (`chat_raw`) for PWN::AI::Agent::Loop.
+    # plus a native tool-calling adapter (`chat_with_tools`) for PWN::AI::Agent::Loop.
     #
     # API documentation: https://ai.google.dev/api
     # Obtain an API key from https://aistudio.google.com/app/apikey
@@ -20,7 +20,7 @@ module PWN
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
-      #   timeout: 'optional timeout in seconds (defaults to 300)',
+      #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
@@ -48,7 +48,7 @@ module PWN
         http_body ||= {}
 
         timeout = opts[:timeout]
-        timeout ||= 300
+        timeout ||= 900
 
         spinner = opts[:spinner] || false
 
@@ -135,18 +135,18 @@ module PWN
       # ----------------------------------------------------------------------
 
       # Supported Method Parameters::
-      # response = PWN::AI::Gemini.chat_raw(
+      # response = PWN::AI::Gemini.chat_with_tools(
       #   messages: 'required - OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
       #   model: 'optional - overrides PWN::Env[:ai][:gemini][:model]',
       #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:gemini][:temp] || 1)',
       #   max_tokens: 'optional - maxOutputTokens (defaults to 8192)',
-      #   timeout: 'optional - seconds (default 300)',
+      #   timeout: 'optional - seconds (default 900)',
       #   spinner: 'optional - display spinner (default false)'
       # )
 
-      public_class_method def self.chat_raw(opts = {})
+      public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:gemini]
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
@@ -332,7 +332,7 @@ module PWN
       #   system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:gemini][:system_role_content])',
       #   response_history: 'optional - pass response back in to have a conversation',
       #   speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-      #   timeout: 'optional timeout in seconds (defaults to 300)',
+      #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
@@ -356,7 +356,7 @@ module PWN
         response_history ||= { choices: [system_role] }
 
         # Build the OpenAI-shape messages array, then reuse the Gemini
-        # translator so .chat and .chat_raw share one wire path.
+        # translator so .chat and .chat_with_tools share one wire path.
         messages = [system_role]
         if response_history[:choices].length > 1
           response_history[:choices][1..].each do |msg|
@@ -439,11 +439,11 @@ module PWN
             system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:gemini][:system_role_content])',
             response_history: 'optional - pass response back in to have a conversation',
             speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-            timeout: 'optional - timeout in seconds (defaults to 300)',
+            timeout: 'optional - timeout in seconds (defaults to 900)',
             spinner: 'optional - display spinner (defaults to false)'
           )
 
-          response = #{self}.chat_raw(
+          response = #{self}.chat_with_tools(
             messages: 'required - OpenAI-format messages array',
             tools: 'optional - OpenAI tools array',
             tool_choice: 'optional - auto | none | required | {function:{name:..}}',

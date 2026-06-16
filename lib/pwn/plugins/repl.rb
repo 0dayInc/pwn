@@ -1163,14 +1163,14 @@ module PWN
                 request.replace('nil')
                 next
               rescue StandardError => e
-                warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}); " \
+                warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}\n#{e.backtrace}); " \
                      'falling back to legacy regex-ReAct.'
               end
             end
 
             # ----------------------------------------------------------------
             # LEGACY regex-ReAct path (kept as fallback; remove once all
-            # engines have a working .chat_raw and the native loop has had
+            # engines have a working .chat_with_tools and the native loop has had
             # real-API smoke time on each).
             # ----------------------------------------------------------------
             # Do NOT rebind the 'request' parameter (the string object passed by Pry's after_read hook).
