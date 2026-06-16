@@ -97,11 +97,10 @@ module PWN
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         oauth = engine[:oauth] ||= {}
-        if !oauth.empty? && oauth[:bearer_token].nil?
-          token = obtain_oauth_bearer_token
-          puts 'made it'
-          puts token
-          oauth[:bearer_token] = token if token
+        if oauth[:client_id] && !oauth[:client_id].to_s.empty? && !oauth[:client_id].to_s.match?(/optional/i) && (oauth[:bearer_token].nil? || oauth[:bearer_token].to_s.empty? || oauth[:bearer_token].to_s.match?(/optional/i))
+          # ONLY call authorize flow when oauth configured (client_id) and no valid bearer_token yet.
+          # Pass the live oauth hash so obtain can mutate it with the obtained bearer_token.
+          token = obtain_oauth_bearer_token(oauth)
         end
 
         token ||= engine[:key]
