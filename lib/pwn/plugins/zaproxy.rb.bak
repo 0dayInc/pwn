@@ -27,7 +27,6 @@ module PWN
         rest_call = opts[:rest_call].to_s.scrub
         http_method = opts[:http_method] ||= :get
         http_method = http_method.to_s.downcase.to_sym unless http_method.is_a?(Symbol)
-        skip_stop = opts[:skip_stop] || false
         params = opts[:params]
         http_body = opts[:http_body].to_s.scrub
 
@@ -66,7 +65,7 @@ module PWN
 
         response
       rescue StandardError, SystemExit, Interrupt => e
-        stop(zap_obj: zap_obj) unless zap_obj.nil? && !skip_stop
+        stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end
 
@@ -720,8 +719,7 @@ module PWN
         zap_rest_call(
           zap_obj: zap_obj,
           rest_call: 'JSON/core/action/shutdown/',
-          params: params,
-          skip_stop: true
+          params: params
         )
 
         session_path = zap_obj[:session_path]

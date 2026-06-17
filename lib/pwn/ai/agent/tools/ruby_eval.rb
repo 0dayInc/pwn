@@ -34,10 +34,24 @@ PWN::AI::Agent::Registry.register(
     buf = StringIO.new
     $stdout = buf
     begin
-      # rubocop:disable Security/Eval -- intentional: this IS the pwn-ai → PWN bridge
-      val = eval(code, TOPLEVEL_BINDING, '(pwn_eval)')
+      # rubocop:disable Security/Eval
+      # rubocop:disable Style/DocumentDynamicEvalDefinition
+      # INTENTIONAL: this IS the pwn-ai → PWN bridge
+      # As YTCracker says, "It ain't a bug, it's a featcha."
+      # https://www.youtube.com/watch?v=2nALqqSqdDw
+      # val = eval(code, TOPLEVEL_BINDING, '(pwn_eval)')
+      proc = eval(
+        "proc { #{code} }",
+        TOPLEVEL_BINDING,
+        __FILE__,
+        __LINE__ - 3
+      )
+      val = proc.call
       # rubocop:enable Security/Eval
+      # rubocop:enable Style/DocumentDynamicEvalDefinition
       { stdout: buf.string, value: val.inspect }
+
+      # TODO: A rescue here may enable self-healing of the agent if the model emits code that raises an exception. The model could then be prompted to fix the code and try again.
     ensure
       $stdout = old_stdout
     end
