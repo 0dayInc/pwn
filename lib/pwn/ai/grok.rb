@@ -4,6 +4,7 @@ require 'json'
 require 'rest-client'
 require 'tty-spinner'
 require 'uri'
+require 'base64'
 
 module PWN
   module AI
@@ -25,10 +26,25 @@ module PWN
       # after redirect (OOB), then exchanges at token_uri for the bearer_token.
       # This fulfills calling the authorize endpoint (via URL) only when oauth configured.
       # Uses xAI's supported scopes like grok-cli:access. Stores result in the oauth hash for the session.
-      private_class_method def self.obtain_oauth_bearer_token(opts = {})
+      # Supported Method Parameters::
+      # bearer = PWN::AI::Grok.obtain_oauth_bearer_token(
+      #   client_id: 'xAI OAuth Client ID',
+      #   client_secret: 'xAI OAuth Client Secret',
+      #   token_uri: 'optional - xAI OAuth token endpoint (defaults to https://auth.x.ai/oauth2/token)'
+      # )
+      #
+      # Public so users can manually trigger enrollment if desired.
+      # INTERNAL default path: only invoked from grok_rest_call when oauth client_id+secret present
+      # and no bearer_token yet in the loaded PWN::Env (from pwn-vault encrypted ~/.pwn/pwn.yaml).
+      #
+      # This is a SINGULAR ENROLLMENT process (not per-call or per-session).
+      # The resulting bearer_token (and optional refresh_token) is long-lived for xAI SuperGrok
+      # subscriptions. Once you store it in your pwn-vault config, every future `pwn` / PWN::Env load
+      # will have it; the guard will skip this flow entirely and use "Authorization: Bearer ..." directly.
+      # (No re-prompting every time you run pwn or call PWN::AI::Grok.chat.)
+      public_class_method def self.obtain_oauth_bearer_token(opts = {})
         client_id = opts[:client_id]
         client_secret = opts[:client_secret]
-        return nil unless client_id && client_secret
 
         scope = 'grok-cli:access'
         redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
@@ -44,38 +60,68 @@ module PWN
         }
         authorize_url = "#{auth_uri}?#{URI.encode_www_form(params)}"
 
-        puts "\n[*] OAuth configured for Grok (xAI SuperGrok). Authorize by visiting:"
-        puts "    #{authorize_url}"
-        puts '    Complete consent in browser, then paste the code shown (or from redirect).'
+        puts "\n[*] OAuth ENROLLMENT for Grok (xAI SuperGrok subscription)."
+        puts '    This is a ONE-TIME / SINGULAR enrollment process.'
+        puts '    The bearer_token you receive is LONG-LIVED (store it once; no re-obtain every call or run).'
+        puts ''
+        puts '    Step 1: Open this URL in your browser and complete the authorization/consent for the grok-cli app:'
+        puts "            #{authorize_url}"
+        puts ''
+        puts '    Step 2: After consent you will see (or be redirected to) an authorization code. Copy it exactly.'
+        puts ''
 
         code = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Enter the authorization code from xAI OAuth')
 
-        # Exchange code for bearer at token endpoint (client_secret_post)
+        # Exchange code for bearer at token endpoint.
+        # Use standard confidential client auth: Authorization: Basic base64(client_id:client_secret)
+        # + client_id in body (secret NOT in body).
+        basic = "Basic #{Base64.strict_encode64("#{client_id}:#{client_secret}")}"
         payload = {
           grant_type: 'authorization_code',
           code: code,
           redirect_uri: redirect_uri,
-          client_id: client_id,
-          client_secret: client_secret
+          client_id: client_id
         }
 
         response = RestClient.post(
           token_uri,
           payload,
-          { content_type: 'application/x-www-form-urlencoded' }
+          {
+            content_type: 'application/x-www-form-urlencoded',
+            authorization: basic
+          }
         )
 
         data = JSON.parse(response.body)
+
+        if data['error']
+          desc = data['error_description'] || data['error']
+          raise "xAI OAuth token endpoint error: #{data['error']} - #{desc}"
+        end
+
         access_token = data['access_token']
 
         if access_token
           opts[:bearer_token] = access_token
           opts[:refresh_token] = data['refresh_token'] if data['refresh_token']
-          puts '[*] Bearer token obtained via authorize + token exchange and cached for this session.'
+          puts "\n[*] SUCCESS: Bearer token obtained via authorize + token exchange."
+          puts '    (Cached in-memory for this Ruby process so subsequent Grok calls in the same run skip re-enrollment.)'
+          puts ''
+          puts '    TO MAKE THIS PERMANENT (strongly recommended -- one-time only):'
+          puts '    1. Copy the bearer_token below (and refresh_token if present).'
+          puts '    2. Run your pwn-vault tool (or equivalent) and store under the ai.grok.oauth section:'
+          puts "         ai.grok.oauth.bearer_token = #{access_token}"
+          puts "         ai.grok.oauth.refresh_token = #{data['refresh_token']}" if data['refresh_token']
+          puts '    3. (Optional) You may leave or remove client_id/client_secret after storing the bearer.'
+          puts '    4. Next time PWN::Env loads (pwn -Y, pwn REPL, scripts, etc.) the bearer will be present'
+          puts '       from your encrypted ~/.pwn/pwn.yaml -- the guard will skip this entire flow.'
+          puts '       No more browser prompts or code pasting on future uses.'
+          puts ''
+          puts '    The token is long-lived for your SuperGrok subscription (xAI manages expiry/refresh as needed).'
           return access_token
         end
 
-        raise 'No access_token received from xAI OAuth token endpoint'
+        raise 'No access_token received from xAI OAuth token endpoint (unexpected response)'
       rescue StandardError => e
         raise "Failed to obtain Grok OAuth bearer token: #{e.message}"
       end
@@ -97,11 +143,14 @@ module PWN
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         oauth = engine[:oauth] ||= {}
-        if !oauth.empty? && oauth[:bearer_token].nil?
-          token = obtain_oauth_bearer_token
-          puts 'made it'
-          puts token
-          oauth[:bearer_token] = token if token
+        if oauth[:client_id] && !oauth[:client_id].to_s.empty? && !oauth[:client_id].to_s.match?(/optional/i) &&
+           oauth[:client_secret] && !oauth[:client_secret].to_s.empty? && !oauth[:client_secret].to_s.match?(/optional/i) &&
+           (oauth[:bearer_token].nil? || oauth[:bearer_token].to_s.empty? || oauth[:bearer_token].to_s.match?(/optional/i))
+          # ONLY call authorize flow when BOTH oauth:client_id + client_secret configured (non-optional)
+          # AND no valid bearer_token yet. This is the singular enrollment trigger.
+          # (Bearer is long-lived; store via pwn-vault once so future PWN::Env loads skip this.)
+          # Pass the live oauth hash so obtain can mutate it (for in-process cache; inner hash is mutable).
+          token = obtain_oauth_bearer_token(oauth)
         end
 
         token ||= engine[:key]
