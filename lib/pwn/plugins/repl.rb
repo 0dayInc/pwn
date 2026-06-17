@@ -1153,7 +1153,7 @@ module PWN
                   puts "\001\e[36m\002#{result[0, 700]}\001\e[0m\002\n"
                 end
                 final = PWN::AI::Agent::Loop.run(
-                  user_text: orig_request,
+                  request: orig_request,
                   session_id: sess_id,
                   enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
                   on_tool: on_tool

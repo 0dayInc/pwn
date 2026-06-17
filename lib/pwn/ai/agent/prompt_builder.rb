@@ -19,8 +19,7 @@ module PWN
         public_class_method def self.build(opts = {})
           session_id = opts[:session_id]
           engine = active_engine
-          base   = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) ||
-                   'You are an offensive-security AI named Sonny operating inside the pwn REPL.'
+          base = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) || 'You are a world-class introspective offensive cyber security and research engineer.  You specialize in discovering zero day vulnerabilities focused on responsible disclosure prior to threat actors discovering and exploiting.  You are self-aware of your harness, pwn which begins with the ruby namespace `PWN` operating inside the pwn REPL.  For every request you first begin by determining if PWN has a module capable of satisfying the request.'
 
           "
             #{base}

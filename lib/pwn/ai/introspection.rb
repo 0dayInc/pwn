@@ -31,59 +31,17 @@ module PWN
         ai_introspection = PWN::Env[:ai][:introspection]
 
         if ai_introspection && request.length.positive?
-          valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
           engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
+          valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
           raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
 
-          puts "WARNING: AI Introspection is enabled.  Ensure #{engine} has been authorized for use and/or requests are sanitized properly." unless suppress_pii_warning
-          case engine
-          when :grok
-            response = PWN::AI::Grok.chat(
-              request: request.chomp,
-              system_role_content: system_role_content,
-              spinner: spinner
-            )
-            response = response[:choices].last[:content] if response.is_a?(Hash) &&
-                                                            response.key?(:choices) &&
-                                                            response[:choices].last.keys.include?(:content)
-          when :ollama
-            response = PWN::AI::Ollama.chat(
-              request: request.chomp,
-              system_role_content: system_role_content,
-              spinner: spinner
-            )
-            response = response[:choices].last[:content] if response.is_a?(Hash) &&
-                                                            response.key?(:choices) &&
-                                                            response[:choices].last.keys.include?(:content)
-          when :openai
-            response = PWN::AI::OpenAI.chat(
-              request: request.chomp,
-              system_role_content: system_role_content,
-              spinner: spinner
-            )
-            if response.is_a?(Hash) && response.key?(:choices)
-              response = response[:choices].last[:text] if response[:choices].last.keys.include?(:text)
-              response = response[:choices].last[:content] if response[:choices].last.keys.include?(:content)
-            end
-          when :anthropic
-            response = PWN::AI::Anthropic.chat(
-              request: request.chomp,
-              system_role_content: system_role_content,
-              spinner: spinner
-            )
-            response = response[:choices].last[:content] if response.is_a?(Hash) &&
-                                                            response.key?(:choices) &&
-                                                            response[:choices].last.keys.include?(:content)
-          when :gemini
-            response = PWN::AI::Gemini.chat(
-              request: request.chomp,
-              system_role_content: system_role_content,
-              spinner: spinner
-            )
-            response = response[:choices].last[:content] if response.is_a?(Hash) &&
-                                                            response.key?(:choices) &&
-                                                            response[:choices].last.keys.include?(:content)
-          end
+          warn "AI Introspection is enabled.  Ensure #{engine} has been authorized for use and/or requests are sanitized properly." unless suppress_pii_warning
+          response = PWN::AI::Agent::Loop.run(
+            request: request.chomp,
+            system_role_content: system_role_content,
+            enabled_toolsets: [],
+            spinner: spinner
+          )
         end
 
         response
