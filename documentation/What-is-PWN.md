@@ -1,34 +1,53 @@
 # What is PWN
 
-PWN (pronounced /pōn/ or "pone") is a powerful open-source **offensive cybersecurity automation framework** and **continuous security integration platform**.
+**PWN** (pronounced /pōn/ — "pone") is an open-source **offensive-security
+automation framework** and **continuous-security-integration** platform,
+distributed as a Ruby gem.
 
-## Core Purpose
+It gives security researchers, red teamers, bug-bounty hunters and DevSecOps
+engineers a single, scriptable surface over the entire offensive toolchain —
+from OSINT and network discovery, through web/cloud/hardware/radio
+exploitation, to reporting and disclosure — and puts a **self-improving,
+tool-calling AI agent** on top of it.
 
-- Rapidly discover zero-days
-- Automate exploitation and post-exploitation
-- Perform advanced web application penetration testing
-- Conduct source code analysis (SAST)
-- Orchestrate infrastructure reconnaissance at scale
-- Execute AI-augmented autonomous security operations
+## In numbers
 
-## Architecture Highlights
+| Namespace | Count | What it is |
+|---|---|---|
+| `PWN::Plugins::*` | **66** | Wrappers for external + native tooling (Burp, Nmap, Metasploit, Shodan, browsers, serial, …) |
+| `PWN::SAST::*` | **48** | Static-analysis rules across C/Java/Go/Python/Ruby/Scala/PHP/TS |
+| `PWN::AWS::*` | **90** | One module per AWS service for cloud enumeration |
+| `PWN::WWW::*` | **21** | Site-specific browser automations (HackerOne, BugCrowd, Google, LinkedIn, …) |
+| `PWN::SDR::*` | **6** | GQRX, FlipperZero, RFIDler, SonMicro, decoders, band tables |
+| `PWN::AI::*` | **5** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama |
+| `bin/pwn_*` | **52** | Headless CLI drivers for CI/CD |
+| Agent toolsets | **10** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm |
 
-PWN provides over 60 production-grade plugins, full LLM integration with tool-calling agents, persistent memory, reusable skills, session/cron management, and a highly interactive REPL (Pry-powered) for prototyping and driving complex security workflows.
+## The three ways to use it
 
-All core automation primitives are open to promote trust, peer review, and collaborative innovation in adversarial security.
+1. **`pwn` REPL** — a Pry shell with the whole `PWN::` namespace pre-loaded.
+   Prototype an attack chain interactively, one method call at a time.
+2. **`pwn-ai`** — a natural-language TUI (or `pwn --ai "…"` one-shot) where an
+   LLM plans and executes those same method calls for you, records what
+   worked, and gets better at it.
+3. **`bin/pwn_*` drivers** — thin CLIs over the plugins, for cron and CI/CD.
 
-## Key Components
+## What makes it different
 
-- `PWN::Plugins::*` — 66+ specialized modules
-- `PWN::AI::*` — Multi-LLM clients + autonomous agent
-- `PWN::SAST` — Static analysis & test case generation
-- `PWN::Reports` — Automated reporting
-- `PWN::Memory`, `Sessions`, `Cron`, `Skills`, `Config`
-- `PWN::Driver` — Custom automation packages
+- **Everything is Ruby, everything is a method.** No YAML DSLs, no plugins-in-a-
+  black-box. If you can call it in the REPL, the AI agent can call it, a driver
+  can call it, and a cron job can call it.
+- **Closed self-improvement loop.** Metrics + Learning (introspection) and
+  Snapshot + Drift + Intel (extrospection) feed `extro_correlate`, which tells
+  the agent whether a failure was *its* fault or *the world* changed — and
+  writes the lesson back into the prompt for next time.
+- **Native multi-agent.** `PWN::AI::Agent::Swarm` runs personas (each a full
+  tool-calling agent, optionally on a *different* LLM engine) that debate,
+  broadcast and share an append-only bus — no IRC daemon, no external service.
 
-See:
-- [How PWN Works](How-PWN-Works.md)
-- [Plugins](Plugins.md)
-- [pwn-ai Agent](pwn-ai-Agent.md)
+![Overall Architecture](diagrams/overall-pwn-architecture.svg)
 
-[[Diagrams]]
+**Next:** [Why PWN](Why-PWN.md) · [How PWN Works](How-PWN-Works.md) ·
+[Installation](Installation.md)
+
+[← Home](Home.md)

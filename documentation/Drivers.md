@@ -1,25 +1,52 @@
-# Drivers & Custom Automation
+# Drivers — Turn a REPL Session into a Shipped Binary
 
-`PWN::Driver` and the `/opt/pwn/bin/` directory provide patterns for packaging reusable security automation.
+A **driver** is a small executable in `bin/` that wires `OptionParser` to one
+or more `PWN::` calls. All 52 shipped `pwn_*` binaries follow the same
+15-line template.
 
-## What is a Driver?
+![History → Driver → CI](diagrams/history-to-drivers.svg)
 
-A self-contained Ruby script or gem that:
-- Loads the `pwn` environment
-- Orchestrates multiple plugins, AI calls, or custom logic
-- Can be scheduled via cron or run standalone
+## Workflow
 
-## Examples
+1. **Prototype in the REPL** until the calls work.
+2. `history` → copy the winning lines.
+3. Drop them into the template below as `bin/pwn_<name>`.
+4. `chmod +x bin/pwn_<name>` · add to `pwn.gemspec` executables · `rake install`.
+5. (Optional) `learning_distill_skill(name: '<name>')` so the agent knows the
+   procedure too.
 
-Look in `/opt/pwn/bin/` (shipped with the gem).
+## Template
 
-## Creating New Drivers
+```ruby
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-1. Study existing examples in `bin/`.
-2. Use `PWN::Driver` helpers where appropriate.
-3. Leverage the full plugin + AI surface.
-4. Distill recurring successful patterns into **Skills**.
+require 'optparse'
+require 'pwn'
 
-Drivers + Skills + Agent = extremely powerful autonomous red teaming / research platform.
+opts = {}
+OptionParser.new do |o|
+  o.banner = "USAGE: #{File.basename($PROGRAM_NAME)} [opts]"
+  o.on('-tTARGET', '--target=TARGET', 'Required target') { |v| opts[:target] = v }
+  o.on('-oDIR',    '--out=DIR',       'Output directory') { |v| opts[:out]    = v }
+end.parse!
 
-[[Diagrams]]
+raise OptionParser::MissingArgument, '-t' unless opts[:target]
+
+result = PWN::Plugins::NmapIt.port_scan(target: opts[:target])
+PWN::Reports::Fuzz.generate(result: result, dir_path: opts[:out]) if opts[:out]
+puts result
+```
+
+## Three artefact types from one REPL session
+
+| Artefact | Made with | Consumed by |
+|---|---|---|
+| `bin/pwn_<name>` | template above | shell / CI |
+| `~/.pwn/skills/<name>.md` | `learning_distill_skill` | every future pwn-ai prompt |
+| `cron` job | `cron_create(ruby: '…')` | system crontab → unattended |
+
+**See also:** [CLI Drivers](CLI-Drivers.md) · [Cron](Cron.md) ·
+[Skills, Memory & Learning](Skills-Memory-Learning.md)
+
+[← Home](Home.md)
