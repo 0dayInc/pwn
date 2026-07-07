@@ -13,14 +13,14 @@ module PWN
     # API documentation: https://docs.x.ai/docs
     # Obtain an API key from https://x.ai/api
     module Grok
-      # Internal helper: true when +val+ is a *real* configured value coming
+      # Internal helper: true when +opts[:value]+ is a *real* configured value coming
       # from PWN::Config / pwn-vault (i.e. not nil, not blank, and not one of
       # the "optional - ..." / "required - ..." placeholder strings that
       # PWN::Config.default_env writes into a fresh ~/.pwn/pwn.yaml).
       # Used so OAuth + API key resolution behaves correctly regardless of
       # whether the user edited every field.
-      private_class_method def self.real_config_value?(val)
-        s = val.to_s.strip
+      private_class_method def self.real_config_value?(opts = {})
+        s = opts[:value].to_s.strip
         return false if s.empty?
         return false if s.match?(/\A(optional|required)\b/i)
 
@@ -54,8 +54,8 @@ module PWN
       XAI_OAUTH_SCOPE      = 'openid profile email offline_access grok-cli:access api:access'
 
       # Internal: decode a JWT payload (no sig verification) to read `exp`.
-      private_class_method def self.jwt_exp(token)
-        seg = token.to_s.split('.')[1]
+      private_class_method def self.jwt_exp(opts = {})
+        seg = opts[:token].to_s.split('.')[1]
         return nil unless seg
 
         seg += '=' * ((4 - (seg.length % 4)) % 4)
@@ -64,12 +64,14 @@ module PWN
         nil
       end
 
-      # Internal: true when +token+ is absent, not a JWT, or expires within
-      # +skew+ seconds.
-      private_class_method def self.oauth_token_expiring?(token, skew = 120)
-        return true unless real_config_value?(token)
+      # Internal: true when +opts[:token]+ is absent, not a JWT, or expires within
+      # +opts[:skew]+ seconds (default 120).
+      private_class_method def self.oauth_token_expiring?(opts = {})
+        token = opts[:token]
+        skew  = opts[:skew] || 120
+        return true unless real_config_value?(value: token)
 
-        exp = jwt_exp(token)
+        exp = jwt_exp(token: token)
         return false if exp.nil? # opaque token -- trust it
 
         Time.now.to_i >= (exp.to_i - skew)
@@ -88,10 +90,10 @@ module PWN
       # stays warm for the rest of the process.
       public_class_method def self.refresh_oauth_bearer_token(opts = {})
         refresh_token = opts[:refresh_token]
-        raise 'refresh_token is required' unless real_config_value?(refresh_token)
+        raise 'refresh_token is required' unless real_config_value?(value: refresh_token)
 
-        client_id = real_config_value?(opts[:client_id]) ? opts[:client_id] : XAI_OAUTH_CLIENT_ID
-        token_uri = real_config_value?(opts[:token_uri]) ? opts[:token_uri] : XAI_OAUTH_TOKEN_URI
+        client_id = real_config_value?(value: opts[:client_id]) ? opts[:client_id] : XAI_OAUTH_CLIENT_ID
+        token_uri = real_config_value?(value: opts[:token_uri]) ? opts[:token_uri] : XAI_OAUTH_TOKEN_URI
 
         resp = RestClient.post(
           token_uri,
@@ -135,9 +137,9 @@ module PWN
       # passed opts/oauth Hash (so PWN::Env[:ai][:grok][:oauth] is live-cached)
       # and the operator is told exactly what to persist via pwn-vault.
       public_class_method def self.obtain_oauth_bearer_token(opts = {})
-        client_id = real_config_value?(opts[:client_id]) ? opts[:client_id] : XAI_OAUTH_CLIENT_ID
-        scope     = real_config_value?(opts[:scope])     ? opts[:scope]     : XAI_OAUTH_SCOPE
-        token_uri = real_config_value?(opts[:token_uri]) ? opts[:token_uri] : XAI_OAUTH_TOKEN_URI
+        client_id = real_config_value?(value: opts[:client_id]) ? opts[:client_id] : XAI_OAUTH_CLIENT_ID
+        scope     = real_config_value?(value: opts[:scope])     ? opts[:scope]     : XAI_OAUTH_SCOPE
+        token_uri = real_config_value?(value: opts[:token_uri]) ? opts[:token_uri] : XAI_OAUTH_TOKEN_URI
         timeout   = (opts[:timeout] || 300).to_i
 
         # -- Step 1: request device + user code -------------------------------
@@ -269,9 +271,9 @@ module PWN
         oauth = engine[:oauth].is_a?(Hash) ? engine[:oauth] : (engine[:oauth] ||= {})
         token = nil
 
-        token = oauth[:bearer_token] if real_config_value?(oauth[:bearer_token]) && !oauth_token_expiring?(oauth[:bearer_token])
+        token = oauth[:bearer_token] if real_config_value?(value: oauth[:bearer_token]) && !oauth_token_expiring?(token: oauth[:bearer_token])
 
-        if token.nil? && real_config_value?(oauth[:refresh_token])
+        if token.nil? && real_config_value?(value: oauth[:refresh_token])
           begin
             token = refresh_oauth_bearer_token(oauth)
           rescue StandardError => e
@@ -279,19 +281,19 @@ module PWN
           end
         end
 
-        oauth_opt_in = real_config_value?(oauth[:client_id]) ||
+        oauth_opt_in = real_config_value?(value: oauth[:client_id]) ||
                        oauth[:enroll] == true ||
-                       real_config_value?(oauth[:bearer_token]) ||
-                       real_config_value?(oauth[:refresh_token])
+                       real_config_value?(value: oauth[:bearer_token]) ||
+                       real_config_value?(value: oauth[:refresh_token])
 
-        if token.nil? && (oauth_opt_in || !real_config_value?(engine[:key]))
+        if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key]))
           # Singular device-flow enrollment. Result is written back into the
           # live oauth hash so subsequent grok_rest_call invocations inside the
           # same pwn / pwn-ai process reuse it silently.
           token = obtain_oauth_bearer_token(oauth)
         end
 
-        token = engine[:key] if token.nil? && real_config_value?(engine[:key])
+        token = engine[:key] if token.nil? && real_config_value?(value: engine[:key])
 
         token ||= PWN::Plugins::AuthenticationHelper.mask_password(
           prompt: 'Grok API Key (or run PWN::AI::Grok.obtain_oauth_bearer_token for SuperGrok OAuth)'
@@ -299,7 +301,7 @@ module PWN
 
         http_method = opts[:http_method].nil? ? :get : opts[:http_method].to_s.scrub.to_sym
 
-        base_uri = real_config_value?(engine[:base_uri]) ? engine[:base_uri] : 'https://api.x.ai/v1'
+        base_uri = real_config_value?(value: engine[:base_uri]) ? engine[:base_uri] : 'https://api.x.ai/v1'
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
         headers = {

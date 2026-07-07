@@ -61,8 +61,8 @@ module PWN
             begin
               # unless process_command_safely(line)
               unless process_command_safely(line) && (
-                       line.empty? || @eval_string.empty?
-                     )
+                line.empty? || @eval_string.empty?
+              )
                 # @eval_string += "#{line.chomp}\n" if !line.empty? || !@eval_string.empty?
                 @eval_string += "#{line.chomp}\n"
               end
