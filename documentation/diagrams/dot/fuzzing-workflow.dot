@@ -1,0 +1,27 @@
+digraph "PWN Fuzzing Workflows" {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Input [label="Input Corpus\n(Seeds, Mutators)", shape=box];
+  FuzzProto [label="Protocol Fuzz\n(pwn_fuzz_net_app_proto)"];
+  FuzzFile [label="File / Format Fuzz"];
+  FuzzNet [label="Network Service Fuzz"];
+  FuzzWeb [label="Web App Fuzz\n(XSS vectors, etc.)"];
+  PWNfuzz [label="PWN::Plugins::Fuzz", shape=ellipse];
+  Monitor [label="Monitor Crashes\n(PS, logging, core dumps)"];
+  Corpus [label="Interesting Inputs\n(saved for replay)", shape=cylinder];
+  Crash [label="Crash Analysis\n(identify root cause)", shape=ellipse];
+
+  Input -> PWNfuzz;
+  PWNfuzz -> FuzzProto;
+  PWNfuzz -> FuzzFile;
+  PWNfuzz -> FuzzNet;
+  PWNfuzz -> FuzzWeb;
+  FuzzProto -> Monitor;
+  FuzzFile -> Monitor;
+  FuzzNet -> Monitor;
+  FuzzWeb -> Monitor;
+  Monitor -> Corpus;
+  Monitor -> Crash;
+  Crash -> Input [label="refine mutators"];
+}

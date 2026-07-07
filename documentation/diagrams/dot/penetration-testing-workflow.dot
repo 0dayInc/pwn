@@ -1,0 +1,29 @@
+digraph "PWN Penetration Testing Workflow" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+  edge [fontname="Arial", fontsize=8];
+
+  Target [label="Target System\n(Host, Network, App)", shape=box];
+
+  Recon [label="Recon\n(NmapIt, Shodan,\nIPInfo, crt.sh)", shape=ellipse, fillcolor=lightblue];
+  Scanning [label="Vuln Scanning\n(OpenVAS, Nessus,\nNexpose, ZAP/Burp)", shape=ellipse, fillcolor=lightblue];
+  Web [label="Web App Testing\n(TransparentBrowser,\nBurpSuite, Zaproxy,\nURI Buster)", shape=ellipse, fillcolor=lightblue];
+  Fuzz [label="Fuzzing\n(PWN::Plugins::Fuzz,\npwn_fuzz_net_app_proto)", shape=ellipse, fillcolor=lightblue];
+  Exploit [label="Exploitation\n(Metasploit, custom\nBeEF, Serial, etc.)", shape=ellipse, fillcolor=lightcoral];
+  Post [label="Post-Exploitation\n(PS, FileFu, SSH,\ncredential extraction)", shape=ellipse, fillcolor=lightcoral];
+  Report [label="Reporting\n(PWN::Reports)", shape=ellipse, fillcolor=lightgreen];
+
+  MemorySkills [label="Memory + Skills\n(persistent context)", shape=cylinder];
+
+  Target -> Recon;
+  Recon -> Scanning;
+  Scanning -> Web;
+  Web -> Fuzz;
+  Fuzz -> Exploit;
+  Exploit -> Post;
+  Post -> Report;
+
+  Report -> MemorySkills [label="note outcomes"];
+  MemorySkills -> Recon [label="recall previous\nfindings"];
+  MemorySkills -> Exploit [label="reuse exploits"];
+}

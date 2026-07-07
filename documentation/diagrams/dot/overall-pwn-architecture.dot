@@ -1,0 +1,49 @@
+digraph "PWN Overall Architecture" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+  edge [fontname="Arial", fontsize=8];
+
+  User [label="End User\n(Researcher, pwn-ai)", shape=box];
+  REPL [label="PWN REPL\n(pry + pwn)", shape=ellipse, fillcolor=lightgreen, style=filled];
+  AI [label="PWN::AI\n(Agent + Providers)", shape=ellipse, fillcolor=lightblue, style=filled];
+
+  subgraph cluster_core {
+    label="Core PWN";
+    color=darkblue;
+    Plugins [label="PWN::Plugins\n(67+ modules:\nBurp, NmapIt,\nMetasploit, Fuzz,\nTransparentBrowser...)" , shape=box];
+    SAST [label="PWN::SAST", shape=box];
+    Reports [label="PWN::Reports", shape=box];
+    Driver [label="PWN::Driver", shape=box];
+    Memory [label="PWN::Memory", shape=box];
+  }
+
+  subgraph cluster_persistent {
+    label="Persistent Layer";
+    color=darkgreen;
+    Skills [label="PWN::Skills\n(~/.pwn/skills)", shape=cylinder, fillcolor=lightyellow];
+    Sess [label="PWN::Sessions", shape=cylinder, fillcolor=lightyellow];
+    Cron [label="PWN::Cron", shape=cylinder, fillcolor=lightyellow];
+    Learn [label="Learning\n(Metrics + JSONL)", shape=cylinder, fillcolor=lightyellow];
+  }
+
+  BinDrivers [label="/opt/pwn/bin/\n(Drivers & CLIs)", shape=box];
+
+  User -> REPL [label="pwn / pwn-ai"];
+  REPL -> AI [label="launch pwn-ai"];
+  REPL -> Plugins [label="direct invocation"];
+  REPL -> SAST;
+  REPL -> Reports;
+  REPL -> Driver;
+  AI -> Plugins [label="tool calls\npwn_eval"];
+  AI -> Memory [label="remember/recall"];
+  REPL -> Memory;
+  REPL -> BinDrivers;
+  Driver -> BinDrivers;
+  Plugins -> Learn;
+  AI -> Learn [label="distill skills"];
+  Learn -> Skills [label="promote successful"];
+  Skills -> AI [label="context injection"];
+  Skills -> REPL;
+  Cron -> REPL [label="schedule drivers/agents"];
+  Sess -> REPL [label="replay / audit"];
+}

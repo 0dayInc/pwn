@@ -1,0 +1,17 @@
+digraph "PWN Reporting Pipeline" {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Findings [label="Raw Findings\n(Scan results,\nagent outputs,\nexploits, SAST)", shape=box];
+  Reports [label="PWN::Reports", shape=ellipse, fillcolor=lightgreen];
+  Templates [label="Templates\n(Markdown, PDF,\nJSON, CSV, HTML)", shape=cylinder];
+  Outputs [label="Generated Reports\n(DefectDojo import,\nJira tickets, PDFs)", shape=box];
+  Memory [label="PWN::Memory", shape=cylinder, fillcolor=lightyellow];
+
+  Findings -> Reports;
+  Reports -> Templates;
+  Templates -> Reports;
+  Reports -> Outputs [label="generate"];
+  Reports -> Memory [label="store summary"];
+  Memory -> Reports [label="enrich with context"];
+}

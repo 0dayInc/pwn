@@ -113,45 +113,16 @@ module PWN
           self.class.instance_variable_set(:@tmux_extkeys_checked, true)
           return if ENV['TMUX'].to_s.empty?
 
-          # (1) Inner side: tmux → app. `extended-keys on` makes tmux honour the
-          #     ENABLE_EXTENDED_KEYS request we emit in #readline and re-encode
-          #     S-Enter to the pane as CSI 27;2;13~ / CSI 13;2u.
           cur = `tmux show -sv extended-keys 2>/dev/null`.to_s.strip
-          unless %w[on always].include?(cur)
-            if system('tmux', 'set', '-s', 'extended-keys', 'on', out: File::NULL, err: File::NULL)
-              warn '[pwn] tmux `extended-keys` was off; auto-enabled (server scope) so SHIFT+ENTER is distinguishable from ENTER.'
-              warn '[pwn] Persist it: add `set -s extended-keys on` to ~/.tmux.conf'
-            else
-              warn '[pwn] tmux `extended-keys` is off and could not be enabled; SHIFT+ENTER will behave like ENTER.'
-              warn '[pwn] Fix: run `tmux set -s extended-keys on` (and add `set -s extended-keys on` to ~/.tmux.conf).'
-            end
+          return if %w[on always].include?(cur)
+
+          if system('tmux', 'set', '-s', 'extended-keys', 'on', out: File::NULL, err: File::NULL)
+            warn '[pwn] tmux `extended-keys` was off; auto-enabled (server scope) so SHIFT+ENTER is distinguishable from ENTER.'
+            warn '[pwn] Persist it: add `set -s extended-keys on` to ~/.tmux.conf'
+          else
+            warn '[pwn] tmux `extended-keys` is off and could not be enabled; SHIFT+ENTER will behave like ENTER.'
+            warn '[pwn] Fix: run `tmux set -s extended-keys on` (and add `set -s extended-keys on` to ~/.tmux.conf).'
           end
-
-          # (2) Outer side: terminal → tmux. tmux only ASKS the outer terminal
-          #     to encode S-Enter distinctly (sends `\e[>4;2m` at attach) if the
-          #     client tty has the `extkeys` feature. That comes from the
-          #     `terminal-features` server option matched against the client's
-          #     $TERM at attach time. No match ⇒ outer emulator keeps sending
-          #     0x0D for BOTH Enter and Shift+Enter ⇒ tmux can't disambiguate ⇒
-          #     step (1) is moot. Add it for common outer TERMs (and tmux* to
-          #     cover `alias tmux='TERM=tmux-256color tmux'` and nested tmux).
-          tf = `tmux show -sv terminal-features 2>/dev/null`.to_s
-          unless tf.include?('extkeys')
-            %w[xterm* tmux* screen*].each do |pat|
-              system('tmux', 'set', '-as', 'terminal-features', "#{pat}:extkeys", out: File::NULL, err: File::NULL)
-            end
-            warn '[pwn] Added `extkeys` to tmux terminal-features (xterm*/tmux*/screen*) so tmux requests extended keys from the OUTER terminal.'
-            warn "[pwn] Persist it: add `set -as terminal-features 'xterm*:extkeys'` (and tmux*/screen*) to ~/.tmux.conf"
-          end
-
-          # (3) terminal-features is evaluated at CLIENT ATTACH time. If the
-          #     current client attached before `extkeys` was present, tmux never
-          #     sent the enable CSI to the outer terminal. Detect and warn.
-          feats = `tmux display -p '\#{client_termfeatures}' 2>/dev/null`.to_s
-          return if feats.include?('extkeys')
-
-          warn '[pwn] This tmux client attached before `extkeys` was configured; the outer terminal is still sending plain 0x0D for SHIFT+ENTER.'
-          warn '[pwn] Fix: detach (prefix + d) and reattach (`tmux attach -t <session>`) so tmux re-negotiates extended keys with the terminal.'
         rescue StandardError => e
           warn "[pwn] ensure_tmux_extended_keys: #{e.class}: #{e.message}"
         end

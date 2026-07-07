@@ -1,0 +1,22 @@
+digraph "Network & Infrastructure Testing with PWN" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Targets [label="Targets\n(IPs, Domains, ASNs)", shape=box];
+  Discovery [label="Discovery\n(NmapIt, pwn_nmap_discover,\nShodan, IPInfo, crt.sh)"];
+  Enum [label="Service Enum\n(portscan, version, scripts)"];
+  Auth [label="Auth Testing\n(basic_auth, DAOs,\ncredential spray)"];
+  VulnScan [label="Vuln Scanning\n(NessusCloud, OpenVAS,\nNexpose, Zaproxy)"];
+  Packet [label="Packet Crafting\n(PWN::Plugins::Packet,\nSock, Tor)"];
+  Infra [label="Infra Specific\n(AWS, Jenkins, Jira,\nVsphere, RabbitMQ)"];
+  ExploitNet [label="Network Exploits"];
+
+  Targets -> Discovery;
+  Discovery -> Enum;
+  Enum -> Auth;
+  Auth -> VulnScan;
+  VulnScan -> Packet;
+  Packet -> ExploitNet;
+  VulnScan -> Infra;
+  Infra -> ExploitNet;
+}

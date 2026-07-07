@@ -1,0 +1,23 @@
+digraph "PWN AI Integration & Tool Calling" {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  User [label="User Prompt"];
+  Agent [label="PWN::AI::Agent", shape=ellipse, fillcolor=lightblue];
+  LLM [label="LLM (Grok OAuth,\nOpenAI, etc.)", shape=box];
+  Tools [label="Tool Registry\n(pwn_eval, shell,\nmemory_*, skill_*, \nlearning_*)", shape=box];
+  PWNNS [label="PWN Namespace\n(Plugins, SAST,\nReports, etc.)", shape=box];
+  External [label="External Tools\n(curl, nmap, msf, burp)", shape=box];
+
+  User -> Agent;
+  Agent -> LLM [label="build prompt +\ntools schema"];
+  LLM -> Agent [label="tool_calls[]"];
+  Agent -> Tools [label="dispatch"];
+  Tools -> PWNNS [label="PWN::Plugins::XXX.method"];
+  Tools -> External [label="shell commands"];
+  PWNNS -> Tools [label="return value\nor exception"];
+  External -> Tools [label="stdout/stderr"];
+  Tools -> Agent [label="results"];
+  Agent -> LLM [label="continue conversation"];
+  Agent -> User [label="final answer + artifacts"];
+}

@@ -23,6 +23,8 @@ module PWN
       autoload :Result,        'pwn/ai/agent/result'
       autoload :PromptBuilder, 'pwn/ai/agent/prompt_builder'
       autoload :Loop,          'pwn/ai/agent/loop'
+      autoload :Metrics,       'pwn/ai/agent/metrics'
+      autoload :Learning,      'pwn/ai/agent/learning'
 
       # Display a List of Every PWN::AI Module
 

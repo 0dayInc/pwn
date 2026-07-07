@@ -1,0 +1,15 @@
+digraph "PWN BurpSuite vs Zaproxy Preference" {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Decision [label="Web Proxy Choice\nin PWN", shape=diamond, fillcolor=lightyellow];
+  Burp [label="PWN::Plugins::BurpSuite\n(preferred for most cases)\n- Comprehensive scanning\n- Rich ecosystem\n- Active scan + extensions", shape=box, fillcolor=lightgreen];
+  Zap [label="PWN::Plugins::Zaproxy\n(fallback)\n- Open source\n- REST API scans", shape=box, fillcolor=lightblue];
+
+  UserTask [label="Web App Test Task"];
+  UserTask -> Decision;
+  Decision -> Burp [label="default / most features"];
+  Decision -> Zap [label="if Burp unavailable\nor specific REST need"];
+  Burp -> "Scan / Proxy / Exploit";
+  Zap -> "Scan / Proxy / Exploit";
+}

@@ -1,0 +1,21 @@
+digraph "PWN Reverse Engineering Flow" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Binary [label="Binary / Firmware\n(ELF, PE, APK,\nSerial devices)", shape=box];
+  RE [label="RE Tools\n(XXD, Assembly,\nStrings, objdump,\nRadare/Ghidra via shell)"];
+  PWNRE [label="PWN::Plugins::\nAssembly, XXD,\nSerial, BusPirate"];
+  Analysis [label="Analysis\n(Deobfuscate, patch,\nidentify vulns)", shape=ellipse];
+  FuzzRE [label="Targeted Fuzzing"];
+  ExploitRE [label="Craft Exploit\n(ROP, shellcode)"];
+  Test [label="Validate in REPL"];
+
+  Binary -> RE;
+  RE -> PWNRE;
+  PWNRE -> Analysis;
+  Analysis -> FuzzRE;
+  Analysis -> ExploitRE;
+  FuzzRE -> ExploitRE;
+  ExploitRE -> Test;
+  Test -> Binary [label="re-analyze"];
+}

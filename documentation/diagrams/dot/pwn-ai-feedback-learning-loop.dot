@@ -1,0 +1,57 @@
+digraph "PWN-AI Feedback Learning Loop" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=10];
+  edge [fontname="Arial", fontsize=9];
+
+  // External Entities
+  User [label="Security Researcher\n(User / pwn-ai)", shape=box];
+  LLM [label="LLM Providers\n(Grok/OAuth, OpenAI,\nAnthropic, Gemini, Ollama)", shape=box];
+
+  // Processes
+  subgraph cluster_agent {
+    label="PWN::AI::Agent";
+    style=rounded;
+    color=blue;
+
+    PwnAI [label="pwn-ai TUI\n(Natural Language Interface)", shape=ellipse, style=filled, fillcolor=lightblue];
+    ToolCall [label="Tool Calling Dispatcher\n(pwn_eval, shell, memory,\nskill_list, etc.)", shape=ellipse, style=filled, fillcolor=lightblue];
+    Introspection [label="Introspection &\nReflection", shape=ellipse, style=filled, fillcolor=lightblue];
+  }
+
+  // Data Stores
+  Memory [label="PWN::Memory\n(~/.pwn/memory.json)", shape=cylinder, fillcolor=lightyellow];
+  Metrics [label="PWN::AI::Agent::Metrics\n(~/.pwn/metrics.json)", shape=cylinder, fillcolor=lightyellow];
+  Learning [label="PWN::AI::Agent::Learning\n(~/.pwn/learning.jsonl)", shape=cylinder, fillcolor=lightyellow];
+  Skills [label="PWN::Skills\n(~/.pwn/skills/*.md)", shape=cylinder, fillcolor=lightyellow];
+  History [label="Pry History /\nSession Logs", shape=cylinder, fillcolor=lightyellow];
+
+  // External / Other
+  REPL [label="PWN REPL\n(Full PWN namespace)", shape=box];
+
+  // Flows
+  User -> PwnAI [label="Natural language task\n(e.g. scan + exploit + report)"];
+  PwnAI -> ToolCall [label="Parse intent, plan steps"];
+  ToolCall -> REPL [label="pwn_eval(code) or shell(cmd)"];
+  REPL -> ToolCall [label="Results / stdout / exceptions"];
+  ToolCall -> LLM [label="If needed for decisioning"];
+  LLM -> ToolCall [label="Responses"];
+
+  ToolCall -> Memory [label="remember(key, val)"];
+  Memory -> ToolCall [label="recall(query) injected\ninto prompts"];
+
+  ToolCall -> Metrics [label="record(success, duration,\ntool=...)"];
+  Metrics -> Introspection [label="per-tool stats"];
+
+  ToolCall -> Learning [label="note_outcome(task, success, details)"];
+  Learning -> Introspection [label="reflect on transcript"];
+
+  Introspection -> Skills [label="distill_skill(name, content,\nreferences)"];
+  Skills -> ToolCall [label="skill_list / skill_view\ninjected into future prompts"];
+
+  Introspection -> History [label="Update session"];
+
+  User -> History [label="history command to\ninspect previous"];
+  History -> PwnAI [label="context from prior sessions"];
+
+  PwnAI -> User [label="Results, reports, next steps"];
+}

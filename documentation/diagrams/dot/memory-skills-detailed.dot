@@ -1,0 +1,28 @@
+digraph "PWN Memory & Skills Detailed Data Flow" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Input [label="Successful Task\nOutcome in Agent"];
+  Learn [label="PWN::AI::Agent::Learning\nnote_outcome"];
+  Metrics [label="Metrics (success/duration)"];
+  Introspect [label="learning_reflect\n+ LLM introspection"];
+  Distill [label="learning_distill_skill"];
+  SkillCreate [label="skill_create / edit"];
+  SkillStore [label="~/.pwn/skills/*.md\n(YAML frontmatter\n+ markdown + references)", shape=cylinder, fillcolor=lightyellow];
+  MemStore [label="~/.pwn/memory.json", shape=cylinder, fillcolor=lightyellow];
+  SkillList [label="skill_list / skill_view"];
+  AgentPrompt [label="Agent System Prompt\n(injects skills + memory)"];
+  Recall [label="memory_recall"];
+
+  Input -> Learn;
+  Learn -> Metrics;
+  Learn -> Introspect;
+  Introspect -> Distill;
+  Distill -> SkillCreate;
+  SkillCreate -> SkillStore;
+  SkillStore -> SkillList;
+  SkillList -> AgentPrompt;
+  Input -> MemStore [label="remember key facts"];
+  Recall -> AgentPrompt;
+  MemStore -> Recall;
+}

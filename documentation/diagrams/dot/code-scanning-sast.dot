@@ -1,0 +1,21 @@
+digraph "PWN Code Scanning & SAST" {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Source [label="Source Code\n(Git, Local Dir)", shape=box];
+  SAST [label="PWN::SAST\n(analyze, testgen)", shape=ellipse, fillcolor=lightgreen];
+  Static [label="Static Analysis\n(RuboCop, Brakeman,\nSemgrep, custom rules)"];
+  TestGen [label="Test Case Gen\n(unit/integration fuzz)"];
+  Findings [label="Vulns / Findings\n(CWE mapped)", shape=box];
+  Reports [label="PWN::Reports\n(generate PDF/MD/JSON)", shape=ellipse, fillcolor=lightgreen];
+  REPL [label="REPL / Agent\n(inspect findings)"];
+
+  Source -> SAST;
+  SAST -> Static;
+  SAST -> TestGen;
+  Static -> Findings;
+  TestGen -> Findings;
+  Findings -> Reports;
+  Reports -> REPL;
+  REPL -> Source [label="patch & re-scan"];
+}

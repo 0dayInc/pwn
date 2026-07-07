@@ -1,0 +1,17 @@
+digraph "PWN Driver Framework" {
+  rankdir=LR;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Parser [label="PWN::Driver::Parser\n(OptionParser + auto_opts)"];
+  Script [label="Driver Script\n(bin/pwn_* or custom)"];
+  PWNLoad [label="require 'pwn'\nFull namespace"];
+  Orchestrate [label="Orchestration Logic\n(plugins + AI + loops)"];
+  Outputs [label="Reports, Logs,\nFindings"];
+
+  Script -> Parser;
+  Parser -> Script;
+  Script -> PWNLoad;
+  PWNLoad -> Orchestrate;
+  Orchestrate -> Outputs;
+  Script -> "standalone | cron | pwn-ai";
+}

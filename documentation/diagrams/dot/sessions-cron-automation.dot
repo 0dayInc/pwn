@@ -1,0 +1,17 @@
+digraph "PWN Sessions, Cron & Scheduled Automation" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  Agent [label="pwn-ai Agent / REPL"];
+  Sessions [label="PWN::Sessions\n(record/replay,\ntranscripts)", shape=cylinder, fillcolor=lightyellow];
+  Cron [label="PWN::Cron\n(scheduled tasks)", shape=ellipse, fillcolor=lightcoral];
+  Drivers [label="Drivers &\nBin Scripts"];
+  Memory [label="PWN::Memory", shape=cylinder, fillcolor=lightyellow];
+
+  Agent -> Sessions [label="save / load"];
+  Cron -> Drivers [label="invoke on schedule"];
+  Cron -> Agent [label="run autonomous pwn-ai jobs"];
+  Drivers -> Agent [label="orchestrate"];
+  Sessions -> Memory [label="persist key facts"];
+  Memory -> Cron [label="use recalled context\nfor jobs"];
+}

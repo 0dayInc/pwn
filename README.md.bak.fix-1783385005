@@ -6,7 +6,7 @@
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
   * [How PWN Works](#how-pwn-works)
-- [[Local PWN Wiki](/opt/pwn/documentation/Home.md)
+- [Local PWN Wiki at /opt/documentation/Home.md)
 - [Installation](#installation)
 - [General Usage](#general-usage)
 - [Call to Arms](#call-to-arms)
@@ -22,7 +22,7 @@ PWN (Pronounced /pōn/ or pone), is a powerful open-source offensive cybersecuri
 
 PWN stands on the shoulders of security giants, providing over **66** production-grade plugins, full LLM integration with tool-calling agents, persistent memory, reusable skills, session/cron management, and a highly interactive REPL for prototyping and driving complex security workflows. All core automation primitives are open to promote trust, peer review, and collaborative innovation in adversarial security.
 
-**See the full [PWN Wiki](/opt/pwn/documentation/Home.md) for detailed guides.**
+**See the full [PWN Wiki](/opt//opt/documentation/Home.md) for detailed guides.**
 
 #### **Why PWN** ####
 
@@ -33,15 +33,6 @@ Broad collaboration accelerates zero-day discovery, reliable exploit development
 See [Why PWN](documentation/Why-PWN.md) in the wiki.
 
 #### **How PWN Works** ####
-
-#### **PWN AI Feedback Learning Loop (Self-Improving Agent)**
-
-The core of pwn-ai is a closed feedback loop for autonomous improvement:
-
-![PWN AI Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
-
-See full details in [Skills, Memory & Learning](documentation/Skills-Memory-Learning.md) and the [Diagrams](documentation/Diagrams.md) wiki page.
-
 
 PWN is structured as a Ruby gem with a rich namespace:
 
@@ -71,9 +62,9 @@ Here are some [example drivers](https://github.com/0dayInc/pwn/tree/master/bin) 
 
 A full local wiki has been generated in this checkout:
 
-**`/opt/pwn/documentation/Home.md`**
+**`/opt//opt/documentation/Home.md`**
 
-- [Home](/opt/pwn/documentation/Home.md)
+- [Home](/opt//opt/documentation/Home.md)
 - [What is PWN](documentation/What-is-PWN.md)
 - [Installation](documentation/Installation.md)
 - [pwn-ai Agent](documentation/pwn-ai-Agent.md)
@@ -82,7 +73,7 @@ A full local wiki has been generated in this checkout:
 - [Troubleshooting](documentation/Troubleshooting.md)
 - ...and many more
 
-Run `cat /opt/pwn/documentation/Home.md` or open in your editor for the complete local documentation.
+Run `cat /opt/documentation/Home.md` or open in your editor for the complete local documentation.
 
 ### **Installation** ###
 
@@ -95,7 +86,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.5.614]:001 >>> PWN.help
+pwn[v0.5.613]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -116,7 +107,7 @@ $ rvm use ruby-4.0.5@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.5.614]:001 >>> PWN.help
+pwn[v0.5.613]:001 >>> PWN.help
 ```
 
 If using a multi-user install of RVM:
@@ -127,7 +118,7 @@ $ rvm use ruby-4.0.5@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.5.614]:001 >>> PWN.help
+pwn[v0.5.613]:001 >>> PWN.help
 ```
 
 **Inside the pwn REPL (the heart of PWN):**
@@ -136,7 +127,7 @@ pwn[v0.5.614]:001 >>> PWN.help
 - `pwn-ai` — launch the autonomous AI agent (highly recommended for complex tasks). Once active you can issue natural language instructions that leverage PWN's full power.
 - Example flow:
   ``` 
-  pwn[v0.5.614]:001 >>> pwn-ai
+  pwn[v0.5.613]:001 >>> pwn-ai
   [*] pwn-ai agent TUI activated...
   > Perform active scan of https://target.example.com using preferred tooling, then analyze findings with PWN modules and produce a report.
   ```
@@ -159,7 +150,7 @@ See also the wiki page on [Contributing](documentation/Contributing.md).
 
 ### **Module Documentation** ###
 
-**Primary Documentation:** Browse the embedded local wiki — start at [/opt/pwn/documentation/Home.md](/opt/pwn/documentation/Home.md).
+**Primary Documentation:** Browse the embedded local wiki — start at [/opt/documentation/Home.md](/opt//opt/documentation/Home.md).
 
 Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn). Explore the source under `lib/pwn/plugins/`, `lib/pwn/ai/`, and `PWN::` constants directly in the REPL.
 

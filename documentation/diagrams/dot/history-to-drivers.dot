@@ -1,0 +1,20 @@
+digraph "History Command to Driver Generation" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+
+  User [label="User in REPL"];
+  Pry [label="PWN REPL\n(history, edit, save)"];
+  HistoryFile [label="~/.pry_history\n(raw commands)", shape=cylinder, fillcolor=lightyellow];
+  Script [label="Prototype Script\n(.rb or bin/)", shape=box];
+  Driver [label="PWN Driver\n(/opt/pwn/bin/ example\nor PWN::Driver::Parser)", shape=box];
+  Skill [label="Distilled Skill\n(~/.pwn/skills/)", shape=cylinder, fillcolor=lightyellow];
+  Agent [label="pwn-ai Agent\n(future automation)"];
+
+  User -> Pry [label="run exploration cmds"];
+  Pry -> HistoryFile [label="appends each line"];
+  Pry -> Script [label="history | grep > my_proto.rb\nor edit -n"];
+  Script -> Driver [label="wrap in PWN::Driver\nadd opts, orchestration"];
+  Script -> Skill [label="manually or via\ndistill_skill after success"];
+  Driver -> Agent [label="invoked by agent\nor cron"];
+  Skill -> Agent [label="loaded in prompt context"];
+}

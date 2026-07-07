@@ -1,0 +1,31 @@
+digraph "PWN Plugin Ecosystem" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=8];
+  edge [fontsize=7];
+
+  Hub [label="PWN::Plugins", shape=ellipse, fillcolor=lightblue];
+  Recon [label="Recon & Discovery\n(NmapIt, Shodan, IPInfo,\nHunter, crt.sh, Git)"];
+  Web [label="Web & Proxy\n(TransparentBrowser,\nBurpSuite, Zaproxy,\nSpider, URI Buster)"];
+  Vuln [label="Vulnerability\n(Fuzz, Metasploit,\nNessus, OpenVAS,\nNexpose, DefectDojo)"];
+  Auth [label="Auth & Access\n(OAuth2, BasicAuth,\nDAOs, Vault)"];
+  Infra [label="Infrastructure\n(Jenkins, AWS, Jira,\nRabbitMQ, Vsphere)"];
+  LowLevel [label="Low Level &\nHardware\n(Serial, BusPirate,\nPacket, Sock, Tor,\nAndroid, Assembly)"];
+  Util [label="Utilities\n(FileFu, Char, XXD,\nPS, Reports helpers)"];
+  SDR [label="SDR & RF\n(SDR, gqrx)"];
+  Other [label="Misc\n(BeEF, OCR, PDFParse,\nScannableCodes, etc.)"];
+
+  Hub -> Recon;
+  Hub -> Web;
+  Hub -> Vuln;
+  Hub -> Auth;
+  Hub -> Infra;
+  Hub -> LowLevel;
+  Hub -> Util;
+  Hub -> SDR;
+  Hub -> Other;
+
+  Recon -> Vuln;
+  Web -> Vuln;
+  Auth -> Vuln;
+  Infra -> Vuln;
+}

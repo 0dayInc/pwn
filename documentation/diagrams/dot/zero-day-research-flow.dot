@@ -1,0 +1,27 @@
+digraph "PWN Zero-Day Research Workflow" {
+  rankdir=TB;
+  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+  edge [fontsize=8];
+
+  Target [label="Target Research\n(Binary, Firmware,\nProtocol, Web App)", shape=box];
+  RE [label="Reverse Engineering\n+ Static Analysis"];
+  SAST [label="PWN::SAST + Custom"];
+  Fuzz [label="Fuzzing + Protocol\nAnalysis"];
+  Dyn [label="Dynamic Analysis\n(REPL + Debug)"];
+  Memory [label="PWN Memory\n(historical vulns,\nreferences)", shape=cylinder];
+  Skill [label="Skills (prior\nzero-day patterns)", shape=cylinder];
+  Exploit [label="Exploit Dev\n& Validation"];
+  Disclose [label="Responsible Disclosure\n& Fix (Reports,\nHackerOne, etc.)"];
+
+  Target -> RE;
+  Target -> SAST;
+  RE -> Fuzz;
+  SAST -> Fuzz;
+  Fuzz -> Dyn;
+  RE -> Dyn;
+  Memory -> RE [label="recall past findings"];
+  Skill -> Exploit [label="apply patterns"];
+  Dyn -> Exploit;
+  Exploit -> Disclose;
+  Disclose -> Memory [label="remember disclosure"];
+}
