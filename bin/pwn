@@ -3,13 +3,58 @@
 
 require 'pwn'
 
-pwn_driver = PWN::Driver::Parser.new
+opts = PWN::Env[:driver_opts]
+pwn_driver = PWN::Driver::Parser.new do |options|
+  options.on(
+    '-APROMPT',
+    '--ai=PROMPT',
+    "<Optional - Headless one-shot pwn-ai request (no TUI). '-' reads PROMPT " \
+    'from STDIN. Final answer goes to STDOUT, tool activity to STDERR. ' \
+    'Useful for quick tasks or CI/CD jobs>'
+  ) do |a|
+    opts[:ai] = a
+  end
+end
 pwn_driver.auto_opts_help = false
 pwn_driver.parse!
 
 begin
   pwn_pid = Process.pid
-  PWN::Plugins::REPL.start
+
+  if opts[:ai]
+    # ------------------------------------------------------------------
+    # Headless pwn-ai: behave as if the user typed PROMPT at the pwn-ai
+    # TUI, but non-interactively — a single agent-loop turn with native
+    # tool-calling. STDOUT receives ONLY the final answer so it can be
+    # captured/piped; live tool dispatches stream to STDERR for CI logs.
+    #   $ pwn --ai 'What ports are listening on this host?'
+    #   $ echo "$PROMPT" | pwn --ai -
+    # ------------------------------------------------------------------
+    prompt = opts[:ai].to_s
+    prompt = $stdin.read if prompt == '-' || (prompt.strip.empty? && !$stdin.tty?)
+    raise 'ERROR: --ai requires a non-empty PROMPT (or pipe one via STDIN with --ai -)' if prompt.to_s.strip.empty?
+
+    sess = PWN::Sessions.create(
+      title: "pwn --ai #{Time.now.strftime('%Y-%m-%d %H:%M')}",
+      source: 'pwn-ai-headless'
+    )
+
+    on_tool = lambda do |name, args, result|
+      preview = args.is_a?(String) ? args[0, 120] : args.inspect[0, 120]
+      warn "[ pwn-ai → #{name} ] #{preview}"
+      warn result.to_s[0, 700]
+    end
+
+    final = PWN::AI::Agent::Loop.run(
+      request: prompt,
+      session_id: sess[:id],
+      enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+      on_tool: on_tool
+    )
+    puts final
+  else
+    PWN::Plugins::REPL.start
+  end
 rescue StandardError => e
   raise e
 ensure

@@ -31,7 +31,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{memory_block}#{skills_block}TOOL USE
+            #{memory_block}#{skills_block}#{learning_block}#{metrics_block}#{extrospection_block}TOOL USE
               Use the provided function tools to act on the host. A reply with
               no tool_calls is treated as your FINAL answer to the user.
               Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
@@ -70,11 +70,40 @@ module PWN
           return '' unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) && !PWN::Skills.empty?
 
           lines = PWN::Skills.map do |name, meta|
-            first = meta[:content].to_s.lines.first.to_s.strip
+            first = meta[:content].to_s.lines.reject { |l| l.strip.empty? || l.start_with?('---') }.first.to_s.strip
             first = first[0, 100]
-            "  - #{name}: #{first}"
+            rc = Array(meta[:references]).length
+            ref_tag = rc.positive? ? " [#{rc} refs]" : ''
+            "  - #{name}: #{first}#{ref_tag}"
           end
           "SKILLS (call skill_view to read full body)\n#{lines.join("\n")}\n\n"
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.learning_block
+          return '' unless defined?(PWN::AI::Agent::Learning)
+
+          ctx = PWN::AI::Agent::Learning.to_context(limit: 5).to_s
+          ctx.strip.empty? ? '' : "LEARNING\n#{ctx}"
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.metrics_block
+          return '' unless defined?(PWN::AI::Agent::Metrics)
+
+          ctx = PWN::AI::Agent::Metrics.to_context(limit: 8).to_s
+          ctx.strip.empty? ? '' : ctx
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.extrospection_block
+          return '' unless defined?(PWN::AI::Agent::Extrospection)
+
+          ctx = PWN::AI::Agent::Extrospection.to_context.to_s
+          ctx.strip.empty? ? '' : ctx
         rescue StandardError
           ''
         end

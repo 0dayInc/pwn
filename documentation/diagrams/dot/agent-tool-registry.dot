@@ -1,0 +1,59 @@
+digraph "PWN_Agent_Tool_Registry" {
+  graph [
+    label=<<B>PWN::AI::Agent::Registry — Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">10 toolsets · 45+ callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=LR, splines=spline, nodesep=0.35, ranksep=1.4,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.7];
+
+  Registry [label="Registry\nJSON-Schema\nfunction defs", fillcolor="#c4b5fd", fontsize=12, penwidth=2];
+
+  subgraph cluster_ts {
+    label="Toolsets"; fontcolor="#a7f3d0"; style=rounded;
+    color="#047857"; bgcolor="#022c22"; penwidth=2;
+    terminal [label="terminal", fillcolor="#6ee7b7"];
+    pwn      [label="pwn",      fillcolor="#6ee7b7"];
+    memory   [label="memory",   fillcolor="#6ee7b7"];
+    skills   [label="skills",   fillcolor="#6ee7b7"];
+    sessions [label="sessions", fillcolor="#6ee7b7"];
+    learning [label="learning", fillcolor="#6ee7b7"];
+    metrics  [label="metrics",  fillcolor="#6ee7b7"];
+    extro    [label="extrospection", fillcolor="#6ee7b7"];
+    cron     [label="cron",     fillcolor="#6ee7b7"];
+    swarm    [label="swarm",    fillcolor="#6ee7b7"];
+  }
+
+  subgraph cluster_tools {
+    label="Tools  (LLM-callable)"; fontcolor="#fde68a"; style=rounded;
+    color="#a16207"; bgcolor="#422006"; penwidth=2;
+    node [fillcolor="#fcd34d", fontsize=9];
+    t_shell   [label="shell"];
+    t_eval    [label="pwn_eval"];
+    t_mem     [label="memory_remember\nrecall · forget · clear"];
+    t_skill   [label="skill_list · view\ncreate · add_reference · delete"];
+    t_sess    [label="sessions_list · view\ncurrent · delete · stats"];
+    t_learn   [label="learning_note_outcome\nreflect · distill_skill\nconsolidate · outcomes · reset"];
+    t_metric  [label="metrics_summary\nmetrics_reset"];
+    t_extro   [label="extro_snapshot · drift\nobserve · intel · correlate\nobservations · stats · reset"];
+    t_cron    [label="cron_list · create · run\nenable · disable · remove"];
+    t_swarm   [label="agent_list · spawn · ask\ndebate · broadcast\nswarm_bus · swarm_list"];
+  }
+
+  Registry -> terminal; Registry -> pwn; Registry -> memory;
+  Registry -> skills; Registry -> sessions; Registry -> learning;
+  Registry -> metrics; Registry -> extro; Registry -> cron; Registry -> swarm;
+
+  terminal -> t_shell  [color="#f59e0b"];
+  pwn      -> t_eval   [color="#f59e0b"];
+  memory   -> t_mem    [color="#f59e0b"];
+  skills   -> t_skill  [color="#f59e0b"];
+  sessions -> t_sess   [color="#f59e0b"];
+  learning -> t_learn  [color="#f59e0b"];
+  metrics  -> t_metric [color="#f59e0b"];
+  extro    -> t_extro  [color="#f59e0b"];
+  cron     -> t_cron   [color="#f59e0b"];
+  swarm    -> t_swarm  [color="#f59e0b"];
+}

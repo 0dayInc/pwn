@@ -1,0 +1,98 @@
+digraph "PWN_AI_Feedback_Learning_Loop" {
+  graph [
+    label=<<B>pwn-ai — Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.0,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
+  ];
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded",
+        shape=box, penwidth=1.4, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
+
+  /* L0 ─ actors */
+  User  [label="👤  Researcher", fillcolor="#7dd3fc"];
+  LLM   [label="🤖  LLM Provider", fillcolor="#c4b5fd"];
+  World [label="🌍  Host · Net · Repo\nToolchain · Intel feeds", fillcolor="#fda4af"];
+  {rank=same; User; LLM; World}
+
+  /* L1 ─ agent core */
+  subgraph cluster_core {
+    label="PWN::AI::Agent::Loop"; fontcolor="#ddd6fe";
+    style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
+    Prompt   [label="PromptBuilder\ninject context", fillcolor="#c4b5fd"];
+    Dispatch [label="Dispatch\ntool calls",           fillcolor="#c4b5fd"];
+    Result   [label="Result\nfinal answer",           fillcolor="#c4b5fd"];
+  }
+  {rank=same; Prompt; Dispatch; Result}
+
+  /* L2 ─ dual engines */
+  subgraph cluster_intro {
+    label="INTROSPECTION  (self)"; fontcolor="#a7f3d0";
+    style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
+    Metrics  [label="Metrics\nper-tool success · avg ms", fillcolor="#6ee7b7"];
+    Learning [label="Learning\nnote_outcome · reflect\nconsolidate · distill_skill", fillcolor="#6ee7b7"];
+  }
+  subgraph cluster_extro {
+    label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
+    style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
+    Snapshot  [label="snapshot · drift\nhost/net/toolchain/repo", fillcolor="#fcd34d"];
+    Observe   [label="observe · intel\nrecon facts · CVE feed",   fillcolor="#fcd34d"];
+  }
+  {rank=same; Metrics; Learning; Snapshot; Observe}
+
+  /* L3 ─ correlate */
+  Correlate [label="extro_correlate()\n\"I did it wrong\"  vs  \"the world changed\"",
+             fillcolor="#fda4af", penwidth=2, fontsize=12];
+
+  /* L4 ─ persistence */
+  subgraph cluster_store {
+    label="~/.pwn/"; fontcolor="#94a3b8";
+    style="rounded,dashed"; color="#334155"; bgcolor="#1e293b";
+    Fmet [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
+    Flrn [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
+    Fmem [label="memory.json",        shape=cylinder, fillcolor="#fcd34d"];
+    Fskl [label="skills/*.md",         shape=cylinder, fillcolor="#fcd34d"];
+    Fext [label="extrospection.json", shape=cylinder, fillcolor="#fcd34d"];
+  }
+  {rank=same; Fmet; Flrn; Fmem; Fskl; Fext}
+
+  /* L0 → L1 */
+  User -> Prompt   [label="task", color="#38bdf8", penwidth=2];
+  LLM  -> Dispatch [label="tool_calls", dir=both, color="#a78bfa", penwidth=2];
+  World-> Result   [style=invis];
+
+  /* L1 internal */
+  Prompt -> Dispatch [color="#a78bfa"];
+  Dispatch -> Result [color="#a78bfa"];
+
+  /* L1 → L2 */
+  Dispatch -> Metrics  [label="record()", color="#34d399"];
+  Result   -> Learning [label="auto_reflect", color="#34d399"];
+  Dispatch -> Snapshot [label="probe", color="#f59e0b"];
+  Result   -> Observe  [label="auto_extrospect", color="#f59e0b"];
+  World    -> Snapshot [color="#fb7185", constraint=false];
+  World    -> Observe  [color="#fb7185", constraint=false];
+
+  /* L2 → L3 */
+  Metrics  -> Correlate [color="#34d399"];
+  Learning -> Correlate [color="#34d399"];
+  Snapshot -> Correlate [color="#f59e0b"];
+  Observe  -> Correlate [color="#f59e0b"];
+
+  /* L3 → L4 */
+  Correlate -> Fmet [style=invis];
+  Metrics   -> Fmet [color="#94a3b8"];
+  Learning  -> Flrn [color="#94a3b8"];
+  Learning  -> Fmem [label="lesson", color="#94a3b8"];
+  Learning  -> Fskl [label="skill",  color="#94a3b8"];
+  Observe   -> Fext [color="#94a3b8"];
+
+  /* feedback (dashed, non-constraining) */
+  Fmem -> Prompt [label="MEMORY block",  style=dashed, color="#fbbf24", constraint=false];
+  Fskl -> Prompt [label="SKILLS block",  style=dashed, color="#fbbf24", constraint=false];
+  Fext -> Prompt [label="EXTRO block",   style=dashed, color="#fbbf24", constraint=false];
+  Correlate -> Prompt [label="findings → next run", style=dashed, color="#fb7185",
+                       constraint=false, penwidth=2];
+  Result -> User [label="answer", color="#38bdf8", constraint=false, penwidth=2];
+}

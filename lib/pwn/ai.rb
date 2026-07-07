@@ -9,7 +9,6 @@ module PWN
     autoload :Anthropic, 'pwn/ai/anthropic'
     autoload :Gemini, 'pwn/ai/gemini'
     autoload :Grok, 'pwn/ai/grok'
-    autoload :Introspection, 'pwn/ai/introspection'
     autoload :Ollama, 'pwn/ai/ollama'
     autoload :OpenAI, 'pwn/ai/open_ai'
 

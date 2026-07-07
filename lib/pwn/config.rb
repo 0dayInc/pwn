@@ -40,11 +40,16 @@ module PWN
             # OAuth support for xAI SuperGrok subscriptions (in addition to API key)
             # Populate via pwn-vault command (values stored encrypted in ~/.pwn/pwn.yaml)
             oauth: {
-              client_id: 'optional - xAI SuperGrok OAuth Client ID (for subscriptions without API key)',
-              client_secret: 'optional - xAI SuperGrok OAuth Client Secret',
-              bearer_token: 'optional - xAI SuperGrok OAuth Access Token (preferred for SuperGrok subs; used as Bearer)',
-              refresh_token: 'optional - xAI SuperGrok OAuth Refresh Token',
-              token_uri: 'optional - OAuth token endpoint (defaults handled in PWN::AI::Grok if needed)'
+              # xAI Grok OAuth uses a PUBLIC client (Grok-CLI, same as hermes-agent) --
+              # NO client_secret. Run PWN::AI::Grok.obtain_oauth_bearer_token once
+              # (RFC 8628 device flow) then store refresh_token here; PWN refreshes
+              # the short-lived access_token automatically on every run.
+              refresh_token: 'optional - xAI SuperGrok OAuth Refresh Token (durable; enables silent re-auth)',
+              bearer_token: 'optional - xAI SuperGrok OAuth Access Token (short-lived JWT; auto-refreshed if refresh_token set)',
+              client_id: 'optional - override public Grok-CLI client_id (default: b1a00492-073a-47ea-816f-4c329264a828)',
+              scope: 'optional - override OAuth scope (default: openid profile email offline_access grok-cli:access api:access)',
+              token_uri: 'optional - override OAuth token endpoint (default: https://auth.x.ai/oauth2/token)',
+              enroll: 'optional - set true to force device-flow enrollment even when an API key is present'
             }
           },
           openai: {
@@ -69,6 +74,7 @@ module PWN
             model: 'optional - Anthropic model to use (e.g. claude-3-5-sonnet-20240620)',
             system_role_content: 'You are an ethically hacking Anthropic agent.',
             temp: 'optional - Anthropic temperature',
+            max_tokens: 'optional - Max output tokens per response (default 8192). Raise if tool calls truncate.',
             max_prompt_length: 200_000
           },
           gemini: {
@@ -82,7 +88,15 @@ module PWN
           agent: {
             native_tools: true,
             max_iters: 25,
+            # Swarm (agent_ask/agent_debate) sub-agent recursion cap
+            max_depth: 3,
+            # run PWN::AI::Agent::Learning.auto_reflect after every final answer
+            auto_reflect: true,
+            # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_reflect
+            auto_extrospect: false,
             toolsets: nil
+            # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
+            # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
           }
         },
         plugins: {
@@ -93,28 +107,6 @@ module PWN
               rpc_port: 8332,
               rpc_user: 'bitcoin RPC Username',
               rpc_pass: 'bitcoin RPC Password'
-            }
-          },
-          irc: {
-            ui_nick: '_human_',
-            shared_chan: '#pwn',
-            ai_agent_nicks: {
-              browser: {
-                pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb',
-                system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
-              },
-              nimjeh: {
-                pwn_rb: '',
-                system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
-              },
-              nmap: {
-                pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb',
-                system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
-              },
-              shodan: {
-                pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb',
-                system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
-              }
             }
           },
           hunter: { api_key: 'hunter.how API Key' },
@@ -226,6 +218,7 @@ module PWN
         pass
         password
         psk
+        refresh_token
         secret_key
         token
       ]
@@ -294,20 +287,40 @@ module PWN
         iv: iv
       )
 
-      valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :introspection }.map(&:downcase)
+      valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :agent }.map(&:downcase)
 
       engine = env[:ai][:active].to_s.downcase.to_sym
       raise "ERROR: Unsupported AI Engine: #{engine} in #{pwn_env_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(engine)
 
-      key = env[:ai][engine][:key]
-      oauth_access = nil
-      if engine == :grok
-        oauth = env[:ai][engine][:oauth] ||= {}
-        oauth_access = oauth[:bearer_token] if oauth[:bearer_token] && !oauth[:bearer_token].to_s.match?(/optional/i) && !oauth[:bearer_token].to_s.empty?
+      # Determine whether the active engine already has usable auth
+      # material so the pwn / pwn-ai REPL driver does not prompt for an
+      # API key when OAuth is configured via pwn-vault.
+      #
+      # A value is considered "real" when it is non-blank AND is not one
+      # of the placeholder strings ("optional - ..." / "required - ...")
+      # written by PWN::Config.default_env into a fresh ~/.pwn/pwn.yaml.
+      real_cfg = lambda do |v|
+        s = v.to_s.strip
+        !s.empty? && !s.match?(/\A(optional|required)\b/i)
       end
-      if key.nil? && oauth_access.nil?
+
+      key = env[:ai][engine][:key]
+      key = nil unless real_cfg.call(key)
+
+      oauth_configured = false
+      if engine == :grok
+        oauth = env[:ai][engine][:oauth]
+        oauth = env[:ai][engine][:oauth] = {} unless oauth.is_a?(Hash)
+        # OAuth is considered configured when either a bearer_token is
+        # stored (preferred, long-lived) OR client_id + client_secret are
+        # present (PWN::AI::Grok will run the singular enrollment flow).
+        oauth_configured = real_cfg.call(oauth[:bearer_token]) ||
+                           (real_cfg.call(oauth[:client_id]) && real_cfg.call(oauth[:client_secret]))
+      end
+
+      if key.nil? && !oauth_configured
         key = PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: "#{engine} API Key (or configure oauth:bearer_token in pwn-vault for xAI SuperGrok subscriptions)"
+          prompt: "#{engine} API Key (or store ai.grok.oauth.refresh_token via pwn-vault -- run PWN::AI::Grok.obtain_oauth_bearer_token to enroll)"
         )
         env[:ai][engine][:key] = key
       end
@@ -373,6 +386,53 @@ module PWN
     end
 
     # Supported Method Parameters::
+    # refs = PWN::Config.parse_skill_references(content: '...')
+    #
+    # Extracts an Array of reference strings (URLs, CWE/CVE/ATT&CK ids, etc.)
+    # from a skill body. Supports two formats:
+    #   1) YAML front-matter block:  ---\nreferences:\n  - https://...\n---\n
+    #   2) Markdown section:         ## References\n- https://...\n
+    public_class_method def self.parse_skill_references(opts = {})
+      content = opts[:content].to_s
+      refs = []
+
+      # YAML front-matter (--- ... ---) at top of file
+      if content.start_with?("---\n")
+        fm_end = content.index("\n---", 4)
+        if fm_end
+          begin
+            require 'yaml'
+            fm = YAML.safe_load(content[4..fm_end], permitted_classes: [], aliases: false) || {}
+            r  = fm['references'] || fm[:references]
+            refs.concat(Array(r).map(&:to_s)) if r
+          rescue StandardError
+            # ignore malformed front-matter
+          end
+        end
+      end
+
+      # Markdown "## References" section (bullets or bare lines until next heading / EOF)
+      if content =~ /^\s*\#{1,3}\s*References\s*$/i
+        in_section = false
+        content.each_line do |line|
+          if line =~ /^\s*\#{1,3}\s*References\s*$/i
+            in_section = true
+            next
+          end
+          next unless in_section
+          break if line =~ /^\s*\#{1,3}\s+\S/ # next heading
+
+          l = line.strip.sub(/^[-*]\s*/, '')
+          refs << l unless l.empty?
+        end
+      end
+
+      refs.map(&:strip).reject(&:empty?).uniq
+    rescue StandardError
+      []
+    end
+
+    # Supported Method Parameters::
     # skills = PWN::Config.load_skills(
     #   pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'
     # )
@@ -396,12 +456,12 @@ module PWN
         if ext == '.rb'
           begin
             require skill_file
-            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: true }
+            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: true, references: parse_skill_references(content: content) }
           rescue StandardError => e
-            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: false, error: e.message }
+            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: false, error: e.message, references: parse_skill_references(content: content) }
           end
         else
-          skills[basename] = { type: :instruction, path: skill_file, content: content }
+          skills[basename] = { type: :instruction, path: skill_file, content: content, references: parse_skill_references(content: content) }
         end
       end
 

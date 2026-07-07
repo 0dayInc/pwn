@@ -71,7 +71,7 @@ module PWN
     #   Executes the job (for pwn-ai prompt it will use current active AI engine
     #   via PWN::AI::* but without full REPL hook unless in pwn-ai).
     public_class_method def self.run(opts = {})
-      id = opts[:id]
+      id = opts[:id].to_s
       jobs = load_jobs
       job = jobs[id] || jobs.values.find { |j| j[:name] == id || j[:id] == id }
       raise "Job #{id} not found" unless job
@@ -134,7 +134,7 @@ module PWN
     # Supported Method Parameters::
     #   PWN::Cron.remove(id:)
     public_class_method def self.remove(opts = {}) # rubocop:disable Naming/PredicateMethod
-      id = opts[:id]
+      id = opts[:id].to_s
       jobs = load_jobs
       jobs.delete(id)
       save_jobs(jobs: jobs)
@@ -152,10 +152,10 @@ module PWN
     end
 
     # Install a crontab line that invokes this job via pwn
-    # (assumes /opt/pwn and rvm ruby-4.0.1@pwn - user can edit crontab)
+    # (assumes /opt/pwn and the active rvm ruby@pwn gemset - user can edit crontab)
     public_class_method def self.install_crontab_entry(opts = {})
       job = opts[:job]
-      cron_line = "#{job[:schedule]} cd /opt/pwn && /usr/local/rvm/bin/rvm ruby-4.0.1@pwn do ruby -I lib -e 'require \"pwn\"; PWN::Cron.run(id: \"#{job[:id]}\")' >> #{File.join(cron_dir, 'cron.log')} 2>&1"
+      cron_line = "#{job[:schedule]} cd /opt/pwn && /usr/local/rvm/bin/rvm ruby-#{RUBY_VERSION}@pwn do ruby -I lib -e 'require \"pwn\"; PWN::Cron.run(id: \"#{job[:id]}\")' >> #{File.join(cron_dir, 'cron.log')} 2>&1"
       # Append to user's crontab (non-destructive)
       existing = `crontab -l 2>/dev/null || true`
       unless existing.include?(job[:id])
@@ -169,8 +169,17 @@ module PWN
       FileUtils.mkdir_p(cron_dir)
       return {} unless File.exist?(JOBS_FILE)
 
-      YAML.safe_load_file(JOBS_FILE, symbolize_names: true) || {}
-    rescue StandardError
+      raw = YAML.safe_load_file(
+        JOBS_FILE,
+        permitted_classes: [Symbol, Time],
+        symbolize_names: true
+      ) || {}
+      # Normalize outer job-id keys to String (create() uses String ids;
+      # symbolize_names would otherwise turn them into Symbols on reload
+      # and break jobs[id] / jobs.delete(id) / toggle lookups).
+      raw.each_with_object({}) { |(k, v), h| h[k.to_s] = v }
+    rescue StandardError => e
+      warn("[PWN::Cron] load_jobs failed: #{e.class}: #{e.message}")
       {}
     end
 
@@ -180,7 +189,7 @@ module PWN
     end
 
     private_class_method def self.toggle(opts = {})
-      id = opts[:id]
+      id = opts[:id].to_s
       enabled = opts[:enabled]
       jobs = load_jobs
       if jobs[id]

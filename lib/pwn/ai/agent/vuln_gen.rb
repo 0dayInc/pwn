@@ -12,7 +12,7 @@ module PWN
       # 4. CVSS score, vector string, and first.org calculator URI
       # 5. CWE category, brief description, and CWE URI
       # 6. Relevant NIST 800-53 control
-      # It leverages the PWN::AI::Introspection.reflect_on method. Defaults to Jira for existing workflow compatibility.
+      # It leverages the PWN::AI::Agent::Introspection.reflect_on method. Defaults to Jira for existing workflow compatibility.
       module VulnGen
         # Supported Method Parameters::
         # ai_analysis = PWN::AI::Agent::VulnGen.analyze(
@@ -60,7 +60,7 @@ module PWN
           6. NIST 800-53 Security Control that is impacted by this vulnerability.
           "
 
-          analysis = PWN::AI::Introspection.reflect_on(
+          analysis = PWN::AI::Agent::Introspection.reflect_on(
             system_role_content: system_role_content,
             request: request,
             suppress_pii_warning: true

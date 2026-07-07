@@ -35,7 +35,7 @@ module PWN
             raise "ERROR: Unsupported type parameter value '#{type}'. Supported values are :opcodes_to_asm and :asm_to_opcodes."
           end
 
-          PWN::AI::Introspection.reflect_on(
+          PWN::AI::Agent::Introspection.reflect_on(
             system_role_content: system_role_content,
             request: request,
             suppress_pii_warning: true

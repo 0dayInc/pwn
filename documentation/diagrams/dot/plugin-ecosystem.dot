@@ -1,0 +1,45 @@
+digraph "PWN_Plugins" {
+  graph [
+    label=<<B>PWN::Plugins — 66 Modules by Category</B>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=LR, splines=spline, nodesep=0.25, ranksep=1.5,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=9, style="filled,rounded",
+        shape=box, penwidth=1.2, color="#334155", fontcolor="#0f172a"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6];
+
+  Root [label="PWN::Plugins", fillcolor="#7dd3fc", fontsize=14, penwidth=2];
+
+  subgraph cluster_cat {
+    label=""; style=invis;
+    Web  [label="Web / Proxy",   fillcolor="#6ee7b7"];
+    Net  [label="Network",       fillcolor="#6ee7b7"];
+    Xpl  [label="Exploitation",  fillcolor="#6ee7b7"];
+    Osint[label="OSINT",         fillcolor="#6ee7b7"];
+    Data [label="Data / DAO",    fillcolor="#6ee7b7"];
+    Auth [label="Auth",          fillcolor="#6ee7b7"];
+    HW   [label="Hardware",      fillcolor="#6ee7b7"];
+    CI   [label="CI / DevOps",   fillcolor="#6ee7b7"];
+    Comm [label="Comms",         fillcolor="#6ee7b7"];
+    Util [label="Utility",       fillcolor="#6ee7b7"];
+  }
+  {rank=same; Web; Net; Xpl; Osint; Data; Auth; HW; CI; Comm; Util}
+
+  node [fillcolor="#fcd34d"];
+  w  [label="BurpSuite ⭐ · Zaproxy\nTransparentBrowser · Spider\nOpenAPI · URIScheme"];
+  n  [label="NmapIt · Sock · Packet\nTor · IPInfo"];
+  x  [label="Metasploit · Fuzz\nBeEF · Assembly"];
+  o  [label="Shodan · Hunter\nGithub · HackerOne"];
+  d  [label="DAO::LDAP/Mongo/PG/SQLite\nJSONPathify · PDFParse · OCR"];
+  a  [label="OAuth2 · BasicAuth\nAuthenticationHelper · Vault"];
+  h  [label="Serial · BusPirate\nMSR206 · Android · BareSIP"];
+  c  [label="Jenkins · Git · vSphere\nDefectDojo · BlackDuck"];
+  m  [label="MailAgent · SlackClient\nIRC · RabbitMQ · TwitterAPI · Voice"];
+  u  [label="FileFu · ThreadPool · Log\nChar · XXD · DetectOS\nScannableCodes · CreditCard\nSSN · EIN · VIN · Pony · PS"];
+
+  Root->Web; Root->Net; Root->Xpl; Root->Osint; Root->Data;
+  Root->Auth; Root->HW; Root->CI; Root->Comm; Root->Util;
+  Web->w; Net->n; Xpl->x; Osint->o; Data->d;
+  Auth->a; HW->h; CI->c; Comm->m; Util->u;
+}

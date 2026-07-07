@@ -73,3 +73,30 @@ PWN::AI::Agent::Registry.register(
     { forgotten: args[:key] }
   }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'memory_clear',
+  toolset: 'memory',
+  schema: {
+    name: 'memory_clear',
+    description: 'Wipe ALL persistent memory (~/.pwn/memory.json) — every ' \
+                 'fact, preference, lesson and env entry. Use only for a ' \
+                 'poisoned-context reset. IRREVERSIBLE — must pass ' \
+                 'confirm:true.',
+    parameters: {
+      type: 'object',
+      properties: {
+        confirm: { type: 'boolean', description: 'Must be true to actually clear.' }
+      },
+      required: %w[confirm]
+    }
+  },
+  check: -> { defined?(PWN::Memory) },
+  handler: lambda { |args|
+    raise ArgumentError, 'refusing to clear memory without confirm:true' unless args[:confirm] == true
+
+    before = PWN::Memory.load.keys.length
+    PWN::Memory.clear
+    { cleared: true, entries_removed: before, file: PWN::Memory::MEMORY_FILE }
+  }
+)
