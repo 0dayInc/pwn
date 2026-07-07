@@ -1,57 +1,128 @@
-digraph "PWN-AI Feedback Learning Loop" {
-  rankdir=TB;
-  node [shape=box, style=rounded, fontname="Arial", fontsize=10];
-  edge [fontname="Arial", fontsize=9];
+digraph "PWN_AI_Feedback_Learning_Loop" {
+  // Global style - clean, professional, pastel, readable
+  graph [
+    label="PWN-AI: Closed Self-Improvement Feedback Loop\n(Introspection + Extrospection + Extro_Correlate)",
+    labelloc="t",
+    fontsize=16,
+    fontname="Arial",
+    splines="spline",
+    ranksep="0.7",
+    nodesep="0.45",
+    concentrate="true",
+    bgcolor="#f8fafc"
+  ];
 
-  // External Entities
-  User [label="Security Researcher\n(User / pwn-ai)", shape=box];
-  LLM [label="LLM Providers\n(Grok/OAuth, OpenAI,\nAnthropic, Gemini, Ollama)", shape=box];
+  node [
+    fontname="Arial",
+    fontsize=11,
+    style="rounded,filled",
+    penwidth="1.2"
+  ];
 
-  // Processes
+  edge [
+    fontname="Arial",
+    fontsize="8.5",
+    arrowsize="0.7",
+    penwidth="1.05"
+  ];
+
+  // ===================== TOP: External Actors =====================
+  User [label="👤 Security Researcher\n(pwn-ai TUI user)", shape=box, fillcolor="#dbeafe", color="#1e40af", fontcolor="#1e3a8a"];
+  LLM [label="🤖 LLM Providers\n(Grok + OAuth, OpenAI, Anthropic,\nGemini, Ollama)", shape=box, fillcolor="#f3e8ff", color="#6b21a8", fontcolor="#581c87"];
+  World [label="🌍 Outside World\n(Host, Network, Git Repo,\nKernel + Toolchain)", shape=box, style="rounded,dashed", fillcolor="#dcfce7", color="#166534"];
+  Intel [label="📡 Threat Intel Feeds\n(NVD, CIRCL CVE-Search,\nExploit-DB)", shape=box, style="rounded,dashed", fillcolor="#fef3c7", color="#92400e"];
+
+  // ===================== CENTER: Agent =====================
   subgraph cluster_agent {
-    label="PWN::AI::Agent";
-    style=rounded;
-    color=blue;
+    label="PWN::AI::Agent Core";
+    style="rounded,bold";
+    color="#1e40af";
+    penwidth="2.5";
+    bgcolor="#f0f9ff";
 
-    PwnAI [label="pwn-ai TUI\n(Natural Language Interface)", shape=ellipse, style=filled, fillcolor=lightblue];
-    ToolCall [label="Tool Calling Dispatcher\n(pwn_eval, shell, memory,\nskill_list, etc.)", shape=ellipse, style=filled, fillcolor=lightblue];
-    Introspection [label="Introspection &\nReflection", shape=ellipse, style=filled, fillcolor=lightblue];
+    PwnAI [label="pwn-ai TUI\n(Natural Language\nInterface)", shape=ellipse, fillcolor="#bae6fd", color="#0369a1"];
+    ToolCall [label="Tool Dispatcher\n(pwn_eval • shell •\nmemory_* • skill_* •\nextro_* • cron_*)", shape=ellipse, fillcolor="#7dd3fc", color="#0369a1"];
+    REPL [label="PWN REPL\n(Full live PWN::\nnamespace access)", shape=box, fillcolor="#e0f2fe", color="#075985"];
   }
 
-  // Data Stores
-  Memory [label="PWN::Memory\n(~/.pwn/memory.json)", shape=cylinder, fillcolor=lightyellow];
-  Metrics [label="PWN::AI::Agent::Metrics\n(~/.pwn/metrics.json)", shape=cylinder, fillcolor=lightyellow];
-  Learning [label="PWN::AI::Agent::Learning\n(~/.pwn/learning.jsonl)", shape=cylinder, fillcolor=lightyellow];
-  Skills [label="PWN::Skills\n(~/.pwn/skills/*.md)", shape=cylinder, fillcolor=lightyellow];
-  History [label="Pry History /\nSession Logs", shape=cylinder, fillcolor=lightyellow];
+  // ===================== LEFT: INTROSPECTION (self) =====================
+  subgraph cluster_introspect {
+    label="🔄 INTROSPECTION\n(Self-Improvement & Metrics)";
+    labelloc="t";
+    style="rounded,dashed";
+    color="#166534";
+    bgcolor="#f0fdf4";
+    penwidth="1.8";
 
-  // External / Other
-  REPL [label="PWN REPL\n(Full PWN namespace)", shape=box];
+    Metrics [label="Metrics Store\n~/.pwn/metrics.json\n(per-tool success & duration)", shape=cylinder, fillcolor="#bbf7d0", color="#166534"];
+    Learning [label="Learning Store\n~/.pwn/learning.jsonl\n(outcomes + reflect)", shape=cylinder, fillcolor="#86efac", color="#166534"];
+    Introspect [label="Introspection Engine\n(learning_reflect\n+ note_outcome\n+ distill_skill)", shape=ellipse, fillcolor="#4ade80", color="#14532d"];
+  }
 
-  // Flows
-  User -> PwnAI [label="Natural language task\n(e.g. scan + exploit + report)"];
-  PwnAI -> ToolCall [label="Parse intent, plan steps"];
-  ToolCall -> REPL [label="pwn_eval(code) or shell(cmd)"];
-  REPL -> ToolCall [label="Results / stdout / exceptions"];
-  ToolCall -> LLM [label="If needed for decisioning"];
-  LLM -> ToolCall [label="Responses"];
+  // ===================== RIGHT: EXTROSPECTION (world) =====================
+  subgraph cluster_extrospect {
+    label="🌐 EXTROSPECTION\n(World Awareness)";
+    labelloc="t";
+    style="rounded,dashed";
+    color="#92400e";
+    bgcolor="#fffbeb";
+    penwidth="1.8";
 
-  ToolCall -> Memory [label="remember(key, val)"];
-  Memory -> ToolCall [label="recall(query) injected\ninto prompts"];
+    ExtroStore [label="Extrospection Store\n~/.pwn/extrospection.json\n(snapshots + observations)", shape=cylinder, fillcolor="#fde68a", color="#92400e"];
+    Extrospect [label="Extrospection Engine\n(extro_snapshot • drift\n• observe • intel\n• correlate • auto)", shape=ellipse, fillcolor="#fbbf24", color="#78350f"];
+  }
 
-  ToolCall -> Metrics [label="record(success, duration,\ntool=...)"];
-  Metrics -> Introspection [label="per-tool stats"];
+  // ===================== BOTTOM: PERSISTENT DATA (injected) =====================
+  subgraph cluster_persist {
+    label="Persistent Context (injected into every prompt & tool decision)";
+    labelloc="b";
+    style="rounded";
+    color="#44403c";
+    bgcolor="#f5f5f4";
+    penwidth="1.5";
 
-  ToolCall -> Learning [label="note_outcome(task, success, details)"];
-  Learning -> Introspection [label="reflect on transcript"];
+    Memory [label="PWN::Memory\n~/.pwn/memory.json\n(facts, preferences, lessons)", shape=cylinder, fillcolor="#fcd34d", color="#854d0e"];
+    Skills [label="PWN::Skills\n~/.pwn/skills/*.md\n(workflow procedures\n+ references: CWE/CVE/ATT&CK)", shape=cylinder, fillcolor="#fcd34d", color="#854d0e"];
+    History [label="Sessions + History\n~/.pwn/sessions/*.jsonl\n+ Pry history", shape=cylinder, fillcolor="#d1d5db", color="#374151"];
+  }
 
-  Introspection -> Skills [label="distill_skill(name, content,\nreferences)"];
-  Skills -> ToolCall [label="skill_list / skill_view\ninjected into future prompts"];
+  // ===================== PRIMARY FLOW (center, blue tones) =====================
+  User -> PwnAI [label="natural language task\ne.g. \"find vulns & report\"", color="#1e40af", penwidth="1.8"];
+  PwnAI -> ToolCall [label="parse + plan steps", color="#0369a1"];
+  ToolCall -> REPL [label="pwn_eval(code)\nor shell(command)", color="#075985"];
+  REPL -> ToolCall [label="stdout / data\n/ exceptions", color="#075985"];
+  ToolCall -> LLM [label="complex reasoning\n/ tool-use schema", color="#6b21a8"];
+  LLM -> ToolCall [label="structured replies", color="#6b21a8"];
+  PwnAI -> User [label="final answers\n+ reports + follow-ups", color="#1e40af", penwidth="1.8"];
 
-  Introspection -> History [label="Update session"];
+  // ===================== INTROSPECTION FLOWS (left column - green) =====================
+  ToolCall -> Metrics [label="record(success,\nduration, tool)", color="#166534"];
+  Metrics -> Introspect [label="per-tool stats", color="#166534"];
+  ToolCall -> Learning [label="note_outcome(task,\nsuccess, details)", color="#166534"];
+  Learning -> Introspect [label="reflect(transcript)", color="#166534"];
+  Introspect -> Skills [label="distill_skill\n(name, content,\nreferences)", color="#14532d", penwidth="1.5"];
+  Skills -> ToolCall [label="skill_list / skill_view\n→ injected context", color="#14532d"];
+  Introspect -> Memory [label="remember", color="#166534"];
+  Memory -> ToolCall [label="recall(query)\n→ prompt context", color="#166534"];
+  Introspect -> History [label="log session"];
+  History -> PwnAI [label="context from\nprevious sessions"];
 
-  User -> History [label="history command to\ninspect previous"];
-  History -> PwnAI [label="context from prior sessions"];
+  // ===================== EXTROSPECTION FLOWS (right column - orange) =====================
+  ToolCall -> Extrospect [label="extro_snapshot\nextro_observe\nextro_intel", color="#92400e"];
+  World -> Extrospect [label="probe: uname, git,\nss, env, ports", color="#166534"];
+  Intel -> Extrospect [label="CVE / exploit\nmatches", color="#92400e"];
+  Extrospect -> ExtroStore [label="persist\nsnapshot + obs", color="#92400e"];
+  ExtroStore -> Extrospect [label="load previous\nbaseline", color="#92400e"];
+  Extrospect -> ToolCall [label="EXTROSPECTION\nblock injection", color="#92400e", penwidth="1.5"];
+  Extrospect -> Memory [label="record DRIFT facts"];
 
-  PwnAI -> User [label="Results, reports, next steps"];
+  // ===================== CRITICAL JOIN (bidirectional, prominent red) =====================
+  Introspect -> Extrospect [label="failures +\nlow success tools", dir=both, color="#9f1239", penwidth="2.4", style="dashed"];
+  Extrospect -> Introspect [label="extro_correlate():\n\"I did it wrong\"\nvs \"the world changed\"", dir=both, color="#9f1239", penwidth="2.4", style="dashed"];
+
+  // Top-level rank to keep columns sensible
+  { rank=same; PwnAI; ToolCall; REPL }
+  { rank=same; Metrics; Introspect }
+  { rank=same; ExtroStore; Extrospect }
+  { rank=same; Memory; Skills; History }
 }

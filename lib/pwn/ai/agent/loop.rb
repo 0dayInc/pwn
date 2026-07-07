@@ -61,6 +61,20 @@ module PWN
           nil
         end
 
+        # Stash the active session_id under PWN::Env[:ai][:session_id] so
+        # tool handlers (sessions_current) can discover it without a Pry
+        # dependency. PWN::Env is frozen at the top level but [:ai] is a
+        # nested mutable Hash on all supported config paths — swallow if not.
+        private_class_method def self.expose_current_session(opts = {})
+          sid = opts[:session_id]
+          return unless sid && defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          ai = PWN::Env[:ai]
+          ai[:session_id] = sid if ai.is_a?(Hash) && !ai.frozen?
+        rescue StandardError
+          nil
+        end
+
         private_class_method def self.append_session(opts = {})
           session_id = opts[:session_id]
           return unless session_id && defined?(PWN::Sessions)
@@ -157,6 +171,7 @@ module PWN
           system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id)
 
           Registry.discover
+          expose_current_session(session_id: session_id)
 
           tools    = Registry.definitions(enabled: opts[:enabled_toolsets])
           messages = [

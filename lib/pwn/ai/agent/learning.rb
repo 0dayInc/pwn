@@ -100,7 +100,8 @@ module PWN
             success_rate: total.positive? ? (ok.to_f / total).round(3) : 0.0,
             skills_known: skills,
             memory_entries: mem,
-            tool_metrics: (Metrics.summary(limit: 5) if defined?(Metrics))
+            tool_metrics: (Metrics.summary(limit: 5) if defined?(Metrics)),
+            extrospection: (Extrospection.stats if defined?(Extrospection))
           }
         end
 
@@ -160,7 +161,7 @@ module PWN
         #   dry_run: 'optional - when true, do not write to Memory/Skills (default false)'
         # )
         #
-        # Uses PWN::AI::Introspection (when available) to LLM-summarise the
+        # Uses PWN::AI::Agent::Introspection (when available) to LLM-summarise the
         # session into structured lessons. Falls back to a heuristic
         # extractor when introspection is disabled so learning never stops.
 
@@ -211,6 +212,7 @@ module PWN
             tags: %w[auto loop]
           )
           reflect(session_id: session_id)
+          Extrospection.auto_extrospect(session_id: session_id) if defined?(Extrospection)
         rescue StandardError => e
           warn "[pwn-ai/learning] auto_reflect swallowed: #{e.class}: #{e.message}"
           nil
@@ -291,11 +293,11 @@ module PWN
 
         private_class_method def self.introspective_lessons(opts = {})
           transcript = opts[:transcript] || []
-          return [] unless defined?(PWN::AI::Introspection)
+          return [] unless defined?(PWN::AI::Agent::Introspection)
           return [] unless defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env.dig(:ai, :introspection)
 
           req = "Analyse this pwn-ai session transcript and emit up to 5 durable, generalizable lessons (one per line, no numbering, imperative voice) that would make future runs faster or more reliable. Focus on tool selection, error recovery, and target-agnostic technique. Ignore trivia.\n\nTRANSCRIPT:\n#{transcript_text(transcript: transcript)}"
-          resp = PWN::AI::Introspection.reflect_on(request: req, suppress_pii_warning: true)
+          resp = PWN::AI::Agent::Introspection.reflect_on(request: req, suppress_pii_warning: true)
           resp.to_s.lines.map(&:strip).reject(&:empty?).first(5)
         rescue StandardError
           []

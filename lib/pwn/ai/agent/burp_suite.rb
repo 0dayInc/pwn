@@ -50,7 +50,7 @@ module PWN
             Analyze provided HTTP request/response pairs methodically: Start with a high-level overview, then dive into specifics, flag potential issues with evidence from the traffic, and end with PoC if applicable. Be verbose in reasoning but concise in output. Prioritize high-severity findings. If data is incomplete, request clarifications.  If analyzing a JavaScript source map file (i.e. .js.map), focus on deobfuscating and identifying any potentially vulnerable code patterns, especially those that could lead to client-side vulnerabilities like DOM XSS, prototype pollution, or insecure deserialization. Look for patterns such as eval, document.write, innerHTML assignments, and event handlers that could be influenced by user input. Provide detailed analysis and PoCs if vulnerabilities are identified.
           '
 
-          PWN::AI::Introspection.reflect_on(
+          PWN::AI::Agent::Introspection.reflect_on(
             system_role_content: system_role_content,
             request: request,
             suppress_pii_warning: true

@@ -20,7 +20,7 @@ module PWN
 
           system_role_content = "Being an expert penetration tester skilled in code analysis, debugging, and exploitation while stepping through JavaScript in a Chrome DevTools debugging session:  1. Your sole purpose is to analyze each JavaScript step and generate an Exploit Prediction Scoring System (EPSS) score between 0% - 100%.  The step currently resides in this block of JavaScript:\n```\n#{source_to_review}\n```\n2. If the score is >= 75%, generate a JavaScript proof-of-concept that would allow a threat actor to directly exploit or target a user for exploitation (i.e. no self-exploit).  3. If the EPSS score is >= 75% also provide a code fix. *** If the EPSS score is < 75%, no explanations or summaries - just the EPSS score."
 
-          PWN::AI::Introspection.reflect_on(
+          PWN::AI::Agent::Introspection.reflect_on(
             system_role_content: system_role_content,
             request: request,
             suppress_pii_warning: true

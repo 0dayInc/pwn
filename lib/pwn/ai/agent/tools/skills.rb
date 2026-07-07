@@ -160,3 +160,33 @@ PWN::AI::Agent::Registry.register(
     }
   }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'skill_delete',
+  toolset: 'skills',
+  schema: {
+    name: 'skill_delete',
+    description: 'Delete a skill from ~/.pwn/skills/ by name. Use to prune ' \
+                 'low-quality auto-distilled skills so they stop appearing ' \
+                 'in every future system prompt. Irreversible.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Existing skill name (basename without extension).' }
+      },
+      required: %w[name]
+    }
+  },
+  check: -> { defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) },
+  handler: lambda { |args|
+    key  = args[:name].to_s.to_sym
+    meta = PWN::Skills[key]
+    raise ArgumentError, "no such skill: #{key}" unless meta
+
+    path = meta[:path]
+    dir  = File.dirname(path)
+    FileUtils.rm_f(path)
+    PWN::Config.load_skills(pwn_skills_path: dir)
+    { deleted: true, name: key, path: path, remaining: PWN::Skills.keys.length }
+  }
+)

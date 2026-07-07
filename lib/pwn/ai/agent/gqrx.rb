@@ -3,7 +3,7 @@
 module PWN
   module AI
     module Agent
-      # This module is an AI agent designed to analyze signal data captured by a software-defined-radio using GQRX. It uses the PWN::AI::Introspection.reflect_on method to analyze the signal data and provide insights based on the location where the data was captured. The agent can determine if the frequency is licensed or unlicensed based on FCC records and provide relevant information about the transmission. This module is useful for security professionals, researchers, and hobbyists interested in analyzing radio signals and understanding their context.
+      # This module is an AI agent designed to analyze signal data captured by a software-defined-radio using GQRX. It uses the PWN::AI::Agent::Introspection.reflect_on method to analyze the signal data and provide insights based on the location where the data was captured. The agent can determine if the frequency is licensed or unlicensed based on FCC records and provide relevant information about the transmission. This module is useful for security professionals, researchers, and hobbyists interested in analyzing radio signals and understanding their context.
       module GQRX
         # Supported Method Parameters::
         # ai_analysis = PWN::AI::Agent::GQRX.analyze(
@@ -20,7 +20,7 @@ module PWN
 
           system_role_content = "Analyze signal data captured by a software-defined-radio using GQRX at the following location: #{location}. Respond with just FCC information about the transmission if available.  If the frequency is unlicensed or not found in FCC records, state that clearly.  Be clear and concise in your analysis."
 
-          PWN::AI::Introspection.reflect_on(
+          PWN::AI::Agent::Introspection.reflect_on(
             system_role_content: system_role_content,
             request: request,
             suppress_pii_warning: true

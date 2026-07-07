@@ -111,3 +111,111 @@ PWN::AI::Agent::Registry.register(
     )
   }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'learning_outcomes',
+  toolset: 'learning',
+  schema: {
+    name: 'learning_outcomes',
+    description: 'Query recorded task outcomes from ~/.pwn/learning.jsonl ' \
+                 '(the read-side of learning_note_outcome). Filter by ' \
+                 'success and/or tag substring; returns newest-first.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', default: 50, description: 'Max entries returned newest-first.' },
+        success: { type: 'boolean', description: 'Filter: only successes (true) or only failures (false). Omit for both.' },
+        tag: { type: 'string', description: 'Filter: substring match against outcome tags.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Learning) },
+  handler: lambda { |args|
+    o = { limit: args[:limit] || 50 }
+    o[:success] = args[:success] if args.key?(:success)
+    o[:tag]     = args[:tag]     if args.key?(:tag)
+    PWN::AI::Agent::Learning.outcomes(o)
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'learning_consolidate',
+  toolset: 'learning',
+  schema: {
+    name: 'learning_consolidate',
+    description: 'Deduplicate near-identical PWN::Memory lesson entries and ' \
+                 'prune the oldest ones once max_entries is exceeded, so the ' \
+                 'injected MEMORY block in every system prompt stays ' \
+                 'high-signal. Returns { removed:, remaining: }.',
+    parameters: {
+      type: 'object',
+      properties: {
+        max_entries: { type: 'integer', default: 200, description: 'Hard cap on PWN::Memory size after consolidation.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Learning) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Learning.consolidate(max_entries: args[:max_entries])
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'learning_reset',
+  toolset: 'learning',
+  schema: {
+    name: 'learning_reset',
+    description: 'Wipe ~/.pwn/learning.jsonl (all recorded task outcomes and ' \
+                 'their success_rate). Use for a clean slate after major ' \
+                 'refactors or when dev-experiment noise has polluted the ' \
+                 'outcome history. IRREVERSIBLE — must pass confirm:true.',
+    parameters: {
+      type: 'object',
+      properties: {
+        confirm: { type: 'boolean', description: 'Must be true to actually reset.' }
+      },
+      required: %w[confirm]
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Learning) },
+  handler: lambda { |args|
+    raise ArgumentError, 'refusing to reset learning without confirm:true' unless args[:confirm] == true
+
+    before = PWN::AI::Agent::Learning.outcomes(limit: 100_000).length
+    PWN::AI::Agent::Learning.reset
+    { reset: true, outcomes_cleared: before, file: PWN::AI::Agent::Learning::LEARNING_FILE }
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'learning_auto_reflect_toggle',
+  toolset: 'learning',
+  schema: {
+    name: 'learning_auto_reflect_toggle',
+    description: 'Enable/disable end-of-run auto-reflection ' \
+                 '(PWN::Env[:ai][:agent][:auto_reflect]). When enabled, ' \
+                 'Loop.run calls Learning.auto_reflect on the session after ' \
+                 'every final answer. Disable during noisy fuzzing loops; ' \
+                 're-enable for the summary turn. Omit `enabled` to just ' \
+                 'read the current state.',
+    parameters: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean', description: 'Desired state. Omit to only query.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::Env) && PWN::Env.is_a?(Hash) },
+  handler: lambda { |args|
+    ai = PWN::Env[:ai]
+    raise 'PWN::Env[:ai] is unavailable or immutable' unless ai.is_a?(Hash) && !ai.frozen?
+
+    ai[:agent] = (ai[:agent] || {}).dup if ai[:agent].nil? || ai[:agent].frozen?
+    prev = ai[:agent][:auto_reflect] ? true : false
+    ai[:agent][:auto_reflect] = (args[:enabled] ? true : false) if args.key?(:enabled)
+    { previous: prev, current: ai[:agent][:auto_reflect] ? true : false }
+  }
+)

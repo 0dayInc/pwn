@@ -25,6 +25,8 @@ module PWN
       autoload :Loop,          'pwn/ai/agent/loop'
       autoload :Metrics,       'pwn/ai/agent/metrics'
       autoload :Learning,      'pwn/ai/agent/learning'
+      autoload :Extrospection, 'pwn/ai/agent/extrospection'
+      autoload :Introspection, 'pwn/ai/agent/introspection'
 
       # Display a List of Every PWN::AI Module
 

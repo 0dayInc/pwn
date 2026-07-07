@@ -72,6 +72,33 @@ PWN::Driver::Parser.new do |options|
   options.on('-wLOC', '--location=LOC', '<Optional - Location string to include in AI analysis (e.g. "New York, NY", 90210, GPS coords, etc.)>') do |l|
     opts[:location] = l
   end
+  options.on('--fft-scan', '<Optional - Use fast FFT-based panoramic scanning via #fast_scan_range (much faster) instead of #scan_range. Applies to profile or --scan-ranges>') do |f|
+    opts[:fft_scan] = f
+  end
+
+  options.on('-SRATE', '--sample-rate=RATE', '<Optional --fft-scan - Visible span/sample_rate in Hz (default 1_000_000)>') do |s|
+    opts[:sample_rate] = s
+  end
+
+  options.on('-NINT', '--nfft=INT', '<Optional --fft-scan - FFT bin size (default 2048)>') do |n|
+    opts[:nfft] = n
+  end
+
+  options.on('-AINT', '--avg=INT', '<Optional --fft-scan - FFT averages (default 2)>') do |a|
+    opts[:avg] = a
+  end
+
+  options.on('-CSEC', '--capture-secs=SEC', '<Optional --fft-scan - Capture seconds per chunk (default 0.03)>') do |c|
+    opts[:capture_secs] = c
+  end
+
+  options.on('--keep-spectrum', '<Optional --fft-scan - Keep full spectrum data in output (large)>') do |k|
+    opts[:keep_spectrum] = k
+  end
+
+  options.on('-ODB', '--strength-offset-db=FLOAT', '<Optional - Power offset in dB (default 0.0)>') do |o|
+    opts[:strength_offset_db] = o
+  end
 end.parse!
 
 begin
@@ -146,24 +173,54 @@ begin
   # Merge opts one last time to ensure parameters passed to the driver are included
   opts.merge!(band_plans[profile.to_sym]) unless profile.nil?
 
-  PWN::SDR::GQRX.scan_range(
-    gqrx_sock: gqrx_sock,
-    ranges: ranges,
-    demodulator_mode: demodulator_mode,
-    bandwidth: bandwidth,
-    audio_gain_db: audio_gain_db,
-    squelch: squelch,
-    precision: precision,
-    strength_lock: strength_lock,
-    rf_gain: rf_gain,
-    intermediate_gain: intermediate_gain,
-    baseband_gain: baseband_gain,
-    keep_looping: keep_looping,
-    scan_log: scan_log,
-    decoder: decoder,
-    location: location
-  )
-  puts 'Scan Complete.'
+  fft_scan = opts[:fft_scan]
+  sample_rate = opts[:sample_rate] || 1_000_000
+  sample_rate = sample_rate.to_i
+  nfft = opts[:nfft] || 2048
+  nfft = nfft.to_i
+  avgv = opts[:avg] || 2
+  avgv = avgv.to_i
+  capture_secs = opts[:capture_secs] || 0.03
+  capture_secs = capture_secs.to_f
+  keep_spectrum = opts[:keep_spectrum] ? true : false
+  strength_offset_db = opts[:strength_offset_db]
+  strength_offset_db = strength_offset_db.to_f unless strength_offset_db.nil?
+
+  if fft_scan
+    puts '[*] --fft-scan requested: using fast FFT panoramic mode (#fast_scan_range)'
+    fast_resp = PWN::SDR::GQRX.fast_scan_range(
+      gqrx_sock: gqrx_sock,
+      ranges: ranges,
+      sample_rate: sample_rate,
+      nfft: nfft,
+      avg: avgv,
+      capture_secs: capture_secs,
+      strength_lock: strength_lock,
+      keep_spectrum: keep_spectrum,
+      strength_offset_db: strength_offset_db,
+      scan_log: scan_log
+    )
+    puts "FFT Scan complete: #{fast_resp[:total]} signals found."
+  else
+    PWN::SDR::GQRX.scan_range(
+      gqrx_sock: gqrx_sock,
+      ranges: ranges,
+      demodulator_mode: demodulator_mode,
+      bandwidth: bandwidth,
+      audio_gain_db: audio_gain_db,
+      squelch: squelch,
+      precision: precision,
+      strength_lock: strength_lock,
+      rf_gain: rf_gain,
+      intermediate_gain: intermediate_gain,
+      baseband_gain: baseband_gain,
+      keep_looping: keep_looping,
+      scan_log: scan_log,
+      decoder: decoder,
+      location: location
+    )
+    puts 'Scan Complete.'
+  end
 rescue StandardError => e
   raise e
 rescue Interrupt

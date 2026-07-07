@@ -1237,6 +1237,363 @@ module PWN
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
+      public_class_method def self.get_spectrum_snapshot(opts = {})
+        gqrx_sock = opts[:gqrx_sock]
+        raise 'ERROR: gqrx_sock is required!' if gqrx_sock.nil?
+
+        center_freq = opts[:center_freq]
+        center_freq ||= cmd(gqrx_sock: gqrx_sock, cmd: 'f')
+        center_hz = PWN::SDR.hz_to_i(freq: center_freq)
+
+        sample_rate = (opts[:sample_rate] || 1_000_000).to_i
+        nfft = (opts[:nfft] || 2048).to_i
+        avg = (opts[:avg] || 4).to_i
+        capture_secs = (opts[:capture_secs] || 0.05).to_f
+        strength_offset_db = (opts[:strength_offset_db] || 0.0).to_f
+
+        num_samples = (sample_rate * capture_secs).to_i
+        num_samples = [num_samples, nfft].max
+        num_samples = ((num_samples.to_f / nfft).ceil * nfft).to_i
+
+        puts "[*] Capturing ~#{format('%.3f', capture_secs)}s I/Q (#{num_samples} samples @ #{sample_rate} SPS) => #{sample_rate / 1_000_000.0} MHz instantaneous span"
+
+        # Start a fresh short IQ recording for snapshot (entire visible band at once)
+        begin
+          cmd(gqrx_sock: gqrx_sock, cmd: 'U IQRECORD 0', resp_ok: 'RPRT 0')
+        rescue StandardError
+          nil
+        end
+        sleep 0.02
+        cmd(gqrx_sock: gqrx_sock, cmd: 'U IQRECORD 1', resp_ok: 'RPRT 0')
+        sleep(capture_secs + 0.12)
+        cmd(gqrx_sock: gqrx_sock, cmd: 'U IQRECORD 0', resp_ok: 'RPRT 0')
+
+        # Newest raw I/Q produced by GQRX (usually ~/gqrx_*.raw , float32 I/Q interleaved @ sample_rate)
+        home = Dir.home
+        iq_raw_file = Dir.glob("#{home}/gqrx_*.raw").max_by { |f| File.mtime(f) }
+        raise "ERROR: No GQRX .raw file found after capture (looked in #{home})" unless iq_raw_file && File.exist?(iq_raw_file)
+
+        # Read tail of most recent bytes
+        total_bytes = num_samples * 8 # float32 * 2 channels
+        fsize = File.size(iq_raw_file)
+        start_pos = [0, fsize - total_bytes].max
+        raw_bytes = File.binread(iq_raw_file, total_bytes, start_pos)
+
+        # ---- Pure-Ruby FFT + SDRangel-style peak detection (no external interpreters) ----
+        raise 'ERROR: I/Q read empty or short' if raw_bytes.nil? || raw_bytes.bytesize < 8
+
+        # GQRX raw I/Q: little-endian float32 interleaved I,Q,I,Q,...
+        floats = raw_bytes.unpack('e*')
+        n_iq = [floats.length / 2, num_samples].min
+        iq = Array.new(n_iq) { |i| Complex(floats[2 * i], floats[(2 * i) + 1]) }
+
+        # Hann window
+        two_pi = 2.0 * Math::PI
+        hann = Array.new(nfft) { |k| 0.5 * (1.0 - Math.cos(two_pi * k / (nfft - 1))) }
+
+        # Iterative in-place radix-2 Cooley-Tukey FFT (nfft must be a power of two)
+        raise "ERROR: nfft (#{nfft}) must be a power of two" unless nfft.nobits?(nfft - 1)
+
+        log2n = Math.log2(nfft).to_i
+        fft_proc = lambda do |x|
+          n = x.length
+          # bit-reversal permutation
+          j = 0
+          (0...(n - 1)).each do |i|
+            x[i], x[j] = x[j], x[i] if i < j
+            k = n >> 1
+            while k <= j
+              j -= k
+              k >>= 1
+            end
+            j += k
+          end
+          # butterflies
+          (1..log2n).each do |stage|
+            m = 1 << stage
+            half = m >> 1
+            wm = Complex.polar(1.0, -two_pi / m)
+            (0...n).step(m) do |kk|
+              w = Complex(1.0, 0.0)
+              (0...half).each do |jj|
+                t = w * x[kk + jj + half]
+                u = x[kk + jj]
+                x[kk + jj] = u + t
+                x[kk + jj + half] = u - t
+                w *= wm
+              end
+            end
+          end
+          x
+        end
+
+        # Overlapping (50%) windowed FFTs, power-averaged (Welch-style)
+        hop = [nfft / 2, 1].max
+        specs = []
+        pos = 0
+        while pos + nfft <= iq.length && specs.length < avg
+          blk = Array.new(nfft) { |k| iq[pos + k] * hann[k] }
+          sp = fft_proc.call(blk)
+          half = nfft / 2
+          shifted = sp[half, nfft - half] + sp[0, half]
+          specs << shifted.map(&:abs2)
+          pos += hop
+        end
+        if specs.empty?
+          blk = Array.new(nfft) do |k|
+            (k < iq.length ? iq[k] : Complex(0.0, 0.0)) * hann[k]
+          end
+          sp = fft_proc.call(blk)
+          half = nfft / 2
+          shifted = sp[half, nfft - half] + sp[0, half]
+          specs << shifted.map(&:abs2)
+        end
+
+        avg_pwr = Array.new(nfft, 0.0)
+        specs.each { |ps| ps.each_with_index { |v, i| avg_pwr[i] += v } }
+        cnt = specs.length.to_f
+        avg_pwr.map! { |v| v / cnt }
+
+        db = avg_pwr.map { |v| (10.0 * Math.log10(v + 1e-12)) + strength_offset_db }
+
+        # fftshift(fftfreq(nfft, 1/sr)) => bins from -sr/2 .. +sr/2 (exclusive), step sr/nfft
+        res_hz = sample_rate / nfft.to_f
+        freq_off = Array.new(nfft) { |i| (i - (nfft / 2)) * res_hz }
+
+        bins_out = Array.new(nfft) do |ii|
+          fh = (center_hz + freq_off[ii]).to_i
+          {
+            bin: ii,
+            freq_hz: fh,
+            freq: PWN::SDR.hz_to_s(freq: fh),
+            power_db: db[ii].round(2)
+          }
+        end
+
+        # Noise floor: 12th percentile of dB
+        sorted_db = db.sort
+        pct_idx = ((sorted_db.length - 1) * 0.12).floor
+        noise_floor = sorted_db[pct_idx].to_f
+
+        # SDRangel-style peak detection: local maxima above noise_floor+6dB with
+        # min bin separation and >= 4 dB prominence.
+        height_thr = noise_floor + 6.0
+        min_dist = [3, (6000.0 / res_hz).to_i].max
+        prom_thr = 4.0
+
+        candidates = []
+        (1...(nfft - 1)).each do |i|
+          next unless db[i] >= height_thr
+          next unless db[i] > db[i - 1] && db[i] >= db[i + 1]
+
+          # prominence: peak - highest of the two side-valley minima toward the
+          # nearest higher-or-equal neighbour (scipy.signal.peak_prominences algorithm)
+          left_min = db[i]
+          li = i - 1
+          while li >= 0 && db[li] <= db[i]
+            left_min = db[li] if db[li] < left_min
+            li -= 1
+          end
+          right_min = db[i]
+          ri = i + 1
+          while ri < nfft && db[ri] <= db[i]
+            right_min = db[ri] if db[ri] < right_min
+            ri += 1
+          end
+          prom = db[i] - [left_min, right_min].max
+          next if prom < prom_thr
+
+          candidates << { idx: i, pwr: db[i], prom: prom }
+        end
+
+        # Enforce minimum distance between peaks (keep strongest first)
+        candidates.sort_by! { |c| -c[:pwr] }
+        selected = []
+        candidates.each do |c|
+          selected << c unless selected.any? { |s2| (s2[:idx] - c[:idx]).abs < min_dist }
+        end
+        selected.sort_by! { |c| c[:idx] }
+
+        edge_thr = noise_floor + 3.5
+        signals = selected.map do |c|
+          p = c[:idx]
+          l = p
+          l -= 1 while l.positive? && db[l] >= edge_thr
+          r = p
+          r += 1 while r < (nfft - 1) && db[r] >= edge_thr
+          bw_hz = ([r - l, 1].max * res_hz).to_i
+          center = (center_hz + freq_off[p]).to_i
+          {
+            hz: center,
+            freq: PWN::SDR.hz_to_s(freq: center),
+            power_db: c[:pwr].round(2),
+            noise_floor_db: noise_floor.round(2),
+            bw_hz: bw_hz,
+            snr_db: (c[:pwr] - noise_floor).round(2),
+            peak_bin: p,
+            prominence_db: c[:prom].round(2)
+          }
+        end
+
+        # Fallback: simple threshold if prominence-based detection found nothing
+        if signals.empty?
+          bins_out.each do |b|
+            next unless b[:power_db] > (noise_floor + 7.0)
+
+            signals << b.merge(
+              hz: b[:freq_hz],
+              noise_floor_db: noise_floor.round(2),
+              bw_hz: (res_hz * 2).to_i,
+              snr_db: (b[:power_db] - noise_floor).round(2)
+            )
+          end
+        end
+
+        {
+          center_freq_hz: center_hz,
+          center_freq: PWN::SDR.hz_to_s(freq: center_hz),
+          sample_rate: sample_rate,
+          visible_span_hz: sample_rate,
+          nfft: nfft,
+          avg: avg,
+          resolution_hz: res_hz.round(2),
+          samples: iq.length,
+          capture_secs: capture_secs,
+          spectrum: bins_out,
+          signals: signals,
+          noise_floor_db: noise_floor.round(2),
+          timestamp: Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+        }
+      rescue StandardError => e
+        begin
+          cmd(gqrx_sock: gqrx_sock, cmd: 'U IQRECORD 0', resp_ok: 'RPRT 0')
+        rescue StandardError
+          nil
+        end
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # fast_resp = PWN::SDR::GQRX.fast_scan_range(
+      #   gqrx_sock: 'required - GQRX socket object',
+      #   ranges: 'required - Array<Hash> of {start_freq:, target_freq: }',
+      #   sample_rate: 'optional - Set this to GQRX visible input sample rate (the span width)',
+      #   nfft: 'optional - FFT size',
+      #   avg: 'optional',
+      #   capture_secs: 'optional',
+      #   strength_lock: 'optional',
+      #   keep_spectrum: 'optional - if true return raw spectrum arrays too (large)'
+      # )
+      #
+      # Uses chunk-wise retuning where chunk = sample_rate so that the *entire visible band* (waterfall width)
+      # is captured via a single FFT each time rather than point-by-point hops.
+      # This yields near real-time panoramic coverage. Update rate is roughly (retune + capture + fft) per chunk.
+      public_class_method def self.fast_scan_range(opts = {})
+        gqrx_sock = opts[:gqrx_sock]
+        raise 'gqrx_sock required' if gqrx_sock.nil?
+
+        ranges = opts[:ranges]
+        raise 'ranges required as array of hashes' unless ranges.is_a?(Array) && !ranges.empty?
+
+        sr = (opts[:sample_rate] || 1_000_000).to_i
+        nfft = opts[:nfft] || 2048
+        avgs = opts[:avg] || 2
+        cap = opts[:capture_secs] || 0.03
+        strength_lock = opts[:strength_lock] || -70.0
+        keep_spec = opts[:keep_spectrum] ? true : false
+        scan_log = opts[:scan_log] || "/tmp/pwn_fastscan_#{Time.now.to_i}.json"
+
+        ts_start = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+        detected = []
+        all_specs = [] if keep_spec
+
+        ranges.each do |r|
+          s_hz = PWN::SDR.hz_to_i(freq: r[:start_freq])
+          t_hz = PWN::SDR.hz_to_i(freq: r[:target_freq])
+          dir = t_hz >= s_hz ? 1 : -1
+          step = (sr * 0.85).to_i # chunk step - use 85% to have overlap / avoid edge artifacts
+          step = sr if step < 100_000
+
+          puts "[FAST-SCAN] Panoramic covering #{PWN::SDR.hz_to_s(freq: s_hz)}..#{PWN::SDR.hz_to_s(freq: t_hz)} using #{sr} SPS chunks (step #{PWN::SDR.hz_to_s(freq: step)})"
+
+          h = s_hz
+          while dir.positive? ? (h <= t_hz) : (h >= t_hz)
+            # retune to put this chunk in the visible IF
+            tune_to(gqrx_sock: gqrx_sock, hz: h)
+            sleep 0.15 # allow GQRX / SDR to settle the IF filter & AGC etc.
+
+            snap = get_spectrum_snapshot(
+              gqrx_sock: gqrx_sock,
+              center_freq: h,
+              sample_rate: sr,
+              nfft: nfft,
+              avg: avgs,
+              capture_secs: cap,
+              strength_offset_db: opts[:strength_offset_db]
+            )
+
+            all_specs << snap if keep_spec
+
+            sigs = snap[:signals] || []
+            if sigs.any?
+              # Prefer SDRangel-style identified signals (with BW / SNR / noise_floor)
+              sigs.each do |sig|
+                next if sig[:power_db] && sig[:power_db] < strength_lock
+
+                detected << {
+                  hz: sig[:hz] || sig[:freq_hz],
+                  freq: sig[:freq],
+                  strength: sig[:power_db],
+                  bw_hz: sig[:bw_hz],
+                  snr_db: sig[:snr_db],
+                  noise_floor_db: sig[:noise_floor_db],
+                  chunk_center: PWN::SDR.hz_to_s(freq: h),
+                  method: :fast_spectrum_sdrangel_like
+                }
+              end
+            else
+              # legacy fallback on raw spectrum bins
+              snap[:spectrum].each do |bin|
+                next if bin[:power_db] < strength_lock
+
+                detected << {
+                  hz: bin[:freq_hz],
+                  freq: bin[:freq],
+                  strength: bin[:power_db],
+                  chunk_center: PWN::SDR.hz_to_s(freq: h),
+                  method: :fast_spectrum
+                }
+              end
+            end
+            h += step * dir
+          end
+        end
+
+        detected.uniq! { |d| d[:hz] }
+        detected.sort_by! { |d| d[:hz] }
+
+        resp = {
+          signals: detected,
+          total: detected.length,
+          spectrums: keep_spec ? all_specs : nil,
+          timestamp_start: ts_start,
+          timestamp_end: Time.now.strftime('%Y-%m-%d %H:%M:%S%z'),
+          sample_rate_used: sr,
+          nfft: nfft,
+          method: :fast_scan_range
+        }
+
+        File.write(scan_log, JSON.pretty_generate(resp))
+        begin
+          log_signals(signals_detected: detected, timestamp_start: ts_start, scan_log: scan_log)
+        rescue StandardError
+          nil
+        end
+        resp
+      rescue StandardError => e
+        raise e
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):
           0day Inc. <support@0dayinc.com>
@@ -1246,82 +1603,106 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts "USAGE:
-          gqrx_sock = #{self}.connect(
-            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
-            port: 'optional - GQRX target port (defaults to 7356)'
-          )
+        puts <<~USAGE
+          USAGE:
+            gqrx_sock = #{self}.connect(
+              target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+              port: 'optional - GQRX target port (defaults to 7356)'
+            )
 
-          gqrx_resp = #{self}.cmd(
-            gqrx_sock: 'required - GQRX socket object returned from #connect method',
-            cmd: 'required - GQRX command to send',
-            resp_ok: 'optional - Expected OK response (defaults to nil / no check)'
-          )
+            gqrx_resp = #{self}.cmd(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method',
+              cmd: 'required - GQRX command to send',
+              resp_ok: 'optional - Expected OK response (defaults to nil / no check)'
+            )
 
-          freq_obj = #{self}.init_freq(
-            gqrx_sock: 'required - GQRX socket object returned from #connect method',
-            freq: 'required - Frequency to set',
-            precision: 'optional - Frequency step precision (number of digits; defaults to 6)',
-            demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
-            bandwidth: 'optional - Bandwidth (defaults to \"200.000\")',
-            decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
-            suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
-            keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)'
-          )
+            freq_obj = #{self}.init_freq(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method',
+              freq: 'required - Frequency to set',
+              precision: 'optional - Frequency step precision (number of digits; defaults to 6)',
+              demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
+              bandwidth: 'optional - Bandwidth (defaults to "200.000")',
+              decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
+              suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
+              keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)'
+            )
 
-          scan_resp = #{self}.scan_range(
-            gqrx_sock: 'required - GQRX socket object returned from #connect method',
-            ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
-            demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
-            bandwidth: 'optional - Bandwidth in Hz (Defaults to \"200.000\")',
-            precision: 'optional - Precision (Defaults to 1)',
-            strength_lock: 'optional - Strength lock (defaults to -70.0)',
-            squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
-            audio_gain_db: 'optional - Audio gain in dB (defaults to 0.0)',
-            rf_gain: 'optional - RF gain (defaults to 0.0)',
-            intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
-            baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
-            keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)',
-            scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
-            location: 'optional - Location string to include in AI analysis (e.g., \"New York, NY\", 90210, GPS coords, etc.)'
-          )
+            scan_resp = #{self}.scan_range(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method',
+              ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
+              demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
+              bandwidth: 'optional - Bandwidth in Hz (Defaults to "200.000")',
+              precision: 'optional - Precision (Defaults to 1)',
+              strength_lock: 'optional - Strength lock (defaults to -70.0)',
+              squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
+              audio_gain_db: 'optional - Audio gain in dB (defaults to 0.0)',
+              rf_gain: 'optional - RF gain (defaults to 0.0)',
+              intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
+              baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
+              keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)',
+              scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
+              location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)'
+            )
 
-          #{self}.analyze_scan(
-            scan_resp: 'required - Scan response object from #scan_range method',
-            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
-            port: 'optional - GQRX target port (defaults to 7356)'
-          )
+            snapshot = #{self}.get_spectrum_snapshot(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method',
+              center_freq: 'optional - Center frequency (Hz) for snapshot (defaults to current tuned freq)',
+              sample_rate: 'optional - Instantaneous bandwidth / sample rate in Hz (defaults to 1_000_000)',
+              nfft: 'optional - FFT bin size (defaults to 2048)',
+              avg: 'optional - Number of FFT averages (defaults to 4)',
+              capture_secs: 'optional - Duration of I/Q capture in seconds (defaults to 0.05)',
+              strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)'
+            )
 
-          #{self}.analyze_log(
-            scan_log: 'required - Path to signals log file',
-            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
-            port: 'optional - GQRX target port (defaults to 7356)'
-          )
+            fast_scan_resp = #{self}.fast_scan_range(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method',
+              ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
+              sample_rate: 'optional - Chunk size / visible span in Hz (defaults to 1_000_000)',
+              nfft: 'optional - FFT size (defaults to 2048)',
+              avg: 'optional - Number of averages (defaults to 2)',
+              capture_secs: 'optional - Seconds of capture per chunk (defaults to 0.03)',
+              strength_lock: 'optional - Minimum signal strength in dBFS to report (defaults to -70.0)',
+              keep_spectrum: 'optional - If true, include full spectrum data in result (can be large, defaults to false)',
+              strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)',
+              scan_log: 'optional - Path to save fast scan results (defaults to /tmp/pwn_fastscan_<timestamp>.json)'
+            )
 
-          udp_listener = #{self}.listen_udp(
-            udp_ip: 'optional - IP address to bind UDP listener (defaults to 127.0.0.1)',
-            udp_port: 'optional - Port to bind UDP listener (defaults to 7355)'
-          )
+            #{self}.analyze_scan(
+              scan_resp: 'required - Scan response object from #scan_range or #fast_scan_range method',
+              target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+              port: 'optional - GQRX target port (defaults to 7356)'
+            )
 
-          #{self}.disconnect_udp(
-            udp_listener: 'required - UDP socket object returned from #listen_udp method'
-          )
+            #{self}.analyze_log(
+              scan_log: 'required - Path to signals log file',
+              target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+              port: 'optional - GQRX target port (defaults to 7356)'
+            )
 
-          iq_raw_file = #{self}.record(
-            gqrx_sock: 'required - GQRX socket object returned from #connect method'
-          )
+            udp_listener = #{self}.listen_udp(
+              udp_ip: 'optional - IP address to bind UDP listener (defaults to 127.0.0.1)',
+              udp_port: 'optional - Port to bind UDP listener (defaults to 7355)'
+            )
 
-          #{self}.stop_recording(
-            gqrx_sock: 'required - GQRX socket object returned from #connect method',
-            iq_raw_file: 'required - iq_raw_file returned from #record method'
-          )
+            #{self}.disconnect_udp(
+              udp_listener: 'required - UDP socket object returned from #listen_udp method'
+            )
 
-          #{self}.disconnect(
-            gqrx_sock: 'required - GQRX socket object returned from #connect method'
-          )
+            iq_raw_file = #{self}.record(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method'
+            )
 
-          #{self}.authors
-        "
+            #{self}.stop_recording(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method',
+              iq_raw_file: 'required - iq_raw_file returned from #record method'
+            )
+
+            #{self}.disconnect(
+              gqrx_sock: 'required - GQRX socket object returned from #connect method'
+            )
+
+            #{self}.authors
+        USAGE
       end
     end
   end

@@ -6,7 +6,7 @@
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
   * [How PWN Works](#how-pwn-works)
-- [[Local PWN Wiki](/opt/pwn/documentation/Home.md)
+- [[Local PWN Wiki](documentation/Home.md)
 - [Installation](#installation)
 - [General Usage](#general-usage)
 - [Call to Arms](#call-to-arms)
@@ -22,7 +22,7 @@ PWN (Pronounced /pōn/ or pone), is a powerful open-source offensive cybersecuri
 
 PWN stands on the shoulders of security giants, providing over **66** production-grade plugins, full LLM integration with tool-calling agents, persistent memory, reusable skills, session/cron management, and a highly interactive REPL for prototyping and driving complex security workflows. All core automation primitives are open to promote trust, peer review, and collaborative innovation in adversarial security.
 
-**See the full [PWN Wiki](/opt/pwn/documentation/Home.md) for detailed guides.**
+**See the full [PWN Wiki](documentation/Home.md) for detailed guides.**
 
 #### **Why PWN** ####
 
@@ -73,7 +73,7 @@ A full local wiki has been generated in this checkout:
 
 **`/opt/pwn/documentation/Home.md`**
 
-- [Home](/opt/pwn/documentation/Home.md)
+- [Home](documentation/Home.md)
 - [What is PWN](documentation/What-is-PWN.md)
 - [Installation](documentation/Installation.md)
 - [pwn-ai Agent](documentation/pwn-ai-Agent.md)
@@ -95,7 +95,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.5.615]:001 >>> PWN.help
+pwn[v0.5.616]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -116,7 +116,7 @@ $ rvm use ruby-4.0.5@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.5.615]:001 >>> PWN.help
+pwn[v0.5.616]:001 >>> PWN.help
 ```
 
 If using a multi-user install of RVM:
@@ -127,7 +127,7 @@ $ rvm use ruby-4.0.5@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.5.615]:001 >>> PWN.help
+pwn[v0.5.616]:001 >>> PWN.help
 ```
 
 **Inside the pwn REPL (the heart of PWN):**
@@ -136,7 +136,7 @@ pwn[v0.5.615]:001 >>> PWN.help
 - `pwn-ai` — launch the autonomous AI agent (highly recommended for complex tasks). Once active you can issue natural language instructions that leverage PWN's full power.
 - Example flow:
   ``` 
-  pwn[v0.5.615]:001 >>> pwn-ai
+  pwn[v0.5.616]:001 >>> pwn-ai
   [*] pwn-ai agent TUI activated...
   > Perform active scan of https://target.example.com using preferred tooling, then analyze findings with PWN modules and produce a report.
   ```
@@ -159,7 +159,7 @@ See also the wiki page on [Contributing](documentation/Contributing.md).
 
 ### **Module Documentation** ###
 
-**Primary Documentation:** Browse the embedded local wiki — start at [/opt/pwn/documentation/Home.md](/opt/pwn/documentation/Home.md).
+**Primary Documentation:** Browse the embedded local wiki — start at [/opt/pwn/documentation/Home.md](documentation/Home.md).
 
 Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn). Explore the source under `lib/pwn/plugins/`, `lib/pwn/ai/`, and `PWN::` constants directly in the REPL.
 
@@ -172,15 +172,21 @@ Key wiki pages:
 
 I hope you enjoy PWN and remember... ensure you always have permission prior to carrying out any sort of security testing or hacktivities. Now — go pwn all the things (responsibly)!
 
-### **Keep Us Caffeinated** ###
 
+### **Keep Us Caffeinated** ###
 If you've found this project useful and you're interested in supporting our efforts, we invite you to take a brief moment to keep us caffeinated:
 
 [![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
+
 
 ### [**0x004D65726368**](https://0day.myspreadshop.com/) ###
 
 [![PWN Sticker](https://image.spreadshirtmedia.com/image-server/v1/products/T1459A839PA3861PT28D1044068794FS8193/views/1,width=300,height=300,appearanceId=839,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/stickers)
 
-... (stickers, mugs, and apparel links preserved)
+[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T1313A1PA3933PT10X2Y25D1020472680FS6327/views/3,width=300,height=300,appearanceId=1,backgroundColor=000000/https0dayinccom.jpg)](https://0day.myspreadshop.com/accessories+mugs+%26+drinkware)
 
+[![Mouse Pad](https://image.spreadshirtmedia.com/image-server/v1/products/T993A1PA2168PT10X162Y26D1044068794S100/views/1,width=300,height=300,appearanceId=1,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/accessories)
+
+[![0day Inc.](https://image.spreadshirtmedia.com/image-server/v1/products/T951A550PA3076PT17X0Y73D1020472680FS8515/views/1,width=300,height=300,appearanceId=70,backgroundColor=000000/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/0dayinc-A5c3e498cf937643162a01b5f?productType=951&appearance=70)
+
+[![Black Fingerprint Hoodie](https://image.spreadshirtmedia.com/image-server/v1/products/T111A2PA3208PT17X169Y51D1020472728FS6268/views/1,width=300,height=300,appearanceId=2/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/blackfingerprint-A5c3e49db1cbf3a0b9596b4d0?productType=111&appearance=2)
