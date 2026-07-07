@@ -155,7 +155,7 @@ module PWN
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
       #   model: 'optional - overrides PWN::Env[:ai][:anthropic][:model]',
       #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:anthropic][:temp] || 1)',
-      #   max_tokens: 'optional - defaults to 4096',
+      #   max_tokens: 'optional - defaults to PWN::Env[:ai][:anthropic][:max_tokens] || 128_000',
       #   timeout: 'optional - seconds (default 900)',
       #   spinner: 'optional - display spinner (default false)'
       # )
@@ -175,7 +175,7 @@ module PWN
 
         http_body = {
           model: model,
-          max_tokens: opts[:max_tokens] || 4096,
+          max_tokens: opts[:max_tokens] || engine[:max_tokens] || 128_000,
           temperature: temp,
           messages: anth_messages
         }
@@ -284,7 +284,22 @@ module PWN
       # Anthropic /v1/messages response -> OpenAI chat/completions shape
       private_class_method def self.anthropic_resp_to_oa(opts = {})
         resp = opts[:response] ||= {}
-        blocks     = Array(resp[:content])
+        blocks = Array(resp[:content])
+        # When Anthropic hits max_tokens mid tool_use emission it returns the
+        # block with input:{} and stop_reason:"max_tokens". Dispatching that
+        # yields "ArgumentError: <param> is required" from every tool handler,
+        # and round-tripping it in _native_content without a matching
+        # tool_result 400s the next turn. Strip those artifacts here.
+        if resp[:stop_reason] == 'max_tokens'
+          truncated, blocks = blocks.partition do |b|
+            b[:type] == 'tool_use' && (b[:input].nil? || (b[:input].respond_to?(:empty?) && b[:input].empty?))
+          end
+          unless truncated.empty?
+            names = truncated.map { |b| b[:name] }.join(', ')
+            warn "[pwn-ai] Anthropic hit max_tokens mid tool_use (#{names}); " \
+                 'dropping partial call. Raise ai.anthropic.max_tokens in PWN::Env.'
+          end
+        end
         text       = blocks.select { |b| b[:type] == 'text' }.map { |b| b[:text] }.join
         tool_calls = blocks.select { |b| b[:type] == 'tool_use' }.map do |b|
           {
@@ -375,7 +390,7 @@ module PWN
 
         http_body = {
           model: model,
-          max_tokens: 4096,
+          max_tokens: engine[:max_tokens] || 128_000,
           temperature: temp,
           system: system_role_content,
           messages: []

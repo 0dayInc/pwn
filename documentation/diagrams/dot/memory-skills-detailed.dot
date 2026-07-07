@@ -1,28 +1,60 @@
-digraph "PWN Memory & Skills Detailed Data Flow" {
-  rankdir=TB;
-  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+digraph "PWN_MemorySkills" {
+  graph [
+    label=<<B>Persistent Knowledge — Memory · Skills · Sessions</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">everything under ~/.pwn/ that shapes future prompts</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=TB, splines=spline, nodesep=0.55, ranksep=0.95,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  Input [label="Successful Task\nOutcome in Agent"];
-  Learn [label="PWN::AI::Agent::Learning\nnote_outcome"];
-  Metrics [label="Metrics (success/duration)"];
-  Introspect [label="learning_reflect\n+ LLM introspection"];
-  Distill [label="learning_distill_skill"];
-  SkillCreate [label="skill_create / edit"];
-  SkillStore [label="~/.pwn/skills/*.md\n(YAML frontmatter\n+ markdown + references)", shape=cylinder, fillcolor=lightyellow];
-  MemStore [label="~/.pwn/memory.json", shape=cylinder, fillcolor=lightyellow];
-  SkillList [label="skill_list / skill_view"];
-  AgentPrompt [label="Agent System Prompt\n(injects skills + memory)"];
-  Recall [label="memory_recall"];
+  subgraph cluster_write {
+    label="Write-Side Tools"; fontcolor="#a7f3d0"; style=rounded;
+    color="#047857"; bgcolor="#022c22";
+    Rem    [label="memory_remember\nkey · value · category",   fillcolor="#6ee7b7"];
+    Skc    [label="skill_create\nskill_add_reference",           fillcolor="#6ee7b7"];
+    Note   [label="learning_note_outcome\nlearning_reflect",     fillcolor="#6ee7b7"];
+    Dist   [label="learning_distill_skill\n(session → skill)",   fillcolor="#6ee7b7"];
+  }
+  {rank=same; Rem; Skc; Note; Dist}
 
-  Input -> Learn;
-  Learn -> Metrics;
-  Learn -> Introspect;
-  Introspect -> Distill;
-  Distill -> SkillCreate;
-  SkillCreate -> SkillStore;
-  SkillStore -> SkillList;
-  SkillList -> AgentPrompt;
-  Input -> MemStore [label="remember key facts"];
-  Recall -> AgentPrompt;
-  MemStore -> Recall;
+  subgraph cluster_files {
+    label="~/.pwn/"; fontcolor="#fde68a"; style=rounded;
+    color="#a16207"; bgcolor="#422006";
+    Fmem [label="memory.json\nfact · pref · lesson · env", shape=cylinder, fillcolor="#fcd34d"];
+    Fskl [label="skills/*.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
+    Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
+    Fses [label="sessions/*.jsonl\ntranscripts",              shape=cylinder, fillcolor="#fcd34d"];
+  }
+  {rank=same; Fmem; Fskl; Flrn; Fses}
+
+  subgraph cluster_read {
+    label="Read-Side / Injection"; fontcolor="#ddd6fe"; style=rounded;
+    color="#6d28d9"; bgcolor="#2e1065";
+    Rec  [label="memory_recall",       fillcolor="#c4b5fd"];
+    Skv  [label="skill_list · view",   fillcolor="#c4b5fd"];
+    Out  [label="learning_outcomes\nlearning_stats", fillcolor="#c4b5fd"];
+    Sesv [label="sessions_view\nsessions_current",   fillcolor="#c4b5fd"];
+  }
+  {rank=same; Rec; Skv; Out; Sesv}
+
+  Prompt [label="PromptBuilder\nMEMORY + SKILLS + LEARNING blocks", fillcolor="#7dd3fc", penwidth=2];
+
+  Rem  -> Fmem [color="#f59e0b"];
+  Skc  -> Fskl [color="#f59e0b"];
+  Note -> Flrn [color="#f59e0b"];
+  Dist -> Fskl [color="#f59e0b"];
+  Dist -> Fses [dir=back, style=dashed, color="#fbbf24", label="mine"];
+
+  Fmem -> Rec  [color="#a78bfa"];
+  Fskl -> Skv  [color="#a78bfa"];
+  Flrn -> Out  [color="#a78bfa"];
+  Fses -> Sesv [color="#a78bfa"];
+
+  Rec  -> Prompt [color="#38bdf8"];
+  Skv  -> Prompt [color="#38bdf8"];
+  Out  -> Prompt [color="#38bdf8"];
+  Sesv -> Prompt [color="#38bdf8"];
 }

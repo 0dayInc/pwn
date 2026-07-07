@@ -1,51 +1,78 @@
-# PWN Wiki
+# PWN Documentation
 
-Welcome to the PWN (pronounced /pōn/) Security Automation Framework Wiki.
+> **PWN** (/pōn/) — an open-source offensive-security automation framework and
+> continuous-security-integration platform written in Ruby.
+> 66 plugins · 48 SAST rules · 90 AWS wrappers · 21 WWW drivers · 52 CLI
+> drivers · 5 LLM engines · a self-improving multi-agent AI · one REPL.
 
-PWN is an open-source offensive cybersecurity automation framework and continuous security integration platform. It enables researchers, red teamers, penetration testers, and vulnerability researchers to discover zero-days, automate exploitation, perform web application testing, conduct SAST, orchestrate reconnaissance, and execute AI-augmented autonomous operations.
+**Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
+**Rebuild diagrams:** `documentation/diagrams/build.sh`
 
-## Visual Overview (Data Flow Diagrams)
+---
 
-**Start here for visual understanding** — see [Diagrams.md](Diagrams.md) for 18+ SVG DFDs covering:
+## 🗺️ Start Here
 
-- AI feedback learning loop & self-improvement
-- REPL prototyping + history → drivers
-- End-to-end penetration testing
-- Network / infrastructure testing
-- Web application testing (Burp preferred)
-- Code scanning / SAST
-- Fuzzing
-- Reverse engineering
-- Zero-day research flow
-- Overall architecture
-- Tool calling, plugins, memory/skills, reporting, etc.
+| | |
+|---|---|
+| [What is PWN](What-is-PWN.md) | One-paragraph elevator pitch |
+| [Why PWN](Why-PWN.md) | Design philosophy — why another framework |
+| [How PWN Works](How-PWN-Works.md) | The five layers, with the architecture diagram |
+| [Installation](Installation.md) | RVM, gem, `./install.sh`, first launch |
+| [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
+| [Configuration](Configuration.md) | `~/.pwn/config.yml` — engines, keys, agent options |
+| **[All Data-Flow Diagrams](Diagrams.md)** | **26 SVGs** in one scrollable page |
 
-## Quick Navigation
+## 🚪 Entry Points
 
-- [What is PWN](What-is-PWN.md)
-- [Why PWN](Why-PWN.md)
-- [How PWN Works](How-PWN-Works.md)
-- [Installation](Installation.md)
-- [General Usage](General-PWN-Usage.md)
-- [The pwn REPL](pwn-REPL.md)
-- [pwn-ai Autonomous Agent](pwn-ai-Agent.md)
-- [Plugins Overview](Plugins.md)
-- [AI & LLM Integration](AI-Integration.md)
-- [Skills, Memory & Learning](Skills-Memory-Learning.md)
-- [SAST](SAST.md)
-- [Reporting](Reporting.md)
-- [Drivers & Custom Automation](Drivers.md)
-- [Diagrams (All SVGs)](Diagrams.md)
-- [Troubleshooting](Troubleshooting.md)
-- [Contributing](Contributing.md)
+| | |
+|---|---|
+| [The `pwn` REPL](pwn-REPL.md) | Pry shell with the whole `PWN::` namespace pre-loaded |
+| [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot |
+| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 52 headless executables for CI/CD |
+| [Drivers (build your own)](Drivers.md) | Turn a REPL session into a shipped binary |
 
-## Core Commands
+## 🤖 AI Subsystem  (`PWN::AI`)
 
-Inside the `pwn` REPL:
-- `PWN.help`
-- `pwn-ai` — launch AI agent TUI
-- See full list via `pwn` command help.
+| | |
+|---|---|
+| [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 45+ LLM-callable tools |
+| [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection — the self-improvement loop |
+| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · correlate |
+| [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
+| [Sessions](Sessions.md) | Transcript persistence + reflection |
+| [Cron](Cron.md) | Scheduled autonomous jobs |
 
-**Local Wiki Root:** This wiki lives in `/opt/pwn/documentation/`.
+## 🧩 Capability Namespaces  (`lib/pwn/*`)
 
-For the latest upstream see the [GitHub Project](https://github.com/0dayInc/pwn) and [rubydoc.info](https://www.rubydoc.info/gems/pwn).
+| | |
+|---|---|
+| [Plugins (66)](Plugins.md) | Every `PWN::Plugins::*` module by category |
+| &nbsp;&nbsp;↳ [BurpSuite](BurpSuite.md) ⭐ | Preferred web proxy / scanner |
+| &nbsp;&nbsp;↳ [TransparentBrowser](Transparent-Browser.md) | Headless / visible browser automation |
+| &nbsp;&nbsp;↳ [NmapIt](NmapIt.md) | Network discovery |
+| &nbsp;&nbsp;↳ [Metasploit](Metasploit.md) | RPC exploitation |
+| &nbsp;&nbsp;↳ [Fuzzing](Fuzzing.md) | `Fuzz` · `Sock` · `Packet` |
+| &nbsp;&nbsp;↳ [Hardware](Hardware.md) | Serial · BusPirate · MSR206 · Android · BareSIP |
+| [SAST (48 rules)](SAST.md) | Static analysis + test-case engine |
+| [WWW (21 drivers)](WWW.md) | Browser automations for real sites |
+| [AWS (90 services)](AWS.md) | Cloud-security enumeration |
+| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro |
+| [Blockchain](Blockchain.md) | BTC · ETH helpers |
+| [Bounty](Bounty.md) | Lifecycle / auth-replay tooling |
+| [Reports](Reporting.md) | HTML/JSON output + DefectDojo/Jira |
+| [FFI](FFI.md) | Native calls |
+| [Banner](Banner.md) | 15 startup banners |
+
+## 🛠️ Meta
+
+| | |
+|---|---|
+| [`~/.pwn/` Filesystem Map](Persistence.md) | Every file PWN writes and why |
+| [Troubleshooting](Troubleshooting.md) | Common errors and fixes |
+| [Contributing](Contributing.md) | Conventions, RuboCop, spec rules |
+
+---
+
+<sub>Generated by pwn-ai. Edit any `.md` directly; edit any diagram in
+`documentation/diagrams/dot/*.dot` then run `./build.sh`.</sub>

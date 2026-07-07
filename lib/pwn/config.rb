@@ -74,6 +74,7 @@ module PWN
             model: 'optional - Anthropic model to use (e.g. claude-3-5-sonnet-20240620)',
             system_role_content: 'You are an ethically hacking Anthropic agent.',
             temp: 'optional - Anthropic temperature',
+            max_tokens: 'optional - Max output tokens per response (default 8192). Raise if tool calls truncate.',
             max_prompt_length: 200_000
           },
           gemini: {
@@ -87,7 +88,15 @@ module PWN
           agent: {
             native_tools: true,
             max_iters: 25,
+            # Swarm (agent_ask/agent_debate) sub-agent recursion cap
+            max_depth: 3,
+            # run PWN::AI::Agent::Learning.auto_reflect after every final answer
+            auto_reflect: true,
+            # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_reflect
+            auto_extrospect: false,
             toolsets: nil
+            # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
+            # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
           }
         },
         plugins: {
@@ -98,28 +107,6 @@ module PWN
               rpc_port: 8332,
               rpc_user: 'bitcoin RPC Username',
               rpc_pass: 'bitcoin RPC Password'
-            }
-          },
-          irc: {
-            ui_nick: '_human_',
-            shared_chan: '#pwn',
-            ai_agent_nicks: {
-              browser: {
-                pwn_rb: '/opt/pwn/lib/pwn/plugins/transparent_browser.rb',
-                system_role_content: 'You are a browser.  You are a web browser that can be controlled by a human or AI agent'
-              },
-              nimjeh: {
-                pwn_rb: '',
-                system_role_content: 'You are a sarcastic hacker.  You find software zero day vulnerabilities. This involves analyzing source code, race conditions, application binaries, and network protocols from an offensive security perspective.'
-              },
-              nmap: {
-                pwn_rb: '/opt/pwn/lib/pwn/plugins/nmap_it.rb',
-                system_role_content: 'You are a network scanner.  You are a network scanner that can be controlled by a human or AI agent'
-              },
-              shodan: {
-                pwn_rb: '/opt/pwn/lib/pwn/plugins/shodan.rb',
-                system_role_content: 'You are a passive reconnaissance agent.  You are a passive reconnaissance agent that can be controlled by a human or AI agent'
-              }
             }
           },
           hunter: { api_key: 'hunter.how API Key' },

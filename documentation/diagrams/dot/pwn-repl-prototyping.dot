@@ -1,37 +1,56 @@
-digraph "PWN REPL Prototyping & Development" {
-  rankdir=LR;
-  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
-  edge [fontname="Arial", fontsize=8];
+digraph "PWN_REPL" {
+  graph [
+    label=<<B>The pwn REPL — Interactive Prototyping</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Pry + full PWN:: preload + custom commands</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=TB, splines=spline, nodesep=0.55, ranksep=0.9,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  User [label="User\n(Researcher)", shape=box];
-  Shell [label="shell (pwn command)", shape=box];
-  Pry [label="Pry REPL\n(PWN preloaded)", shape=ellipse, fillcolor=lightgreen, style=filled];
+  User [label="👤  $ pwn", fillcolor="#7dd3fc"];
 
-  subgraph cluster_pwn {
-    label="PWN Namespace";
-    color=navy;
-    Plugins [label="PWN::Plugins::\n(Burp, NmapIt,\nTransparentBrowser,\nMetasploit, etc.)", shape=box];
-    SAST [label="PWN::SAST\n(Static Analysis\n+ Testgen)", shape=box];
-    Reports [label="PWN::Reports", shape=box];
-    Driver [label="PWN::Driver\n(Parser, auto_opts)", shape=box];
-    AI [label="PWN::AI::\n(Agent, Grok, etc.)", shape=box];
+  subgraph cluster_repl {
+    label="Plugins::REPL  (Pry)"; fontcolor="#ddd6fe"; style=rounded;
+    color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
+    Prompt  [label="pwn[v0.5.x]:001 >>>", fillcolor="#c4b5fd"];
+    Preload [label="autoload PWN::*\nBanner · MonkeyPatch", fillcolor="#c4b5fd"];
+    Hist    [label="~/.pwn_history\nreplay · edit", fillcolor="#c4b5fd"];
+  }
+  {rank=same; Prompt; Preload; Hist}
+
+  subgraph cluster_cmds {
+    label="Custom Commands"; fontcolor="#a7f3d0"; style=rounded;
+    color="#047857"; bgcolor="#022c22";
+    CAI   [label="pwn-ai",         fillcolor="#6ee7b7"];
+    CASM  [label="pwn-asm",        fillcolor="#6ee7b7"];
+    CMEM  [label="pwn-ai-memory",  fillcolor="#6ee7b7"];
+    CSESS [label="pwn-ai-sessions",fillcolor="#6ee7b7"];
+    CCRON [label="pwn-ai-cron",    fillcolor="#6ee7b7"];
+    CDEL  [label="pwn-ai-delegate",fillcolor="#6ee7b7"];
+  }
+  {rank=same; CAI; CASM; CMEM; CSESS; CCRON; CDEL}
+
+  subgraph cluster_ns {
+    label="Live Namespace"; fontcolor="#fde68a"; style=rounded;
+    color="#a16207"; bgcolor="#422006";
+    NS [label="PWN::Plugins  ·  PWN::SAST  ·  PWN::AWS  ·  PWN::SDR\nPWN::WWW  ·  PWN::Reports  ·  PWN::AI  ·  PWN::Memory",
+        fillcolor="#fcd34d", fontsize=11];
   }
 
-  History [label="Pry Command History\n(~/.pry_history)", shape=cylinder, fillcolor=yellow];
-  Scripts [label="Custom Scripts\n& Prototypes (.rb)", shape=box];
-
-  User -> Shell [label="pwn"];
-  Shell -> Pry [label="starts"];
-  Pry -> Plugins [label="direct method calls"];
-  Pry -> SAST [label="PWN::SAST.analyze..."];
-  Pry -> Reports [label="PWN::Reports.generate"];
-  Pry -> AI [label="pwn-ai or direct"];
-  Pry -> History [label="every cmd logged"];
-  Pry -> Scripts [label="save / edit\nprototype"];
-
-  History -> Pry [label="history\nup-arrow\nctrl-r search"];
-  Scripts -> Pry [label="load / require\ncopy-paste"];
-  Scripts -> Driver [label="wrap as driver"];
-
-  Pry -> User [label="interactive results\ninspect / pp / tab-complete"];
+  User -> Prompt  [color="#38bdf8", penwidth=2];
+  User -> Preload [style=invis];
+  User -> Hist    [style=invis];
+  Prompt  -> CAI   [color="#34d399"];
+  Prompt  -> CASM  [color="#34d399"];
+  Preload -> CMEM  [color="#34d399"];
+  Preload -> CSESS [color="#34d399"];
+  Hist    -> CCRON [color="#34d399"];
+  Hist    -> CDEL  [color="#34d399"];
+  CAI  -> NS [color="#f59e0b"];
+  CASM -> NS [color="#f59e0b"];
+  CMEM -> NS [color="#f59e0b"];
+  Prompt -> NS [label="direct call", color="#f59e0b", constraint=false, penwidth=2];
 }

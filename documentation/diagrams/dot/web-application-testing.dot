@@ -1,27 +1,49 @@
-digraph "Web Application Testing with PWN" {
-  rankdir=TB;
-  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
-  edge [fontsize=8];
+digraph "PWN_Web" {
+  graph [
+    label=<<B>Web Application Testing</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">TransparentBrowser → BurpSuite (preferred) → SAST → Reports</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  App [label="Web App\n(URL, API, SPA)", shape=box];
+  Target [label="🌐  Web App\nURL / API", fillcolor="#fda4af"];
 
-  Proxy [label="Proxy Interception\n(BurpSuite (preferred),\nZaproxy)", shape=ellipse, fillcolor=lightblue];
-  Spider [label="Spider / Crawl\n(TransparentBrowser,\nSpider plugin)"];
-  ActiveScan [label="Active Scans\n(Burp active, ZAP active,\npwn_*_active_scan)"];
-  Manual [label="Manual + Assisted\n(URI Buster, XSS vectors,\nchar encodings, web_cache)"];
-  API [label="API Testing\n(OpenAPI, JSONPathify,\nGraphQL introspection)"];
-  AuthWeb [label="Auth & Session\n(OAuth2, BasicAuth,\nJWT handling)"];
-  Findings [label="Web Vulns\n(XSS, SQLi, IDOR,\nCache deception, etc.)", shape=box];
-  ReportWeb [label="PWN Reports"];
+  subgraph cluster_drive {
+    label="Drive Traffic"; fontcolor="#a7f3d0"; style=rounded;
+    color="#047857"; bgcolor="#022c22";
+    TB     [label="TransparentBrowser\nheadless · watir · devtools", fillcolor="#6ee7b7"];
+    Spider [label="Plugins::Spider\nURI buster",                     fillcolor="#6ee7b7"];
+    WWW    [label="PWN::WWW::*\n21 site drivers",                    fillcolor="#6ee7b7"];
+  }
+  subgraph cluster_proxy {
+    label="Intercept + Scan"; fontcolor="#fde68a"; style=rounded;
+    color="#a16207"; bgcolor="#422006";
+    Burp [label="BurpSuite  ⭐\nactive · passive · REST", fillcolor="#fcd34d", penwidth=2];
+    Zap  [label="Zaproxy\n(fallback)",                    fillcolor="#fcd34d"];
+  }
+  subgraph cluster_deep {
+    label="Deep Analysis"; fontcolor="#ddd6fe"; style=rounded;
+    color="#6d28d9"; bgcolor="#2e1065";
+    SAST [label="PWN::SAST\n48 rules on source",     fillcolor="#c4b5fd"];
+    XSS  [label="pwn_xss_dom_vectors\nweb_cache_deception", fillcolor="#c4b5fd"];
+    API  [label="Plugins::OpenAPI\nGraphQL introspection",  fillcolor="#c4b5fd"];
+  }
+  Report [label="PWN::Reports\nDefectDojo import", fillcolor="#7dd3fc"];
 
-  App -> Proxy;
-  Proxy -> Spider;
-  Spider -> ActiveScan;
-  ActiveScan -> Manual;
-  Manual -> API;
-  API -> AuthWeb;
-  AuthWeb -> Findings;
-  Findings -> ReportWeb;
-
-  Proxy -> Findings [label="intercept & modify"];
+  Target -> TB     [color="#fb7185"];
+  Target -> Spider [color="#fb7185"];
+  Target -> WWW    [color="#fb7185"];
+  TB     -> Burp   [label="proxy 127.0.0.1:8080", color="#f59e0b", penwidth=2];
+  Spider -> Burp   [color="#f59e0b"];
+  WWW    -> Zap    [color="#f59e0b"];
+  Burp   -> SAST   [color="#a78bfa"];
+  Burp   -> XSS    [color="#a78bfa"];
+  Zap    -> API    [color="#a78bfa"];
+  SAST   -> Report [color="#38bdf8"];
+  XSS    -> Report [color="#38bdf8"];
+  API    -> Report [color="#38bdf8"];
 }

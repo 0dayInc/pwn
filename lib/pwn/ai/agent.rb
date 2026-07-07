@@ -27,6 +27,7 @@ module PWN
       autoload :Learning,      'pwn/ai/agent/learning'
       autoload :Extrospection, 'pwn/ai/agent/extrospection'
       autoload :Introspection, 'pwn/ai/agent/introspection'
+      autoload :Swarm,         'pwn/ai/agent/swarm'
 
       # Display a List of Every PWN::AI Module
 

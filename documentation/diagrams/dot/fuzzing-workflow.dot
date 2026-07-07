@@ -1,27 +1,47 @@
-digraph "PWN Fuzzing Workflows" {
-  rankdir=LR;
-  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+digraph "PWN_Fuzz" {
+  graph [
+    label=<<B>Fuzzing with PWN</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Plugins::Fuzz · Sock · Packet · Reports::Fuzz</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  Input [label="Input Corpus\n(Seeds, Mutators)", shape=box];
-  FuzzProto [label="Protocol Fuzz\n(pwn_fuzz_net_app_proto)"];
-  FuzzFile [label="File / Format Fuzz"];
-  FuzzNet [label="Network Service Fuzz"];
-  FuzzWeb [label="Web App Fuzz\n(XSS vectors, etc.)"];
-  PWNfuzz [label="PWN::Plugins::Fuzz", shape=ellipse];
-  Monitor [label="Monitor Crashes\n(PS, logging, core dumps)"];
-  Corpus [label="Interesting Inputs\n(saved for replay)", shape=cylinder];
-  Crash [label="Crash Analysis\n(identify root cause)", shape=ellipse];
+  Seed [label="Seed corpus /\nprotocol grammar", fillcolor="#7dd3fc"];
 
-  Input -> PWNfuzz;
-  PWNfuzz -> FuzzProto;
-  PWNfuzz -> FuzzFile;
-  PWNfuzz -> FuzzNet;
-  PWNfuzz -> FuzzWeb;
-  FuzzProto -> Monitor;
-  FuzzFile -> Monitor;
-  FuzzNet -> Monitor;
-  FuzzWeb -> Monitor;
-  Monitor -> Corpus;
-  Monitor -> Crash;
-  Crash -> Input [label="refine mutators"];
+  subgraph cluster_gen {
+    label="Generate"; fontcolor="#a7f3d0"; style=rounded;
+    color="#047857"; bgcolor="#022c22";
+    Fuzz [label="Plugins::Fuzz\nmutate · generate", fillcolor="#6ee7b7"];
+    Char [label="Plugins::Char\nencodings",         fillcolor="#6ee7b7"];
+  }
+  subgraph cluster_deliver {
+    label="Deliver"; fontcolor="#fde68a"; style=rounded;
+    color="#a16207"; bgcolor="#422006";
+    Sock   [label="Plugins::Sock\nTCP/UDP",           fillcolor="#fcd34d"];
+    Packet [label="Plugins::Packet\nraw L2/L3",       fillcolor="#fcd34d"];
+    NetApp [label="pwn_fuzz_net_app_proto\nCLI driver", fillcolor="#fcd34d"];
+  }
+  subgraph cluster_mon {
+    label="Monitor"; fontcolor="#fecaca"; style=rounded;
+    color="#b91c1c"; bgcolor="#450a0a";
+    PS  [label="Plugins::PS\nprocess health", fillcolor="#fda4af"];
+    Log [label="Plugins::Log\ncrash detect",   fillcolor="#fda4af"];
+  }
+  Report [label="Reports::Fuzz\ncrash triage", fillcolor="#7dd3fc"];
+
+  Seed -> Fuzz [color="#38bdf8"];
+  Seed -> Char [color="#38bdf8"];
+  Fuzz -> Sock   [color="#f59e0b"];
+  Fuzz -> Packet [color="#f59e0b"];
+  Char -> NetApp [color="#f59e0b"];
+  Sock   -> PS  [color="#fb7185"];
+  Packet -> Log [color="#fb7185"];
+  NetApp -> Log [color="#fb7185"];
+  PS  -> Report [color="#38bdf8"];
+  Log -> Report [color="#38bdf8"];
+  Log -> Fuzz [label="minimise + reseed", style=dashed, color="#fbbf24", constraint=false];
 }

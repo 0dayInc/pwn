@@ -95,7 +95,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.617]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -116,7 +116,7 @@ $ rvm use ruby-4.0.5@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.617]:001 >>> PWN.help
 ```
 
 If using a multi-user install of RVM:
@@ -127,7 +127,7 @@ $ rvm use ruby-4.0.5@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.617]:001 >>> PWN.help
 ```
 
 **Inside the pwn REPL (the heart of PWN):**
@@ -136,12 +136,20 @@ pwn[v0.5.616]:001 >>> PWN.help
 - `pwn-ai` — launch the autonomous AI agent (highly recommended for complex tasks). Once active you can issue natural language instructions that leverage PWN's full power.
 - Example flow:
   ``` 
-  pwn[v0.5.616]:001 >>> pwn-ai
+  pwn[v0.5.617]:001 >>> pwn-ai
   [*] pwn-ai agent TUI activated...
   > Perform active scan of https://target.example.com using preferred tooling, then analyze findings with PWN modules and produce a report.
   ```
 - Other REPL helpers: `pwn-asm`, memory/session/cron management commands, etc.
 - Exit AI mode with `back`; use full Ruby/PWN expressions at any time.
+
+**Headless / CI-CD one-shot (`pwn --ai`):**
+Skip the TUI entirely and submit a single pwn-ai request from the shell — ideal for quick lookups, scripting, or CI/CD pipelines. The final answer is written to STDOUT (pipeable); live tool-call activity streams to STDERR.
+```
+$ pwn --ai 'What ports are listening on this host?'
+$ echo "$LONG_PROMPT" | pwn --ai -
+$ pwn -Y ./ci/pwn.yaml --ai 'Run pwn_sast against ./src and summarise HIGH findings' > findings.txt
+```
 
 PWN periodically upgrades to the latest version of Ruby (reflected in `/opt/pwn/.ruby-version`). The easiest way to upgrade Ruby + pwn from a previous installation:
 

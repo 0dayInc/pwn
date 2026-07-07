@@ -1,22 +1,54 @@
-digraph "Network & Infrastructure Testing with PWN" {
-  rankdir=TB;
-  node [shape=box, style=rounded, fontname="Arial", fontsize=9];
+digraph "PWN_Network" {
+  graph [
+    label=<<B>Network &amp; Infrastructure Testing</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">discovery → service enum → auth attacks → cloud / CI</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  Targets [label="Targets\n(IPs, Domains, ASNs)", shape=box];
-  Discovery [label="Discovery\n(NmapIt, pwn_nmap_discover,\nShodan, IPInfo, crt.sh)"];
-  Enum [label="Service Enum\n(portscan, version, scripts)"];
-  Auth [label="Auth Testing\n(basic_auth, DAOs,\ncredential spray)"];
-  VulnScan [label="Vuln Scanning\n(NessusCloud, OpenVAS,\nNexpose, Zaproxy)"];
-  Packet [label="Packet Crafting\n(PWN::Plugins::Packet,\nSock, Tor)"];
-  Infra [label="Infra Specific\n(AWS, Jenkins, Jira,\nVsphere, RabbitMQ)"];
-  ExploitNet [label="Network Exploits"];
+  CIDR [label="CIDR / ASN\nscope", fillcolor="#7dd3fc"];
 
-  Targets -> Discovery;
-  Discovery -> Enum;
-  Enum -> Auth;
-  Auth -> VulnScan;
-  VulnScan -> Packet;
-  Packet -> ExploitNet;
-  VulnScan -> Infra;
-  Infra -> ExploitNet;
+  subgraph cluster_disc {
+    label="Discover"; fontcolor="#a7f3d0"; style=rounded;
+    color="#047857"; bgcolor="#022c22";
+    Nmap   [label="NmapIt\npwn_nmap_discover_tcp_udp", fillcolor="#6ee7b7"];
+    Packet [label="Plugins::Packet\nraw craft / sniff", fillcolor="#6ee7b7"];
+  }
+  subgraph cluster_svc {
+    label="Service Enum"; fontcolor="#fde68a"; style=rounded;
+    color="#a16207"; bgcolor="#422006";
+    Sock [label="Plugins::Sock\nbanner grab", fillcolor="#fcd34d"];
+    DAO  [label="DAO::LDAP · Mongo\nPostgres · SQLite3", fillcolor="#fcd34d"];
+    MQ   [label="RabbitMQ\nSlack · IRC · Mail", fillcolor="#fcd34d"];
+  }
+  subgraph cluster_auth {
+    label="Auth / Exploit"; fontcolor="#fecaca"; style=rounded;
+    color="#b91c1c"; bgcolor="#450a0a";
+    MSF  [label="Metasploit\nmsf_postgres_login", fillcolor="#fda4af"];
+    Auth [label="BasicAuth · OAuth2\nAuthenticationHelper", fillcolor="#fda4af"];
+  }
+  subgraph cluster_cloud {
+    label="Cloud / CI"; fontcolor="#ddd6fe"; style=rounded;
+    color="#6d28d9"; bgcolor="#2e1065";
+    AWS  [label="PWN::AWS::*\n90 services",  fillcolor="#c4b5fd"];
+    Jenk [label="Plugins::Jenkins\nvSphere · Vault", fillcolor="#c4b5fd"];
+  }
+  Report [label="Reports · DefectDojo", fillcolor="#7dd3fc"];
+
+  CIDR   -> Nmap   [color="#38bdf8"];
+  CIDR   -> Packet [color="#38bdf8"];
+  Nmap   -> Sock   [color="#f59e0b"];
+  Nmap   -> DAO    [color="#f59e0b"];
+  Packet -> MQ     [color="#f59e0b"];
+  Sock   -> MSF    [color="#fb7185"];
+  DAO    -> Auth   [color="#fb7185"];
+  MQ     -> Auth   [color="#fb7185"];
+  MSF    -> AWS    [color="#a78bfa"];
+  Auth   -> Jenk   [color="#a78bfa"];
+  AWS    -> Report [color="#38bdf8"];
+  Jenk   -> Report [color="#38bdf8"];
 }
