@@ -6,7 +6,7 @@
   * [What is PWN](#what-is-pwn)
   * [Why PWN](#why-pwn)
   * [How PWN Works](#how-pwn-works)
-- [[Local PWN Wiki](documentation/Home.md)
+- [Documentation](#documentation)
 - [Installation](#installation)
 - [General Usage](#general-usage)
 - [Call to Arms](#call-to-arms)
@@ -14,79 +14,84 @@
 - [Keep Us Caffeinated](#keep-us-caffeinated)
 - [0x004D65726368](#0x004d65726368)
 
+---
+
 ### **Intro** ###
 
 #### **What is PWN** ####
 
-PWN (Pronounced /pōn/ or pone), is a powerful open-source offensive cybersecurity automation framework and continuous security integration platform. It enables security researchers, red teamers, penetration testers, and vulnerability researchers to rapidly discover zero-days, automate exploitation, perform advanced web application testing, conduct source code analysis (SAST), orchestrate infrastructure reconnaissance, and execute AI-augmented autonomous security operations.
+PWN (pronounced /pōn/ — *pone*) is an open-source **offensive-security
+automation framework** and **continuous-security-integration** platform.
+It gives security researchers, red teamers, penetration testers and
+vulnerability researchers a single, scriptable Ruby surface over the entire
+offensive toolchain — from OSINT and network discovery, through web / cloud /
+hardware / radio exploitation, to reporting and disclosure — and puts a
+**self-improving, tool-calling, multi-agent AI** on top of it.
 
-PWN stands on the shoulders of security giants, providing over **66** production-grade plugins, full LLM integration with tool-calling agents, persistent memory, reusable skills, session/cron management, and a highly interactive REPL for prototyping and driving complex security workflows. All core automation primitives are open to promote trust, peer review, and collaborative innovation in adversarial security.
+**In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
+service wrappers · 21 `PWN::WWW` site drivers · 52 `bin/pwn_*` CLI drivers ·
+5 LLM engines · 10 agent toolsets · 45+ LLM-callable tools.
 
-**See the full [PWN Wiki](documentation/Home.md) for detailed guides.**
+Full page: [What is PWN](documentation/What-is-PWN.md)
 
 #### **Why PWN** ####
 
-In cybersecurity, where proprietary black-box tools dominate and threats evolve daily, an open framework for core security primitives, vulnerability research, exploitation techniques, and intelligent automation is essential. PWN ensures foundational modules remain transparent and auditable while providing seamless bridges to commercial and open security tools (e.g. Burp Suite Professional, Metasploit, Nmap, Nessus, and multiple LLMs).
+Offensive security is a *toolchain problem*. PWN's bet is that the right
+abstraction is **plain Ruby methods with a uniform `opts = {}` signature**,
+exposed simultaneously to a human in a REPL, an LLM in a tool-calling loop, a
+shell script in CI, and a cron job at 3 am — all open-source and auditable,
+which matters when the caller is autonomous.
 
-Broad collaboration accelerates zero-day discovery, reliable exploit development, continuous vulnerability management in CI/CD pipelines, and the creation of reusable AI-driven security skills. PWN makes advanced red team and vuln research capabilities accessible and extensible to all.
-
-See [Why PWN](documentation/Why-PWN.md) in the wiki.
+Full page: [Why PWN](documentation/Why-PWN.md)
 
 #### **How PWN Works** ####
 
-#### **PWN AI Feedback Learning Loop (Self-Improving Agent)**
+Five layers, edges only ever go down:
 
-The core of pwn-ai is a closed feedback loop for autonomous improvement:
+![PWN Overall Architecture](documentation/diagrams/overall-pwn-architecture.svg)
 
-![PWN AI Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
+The AI layer closes a **self-improvement loop** on every turn — Metrics +
+Learning (introspection) joined with Snapshot + Drift + Intel (extrospection)
+via `extro_correlate`, so the agent knows whether a failure was *its* fault or
+*the world* changed:
 
-See full details in [Skills, Memory & Learning](documentation/Skills-Memory-Learning.md) and the [Diagrams](documentation/Diagrams.md) wiki page.
+![pwn-ai Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
 
+And **Swarm** runs multiple personas — each a full tool-calling agent,
+optionally on a *different* LLM engine — over a shared append-only bus:
 
-PWN is structured as a Ruby gem with a rich namespace:
+![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
-- `PWN::Plugins::*` — **66+** specialized modules ([BurpSuite](documentation/BurpSuite.md) [preferred for web proxying/scanning], [Zaproxy](documentation/Plugins.md) [fallback], [Metasploit](documentation/Plugins.md), [NmapIt](documentation/NmapIt.md), [TransparentBrowser](documentation/Transparent-Browser.md), Shodan, NessusCloud, NexposeVulnScan, Fuzz, SAST engines, Android analysis, SDR/GQRX, Blockchain, Bounty platforms like HackerOne, hardware interfaces, OCR, packet crafting, etc.).
-- `PWN::AI::*` — Multi-provider LLM clients (OpenAI, Anthropic, Gemini, [Grok OAuth device flow](documentation/AI-Integration.md), Ollama) and autonomous `PWN::AI::Agent` with tool-calling harness (`pwn_eval` for full PWN namespace, shell execution, skills, memory recall/remember, learning loops).
-- `PWN::SAST` — Static application security testing and test case generation. See [SAST Wiki](documentation/SAST.md).
-- `PWN::Reports` — Automated reporting from scans, agents, and findings. See [Reporting](documentation/Reporting.md).
-- `PWN::Memory / Sessions / Cron / Skills / Config` — Persistent facts, conversation sessions, scheduled autonomous tasks, reusable markdown skills (distillable from successful workflows), and environment management. See [Skills, Memory & Learning](documentation/Skills-Memory-Learning.md).
-- `PWN::Driver` — Framework for building custom security automation packages ("drivers"). See [Drivers](documentation/Drivers.md).
+Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·
+[All 26 Data-Flow Diagrams](documentation/Diagrams.md)
 
-The **pwn REPL** (launched via the `pwn` command) is the primary interface: a Pry-powered interactive shell with the entire `PWN` namespace pre-loaded. It supports rapid prototyping, direct execution of any plugin method, and custom commands.
+---
 
-**Particularly powerful is the `pwn-ai` command** inside the REPL:
-- Activates an autonomous AI agent TUI with multi-line input support (use SHIFT+ENTER to insert newlines; ENTER submits the full prompt).
-- Full awareness of PWN plugins, skills (`~/.pwn/skills`), memory, sessions, and cron.
-- Leverages LLM tool-calling to execute PWN methods (e.g., `PWN::Plugins::BurpSuite`, `PWN::Plugins::NmapIt`, `PWN::Plugins::TransparentBrowser`, `PWN::SAST`, `PWN::Reports`), shell commands, and orchestrate end-to-end tasks.
-- Supports self-improvement via `PWN::AI::Agent::Learning` / Metrics (records per-tool success/duration, distills skills from outcomes).
-- Example instruction: "Use NmapIt to scan target.example.com for open ports, then TransparentBrowser to spider the web app, run SAST analysis if source is available, proxy via BurpSuite, and generate a vulnerability report with PWN::Reports."
-- Additional REPL commands: `pwn-asm` (assembly prototyping with multiline), `pwn-ai-memory`, `pwn-ai-sessions`, `pwn-ai-cron`, `pwn-ai-delegate`, `welcome-banner`, etc.
-- Easily prototype and roll out custom "drivers" (see `/opt/pwn/bin/` examples).
+### **Documentation** ###
 
-Mix and match plugins, invoke via the REPL or `pwn-ai` agent, record/replay sessions, schedule autonomous jobs, and generate reports. PWN is designed for both interactive red teaming and headless/CI automation.
+The complete wiki lives in this repo at **[`documentation/Home.md`](documentation/Home.md)**.
 
-Here are some [example drivers](https://github.com/0dayInc/pwn/tree/master/bin) distributed with PWN.
+| Start Here | Entry Points | AI Subsystem | Capabilities |
+|---|---|---|---|
+| [What is PWN](documentation/What-is-PWN.md) | [`pwn` REPL](documentation/pwn-REPL.md) | [AI / LLM Integration](documentation/AI-Integration.md) | [Plugins (66)](documentation/Plugins.md) |
+| [Why PWN](documentation/Why-PWN.md) | [`pwn-ai` Agent](documentation/pwn-ai-Agent.md) | [Agent Tool Registry](documentation/Agent-Tool-Registry.md) | [SAST (48)](documentation/SAST.md) |
+| [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (52)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
+| [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Extrospection](documentation/Extrospection.md) | [WWW (21)](documentation/WWW.md) |
+| [General Usage](documentation/General-PWN-Usage.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [SDR / Radio](documentation/SDR.md) |
+| [Configuration](documentation/Configuration.md) | | [Sessions](documentation/Sessions.md) · [Cron](documentation/Cron.md) | [Reports](documentation/Reporting.md) |
+| [`~/.pwn/` Persistence](documentation/Persistence.md) | | | [BurpSuite](documentation/BurpSuite.md) · [NmapIt](documentation/NmapIt.md) |
+| **[All Diagrams](documentation/Diagrams.md)** | | | [Metasploit](documentation/Metasploit.md) · [Fuzzing](documentation/Fuzzing.md) |
+| [Troubleshooting](documentation/Troubleshooting.md) | | | [Hardware](documentation/Hardware.md) · [Blockchain](documentation/Blockchain.md) |
+| [Contributing](documentation/Contributing.md) | | | [Bounty](documentation/Bounty.md) · [FFI](documentation/FFI.md) · [Banner](documentation/Banner.md) |
 
-#### **Local PWN Wiki** ####
+Rebuild every SVG from its Graphviz source:
+`cd documentation/diagrams && ./build.sh`
 
-A full local wiki has been generated in this checkout:
-
-**`/opt/pwn/documentation/Home.md`**
-
-- [Home](documentation/Home.md)
-- [What is PWN](documentation/What-is-PWN.md)
-- [Installation](documentation/Installation.md)
-- [pwn-ai Agent](documentation/pwn-ai-Agent.md)
-- [Plugins](documentation/Plugins.md)
-- [AI Integration](documentation/AI-Integration.md)
-- [Troubleshooting](documentation/Troubleshooting.md)
-- ...and many more
-
-Run `cat /opt/pwn/documentation/Home.md` or open in your editor for the complete local documentation.
+---
 
 ### **Installation** ###
 
-Tested on Debian-Based Linux Distros & OSX leveraging Ruby via RVM.
+Tested on Debian-based Linux & macOS, Ruby via RVM.
 
 ```
 $ cd /opt
@@ -95,20 +100,23 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.5.617]:001 >>> PWN.help
+pwn[v0.5.616]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
 
-See the dedicated [Installation Wiki](documentation/Installation.md) for more options.
+Full page: [Installation](documentation/Installation.md) ·
+[Configuration](documentation/Configuration.md)
+
+---
 
 ### **General Usage** ###
 
-[General Usage Quick-Start](https://github.com/0dayinc/pwn/wiki/General-PWN-Usage)
+[General Usage Quick-Start](https://github.com/0dayinc/pwn/wiki/General-PWN-Usage) ·
+local: [General PWN Usage](documentation/General-PWN-Usage.md)
 
-Detailed local guide: [General PWN Usage](documentation/General-PWN-Usage.md)
-
-It is strongly recommended to update PWN frequently as new capabilities (plugins, AI agents, skills, zero-day tooling) are released regularly:
+Update PWN frequently — new plugins, agent tools, skills and zero-day tooling
+land regularly:
 
 ```
 $ rvm list gemsets
@@ -116,70 +124,72 @@ $ rvm use ruby-4.0.5@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.5.617]:001 >>> PWN.help
+pwn[v0.5.616]:001 >>> PWN.help
 ```
 
-If using a multi-user install of RVM:
+If using a multi-user RVM install:
 
 ```
-$ rvm list gemsets
 $ rvm use ruby-4.0.5@pwn
 $ rvmsudo gem uninstall --all --executables pwn
 $ rvmsudo gem install --verbose pwn
-$ pwn
-pwn[v0.5.617]:001 >>> PWN.help
 ```
 
-**Inside the pwn REPL (the heart of PWN):**
-- Full access to every PWN class and plugin.
-- `PWN.help` — list all top-level modules.
-- `pwn-ai` — launch the autonomous AI agent (highly recommended for complex tasks). Once active you can issue natural language instructions that leverage PWN's full power.
-- Example flow:
-  ``` 
-  pwn[v0.5.617]:001 >>> pwn-ai
-  [*] pwn-ai agent TUI activated...
-  > Perform active scan of https://target.example.com using preferred tooling, then analyze findings with PWN modules and produce a report.
-  ```
-- Other REPL helpers: `pwn-asm`, memory/session/cron management commands, etc.
-- Exit AI mode with `back`; use full Ruby/PWN expressions at any time.
+**Inside the `pwn` REPL:**
+- Full access to every `PWN::` module.
+- `pwn-ai` — launch the autonomous agent TUI (SHIFT+ENTER newline, ENTER submit).
+- `pwn-asm`, `pwn-ai-memory`, `pwn-ai-sessions`, `pwn-ai-cron`, `pwn-ai-delegate`.
 
-**Headless / CI-CD one-shot (`pwn --ai`):**
-Skip the TUI entirely and submit a single pwn-ai request from the shell — ideal for quick lookups, scripting, or CI/CD pipelines. The final answer is written to STDOUT (pipeable); live tool-call activity streams to STDERR.
+**Headless / CI one-shot (`pwn --ai`):**
+
 ```
 $ pwn --ai 'What ports are listening on this host?'
 $ echo "$LONG_PROMPT" | pwn --ai -
 $ pwn -Y ./ci/pwn.yaml --ai 'Run pwn_sast against ./src and summarise HIGH findings' > findings.txt
 ```
 
-PWN periodically upgrades to the latest version of Ruby (reflected in `/opt/pwn/.ruby-version`). The easiest way to upgrade Ruby + pwn from a previous installation:
+PWN periodically upgrades to the latest Ruby (`/opt/pwn/.ruby-version`).
+Easiest upgrade of Ruby + pwn from a previous install:
 
 ```
 $ /opt/pwn/vagrant/provisioners/pwn.sh
 ```
 
-This updates Ruby, recreates the pwn gemset, etc. Note that older Ruby versions can only use pwn gems compatible with that Ruby.
+---
 
 ### **Call to Arms** ###
 
-Contributions that expand PWN's offensive capabilities are welcome. If you can provide access to additional commercial LLMs, security scanners, or bounty platforms (or wish to contribute plugins, AI skills, or exploit modules), please [email us](mailto:support@0dayinc.com). This accelerates interoperability and zero-day research tooling. See our [How to Contribute](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md) and the growing skills system for ways to extend the AI agent.
+Contributions that expand PWN's offensive capabilities are welcome. If you can
+provide access to additional commercial LLMs, security scanners, or bounty
+platforms — or wish to contribute plugins, AI skills, or exploit modules —
+please [email us](mailto:support@0dayinc.com). See
+[CONTRIBUTING.md](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md)
+and the local [Contributing](documentation/Contributing.md) page.
 
-See also the wiki page on [Contributing](documentation/Contributing.md).
+---
 
 ### **Module Documentation** ###
 
-**Primary Documentation:** Browse the embedded local wiki — start at [/opt/pwn/documentation/Home.md](documentation/Home.md).
+**Primary:** [`documentation/Home.md`](documentation/Home.md) — the full local
+wiki with 30+ pages and 26 SVG data-flow diagrams.
 
-Additional documentation on using PWN can be found on [RubyGems.org](https://www.rubydoc.info/gems/pwn). Explore the source under `lib/pwn/plugins/`, `lib/pwn/ai/`, and `PWN::` constants directly in the REPL.
+**API reference:** [rubydoc.info/gems/pwn](https://www.rubydoc.info/gems/pwn),
+or in-REPL: `PWN::Plugins::BurpSuite.help`, `show-source`, `ls`.
 
-Key wiki pages:
-- [Plugins](documentation/Plugins.md)
-- [Burp Suite](documentation/BurpSuite.md)
-- [pwn-ai Agent](documentation/pwn-ai-Agent.md)
-- [SAST](documentation/SAST.md)
-- [AI Integration](documentation/AI-Integration.md)
+Highlights:
+[Plugins](documentation/Plugins.md) ·
+[BurpSuite](documentation/BurpSuite.md) ·
+[Transparent-Browser](documentation/Transparent-Browser.md) ·
+[pwn-ai Agent](documentation/pwn-ai-Agent.md) ·
+[Swarm](documentation/Swarm.md) ·
+[Extrospection](documentation/Extrospection.md) ·
+[SAST](documentation/SAST.md) ·
+[AI Integration](documentation/AI-Integration.md)
 
-I hope you enjoy PWN and remember... ensure you always have permission prior to carrying out any sort of security testing or hacktivities. Now — go pwn all the things (responsibly)!
+I hope you enjoy PWN — and remember: **always have permission** before any
+security testing. Now go pwn all the things (responsibly)!
 
+---
 
 ### **Keep Us Caffeinated** ###
 If you've found this project useful and you're interested in supporting our efforts, we invite you to take a brief moment to keep us caffeinated:

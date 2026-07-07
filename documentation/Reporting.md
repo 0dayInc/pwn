@@ -1,28 +1,35 @@
-# Reporting
+# `PWN::Reports` — Findings Pipeline
 
-`PWN::Reports` generates structured output from scans, agent runs, SAST results, and manual findings.
+![Reporting pipeline](diagrams/reporting-pipeline.svg)
 
-## Capabilities
+## Generators  (`lib/pwn/reports/*.rb`)
 
-- Vulnerability report templating (Markdown + other formats)
-- Integration with defect trackers (`PWN::Plugins::DefectDojo`, Jira, etc.)
-- Automated report generation after agent tasks or plugin runs
-- Custom report drivers
+| Module | Consumes | Emits |
+|---|---|---|
+| `Reports::SAST` | `PWN::SAST::Factory` output | HTML (with `HTMLHeader`/`HTMLFooter`) + JSON |
+| `Reports::Fuzz` | `PWN::Plugins::Fuzz` crash log | HTML + JSON |
+| `Reports::URIBuster` | `pwn_www_uri_buster` output | HTML |
+| `Reports::Phone` | `PWN::Plugins::BareSIP` recon | HTML |
+| `Reports::HTMLHeader` / `HTMLFooter` | — | shared chrome for all HTML reports |
 
-## Template
+## Delivery integrations
 
-See example report templates in the PWN repo (or generate with `PWN::Reports`). Full pipeline in [Diagrams](Diagrams.md).
+| Plugin | Purpose |
+|---|---|
+| `PWN::Plugins::DefectDojo` | `importscan` / `reimportscan` / `engagement_create` (also `bin/pwn_defectdojo_*`) |
+| `PWN::Plugins::JiraDataCenter` | Create issues from findings |
+| `PWN::Plugins::SlackClient` / `MailAgent` | Notify |
 
-## Usage Patterns
-
-Typically invoked at the end of reconnaissance → scanning → exploitation → analysis workflows:
+## Example
 
 ```ruby
-PWN::Reports.generate(...)
+findings = PWN::SAST::Factory.start(dir_path: './src')
+PWN::Reports::SAST.generate(
+  dir_path: './src', results_hash: findings, output_dir: './out'
+)
+PWN::Plugins::DefectDojo.importscan(
+  engagement_id: 42, file: './out/report.json', scan_type: 'PWN SAST'
+)
 ```
 
-The `pwn-ai` agent is frequently instructed to "analyze findings and produce a report."
-
-Combined with `PWN::Plugins::HackerOne` / bounty modules for streamlined disclosure workflows.
-
-[[Diagrams]]
+[← Home](Home.md) · [SAST](SAST.md) · [Fuzzing](Fuzzing.md)

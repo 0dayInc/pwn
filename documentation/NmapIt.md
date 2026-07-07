@@ -1,18 +1,24 @@
-# NmapIt
+# `PWN::Plugins::NmapIt`
 
-`PWN::Plugins::NmapIt` provides a convenient Ruby wrapper around Nmap for reconnaissance.
+Thin, composable wrapper over `nmap` with structured XML parsing.
 
-## Features
+![Network & infra testing](diagrams/network-infra-testing.svg)
 
-- Easy target specification (hosts, ranges, CIDR)
-- Parsing of XML output into usable Ruby structures
-- Service version detection, script execution support
-- Integration with other plugins (e.g. feed into TransparentBrowser or Shodan)
+```ruby
+r = PWN::Plugins::NmapIt.port_scan(
+  target: '10.0.0.0/24',
+  ports:  '1-1024',
+  service_scan: true,
+  script:  'default,vuln',
+  output_xml: '/tmp/scan.xml'
+)
+r[:hosts].each { |h| puts "#{h[:ip]} → #{h[:ports].map { |p| p[:portid] }}" }
+```
 
-Commonly used early in agent workflows:
+CLI: `pwn_nmap_discover_tcp_udp -t 10.0.0.0/24 -o out/`
 
-> "Run NmapIt against 10.0.0.0/24, identify web services, then spider with TransparentBrowser."
+Pairs with `extro_observe` to persist banners for later
+[correlation](Extrospection.md), and with `PWN::Plugins::Sock` /
+`PWN::Plugins::Metasploit` for follow-up.
 
-See source in `lib/pwn/plugins/nmap_it.rb`.
-
-[[Diagrams]]
+[← Home](Home.md) · [Plugins](Plugins.md)

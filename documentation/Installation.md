@@ -1,50 +1,75 @@
 # Installation
 
-Tested primarily on Debian-based Linux (including Kali) and macOS using RVM-managed Ruby.
+PWN is tested on **Debian-based Linux** (Kali, Ubuntu) and **macOS**, using
+Ruby via **RVM**.
 
-## Quick Install (Recommended)
-
-```bash
-$ cd /opt
-$ sudo git clone https://github.com/0dayInc/pwn
-$ cd /opt/pwn
-$ ./install.sh
-$ ./install.sh ruby-gem
-$ pwn
-pwn[v0.5.613]:001 >>> PWN.help
-```
-
-## Video Guide
-
-[![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
-
-## Ruby Gem Updates
+## Quick install (recommended)
 
 ```bash
-$ rvm use ruby-4.0.5@pwn
-$ gem uninstall --all --executables pwn
-$ gem install --verbose pwn
+cd /opt
+sudo git clone https://github.com/0dayinc/pwn
+cd /opt/pwn
+./install.sh          # system deps (nmap, chromium, graphviz, …)
+./install.sh ruby-gem # rvm gemset + bundle install + rake install
+pwn                   # launch the REPL
 ```
 
-For multi-user RVM use `rvmsudo` instead of `sudo` on gem commands.
+```text
+pwn[v0.5.616]:001 >>> PWN.help
+```
 
-## Upgrade Path (Ruby + PWN)
-
-Use the vagrant provisioner or:
+## Gem-only install
 
 ```bash
-$ /opt/pwn/vagrant/provisioners/pwn.sh
+rvm install ruby-4.0.5
+rvm use     ruby-4.0.5@pwn --create
+gem install --verbose pwn
+pwn
 ```
 
-This rebuilds the gemset when `.ruby-version` advances.
+## Upgrading
 
-## Requirements
+```bash
+rvm use ruby-4.0.5@pwn
+gem uninstall --all --executables pwn
+gem install --verbose pwn
+```
 
-- Ruby (via RVM recommended)
-- Git
-- Build tools (for native extensions)
-- Optional: Burp Suite Pro, Metasploit, etc. for full plugin capability
+or from a checkout:
 
-See the root [README.md](../README.md) and `install.sh` for latest details.
+```bash
+cd /opt/pwn && git pull && rvmsudo rake install
+```
 
-[[Diagrams]]
+## First-run configuration
+
+`pwn` creates `~/.pwn/` on first launch. Add at least one LLM engine to
+`~/.pwn/config.yml` to enable `pwn-ai` — see [Configuration](Configuration.md).
+
+## Optional external tools
+
+PWN wraps these when present on `$PATH`; none are hard requirements:
+
+| Tool | Used by |
+|---|---|
+| `nmap` | `PWN::Plugins::NmapIt` |
+| Burp Suite Pro (+ REST API) | `PWN::Plugins::BurpSuite` |
+| `msfconsole` / msfrpcd | `PWN::Plugins::Metasploit` |
+| `chromium` / `google-chrome` | `PWN::Plugins::TransparentBrowser` |
+| `zaproxy` | `PWN::Plugins::Zaproxy` (fallback) |
+| `gqrx` | `PWN::SDR::GQRX` |
+| `adb` | `PWN::Plugins::Android` |
+| `graphviz` (`dot`) | rebuilding these diagrams |
+| `tor` | `PWN::Plugins::Tor` |
+
+## Verify
+
+```ruby
+pwn[v0.5.616]:001 >>> PWN::Plugins.constants.count   # => 66
+pwn[v0.5.616]:002 >>> PWN::SAST.constants.count      # => 48
+pwn[v0.5.616]:003 >>> pwn-ai                         # launches agent TUI
+```
+
+**Next:** [Configuration](Configuration.md) · [General Usage](General-PWN-Usage.md)
+
+[← Home](Home.md)

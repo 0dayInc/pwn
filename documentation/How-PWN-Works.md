@@ -1,60 +1,62 @@
 # How PWN Works
 
-PWN is structured as a Ruby gem with a rich `PWN::` namespace.
+PWN is five layers, each visible in the source tree. Edges only ever go
+**down** one layer (or sideways within a layer), which is why the diagrams
+below have no criss-crossing lines.
 
-## Visual Architecture Overview
+![Overall Architecture](diagrams/overall-pwn-architecture.svg)
 
-See the full set of **[Data Flow Diagrams](Diagrams.md)** (18+ SVGs) for detailed visualization of data flows, including:
+## L0 — Actors
 
-![Overall PWN Architecture](diagrams/overall-pwn-architecture.svg)
+Humans (`pwn` REPL, `pwn-ai` TUI), CI runners (`pwn --ai "…"`, `bin/pwn_*`),
+LLM providers (over HTTPS), and targets (hosts, web apps, clouds, radios,
+hardware).
 
-- [PWN-AI Feedback Learning Loop](diagrams/pwn-ai-feedback-learning-loop.svg) — the core self-improving closed loop
-- [REPL Prototyping](diagrams/pwn-repl-prototyping.svg)
-- [History → Drivers & Skills](diagrams/history-to-drivers.svg)
-- [AI Tool Calling Integration](diagrams/ai-integration-tool-calling.svg)
-- [Plugin Ecosystem](diagrams/plugin-ecosystem.svg)
-- And many more specific workflows (Pen Testing, Web, Fuzzing, SAST, RE, etc.)
+## L1 — Entry points  (`bin/`)
 
-## Namespace Overview
+| Entry | File | Purpose |
+|---|---|---|
+| `pwn` REPL | `lib/pwn/plugins/repl.rb` | Pry with `PWN::` pre-loaded + custom commands |
+| `pwn-ai` | `lib/pwn/ai/agent/loop.rb` | Agent TUI inside the REPL |
+| `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
+| `bin/pwn_*` | 52 files | Thin OptionParser wrappers over one plugin each |
+| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs → any of the above |
 
-| Namespace          | Description |
-|--------------------|-------------|
-| `PWN::Plugins::*`  | 67+ specialized modules (see [Plugins](Plugins.md)) |
-| `PWN::AI::*`       | Multi-provider LLM clients + autonomous `PWN::AI::Agent` |
-| `PWN::SAST`        | Static application security testing + test case generation |
-| `PWN::Reports`     | Automated reporting from scans, agents, findings |
-| `PWN::Memory`      | Persistent facts across sessions |
-| `PWN::Sessions`    | Record / replay conversations and workflows |
-| `PWN::Cron`        | Scheduled autonomous tasks |
-| `PWN::Skills`      | Reusable markdown procedures (distilled from successful runs) |
-| `PWN::Config`      | Environment + credential management |
-| `PWN::Driver`      | Framework for custom security automation packages |
+## L2 — AI agent core  (`lib/pwn/ai/agent/`)
 
-## Primary Interfaces
+| Module | Role |
+|---|---|
+| `Loop` | plan → dispatch tool_calls → observe → repeat until final answer |
+| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** |
+| `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
+| `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / EXTROSPECTION blocks |
+| `Metrics` · `Learning` | **introspection** — how well am I doing? |
+| `Extrospection` | **extrospection** — what does the world look like? |
+| `Swarm` | multi-agent personas over a shared JSONL bus |
 
-1. **pwn REPL** — Pry-powered interactive shell (launched via `pwn` command). Full `PWN` namespace pre-loaded.
-2. **pwn-ai** — Autonomous AI agent TUI inside the REPL (highly recommended). Uses tool calling for `pwn_eval`, shell, skills, memory, etc.
-3. **Custom Drivers** — See `/opt/pwn/bin/` examples and [Drivers](Drivers.md).
+See [Agent Tool Registry](Agent-Tool-Registry.md) for every tool the LLM can call.
 
-## LLM Tool Calling
+## L3 — Capability namespaces  (`lib/pwn/*`)
 
-The agent can:
-- Execute any PWN plugin method directly
-- Run shell commands
-- Recall/remember facts
-- Distill new skills from successful workflows
-- Use multiple LLM providers (OpenAI, Anthropic, Gemini, Grok OAuth, Ollama, ...)
+`Plugins` (66) · `SAST` (48) · `WWW` (21) · `AWS` (90) · `SDR` · `Blockchain` ·
+`Bounty` · `Reports` · `FFI` · `Banner`. Each is a plain module of
+`public_class_method def self.x(opts = {})` methods — callable identically from
+the REPL, from `pwn_eval`, or from a driver.
 
-Example:
-```
-pwn-ai
-> Use NmapIt to scan target.example.com, spider with TransparentBrowser, proxy via BurpSuite, run SAST if source available, then generate report.
-```
+## L4 — Persistence  (`~/.pwn/`)
 
-See the Diagrams and:
-- [pwn REPL](pwn-REPL.md)
-- [pwn-ai Agent](pwn-ai-Agent.md)
-- [Plugins](Plugins.md)
-- [AI Integration](AI-Integration.md)
-- [Skills, Memory & Learning](Skills-Memory-Learning.md)
+Everything the framework remembers between processes lives in one directory:
 
+![~/.pwn map](diagrams/persistence-filesystem.svg)
+
+See [Persistence](Persistence.md) for the byte-level layout of each file.
+
+## The feedback loop
+
+The reason L2 exists is to close this loop on every turn:
+
+![Self-improvement loop](diagrams/pwn-ai-feedback-learning-loop.svg)
+
+**Next:** [pwn REPL](pwn-REPL.md) · [pwn-ai Agent](pwn-ai-Agent.md)
+
+[← Home](Home.md)

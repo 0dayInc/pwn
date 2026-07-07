@@ -1,32 +1,36 @@
-# Transparent Browser
+# `PWN::Plugins::TransparentBrowser`
 
-`PWN::Plugins::TransparentBrowser` — powerful browser automation (headless + visible) built on top of Selenium / Watir / Ferrum / similar.
+Watir + Selenium wrapper that gives you a real Chrome/Firefox — headless or
+visible — with proxy support, DevTools protocol access, and cookie/console
+capture. It's the traffic source for [BurpSuite](BurpSuite.md), the engine
+under every [`PWN::WWW`](WWW.md) driver, and the agent's go-to for anything
+JS-heavy.
 
-## Primary Uses
-
-- Web spidering / crawling
-- JavaScript-heavy application interaction
-- Automated form submission, auth flows
-- Screenshotting, DOM inspection
-- Proxied browsing (pairs excellently with BurpSuite)
-
-## Example Calls
+## Open
 
 ```ruby
-browser = PWN::Plugins::TransparentBrowser.open_browser(
-  browser_type: :chrome,
-  proxy: 'http://127.0.0.1:8080'   # Burp
+b = PWN::Plugins::TransparentBrowser.open(
+  browser_type: :headless,           # :chrome | :firefox | :headless | :rest
+  proxy:        'http://127.0.0.1:8080',
+  with_devtools: true
 )
-browser.goto 'https://target.example.com'
-# ... interact ...
-browser.close
+b[:browser].goto 'https://target'
+b[:browser].text_field(name: 'q').set 'pwn'
 ```
 
-Agent-friendly.
+## Useful bits
 
-## See Also
+```ruby
+b[:browser].cookies.to_a
+b[:browser].execute_script('return document.title')
+b[:devtools].send_cmd('Network.enable')
+PWN::Plugins::TransparentBrowser.dump_links(browser_obj: b)
+PWN::Plugins::TransparentBrowser.close(browser_obj: b)
+```
 
-- [Burp Suite](BurpSuite.md)
-- [Plugins](Plugins.md)
+## `:rest` mode
 
-[[Diagrams]]
+`browser_type: :rest` returns a `RestClient`-backed object with the same proxy
+plumbing — for APIs where a full browser is overkill.
+
+[← Home](Home.md) · [BurpSuite](BurpSuite.md) · [WWW](WWW.md)

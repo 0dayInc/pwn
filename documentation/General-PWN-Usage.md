@@ -1,40 +1,60 @@
-# General PWN Usage
+# General Usage — Day-One Cheat Sheet
 
-## Launching PWN
+## Launch
 
 ```bash
-$ pwn
-pwn[v0.5.613]:001 >>>
+$ pwn                         # interactive REPL
+$ pwn --ai "scan 10.0.0.0/24 with NmapIt and summarise open services"
+$ pwn_nmap_discover_tcp_udp -t 10.0.0.0/24 -o out/   # headless driver
 ```
 
-## Essential Commands Inside REPL
+## Inside the REPL
 
-- `PWN.help` — overview of top-level modules
-- `PWN::Plugins.constants.sort` — list all plugins
-- `pwn-ai` — start the autonomous AI agent TUI (recommended)
-- `pwn-asm` — assembly/REPL for low-level work
-- `pwn-ai-memory`, `pwn-ai-sessions`, `pwn-ai-cron` — management helpers
-- `back` — exit `pwn-ai` mode
-- Full Ruby expressions work at any time.
+```ruby
+PWN.help                            # top-level help
+PWN::Plugins.constants.sort         # list all 66 plugins
+PWN::Plugins::NmapIt.help           # per-plugin usage
+ls PWN::Plugins::BurpSuite          # Pry: list methods
+show-source PWN::SAST::SQL.scan     # Pry: read the code
+history                             # what you've typed → copy into a driver
+```
 
-## Recommended Workflow
+## Custom REPL commands
 
-1. Launch `pwn`
-2. Start `pwn-ai`
-3. Give natural language tasks that leverage plugins, skills, memory.
-4. Use `SHIFT+ENTER` for multi-line prompts.
+| Command | Does |
+|---|---|
+| `pwn-ai` | Enter the agent TUI (SHIFT+ENTER = newline, ENTER = submit) |
+| `pwn-asm` | Multi-line assembly ↔ opcode workbench |
+| `pwn-ai-memory` | Inspect / edit `~/.pwn/memory.json` |
+| `pwn-ai-sessions` | List / view / delete transcripts |
+| `pwn-ai-cron` | List / run scheduled jobs |
+| `pwn-ai-delegate` | Hand a task to a Swarm persona |
+| `welcome-banner` | Redraw a random `PWN::Banner` |
+| `toggle-pager` | Pry pager on/off |
 
-## Updating PWN
+## A 60-second attack chain
 
-See [Installation](Installation.md).
+```ruby
+# 1. discover
+nmap = PWN::Plugins::NmapIt.port_scan(target: 'scanme.nmap.org')
 
-## Persistent State
+# 2. drive traffic through Burp
+burp = PWN::Plugins::BurpSuite.start(headless: true)
+b    = PWN::Plugins::TransparentBrowser.open(
+         browser_type: :headless, proxy: 'http://127.0.0.1:8080')
+b[:browser].goto 'http://scanme.nmap.org'
 
-Everything lives under `~/.pwn/`:
-- `skills/`
-- `memory.json`
-- `learning.jsonl`
-- `metrics.json`
-- sessions, cron jobs, etc.
+# 3. active scan
+scan = PWN::Plugins::BurpSuite.active_scan(burp_obj: burp,
+         target_url: 'http://scanme.nmap.org')
 
-[[Diagrams]]
+# 4. report
+PWN::Reports::SAST.generate(dir_path: '/tmp/src', output_dir: '/tmp/out')
+```
+
+Then say the same thing in English inside `pwn-ai` and watch the agent do it.
+
+**Next:** [pwn REPL](pwn-REPL.md) · [pwn-ai Agent](pwn-ai-Agent.md) ·
+[CLI Drivers](CLI-Drivers.md)
+
+[← Home](Home.md)

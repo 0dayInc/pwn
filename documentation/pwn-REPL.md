@@ -1,33 +1,49 @@
-# The pwn REPL
+# The `pwn` REPL
 
-The `pwn` command launches a Pry-based interactive Ruby shell with the entire `PWN` namespace pre-loaded.
+`pwn` launches a **Pry** session with the entire `PWN::` namespace already
+`require`d, a themed prompt, a persistent history file, and a set of custom
+commands.
 
-## Starting
+![REPL prototyping](diagrams/pwn-repl-prototyping.svg)
 
-```bash
-pwn
-pwn[v0.5.613]:001 >>>
-```
+## Why Pry (not IRB)?
 
-## Key Features
+- `ls PWN::Plugins::BurpSuite` — instant method listing
+- `show-source` / `show-doc` — read any plugin without leaving the shell
+- `edit -m` — patch a method live and retry
+- `wtf?` — full backtrace of the last exception
+- `history --replay 5..12` — re-run a range of lines
 
-- Direct access to every `PWN::` constant and plugin.
-- Tab completion for classes and methods.
-- Multi-line support.
-- Easy prototyping of security workflows.
-- `PWN.help` and inspection of any object.
+## Custom commands
 
-## Useful REPL Commands
+| Command | Implemented in | Purpose |
+|---|---|---|
+| `pwn-ai` | `Agent::Loop` | Enter the AI agent TUI |
+| `pwn-asm` | `Plugins::Assembly` | Multiline asm ↔ opcodes workbench |
+| `pwn-ai-memory` | `PWN::Memory` | View/edit persistent memory |
+| `pwn-ai-sessions` | `PWN::Sessions` | List/view/delete transcripts |
+| `pwn-ai-cron` | `PWN::Cron` | List/run/toggle scheduled jobs |
+| `pwn-ai-delegate` | `Agent::Swarm` | Send one request to a persona |
+| `welcome-banner` | `PWN::Banner` | Redraw a random banner |
+| `toggle-pager` | Pry | Page long output on/off |
 
-```
-pwn[v0.5.613]:001 >>> PWN::Plugins.constants.sort
-pwn[v0.5.613]:001 >>> PWN::Plugins::BurpSuite.methods(false).sort
-pwn[v0.5.613]:001 >>> PWN::SAST.constants
-pwn[v0.5.613]:001 >>> pwn-ai
-```
+## Multi-line input
 
-See:
-- [pwn-ai Agent](pwn-ai-Agent.md) — the killer feature inside the REPL
-- [General Usage](General-PWN-Usage.md)
+`pwn-ai` and `pwn-asm` use a custom `PWNMultiLineInput` reader:
 
-[[Diagrams]]
+- **SHIFT + ENTER** → insert newline
+- **ENTER** → submit
+
+> **tmux users:** requires `set -s extended-keys on` **and**
+> `set -as terminal-features '<outerTERM>*:extkeys'` — see
+> [Troubleshooting](Troubleshooting.md#shiftenter-submits-instead-of-newline).
+
+## History → Driver
+
+`~/.pwn_history` captures every line you type. When a sequence works, turn it
+into a shipped `bin/pwn_*` driver — see
+[From REPL History to Driver](Drivers.md).
+
+**Next:** [pwn-ai Agent](pwn-ai-Agent.md) · [CLI Drivers](CLI-Drivers.md)
+
+[← Home](Home.md)

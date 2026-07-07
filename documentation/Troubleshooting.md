@@ -1,38 +1,57 @@
 # Troubleshooting
 
-## Common Issues
+## SHIFT+ENTER submits instead of newline
 
-### Burp / ZAP Proxy Problems
-- Prefer `PWN::Plugins::BurpSuite`
-- 502 errors usually mean upstream proxy not listening or crashed. Check with `ps`, `ss -tlnp`, restart via plugin methods.
+`pwn-ai` / `pwn-asm` need the terminal to send a *distinct* code for
+Shift-Enter. Under **tmux** both sides must be configured:
 
-### Ruby / Gemset Issues
-- Use RVM and the gemset defined in `.ruby-version` / `.ruby-gemset`.
-- Re-run `./install.sh ruby-gem` or the vagrant provisioner after Ruby upgrades.
-
-### AI / LLM Authentication
-- Grok uses OAuth device flow (public client) — see `xai_grok_oauth_device_flow` skill.
-- Store credentials via `PWN::Config` or environment as documented.
-
-### SHIFT+ENTER Not Working in pwn-ai
-- Requires tmux `extended-keys on` on **both** inner and outer sides.
-- See recent lessons in memory for exact tmux config.
-
-### Git / Permissions
-- Run `sudo chown -R $USER:$USER /opt/pwn` if permission issues after install.
-
-## Diagnostics
-
-```bash
-pwn
-PWN.help
-# Inside REPL:
-PWN::Config
-PWN::Plugins::PWNLogger
+```tmux
+# ~/.tmux.conf
+set -s  extended-keys on
+set -as terminal-features 'xterm*:extkeys'   # replace xterm* with your $TERM
 ```
 
-Check `~/.pwn/` for logs, metrics, learning files.
+Then fully **detach and re-attach** (a `source-file` isn't enough for
+`terminal-features`). Verify with `tmux display -p '#{client_termfeatures}'`
+— it must include `extkeys`.
 
-Report bugs via GitHub issues with full reproduction + `pwn` version.
+## `502 Bad Gateway` from a proxy plugin
 
-[[Diagrams]]
+The upstream (Burp/ZAP) isn't listening. Check:
+
+```bash
+ps aux | grep -E 'burp|zap'
+ss -tlnp | grep -E ':8080|:1337'
+```
+
+Restart via `PWN::Plugins::BurpSuite.start` / `PWN::Plugins::Zaproxy.start` or
+fix the port in `~/.pwn/config.yml`.
+
+## `Psych::DisallowedClass` on cron/agents YAML
+
+Fixed in current `PWN::Cron` / `Swarm` — both loaders now pass
+`permitted_classes: [Symbol]`. If you see it, `git pull && rake install`.
+
+## Agent stops early ("max iterations")
+
+Raise `ai.agent.max_iters` in `~/.pwn/config.yml`, or split the request.
+
+## A tool is stuck at 0 % success
+
+If you've since fixed the tool, wipe the stale telemetry so it stops steering
+the agent away: `metrics_reset(confirm: true)`.
+
+## LLM auth
+
+| Engine | Fix |
+|---|---|
+| grok `oauth: true` | first run prints a `https://accounts.x.ai/…` URL — open it, approve, token is cached |
+| ollama | ensure `ollama serve` is running and `base_url:` matches |
+| others | check `key:` under `ai.<engine>` in `~/.pwn/config.yml` |
+
+## Diagrams won't rebuild
+
+`sudo apt install graphviz` (need `dot` on `$PATH`), then
+`cd documentation/diagrams && ./build.sh`.
+
+[← Home](Home.md)
