@@ -41,6 +41,19 @@ At 02:00 the system cron fires `PWN::Cron.run`, which spins up a headless
 also updates Learning/Metrics/Extrospection — so tomorrow's interactive
 session already knows what changed overnight.
 
+```ruby
+cron_create(
+  name: 'memory_revalidate',
+  schedule: '0 4 * * 0',
+  ruby: 'PWN::AI::Agent::Extrospection.revalidate_memory'
+)
+```
+
+Weekly, headless-browser fact-check of every `PWN::Memory` `:fact` containing
+a CVE / version string / URL. Refuted entries get prefixed `[UNVERIFIED
+yyyy-mm-dd]` so the injected MEMORY block stops calcifying into
+confidently-wrong priors — see [Extrospection § revalidate_memory](Extrospection.md).
+
 **See also:** [Sessions](Sessions.md) · [Extrospection](Extrospection.md) ·
 [CLI Drivers](CLI-Drivers.md)
 

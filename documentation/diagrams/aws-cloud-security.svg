@@ -9,36 +9,36 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 311.2)">
 <title>PWN_AWS</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-311.2 1021.2,-311.2 1021.2,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="246.38" y="-246" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AWS — Cloud Security (90 service wrappers)</text>
-<text xml:space="preserve" text-anchor="start" x="379.12" y="-234.55" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">enumerate → misconfig → escalate → persist</text>
+<text xml:space="preserve" text-anchor="start" x="246.38" y="-246" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AWS — Cloud Security (90 service wrappers)</text>
+<text xml:space="preserve" text-anchor="start" x="379.12" y="-234.55" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#94a3b8">enumerate → misconfig → escalate → persist</text>
 <g id="clust1" class="cluster">
 <title>cluster_enum</title>
 <path fill="#022c22" stroke="#047857" d="M185.5,-8C185.5,-8 309,-8 309,-8 315,-8 321,-14 321,-20 321,-20 321,-209 321,-209 321,-215 315,-221 309,-221 309,-221 185.5,-221 185.5,-221 179.5,-221 173.5,-215 173.5,-209 173.5,-209 173.5,-20 173.5,-20 173.5,-14 179.5,-8 185.5,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-198" font-family="sans-Serif" font-size="20.00" fill="#a7f3d0">Enumerate</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-198" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#a7f3d0">Enumerate</text>
 </g>
 <g id="clust2" class="cluster">
 <title>cluster_mis</title>
 <path fill="#422006" stroke="#a16207" d="M403,-8C403,-8 501.75,-8 501.75,-8 507.75,-8 513.75,-14 513.75,-20 513.75,-20 513.75,-209 513.75,-209 513.75,-215 507.75,-221 501.75,-221 501.75,-221 403,-221 403,-221 397,-221 391,-215 391,-209 391,-209 391,-20 391,-20 391,-14 397,-8 403,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-198" font-family="sans-Serif" font-size="20.00" fill="#fde68a">Misconfig</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-198" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fde68a">Misconfig</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_esc</title>
 <path fill="#450a0a" stroke="#b91c1c" d="M595.75,-73C595.75,-73 740.75,-73 740.75,-73 746.75,-73 752.75,-79 752.75,-85 752.75,-85 752.75,-209 752.75,-209 752.75,-215 746.75,-221 740.75,-221 740.75,-221 595.75,-221 595.75,-221 589.75,-221 583.75,-215 583.75,-209 583.75,-209 583.75,-85 583.75,-85 583.75,-79 589.75,-73 595.75,-73"/>
-<text xml:space="preserve" text-anchor="middle" x="668.25" y="-198" font-family="sans-Serif" font-size="20.00" fill="#fecaca">Escalate / Persist</text>
+<text xml:space="preserve" text-anchor="middle" x="668.25" y="-198" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fecaca">Escalate / Persist</text>
 </g>
 <!-- Creds -->
 <g id="node1" class="node">
 <title>Creds</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M83.5,-117C83.5,-117 12,-117 12,-117 6,-117 0,-111 0,-105 0,-105 0,-93 0,-93 0,-87 6,-81 12,-81 12,-81 83.5,-81 83.5,-81 89.5,-81 95.5,-87 95.5,-93 95.5,-93 95.5,-105 95.5,-105 95.5,-111 89.5,-117 83.5,-117"/>
-<text xml:space="preserve" text-anchor="middle" x="47.75" y="-101.88" font-family="sans-Serif" font-size="10.00" fill="#0f172a">🔑 &#160;AWS Creds</text>
-<text xml:space="preserve" text-anchor="middle" x="47.75" y="-89.12" font-family="sans-Serif" font-size="10.00" fill="#0f172a">STS · env · profile</text>
+<text xml:space="preserve" text-anchor="middle" x="47.75" y="-101.88" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">🔑 &#160;AWS Creds</text>
+<text xml:space="preserve" text-anchor="middle" x="47.75" y="-89.12" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">STS · env · profile</text>
 </g>
 <!-- IAM -->
 <g id="node2" class="node">
 <title>IAM</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M273.25,-52C273.25,-52 221.25,-52 221.25,-52 215.25,-52 209.25,-46 209.25,-40 209.25,-40 209.25,-28 209.25,-28 209.25,-22 215.25,-16 221.25,-16 221.25,-16 273.25,-16 273.25,-16 279.25,-16 285.25,-22 285.25,-28 285.25,-28 285.25,-40 285.25,-40 285.25,-46 279.25,-52 273.25,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">IAM · STS</text>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Organizations</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">IAM · STS</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Organizations</text>
 </g>
 <!-- Creds&#45;&gt;IAM -->
 <g id="edge1" class="edge">
@@ -50,8 +50,8 @@
 <g id="node3" class="node">
 <title>EC2</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M283.38,-117C283.38,-117 211.12,-117 211.12,-117 205.12,-117 199.12,-111 199.12,-105 199.12,-105 199.12,-93 199.12,-93 199.12,-87 205.12,-81 211.12,-81 211.12,-81 283.38,-81 283.38,-81 289.38,-81 295.38,-87 295.38,-93 295.38,-93 295.38,-105 295.38,-105 295.38,-111 289.38,-117 283.38,-117"/>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-101.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">EC2 · ECS · ECR</text>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-89.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Lambda · Lightsail</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-101.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">EC2 · ECS · ECR</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-89.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Lambda · Lightsail</text>
 </g>
 <!-- Creds&#45;&gt;EC2 -->
 <g id="edge2" class="edge">
@@ -63,8 +63,8 @@
 <g id="node4" class="node">
 <title>Net</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M301,-182C301,-182 193.5,-182 193.5,-182 187.5,-182 181.5,-176 181.5,-170 181.5,-170 181.5,-158 181.5,-158 181.5,-152 187.5,-146 193.5,-146 193.5,-146 301,-146 301,-146 307,-146 313,-152 313,-158 313,-158 313,-170 313,-170 313,-176 307,-182 301,-182"/>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-166.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Route53 · ELB</text>
-<text xml:space="preserve" text-anchor="middle" x="247.25" y="-154.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">API Gateway · CloudFront</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-166.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Route53 · ELB</text>
+<text xml:space="preserve" text-anchor="middle" x="247.25" y="-154.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">API Gateway · CloudFront</text>
 </g>
 <!-- Creds&#45;&gt;Net -->
 <g id="edge3" class="edge">
@@ -76,8 +76,8 @@
 <g id="node5" class="node">
 <title>S3</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M479.88,-52C479.88,-52 424.88,-52 424.88,-52 418.88,-52 412.88,-46 412.88,-40 412.88,-40 412.88,-28 412.88,-28 412.88,-22 418.88,-16 424.88,-16 424.88,-16 479.88,-16 479.88,-16 485.88,-16 491.88,-22 491.88,-28 491.88,-28 491.88,-40 491.88,-40 491.88,-46 485.88,-52 479.88,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">S3 · Glacier</text>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">public buckets</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">S3 · Glacier</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">public buckets</text>
 </g>
 <!-- IAM&#45;&gt;S3 -->
 <g id="edge4" class="edge">
@@ -89,8 +89,8 @@
 <g id="node6" class="node">
 <title>KMS</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M487.75,-117C487.75,-117 417,-117 417,-117 411,-117 405,-111 405,-105 405,-105 405,-93 405,-93 405,-87 411,-81 417,-81 417,-81 487.75,-81 487.75,-81 493.75,-81 499.75,-87 499.75,-93 499.75,-93 499.75,-105 499.75,-105 499.75,-111 493.75,-117 487.75,-117"/>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-101.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">KMS · CloudHSM</text>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-89.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Secrets · SSM</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-101.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">KMS · CloudHSM</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-89.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Secrets · SSM</text>
 </g>
 <!-- EC2&#45;&gt;KMS -->
 <g id="edge5" class="edge">
@@ -102,8 +102,8 @@
 <g id="node7" class="node">
 <title>Log</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M493.75,-182C493.75,-182 411,-182 411,-182 405,-182 399,-176 399,-170 399,-170 399,-158 399,-158 399,-152 405,-146 411,-146 411,-146 493.75,-146 493.75,-146 499.75,-146 505.75,-152 505.75,-158 505.75,-158 505.75,-170 505.75,-170 505.75,-176 499.75,-182 493.75,-182"/>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-166.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">CloudTrail</text>
-<text xml:space="preserve" text-anchor="middle" x="452.38" y="-154.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">CloudWatch · Config</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-166.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">CloudTrail</text>
+<text xml:space="preserve" text-anchor="middle" x="452.38" y="-154.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">CloudWatch · Config</text>
 </g>
 <!-- Net&#45;&gt;Log -->
 <g id="edge6" class="edge">
@@ -115,8 +115,8 @@
 <g id="node8" class="node">
 <title>Priv</title>
 <path fill="#fda4af" stroke="#334155" stroke-width="1.3" d="M695.25,-117C695.25,-117 640.25,-117 640.25,-117 634.25,-117 628.25,-111 628.25,-105 628.25,-105 628.25,-93 628.25,-93 628.25,-87 634.25,-81 640.25,-81 640.25,-81 695.25,-81 695.25,-81 701.25,-81 707.25,-87 707.25,-93 707.25,-93 707.25,-105 707.25,-105 707.25,-111 701.25,-117 695.25,-117"/>
-<text xml:space="preserve" text-anchor="middle" x="667.75" y="-101.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">iam:PassRole</text>
-<text xml:space="preserve" text-anchor="middle" x="667.75" y="-89.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">lambda invoke</text>
+<text xml:space="preserve" text-anchor="middle" x="667.75" y="-101.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">iam:PassRole</text>
+<text xml:space="preserve" text-anchor="middle" x="667.75" y="-89.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">lambda invoke</text>
 </g>
 <!-- S3&#45;&gt;Priv -->
 <g id="edge7" class="edge">
@@ -134,8 +134,8 @@
 <g id="node9" class="node">
 <title>Back</title>
 <path fill="#fda4af" stroke="#334155" stroke-width="1.3" d="M699.38,-182C699.38,-182 636.12,-182 636.12,-182 630.12,-182 624.12,-176 624.12,-170 624.12,-170 624.12,-158 624.12,-158 624.12,-152 630.12,-146 636.12,-146 636.12,-146 699.38,-146 699.38,-146 705.38,-146 711.38,-152 711.38,-158 711.38,-158 711.38,-170 711.38,-170 711.38,-176 705.38,-182 699.38,-182"/>
-<text xml:space="preserve" text-anchor="middle" x="667.75" y="-166.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">new access key</text>
-<text xml:space="preserve" text-anchor="middle" x="667.75" y="-154.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">EC2 userdata</text>
+<text xml:space="preserve" text-anchor="middle" x="667.75" y="-166.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">new access key</text>
+<text xml:space="preserve" text-anchor="middle" x="667.75" y="-154.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">EC2 userdata</text>
 </g>
 <!-- Log&#45;&gt;Back -->
 <g id="edge9" class="edge">
@@ -147,8 +147,8 @@
 <g id="node10" class="node">
 <title>Rep</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M966,-149C966,-149 842.75,-149 842.75,-149 836.75,-149 830.75,-143 830.75,-137 830.75,-137 830.75,-125 830.75,-125 830.75,-119 836.75,-113 842.75,-113 842.75,-113 966,-113 966,-113 972,-113 978,-119 978,-125 978,-125 978,-137 978,-137 978,-143 972,-149 966,-149"/>
-<text xml:space="preserve" text-anchor="middle" x="904.38" y="-133.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">pwn_aws_describe_resources</text>
-<text xml:space="preserve" text-anchor="middle" x="904.38" y="-121.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Reports</text>
+<text xml:space="preserve" text-anchor="middle" x="904.38" y="-133.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">pwn_aws_describe_resources</text>
+<text xml:space="preserve" text-anchor="middle" x="904.38" y="-121.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Reports</text>
 </g>
 <!-- Priv&#45;&gt;Rep -->
 <g id="edge10" class="edge">

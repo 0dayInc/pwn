@@ -29,7 +29,7 @@ PWN::AI::Agent::Registry.register(
       type: 'object',
       properties: {
         persist: { type: 'boolean', default: true, description: 'Write to disk & rotate previous baseline.' },
-        sections: { type: 'array', items: { type: 'string', enum: %w[host net toolchain repo env] }, description: 'Subset of probes to run (default all).' }
+        sections: { type: 'array', items: { type: 'string', enum: %w[host net toolchain repo env rf web] }, description: 'Subset of probes to run (default all).' }
       },
       required: []
     }
@@ -86,7 +86,7 @@ PWN::AI::Agent::Registry.register(
       properties: {
         source: { type: 'string', description: 'Where it came from (nmap, shodan, burp, cve, human, ...).' },
         data: { type: 'string', description: 'The observation itself.' },
-        category: { type: 'string', enum: %w[recon vuln intel target network env misc], default: 'misc' },
+        category: { type: 'string', enum: %w[recon vuln intel target network env rf web misc], default: 'misc' },
         target: { type: 'string', description: 'Host / IP / URL / asset the observation is about.' },
         tags: { type: 'array', items: { type: 'string' } },
         ttl: { type: 'integer', description: 'Seconds until stale (omit = forever).' }
@@ -187,7 +187,10 @@ PWN::AI::Agent::Registry.register(
                  'against toolchain drift / missing binaries, (b) Learning ' \
                  'failures against host/net/repo drift on the same day, ' \
                  '(c) recorded :intel observations against installed ' \
-                 'component versions. Returns actionable findings so the ' \
+                 'component versions, (d) :web DOM drift on watched targets ' \
+                 'against Learning failures citing that host, (e) refuted ' \
+                 'extro_verify claims against stale PWN::Memory :fact ' \
+                 'entries. Returns actionable findings so the ' \
                  'agent can distinguish "I did it wrong" from "the world ' \
                  'changed under me".',
     parameters: {
@@ -276,5 +279,87 @@ PWN::AI::Agent::Registry.register(
     prev = ai[:agent][:auto_extrospect] ? true : false
     ai[:agent][:auto_extrospect] = (args[:enabled] ? true : false) if args.key?(:enabled)
     { previous: prev, current: ai[:agent][:auto_extrospect] ? true : false }
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'extro_verify',
+  toolset: 'extrospection',
+  schema: {
+    name: 'extro_verify',
+    description: 'Browser-backed SELF FACT-CHECK. Drives ' \
+                 'PWN::Plugins::TransparentBrowser (:headless) against a ' \
+                 'canonical source for the claim class (NVD/CVE.org for ' \
+                 ':cve, rubygems/PyPI/GitHub for :version, the cited URL ' \
+                 'for :doc, DuckDuckGo HTML for :generic), renders the DOM ' \
+                 'with JS executed, and returns {claim:, kind:, verdict: ' \
+                 ':confirmed|:refuted|:unknown, confidence:, evidence:[], ' \
+                 'action_taken:}. On :refuted → Mistakes.record(tool:' \
+                 "'assumption') so KNOWN MISTAKES warns every future run; " \
+                 'on :confirmed → observe(:intel, ttl:30d); on :unknown → ' \
+                 'Learning.note_outcome(tags:[needs_human]). This is the ' \
+                 'PROACTIVE trigger that catches the model being wrong ' \
+                 'about the world before a human does — the extrospective ' \
+                 'mirror of mistakes_record.',
+    parameters: {
+      type: 'object',
+      properties: {
+        claim: { type: 'string', description: 'Factual claim to fact-check (a CVE assertion, "latest X is v1.2.3", a cited URL + quoted snippet, or free text).' },
+        kind: { type: 'string', enum: %w[cve version doc generic], description: 'Force a verifier. Omit to auto-detect from the claim.' },
+        url: { type: 'string', description: 'Explicit URL the claim cites (forces kind: :doc).' },
+        commit: { type: 'boolean', default: true, description: 'Write Mistakes/observe/Learning on the verdict.' },
+        proxy: { type: 'string', description: 'Upstream proxy for TransparentBrowser (e.g. "tor" or http://127.0.0.1:8080).' }
+      },
+      required: %w[claim]
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Extrospection) && PWN::AI::Agent::Extrospection.respond_to?(:verify) },
+  handler: lambda { |args|
+    o = { claim: args[:claim] }
+    o[:kind]   = args[:kind]   if args[:kind]
+    o[:url]    = args[:url]    if args[:url]
+    o[:commit] = args[:commit] if args.key?(:commit)
+    o[:proxy]  = args[:proxy]  if args[:proxy]
+    PWN::AI::Agent::Extrospection.verify(o)
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'extro_watch',
+  toolset: 'extrospection',
+  schema: {
+    name: 'extro_watch',
+    description: 'Passive change-detection on an external web artefact you ' \
+                 'care about (a target /api/version, a vendor changelog, a ' \
+                 'bug-bounty scope page). Renders the URL headlessly via ' \
+                 'PWN::Plugins::TransparentBrowser, hashes the RENDERED DOM ' \
+                 'text (JS-delivered changes count), captures title / TLS ' \
+                 'cert fp / screenshot, and persists it as observe(' \
+                 'category: :web). Re-running against the same URL returns ' \
+                 '{changed: true|false, prior_sha:, current:{…}}; a ' \
+                 'subsequent extro_snapshot(sections:["web"]) surfaces the ' \
+                 'delta in drift() as ~web.<host>.dom_sha exactly like ' \
+                 '~toolchain.nmap today.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL to render, hash and watch.' },
+        selector: { type: 'string', description: 'CSS selector whose innerText to hash (default full body).' },
+        ttl: { type: 'integer', description: 'Seconds until this :web observation is stale (default 604800 = 7d).' },
+        tags: { type: 'array', items: { type: 'string' } },
+        proxy: { type: 'string', description: 'Upstream proxy for TransparentBrowser (e.g. "tor").' }
+      },
+      required: %w[url]
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Extrospection) && PWN::AI::Agent::Extrospection.respond_to?(:watch) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Extrospection.watch(
+      url: args[:url],
+      selector: args[:selector],
+      ttl: args[:ttl],
+      tags: args[:tags],
+      proxy: args[:proxy]
+    )
   }
 )

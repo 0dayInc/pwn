@@ -522,7 +522,7 @@ module PWN
               if elem.is_a?(Hash)
                 # Retain common identifier keys; if none present keep full hash
                 keys_to_keep = %i[id key name value]
-                elem.keys.any? { |kk| keys_to_keep.include?(kk) } ? elem.slice(*keys_to_keep) : elem
+                elem.keys.intersect?(keys_to_keep) ? elem.slice(*keys_to_keep) : elem
               else
                 elem
               end
@@ -530,7 +530,7 @@ module PWN
           when Hash
             keys_to_keep = %i[id key name value]
             filtered_fields[k] =
-              if v.keys.any? { |kk| keys_to_keep.include?(kk) }
+              if v.keys.intersect?(keys_to_keep)
                 v.slice(*keys_to_keep)
               else
                 v

@@ -1,6 +1,6 @@
 digraph "PWN_MemorySkills" {
   graph [
-    label=<<B>Persistent Knowledge — Memory · Skills · Sessions</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">everything under ~/.pwn/ that shapes future prompts</FONT>>,
+    label=<<B>Persistent Knowledge — Memory · Skills · Learning · Mistakes · Sessions</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">everything under ~/.pwn/ that shapes future prompts</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.55, ranksep=0.95,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -17,8 +17,9 @@ digraph "PWN_MemorySkills" {
     Skc    [label="skill_create\nskill_add_reference",           fillcolor="#6ee7b7"];
     Note   [label="learning_note_outcome\nlearning_reflect",     fillcolor="#6ee7b7"];
     Dist   [label="learning_distill_skill\n(session → skill)",   fillcolor="#6ee7b7"];
+    Mrec   [label="mistakes_record\nmistakes_resolve",           fillcolor="#6ee7b7"];
   }
-  {rank=same; Rem; Skc; Note; Dist}
+  {rank=same; Rem; Skc; Note; Dist; Mrec}
 
   subgraph cluster_files {
     label="~/.pwn/"; fontcolor="#fde68a"; style=rounded;
@@ -27,8 +28,9 @@ digraph "PWN_MemorySkills" {
     Fskl [label="skills/*.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
     Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
     Fses [label="sessions/*.jsonl\ntranscripts",              shape=cylinder, fillcolor="#fcd34d"];
+    Fmis [label="mistakes.json\nsig → count · fix · regressed", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmem; Fskl; Flrn; Fses}
+  {rank=same; Fmem; Fskl; Flrn; Fses; Fmis}
 
   subgraph cluster_read {
     label="Read-Side / Injection"; fontcolor="#ddd6fe"; style=rounded;
@@ -37,24 +39,33 @@ digraph "PWN_MemorySkills" {
     Skv  [label="skill_list · view",   fillcolor="#c4b5fd"];
     Out  [label="learning_outcomes\nlearning_stats", fillcolor="#c4b5fd"];
     Sesv [label="sessions_view\nsessions_current",   fillcolor="#c4b5fd"];
+    Mlst [label="mistakes_list\ncorrection_hint",    fillcolor="#c4b5fd"];
   }
-  {rank=same; Rec; Skv; Out; Sesv}
+  {rank=same; Rec; Skv; Out; Sesv; Mlst}
 
-  Prompt [label="PromptBuilder\nMEMORY + SKILLS + LEARNING blocks", fillcolor="#7dd3fc", penwidth=2];
+  Prompt [label="PromptBuilder\nMEMORY + SKILLS + LEARNING\n+ KNOWN MISTAKES / KNOWN FIXES", fillcolor="#7dd3fc", penwidth=2];
 
   Rem  -> Fmem [color="#f59e0b"];
   Skc  -> Fskl [color="#f59e0b"];
   Note -> Flrn [color="#f59e0b"];
   Dist -> Fskl [color="#f59e0b"];
   Dist -> Fses [dir=back, style=dashed, color="#fbbf24", label="mine"];
+  Mrec -> Fmis [color="#f59e0b"];
+  Mrec -> Fmem [label="resolve→lesson", style=dashed, color="#fbbf24"];
 
   Fmem -> Rec  [color="#a78bfa"];
   Fskl -> Skv  [color="#a78bfa"];
   Flrn -> Out  [color="#a78bfa"];
   Fses -> Sesv [color="#a78bfa"];
+  Fmis -> Mlst [color="#a78bfa"];
 
   Rec  -> Prompt [color="#38bdf8"];
   Skv  -> Prompt [color="#38bdf8"];
   Out  -> Prompt [color="#38bdf8"];
   Sesv -> Prompt [color="#38bdf8"];
+  Mlst -> Prompt [label="do NOT repeat", color="#fb7185", penwidth=2];
+
+  ReVal [label="Extrospection.verify\nrevalidate_memory (cron)\nbrowser-backed GC", fillcolor="#fcd34d"];
+  ReVal -> Fmem [label="[UNVERIFIED yyyy-mm-dd]\nprefix stale :fact", color="#fb7185", style=dashed, penwidth=2];
+  Fmem  -> ReVal [label=":fact w/ CVE|ver|URL", style=dashed, color="#94a3b8", constraint=false];
 }

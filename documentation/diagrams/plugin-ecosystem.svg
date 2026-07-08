@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 628.45)">
 <title>PWN_Plugins</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-628.45 580.2,-628.45 580.2,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="73.5" y="-563.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::Plugins — 66 Modules by Category</text>
+<text xml:space="preserve" text-anchor="start" x="73.5" y="-563.25" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::Plugins — 66 Modules by Category</text>
 <g id="clust1" class="cluster">
 <title>cluster_cat</title>
 </g>
@@ -17,13 +17,13 @@
 <g id="node1" class="node">
 <title>Root</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="2" d="M88,-295C88,-295 12,-295 12,-295 6,-295 0,-289 0,-283 0,-283 0,-271 0,-271 0,-265 6,-259 12,-259 12,-259 88,-259 88,-259 94,-259 100,-265 100,-271 100,-271 100,-283 100,-283 100,-289 94,-295 88,-295"/>
-<text xml:space="preserve" text-anchor="middle" x="50" y="-271.57" font-family="sans-Serif" font-size="14.00" fill="#0f172a">PWN::Plugins</text>
+<text xml:space="preserve" text-anchor="middle" x="50" y="-271.57" font-family="Helvetica,sans-Serif" font-size="14.00" fill="#0f172a">PWN::Plugins</text>
 </g>
 <!-- Web -->
 <g id="node2" class="node">
 <title>Web</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M260.75,-538C260.75,-538 220,-538 220,-538 214,-538 208,-532 208,-526 208,-526 208,-514 208,-514 208,-508 214,-502 220,-502 220,-502 260.75,-502 260.75,-502 266.75,-502 272.75,-508 272.75,-514 272.75,-514 272.75,-526 272.75,-526 272.75,-532 266.75,-538 260.75,-538"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-516.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Web / Proxy</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-516.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Web / Proxy</text>
 </g>
 <!-- Root&#45;&gt;Web -->
 <g id="edge1" class="edge">
@@ -35,7 +35,7 @@
 <g id="node3" class="node">
 <title>Net</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M255.38,-484C255.38,-484 225.38,-484 225.38,-484 219.38,-484 213.38,-478 213.38,-472 213.38,-472 213.38,-460 213.38,-460 213.38,-454 219.38,-448 225.38,-448 225.38,-448 255.38,-448 255.38,-448 261.38,-448 267.38,-454 267.38,-460 267.38,-460 267.38,-472 267.38,-472 267.38,-478 261.38,-484 255.38,-484"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-462.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Network</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-462.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Network</text>
 </g>
 <!-- Root&#45;&gt;Net -->
 <g id="edge2" class="edge">
@@ -47,7 +47,7 @@
 <g id="node4" class="node">
 <title>Xpl</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M260.38,-430C260.38,-430 220.38,-430 220.38,-430 214.38,-430 208.38,-424 208.38,-418 208.38,-418 208.38,-406 208.38,-406 208.38,-400 214.38,-394 220.38,-394 220.38,-394 260.38,-394 260.38,-394 266.38,-394 272.38,-400 272.38,-406 272.38,-406 272.38,-418 272.38,-418 272.38,-424 266.38,-430 260.38,-430"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-408.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Exploitation</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-408.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Exploitation</text>
 </g>
 <!-- Root&#45;&gt;Xpl -->
 <g id="edge3" class="edge">
@@ -59,7 +59,7 @@
 <g id="node5" class="node">
 <title>Osint</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M255.38,-376C255.38,-376 225.38,-376 225.38,-376 219.38,-376 213.38,-370 213.38,-364 213.38,-364 213.38,-352 213.38,-352 213.38,-346 219.38,-340 225.38,-340 225.38,-340 255.38,-340 255.38,-340 261.38,-340 267.38,-346 267.38,-352 267.38,-352 267.38,-364 267.38,-364 267.38,-370 261.38,-376 255.38,-376"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-354.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">OSINT</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-354.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">OSINT</text>
 </g>
 <!-- Root&#45;&gt;Osint -->
 <g id="edge4" class="edge">
@@ -71,7 +71,7 @@
 <g id="node6" class="node">
 <title>Data</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M259.25,-322C259.25,-322 221.5,-322 221.5,-322 215.5,-322 209.5,-316 209.5,-310 209.5,-310 209.5,-298 209.5,-298 209.5,-292 215.5,-286 221.5,-286 221.5,-286 259.25,-286 259.25,-286 265.25,-286 271.25,-292 271.25,-298 271.25,-298 271.25,-310 271.25,-310 271.25,-316 265.25,-322 259.25,-322"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-300.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Data / DAO</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-300.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Data / DAO</text>
 </g>
 <!-- Root&#45;&gt;Data -->
 <g id="edge5" class="edge">
@@ -83,7 +83,7 @@
 <g id="node7" class="node">
 <title>Auth</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M255.38,-268C255.38,-268 225.38,-268 225.38,-268 219.38,-268 213.38,-262 213.38,-256 213.38,-256 213.38,-244 213.38,-244 213.38,-238 219.38,-232 225.38,-232 225.38,-232 255.38,-232 255.38,-232 261.38,-232 267.38,-238 267.38,-244 267.38,-244 267.38,-256 267.38,-256 267.38,-262 261.38,-268 255.38,-268"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-246.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Auth</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-246.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Auth</text>
 </g>
 <!-- Root&#45;&gt;Auth -->
 <g id="edge6" class="edge">
@@ -95,7 +95,7 @@
 <g id="node8" class="node">
 <title>HW</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M256.62,-214C256.62,-214 224.12,-214 224.12,-214 218.12,-214 212.12,-208 212.12,-202 212.12,-202 212.12,-190 212.12,-190 212.12,-184 218.12,-178 224.12,-178 224.12,-178 256.62,-178 256.62,-178 262.62,-178 268.62,-184 268.62,-190 268.62,-190 268.62,-202 268.62,-202 268.62,-208 262.62,-214 256.62,-214"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-192.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Hardware</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-192.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Hardware</text>
 </g>
 <!-- Root&#45;&gt;HW -->
 <g id="edge7" class="edge">
@@ -107,7 +107,7 @@
 <g id="node9" class="node">
 <title>CI</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M260.75,-160C260.75,-160 220,-160 220,-160 214,-160 208,-154 208,-148 208,-148 208,-136 208,-136 208,-130 214,-124 220,-124 220,-124 260.75,-124 260.75,-124 266.75,-124 272.75,-130 272.75,-136 272.75,-136 272.75,-148 272.75,-148 272.75,-154 266.75,-160 260.75,-160"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-138.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">CI / DevOps</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-138.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">CI / DevOps</text>
 </g>
 <!-- Root&#45;&gt;CI -->
 <g id="edge8" class="edge">
@@ -119,7 +119,7 @@
 <g id="node10" class="node">
 <title>Comm</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M255.38,-106C255.38,-106 225.38,-106 225.38,-106 219.38,-106 213.38,-100 213.38,-94 213.38,-94 213.38,-82 213.38,-82 213.38,-76 219.38,-70 225.38,-70 225.38,-70 255.38,-70 255.38,-70 261.38,-70 267.38,-76 267.38,-82 267.38,-82 267.38,-94 267.38,-94 267.38,-100 261.38,-106 255.38,-106"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-84.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Comms</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-84.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Comms</text>
 </g>
 <!-- Root&#45;&gt;Comm -->
 <g id="edge9" class="edge">
@@ -131,7 +131,7 @@
 <g id="node11" class="node">
 <title>Util</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.2" d="M255.38,-52C255.38,-52 225.38,-52 225.38,-52 219.38,-52 213.38,-46 213.38,-40 213.38,-40 213.38,-28 213.38,-28 213.38,-22 219.38,-16 225.38,-16 225.38,-16 255.38,-16 255.38,-16 261.38,-16 267.38,-22 267.38,-28 267.38,-28 267.38,-40 267.38,-40 267.38,-46 261.38,-52 255.38,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="240.38" y="-30.7" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Utility</text>
+<text xml:space="preserve" text-anchor="middle" x="240.38" y="-30.7" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Utility</text>
 </g>
 <!-- Root&#45;&gt;Util -->
 <g id="edge10" class="edge">
@@ -143,9 +143,9 @@
 <g id="node12" class="node">
 <title>w</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M513.38,-542.12C513.38,-542.12 404.38,-542.12 404.38,-542.12 398.38,-542.12 392.38,-536.12 392.38,-530.12 392.38,-530.12 392.38,-513.88 392.38,-513.88 392.38,-507.88 398.38,-501.88 404.38,-501.88 404.38,-501.88 513.38,-501.88 513.38,-501.88 519.38,-501.88 525.38,-507.88 525.38,-513.88 525.38,-513.88 525.38,-530.12 525.38,-530.12 525.38,-536.12 519.38,-542.12 513.38,-542.12"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-529.58" font-family="sans-Serif" font-size="9.00" fill="#0f172a">BurpSuite ⭐ · Zaproxy</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-518.33" font-family="sans-Serif" font-size="9.00" fill="#0f172a">TransparentBrowser · Spider</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-507.82" font-family="sans-Serif" font-size="9.00" fill="#0f172a">OpenAPI · URIScheme</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-529.58" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">BurpSuite ⭐ · Zaproxy</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-518.33" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">TransparentBrowser · Spider</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-507.82" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">OpenAPI · URIScheme</text>
 </g>
 <!-- Web&#45;&gt;w -->
 <g id="edge11" class="edge">
@@ -157,8 +157,8 @@
 <g id="node13" class="node">
 <title>n</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M500.25,-484C500.25,-484 417.5,-484 417.5,-484 411.5,-484 405.5,-478 405.5,-472 405.5,-472 405.5,-460 405.5,-460 405.5,-454 411.5,-448 417.5,-448 417.5,-448 500.25,-448 500.25,-448 506.25,-448 512.25,-454 512.25,-460 512.25,-460 512.25,-472 512.25,-472 512.25,-478 506.25,-484 500.25,-484"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-467.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">NmapIt · Sock · Packet</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-457.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Tor · IPInfo</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-467.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">NmapIt · Sock · Packet</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-457.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Tor · IPInfo</text>
 </g>
 <!-- Net&#45;&gt;n -->
 <g id="edge12" class="edge">
@@ -170,8 +170,8 @@
 <g id="node14" class="node">
 <title>x</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M489.38,-430C489.38,-430 428.38,-430 428.38,-430 422.38,-430 416.38,-424 416.38,-418 416.38,-418 416.38,-406 416.38,-406 416.38,-400 422.38,-394 428.38,-394 428.38,-394 489.38,-394 489.38,-394 495.38,-394 501.38,-400 501.38,-406 501.38,-406 501.38,-418 501.38,-418 501.38,-424 495.38,-430 489.38,-430"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-413.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Metasploit · Fuzz</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-403.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">BeEF · Assembly</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-413.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Metasploit · Fuzz</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-403.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">BeEF · Assembly</text>
 </g>
 <!-- Xpl&#45;&gt;x -->
 <g id="edge13" class="edge">
@@ -183,8 +183,8 @@
 <g id="node15" class="node">
 <title>o</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M495,-376C495,-376 422.75,-376 422.75,-376 416.75,-376 410.75,-370 410.75,-364 410.75,-364 410.75,-352 410.75,-352 410.75,-346 416.75,-340 422.75,-340 422.75,-340 495,-340 495,-340 501,-340 507,-346 507,-352 507,-352 507,-364 507,-364 507,-370 501,-376 495,-376"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-359.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Shodan · Hunter</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-349.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Github · HackerOne</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-359.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Shodan · Hunter</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-349.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Github · HackerOne</text>
 </g>
 <!-- Osint&#45;&gt;o -->
 <g id="edge14" class="edge">
@@ -196,8 +196,8 @@
 <g id="node16" class="node">
 <title>d</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M518.62,-322C518.62,-322 399.12,-322 399.12,-322 393.12,-322 387.12,-316 387.12,-310 387.12,-310 387.12,-298 387.12,-298 387.12,-292 393.12,-286 399.12,-286 399.12,-286 518.62,-286 518.62,-286 524.62,-286 530.62,-292 530.62,-298 530.62,-298 530.62,-310 530.62,-310 530.62,-316 524.62,-322 518.62,-322"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-305.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">DAO::LDAP/Mongo/PG/SQLite</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-295.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">JSONPathify · PDFParse · OCR</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-305.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">DAO::LDAP/Mongo/PG/SQLite</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-295.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">JSONPathify · PDFParse · OCR</text>
 </g>
 <!-- Data&#45;&gt;d -->
 <g id="edge15" class="edge">
@@ -209,8 +209,8 @@
 <g id="node17" class="node">
 <title>a</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M511.5,-268C511.5,-268 406.25,-268 406.25,-268 400.25,-268 394.25,-262 394.25,-256 394.25,-256 394.25,-244 394.25,-244 394.25,-238 400.25,-232 406.25,-232 406.25,-232 511.5,-232 511.5,-232 517.5,-232 523.5,-238 523.5,-244 523.5,-244 523.5,-256 523.5,-256 523.5,-262 517.5,-268 511.5,-268"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-251.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">OAuth2 · BasicAuth</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-241.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">AuthenticationHelper · Vault</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-251.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">OAuth2 · BasicAuth</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-241.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">AuthenticationHelper · Vault</text>
 </g>
 <!-- Auth&#45;&gt;a -->
 <g id="edge16" class="edge">
@@ -222,8 +222,8 @@
 <g id="node18" class="node">
 <title>h</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M512.62,-214C512.62,-214 405.12,-214 405.12,-214 399.12,-214 393.12,-208 393.12,-202 393.12,-202 393.12,-190 393.12,-190 393.12,-184 399.12,-178 405.12,-178 405.12,-178 512.62,-178 512.62,-178 518.62,-178 524.62,-184 524.62,-190 524.62,-190 524.62,-202 524.62,-202 524.62,-208 518.62,-214 512.62,-214"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-197.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Serial · BusPirate</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-187.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">MSR206 · Android · BareSIP</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-197.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Serial · BusPirate</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-187.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">MSR206 · Android · BareSIP</text>
 </g>
 <!-- HW&#45;&gt;h -->
 <g id="edge17" class="edge">
@@ -235,8 +235,8 @@
 <g id="node19" class="node">
 <title>c</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M502.88,-160C502.88,-160 414.88,-160 414.88,-160 408.88,-160 402.88,-154 402.88,-148 402.88,-148 402.88,-136 402.88,-136 402.88,-130 408.88,-124 414.88,-124 414.88,-124 502.88,-124 502.88,-124 508.88,-124 514.88,-130 514.88,-136 514.88,-136 514.88,-148 514.88,-148 514.88,-154 508.88,-160 502.88,-160"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-143.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Jenkins · Git · vSphere</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-133.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">DefectDojo · BlackDuck</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-143.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Jenkins · Git · vSphere</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-133.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">DefectDojo · BlackDuck</text>
 </g>
 <!-- CI&#45;&gt;c -->
 <g id="edge18" class="edge">
@@ -248,8 +248,8 @@
 <g id="node20" class="node">
 <title>m</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M525,-106C525,-106 392.75,-106 392.75,-106 386.75,-106 380.75,-100 380.75,-94 380.75,-94 380.75,-82 380.75,-82 380.75,-76 386.75,-70 392.75,-70 392.75,-70 525,-70 525,-70 531,-70 537,-76 537,-82 537,-82 537,-94 537,-94 537,-100 531,-106 525,-106"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-89.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">MailAgent · SlackClient</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-79.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">IRC · RabbitMQ · TwitterAPI · Voice</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-89.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">MailAgent · SlackClient</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-79.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">IRC · RabbitMQ · TwitterAPI · Voice</text>
 </g>
 <!-- Comm&#45;&gt;m -->
 <g id="edge19" class="edge">
@@ -261,10 +261,10 @@
 <g id="node21" class="node">
 <title>u</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.2" d="M516.38,-52C516.38,-52 401.38,-52 401.38,-52 395.38,-52 389.38,-46 389.38,-40 389.38,-40 389.38,-14 389.38,-14 389.38,-8 395.38,-2 401.38,-2 401.38,-2 516.38,-2 516.38,-2 522.38,-2 528.38,-8 528.38,-14 528.38,-14 528.38,-40 528.38,-40 528.38,-46 522.38,-52 516.38,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-39.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">FileFu · ThreadPool · Log</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-28.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">Char · XXD · DetectOS</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-18.45" font-family="sans-Serif" font-size="9.00" fill="#0f172a">ScannableCodes · CreditCard</text>
-<text xml:space="preserve" text-anchor="middle" x="458.88" y="-7.95" font-family="sans-Serif" font-size="9.00" fill="#0f172a">SSN · EIN · VIN · Pony · PS</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-39.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">FileFu · ThreadPool · Log</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-28.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">Char · XXD · DetectOS</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-18.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">ScannableCodes · CreditCard</text>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-7.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#0f172a">SSN · EIN · VIN · Pony · PS</text>
 </g>
 <!-- Util&#45;&gt;u -->
 <g id="edge20" class="edge">

@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'digest'
+require 'pwn/ai/agent/mistakes'
 
 module PWN
   module AI
@@ -14,6 +16,22 @@ module PWN
       # native function-calling. State (memory, skills, sessions) is all
       # externalised — Loop.run is stateless aside from the messages array it
       # builds.
+      #
+      # NEGATIVE-FEEDBACK CLOSURE
+      # -------------------------
+      # Loop.run is where "learn from mistakes, don't repeat them" is
+      # actually enforced. On EVERY failed dispatch it:
+      #   1. Records the (tool, normalised_error) fingerprint into
+      #      PWN::AI::Agent::Mistakes with a PERSISTENT cross-session count.
+      #   2. Reads that count back and, if it OR the in-turn count reaches
+      #      REPEAT_THRESHOLD, prepends a hard "REPEATED FAILURE — change
+      #      approach" guard to the tool result the model sees next.
+      #   3. Appends Mistakes.correction_hint (seen N×, sig, KNOWN FIX: …)
+      #      so a previously-discovered fix is handed straight back to the
+      #      model on the FIRST recurrence in a new session — it does not
+      #      have to fail 3× again to re-learn what it already knew.
+      # PromptBuilder.mistakes_block re-injects the top open mistakes and
+      # top known fixes into the system prompt of every future turn.
       module Loop
         DEFAULT_MAX_ITERS = 777
 
@@ -49,16 +67,26 @@ module PWN
           DEFAULT_MAX_ITERS
         end
 
+        # Record per-tool telemetry AND, when the dispatch failed, fingerprint
+        # the failure into PWN::AI::Agent::Mistakes so recurring errors are
+        # counted, surfaced in the system prompt, and can be resolved with an
+        # explicit fix. Returns { ok:, err:, mistake: } — :mistake carries the
+        # PERSISTED entry (with cumulative :count and any prior :fix) so the
+        # caller drives cross-session repeat detection, not just per-turn.
         private_class_method def self.record_metrics(opts = {})
           name    = opts[:name]
           started = opts[:started]
           raw     = opts[:raw].to_s
-          ok      = raw.include?('"success":true')
+          ok      = raw.include?('"success":true') && !raw.match?(/"exit":[1-9]/)
           err     = raw[/"error":"([^"]{1,300})"/, 1]
+          err   ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless ok
           dur     = started ? (Time.now - started) : 0.0
           Metrics.record(name: name, success: ok, duration: dur, error: err) if defined?(Metrics)
+          m = nil
+          m = Mistakes.record(tool: name, error: err || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool) if !ok && defined?(Mistakes)
+          { ok: ok, err: err, mistake: m }
         rescue StandardError
-          nil
+          { ok: true, err: nil, mistake: nil }
         end
 
         # Stash the active session_id under PWN::Env[:ai][:session_id] so
@@ -86,6 +114,26 @@ module PWN
           )
         rescue StandardError
           nil
+        end
+
+        # Repeat circuit-breaker. `count` is max(per-turn, persistent) so a
+        # signature that already failed in a PREVIOUS session trips the guard
+        # on its FIRST recurrence here — the agent does not get to burn the
+        # iteration budget re-learning a lesson it already recorded.
+        private_class_method def self.guard_repeated_failure(opts = {})
+          count  = opts[:count].to_i
+          result = opts[:result].to_s
+          hint   = opts[:hint].to_s
+          thresh = defined?(Mistakes) ? Mistakes::REPEAT_THRESHOLD : 3
+          result = "#{result}\n#{hint}" unless hint.empty?
+          return result if count < thresh
+
+          guard = "[pwn-ai/mistakes] REPEATED FAILURE — this #{opts[:name]} failure signature has " \
+                  "occurred #{count}× (across sessions). DO NOT retry it verbatim; change " \
+                  'arguments, pick a different tool, apply the KNOWN FIX below if present, or ' \
+                  'explain why it cannot succeed. Once a working alternative is found, call ' \
+                  'mistakes_resolve(signature:, fix:) so future runs skip straight to it.'
+          "#{guard}\n#{result}"
         end
 
         # Supported Method Parameters::
@@ -172,6 +220,7 @@ module PWN
 
           Registry.discover
           expose_current_session(session_id: session_id)
+          Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
           tools    = Registry.definitions(enabled: opts[:enabled_toolsets])
           messages = [
@@ -179,6 +228,8 @@ module PWN
             { role: 'user',   content: request }
           ]
           append_session(session_id: session_id, role: 'user', content: request)
+
+          turn_fails = Hash.new(0)
 
           max_iters.times do |i|
             msg = call_engine(messages: messages, tools: tools)
@@ -196,13 +247,27 @@ module PWN
 
             calls.each do |tc|
               name    = tc.dig(:function, :name).to_s
+              args    = tc.dig(:function, :arguments)
               entry   = Registry.lookup(name: name)
               started = Time.now
               raw     = Dispatch.call(tool_call: tc)
-              record_metrics(name: name, started: started, raw: raw)
-              result = Result.condition(content: raw, entry: entry)
+              tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id)
+              result  = Result.condition(content: raw, entry: entry)
 
-              on_tool&.call(name, tc.dig(:function, :arguments), result)
+              unless tele[:ok]
+                fkey = Digest::SHA256.hexdigest("#{name}|#{args}")[0, 16]
+                turn_fails[fkey] += 1
+                persist = tele.dig(:mistake, :count).to_i
+                hint    = defined?(Mistakes) ? Mistakes.correction_hint(tool: name, error: tele[:err] || raw[0, 300]) : ''
+                result  = guard_repeated_failure(
+                  name: name,
+                  count: [turn_fails[fkey], persist].max,
+                  hint: hint,
+                  result: result
+                )
+              end
+
+              on_tool&.call(name, args, result)
 
               messages << {
                 role: 'tool',
@@ -218,6 +283,7 @@ module PWN
             end
           end
 
+          Mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer', session_id: session_id, source: :loop) if defined?(Mistakes)
           '[pwn-ai] iteration budget exhausted'
         end
 

@@ -9,46 +9,46 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 249.2)">
 <title>PWN_Pentest</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-249.2 1337.95,-249.2 1337.95,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="450.88" y="-184" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">End&#45;to&#45;End Penetration Testing with PWN</text>
-<text xml:space="preserve" text-anchor="start" x="526.25" y="-172.55" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">recon → enumerate → exploit → post&#45;ex → report</text>
+<text xml:space="preserve" text-anchor="start" x="450.88" y="-184" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">End&#45;to&#45;End Penetration Testing with PWN</text>
+<text xml:space="preserve" text-anchor="start" x="526.25" y="-172.55" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#94a3b8">recon → enumerate → exploit → post&#45;ex → report</text>
 <g id="clust1" class="cluster">
 <title>cluster_recon</title>
 <path fill="#022c22" stroke="#047857" d="M166,-8C166,-8 285.75,-8 285.75,-8 291.75,-8 297.75,-14 297.75,-20 297.75,-20 297.75,-147 297.75,-147 297.75,-153 291.75,-159 285.75,-159 285.75,-159 166,-159 166,-159 160,-159 154,-153 154,-147 154,-147 154,-20 154,-20 154,-14 160,-8 166,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="225.88" y="-136" font-family="sans-Serif" font-size="20.00" fill="#a7f3d0">1 · Recon</text>
+<text xml:space="preserve" text-anchor="middle" x="225.88" y="-136" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#a7f3d0">1 · Recon</text>
 </g>
 <g id="clust2" class="cluster">
 <title>cluster_enum</title>
 <path fill="#022c22" stroke="#047857" d="M379.75,-8C379.75,-8 497,-8 497,-8 503,-8 509,-14 509,-20 509,-20 509,-147 509,-147 509,-153 503,-159 497,-159 497,-159 379.75,-159 379.75,-159 373.75,-159 367.75,-153 367.75,-147 367.75,-147 367.75,-20 367.75,-20 367.75,-14 373.75,-8 379.75,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="438.38" y="-136" font-family="sans-Serif" font-size="20.00" fill="#a7f3d0">2 · Enumerate</text>
+<text xml:space="preserve" text-anchor="middle" x="438.38" y="-136" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#a7f3d0">2 · Enumerate</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_vuln</title>
 <path fill="#422006" stroke="#a16207" d="M591,-8C591,-8 700,-8 700,-8 706,-8 712,-14 712,-20 712,-20 712,-147 712,-147 712,-153 706,-159 700,-159 700,-159 591,-159 591,-159 585,-159 579,-153 579,-147 579,-147 579,-20 579,-20 579,-14 585,-8 591,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="645.5" y="-136" font-family="sans-Serif" font-size="20.00" fill="#fde68a">3 · Vuln Scan</text>
+<text xml:space="preserve" text-anchor="middle" x="645.5" y="-136" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fde68a">3 · Vuln Scan</text>
 </g>
 <g id="clust4" class="cluster">
 <title>cluster_xpl</title>
 <path fill="#450a0a" stroke="#b91c1c" d="M794,-8C794,-8 885.25,-8 885.25,-8 891.25,-8 897.25,-14 897.25,-20 897.25,-20 897.25,-147 897.25,-147 897.25,-153 891.25,-159 885.25,-159 885.25,-159 794,-159 794,-159 788,-159 782,-153 782,-147 782,-147 782,-20 782,-20 782,-14 788,-8 794,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="839.62" y="-136" font-family="sans-Serif" font-size="20.00" fill="#fecaca">4 · Exploit</text>
+<text xml:space="preserve" text-anchor="middle" x="839.62" y="-136" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fecaca">4 · Exploit</text>
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_post</title>
 <path fill="#2e1065" stroke="#6d28d9" d="M979.25,-8C979.25,-8 1068,-8 1068,-8 1074,-8 1080,-14 1080,-20 1080,-20 1080,-147 1080,-147 1080,-153 1074,-159 1068,-159 1068,-159 979.25,-159 979.25,-159 973.25,-159 967.25,-153 967.25,-147 967.25,-147 967.25,-20 967.25,-20 967.25,-14 973.25,-8 979.25,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="1023.62" y="-136" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">5 · Post&#45;Ex</text>
+<text xml:space="preserve" text-anchor="middle" x="1023.62" y="-136" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#ddd6fe">5 · Post&#45;Ex</text>
 </g>
 <!-- Scope -->
 <g id="node1" class="node">
 <title>Scope</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M64,-86C64,-86 12,-86 12,-86 6,-86 0,-80 0,-74 0,-74 0,-62 0,-62 0,-56 6,-50 12,-50 12,-50 64,-50 64,-50 70,-50 76,-56 76,-62 76,-62 76,-74 76,-74 76,-80 70,-86 64,-86"/>
-<text xml:space="preserve" text-anchor="middle" x="38" y="-70.88" font-family="sans-Serif" font-size="10.00" fill="#0f172a">🎯 &#160;Scope</text>
-<text xml:space="preserve" text-anchor="middle" x="38" y="-58.12" font-family="sans-Serif" font-size="10.00" fill="#0f172a">targets · rules</text>
+<text xml:space="preserve" text-anchor="middle" x="38" y="-70.88" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">🎯 &#160;Scope</text>
+<text xml:space="preserve" text-anchor="middle" x="38" y="-58.12" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">targets · rules</text>
 </g>
 <!-- Shodan -->
 <g id="node2" class="node">
 <title>Shodan</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M257.5,-52C257.5,-52 194.25,-52 194.25,-52 188.25,-52 182.25,-46 182.25,-40 182.25,-40 182.25,-28 182.25,-28 182.25,-22 188.25,-16 194.25,-16 194.25,-16 257.5,-16 257.5,-16 263.5,-16 269.5,-22 269.5,-28 269.5,-28 269.5,-40 269.5,-40 269.5,-46 263.5,-52 257.5,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="225.88" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Shodan</text>
-<text xml:space="preserve" text-anchor="middle" x="225.88" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Hunter · IPInfo</text>
+<text xml:space="preserve" text-anchor="middle" x="225.88" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Shodan</text>
+<text xml:space="preserve" text-anchor="middle" x="225.88" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Hunter · IPInfo</text>
 </g>
 <!-- Scope&#45;&gt;Shodan -->
 <g id="edge1" class="edge">
@@ -60,8 +60,8 @@
 <g id="node3" class="node">
 <title>CrtSh</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M277.75,-120C277.75,-120 174,-120 174,-120 168,-120 162,-114 162,-108 162,-108 162,-96 162,-96 162,-90 168,-84 174,-84 174,-84 277.75,-84 277.75,-84 283.75,-84 289.75,-90 289.75,-96 289.75,-96 289.75,-108 289.75,-108 289.75,-114 283.75,-120 277.75,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="225.88" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">bin/pwn_crt_sh</text>
-<text xml:space="preserve" text-anchor="middle" x="225.88" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">WWW::WaybackMachine</text>
+<text xml:space="preserve" text-anchor="middle" x="225.88" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">bin/pwn_crt_sh</text>
+<text xml:space="preserve" text-anchor="middle" x="225.88" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">WWW::WaybackMachine</text>
 </g>
 <!-- Scope&#45;&gt;CrtSh -->
 <g id="edge2" class="edge">
@@ -73,8 +73,8 @@
 <g id="node4" class="node">
 <title>Nmap</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M476.25,-52C476.25,-52 399.5,-52 399.5,-52 393.5,-52 387.5,-46 387.5,-40 387.5,-40 387.5,-28 387.5,-28 387.5,-22 393.5,-16 399.5,-16 399.5,-16 476.25,-16 476.25,-16 482.25,-16 488.25,-22 488.25,-28 488.25,-28 488.25,-40 488.25,-40 488.25,-46 482.25,-52 476.25,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="437.88" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::NmapIt</text>
-<text xml:space="preserve" text-anchor="middle" x="437.88" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">TCP/UDP discover</text>
+<text xml:space="preserve" text-anchor="middle" x="437.88" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::NmapIt</text>
+<text xml:space="preserve" text-anchor="middle" x="437.88" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">TCP/UDP discover</text>
 </g>
 <!-- Shodan&#45;&gt;Nmap -->
 <g id="edge3" class="edge">
@@ -86,8 +86,8 @@
 <g id="node5" class="node">
 <title>Spider</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M477.75,-120C477.75,-120 398,-120 398,-120 392,-120 386,-114 386,-108 386,-108 386,-96 386,-96 386,-90 392,-84 398,-84 398,-84 477.75,-84 477.75,-84 483.75,-84 489.75,-90 489.75,-96 489.75,-96 489.75,-108 489.75,-108 489.75,-114 483.75,-120 477.75,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="437.88" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Spider</text>
-<text xml:space="preserve" text-anchor="middle" x="437.88" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">TransparentBrowser</text>
+<text xml:space="preserve" text-anchor="middle" x="437.88" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Spider</text>
+<text xml:space="preserve" text-anchor="middle" x="437.88" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">TransparentBrowser</text>
 </g>
 <!-- CrtSh&#45;&gt;Spider -->
 <g id="edge4" class="edge">
@@ -99,8 +99,8 @@
 <g id="node6" class="node">
 <title>Burp</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M681.5,-120C681.5,-120 608.5,-120 608.5,-120 602.5,-120 596.5,-114 596.5,-108 596.5,-108 596.5,-96 596.5,-96 596.5,-90 602.5,-84 608.5,-84 608.5,-84 681.5,-84 681.5,-84 687.5,-84 693.5,-90 693.5,-96 693.5,-96 693.5,-108 693.5,-108 693.5,-114 687.5,-120 681.5,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="645" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::BurpSuite</text>
-<text xml:space="preserve" text-anchor="middle" x="645" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">active scan</text>
+<text xml:space="preserve" text-anchor="middle" x="645" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::BurpSuite</text>
+<text xml:space="preserve" text-anchor="middle" x="645" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">active scan</text>
 </g>
 <!-- Nmap&#45;&gt;Burp -->
 <g id="edge5" class="edge">
@@ -112,8 +112,8 @@
 <g id="node7" class="node">
 <title>Nessus</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M686,-52C686,-52 604,-52 604,-52 598,-52 592,-46 592,-40 592,-40 592,-28 592,-28 592,-22 598,-16 604,-16 604,-16 686,-16 686,-16 692,-16 698,-22 698,-28 698,-28 698,-40 698,-40 698,-46 692,-52 686,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="645" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">NessusCloud</text>
-<text xml:space="preserve" text-anchor="middle" x="645" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">OpenVAS · Nexpose</text>
+<text xml:space="preserve" text-anchor="middle" x="645" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">NessusCloud</text>
+<text xml:space="preserve" text-anchor="middle" x="645" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">OpenVAS · Nexpose</text>
 </g>
 <!-- Nmap&#45;&gt;Nessus -->
 <g id="edge6" class="edge">
@@ -131,7 +131,7 @@
 <g id="node8" class="node">
 <title>MSF</title>
 <path fill="#fda4af" stroke="#334155" stroke-width="1.3" d="M877.25,-120C877.25,-120 802,-120 802,-120 796,-120 790,-114 790,-108 790,-108 790,-96 790,-96 790,-90 796,-84 802,-84 802,-84 877.25,-84 877.25,-84 883.25,-84 889.25,-90 889.25,-96 889.25,-96 889.25,-108 889.25,-108 889.25,-114 883.25,-120 877.25,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="839.62" y="-98.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Metasploit</text>
+<text xml:space="preserve" text-anchor="middle" x="839.62" y="-98.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Metasploit</text>
 </g>
 <!-- Burp&#45;&gt;MSF -->
 <g id="edge8" class="edge">
@@ -143,8 +143,8 @@
 <g id="node9" class="node">
 <title>Fuzz</title>
 <path fill="#fda4af" stroke="#334155" stroke-width="1.3" d="M866.75,-52C866.75,-52 812.5,-52 812.5,-52 806.5,-52 800.5,-46 800.5,-40 800.5,-40 800.5,-28 800.5,-28 800.5,-22 806.5,-16 812.5,-16 812.5,-16 866.75,-16 866.75,-16 872.75,-16 878.75,-22 878.75,-28 878.75,-28 878.75,-40 878.75,-40 878.75,-46 872.75,-52 866.75,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="839.62" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Fuzz</text>
-<text xml:space="preserve" text-anchor="middle" x="839.62" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Packet · Sock</text>
+<text xml:space="preserve" text-anchor="middle" x="839.62" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Fuzz</text>
+<text xml:space="preserve" text-anchor="middle" x="839.62" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Packet · Sock</text>
 </g>
 <!-- Nessus&#45;&gt;Fuzz -->
 <g id="edge9" class="edge">
@@ -156,8 +156,8 @@
 <g id="node10" class="node">
 <title>Beef</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M1052.5,-120C1052.5,-120 993.75,-120 993.75,-120 987.75,-120 981.75,-114 981.75,-108 981.75,-108 981.75,-96 981.75,-96 981.75,-90 987.75,-84 993.75,-84 993.75,-84 1052.5,-84 1052.5,-84 1058.5,-84 1064.5,-90 1064.5,-96 1064.5,-96 1064.5,-108 1064.5,-108 1064.5,-114 1058.5,-120 1052.5,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::BeEF</text>
-<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Android · Serial</text>
+<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::BeEF</text>
+<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Android · Serial</text>
 </g>
 <!-- MSF&#45;&gt;Beef -->
 <g id="edge10" class="edge">
@@ -169,8 +169,8 @@
 <g id="node11" class="node">
 <title>Tor</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M1045,-52C1045,-52 1001.25,-52 1001.25,-52 995.25,-52 989.25,-46 989.25,-40 989.25,-40 989.25,-28 989.25,-28 989.25,-22 995.25,-16 1001.25,-16 1001.25,-16 1045,-16 1045,-16 1051,-16 1057,-22 1057,-28 1057,-28 1057,-40 1057,-40 1057,-46 1051,-52 1045,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Tor</text>
-<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">pivot / exfil</text>
+<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Tor</text>
+<text xml:space="preserve" text-anchor="middle" x="1023.12" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">pivot / exfil</text>
 </g>
 <!-- Fuzz&#45;&gt;Tor -->
 <g id="edge11" class="edge">
@@ -182,8 +182,8 @@
 <g id="node12" class="node">
 <title>Report</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M1282.75,-86C1282.75,-86 1170,-86 1170,-86 1164,-86 1158,-80 1158,-74 1158,-74 1158,-62 1158,-62 1158,-56 1164,-50 1170,-50 1170,-50 1282.75,-50 1282.75,-50 1288.75,-50 1294.75,-56 1294.75,-62 1294.75,-62 1294.75,-74 1294.75,-74 1294.75,-80 1288.75,-86 1282.75,-86"/>
-<text xml:space="preserve" text-anchor="middle" x="1226.38" y="-70.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::Reports</text>
-<text xml:space="preserve" text-anchor="middle" x="1226.38" y="-58.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">HTML · JSON · DefectDojo</text>
+<text xml:space="preserve" text-anchor="middle" x="1226.38" y="-70.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">PWN::Reports</text>
+<text xml:space="preserve" text-anchor="middle" x="1226.38" y="-58.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">HTML · JSON · DefectDojo</text>
 </g>
 <!-- Beef&#45;&gt;Report -->
 <g id="edge12" class="edge">

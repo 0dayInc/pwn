@@ -3,18 +3,21 @@
 module PWN
   module SDR
     module Decoder
-      # GSM (2G) broadcast-channel decoder.
+      # Pure-Ruby GSM (2G) BCCH activity detector.
       #
-      # GSM is 270.833 kbit/s GMSK — it CANNOT be recovered from GQRX's 48 kHz
-      # demodulated-audio UDP tap. This module therefore drives the SDR
-      # directly via `grgsm_livemon_headless` (from gr-gsm) which publishes
-      # decoded Um bursts as GSMTAP on udp/4729, then reads them back with
-      # `tshark` for structured field extraction (MCC/MNC/LAC/CI/ARFCN, paging
-      # IMSIs/TMSIs, System Information messages, etc.).
-      #
-      # Interface matches PWN::SDR::Decoder::Flex / ::RDS so the GQRX
-      # dispatcher (`decoder: :gsm`) works uniformly.
+      # GSM is 270.833 kbit/s GMSK across a 200 kHz channel — physically
+      # unrecoverable from a 48 kHz demodulated-audio tap and too fast for
+      # interpreted Ruby to demodulate from raw I/Q in real time. Rather
+      # than shell out to `grgsm_livemon_headless` + `tshark`, this module
+      # runs Base.run_detector to characterise BCCH/CCCH burst structure
+      # (577 μs slots × 8 = 4.615 ms TDMA frame) natively. `parse_line` is
+      # retained for offline GSMTAP-tshark pipe-delimited analysis.
       module GSM
+        TSHARK_FIELDS = %w[
+          frame.time gsmtap.arfcn gsmtap.chan_type gsm_a.imsi gsm_a.tmsi
+          e212.mcc e212.mnc gsm_a.lac gsm_a.bssmap.cell_ci gsm_a.dtap.msg_rr_type
+        ].freeze
+
         # Supported Method Parameters::
         # PWN::SDR::Decoder::GSM.decode(
         #   freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
@@ -22,36 +25,15 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          hz   = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          gain = (freq_obj[:rf_gain] || 40).to_s.to_f
-
-          tshark_fields = %w[
-            frame.time
-            gsmtap.arfcn
-            gsmtap.chan_type
-            gsm_a.imsi
-            gsm_a.tmsi
-            e212.mcc
-            e212.mnc
-            gsm_a.lac
-            gsm_a.bssmap.cell_ci
-            gsm_a.dtap.msg_rr_type
-          ]
-
-          direct_cmd = "sh -c 'grgsm_livemon_headless -f #{hz} -g #{gain} >/dev/null 2>&1 & " \
-                       'LMPID=$!; trap "kill $LMPID 2>/dev/null" EXIT; sleep 2; ' \
-                       'tshark -i lo -l -Y gsmtap -T fields -E separator=\| ' \
-                       "#{tshark_fields.map { |f| "-e #{f}" }.join(' ')}'"
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: 'GSM',
-            required_bins: %w[grgsm_livemon_headless tshark],
-            direct_cmd: direct_cmd,
-            line_match: /\S/,
-            parser: proc { |line| parse_line(line: line) }
+            note: '270.833 kbit/s GMSK exceeds audio-tap Nyquist; native mode reports TDMA burst duty/energy only. Feed captured GSMTAP-tshark fields to .parse_line for MCC/MNC/LAC/CI/IMSI.',
+            threshold: 5.0,
+            describe: proc { |b|
+              frames = (b[:duration_ms] / 4.615).round
+              { modulation: 'GMSK', symbol_rate: 270_833, tdma_frames: frames, classification: frames > 10 ? 'BCCH/CCCH-continuous' : 'RACH/paging-burst' }
+            }
           )
         end
 
@@ -62,31 +44,22 @@ module PWN
           line = opts[:line].to_s
           f = line.split('|', -1)
           out = {
-            protocol: 'GSM',
-            arfcn: f[1],
-            chan_type: f[2],
-            imsi: f[3],
-            tmsi: f[4],
-            mcc: f[5],
-            mnc: f[6],
-            lac: f[7],
-            cell_id: f[8],
-            rr_msg_type: f[9]
+            protocol: 'GSM', frame_time: f[0], arfcn: f[1], chan_type: f[2],
+            imsi: f[3], tmsi: f[4], mcc: f[5], mnc: f[6], lac: f[7],
+            cell_id: f[8], rr_msg_type: f[9]
           }.reject { |_, v| v.to_s.empty? }
-
           if out[:imsi].to_s.length.between?(14, 16)
             out[:imsi_mcc]  = out[:imsi][0, 3]
             out[:imsi_mnc]  = out[:imsi][3, 3]
             out[:imsi_msin] = out[:imsi][6..]
           end
-
-          summary_bits = []
-          summary_bits << "ARFCN=#{out[:arfcn]}" if out[:arfcn]
-          summary_bits << "MCC/MNC=#{out[:mcc]}/#{out[:mnc]}" if out[:mcc]
-          summary_bits << "LAC=#{out[:lac]} CI=#{out[:cell_id]}" if out[:lac]
-          summary_bits << "IMSI=#{out[:imsi]}" if out[:imsi]
-          summary_bits << "TMSI=#{out[:tmsi]}" if out[:tmsi]
-          out[:summary] = "GSM #{summary_bits.join(' ')}".strip
+          bits = []
+          bits << "ARFCN=#{out[:arfcn]}" if out[:arfcn]
+          bits << "MCC/MNC=#{out[:mcc]}/#{out[:mnc]}" if out[:mcc]
+          bits << "LAC=#{out[:lac]} CI=#{out[:cell_id]}" if out[:lac]
+          bits << "IMSI=#{out[:imsi]}" if out[:imsi]
+          bits << "TMSI=#{out[:tmsi]}" if out[:tmsi]
+          out[:summary] = "GSM #{bits.join(' ')}".strip
           out
         end
 
@@ -99,14 +72,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `grgsm_livemon_headless` (gr-gsm) and `tshark`.
-                  GSM cannot be decoded from GQRX's 48 kHz audio tap; this
-                  module drives the SDR directly and reads GSMTAP on lo:4729.
 
             #{self}.parse_line(line: 'ts|arfcn|chan|imsi|tmsi|mcc|mnc|lac|ci|rr')
 

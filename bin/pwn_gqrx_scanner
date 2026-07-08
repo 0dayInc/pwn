@@ -76,7 +76,7 @@ PWN::Driver::Parser.new do |options|
     opts[:fft_scan] = f
   end
 
-  options.on('-SRATE', '--sample-rate=RATE', '<Optional --fft-scan - Visible span/sample_rate in Hz (default 1_000_000)>') do |s|
+  options.on('--sample-rate=RATE', '<Optional --fft-scan - Visible span/sample_rate in Hz (default 1_000_000). NOTE: no short flag; -S is --strength-lock>') do |s|
     opts[:sample_rate] = s
   end
 
@@ -84,11 +84,11 @@ PWN::Driver::Parser.new do |options|
     opts[:nfft] = n
   end
 
-  options.on('-AINT', '--avg=INT', '<Optional --fft-scan - FFT averages (default 2)>') do |a|
+  options.on('--avg=INT', '<Optional --fft-scan - FFT averages (default 8). NOTE: no short flag; -A is --audio-gain>') do |a|
     opts[:avg] = a
   end
 
-  options.on('-CSEC', '--capture-secs=SEC', '<Optional --fft-scan - Capture seconds per chunk (default 0.03)>') do |c|
+  options.on('-CSEC', '--capture-secs=SEC', '<Optional --fft-scan - Capture seconds per chunk (default 0.10)>') do |c|
     opts[:capture_secs] = c
   end
 
@@ -98,6 +98,14 @@ PWN::Driver::Parser.new do |options|
 
   options.on('-ODB', '--strength-offset-db=FLOAT', '<Optional - Power offset in dB (default 0.0)>') do |o|
     opts[:strength_offset_db] = o
+  end
+
+  options.on('--min-snr-db=FLOAT', '<Optional --fft-scan - Minimum SNR (dB above per-chunk noise floor) to report a signal (default 12.0)>') do |m|
+    opts[:min_snr_db] = m
+  end
+
+  options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.30)>') do |r|
+    opts[:min_bw_ratio] = r
   end
 end.parse!
 
@@ -178,13 +186,17 @@ begin
   sample_rate = sample_rate.to_i
   nfft = opts[:nfft] || 2048
   nfft = nfft.to_i
-  avgv = opts[:avg] || 2
+  avgv = opts[:avg] || 8
   avgv = avgv.to_i
-  capture_secs = opts[:capture_secs] || 0.03
+  capture_secs = opts[:capture_secs] || 0.10
   capture_secs = capture_secs.to_f
   keep_spectrum = opts[:keep_spectrum] ? true : false
   strength_offset_db = opts[:strength_offset_db]
   strength_offset_db = strength_offset_db.to_f unless strength_offset_db.nil?
+  min_snr_db = opts[:min_snr_db]
+  min_snr_db = min_snr_db.to_f unless min_snr_db.nil?
+  min_bw_ratio = opts[:min_bw_ratio]
+  min_bw_ratio = min_bw_ratio.to_f unless min_bw_ratio.nil?
 
   if fft_scan
     puts '[*] --fft-scan requested: using fast FFT panoramic mode (#fast_scan_range)'
@@ -198,6 +210,14 @@ begin
       strength_lock: strength_lock,
       keep_spectrum: keep_spectrum,
       strength_offset_db: strength_offset_db,
+      min_snr_db: min_snr_db,
+      precision: precision,
+      min_bw_ratio: min_bw_ratio,
+      demodulator_mode: demodulator_mode,
+      bandwidth: bandwidth,
+      squelch: squelch,
+      decoder: decoder,
+      location: location,
       scan_log: scan_log
     )
     puts "FFT Scan complete: #{fast_resp[:total]} signals found."

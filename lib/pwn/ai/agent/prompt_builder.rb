@@ -31,7 +31,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{memory_block}#{skills_block}#{learning_block}#{metrics_block}#{extrospection_block}TOOL USE
+            #{memory_block}#{skills_block}#{learning_block}#{mistakes_block}#{metrics_block}#{extrospection_block}TOOL USE
               Use the provided function tools to act on the host. A reply with
               no tool_calls is treated as your FINAL answer to the user.
               Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
@@ -86,6 +86,15 @@ module PWN
 
           ctx = PWN::AI::Agent::Learning.to_context(limit: 5).to_s
           ctx.strip.empty? ? '' : "LEARNING\n#{ctx}"
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.mistakes_block
+          return '' unless defined?(PWN::AI::Agent::Mistakes)
+
+          ctx = PWN::AI::Agent::Mistakes.to_context(limit: 6).to_s
+          ctx.strip.empty? ? '' : ctx
         rescue StandardError
           ''
         end
