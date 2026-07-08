@@ -1,6 +1,6 @@
 digraph "PWN_AI_Feedback_Learning_Loop" {
   graph [
-    label=<<B>pwn-ai — Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)</FONT>>,
+    label=<<B>pwn-ai — Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)  ·  Mistakes (negative feedback)</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.0,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
@@ -13,7 +13,7 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   /* L0 ─ actors */
   User  [label="👤  Researcher", fillcolor="#7dd3fc"];
   LLM   [label="🤖  LLM Provider", fillcolor="#c4b5fd"];
-  World [label="🌍  Host · Net · Repo\nToolchain · Intel feeds", fillcolor="#fda4af"];
+  World [label="🌍  Host · Net · Repo\nToolchain · RF · Intel", fillcolor="#fda4af"];
   {rank=same; User; LLM; World}
 
   /* L1 ─ agent core */
@@ -26,20 +26,21 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   }
   {rank=same; Prompt; Dispatch; Result}
 
-  /* L2 ─ dual engines */
+  /* L2 ─ triple engines */
   subgraph cluster_intro {
     label="INTROSPECTION  (self)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
     Metrics  [label="Metrics\nper-tool success · avg ms", fillcolor="#6ee7b7"];
     Learning [label="Learning\nnote_outcome · reflect\nconsolidate · distill_skill", fillcolor="#6ee7b7"];
+    Mistakes [label="Mistakes\nrecord · resolve\nguard · correction_hint\n[REPEATING] · [REGRESSED]", fillcolor="#6ee7b7", penwidth=2];
   }
   subgraph cluster_extro {
     label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
     style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
-    Snapshot  [label="snapshot · drift\nhost/net/toolchain/repo", fillcolor="#fcd34d"];
-    Observe   [label="observe · intel\nrecon facts · CVE feed",   fillcolor="#fcd34d"];
+    Snapshot  [label="snapshot · drift\nhost/net/toolchain\nrepo/env/rf", fillcolor="#fcd34d"];
+    Observe   [label="observe · intel\nrecon facts · CVE feed",           fillcolor="#fcd34d"];
   }
-  {rank=same; Metrics; Learning; Snapshot; Observe}
+  {rank=same; Metrics; Learning; Mistakes; Snapshot; Observe}
 
   /* L3 ─ correlate */
   Correlate [label="extro_correlate()\n\"I did it wrong\"  vs  \"the world changed\"",
@@ -51,11 +52,12 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
     style="rounded,dashed"; color="#334155"; bgcolor="#1e293b";
     Fmet [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
     Flrn [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
+    Fmis [label="mistakes.json",      shape=cylinder, fillcolor="#fcd34d"];
     Fmem [label="memory.json",        shape=cylinder, fillcolor="#fcd34d"];
     Fskl [label="skills/*.md",         shape=cylinder, fillcolor="#fcd34d"];
     Fext [label="extrospection.json", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmet; Flrn; Fmem; Fskl; Fext}
+  {rank=same; Fmet; Flrn; Fmis; Fmem; Fskl; Fext}
 
   /* L0 → L1 */
   User -> Prompt   [label="task", color="#38bdf8", penwidth=2];
@@ -69,6 +71,9 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   /* L1 → L2 */
   Dispatch -> Metrics  [label="record()", color="#34d399"];
   Result   -> Learning [label="auto_reflect", color="#34d399"];
+  Dispatch -> Mistakes [label="on failure\nrecord()", color="#fb7185", penwidth=2];
+  User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",
+                        style=dashed, constraint=false];
   Dispatch -> Snapshot [label="probe", color="#f59e0b"];
   Result   -> Observe  [label="auto_extrospect", color="#f59e0b"];
   World    -> Snapshot [color="#fb7185", constraint=false];
@@ -77,6 +82,7 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   /* L2 → L3 */
   Metrics  -> Correlate [color="#34d399"];
   Learning -> Correlate [color="#34d399"];
+  Mistakes -> Correlate [color="#34d399"];
   Snapshot -> Correlate [color="#f59e0b"];
   Observe  -> Correlate [color="#f59e0b"];
 
@@ -84,6 +90,8 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   Correlate -> Fmet [style=invis];
   Metrics   -> Fmet [color="#94a3b8"];
   Learning  -> Flrn [color="#94a3b8"];
+  Mistakes  -> Fmis [color="#94a3b8"];
+  Mistakes  -> Fmem [label="resolve→lesson", color="#94a3b8"];
   Learning  -> Fmem [label="lesson", color="#94a3b8"];
   Learning  -> Fskl [label="skill",  color="#94a3b8"];
   Observe   -> Fext [color="#94a3b8"];
@@ -91,7 +99,11 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   /* feedback (dashed, non-constraining) */
   Fmem -> Prompt [label="MEMORY block",  style=dashed, color="#fbbf24", constraint=false];
   Fskl -> Prompt [label="SKILLS block",  style=dashed, color="#fbbf24", constraint=false];
+  Fmis -> Prompt [label="KNOWN MISTAKES\n+ KNOWN FIXES", style=dashed, color="#fb7185",
+                  constraint=false, penwidth=2];
   Fext -> Prompt [label="EXTRO block",   style=dashed, color="#fbbf24", constraint=false];
+  Mistakes -> Dispatch [label="correction_hint\n(inline, next iter)", style=dashed,
+                        color="#fb7185", constraint=false, penwidth=2];
   Correlate -> Prompt [label="findings → next run", style=dashed, color="#fb7185",
                        constraint=false, penwidth=2];
   Result -> User [label="answer", color="#38bdf8", constraint=false, penwidth=2];

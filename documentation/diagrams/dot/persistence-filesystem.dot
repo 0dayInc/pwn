@@ -16,14 +16,15 @@ digraph "PWN_Persistence" {
   mem  [label="memory.json\nfacts · prefs · lessons · env"];
   skl  [label="skills/*.md\nreusable procedures + refs"];
   lrn  [label="learning.jsonl\ntask outcomes"];
+  mis  [label="mistakes.json\nfailure fingerprints · fixes\n[REPEATING] · [REGRESSED]"];
   met  [label="metrics.json\nper-tool telemetry"];
-  ext  [label="extrospection.json\nhost snapshot + observations"];
+  ext  [label="extrospection.json\nhost snapshot + rf + observations"];
   ses  [label="sessions/*.jsonl\ntranscripts"];
   crn  [label="cron/jobs.yml\nscheduled jobs + logs"];
   agt  [label="agents.yml\npersona registry"];
   swm  [label="swarm/<id>/bus.jsonl\nmulti-agent chat"];
   hist [label="~/.pwn_history\nREPL history"];
 
-  Root->cfg; Root->mem; Root->skl; Root->lrn; Root->met; Root->ext;
+  Root->cfg; Root->mem; Root->skl; Root->lrn; Root->mis; Root->met; Root->ext;
   Root->ses; Root->crn; Root->agt; Root->swm; Root->hist;
 }

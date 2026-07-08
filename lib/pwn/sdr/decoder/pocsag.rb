@@ -5,7 +5,8 @@ module PWN
     module Decoder
       # POCSAG (CCIR Radiopaging Code No. 1) decoder for pager networks.
       #
-      # Pipeline: GQRX UDP audio → sox 48k→22.05k → multimon-ng POCSAG512/1200/2400.
+      # Pipeline (identical shape to PWN::SDR::Decoder::Flex):
+      #   GQRX 48 kHz s16le UDP audio → sox → 22 050 Hz → multimon-ng.
       #
       # multimon-ng emits lines of the form:
       #   POCSAG1200: Address:  123456  Function: 3  Alpha:   FIRE ALARM ZONE 4
@@ -13,8 +14,8 @@ module PWN
       #   POCSAG2400: Address:  987654  Function: 1  Skyper:  ...
       #   POCSAG1200: Address:  123456  Function: 2  Alpha:   <partial><EOT>
       #
-      # This module parses those into { protocol, baud, address, function,
-      # function_desc, type, type_desc, message } and JSON-logs each page.
+      # Each line is parsed into { protocol, baud, address/capcode, function,
+      # function_desc, type, type_desc, message } and JSON-logged.
       module POCSAG
         FUNCTION_DESC = {
           0 => 'Numeric (Tone/A)',
@@ -38,12 +39,19 @@ module PWN
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
 
+          # -e  hide empty messages
+          # -u  heuristically prune unlikely decodes (cuts BCH false-positives)
+          # -p  emit partially received messages (still useful intel)
+          # -f alpha  force Alpha framing when function bits are ambiguous —
+          #           mirrors the behaviour operators expect from Flex ALN.
+          decode_cmd = 'multimon-ng -q -t raw -e -u -p -f alpha ' \
+                       '-a POCSAG512 -a POCSAG1200 -a POCSAG2400 -'
+
           PWN::SDR::Decoder::Base.run_pipeline(
             freq_obj: freq_obj,
             protocol: 'POCSAG',
             required_bins: %w[sox multimon-ng],
-            decode_cmd: 'multimon-ng -q -t raw -e -u -p ' \
-                        '-a POCSAG512 -a POCSAG1200 -a POCSAG2400 -f auto -',
+            decode_cmd: decode_cmd,
             line_match: /^POCSAG(?:512|1200|2400):/,
             parser: proc { |line| parse_line(line: line) }
           )
@@ -54,14 +62,14 @@ module PWN
 
         public_class_method def self.parse_line(opts = {})
           line = opts[:line].to_s
-          out  = { protocol: 'POCSAG' }
+          out  = { protocol: 'POCSAG', raw_inspected: line.inspect }
 
           if (m = line.match(/^POCSAG(\d+):/))
             out[:baud] = m[1].to_i
           end
           if (m = line.match(/Address:\s*(\d+)/i))
             out[:address] = m[1].to_i
-            out[:capcode] = m[1]
+            out[:capcode] = m[1].rjust(7, '0')
           end
           if (m = line.match(/Function:\s*(\d+)/i))
             fn = m[1].to_i
@@ -70,11 +78,18 @@ module PWN
           end
           if (m = line.match(/\b(Alpha|Numeric|Skyper|Tone):\s*(.*)$/i))
             type = m[1].capitalize
-            out[:type]      = type
-            out[:type_desc] = TYPE_DESC[type] || 'Unknown'
-            out[:message]   = m[2].to_s.gsub(/<[A-Z]{2,3}>/, '').strip
+            out[:type]         = type
+            out[:type_desc]    = TYPE_DESC[type] || 'Unknown'
+            out[:type_payload] = m[2].to_s.gsub(/<[A-Z]{2,4}>/, '').strip
+            out[:message]      = out[:type_payload]
           end
-          out[:summary] = "POCSAG#{out[:baud]} RIC=#{out[:capcode]} F#{out[:function]} #{out[:type]}: #{out[:message]}"
+
+          bits = []
+          bits << "POCSAG#{out[:baud]}" if out[:baud]
+          bits << "RIC=#{out[:capcode]}" if out[:capcode]
+          bits << "F#{out[:function]}(#{out[:function_desc]})" if out[:function]
+          bits << "#{out[:type]}: #{out[:message]}" if out[:type]
+          out[:summary] = bits.join(' ')
           out
         end
 

@@ -41,7 +41,8 @@ module PWN
       module Extrospection
         EXTRO_FILE = File.join(Dir.home, '.pwn', 'extrospection.json')
         MAX_OBSERVATIONS = 500
-        PROBE_BINS = %w[nmap curl git ruby python3 gcc msfconsole sqlmap burpsuite zaproxy openssl docker].freeze
+        RF_BINS    = %w[rtl_sdr rtl_test rtl_433 hackrf_info gqrx dump1090 multimon-ng SoapySDRUtil].freeze
+        PROBE_BINS = (%w[nmap curl git ruby python3 gcc msfconsole sqlmap burpsuite zaproxy openssl docker] + RF_BINS).freeze
 
         # Supported Method Parameters::
         # store = PWN::AI::Agent::Extrospection.load
@@ -71,7 +72,7 @@ module PWN
         # Supported Method Parameters::
         # snap = PWN::AI::Agent::Extrospection.snapshot(
         #   persist: 'optional - Boolean, write snapshot to disk & rotate previous (default true)',
-        #   sections: 'optional - Array subset of [:host, :net, :toolchain, :repo, :env] (default all)'
+        #   sections: 'optional - Array subset of [:host, :net, :toolchain, :repo, :env, :rf] (default all)'
         # )
         #
         # Captures a fingerprint of the OUTSIDE world. When persist:true the
@@ -84,7 +85,7 @@ module PWN
                        true
                      end
           sections = Array(opts[:sections]).map(&:to_sym)
-          sections = %i[host net toolchain repo env] if sections.empty?
+          sections = %i[host net toolchain repo env rf] if sections.empty?
 
           snap = {}
           snap[:host]      = probe_host      if sections.include?(:host)
@@ -92,6 +93,7 @@ module PWN
           snap[:toolchain] = probe_toolchain if sections.include?(:toolchain)
           snap[:repo]      = probe_repo      if sections.include?(:repo)
           snap[:env]       = probe_env       if sections.include?(:env)
+          snap[:rf]        = probe_rf        if sections.include?(:rf)
           snap[:captured_at] = Time.now.utc.iso8601
           snap[:fingerprint] = Digest::SHA256.hexdigest(JSON.generate(snap.except(:captured_at)))[0, 16]
 
@@ -110,7 +112,7 @@ module PWN
         # obs = PWN::AI::Agent::Extrospection.observe(
         #   source: 'required - where the observation came from (nmap, shodan, burp, cve, human, ...)',
         #   data: 'required - the observation payload (String or Hash)',
-        #   category: 'optional - :recon, :vuln, :intel, :target, :network, :misc (default :misc)',
+        #   category: 'optional - :recon, :vuln, :intel, :target, :network, :env, :rf, :misc (default :misc)',
         #   target: 'optional - host/ip/url/asset the observation is about',
         #   tags: 'optional - Array of String labels',
         #   ttl: 'optional - seconds until this observation is considered stale (default nil = forever)'
@@ -288,7 +290,21 @@ module PWN
             end
           end
 
-          # 4) raw drift as low-priority findings when nothing else matched
+          # 4) :rf observations vs missing SDR hardware / binaries
+          rf = snap[:rf] || {}
+          hw_present = %i[rtl_sdr hackrf flipper gqrx_sock].any? { |k| rf_present?(val: rf[k]) }
+          observations(category: 'rf', limit: 50).each do |ob|
+            miss = RF_BINS.select { |b| pkgs[b.to_sym].to_s.empty? }
+            if !hw_present
+              findings << { kind: :rf_no_hardware, observation: ob[:data], source: ob[:source], target: ob[:target], advice: 'RF observation recorded but no SDR hardware detected in snapshot — plug in RTL-SDR/HackRF/Flipper or start gqrx (`-r`) before trusting RF results.' }
+            elsif rf[:gqrx_sock] == false && ob[:source].to_s == 'gqrx'
+              findings << { kind: :rf_gqrx_down, observation: ob[:data], target: ob[:target], advice: 'gqrx remote-control socket (127.0.0.1:7356) is closed — start gqrx with remote control enabled before re-running the scan.' }
+            elsif !miss.empty?
+              findings << { kind: :rf_toolchain_gap, missing: miss, observation: ob[:data], advice: "SDR toolchain gap: install #{miss.join(', ')} to decode/act on this RF observation." }
+            end
+          end
+
+          # 5) raw drift as low-priority findings when nothing else matched
           Array(delta[:added]).first(5).each   { |c| findings << { kind: :env_added,   detail: c } } if findings.empty?
           Array(delta[:removed]).first(5).each { |c| findings << { kind: :env_removed, detail: c } } if findings.empty?
 
@@ -346,7 +362,8 @@ module PWN
             drift_added: Array(delta[:added]).length,
             drift_removed: Array(delta[:removed]).length,
             toolchain_bins: (snap[:toolchain] || {}).count { |_, v| !v.to_s.empty? },
-            listening_ports: Array(snap.dig(:net, :listening)).length
+            listening_ports: Array(snap.dig(:net, :listening)).length,
+            rf_devices: (snap[:rf] || {}).values_at(:rtl_sdr, :hackrf, :flipper, :gqrx_sock).count { |v| rf_present?(val: v) }
           }
         end
 
@@ -478,6 +495,47 @@ module PWN
           { cwd: Dir.pwd, ruby: RUBY_VERSION }
         end
 
+        # Passive RF / SDR hardware inventory. NO transmit, NO active spectrum
+        # scan — this is the RF analogue of probe_toolchain: "what radios and
+        # SDR plumbing are attached / reachable right now?" so drift can flag
+        # "HackRF unplugged", "gqrx remote-control down", "new RTL dongle".
+        private_class_method def self.probe_rf
+          {
+            rtl_sdr: sh(cmd: 'timeout 3 rtl_test -t 2>&1 | head -5'),
+            hackrf: sh(cmd: 'timeout 3 hackrf_info 2>&1 | head -8'),
+            soapy: sh(cmd: 'timeout 3 SoapySDRUtil --find 2>&1 | head -10'),
+            gqrx_sock: tcp_open?(host: '127.0.0.1', port: 7356),
+            flipper: Dir.glob('/dev/serial/by-id/*Flipper*').any?,
+            serial_devs: Dir.glob('/dev/{ttyUSB,ttyACM}*'),
+            band_plans: rf_band_plan_keys.length
+          }
+        rescue StandardError => e
+          { error: "#{e.class}: #{e.message}" }
+        end
+
+        private_class_method def self.tcp_open?(opts = {})
+          host = opts[:host] || '127.0.0.1'
+          port = opts[:port].to_i
+          Socket.tcp(host, port, connect_timeout: 1, &:close)
+          true
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.rf_present?(opts = {})
+          v = opts[:val]
+          return false if v.nil? || v == false || v.to_s.strip.empty?
+
+          v.to_s !~ /no\s+.*devices|no\s+hackrf|not\s+found|no\s+such\s+file|command\s+not\s+found|^false$/i
+        end
+
+        private_class_method def self.rf_band_plan_keys
+          require 'pwn/sdr/frequency_allocation' unless defined?(PWN::SDR::FrequencyAllocation)
+          PWN::SDR::FrequencyAllocation.band_plans.keys.map(&:to_s).sort
+        rescue StandardError
+          []
+        end
+
         private_class_method def self.flatten(opts = {})
           hash   = opts[:hash] || {}
           prefix = opts[:prefix].to_s
@@ -598,6 +656,7 @@ module PWN
               PWN::AI::Agent::Extrospection.snapshot                          # probe host, persist, return {snapshot:, drift:}
               PWN::AI::Agent::Extrospection.drift(live: true)                 # what changed vs last snapshot
               PWN::AI::Agent::Extrospection.observe(source: 'nmap', category: :recon, target: '10.0.0.5', data: '22/tcp open ssh 9.6')
+              PWN::AI::Agent::Extrospection.observe(source: 'gqrx', category: :rf, target: '433.920MHz', data: 'peak -34.2 dBFS bw=200k')
               PWN::AI::Agent::Extrospection.observations(category: 'recon', target: '10.0.0.5')
               PWN::AI::Agent::Extrospection.intel(query: 'openssl 3.0', record: true)
               PWN::AI::Agent::Extrospection.correlate                         # introspection x extrospection findings

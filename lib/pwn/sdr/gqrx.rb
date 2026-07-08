@@ -675,24 +675,12 @@ module PWN
 
           # Start recording and decoding if decoder provided
           if decoder
-            decoder = decoder.to_s.to_sym
-            decoder_module = nil
+            # Resolve decoder module via central registry (see
+            # PWN::SDR::Decoder::REGISTRY) so new protocols only need an
+            # autoload + REGISTRY entry — no edit here.
+            decoder_module = PWN::SDR::Decoder.resolve(decoder: decoder)
 
-            # Resolve decoder module via case statement for extensibility
-            case decoder
-            when :flex
-              decoder_module = PWN::SDR::Decoder::Flex
-            when :gsm
-              decoder_module = PWN::SDR::Decoder::GSM
-            when :pocsag
-              decoder_module = PWN::SDR::Decoder::POCSAG
-            when :rds
-              decoder_module = PWN::SDR::Decoder::RDS
-            else
-              raise "ERROR: Unknown decoder key: #{decoder}. Supported: :gsm"
-            end
-
-            # Initialize and start decoder (module style: .start returns thread)
+            # Initialize and start decoder (uniform .decode(freq_obj:) API).
             freq_obj[:gqrx_sock] = gqrx_sock
             freq_obj[:udp_ip] = udp_ip
             freq_obj[:udp_port] = udp_port
@@ -1247,8 +1235,8 @@ module PWN
 
         sample_rate = (opts[:sample_rate] || 1_000_000).to_i
         nfft = (opts[:nfft] || 2048).to_i
-        avg = (opts[:avg] || 4).to_i
-        capture_secs = (opts[:capture_secs] || 0.05).to_f
+        avg = (opts[:avg] || 8).to_i
+        capture_secs = (opts[:capture_secs] || 0.10).to_f
         strength_offset_db = (opts[:strength_offset_db] || 0.0).to_f
 
         num_samples = (sample_rate * capture_secs).to_i
@@ -1370,16 +1358,29 @@ module PWN
           }
         end
 
-        # Noise floor: 12th percentile of dB
+        # Null DC / LO-leakage bin and band-edge guard bins BEFORE detection so
+        # they neither skew the noise-floor estimate nor register as phantom
+        # signals at the centre of every retune step.
+        guard = [(nfft * 0.02).to_i, 2].max
+        dc = nfft / 2
         sorted_db = db.sort
-        pct_idx = ((sorted_db.length - 1) * 0.12).floor
-        noise_floor = sorted_db[pct_idx].to_f
+        median_nf = sorted_db[sorted_db.length / 2].to_f
+        db[dc] = median_nf
+        (0...guard).each do |gi|
+          db[gi] = median_nf
+          db[nfft - 1 - gi] = median_nf
+        end
 
-        # SDRangel-style peak detection: local maxima above noise_floor+6dB with
-        # min bin separation and >= 4 dB prominence.
-        height_thr = noise_floor + 6.0
+        # Noise floor: median of dB (robust; 12th-percentile put nf+6dB ~= mean
+        # noise so ~half of noise bins already cleared the height threshold).
+        noise_floor = median_nf
+
+        # SDRangel-style peak detection: local maxima above noise_floor+10dB with
+        # min bin separation and >= 6 dB prominence. Thresholds are relative to
+        # the MEDIAN noise floor so avg>=8 yields ~0 false positives on pure noise.
+        height_thr = noise_floor + 10.0
         min_dist = [3, (6000.0 / res_hz).to_i].max
-        prom_thr = 4.0
+        prom_thr = 6.0
 
         candidates = []
         (1...(nfft - 1)).each do |i|
@@ -1435,19 +1436,7 @@ module PWN
           }
         end
 
-        # Fallback: simple threshold if prominence-based detection found nothing
-        if signals.empty?
-          bins_out.each do |b|
-            next unless b[:power_db] > (noise_floor + 7.0)
-
-            signals << b.merge(
-              hz: b[:freq_hz],
-              noise_floor_db: noise_floor.round(2),
-              bw_hz: (res_hz * 2).to_i,
-              snr_db: (b[:power_db] - noise_floor).round(2)
-            )
-          end
-        end
+        # NOTE: no fallback. A quiet chunk correctly returns signals: [].
 
         {
           center_freq_hz: center_hz,
@@ -1482,12 +1471,26 @@ module PWN
       #   avg: 'optional',
       #   capture_secs: 'optional',
       #   strength_lock: 'optional',
+      #   min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
+      #   demodulator_mode: 'optional - Demodulator mode to attribute to detections (defaults to WFM)',
+      #   bandwidth: 'optional - Passband bandwidth to attribute to detections (defaults to "200.000")',
+      #   squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
+      #   decoder: 'optional - Decoder key (e.g. :gsm) to attribute to detections',
+      #   location: 'optional - Location string for AI analysis',
       #   keep_spectrum: 'optional - if true return raw spectrum arrays too (large)'
       # )
       #
       # Uses chunk-wise retuning where chunk = sample_rate so that the *entire visible band* (waterfall width)
       # is captured via a single FFT each time rather than point-by-point hops.
       # This yields near real-time panoramic coverage. Update rate is roughly (retune + capture + fft) per chunk.
+      #
+      # Per-signal output shape is INTENTIONALLY IDENTICAL to #scan_range /
+      # #init_freq (:freq, :demodulator_mode, :bandwidth, :strength_db,
+      # :decoder, :squelch, :strength_lock, :iteration, :ai_analysis) so that
+      # #analyze_scan / #analyze_log and downstream decoders behave the same
+      # regardless of which scan mode produced the log. FFT-specific extras
+      # (:hz, :bw_hz, :snr_db, :prominence_db, :noise_floor_db, :chunk_center,
+      # :method) are appended for provenance.
       public_class_method def self.fast_scan_range(opts = {})
         gqrx_sock = opts[:gqrx_sock]
         raise 'gqrx_sock required' if gqrx_sock.nil?
@@ -1496,12 +1499,26 @@ module PWN
         raise 'ranges required as array of hashes' unless ranges.is_a?(Array) && !ranges.empty?
 
         sr = (opts[:sample_rate] || 1_000_000).to_i
-        nfft = opts[:nfft] || 2048
-        avgs = opts[:avg] || 2
-        cap = opts[:capture_secs] || 0.03
-        strength_lock = opts[:strength_lock] || -70.0
+        nfft = (opts[:nfft] || 2048).to_i
+        avgs = (opts[:avg] || 8).to_i
+        cap = (opts[:capture_secs] || 0.10).to_f
+        strength_lock = (opts[:strength_lock] || -70.0).to_f
+        min_snr_db = (opts[:min_snr_db] || 12.0).to_f
         keep_spec = opts[:keep_spectrum] ? true : false
-        scan_log = opts[:scan_log] || "/tmp/pwn_fastscan_#{Time.now.to_i}.json"
+        res_hz = sr / nfft.to_f
+        demodulator_mode = opts[:demodulator_mode] ||= :WFM
+        bandwidth = opts[:bandwidth] ||= '200.000'
+        squelch = (opts[:squelch] || (strength_lock - 3.0)).to_f
+        decoder = opts[:decoder]
+        location = opts[:location] ||= 'United States'
+        log_timestamp = Time.now.strftime('%Y-%m-%d')
+
+        range_str = ranges.map do |rr|
+          a = PWN::SDR.hz_to_s(freq: PWN::SDR.hz_to_i(freq: rr[:start_freq]))
+          b = PWN::SDR.hz_to_s(freq: PWN::SDR.hz_to_i(freq: rr[:target_freq]))
+          "#{a}-#{b}"
+        end.join('_')
+        scan_log = opts[:scan_log] ||= "/tmp/pwn_sdr_gqrx_scan_#{range_str}_#{log_timestamp}.json"
 
         ts_start = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
         detected = []
@@ -1535,60 +1552,84 @@ module PWN
             all_specs << snap if keep_spec
 
             sigs = snap[:signals] || []
-            if sigs.any?
-              # Prefer SDRangel-style identified signals (with BW / SNR / noise_floor)
-              sigs.each do |sig|
-                next if sig[:power_db] && sig[:power_db] < strength_lock
+            # Gate on SNR (scale-independent) rather than absolute power_db,
+            # because 10*log10(|FFT|^2) is uncalibrated and cannot be compared
+            # against the -70 dBFS S-meter strength_lock without a
+            # user-supplied strength_offset_db. NO fallback: a quiet chunk
+            # correctly contributes zero detections.
+            sigs.each do |sig|
+              next if sig[:snr_db] && sig[:snr_db] < min_snr_db
+              next if sig[:power_db] && sig[:power_db] < strength_lock
 
-                detected << {
-                  hz: sig[:hz] || sig[:freq_hz],
-                  freq: sig[:freq],
-                  strength: sig[:power_db],
-                  bw_hz: sig[:bw_hz],
-                  snr_db: sig[:snr_db],
-                  noise_floor_db: sig[:noise_floor_db],
-                  chunk_center: PWN::SDR.hz_to_s(freq: h),
-                  method: :fast_spectrum_sdrangel_like
-                }
-              end
-            else
-              # legacy fallback on raw spectrum bins
-              snap[:spectrum].each do |bin|
-                next if bin[:power_db] < strength_lock
-
-                detected << {
-                  hz: bin[:freq_hz],
-                  freq: bin[:freq],
-                  strength: bin[:power_db],
-                  chunk_center: PWN::SDR.hz_to_s(freq: h),
-                  method: :fast_spectrum
-                }
-              end
+              hz = sig[:hz] || sig[:freq_hz]
+              # Shape MUST match #scan_range / #init_freq freq_obj so that
+              # analyze_scan / analyze_log and downstream decoders work
+              # identically regardless of which scan mode produced the log.
+              detected << {
+                freq: sig[:freq] || PWN::SDR.hz_to_s(freq: hz),
+                demodulator_mode: demodulator_mode,
+                bandwidth: bandwidth,
+                strength_db: sig[:power_db],
+                decoder: decoder,
+                squelch: squelch,
+                strength_lock: strength_lock,
+                iteration: 1,
+                hz: hz,
+                bw_hz: sig[:bw_hz],
+                snr_db: sig[:snr_db],
+                prominence_db: sig[:prominence_db],
+                noise_floor_db: sig[:noise_floor_db],
+                chunk_center: PWN::SDR.hz_to_s(freq: h),
+                method: :fast_spectrum_sdrangel_like
+              }
             end
             h += step * dir
           end
         end
 
-        detected.uniq! { |d| d[:hz] }
+        # Cross-chunk merge: overlapping 85% chunks report the same emitter
+        # at slightly different bin centres. Collapse peaks within max(bw/2,
+        # 2*res_hz) of each other, keeping the highest-SNR representative.
         detected.sort_by! { |d| d[:hz] }
-
-        resp = {
-          signals: detected,
-          total: detected.length,
-          spectrums: keep_spec ? all_specs : nil,
-          timestamp_start: ts_start,
-          timestamp_end: Time.now.strftime('%Y-%m-%d %H:%M:%S%z'),
-          sample_rate_used: sr,
-          nfft: nfft,
-          method: :fast_scan_range
-        }
-
-        File.write(scan_log, JSON.pretty_generate(resp))
-        begin
-          log_signals(signals_detected: detected, timestamp_start: ts_start, scan_log: scan_log)
-        rescue StandardError
-          nil
+        merged = []
+        detected.each do |d|
+          prev = merged.last
+          tol = [(d[:bw_hz].to_i / 2), (res_hz * 2).ceil].max
+          if prev && (d[:hz] - prev[:hz]).abs <= tol
+            merged[-1] = d if (d[:snr_db] || -999) > (prev[:snr_db] || -999)
+          else
+            merged << d
+          end
         end
+        detected = merged
+
+        # Attach AI analysis per detection AFTER merge so we only spend
+        # inference on the deduplicated set (matches #scan_range behaviour).
+        detected.each do |freq_obj|
+          puts "\n**** Detected Signal ****"
+          ai_analysis = PWN::AI::Agent::GQRX.analyze(
+            request: freq_obj.to_json,
+            location: location
+          )
+          freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+          puts JSON.pretty_generate(freq_obj)
+          puts '-' * 86
+        rescue StandardError
+          # AI analysis is best-effort; never let it kill the scan.
+          puts JSON.pretty_generate(freq_obj)
+        end
+
+        resp = log_signals(
+          signals_detected: detected,
+          timestamp_start: ts_start,
+          scan_log: scan_log
+        )
+        resp[:spectrums] = all_specs if keep_spec
+        resp[:sample_rate_used] = sr
+        resp[:nfft] = nfft
+        resp[:method] = :fast_scan_range
+        File.write(scan_log, JSON.pretty_generate(resp))
+        File.write(scan_log, "\n", mode: 'a')
         resp
       rescue StandardError => e
         raise e
@@ -1649,8 +1690,8 @@ module PWN
               center_freq: 'optional - Center frequency (Hz) for snapshot (defaults to current tuned freq)',
               sample_rate: 'optional - Instantaneous bandwidth / sample rate in Hz (defaults to 1_000_000)',
               nfft: 'optional - FFT bin size (defaults to 2048)',
-              avg: 'optional - Number of FFT averages (defaults to 4)',
-              capture_secs: 'optional - Duration of I/Q capture in seconds (defaults to 0.05)',
+              avg: 'optional - Number of FFT averages (defaults to 8)',
+              capture_secs: 'optional - Duration of I/Q capture in seconds (defaults to 0.10)',
               strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)'
             )
 
@@ -1659,12 +1700,18 @@ module PWN
               ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
               sample_rate: 'optional - Chunk size / visible span in Hz (defaults to 1_000_000)',
               nfft: 'optional - FFT size (defaults to 2048)',
-              avg: 'optional - Number of averages (defaults to 2)',
-              capture_secs: 'optional - Seconds of capture per chunk (defaults to 0.03)',
-              strength_lock: 'optional - Minimum signal strength in dBFS to report (defaults to -70.0)',
+              avg: 'optional - Number of averages (defaults to 8)',
+              capture_secs: 'optional - Seconds of capture per chunk (defaults to 0.10)',
+              strength_lock: 'optional - Minimum signal strength in dBFS to report (defaults to -70.0; only meaningful with strength_offset_db calibration)',
+              min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
+              demodulator_mode: 'optional - Demodulator mode to attribute to detections (defaults to WFM)',
+              bandwidth: 'optional - Passband bandwidth (defaults to "200.000")',
+              squelch: 'optional - Squelch level in dBFS (defaults to strength_lock - 3.0)',
+              decoder: 'optional - Decoder key (e.g. :gsm) to attribute to each detection',
+              location: 'optional - Location string to include in AI analysis',
               keep_spectrum: 'optional - If true, include full spectrum data in result (can be large, defaults to false)',
               strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)',
-              scan_log: 'optional - Path to save fast scan results (defaults to /tmp/pwn_fastscan_<timestamp>.json)'
+              scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)'
             )
 
             #{self}.analyze_scan(

@@ -29,7 +29,7 @@ PWN::AI::Agent::Registry.register(
       type: 'object',
       properties: {
         persist: { type: 'boolean', default: true, description: 'Write to disk & rotate previous baseline.' },
-        sections: { type: 'array', items: { type: 'string', enum: %w[host net toolchain repo env] }, description: 'Subset of probes to run (default all).' }
+        sections: { type: 'array', items: { type: 'string', enum: %w[host net toolchain repo env rf] }, description: 'Subset of probes to run (default all).' }
       },
       required: []
     }
@@ -86,7 +86,7 @@ PWN::AI::Agent::Registry.register(
       properties: {
         source: { type: 'string', description: 'Where it came from (nmap, shodan, burp, cve, human, ...).' },
         data: { type: 'string', description: 'The observation itself.' },
-        category: { type: 'string', enum: %w[recon vuln intel target network env misc], default: 'misc' },
+        category: { type: 'string', enum: %w[recon vuln intel target network env rf misc], default: 'misc' },
         target: { type: 'string', description: 'Host / IP / URL / asset the observation is about.' },
         tags: { type: 'array', items: { type: 'string' } },
         ttl: { type: 'integer', description: 'Seconds until stale (omit = forever).' }

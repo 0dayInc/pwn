@@ -112,16 +112,19 @@ module PWN
 
         public_class_method def self.to_context(opts = {})
           limit = opts[:limit] || 5
-          rows = outcomes(limit: limit)
-          return '' if rows.empty?
+          rows  = outcomes(limit: limit)
+          fails = outcomes(limit: 200, success: false).first(limit)
+          return '' if rows.empty? && fails.empty?
 
-          lines = rows.map do |r|
+          fmt = lambda do |r|
             flag = r[:success] ? '✓' : '✗'
-            "  #{flag} #{r[:task][0, 100]} (#{r[:timestamp]})"
+            "  #{flag} #{r[:task].to_s[0, 100]} (#{r[:timestamp]})"
           end
-          s = stats
+          s   = stats
           hdr = "RECENT OUTCOMES (success_rate=#{(s[:success_rate] * 100).round(1)}% over #{s[:total_outcomes]} attempts)"
-          "#{hdr}\n#{lines.join("\n")}\n\n"
+          out = "#{hdr}\n#{rows.map(&fmt).join("\n")}\n"
+          out += "RECENT FAILURES (learn from these — do not repeat)\n#{fails.map(&fmt).join("\n")}\n" unless fails.empty?
+          "#{out}\n"
         end
 
         # Supported Method Parameters::
@@ -204,9 +207,10 @@ module PWN
           return unless session_id
           return unless auto_reflect_enabled?
 
+          ok = infer_success(session_id: session_id, final: opts[:final])
           note_outcome(
             task: opts[:request].to_s[0, 120],
-            success: !opts[:final].to_s.strip.empty?,
+            success: ok,
             details: opts[:final].to_s[0, 300],
             session_id: session_id,
             tags: %w[auto loop]
@@ -216,6 +220,37 @@ module PWN
         rescue StandardError => e
           warn "[pwn-ai/learning] auto_reflect swallowed: #{e.class}: #{e.message}"
           nil
+        end
+
+        # Supported Method Parameters::
+        # PWN::AI::Agent::Learning.flip_last_outcome(
+        #   session_id: 'optional - only flip if the newest outcome belongs to this session',
+        #   reason: 'optional - why it is being flipped (usually the user correction text)'
+        # )
+        #
+        # Rewrites the most-recently-appended learning.jsonl entry from
+        # success:true to success:false. Called by Mistakes.check_user_correction
+        # when the user's next message rejects the previous answer, so the
+        # 100 %-success illusion is broken and the failure enters the corpus.
+
+        public_class_method def self.flip_last_outcome(opts = {})
+          return { flipped: false } unless File.exist?(LEARNING_FILE)
+
+          lines = File.readlines(LEARNING_FILE)
+          return { flipped: false } if lines.empty?
+
+          last = JSON.parse(lines.last, symbolize_names: true)
+          return { flipped: false } if opts[:session_id] && last[:session_id] && last[:session_id] != opts[:session_id]
+          return { flipped: false } unless last[:success]
+
+          last[:success]    = false
+          last[:flipped_by] = 'user_correction'
+          last[:details]    = "#{last[:details]} | CORRECTED: #{opts[:reason].to_s[0, 200]}".strip
+          lines[-1] = "#{JSON.generate(last)}\n"
+          File.write(LEARNING_FILE, lines.join)
+          { flipped: true, id: last[:id] }
+        rescue StandardError
+          { flipped: false }
         end
 
         # Supported Method Parameters::
@@ -272,6 +307,31 @@ module PWN
           PWN::Env.dig(:ai, :agent, :auto_reflect) ? true : false
         rescue StandardError
           false
+        end
+
+        FAILURE_FINAL_RX = /\[pwn-ai\] (iteration budget exhausted|engine returned no message)|\b(i (was )?unable to|i could not|i couldn'?t|cannot proceed|failed to)\b/i
+
+        # Derive a success signal stronger than "final answer non-empty":
+        # look at the tool-failure ratio inside the just-completed turn AND
+        # scan the final text for self-reported failure language. Without
+        # this, auto_reflect logs ~100 % success and the negative-feedback
+        # side of the learning loop never fires.
+        private_class_method def self.infer_success(opts = {})
+          final = opts[:final].to_s
+          return false if final.strip.empty?
+          return false if final.match?(FAILURE_FINAL_RX)
+
+          sid = opts[:session_id]
+          return true unless sid && defined?(PWN::Sessions)
+
+          entries = PWN::Sessions.load(session_id: sid).last(200)
+          tool    = entries.select { |e| e[:role].to_s == 'tool' }
+          return true if tool.empty?
+
+          bad = tool.count { |e| e[:content].to_s.include?('"success":false') || e[:content].to_s.match?(/"exit":[1-9]/) }
+          (bad.to_f / tool.length) < 0.5
+        rescue StandardError
+          !final.strip.empty?
         end
 
         private_class_method def self.skills_dir

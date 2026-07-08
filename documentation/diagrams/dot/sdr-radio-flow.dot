@@ -1,6 +1,6 @@
 digraph "PWN_SDR" {
   graph [
-    label=<<B>PWN::SDR — Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · SonMicro · FrequencyAllocation</FONT>>,
+    label=<<B>PWN::SDR — Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · SonMicro · FrequencyAllocation · Decoder::* (20 protocols)</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -15,22 +15,23 @@ digraph "PWN_SDR" {
   subgraph cluster_hw {
     label="Hardware"; fontcolor="#a7f3d0"; style=rounded;
     color="#047857"; bgcolor="#022c22";
-    SDRhw   [label="RTL-SDR / HackRF\n(via GQRX)",   fillcolor="#6ee7b7"];
-    Flipper [label="SDR::FlipperZero",               fillcolor="#6ee7b7"];
-    RFID    [label="SDR::RFIDler\nSonMicroRFID",     fillcolor="#6ee7b7"];
+    SDRhw   [label="RTL-SDR / HackRF\n(via GQRX / SoapySDR)", fillcolor="#6ee7b7"];
+    Flipper [label="SDR::FlipperZero",                        fillcolor="#6ee7b7"];
+    RFID    [label="SDR::RFIDler\nSonMicroRFID",              fillcolor="#6ee7b7"];
   }
   subgraph cluster_ctrl {
-    label="Control"; fontcolor="#fde68a"; style=rounded;
+    label="Control · Scan"; fontcolor="#fde68a"; style=rounded;
     color="#a16207"; bgcolor="#422006";
-    GQRX  [label="SDR::GQRX\nremote control · scan\nspectrum snapshot", fillcolor="#fcd34d"];
-    Freq  [label="SDR::FrequencyAllocation\nband lookup",               fillcolor="#fcd34d"];
-    Scan  [label="bin/pwn_gqrx_scanner\nfast · iterative",               fillcolor="#fcd34d"];
+    GQRX  [label="SDR::GQRX\nremote control\nspectrum snapshot\n(median floor · DC null)", fillcolor="#fcd34d"];
+    Freq  [label="SDR::FrequencyAllocation\nband lookup",                                   fillcolor="#fcd34d"];
+    Scan  [label="bin/pwn_gqrx_scanner\n--fft-scan · iterative\n--min-snr-db · --avg",       fillcolor="#fcd34d"];
   }
   subgraph cluster_dec {
-    label="Decode"; fontcolor="#ddd6fe"; style=rounded;
+    label="Decode · Record"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
-    Dec [label="SDR::Decoder::*\ndemod · protocol",  fillcolor="#c4b5fd"];
-    Obs [label="extro_observe\nrecord signal intel", fillcolor="#c4b5fd"];
+    Dec [label="SDR::Decoder::*\nADSB · APT · BT · DECT · GPS\nGSM · Iridium · LoRa · LTE\nMorse · P25 · POCSAG/FLEX\nRDS · RFID · rtl_433 · RTTY\nWiFi · ZigBee", fillcolor="#c4b5fd"];
+    Obs [label="extro_observe\ncategory: :rf\nrecord signal intel", fillcolor="#c4b5fd"];
+    Xrf [label="extro_snapshot :rf\nprobe_rf → hw inventory", fillcolor="#c4b5fd"];
   }
 
   RF -> SDRhw   [color="#fb7185"];
@@ -42,4 +43,5 @@ digraph "PWN_SDR" {
   GQRX -> Dec [color="#a78bfa"];
   Freq -> Dec [color="#a78bfa"];
   Scan -> Obs [color="#a78bfa"];
+  SDRhw -> Xrf [style=dashed, color="#fbbf24", constraint=false];
 }

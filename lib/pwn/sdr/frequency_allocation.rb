@@ -14,7 +14,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '100.000',
-            precision: 5
+            precision: 5,
+            decoder: :adsb
           },
           ads_b1090: {
             ranges: [
@@ -22,7 +23,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '100.000',
-            precision: 5
+            precision: 5,
+            decoder: :adsb
           },
           aeronautical_lf: {
             ranges: [
@@ -70,7 +72,8 @@ module PWN
             ],
             demodulator_mode: :CW,
             bandwidth: '150',
-            precision: 3
+            precision: 3,
+            decoder: :morse
           },
           amateur_60m: {
             ranges: [
@@ -142,7 +145,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '200.000',
-            precision: 6
+            precision: 6,
+            decoder: :lte
           },
           bluetooth: {
             ranges: [
@@ -150,7 +154,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '1.000.000',
-            precision: 5
+            precision: 5,
+            decoder: :bluetooth
           },
           cb: {
             ranges: [
@@ -166,7 +171,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '1.250.000',
-            precision: 6
+            precision: 6,
+            decoder: :lte
           },
           cw20: {
             ranges: [
@@ -174,7 +180,8 @@ module PWN
             ],
             demodulator_mode: :CW,
             bandwidth: '150',
-            precision: 3
+            precision: 3,
+            decoder: :morse
           },
           cw40: {
             ranges: [
@@ -182,7 +189,8 @@ module PWN
             ],
             demodulator_mode: :CW,
             bandwidth: '150',
-            precision: 3
+            precision: 3,
+            decoder: :morse
           },
           cw80: {
             ranges: [
@@ -190,7 +198,8 @@ module PWN
             ],
             demodulator_mode: :CW,
             bandwidth: '150',
-            precision: 3
+            precision: 3,
+            decoder: :morse
           },
           dect: {
             ranges: [
@@ -198,7 +207,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '100.000',
-            precision: 5
+            precision: 5,
+            decoder: :dect
           },
           fm_radio: {
             ranges: [
@@ -231,7 +241,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '171.200',
-            precision: 4
+            precision: 4,
+            decoder: :gsm
           },
           gps_l1: {
             ranges: [
@@ -239,7 +250,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '30.000.000',
-            precision: 6
+            precision: 6,
+            decoder: :gps
           },
           gps_l2: {
             ranges: [
@@ -247,7 +259,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '11.000.000',
-            precision: 6
+            precision: 6,
+            decoder: :gps
           },
           gsm: {
             ranges: [
@@ -255,7 +268,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '200.000',
-            precision: 4
+            precision: 4,
+            decoder: :gsm
           },
           high_rfid: {
             ranges: [
@@ -263,7 +277,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '400.000',
-            precision: 3
+            precision: 3,
+            decoder: :rfid
           },
           iridium: {
             ranges: [
@@ -271,7 +286,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '704.000',
-            precision: 6
+            precision: 6,
+            decoder: :iridium
           },
           ism_5g: {
             ranges: [
@@ -279,7 +295,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '150.000.000',
-            precision: 7
+            precision: 7,
+            decoder: :rtl433
           },
           ism_902: {
             ranges: [
@@ -287,7 +304,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '26.000.000',
-            precision: 3
+            precision: 3,
+            decoder: :rtl433
           },
           keyfob300: {
             ranges: [
@@ -295,7 +313,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '50.000',
-            precision: 4
+            precision: 4,
+            decoder: :rtl433
           },
           keyfob310: {
             ranges: [
@@ -303,7 +322,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '50.000',
-            precision: 4
+            precision: 4,
+            decoder: :rtl433
           },
           keyfob315: {
             ranges: [
@@ -311,7 +331,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '50.000',
-            precision: 4
+            precision: 4,
+            decoder: :rtl433
           },
           keyfob390: {
             ranges: [
@@ -319,7 +340,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '50.000',
-            precision: 4
+            precision: 4,
+            decoder: :rtl433
           },
           keyfob433: {
             ranges: [
@@ -327,7 +349,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '50.000',
-            precision: 4
+            precision: 4,
+            decoder: :rtl433
           },
           keyfob868: {
             ranges: [
@@ -335,7 +358,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '50.000',
-            precision: 4
+            precision: 4,
+            decoder: :rtl433
           },
           land_mobile_uhf: {
             ranges: [
@@ -367,7 +391,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '500.000',
-            precision: 3
+            precision: 3,
+            decoder: :lora
           },
           lora8x: {
             ranges: [
@@ -375,7 +400,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '500.000',
-            precision: 3
+            precision: 3,
+            decoder: :lora
           },
           lora9x: {
             ranges: [
@@ -383,7 +409,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '500.000',
-            precision: 3
+            precision: 3,
+            decoder: :lora
           },
           low_rfid: {
             ranges: [
@@ -391,7 +418,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '40.000',
-            precision: 1
+            precision: 1,
+            decoder: :rfid
           },
           marine_vhf: {
             ranges: [
@@ -449,7 +477,8 @@ module PWN
             ],
             demodulator_mode: :FM,
             bandwidth: '25.000',
-            precision: 4
+            precision: 4,
+            decoder: :pager
           },
           pager_flex: {
             ranges: [
@@ -487,7 +516,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '200.000',
-            precision: 6
+            precision: 6,
+            decoder: :lte
           },
           public_safety_700: {
             ranges: [
@@ -495,7 +525,8 @@ module PWN
             ],
             demodulator_mode: :FM,
             bandwidth: '25.000',
-            precision: 4
+            precision: 4,
+            decoder: :p25
           },
           rtty20: {
             ranges: [
@@ -503,7 +534,8 @@ module PWN
             ],
             demodulator_mode: :FM,
             bandwidth: '170',
-            precision: 3
+            precision: 3,
+            decoder: :rtty
           },
           rtty40: {
             ranges: [
@@ -511,7 +543,8 @@ module PWN
             ],
             demodulator_mode: :FM,
             bandwidth: '170',
-            precision: 3
+            precision: 3,
+            decoder: :rtty
           },
           rtty80: {
             ranges: [
@@ -519,7 +552,8 @@ module PWN
             ],
             demodulator_mode: :FM,
             bandwidth: '170',
-            precision: 3
+            precision: 3,
+            decoder: :rtty
           },
           shortwave1: {
             ranges: [
@@ -671,7 +705,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '400.000',
-            precision: 5
+            precision: 5,
+            decoder: :rfid
           },
           umts: {
             ranges: [
@@ -679,7 +714,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '5.000.000',
-            precision: 6
+            precision: 6,
+            decoder: :lte
           },
           weather_sat: {
             ranges: [
@@ -687,7 +723,8 @@ module PWN
             ],
             demodulator_mode: :FM,
             bandwidth: '15.000',
-            precision: 5
+            precision: 5,
+            decoder: :apt
           },
           wifi24: {
             ranges: [
@@ -695,7 +732,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '20.000.000',
-            precision: 7
+            precision: 7,
+            decoder: :wifi
           },
           wifi5: {
             ranges: [
@@ -703,7 +741,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '20.000.000',
-            precision: 7
+            precision: 7,
+            decoder: :wifi
           },
           wifi6: {
             ranges: [
@@ -711,7 +750,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '20.000.000',
-            precision: 7
+            precision: 7,
+            decoder: :wifi
           },
           zigbee: {
             ranges: [
@@ -719,7 +759,8 @@ module PWN
             ],
             demodulator_mode: :RAW,
             bandwidth: '2.000.000',
-            precision: 7
+            precision: 7,
+            decoder: :zigbee
           }
         }
       rescue StandardError => e

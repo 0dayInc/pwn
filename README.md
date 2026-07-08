@@ -51,11 +51,18 @@ Five layers, edges only ever go down:
 ![PWN Overall Architecture](documentation/diagrams/overall-pwn-architecture.svg)
 
 The AI layer closes a **self-improvement loop** on every turn — Metrics +
-Learning (introspection) joined with Snapshot + Drift + Intel (extrospection)
-via `extro_correlate`, so the agent knows whether a failure was *its* fault or
-*the world* changed:
+Learning + **Mistakes** (introspection / negative feedback) joined with
+Snapshot + Drift + Intel + RF (extrospection) via `extro_correlate`, so the
+agent knows whether a failure was *its* fault or *the world* changed —
+**and does not repeat the same mistake twice**:
 
 ![pwn-ai Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
+
+Failures are fingerprinted cross-session (`~/.pwn/mistakes.json`), tagged
+`[REPEATING]` / `[REGRESSED]`, and their **fix** is handed straight back inline
+on the next recurrence:
+
+![Mistakes Negative-Feedback Loop](documentation/diagrams/mistakes-negative-feedback.svg)
 
 And **Swarm** runs multiple personas — each a full tool-calling agent,
 optionally on a *different* LLM engine — over a shared append-only bus:
@@ -63,7 +70,7 @@ optionally on a *different* LLM engine — over a shared append-only bus:
 ![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
 Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·
-[All 26 Data-Flow Diagrams](documentation/Diagrams.md)
+[All 27 Data-Flow Diagrams](documentation/Diagrams.md)
 
 ---
 
@@ -76,8 +83,9 @@ The complete wiki lives in this repo at **[`documentation/Home.md`](documentatio
 | [What is PWN](documentation/What-is-PWN.md) | [`pwn` REPL](documentation/pwn-REPL.md) | [AI / LLM Integration](documentation/AI-Integration.md) | [Plugins (66)](documentation/Plugins.md) |
 | [Why PWN](documentation/Why-PWN.md) | [`pwn-ai` Agent](documentation/pwn-ai-Agent.md) | [Agent Tool Registry](documentation/Agent-Tool-Registry.md) | [SAST (48)](documentation/SAST.md) |
 | [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (52)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
-| [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Extrospection](documentation/Extrospection.md) | [WWW (21)](documentation/WWW.md) |
-| [General Usage](documentation/General-PWN-Usage.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [SDR / Radio](documentation/SDR.md) |
+| [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (21)](documentation/WWW.md) |
+| [General Usage](documentation/General-PWN-Usage.md) | | [Extrospection](documentation/Extrospection.md) | [SDR / Radio](documentation/SDR.md) |
+| [Configuration](documentation/Configuration.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [Hardware](documentation/Hardware.md) |
 | [Configuration](documentation/Configuration.md) | | [Sessions](documentation/Sessions.md) · [Cron](documentation/Cron.md) | [Reports](documentation/Reporting.md) |
 | [`~/.pwn/` Persistence](documentation/Persistence.md) | | | [BurpSuite](documentation/BurpSuite.md) · [NmapIt](documentation/NmapIt.md) |
 | **[All Diagrams](documentation/Diagrams.md)** | | | [Metasploit](documentation/Metasploit.md) · [Fuzzing](documentation/Fuzzing.md) |

@@ -27,11 +27,12 @@ hardware).
 | Module | Role |
 |---|---|
 | `Loop` | plan → dispatch tool_calls → observe → repeat until final answer |
-| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** |
+| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** · 52 tools |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
-| `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / EXTROSPECTION blocks |
+| `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
 | `Metrics` · `Learning` | **introspection** — how well am I doing? |
-| `Extrospection` | **extrospection** — what does the world look like? |
+| `Mistakes` | **negative feedback** — fingerprint failures, do NOT repeat, `[REPEATING]`/`[REGRESSED]`, inline `correction_hint` |
+| `Extrospection` | **extrospection** — what does the world look like? (host · net · toolchain · repo · env · **rf**) |
 | `Swarm` | multi-agent personas over a shared JSONL bus |
 
 See [Agent Tool Registry](Agent-Tool-Registry.md) for every tool the LLM can call.
@@ -53,7 +54,9 @@ See [Persistence](Persistence.md) for the byte-level layout of each file.
 
 ## The feedback loop
 
-The reason L2 exists is to close this loop on every turn:
+The reason L2 exists is to close this loop on every turn — successes
+become skills/lessons, **failures become fingerprinted mistakes with fixes**,
+and both are re-injected into the very next system prompt:
 
 ![Self-improvement loop](diagrams/pwn-ai-feedback-learning-loop.svg)
 

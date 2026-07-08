@@ -20,7 +20,7 @@
 | [Installation](Installation.md) | RVM, gem, `./install.sh`, first launch |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
 | [Configuration](Configuration.md) | `~/.pwn/config.yml` — engines, keys, agent options |
-| **[All Data-Flow Diagrams](Diagrams.md)** | **26 SVGs** in one scrollable page |
+| **[All Data-Flow Diagrams](Diagrams.md)** | **27 SVGs** in one scrollable page |
 
 ## 🚪 Entry Points
 
@@ -36,9 +36,10 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 45+ LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 52 LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection — the self-improvement loop |
-| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · correlate |
+| [Mistakes](Mistakes.md) | **Negative feedback** — fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
+| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · correlate · **rf** |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
 | [Cron](Cron.md) | Scheduled autonomous jobs |
@@ -57,7 +58,7 @@
 | [SAST (48 rules)](SAST.md) | Static analysis + test-case engine |
 | [WWW (21 drivers)](WWW.md) | Browser automations for real sites |
 | [AWS (90 services)](AWS.md) | Cloud-security enumeration |
-| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro |
+| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20 protocols)** |
 | [Blockchain](Blockchain.md) | BTC · ETH helpers |
 | [Bounty](Bounty.md) | Lifecycle / auth-replay tooling |
 | [Reports](Reporting.md) | HTML/JSON output + DefectDojo/Jira |

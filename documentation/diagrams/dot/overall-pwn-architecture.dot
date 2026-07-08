@@ -37,9 +37,9 @@ digraph "PWN_Overall_Architecture" {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Loop     [label="Loop\nplan → dispatch → observe",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n10 toolsets · 45+ tools",    fillcolor="#c4b5fd"];
+    Registry [label="Registry\n10 toolsets · 52 tools",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
-    Prompt   [label="PromptBuilder\nMEMORY · SKILLS · EXTRO",fillcolor="#c4b5fd"];
+    Prompt   [label="PromptBuilder\nMEMORY · SKILLS\nMISTAKES · EXTRO",fillcolor="#c4b5fd"];
   }
   {rank=same; Loop; Registry; Swarm; Prompt}
 
@@ -51,7 +51,7 @@ digraph "PWN_Overall_Architecture" {
     SAST    [label="SAST\n48 rules",          fillcolor="#6ee7b7"];
     WWW     [label="WWW\n21 site drivers",    fillcolor="#6ee7b7"];
     AWS     [label="AWS\n90 services",        fillcolor="#6ee7b7"];
-    SDR     [label="SDR\nGQRX · Flipper · RFID", fillcolor="#6ee7b7"];
+    SDR     [label="SDR\nGQRX · Flipper · RFID\nDecoder::* (20)", fillcolor="#6ee7b7"];
     Chain   [label="Blockchain\nBTC · ETH",   fillcolor="#6ee7b7"];
     Bounty  [label="Bounty\nlifecycle replay", fillcolor="#6ee7b7"];
     Reports [label="Reports\nHTML · JSON",    fillcolor="#6ee7b7"];
@@ -66,12 +66,13 @@ digraph "PWN_Overall_Architecture" {
     Skills   [label="skills/*.md",        shape=cylinder, fillcolor="#fcd34d"];
     Learn    [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
     Metrics  [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
-    Extro    [label="extrospection.json", shape=cylinder, fillcolor="#fcd34d"];
+    MistF    [label="mistakes.json",      shape=cylinder, fillcolor="#fcd34d"];
+    Extro    [label="extrospection.json\n+ rf snapshot", shape=cylinder, fillcolor="#fcd34d"];
     Sessions [label="sessions/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
     SwarmB   [label="swarm/*/bus.jsonl",  shape=cylinder, fillcolor="#fcd34d"];
     CronF    [label="cron/jobs.yml",      shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Memory; Skills; Learn; Metrics; Extro; Sessions; SwarmB; CronF}
+  {rank=same; Memory; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF}
 
   /* ── L0 → L1 ── */
   User -> REPL   [color="#38bdf8"];
@@ -102,6 +103,7 @@ digraph "PWN_Overall_Architecture" {
   SAST    -> Skills   [color="#f59e0b"];
   WWW     -> Learn    [color="#f59e0b"];
   AWS     -> Metrics  [color="#f59e0b"];
+  SDR     -> MistF    [style=invis];
   SDR     -> Extro    [color="#f59e0b"];
   Chain   -> Sessions [color="#f59e0b"];
   Bounty  -> SwarmB   [color="#f59e0b"];
