@@ -1472,6 +1472,8 @@ module PWN
       #   capture_secs: 'optional',
       #   strength_lock: 'optional',
       #   min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
+      #   precision: 'optional - Band-plan channel raster; detections snapped to 10**(precision-1) Hz grid (defaults to 5)',
+      #   min_bw_ratio: 'optional - Reject FFT peaks narrower than min_bw_ratio * plan bandwidth as spurs (defaults to 0.30)',
       #   demodulator_mode: 'optional - Demodulator mode to attribute to detections (defaults to WFM)',
       #   bandwidth: 'optional - Passband bandwidth to attribute to detections (defaults to "200.000")',
       #   squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
@@ -1513,6 +1515,26 @@ module PWN
         location = opts[:location] ||= 'United States'
         log_timestamp = Time.now.strftime('%Y-%m-%d')
 
+        # ---- Band-plan-aware candidate validation -------------------------
+        # `:precision` and `:bandwidth` come straight from
+        # PWN::SDR::FrequencyAllocation.band_plans. They encode two facts the
+        # raw FFT peak detector cannot know:
+        #   1. The channel *raster* (step_hz = 10**(precision-1)) that real
+        #      emitters are aligned to. Detections are snapped to this grid so
+        #      the same station seen in overlapping chunks lands on ONE hz.
+        #   2. The expected *occupied bandwidth* of a single legitimate
+        #      emitter. Any FFT peak narrower than min_bw_ratio * plan_bw_hz
+        #      is a spur / pilot / IMD product, not a channel; any two peaks
+        #      closer than ~half a plan_bw_hz are sub-components of the SAME
+        #      emitter (e.g. WFM stereo pilot @19k, RDS @57k) and are merged.
+        precision = (opts[:precision] || 5).to_i
+        precision = precision.clamp(1, 12)
+        step_hz = 10**(precision - 1)
+        plan_bw_hz = PWN::SDR.hz_to_i(freq: bandwidth)
+        plan_bw_hz = step_hz if plan_bw_hz.zero?
+        min_bw_ratio = (opts[:min_bw_ratio] || 0.30).to_f
+        min_bw_hz = [(plan_bw_hz * min_bw_ratio).to_i, res_hz.ceil].max
+
         range_str = ranges.map do |rr|
           a = PWN::SDR.hz_to_s(freq: PWN::SDR.hz_to_i(freq: rr[:start_freq]))
           b = PWN::SDR.hz_to_s(freq: PWN::SDR.hz_to_i(freq: rr[:target_freq]))
@@ -1523,6 +1545,10 @@ module PWN
         ts_start = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
         detected = []
         all_specs = [] if keep_spec
+
+        puts "[FAST-SCAN] band-plan gate: raster=#{PWN::SDR.hz_to_s(freq: step_hz)} Hz (precision #{precision}), " \
+             "plan_bw=#{PWN::SDR.hz_to_s(freq: plan_bw_hz)} Hz, min_occupied_bw>=#{PWN::SDR.hz_to_s(freq: min_bw_hz)} Hz, " \
+             "min_snr>=#{min_snr_db} dB"
 
         ranges.each do |r|
           s_hz = PWN::SDR.hz_to_i(freq: r[:start_freq])
@@ -1560,13 +1586,20 @@ module PWN
             sigs.each do |sig|
               next if sig[:snr_db] && sig[:snr_db] < min_snr_db
               next if sig[:power_db] && sig[:power_db] < strength_lock
+              # Band-plan width gate: reject spurs / pilots / IMD narrower
+              # than a plausible fraction of the expected channel bandwidth.
+              next if sig[:bw_hz] && sig[:bw_hz] < min_bw_hz
 
-              hz = sig[:hz] || sig[:freq_hz]
+              raw_hz = sig[:hz] || sig[:freq_hz]
+              # Snap to the band-plan channel raster so the same emitter seen
+              # in multiple overlapping chunks / at multiple sub-peaks lands
+              # on ONE canonical frequency before dedup.
+              hz = ((raw_hz.to_f / step_hz).round * step_hz).to_i
               # Shape MUST match #scan_range / #init_freq freq_obj so that
               # analyze_scan / analyze_log and downstream decoders work
               # identically regardless of which scan mode produced the log.
               detected << {
-                freq: sig[:freq] || PWN::SDR.hz_to_s(freq: hz),
+                freq: PWN::SDR.hz_to_s(freq: hz),
                 demodulator_mode: demodulator_mode,
                 bandwidth: bandwidth,
                 strength_db: sig[:power_db],
@@ -1575,6 +1608,7 @@ module PWN
                 strength_lock: strength_lock,
                 iteration: 1,
                 hz: hz,
+                raw_peak_hz: raw_hz,
                 bw_hz: sig[:bw_hz],
                 snr_db: sig[:snr_db],
                 prominence_db: sig[:prominence_db],
@@ -1587,14 +1621,20 @@ module PWN
           end
         end
 
-        # Cross-chunk merge: overlapping 85% chunks report the same emitter
-        # at slightly different bin centres. Collapse peaks within max(bw/2,
-        # 2*res_hz) of each other, keeping the highest-SNR representative.
+        # Cross-chunk / intra-emitter merge. A single legitimate emitter
+        # occupies ~plan_bw_hz, so ANY peaks within half that width (or one
+        # raster step, or half the *measured* width, whichever is largest) are
+        # the same channel. Keep the highest-SNR representative.
         detected.sort_by! { |d| d[:hz] }
         merged = []
         detected.each do |d|
           prev = merged.last
-          tol = [(d[:bw_hz].to_i / 2), (res_hz * 2).ceil].max
+          tol = [
+            (plan_bw_hz / 2),
+            step_hz,
+            (d[:bw_hz].to_i / 2),
+            (res_hz * 2).ceil
+          ].max
           if prev && (d[:hz] - prev[:hz]).abs <= tol
             merged[-1] = d if (d[:snr_db] || -999) > (prev[:snr_db] || -999)
           else
@@ -1627,6 +1667,8 @@ module PWN
         resp[:spectrums] = all_specs if keep_spec
         resp[:sample_rate_used] = sr
         resp[:nfft] = nfft
+        resp[:precision] = precision
+        resp[:plan_bw_hz] = plan_bw_hz
         resp[:method] = :fast_scan_range
         File.write(scan_log, JSON.pretty_generate(resp))
         File.write(scan_log, "\n", mode: 'a')
@@ -1704,6 +1746,8 @@ module PWN
               capture_secs: 'optional - Seconds of capture per chunk (defaults to 0.10)',
               strength_lock: 'optional - Minimum signal strength in dBFS to report (defaults to -70.0; only meaningful with strength_offset_db calibration)',
               min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
+              precision: 'optional - Band-plan channel raster; detections snapped to 10**(precision-1) Hz grid (defaults to 5)',
+              min_bw_ratio: 'optional - Reject FFT peaks narrower than min_bw_ratio * plan bandwidth as spurs (defaults to 0.30)',
               demodulator_mode: 'optional - Demodulator mode to attribute to detections (defaults to WFM)',
               bandwidth: 'optional - Passband bandwidth (defaults to "200.000")',
               squelch: 'optional - Squelch level in dBFS (defaults to strength_lock - 3.0)',

@@ -103,6 +103,10 @@ PWN::Driver::Parser.new do |options|
   options.on('--min-snr-db=FLOAT', '<Optional --fft-scan - Minimum SNR (dB above per-chunk noise floor) to report a signal (default 12.0)>') do |m|
     opts[:min_snr_db] = m
   end
+
+  options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.30)>') do |r|
+    opts[:min_bw_ratio] = r
+  end
 end.parse!
 
 begin
@@ -191,6 +195,8 @@ begin
   strength_offset_db = strength_offset_db.to_f unless strength_offset_db.nil?
   min_snr_db = opts[:min_snr_db]
   min_snr_db = min_snr_db.to_f unless min_snr_db.nil?
+  min_bw_ratio = opts[:min_bw_ratio]
+  min_bw_ratio = min_bw_ratio.to_f unless min_bw_ratio.nil?
 
   if fft_scan
     puts '[*] --fft-scan requested: using fast FFT panoramic mode (#fast_scan_range)'
@@ -205,6 +211,8 @@ begin
       keep_spectrum: keep_spectrum,
       strength_offset_db: strength_offset_db,
       min_snr_db: min_snr_db,
+      precision: precision,
+      min_bw_ratio: min_bw_ratio,
       demodulator_mode: demodulator_mode,
       bandwidth: bandwidth,
       squelch: squelch,
