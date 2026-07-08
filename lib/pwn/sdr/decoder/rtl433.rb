@@ -1,18 +1,20 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'shellwords'
 
 module PWN
   module SDR
     module Decoder
-      # Generic ISM/keyfob/sensor decoder backed by `rtl_433`.
+      # Pure-Ruby ISM/keyfob/sensor activity detector for the 315 / 390 /
+      # 433.92 / 868 / 915 MHz device zoo.
       #
-      # Covers the OOK/ASK/FSK device zoo on 300–315 / 390 / 433.92 / 868 /
-      # 902–928 MHz: car/garage keyfobs, TPMS, weather stations, utility
-      # meters, doorbells, alarm PIRs, etc. rtl_433 owns the SDR directly and
-      # emits one JSON object per decoded frame (`-F json`), which this module
-      # merges verbatim into the freq_obj log line.
+      # The upstream `rtl_433` binary carries ~250 device-specific protocol
+      # dissectors; re-implementing that library is out of scope. This
+      # module instead characterises OOK/ASK/FSK bursts natively (count,
+      # duration, gap, peak dBFS) — enough to fingerprint a keyfob press,
+      # a periodic weather-station beacon, or a TPMS chirp — without
+      # invoking any external binary. `parse_line` still accepts rtl_433
+      # `-F json` output for offline analysis.
       module RTL433
         # Supported Method Parameters::
         # PWN::SDR::Decoder::RTL433.decode(
@@ -21,24 +23,18 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          hz       = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          gain     = freq_obj[:rf_gain]
-          sdr_args = freq_obj[:sdr_args].to_s
-
-          cmd = ['rtl_433', '-f', hz.to_s, '-F', 'json', '-M', 'level', '-M', 'protocol']
-          cmd.push('-g', gain.to_s) if gain
-          cmd.push('-d', sdr_args) unless sdr_args.empty?
-          direct_cmd = Shellwords.join(cmd)
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
-            protocol: 'RTL433',
-            required_bins: %w[rtl_433],
-            direct_cmd: direct_cmd,
-            line_match: /^\s*{/,
-            parser: proc { |line| parse_line(line: line) }
+            protocol: 'ISM-433',
+            note: 'Native OOK/FSK burst characteriser (no rtl_433 binary). Feed captured `rtl_433 -F json` lines to .parse_line for per-device decode.',
+            threshold: 10.0,
+            describe: proc { |b|
+              kind = if b[:duration_ms] < 20 then 'keyfob/OOK-short'
+                     elsif b[:duration_ms] < 120 then 'sensor/OOK-packet'
+                     else 'FSK-continuous'
+                     end
+              { modulation: 'OOK/ASK/FSK', classification: kind }
+            }
           )
         end
 
@@ -53,7 +49,6 @@ module PWN
             { unparsed: line }
           end
           out = { protocol: 'RTL433' }.merge(h)
-
           bits = []
           bits << out[:model].to_s if out[:model]
           bits << "id=#{out[:id]}" if out[:id]
@@ -75,14 +70,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `rtl_433`. Owns the SDR directly (pass
-                  freq_obj[:sdr_args] like ':1' or 'driver=hackrf' to select
-                  a device other than the one GQRX is holding).
 
             #{self}.parse_line(line: '{\"model\":\"Acurite-Tower\",\"id\":1234,...}')
 

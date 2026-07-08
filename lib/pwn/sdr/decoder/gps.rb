@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require 'shellwords'
-
 module PWN
   module SDR
     module Decoder
-      # GNSS / GPS L1-C/A (1575.42 MHz) & L2C (1227.60 MHz) decoder. BPSK/DSSS
-      # at 1.023 / 10.23 Mcps needs raw I/Q, so this drives `gnss-sdr` (or
-      # `rtl_gps`) directly and structures the PVT / NMEA lines it emits
-      # (satellite PRNs acquired, C/N0, computed position fix, UTC time).
+      # Pure-Ruby GNSS / GPS L1-C/A activity detector.
+      #
+      # 1.023 Mcps BPSK/DSSS spread across 2 MHz — acquisition/tracking of
+      # 32 PRNs in real time is not feasible in interpreted Ruby. Native
+      # mode reports L1 carrier presence / C/N₀ proxy only. `parse_line`
+      # retained for offline gnss-sdr / NMEA text analysis.
       module GPS
         # Supported Method Parameters::
         # PWN::SDR::Decoder::GPS.decode(
@@ -17,23 +17,17 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          conf = (freq_obj[:gnss_conf] || '/usr/share/gnss-sdr/conf/gnss-sdr_GPS_L1_rtlsdr_realtime.conf').to_s
-          direct_cmd = "gnss-sdr --config_file=#{Shellwords.escape(conf)}"
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: 'GPS',
-            required_bins: %w[gnss-sdr],
-            direct_cmd: direct_cmd,
-            line_match: /(PVT|Position|PRN|Tracking|\$G[PN])/,
-            parser: proc { |line| parse_line(line: line) }
+            note: 'BPSK/DSSS 1.023 Mcps below thermal noise — native mode reports composite L1 energy only.',
+            threshold: 3.0,
+            describe: proc { |_b| { modulation: 'BPSK/DSSS', chip_rate: 1_023_000 } }
           )
         end
 
         # Supported Method Parameters::
-        # PWN::SDR::Decoder::GPS.parse_line(line: 'Position at ... Lat = 32.7 [deg], Long = -97.1 ...')
+        # PWN::SDR::Decoder::GPS.parse_line(line: 'Position at ... Lat = 32.7 [deg] ...')
 
         public_class_method def self.parse_line(opts = {})
           line = opts[:line].to_s
@@ -64,13 +58,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `gnss-sdr` and an active-antenna-biased front end.
-                  Override the receiver config via freq_obj[:gnss_conf].
 
             #{self}.parse_line(line: 'Position ... Lat = 32.7 Long = -97.1 Height = 210')
 

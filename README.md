@@ -52,7 +52,7 @@ Five layers, edges only ever go down:
 
 The AI layer closes a **self-improvement loop** on every turn — Metrics +
 Learning + **Mistakes** (introspection / negative feedback) joined with
-Snapshot + Drift + Intel + RF (extrospection) via `extro_correlate`, so the
+Snapshot + Drift + Intel + RF + **Web** (extrospection) — plus browser-backed **`extro_verify`** self fact-checking — via `extro_correlate`, so the
 agent knows whether a failure was *its* fault or *the world* changed —
 **and does not repeat the same mistake twice**:
 

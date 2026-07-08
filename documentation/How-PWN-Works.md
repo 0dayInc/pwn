@@ -27,7 +27,7 @@ hardware).
 | Module | Role |
 |---|---|
 | `Loop` | plan → dispatch tool_calls → observe → repeat until final answer |
-| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** · 52 tools |
+| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** · 54 tools |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
 | `Metrics` · `Learning` | **introspection** — how well am I doing? |

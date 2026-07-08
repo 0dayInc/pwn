@@ -12,7 +12,8 @@ Every byte PWN remembers between processes lives here.
 | `learning.jsonl` | `PWN::AI::Agent::Learning` | JSON-per-line | `learning_reset` | task outcome log → success_rate |
 | **`mistakes.json`** | **`PWN::AI::Agent::Mistakes`** | **JSON `{sig → entry}`** | **`mistakes_reset`** | **failure fingerprints · cross-session count · fix · `[REPEATING]` · `[REGRESSED]`** |
 | `metrics.json` | `PWN::AI::Agent::Metrics` | JSON | `metrics_reset` | per-tool calls · success · avg_duration · last_error |
-| `extrospection.json` | `PWN::AI::Agent::Extrospection` | JSON | `extro_reset` | host/net/toolchain/repo/env/**rf** snapshot + previous baseline + observations[] |
+| `extrospection.json` | `PWN::AI::Agent::Extrospection` | JSON | `extro_reset` | host/net/toolchain/repo/env/**rf**/**web** snapshot + previous baseline + observations[] |
+| `extrospection/web/*.png` | `PWN::AI::Agent::Extrospection` | PNG | `rm -rf` | headless-browser screenshots from `probe_web` / `extro_watch` (opt-in) |
 | `sessions/*.jsonl` | `PWN::Sessions` | JSON-per-line | `sessions_delete` | full transcript per pwn-ai run |
 | `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | scheduled prompt/ruby/script jobs |
 | `cron/log/*.log` | `PWN::Cron` | text | rm | last_run output |

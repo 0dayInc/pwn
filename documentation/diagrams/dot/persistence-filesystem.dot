@@ -18,7 +18,8 @@ digraph "PWN_Persistence" {
   lrn  [label="learning.jsonl\ntask outcomes"];
   mis  [label="mistakes.json\nfailure fingerprints · fixes\n[REPEATING] · [REGRESSED]"];
   met  [label="metrics.json\nper-tool telemetry"];
-  ext  [label="extrospection.json\nhost snapshot + rf + observations"];
+  ext  [label="extrospection.json\nhost snapshot + rf + web\n+ observations"];
+  ews  [label="extrospection/web/*.png\nheadless screenshots"];
   ses  [label="sessions/*.jsonl\ntranscripts"];
   crn  [label="cron/jobs.yml\nscheduled jobs + logs"];
   agt  [label="agents.yml\npersona registry"];

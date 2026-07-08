@@ -1,15 +1,16 @@
 # frozen_string_literal: true
 
-require 'shellwords'
-
 module PWN
   module SDR
     module Decoder
-      # ADS-B (Automatic Dependent Surveillance – Broadcast) decoder for
-      # aircraft transponder squitters on 1090 MHz (Mode-S / ES) and 978 MHz
-      # (UAT). 2 Mbit/s PPM cannot be recovered from GQRX audio, so this
-      # module drives `dump1090` (or `dump978-fa`) directly against the SDR
-      # and structures each SBS-1/BaseStation CSV line it emits on stdout.
+      # Pure-Ruby ADS-B (1090 MHz Mode-S / 978 MHz UAT) activity detector.
+      #
+      # Mode-S Extended Squitter is 2 Mbit/s PPM with 8/120 μs frames on a
+      # 2 MHz-wide channel — physically unrecoverable from GQRX's 48 kHz
+      # demodulated-audio tap. Rather than shell out to `dump1090`, this
+      # module runs Base.run_detector to characterise squitter density
+      # (bursts/sec, peak dBFS, floor) natively in Ruby. `parse_line` is
+      # retained for offline SBS-1 CSV analysis.
       module ADSB
         SBS_FIELDS = %i[
           msg_type tx_type session_id aircraft_id icao24 flight_id
@@ -25,28 +26,13 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          hz   = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          gain = (freq_obj[:rf_gain] || 40).to_s.to_f
-          uat  = hz.between?(977_000_000, 979_000_000)
-
-          direct_cmd =
-            if uat && PWN::SDR::Decoder::Base.bin_available?(bin: 'dump978-fa')
-              "bash -c #{Shellwords.escape("dump978-fa --sdr driver=rtlsdr --sdr-gain #{gain} --raw-stdout 2>/dev/null | uat2text")}"
-            elsif PWN::SDR::Decoder::Base.bin_available?(bin: 'dump1090-fa')
-              "dump1090-fa --device-type rtlsdr --gain #{gain} --net-sbs-stdout --quiet"
-            else
-              "dump1090 --gain #{gain} --net-sbs-stdout --quiet"
-            end
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          hz  = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
+          uat = hz.between?(977_000_000, 979_000_000)
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: uat ? 'ADSB-UAT978' : 'ADSB-1090ES',
-            required_bins: uat ? %w[dump978-fa uat2text] : %w[dump1090],
-            direct_cmd: direct_cmd,
-            line_match: /^(MSG,|-|\+)/,
-            parser: proc { |line| parse_line(line: line) }
+            note: '2 Mbit/s PPM squitters exceed the 48 kHz audio-tap Nyquist limit; native mode reports squitter-burst density only. Feed captured SBS-1 CSV to .parse_line for full field decode.',
+            describe: proc { |b| { modulation: 'PPM', frame_len_us: 120, classification: b[:duration_ms] < 5 ? 'squitter' : 'interrogation-train' } }
           )
         end
 
@@ -60,7 +46,6 @@ module PWN
           f   = line.split(',', -1)
           out = { protocol: 'ADSB' }
           SBS_FIELDS.each_with_index { |k, i| out[k] = f[i] unless f[i].to_s.empty? }
-
           bits = []
           bits << "ICAO=#{out[:icao24]}" if out[:icao24]
           bits << "CS=#{out[:callsign].to_s.strip}" if out[:callsign]
@@ -81,14 +66,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `dump1090` (1090 MHz Mode-S/ES) or
-                  `dump978-fa` + `uat2text` (978 MHz UAT). Owns the SDR
-                  directly — set freq_obj[:sdr_args] if GQRX has device 0.
 
             #{self}.parse_line(line: 'MSG,3,1,1,ABCDEF,1,...')
 

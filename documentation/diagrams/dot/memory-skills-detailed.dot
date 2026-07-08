@@ -64,4 +64,8 @@ digraph "PWN_MemorySkills" {
   Out  -> Prompt [color="#38bdf8"];
   Sesv -> Prompt [color="#38bdf8"];
   Mlst -> Prompt [label="do NOT repeat", color="#fb7185", penwidth=2];
+
+  ReVal [label="Extrospection.verify\nrevalidate_memory (cron)\nbrowser-backed GC", fillcolor="#fcd34d"];
+  ReVal -> Fmem [label="[UNVERIFIED yyyy-mm-dd]\nprefix stale :fact", color="#fb7185", style=dashed, penwidth=2];
+  Fmem  -> ReVal [label=":fact w/ CVE|ver|URL", style=dashed, color="#94a3b8", constraint=false];
 }

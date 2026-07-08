@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require 'shellwords'
-
 module PWN
   module SDR
     module Decoder
-      # Iridium L-band (1.616–1.6265 GHz) burst decoder. Drives gr-iridium's
-      # `iridium-extractor` against the SDR to demodulate 25 kbit/s DE-QPSK
-      # simplex/duplex bursts, then pipes them through iridium-toolkit's
-      # `iridium-parser.py` for frame classification (IRA/IBC/IDA/ISY/VOC/...).
+      # Pure-Ruby Iridium L-band burst detector.
+      #
+      # Iridium simplex/duplex bursts are 25 kbit/s DE-QPSK across
+      # 1616–1626.5 MHz. Native mode reports burst count/duration/energy
+      # per channel. `parse_line` retained for offline iridium-toolkit
+      # text analysis.
       module Iridium
         # Supported Method Parameters::
         # PWN::SDR::Decoder::Iridium.decode(
@@ -17,24 +17,12 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          hz       = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          gain     = (freq_obj[:rf_gain] || 40).to_s.to_f
-          sdr_args = (freq_obj[:sdr_args] || 'rtl=0').to_s
-
-          inner = "iridium-extractor -D 4 --multi-frame -c #{hz} -r 2000000 " \
-                  "-g #{gain} -o - #{Shellwords.escape(sdr_args)} 2>/dev/null " \
-                  '| iridium-parser.py --harder /dev/stdin'
-          direct_cmd = "bash -c #{Shellwords.escape(inner)}"
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: 'IRIDIUM',
-            required_bins: %w[iridium-extractor iridium-parser.py],
-            direct_cmd: direct_cmd,
-            line_match: /^(IRA|IBC|IDA|ISY|ITL|MSG|VOC|RAW):/,
-            parser: proc { |line| parse_line(line: line) }
+            note: '25 kbit/s DE-QPSK — native mode reports burst timing/energy only.',
+            threshold: 7.0,
+            describe: proc { |b| { modulation: 'DE-QPSK', symbol_rate: 25_000, classification: b[:duration_ms] < 10 ? 'simplex-burst' : 'duplex-frame' } }
           )
         end
 
@@ -62,13 +50,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `iridium-extractor` (gr-iridium) and
-                  `iridium-parser.py` (iridium-toolkit). Owns the SDR.
 
             #{self}.parse_line(line: 'IRA: sat:23 beam:14 pos=(+32.1/-097.0) ...')
 

@@ -36,10 +36,10 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 52 LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 54 LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection — the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** — fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
-| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · correlate · **rf** |
+| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · **watch** · **verify** · correlate · **rf** · **web** |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
 | [Cron](Cron.md) | Scheduled autonomous jobs |

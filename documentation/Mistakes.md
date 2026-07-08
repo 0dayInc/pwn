@@ -42,7 +42,7 @@ PromptBuilder <-------------------- Mistakes.to_context     (KNOWN MISTAKES + KN
 model --(tool call)---------------> mistakes_record / mistakes_resolve
 ```
 
-## Four ingest paths — nothing slips through
+## Five ingest paths — nothing slips through
 
 | Source | Trigger | What is recorded |
 |---|---|---|
@@ -50,6 +50,7 @@ model --(tool call)---------------> mistakes_record / mistakes_resolve
 | `:loop` | iteration budget exhausted with no final answer | *automatic* — `Loop.run` epilogue |
 | `:user_correction` | next user message matches `CORRECTION_RX` (*"no that's wrong"*, *"still broken"*, *"try again"*, …) | `check_user_correction` — also flips the previous `Learning` outcome to `success:false` |
 | `:model` | the model itself calls `mistakes_record` | wrong assumption, wrong file, hallucinated API — failures that are **not** dispatch errors |
+| **`:model` (proactive)** | **`extro_verify(claim:)` returns `:refuted`** | **`Mistakes.record(tool:'assumption', error:'REFUTED …: <claim>')` — the browser caught the model being wrong about the world *before* a human did** |
 
 ## Tools
 

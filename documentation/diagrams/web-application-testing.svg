@@ -9,36 +9,36 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 317.2)">
 <title>PWN_Web</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-317.2 1048.7,-317.2 1048.7,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="388.38" y="-252" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Web Application Testing</text>
-<text xml:space="preserve" text-anchor="start" x="342.25" y="-240.55" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">TransparentBrowser → BurpSuite (preferred) → SAST → Reports</text>
+<text xml:space="preserve" text-anchor="start" x="388.38" y="-252" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Web Application Testing</text>
+<text xml:space="preserve" text-anchor="start" x="342.25" y="-240.55" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#94a3b8">TransparentBrowser → BurpSuite (preferred) → SAST → Reports</text>
 <g id="clust1" class="cluster">
 <title>cluster_drive</title>
 <path fill="#022c22" stroke="#047857" d="M164.75,-8C164.75,-8 287.5,-8 287.5,-8 293.5,-8 299.5,-14 299.5,-20 299.5,-20 299.5,-215 299.5,-215 299.5,-221 293.5,-227 287.5,-227 287.5,-227 164.75,-227 164.75,-227 158.75,-227 152.75,-221 152.75,-215 152.75,-215 152.75,-20 152.75,-20 152.75,-14 158.75,-8 164.75,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-204" font-family="sans-Serif" font-size="20.00" fill="#a7f3d0">Drive Traffic</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-204" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#a7f3d0">Drive Traffic</text>
 </g>
 <g id="clust2" class="cluster">
 <title>cluster_proxy</title>
 <path fill="#422006" stroke="#a16207" d="M467.75,-8C467.75,-8 605.25,-8 605.25,-8 611.25,-8 617.25,-14 617.25,-20 617.25,-20 617.25,-147 617.25,-147 617.25,-153 611.25,-159 605.25,-159 605.25,-159 467.75,-159 467.75,-159 461.75,-159 455.75,-153 455.75,-147 455.75,-147 455.75,-20 455.75,-20 455.75,-14 461.75,-8 467.75,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="536.5" y="-136" font-family="sans-Serif" font-size="20.00" fill="#fde68a">Intercept + Scan</text>
+<text xml:space="preserve" text-anchor="middle" x="536.5" y="-136" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fde68a">Intercept + Scan</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_deep</title>
 <path fill="#2e1065" stroke="#6d28d9" d="M700.25,-8C700.25,-8 819,-8 819,-8 825,-8 831,-14 831,-20 831,-20 831,-215 831,-215 831,-221 825,-227 819,-227 819,-227 700.25,-227 700.25,-227 694.25,-227 688.25,-221 688.25,-215 688.25,-215 688.25,-20 688.25,-20 688.25,-14 694.25,-8 700.25,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="759.62" y="-204" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Deep Analysis</text>
+<text xml:space="preserve" text-anchor="middle" x="759.62" y="-204" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#ddd6fe">Deep Analysis</text>
 </g>
 <!-- Target -->
 <g id="node1" class="node">
 <title>Target</title>
 <path fill="#fda4af" stroke="#334155" stroke-width="1.3" d="M61.75,-120C61.75,-120 12,-120 12,-120 6,-120 0,-114 0,-108 0,-108 0,-96 0,-96 0,-90 6,-84 12,-84 12,-84 61.75,-84 61.75,-84 67.75,-84 73.75,-90 73.75,-96 73.75,-96 73.75,-108 73.75,-108 73.75,-114 67.75,-120 61.75,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="36.88" y="-104.88" font-family="sans-Serif" font-size="10.00" fill="#0f172a">🌐 &#160;Web App</text>
-<text xml:space="preserve" text-anchor="middle" x="36.88" y="-92.12" font-family="sans-Serif" font-size="10.00" fill="#0f172a">URL / API</text>
+<text xml:space="preserve" text-anchor="middle" x="36.88" y="-104.88" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">🌐 &#160;Web App</text>
+<text xml:space="preserve" text-anchor="middle" x="36.88" y="-92.12" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">URL / API</text>
 </g>
 <!-- TB -->
 <g id="node2" class="node">
 <title>TB</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M279.5,-188C279.5,-188 172.75,-188 172.75,-188 166.75,-188 160.75,-182 160.75,-176 160.75,-176 160.75,-164 160.75,-164 160.75,-158 166.75,-152 172.75,-152 172.75,-152 279.5,-152 279.5,-152 285.5,-152 291.5,-158 291.5,-164 291.5,-164 291.5,-176 291.5,-176 291.5,-182 285.5,-188 279.5,-188"/>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-172.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">TransparentBrowser</text>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-160.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">headless · watir · devtools</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-172.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">TransparentBrowser</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-160.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">headless · watir · devtools</text>
 </g>
 <!-- Target&#45;&gt;TB -->
 <g id="edge1" class="edge">
@@ -50,8 +50,8 @@
 <g id="node3" class="node">
 <title>Spider</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M255.12,-120C255.12,-120 197.12,-120 197.12,-120 191.12,-120 185.12,-114 185.12,-108 185.12,-108 185.12,-96 185.12,-96 185.12,-90 191.12,-84 197.12,-84 197.12,-84 255.12,-84 255.12,-84 261.12,-84 267.12,-90 267.12,-96 267.12,-96 267.12,-108 267.12,-108 267.12,-114 261.12,-120 255.12,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Spider</text>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">URI buster</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::Spider</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">URI buster</text>
 </g>
 <!-- Target&#45;&gt;Spider -->
 <g id="edge2" class="edge">
@@ -63,8 +63,8 @@
 <g id="node4" class="node">
 <title>WWW</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.3" d="M256.25,-52C256.25,-52 196,-52 196,-52 190,-52 184,-46 184,-40 184,-40 184,-28 184,-28 184,-22 190,-16 196,-16 196,-16 256.25,-16 256.25,-16 262.25,-16 268.25,-22 268.25,-28 268.25,-28 268.25,-40 268.25,-40 268.25,-46 262.25,-52 256.25,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::WWW::*</text>
-<text xml:space="preserve" text-anchor="middle" x="226.12" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">21 site drivers</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">PWN::WWW::*</text>
+<text xml:space="preserve" text-anchor="middle" x="226.12" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">21 site drivers</text>
 </g>
 <!-- Target&#45;&gt;WWW -->
 <g id="edge3" class="edge">
@@ -76,15 +76,15 @@
 <g id="node5" class="node">
 <title>Burp</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="2" d="M584.5,-120C584.5,-120 487.5,-120 487.5,-120 481.5,-120 475.5,-114 475.5,-108 475.5,-108 475.5,-96 475.5,-96 475.5,-90 481.5,-84 487.5,-84 487.5,-84 584.5,-84 584.5,-84 590.5,-84 596.5,-90 596.5,-96 596.5,-96 596.5,-108 596.5,-108 596.5,-114 590.5,-120 584.5,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="536" y="-104.88" font-family="sans-Serif" font-size="10.00" fill="#0f172a">BurpSuite &#160;⭐</text>
-<text xml:space="preserve" text-anchor="middle" x="536" y="-92.12" font-family="sans-Serif" font-size="10.00" fill="#0f172a">active · passive · REST</text>
+<text xml:space="preserve" text-anchor="middle" x="536" y="-104.88" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">BurpSuite &#160;⭐</text>
+<text xml:space="preserve" text-anchor="middle" x="536" y="-92.12" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">active · passive · REST</text>
 </g>
 <!-- TB&#45;&gt;Burp -->
 <g id="edge4" class="edge">
 <title>TB&#45;&gt;Burp</title>
 <path fill="none" stroke="#f59e0b" stroke-width="2" d="M292.04,-155.66C342.46,-144.53 412.3,-129.1 464.17,-117.65"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="2" points="464.45,-120.45 471.66,-115.99 463.25,-114.98 464.45,-120.45"/>
-<text xml:space="preserve" text-anchor="middle" x="377.62" y="-148.01" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">proxy 127.0.0.1:8080</text>
+<text xml:space="preserve" text-anchor="middle" x="377.62" y="-148.01" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">proxy 127.0.0.1:8080</text>
 </g>
 <!-- Spider&#45;&gt;Burp -->
 <g id="edge5" class="edge">
@@ -96,8 +96,8 @@
 <g id="node6" class="node">
 <title>Zap</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M551.88,-52C551.88,-52 520.12,-52 520.12,-52 514.12,-52 508.12,-46 508.12,-40 508.12,-40 508.12,-28 508.12,-28 508.12,-22 514.12,-16 520.12,-16 520.12,-16 551.88,-16 551.88,-16 557.88,-16 563.88,-22 563.88,-28 563.88,-28 563.88,-40 563.88,-40 563.88,-46 557.88,-52 551.88,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="536" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Zaproxy</text>
-<text xml:space="preserve" text-anchor="middle" x="536" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(fallback)</text>
+<text xml:space="preserve" text-anchor="middle" x="536" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Zaproxy</text>
+<text xml:space="preserve" text-anchor="middle" x="536" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">(fallback)</text>
 </g>
 <!-- WWW&#45;&gt;Zap -->
 <g id="edge6" class="edge">
@@ -109,8 +109,8 @@
 <g id="node7" class="node">
 <title>SAST</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M795.25,-188C795.25,-188 723,-188 723,-188 717,-188 711,-182 711,-176 711,-176 711,-164 711,-164 711,-158 717,-152 723,-152 723,-152 795.25,-152 795.25,-152 801.25,-152 807.25,-158 807.25,-164 807.25,-164 807.25,-176 807.25,-176 807.25,-182 801.25,-188 795.25,-188"/>
-<text xml:space="preserve" text-anchor="middle" x="759.12" y="-172.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::SAST</text>
-<text xml:space="preserve" text-anchor="middle" x="759.12" y="-160.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">48 rules on source</text>
+<text xml:space="preserve" text-anchor="middle" x="759.12" y="-172.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">PWN::SAST</text>
+<text xml:space="preserve" text-anchor="middle" x="759.12" y="-160.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">48 rules on source</text>
 </g>
 <!-- Burp&#45;&gt;SAST -->
 <g id="edge7" class="edge">
@@ -122,8 +122,8 @@
 <g id="node8" class="node">
 <title>XSS</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M805.38,-120C805.38,-120 712.88,-120 712.88,-120 706.88,-120 700.88,-114 700.88,-108 700.88,-108 700.88,-96 700.88,-96 700.88,-90 706.88,-84 712.88,-84 712.88,-84 805.38,-84 805.38,-84 811.38,-84 817.38,-90 817.38,-96 817.38,-96 817.38,-108 817.38,-108 817.38,-114 811.38,-120 805.38,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="759.12" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">pwn_xss_dom_vectors</text>
-<text xml:space="preserve" text-anchor="middle" x="759.12" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">web_cache_deception</text>
+<text xml:space="preserve" text-anchor="middle" x="759.12" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">pwn_xss_dom_vectors</text>
+<text xml:space="preserve" text-anchor="middle" x="759.12" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">web_cache_deception</text>
 </g>
 <!-- Burp&#45;&gt;XSS -->
 <g id="edge8" class="edge">
@@ -135,8 +135,8 @@
 <g id="node9" class="node">
 <title>API</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M803.5,-52C803.5,-52 714.75,-52 714.75,-52 708.75,-52 702.75,-46 702.75,-40 702.75,-40 702.75,-28 702.75,-28 702.75,-22 708.75,-16 714.75,-16 714.75,-16 803.5,-16 803.5,-16 809.5,-16 815.5,-22 815.5,-28 815.5,-28 815.5,-40 815.5,-40 815.5,-46 809.5,-52 803.5,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="759.12" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Plugins::OpenAPI</text>
-<text xml:space="preserve" text-anchor="middle" x="759.12" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">GraphQL introspection</text>
+<text xml:space="preserve" text-anchor="middle" x="759.12" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Plugins::OpenAPI</text>
+<text xml:space="preserve" text-anchor="middle" x="759.12" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">GraphQL introspection</text>
 </g>
 <!-- Zap&#45;&gt;API -->
 <g id="edge9" class="edge">
@@ -148,8 +148,8 @@
 <g id="node10" class="node">
 <title>Report</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M993.5,-120C993.5,-120 922,-120 922,-120 916,-120 910,-114 910,-108 910,-108 910,-96 910,-96 910,-90 916,-84 922,-84 922,-84 993.5,-84 993.5,-84 999.5,-84 1005.5,-90 1005.5,-96 1005.5,-96 1005.5,-108 1005.5,-108 1005.5,-114 999.5,-120 993.5,-120"/>
-<text xml:space="preserve" text-anchor="middle" x="957.75" y="-104.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::Reports</text>
-<text xml:space="preserve" text-anchor="middle" x="957.75" y="-92.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">DefectDojo import</text>
+<text xml:space="preserve" text-anchor="middle" x="957.75" y="-104.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">PWN::Reports</text>
+<text xml:space="preserve" text-anchor="middle" x="957.75" y="-92.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">DefectDojo import</text>
 </g>
 <!-- SAST&#45;&gt;Report -->
 <g id="edge10" class="edge">

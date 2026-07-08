@@ -1,6 +1,6 @@
 digraph "PWN_Agent_Tool_Registry" {
   graph [
-    label=<<B>PWN::AI::Agent::Registry — Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">10 toolsets · 52 callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
+    label=<<B>PWN::AI::Agent::Registry — Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">10 toolsets · 54 callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.35, ranksep=1.4,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -37,7 +37,7 @@ digraph "PWN_Agent_Tool_Registry" {
     t_sess    [label="sessions_list · view\ncurrent · delete · stats"];
     t_learn   [label="learning_note_outcome\nreflect · distill_skill\nconsolidate · outcomes · reset\nmistakes_list · record\nmistakes_resolve · reset"];
     t_metric  [label="metrics_summary\nmetrics_reset"];
-    t_extro   [label="extro_snapshot · drift\nobserve · intel · correlate\nobservations · stats · reset"];
+    t_extro   [label="extro_snapshot · drift\nobserve · intel · correlate\nwatch · verify (browser)\nobservations · stats · reset"];
     t_cron    [label="cron_list · create · run\nenable · disable · remove"];
     t_swarm   [label="agent_list · spawn · ask\ndebate · broadcast\nswarm_bus · swarm_list"];
   }

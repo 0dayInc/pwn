@@ -9,36 +9,36 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 538.58)">
 <title>PWN_Swarm</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-538.58 889.54,-538.58 889.54,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="138.54" y="-473.38" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Swarm — Native Multi&#45;Agent Orchestration</text>
-<text xml:space="preserve" text-anchor="start" x="275.79" y="-461.93" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">personas · ask · debate · broadcast · shared bus (no daemon)</text>
+<text xml:space="preserve" text-anchor="start" x="138.54" y="-473.38" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Swarm — Native Multi&#45;Agent Orchestration</text>
+<text xml:space="preserve" text-anchor="start" x="275.79" y="-461.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#94a3b8">personas · ask · debate · broadcast · shared bus (no daemon)</text>
 <g id="clust1" class="cluster">
 <title>cluster_verbs</title>
 <path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M36,-292.12C36,-292.12 574,-292.12 574,-292.12 580,-292.12 586,-298.12 586,-304.12 586,-304.12 586,-363.38 586,-363.38 586,-369.38 580,-375.38 574,-375.38 574,-375.38 36,-375.38 36,-375.38 30,-375.38 24,-369.38 24,-363.38 24,-363.38 24,-304.12 24,-304.12 24,-298.12 30,-292.12 36,-292.12"/>
-<text xml:space="preserve" text-anchor="middle" x="305" y="-352.38" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Swarm Verbs &#160;(toolset: swarm)</text>
+<text xml:space="preserve" text-anchor="middle" x="305" y="-352.38" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#ddd6fe">Swarm Verbs &#160;(toolset: swarm)</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_personas</title>
 <path fill="#022c22" stroke="#047857" stroke-width="2" d="M20,-149.88C20,-149.88 623,-149.88 623,-149.88 629,-149.88 635,-155.88 635,-161.88 635,-161.88 635,-233.62 635,-233.62 635,-239.62 629,-245.62 623,-245.62 623,-245.62 20,-245.62 20,-245.62 14,-245.62 8,-239.62 8,-233.62 8,-233.62 8,-161.88 8,-161.88 8,-155.88 14,-149.88 20,-149.88"/>
-<text xml:space="preserve" text-anchor="middle" x="321.5" y="-222.62" font-family="sans-Serif" font-size="20.00" fill="#a7f3d0">Personas &#160;(each = full PWN::AI::Agent::Loop)</text>
+<text xml:space="preserve" text-anchor="middle" x="321.5" y="-222.62" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#a7f3d0">Personas &#160;(each = full PWN::AI::Agent::Loop)</text>
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_state</title>
 <path fill="#422006" stroke="#a16207" stroke-width="2" d="M33,-8C33,-8 642,-8 642,-8 648,-8 654,-14 654,-20 654,-20 654,-91.38 654,-91.38 654,-97.38 648,-103.38 642,-103.38 642,-103.38 33,-103.38 33,-103.38 27,-103.38 21,-97.38 21,-91.38 21,-91.38 21,-20 21,-20 21,-14 27,-8 33,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="337.5" y="-80.38" font-family="sans-Serif" font-size="20.00" fill="#fde68a">Shared State &#160;~/.pwn/</text>
+<text xml:space="preserve" text-anchor="middle" x="337.5" y="-80.38" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fde68a">Shared State &#160;~/.pwn/</text>
 </g>
 <!-- Orchestrator -->
 <g id="node1" class="node">
 <title>Orchestrator</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M308.75,-456.38C308.75,-456.38 237.25,-456.38 237.25,-456.38 231.25,-456.38 225.25,-450.38 225.25,-444.38 225.25,-444.38 225.25,-432.38 225.25,-432.38 225.25,-426.38 231.25,-420.38 237.25,-420.38 237.25,-420.38 308.75,-420.38 308.75,-420.38 314.75,-420.38 320.75,-426.38 320.75,-432.38 320.75,-432.38 320.75,-444.38 320.75,-444.38 320.75,-450.38 314.75,-456.38 308.75,-456.38"/>
-<text xml:space="preserve" text-anchor="middle" x="273" y="-441.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">👤 &#160;Orchestrator</text>
-<text xml:space="preserve" text-anchor="middle" x="273" y="-427.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">(you, in pwn&#45;ai)</text>
+<text xml:space="preserve" text-anchor="middle" x="273" y="-441.43" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">👤 &#160;Orchestrator</text>
+<text xml:space="preserve" text-anchor="middle" x="273" y="-427.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">(you, in pwn&#45;ai)</text>
 </g>
 <!-- Spawn -->
 <g id="node2" class="node">
 <title>Spawn</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M107.62,-336.12C107.62,-336.12 44.38,-336.12 44.38,-336.12 38.38,-336.12 32.38,-330.12 32.38,-324.12 32.38,-324.12 32.38,-312.12 32.38,-312.12 32.38,-306.12 38.38,-300.12 44.38,-300.12 44.38,-300.12 107.62,-300.12 107.62,-300.12 113.62,-300.12 119.62,-306.12 119.62,-312.12 119.62,-312.12 119.62,-324.12 119.62,-324.12 119.62,-330.12 113.62,-336.12 107.62,-336.12"/>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-321.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">agent_spawn</text>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-307.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">define persona</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-321.18" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">agent_spawn</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-307.68" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">define persona</text>
 </g>
 <!-- Orchestrator&#45;&gt;Spawn -->
 <g id="edge1" class="edge">
@@ -50,8 +50,8 @@
 <g id="node3" class="node">
 <title>Ask</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M263.5,-336.12C263.5,-336.12 178.5,-336.12 178.5,-336.12 172.5,-336.12 166.5,-330.12 166.5,-324.12 166.5,-324.12 166.5,-312.12 166.5,-312.12 166.5,-306.12 172.5,-300.12 178.5,-300.12 178.5,-300.12 263.5,-300.12 263.5,-300.12 269.5,-300.12 275.5,-306.12 275.5,-312.12 275.5,-312.12 275.5,-324.12 275.5,-324.12 275.5,-330.12 269.5,-336.12 263.5,-336.12"/>
-<text xml:space="preserve" text-anchor="middle" x="221" y="-321.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">agent_ask</text>
-<text xml:space="preserve" text-anchor="middle" x="221" y="-307.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">1 turn → 1 persona</text>
+<text xml:space="preserve" text-anchor="middle" x="221" y="-321.18" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">agent_ask</text>
+<text xml:space="preserve" text-anchor="middle" x="221" y="-307.68" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">1 turn → 1 persona</text>
 </g>
 <!-- Orchestrator&#45;&gt;Ask -->
 <g id="edge2" class="edge">
@@ -63,8 +63,8 @@
 <g id="node4" class="node">
 <title>Debate</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M419.5,-336.12C419.5,-336.12 334.5,-336.12 334.5,-336.12 328.5,-336.12 322.5,-330.12 322.5,-324.12 322.5,-324.12 322.5,-312.12 322.5,-312.12 322.5,-306.12 328.5,-300.12 334.5,-300.12 334.5,-300.12 419.5,-300.12 419.5,-300.12 425.5,-300.12 431.5,-306.12 431.5,-312.12 431.5,-312.12 431.5,-324.12 431.5,-324.12 431.5,-330.12 425.5,-336.12 419.5,-336.12"/>
-<text xml:space="preserve" text-anchor="middle" x="377" y="-321.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">agent_debate</text>
-<text xml:space="preserve" text-anchor="middle" x="377" y="-307.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">round&#45;robin critique</text>
+<text xml:space="preserve" text-anchor="middle" x="377" y="-321.18" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">agent_debate</text>
+<text xml:space="preserve" text-anchor="middle" x="377" y="-307.68" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">round&#45;robin critique</text>
 </g>
 <!-- Orchestrator&#45;&gt;Debate -->
 <g id="edge3" class="edge">
@@ -76,8 +76,8 @@
 <g id="node5" class="node">
 <title>Broadcast</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M565.62,-336.12C565.62,-336.12 490.38,-336.12 490.38,-336.12 484.38,-336.12 478.38,-330.12 478.38,-324.12 478.38,-324.12 478.38,-312.12 478.38,-312.12 478.38,-306.12 484.38,-300.12 490.38,-300.12 490.38,-300.12 565.62,-300.12 565.62,-300.12 571.62,-300.12 577.62,-306.12 577.62,-312.12 577.62,-312.12 577.62,-324.12 577.62,-324.12 577.62,-330.12 571.62,-336.12 565.62,-336.12"/>
-<text xml:space="preserve" text-anchor="middle" x="528" y="-321.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">agent_broadcast</text>
-<text xml:space="preserve" text-anchor="middle" x="528" y="-307.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">fan&#45;out ensemble</text>
+<text xml:space="preserve" text-anchor="middle" x="528" y="-321.18" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">agent_broadcast</text>
+<text xml:space="preserve" text-anchor="middle" x="528" y="-307.68" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">fan&#45;out ensemble</text>
 </g>
 <!-- Orchestrator&#45;&gt;Broadcast -->
 <g id="edge4" class="edge">
@@ -89,9 +89,9 @@
 <g id="node6" class="node">
 <title>Red</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.4" d="M124.12,-206.38C124.12,-206.38 27.88,-206.38 27.88,-206.38 21.88,-206.38 15.88,-200.38 15.88,-194.38 15.88,-194.38 15.88,-169.88 15.88,-169.88 15.88,-163.88 21.88,-157.88 27.88,-157.88 27.88,-157.88 124.12,-157.88 124.12,-157.88 130.12,-157.88 136.12,-163.88 136.12,-169.88 136.12,-169.88 136.12,-194.38 136.12,-194.38 136.12,-200.38 130.12,-206.38 124.12,-206.38"/>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-191.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🔴 &#160;red_team</text>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-178.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">engine: grok</text>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-164.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">toolsets: terminal,pwn</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-191.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">🔴 &#160;red_team</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-178.43" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">engine: grok</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-164.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">toolsets: terminal,pwn</text>
 </g>
 <!-- Spawn&#45;&gt;Red -->
 <!-- Agents -->
@@ -99,15 +99,15 @@
 <title>Agents</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M122.62,-59.75C122.62,-62.16 101.73,-64.12 76,-64.12 50.27,-64.12 29.38,-62.16 29.38,-59.75 29.38,-59.75 29.38,-20.38 29.38,-20.38 29.38,-17.96 50.27,-16 76,-16 101.73,-16 122.62,-17.96 122.62,-20.38 122.62,-20.38 122.62,-59.75 122.62,-59.75"/>
 <path fill="none" stroke="#334155" stroke-width="1.4" d="M122.62,-59.75C122.62,-57.34 101.73,-55.38 76,-55.38 50.27,-55.38 29.38,-57.34 29.38,-59.75"/>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-43.11" font-family="sans-Serif" font-size="11.00" fill="#0f172a">agents.yml</text>
-<text xml:space="preserve" text-anchor="middle" x="76" y="-29.61" font-family="sans-Serif" font-size="11.00" fill="#0f172a">persona registry</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-43.11" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">agents.yml</text>
+<text xml:space="preserve" text-anchor="middle" x="76" y="-29.61" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">persona registry</text>
 </g>
 <!-- Spawn&#45;&gt;Agents -->
 <g id="edge15" class="edge">
 <title>Spawn&#45;&gt;Agents</title>
 <path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M118.01,-299.52C126.18,-296.65 134.77,-294.01 143,-292.12 252.43,-267.12 570.37,-328.57 646,-245.62 674.67,-214.18 674.66,-181.33 646,-149.88 627.25,-129.29 172.57,-114.39 147,-103.38 130.38,-96.22 114.9,-83.65 102.66,-71.67"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="104.82,-69.88 97.22,-66.14 100.83,-73.81 104.82,-69.88"/>
-<text xml:space="preserve" text-anchor="middle" x="677.25" y="-178.82" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">write</text>
+<text xml:space="preserve" text-anchor="middle" x="677.25" y="-178.82" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">write</text>
 </g>
 <!-- Ask&#45;&gt;Red -->
 <g id="edge6" class="edge">
@@ -119,9 +119,9 @@
 <g id="node7" class="node">
 <title>Blue</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.4" d="M277,-206.38C277,-206.38 195,-206.38 195,-206.38 189,-206.38 183,-200.38 183,-194.38 183,-194.38 183,-169.88 183,-169.88 183,-163.88 189,-157.88 195,-157.88 195,-157.88 277,-157.88 277,-157.88 283,-157.88 289,-163.88 289,-169.88 289,-169.88 289,-194.38 289,-194.38 289,-200.38 283,-206.38 277,-206.38"/>
-<text xml:space="preserve" text-anchor="middle" x="236" y="-191.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🔵 &#160;blue_team</text>
-<text xml:space="preserve" text-anchor="middle" x="236" y="-178.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">engine: anthropic</text>
-<text xml:space="preserve" text-anchor="middle" x="236" y="-164.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">toolsets: pwn,extro</text>
+<text xml:space="preserve" text-anchor="middle" x="236" y="-191.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">🔵 &#160;blue_team</text>
+<text xml:space="preserve" text-anchor="middle" x="236" y="-178.43" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">engine: anthropic</text>
+<text xml:space="preserve" text-anchor="middle" x="236" y="-164.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">toolsets: pwn,extro</text>
 </g>
 <!-- Debate&#45;&gt;Blue -->
 <g id="edge7" class="edge">
@@ -133,9 +133,9 @@
 <g id="node8" class="node">
 <title>Recon</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.4" d="M463.5,-206.38C463.5,-206.38 348.5,-206.38 348.5,-206.38 342.5,-206.38 336.5,-200.38 336.5,-194.38 336.5,-194.38 336.5,-169.88 336.5,-169.88 336.5,-163.88 342.5,-157.88 348.5,-157.88 348.5,-157.88 463.5,-157.88 463.5,-157.88 469.5,-157.88 475.5,-163.88 475.5,-169.88 475.5,-169.88 475.5,-194.38 475.5,-194.38 475.5,-200.38 469.5,-206.38 463.5,-206.38"/>
-<text xml:space="preserve" text-anchor="middle" x="406" y="-191.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🛰 &#160;recon</text>
-<text xml:space="preserve" text-anchor="middle" x="406" y="-178.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">engine: ollama</text>
-<text xml:space="preserve" text-anchor="middle" x="406" y="-164.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">toolsets: terminal,memory</text>
+<text xml:space="preserve" text-anchor="middle" x="406" y="-191.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">🛰 &#160;recon</text>
+<text xml:space="preserve" text-anchor="middle" x="406" y="-178.43" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">engine: ollama</text>
+<text xml:space="preserve" text-anchor="middle" x="406" y="-164.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">toolsets: terminal,memory</text>
 </g>
 <!-- Debate&#45;&gt;Recon -->
 <g id="edge8" class="edge">
@@ -147,9 +147,9 @@
 <g id="node9" class="node">
 <title>Xpl</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.4" d="M615.25,-206.38C615.25,-206.38 534.75,-206.38 534.75,-206.38 528.75,-206.38 522.75,-200.38 522.75,-194.38 522.75,-194.38 522.75,-169.88 522.75,-169.88 522.75,-163.88 528.75,-157.88 534.75,-157.88 534.75,-157.88 615.25,-157.88 615.25,-157.88 621.25,-157.88 627.25,-163.88 627.25,-169.88 627.25,-169.88 627.25,-194.38 627.25,-194.38 627.25,-200.38 621.25,-206.38 615.25,-206.38"/>
-<text xml:space="preserve" text-anchor="middle" x="575" y="-191.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">💥 &#160;exploit_dev</text>
-<text xml:space="preserve" text-anchor="middle" x="575" y="-178.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">engine: openai</text>
-<text xml:space="preserve" text-anchor="middle" x="575" y="-164.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">toolsets: pwn,skills</text>
+<text xml:space="preserve" text-anchor="middle" x="575" y="-191.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">💥 &#160;exploit_dev</text>
+<text xml:space="preserve" text-anchor="middle" x="575" y="-178.43" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">engine: openai</text>
+<text xml:space="preserve" text-anchor="middle" x="575" y="-164.93" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">toolsets: pwn,skills</text>
 </g>
 <!-- Broadcast&#45;&gt;Xpl -->
 <g id="edge9" class="edge">
@@ -163,15 +163,15 @@
 <title>Bus</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M288,-59.75C288,-62.16 261.56,-64.12 229,-64.12 196.44,-64.12 170,-62.16 170,-59.75 170,-59.75 170,-20.38 170,-20.38 170,-17.96 196.44,-16 229,-16 261.56,-16 288,-17.96 288,-20.38 288,-20.38 288,-59.75 288,-59.75"/>
 <path fill="none" stroke="#334155" stroke-width="1.4" d="M288,-59.75C288,-57.34 261.56,-55.38 229,-55.38 196.44,-55.38 170,-57.34 170,-59.75"/>
-<text xml:space="preserve" text-anchor="middle" x="229" y="-43.11" font-family="sans-Serif" font-size="11.00" fill="#0f172a">swarm/&lt;id&gt;/bus.jsonl</text>
-<text xml:space="preserve" text-anchor="middle" x="229" y="-29.61" font-family="sans-Serif" font-size="11.00" fill="#0f172a">append&#45;only chat</text>
+<text xml:space="preserve" text-anchor="middle" x="229" y="-43.11" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">swarm/&lt;id&gt;/bus.jsonl</text>
+<text xml:space="preserve" text-anchor="middle" x="229" y="-29.61" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">append&#45;only chat</text>
 </g>
 <!-- Red&#45;&gt;Bus -->
 <g id="edge11" class="edge">
 <title>Red&#45;&gt;Bus</title>
 <path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M101.95,-157.37C127.86,-133.65 167.76,-97.12 195.92,-71.34"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="197.71,-73.5 201.72,-66.03 193.93,-69.37 197.71,-73.5"/>
-<text xml:space="preserve" text-anchor="middle" x="174.91" y="-113.33" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">append reply</text>
+<text xml:space="preserve" text-anchor="middle" x="174.91" y="-113.33" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">append reply</text>
 </g>
 <!-- Blue&#45;&gt;Bus -->
 <g id="edge12" class="edge">
@@ -184,8 +184,8 @@
 <title>Pmap</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M477.38,-59.75C477.38,-62.16 445.38,-64.12 406,-64.12 366.62,-64.12 334.62,-62.16 334.62,-59.75 334.62,-59.75 334.62,-20.38 334.62,-20.38 334.62,-17.96 366.62,-16 406,-16 445.38,-16 477.38,-17.96 477.38,-20.38 477.38,-20.38 477.38,-59.75 477.38,-59.75"/>
 <path fill="none" stroke="#334155" stroke-width="1.4" d="M477.38,-59.75C477.38,-57.34 445.38,-55.38 406,-55.38 366.62,-55.38 334.62,-57.34 334.62,-59.75"/>
-<text xml:space="preserve" text-anchor="middle" x="406" y="-43.11" font-family="sans-Serif" font-size="11.00" fill="#0f172a">swarm/&lt;id&gt;/personas.json</text>
-<text xml:space="preserve" text-anchor="middle" x="406" y="-29.61" font-family="sans-Serif" font-size="11.00" fill="#0f172a">name → session_id</text>
+<text xml:space="preserve" text-anchor="middle" x="406" y="-43.11" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">swarm/&lt;id&gt;/personas.json</text>
+<text xml:space="preserve" text-anchor="middle" x="406" y="-29.61" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">name → session_id</text>
 </g>
 <!-- Recon&#45;&gt;Pmap -->
 <g id="edge13" class="edge">
@@ -198,8 +198,8 @@
 <title>Sess</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M645.88,-59.75C645.88,-62.16 618.59,-64.12 585,-64.12 551.41,-64.12 524.12,-62.16 524.12,-59.75 524.12,-59.75 524.12,-20.38 524.12,-20.38 524.12,-17.96 551.41,-16 585,-16 618.59,-16 645.88,-17.96 645.88,-20.38 645.88,-20.38 645.88,-59.75 645.88,-59.75"/>
 <path fill="none" stroke="#334155" stroke-width="1.4" d="M645.88,-59.75C645.88,-57.34 618.59,-55.38 585,-55.38 551.41,-55.38 524.12,-57.34 524.12,-59.75"/>
-<text xml:space="preserve" text-anchor="middle" x="585" y="-43.11" font-family="sans-Serif" font-size="11.00" fill="#0f172a">sessions/*.jsonl</text>
-<text xml:space="preserve" text-anchor="middle" x="585" y="-29.61" font-family="sans-Serif" font-size="11.00" fill="#0f172a">per&#45;persona transcript</text>
+<text xml:space="preserve" text-anchor="middle" x="585" y="-43.11" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">sessions/*.jsonl</text>
+<text xml:space="preserve" text-anchor="middle" x="585" y="-29.61" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0f172a">per&#45;persona transcript</text>
 </g>
 <!-- Xpl&#45;&gt;Sess -->
 <g id="edge14" class="edge">
@@ -212,14 +212,14 @@
 <title>Bus&#45;&gt;Orchestrator</title>
 <path fill="none" stroke="#38bdf8" stroke-width="1.3" stroke-dasharray="5,2" d="M251.75,-64.53C267.03,-78.61 288.44,-95.3 311,-103.38 333.3,-111.36 500.42,-109.2 524,-111.38 582.38,-116.76 746.69,-105.5 785,-149.88 870.27,-248.64 717.36,-324.97 597,-375.38 508.69,-412.36 397.56,-427.48 331.06,-433.52"/>
 <polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="330.87,-430.72 323.15,-434.21 331.36,-436.3 330.87,-430.72"/>
-<text xml:space="preserve" text-anchor="middle" x="819.71" y="-255.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">swarm_bus()</text>
+<text xml:space="preserve" text-anchor="middle" x="819.71" y="-255.57" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">swarm_bus()</text>
 </g>
 <!-- Bus&#45;&gt;Debate -->
 <g id="edge16" class="edge">
 <title>Bus&#45;&gt;Debate</title>
 <path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M252.68,-64.52C268.01,-78.23 289.12,-94.52 311,-103.38 391.29,-135.88 640.52,-85.08 698,-149.88 726.24,-181.71 725.12,-212.83 698,-245.62 627.93,-330.37 561.55,-264.96 455,-292.12 449.62,-293.5 444.06,-295.03 438.5,-296.65"/>
 <polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="1.3" points="437.94,-293.9 431.08,-298.87 439.55,-299.26 437.94,-293.9"/>
-<text xml:space="preserve" text-anchor="middle" x="746.13" y="-178.82" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">tail → context</text>
+<text xml:space="preserve" text-anchor="middle" x="746.13" y="-178.82" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">tail → context</text>
 </g>
 </g>
 </svg>

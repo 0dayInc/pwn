@@ -1,15 +1,13 @@
 # frozen_string_literal: true
 
-require 'shellwords'
-
 module PWN
   module SDR
     module Decoder
-      # DECT (Digital Enhanced Cordless Telecommunications) decoder for the
-      # 1.880–1.900 GHz (EU) / 1.920–1.930 GHz (US DECT-6.0) allocation.
-      # 1.152 Mbit/s GFSK across 10 TDMA carriers requires raw I/Q; this
-      # module drives gr-dect2's `dect_cli` (or the `re-DECTed` toolkit)
-      # directly and structures each RFPI/PP scan line.
+      # Pure-Ruby DECT (1.88–1.90 GHz EU / 1.92–1.93 GHz US) activity detector.
+      #
+      # 1.152 Mbit/s GFSK across 10 TDMA carriers — native mode reports
+      # slot bursts (417 μs) and derives carrier index from freq_obj.
+      # `parse_line` retained for offline text analysis.
       module DECT
         # Supported Method Parameters::
         # PWN::SDR::Decoder::DECT.decode(
@@ -18,26 +16,17 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
           hz = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          # DECT carriers are 1.728 MHz apart; ch0 = 1 897.344 MHz (EU).
           ch = ((1_897_344_000 - hz) / 1_728_000.0).round.clamp(0, 9)
-
-          direct_cmd =
-            if PWN::SDR::Decoder::Base.bin_available?(bin: 'dect_cli')
-              "dect_cli -s #{ch}"
-            else
-              "dectrx -c #{ch}"
-            end
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: 'DECT',
-            required_bins: %w[dect_cli],
-            direct_cmd: direct_cmd,
-            line_match: /(RFPI|FP|PP|slot|carrier|RSSI)/i,
-            parser: proc { |line| parse_line(line: line) }
+            note: '1.152 Mbit/s GFSK 24-slot TDMA — native mode reports slot bursts and carrier index.',
+            threshold: 7.0,
+            describe: proc { |b|
+              slots = (b[:duration_ms] / 0.417).round
+              { modulation: 'GFSK', carrier: ch, tdma_slots: slots, classification: slots >= 24 ? 'FP-beacon-frame' : 'PP-burst' }
+            }
           )
         end
 
@@ -65,13 +54,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires gr-dect2's `dect_cli` (or re-DECTed `dectrx`).
-                  Owns the SDR directly.
 
             #{self}.parse_line(line: 'RFPI: 01 23 45 67 89 slot 4 carrier 3')
 

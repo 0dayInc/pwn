@@ -61,6 +61,7 @@ the `## References` section, deduplicates, and exposes them via
 | Tool | When |
 |---|---|
 | `learning_consolidate(max_entries: 200)` | MEMORY block getting long/noisy |
+| `PWN::AI::Agent::Extrospection.revalidate_memory` *(cron)* | MEMORY `:fact` entries getting **stale** — browser-verifies every one containing a CVE/version/URL and prefixes refuted ones `[UNVERIFIED yyyy-mm-dd]` |
 | `learning_reset(confirm: true)` | dev-experiment noise polluted success_rate |
 | `mistakes_reset(confirm: true)` | new host/engagement — prior failure patterns no longer apply |
 | `metrics_reset(confirm: true)` | fixed a broken tool; stale 0 % is misleading |

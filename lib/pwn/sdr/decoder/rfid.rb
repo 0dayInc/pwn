@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require 'shellwords'
-
 module PWN
   module SDR
     module Decoder
-      # RFID decoder covering LF (125/134 kHz), HF (13.56 MHz) and UHF
-      # (860–960 MHz EPC Gen2). Near-field ASK/load-modulation is not
-      # recoverable from GQRX audio, so this drives a Proxmark3 (LF/HF) via
-      # `pm3 -c '...'` or `nfc-list` (HF), and `rtl_433` in flex/analyzer mode
-      # for UHF backscatter — whichever tool is present.
+      # Pure-Ruby RFID activity detector for LF (125/134 kHz), HF
+      # (13.56 MHz) and UHF (860–960 MHz EPC Gen2).
+      #
+      # Near-field ASK/load-modulation on LF/HF requires an inductive
+      # coupler (not an SDR antenna); UHF backscatter is 40–640 kbps ASK.
+      # Native mode reports reader-carrier presence and tag-response
+      # bursts by band. `parse_line` retained for offline text analysis.
       module RFID
         # Supported Method Parameters::
         # PWN::SDR::Decoder::RFID.decode(
@@ -18,30 +18,24 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
           hz = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-
-          direct_cmd, bins, proto =
-            if hz < 1_000_000
-              ["pm3 -c 'lf search'", %w[pm3], 'RFID-LF']
-            elsif hz.between?(13_000_000, 14_000_000)
-              if PWN::SDR::Decoder::Base.bin_available?(bin: 'pm3')
-                ["pm3 -c 'hf search'", %w[pm3], 'RFID-HF']
-              else
-                ['nfc-list -v', %w[nfc-list], 'RFID-HF']
-              end
-            else
-              ["rtl_433 -f #{hz} -A -F json", %w[rtl_433], 'RFID-UHF']
-            end
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          band = if hz < 1_000_000 then 'LF'
+                 elsif hz.between?(13_000_000, 14_000_000) then 'HF'
+                 else 'UHF'
+                 end
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
-            protocol: proto,
-            required_bins: bins,
-            direct_cmd: direct_cmd,
-            line_match: /(UID|EPC|TAG|ATQA|SAK|EM4|HID|ISO|Chipset|"model")/i,
-            parser: proc { |line| parse_line(line: line) }
+            protocol: "RFID-#{band}",
+            note: 'Native mode reports reader-carrier and tag-backscatter bursts by band.',
+            threshold: 6.0,
+            describe: proc { |b|
+              kind = case band
+                     when 'LF'  then b[:duration_ms] > 100 ? 'reader-CW' : 'EM4x/HID-response'
+                     when 'HF'  then b[:duration_ms] > 5   ? 'ISO14443-REQA/frame' : 'ISO15693-slot'
+                     else            b[:duration_ms] > 20  ? 'reader-Query' : 'EPC-backscatter'
+                     end
+              { band: band, modulation: 'ASK/load-mod', classification: kind }
+            }
           )
         end
 
@@ -69,13 +63,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: LF/HF need a Proxmark3 (`pm3`) or libnfc reader; UHF uses
-                  `rtl_433 -A`. Band chosen automatically from freq_obj[:freq].
 
             #{self}.parse_line(line: 'UID: 04 A1 B2 C3 D4 E5 F6  SAK: 08  Mifare Classic 1K')
 

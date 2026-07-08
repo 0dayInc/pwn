@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'shellwords'
 
 module PWN
   module SDR
     module Decoder
-      # LoRa / LoRaWAN CSS decoder for the 433 / 868 / 902–928 MHz ISM
-      # allocations. Chirp-spread-spectrum needs raw I/Q, so this drives
-      # `rtl_433` (which ships a native LoRa demod, protocol #264) directly.
-      # Emits one JSON line per decoded uplink containing SF/BW/CR, DevAddr,
-      # FCnt, and raw PHYPayload hex.
+      # Pure-Ruby LoRa / LoRaWAN CSS activity detector.
+      #
+      # LoRa is chirp-spread-spectrum over 125/250/500 kHz — recoverable
+      # only from raw I/Q at ≥250 ksps, not from a 48 kHz audio tap.
+      # Native mode reports chirp-burst duration/energy (from which SF
+      # can be estimated). `parse_line` retained for offline JSON analysis.
       module LoRa
         # Supported Method Parameters::
         # PWN::SDR::Decoder::LoRa.decode(
@@ -19,22 +19,17 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
-          hz       = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          sdr_args = freq_obj[:sdr_args].to_s
-
-          cmd = ['rtl_433', '-f', hz.to_s, '-s', '1024k',
-                 '-R', '264', '-F', 'json', '-M', 'level']
-          cmd.push('-d', sdr_args) unless sdr_args.empty?
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: 'LoRa',
-            required_bins: %w[rtl_433],
-            direct_cmd: Shellwords.join(cmd),
-            line_match: /^\s*{/,
-            parser: proc { |line| parse_line(line: line) }
+            note: 'CSS over 125–500 kHz — native mode reports chirp bursts and estimates SF from duration.',
+            threshold: 8.0,
+            describe: proc { |b|
+              # Preamble ≈ 8 symbols; T_sym = 2^SF / BW. Assume BW=125k.
+              t_sym_ms = b[:duration_ms] / 20.0
+              sf_est = t_sym_ms.positive? ? Math.log2(t_sym_ms * 125).round.clamp(6, 12) : nil
+              { modulation: 'CSS', bw_khz_assumed: 125, sf_estimate: sf_est }.compact
+            }
           )
         end
 
@@ -69,12 +64,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `rtl_433` >= 23.x (native LoRa demod). Owns SDR.
 
             #{self}.parse_line(line: '{\"model\":\"LoRa\",\"sf\":7,\"bw\":125,...}')
 

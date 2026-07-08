@@ -1,16 +1,13 @@
 # frozen_string_literal: true
 
-require 'shellwords'
-
 module PWN
   module SDR
     module Decoder
-      # Bluetooth Classic (BR/EDR) & BLE advertising decoder for 2.402–2.480 GHz.
+      # Pure-Ruby Bluetooth Classic (BR/EDR) & BLE activity detector.
       #
-      # 1 Mbit/s GFSK with 79 (BR/EDR) or 40 (BLE) FHSS channels cannot be
-      # recovered from GQRX audio. This module drives an Ubertooth One via
-      # `ubertooth-rx` (LAP/UAP discovery) or `ubertooth-btle -f -p` (BLE
-      # advertising follow) directly and structures each output line.
+      # 1 Mbit/s GFSK with 79 (BR/EDR) or 40 (BLE) FHSS channels — native
+      # mode reports per-channel hop bursts and derives channel index from
+      # freq_obj. `parse_line` retained for offline text analysis.
       module Bluetooth
         # Supported Method Parameters::
         # PWN::SDR::Decoder::Bluetooth.decode(
@@ -19,18 +16,17 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          raise 'ERROR: :freq_obj is required' unless freq_obj.is_a?(Hash)
-
+          hz  = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
           ble = freq_obj[:ble] || freq_obj[:mode].to_s.casecmp('ble').zero?
-          direct_cmd = ble ? 'ubertooth-btle -f -p' : 'ubertooth-rx -z'
-
-          PWN::SDR::Decoder::Base.run_pipeline(
+          ch  = ble ? ((hz - 2_402_000_000) / 2_000_000).clamp(0, 39) : ((hz - 2_402_000_000) / 1_000_000).clamp(0, 78)
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: ble ? 'BLE' : 'BT-BR/EDR',
-            required_bins: [ble ? 'ubertooth-btle' : 'ubertooth-rx'],
-            direct_cmd: direct_cmd,
-            line_match: /(LAP|AdvA|ADV_|SCAN_|BD_ADDR|systime)/i,
-            parser: proc { |line| parse_line(line: line) }
+            note: '1 Mbit/s GFSK FHSS — native mode reports single-channel hop bursts only.',
+            threshold: 9.0,
+            describe: proc { |b|
+              { modulation: 'GFSK', channel: ch, hop_slots: (b[:duration_ms] / 0.625).round, classification: ble && [37, 38, 39].include?(ch) ? 'BLE-advertising' : 'data-hop' }
+            }
           )
         end
 
@@ -59,13 +55,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires an Ubertooth One and `ubertooth-rx` /
-                  `ubertooth-btle`. Set freq_obj[:ble] = true for BLE mode.
 
             #{self}.parse_line(line: 'systime=... ch=37 LAP=9e8b33 ...')
 

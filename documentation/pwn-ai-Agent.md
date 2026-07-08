@@ -46,7 +46,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## What the agent can call
 
-10 toolsets · 52 tools — full table at
+10 toolsets · 54 tools — full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:

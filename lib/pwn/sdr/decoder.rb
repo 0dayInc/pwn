@@ -9,12 +9,20 @@ module PWN
     # uniform `.decode(freq_obj:)` entry point (see PWN::SDR::Decoder::Base)
     # so PWN::SDR::GQRX can dispatch on a `decoder:` key from
     # PWN::SDR::FrequencyAllocation.band_plans.
+    #
+    # 100 % ruby-native — no decoder in this namespace shells out to an
+    # external binary. Audio-rate protocols (POCSAG, FLEX, Morse, RTTY,
+    # APT, Pager) are fully demodulated in Ruby via PWN::SDR::Decoder::DSP;
+    # wideband/I/Q-only protocols (ADS-B, GSM, LTE, GPS, LoRa, WiFi, DECT,
+    # ZigBee, Bluetooth, Iridium, P25, RFID, RTL433) run a native
+    # burst/energy characteriser (see Base.run_detector).
     module Decoder
       autoload :ADSB,      'pwn/sdr/decoder/adsb'
       autoload :APT,       'pwn/sdr/decoder/apt'
       autoload :Base,      'pwn/sdr/decoder/base'
       autoload :Bluetooth, 'pwn/sdr/decoder/bluetooth'
       autoload :DECT,      'pwn/sdr/decoder/dect'
+      autoload :DSP,       'pwn/sdr/decoder/dsp'
       autoload :Flex,      'pwn/sdr/decoder/flex'
       autoload :GPS,       'pwn/sdr/decoder/gps'
       autoload :GSM,       'pwn/sdr/decoder/gsm'

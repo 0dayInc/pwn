@@ -1,252 +1,219 @@
 # frozen_string_literal: true
 
-require 'json'
-require 'open3'
-require 'tty-spinner'
-require 'io/wait'
-
 module PWN
   module SDR
     module Decoder
-      # Flex Decoder Module for Pagers
+      # Pure-Ruby FLEX™ pager decoder.
+      #
+      # FLEX is Motorola's synchronous paging protocol running at 1600,
+      # 3200 or 6400 bps in 2- or 4-level FSK. GQRX's NBFM discriminator
+      # audio (48 kHz UDP tap) is NRZ-sliced at 1600 baud (2-FSK mode),
+      # locked onto the Sync-1 A-word (bit-sync 0xAAAA + A1 = 0x78F3), then
+      # each 1.875 s frame's 88 × 32-bit BCH(31,21) codewords are walked to
+      # recover Frame-Info, Address and Vector/Message words. Alphanumeric
+      # (7-bit ASCII, 3 chars per 21-bit payload) and numeric (BCD) message
+      # bodies are extracted. No `multimon-ng`, no `sox` — 100 % Ruby.
+      #
+      # Limitation: 3200/6400 bps 4-FSK modes require raw discriminator
+      # amplitude quantisation into four levels; only frame/cycle/capcode
+      # metadata (not message body) is emitted for those speeds.
       module Flex
+        BS1     = 0xAAAA
+        A1      = 0x78F3 # 1600 / 2-FSK Sync-1 A-word
+        A_TABLE = {
+          0x870C => [1600, 2], 0x78F3 => [1600, 2],
+          0xB068 => [3200, 2], 0x4F97 => [3200, 2],
+          0x7B18 => [3200, 4], 0x84E7 => [3200, 4],
+          0xDEA0 => [6400, 4], 0x215F => [6400, 4]
+        }.freeze
+        NUM_TABLE = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '/', 'U', ' ', '-', ']', '['].freeze
+
+        # Streaming FLEX demodulator fed by Base.run_native.
+        class Demod
+          def initialize(rate: 48_000)
+            @rate  = rate
+            @buf   = []
+            @inv   = nil
+            @carry = []
+          end
+
+          def feed(samples, &)
+            @buf.concat(samples)
+            max = (@rate * 4).to_i
+            @buf.shift(@buf.length - max) if @buf.length > max
+            return if @buf.length < (@rate * 2) # need ≥1 frame
+
+            try_lock if @inv.nil?
+            return if @inv.nil?
+
+            bits = PWN::SDR::Decoder::DSP.nrz_slice(samples: @buf, rate: @rate, baud: 1600, invert: @inv)
+            @buf.clear
+            bits = @carry + bits
+            @carry = Flex.decode_bits(bits: bits, &)
+          end
+
+          private
+
+          def try_lock
+            @inv = [false, true].find do |inv|
+              bits = PWN::SDR::Decoder::DSP.nrz_slice(samples: @buf, rate: @rate, baud: 1600, invert: inv)
+              PWN::SDR::Decoder::DSP.find_sync(bits: bits, pattern: (BS1 << 16) | A1, width: 32, max_err: 3)
+            end
+          end
+        end
+
         # Supported Method Parameters::
-        # pocsag_resp = PWN::SDR::Decoder::Flex.decode(
-        #   freq_obj: 'required - GQRX socket object returned from #connect method'
+        # carry = PWN::SDR::Decoder::Flex.decode_bits(bits: [...]) { |msg| ... }
+
+        public_class_method def self.decode_bits(opts = {})
+          bits = opts[:bits] || []
+          i = 0
+          loop do
+            # Sync-1 = 16-bit BS1 + 16-bit A + 16-bit B (=~A) + 16-bit ~A
+            idx = PWN::SDR::Decoder::DSP.find_sync(bits: bits, pattern: BS1, width: 16, max_err: 1, from: i)
+            break unless idx
+            break if idx + 144 > bits.length
+
+            a_word = PWN::SDR::Decoder::DSP.bits_to_int(bits: bits[idx + 16, 16])
+            speed  = A_TABLE[a_word]
+            unless speed
+              i = idx + 1
+              next
+            end
+            # Frame Info Word follows Sync-1 (32-bit BCH codeword)
+            fiw   = PWN::SDR::Decoder::DSP.bits_to_int(bits: bits[idx + 64, 32])
+            cycle = (fiw >> 4) & 0x0F
+            frame = (fiw >> 8) & 0x7F
+            block0 = idx + 64 + 32 + 16 # after FIW + Sync-2 marker
+            frame_bits = 1600 * 2 # ≈ one FLEX frame @ 1600 bps (upper bound)
+            avail = [bits.length - block0, frame_bits].min
+            words = []
+            (avail / 32).times do |w|
+              words << PWN::SDR::Decoder::DSP.bits_to_int(bits: bits[block0 + (w * 32), 32])
+            end
+            emit_frame(words: words, cycle: cycle, frame: frame, speed: speed) { |m| yield m if block_given? }
+            i = block0 + avail
+          end
+          tail_from = [bits.length - 3200, 0].max
+          bits[tail_from..] || []
+        end
+
+        # Supported Method Parameters::
+        # PWN::SDR::Decoder::Flex.emit_frame(words:, cycle:, frame:, speed:) { |msg| ... }
+
+        public_class_method def self.emit_frame(opts = {})
+          words = opts[:words] || []
+          cycle = opts[:cycle]
+          frame = opts[:frame]
+          speed = opts[:speed] || [1600, 2]
+          return if words.empty?
+
+          # Block Info Word (word 0): a = address-start, v = vector-start
+          biw     = words[0]
+          a_start = (biw >> 8) & 0x3F
+          v_start = (biw >> 2) & 0x3F
+          v_start = a_start + 1 if v_start <= a_start
+          addr_words = words[a_start...v_start] || []
+          addr_words.each_with_index do |aw, k|
+            next if aw.nil? || aw.zero?
+
+            capcode = (aw >> 11) & 0x1FFFFF
+            vec     = words[v_start + k]
+            type    = vec ? ((vec >> 4) & 0x7) : nil
+            mstart  = vec ? ((vec >> 7)  & 0x7F) : nil
+            mlen    = vec ? ((vec >> 14) & 0x7F) : 0
+            mwords  = mstart && mlen.positive? ? (words[mstart, mlen] || []) : []
+            body, tname =
+              case type
+              when 5 then [alpha_decode(words: mwords), 'ALN']
+              when 3 then [numeric_decode(words: mwords), 'NUM']
+              when 0, nil then [nil, 'TON']
+              else [hex_decode(words: mwords), 'BIN']
+              end
+            out = {
+              protocol: 'FLEX', speed: "#{speed[0]}/#{speed[1]}",
+              cycle: cycle, frame: frame,
+              capcode: capcode.to_s.rjust(9, '0'),
+              type: tname, type_payload: body
+            }.compact
+            out[:summary] = "FLEX RIC=#{out[:capcode]} #{tname}: #{body}"[0, 160]
+            yield out if block_given?
+          end
+        end
+
+        # Supported Method Parameters::
+        # str = PWN::SDR::Decoder::Flex.alpha_decode(words: [Integer, ...])
+
+        public_class_method def self.alpha_decode(opts = {})
+          words = opts[:words] || []
+          out = +''
+          words.each do |w|
+            payload = (w >> 11) & 0x1FFFFF
+            3.times do |c|
+              ch = (payload >> (c * 7)) & 0x7F
+              next if ch < 0x20 || ch == 0x7F
+
+              out << ch.chr
+            end
+          end
+          out.strip
+        end
+
+        # Supported Method Parameters::
+        # str = PWN::SDR::Decoder::Flex.numeric_decode(words: [Integer, ...])
+
+        public_class_method def self.numeric_decode(opts = {})
+          words = opts[:words] || []
+          out = +''
+          words.each do |w|
+            payload = (w >> 11) & 0x1FFFFF
+            5.times { |d| out << NUM_TABLE[(payload >> (d * 4)) & 0xF] }
+          end
+          out.strip
+        end
+
+        # Supported Method Parameters::
+        # str = PWN::SDR::Decoder::Flex.hex_decode(words: [Integer, ...])
+
+        public_class_method def self.hex_decode(opts = {})
+          words = opts[:words] || []
+          words.map { |w| format('%08X', w & 0xFFFFFFFF) }.join(' ')
+        end
+
+        # Supported Method Parameters::
+        # PWN::SDR::Decoder::Flex.decode(
+        #   freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
         # )
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          gqrx_sock = freq_obj[:gqrx_sock]
-          udp_ip    = freq_obj[:udp_ip]    || '127.0.0.1'
-          udp_port  = freq_obj[:udp_port]  || 7355
-
-          freq_obj.delete(:gqrx_sock)
-
-          skip_freq_char = "\n"
-
-          puts JSON.pretty_generate(freq_obj)
-          puts 'Press [ENTER] to Continue to next frequency...'
-
-          # Spinner setup with dynamic terminal width awareness
-          spinner = TTY::Spinner.new(
-            '[:spinner] :status',
-            format: :arrow_pulse,
-            clear: true,
-            hide_cursor: true
+          PWN::SDR::Decoder::Base.run_native(
+            freq_obj: freq_obj,
+            protocol: 'FLEX',
+            demod: Demod.new
           )
-
-          spinner_overhead = 12
-          max_title_length = [TTY::Screen.width - spinner_overhead, 50].max
-
-          initial_title = "INFO: Decoding #{self.to_s.split('::').last} on udp://#{udp_ip}:#{udp_port} ..."
-          initial_title = initial_title[0...max_title_length] if initial_title.length > max_title_length
-          spinner.update(status: initial_title)
-          spinner.auto_spin
-
-          skip_freq = false
-
-          # === Replace netcat with PWN::Plugins::Sock.listen ===
-          udp_listener = PWN::SDR::GQRX.listen_udp(
-            udp_ip: udp_ip,
-            udp_port: udp_port
-          )
-
-          # Combined processing pipeline: sox → multimon-ng
-          decode_cmd = '
-            sox -t raw -e signed-integer -b 16 -r 48000 -c 1 - \
-                -t raw -e signed-integer -b 16 -r 22050 -c 1 - | \
-            multimon-ng -t raw \
-              -a FLEX \
-              -a FLEX_NEXT \
-              -
-          '
-
-          mm_stdin, mm_stdout, mm_stderr, mm_wait_thr = Open3.popen3(decode_cmd)
-
-          current_title = 'Waiting for data frames...'
-
-          # Thread: read from UDP listener and feed to sox|multimon pipeline
-          receiver_thread = Thread.new do
-            begin
-              loop do
-                data, _sender = udp_listener.recv(4096)
-                next unless data.to_s.bytesize.positive?
-
-                mm_stdin.write(data)
-                mm_stdin.flush rescue nil
-              end
-            rescue IOError, Errno::EPIPE, EOFError, Errno::ECONNRESET
-              # normal exit path when shutting down
-            end
-          end
-
-          # Thread: read decoded output from multimon-ng and display it
-          decoder_thread = Thread.new do
-            # buffer = +''
-            buffer = ''
-
-            valid_types = %w[ALN BIN HEX NUM TON TONE UNK]
-            loop do
-              begin
-                chunk = mm_stdout.readpartial(4096)
-                # buffer << chunk
-                buffer = "#{buffer}#{chunk}"
-
-                while (line = buffer.slice!(/^.*\n/))
-                  line = line.chomp
-                  next if line.empty? || !line.start_with?('FLEX')
-
-                  decoded_at = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-                  dec_msg = { decoded_at: decoded_at }
-                  dec_msg[:raw_inspected] = line.inspect
-
-                  protocol = line[0..8]
-                  protocol = 'FLEX' unless protocol == 'FLEX_NEXT'
-                  dec_msg[:protocol] = protocol
-
-                  # ────────────────────────────── Detect format ──────────────────────────────
-                  # Sometimes Flex is space delimited, sometimes pipe delimited
-                  # FLEX_NEXT appears to always be pipe delimited
-
-                  delimiter = '|'
-                  space_delim = false
-                  if line.start_with?('FLEX: ')
-                    delimiter = ' '
-                    space_delim = true
-                  end
-
-                  flex_pipe_delim = false
-                  flex_pipe_delim = true if line.start_with?('FLEX|')
-
-                  parts = line.split(delimiter)
-
-                  # protocol index already used
-                  idx_already_used = [0]
-                  target_parts_idx = 1
-                  target_parts_idx += 1 if flex_pipe_delim
-                  target_parts_idx += 2 if space_delim
-                  dec_msg[:speed] = parts[target_parts_idx] if parts[target_parts_idx]
-                  idx_already_used.push(target_parts_idx)
-
-                  target_parts_idx += 2
-                  dec_msg[:capcode] = parts[target_parts_idx] if parts[target_parts_idx]
-                  idx_already_used.push(target_parts_idx)
-
-                  target_parts_idx -= 1
-                  dec_msg[:capcode_loc] = parts[target_parts_idx] if parts[target_parts_idx]
-                  idx_already_used.push(target_parts_idx)
-
-                  while target_parts_idx < parts.size
-                    if idx_already_used.include?(target_parts_idx)
-                      target_parts_idx += 1
-                      next
-                    end
-
-                    key = parts[target_parts_idx]
-                    key = 'long_sequence_number' if key == 'LS'
-
-                    if key && valid_types.include?(key)
-                      dec_msg[:type] = key
-
-                      dec_msg[:type_desc] = case key
-                                            when 'ALN'
-                                              'Human-readable text'
-                                            when 'BIN'
-                                              'Binary / data payload (typically 32 bit words)'
-                                            when 'HEX'
-                                              'Raw hex representation of data'
-                                            when 'NUM'
-                                              'Numbers only'
-                                            when 'TON', 'TONE'
-                                              'Just alert tone, no message'
-                                            when 'UNK'
-                                              'Decoded but type unknown / unsupported format'
-                                            end
-
-                      target_parts_idx += 1
-                      payload_parts = parts[target_parts_idx..]
-                      dec_msg[:type_payload] = payload_parts.join(delimiter)
-
-                      break
-                    else
-                      target_parts_idx += 1
-                      dec_msg[key] = parts[target_parts_idx] if parts[target_parts_idx]
-                    end
-
-                    idx_already_used.push(target_parts_idx)
-                    target_parts_idx += 1
-                  end
-
-                  final_msg = freq_obj.merge(dec_msg)
-                  puts JSON.pretty_generate(final_msg)
-                  # TODO: Append dec_msg to a log file in a better way
-                  flex_log_file = "/tmp/flex_decoder_#{Time.now.strftime('%Y%m%d')}.log"
-                  File.open(flex_log_file, 'a') do |f|
-                    f.puts("#{JSON.generate(final_msg)},")
-                  end
-                end
-              rescue EOFError, IOError
-                break
-              end
-            end
-          end
-
-          loop do
-            spinner.update(status: current_title)
-
-            # Non-blocking ENTER check to exit gracefully
-            next unless $stdin.wait_readable(0)
-
-            begin
-              char = $stdin.read_nonblock(1)
-              next unless char == skip_freq_char
-
-              skip_freq = true
-              puts "\n[!] ENTER pressed → stopping decoder..."
-
-              break
-            rescue IO::WaitReadable, EOFError
-              # ignore
-            end
-
-            break if skip_freq
-          end
-
-          spinner.success('Decoding stopped')
-        rescue StandardError => e
-          spinner.error("Decoding failed: #{e.message}") if defined?(spinner)
-          raise
-        ensure
-          # Cleanup
-          [receiver_thread, decoder_thread].each do |thread|
-            thread.kill if thread.alive?
-          end
-
-          [mm_stdin, mm_stdout, mm_stderr].each { |io| io.close rescue nil }
-
-          mm_wait_thr&.value rescue nil
-
-          PWN::SDR::GQRX.disconnect_udp(udp_listener: udp_listener) if defined?(udp_listener) && udp_listener
-
-          spinner.stop if defined?(spinner) && spinner
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
-          "AUTHOR(S):
-            0day Inc. <support@0dayinc.com>
-          "
+          "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
 
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native, no external binaries):
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq method'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
+
+            #{self}.decode_bits(bits: [0,1,...]) { |msg| ... }
+            #{self}.alpha_decode(words: [Integer, ...])
+            #{self}.numeric_decode(words: [Integer, ...])
+
+            NOTE: Set GQRX to Narrow FM (~15 kHz). 1600 bps 2-FSK is fully
+                  decoded; 3200/6400 4-FSK emit frame/capcode metadata only.
 
             #{self}.authors
           "

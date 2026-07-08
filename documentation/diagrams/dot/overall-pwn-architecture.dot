@@ -37,7 +37,7 @@ digraph "PWN_Overall_Architecture" {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Loop     [label="Loop\nplan → dispatch → observe",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n10 toolsets · 52 tools",    fillcolor="#c4b5fd"];
+    Registry [label="Registry\n10 toolsets · 54 tools",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
     Prompt   [label="PromptBuilder\nMEMORY · SKILLS\nMISTAKES · EXTRO",fillcolor="#c4b5fd"];
   }
@@ -67,7 +67,7 @@ digraph "PWN_Overall_Architecture" {
     Learn    [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
     Metrics  [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
     MistF    [label="mistakes.json",      shape=cylinder, fillcolor="#fcd34d"];
-    Extro    [label="extrospection.json\n+ rf snapshot", shape=cylinder, fillcolor="#fcd34d"];
+    Extro    [label="extrospection.json\n+ rf + web snapshot", shape=cylinder, fillcolor="#fcd34d"];
     Sessions [label="sessions/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
     SwarmB   [label="swarm/*/bus.jsonl",  shape=cylinder, fillcolor="#fcd34d"];
     CronF    [label="cron/jobs.yml",      shape=cylinder, fillcolor="#fcd34d"];

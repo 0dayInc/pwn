@@ -3,10 +3,14 @@
 module PWN
   module SDR
     module Decoder
-      # APCO Project 25 (P25) Phase-1 C4FM decoder for the 700/800 MHz
-      # public-safety allocations. GQRX supplies NBFM-discriminator audio via
-      # the UDP tap; `dsd` (Digital Speech Decoder) recovers the C4FM symbol
-      # stream and prints trunking-control frames (NAC, TGID, RID, DUID, ...).
+      # Pure-Ruby APCO Project 25 Phase-1 C4FM activity detector.
+      #
+      # P25 is 4800 sym/s 4-level FSK with 1/2-rate trellis + RS + IMBE
+      # vocoder. Full symbol recovery, deinterleave, FEC and voice decode
+      # is out of scope for a portable pure-Ruby implementation; this
+      # module instead characterises C4FM keying activity (talkgroup key-
+      # ups, control-channel duty cycle) natively via Base.run_detector.
+      # `parse_line` is retained for offline dsd-format log analysis.
       module P25
         # Supported Method Parameters::
         # PWN::SDR::Decoder::P25.decode(
@@ -15,17 +19,18 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-
-          # dsd expects 48 kHz s16le on stdin — bypass Base's 22 050 Hz resample
-          # by asking for 48 000 (sox becomes a passthrough / format guard).
-          PWN::SDR::Decoder::Base.run_pipeline(
+          PWN::SDR::Decoder::Base.run_detector(
             freq_obj: freq_obj,
             protocol: 'P25',
-            required_bins: %w[sox dsd],
-            resample_hz: 48_000,
-            decode_cmd: 'dsd -q -i - -o /dev/null -f1',
-            line_match: /(NAC|TGID|TG:|RID|src:|P25|Sync:)/i,
-            parser: proc { |line| parse_line(line: line) }
+            note: 'C4FM 4-FSK + trellis/RS/IMBE — native mode reports key-up bursts (duration/peak/duty) only. Feed captured dsd text to .parse_line for NAC/TG/RID.',
+            threshold: 6.0,
+            describe: proc { |b|
+              kind = if b[:duration_ms] > 1500 then 'voice-superframe'
+                     elsif b[:duration_ms] > 150 then 'LDU/HDU'
+                     else 'TSBK/control'
+                     end
+              { modulation: 'C4FM', symbol_rate: 4800, classification: kind }
+            }
           )
         end
 
@@ -53,12 +58,10 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE:
+          puts "USAGE (ruby-native detector, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )
-
-            NOTE: Requires `dsd`. Set GQRX demod to Narrow FM, ~12.5 kHz.
 
             #{self}.parse_line(line: 'Sync: +P25p1 NAC: 293 src: 1234 tg: 5678')
 
