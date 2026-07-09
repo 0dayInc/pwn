@@ -76,8 +76,8 @@ PWN::Driver::Parser.new do |options|
     opts[:fft_scan] = f
   end
 
-  options.on('--sample-rate=RATE', '<Optional --fft-scan - Visible span/sample_rate in Hz (default 1_000_000). NOTE: no short flag; -S is --strength-lock>') do |s|
-    opts[:sample_rate] = s
+  options.on('--input-rate=RATE', '<Optional --fft-scan - GQRX Input rate / visible span in Hz (default 1_000_000). NOTE: no short flag; -S is --strength-lock>') do |s|
+    opts[:input_rate] = s
   end
 
   options.on('-NINT', '--nfft=INT', '<Optional --fft-scan - FFT bin size (default 2048)>') do |n|
@@ -110,6 +110,10 @@ PWN::Driver::Parser.new do |options|
 
   options.on('--no-refine', '<Optional --fft-scan - Skip the post-FFT iterative edge/peak refine pass that locks the exact channel frequency (default: refine ON)>') do
     opts[:refine] = false
+  end
+
+  options.on('--refine-mode=MODE', '<Optional --fft-scan - Refine strategy: lock (default, fast S-meter raster hunt), fft (legacy local high-res FFT zoom), hybrid (both)>') do |m|
+    opts[:refine_mode] = m
   end
 end.parse!
 
@@ -228,8 +232,16 @@ begin
   opts.merge!(band_plans[profile_key]) unless profile_key.nil?
 
   fft_scan = opts[:fft_scan]
-  sample_rate = opts[:sample_rate] || 1_000_000
+  # Prefer (1) explicit --input-rate, (2) band-plan :input_rate from
+  # FrequencyAllocation (merged above), (3) historic 1 Msps default.
+  # GQRX device Input rate is separate from this *assumption* — use
+  # PWN::SDR::GQRX.apply_band_plan_input_rate to push the plan rate into
+  # ~/.config/gqrx/*.conf for the connected SDR.
+  # Local var + fast_scan_range kwarg remain sample_rate for library parity.
+  sample_rate = opts[:input_rate] || 1_000_000
   sample_rate = sample_rate.to_i
+  puts "[*] input_rate (FFT/scan chunk / IQ span assumption): #{sample_rate} Hz" \
+       "#{" (band plan #{profile_key})" if profile_key}"
   nfft = opts[:nfft] || 2048
   nfft = nfft.to_i
   avgv = opts[:avg] || 8
@@ -265,6 +277,7 @@ begin
       precision: precision,
       min_bw_ratio: min_bw_ratio,
       refine: opts.fetch(:refine, true),
+      refine_mode: opts[:refine_mode] || :lock,
       demodulator_mode: demodulator_mode,
       bandwidth: bandwidth,
       squelch: squelch,

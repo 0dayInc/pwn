@@ -625,16 +625,27 @@ module PWN
         # so wide carriers (fm_radio 200 kHz) don't emit N peaks, and dense
         # narrow ones (FLEX 1 kHz / CW 100 Hz) still separate. Floor is
         # step-aware so CW/RTTY aren't forced to 3 kHz.
-        floor_sep = [step_hz, 3_000.0].max
-        floor_sep = [floor_sep, 3_000.0].min if plan_bw_hz.positive? && plan_bw_hz < 3_000.0
-        # For sub-kHz plans (CW 150 Hz) floor_sep collapses toward plan/step.
-        if plan_bw_hz.positive? && plan_bw_hz < 1_000.0
+        # Floor for peak min-distance. Wide plans must NOT floor at step_hz
+        # itself — for fm_radio step=100 kHz that made min_dist ~100 kHz and
+        # let strong carriers dominate weaker neighbours within one channel.
+        # Prefer a modest absolute floor scaled by plan family.
+        if plan_bw_hz.positive? && plan_bw_hz >= 50_000.0
+          floor_sep = [step_hz * 0.45, plan_bw_hz * 0.25, 25_000.0].max
+        elsif plan_bw_hz.positive? && plan_bw_hz < 1_000.0
           floor_sep = [plan_bw_hz, step_hz, 100.0].max
         elsif plan_bw_hz.positive? && plan_bw_hz < 10_000.0
           floor_sep = [plan_bw_hz * 0.5, step_hz, 500.0].max
+        else
+          floor_sep = [step_hz, 3_000.0].max
+          floor_sep = [floor_sep, 3_000.0].min if plan_bw_hz.positive? && plan_bw_hz < 3_000.0
         end
 
-        sep_hz = if plan_bw_hz.positive?
+        # Wide broadcast: keep sep slightly under one channel so adjacent
+        # stations (US FM every 200 kHz) always survive, while pilot/RDS
+        # (~19/57 kHz offsets) still get merged under the main carrier.
+        sep_hz = if plan_bw_hz.positive? && plan_bw_hz >= 50_000.0
+                   [step_hz * 0.55, plan_bw_hz * 0.30, floor_sep].max
+                 elsif plan_bw_hz.positive?
                    [plan_bw_hz * 0.5, step_hz, floor_sep].max
                  else
                    [step_hz, 6_000.0].max
@@ -708,13 +719,27 @@ module PWN
         max_snap_delta_hz = step_hz.to_i if max_snap_delta_hz < 1
 
         # Cross-chunk / post-refine merge tolerance.
-        merge_tol_hz = [
-          (plan_bw_hz / 2.0),
-          step_hz,
-          (measured_bw_hz / 2.0),
-          (res_hz.positive? ? (2.0 * res_hz).ceil : 0.0)
-        ].max.to_i
-        merge_tol_hz = step_hz.to_i if merge_tol_hz < 1
+        # Wide broadcast carriers (fm_radio): half-plan (100 kHz) would collapse
+        # two legitimate adjacent stations. Prefer a fraction of the *raster*
+        # so two seeds on neighbouring 100 kHz channels survive, while
+        # subcarrier/pilot debris around a single station still merges.
+        if plan_bw_hz >= 50_000.0
+          merge_tol_hz = [
+            step_hz * 0.55,
+            (measured_bw_hz / 2.0),
+            (res_hz.positive? ? (2.0 * res_hz).ceil : 0.0),
+            1_000.0
+          ].max.to_i
+        else
+          merge_tol_hz = [
+            (plan_bw_hz / 2.0),
+            step_hz,
+            (measured_bw_hz / 2.0),
+            (res_hz.positive? ? (2.0 * res_hz).ceil : 0.0)
+          ].max.to_i
+        end
+        merge_tol_hz = step_hz.to_i if merge_tol_hz < 1 && plan_bw_hz < 50_000.0
+        merge_tol_hz = 1 if merge_tol_hz < 1
 
         # Local high-res FFT zoom sample rate for refine: ~4–8× plan BW with
         # bounds that still resolve narrow plans and don't waste time on wide
@@ -772,6 +797,8 @@ module PWN
         plan_bw_hz = (opts[:plan_bw_hz] || step_hz).to_i
         plan_bw_hz = step_hz if plan_bw_hz <= 0
         step_hz = 1 if step_hz <= 0
+        mode = opts[:refine_mode].to_s.downcase
+        mode = 'lock' if mode.empty? || mode == 'true' || mode == 'default'
 
         return detections if detections.empty?
 
@@ -785,12 +812,41 @@ module PWN
         max_delta = geo[:max_snap_delta_hz]
         local_nfft = 2048
         local_res = local_sr / local_nfft.to_f
+        # How many raster bins either side of the seed to lock-hunt.
+        # Wide FM (step 100 kHz): ±1 is enough to fix a bad snap; narrow plans
+        # hunt ±2 so bursty carriers still find a strong centre.
+        hunt_steps = plan_bw_hz >= 50_000.0 ? 1 : 2
 
         puts '-' * 86
-        puts "[REFINE] FFT-centred channel lock of #{detections.length} preliminary detection(s)"
+        puts "[REFINE] #{mode}-mode channel lock of #{detections.length} preliminary detection(s)"
         puts "         raster=#{PWN::SDR.hz_to_s(freq: step_hz)} Hz  plan_bw=#{PWN::SDR.hz_to_s(freq: plan_bw_hz)} Hz  strength_lock=#{strength_lock} dBFS"
-        puts "         geo: half_win=#{PWN::SDR.hz_to_s(freq: half_win)}  local_sr=#{local_sr}  narrow_half=#{PWN::SDR.hz_to_s(freq: narrow_half)}  max_snap_Δ=#{PWN::SDR.hz_to_s(freq: max_delta)}"
+        puts "         geo: half_win=#{PWN::SDR.hz_to_s(freq: half_win)}  local_sr=#{local_sr}  narrow_half=#{PWN::SDR.hz_to_s(freq: narrow_half)}  max_snap_Δ=#{PWN::SDR.hz_to_s(freq: max_delta)}  hunt=±#{hunt_steps}"
         puts '-' * 86
+
+        mode_str = (opts[:demodulator_mode] || :FM).to_s.upcase
+        passband_hz = plan_bw_hz.positive? ? plan_bw_hz : 20_000
+
+        # Band-plan IF once up-front for S-meter/lock-hunt (meaningful STRENGTH).
+        begin
+          cmd(gqrx_sock: gqrx_sock, cmd: "M #{mode_str} #{passband_hz}", resp_ok: 'RPRT 0')
+          cmd(gqrx_sock: gqrx_sock, cmd: 'L SQL -150.0', resp_ok: 'RPRT 0')
+          sleep 0.08
+        rescue StandardError => e
+          puts "[REFINE] WARNING: could not apply band-plan IF (#{e.class}: #{e.message})"
+        end
+
+        # Fast S-meter sample helper (median of N reads after a short settle).
+        sample_smeter = lambda do |hz, n: 4, settle: 0.04|
+          tune_to(gqrx_sock: gqrx_sock, hz: hz)
+          sleep settle
+          samples = n.times.map do
+            s = cmd(gqrx_sock: gqrx_sock, cmd: 'l STRENGTH').to_f
+            sleep 0.008
+            s
+          end
+          samples.sort!
+          samples[samples.length / 2]
+        end
 
         refined = []
         detections.each_with_index do |det, idx|
@@ -801,115 +857,144 @@ module PWN
             next
           end
 
+          seed_snap = ((seed_hz.to_f / step_hz).round * step_hz).to_i
           win_lo = seed_hz - half_win
           win_hi = seed_hz + half_win
-          puts "\n[REFINE #{idx + 1}/#{detections.length}] seed=#{PWN::SDR.hz_to_s(freq: seed_hz)}  window=#{PWN::SDR.hz_to_s(freq: win_lo)}..#{PWN::SDR.hz_to_s(freq: win_hi)}  local_sr=#{local_sr} res≈#{local_res.round(1)} Hz"
+          puts "\n[REFINE #{idx + 1}/#{detections.length}] seed=#{PWN::SDR.hz_to_s(freq: seed_hz)} snap=#{PWN::SDR.hz_to_s(freq: seed_snap)}  window=#{PWN::SDR.hz_to_s(freq: win_lo)}..#{PWN::SDR.hz_to_s(freq: win_hi)} mode=#{mode}"
 
           peak_hz = nil
           peak_pwr = nil
           peak_bw = det[:bw_hz].to_i
           peak_snr = det[:snr_db]
           peak_nf = det[:noise_floor_db]
+          smeter = nil
 
-          begin
-            # Ensure RAW full-span capture for the local zoom (same rule as
-            # panoramic: IQRECORD is the demod IF, so use RAW @ local_sr).
-            cmd(
-              gqrx_sock: gqrx_sock,
-              cmd: "M RAW #{local_sr}",
-              resp_ok: 'RPRT 0'
-            )
-            tune_to(gqrx_sock: gqrx_sock, hz: seed_hz)
-            sleep 0.12
-            snap = get_spectrum_snapshot(
-              gqrx_sock: gqrx_sock,
-              center_freq: seed_hz,
-              sample_rate: local_sr,
-              nfft: local_nfft,
-              avg: 6,
-              capture_secs: 0.12,
-              channel_bw_hz: plan_bw_hz,
-              step_hz: step_hz
-            )
-            local_sigs = (snap[:signals] || []).select do |s|
-              h = s[:hz].to_i
-              h.between?(win_lo, win_hi) && s[:snr_db].to_f >= 8.0
-            end
-            if local_sigs.empty?
-              # Fallback: strongest bin inside a plan-parametric narrow window
-              # around seed (half plan / 2*raster — was hard-coded ±2 kHz).
-              bins = snap[:spectrum] || []
-              narrow_lo = seed_hz - narrow_half
-              narrow_hi = seed_hz + narrow_half
-              in_win = bins.select { |b| b[:freq_hz].to_i.between?(narrow_lo, narrow_hi) }
-              unless in_win.empty?
-                best_bin = in_win.max_by { |b| b[:power_db].to_f }
-                nf = snap[:noise_floor_db].to_f
-                if best_bin[:power_db].to_f >= (nf + 8.0)
-                  peak_hz = best_bin[:freq_hz].to_i
-                  peak_pwr = best_bin[:power_db].to_f
-                  peak_bw = plan_bw_hz
-                  peak_snr = (peak_pwr - nf).round(2)
-                  peak_nf = nf
-                end
+          if mode == 'fft'
+            # Legacy path: local high-res FFT zoom (slow — one IQRECORD + FFT per hit).
+            begin
+              cmd(gqrx_sock: gqrx_sock, cmd: "M RAW #{local_sr}", resp_ok: 'RPRT 0')
+              tune_to(gqrx_sock: gqrx_sock, hz: seed_hz)
+              sleep 0.08
+              snap = get_spectrum_snapshot(
+                gqrx_sock: gqrx_sock,
+                center_freq: seed_hz,
+                sample_rate: local_sr,
+                nfft: local_nfft,
+                avg: 4,
+                capture_secs: 0.08,
+                channel_bw_hz: plan_bw_hz,
+                step_hz: step_hz
+              )
+              local_sigs = (snap[:signals] || []).select do |s|
+                h = s[:hz].to_i
+                h.between?(win_lo, win_hi) && s[:snr_db].to_f >= 8.0
               end
-            else
-              # Prefer the peak closest to the seed among those within 3 dB of
-              # the strongest AND within max_snap of the seed. Neighbours outside
-              # the channel footprint (e.g. next FM station 200 kHz away) must
-              # not steal the refine even if they are louder in a wide window.
-              near = local_sigs.select { |s| (s[:hz].to_i - seed_hz).abs <= max_delta }
-              pool = near.empty? ? local_sigs : near
-              best_snr = pool.map { |s| s[:snr_db].to_f }.max
-              contenders = pool.select { |s| s[:snr_db].to_f >= (best_snr - 3.0) }
-              best = contenders.min_by { |s| (s[:hz].to_i - seed_hz).abs }
-              peak_hz = best[:hz].to_i
-              peak_pwr = best[:power_db].to_f
-              peak_bw = best[:bw_hz].to_i
-              peak_bw = plan_bw_hz if peak_bw <= 0 || peak_bw > (plan_bw_hz * 2)
-              peak_snr = best[:snr_db]
-              peak_nf = best[:noise_floor_db]
+              if local_sigs.empty?
+                bins = snap[:spectrum] || []
+                narrow_lo = seed_hz - narrow_half
+                narrow_hi = seed_hz + narrow_half
+                in_win = bins.select { |b| b[:freq_hz].to_i.between?(narrow_lo, narrow_hi) }
+                unless in_win.empty?
+                  best_bin = in_win.max_by { |b| b[:power_db].to_f }
+                  nf = snap[:noise_floor_db].to_f
+                  if best_bin[:power_db].to_f >= (nf + 8.0)
+                    peak_hz = best_bin[:freq_hz].to_i
+                    peak_pwr = best_bin[:power_db].to_f
+                    peak_bw = plan_bw_hz
+                    peak_snr = (peak_pwr - nf).round(2)
+                    peak_nf = nf
+                  end
+                end
+              else
+                near = local_sigs.select { |s| (s[:hz].to_i - seed_hz).abs <= max_delta }
+                pool = near.empty? ? local_sigs : near
+                best_snr = pool.map { |s| s[:snr_db].to_f }.max
+                contenders = pool.select { |s| s[:snr_db].to_f >= (best_snr - 3.0) }
+                best = contenders.min_by { |s| (s[:hz].to_i - seed_hz).abs }
+                peak_hz = best[:hz].to_i
+                peak_pwr = best[:power_db].to_f
+                peak_bw = best[:bw_hz].to_i
+                peak_bw = plan_bw_hz if peak_bw <= 0 || peak_bw > (plan_bw_hz * 2)
+                peak_snr = best[:snr_db]
+                peak_nf = best[:noise_floor_db]
+              end
+              # restore band-plan IF for any subsequent S-meter confirm
+              cmd(gqrx_sock: gqrx_sock, cmd: "M #{mode_str} #{passband_hz}", resp_ok: 'RPRT 0')
+            rescue StandardError => e
+              puts "  [REFINE] local FFT failed (#{e.class}: #{e.message}) — falling back to lock-hunt"
+              peak_hz = nil
+              begin
+                cmd(gqrx_sock: gqrx_sock, cmd: "M #{mode_str} #{passband_hz}", resp_ok: 'RPRT 0')
+              rescue StandardError
+                nil
+              end
             end
-          rescue StandardError => e
-            puts "  [REFINE] local FFT failed (#{e.class}: #{e.message}) — keeping FFT estimate"
+          end
+
+          # Lock-hunt (default AND fft-fallback): probe seed_snap ± N * step_hz
+          # under the band-plan demod and keep the strongest above (lock - 6 dB).
+          # This is the accuracy fix for FM: panoramic centroids often snap one
+          # channel off (89.2 vs 89.1); a single S-meter probe per neighbour
+          # corrects it in ~150 ms vs multi-second local FFT zoom.
+          if peak_hz.nil? || mode == 'lock' || mode == 'hybrid'
+            candidates = (-hunt_steps..hunt_steps).map { |k| seed_snap + (k * step_hz) }
+            # Also include the raw panoramic snap if it differs from seed_snap.
+            candidates << ((seed_hz.to_f / step_hz).round * step_hz).to_i
+            candidates = candidates.uniq.select { |h| h.positive? && h.between?(win_lo - step_hz, win_hi + step_hz) }
+            best_h = nil
+            best_s = -1.0 / 0.0
+            scores = []
+            candidates.each do |h|
+              s = sample_smeter.call(h, n: 3, settle: 0.035)
+              scores << [h, s]
+              if s > best_s
+                best_s = s
+                best_h = h
+              end
+            end
+            # Accept if strong enough relative to strength_lock (S-meter domain).
+            # strength_lock ≈ nf+8; require at least lock-6 (≈ nf+2) so weak-but-
+            # real stations still lock while pure noise floor rejects.
+            min_accept = strength_lock - 6.0
+            if best_h && best_s >= min_accept
+              peak_hz = best_h
+              smeter = best_s.round(1)
+              peak_pwr = smeter if peak_pwr.nil?
+              # Optional: if two neighbours both very strong (within 3 dB) and
+              # both above lock, keep BOTH as separate detections later by
+              # returning the nearest-to-seed; dual-split happens only when
+              # the secondary is itself a distinct seed from panorama.
+              near_seed = scores.select { |_h, s| s >= (best_s - 3.0) && s >= min_accept }
+                                .min_by { |h, _s| (h - seed_hz).abs }
+              if near_seed && (near_seed[0] - seed_hz).abs <= max_delta
+                peak_hz = near_seed[0]
+                smeter = near_seed[1].round(1)
+              end
+              puts "  [REFINE] lock-hunt scores: #{scores.map { |h, s| "#{PWN::SDR.hz_to_s(freq: h)}=#{s.round(1)}" }.join('  ')}"
+            else
+              puts "  [REFINE] lock-hunt no candidate ≥ #{min_accept.round(1)} dBFS (best=#{best_s.round(1)}) — keeping FFT estimate"
+            end
           end
 
           unless peak_hz
-            puts '  [REFINE] no local peak in window — keeping panoramic FFT estimate'
             refined << det
             next
           end
 
-          # Snap to band-plan raster
           snapped_hz = ((peak_hz.to_f / step_hz).round * step_hz).to_i
-          unless snapped_hz.between?(win_lo, win_hi)
-            puts "  [REFINE] snapped #{PWN::SDR.hz_to_s(freq: snapped_hz)} outside window — keeping FFT estimate"
-            refined << det
-            next
-          end
-          if (snapped_hz - seed_hz).abs > max_delta
-            puts "  [REFINE] snap moved Δ=#{(snapped_hz - seed_hz).abs} Hz (>#{max_delta}) — keeping FFT estimate"
+          if (snapped_hz - seed_hz).abs > [max_delta, step_hz * hunt_steps].max
+            puts "  [REFINE] snap moved Δ=#{(snapped_hz - seed_hz).abs} Hz (>#{[max_delta, step_hz * hunt_steps].max}) — keeping FFT estimate"
             refined << det
             next
           end
 
-          # Optional single S-meter confirmation under band-plan IF (best-effort).
-          # Does NOT drive the edge walk — bursty paging will otherwise collapse.
-          smeter = nil
-          begin
-            mode_str = (opts[:demodulator_mode] || det[:demodulator_mode] || :FM).to_s.upcase
-            pb = plan_bw_hz.positive? ? plan_bw_hz : 20_000
-            cmd(gqrx_sock: gqrx_sock, cmd: "M #{mode_str} #{pb}", resp_ok: 'RPRT 0')
-            tune_to(gqrx_sock: gqrx_sock, hz: snapped_hz)
-            sleep 0.08
-            samples = 8.times.map do
-              s = cmd(gqrx_sock: gqrx_sock, cmd: 'l STRENGTH').to_f
-              sleep 0.015
-              s
+          # Single S-meter confirm if we only have FFT peak so far.
+          if smeter.nil?
+            begin
+              smeter = sample_smeter.call(snapped_hz, n: 4, settle: 0.04).round(1)
+            rescue StandardError
+              smeter = nil
             end
-            smeter = samples.max.round(1)
-          rescue StandardError
-            smeter = nil
           end
 
           out = det.dup
@@ -922,7 +1007,7 @@ module PWN
           out[:noise_floor_db] = peak_nf if peak_nf
           out[:snr_db] = peak_snr if peak_snr
           out[:strength_db] = smeter || peak_pwr.to_f.round(2)
-          out[:method] = :fast_spectrum_refined_fft_peak
+          out[:method] = mode == 'fft' ? :fast_spectrum_refined_fft_peak : :fast_spectrum_refined_lock_hunt
           out[:refined] = true
           delta_hz = (snapped_hz - seed_hz).abs
           sm_s = smeter ? "#{smeter} dBFS" : 'n/a'
@@ -933,7 +1018,7 @@ module PWN
           refined << det
         end
 
-        # De-dupe after refine
+        # De-dupe after refine — keep strongest when two seeds collapse onto one channel.
         refined.sort_by! { |d| d[:hz].to_i }
         deduped = []
         refined.each do |d|
@@ -944,8 +1029,22 @@ module PWN
             measured_bw_hz: d[:bw_hz].to_i,
             res_hz: local_res
           )[:merge_tol_hz]
+          # For wide plans, merge_tol of half-plan (100 kHz for FM) would
+          # collapse adjacent legitimate stations. Cap at 0.6*step when step
+          # is already half a channel or more.
+          if plan_bw_hz >= 50_000.0
+            tol = [tol, (step_hz * 0.6).to_i].min
+            tol = [tol, 1].max
+          end
           if prev && (d[:hz].to_i - prev[:hz].to_i).abs <= tol
-            deduped[-1] = d if d[:snr_db].to_f >= prev[:snr_db].to_f
+            # Prefer stronger S-meter when both refined; fall back to SNR.
+            prev_score = prev[:strength_db].to_f
+            this_score = d[:strength_db].to_f
+            if this_score == prev_score
+              prev_score = prev[:snr_db].to_f
+              this_score = d[:snr_db].to_f
+            end
+            deduped[-1] = d if this_score >= prev_score
           else
             deduped << d
           end
@@ -1261,9 +1360,10 @@ module PWN
             puts "SESSION PARAMS >> Continuously Loop through Scan Range(s): #{keep_looping}"
             puts "\nIf scans are slow and/or you're experiencing false positives/negatives,"
             puts 'consider adjusting the following:'
-            puts "1. The SDR's sample rate in GQRX"
-            puts "\s\s- Click on `Configure I/O devices`."
-            puts "\s\s- A lower `Input rate` value seems counter-intuitive but works well (e.g. ADALM PLUTO ~ 1000000)."
+            puts "1. The SDR's sample rate in GQRX (device Input rate — NOT remote-control)"
+            puts "\s\s- Prefer: PWN::SDR::GQRX.apply_band_plan_input_rate(band_plan: :fm_radio, restart: true)"
+            puts "\s\s- Or: click Configure I/O devices and set Input rate to the band-plan input_rate."
+            puts "\s\s- Lower Input rate can improve regular-scan responsiveness (e.g. Pluto/HackRF ~ 1e6 for FM)."
             puts '2. Adjust the :strength_lock parameter.'
             puts '3. Adjust the :precision parameter.'
             puts '4. Disable AI module_reflection in PWN::Env'
@@ -1759,6 +1859,358 @@ module PWN
         raise e
       end
 
+      # ------------------------------------------------------------------
+      # GQRX *device* sample-rate configuration
+      #
+      # The remote-control protocol (see #cmd header / remote-control.txt)
+      # exposes F/M/L/U/… but NOT input sample rate. GQRX's Input rate is a
+      # hardware/device-dialog setting persisted under:
+      #
+      #   ~/.config/gqrx/<session>.conf  →  [input] sample_rate=<int>
+      #
+      # and only applied when GQRX (re)opens the SDR. Therefore the only
+      # reliable way to configure sample rate for the *currently connected*
+      # SDR is:
+      #   1. resolve the active conf (+ optional SoapySDR probe for legal rates)
+      #   2. rewrite [input] sample_rate=
+      #   3. bounce GQRX (or prompt the operator to reopen I/O devices)
+      #
+      # Band-plan defaults live on
+      # PWN::SDR::FrequencyAllocation.band_plans[<plan>][:input_rate]
+      # (e.g. fm_radio → 1_000_000, ads_b* → 2_000_000). Prefer
+      # #set_input_rate / #apply_band_plan_input_rate over hand edits.
+      # ------------------------------------------------------------------
+
+      # Supported Method Parameters::
+      # path = PWN::SDR::GQRX.config_path(
+      #   path: 'optional - absolute path to a GQRX .conf (defaults to ~/.config/gqrx/default.conf or recentconfig)'
+      # )
+      public_class_method def self.config_path(opts = {})
+        return opts[:path].to_s if opts[:path] && !opts[:path].to_s.empty?
+
+        conf_dir = File.join(Dir.home, '.config', 'gqrx')
+        recent = File.join(conf_dir, 'recentconfig.cfg')
+        if File.file?(recent)
+          # recentconfig.cfg is usually a single path line
+          candidate = File.read(recent).to_s.lines.map(&:strip).find { |l| !l.empty? && !l.start_with?('#') }
+          return candidate if candidate && File.file?(candidate)
+        end
+
+        default = File.join(conf_dir, 'default.conf')
+        return default if File.file?(default)
+
+        # last resort: newest *.conf
+        newest = Dir.glob(File.join(conf_dir, '*.conf')).max_by { |f| File.mtime(f) }
+        return newest if newest
+
+        default
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # info = PWN::SDR::GQRX.read_input_config(
+      #   path: 'optional - GQRX conf path (defaults to #config_path)'
+      # )
+      # Returns Hash with :path, :device, :frequency, :input_rate, :raw
+      public_class_method def self.read_input_config(opts = {})
+        path = config_path(path: opts[:path])
+        raise "ERROR: GQRX conf not found: #{path}" unless File.file?(path)
+
+        text = File.read(path)
+        # Restrict to the [input] section (until next [section] or EOF).
+        input = text[/^\[input\][^\[]*/m].to_s
+        raise "ERROR: no [input] section in #{path}" if input.empty?
+
+        device = input[/^device=(.*)$/, 1].to_s.strip
+        # strip surrounding quotes GQRX sometimes writes
+        device = device.sub(/\A"(.*)"\z/, '\1')
+        freq_s = input[/^frequency=(.*)$/, 1].to_s.strip
+        rate_s = input[/^sample_rate=(.*)$/, 1].to_s.strip
+
+        {
+          path: path,
+          device: device,
+          frequency: (freq_s.empty? ? nil : freq_s.to_i),
+          input_rate: (rate_s.empty? ? nil : rate_s.to_i),
+          raw: input
+        }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # rates = PWN::SDR::GQRX.device_input_rates(
+      #   device: 'optional - SoapySDR args string (defaults to [input] device= from conf)',
+      #   path: 'optional - GQRX conf path used when :device omitted'
+      # )
+      # Returns Array<Integer> of legal sample rates (Hz). Empty when unprobeable.
+      public_class_method def self.device_input_rates(opts = {})
+        device = opts[:device].to_s
+        if device.empty?
+          conf = read_input_config(path: opts[:path])
+          device = conf[:device].to_s
+        end
+
+        # Prefer SoapySDRUtil --probe (works for every Soapy driver GQRX uses).
+        # device strings look like:
+        #   "device=HackRF Pro,driver=hackrf,..."  or  "driver=plutosdr,..."
+        # Conf may be stale (e.g. still names Pluto while a HackRF is what is
+        # actually attached) — fall through a probe chain until rates resolve.
+        candidates = []
+        candidates << device unless device.empty?
+        if (driver = device[/driver=([^,]+)/, 1])
+          candidates << "driver=#{driver}"
+        end
+        begin
+          find_out = `SoapySDRUtil --find 2>/dev/null`.to_s
+          find_out.scan(/driver\s*=\s*(\S+)/i).flatten.uniq.each do |d|
+            candidates << "driver=#{d}"
+          end
+        rescue StandardError
+          nil
+        end
+        candidates.uniq!
+
+        out = ''
+        candidates.each do |probe_arg|
+          next if probe_arg.to_s.empty?
+
+          candidate_out = `SoapySDRUtil --probe="#{probe_arg.to_s.gsub('"', '\\"')}" 2>/dev/null`
+          if candidate_out.to_s =~ /Sample rates:/i
+            out = candidate_out
+            break
+          end
+        end
+        return [] if out.to_s.strip.empty?
+
+        rates = []
+        out.each_line do |line|
+          next unless line =~ /Sample rates:\s*(.+)/i
+
+          spec = Regexp.last_match(1).strip
+          # Formats observed:
+          #   "1, 2, 3, 4, 5, ..., 16, 17, 18, 19, 20 MSps"
+          #   "0.25, 0.5, ..., 3.2 MSps"
+          #   "250000, 1024000, 1800000, 2400000, 3200000 Hz"
+          unit = :hz
+          unit = :msps if spec =~ %r{MSps|MS/s|MHz}i
+          unit = :ksps if spec =~ %r{kSps|kS/s|kHz}i
+
+          nums = spec.scan(/(\d+(?:\.\d+)?)/).flatten.map(&:to_f)
+          # When "...," range ellipsis is present with endpoints, expand integers.
+          if spec.include?('...') && nums.length >= 2 && unit == :msps
+            # HackRF style: 1,2,3,...,20 → integer Msps
+            lo = nums.first
+            hi = nums.last
+            step = 1.0
+            step = nums[1] - nums[0] if nums.length >= 3 && (nums[1] - nums[0]).positive?
+            n = lo
+            while n <= hi + 1e-9
+              rates << (n * 1_000_000).round
+              n += step
+            end
+          else
+            nums.each do |n|
+              hz = case unit
+                   when :msps then (n * 1_000_000).round
+                   when :ksps then (n * 1_000).round
+                   else n.round
+                   end
+              rates << hz
+            end
+          end
+        end
+        rates.uniq.sort
+      rescue StandardError
+        []
+      end
+
+      # Supported Method Parameters::
+      # hz = PWN::SDR::GQRX.nearest_input_rate(
+      #   input_rate: 'required - desired input rate Hz',
+      #   rates: 'optional - Array of legal rates (defaults to #device_input_rates)'
+      # )
+      # Snaps desired rate onto the closest legal device rate (>= preferred when
+      # possible, else nearest). Returns desired unchanged when rates empty.
+      public_class_method def self.nearest_input_rate(opts = {})
+        desired = (opts[:input_rate] || opts[:sample_rate]).to_i
+        raise 'ERROR: :input_rate required' unless desired.positive?
+
+        rates = opts[:rates]
+        rates = device_input_rates(device: opts[:device], path: opts[:path]) if rates.nil?
+        return desired if rates.nil? || rates.empty?
+
+        # Prefer the smallest legal rate that still covers the ask (Nyquist /
+        # panoramic span), else the max the hardware can do.
+        ge = rates.select { |r| r >= desired }
+        return ge.min if ge.any?
+
+        rates.max
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # result = PWN::SDR::GQRX.set_input_rate(
+      #   input_rate: 'required - desired GQRX Input rate in Hz (Integer)',
+      #   path: 'optional - GQRX conf path (defaults to #config_path)',
+      #   clamp: 'optional - snap to nearest legal device rate (default true)',
+      #   restart: 'optional - kill+respawn gqrx so the new rate is applied (default false)',
+      #   gqrx_bin: 'optional - gqrx binary path when restart:true (default `which gqrx`)'
+      # )
+      # Rewrites [input] sample_rate= in the active GQRX conf. Does NOT use the
+      # remote-control socket — input rate is not part of that protocol.
+      # Returns { path:, previous:, input_rate:, clamped_from:, restarted:, device: }.
+      public_class_method def self.set_input_rate(opts = {})
+        desired = (opts[:input_rate] || opts[:sample_rate]).to_i
+        raise 'ERROR: :input_rate required (positive Integer Hz)' unless desired.positive?
+
+        path = config_path(path: opts[:path])
+        conf = read_input_config(path: path)
+        previous = conf[:input_rate]
+        device = conf[:device]
+
+        applied = desired
+        clamped_from = nil
+        clamp = opts.key?(:clamp) ? !opts[:clamp].nil? && opts[:clamp] != false : true
+        if clamp
+          snapped = nearest_input_rate(
+            input_rate: desired,
+            device: device,
+            path: path
+          )
+          if snapped != desired
+            clamped_from = desired
+            applied = snapped
+          end
+        end
+
+        text = File.read(path)
+        if text.match?(/^\[input\][^\[]*sample_rate=/m)
+          text = text.sub(/^(sample_rate=).*$/, "\\1#{applied}")
+        else
+          # Insert sample_rate under [input] if the key is somehow missing.
+          text = text.sub(/^\[input\]\s*$/, "[input]\nsample_rate=#{applied}")
+        end
+        File.write(path, text)
+
+        restarted = false
+        if opts[:restart]
+          restarted = restart_gqrx(
+            gqrx_bin: opts[:gqrx_bin],
+            conf_path: path
+          )
+        end
+
+        {
+          path: path,
+          previous: previous,
+          input_rate: applied,
+          clamped_from: clamped_from,
+          restarted: restarted,
+          device: device,
+          note: restarted ? 'GQRX restarted to apply input_rate' : 'Restart GQRX (or reopen I/O devices) to apply input_rate'
+        }
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # result = PWN::SDR::GQRX.apply_band_plan_input_rate(
+      #   band_plan: 'required - key from PWN::SDR::FrequencyAllocation.band_plans (e.g. :fm_radio, :ads_b1090)',
+      #   path: 'optional - GQRX conf path',
+      #   clamp: 'optional - snap to device-legal rate (default true)',
+      #   restart: 'optional - bounce GQRX after write (default false)',
+      #   input_rate: 'optional - override the band-plan recommended rate'
+      # )
+      # Looks up FrequencyAllocation[:input_rate], clamps to the currently
+      # configured SDR's legal rates, and writes it into GQRX's conf.
+      public_class_method def self.apply_band_plan_input_rate(opts = {})
+        key = opts[:band_plan] || opts[:profile] || opts[:assume_band_plan]
+        raise 'ERROR: :band_plan required' if key.nil?
+
+        plans = PWN::SDR::FrequencyAllocation.band_plans
+        plan_key = key.to_s.strip.downcase.tr('-', '_').to_sym
+        plan = plans[plan_key]
+        raise "ERROR: unknown band plan #{key.inspect}. Known: #{plans.keys.sort.join(', ')}" if plan.nil?
+
+        desired = (opts[:input_rate] || opts[:sample_rate] || plan[:input_rate] || 1_000_000).to_i
+        result = set_input_rate(
+          input_rate: desired,
+          path: opts[:path],
+          clamp: opts.fetch(:clamp, true),
+          restart: opts[:restart],
+          gqrx_bin: opts[:gqrx_bin]
+        )
+        result.merge(
+          band_plan: plan_key,
+          band_plan_input_rate: plan[:input_rate],
+          bandwidth: plan[:bandwidth],
+          demodulator_mode: plan[:demodulator_mode]
+        )
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
+      # ok = PWN::SDR::GQRX.restart_gqrx(
+      #   gqrx_bin: 'optional - path to gqrx binary',
+      #   conf_path: 'optional - pass -c <conf> on relaunch'
+      # )
+      # Best-effort: SIGTERM any running gqrx, then relaunch detached.
+      # Returns true when a new process was spawned.
+      public_class_method def self.restart_gqrx(opts = {})
+        bin = opts[:gqrx_bin].to_s
+        bin = `which gqrx 2>/dev/null`.to_s.strip if bin.empty?
+        raise 'ERROR: gqrx binary not found' if bin.empty? || !File.executable?(bin)
+
+        # Graceful stop so conf is flushed.
+        pids = `pgrep -x gqrx 2>/dev/null`.to_s.split.map(&:to_i)
+        pids.each do |pid|
+          Process.kill('TERM', pid)
+        rescue Errno::ESRCH
+          nil
+        end
+        # Wait up to ~5s for exit
+        50.times do
+          break if `pgrep -x gqrx 2>/dev/null`.to_s.strip.empty?
+
+          sleep 0.1
+        end
+        # Force if still up
+        `pgrep -x gqrx 2>/dev/null`.to_s.split.map(&:to_i).each do |pid|
+          Process.kill('KILL', pid)
+        rescue Errno::ESRCH
+          nil
+        end
+
+        conf = opts[:conf_path].to_s
+        conf = config_path if conf.empty?
+        cmd = if conf && File.file?(conf)
+                [bin, '-c', conf]
+              else
+                [bin]
+              end
+
+        pid = spawn(
+          *cmd,
+          out: '/dev/null',
+          err: '/dev/null',
+          pgroup: true
+        )
+        Process.detach(pid)
+        # Brief wait for remote control to come up (best effort).
+        30.times do
+          break if system('bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/7356', out: File::NULL, err: File::NULL)
+
+          sleep 0.2
+        end
+        true
+      rescue StandardError => e
+        raise e
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.get_spectrum_snapshot(opts = {})
@@ -1789,7 +2241,7 @@ module PWN
         end
         sleep 0.02
         cmd(gqrx_sock: gqrx_sock, cmd: 'U IQRECORD 1', resp_ok: 'RPRT 0')
-        sleep(capture_secs + 0.12)
+        sleep(capture_secs + 0.06)
         cmd(gqrx_sock: gqrx_sock, cmd: 'U IQRECORD 0', resp_ok: 'RPRT 0')
 
         # Newest raw I/Q produced by GQRX (usually ~/gqrx_*.raw , float32 I/Q interleaved @ sample_rate)
@@ -1803,74 +2255,112 @@ module PWN
         start_pos = [0, fsize - total_bytes].max
         raw_bytes = File.binread(iq_raw_file, total_bytes, start_pos)
 
-        # ---- Pure-Ruby FFT + SDRangel-style peak detection (no external interpreters) ----
+        # ---- FFT (FFTW3 when available, pure-Ruby Cooley-Tukey fallback) ----
         raise 'ERROR: I/Q read empty or short' if raw_bytes.nil? || raw_bytes.bytesize < 8
 
         # GQRX raw I/Q: little-endian float32 interleaved I,Q,I,Q,...
         floats = raw_bytes.unpack('e*')
         n_iq = [floats.length / 2, num_samples].min
-        iq = Array.new(n_iq) { |i| Complex(floats[2 * i], floats[(2 * i) + 1]) }
-
-        # Hann window
-        two_pi = 2.0 * Math::PI
-        hann = Array.new(nfft) { |k| 0.5 * (1.0 - Math.cos(two_pi * k / (nfft - 1))) }
-
-        # Iterative in-place radix-2 Cooley-Tukey FFT (nfft must be a power of two)
+        # Keep flat interleaved I/Q for FFTW path; Complex array for Ruby path.
         raise "ERROR: nfft (#{nfft}) must be a power of two" unless nfft.nobits?(nfft - 1)
 
-        log2n = Math.log2(nfft).to_i
-        fft_proc = lambda do |x|
-          n = x.length
-          # bit-reversal permutation
-          j = 0
-          (0...(n - 1)).each do |i|
-            x[i], x[j] = x[j], x[i] if i < j
-            k = n >> 1
-            while k <= j
-              j -= k
-              k >>= 1
-            end
-            j += k
-          end
-          # butterflies
-          (1..log2n).each do |stage|
-            m = 1 << stage
-            half = m >> 1
-            wm = Complex.polar(1.0, -two_pi / m)
-            (0...n).step(m) do |kk|
-              w = Complex(1.0, 0.0)
-              (0...half).each do |jj|
-                t = w * x[kk + jj + half]
-                u = x[kk + jj]
-                x[kk + jj] = u + t
-                x[kk + jj + half] = u - t
-                w *= wm
-              end
-            end
-          end
-          x
+        two_pi = 2.0 * Math::PI
+        hann = Array.new(nfft) { |k| 0.5 * (1.0 - Math.cos(two_pi * k / (nfft - 1))) }
+        hop = [nfft / 2, 1].max
+        use_fftw = begin
+          defined?(PWN::FFI::FFTW) && PWN::FFI::FFTW.available?
+        rescue StandardError
+          false
         end
 
-        # Overlapping (50%) windowed FFTs, power-averaged (Welch-style)
-        hop = [nfft / 2, 1].max
         specs = []
-        pos = 0
-        while pos + nfft <= iq.length && specs.length < avg
-          blk = Array.new(nfft) { |k| iq[pos + k] * hann[k] }
-          sp = fft_proc.call(blk)
-          half = nfft / 2
-          shifted = sp[half, nfft - half] + sp[0, half]
-          specs << shifted.map(&:abs2)
-          pos += hop
-        end
-        if specs.empty?
-          blk = Array.new(nfft) do |k|
-            (k < iq.length ? iq[k] : Complex(0.0, 0.0)) * hann[k]
+        if use_fftw
+          # Native complex DFT via libfftw3f — orders of magnitude faster than
+          # pure-Ruby butterflies at nfft>=2048 / avg>=4. Flat interleaved
+          # windowed block is handed to cfft; we fftshift |X|^2 ourselves.
+          pos = 0
+          while (pos + nfft) <= n_iq && specs.length < avg
+            blk = Array.new(2 * nfft)
+            nfft.times do |k|
+              base = 2 * (pos + k)
+              w = hann[k]
+              blk[2 * k] = floats[base].to_f * w
+              blk[(2 * k) + 1] = floats[base + 1].to_f * w
+            end
+            begin
+              pairs = PWN::FFI::FFTW.cfft(iq: blk, n: nfft)
+              half = nfft / 2
+              # fftshift: out[0:half]=in[half:n], out[half:n]=in[0:half]
+              # → bins aligned -sr/2 .. +sr/2 matching pure-Ruby path.
+              shifted_pwr = Array.new(nfft)
+              (0...half).each do |i|
+                re, im = pairs[i + half]
+                shifted_pwr[i] = (re * re) + (im * im)
+                re, im = pairs[i]
+                shifted_pwr[i + half] = (re * re) + (im * im)
+              end
+              specs << shifted_pwr
+            rescue StandardError
+              use_fftw = false
+              break
+            end
+            pos += hop
           end
-          sp = fft_proc.call(blk)
-          half = nfft / 2
-          shifted = sp[half, nfft - half] + sp[0, half]
-          specs << shifted.map(&:abs2)
+        end
+
+        unless use_fftw && !specs.empty?
+          # Pure-Ruby complex FFT fallback (radix-2 Cooley-Tukey).
+          iq = Array.new(n_iq) { |i| Complex(floats[2 * i], floats[(2 * i) + 1]) }
+          log2n = Math.log2(nfft).to_i
+          fft_proc = lambda do |x|
+            n = x.length
+            j = 0
+            (0...(n - 1)).each do |i|
+              x[i], x[j] = x[j], x[i] if i < j
+              k = n >> 1
+              while k <= j
+                j -= k
+                k >>= 1
+              end
+              j += k
+            end
+            (1..log2n).each do |stage|
+              m = 1 << stage
+              half = m >> 1
+              wm = Complex.polar(1.0, -two_pi / m)
+              (0...n).step(m) do |kk|
+                w = Complex(1.0, 0.0)
+                (0...half).each do |jj|
+                  t = w * x[kk + jj + half]
+                  u = x[kk + jj]
+                  x[kk + jj] = u + t
+                  x[kk + jj + half] = u - t
+                  w *= wm
+                end
+              end
+            end
+            x
+          end
+
+          specs = []
+          pos = 0
+          while pos + nfft <= iq.length && specs.length < avg
+            blk = Array.new(nfft) { |k| iq[pos + k] * hann[k] }
+            sp = fft_proc.call(blk)
+            half = nfft / 2
+            shifted = sp[half, nfft - half] + sp[0, half]
+            specs << shifted.map(&:abs2)
+            pos += hop
+          end
+          if specs.empty?
+            blk = Array.new(nfft) do |k|
+              (k < iq.length ? iq[k] : Complex(0.0, 0.0)) * hann[k]
+            end
+            sp = fft_proc.call(blk)
+            half = nfft / 2
+            shifted = sp[half, nfft - half] + sp[0, half]
+            specs << shifted.map(&:abs2)
+          end
         end
 
         avg_pwr = Array.new(nfft, 0.0)
@@ -2022,7 +2512,7 @@ module PWN
           nfft: nfft,
           avg: avg,
           resolution_hz: res_hz.round(2),
-          samples: iq.length,
+          samples: n_iq,
           capture_secs: capture_secs,
           spectrum: bins_out,
           signals: signals,
@@ -2083,8 +2573,9 @@ module PWN
 
         sr = (opts[:sample_rate] || 1_000_000).to_i
         nfft = (opts[:nfft] || 2048).to_i
-        avgs = (opts[:avg] || 8).to_i
-        cap = (opts[:capture_secs] || 0.10).to_f
+        # avg/capture defaults lean fast — lock-hunt refine recovers weak-edge hits.
+        avgs = (opts[:avg] || 6).to_i
+        cap = (opts[:capture_secs] || 0.08).to_f
         strength_lock = (opts[:strength_lock] || -70.0).to_f
         min_snr_db = (opts[:min_snr_db] || 18.0).to_f
         keep_spec = opts[:keep_spectrum] ? true : false
@@ -2227,16 +2718,27 @@ module PWN
           s_hz = PWN::SDR.hz_to_i(freq: r[:start_freq])
           t_hz = PWN::SDR.hz_to_i(freq: r[:target_freq])
           dir = t_hz >= s_hz ? 1 : -1
-          step = (sr * 0.85).to_i # chunk step - use 85% to have overlap / avoid edge artifacts
-          step = sr if step < 100_000
+          # Soft chunk-edge guard (also applied post-snapshot). Cap so a
+          # wide plan (fm_radio 200 kHz) at modest sample_rate (1 Msps) does
+          # not eat the entire usable span.
+          edge_floor = [plan_bw_hz, 2 * step_hz, 1_000].max
+          edge_floor = [edge_floor, (sr * 0.12).to_i].min # never >12% of span
+          edge_guard_hz = [(sr * 0.05).to_i, edge_floor].max
+          usable = sr - (2 * edge_guard_hz)
+          usable = [usable, (sr * 0.50).to_i].max
+          # Step so successive usable regions OVERLAP by ~15% (was fixed
+          # 0.85*sr, which for FM left ~350 kHz holes per chunk at 1 Msps).
+          step = (usable * 0.85).to_i
+          step = [step, step_hz, 50_000].max
+          step = sr if step > sr
 
-          puts "[FAST-SCAN] Panoramic covering #{PWN::SDR.hz_to_s(freq: s_hz)}..#{PWN::SDR.hz_to_s(freq: t_hz)} using #{sr} SPS chunks (step #{PWN::SDR.hz_to_s(freq: step)})"
+          puts "[FAST-SCAN] Panoramic covering #{PWN::SDR.hz_to_s(freq: s_hz)}..#{PWN::SDR.hz_to_s(freq: t_hz)} using #{sr} SPS chunks (step #{PWN::SDR.hz_to_s(freq: step)}, edge_guard=#{PWN::SDR.hz_to_s(freq: edge_guard_hz)}, usable≈#{PWN::SDR.hz_to_s(freq: usable)})"
 
           h = s_hz
           while dir.positive? ? (h <= t_hz) : (h >= t_hz)
             # retune to put this chunk in the visible IF
             tune_to(gqrx_sock: gqrx_sock, hz: h)
-            sleep 0.15 # allow GQRX / SDR to settle the IF filter & AGC etc.
+            sleep 0.08 # allow GQRX / SDR to settle the IF filter & AGC etc.
 
             snap = get_spectrum_snapshot(
               gqrx_sock: gqrx_sock,
@@ -2261,13 +2763,8 @@ module PWN
             # Upper BW bound: half-power estimate should not exceed ~2× plan.
             # Stops continuum / multi-carrier blobs from surviving as one "signal".
             max_bw_hz = [(plan_bw_hz * 2), (step_hz * 8), min_bw_hz].max
-            # Reject detections near the chunk edge (guard already nulls bins,
-            # but leave a soft margin so overlap doesn't invent stations).
-            # Soft chunk-edge guard: fraction of span, plan-scaled, with a
-            # step-aware floor so narrow plans (CW) don't carve out half the chunk.
-            edge_floor = [2 * plan_bw_hz, 4 * step_hz, 1_000].max
-            edge_floor = [edge_floor, (sr * 0.25).to_i].min # never >25% of span
-            edge_guard_hz = [(sr * 0.08).to_i, edge_floor].max
+            # edge_guard_hz / usable computed once per range above so the
+            # step and post-snapshot acceptance region stay consistent.
             chunk_lo = h - (sr / 2) + edge_guard_hz
             chunk_hi = h + (sr / 2) - edge_guard_hz
             # Also clamp to the requested scan range.
@@ -2414,6 +2911,12 @@ module PWN
             end
           end
 
+          # Default refine is lock-hunt (S-meter probe ±N raster steps) —
+          # ~5–10× faster than local-FFT zoom and more accurate on FM where
+          # panoramic centroids often land one channel off. Pass
+          # refine_mode: :fft for the legacy high-res FFT zoom, or
+          # refine_mode: :hybrid to run both.
+          refine_mode = opts.fetch(:refine_mode, :lock)
           detected = refine_detections(
             gqrx_sock: gqrx_sock,
             detections: detected,
@@ -2423,7 +2926,8 @@ module PWN
             plan_bw_hz: plan_bw_hz,
             demodulator_mode: demodulator_mode,
             bandwidth: bandwidth,
-            squelch: squelch
+            squelch: squelch,
+            refine_mode: refine_mode
           )
         elsif !refine
           puts '[FAST-SCAN] refine:false — skipping iterative edge/peak refinement'
@@ -2439,20 +2943,28 @@ module PWN
           puts "[FAST-SCAN] dropped #{before - detected.length} out-of-range detection(s) after refine" if detected.length != before
         end
 
-        # Attach AI analysis per detection AFTER merge + refine so we only spend
-        # inference on the deduplicated / exact-channel set (matches #scan_range).
+        # Attach AI analysis only when explicitly requested. LLM calls per
+        # detection dominate wall-clock on dense bands (fm_radio ~25 hits) and
+        # defeat the point of panoramic/FFT scanning. Opt-in via ai_analysis:true
+        # (iterative #scan_range still does AI by default for parity with its
+        # slower, fewer-hit flow).
+        do_ai = opts[:ai_analysis] ? true : false
         detected.each do |freq_obj|
           puts "\n**** Detected Signal ****"
-          ai_analysis = PWN::AI::Agent::GQRX.analyze(
-            request: freq_obj.to_json,
-            location: location
-          )
-          freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+          if do_ai
+            begin
+              ai_analysis = PWN::AI::Agent::GQRX.analyze(
+                request: freq_obj.to_json,
+                location: location
+              )
+              freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+            rescue StandardError
+              # AI analysis is best-effort; never let it kill the scan.
+              nil
+            end
+          end
           puts JSON.pretty_generate(freq_obj)
           puts '-' * 86
-        rescue StandardError
-          # AI analysis is best-effort; never let it kill the scan.
-          puts JSON.pretty_generate(freq_obj)
         end
 
         meta = {
@@ -2601,6 +3113,27 @@ module PWN
             #{self}.stop_recording(
               gqrx_sock: 'required - GQRX socket object returned from #connect method',
               iq_raw_file: 'required - iq_raw_file returned from #record method'
+            )
+
+            #{self}.read_input_config(
+              path: 'optional - GQRX conf (defaults to ~/.config/gqrx/default.conf)'
+            )
+
+            #{self}.device_input_rates(
+              device: 'optional - SoapySDR device args (defaults to conf [input] device=)'
+            )
+
+            #{self}.set_input_rate(
+              input_rate: 'required - Input rate Hz (rewrites conf [input] sample_rate=)',
+              path: 'optional - GQRX conf path',
+              clamp: 'optional - Snap to nearest device-legal rate (default true)',
+              restart: 'optional - Kill+respawn gqrx so rate takes effect (default false)'
+            )
+
+            #{self}.apply_band_plan_input_rate(
+              band_plan: 'required - e.g. :fm_radio / :ads_b1090 (reads FrequencyAllocation input_rate)',
+              clamp: 'optional - Snap to device-legal rate (default true)',
+              restart: 'optional - Bounce GQRX after write (default false)'
             )
 
             #{self}.disconnect(

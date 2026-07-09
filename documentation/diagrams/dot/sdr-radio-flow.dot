@@ -30,9 +30,9 @@ digraph "PWN_SDR" {
   subgraph cluster_ctrl {
     label="Control · Scan"; fontcolor="#fde68a"; style=rounded;
     color="#a16207"; bgcolor="#422006";
-    GQRX  [label="SDR::GQRX\nremote control\nspectrum snapshot\n(median floor · DC null)", fillcolor="#fcd34d"];
-    Freq  [label="SDR::FrequencyAllocation\nband lookup", fillcolor="#fcd34d"];
-    Scan  [label="bin/pwn_gqrx_scanner\n--fft-scan · iterative\n--min-snr-db · --avg", fillcolor="#fcd34d"];
+    GQRX  [label="SDR::GQRX\nremote control\nspectrum + FFT geometry\n(RAW panorama · plan-param refine)", fillcolor="#fcd34d"];
+    Freq  [label="SDR::FrequencyAllocation\nband lookup\nplan_bw · precision", fillcolor="#fcd34d"];
+    Scan  [label="bin/pwn_gqrx_scanner\n--fft-scan · iterative\n--min-snr-db · --no-refine", fillcolor="#fcd34d"];
   }
   subgraph cluster_dec {
     label="Decode · Sense · Record"; fontcolor="#ddd6fe"; style=rounded;
@@ -61,6 +61,7 @@ digraph "PWN_SDR" {
   Freq -> Dec [color="#a78bfa"];
   Flipper -> Freq [color="#f59e0b"];
   RFID  -> Scan [color="#f59e0b"];
+  Freq  -> Scan [label="plan_bw/step", color="#f59e0b"];
   Scan  -> Obs  [color="#a78bfa"];
   Front -> Xrf  [style=dashed, color="#fbbf24", constraint=false];
   Dec   -> Obs  [style=dashed, color="#c4b5fd"];

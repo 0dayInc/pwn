@@ -443,30 +443,33 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_osint',
-    description: 'OSINT sense organ — aggregates public open APIs for reverse ' \
-                 'phone lookup, IP/geo/ASN/BGP, DNS/WHOIS/RDAP, Certificate ' \
-                 'Transparency (crt.sh), FCC ID device content, patent search, ' \
+    description: 'OSINT sense organ — aggregates public open APIs (also drawn ' \
+                 'from public-api-lists) for reverse phone, IP/geo/ASN/BGP + ' \
+                 'threat reputation (ipapi.is/iplocate/ipwho.is/AbuseIPDB/' \
+                 'GreyNoise), DNS/WHOIS/RDAP, CT (crt.sh + Cert Spotter), FCC ' \
+                 'ID, patent, VIN (NHTSA), MAC OUI, ham callsign (Callook), ' \
                  'person / missing-person (Wikipedia/Wikidata/OpenSanctions + ' \
-                 'NamUs/FBI/Charley targets), username pivots (GitHub/GitLab/' \
-                 'Reddit), Shodan/Hunter (when API keys present), Wayback, ' \
-                 'AlienVault OTX, URLHaus/ThreatFox, urlscan.io, HackerTarget, ' \
-                 'openFDA, Nominatim geocode, OpenCorporates, CourtListener, ' \
-                 'SEC EDGAR, and vital-records public search plans. kind ' \
-                 'auto-detects from the query. Best-effort per-feed; ' \
-                 'unreachable feeds degrade to error hashes. observe(category: ' \
-                 ':osint) by default.',
+                 'NamUs/FBI/Charley), username pivots (GitHub/GitLab/Reddit), ' \
+                 'name demographics (Agify/Genderize/Nationalize), Shodan/' \
+                 'Hunter/VirusTotal/HIBP/SecurityTrails (keyed), Wayback, ' \
+                 'OTX/URLHaus/ThreatFox/urlscan, HackerTarget, openFDA, NPPES, ' \
+                 'Nominatim, OpenCorporates, CourtListener, SEC EDGAR, Federal ' \
+                 'Register, UK Police, EPSS + CISA KEV, Microlink unfurl, ' \
+                 'universities, and vital-records plans. kind auto-detects. ' \
+                 'Best-effort per-feed; unreachable → error hashes. ' \
+                 'observe(category: :osint) by default.',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Phone, IP, domain, email, URL, person name, company, CIK, FCC ID, patent number, username, address, …' },
         kind: {
           type: 'string',
-          enum: %w[auto ip geo dns whois rdap crtsh bgp shodan hunter phone fcc_id patent person username github wayback email domain url company cik openfda vital_records threat],
+          enum: %w[auto ip geo dns whois rdap crtsh bgp shodan hunter phone fcc_id patent person username github wayback email domain url company cik openfda vital_records threat vin mac callsign npi cve],
           description: 'Force an OSINT kind. Omit / auto to detect from query shape.'
         },
         feeds: {
           type: 'array',
-          items: { type: 'string', enum: %w[ip geo dns whois rdap crtsh bgpview shodan hunter phone fcc_id patent person username github wayback otx urlhaus threatfox urlscan hackertarget openfda nominatim opencorporates courtlistener sec_edgar vital_records] }
+          items: { type: 'string', enum: %w[ip geo dns whois rdap crtsh bgpview shodan hunter phone fcc_id patent person username github wayback otx urlhaus threatfox urlscan hackertarget openfda nominatim opencorporates courtlistener sec_edgar vital_records ipapi_is iplocate ipwhois abuseipdb virustotal greynoise certspotter epss cisa_kev nhtsa nppes federal_register uk_police callook mac_vendor universities microlink agify genderize nationalize haveibeenpwned securitytrails] }
         },
         limit: { type: 'integer', default: 5 },
         record: { type: 'boolean', default: true },

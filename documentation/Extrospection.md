@@ -81,7 +81,7 @@ Override / extend via `PWN::Env[:ai][:agent][:extrospection][:web][:anchors]`; s
 | **`extro_watch`** | **Render a URL headless, hash the *rendered* DOM, screenshot, diff vs prior** | `observations[]` (`category: :web`) |
 | **`extro_verify`** | **Browser-backed self fact-check of a claim (`:cve` `:version` `:doc` `:generic`) → `:confirmed`/`:refuted`/`:unknown`** | `Mistakes.record` / `observe(:intel)` / `Learning.note_outcome` |
 | **`extro_rf_tune`** | **Tune running GQRX + demod + strength + RDS sample → `now_playing` / `station`** | `observations[]` (`category: :rf`, ttl 300s) |
-| **`extro_osint`** | **Aggregate public OSINT APIs (phone / IP / domain / FCC ID / patent / person / company / SEC / CourtListener / OTX / URLHaus / openFDA / Nominatim / vital records / Shodan / Hunter / Wayback)** | `observations[]` (`category: :osint`) |
+| **`extro_osint`** | **Aggregate public OSINT APIs (phone / IP / domain / FCC ID / patent / VIN / MAC / callsign / person / company / SEC / CourtListener / Federal Register / UK Police / OTX / URLHaus / openFDA / NPPES / Nominatim / EPSS / CISA KEV / Microlink / vital records / Shodan / Hunter / AbuseIPDB / VT / HIBP / Wayback)** | `observations[]` (`category: :osint`) |
 | **`extro_serial`** | **Open serial device · optional payload · drain response · disconnect** | `observations[]` (`category: :serial`) |
 | **`extro_telecomm`** | **BareSIP inventory / status / dial / hangup (never launches baresip)** | `observations[]` (`category: :telecomm`) |
 | **`extro_packet`** | **Inventory · bounded live capture · pcap summarise (tshark/PacketFu)** | `observations[]` (`category: :packet`) |
@@ -183,21 +183,26 @@ unreachable endpoints return `{error:…}` instead of raising.
 
 | Kind | Trigger | Default feeds |
 |---|---|---|
-| `:ip` | IPv4 / IPv6 | ip · geo · dns · rdap · bgpview · otx · shodan · hackertarget |
+| `:ip` | IPv4 / IPv6 | ip · geo · ipapi_is · iplocate · ipwhois · dns · rdap · bgpview · otx · abuseipdb · greynoise · shodan · hackertarget |
 | `:geo` | street-like address / geo query | geo · nominatim · ip |
-| `:domain` / `:dns` / `:whois` / `:rdap` | FQDN | dns · whois · rdap · crtsh · wayback · otx · urlhaus · urlscan · shodan · hackertarget |
-| `:url` | `http(s)://…` | urlscan · otx · urlhaus · wayback |
-| `:email` | `a@b.c` | hunter · person · github |
+| `:domain` / `:dns` / `:whois` / `:rdap` | FQDN | dns · whois · rdap · crtsh · certspotter · wayback · otx · urlhaus · urlscan · shodan · securitytrails · hackertarget |
+| `:url` | `http(s)://…` | urlscan · otx · urlhaus · wayback · microlink · virustotal |
+| `:email` | `a@b.c` | hunter · person · github · haveibeenpwned |
 | `:phone` | E.164 / NANP | phone · person |
 | `:fcc_id` | `2ABIP-ESP32` style | fcc_id |
 | `:patent` | `US10123456` / `patent …` | patent |
-| `:person` | `Jane Doe` | person · username · github · vital_records |
+| `:person` | `Jane Doe` | person · username · github · open_sanctions · agify · genderize · nationalize · vital_records |
 | `:username` / `:github` | `@handle` / `gh:` | username · github |
-| `:company` | `… Inc.` / `LLC` / `Ltd` | opencorporates · sec_edgar · person · courtlistener |
+| `:company` | `… Inc.` / `LLC` / `Ltd` | opencorporates · sec_edgar · federal_register · person · courtlistener |
 | `:cik` | 10-digit CIK | sec_edgar · opencorporates |
 | `:vital_records` | birth/death/marriage keywords | vital_records · person |
-| `:threat` | forced | otx · urlhaus · threatfox |
+| `:threat` | forced | otx · urlhaus · threatfox · abuseipdb · greynoise · virustotal · epss · cisa_kev |
 | `:openfda` | forced | openfda |
+| `:vin` | 17-char ISO 3779 VIN | nhtsa (NHTSA vPIC / `PWN::Plugins::VIN`) |
+| `:mac` | `00:11:22:33:44:55` / bare hex / Cisco form | mac_vendor |
+| `:callsign` | amateur radio e.g. `W1AW` | callook |
+| `:npi` | `NPI 1679576722` (prefixed) | nppes |
+| `:cve` | `CVE-YYYY-NNNN` | epss · cisa_kev |
 
 ### Public feed catalogue (no key unless noted)
 
@@ -228,6 +233,28 @@ unreachable endpoints return `{error:…}` instead of raising.
 | `:courtlistener` | CourtListener v4 search / people | RECAP opinions + judges |
 | `:sec_edgar` | sec.gov company_tickers + EFTS | CIK/ticker/filings |
 | `:vital_records` | structured public-record plan | FamilySearch · FindAGrave · CDC W2W · NamUs (live certificates are state-restricted) |
+| `:ipapi_is` | api.ipapi.is | IP company/ASN/hosting/proxy/crawler flags (free) |
+| `:iplocate` | iplocate.io | IP geo + threat (proxy/VPN/hosting) |
+| `:ipwhois` | ipwho.is | Free IP geo / connection / timezone |
+| `:abuseipdb` | api.abuseipdb.com | IP reputation — **needs** `ABUSEIPDB_API_KEY` |
+| `:virustotal` | virustotal.com API v3 | URL/domain/IP analysis — **needs** `VIRUSTOTAL_API_KEY` |
+| `:greynoise` | greynoise.io community / v2 | Internet scanner noise (community free; key upgrades) |
+| `:certspotter` | api.certspotter.com | Certificate Transparency issuances |
+| `:epss` | api.first.org/data/v1/epss | Exploit Prediction Scoring System for a CVE |
+| `:cisa_kev` | CISA Known Exploited Vulnerabilities catalog | KEV membership / ransomware flag |
+| `:nhtsa` | vpic.nhtsa.dot.gov + `PWN::Plugins::VIN` | VIN decode / make-model |
+| `:nppes` | npiregistry.cms.hhs.gov | US healthcare NPI provider lookup |
+| `:federal_register` | federalregister.gov API | US Federal Register document search |
+| `:uk_police` | data.police.uk | UK street-level crime / force catalogue |
+| `:callook` | callook.info | US amateur-radio callsign (FCC ULS) |
+| `:mac_vendor` | maclookup.app · macvendors.com | MAC OUI → vendor |
+| `:universities` | universities.hipolabs.com | University name / domain / country |
+| `:microlink` | api.microlink.io | Link unfurl (OG title/desc/image) |
+| `:agify` / `:genderize` / `:nationalize` | agify.io · genderize.io · nationalize.io | First-name age/gender/nationality estimates |
+| `:haveibeenpwned` | haveibeenpwned.com v3 | Breach membership — **needs** `HIBP_API_KEY` |
+| `:securitytrails` | api.securitytrails.com | Domain DNS history — **needs** `SECURITYTRAILS_API_KEY` |
+
+> Feed selection inspired by [public-api-lists/public-api-lists](https://github.com/public-api-lists/public-api-lists) (Anti-Malware, Security, Geocoding, Government, Health, Open Data, Vehicle, Development).
 
 ### Examples
 
@@ -252,6 +279,21 @@ extro_osint(query: "Acme Robotics LLC", kind: :company)
 
 extro_osint(query: "birth record Jane Doe", kind: :vital_records)
   → public genealogy + state vital-records index (no closed B2B scrape)
+
+extro_osint(query: "1HGCM82633A004352")
+  → kind=:vin · NHTSA vPIC decode (make/model/year/plant)
+
+extro_osint(query: "00:11:22:33:44:55")
+  → kind=:mac · OUI vendor (maclookup / macvendors)
+
+extro_osint(query: "W1AW")
+  → kind=:callsign · Callook FCC ULS (trustee, class, grid)
+
+extro_osint(query: "CVE-2021-44228")
+  → kind=:cve · FIRST EPSS score + CISA KEV membership
+
+extro_osint(query: "8.8.8.8", feeds: ["ipapi_is", "iplocate", "greynoise", "abuseipdb"])
+  → multi-source IP threat/geo (keyed feeds skip cleanly when no key)
 ```
 
 Configure:
@@ -259,8 +301,19 @@ Configure:
 ```ruby
 PWN::Env[:ai][:agent][:extrospection][:osint] = {
   ttl: 86_400,
-  api_keys: { shodan: '…', hunter: '…' }
+  api_keys: {
+    shodan: '…',
+    hunter: '…',
+    abuseipdb: '…',
+    virustotal: '…',
+    greynoise: '…',
+    haveibeenpwned: '…',
+    securitytrails: '…'
+  }
 }
+# ENV fallbacks also accepted:
+#   SHODAN_API_KEY, HUNTER_API_KEY, ABUSEIPDB_API_KEY, VIRUSTOTAL_API_KEY,
+#   GREYNOISE_API_KEY, HIBP_API_KEY, SECURITYTRAILS_API_KEY
 ```
 
 

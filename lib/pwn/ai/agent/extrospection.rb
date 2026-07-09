@@ -75,11 +75,20 @@ module PWN
           https://raw.githubusercontent.com/0dayinc/pwn/master/lib/pwn/version.rb
         ].freeze
         # Public / free OSINT anchors (no key). Keys unlock richer feeds via PWN::Env.
+        # Expanded from https://github.com/public-api-lists/public-api-lists
+        # (Anti-Malware, Security, Geocoding, Government, Health, Open Data, Vehicle, …).
         DEFAULT_OSINT_FEEDS = %i[
           ip geo dns whois rdap crtsh bgpview shodan hunter
           phone fcc_id patent person username github wayback
           otx urlhaus threatfox urlscan hackertarget openfda
           nominatim opencorporates courtlistener sec_edgar vital_records
+          ipapi_is iplocate ipwhois
+          abuseipdb virustotal greynoise
+          certspotter epss cisa_kev
+          nhtsa nppes federal_register uk_police callook
+          mac_vendor universities microlink
+          agify genderize nationalize
+          haveibeenpwned securitytrails
         ].freeze
 
         # Supported Method Parameters::
@@ -607,24 +616,29 @@ module PWN
         # ============================================================
         # Supported Method Parameters::
         # result = PWN::AI::Agent::Extrospection.osint(
-        #   query:    'required - phone, IP, domain, email, person name, FCC ID, patent #, username, …',
-        #   kind:     'optional - auto|:ip|:geo|:dns|:whois|:rdap|:crtsh|:bgp|:shodan|:hunter|:phone|:fcc_id|:patent|:person|:username|:github|:wayback|:url|:company|:cik|:openfda|:vital_records|:threat (default :auto)',
+        #   query:    'required - phone, IP, domain, email, person name, FCC ID, patent #, username, VIN, MAC, callsign, …',
+        #   kind:     'optional - auto|:ip|:geo|:dns|:whois|:rdap|:crtsh|:bgp|:shodan|:hunter|:phone|:fcc_id|:patent|:person|:username|:github|:wayback|:url|:company|:cik|:openfda|:vital_records|:threat|:vin|:mac|:callsign|:npi|:cve (default :auto)',
         #   feeds:    'optional - Array subset of DEFAULT_OSINT_FEEDS (default: auto-selected from kind)',
         #   limit:    'optional - max hits per feed (default 5)',
         #   record:   'optional - also observe(category: :osint) (default true)',
         #   ttl:      'optional - observation TTL seconds (default 86400)',
-        #   api_keys: 'optional - Hash of {shodan:, hunter:, …} overriding PWN::Env / ENV'
+        #   api_keys: 'optional - Hash of {shodan:, hunter:, abuseipdb:, virustotal:, greynoise:, haveibeenpwned:, securitytrails:} overriding PWN::Env / ENV'
         # )
         #
-        # Aggregates as many *public / free* OSINT APIs as possible, with
-        # optional keyed feeds (Shodan / Hunter) when keys exist in
-        # PWN::Env or ENV. Best-effort: any unreachable feed degrades to
-        # an error hash rather than raising. First-class kinds cover:
-        # reverse phone, missing-person / person, patent, FCC ID device
-        # content, IP/ASN/BGP, CT logs, whois/RDAP, GitHub identity,
-        # Wayback, AlienVault OTX, URLHaus / ThreatFox, urlscan.io,
-        # HackerTarget, openFDA, Nominatim geocode, OpenCorporates,
-        # CourtListener, SEC EDGAR, and vital-records public-search plans.
+        # Aggregates as many *public / free* OSINT APIs as possible (sourced
+        # in part from public-api-lists/public-api-lists), with optional
+        # keyed feeds (Shodan / Hunter / AbuseIPDB / VirusTotal / GreyNoise /
+        # HaveIBeenPwned / SecurityTrails) when keys exist in PWN::Env or ENV.
+        # Best-effort: any unreachable feed degrades to an error hash rather
+        # than raising. First-class kinds cover: reverse phone, person /
+        # missing-person, patent, FCC ID, VIN (NHTSA), MAC OUI, ham callsign
+        # (Callook), IP/ASN/BGP + threat reputation (ipapi.is / iplocate /
+        # ipwho.is / AbuseIPDB / GreyNoise), CT (crt.sh + Cert Spotter),
+        # whois/RDAP, GitHub, Wayback, OTX / URLHaus / ThreatFox / urlscan,
+        # HackerTarget, openFDA, NPPES NPI, Nominatim, OpenCorporates,
+        # CourtListener, SEC EDGAR, Federal Register, UK Police, EPSS +
+        # CISA KEV, Microlink unfurl, universities, name demographics
+        # (Agify/Genderize/Nationalize), and vital-records public plans.
         public_class_method def self.osint(opts = {})
           query = opts[:query].to_s.strip
           raise 'ERROR: query is required' if query.empty?
@@ -1976,20 +1990,29 @@ module PWN
             feeds_available: DEFAULT_OSINT_FEEDS.map(&:to_s),
             keyed: {
               shodan: !keys[:shodan].to_s.empty?,
-              hunter: !keys[:hunter].to_s.empty?
+              hunter: !keys[:hunter].to_s.empty?,
+              abuseipdb: !keys[:abuseipdb].to_s.empty?,
+              virustotal: !keys[:virustotal].to_s.empty?,
+              greynoise: !keys[:greynoise].to_s.empty?,
+              haveibeenpwned: !keys[:haveibeenpwned].to_s.empty?,
+              securitytrails: !keys[:securitytrails].to_s.empty?
             },
             bins: presence_map(bins: OSINT_BINS),
             endpoints: {
               ip_api: 'http://ip-api.com/json/',
               ipwhois: 'https://ipwho.is/',
+              ipapi_is: 'https://api.ipapi.is/',
+              iplocate: 'https://www.iplocate.io/api/lookup/',
               rdap: 'https://rdap.org/',
               crtsh: 'https://crt.sh/',
+              certspotter: 'https://api.certspotter.com/v1/issuances',
               bgpview: 'https://api.bgpview.io/',
               fcc_device: 'https://device.report/fcc/',
               fcc_api: 'https://data.fcc.gov/api/',
               patents_google: 'https://patents.google.com/',
               patentsview: 'https://api.patentsview.org/',
               openfda: 'https://api.fda.gov/',
+              nppes: 'https://npiregistry.cms.hhs.gov/api/',
               nominatim: 'https://nominatim.openstreetmap.org/',
               wayback: 'https://archive.org/wayback/available',
               github: 'https://api.github.com/',
@@ -2002,6 +2025,24 @@ module PWN
               opencorporates: 'https://api.opencorporates.com/v0.4/',
               courtlistener: 'https://www.courtlistener.com/api/rest/v4/',
               sec_edgar: 'https://efts.sec.gov/LATEST/search-index',
+              federal_register: 'https://www.federalregister.gov/api/v1/',
+              uk_police: 'https://data.police.uk/api/',
+              callook: 'https://callook.info/',
+              nhtsa_vpic: 'https://vpic.nhtsa.dot.gov/api/',
+              maclookup: 'https://api.maclookup.app/v2/macs/',
+              macvendors: 'https://api.macvendors.com/',
+              universities: 'http://universities.hipolabs.com/search',
+              microlink: 'https://api.microlink.io/',
+              agify: 'https://api.agify.io/',
+              genderize: 'https://api.genderize.io/',
+              nationalize: 'https://api.nationalize.io/',
+              epss: 'https://api.first.org/data/v1/epss',
+              cisa_kev: 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
+              abuseipdb: 'https://api.abuseipdb.com/api/v2/',
+              virustotal: 'https://www.virustotal.com/api/v3/',
+              greynoise: 'https://api.greynoise.io/',
+              haveibeenpwned: 'https://haveibeenpwned.com/api/v3/',
+              securitytrails: 'https://api.securitytrails.com/v1/',
               opensanctions: 'https://api.opensanctions.org/',
               wikidata: 'https://www.wikidata.org/w/api.php',
               wikipedia: 'https://en.wikipedia.org/w/api.php',
@@ -2010,7 +2051,8 @@ module PWN
               fbi_kidnap: 'https://www.fbi.gov/wanted/kidnap',
               vital_cdc: 'https://www.cdc.gov/nchs/nvss/index.htm',
               vital_familysearch: 'https://www.familysearch.org/en/search/'
-            }
+            },
+            public_api_lists: 'https://github.com/public-api-lists/public-api-lists'
           }
         rescue StandardError => e
           { error: "#{e.class}: #{e.message}" }
@@ -2166,25 +2208,55 @@ module PWN
           ov = opts[:override] || {}
           env_cfg = (PWN::Env.dig(:ai, :agent, :extrospection, :osint, :api_keys) if defined?(PWN::Env) && PWN::Env.is_a?(Hash)) || {}
           pwn_cfg = (PWN::Env[:shodan] if defined?(PWN::Env) && PWN::Env.is_a?(Hash)) || {}
+          pick = lambda do |sym, *env_names|
+            val = ov[sym] || env_cfg[sym]
+            env_names.each { |n| val ||= ENV[n] if ENV[n] }
+            val.to_s
+          end
           {
             shodan: (ov[:shodan] || env_cfg[:shodan] || pwn_cfg[:api_key] || ENV['SHODAN_API_KEY'] || ENV.fetch('PWN_SHODAN_API_KEY', nil)).to_s,
-            hunter: (ov[:hunter] || env_cfg[:hunter] || ENV['HUNTER_API_KEY'] || ENV.fetch('PWN_HUNTER_API_KEY', nil)).to_s
+            hunter: pick.call(:hunter, 'HUNTER_API_KEY', 'PWN_HUNTER_API_KEY'),
+            abuseipdb: pick.call(:abuseipdb, 'ABUSEIPDB_API_KEY', 'PWN_ABUSEIPDB_API_KEY'),
+            virustotal: pick.call(:virustotal, 'VIRUSTOTAL_API_KEY', 'VT_API_KEY', 'PWN_VIRUSTOTAL_API_KEY'),
+            greynoise: pick.call(:greynoise, 'GREYNOISE_API_KEY', 'PWN_GREYNOISE_API_KEY'),
+            haveibeenpwned: pick.call(:haveibeenpwned, 'HIBP_API_KEY', 'HAVEIBEENPWNED_API_KEY', 'PWN_HIBP_API_KEY'),
+            securitytrails: pick.call(:securitytrails, 'SECURITYTRAILS_API_KEY', 'PWN_SECURITYTRAILS_API_KEY')
           }
         rescue StandardError
-          { shodan: ENV['SHODAN_API_KEY'].to_s, hunter: ENV['HUNTER_API_KEY'].to_s }
+          {
+            shodan: ENV['SHODAN_API_KEY'].to_s,
+            hunter: ENV['HUNTER_API_KEY'].to_s,
+            abuseipdb: ENV['ABUSEIPDB_API_KEY'].to_s,
+            virustotal: ENV['VIRUSTOTAL_API_KEY'].to_s,
+            greynoise: ENV['GREYNOISE_API_KEY'].to_s,
+            haveibeenpwned: ENV['HIBP_API_KEY'].to_s,
+            securitytrails: ENV['SECURITYTRAILS_API_KEY'].to_s
+          }
         end
 
         private_class_method def self.detect_osint_kind(opts = {})
           q = opts[:query].to_s.strip
           # Order matters: IPs must beat the phone heuristic (dots are valid phone punctuation).
           return :ip       if q.match?(/\A\d{1,3}(?:\.\d{1,3}){3}\z/)
-          return :ip       if q.include?(':') && q.match?(/\A[0-9a-f:.]+\z/i) # IPv6-ish
+          # MAC before IPv6 — colon form "00:11:22:33:44:55" is also hex+colons.
+          return :mac      if q.match?(/\A(?:[0-9A-Fa-f]{2}([-:])){5}[0-9A-Fa-f]{2}\z/) ||
+                              q.match?(/\A[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\z/) ||
+                              q.match?(/\A[0-9A-Fa-f]{12}\z/)
+          # IPv6: require at least two ':' and a hex group structure (not MAC's 6 octets).
+          return :ip       if q.include?(':') && q.count(':') >= 2 && q.match?(/\A[0-9a-f:.]+\z/i) && !q.match?(/\A(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\z/i)
           return :email    if q.include?('@') && q.include?('.')
           return :url      if q.match?(%r{\Ahttps?://}i)
+          return :cve      if q.match?(/\ACVE-\d{4}-\d{4,}\z/i)
+          # 17-char VIN (excludes I,O,Q per ISO 3779)
+          return :vin      if q.match?(/\A[A-HJ-NPR-Z0-9]{17}\z/i)
+          # Amateur radio callsign (Callook / FCC ULS)
+          return :callsign if q.match?(%r{\A(?:[A-Z0-9]{1,3}/)?[A-Z]{1,2}\d[A-Z]{1,3}\z}i) && q.match?(/\d/)
           return :domain   if q.match?(/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\z/i) && !q.include?(' ')
           return :github   if q.start_with?('github.com/', 'gh:')
           return :patent   if q.match?(/\A(?:US|EP|WO|CN|JP)\s?\d{5,}[A-Z]?\d?\z/i) || q.match?(/\Apatent\b/i)
           return :cik      if q.match?(/\A(?:CIK)?\s?\d{10}\z/i)
+          # NPI is 10-digit; only when prefixed so bare digits don't steal phone/CIK.
+          return :npi      if q.match?(/\A(?:NPI[:\s#-]*)?\d{10}\z/i) && q.match?(/\ANPI\b/i)
           return :phone    if q.match?(/\A\+\d[\d\-\s().]{6,}\z/) || q.match?(/\A\(?\d{3}\)?[-\s.]?\d{3}[-\s.]?\d{4}\z/) || q.match?(/\A\d{10,15}\z/)
           # FCC ID: grantee (3+) + optional hyphen + product code; require a letter and a digit.
           return :fcc_id   if q.match?(/\A[A-Z0-9]{3,5}-[A-Z0-9]{1,14}\z/i) || (q.match?(/\A[A-Z0-9]{5,14}\z/i) && q.match?(/[A-Za-z]/) && q.match?(/\d/) && !q.match?(/\A(?:US|EP|WO)\d/i))
@@ -2201,26 +2273,31 @@ module PWN
 
         private_class_method def self.osint_feeds_for(opts = {})
           case opts[:kind].to_sym
-          when :ip then %i[ip geo dns rdap bgpview otx shodan hackertarget]
+          when :ip then %i[ip geo ipapi_is iplocate ipwhois dns rdap bgpview otx abuseipdb greynoise shodan hackertarget]
           when :geo then %i[geo nominatim ip]
-          when :domain, :dns, :whois, :rdap then %i[dns whois rdap crtsh wayback otx urlhaus urlscan shodan hackertarget]
-          when :url then %i[urlscan otx urlhaus wayback]
-          when :email then %i[hunter person github]
+          when :domain, :dns, :whois, :rdap then %i[dns whois rdap crtsh certspotter wayback otx urlhaus urlscan shodan securitytrails hackertarget]
+          when :url then %i[urlscan otx urlhaus wayback microlink virustotal]
+          when :email then %i[hunter person github haveibeenpwned]
           when :phone then %i[phone person]
           when :fcc_id then %i[fcc_id]
           when :patent then %i[patent]
-          when :person then %i[person username github open_sanctions vital_records]
+          when :person then %i[person username github open_sanctions agify genderize nationalize vital_records]
           when :username, :github then %i[username github]
-          when :company then %i[opencorporates sec_edgar person courtlistener]
+          when :company then %i[opencorporates sec_edgar federal_register person courtlistener]
           when :cik then %i[sec_edgar opencorporates]
           when :wayback then %i[wayback]
-          when :crtsh then %i[crtsh]
+          when :crtsh then %i[crtsh certspotter]
           when :bgp, :bgpview then %i[bgpview]
           when :shodan then %i[shodan]
           when :hunter then %i[hunter]
           when :openfda then %i[openfda]
           when :vital_records then %i[vital_records person]
-          when :threat then %i[otx urlhaus threatfox]
+          when :threat then %i[otx urlhaus threatfox abuseipdb greynoise virustotal epss cisa_kev]
+          when :vin then %i[nhtsa]
+          when :mac then %i[mac_vendor]
+          when :callsign then %i[callook]
+          when :npi then %i[nppes]
+          when :cve then %i[epss cisa_kev]
           else DEFAULT_OSINT_FEEDS.first(8)
           end
         end
@@ -2257,6 +2334,29 @@ module PWN
           when :courtlistener then osint_courtlistener(query: query, limit: limit)
           when :sec_edgar then osint_sec_edgar(query: query, limit: limit)
           when :vital_records then osint_vital_records(query: query)
+          # ── public-api-lists extensions ──────────────────────────
+          when :ipapi_is then osint_ipapi_is(query: query)
+          when :iplocate then osint_iplocate(query: query)
+          when :ipwhois, :ipwho_is then osint_ipwhois(query: query)
+          when :abuseipdb then osint_abuseipdb(query: query, api_key: keys[:abuseipdb])
+          when :virustotal then osint_virustotal(query: query, api_key: keys[:virustotal])
+          when :greynoise then osint_greynoise(query: query, api_key: keys[:greynoise])
+          when :certspotter then osint_certspotter(query: query, limit: limit)
+          when :epss then osint_epss(query: query)
+          when :cisa_kev then osint_cisa_kev(query: query, limit: limit)
+          when :nhtsa, :vin then osint_nhtsa(query: query)
+          when :nppes, :npi then osint_nppes(query: query, limit: limit)
+          when :federal_register then osint_federal_register(query: query, limit: limit)
+          when :uk_police then osint_uk_police(query: query, limit: limit)
+          when :callook, :callsign then osint_callook(query: query)
+          when :mac_vendor, :mac then osint_mac_vendor(query: query)
+          when :universities then osint_universities(query: query, limit: limit)
+          when :microlink then osint_microlink(query: query)
+          when :agify then osint_agify(query: query)
+          when :genderize then osint_genderize(query: query)
+          when :nationalize then osint_nationalize(query: query)
+          when :haveibeenpwned, :hibp then osint_haveibeenpwned(query: query, api_key: keys[:haveibeenpwned])
+          when :securitytrails then osint_securitytrails(query: query, api_key: keys[:securitytrails])
           else { error: "unknown feed: #{feed}" }
           end
         end
@@ -2819,6 +2919,424 @@ module PWN
           }
         end
 
+        # ── public-api-lists OSINT feed implementations ─────────────
+        # Sourced / inspired by https://github.com/public-api-lists/public-api-lists
+        # Categories: Anti-Malware, Security, Geocoding, Government, Health,
+        # Open Data, Vehicle, Development (name demographics), Social.
+
+        private_class_method def self.osint_ipapi_is(opts = {})
+          q = opts[:query].to_s
+          body = http_get_json(url: "https://api.ipapi.is?q=#{URI.encode_www_form_component(q)}")
+          { source: 'ipapi.is', data: body }
+        end
+
+        private_class_method def self.osint_iplocate(opts = {})
+          q = opts[:query].to_s
+          body = http_get_json(url: "https://www.iplocate.io/api/lookup/#{URI.encode_www_form_component(q)}")
+          { source: 'iplocate.io', data: body }
+        end
+
+        private_class_method def self.osint_ipwhois(opts = {})
+          q = opts[:query].to_s
+          body = http_get_json(url: "https://ipwho.is/#{URI.encode_www_form_component(q)}")
+          { source: 'ipwho.is', data: body }
+        end
+
+        private_class_method def self.osint_abuseipdb(opts = {})
+          key = opts[:api_key].to_s
+          return { source: 'abuseipdb', skipped: true, reason: 'no API key (set ABUSEIPDB_API_KEY)' } if key.empty?
+
+          q = opts[:query].to_s
+          require 'rest-client'
+          resp = RestClient::Request.execute(
+            method: :get,
+            url: "https://api.abuseipdb.com/api/v2/check?ipAddress=#{URI.encode_www_form_component(q)}&maxAgeInDays=90&verbose",
+            timeout: 10,
+            open_timeout: 4,
+            headers: {
+              accept: :json,
+              'Key' => key,
+              user_agent: 'pwn-ai-extrospection'
+            }
+          )
+          body = JSON.parse(resp.body, symbolize_names: true)
+          { source: 'abuseipdb', data: body }
+        rescue StandardError => e
+          { source: 'abuseipdb', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_virustotal(opts = {})
+          key = opts[:api_key].to_s
+          return { source: 'virustotal', skipped: true, reason: 'no API key (set VIRUSTOTAL_API_KEY)' } if key.empty?
+
+          q = opts[:query].to_s
+          require 'base64' unless defined?(Base64)
+          require 'rest-client'
+          path = if q.match?(%r{\Ahttps?://}i)
+                   "https://www.virustotal.com/api/v3/urls/#{Base64.urlsafe_encode64(q, padding: false)}"
+                 elsif q.include?('.') && !q.match?(/\A\d{1,3}(?:\.\d{1,3}){3}\z/)
+                   "https://www.virustotal.com/api/v3/domains/#{URI.encode_www_form_component(q)}"
+                 else
+                   "https://www.virustotal.com/api/v3/ip_addresses/#{URI.encode_www_form_component(q)}"
+                 end
+          resp = RestClient::Request.execute(
+            method: :get,
+            url: path,
+            timeout: 12,
+            open_timeout: 5,
+            headers: {
+              accept: :json,
+              'x-apikey' => key,
+              user_agent: 'pwn-ai-extrospection'
+            }
+          )
+          body = JSON.parse(resp.body, symbolize_names: true)
+          attrs = body.is_a?(Hash) ? (body.dig(:data, :attributes) || body[:data] || body) : body
+          if attrs.is_a?(Hash)
+            slim = attrs.slice(
+              :last_analysis_stats, :reputation, :tags, :as_owner, :asn, :country,
+              :last_https_certificate_date, :categories, :total_votes, :harmless,
+              :malicious, :suspicious, :undetected, :timeout, :last_analysis_date
+            )
+            slim = attrs if slim.compact.empty?
+            { source: 'virustotal', data: slim }
+          else
+            { source: 'virustotal', data: body }
+          end
+        rescue StandardError => e
+          { source: 'virustotal', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_greynoise(opts = {})
+          q = opts[:query].to_s
+          key = opts[:api_key].to_s
+          require 'rest-client'
+          headers = { accept: :json, user_agent: 'pwn-ai-extrospection' }
+          headers['key'] = key unless key.empty?
+          url = if key.empty?
+                  "https://api.greynoise.io/v3/community/#{URI.encode_www_form_component(q)}"
+                else
+                  "https://api.greynoise.io/v2/noise/context/#{URI.encode_www_form_component(q)}"
+                end
+          resp = RestClient::Request.execute(method: :get, url: url, timeout: 10, open_timeout: 4, headers: headers)
+          body = JSON.parse(resp.body, symbolize_names: true)
+          { source: (key.empty? ? 'greynoise-community' : 'greynoise'), data: body }
+        rescue RestClient::NotFound
+          { source: 'greynoise', data: { ip: q, noise: false, riot: false, message: 'IP not observed' } }
+        rescue StandardError => e
+          { source: 'greynoise', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_certspotter(opts = {})
+          q = opts[:query].to_s.sub(%r{\Ahttps?://}, '').split('/').first
+          limit = opts[:limit] || 5
+          body = http_get_json(
+            url: "https://api.certspotter.com/v1/issuances?domain=#{URI.encode_www_form_component(q)}&include_subdomains=true&expand=dns_names&expand=issuer"
+          )
+          hits = Array(body).first(limit).map do |r|
+            next r unless r.is_a?(Hash)
+
+            {
+              id: r[:id],
+              dns_names: Array(r[:dns_names]).first(10),
+              issuer: (if r.is_a?(Hash) && r[:issuer].is_a?(Hash)
+                         r[:issuer][:name]
+                       else
+                         (r.is_a?(Hash) ? r[:issuer] : nil)
+                       end),
+              not_before: r[:not_before],
+              not_after: r[:not_after]
+            }
+          end
+          { source: 'certspotter', total_hint: Array(body).length, hits: hits }
+        rescue StandardError => e
+          { source: 'certspotter', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_epss(opts = {})
+          q = opts[:query].to_s.strip
+          cve = q[/CVE-\d{4}-\d+/i]
+          return { source: 'epss', error: 'query must contain a CVE-YYYY-NNNN id' } unless cve
+
+          body = http_get_json(url: "https://api.first.org/data/v1/epss?cve=#{URI.encode_www_form_component(cve.upcase)}")
+          row = Array(body.is_a?(Hash) ? body[:data] : body).first
+          { source: 'first.org/epss', cve: cve.upcase, data: row || body }
+        end
+
+        private_class_method def self.osint_cisa_kev(opts = {})
+          q = opts[:query].to_s.strip
+          limit = opts[:limit] || 5
+          body = http_get_json(url: 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json')
+          vulns = Array(body.is_a?(Hash) ? body[:vulnerabilities] : nil)
+          if q.match?(/CVE-\d{4}-\d+/i)
+            cve = q[/CVE-\d{4}-\d+/i].upcase
+            hits = vulns.select { |v| v[:cveID].to_s.upcase == cve }
+          elsif !q.empty? && !q.match?(/\Ahttps?:/i)
+            ql = q.downcase
+            hits = vulns.select do |v|
+              v.values_at(:cveID, :vendorProject, :product, :shortDescription, :vulnerabilityName)
+               .compact.join(' ').downcase.include?(ql)
+            end
+          else
+            hits = vulns
+          end
+          {
+            source: 'cisa-kev',
+            catalog_version: (body.is_a?(Hash) ? body[:catalogVersion] : nil),
+            total_catalog: vulns.length,
+            hits: hits.first(limit).map { |v| v.slice(:cveID, :vendorProject, :product, :vulnerabilityName, :dateAdded, :dueDate, :knownRansomwareCampaignUse, :shortDescription) }
+          }
+        rescue StandardError => e
+          { source: 'cisa-kev', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_nhtsa(opts = {})
+          q = opts[:query].to_s.strip.upcase
+          if q.match?(/\A[A-HJ-NPR-Z0-9]{17}\z/)
+            begin
+              require 'pwn/plugins/vin' unless defined?(PWN::Plugins::VIN)
+              res = PWN::Plugins::VIN.decode_vin(vin: q)
+              return { source: 'nhtsa-vpic+plugin', vin: q, data: res }
+            rescue StandardError
+              # fall through
+            end
+          end
+          path = if q.match?(/\A[A-HJ-NPR-Z0-9]{17}\z/)
+                   "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/#{URI.encode_www_form_component(q)}?format=json"
+                 else
+                   "https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMake/#{URI.encode_www_form_component(q)}?format=json"
+                 end
+          body = http_get_json(url: path)
+          results = Array(body.is_a?(Hash) ? body[:Results] : nil)
+          if results.first.is_a?(Hash) && results.first.key?(:VIN)
+            slim = results.first.reject { |_k, v| v.nil? || v.to_s.strip.empty? }
+            { source: 'nhtsa-vpic', vin: q, data: slim }
+          else
+            { source: 'nhtsa-vpic', query: q, count: (body.is_a?(Hash) ? body[:Count] : results.length), results: results.first(10) }
+          end
+        rescue StandardError => e
+          { source: 'nhtsa-vpic', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_nppes(opts = {})
+          q = opts[:query].to_s.strip
+          limit = opts[:limit] || 5
+          params = if q.match?(/\A(?:NPI[:\s#-]*)?\d{10}\z/i)
+                     npi = q.gsub(/\D/, '')
+                     "number=#{npi}"
+                   elsif q.include?(',')
+                     last, first = q.split(',', 2).map(&:strip)
+                     "last_name=#{URI.encode_www_form_component(last)}&first_name=#{URI.encode_www_form_component(first)}"
+                   elsif q.match?(/\A[A-Za-z]+(?:\s+[A-Za-z.'-]+)+\z/)
+                     parts = q.split(/\s+/)
+                     "first_name=#{URI.encode_www_form_component(parts.first)}&last_name=#{URI.encode_www_form_component(parts.last)}"
+                   else
+                     "organization_name=#{URI.encode_www_form_component(q)}"
+                   end
+          body = http_get_json(url: "https://npiregistry.cms.hhs.gov/api/?version=2.1&#{params}&limit=#{limit}")
+          results = Array(body.is_a?(Hash) ? body[:results] : nil).first(limit).map do |r|
+            basic = r[:basic] || {}
+            {
+              npi: r[:number],
+              enumeration_type: r[:enumeration_type],
+              name: [basic[:first_name], basic[:last_name]].compact.join(' ').strip,
+              organization: basic[:organization_name],
+              credential: basic[:credential],
+              status: basic[:status],
+              addresses: Array(r[:addresses]).first(2),
+              taxonomies: Array(r[:taxonomies]).first(3)
+            }
+          end
+          { source: 'nppes', result_count: (body.is_a?(Hash) ? body[:result_count] : results.length), results: results }
+        rescue StandardError => e
+          { source: 'nppes', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_federal_register(opts = {})
+          q = opts[:query].to_s.strip
+          limit = opts[:limit] || 5
+          body = http_get_json(
+            url: "https://www.federalregister.gov/api/v1/documents.json?conditions%5Bterm%5D=#{URI.encode_www_form_component(q)}&per_page=#{limit}&order=newest"
+          )
+          results = Array(body.is_a?(Hash) ? body[:results] : nil).first(limit).map do |d|
+            {
+              title: d[:title],
+              type: d[:type],
+              abstract: d[:abstract].to_s[0, 300],
+              document_number: d[:document_number],
+              html_url: d[:html_url],
+              pdf_url: d[:pdf_url],
+              publication_date: d[:publication_date],
+              agencies: Array(d[:agencies]).map { |a| a.is_a?(Hash) ? a[:name] : a }.first(5)
+            }
+          end
+          { source: 'federalregister.gov', count: (body.is_a?(Hash) ? body[:count] : results.length), results: results }
+        rescue StandardError => e
+          { source: 'federalregister.gov', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_uk_police(opts = {})
+          q = opts[:query].to_s.strip
+          limit = opts[:limit] || 5
+          if q.match?(/\A-?\d+\.\d+\s*,\s*-?\d+\.\d+\z/)
+            lat, lng = q.split(',').map(&:strip)
+            body = http_get_json(url: "https://data.police.uk/api/crimes-street/all-crime?lat=#{lat}&lng=#{lng}")
+            hits = Array(body).first(limit).map { |c| c.slice(:category, :location_type, :location, :month, :outcome_status) }
+            { source: 'data.police.uk', mode: 'street', lat: lat, lng: lng, total_hint: Array(body).length, hits: hits }
+          elsif q.match?(/\A[a-z0-9-]+\z/i) && !q.include?('.')
+            forces = http_get_json(url: 'https://data.police.uk/api/forces')
+            match = Array(forces).find { |f| f[:id].to_s == q.downcase || f[:name].to_s.downcase.include?(q.downcase) }
+            if match
+              detail = http_get_json(url: "https://data.police.uk/api/forces/#{match[:id]}")
+              { source: 'data.police.uk', mode: 'force', force: match, detail: detail }
+            else
+              { source: 'data.police.uk', mode: 'force-search', matches: Array(forces).select { |f| f[:name].to_s.downcase.include?(q.downcase) }.first(limit) }
+            end
+          else
+            forces = http_get_json(url: 'https://data.police.uk/api/forces')
+            updated = http_get_json(url: 'https://data.police.uk/api/crime-last-updated')
+            { source: 'data.police.uk', mode: 'catalog', last_updated: updated, forces_sample: Array(forces).first(limit), note: 'Pass "lat,lng" for street crimes or a force id/name' }
+          end
+        rescue StandardError => e
+          { source: 'data.police.uk', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_callook(opts = {})
+          q = opts[:query].to_s.strip.upcase.sub(%r{\A.*/}, '')
+          body = http_get_json(url: "https://callook.info/#{URI.encode_www_form_component(q)}/json")
+          { source: 'callook.info', callsign: q, data: body }
+        end
+
+        private_class_method def self.osint_mac_vendor(opts = {})
+          q = opts[:query].to_s.strip
+          hex = q.gsub(/[^0-9A-Fa-f]/, '')
+          mac = if hex.length >= 6
+                  hex[0, 12].downcase.scan(/../).join(':')
+                else
+                  q
+                end
+          body = http_get_json(url: "https://api.maclookup.app/v2/macs/#{URI.encode_www_form_component(mac)}")
+          if body
+            { source: 'maclookup.app', mac: mac, data: body }
+          else
+            require 'rest-client'
+            resp = RestClient::Request.execute(
+              method: :get,
+              url: "https://api.macvendors.com/#{URI.encode_www_form_component(mac)}",
+              timeout: 8,
+              open_timeout: 4,
+              headers: { user_agent: 'pwn-ai-extrospection' }
+            )
+            { source: 'macvendors.com', mac: mac, vendor: resp.body.to_s.strip }
+          end
+        rescue StandardError => e
+          { source: 'mac-vendor', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_universities(opts = {})
+          q = opts[:query].to_s.strip
+          limit = opts[:limit] || 5
+          # hipolabs is HTTP (not HTTPS); RestClient follows redirects fine.
+          body = http_get_json(url: "http://universities.hipolabs.com/search?name=#{URI.encode_www_form_component(q)}")
+          hits = Array(body).first(limit).map do |u|
+            if u.is_a?(Hash)
+              {
+                name: u[:name],
+                country: u[:country],
+                alpha_two_code: u[:alpha_two_code],
+                domains: u[:domains],
+                web_pages: u[:web_pages],
+                state_province: u[:'state-province']
+              }
+            else
+              u
+            end
+          end
+          { source: 'hipolabs-universities', total_hint: Array(body).length, hits: hits }
+        rescue StandardError => e
+          { source: 'hipolabs-universities', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_microlink(opts = {})
+          q = opts[:query].to_s.strip
+          q = "https://#{q}" unless q.match?(%r{\Ahttps?://}i)
+          body = http_get_json(url: "https://api.microlink.io?url=#{URI.encode_www_form_component(q)}")
+          data = body.is_a?(Hash) ? (body[:data] || body) : body
+          if data.is_a?(Hash)
+            { source: 'microlink.io', status: (body.is_a?(Hash) ? body[:status] : nil), data: data.slice(:title, :description, :publisher, :author, :date, :url, :image, :logo, :lang) }
+          else
+            { source: 'microlink.io', data: body }
+          end
+        end
+
+        private_class_method def self.osint_agify(opts = {})
+          name = opts[:query].to_s.strip.split(/\s+/).first
+          body = http_get_json(url: "https://api.agify.io?name=#{URI.encode_www_form_component(name)}")
+          { source: 'agify.io', data: body }
+        end
+
+        private_class_method def self.osint_genderize(opts = {})
+          name = opts[:query].to_s.strip.split(/\s+/).first
+          body = http_get_json(url: "https://api.genderize.io?name=#{URI.encode_www_form_component(name)}")
+          { source: 'genderize.io', data: body }
+        end
+
+        private_class_method def self.osint_nationalize(opts = {})
+          name = opts[:query].to_s.strip.split(/\s+/).first
+          body = http_get_json(url: "https://api.nationalize.io?name=#{URI.encode_www_form_component(name)}")
+          { source: 'nationalize.io', data: body }
+        end
+
+        private_class_method def self.osint_haveibeenpwned(opts = {})
+          key = opts[:api_key].to_s
+          return { source: 'haveibeenpwned', skipped: true, reason: 'no API key (set HIBP_API_KEY)' } if key.empty?
+
+          q = opts[:query].to_s.strip
+          require 'rest-client'
+          path = "https://haveibeenpwned.com/api/v3/breachedaccount/#{URI.encode_www_form_component(q)}?truncateResponse=false"
+          resp = RestClient::Request.execute(
+            method: :get,
+            url: path,
+            timeout: 12,
+            open_timeout: 5,
+            headers: {
+              accept: :json,
+              'hibp-api-key' => key,
+              user_agent: 'pwn-ai-extrospection'
+            }
+          )
+          body = JSON.parse(resp.body, symbolize_names: true)
+          hits = Array(body).first(10).map { |b| b.is_a?(Hash) ? b.slice(:Name, :Title, :Domain, :BreachDate, :PwnCount, :DataClasses, :IsVerified) : b }
+          { source: 'haveibeenpwned', count: Array(body).length, breaches: hits }
+        rescue RestClient::NotFound
+          { source: 'haveibeenpwned', count: 0, breaches: [], note: 'no breaches for account' }
+        rescue StandardError => e
+          { source: 'haveibeenpwned', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
+        private_class_method def self.osint_securitytrails(opts = {})
+          key = opts[:api_key].to_s
+          return { source: 'securitytrails', skipped: true, reason: 'no API key (set SECURITYTRAILS_API_KEY)' } if key.empty?
+
+          q = opts[:query].to_s.strip.sub(%r{\Ahttps?://}, '').split('/').first
+          require 'rest-client'
+          resp = RestClient::Request.execute(
+            method: :get,
+            url: "https://api.securitytrails.com/v1/domain/#{URI.encode_www_form_component(q)}",
+            timeout: 12,
+            open_timeout: 5,
+            headers: {
+              accept: :json,
+              apikey: key,
+              user_agent: 'pwn-ai-extrospection'
+            }
+          )
+          body = JSON.parse(resp.body, symbolize_names: true)
+          { source: 'securitytrails', data: (body.is_a?(Hash) ? body.slice(:hostname, :alexa_rank, :current_dns, :apex_domain, :subdomain_count) : body) }
+        rescue StandardError => e
+          { source: 'securitytrails', error: "#{e.class}: #{e.message.to_s[0, 120]}" }
+        end
+
         private_class_method def self.build_osint_summary(opts = {})
           r = opts[:results] || {}
           parts = ["osint kind=#{r[:kind]} query=#{r[:query]}"]
@@ -3045,6 +3563,10 @@ module PWN
               PWN::AI::Agent::Extrospection.osint(query: '+13125551212', kind: :phone)
               PWN::AI::Agent::Extrospection.osint(query: '2ABIP-ESP32', kind: :fcc_id)
               PWN::AI::Agent::Extrospection.osint(query: 'US10123456', kind: :patent)
+              PWN::AI::Agent::Extrospection.osint(query: '1HGCM82633A004352', kind: :vin)
+              PWN::AI::Agent::Extrospection.osint(query: '00:11:22:33:44:55', kind: :mac)
+              PWN::AI::Agent::Extrospection.osint(query: 'W1AW', kind: :callsign)
+              PWN::AI::Agent::Extrospection.osint(query: 'CVE-2021-44228', kind: :cve)
               PWN::AI::Agent::Extrospection.serial_sense(payload: "ATI\r")
               PWN::AI::Agent::Extrospection.telecomm(action: :status)
               PWN::AI::Agent::Extrospection.packet_sense(action: :capture, filter: 'tcp port 443', count: 10)
@@ -3073,7 +3595,7 @@ module PWN
                   { host: '127.0.0.1', port: 7356, settle_secs: 8, ttl: 300 }
 
               Configure new limbs:
-                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '…', hunter: '…' } }
+                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '…', hunter: '…', abuseipdb: '…', virustotal: '…', greynoise: '…', haveibeenpwned: '…', securitytrails: '…' } }
                 PWN::Env[:ai][:agent][:extrospection][:serial]   = { block_dev: '/dev/ttyUSB0', baud: 115200, settle_secs: 1.5 }
                 PWN::Env[:ai][:agent][:extrospection][:telecomm] = { host: '127.0.0.1', port: 8000 }
                 PWN::Env[:ai][:agent][:extrospection][:packet]   = { iface: 'eth0' }

@@ -37,16 +37,38 @@ describe PWN::AI::Agent::Extrospection do
     expect(det.call('0000320193')).to eq :cik
     expect(det.call('123 Main Street Springfield')).to eq :geo
     expect(det.call('birth record Jane Doe')).to eq :vital_records
+    expect(det.call('1HGCM82633A004352')).to eq :vin
+    expect(det.call('00:11:22:33:44:55')).to eq :mac
+    expect(det.call('W1AW')).to eq :callsign
+    expect(det.call('CVE-2021-44228')).to eq :cve
+    expect(det.call('NPI 1679576722')).to eq :npi
   end
 
   it 'should route new public feeds through osint_dispatch' do
-    feeds = %i[otx urlhaus threatfox urlscan hackertarget openfda nominatim opencorporates courtlistener sec_edgar vital_records]
+    feeds = %i[
+      otx urlhaus threatfox urlscan hackertarget openfda nominatim
+      opencorporates courtlistener sec_edgar vital_records
+      ipapi_is iplocate ipwhois abuseipdb virustotal greynoise
+      certspotter epss cisa_kev nhtsa nppes federal_register
+      uk_police callook mac_vendor universities microlink
+      agify genderize nationalize haveibeenpwned securitytrails
+    ]
     feeds.each do |f|
       # Dispatch should not raise — network failures become error hashes.
+      query = case f
+              when :epss, :cisa_kev then 'CVE-2021-44228'
+              when :nhtsa then '1HGCM82633A004352'
+              when :mac_vendor then '00:11:22:33:44:55'
+              when :callook then 'W1AW'
+              when :nppes then 'John Smith'
+              when :agify, :genderize, :nationalize then 'Michael'
+              when :uk_police then 'metropolitan'
+              else 'example.com'
+              end
       res = PWN::AI::Agent::Extrospection.send(
         :osint_dispatch,
         feed: f,
-        query: 'example.com',
+        query: query,
         limit: 1,
         keys: {}
       )
@@ -56,8 +78,34 @@ describe PWN::AI::Agent::Extrospection do
 
   it 'should include expanded DEFAULT_OSINT_FEEDS' do
     feeds = PWN::AI::Agent::Extrospection.const_get(:DEFAULT_OSINT_FEEDS)
-    %i[otx urlhaus threatfox urlscan openfda nominatim opencorporates courtlistener sec_edgar vital_records].each do |f|
+    %i[
+      otx urlhaus threatfox urlscan openfda nominatim opencorporates
+      courtlistener sec_edgar vital_records
+      ipapi_is iplocate ipwhois abuseipdb virustotal greynoise
+      certspotter epss cisa_kev nhtsa nppes federal_register
+      uk_police callook mac_vendor universities microlink
+      agify genderize nationalize haveibeenpwned securitytrails
+    ].each do |f|
       expect(feeds).to include(f)
     end
+  end
+
+  it 'should skip keyed public-api-lists feeds when no API key is present' do
+    %i[abuseipdb virustotal haveibeenpwned securitytrails].each do |f|
+      res = PWN::AI::Agent::Extrospection.send(
+        :osint_dispatch, feed: f, query: '8.8.8.8', limit: 1, keys: {}
+      )
+      expect(res).to be_a(Hash)
+      expect(res[:skipped]).to eq(true)
+    end
+  end
+
+  it 'should select public-api-lists-aware feeds per kind' do
+    ip_feeds = PWN::AI::Agent::Extrospection.send(:osint_feeds_for, kind: :ip)
+    expect(ip_feeds).to include(:ipapi_is, :iplocate, :abuseipdb, :greynoise)
+    cve_feeds = PWN::AI::Agent::Extrospection.send(:osint_feeds_for, kind: :cve)
+    expect(cve_feeds).to include(:epss, :cisa_kev)
+    vin_feeds = PWN::AI::Agent::Extrospection.send(:osint_feeds_for, kind: :vin)
+    expect(vin_feeds).to eq(%i[nhtsa])
   end
 end
