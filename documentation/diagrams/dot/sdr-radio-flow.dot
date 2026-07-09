@@ -1,8 +1,8 @@
 digraph "PWN_SDR" {
   graph [
-    label=<<B>PWN::SDR — Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · SonMicro · FrequencyAllocation · Decoder::* (20 protocols)</FONT>>,
+    label=<<B>PWN::SDR — Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · FrequencyAllocation · Decoder::* (20) · FFI::{Volk,Liquid,FFTW,HackRF,RTLSdr,SoapySDR}</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
-    rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
+    rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.1,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
   ];
   node [fontname="Helvetica", fontsize=10, style="filled,rounded",
@@ -15,33 +15,55 @@ digraph "PWN_SDR" {
   subgraph cluster_hw {
     label="Hardware"; fontcolor="#a7f3d0"; style=rounded;
     color="#047857"; bgcolor="#022c22";
-    SDRhw   [label="RTL-SDR / HackRF\n(via GQRX / SoapySDR)", fillcolor="#6ee7b7"];
-    Flipper [label="SDR::FlipperZero",                        fillcolor="#6ee7b7"];
-    RFID    [label="SDR::RFIDler\nSonMicroRFID",              fillcolor="#6ee7b7"];
+    SDRhw   [label="RTL-SDR / HackRF / Airspy\n(via GQRX / SoapySDR / FFI)", fillcolor="#6ee7b7"];
+    Flipper [label="SDR::FlipperZero", fillcolor="#6ee7b7"];
+    RFID    [label="SDR::RFIDler\nSonMicroRFID", fillcolor="#6ee7b7"];
+  }
+  subgraph cluster_ffi {
+    label="PWN::FFI native backends"; fontcolor="#bae6fd"; style=rounded;
+    color="#0369a1"; bgcolor="#0c4a6e";
+    Volk   [label="FFI::Volk\nSIMD s16→f32 · accumulate", fillcolor="#7dd3fc"];
+    Liquid [label="FFI::Liquid\nfreqdem · msresamp · FIR", fillcolor="#7dd3fc"];
+    FFTW   [label="FFI::FFTW\nrfft · cfft · power-dB", fillcolor="#7dd3fc"];
+    Front  [label="FFI::{HackRF,RTLSdr,SoapySDR}\ninventory · raw I/Q", fillcolor="#7dd3fc"];
   }
   subgraph cluster_ctrl {
     label="Control · Scan"; fontcolor="#fde68a"; style=rounded;
     color="#a16207"; bgcolor="#422006";
     GQRX  [label="SDR::GQRX\nremote control\nspectrum snapshot\n(median floor · DC null)", fillcolor="#fcd34d"];
-    Freq  [label="SDR::FrequencyAllocation\nband lookup",                                   fillcolor="#fcd34d"];
-    Scan  [label="bin/pwn_gqrx_scanner\n--fft-scan · iterative\n--min-snr-db · --avg",       fillcolor="#fcd34d"];
+    Freq  [label="SDR::FrequencyAllocation\nband lookup", fillcolor="#fcd34d"];
+    Scan  [label="bin/pwn_gqrx_scanner\n--fft-scan · iterative\n--min-snr-db · --avg", fillcolor="#fcd34d"];
   }
   subgraph cluster_dec {
-    label="Decode · Record"; fontcolor="#ddd6fe"; style=rounded;
+    label="Decode · Sense · Record"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
+    DSP [label="Decoder::DSP\npure-Ruby + FFI accel\n(unpack · resample · FSK)", fillcolor="#c4b5fd"];
     Dec [label="SDR::Decoder::*\nADSB · APT · BT · DECT · GPS\nGSM · Iridium · LoRa · LTE\nMorse · P25 · POCSAG/FLEX\nRDS · RFID · rtl_433 · RTTY\nWiFi · ZigBee", fillcolor="#c4b5fd"];
-    Obs [label="extro_observe\ncategory: :rf\nrecord signal intel", fillcolor="#c4b5fd"];
+    Obs [label="extro_observe\ncategory: :rf", fillcolor="#c4b5fd"];
     Xrf [label="extro_snapshot :rf\nprobe_rf → hw inventory", fillcolor="#c4b5fd"];
+    Tune[label="extro_rf_tune  📡\ntune · demod · strength\nRDS.sample → now_playing", fillcolor="#c4b5fd", penwidth=2];
   }
 
   RF -> SDRhw   [color="#fb7185"];
   RF -> Flipper [color="#fb7185"];
   RF -> RFID    [color="#fb7185"];
-  SDRhw   -> GQRX [color="#f59e0b"];
-  Flipper -> Freq [color="#f59e0b"];
-  RFID    -> Scan [color="#f59e0b"];
-  GQRX -> Dec [color="#a78bfa"];
+  SDRhw -> Front [color="#38bdf8"];
+  SDRhw -> GQRX  [color="#f59e0b"];
+  Front -> Volk   [style=dashed, color="#38bdf8"];
+  Front -> Liquid [style=dashed, color="#38bdf8"];
+  Front -> FFTW   [style=dashed, color="#38bdf8"];
+  Volk   -> DSP [color="#a78bfa"];
+  Liquid -> DSP [color="#a78bfa"];
+  FFTW   -> DSP [color="#a78bfa"];
+  GQRX -> DSP [color="#a78bfa"];
+  GQRX -> Tune [label="remote :7356", color="#f59e0b", penwidth=2];
+  DSP  -> Dec [color="#a78bfa"];
   Freq -> Dec [color="#a78bfa"];
-  Scan -> Obs [color="#a78bfa"];
-  SDRhw -> Xrf [style=dashed, color="#fbbf24", constraint=false];
+  Flipper -> Freq [color="#f59e0b"];
+  RFID  -> Scan [color="#f59e0b"];
+  Scan  -> Obs  [color="#a78bfa"];
+  Front -> Xrf  [style=dashed, color="#fbbf24", constraint=false];
+  Dec   -> Obs  [style=dashed, color="#c4b5fd"];
+  Tune  -> Obs  [label="category::rf\nttl 300s", color="#a78bfa", penwidth=2];
+  Tune  -> Dec  [label="RDS.sample", style=dashed, color="#c4b5fd"];
 }

@@ -33,6 +33,11 @@ describe 'PWN::AI::Agent::Tools extrospection' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'extro_correlate')).not_to be_nil
   end
 
+  it 'registers the extro_rf_tune tool' do
+    PWN::AI::Agent::Registry.discover(force: true)
+    expect(PWN::AI::Agent::Registry.lookup(name: 'extro_rf_tune')).not_to be_nil
+  end
+
   it 'exposes the extrospection toolset in the registry' do
     PWN::AI::Agent::Registry.discover(force: true)
     expect(PWN::AI::Agent::Registry.toolsets).to include('extrospection')

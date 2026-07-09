@@ -1,5 +1,11 @@
 ![PWN](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/PWN.png)
 
+<p align="center">
+  <img src="documentation/pwn_silent_help_learn_demo.gif" alt="PWN Silent Demo — Help Surfaces + Learning Feedback Loop" width="640">
+  <br>
+  <em>Silent walkthrough: <code>pwn</code> help surfaces → <code>pwn-ai</code> → recon → mistakes / learning / extrospection feedback loop</em>
+</p>
+
 ### **Table of Contents** ###
 
 - [Intro](#intro)
@@ -52,7 +58,7 @@ Five layers, edges only ever go down:
 
 The AI layer closes a **self-improvement loop** on every turn — Metrics +
 Learning + **Mistakes** (introspection / negative feedback) joined with
-Snapshot + Drift + Intel + RF + **Web** (extrospection) — plus browser-backed **`extro_verify`** self fact-checking — via `extro_correlate`, so the
+Snapshot + Drift + Intel + RF + **Web** (extrospection) — plus browser-backed **`extro_verify`** / **`extro_watch`** and RF **`extro_rf_tune`** sensing — via `extro_correlate`, so the
 agent knows whether a failure was *its* fault or *the world* changed —
 **and does not repeat the same mistake twice**:
 

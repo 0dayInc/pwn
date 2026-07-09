@@ -18,8 +18,8 @@ digraph "PWN_Persistence" {
   lrn  [label="learning.jsonl\ntask outcomes"];
   mis  [label="mistakes.json\nfailure fingerprints · fixes\n[REPEATING] · [REGRESSED]"];
   met  [label="metrics.json\nper-tool telemetry"];
-  ext  [label="extrospection.json\nhost snapshot + rf + web\n+ observations"];
-  ews  [label="extrospection/web/*.png\nheadless screenshots"];
+  ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/rf/web)\n+ previous + observations[]"];
+  ews  [label="extrospection/web/*.png\nprobe_web / extro_watch shots"];
   ses  [label="sessions/*.jsonl\ntranscripts"];
   crn  [label="cron/jobs.yml\nscheduled jobs + logs"];
   agt  [label="agents.yml\npersona registry"];
@@ -27,5 +27,5 @@ digraph "PWN_Persistence" {
   hist [label="~/.pwn_history\nREPL history"];
 
   Root->cfg; Root->mem; Root->skl; Root->lrn; Root->mis; Root->met; Root->ext;
-  Root->ses; Root->crn; Root->agt; Root->swm; Root->hist;
+  Root->ews; Root->ses; Root->crn; Root->agt; Root->swm; Root->hist;
 }

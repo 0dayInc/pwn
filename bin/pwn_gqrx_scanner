@@ -107,6 +107,10 @@ PWN::Driver::Parser.new do |options|
   options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.30)>') do |r|
     opts[:min_bw_ratio] = r
   end
+
+  options.on('--no-refine', '<Optional --fft-scan - Skip the post-FFT iterative edge/peak refine pass that locks the exact channel frequency (default: refine ON)>') do
+    opts[:refine] = false
+  end
 end.parse!
 
 begin
@@ -200,6 +204,11 @@ begin
 
   if fft_scan
     puts '[*] --fft-scan requested: using fast FFT panoramic mode (#fast_scan_range)'
+    refine_flag = opts.fetch(:refine, true)
+    puts "[*] band-plan / session params: mode=#{demodulator_mode.inspect} bw=#{bandwidth.inspect} " \
+         "squelch=#{squelch.inspect} precision=#{precision} decoder=#{decoder.inspect} " \
+         "rf_gain=#{rf_gain.inspect} if_gain=#{intermediate_gain.inspect} bb_gain=#{baseband_gain.inspect} " \
+         "refine=#{refine_flag}"
     fast_resp = PWN::SDR::GQRX.fast_scan_range(
       gqrx_sock: gqrx_sock,
       ranges: ranges,
@@ -213,9 +222,14 @@ begin
       min_snr_db: min_snr_db,
       precision: precision,
       min_bw_ratio: min_bw_ratio,
+      refine: opts.fetch(:refine, true),
       demodulator_mode: demodulator_mode,
       bandwidth: bandwidth,
       squelch: squelch,
+      audio_gain_db: audio_gain_db,
+      rf_gain: rf_gain,
+      intermediate_gain: intermediate_gain,
+      baseband_gain: baseband_gain,
       decoder: decoder,
       location: location,
       scan_log: scan_log

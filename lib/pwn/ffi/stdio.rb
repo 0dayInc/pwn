@@ -2,7 +2,8 @@
 
 require 'ffi'
 
-PubFFI = FFI
+PubFFI = ::FFI unless defined?(PubFFI) # rubocop:disable Style/RedundantConstantBase
+
 module PWN
   module FFI
     # This plugin is a wrapper for the standard I/O functions in libc.
@@ -14,6 +15,13 @@ module PWN
       attach_function(:puts, [:string], :int)
       attach_function(:printf, %i[string varargs], :int, convention: :default)
       attach_function(:scanf, %i[string varargs], :int)
+
+      # Supported Method Parameters::
+      # PWN::FFI::Stdio.available?
+
+      public_class_method def self.available?
+        true
+      end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
 

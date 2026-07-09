@@ -299,6 +299,10 @@ module PWN
         precision = opts[:precision]
         step_hz = opts[:step_hz]
         strength_lock = opts[:strength_lock]
+        # Optional hard bounds (used by refine_detections to keep the walk
+        # inside the FFT-seeded window so we cannot bleed into a neighbour).
+        min_hz = opts[:min_hz]
+        max_hz = opts[:max_hz]
         left_candidate_signals = []
         right_candidate_signals = []
         candidate_signals = []
@@ -307,6 +311,8 @@ module PWN
         strength_db = 99.9
         puts '*** Edge Detection: Locating Beginning of Signal...'
         while strength_db >= strength_lock
+          break if min_hz && hz < min_hz
+
           tune_to(gqrx_sock: gqrx_sock, hz: hz)
           strength_db = measure_signal_strength(
             gqrx_sock: gqrx_sock,
@@ -334,6 +340,8 @@ module PWN
         strength_db = 99.9
         puts '*** Edge Detection: Locating End of Signal...'
         while strength_db >= strength_lock
+          break if max_hz && hz > max_hz
+
           tune_to(gqrx_sock: gqrx_sock, hz: hz)
           strength_db = measure_signal_strength(
             gqrx_sock: gqrx_sock,
@@ -394,10 +402,15 @@ module PWN
         signals_detected = opts[:signals_detected]
         timestamp_start = opts[:timestamp_start]
         scan_log = opts[:scan_log]
+        # Optional top-level metadata merged into the scan response so that
+        # #scan_range and #fast_scan_range produce an identical JSON schema
+        # (sample_rate_used / nfft / precision / plan_bw_hz / method / …).
+        meta = opts[:meta] || {}
+        meta = meta.transform_keys(&:to_sym) if meta.respond_to?(:transform_keys)
 
         existing_scan_resp = JSON.parse(File.read(scan_log), symbolize_names: true) if File.exist?(scan_log)
 
-        # BUG: iteration_metrics not being properly initialized from existing log
+        # Prefer caller-supplied iteration_metrics; fall back to prior log.
         iteration_metrics = opts[:iteration_metrics]
         iteration_metrics ||= existing_scan_resp[:iteration_metrics] if existing_scan_resp.is_a?(Hash) && existing_scan_resp.key?(:iteration_metrics) && existing_scan_resp[:iteration_metrics].is_a?(Array) && !existing_scan_resp[:iteration_metrics].empty?
         iteration_metrics ||= []
@@ -409,15 +422,33 @@ module PWN
         timestamp_end = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
         duration = duration_between(timestamp_start: timestamp_start, timestamp_end: timestamp_end)
 
-        # TODO: Implement iteration_metrics logging per range iteration
+        # Canonical top-level schema shared by iterative + FFT scan modes.
+        # FFT-only keys (sample_rate_used / nfft) are nil for #scan_range;
+        # callers override via :meta. Preserve any previously-logged meta
+        # that the current call did not re-supply so mid-scan re-logs do
+        # not strip provenance fields.
+        prior_meta = {}
+        if existing_scan_resp.is_a?(Hash)
+          %i[sample_rate_used nfft precision plan_bw_hz demodulator_mode bandwidth squelch strength_lock audio_gain_db rf_gain intermediate_gain baseband_gain decoder method spectrums].each do |k|
+            prior_meta[k] = existing_scan_resp[k] if existing_scan_resp.key?(k)
+          end
+        end
+
         scan_resp = {
           signals: signals,
           total: signals.length,
           timestamp_start: timestamp_start,
           timestamp_end: timestamp_end,
           duration: duration,
-          iteration_metrics: iteration_metrics
+          iteration_metrics: iteration_metrics,
+          sample_rate_used: nil,
+          nfft: nil,
+          precision: nil,
+          plan_bw_hz: nil,
+          method: nil
         }
+        scan_resp.merge!(prior_meta)
+        scan_resp.merge!(meta)
 
         File.write(
           scan_log,
@@ -545,6 +576,205 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # refined = PWN::SDR::GQRX.refine_detections(
+      #   gqrx_sock: 'required - GQRX socket object returned from #connect method',
+      #   detections: 'required - Array of preliminary signal hashes (from FFT or prior scan)',
+      #   precision: 'required - Frequency step precision (raster digits)',
+      #   step_hz: 'required - Frequency step in Hz for edge / peak walking',
+      #   strength_lock: 'required - Strength lock in dBFS used as the edge gate',
+      #   plan_bw_hz: 'optional - Expected occupied bandwidth (Hz); bounds the search window',
+      #   demodulator_mode: 'optional - Mode attributed to detections (defaults to existing / :WFM)',
+      #   bandwidth: 'optional - Passband attributed to detections',
+      #   squelch: 'optional - Squelch attributed to detections'
+      # )
+      #
+      # Post-process a *preliminary* detection list by re-walking each candidate with
+      # the traditional S-meter edge_detection + find_best_peak pipeline, restricted
+      # to a tight window around the candidate. Purpose: turn an FFT bin estimate
+      # into the exact channel frequency so decoding (and analyze_scan retunes) land
+      # dead-centre. Failures fall back to the original detection (best-effort).
+      private_class_method def self.refine_detections(opts = {})
+        gqrx_sock = opts[:gqrx_sock]
+        detections = opts[:detections] || []
+        precision = opts[:precision].to_i
+        step_hz = opts[:step_hz].to_i
+        strength_lock = opts[:strength_lock].to_f
+        plan_bw_hz = (opts[:plan_bw_hz] || step_hz).to_i
+        plan_bw_hz = step_hz if plan_bw_hz <= 0
+        step_hz = 1 if step_hz <= 0
+
+        return detections if detections.empty?
+
+        puts '-' * 86
+        puts "[REFINE] Iterative edge/peak refinement of #{detections.length} preliminary detection(s)"
+        puts "         raster=#{PWN::SDR.hz_to_s(freq: step_hz)} Hz  plan_bw=#{PWN::SDR.hz_to_s(freq: plan_bw_hz)} Hz  strength_lock=#{strength_lock} dBFS"
+        puts '-' * 86
+
+        refined = []
+        detections.each_with_index do |det, idx|
+          seed_hz = (det[:raw_peak_hz] || det[:hz] || PWN::SDR.hz_to_i(freq: det[:freq])).to_i
+          if seed_hz.zero?
+            puts "  [REFINE] detection ##{idx + 1} has no usable seed frequency — keeping as-is"
+            refined << det
+            next
+          end
+
+          # Bound the search window so we never wander into an adjacent channel.
+          # Window = max(plan_bw, measured bw, 2*raster) on each side of the seed.
+          measured_bw = det[:bw_hz].to_i
+          half_win = [
+            (plan_bw_hz / 2),
+            (measured_bw / 2),
+            (step_hz * 2),
+            5_000
+          ].max
+          win_lo = seed_hz - half_win
+          win_hi = seed_hz + half_win
+
+          puts "\n[REFINE #{idx + 1}/#{detections.length}] seed=#{PWN::SDR.hz_to_s(freq: seed_hz)}  window=#{PWN::SDR.hz_to_s(freq: win_lo)}..#{PWN::SDR.hz_to_s(freq: win_hi)}"
+
+          # Probe S-meter at the seed; if quiet, spiral-search for a starting
+          # point above strength_lock within the window before edge-walking.
+          tune_to(gqrx_sock: gqrx_sock, hz: seed_hz)
+          seed_strength = measure_signal_strength(
+            gqrx_sock: gqrx_sock,
+            freq: seed_hz,
+            precision: precision,
+            strength_lock: strength_lock,
+            phase: :refine_seed
+          )
+
+          start_hz = seed_hz
+          local_lock = strength_lock
+          if seed_strength < strength_lock
+            # Adaptive floor: sample a few points nearby and raise local_lock to
+            # just above the quietest reading so edge_detection can engage.
+            probe_hzs = [seed_hz]
+            off = step_hz
+            while off <= half_win
+              probe_hzs << (seed_hz - off)
+              probe_hzs << (seed_hz + off)
+              off += step_hz
+            end
+            probe_hzs.select! { |h| h.between?(win_lo, win_hi) }
+            best_probe = { hz: seed_hz, strength: seed_strength }
+            probe_hzs.each do |ph|
+              tune_to(gqrx_sock: gqrx_sock, hz: ph)
+              s = measure_signal_strength(
+                gqrx_sock: gqrx_sock,
+                freq: ph,
+                precision: precision,
+                strength_lock: strength_lock,
+                phase: :refine_probe
+              )
+              best_probe = { hz: ph, strength: s } if s > best_probe[:strength]
+            end
+            start_hz = best_probe[:hz]
+            # Drop lock to 3 dB below the best probe so edges still resolve,
+            # but never more than 12 dB below the session lock (reject ghosts).
+            if best_probe[:strength] < strength_lock
+              local_lock = [best_probe[:strength] - 3.0, strength_lock - 12.0].max
+              puts "  [REFINE] seed quiet (#{seed_strength} dBFS) — using probe @ #{PWN::SDR.hz_to_s(freq: start_hz)} = #{best_probe[:strength]} dBFS, local_lock=#{local_lock.round(1)}"
+            end
+          end
+
+          candidates = edge_detection(
+            gqrx_sock: gqrx_sock,
+            hz: start_hz,
+            precision: precision,
+            step_hz: step_hz,
+            strength_lock: local_lock,
+            min_hz: win_lo,
+            max_hz: win_hi
+          )
+
+          # Clamp candidates to the search window so adjacent-channel bleed
+          # cannot yank the refined centre away from this emitter.
+          if candidates.is_a?(Array) && !candidates.empty?
+            candidates.select! do |c|
+              h = PWN::SDR.hz_to_i(freq: c[:hz])
+              h.between?(win_lo, win_hi)
+            end
+          end
+
+          if candidates.nil? || candidates.length < 2
+            puts '  [REFINE] edge walk produced <2 samples inside window — keeping FFT estimate'
+            refined << det
+            next
+          end
+
+          best_peak = find_best_peak(
+            gqrx_sock: gqrx_sock,
+            candidate_signals: candidates,
+            precision: precision,
+            step_hz: step_hz,
+            strength_lock: local_lock
+          )
+
+          unless best_peak.is_a?(Hash) && best_peak[:hz]
+            puts '  [REFINE] find_best_peak returned nothing — keeping FFT estimate'
+            refined << det
+            next
+          end
+
+          peak_hz = PWN::SDR.hz_to_i(freq: best_peak[:hz])
+          # Re-snap to the band-plan channel raster for decoder alignment.
+          snapped_hz = ((peak_hz.to_f / step_hz).round * step_hz).to_i
+          # Refuse a refine that leapt outside the window (pathological).
+          unless snapped_hz.between?(win_lo, win_hi)
+            puts "  [REFINE] refined peak #{PWN::SDR.hz_to_s(freq: snapped_hz)} outside window — keeping FFT estimate"
+            refined << det
+            next
+          end
+
+          edge_hzs = candidates.map { |c| PWN::SDR.hz_to_i(freq: c[:hz]) }
+          edge_lo = edge_hzs.min
+          edge_hi = edge_hzs.max
+          occupied_bw_hz = ((edge_hi - edge_lo).abs + step_hz).to_i
+          sig_bw_hz = occupied_bw_hz.positive? ? occupied_bw_hz : (det[:bw_hz] || plan_bw_hz)
+
+          out = det.dup
+          out[:raw_fft_peak_hz] = det[:raw_peak_hz] || det[:hz]
+          out[:raw_fft_freq] = det[:freq]
+          out[:raw_peak_hz] = peak_hz
+          out[:hz] = snapped_hz
+          out[:freq] = PWN::SDR.hz_to_s(freq: snapped_hz)
+          out[:strength_db] = best_peak[:strength_db].to_f.round(2)
+          out[:bw_hz] = sig_bw_hz
+          # Recompute SNR against the original FFT noise floor when available.
+          out[:snr_db] = (out[:strength_db] - out[:noise_floor_db].to_f).round(2) if out[:noise_floor_db]
+          out[:chunk_center] = PWN::SDR.hz_to_s(freq: ((edge_lo + edge_hi) / 2.0).to_i)
+          out[:method] = :fast_spectrum_refined_edge_peak
+          out[:refined] = true
+          delta_hz = (snapped_hz - seed_hz).abs
+          puts "  [REFINE] #{PWN::SDR.hz_to_s(freq: seed_hz)} → #{out[:freq]}  (Δ=#{delta_hz} Hz)  strength=#{out[:strength_db]} dBFS  bw=#{PWN::SDR.hz_to_s(freq: sig_bw_hz)}"
+          refined << out
+        rescue StandardError => e
+          puts "  [REFINE] error on detection ##{idx + 1}: #{e.class}: #{e.message} — keeping FFT estimate"
+          refined << det
+        end
+
+        # De-dupe after refine (two FFT sub-peaks may snap to same channel).
+        refined.sort_by! { |d| d[:hz].to_i }
+        deduped = []
+        refined.each do |d|
+          prev = deduped.last
+          tol = [(plan_bw_hz / 2), step_hz, (d[:bw_hz].to_i / 2)].max
+          if prev && (d[:hz].to_i - prev[:hz].to_i).abs <= tol
+            # Keep stronger S-meter reading.
+            deduped[-1] = d if d[:strength_db].to_f > prev[:strength_db].to_f
+          else
+            deduped << d
+          end
+        end
+
+        puts "[REFINE] done — #{detections.length} preliminary → #{deduped.length} refined"
+        deduped
+      rescue StandardError => e
+        raise e
+      end
+
+      # Supported Method Parameters::
       # gqrx_sock = PWN::SDR::GQRX.connect(
       #   target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
       #   port: 'optional - GQRX target port (defaults to 7356)'
@@ -565,7 +795,9 @@ module PWN
       #   demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
       #   bandwidth: 'optional - Bandwidth (defaults to "200.000")',
       #   squelch: 'optional - Squelch level to set (Defaults to current value)',
-      #   decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
+      #   decoder: 'optional - Decoder key (e.g., :gsm / :rds) to start live decoding (starts recording if provided)',
+      #   interactive: 'optional - Boolean; when false AND decoder responds to .sample, call sample (non-interactive Hash) instead of decode (TTY). Defaults to true.',
+      #   settle_secs: 'optional - Seconds for decoder.sample (e.g. RDS; default 8)',
       #   udp_ip: 'optional - UDP IP address for decoder module (defaults to 127.0.0.1)',
       #   udp_port: 'optional - UDP port for decoder module (defaults to 7355)',
       #   suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
@@ -596,6 +828,10 @@ module PWN
         bandwidth = opts[:bandwidth] ||= '200.000'
         squelch = opts[:squelch]
         decoder = opts[:decoder]
+        # interactive: false → prefer decoder.sample (structured Hash) over
+        # decoder.decode (TTY spinner). Used by agents / Extrospection / cron.
+        interactive = opts.key?(:interactive) ? !opts[:interactive].nil? && opts[:interactive] != false : true
+        settle_secs = opts[:settle_secs]
         udp_ip = opts[:udp_ip]
         udp_port = opts[:udp_port]
         suppress_details = opts[:suppress_details] || false
@@ -681,11 +917,22 @@ module PWN
             decoder_module = PWN::SDR::Decoder.resolve(decoder: decoder)
 
             # Initialize and start decoder (uniform .decode(freq_obj:) API).
+            # When interactive:false and the module exposes .sample (e.g.
+            # Decoder::RDS), return a structured Hash instead of the TTY loop.
             freq_obj[:gqrx_sock] = gqrx_sock
             freq_obj[:udp_ip] = udp_ip
             freq_obj[:udp_port] = udp_port
             freq_obj[:decoder_module] = decoder_module
-            decoder_module.decode(freq_obj: freq_obj)
+            if !interactive && decoder_module.respond_to?(:sample)
+              sample_opts = {
+                freq_obj: freq_obj,
+                gqrx_sock: gqrx_sock
+              }
+              sample_opts[:settle_secs] = settle_secs unless settle_secs.nil?
+              freq_obj[:sample] = decoder_module.sample(sample_opts)
+            else
+              decoder_module.decode(freq_obj: freq_obj)
+            end
           end
         end
 
@@ -942,8 +1189,33 @@ module PWN
                     keep_alive: true
                   )
                   prev_freq_obj[:strength_lock] = strength_lock
-                  prev_freq_obj[:strength_db] = best_strength_db.round(1)
+                  prev_freq_obj[:strength_db] = best_strength_db.round(2)
                   prev_freq_obj[:iteration] = iteration_total
+
+                  # Schema parity with #fast_scan_range signals so both
+                  # modes emit the same key set (see log_signals / example
+                  # scan JSON). Values are derived from edge detection +
+                  # the measured noise floor rather than an FFT bin map.
+                  best_hz = PWN::SDR.hz_to_i(freq: best_peak[:hz])
+                  edge_hzs = candidate_signals.map { |s| PWN::SDR.hz_to_i(freq: s[:hz]) }
+                  edge_lo = edge_hzs.min
+                  edge_hi = edge_hzs.max
+                  occupied_bw_hz = ((edge_hi - edge_lo).abs + step_hz).to_i
+                  plan_bw_for_sig = PWN::SDR.hz_to_i(freq: bandwidth)
+                  plan_bw_for_sig = step_hz if plan_bw_for_sig.zero?
+                  # Prefer measured occupied BW when the edge walk resolved
+                  # a plausible span; otherwise fall back to band-plan BW.
+                  sig_bw_hz = occupied_bw_hz.positive? ? occupied_bw_hz : plan_bw_for_sig
+                  nf_db = noise_floor.to_f
+                  snr = (best_strength_db.to_f - nf_db).round(2)
+                  prev_freq_obj[:hz] = best_hz
+                  prev_freq_obj[:raw_peak_hz] = best_hz
+                  prev_freq_obj[:bw_hz] = sig_bw_hz
+                  prev_freq_obj[:snr_db] = snr
+                  prev_freq_obj[:prominence_db] = snr
+                  prev_freq_obj[:noise_floor_db] = nf_db.round(2)
+                  prev_freq_obj[:chunk_center] = PWN::SDR.hz_to_s(freq: ((edge_lo + edge_hi) / 2.0).to_i)
+                  prev_freq_obj[:method] = :iterative_edge_peak
 
                   ai_analysis = PWN::AI::Agent::GQRX.analyze(
                     request: prev_freq_obj.to_json,
@@ -958,7 +1230,12 @@ module PWN
                   log_signals(
                     signals_detected: signals_detected,
                     timestamp_start: timestamp_start,
-                    scan_log: scan_log
+                    scan_log: scan_log,
+                    meta: {
+                      precision: precision,
+                      plan_bw_hz: plan_bw_for_sig,
+                      method: :scan_range
+                    }
                   )
                   hz = candidate_signals.last[:hz]
                   # gets
@@ -971,7 +1248,12 @@ module PWN
             log_signals(
               signals_detected: signals_detected,
               timestamp_start: timestamp_start,
-              scan_log: scan_log
+              scan_log: scan_log,
+              meta: {
+                precision: precision,
+                plan_bw_hz: PWN::SDR.hz_to_i(freq: bandwidth),
+                method: :scan_range
+              }
             )
           end
           break unless keep_looping
@@ -1014,7 +1296,12 @@ module PWN
             signals_detected: signals_detected,
             timestamp_start: timestamp_start,
             scan_log: scan_log,
-            iteration_metrics: iteration_metrics
+            iteration_metrics: iteration_metrics,
+            meta: {
+              precision: precision,
+              plan_bw_hz: PWN::SDR.hz_to_i(freq: bandwidth),
+              method: :scan_range
+            }
           )
         end
       rescue Interrupt
@@ -1474,12 +1761,17 @@ module PWN
       #   min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
       #   precision: 'optional - Band-plan channel raster; detections snapped to 10**(precision-1) Hz grid (defaults to 5)',
       #   min_bw_ratio: 'optional - Reject FFT peaks narrower than min_bw_ratio * plan bandwidth as spurs (defaults to 0.30)',
-      #   demodulator_mode: 'optional - Demodulator mode to attribute to detections (defaults to WFM)',
-      #   bandwidth: 'optional - Passband bandwidth to attribute to detections (defaults to "200.000")',
-      #   squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
+      #   demodulator_mode: 'optional - Demodulator mode APPLIED to GQRX + attributed to detections (defaults to WFM)',
+      #   bandwidth: 'optional - Passband bandwidth APPLIED to GQRX + attributed to detections (defaults to "200.000")',
+      #   squelch: 'optional - Squelch level APPLIED to GQRX (defaults to strength_lock - 3.0)',
+      #   audio_gain_db: 'optional - Audio gain in dB APPLIED to GQRX (defaults to 0.0)',
+      #   rf_gain: 'optional - RF gain APPLIED to GQRX (defaults to 0.0)',
+      #   intermediate_gain: 'optional - Intermediate gain APPLIED to GQRX (defaults to 32.0)',
+      #   baseband_gain: 'optional - Baseband gain APPLIED to GQRX (defaults to 10.0)',
       #   decoder: 'optional - Decoder key (e.g. :gsm) to attribute to detections',
       #   location: 'optional - Location string for AI analysis',
-      #   keep_spectrum: 'optional - if true return raw spectrum arrays too (large)'
+      #   keep_spectrum: 'optional - if true return raw spectrum arrays too (large)',
+      #   refine: 'optional - After panoramic FFT, re-walk each detection with traditional edge_detection + find_best_peak scoped around the candidate to lock the exact channel frequency (defaults to true)'
       # )
       #
       # Uses chunk-wise retuning where chunk = sample_rate so that the *entire visible band* (waterfall width)
@@ -1546,9 +1838,95 @@ module PWN
         detected = []
         all_specs = [] if keep_spec
 
-        puts "[FAST-SCAN] band-plan gate: raster=#{PWN::SDR.hz_to_s(freq: step_hz)} Hz (precision #{precision}), " \
-             "plan_bw=#{PWN::SDR.hz_to_s(freq: plan_bw_hz)} Hz, min_occupied_bw>=#{PWN::SDR.hz_to_s(freq: min_bw_hz)} Hz, " \
-             "min_snr>=#{min_snr_db} dB"
+        # ---- Apply band-plan / session radio parameters to GQRX ----------
+        # Mirror #scan_range: the panoramic FFT path previously only
+        # *attributed* demodulator_mode / bandwidth / squelch / decoder to
+        # detections. It never issued the matching remote-control commands,
+        # so GQRX kept whatever mode/passband/squelch/gains the UI last set
+        # (often WFM_ST 200 kHz). That made decoder-oriented band plans
+        # (pager_flex → FM / 20 kHz, pager_pocsag → FM / 12.5 kHz, etc.)
+        # produce unusable I/Q and mis-matched analyze_scan re-tunes.
+        # Set everything once up-front; the retune loop only changes F.
+        mode_str = demodulator_mode.to_s.upcase
+        passband_hz = plan_bw_hz
+        audio_gain_db = (opts[:audio_gain_db] || 0.0).to_f
+        rf_gain = (opts[:rf_gain] || 0.0).to_f
+        intermediate_gain = (opts[:intermediate_gain] || 32.0).to_f
+        baseband_gain = (opts[:baseband_gain] || 10.0).to_f
+
+        puts '-' * 86
+        puts '[FAST-SCAN] SESSION PARAMS >> applying band-plan radio settings to GQRX:'
+        puts "  demodulator_mode : #{mode_str}"
+        puts "  passband (M)     : #{PWN::SDR.hz_to_s(freq: passband_hz)} Hz  (from band-plan bandwidth=#{bandwidth})"
+        puts "  squelch (L SQL)  : #{squelch} dBFS"
+        puts "  strength_lock    : #{strength_lock} dBFS  (power_db gate)"
+        puts "  audio_gain (AF)  : #{audio_gain_db} dB"
+        puts "  rf_gain          : #{rf_gain}"
+        puts "  intermediate_gain: #{intermediate_gain}"
+        puts "  baseband_gain    : #{baseband_gain}"
+        puts "  decoder          : #{decoder.inspect}"
+        puts "  raster/precision : #{PWN::SDR.hz_to_s(freq: step_hz)} Hz (precision #{precision})"
+        puts "  plan_bw/min_bw   : #{PWN::SDR.hz_to_s(freq: plan_bw_hz)} Hz / min occupied >= #{PWN::SDR.hz_to_s(freq: min_bw_hz)} Hz (ratio #{min_bw_ratio})"
+        puts "  min_snr          : #{min_snr_db} dB"
+        puts "  sample_rate/nfft : #{sr} SPS / #{nfft}"
+        puts '-' * 86
+
+        cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L SQL #{squelch}",
+          resp_ok: 'RPRT 0'
+        )
+
+        # Disable RDS during the panoramic scan (same rationale as #scan_range:
+        # avoid gratuitous processing while we only care about I/Q spectrum).
+        begin
+          cmd(gqrx_sock: gqrx_sock, cmd: 'U RDS 0', resp_ok: 'RPRT 0')
+        rescue StandardError
+          nil
+        end
+
+        cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "M #{mode_str} #{passband_hz}",
+          resp_ok: 'RPRT 0'
+        )
+
+        cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L AF #{audio_gain_db}",
+          resp_ok: 'RPRT 0'
+        )
+
+        cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L RF_GAIN #{rf_gain}",
+          resp_ok: 'RPRT 0'
+        )
+
+        cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L IF_GAIN #{intermediate_gain}",
+          resp_ok: 'RPRT 0'
+        )
+
+        cmd(
+          gqrx_sock: gqrx_sock,
+          cmd: "L BB_GAIN #{baseband_gain}",
+          resp_ok: 'RPRT 0'
+        )
+
+        # Brief settle so the backend reconfigures IF filter / AGC around the
+        # newly-applied mode + passband before the first chunk capture.
+        sleep 0.20
+
+        # Verify the radio accepted the band-plan settings (best-effort).
+        begin
+          applied_mode = cmd(gqrx_sock: gqrx_sock, cmd: 'm').to_s.strip
+          applied_sql  = cmd(gqrx_sock: gqrx_sock, cmd: 'l SQL').to_s.strip
+          puts "[FAST-SCAN] GQRX now reports mode/passband='#{applied_mode}', squelch=#{applied_sql}"
+        rescue StandardError => e
+          puts "[FAST-SCAN] WARNING: could not read back mode/squelch (#{e.class}: #{e.message})"
+        end
 
         ranges.each do |r|
           s_hz = PWN::SDR.hz_to_i(freq: r[:start_freq])
@@ -1602,17 +1980,21 @@ module PWN
                 freq: PWN::SDR.hz_to_s(freq: hz),
                 demodulator_mode: demodulator_mode,
                 bandwidth: bandwidth,
-                strength_db: sig[:power_db],
+                strength_db: sig[:power_db].to_f.round(2),
                 decoder: decoder,
                 squelch: squelch,
                 strength_lock: strength_lock,
+                audio_gain_db: audio_gain_db,
+                rf_gain: rf_gain,
+                intermediate_gain: intermediate_gain,
+                baseband_gain: baseband_gain,
                 iteration: 1,
                 hz: hz,
-                raw_peak_hz: raw_hz,
-                bw_hz: sig[:bw_hz],
-                snr_db: sig[:snr_db],
-                prominence_db: sig[:prominence_db],
-                noise_floor_db: sig[:noise_floor_db],
+                raw_peak_hz: raw_hz.to_i,
+                bw_hz: sig[:bw_hz].to_i,
+                snr_db: sig[:snr_db].to_f.round(2),
+                prominence_db: sig[:prominence_db].to_f.round(2),
+                noise_floor_db: sig[:noise_floor_db].to_f.round(2),
                 chunk_center: PWN::SDR.hz_to_s(freq: h),
                 method: :fast_spectrum_sdrangel_like
               }
@@ -1643,8 +2025,33 @@ module PWN
         end
         detected = merged
 
-        # Attach AI analysis per detection AFTER merge so we only spend
-        # inference on the deduplicated set (matches #scan_range behaviour).
+        # ---- Exact-channel refine pass ------------------------------------
+        # Preliminary FFT peaks are only as precise as the bin resolution
+        # (sample_rate/nfft) and the band-plan raster snap. For decoding we
+        # want the true channel centre, so re-walk each survivor with the
+        # traditional S-meter edge_detection + find_best_peak pipeline,
+        # scoped to a tight window around the FFT estimate. Opt-out via
+        # refine: false for pure-panorama speed.
+        # fetch so refine:false is honoured (key present with falsey value).
+        refine = opts.fetch(:refine, true)
+        if refine && !detected.empty?
+          detected = refine_detections(
+            gqrx_sock: gqrx_sock,
+            detections: detected,
+            precision: precision,
+            step_hz: step_hz,
+            strength_lock: strength_lock,
+            plan_bw_hz: plan_bw_hz,
+            demodulator_mode: demodulator_mode,
+            bandwidth: bandwidth,
+            squelch: squelch
+          )
+        elsif !refine
+          puts '[FAST-SCAN] refine:false — skipping iterative edge/peak refinement'
+        end
+
+        # Attach AI analysis per detection AFTER merge + refine so we only spend
+        # inference on the deduplicated / exact-channel set (matches #scan_range).
         detected.each do |freq_obj|
           puts "\n**** Detected Signal ****"
           ai_analysis = PWN::AI::Agent::GQRX.analyze(
@@ -1659,20 +2066,32 @@ module PWN
           puts JSON.pretty_generate(freq_obj)
         end
 
-        resp = log_signals(
+        meta = {
+          sample_rate_used: sr,
+          nfft: nfft,
+          precision: precision,
+          plan_bw_hz: plan_bw_hz,
+          demodulator_mode: demodulator_mode,
+          bandwidth: bandwidth,
+          squelch: squelch,
+          strength_lock: strength_lock,
+          audio_gain_db: audio_gain_db,
+          rf_gain: rf_gain,
+          intermediate_gain: intermediate_gain,
+          baseband_gain: baseband_gain,
+          decoder: decoder,
+          method: :fast_scan_range
+        }
+        meta[:spectrums] = all_specs if keep_spec
+
+        # Single write through log_signals so top-level keys always match
+        # the iterative #scan_range schema (plus FFT-only provenance).
+        log_signals(
           signals_detected: detected,
           timestamp_start: ts_start,
-          scan_log: scan_log
+          scan_log: scan_log,
+          meta: meta
         )
-        resp[:spectrums] = all_specs if keep_spec
-        resp[:sample_rate_used] = sr
-        resp[:nfft] = nfft
-        resp[:precision] = precision
-        resp[:plan_bw_hz] = plan_bw_hz
-        resp[:method] = :fast_scan_range
-        File.write(scan_log, JSON.pretty_generate(resp))
-        File.write(scan_log, "\n", mode: 'a')
-        resp
       rescue StandardError => e
         raise e
       end
@@ -1705,7 +2124,9 @@ module PWN
               precision: 'optional - Frequency step precision (number of digits; defaults to 6)',
               demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
               bandwidth: 'optional - Bandwidth (defaults to "200.000")',
-              decoder: 'optional - Decoder key (e.g., :gsm) to start live decoding (starts recording if provided)',
+              decoder: 'optional - Decoder key (e.g., :gsm / :rds) to start live decoding',
+              interactive: 'optional - false → decoder.sample Hash (default true = TTY decode)',
+              settle_secs: 'optional - seconds for decoder.sample (RDS default 8)',
               suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
               keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)'
             )
@@ -1748,12 +2169,17 @@ module PWN
               min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
               precision: 'optional - Band-plan channel raster; detections snapped to 10**(precision-1) Hz grid (defaults to 5)',
               min_bw_ratio: 'optional - Reject FFT peaks narrower than min_bw_ratio * plan bandwidth as spurs (defaults to 0.30)',
-              demodulator_mode: 'optional - Demodulator mode to attribute to detections (defaults to WFM)',
-              bandwidth: 'optional - Passband bandwidth (defaults to "200.000")',
-              squelch: 'optional - Squelch level in dBFS (defaults to strength_lock - 3.0)',
+              demodulator_mode: 'optional - Demodulator mode APPLIED to GQRX + attributed to detections (defaults to WFM)',
+              bandwidth: 'optional - Passband bandwidth APPLIED to GQRX + attributed (defaults to "200.000")',
+              squelch: 'optional - Squelch level in dBFS APPLIED to GQRX (defaults to strength_lock - 3.0)',
+              audio_gain_db: 'optional - Audio gain in dB APPLIED to GQRX (defaults to 0.0)',
+              rf_gain: 'optional - RF gain APPLIED to GQRX (defaults to 0.0)',
+              intermediate_gain: 'optional - Intermediate gain APPLIED to GQRX (defaults to 32.0)',
+              baseband_gain: 'optional - Baseband gain APPLIED to GQRX (defaults to 10.0)',
               decoder: 'optional - Decoder key (e.g. :gsm) to attribute to each detection',
               location: 'optional - Location string to include in AI analysis',
               keep_spectrum: 'optional - If true, include full spectrum data in result (can be large, defaults to false)',
+              refine: 'optional - After panoramic FFT, re-walk each detection with traditional edge_detection + find_best_peak scoped around the candidate to lock the exact channel frequency (defaults to true)',
               strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)',
               scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)'
             )

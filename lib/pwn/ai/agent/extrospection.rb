@@ -15,35 +15,48 @@ module PWN
   module AI
     module Agent
       # PWN::AI::Agent::Extrospection is the outward-facing counterpart to
-      # PWN::AI::Agent::Learning (introspection). Where Learning/Metrics
-      # look INWARD at the agent's own tool telemetry, task outcomes and
-      # session transcripts, Extrospection looks OUTWARD at the world the
-      # agent operates in: host state, toolchain versions, network posture,
-      # repo drift, and external threat-intel (CVE / Exploit-DB / ATT&CK).
+      # PWN::AI::Agent::Learning (introspection).
       #
-      # Together they close BOTH halves of the pwn-ai feedback loop:
+      # PRIMARY INTENT — on-demand external sensing
+      # -------------------------------------------
+      # Quickly explore *external* resources when that produces a more
+      # informed answer. Call a sense tool only when the question needs it:
+      #
+      #   "weather in Tokyo"        → verify / watch / TransparentBrowser
+      #   "what's on 101.1 FM?"     → rf_tune(freq: "101.1") → RDS / observe(:rf)
+      #   "CVE for openssl 3.0?"    → intel(query:) / verify(claim:, kind: :cve)
+      #   "did the target change?"  → watch(url:) / snapshot(sections: [:web])
+      #
+      # Secondary / optional — ambient host baseline
+      # --------------------------------------------
+      # snapshot / drift / correlate can record cheap local posture so the
+      # agent can tell "I called the API wrong" from "the world moved"
+      # (kernel upgrade, dongle unplugged). This is NEVER the reason to
+      # launch GUI / JVM / heavy-REPL binaries — those are presence-only.
+      # auto_extrospect, when enabled, uses only side-effect-free sections.
       #
       #   INTROSPECTIVE (self)        EXTROSPECTIVE (world)
       #   ----------------------      -------------------------------------
-      #   Metrics.record              Extrospection.snapshot   (host probe)
-      #   Learning.note_outcome       Extrospection.observe    (recon fact)
-      #   Learning.reflect            Extrospection.drift      (env delta)
-      #   Learning.stats              Extrospection.intel      (CVE/EDB)
-      #                               Extrospection.correlate  (self x world)
+      #   Metrics.record              Extrospection.intel/verify/watch/rf_tune (sense)
+      #   Learning.note_outcome       Extrospection.observe         (fact)
+      #   Learning.reflect            Extrospection.snapshot/drift  (baseline)
+      #   Learning.stats              Extrospection.correlate       (self×world)
       #
-      # PromptBuilder re-injects Extrospection.to_context on every turn so
-      # the model gains situational awareness of what changed on THIS host
-      # between sessions ("kernel upgraded", "nmap now missing", "port 8080
-      # newly listening", "CVE-2026-XXXX matches installed openssl") and
-      # can correlate that drift against introspective failures.
-      #
-      # Everything is file-backed under ~/.pwn/extrospection.json so it
-      # survives across REPL restarts and is shared by every future session.
+      # PromptBuilder re-injects Extrospection.to_context on every turn.
+      # Persistence: ~/.pwn/extrospection.json across REPL restarts.
       module Extrospection
         EXTRO_FILE = File.join(Dir.home, '.pwn', 'extrospection.json')
         MAX_OBSERVATIONS = 500
+        # CLI tools that accept a cheap, non-interactive --version / -V.
+        SAFE_VERSION_BINS = %w[nmap curl git ruby python3 gcc openssl docker].freeze
+        # GUI / JVM / heavy REPL / interactive tools — presence-only.
+        # NEVER spawn these from auto-probe (Burp Suite splash, ZAP UI, msfconsole, GQRX).
+        PRESENCE_ONLY_BINS = %w[burpsuite zaproxy msfconsole gqrx sqlmap].freeze
         RF_BINS    = %w[rtl_sdr rtl_test rtl_433 hackrf_info gqrx dump1090 multimon-ng SoapySDRUtil].freeze
-        PROBE_BINS = (%w[nmap curl git ruby python3 gcc msfconsole sqlmap burpsuite zaproxy openssl docker] + RF_BINS).freeze
+        PROBE_BINS = (SAFE_VERSION_BINS + PRESENCE_ONLY_BINS + RF_BINS).uniq.freeze
+        # Cheap, side-effect-free sections used by auto_extrospect.
+        # toolchain / rf / web are on-demand only (sense tools or explicit snapshot).
+        AUTO_SECTIONS = %i[host repo env].freeze
         WEB_SHOT_DIR = File.join(Dir.home, '.pwn', 'extrospection', 'web')
         DEFAULT_WEB_ANCHORS = %w[
           https://services.nvd.nist.gov/rest/json/cves/2.0
@@ -82,8 +95,10 @@ module PWN
         #   sections: 'optional - Array subset of [:host, :net, :toolchain, :repo, :env, :rf, :web] (default all except :web)'
         # )
         #
-        # Captures a fingerprint of the OUTSIDE world. When persist:true the
-        # prior snapshot is rotated into :previous so .drift can diff them.
+        # Ambient host baseline (secondary to sense tools like intel/verify/watch).
+        # :toolchain never spawns GUI/JVM tools (presence-only). auto_extrospect
+        # uses AUTO_SECTIONS (host/repo/env) only. When persist:true the prior
+        # snapshot is rotated into :previous so .drift can diff them.
 
         public_class_method def self.snapshot(opts = {})
           persist  = if opts.key?(:persist)
@@ -392,6 +407,178 @@ module PWN
         end
 
         # Supported Method Parameters::
+        # result = PWN::AI::Agent::Extrospection.rf_tune(
+        #   freq:             'required - frequency: "101.1", "101.1 FM", "101.100.000", 101_100_000, ...',
+        #   host:             'optional - GQRX remote-control host (default 127.0.0.1)',
+        #   port:             'optional - GQRX remote-control port (default 7356)',
+        #   settle_secs:      'optional - seconds to sample RDS after tune (default 8)',
+        #   rds:              'optional - force RDS on/off (default: auto when FM broadcast / band-plan decoder=:rds)',
+        #   demodulator_mode: 'optional - e.g. :WFM_ST, :WFM, :FM, :AM (default from band-plan / FM range)',
+        #   bandwidth:        'optional - passband Hz string, e.g. "200.000" (default from band-plan)',
+        #   record:           'optional - also observe(category: :rf) so it hits EXTROSPECTION (default true)',
+        #   ttl:              'optional - observation TTL seconds (default 300 — radio content is ephemeral)'
+        # )
+        #
+        # RF sense organ — the RF analogue of extro_watch / extro_verify.
+        # Tunes a *running* GQRX instance (never launches the GUI), demodulates,
+        # measures strength, and when appropriate samples RDS (PI / PS / RadioText)
+        # so questions like "what's playing on 101.1?" have a live answer.
+        # Requires GQRX remote control already listening (default :7356) and an
+        # SDR attached; fails fast with actionable advice otherwise.
+        # On success, records observe(category: :rf, source: 'gqrx') so correlate
+        # and to_context keep the agent aware of what was last heard.
+
+        public_class_method def self.rf_tune(opts = {})
+          raw_freq = opts[:freq]
+          raise 'ERROR: freq is required' if raw_freq.nil? || raw_freq.to_s.strip.empty?
+
+          host        = (opts[:host] || rf_config[:host] || '127.0.0.1').to_s
+          port        = (opts[:port] || rf_config[:port] || 7356).to_i
+          settle      = (opts[:settle_secs] || rf_config[:settle_secs] || 8).to_f
+          settle      = 1.0 if settle < 1.0
+          settle      = 30.0 if settle > 30.0
+          record      = opts.key?(:record) ? !opts[:record].nil? && opts[:record] != false : true
+          ttl         = (opts[:ttl] || rf_config[:ttl] || 300).to_i
+          force_rds   = opts.key?(:rds) ? opts[:rds] : nil
+
+          hz_i, freq_label = normalize_rf_freq(freq: raw_freq)
+          plan = match_rf_band_plan(hz: hz_i)
+          demod = (opts[:demodulator_mode] || (plan && plan[:demodulator_mode]) || default_rf_demod(hz: hz_i)).to_s.upcase
+          bandwidth = (opts[:bandwidth] || (plan && plan[:bandwidth]) || default_rf_bandwidth(hz: hz_i)).to_s
+          passband_hz = begin
+            require 'pwn/sdr' unless defined?(PWN::SDR)
+            PWN::SDR.hz_to_i(freq: bandwidth)
+          rescue StandardError
+            bandwidth.to_s.gsub(/[^\d]/, '').to_i
+          end
+          passband_hz = 200_000 if passband_hz <= 0
+          decoder_key = plan && plan[:decoder]
+          band_name   = plan && plan[:name]
+          do_rds = if force_rds.nil?
+                     decoder_key.to_s == 'rds' || hz_i.between?(87_500_000, 108_100_000)
+                   else
+                     !force_rds.nil? && force_rds != false
+                   end
+
+          unless tcp_open?(host: host, port: port)
+            advice = 'Start GQRX with remote control enabled (Tools → Remote Control, port 7356) and an SDR attached, then retry extro_rf_tune.'
+            err = {
+              ok: false,
+              error: "gqrx remote control not reachable at #{host}:#{port}",
+              advice: advice,
+              freq: freq_label,
+              hz: hz_i,
+              band_plan: band_name,
+              demodulator_mode: demod,
+              bandwidth: bandwidth
+            }
+            observe(source: 'gqrx', category: :rf, target: freq_label, data: err, tags: %w[rf_tune unreachable], ttl: ttl) if record
+            return err
+          end
+
+          require 'pwn/sdr/gqrx' unless defined?(PWN::SDR::GQRX)
+          sock = nil
+          begin
+            sock = PWN::SDR::GQRX.connect(target: host, port: port)
+            # Ensure DSP is running so strength/RDS update.
+            begin
+              dsp = PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'u DSP').to_s.strip
+              PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'U DSP 1', resp_ok: 'RPRT 0') if dsp == '0'
+            rescue StandardError
+              nil
+            end
+
+            PWN::SDR::GQRX.cmd(
+              gqrx_sock: sock,
+              cmd: "M #{demod} #{passband_hz}",
+              resp_ok: 'RPRT 0'
+            )
+            PWN::SDR::GQRX.cmd(
+              gqrx_sock: sock,
+              cmd: "F #{hz_i}",
+              resp_ok: 'RPRT 0'
+            )
+            sleep 0.4
+
+            strength = begin
+              PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'l STRENGTH').to_f
+            rescue StandardError
+              nil
+            end
+            mode_now = begin
+              PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'm').to_s.strip
+            rescue StandardError
+              "#{demod} #{passband_hz}"
+            end
+            tuned = begin
+              PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'f').to_s.strip
+            rescue StandardError
+              freq_label
+            end
+
+            rds = do_rds ? sample_rds(gqrx_sock: sock, settle_secs: settle) : nil
+
+            payload = {
+              ok: true,
+              freq: freq_label,
+              hz: hz_i,
+              tuned: tuned,
+              strength_dbfs: strength,
+              demodulator_mode: demod,
+              mode: mode_now,
+              bandwidth: bandwidth,
+              passband_hz: passband_hz,
+              band_plan: band_name,
+              decoder: decoder_key,
+              rds: rds,
+              now_playing: rds && (rds[:radiotext].to_s.strip.empty? ? nil : rds[:radiotext].to_s.strip),
+              station: rds && (rds[:station].to_s.strip.empty? ? nil : rds[:station].to_s.strip),
+              host: host,
+              port: port,
+              captured_at: Time.now.utc.iso8601
+            }
+
+            if record
+              summary = build_rf_summary(payload)
+              observe(
+                source: 'gqrx',
+                category: :rf,
+                target: freq_label,
+                data: summary,
+                tags: ['rf_tune', band_name, decoder_key, ('rds' if rds)].compact.map(&:to_s),
+                ttl: ttl
+              )
+              payload[:observed] = true
+              payload[:summary] = summary
+            else
+              payload[:observed] = false
+            end
+
+            payload
+          rescue StandardError => e
+            {
+              ok: false,
+              error: "#{e.class}: #{e.message}",
+              freq: freq_label,
+              hz: hz_i,
+              band_plan: band_name,
+              advice: 'Confirm GQRX is running with remote control, the SDR is not claimed by another process, and the frequency is in-band for the attached radio.'
+            }
+          ensure
+            begin
+              PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'U RDS 0') if sock && do_rds
+            rescue StandardError
+              nil
+            end
+            begin
+              PWN::SDR::GQRX.disconnect(gqrx_sock: sock) if sock
+            rescue StandardError
+              nil
+            end
+          end
+        end
+
+        # Supported Method Parameters::
         # report = PWN::AI::Agent::Extrospection.revalidate_memory(
         #   limit: 'optional - max :fact entries to check (default 25)',
         #   proxy: 'optional - upstream proxy for TransparentBrowser'
@@ -607,7 +794,9 @@ module PWN
           sid = opts[:session_id]
           return unless auto_extrospect_enabled?
 
-          res   = snapshot(persist: true)
+          # Ambient baseline only — never toolchain / rf / web (those spawn
+          # hardware probes or GUI binaries and belong on the *sense* path).
+          res   = snapshot(persist: true, sections: AUTO_SECTIONS)
           delta = res[:drift]
           moved = Array(delta[:changed]).length + Array(delta[:added]).length + Array(delta[:removed]).length
           return res if moved.zero?
@@ -689,11 +878,29 @@ module PWN
           { listening: listen, interfaces: ifaces, default_route: route }
         end
 
+        # Inventory of tooling PATH presence. SAFE_VERSION_BINS may receive a
+        # timeout-bounded --version; PRESENCE_ONLY_BINS + anything that looks
+        # GUI/JVM never get executed — path-only. Never open Burp/ZAP/msf/GQRX.
         private_class_method def self.probe_toolchain
           PROBE_BINS.each_with_object({}) do |b, h|
-            path = sh(cmd: "which #{b} 2>/dev/null")
-            h[b.to_sym] = path.empty? ? '' : "#{path} #{sh(cmd: "#{b} --version 2>/dev/null").lines.first.to_s.strip[0, 80]}"
+            path = sh(cmd: "which #{Shellwords.escape(b)} 2>/dev/null").split("\n").first.to_s.strip
+            if path.empty?
+              h[b.to_sym] = ''
+            elsif presence_only_bin?(b)
+              h[b.to_sym] = path
+            else
+              ver = sh(cmd: "timeout 2 #{Shellwords.escape(b)} --version 2>/dev/null").lines.first.to_s.strip[0, 80]
+              h[b.to_sym] = "#{path} #{ver}".strip
+            end
           end
+        end
+
+        private_class_method def self.presence_only_bin?(name)
+          n = name.to_s
+          return true if PRESENCE_ONLY_BINS.include?(n)
+
+          # Defence in depth: never auto-exec anything that smells like a GUI suite.
+          n.match?(/burp|zaproxy|zap$|msfconsole|gqrx|wireshark|firefox|chrome|chromium/i)
         end
 
         private_class_method def self.probe_repo
@@ -1063,6 +1270,166 @@ module PWN
           []
         end
 
+        # ── RF sense helpers (rf_tune) ─────────────────────────────────────
+
+        private_class_method def self.rf_config
+          cfg = (PWN::Env.dig(:ai, :agent, :extrospection, :rf) if defined?(PWN::Env) && PWN::Env.is_a?(Hash)) || {}
+          {
+            host: cfg[:host] || '127.0.0.1',
+            port: (cfg[:port] || 7356).to_i,
+            settle_secs: (cfg[:settle_secs] || 8).to_f,
+            ttl: (cfg[:ttl] || 300).to_i
+          }
+        rescue StandardError
+          { host: '127.0.0.1', port: 7356, settle_secs: 8.0, ttl: 300 }
+        end
+
+        # Accept free-form user input ("101.1", "101.1 FM", "101.1 MHz",
+        # "101100000", "101.100.000", 101_100_000) → [hz_i, human_label].
+        private_class_method def self.normalize_rf_freq(opts = {})
+          raw = opts[:freq]
+          s = raw.to_s.strip
+          unit = :auto
+          case s
+          when /\b(mhz|m hz)\b/i, /\bfm\b/i
+            unit = :mhz
+          when /\b(khz|k hz)\b/i
+            unit = :khz
+          when /\b(ghz|g hz)\b/i
+            unit = :ghz
+          when /\bhz\b/i
+            unit = :hz
+          end
+          s = s.gsub(/[^0-9._-]/, '')
+          # Dotted-group form used throughout PWN::SDR ("101.100.000")
+          if s.count('.') >= 2
+            hz = s.gsub('.', '').to_i
+            return [hz, human_rf_label(hz: hz)]
+          end
+          num = s.gsub('_', '').to_f
+          raise "ERROR: could not parse frequency from #{opts[:freq].inspect}" if num <= 0
+
+          hz = case unit
+               when :hz  then num.to_i
+               when :khz then (num * 1_000).to_i
+               when :mhz then (num * 1_000_000).to_i
+               when :ghz then (num * 1_000_000_000).to_i
+               else
+                 # Heuristic: bare integers ≥ 1e6 already look like Hz
+                 # (e.g. 101100000); everything smaller is treated as MHz
+                 # because broadcast / hobby speech says "101.1" / "433.92".
+                 if num >= 1_000_000
+                   num.to_i
+                 else
+                   (num * 1_000_000).to_i
+                 end
+               end
+          # Snap FM broadcast channels onto the 100 kHz raster when they land near it.
+          hz = ((hz + 50_000) / 100_000) * 100_000 if hz.between?(87_500_000, 108_100_000)
+          [hz, human_rf_label(hz: hz)]
+        end
+
+        private_class_method def self.human_rf_label(opts = {})
+          hz = opts[:hz].to_i
+          if hz >= 1_000_000
+            mhz = hz / 1_000_000.0
+            # Drop trailing zeros: 101.1 not 101.100000
+            txt = format('%.6f', mhz).sub(/\.?0+$/, '')
+            "#{txt} MHz"
+          elsif hz >= 1_000
+            "#{format('%.3f', hz / 1_000.0).sub(/\.?0+$/, '')} kHz"
+          else
+            "#{hz} Hz"
+          end
+        end
+
+        private_class_method def self.match_rf_band_plan(opts = {})
+          hz = opts[:hz].to_i
+          require 'pwn/sdr/frequency_allocation' unless defined?(PWN::SDR::FrequencyAllocation)
+          # Prefer the narrowest matching plan so e.g. fm_radio (87.9–108 MHz)
+          # wins over the broad analog_tv_vhf (54–216 MHz) that contains it.
+          # Explicit decoder-bearing plans also beat bare occupancy plans.
+          matches = []
+          PWN::SDR::FrequencyAllocation.band_plans.each do |name, plan|
+            Array(plan[:ranges]).each do |r|
+              lo = begin
+                PWN::SDR.hz_to_i(freq: r[:start_freq])
+              rescue StandardError
+                r[:start_freq].to_s.gsub(/[^\d]/, '').to_i
+              end
+              hi = begin
+                PWN::SDR.hz_to_i(freq: r[:target_freq])
+              rescue StandardError
+                r[:target_freq].to_s.gsub(/[^\d]/, '').to_i
+              end
+              lo, hi = hi, lo if lo > hi
+              # FM broadcast band plan ends at 108.000.000 — include the top channel.
+              hi += 100_000 if name.to_s == 'fm_radio'
+              next unless hz.between?(lo, hi)
+
+              width = (hi - lo).abs
+              decoder_bonus = plan[:decoder] ? 0 : 1
+              # Lower score = better match. Decoder-bearing + narrower wins.
+              score = [decoder_bonus, width]
+              matches << { score: score, name: name.to_s, plan: plan, width: width }
+            end
+          end
+          return nil if matches.empty?
+
+          best = matches.min_by { |m| m[:score] }
+          best[:plan].merge(name: best[:name])
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.default_rf_demod(opts = {})
+          hz = opts[:hz].to_i
+          return :WFM_ST if hz.between?(87_500_000, 108_100_000)
+          return :AM     if hz.between?(530_000, 1_710_000)
+          return :FM     if hz >= 30_000_000
+
+          :WFM
+        end
+
+        private_class_method def self.default_rf_bandwidth(opts = {})
+          hz = opts[:hz].to_i
+          return '200.000' if hz.between?(87_500_000, 108_100_000)
+          return '10.000'  if hz.between?(530_000, 1_710_000)
+
+          '15.000'
+        end
+
+        # Sample GQRX's built-in RDS decoder over settle_secs.
+        # Canonical implementation lives on PWN::SDR::Decoder::RDS.sample —
+        # this is a thin adapter so rf_tune stays stable for agents.
+        # Returns { pi:, ps_name:, radiotext:, station:, samples: N, settle_secs: }.
+        private_class_method def self.sample_rds(opts = {})
+          require 'pwn/sdr/decoder/rds' unless defined?(PWN::SDR::Decoder::RDS)
+          PWN::SDR::Decoder::RDS.sample(
+            gqrx_sock: opts[:gqrx_sock],
+            freq_obj: opts[:freq_obj],
+            settle_secs: opts[:settle_secs],
+            interval: opts[:interval],
+            leave_enabled: opts[:leave_enabled]
+          )
+        end
+
+        private_class_method def self.build_rf_summary(payload)
+          parts = []
+          parts << payload[:freq].to_s
+          parts << "str=#{payload[:strength_dbfs]} dBFS" if payload[:strength_dbfs]
+          parts << "mode=#{payload[:demodulator_mode]}" if payload[:demodulator_mode]
+          if payload[:rds].is_a?(Hash)
+            r = payload[:rds]
+            parts << "PI=#{r[:pi]}" if r[:pi]
+            parts << "station=#{r[:station]}" if r[:station]
+            parts << "PS=#{r[:ps_name]}" if r[:ps_name] && r[:ps_name] != r[:station]
+            parts << "RT=#{r[:radiotext]}" if r[:radiotext]
+          end
+          parts << "plan=#{payload[:band_plan]}" if payload[:band_plan]
+          parts.join(' | ')
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -1086,16 +1453,26 @@ module PWN
               PWN::AI::Agent::Extrospection.auto_extrospect(session_id: sid)  # called from Learning.auto_introspect
               PWN::AI::Agent::Extrospection.snapshot(sections: %i[web])        # opt-in browser probe of web_anchors
               PWN::AI::Agent::Extrospection.watch(url: 'https://target/api/version')
+              PWN::AI::Agent::Extrospection.rf_tune(freq: '101.1')                 # tune GQRX + RDS → now_playing
               PWN::AI::Agent::Extrospection.verify(claim: 'CVE-2026-12345 affects OpenSSL 3.2.1')
               PWN::AI::Agent::Extrospection.revalidate_memory                  # cron: GC stale PWN::Memory :fact entries
               PWN::AI::Agent::Extrospection.reset
 
-              Enable end-of-run auto-extrospection with:
-                PWN::Env[:ai][:agent][:auto_extrospect] = true
+              PRIMARY use = on-demand sensing (intel / verify / watch / rf_tune / observe / rf / web).
+              auto_extrospect is OPTIONAL ambient baseline (host/repo/env only — never
+              launches burpsuite/zaproxy/msfconsole/gqrx). Prefer calling sense tools
+              when a question needs the outside world, not after every turn.
+
+              Enable end-of-run ambient baseline with:
+                PWN::Env[:ai][:agent][:auto_extrospect] = true   # sections: AUTO_SECTIONS
 
               Configure browser-backed :web probe / verify / watch with:
                 PWN::Env[:ai][:agent][:extrospection][:web] =
                   { anchors: [...], proxy: 'tor', max_anchors: 8, per_page_timeout: 15, screenshot: false, allow_targets: false }
+
+              Configure RF sense (rf_tune) with:
+                PWN::Env[:ai][:agent][:extrospection][:rf] =
+                  { host: '127.0.0.1', port: 7356, settle_secs: 8, ttl: 300 }
 
               #{self}.authors
           USAGE

@@ -82,7 +82,7 @@ ai:
     max_iters: 25                  # Hard cap on tool-call rounds per user turn before a forced final answer.
     max_depth: 3                   # Recursion guard: how many levels deep agent_ask/agent_debate sub-agents may spawn sub-agents.
     auto_introspect: true          # Run Learning.auto_introspect (outcome logging + lesson mining) after every final answer.
-    auto_extrospect: false         # Also run Extrospection.auto_extrospect (host/toolchain/net/repo drift capture) after every final answer.
+    auto_extrospect: false         # Optional ambient baseline (host/repo/env ONLY — never launches burpsuite/zaproxy/msf/gqrx). Sense tools (intel/verify/watch/rf_tune/observe) stay on-demand.
     toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, extrospection, learning, memory, metrics, pwn, sessions, skills, swarm, terminal.
     extrospection:
       web:
@@ -94,6 +94,11 @@ ai:
         per_page_timeout: 15       # Seconds before a single page render is abandoned and recorded as unreachable.
         screenshot: false          # Persist a PNG per anchor to ~/.pwn/extrospection/web/ (disk-heavy; off by default).
         allow_targets: false       # true → also merge top-level `targets:` into anchors (opt-in — off so in-scope hosts aren't touched unprompted).
+      rf:
+        host: 127.0.0.1            # GQRX remote-control host for extro_rf_tune.
+        port: 7356                 # GQRX remote-control port.
+        settle_secs: 8             # Seconds to sample RDS after tuning (max 30).
+        ttl: 300                   # Observation TTL for :rf (songs change — keep short).
 
 plugins:
   asm:
@@ -154,6 +159,10 @@ cron:
 
 targets:                           # Optional — engagement-scope URLs/hosts. Merged into :web snapshot anchors
   - https://target.example.com     #   ONLY when ai.agent.extrospection.web.allow_targets: true.
+| `ai.agent.extrospection.rf.host` | String | `127.0.0.1` | `Extrospection.rf_tune` | GQRX remote-control host for the RF sense organ. |
+| `ai.agent.extrospection.rf.port` | Integer | `7356` | `Extrospection.rf_tune` | GQRX remote-control port. |
+| `ai.agent.extrospection.rf.settle_secs` | Integer | `8` | `Extrospection.rf_tune` | Seconds to sample RDS after tuning (capped at 30). |
+| `ai.agent.extrospection.rf.ttl` | Integer | `300` | `Extrospection.rf_tune` | TTL (seconds) for `:rf` observations written by `extro_rf_tune` (ephemeral radio content). |
 ```
 
 ---
@@ -206,7 +215,7 @@ PWN::Config.refresh_env
 | `ai.agent.max_iters` | Integer | `25` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn before a forced final answer. |
 | `ai.agent.max_depth` | Integer | `3` | `PWN::AI::Agent::Swarm` | Recursion guard for `agent_ask` / `agent_debate` sub-agents spawning sub-agents. |
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
-| `ai.agent.auto_extrospect` | Boolean | `false` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Also capture host/toolchain/net/repo drift after every final answer. Toggle live via `extro_auto_toggle`. |
+| `ai.agent.auto_extrospect` | Boolean | `false` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Optional ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Prefer on-demand sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`). Toggle live via `extro_auto_toggle`. |
 | `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `extrospection`, `learning`, `memory`, `metrics`, `pwn`, `sessions`, `skills`, `swarm`, `terminal`. |
 | `ai.agent.extrospection.web.anchors` | Array\<String\> | `DEFAULT_WEB_ANCHORS` | `PWN::AI::Agent::Extrospection.probe_web` | URLs the headless browser fingerprints on `extro_snapshot(sections:[:web])`. Alias: `web_anchors`. |
 | `ai.agent.extrospection.web.proxy` | String | — | `Extrospection.probe_web` / `.verify` / `.watch` | Upstream proxy for `PWN::Plugins::TransparentBrowser` (e.g. `tor`, `http://127.0.0.1:8080`). |

@@ -3,20 +3,66 @@
 module PWN
   module SDR
     module Decoder
-      # Pure-Ruby GSM (2G) BCCH activity detector.
-      #
-      # GSM is 270.833 kbit/s GMSK across a 200 kHz channel — physically
-      # unrecoverable from a 48 kHz demodulated-audio tap and too fast for
-      # interpreted Ruby to demodulate from raw I/Q in real time. Rather
-      # than shell out to `grgsm_livemon_headless` + `tshark`, this module
-      # runs Base.run_detector to characterise BCCH/CCCH burst structure
-      # (577 μs slots × 8 = 4.615 ms TDMA frame) natively. `parse_line` is
-      # retained for offline GSMTAP-tshark pipe-delimited analysis.
+      # GSM (2G) true-air BCCH/CCCH activity decoder.
       module GSM
-        TSHARK_FIELDS = %w[
-          frame.time gsmtap.arfcn gsmtap.chan_type gsm_a.imsi gsm_a.tmsi
-          e212.mcc e212.mnc gsm_a.lac gsm_a.bssmap.cell_ci gsm_a.dtap.msg_rr_type
-        ].freeze
+        # Streaming I/Q energy/burst demod for Base.run_iq.
+        class DemodIQ
+          def initialize(rate:, protocol:, modulation:, extra: {})
+            @rate = rate.to_f
+            @protocol = protocol
+            @modulation = modulation
+            @extra = extra
+            @floor = nil
+            @in_burst = false
+            @burst_t0 = nil
+            @peak = -200.0
+            @burst_n = 0
+            @threshold = (extra[:threshold] || 8.0).to_f
+            @carry = []
+          end
+
+          def feed_iq(samples, rate: nil, &)
+            @rate = rate.to_f if rate
+            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
+            # process in ~1 ms hops
+            hop = [(@rate / 1000.0).round, 1].max
+            i = 0
+            while i < m2.length
+              win = m2[i, hop]
+              break if win.nil? || win.empty?
+
+              ms = win.sum / win.length
+              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
+              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
+              delta = lvl - @floor
+              if delta >= @threshold
+                unless @in_burst
+                  @in_burst = true
+                  @burst_t0 = Time.now
+                  @peak = lvl
+                end
+                @peak = lvl if lvl > @peak
+              elsif @in_burst
+                @in_burst = false
+                @burst_n += 1
+                dur_ms = ((Time.now - @burst_t0) * 1000).round
+                msg = {
+                  protocol: @protocol, event: 'burst', source: 'iq',
+                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
+                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
+                  duration_ms: dur_ms, modulation: @modulation,
+                  sample_rate: @rate.to_i
+                }.merge(@extra)
+                msg[:summary] = format(
+                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
+                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
+                )
+                yield msg if block_given?
+              end
+              i += hop
+            end
+          end
+        end
 
         # Supported Method Parameters::
         # PWN::SDR::Decoder::GSM.decode(
@@ -25,20 +71,31 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          PWN::SDR::Decoder::Base.run_detector(
+          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || 1_000_000).to_i
+          proto = 'GSM'
+          extra = {}
+          describe = proc { |b| { modulation: 'GMSK', symbol_rate: 270_833, tdma_frames: (b[:duration_ms] / 4.615).round, classification: (b[:duration_ms] / 4.615) > 10 ? 'BCCH/CCCH-continuous' : 'RACH/paging-burst' } }
+          demod = DemodIQ.new(
+            rate: rate, protocol: proto, modulation: 'GMSK',
+            extra: { threshold: 5.0 }.merge(extra)
+          )
+          PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: 'GSM',
-            note: '270.833 kbit/s GMSK exceeds audio-tap Nyquist; native mode reports TDMA burst duty/energy only. Feed captured GSMTAP-tshark fields to .parse_line for MCC/MNC/LAC/CI/IMSI.',
+            protocol: proto,
+            sample_rate: rate,
+            source: opts[:source],
+            file: opts[:file],
+            demod: demod,
             threshold: 5.0,
-            describe: proc { |b|
-              frames = (b[:duration_ms] / 4.615).round
-              { modulation: 'GMSK', symbol_rate: 270_833, tdma_frames: frames, classification: frames > 10 ? 'BCCH/CCCH-continuous' : 'RACH/paging-burst' }
-            }
+            note: '270.833 kbit/s GMSK — true-air path streams I/Q from RTL-SDR/Pluto and characterises TDMA burst duty; full Viterbi/BCCH SI decode is layered on Liquid when available.',
+            describe: describe
           )
         end
 
-        # Supported Method Parameters::
-        # PWN::SDR::Decoder::GSM.parse_line(line: 'ts|arfcn|chan|imsi|tmsi|mcc|mnc|lac|ci|rr')
+        TSHARK_FIELDS = %w[
+          frame.time gsmtap.arfcn gsmtap.chan_type gsm_a.imsi gsm_a.tmsi
+          e212.mcc e212.mnc gsm_a.lac gsm_a.bssmap.cell_ci gsm_a.dtap.msg_rr_type
+        ].freeze
 
         public_class_method def self.parse_line(opts = {})
           line = opts[:line].to_s
@@ -69,15 +126,13 @@ module PWN
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
 
-        # Display Usage for this Module
-
         public_class_method def self.help
-          puts "USAGE (ruby-native detector, no external binaries):
+          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
+              file:     'optional - .cu8/.cs16 capture'
             )
-
-            #{self}.parse_line(line: 'ts|arfcn|chan|imsi|tmsi|mcc|mnc|lac|ci|rr')
 
             #{self}.authors
           "

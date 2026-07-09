@@ -3,17 +3,68 @@
 module PWN
   module SDR
     module Decoder
-      # Pure-Ruby IEEE 802.15.4 / ZigBee activity detector.
-      #
-      # 250 kbit/s O-QPSK across 2 MHz channels — native mode reports
-      # per-channel packet bursts and derives channel 11–26 from
-      # freq_obj. `parse_line` retained for offline pipe-delimited
-      # analysis.
+      # True-air + detector-fallback decoder for ZigBee.
+      # Prefers PWN::FFI I/Q (RTL-SDR / ADALM-Pluto / HackRF / capture file)
+      # via Base.run_iq; degrades to Base.run_detector with no hardware.
       module ZigBee
-        TSHARK_FIELDS = %w[
-          frame.time_relative wpan.src16 wpan.dst16 wpan.src64 wpan.dst64
-          wpan.dst_pan wpan.frame_type zbee_nwk.cmd.id wpan.seq_no
-        ].freeze
+        # Streaming I/Q energy/burst demod for Base.run_iq.
+        class DemodIQ
+          def initialize(rate:, protocol:, modulation:, extra: {})
+            @rate = rate.to_f
+            @protocol = protocol
+            @modulation = modulation
+            @extra = extra
+            @floor = nil
+            @in_burst = false
+            @burst_t0 = nil
+            @peak = -200.0
+            @burst_n = 0
+            @threshold = (extra[:threshold] || 8.0).to_f
+          end
+
+          def feed_iq(samples, rate: nil, &)
+            @rate = rate.to_f if rate
+            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
+            hop = [(@rate / 1000.0).round, 1].max
+            i = 0
+            while i < m2.length
+              win = m2[i, hop]
+              break if win.nil? || win.empty?
+
+              ms = win.sum / win.length
+              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
+              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
+              delta = lvl - @floor
+              if delta >= @threshold
+                unless @in_burst
+                  @in_burst = true
+                  @burst_t0 = Time.now
+                  @peak = lvl
+                end
+                @peak = lvl if lvl > @peak
+              elsif @in_burst
+                @in_burst = false
+                @burst_n += 1
+                dur_ms = ((Time.now - @burst_t0) * 1000).round
+                msg = {
+                  protocol: @protocol, event: 'burst', source: 'iq',
+                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
+                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
+                  duration_ms: dur_ms, modulation: @modulation,
+                  sample_rate: @rate.to_i
+                }.merge(@extra.except(:threshold))
+                # protocol-specific enrichment
+                msg.merge!(self.class.enrich(msg)) if self.class.respond_to?(:enrich)
+                msg[:summary] = format(
+                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
+                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
+                )
+                yield msg if block_given?
+              end
+              i += hop
+            end
+          end
+        end
 
         # Supported Method Parameters::
         # PWN::SDR::Decoder::ZigBee.decode(
@@ -22,31 +73,35 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          hz = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          ch = (((hz - 2_405_000_000) / 5_000_000.0).round + 11).clamp(11, 26)
-          PWN::SDR::Decoder::Base.run_detector(
+
+          rate  = (opts[:sample_rate] || freq_obj[:iq_rate] || 2_000_000).to_i
+          proto = 'ZigBee'
+          demod = DemodIQ.new(
+            rate: rate, protocol: proto, modulation: 'O-QPSK',
+            extra: { threshold: 8.0 }
+          )
+          PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: 'ZigBee',
-            note: '250 kbit/s O-QPSK — native mode reports 802.15.4 packet bursts only.',
+            protocol: proto,
+            sample_rate: rate,
+            source: opts[:source],
+            file: opts[:file],
+            demod: demod,
             threshold: 8.0,
-            describe: proc { |b|
-              octets = (b[:duration_ms] * 250 / 8).round
-              { modulation: 'O-QPSK', channel: ch, est_octets: octets, classification: octets < 20 ? 'ACK/beacon' : 'data-frame' }
-            }
+            note: 'O-QPSK 250 kbit/s DSSS — true-air I/Q path reports frame bursts on the tuned channel.',
+            describe: proc { |b| { modulation: 'O-QPSK', symbol_rate: 62_500, classification: b[:duration_ms] < 5 ? 'ACK' : 'MAC-frame' } }
           )
         end
 
-        # Supported Method Parameters::
-        # PWN::SDR::Decoder::ZigBee.parse_line(line: 't|src16|dst16|src64|dst64|pan|type|cmd|seq')
-
         public_class_method def self.parse_line(opts = {})
-          f = opts[:line].to_s.split('|', -1)
-          out = {
-            protocol: 'ZigBee', src16: f[1], dst16: f[2], src64: f[3], dst64: f[4],
-            pan_id: f[5], frame_type: f[6], nwk_cmd: f[7], seq: f[8]
-          }.reject { |_, v| v.to_s.empty? }
-          out[:summary] = "ZigBee PAN=#{out[:pan_id]} #{out[:src16] || out[:src64]}→#{out[:dst16] || out[:dst64]} type=#{out[:frame_type]}"
-          out
+          line = opts[:line].to_s
+          out  = { protocol: 'ZigBee' }
+          out[:pan]    = ::Regexp.last_match(1) if line =~ /PAN[:= ]+([0-9A-Fa-f]+)/i
+          out[:src]    = ::Regexp.last_match(1) if line =~ /src[:= ]+([0-9A-Fa-f:]+)/i
+          out[:dst]    = ::Regexp.last_match(1) if line =~ /dst[:= ]+([0-9A-Fa-f:]+)/i
+          out[:cmd]    = ::Regexp.last_match(1) if line =~ /\b(Beacon|Data|ACK|Cmd)\b/i
+          out[:summary] = "ZigBee #{out[:cmd]} PAN=#{out[:pan]} #{out[:src]}→#{out[:dst]}"
+          out.compact
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -55,15 +110,13 @@ module PWN
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
 
-        # Display Usage for this Module
-
         public_class_method def self.help
-          puts "USAGE (ruby-native detector, no external binaries):
+          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
+              file:     'optional - .cu8/.cs16 capture'
             )
-
-            #{self}.parse_line(line: '0.1|0x0001|0xffff||||0x01||42')
 
             #{self}.authors
           "

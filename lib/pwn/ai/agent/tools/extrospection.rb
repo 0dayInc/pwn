@@ -29,7 +29,7 @@ PWN::AI::Agent::Registry.register(
       type: 'object',
       properties: {
         persist: { type: 'boolean', default: true, description: 'Write to disk & rotate previous baseline.' },
-        sections: { type: 'array', items: { type: 'string', enum: %w[host net toolchain repo env rf web] }, description: 'Subset of probes to run (default all).' }
+        sections: { type: 'array', items: { type: 'string', enum: %w[host net toolchain repo env rf web] }, description: 'Subset of probes (default all except web). auto_extrospect uses host/repo/env only; toolchain never launches GUI bins.' }
       },
       required: []
     }
@@ -256,12 +256,13 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_auto_toggle',
-    description: 'Enable/disable end-of-run auto-extrospection ' \
-                 '(PWN::Env[:ai][:agent][:auto_extrospect]). When enabled, ' \
-                 'Learning.auto_introspect ALSO calls Extrospection.auto_' \
-                 'extrospect after every final answer, so host drift is ' \
-                 'captured continuously without an explicit extro_snapshot ' \
-                 'call. Omit `enabled` to just read the current state.',
+    description: 'Enable/disable OPTIONAL ambient baseline after every ' \
+                 'final answer (PWN::Env[:ai][:agent][:auto_extrospect]). ' \
+                 'When on, Learning.auto_introspect runs Extrospection.' \
+                 'auto_extrospect with AUTO_SECTIONS (host/repo/env only) — ' \
+                 'never toolchain/rf/web, never launches burpsuite/zaproxy/' \
+                 'msfconsole/gqrx. Primary sensing stays on-demand (intel/' \
+                 'verify/watch/observe). Omit `enabled` to only query.',
     parameters: {
       type: 'object',
       properties: {
@@ -361,5 +362,78 @@ PWN::AI::Agent::Registry.register(
       tags: args[:tags],
       proxy: args[:proxy]
     )
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'extro_rf_tune',
+  toolset: 'extrospection',
+  schema: {
+    name: 'extro_rf_tune',
+    description: 'RF sense organ — the radio analogue of extro_watch / ' \
+                 'extro_verify. Tunes a *running* GQRX instance (remote ' \
+                 'control, never launches the GUI), demodulates, measures ' \
+                 'signal strength, and samples RDS (PI / PS / RadioText) so ' \
+                 'questions like "what\'s playing on 101.1 FM?" get a live ' \
+                 'answer. Auto-detects band plan (fm_radio → WFM_ST + RDS). ' \
+                 'Returns {ok:, freq:, hz:, strength_dbfs:, demodulator_mode:, ' \
+                 'rds:{pi,ps_name,radiotext,station}, now_playing:, station:, ' \
+                 'summary:}. On success also observe(category: :rf) so the ' \
+                 'EXTROSPECTION prompt block and extro_correlate see it. ' \
+                 'Requires GQRX remote control listening (default 7356) + ' \
+                 'an SDR attached; fails fast with actionable advice otherwise.',
+    parameters: {
+      type: 'object',
+      properties: {
+        freq: {
+          type: 'string',
+          description: 'Frequency to tune. Free-form: "101.1", "101.1 FM", ' \
+                       '"101.1 MHz", "101.100.000", "101100000", "433.92", …'
+        },
+        host: { type: 'string', description: 'GQRX remote-control host (default 127.0.0.1).' },
+        port: { type: 'integer', description: 'GQRX remote-control port (default 7356).' },
+        settle_secs: {
+          type: 'number',
+          description: 'Seconds to sample RDS after tuning (default 8, max 30).'
+        },
+        rds: {
+          type: 'boolean',
+          description: 'Force RDS sampling on/off. Default: auto (on for FM ' \
+                       'broadcast / band-plans with decoder: :rds).'
+        },
+        demodulator_mode: {
+          type: 'string',
+          description: 'Override demod (WFM_ST, WFM, FM, AM, USB, LSB, …). ' \
+                       'Default from band-plan / FM range heuristic.'
+        },
+        bandwidth: {
+          type: 'string',
+          description: 'Passband e.g. "200.000" (Hz, PWN dotted form). Default from band-plan.'
+        },
+        record: {
+          type: 'boolean',
+          default: true,
+          description: 'Also observe(category: :rf) so it hits EXTROSPECTION (default true).'
+        },
+        ttl: {
+          type: 'integer',
+          description: 'Observation TTL seconds (default 300 — radio content is ephemeral).'
+        }
+      },
+      required: %w[freq]
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Extrospection) && PWN::AI::Agent::Extrospection.respond_to?(:rf_tune) },
+  handler: lambda { |args|
+    o = { freq: args[:freq] }
+    o[:host]             = args[:host]             if args[:host]
+    o[:port]             = args[:port]             if args[:port]
+    o[:settle_secs]      = args[:settle_secs]      if args[:settle_secs]
+    o[:rds]              = args[:rds]              if args.key?(:rds)
+    o[:demodulator_mode] = args[:demodulator_mode] if args[:demodulator_mode]
+    o[:bandwidth]        = args[:bandwidth]        if args[:bandwidth]
+    o[:record]           = args[:record]           if args.key?(:record)
+    o[:ttl]              = args[:ttl]              if args[:ttl]
+    PWN::AI::Agent::Extrospection.rf_tune(o)
   }
 )

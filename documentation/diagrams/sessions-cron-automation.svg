@@ -9,72 +9,72 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 317.45)">
 <title>PWN_SessionsCron</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-317.45 832.7,-317.45 832.7,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="127.75" y="-252.25" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Sessions ↔ Cron ↔ Swarm — Cross&#45;Session Continuity</text>
+<text xml:space="preserve" text-anchor="start" x="127.75" y="-252.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Sessions ↔ Cron ↔ Swarm — Cross&#45;Session Continuity</text>
 <g id="clust1" class="cluster">
 <title>cluster_p</title>
 <path fill="#422006" stroke="#a16207" d="M233.25,-8C233.25,-8 335,-8 335,-8 341,-8 347,-14 347,-20 347,-20 347,-223 347,-223 347,-229 341,-235 335,-235 335,-235 233.25,-235 233.25,-235 227.25,-235 221.25,-229 221.25,-223 221.25,-223 221.25,-20 221.25,-20 221.25,-14 227.25,-8 233.25,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="284.12" y="-212" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#fde68a">~/.pwn/</text>
+<text xml:space="preserve" text-anchor="middle" x="284.12" y="-212" font-family="sans-Serif" font-size="20.00" fill="#fde68a">~/.pwn/</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_later</title>
 <path fill="#2e1065" stroke="#6d28d9" d="M438,-8C438,-8 585.25,-8 585.25,-8 591.25,-8 597.25,-14 597.25,-20 597.25,-20 597.25,-223 597.25,-223 597.25,-229 591.25,-235 585.25,-235 585.25,-235 438,-235 438,-235 432,-235 426,-229 426,-223 426,-223 426,-20 426,-20 426,-14 432,-8 438,-8"/>
-<text xml:space="preserve" text-anchor="middle" x="511.62" y="-212" font-family="Helvetica,sans-Serif" font-size="20.00" fill="#ddd6fe">Later / Elsewhere</text>
+<text xml:space="preserve" text-anchor="middle" x="511.62" y="-212" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Later / Elsewhere</text>
 </g>
 <!-- Now -->
 <g id="node1" class="node">
 <title>Now</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M74.5,-124C74.5,-124 12,-124 12,-124 6,-124 0,-118 0,-112 0,-112 0,-100 0,-100 0,-94 6,-88 12,-88 12,-88 74.5,-88 74.5,-88 80.5,-88 86.5,-94 86.5,-100 86.5,-100 86.5,-112 86.5,-112 86.5,-118 80.5,-124 74.5,-124"/>
-<text xml:space="preserve" text-anchor="middle" x="43.25" y="-108.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">pwn&#45;ai</text>
-<text xml:space="preserve" text-anchor="middle" x="43.25" y="-96.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">(interactive turn)</text>
+<text xml:space="preserve" text-anchor="middle" x="43.25" y="-108.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">pwn&#45;ai</text>
+<text xml:space="preserve" text-anchor="middle" x="43.25" y="-96.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(interactive turn)</text>
 </g>
 <!-- Sess -->
 <g id="node2" class="node">
 <title>Sess</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M334.5,-192.73C334.5,-194.53 311.92,-196 284.12,-196 256.33,-196 233.75,-194.53 233.75,-192.73 233.75,-192.73 233.75,-163.27 233.75,-163.27 233.75,-161.47 256.33,-160 284.12,-160 311.92,-160 334.5,-161.47 334.5,-163.27 334.5,-163.27 334.5,-192.73 334.5,-192.73"/>
 <path fill="none" stroke="#334155" stroke-width="1.3" d="M334.5,-192.73C334.5,-190.92 311.92,-189.45 284.12,-189.45 256.33,-189.45 233.75,-190.92 233.75,-192.73"/>
-<text xml:space="preserve" text-anchor="middle" x="284.12" y="-174.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">sessions/&lt;id&gt;.jsonl</text>
+<text xml:space="preserve" text-anchor="middle" x="284.12" y="-174.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">sessions/&lt;id&gt;.jsonl</text>
 </g>
 <!-- Now&#45;&gt;Sess -->
 <g id="edge1" class="edge">
 <title>Now&#45;&gt;Sess</title>
 <path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M86.96,-118.87C125.13,-130.38 181.45,-147.35 223.96,-160.17"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="223,-162.8 231.47,-162.43 224.62,-157.44 223,-162.8"/>
-<text xml:space="preserve" text-anchor="middle" x="157.88" y="-148.26" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">append</text>
+<text xml:space="preserve" text-anchor="middle" x="157.88" y="-148.26" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">append</text>
 </g>
 <!-- Cron -->
 <g id="node3" class="node">
 <title>Cron</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M321.38,-120.73C321.38,-122.53 304.68,-124 284.12,-124 263.57,-124 246.88,-122.53 246.88,-120.73 246.88,-120.73 246.88,-91.27 246.88,-91.27 246.88,-89.47 263.57,-88 284.12,-88 304.68,-88 321.38,-89.47 321.38,-91.27 321.38,-91.27 321.38,-120.73 321.38,-120.73"/>
 <path fill="none" stroke="#334155" stroke-width="1.3" d="M321.38,-120.73C321.38,-118.92 304.68,-117.45 284.12,-117.45 263.57,-117.45 246.88,-118.92 246.88,-120.73"/>
-<text xml:space="preserve" text-anchor="middle" x="284.12" y="-102.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">cron/jobs.yml</text>
+<text xml:space="preserve" text-anchor="middle" x="284.12" y="-102.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">cron/jobs.yml</text>
 </g>
 <!-- Now&#45;&gt;Cron -->
 <g id="edge2" class="edge">
 <title>Now&#45;&gt;Cron</title>
 <path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M86.96,-106C129.04,-106 193.15,-106 236.53,-106"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="236.3,-108.8 244.3,-106 236.3,-103.2 236.3,-108.8"/>
-<text xml:space="preserve" text-anchor="middle" x="157.88" y="-107.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">cron_create</text>
+<text xml:space="preserve" text-anchor="middle" x="157.88" y="-107.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">cron_create</text>
 </g>
 <!-- Swarm -->
 <g id="node4" class="node">
 <title>Swarm</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M339,-48.73C339,-50.53 314.4,-52 284.12,-52 253.85,-52 229.25,-50.53 229.25,-48.73 229.25,-48.73 229.25,-19.27 229.25,-19.27 229.25,-17.47 253.85,-16 284.12,-16 314.4,-16 339,-17.47 339,-19.27 339,-19.27 339,-48.73 339,-48.73"/>
 <path fill="none" stroke="#334155" stroke-width="1.3" d="M339,-48.73C339,-46.92 314.4,-45.45 284.12,-45.45 253.85,-45.45 229.25,-46.92 229.25,-48.73"/>
-<text xml:space="preserve" text-anchor="middle" x="284.12" y="-30.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">swarm/&lt;id&gt;/bus.jsonl</text>
+<text xml:space="preserve" text-anchor="middle" x="284.12" y="-30.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">swarm/&lt;id&gt;/bus.jsonl</text>
 </g>
 <!-- Now&#45;&gt;Swarm -->
 <g id="edge3" class="edge">
 <title>Now&#45;&gt;Swarm</title>
 <path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M86.96,-93.13C123.76,-82.03 177.42,-65.86 219.32,-53.23"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="219.88,-55.99 226.73,-51 218.26,-50.63 219.88,-55.99"/>
-<text xml:space="preserve" text-anchor="middle" x="157.88" y="-80.52" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">agent_ask</text>
+<text xml:space="preserve" text-anchor="middle" x="157.88" y="-80.52" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">agent_ask</text>
 </g>
 <!-- Reflect -->
 <g id="node5" class="node">
 <title>Reflect</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M540.12,-196C540.12,-196 482.12,-196 482.12,-196 476.12,-196 470.12,-190 470.12,-184 470.12,-184 470.12,-172 470.12,-172 470.12,-166 476.12,-160 482.12,-160 482.12,-160 540.12,-160 540.12,-160 546.12,-160 552.12,-166 552.12,-172 552.12,-172 552.12,-184 552.12,-184 552.12,-190 546.12,-196 540.12,-196"/>
-<text xml:space="preserve" text-anchor="middle" x="511.12" y="-180.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">learning_reflect</text>
-<text xml:space="preserve" text-anchor="middle" x="511.12" y="-168.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">(session_id)</text>
+<text xml:space="preserve" text-anchor="middle" x="511.12" y="-180.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">learning_reflect</text>
+<text xml:space="preserve" text-anchor="middle" x="511.12" y="-168.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(session_id)</text>
 </g>
 <!-- Sess&#45;&gt;Reflect -->
 <g id="edge4" class="edge">
@@ -86,7 +86,7 @@
 <g id="node6" class="node">
 <title>Fire</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M564.88,-124C564.88,-124 457.38,-124 457.38,-124 451.38,-124 445.38,-118 445.38,-112 445.38,-112 445.38,-100 445.38,-100 445.38,-94 451.38,-88 457.38,-88 457.38,-88 564.88,-88 564.88,-88 570.88,-88 576.88,-94 576.88,-100 576.88,-100 576.88,-112 576.88,-112 576.88,-118 570.88,-124 564.88,-124"/>
-<text xml:space="preserve" text-anchor="middle" x="511.12" y="-102.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">crontab → PWN::Cron.run</text>
+<text xml:space="preserve" text-anchor="middle" x="511.12" y="-102.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">crontab → PWN::Cron.run</text>
 </g>
 <!-- Cron&#45;&gt;Fire -->
 <g id="edge5" class="edge">
@@ -98,8 +98,8 @@
 <g id="node7" class="node">
 <title>Resume</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M538.62,-52C538.62,-52 483.62,-52 483.62,-52 477.62,-52 471.62,-46 471.62,-40 471.62,-40 471.62,-28 471.62,-28 471.62,-22 477.62,-16 483.62,-16 483.62,-16 538.62,-16 538.62,-16 544.62,-16 550.62,-22 550.62,-28 550.62,-28 550.62,-40 550.62,-40 550.62,-46 544.62,-52 538.62,-52"/>
-<text xml:space="preserve" text-anchor="middle" x="511.12" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">agent_debate</text>
-<text xml:space="preserve" text-anchor="middle" x="511.12" y="-24.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">(swarm_id: ...)</text>
+<text xml:space="preserve" text-anchor="middle" x="511.12" y="-36.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">agent_debate</text>
+<text xml:space="preserve" text-anchor="middle" x="511.12" y="-24.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(swarm_id: ...)</text>
 </g>
 <!-- Swarm&#45;&gt;Resume -->
 <g id="edge6" class="edge">
@@ -111,8 +111,8 @@
 <g id="node8" class="node">
 <title>Next</title>
 <path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M777.5,-124C777.5,-124 696.25,-124 696.25,-124 690.25,-124 684.25,-118 684.25,-112 684.25,-112 684.25,-100 684.25,-100 684.25,-94 690.25,-88 696.25,-88 696.25,-88 777.5,-88 777.5,-88 783.5,-88 789.5,-94 789.5,-100 789.5,-100 789.5,-112 789.5,-112 789.5,-118 783.5,-124 777.5,-124"/>
-<text xml:space="preserve" text-anchor="middle" x="736.88" y="-108.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Next pwn&#45;ai session</text>
-<text xml:space="preserve" text-anchor="middle" x="736.88" y="-96.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">context restored</text>
+<text xml:space="preserve" text-anchor="middle" x="736.88" y="-108.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Next pwn&#45;ai session</text>
+<text xml:space="preserve" text-anchor="middle" x="736.88" y="-96.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">context restored</text>
 </g>
 <!-- Reflect&#45;&gt;Next -->
 <g id="edge7" class="edge">

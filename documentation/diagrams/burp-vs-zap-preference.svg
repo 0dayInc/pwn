@@ -9,49 +9,49 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 377.9)">
 <title>PWN_BurpVsZap</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-377.9 595.45,-377.9 595.45,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="8" y="-312.7" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Web Proxy Selection — BurpSuite ⭐ preferred over ZAP</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-312.7" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Web Proxy Selection — BurpSuite ⭐ preferred over ZAP</text>
 <!-- Need -->
 <g id="node1" class="node">
 <title>Need</title>
 <polygon fill="#7dd3fc" stroke="#334155" stroke-width="1.3" points="286.12,-302.7 214.04,-263.1 286.12,-223.5 358.21,-263.1 286.12,-302.7"/>
-<text xml:space="preserve" text-anchor="middle" x="286.12" y="-265.6" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Need web proxy /</text>
-<text xml:space="preserve" text-anchor="middle" x="286.12" y="-253.6" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">active scanner?</text>
+<text xml:space="preserve" text-anchor="middle" x="286.12" y="-265.6" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Need web proxy /</text>
+<text xml:space="preserve" text-anchor="middle" x="286.12" y="-253.6" font-family="sans-Serif" font-size="10.00" fill="#0f172a">active scanner?</text>
 </g>
 <!-- Burp -->
 <g id="node2" class="node">
 <title>Burp</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="2" d="M259.88,-147C259.88,-147 122.38,-147 122.38,-147 116.38,-147 110.38,-141 110.38,-135 110.38,-135 110.38,-115 110.38,-115 110.38,-109 116.38,-103 122.38,-103 122.38,-103 259.88,-103 259.88,-103 265.88,-103 271.88,-109 271.88,-115 271.88,-115 271.88,-135 271.88,-135 271.88,-141 265.88,-147 259.88,-147"/>
-<text xml:space="preserve" text-anchor="middle" x="191.12" y="-133.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">PWN::Plugins::BurpSuite</text>
-<text xml:space="preserve" text-anchor="middle" x="191.12" y="-121.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">headless · REST · richer scanner</text>
-<text xml:space="preserve" text-anchor="middle" x="191.12" y="-109.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">BApp ecosystem</text>
+<text xml:space="preserve" text-anchor="middle" x="191.12" y="-133.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::Plugins::BurpSuite</text>
+<text xml:space="preserve" text-anchor="middle" x="191.12" y="-121.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">headless · REST · richer scanner</text>
+<text xml:space="preserve" text-anchor="middle" x="191.12" y="-109.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">BApp ecosystem</text>
 </g>
 <!-- Need&#45;&gt;Burp -->
 <g id="edge1" class="edge">
 <title>Need&#45;&gt;Burp</title>
 <path fill="none" stroke="#34d399" stroke-width="2" d="M263.68,-235.55C252.87,-222.34 239.99,-205.92 229.38,-190.5 222.14,-179.99 214.84,-168.07 208.59,-157.37"/>
 <polygon fill="#34d399" stroke="#34d399" stroke-width="2" points="211.09,-156.11 204.68,-150.58 206.24,-158.91 211.09,-156.11"/>
-<text xml:space="preserve" text-anchor="middle" x="267.25" y="-181.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">Burp Pro available</text>
+<text xml:space="preserve" text-anchor="middle" x="267.25" y="-181.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">Burp Pro available</text>
 </g>
 <!-- Zap -->
 <g id="node3" class="node">
 <title>Zap</title>
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M429.88,-143C429.88,-143 334.38,-143 334.38,-143 328.38,-143 322.38,-137 322.38,-131 322.38,-131 322.38,-119 322.38,-119 322.38,-113 328.38,-107 334.38,-107 334.38,-107 429.88,-107 429.88,-107 435.88,-107 441.88,-113 441.88,-119 441.88,-119 441.88,-131 441.88,-131 441.88,-137 435.88,-143 429.88,-143"/>
-<text xml:space="preserve" text-anchor="middle" x="382.12" y="-127.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">PWN::Plugins::Zaproxy</text>
-<text xml:space="preserve" text-anchor="middle" x="382.12" y="-115.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">OSS fallback</text>
+<text xml:space="preserve" text-anchor="middle" x="382.12" y="-127.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PWN::Plugins::Zaproxy</text>
+<text xml:space="preserve" text-anchor="middle" x="382.12" y="-115.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">OSS fallback</text>
 </g>
 <!-- Need&#45;&gt;Zap -->
 <g id="edge2" class="edge">
 <title>Need&#45;&gt;Zap</title>
 <path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M306.02,-233.9C323.14,-209.63 347.62,-174.92 364.16,-151.47"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="366.4,-153.15 368.73,-144.99 361.83,-149.92 366.4,-153.15"/>
-<text xml:space="preserve" text-anchor="middle" x="358.47" y="-181.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">fallback</text>
+<text xml:space="preserve" text-anchor="middle" x="358.47" y="-181.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">fallback</text>
 </g>
 <!-- Both -->
 <g id="node4" class="node">
 <title>Both</title>
 <path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M390.5,-36C390.5,-36 181.75,-36 181.75,-36 175.75,-36 169.75,-30 169.75,-24 169.75,-24 169.75,-12 169.75,-12 169.75,-6 175.75,0 181.75,0 181.75,0 390.5,0 390.5,0 396.5,0 402.5,-6 402.5,-12 402.5,-12 402.5,-24 402.5,-24 402.5,-30 396.5,-36 390.5,-36"/>
-<text xml:space="preserve" text-anchor="middle" x="286.12" y="-20.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">Same downstream:</text>
-<text xml:space="preserve" text-anchor="middle" x="286.12" y="-8.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#0f172a">TransparentBrowser proxy · Reports · DefectDojo</text>
+<text xml:space="preserve" text-anchor="middle" x="286.12" y="-20.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Same downstream:</text>
+<text xml:space="preserve" text-anchor="middle" x="286.12" y="-8.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">TransparentBrowser proxy · Reports · DefectDojo</text>
 </g>
 <!-- Burp&#45;&gt;Both -->
 <g id="edge3" class="edge">
