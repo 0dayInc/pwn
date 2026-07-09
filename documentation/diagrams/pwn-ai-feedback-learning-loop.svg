@@ -8,9 +8,9 @@
  viewBox="0.00 0.00 1891.00 723.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 679.95)">
 <title>PWN_AI_Feedback_Learning_Loop</title>
-<polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-679.95 1847.84,-679.95 1847.84,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="708.82" y="-614.75" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">pwn&#45;ai — Closed Self&#45;Improvement Loop</text>
-<text xml:space="preserve" text-anchor="start" x="715.94" y="-603.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#94a3b8">Introspection (self) &#160;⟷ &#160;Extrospection (world) &#160;· &#160;Mistakes (negative feedback)</text>
+<polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-679.95 1847.82,-679.95 1847.82,43.2 -43.2,43.2"/>
+<text xml:space="preserve" text-anchor="start" x="708.81" y="-614.75" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">pwn&#45;ai — Closed Self&#45;Improvement Loop</text>
+<text xml:space="preserve" text-anchor="start" x="715.93" y="-603.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#94a3b8">Introspection (self) &#160;⟷ &#160;Extrospection (world) &#160;· &#160;Mistakes (negative feedback)</text>
 <g id="clust2" class="cluster">
 <title>cluster_core</title>
 <path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M376.77,-424C376.77,-424 713.77,-424 713.77,-424 719.77,-424 725.77,-430 725.77,-436 725.77,-436 725.77,-495.25 725.77,-495.25 725.77,-501.25 719.77,-507.25 713.77,-507.25 713.77,-507.25 376.77,-507.25 376.77,-507.25 370.77,-507.25 364.77,-501.25 364.77,-495.25 364.77,-495.25 364.77,-436 364.77,-436 364.77,-430 370.77,-424 376.77,-424"/>
@@ -208,7 +208,7 @@
 <title>Result&#45;&gt;Learning</title>
 <path fill="none" stroke="#34d399" stroke-width="1.3" d="M445.63,-431.31C452.81,-428.41 460.41,-425.77 467.77,-424 714.4,-364.49 806.38,-475.4 1035.77,-367 1055.89,-357.49 1075.27,-342.08 1090.33,-328.21"/>
 <polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="1092.05,-330.44 1095.94,-322.91 1088.2,-326.37 1092.05,-330.44"/>
-<text xml:space="preserve" text-anchor="middle" x="1032.88" y="-382.2" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">auto_reflect</text>
+<text xml:space="preserve" text-anchor="middle" x="1040.38" y="-382.2" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">auto_introspect</text>
 </g>
 <!-- Result&#45;&gt;Observe -->
 <g id="edge11" class="edge">
@@ -382,9 +382,9 @@
 <!-- Correlate&#45;&gt;Prompt -->
 <g id="edge37" class="edge">
 <title>Correlate&#45;&gt;Prompt</title>
-<path fill="none" stroke="#fb7185" stroke-width="2" stroke-dasharray="5,2" d="M688.58,-166C859.66,-183.09 1168.35,-218.92 1200.77,-257.75 1231.89,-295.02 1231.26,-329.21 1200.77,-367 1161.36,-415.85 700.85,-414.78 638.77,-424 621.19,-426.61 602.23,-430.63 585.23,-434.69"/>
-<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="584.97,-431.87 577.87,-436.49 586.3,-437.31 584.97,-431.87"/>
-<text xml:space="preserve" text-anchor="middle" x="1263.25" y="-293.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">findings → next run</text>
+<path fill="none" stroke="#fb7185" stroke-width="2" stroke-dasharray="5,2" d="M688.58,-166C859.66,-183.09 1168.35,-218.92 1200.77,-257.75 1231.89,-295.02 1230.76,-328.82 1200.77,-367 1162,-416.36 700.86,-414.85 638.77,-424 621.19,-426.59 602.23,-430.61 585.23,-434.67"/>
+<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="584.97,-431.85 577.86,-436.47 586.3,-437.29 584.97,-431.85"/>
+<text xml:space="preserve" text-anchor="middle" x="1263.06" y="-293.45" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">findings → next run</text>
 </g>
 <!-- Correlate&#45;&gt;Fmet -->
 <!-- Fmis&#45;&gt;Prompt -->
@@ -412,9 +412,9 @@
 <!-- Fext&#45;&gt;Prompt -->
 <g id="edge35" class="edge">
 <title>Fext&#45;&gt;Prompt</title>
-<path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M390.5,-52.69C404.23,-65.91 424.9,-83.05 446.77,-91.25 600.4,-148.86 1020.44,-120.56 1183.77,-136.25 1430.07,-159.92 1572.59,-22.74 1735.77,-208.75 1800.33,-282.34 1713.42,-367.49 1619.77,-396 1515.45,-427.76 746.91,-409.97 638.77,-424 620.81,-426.33 601.46,-430.37 584.22,-434.53"/>
+<path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M390.5,-52.69C404.23,-65.91 424.9,-83.05 446.77,-91.25 600.4,-148.86 1020.44,-120.56 1183.77,-136.25 1430.07,-159.92 1572.59,-22.74 1735.77,-208.75 1800.17,-282.17 1714.06,-367.09 1620.77,-396 1516.5,-428.31 747.02,-409.96 638.77,-424 620.81,-426.33 601.46,-430.37 584.22,-434.53"/>
 <polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="1.3" points="583.88,-431.73 576.79,-436.37 585.22,-437.16 583.88,-431.73"/>
-<text xml:space="preserve" text-anchor="middle" x="1777.26" y="-215.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">EXTRO block</text>
+<text xml:space="preserve" text-anchor="middle" x="1777.24" y="-215.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#cbd5e1">EXTRO block</text>
 </g>
 </g>
 </svg>

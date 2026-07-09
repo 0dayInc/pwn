@@ -29,7 +29,7 @@ module PWN
       env = {
         ai: {
           active: 'grok',
-          introspection: false,
+          module_reflection: false,
           grok: {
             base_uri: 'optional - Base URI for Grok - Use private base OR defaults to https://api.x.ai/v1',
             key: 'required - xAI Grok API Key',
@@ -58,6 +58,7 @@ module PWN
             model: 'optional - OpenAI model to use',
             system_role_content: 'You are an ethically hacking OpenAI agent.',
             temp: 'optional - OpenAI temperature',
+            max_tokens: 'optional - Max output tokens per response (default 16384). Mapped to OpenAI wire param max_completion_tokens.',
             max_prompt_length: 128_000
           },
           ollama: {
@@ -90,9 +91,9 @@ module PWN
             max_iters: 25,
             # Swarm (agent_ask/agent_debate) sub-agent recursion cap
             max_depth: 3,
-            # run PWN::AI::Agent::Learning.auto_reflect after every final answer
-            auto_reflect: true,
-            # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_reflect
+            # run PWN::AI::Agent::Learning.auto_introspect after every final answer
+            auto_introspect: true,
+            # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_introspect
             auto_extrospect: false,
             toolsets: nil
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)

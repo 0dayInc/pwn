@@ -16,7 +16,7 @@ module PWN
       #
       # Data flows:
       #   Loop.run --(tool telemetry)--> Metrics.record
-      #   Loop.run --(final answer)----> Learning.auto_reflect (opt-in)
+      #   Loop.run --(final answer)----> Learning.auto_introspect (opt-in)
       #   model    --(tool calls)------> learning_note_outcome / _distill_skill
       #   PromptBuilder <----------------- Learning.to_context + Metrics.to_context
       #
@@ -164,9 +164,9 @@ module PWN
         #   dry_run: 'optional - when true, do not write to Memory/Skills (default false)'
         # )
         #
-        # Uses PWN::AI::Agent::Introspection (when available) to LLM-summarise the
+        # Uses PWN::AI::Agent::Reflect (when available) to LLM-summarise the
         # session into structured lessons. Falls back to a heuristic
-        # extractor when introspection is disabled so learning never stops.
+        # extractor when module_reflection is disabled so learning never stops.
 
         public_class_method def self.reflect(opts = {})
           session_id = opts[:session_id]
@@ -193,19 +193,19 @@ module PWN
         end
 
         # Supported Method Parameters::
-        # PWN::AI::Agent::Learning.auto_reflect(
+        # PWN::AI::Agent::Learning.auto_introspect(
         #   session_id: 'required - id of the just-completed session',
         #   request: 'optional - original user request (for outcome logging)',
         #   final: 'optional - final assistant answer (for outcome logging)'
         # )
         #
-        # Called by Loop.run when PWN::Env[:ai][:agent][:auto_reflect] is
+        # Called by Loop.run when PWN::Env[:ai][:agent][:auto_introspect] is
         # truthy. Never raises — learning must not break the primary loop.
 
-        public_class_method def self.auto_reflect(opts = {})
+        public_class_method def self.auto_introspect(opts = {})
           session_id = opts[:session_id]
           return unless session_id
-          return unless auto_reflect_enabled?
+          return unless auto_introspect_enabled?
 
           ok = infer_success(session_id: session_id, final: opts[:final])
           note_outcome(
@@ -218,7 +218,7 @@ module PWN
           reflect(session_id: session_id)
           Extrospection.auto_extrospect(session_id: session_id) if defined?(Extrospection)
         rescue StandardError => e
-          warn "[pwn-ai/learning] auto_reflect swallowed: #{e.class}: #{e.message}"
+          warn "[pwn-ai/learning] auto_introspect swallowed: #{e.class}: #{e.message}"
           nil
         end
 
@@ -301,10 +301,10 @@ module PWN
         # privates
         # -------------------------------------------------------------
 
-        private_class_method def self.auto_reflect_enabled?
+        private_class_method def self.auto_introspect_enabled?
           return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
-          PWN::Env.dig(:ai, :agent, :auto_reflect) ? true : false
+          PWN::Env.dig(:ai, :agent, :auto_introspect) ? true : false
         rescue StandardError
           false
         end
@@ -314,7 +314,7 @@ module PWN
         # Derive a success signal stronger than "final answer non-empty":
         # look at the tool-failure ratio inside the just-completed turn AND
         # scan the final text for self-reported failure language. Without
-        # this, auto_reflect logs ~100 % success and the negative-feedback
+        # this, auto_introspect logs ~100 % success and the negative-feedback
         # side of the learning loop never fires.
         private_class_method def self.infer_success(opts = {})
           final = opts[:final].to_s
@@ -353,11 +353,11 @@ module PWN
 
         private_class_method def self.introspective_lessons(opts = {})
           transcript = opts[:transcript] || []
-          return [] unless defined?(PWN::AI::Agent::Introspection)
-          return [] unless defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env.dig(:ai, :introspection)
+          return [] unless defined?(PWN::AI::Agent::Reflect)
+          return [] unless defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env.dig(:ai, :module_reflection)
 
           req = "Analyse this pwn-ai session transcript and emit up to 5 durable, generalizable lessons (one per line, no numbering, imperative voice) that would make future runs faster or more reliable. Focus on tool selection, error recovery, and target-agnostic technique. Ignore trivia.\n\nTRANSCRIPT:\n#{transcript_text(transcript: transcript)}"
-          resp = PWN::AI::Agent::Introspection.reflect_on(request: req, suppress_pii_warning: true)
+          resp = PWN::AI::Agent::Reflect.on(request: req, suppress_pii_warning: true)
           resp.to_s.lines.map(&:strip).reject(&:empty?).first(5)
         rescue StandardError
           []
@@ -420,7 +420,7 @@ module PWN
               PWN::AI::Agent::Learning.note_outcome(task: 'nmap sweep 10.0.0.0/24', success: true, details: '12 hosts up')
               PWN::AI::Agent::Learning.outcomes(limit: 20, success: false)
               PWN::AI::Agent::Learning.reflect(session_id: sid)              # LLM or heuristic → PWN::Memory
-              PWN::AI::Agent::Learning.auto_reflect(session_id: sid, request: req, final: text)
+              PWN::AI::Agent::Learning.auto_introspect(session_id: sid, request: req, final: text)
               PWN::AI::Agent::Learning.distill_skill(name: 'quick_recon', session_id: sid)
               PWN::AI::Agent::Learning.consolidate(max_entries: 200)         # dedupe + prune Memory
               PWN::AI::Agent::Learning.to_context(limit: 5)                  # injected by PromptBuilder
@@ -428,7 +428,7 @@ module PWN
               PWN::AI::Agent::Learning.reset
 
               Enable end-of-run auto-learning with:
-                PWN::Env[:ai][:agent][:auto_reflect] = true
+                PWN::Env[:ai][:agent][:auto_introspect] = true
 
               #{self}.authors
           USAGE

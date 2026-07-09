@@ -190,13 +190,13 @@ PWN::AI::Agent::Registry.register(
 )
 
 PWN::AI::Agent::Registry.register(
-  name: 'learning_auto_reflect_toggle',
+  name: 'learning_auto_introspect_toggle',
   toolset: 'learning',
   schema: {
-    name: 'learning_auto_reflect_toggle',
+    name: 'learning_auto_introspect_toggle',
     description: 'Enable/disable end-of-run auto-reflection ' \
-                 '(PWN::Env[:ai][:agent][:auto_reflect]). When enabled, ' \
-                 'Loop.run calls Learning.auto_reflect on the session after ' \
+                 '(PWN::Env[:ai][:agent][:auto_introspect]). When enabled, ' \
+                 'Loop.run calls Learning.auto_introspect on the session after ' \
                  'every final answer. Disable during noisy fuzzing loops; ' \
                  're-enable for the summary turn. Omit `enabled` to just ' \
                  'read the current state.',
@@ -214,8 +214,8 @@ PWN::AI::Agent::Registry.register(
     raise 'PWN::Env[:ai] is unavailable or immutable' unless ai.is_a?(Hash) && !ai.frozen?
 
     ai[:agent] = (ai[:agent] || {}).dup if ai[:agent].nil? || ai[:agent].frozen?
-    prev = ai[:agent][:auto_reflect] ? true : false
-    ai[:agent][:auto_reflect] = (args[:enabled] ? true : false) if args.key?(:enabled)
-    { previous: prev, current: ai[:agent][:auto_reflect] ? true : false }
+    prev = ai[:agent][:auto_introspect] ? true : false
+    ai[:agent][:auto_introspect] = (args[:enabled] ? true : false) if args.key?(:enabled)
+    { previous: prev, current: ai[:agent][:auto_introspect] ? true : false }
   }
 )

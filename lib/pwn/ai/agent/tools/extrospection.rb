@@ -258,7 +258,7 @@ PWN::AI::Agent::Registry.register(
     name: 'extro_auto_toggle',
     description: 'Enable/disable end-of-run auto-extrospection ' \
                  '(PWN::Env[:ai][:agent][:auto_extrospect]). When enabled, ' \
-                 'Learning.auto_reflect ALSO calls Extrospection.auto_' \
+                 'Learning.auto_introspect ALSO calls Extrospection.auto_' \
                  'extrospect after every final answer, so host drift is ' \
                  'captured continuously without an explicit extro_snapshot ' \
                  'call. Omit `enabled` to just read the current state.',
