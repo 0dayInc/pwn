@@ -1,9 +1,7 @@
-![PWN](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/PWN.png)
+<!-- ![PWN](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/PWN.png) -->
 
 <p align="center">
   <img src="documentation/pwn_silent_help_learn_demo.gif" alt="PWN Silent Demo — Help Surfaces + Learning Feedback Loop" width="640">
-  <br>
-  <em>Silent walkthrough: <code>pwn</code> help surfaces → <code>pwn-ai</code> → recon → mistakes / learning / extrospection feedback loop</em>
 </p>
 
 ### **Table of Contents** ###
@@ -114,7 +112,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.627]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -138,7 +136,7 @@ $ rvm use ruby-4.0.5@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.627]:001 >>> PWN.help
 ```
 
 If using a multi-user RVM install:
