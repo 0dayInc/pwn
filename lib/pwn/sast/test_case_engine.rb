@@ -63,7 +63,7 @@ module PWN
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
 
         result_arr = []
-        logger_results = "AI Introspection => #{PWN::Env[:ai][:introspection]} => "
+        logger_results = "AI Module Reflection => #{PWN::Env[:ai][:module_reflection]} => "
 
         PWN::Plugins::FileFu.recurse_in_dir(
           dir_path: dir_path,

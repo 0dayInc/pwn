@@ -50,7 +50,7 @@ module PWN
       #   type: 'required - type of history to introspect (:sitemap, :proxy_history, :websocket_history)'
       # )
       private_class_method def self.init_introspection_thread(opts = {})
-        #  if PWN::Env[:ai][:introspection] is true,
+        #  if PWN::Env[:ai][:module_reflection] is true,
         #  spin up Thread to:
         #  1. Periodically call get_proxy_history(burp_obj: burp_obj) method
         #  2. For each entry w/ empty comment,
@@ -65,7 +65,7 @@ module PWN
         type = opts[:type]
         raise "ERROR: type parameter is required and must be one of: #{valid_types.join(', ')}" unless valid_types.include?(type)
 
-        if PWN::Env[:ai][:introspection]
+        if PWN::Env[:ai][:module_reflection]
           introspection_thread_arr = burp_obj[:introspection_threads] ||= []
           introspection_thread = Thread.new do
             get_highlight_color = lambda do |opts = {}|

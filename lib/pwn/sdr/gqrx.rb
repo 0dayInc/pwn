@@ -809,7 +809,7 @@ module PWN
             puts "\s\s- A lower `Input rate` value seems counter-intuitive but works well (e.g. ADALM PLUTO ~ 1000000)."
             puts '2. Adjust the :strength_lock parameter.'
             puts '3. Adjust the :precision parameter.'
-            puts '4. Disable AI introspection in PWN::Env'
+            puts '4. Disable AI module_reflection in PWN::Env'
             puts 'Happy scanning!'
             puts '-' * 86
             # print 'Pressing ENTER to begin scan...'

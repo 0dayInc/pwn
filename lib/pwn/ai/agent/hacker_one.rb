@@ -29,7 +29,7 @@ module PWN
             raise "ERROR: type parameter value of #{type} is not supported"
           end
 
-          PWN::AI::Agent::Introspection.reflect_on(
+          PWN::AI::Agent::Reflect.on(
             system_role_content: system_role_content,
             request: request,
             spinner: true,

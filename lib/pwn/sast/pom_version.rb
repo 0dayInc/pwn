@@ -19,8 +19,8 @@ module PWN
         dir_path = opts[:dir_path]
         git_repo_root_uri = opts[:git_repo_root_uri].to_s.scrub
         result_arr = []
-        ai_introspection = PWN::Env[:ai][:introspection]
-        logger_results = "AI Introspection => #{PWN::Env[:ai][:introspecction]} => "
+        ai_module_reflection = PWN::Env[:ai][:module_reflection]
+        logger_results = "AI Module Reflection => #{PWN::Env[:ai][:module_reflection]} => "
 
         PWN::Plugins::FileFu.recurse_in_dir(dir_path: dir_path) do |entry|
           if File.file?(entry) && File.basename(entry) == 'pom.xml' && entry !~ /test/i

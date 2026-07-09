@@ -37,7 +37,7 @@ cron_create(
 ```
 
 At 02:00 the system cron fires `PWN::Cron.run`, which spins up a headless
-`pwn-ai` turn. Because `auto_reflect` and `auto_extrospect` are on, the run
+`pwn-ai` turn. Because `auto_introspect` and `auto_extrospect` are on, the run
 also updates Learning/Metrics/Extrospection — so tomorrow's interactive
 session already knows what changed overnight.
 

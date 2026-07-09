@@ -39,7 +39,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
    *change-approach* instruction.
 5. Results are appended to the message list; go to 3.
 6. When the reply has *no* tool_calls it's the **final answer** →
-   `Learning.auto_reflect` and `Extrospection.auto_extrospect` fire (if
+   `Learning.auto_introspect` and `Extrospection.auto_extrospect` fire (if
    enabled), transcript is flushed to `~/.pwn/sessions/`.
 
 ![Self-improvement loop](diagrams/pwn-ai-feedback-learning-loop.svg)
@@ -71,8 +71,8 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 - SHIFT+ENTER = newline, ENTER = submit.
 - `back` / `exit` returns to the plain REPL.
 - Set `ai.agent.max_iters` in `~/.pwn/config.yml` if long tasks get truncated.
-- Disable `auto_reflect` during noisy fuzz loops
-  (`learning_auto_reflect_toggle(enabled: false)`), re-enable for the summary
+- Disable `auto_introspect` during noisy fuzz loops
+  (`learning_auto_introspect_toggle(enabled: false)`), re-enable for the summary
   turn.
 - Run `mistakes_list` before retrying something that failed last session — the
   fix may already be recorded.

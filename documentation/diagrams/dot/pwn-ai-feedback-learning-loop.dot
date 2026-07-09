@@ -71,7 +71,7 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
 
   /* L1 → L2 */
   Dispatch -> Metrics  [label="record()", color="#34d399"];
-  Result   -> Learning [label="auto_reflect", color="#34d399"];
+  Result   -> Learning [label="auto_introspect", color="#34d399"];
   Dispatch -> Mistakes [label="on failure\nrecord()", color="#fb7185", penwidth=2];
   User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",
                         style=dashed, constraint=false];

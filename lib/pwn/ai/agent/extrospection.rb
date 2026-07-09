@@ -597,7 +597,7 @@ module PWN
         #   session_id: 'optional - id of the just-completed session (for tagging)'
         # )
         #
-        # Called by Learning.auto_reflect when
+        # Called by Learning.auto_introspect when
         # PWN::Env[:ai][:agent][:auto_extrospect] is truthy. Captures a fresh
         # snapshot and, if drift is non-trivial, records it as an observation
         # and a PWN::Memory :env fact so the NEXT session's system prompt
@@ -1083,7 +1083,7 @@ module PWN
               PWN::AI::Agent::Extrospection.correlate                         # introspection x extrospection findings
               PWN::AI::Agent::Extrospection.to_context                        # injected by PromptBuilder
               PWN::AI::Agent::Extrospection.stats
-              PWN::AI::Agent::Extrospection.auto_extrospect(session_id: sid)  # called from Learning.auto_reflect
+              PWN::AI::Agent::Extrospection.auto_extrospect(session_id: sid)  # called from Learning.auto_introspect
               PWN::AI::Agent::Extrospection.snapshot(sections: %i[web])        # opt-in browser probe of web_anchors
               PWN::AI::Agent::Extrospection.watch(url: 'https://target/api/version')
               PWN::AI::Agent::Extrospection.verify(claim: 'CVE-2026-12345 affects OpenSSL 3.2.1')

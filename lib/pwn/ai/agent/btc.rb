@@ -16,7 +16,7 @@ module PWN
 
           system_role_content = 'Provide a useful summary of this latest bitcoin block returned from a bitcoin node via getblockchaininfo.'
 
-          PWN::AI::Agent::Introspection.reflect_on(
+          PWN::AI::Agent::Reflect.on(
             system_role_content: system_role_content,
             request: request,
             suppress_pii_warning: true

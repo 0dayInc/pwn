@@ -241,7 +241,7 @@ module PWN
             if calls.empty?
               text = msg[:content].to_s
               append_session(session_id: session_id, role: 'assistant', content: text)
-              Learning.auto_reflect(session_id: session_id, request: request, final: text) if defined?(Learning)
+              Learning.auto_introspect(session_id: session_id, request: request, final: text) if defined?(Learning)
               return text
             end
 

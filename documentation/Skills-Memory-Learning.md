@@ -22,7 +22,7 @@ its own performance, turns wins into permanent capability, and — critically �
 1. Dispatch runs a tool           → Metrics.record(tool, ok?, ms)
    ↳ tool FAILED?                 → Mistakes.record(tool, error)  (count++, cross-session)
    ↳ same sig ≥3×?                → guard_repeated_failure + inline correction_hint
-2. Final answer produced          → Learning.auto_reflect(session_id)
+2. Final answer produced          → Learning.auto_introspect(session_id)
 3. Reflect finds a durable insight → Memory.remember(lesson_xxxx, …)
 4. A whole workflow succeeded      → Learning.distill_skill(name, session_id, references:)
 5. Found a fix for a mistake       → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X — FIX: Y"
@@ -66,7 +66,7 @@ the `## References` section, deduplicates, and exposes them via
 | `mistakes_reset(confirm: true)` | new host/engagement — prior failure patterns no longer apply |
 | `metrics_reset(confirm: true)` | fixed a broken tool; stale 0 % is misleading |
 | `skill_delete(name)` | auto-distilled skill turned out low-quality |
-| `learning_auto_reflect_toggle(enabled: false)` | during noisy fuzz loops |
+| `learning_auto_introspect_toggle(enabled: false)` | during noisy fuzz loops |
 
 **See also:** [Mistakes](Mistakes.md) — the negative-feedback half ·
 [Extrospection](Extrospection.md) — the outward-facing half ·

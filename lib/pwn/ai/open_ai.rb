@@ -250,17 +250,21 @@ module PWN
         end
         messages.push(user_role)
 
-        # `max_tokens` is deprecated on /v1/chat/completions; the unified
-        # parameter is `max_completion_tokens` and works for every chat model
+        # Wire config key `max_tokens` (kept for cross-engine naming parity with
+        # Anthropic/Gemini) to the OpenAI wire-format field `max_completion_tokens`.
+        # OpenAI deprecated the request-body key `max_tokens` on /v1/chat/completions
+        # in favour of `max_completion_tokens`, which works for every chat model
         # including the reasoning family. Don't try to guess per-model caps —
-        # let the server clamp; default to a generous ceiling that the
-        # operator can override via PWN::Env[:ai][:openai][:max_completion_tokens].
-        max_completion_tokens = (engine[:max_completion_tokens] || 16_384).to_i
+        # let the server clamp; default to a generous ceiling that the operator
+        # can override via PWN::Env[:ai][:openai][:max_tokens].
+        # Accept legacy :max_completion_tokens as a one-release alias so existing
+        # pwn.yaml files keep working without a silent clamp to the default.
+        max_tokens = (engine[:max_tokens] || engine[:max_completion_tokens] || 16_384).to_i
 
         http_body = {
           model: model,
           messages: messages,
-          max_completion_tokens: max_completion_tokens
+          max_completion_tokens: max_tokens
         }
         # Reasoning models reject sampler params (temperature, top_p, etc.)
         http_body[:temperature] = temp unless reasoning
