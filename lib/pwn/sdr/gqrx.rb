@@ -1157,8 +1157,16 @@ module PWN
 
         step_hz = 10**(precision - 1)
 
-        strength_lock = opts[:strength_lock] ||= -70.0
-        squelch = opts[:squelch] ||= (strength_lock - 3.0)
+        # Honour explicit CLI/API -S / -Q. Default strength_lock = -70.0 is only
+        # a starting guess and is re-calibrated against the live S-meter noise
+        # floor below unless the user provided -S. Stored squelch is always a
+        # few dB under strength_lock for later decoder re-tunes; during the
+        # candidate / edge walk itself we open GQRX SQL fully so I/Q + S-meter
+        # are never muted.
+        user_strength_lock = !opts[:strength_lock].nil?
+        user_squelch = !opts[:squelch].nil?
+        strength_lock = (opts[:strength_lock] || -70.0).to_f
+        squelch = (opts[:squelch] || (strength_lock - 3.0)).to_f
         raise 'ERROR: squelch must always be less than strength_lock.' if squelch >= strength_lock
 
         decoder = opts[:decoder]
@@ -1214,10 +1222,34 @@ module PWN
               precision: precision,
               step_hz_direction: step_hz_direction
             )
-            if squelch < noise_floor
-              squelch = noise_floor.round + 7
-              strength_lock = squelch + 3.0
-              puts "Adjusted strength_lock to #{strength_lock} dBFS and squelch to #{squelch} dBFS based on measured noise floor.  This ensures proper signal detection..."
+            # Auto-calibrate strength_lock from live S-meter noise floor unless
+            # the user passed an explicit -S. The historical rule
+            #   squelch = nf.round + 7; strength_lock = squelch + 3
+            # RAISED the gate into the signal cloud on dense bands (fm_radio
+            # stations sit only ~10–20 dB above the quiet floor) which made
+            # edge_detection refuse to drop and paint multi-MHz occupied-BW
+            # blobs. Mirror #fast_scan_range: lock = nf + 8, squelch = lock - 3.
+            if user_strength_lock
+              if !user_squelch && squelch < noise_floor
+                # Explicit -S but no -Q: keep lock, just park squelch under the
+                # quieter of (lock-3, nf+1) so decoder SQL is sane later.
+                squelch = [strength_lock - 3.0, noise_floor.to_f + 1.0].min.round(1)
+                puts "[SCAN] derived squelch=#{squelch} dBFS under strength_lock=#{strength_lock} (nf≈#{noise_floor})"
+              end
+            else
+              # nf + 12 dB: high enough that quiet interstitial spectrum
+              # (side-lobes, distant carriers) stays under the gate, low
+              # enough that real FM main lobes (~15–30 dB above nf) still
+              # trip. The historical nf.round+7 formula sat *inside* the
+              # carrier cloud and refused to drop on edges.
+              auto_lock = (noise_floor.to_f + 12.0).round(1)
+              puts "[SCAN] auto strength_lock: live S-meter nf≈#{noise_floor} dBFS → lock=#{auto_lock} dBFS (was #{strength_lock})"
+              strength_lock = auto_lock
+              squelch = (strength_lock - 3.0).round(1) unless user_squelch
+            end
+            if squelch >= strength_lock
+              squelch = (strength_lock - 3.0).round(1)
+              puts "[SCAN] clamped squelch to #{squelch} dBFS (< strength_lock #{strength_lock})"
             end
 
             # Begin scanning range
@@ -1241,12 +1273,15 @@ module PWN
             # gets
             puts "\n\n\n"
 
-            # Set squelch once for each range
+            # Floor GQRX SQL during the candidate / edge / peak walk so the
+            # S-meter is never muted. The calibrated :squelch is stored on
+            # each detection for later decoder re-tunes (analyze_scan).
             change_squelch_resp = cmd(
               gqrx_sock: gqrx_sock,
-              cmd: "L SQL #{squelch}",
+              cmd: 'L SQL -150.0',
               resp_ok: 'RPRT 0'
             )
+            puts "[SCAN] GQRX SQL floored to -150.0 for S-meter walks (stored squelch=#{squelch} dBFS, strength_lock=#{strength_lock} dBFS)"
 
             # We always disable RDS decoding during the scan
             # to prevent unnecessary processing overhead.
@@ -1335,12 +1370,29 @@ module PWN
               if strength_db >= strength_lock
                 puts '-' * 86
                 # Find left and right edges of the signal
+                # Bound the edge walk to ~± plan_bw (or a few raster steps) so
+                # adjacent co-channel carriers (fm_radio 200 kHz spacing) cannot
+                # merge into a multi-MHz "occupied" lobe when strength_lock is
+                # a hair too low. Hard bounds reuse the optional min_hz/max_hz
+                # already supported by #edge_detection for #refine_detections.
+                plan_bw_for_edge = PWN::SDR.hz_to_i(freq: bandwidth)
+                plan_bw_for_edge = step_hz if plan_bw_for_edge.zero?
+                # Keep the next co-channel neighbour outside the window:
+                # half ≈ 0.6·plan (capped at plan itself), floored by the raster.
+                half_edge = [
+                  (plan_bw_for_edge * 0.6).to_i,
+                  step_hz
+                ].max
+                half_edge = [half_edge, plan_bw_for_edge].min
+                half_edge = step_hz if half_edge < 1
                 candidate_signals = edge_detection(
                   gqrx_sock: gqrx_sock,
                   hz: hz,
                   step_hz: step_hz,
                   precision: precision,
-                  strength_lock: strength_lock
+                  strength_lock: strength_lock,
+                  min_hz: hz - half_edge,
+                  max_hz: hz + half_edge
                 )
               elsif candidate_signals.length.positive?
                 best_peak = find_best_peak(
@@ -1351,7 +1403,11 @@ module PWN
                   strength_lock: strength_lock
                 )
 
-                if best_peak[:hz] && best_peak[:strength_db] > strength_lock
+                # Accept peaks a few dB under strength_lock: the candidate
+                # gate already verified something in this window was hot,
+                # and find_best_peak averages multi-pass samples so a peaky
+                # FM main lobe can report slightly under the trip level.
+                if best_peak[:hz] && best_peak[:strength_db] > (strength_lock - 3.0)
                   puts "\n**** Detected Signal ****"
                   best_freq = PWN::SDR.hz_to_s(freq: best_peak[:hz])
                   best_strength_db = best_peak[:strength_db]
@@ -1381,9 +1437,17 @@ module PWN
                   occupied_bw_hz = ((edge_hi - edge_lo).abs + step_hz).to_i
                   plan_bw_for_sig = PWN::SDR.hz_to_i(freq: bandwidth)
                   plan_bw_for_sig = step_hz if plan_bw_for_sig.zero?
-                  # Prefer measured occupied BW when the edge walk resolved
-                  # a plausible span; otherwise fall back to band-plan BW.
-                  sig_bw_hz = occupied_bw_hz.positive? ? occupied_bw_hz : plan_bw_for_sig
+                  # Prefer measured occupied BW when the edge walk resolved a
+                  # plausible span (≤ 2× plan BW). Anything wider is almost
+                  # always a multi-station merge from an under-shot lock —
+                  # fall back to the band-plan channel width instead of
+                  # advertising multi-MHz "signals".
+                  max_plausible_bw = [plan_bw_for_sig * 2, step_hz * 4, plan_bw_for_sig].max
+                  sig_bw_hz = if occupied_bw_hz.positive? && occupied_bw_hz <= max_plausible_bw
+                                occupied_bw_hz
+                              else
+                                plan_bw_for_sig
+                              end
                   nf_db = noise_floor.to_f
                   snr = (best_strength_db.to_f - nf_db).round(2)
                   prev_freq_obj[:hz] = best_hz
@@ -1395,12 +1459,19 @@ module PWN
                   prev_freq_obj[:chunk_center] = PWN::SDR.hz_to_s(freq: ((edge_lo + edge_hi) / 2.0).to_i)
                   prev_freq_obj[:method] = :iterative_edge_peak
 
-                  ai_analysis = PWN::AI::Agent::GQRX.analyze(
-                    request: prev_freq_obj.to_json,
-                    location: location
-                  )
-
-                  prev_freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+                  # Soft-fail AI analysis so a missing PWN::Env[:ai] (or
+                  # engine outage) never aborts an otherwise successful
+                  # detection. module_reflection=false or bare `require
+                  # 'pwn'` without Driver::Parser both leave Env[:ai] nil.
+                  begin
+                    ai_analysis = PWN::AI::Agent::GQRX.analyze(
+                      request: prev_freq_obj.to_json,
+                      location: location
+                    )
+                    prev_freq_obj[:ai_analysis] = ai_analysis unless ai_analysis.nil?
+                  rescue StandardError => e
+                    puts "[SCAN] AI analysis skipped: #{e.class}: #{e.message}"
+                  end
                   puts JSON.pretty_generate(prev_freq_obj)
                   puts '-' * 86
                   puts "\n\n\n"
