@@ -27,7 +27,7 @@ hardware).
 | Module | Role |
 |---|---|
 | `Loop` | plan → dispatch tool_calls → observe → repeat until final answer |
-| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** · 55 tools |
+| `Registry` | JSON-Schema function definitions grouped into 10 **toolsets** · 61 tools |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
 | `Metrics` · `Learning` | **introspection** — how well am I doing? |
@@ -57,7 +57,7 @@ See [Persistence](Persistence.md) for the byte-level layout of each file.
 The reason L2 exists is to close this loop on every turn — successes
 become skills/lessons, **failures become fingerprinted mistakes with fixes**,
 **world-state is sensed on demand** (`extro_verify` / `extro_watch` /
-`extro_rf_tune` / `extro_intel`) and correlated against those failures, and
+`extro_rf_tune` / `extro_osint` / `extro_serial` / `extro_telecomm` / `extro_packet` / `extro_vision` / `extro_voice` / `extro_intel`) and correlated against those failures, and
 **all six prompt blocks** (MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES ·
 TOOL EFFECTIVENESS · EXTROSPECTION) are re-injected into the very next system
 prompt:

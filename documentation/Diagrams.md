@@ -59,7 +59,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/ai-integration-tool-calling.dot) · doc: [AI Integration](AI-Integration.md)
 ![ai-integration-tool-calling](diagrams/ai-integration-tool-calling.svg)
 
-### Agent Tool Registry (10 toolsets · 55 tools)
+### Agent Tool Registry (10 toolsets · 61 tools)
 [source](diagrams/dot/agent-tool-registry.dot) · doc: [Agent Tool Registry](Agent-Tool-Registry.md)
 ![agent-tool-registry](diagrams/agent-tool-registry.svg)
 

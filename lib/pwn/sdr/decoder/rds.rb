@@ -46,7 +46,7 @@ module PWN
           leave_on = opts[:leave_enabled] ? true : false
           samples  = []
 
-          unless enable_rds!(sock)
+          unless enable_rds!(sock: sock)
             return {
               pi: nil,
               ps_name: nil,
@@ -60,7 +60,7 @@ module PWN
 
           deadline = Time.now + settle
           while Time.now < deadline
-            snap = poll_once(sock)
+            snap = poll_once(sock: sock)
             samples << snap unless snap[:pi].empty? && snap[:ps].empty? && snap[:rt].empty?
 
             # Early exit once we have a non-zero PI and a non-trivial RT —
@@ -69,7 +69,7 @@ module PWN
             rt = snap[:rt]
             if pi =~ /\A[0-9A-F]{4}\z/ && pi != '0000' && rt.length >= 8
               sleep interval
-              snap2 = poll_once(sock)
+              snap2 = poll_once(sock: sock)
               samples << snap2
               break if snap2[:rt].length >= rt.length
             end
@@ -77,13 +77,13 @@ module PWN
             sleep interval
           end
 
-          disable_rds!(sock) unless leave_on
+          disable_rds!(sock: sock) unless leave_on
 
           aggregate(samples: samples, settle_secs: settle)
         rescue ArgumentError
           raise
         rescue StandardError => e
-          disable_rds!(sock) if sock && !leave_on
+          disable_rds!(sock: sock) if sock && !leave_on
           {
             pi: nil,
             ps_name: nil,
@@ -119,7 +119,7 @@ module PWN
           puts "\n*** FM Radio RDS Decoder ***"
           puts 'Press [ENTER] to continue to next frequency...'
 
-          unless enable_rds!(gqrx_sock)
+          unless enable_rds!(sock: gqrx_sock)
             puts 'ERROR: RDS not supported by this radio backend'
             return nil
           end
@@ -142,7 +142,7 @@ module PWN
           last_resp = {}
 
           loop do
-            snap = poll_once(gqrx_sock)
+            snap = poll_once(sock: gqrx_sock)
             rds_resp = {
               rds_pi: snap[:pi],
               rds_ps_name: snap[:ps],
@@ -178,7 +178,7 @@ module PWN
           spinner.error('Decoding failed') if defined?(spinner) && spinner
           raise e
         ensure
-          disable_rds!(gqrx_sock) if defined?(gqrx_sock) && gqrx_sock
+          disable_rds!(sock: gqrx_sock) if defined?(gqrx_sock) && gqrx_sock
           spinner.stop if defined?(spinner) && spinner
         end
 
@@ -213,7 +213,7 @@ module PWN
 
         # ---- internals -------------------------------------------------------
 
-        private_class_method def self.resolve_sock(opts)
+        private_class_method def self.resolve_sock(opts = {})
           return opts[:gqrx_sock] if opts[:gqrx_sock]
 
           fo = opts[:freq_obj]
@@ -222,7 +222,8 @@ module PWN
           nil
         end
 
-        private_class_method def self.enable_rds!(sock)
+        private_class_method def self.enable_rds!(opts = {})
+          sock = opts[:sock]
           begin
             PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'U RDS 0', resp_ok: 'RPRT 0')
           rescue StandardError
@@ -236,13 +237,15 @@ module PWN
           end
         end
 
-        private_class_method def self.disable_rds!(sock)
+        private_class_method def self.disable_rds!(opts = {})
+          sock = opts[:sock]
           PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'U RDS 0')
         rescue StandardError
           nil
         end
 
-        private_class_method def self.poll_once(sock)
+        private_class_method def self.poll_once(opts = {})
+          sock = opts[:sock]
           pi = begin
             PWN::SDR::GQRX.cmd(gqrx_sock: sock, cmd: 'p RDS_PI').to_s.strip.chomp.delete('.').upcase
           rescue StandardError

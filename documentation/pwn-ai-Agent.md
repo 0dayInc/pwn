@@ -38,7 +38,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
    KNOWN FIX: …`) so the very next iteration self-corrects. If the persistent
    count ≥ 3, `guard_repeated_failure` interrupts with an explicit
    *change-approach* instruction. On-demand sense tools
-   (`extro_verify` / `extro_watch` / `extro_rf_tune` / `extro_intel`) fire
+   (`extro_verify` / `extro_watch` / `extro_rf_tune` / `extro_osint` / `extro_serial` / `extro_telecomm` / `extro_packet` / `extro_vision` / `extro_voice` / `extro_intel`) fire
    here when the question needs the outside world; a `:refuted` verify is
    itself recorded as a Mistakes `assumption` fingerprint.
 5. Results are appended to the message list; go to 3.
@@ -52,7 +52,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## What the agent can call
 
-10 toolsets · 55 tools — full table at
+10 toolsets · 61 tools — full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:

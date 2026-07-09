@@ -100,11 +100,11 @@ PWN::Driver::Parser.new do |options|
     opts[:strength_offset_db] = o
   end
 
-  options.on('--min-snr-db=FLOAT', '<Optional --fft-scan - Minimum SNR (dB above per-chunk noise floor) to report a signal (default 12.0)>') do |m|
+  options.on('--min-snr-db=FLOAT', '<Optional --fft-scan - Minimum SNR (dB above per-chunk noise floor) to report a signal (default 18.0)>') do |m|
     opts[:min_snr_db] = m
   end
 
-  options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.30)>') do |r|
+  options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.0 = off)>') do |r|
     opts[:min_bw_ratio] = r
   end
 
@@ -126,13 +126,55 @@ begin
   end
 
   profile = opts[:profile]
+
+  # Common user-facing aliases → canonical band_plans keys.
+  # (historical/typo names should not crash with Hash#merge! TypeError)
+  profile_aliases = {
+    'flex_pager' => 'pager_flex',
+    'flex' => 'pager_flex',
+    'pocsag_pager' => 'pager_pocsag',
+    'pocsag' => 'pager_pocsag',
+    'pager' => 'pager_all',
+    'pagers' => 'pager_all',
+    'adsb' => 'ads_b1090',
+    'adsb1090' => 'ads_b1090',
+    'adsb978' => 'ads_b978',
+    'fm' => 'fm_radio',
+    'noaa' => 'noaa_weather',
+    'wx' => 'noaa_weather',
+    'weather' => 'noaa_weather'
+  }.freeze
+
+  resolve_band_plan = lambda do |name|
+    return nil if name.nil?
+
+    key = name.to_s.strip.downcase.tr('-', '_').to_sym
+    key = profile_aliases[key.to_s].to_sym if profile_aliases.key?(key.to_s)
+    return key if band_plans.key?(key)
+
+    # fuzzy suggestions for helpful errors
+    cand = band_plans.keys.map(&:to_s)
+    suggestions = cand.select do |k|
+      k.include?(key.to_s) || key.to_s.include?(k) ||
+        k.split('_').intersect?(key.to_s.split('_'))
+    end
+    suggestions = cand.grep(/#{Regexp.escape(key.to_s.split('_').first)}/i) if suggestions.empty? && !key.to_s.empty?
+    msg = "ERROR: Unknown band plan profile: #{name.inspect}."
+    msg += " Did you mean: #{suggestions.sort.first(8).join(', ')}?" unless suggestions.empty?
+    msg += ' Use --list-band-plans to display supported profiles.'
+    raise msg
+  end
+
+  profile_key = resolve_band_plan.call(profile)
+  warn "[*] alias #{profile.inspect} → band plan #{profile_key}" if profile_key && profile.to_s.strip.downcase.tr('-', '_') != profile_key.to_s
+
   # Merge opts with profile values if profile provided
-  opts.merge!(band_plans[profile.to_sym]) unless profile.nil?
+  opts.merge!(band_plans[profile_key]) unless profile_key.nil?
 
   scan_ranges = opts[:scan_ranges]
-  raise 'ERROR: --assume-band-plan || --scan-ranges is required.' if scan_ranges.nil? && profile.nil?
+  raise 'ERROR: --assume-band-plan || --scan-ranges is required.' if scan_ranges.nil? && profile_key.nil?
 
-  ranges = band_plans[profile.to_sym][:ranges] unless profile.nil?
+  ranges = band_plans[profile_key][:ranges] unless profile_key.nil?
   if ranges.nil?
     # Convert comma-delimited string to array of hashes
     ranges = scan_ranges.split(',').map do |r|
@@ -183,7 +225,7 @@ begin
   location = opts[:location]
 
   # Merge opts one last time to ensure parameters passed to the driver are included
-  opts.merge!(band_plans[profile.to_sym]) unless profile.nil?
+  opts.merge!(band_plans[profile_key]) unless profile_key.nil?
 
   fft_scan = opts[:fft_scan]
   sample_rate = opts[:sample_rate] || 1_000_000

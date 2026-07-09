@@ -36,7 +36,7 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 55 LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 61 LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection — the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** — fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · **watch** · **verify** · **rf_tune** · correlate · **rf** · **web** |

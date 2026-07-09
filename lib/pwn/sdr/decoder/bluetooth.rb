@@ -54,7 +54,7 @@ module PWN
                   sample_rate: @rate.to_i
                 }.merge(@extra.except(:threshold))
                 # protocol-specific enrichment
-                msg.merge!(self.class.enrich(msg)) if self.class.respond_to?(:enrich)
+                msg.merge!(self.class.enrich(msg: msg)) if self.class.respond_to?(:enrich)
                 msg[:summary] = format(
                   '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
                   p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
@@ -66,7 +66,8 @@ module PWN
           end
 
           # Protocol-specific enrichment of an IQ-burst message (channel TBD).
-          def self.enrich(msg)
+          public_class_method def self.enrich(opts = {})
+            msg = opts[:msg] || {}
             msg.merge(channel: nil)
           end
         end

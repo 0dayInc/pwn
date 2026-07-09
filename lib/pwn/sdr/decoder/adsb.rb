@@ -164,10 +164,10 @@ module PWN
             out[:type_code] = tc
             if tc.between?(1, 4)
               # aircraft identification — 8× 6-bit AIS chars
-              cs = bits[40, 48].each_slice(6).map { |ch| ais_char(PWN::SDR::Decoder::DSP.bits_to_int(bits: ch)) }.join.strip
+              cs = bits[40, 48].each_slice(6).map { |ch| ais_char(code: PWN::SDR::Decoder::DSP.bits_to_int(bits: ch)) }.join.strip
               out[:callsign] = cs
             elsif tc.between?(9, 18) || tc.between?(20, 22)
-              out[:altitude_ft] = modes_altitude(bits[40, 12])
+              out[:altitude_ft] = modes_altitude(bits12: bits[40, 12])
             end
           end
           bits_s = []
@@ -180,12 +180,14 @@ module PWN
           out
         end
 
-        public_class_method def self.ais_char(code)
+        public_class_method def self.ais_char(opts = {})
+          code = opts[:code]
           table = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ##### ###############0123456789######'
           table[code] || ' '
         end
 
-        public_class_method def self.modes_altitude(bits12)
+        public_class_method def self.modes_altitude(opts = {})
+          bits12 = opts[:bits12]
           return nil unless bits12.is_a?(Array) && bits12.length == 12
 
           # Gillham / 25 ft encoding — simplified (bit 7 is Q)

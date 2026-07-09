@@ -22,7 +22,7 @@ its own performance, turns wins into permanent capability, and — critically �
 1. Dispatch runs a tool              → Metrics.record(tool, ok?, ms)
    ↳ tool FAILED?                    → Mistakes.record(tool, error)  (count++, cross-session)
    ↳ same sig ≥3×?                   → guard_repeated_failure + inline correction_hint
-2. Agent senses the world (opt)      → extro_verify / watch / rf_tune / intel / observe
+2. Agent senses the world (opt)      → extro_verify / watch / rf_tune / osint / serial / telecomm / packet / vision / voice / intel / observe
    ↳ extro_verify → :refuted         → Mistakes.record(tool:'assumption', …)  # proactive
    ↳ extro_verify → :confirmed       → observe(:intel, ttl:30d)
 3. Final answer produced             → Learning.auto_introspect(session_id)

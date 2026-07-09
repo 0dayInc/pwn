@@ -10,7 +10,7 @@
 <title>PWN_Agent_Tool_Registry</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-782.2 608.45,-782.2 608.45,43.2 -43.2,43.2"/>
 <text xml:space="preserve" text-anchor="start" x="10.38" y="-717" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Registry — Toolsets exposed to the LLM</text>
-<text xml:space="preserve" text-anchor="start" x="155.5" y="-705.55" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">10 toolsets · 55 callable tools · lib/pwn/ai/agent/tools/*</text>
+<text xml:space="preserve" text-anchor="start" x="155.5" y="-705.55" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">10 toolsets · 61 callable tools · lib/pwn/ai/agent/tools/*</text>
 <g id="clust1" class="cluster">
 <title>cluster_ts</title>
 <path fill="#022c22" stroke="#047857" stroke-width="2" d="M201.25,-14C201.25,-14 267.75,-14 267.75,-14 273.75,-14 279.75,-20 279.75,-26 279.75,-26 279.75,-634 279.75,-634 279.75,-640 273.75,-646 267.75,-646 267.75,-646 201.25,-646 201.25,-646 195.25,-646 189.25,-640 189.25,-634 189.25,-634 189.25,-26 189.25,-26 189.25,-20 195.25,-14 201.25,-14"/>
