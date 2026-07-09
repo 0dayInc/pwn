@@ -36,10 +36,10 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 54 LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 61 LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection — the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** — fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
-| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · **watch** · **verify** · correlate · **rf** · **web** |
+| [Extrospection](Extrospection.md) | World-awareness — snapshot · drift · intel · **watch** · **verify** · **rf_tune** · correlate · **rf** · **web** |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
 | [Cron](Cron.md) | Scheduled autonomous jobs |
@@ -58,11 +58,11 @@
 | [SAST (48 rules)](SAST.md) | Static analysis + test-case engine |
 | [WWW (21 drivers)](WWW.md) | Browser automations for real sites |
 | [AWS (90 services)](AWS.md) | Cloud-security enumeration |
-| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20 protocols)** |
+| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20)** · FFI-accelerated DSP |
 | [Blockchain](Blockchain.md) | BTC · ETH helpers |
 | [Bounty](Bounty.md) | Lifecycle / auth-replay tooling |
 | [Reports](Reporting.md) | HTML/JSON output + DefectDojo/Jira |
-| [FFI](FFI.md) | Native calls |
+| [FFI](FFI.md) | Native DSP/RF backends (Volk · Liquid · FFTW · HackRF · RTL-SDR · SoapySDR) |
 | [Banner](Banner.md) | 15 startup banners |
 
 ## 🛠️ Meta

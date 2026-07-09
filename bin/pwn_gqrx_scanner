@@ -76,8 +76,8 @@ PWN::Driver::Parser.new do |options|
     opts[:fft_scan] = f
   end
 
-  options.on('--sample-rate=RATE', '<Optional --fft-scan - Visible span/sample_rate in Hz (default 1_000_000). NOTE: no short flag; -S is --strength-lock>') do |s|
-    opts[:sample_rate] = s
+  options.on('--input-rate=RATE', '<Optional --fft-scan - GQRX Input rate / visible span in Hz (default 1_000_000). NOTE: no short flag; -S is --strength-lock>') do |s|
+    opts[:input_rate] = s
   end
 
   options.on('-NINT', '--nfft=INT', '<Optional --fft-scan - FFT bin size (default 2048)>') do |n|
@@ -100,12 +100,20 @@ PWN::Driver::Parser.new do |options|
     opts[:strength_offset_db] = o
   end
 
-  options.on('--min-snr-db=FLOAT', '<Optional --fft-scan - Minimum SNR (dB above per-chunk noise floor) to report a signal (default 12.0)>') do |m|
+  options.on('--min-snr-db=FLOAT', '<Optional --fft-scan - Minimum SNR (dB above per-chunk noise floor) to report a signal (default 18.0)>') do |m|
     opts[:min_snr_db] = m
   end
 
-  options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.30)>') do |r|
+  options.on('--min-bw-ratio=FLOAT', '<Optional --fft-scan - Reject FFT peaks narrower than RATIO * band-plan bandwidth as spurs (default 0.0 = off)>') do |r|
     opts[:min_bw_ratio] = r
+  end
+
+  options.on('--no-refine', '<Optional --fft-scan - Skip the post-FFT iterative edge/peak refine pass that locks the exact channel frequency (default: refine ON)>') do
+    opts[:refine] = false
+  end
+
+  options.on('--refine-mode=MODE', '<Optional --fft-scan - Refine strategy: lock (default, fast S-meter raster hunt), fft (legacy local high-res FFT zoom), hybrid (both)>') do |m|
+    opts[:refine_mode] = m
   end
 end.parse!
 
@@ -122,13 +130,55 @@ begin
   end
 
   profile = opts[:profile]
+
+  # Common user-facing aliases → canonical band_plans keys.
+  # (historical/typo names should not crash with Hash#merge! TypeError)
+  profile_aliases = {
+    'flex_pager' => 'pager_flex',
+    'flex' => 'pager_flex',
+    'pocsag_pager' => 'pager_pocsag',
+    'pocsag' => 'pager_pocsag',
+    'pager' => 'pager_all',
+    'pagers' => 'pager_all',
+    'adsb' => 'ads_b1090',
+    'adsb1090' => 'ads_b1090',
+    'adsb978' => 'ads_b978',
+    'fm' => 'fm_radio',
+    'noaa' => 'noaa_weather',
+    'wx' => 'noaa_weather',
+    'weather' => 'noaa_weather'
+  }.freeze
+
+  resolve_band_plan = lambda do |name|
+    return nil if name.nil?
+
+    key = name.to_s.strip.downcase.tr('-', '_').to_sym
+    key = profile_aliases[key.to_s].to_sym if profile_aliases.key?(key.to_s)
+    return key if band_plans.key?(key)
+
+    # fuzzy suggestions for helpful errors
+    cand = band_plans.keys.map(&:to_s)
+    suggestions = cand.select do |k|
+      k.include?(key.to_s) || key.to_s.include?(k) ||
+        k.split('_').intersect?(key.to_s.split('_'))
+    end
+    suggestions = cand.grep(/#{Regexp.escape(key.to_s.split('_').first)}/i) if suggestions.empty? && !key.to_s.empty?
+    msg = "ERROR: Unknown band plan profile: #{name.inspect}."
+    msg += " Did you mean: #{suggestions.sort.first(8).join(', ')}?" unless suggestions.empty?
+    msg += ' Use --list-band-plans to display supported profiles.'
+    raise msg
+  end
+
+  profile_key = resolve_band_plan.call(profile)
+  warn "[*] alias #{profile.inspect} → band plan #{profile_key}" if profile_key && profile.to_s.strip.downcase.tr('-', '_') != profile_key.to_s
+
   # Merge opts with profile values if profile provided
-  opts.merge!(band_plans[profile.to_sym]) unless profile.nil?
+  opts.merge!(band_plans[profile_key]) unless profile_key.nil?
 
   scan_ranges = opts[:scan_ranges]
-  raise 'ERROR: --assume-band-plan || --scan-ranges is required.' if scan_ranges.nil? && profile.nil?
+  raise 'ERROR: --assume-band-plan || --scan-ranges is required.' if scan_ranges.nil? && profile_key.nil?
 
-  ranges = band_plans[profile.to_sym][:ranges] unless profile.nil?
+  ranges = band_plans[profile_key][:ranges] unless profile_key.nil?
   if ranges.nil?
     # Convert comma-delimited string to array of hashes
     ranges = scan_ranges.split(',').map do |r|
@@ -179,11 +229,19 @@ begin
   location = opts[:location]
 
   # Merge opts one last time to ensure parameters passed to the driver are included
-  opts.merge!(band_plans[profile.to_sym]) unless profile.nil?
+  opts.merge!(band_plans[profile_key]) unless profile_key.nil?
 
   fft_scan = opts[:fft_scan]
-  sample_rate = opts[:sample_rate] || 1_000_000
+  # Prefer (1) explicit --input-rate, (2) band-plan :input_rate from
+  # FrequencyAllocation (merged above), (3) historic 1 Msps default.
+  # GQRX device Input rate is separate from this *assumption* — use
+  # PWN::SDR::GQRX.apply_band_plan_input_rate to push the plan rate into
+  # ~/.config/gqrx/*.conf for the connected SDR.
+  # Local var + fast_scan_range kwarg remain sample_rate for library parity.
+  sample_rate = opts[:input_rate] || 1_000_000
   sample_rate = sample_rate.to_i
+  puts "[*] input_rate (FFT/scan chunk / IQ span assumption): #{sample_rate} Hz" \
+       "#{" (band plan #{profile_key})" if profile_key}"
   nfft = opts[:nfft] || 2048
   nfft = nfft.to_i
   avgv = opts[:avg] || 8
@@ -200,6 +258,11 @@ begin
 
   if fft_scan
     puts '[*] --fft-scan requested: using fast FFT panoramic mode (#fast_scan_range)'
+    refine_flag = opts.fetch(:refine, true)
+    puts "[*] band-plan / session params: mode=#{demodulator_mode.inspect} bw=#{bandwidth.inspect} " \
+         "squelch=#{squelch.inspect} precision=#{precision} decoder=#{decoder.inspect} " \
+         "rf_gain=#{rf_gain.inspect} if_gain=#{intermediate_gain.inspect} bb_gain=#{baseband_gain.inspect} " \
+         "refine=#{refine_flag}"
     fast_resp = PWN::SDR::GQRX.fast_scan_range(
       gqrx_sock: gqrx_sock,
       ranges: ranges,
@@ -213,9 +276,15 @@ begin
       min_snr_db: min_snr_db,
       precision: precision,
       min_bw_ratio: min_bw_ratio,
+      refine: opts.fetch(:refine, true),
+      refine_mode: opts[:refine_mode] || :lock,
       demodulator_mode: demodulator_mode,
       bandwidth: bandwidth,
       squelch: squelch,
+      audio_gain_db: audio_gain_db,
+      rf_gain: rf_gain,
+      intermediate_gain: intermediate_gain,
+      baseband_gain: baseband_gain,
       decoder: decoder,
       location: location,
       scan_log: scan_log

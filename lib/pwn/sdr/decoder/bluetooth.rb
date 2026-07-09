@@ -3,12 +3,75 @@
 module PWN
   module SDR
     module Decoder
-      # Pure-Ruby Bluetooth Classic (BR/EDR) & BLE activity detector.
-      #
-      # 1 Mbit/s GFSK with 79 (BR/EDR) or 40 (BLE) FHSS channels — native
-      # mode reports per-channel hop bursts and derives channel index from
-      # freq_obj. `parse_line` retained for offline text analysis.
+      # True-air + detector-fallback decoder for Bluetooth.
+      # Prefers PWN::FFI I/Q (RTL-SDR / ADALM-Pluto / HackRF / capture file)
+      # via Base.run_iq; degrades to Base.run_detector with no hardware.
       module Bluetooth
+        # Streaming I/Q energy/burst demod for Base.run_iq.
+        class DemodIQ
+          def initialize(rate:, protocol:, modulation:, extra: {})
+            @rate = rate.to_f
+            @protocol = protocol
+            @modulation = modulation
+            @extra = extra
+            @floor = nil
+            @in_burst = false
+            @burst_t0 = nil
+            @peak = -200.0
+            @burst_n = 0
+            @threshold = (extra[:threshold] || 8.0).to_f
+          end
+
+          def feed_iq(samples, rate: nil, &)
+            @rate = rate.to_f if rate
+            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
+            hop = [(@rate / 1000.0).round, 1].max
+            i = 0
+            while i < m2.length
+              win = m2[i, hop]
+              break if win.nil? || win.empty?
+
+              ms = win.sum / win.length
+              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
+              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
+              delta = lvl - @floor
+              if delta >= @threshold
+                unless @in_burst
+                  @in_burst = true
+                  @burst_t0 = Time.now
+                  @peak = lvl
+                end
+                @peak = lvl if lvl > @peak
+              elsif @in_burst
+                @in_burst = false
+                @burst_n += 1
+                dur_ms = ((Time.now - @burst_t0) * 1000).round
+                msg = {
+                  protocol: @protocol, event: 'burst', source: 'iq',
+                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
+                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
+                  duration_ms: dur_ms, modulation: @modulation,
+                  sample_rate: @rate.to_i
+                }.merge(@extra.except(:threshold))
+                # protocol-specific enrichment
+                msg.merge!(self.class.enrich(msg: msg)) if self.class.respond_to?(:enrich)
+                msg[:summary] = format(
+                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
+                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
+                )
+                yield msg if block_given?
+              end
+              i += hop
+            end
+          end
+
+          # Protocol-specific enrichment of an IQ-burst message (channel TBD).
+          public_class_method def self.enrich(opts = {})
+            msg = opts[:msg] || {}
+            msg.merge(channel: nil)
+          end
+        end
+
         # Supported Method Parameters::
         # PWN::SDR::Decoder::Bluetooth.decode(
         #   freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
@@ -19,19 +82,31 @@ module PWN
           hz  = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
           ble = freq_obj[:ble] || freq_obj[:mode].to_s.casecmp('ble').zero?
           ch  = ble ? ((hz - 2_402_000_000) / 2_000_000).clamp(0, 39) : ((hz - 2_402_000_000) / 1_000_000).clamp(0, 78)
-          PWN::SDR::Decoder::Base.run_detector(
+
+          rate  = (opts[:sample_rate] || freq_obj[:iq_rate] || 2_000_000).to_i
+          proto = ble ? 'BLE' : 'BT-BR/EDR'
+          demod = DemodIQ.new(
+            rate: rate, protocol: proto, modulation: 'GFSK',
+            extra: { threshold: 9.0 }
+          )
+          PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: ble ? 'BLE' : 'BT-BR/EDR',
-            note: '1 Mbit/s GFSK FHSS — native mode reports single-channel hop bursts only.',
+            protocol: proto,
+            sample_rate: rate,
+            source: opts[:source],
+            file: opts[:file],
+            demod: demod,
             threshold: 9.0,
+            note: '1 Mbit/s GFSK FHSS — true-air I/Q path reports hop-burst density per tuned channel.',
             describe: proc { |b|
-              { modulation: 'GFSK', channel: ch, hop_slots: (b[:duration_ms] / 0.625).round, classification: ble && [37, 38, 39].include?(ch) ? 'BLE-advertising' : 'data-hop' }
+              { modulation: 'GFSK', channel: begin
+                b[:channel]
+              rescue StandardError
+                nil
+              end, hop_slots: (b[:duration_ms] / 0.625).round }
             }
           )
         end
-
-        # Supported Method Parameters::
-        # PWN::SDR::Decoder::Bluetooth.parse_line(line: 'systime=... LAP=9e8b33 ...')
 
         public_class_method def self.parse_line(opts = {})
           line = opts[:line].to_s
@@ -52,15 +127,13 @@ module PWN
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
 
-        # Display Usage for this Module
-
         public_class_method def self.help
-          puts "USAGE (ruby-native detector, no external binaries):
+          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
+              file:     'optional - .cu8/.cs16 capture'
             )
-
-            #{self}.parse_line(line: 'systime=... ch=37 LAP=9e8b33 ...')
 
             #{self}.authors
           "

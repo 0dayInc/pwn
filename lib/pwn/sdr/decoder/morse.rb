@@ -97,11 +97,28 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          PWN::SDR::Decoder::Base.run_native(
-            freq_obj: freq_obj,
-            protocol: 'MORSE-CW',
-            demod: Demod.new
-          )
+          # Prefer true-air I/Q (FM-demod → existing audio demod) when the
+          # operator asks for a source/file or sets freq_obj[:iq_source].
+          # Otherwise keep the GQRX 48 kHz UDP audio path (run_native).
+          want_iq = opts[:source] || opts[:file] || freq_obj[:iq_source] || freq_obj[:iq_file]
+          if want_iq
+            PWN::SDR::Decoder::Base.run_iq(
+              freq_obj: freq_obj,
+              protocol: 'MORSE-CW',
+              demod: Demod.new,
+              sample_rate: (opts[:sample_rate] || freq_obj[:iq_rate] || 48_000).to_i,
+              source: opts[:source],
+              file: opts[:file],
+              fm_demod: true,
+              note: 'MORSE-CW true-air: FM-demod I/Q then native bit recovery; falls back to detector without SDR hardware.'
+            )
+          else
+            PWN::SDR::Decoder::Base.run_native(
+              freq_obj: freq_obj,
+              protocol: 'MORSE-CW',
+              demod: Demod.new
+            )
+          end
         end
 
         # Supported Method Parameters::
@@ -122,7 +139,7 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (ruby-native, no external binaries):
+          puts "USAGE (true-air I/Q + GQRX-audio native paths, no external binaries):
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
             )

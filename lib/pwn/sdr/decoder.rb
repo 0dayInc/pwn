@@ -11,11 +11,12 @@ module PWN
     # PWN::SDR::FrequencyAllocation.band_plans.
     #
     # 100 % ruby-native — no decoder in this namespace shells out to an
-    # external binary. Audio-rate protocols (POCSAG, FLEX, Morse, RTTY,
-    # APT, Pager) are fully demodulated in Ruby via PWN::SDR::Decoder::DSP;
-    # wideband/I/Q-only protocols (ADS-B, GSM, LTE, GPS, LoRa, WiFi, DECT,
-    # ZigBee, Bluetooth, Iridium, P25, RFID, RTL433) run a native
-    # burst/energy characteriser (see Base.run_detector).
+    # external binary. Three pipelines (Base):
+    #   run_native   — GQRX 48 kHz audio tap (POCSAG/FLEX/Morse/RTTY/APT/Pager)
+    #   run_iq       — true-air I/Q via PWN::FFI::{RTLSdr,AdalmPluto,HackRF}
+    #                  or a .cu8/.cs16 capture file; all modules use this when
+    #                  hardware/file is present (ADS-B fully slices Mode-S PPM)
+    #   run_detector — energy/burst characteriser fallback when no I/Q source
     module Decoder
       autoload :ADSB,      'pwn/sdr/decoder/adsb'
       autoload :APT,       'pwn/sdr/decoder/apt'

@@ -6,7 +6,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ![Tool registry](diagrams/agent-tool-registry.svg)
 
-## Toolsets → Tools  (10 toolsets · 54 tools)
+## Toolsets → Tools  (10 toolsets · 61 tools)
 
 | Toolset | Tools | Backed by |
 |---|---|---|
@@ -17,7 +17,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 | `sessions` | `sessions_list` · `sessions_view` · `sessions_current` · `sessions_delete` · `sessions_stats` | `PWN::Sessions` → `~/.pwn/sessions/` |
 | `learning` | `learning_note_outcome` · `learning_reflect` · `learning_distill_skill` · `learning_stats` · `learning_outcomes` · `learning_consolidate` · `learning_reset` · `learning_auto_introspect_toggle` · **`mistakes_list`** · **`mistakes_record`** · **`mistakes_resolve`** · **`mistakes_reset`** | `PWN::AI::Agent::Learning` + `PWN::AI::Agent::Mistakes` → `~/.pwn/learning.jsonl` + `~/.pwn/mistakes.json` |
 | `metrics` | `metrics_summary` · `metrics_reset` | `PWN::AI::Agent::Metrics` → `~/.pwn/metrics.json` |
-| `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · **`extro_watch`** · **`extro_verify`** · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` | `PWN::AI::Agent::Extrospection` (+ `PWN::Plugins::TransparentBrowser`) → `~/.pwn/extrospection.json` |
+| `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · **`extro_watch`** · **`extro_verify`** · **`extro_rf_tune`** · **`extro_osint`** · **`extro_serial`** · **`extro_telecomm`** · **`extro_packet`** · **`extro_vision`** · **`extro_voice`** · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` | `PWN::AI::Agent::Extrospection` (+ Serial/Packet/OCR/Voice/BareSIP/TransparentBrowser) → `~/.pwn/extrospection.json` |
 | `cron` | `cron_list` · `cron_create` · `cron_run` · `cron_enable` · `cron_disable` · `cron_remove` | `PWN::Cron` → `~/.pwn/cron/jobs.yml` |
 | `swarm` | `agent_list` · `agent_spawn` · `agent_ask` · `agent_debate` · `agent_broadcast` · `swarm_bus` · `swarm_list` | `PWN::AI::Agent::Swarm` → `~/.pwn/agents.yml` + `~/.pwn/swarm/` |
 

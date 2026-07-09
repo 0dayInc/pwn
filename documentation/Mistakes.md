@@ -90,6 +90,15 @@ and the entry re-enters the `KNOWN MISTAKES` block tagged `[REGRESSED]` with
 its (now-insufficient) previous fix shown inline — the strongest possible
 "your last fix didn't hold" signal.
 
+## Join with Extrospection
+
+A tool failure is **not always the agent's fault**. Before treating a
+`[REPEATING]` signature as a pure technique bug, call `extro_correlate` —
+it cross-checks Mistakes / Metrics / Learning against host/toolchain/rf/web
+drift so the agent can distinguish "I called the API wrong" from "nmap was
+upgraded", "the HackRF was unplugged", or "the target DOM moved". See
+[Extrospection](Extrospection.md#extro_correlate--the-point-of-the-whole-thing).
+
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Extrospection](Extrospection.md) · [Persistence](Persistence.md) ·
 [pwn-ai Agent](pwn-ai-Agent.md)

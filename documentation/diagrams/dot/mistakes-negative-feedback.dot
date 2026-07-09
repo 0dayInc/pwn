@@ -12,14 +12,15 @@ digraph "PWN_Mistakes_Negative_Feedback" {
 
   /* L0 ─ ingest sources */
   subgraph cluster_in {
-    label="Four ingest paths"; fontcolor="#fecaca"; style="rounded,dashed";
+    label="Five ingest paths"; fontcolor="#fecaca"; style="rounded,dashed";
     color="#b91c1c"; bgcolor="#450a0a";
     ToolFail [label=":tool\nDispatch → success:false",           fillcolor="#fda4af"];
     LoopFail [label=":loop\niteration budget exhausted",          fillcolor="#fda4af"];
     UserCorr [label=":user_correction\n\"no that's wrong\" / \"still broken\"", fillcolor="#fda4af"];
     ModelRec [label=":model\nmistakes_record(tool, error)",       fillcolor="#fda4af"];
+    Verify  [label=":model (proactive)\nextro_verify → :refuted\n(browser-caught assumption)", fillcolor="#fda4af", penwidth=2];
   }
-  {rank=same; ToolFail; LoopFail; UserCorr; ModelRec}
+  {rank=same; ToolFail; LoopFail; UserCorr; ModelRec; Verify}
 
   /* L1 ─ fingerprint */
   subgraph cluster_fp {
@@ -61,6 +62,7 @@ digraph "PWN_Mistakes_Negative_Feedback" {
   LoopFail -> Norm [color="#fb7185"];
   UserCorr -> Sig  [label="+ flip_last_outcome", color="#fb7185"];
   ModelRec -> Sig  [color="#fb7185"];
+  Verify   -> Sig  [label="assumption", color="#fb7185", penwidth=2];
   Norm     -> Sig  [color="#34d399"];
 
   /* L1 → L2 */

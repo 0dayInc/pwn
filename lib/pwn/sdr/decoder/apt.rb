@@ -102,11 +102,25 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          PWN::SDR::Decoder::Base.run_native(
-            freq_obj: freq_obj,
-            protocol: 'NOAA-APT',
-            demod: Demod.new
-          )
+          want_iq = opts[:source] || opts[:file] || freq_obj[:iq_source] || freq_obj[:iq_file]
+          if want_iq
+            PWN::SDR::Decoder::Base.run_iq(
+              freq_obj: freq_obj,
+              protocol: 'NOAA-APT',
+              demod: Demod.new(out_path: opts[:out_path]),
+              sample_rate: (opts[:sample_rate] || freq_obj[:iq_rate] || 48_000).to_i,
+              source: opts[:source],
+              file: opts[:file],
+              fm_demod: true,
+              note: 'NOAA APT true-air: FM-demod I/Q then 2400 Hz AM envelope → PGM.'
+            )
+          else
+            PWN::SDR::Decoder::Base.run_native(
+              freq_obj: freq_obj,
+              protocol: 'NOAA-APT',
+              demod: Demod.new(out_path: opts[:out_path])
+            )
+          end
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

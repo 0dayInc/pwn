@@ -37,11 +37,12 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   subgraph cluster_extro {
     label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
     style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
-    Snapshot  [label="snapshot · drift\nhost/net/toolchain\nrepo/env/rf/web", fillcolor="#fcd34d"];
+    Snapshot  [label="snapshot · drift\nhost/net/toolchain\nrepo/env/rf/web\n(AUTO_SECTIONS=host/repo/env)", fillcolor="#fcd34d"];
     Observe   [label="observe · intel · watch\nrecon · CVE · web DOM",             fillcolor="#fcd34d"];
     Verify    [label="verify (browser)\nfact-check own claims\nrevalidate_memory", fillcolor="#fcd34d", penwidth=2];
+    RFTune    [label="rf_tune  📡\ntune GQRX · demod\nRDS → now_playing",           fillcolor="#fcd34d", penwidth=2];
   }
-  {rank=same; Metrics; Learning; Mistakes; Snapshot; Observe; Verify}
+  {rank=same; Metrics; Learning; Mistakes; Snapshot; Observe; Verify; RFTune}
 
   /* L3 ─ correlate */
   Correlate [label="extro_correlate()\n\"I did it wrong\"  vs  \"the world changed\"",
@@ -76,10 +77,12 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",
                         style=dashed, constraint=false];
   Dispatch -> Snapshot [label="probe", color="#f59e0b"];
-  Result   -> Observe  [label="auto_extrospect", color="#f59e0b"];
+  Result   -> Observe  [label="auto_extrospect\n(AUTO_SECTIONS only)", color="#f59e0b"];
   World    -> Snapshot [color="#fb7185", constraint=false];
   World    -> Observe  [color="#fb7185", constraint=false];
   World    -> Verify   [label="TransparentBrowser\n:headless", color="#38bdf8", constraint=false, penwidth=2];
+  World    -> RFTune   [label="GQRX remote\n:7356 + SDR", color="#fb7185", constraint=false, penwidth=2];
+  Dispatch -> Observe  [label="sense tools\nverify/watch/rf_tune/intel", color="#f59e0b", style=dashed, constraint=false];
 
   /* L2 → L3 */
   Metrics  -> Correlate [color="#34d399"];
@@ -88,6 +91,7 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   Snapshot -> Correlate [color="#f59e0b"];
   Observe  -> Correlate [color="#f59e0b"];
   Verify   -> Correlate [color="#f59e0b"];
+  RFTune   -> Correlate [color="#f59e0b"];
 
   /* L3 → L4 */
   Correlate -> Fmet [style=invis];
@@ -98,7 +102,9 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   Learning  -> Fmem [label="lesson", color="#94a3b8"];
   Learning  -> Fskl [label="skill",  color="#94a3b8"];
   Observe   -> Fext [color="#94a3b8"];
+  RFTune    -> Fext [label=":rf obs\nttl 300s", color="#94a3b8"];
   Verify    -> Fmis [label=":refuted →\nassumption mistake", color="#fb7185", penwidth=2];
+  Verify    -> Mistakes [label=":refuted", color="#fb7185", style=dashed, constraint=false];
   Verify    -> Fmem [label="mark stale\n[UNVERIFIED]", color="#a78bfa", style=dashed];
   Verify    -> Fext [label=":confirmed\n:intel obs", color="#94a3b8"];
 

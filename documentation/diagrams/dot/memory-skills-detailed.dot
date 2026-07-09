@@ -29,8 +29,9 @@ digraph "PWN_MemorySkills" {
     Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
     Fses [label="sessions/*.jsonl\ntranscripts",              shape=cylinder, fillcolor="#fcd34d"];
     Fmis [label="mistakes.json\nsig → count · fix · regressed", shape=cylinder, fillcolor="#fcd34d"];
+    Fext [label="extrospection.json\nsnapshot · rf · web · obs", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmem; Fskl; Flrn; Fses; Fmis}
+  {rank=same; Fmem; Fskl; Flrn; Fses; Fmis; Fext}
 
   subgraph cluster_read {
     label="Read-Side / Injection"; fontcolor="#ddd6fe"; style=rounded;
@@ -43,7 +44,7 @@ digraph "PWN_MemorySkills" {
   }
   {rank=same; Rec; Skv; Out; Sesv; Mlst}
 
-  Prompt [label="PromptBuilder\nMEMORY + SKILLS + LEARNING\n+ KNOWN MISTAKES / KNOWN FIXES", fillcolor="#7dd3fc", penwidth=2];
+  Prompt [label="PromptBuilder\nMEMORY + SKILLS + LEARNING\n+ KNOWN MISTAKES / FIXES\n+ METRICS + EXTROSPECTION", fillcolor="#7dd3fc", penwidth=2];
 
   Rem  -> Fmem [color="#f59e0b"];
   Skc  -> Fskl [color="#f59e0b"];
@@ -67,5 +68,6 @@ digraph "PWN_MemorySkills" {
 
   ReVal [label="Extrospection.verify\nrevalidate_memory (cron)\nbrowser-backed GC", fillcolor="#fcd34d"];
   ReVal -> Fmem [label="[UNVERIFIED yyyy-mm-dd]\nprefix stale :fact", color="#fb7185", style=dashed, penwidth=2];
+  ReVal -> Fext [label=":confirmed → :intel obs\n:refuted → observe stale", color="#f59e0b", style=dashed];
   Fmem  -> ReVal [label=":fact w/ CVE|ver|URL", style=dashed, color="#94a3b8", constraint=false];
 }

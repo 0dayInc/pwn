@@ -1,4 +1,8 @@
-![PWN](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/PWN.png)
+<!-- ![PWN](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/PWN.png) -->
+
+<p align="center">
+  <img src="documentation/pwn_silent_help_learn_demo.gif" alt="PWN Silent Demo — Help Surfaces + Learning Feedback Loop" width="640">
+</p>
 
 ### **Table of Contents** ###
 
@@ -52,7 +56,7 @@ Five layers, edges only ever go down:
 
 The AI layer closes a **self-improvement loop** on every turn — Metrics +
 Learning + **Mistakes** (introspection / negative feedback) joined with
-Snapshot + Drift + Intel + RF + **Web** (extrospection) — plus browser-backed **`extro_verify`** self fact-checking — via `extro_correlate`, so the
+Snapshot + Drift + Intel + RF + **Web** (extrospection) — plus browser-backed **`extro_verify`** / **`extro_watch`** and RF **`extro_rf_tune`** sensing — via `extro_correlate`, so the
 agent knows whether a failure was *its* fault or *the world* changed —
 **and does not repeat the same mistake twice**:
 
@@ -108,7 +112,7 @@ $ cd /opt/pwn
 $ ./install.sh
 $ ./install.sh ruby-gem
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.627]:001 >>> PWN.help
 ```
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
@@ -132,7 +136,7 @@ $ rvm use ruby-4.0.5@pwn
 $ gem uninstall --all --executables pwn
 $ gem install --verbose pwn
 $ pwn
-pwn[v0.5.616]:001 >>> PWN.help
+pwn[v0.5.627]:001 >>> PWN.help
 ```
 
 If using a multi-user RVM install:

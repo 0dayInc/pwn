@@ -26,7 +26,9 @@ digraph "PWN_Hardware" {
     MSR    [label="MSR206",             fillcolor="#6ee7b7"];
     Adb    [label="Android (adb)",      fillcolor="#6ee7b7"];
     Sip    [label="BareSIP · Voice",    fillcolor="#6ee7b7"];
-    Sdr    [label="SDR::GQRX · Flipper",fillcolor="#6ee7b7"];
+    Sdr    [label="SDR::GQRX · Flipper\nDecoder::* (run_iq)",fillcolor="#6ee7b7"];
+    FfiSdr [label="FFI::RTLSdr · HackRF\nAdalmPluto · SoapySDR\nVolk · Liquid · FFTW",fillcolor="#34d399"];
+    Sdr -> FfiSdr;
   }
   subgraph cluster_out {
     label="Analysis"; fontcolor="#ddd6fe"; style=rounded;
