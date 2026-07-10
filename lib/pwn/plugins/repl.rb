@@ -218,6 +218,22 @@ module PWN
         end
       end
 
+      # Compact token-count formatter for the pwn.ai PS1 (e.g. 0, 843, 12K, 250K, 1M).
+      public_class_method def self.compact_context_tokens(opts = {})
+        n = opts[:tokens].to_i
+        return n.to_s if n < 1_000
+
+        if n >= 1_000_000
+          v = n / 1_000_000.0
+          s = v >= 10 ? v.round.to_s : format('%.1f', v).sub(/\.0$/, '')
+          "#{s}M"
+        else
+          v = n / 1_000.0
+          s = v >= 10 ? v.round.to_s : format('%.1f', v).sub(/\.0$/, '')
+          "#{s}K"
+        end
+      end
+
       public_class_method def self.refresh_ps1_proc(opts = {})
         mode = opts[:mode]
 
@@ -252,9 +268,17 @@ module PWN
             model = PWN::Env[:ai][engine][:model]
             system_role_content = PWN::Env[:ai][engine][:system_role_content]
             temp = PWN::Env[:ai][engine][:temp]
+
+            # Context-window fill indicator (e.g. "250K/1M") sourced from the last
+            # response's usage.total_tokens vs the engine's max_prompt_length.
+            used_tokens = PWN::Env[:ai][engine].dig(:response_history, :usage, :total_tokens).to_i
+            max_context = PWN::Env[:ai][engine][:max_prompt_length].to_i
+            current_context_length = "#{PWN::Plugins::REPL.compact_context_tokens(tokens: used_tokens)}:" \
+                                     "#{PWN::Plugins::REPL.compact_context_tokens(tokens: max_context)}"
+
             pname = "pwn.ai:#{engine}"
-            pname = "pwn.ai:#{engine}/#{model}" if model
-            pname = "pwn.ai:#{engine}/#{model}.SPEAK" if pi.config.pwn_ai_speak
+            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}" if model
+            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}.SPEAK" if pi.config.pwn_ai_speak
             pi.config.prompt_name = pname
 
             name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"

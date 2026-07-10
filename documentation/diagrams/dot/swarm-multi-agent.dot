@@ -12,6 +12,8 @@ digraph "PWN_Swarm" {
 
   /* L0 ─ orchestrator */
   Orchestrator [label="👤  Orchestrator\n(you, in pwn-ai)", fillcolor="#7dd3fc"];
+  LocalLoop    [label="🤖  Local Loop.run\n(ai.active = ollama)", fillcolor="#7dd3fc"];
+  {rank=same; Orchestrator; LocalLoop}
 
   /* L1 ─ swarm verbs */
   subgraph cluster_verbs {
@@ -21,8 +23,9 @@ digraph "PWN_Swarm" {
     Ask       [label="agent_ask\n1 turn → 1 persona",         fillcolor="#c4b5fd"];
     Debate    [label="agent_debate\nround-robin critique",    fillcolor="#c4b5fd"];
     Broadcast [label="agent_broadcast\nfan-out ensemble",     fillcolor="#c4b5fd"];
+    Escalate  [label="Loop.escalate\n(local stuck ≥N fails)\n→ frontier hint", fillcolor="#c4b5fd", penwidth=2];
   }
-  {rank=same; Spawn; Ask; Debate; Broadcast}
+  {rank=same; Spawn; Ask; Debate; Broadcast; Escalate}
 
   /* L2 ─ personas */
   subgraph cluster_personas {
@@ -51,12 +54,14 @@ digraph "PWN_Swarm" {
   Orchestrator -> Ask       [color="#38bdf8"];
   Orchestrator -> Debate    [color="#38bdf8", penwidth=2];
   Orchestrator -> Broadcast [color="#38bdf8"];
+  LocalLoop    -> Escalate  [label="escalation_persona", color="#fb7185", penwidth=2];
 
   Spawn     -> Red   [style=invis];
   Ask       -> Red   [color="#34d399"];
   Debate    -> Blue  [color="#34d399"];
   Debate    -> Recon [color="#34d399"];
   Broadcast -> Xpl   [color="#34d399"];
+  Escalate  -> Blue  [label="ask 3-line hint", color="#34d399", penwidth=2];
 
   Red   -> Agents [style=invis];
   Red   -> Bus  [label="append reply", color="#f59e0b"];
@@ -67,4 +72,5 @@ digraph "PWN_Swarm" {
   Spawn -> Agents [label="write", color="#f59e0b", constraint=false];
   Bus   -> Debate [label="tail → context", style=dashed, color="#fbbf24", constraint=false];
   Bus   -> Orchestrator [label="swarm_bus()", style=dashed, color="#38bdf8", constraint=false];
+  Blue  -> LocalLoop [label="frontier_hint\n(synthetic tool result)", style=dashed, color="#fb7185", constraint=false, penwidth=2];
 }

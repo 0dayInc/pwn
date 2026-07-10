@@ -1,6 +1,6 @@
 digraph "PWN_AI_Feedback_Learning_Loop" {
   graph [
-    label=<<B>pwn-ai — Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)  ·  Mistakes (negative feedback)</FONT>>,
+    label=<<B>pwn-ai — Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)  ·  Mistakes (negative)  ·  Local-model scaffolding</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.0,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
@@ -20,19 +20,23 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   subgraph cluster_core {
     label="PWN::AI::Agent::Loop"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Prompt   [label="PromptBuilder\ninject context", fillcolor="#c4b5fd"];
-    Dispatch [label="Dispatch\ntool calls",           fillcolor="#c4b5fd"];
+    Prompt   [label="PromptBuilder\nbudget · MemoryIndex\nrelevance-ranked ctx", fillcolor="#c4b5fd"];
+    Dispatch [label="Dispatch\ntolerant parse\nrepair_name", fillcolor="#c4b5fd"];
+Router   [label="Registry\ntool_router\nCORE + top-K",   fillcolor="#c4b5fd"];
+Plan     [label="plan_first\n(pre-pass, local)",         fillcolor="#c4b5fd"];
+Escalate [label="escalate\n≥N fails → Swarm hint",        fillcolor="#c4b5fd", penwidth=2];
     Result   [label="Result\nfinal answer",           fillcolor="#c4b5fd"];
   }
-  {rank=same; Prompt; Dispatch; Result}
+  {rank=same; Prompt; Router; Plan; Dispatch; Escalate; Result}
 
   /* L2 ─ triple engines */
   subgraph cluster_intro {
     label="INTROSPECTION  (self)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    Metrics  [label="Metrics\nper-tool success · avg ms", fillcolor="#6ee7b7"];
-    Learning [label="Learning\nnote_outcome · reflect\nconsolidate · distill_skill", fillcolor="#6ee7b7"];
+    Metrics  [label="Metrics\nper-tool · PER-ENGINE\nsuccess · avg ms", fillcolor="#6ee7b7"];
+    Learning [label="Learning\nnote_outcome · reflect\nexemplars_for · export_finetune\nfact_check_local_final", fillcolor="#6ee7b7"];
     Mistakes [label="Mistakes\nrecord · resolve\nguard · correction_hint\n[REPEATING] · [REGRESSED]", fillcolor="#6ee7b7", penwidth=2];
+    ReflectT [label="Reflect\nteacher-student\n(reflect_engine)", fillcolor="#6ee7b7", penwidth=2];
   }
   subgraph cluster_extro {
     label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
@@ -42,7 +46,7 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
     Verify    [label="verify (browser)\nfact-check own claims\nrevalidate_memory", fillcolor="#fcd34d", penwidth=2];
     RFTune    [label="rf_tune  📡\ntune GQRX · demod\nRDS → now_playing",           fillcolor="#fcd34d", penwidth=2];
   }
-  {rank=same; Metrics; Learning; Mistakes; Snapshot; Observe; Verify; RFTune}
+  {rank=same; Metrics; Learning; Mistakes; ReflectT; Snapshot; Observe; Verify; RFTune}
 
   /* L3 ─ correlate */
   Correlate [label="extro_correlate()\n\"I did it wrong\"  vs  \"the world changed\"",
@@ -56,10 +60,12 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
     Flrn [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
     Fmis [label="mistakes.json",      shape=cylinder, fillcolor="#fcd34d"];
     Fmem [label="memory.json",        shape=cylinder, fillcolor="#fcd34d"];
+    Fidx [label="memory.idx",         shape=cylinder, fillcolor="#fcd34d"];
     Fskl [label="skills/*.md",         shape=cylinder, fillcolor="#fcd34d"];
     Fext [label="extrospection.json", shape=cylinder, fillcolor="#fcd34d"];
+    Fftn [label="finetune/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmet; Flrn; Fmis; Fmem; Fskl; Fext}
+  {rank=same; Fmet; Flrn; Fmis; Fmem; Fidx; Fskl; Fext; Fftn}
 
   /* L0 → L1 */
   User -> Prompt   [label="task", color="#38bdf8", penwidth=2];
@@ -67,11 +73,15 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   World-> Result   [style=invis];
 
   /* L1 internal */
-  Prompt -> Dispatch [color="#a78bfa"];
+  Prompt -> Router   [color="#a78bfa"];
+  Router -> Plan     [color="#a78bfa"];
+  Plan   -> Dispatch [color="#a78bfa"];
+  Dispatch -> Escalate [label="turn_fails ≥ N", color="#fb7185", style=dashed];
   Dispatch -> Result [color="#a78bfa"];
+  Escalate -> Result [style=invis];
 
   /* L1 → L2 */
-  Dispatch -> Metrics  [label="record()", color="#34d399"];
+  Dispatch -> Metrics  [label="record(engine:)", color="#34d399"];
   Result   -> Learning [label="auto_introspect", color="#34d399"];
   Dispatch -> Mistakes [label="on failure\nrecord()", color="#fb7185", penwidth=2];
   User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",
@@ -107,6 +117,11 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
   Verify    -> Mistakes [label=":refuted", color="#fb7185", style=dashed, constraint=false];
   Verify    -> Fmem [label="mark stale\n[UNVERIFIED]", color="#a78bfa", style=dashed];
   Verify    -> Fext [label=":confirmed\n:intel obs", color="#94a3b8"];
+  Learning -> Fftn [label="export_finetune", color="#94a3b8"];
+  Learning -> ReflectT [label="reflect()", color="#34d399", constraint=false];
+  ReflectT -> Fmem [label="frontier :lesson", color="#94a3b8"];
+  ReflectT -> LLM  [label="reflect_engine ≠ active", style=dashed, color="#a78bfa", constraint=false];
+  Result   -> Verify [label="fact_check_local_final\n(CVE / version claims)", color="#f59e0b", style=dashed, constraint=false];
 
   /* feedback (dashed, non-constraining) */
   Fmem -> Prompt [label="MEMORY block",  style=dashed, color="#fbbf24", constraint=false];
@@ -118,5 +133,11 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
                         color="#fb7185", constraint=false, penwidth=2];
   Correlate -> Prompt [label="findings → next run", style=dashed, color="#fb7185",
                        constraint=false, penwidth=2];
+  Fidx -> Prompt [label="MemoryIndex\ncosine top-K", style=dashed, color="#fbbf24", constraint=false, penwidth=2];
+  Flrn -> Plan   [label="exemplars_for\n(few-shot, local)", style=dashed, color="#fbbf24", constraint=false];
+  Fmet -> Router [label="success_rate\n→ tie-break", style=dashed, color="#fbbf24", constraint=false];
+  Escalate -> LLM [label="Swarm.ask(persona)\nfrontier hint", color="#a78bfa", constraint=false, penwidth=2, style=dashed];
+  Escalate -> Mistakes [label="record\n(tool:'escalation')", color="#fb7185", constraint=false, style=dashed];
+  Fftn -> LLM  [label="LoRA (weights)\ncron weekly", style=dashed, color="#fb7185", constraint=false, penwidth=2];
   Result -> User [label="answer", color="#38bdf8", constraint=false, penwidth=2];
 }

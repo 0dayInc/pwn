@@ -2,7 +2,7 @@
 
 > **PWN** (/pōn/) — an open-source offensive-security automation framework and
 > continuous-security-integration platform written in Ruby.
-> 66 plugins · 48 SAST rules · 90 AWS wrappers · 21 WWW drivers · 52 CLI
+> 66 plugins · 48 SAST rules · 90 AWS wrappers · 21 WWW drivers · 53 CLI
 > drivers · 5 LLM engines · a self-improving multi-agent AI · one REPL.
 
 **Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
@@ -17,9 +17,9 @@
 | [What is PWN](What-is-PWN.md) | One-paragraph elevator pitch |
 | [Why PWN](Why-PWN.md) | Design philosophy — why another framework |
 | [How PWN Works](How-PWN-Works.md) | The five layers, with the architecture diagram |
-| [Installation](Installation.md) | RVM, gem, `./install.sh`, first launch |
+| [Installation](Installation.md) | `gem install pwn` → `pwn setup` doctor/provisioner · capability profiles |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
-| [Configuration](Configuration.md) | `~/.pwn/config.yml` — engines, keys, agent options |
+| [Configuration](Configuration.md) | `~/.pwn/pwn.yaml` (encrypted) — engines, keys, agent options · `pwn-vault` |
 | **[All Data-Flow Diagrams](Diagrams.md)** | **27 SVGs** in one scrollable page |
 
 ## 🚪 Entry Points
@@ -28,7 +28,7 @@
 |---|---|
 | [The `pwn` REPL](pwn-REPL.md) | Pry shell with the whole `PWN::` namespace pre-loaded |
 | [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot |
-| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 52 headless executables for CI/CD |
+| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 53 headless executables for CI/CD |
 | [Drivers (build your own)](Drivers.md) | Turn a REPL session into a shipped binary |
 
 ## 🤖 AI Subsystem  (`PWN::AI`)

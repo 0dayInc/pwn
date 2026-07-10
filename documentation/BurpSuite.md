@@ -6,10 +6,13 @@ Professional's headless mode + REST API.
 
 ![Web application testing](diagrams/web-application-testing.svg)
 
+> **Install:** `pwn setup --profile web` — burpsuite · zaproxy · chromium ·
+> geckodriver · sqlmap · tor. See [Installation](Installation.md).
+
 ## Configure
 
 ```yaml
-# ~/.pwn/config.yml
+# ~/.pwn/pwn.yaml  (edit via `pwn-vault`)
 burp:
   jar: /opt/burpsuite_pro/burpsuite_pro.jar
   api_key: <REST-API-KEY>

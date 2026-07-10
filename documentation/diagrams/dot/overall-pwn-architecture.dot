@@ -36,10 +36,10 @@ digraph "PWN_Overall_Architecture" {
   subgraph cluster_agent {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Loop     [label="Loop\nplan → dispatch → observe",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n10 toolsets · 55 tools",    fillcolor="#c4b5fd"];
+    Loop     [label="Loop\nplan_first → dispatch\n→ observe → escalate",      fillcolor="#c4b5fd"];
+    Registry [label="Registry\n10 toolsets · 61 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
-    Prompt   [label="PromptBuilder\nMEMORY · SKILLS · LEARNING\nMISTAKES · METRICS · EXTRO",fillcolor="#c4b5fd"];
+    Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
   }
   {rank=same; Loop; Registry; Swarm; Prompt}
 
@@ -63,6 +63,7 @@ digraph "PWN_Overall_Architecture" {
     label="Persistence  ~/.pwn/"; fontcolor="#fde68a";
     style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
     Memory   [label="memory.json",       shape=cylinder, fillcolor="#fcd34d"];
+    MemIdx   [label="memory.idx\n(embed index)", shape=cylinder, fillcolor="#fcd34d"];
     Skills   [label="skills/*.md",        shape=cylinder, fillcolor="#fcd34d"];
     Learn    [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
     Metrics  [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
@@ -71,8 +72,9 @@ digraph "PWN_Overall_Architecture" {
     Sessions [label="sessions/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
     SwarmB   [label="swarm/*/bus.jsonl",  shape=cylinder, fillcolor="#fcd34d"];
     CronF    [label="cron/jobs.yml",      shape=cylinder, fillcolor="#fcd34d"];
+    Finetune [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Memory; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF}
+  {rank=same; Memory; MemIdx; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF; Finetune}
 
   /* ── L0 → L1 ── */
   User -> REPL   [color="#38bdf8"];

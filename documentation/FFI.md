@@ -12,6 +12,16 @@ PWN::FFI.backends
 PWN::FFI.available?(mod: :Volk)  # => true/false
 ```
 
+## Install the shared objects
+
+```bash
+pwn setup --profile sdr   # rtl-sdr · hackrf · SoapySDR · libsndfile · libusb · ffi headers
+```
+
+`pwn setup` (the [doctor](Installation.md)) reports each `PWN::FFI` backend
+as `ok` / `MISSING` and knows the correct package name on `apt` / `dnf` /
+`pacman` / `brew` / `port`.
+
 ## Modules (`lib/pwn/ffi/*.rb`)
 
 | Module | Shared object | Role |
@@ -29,8 +39,10 @@ PWN::FFI.available?(mod: :Volk)  # => true/false
 1. **Thin & optional.** Attach a minimal surface; prefer high-level Ruby wrappers
    (`Liquid.freq_demod`, `Volk.unpack_s16le`) over raw C pointers in call sites.
 2. **No install-time compile.** Use the system package (`libvolk-dev`,
-   `libliquid-dev`, `libfftw3-dev`, `libhackrf-dev`, …). On hosts without them
-   every `.available?` is `false` and pure-Ruby paths keep working.
+   `libliquid-dev`, `libfftw3-dev`, `libhackrf-dev`, …). Install them all
+   with **`pwn setup --profile sdr`** (see [Installation](Installation.md)).
+   On hosts without them every `.available?` is `false` and pure-Ruby paths
+   keep working.
 3. **Namespace hygiene.** `PubFFI = ::FFI` (defined once in `lib/pwn/ffi.rb`)
    avoids the `PWN::FFI` ↔ `::FFI` collision when modules `extend PubFFI::Library`.
 4. **Fallbacks in DSP.** `PWN::SDR::Decoder::DSP` probes `PWN::FFI.available?`

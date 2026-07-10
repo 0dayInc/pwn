@@ -3,6 +3,10 @@
 ![Hardware hacking](diagrams/hardware-hacking.svg)
 ![Reverse engineering](diagrams/reverse-engineering-flow.svg)
 
+> **Install:** `pwn setup --profile hardware` — libusb · adb · baresip
+> (Serial · BusPirate · Android · BareSIP · `extro_serial` ·
+> `extro_telecomm`). See [Installation](Installation.md).
+
 ## Serial / Bus
 
 | Module | Use |

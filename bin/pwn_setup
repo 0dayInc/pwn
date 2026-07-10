@@ -1,0 +1,64 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pwn'
+
+opts = PWN::Env[:driver_opts]
+pwn_driver = PWN::Driver::Parser.new do |options|
+  options.banner = "USAGE: #{File.basename($PROGRAM_NAME)} [opts]\n       " \
+                   "Post-install doctor & capability provisioner for the PWN gem.\n       " \
+                   "With no options, runs a read-only capability check.\n"
+
+  options.on('-c', '--check',
+             '<Optional - Read-only doctor: which PWN capabilities are usable on this host? (default action)>') do |o|
+    opts[:check] = o
+  end
+
+  options.on('-d', '--deps',
+             '<Optional - Install OS headers + external tools + rebuild native gems for --profile (default: full)>') do |o|
+    opts[:deps] = o
+  end
+
+  options.on('-pNAME', '--profile=NAME',
+             "<Optional - Capability profile: #{PWN::Setup::PROFILES.keys.join(' | ')} (default: full)>") do |o|
+    opts[:profile] = o
+  end
+
+  options.on('-l', '--list-profiles',
+             '<Optional - List capability profiles and exit>') do |o|
+    opts[:list] = o
+  end
+
+  options.on('-y', '--yes',
+             '<Optional - Assume yes; non-interactive (CI-friendly)>') do |o|
+    opts[:yes] = o
+  end
+
+  options.on('-n', '--dry-run',
+             '<Optional - Print the commands that would run, do not execute>') do |o|
+    opts[:dry_run] = o
+  end
+end
+pwn_driver.auto_opts_help = false
+pwn_driver.parse!
+
+begin
+  if opts[:list]
+    PWN::Setup.list_profiles
+  elsif opts[:deps] || opts[:profile]
+    PWN::Setup.deps(
+      profile: opts[:profile],
+      yes: opts[:yes],
+      dry_run: opts[:dry_run]
+    )
+  else
+    r = PWN::Setup.check
+    exit 1 unless r[:ok]
+  end
+rescue Interrupt
+  puts "\naborted."
+  exit 130
+rescue StandardError => e
+  warn "pwn_setup: #{e.class}: #{e.message}"
+  exit 1
+end

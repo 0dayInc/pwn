@@ -20,7 +20,7 @@ tool-calling AI agent** on top of it.
 | `PWN::WWW::*` | **21** | Site-specific browser automations (HackerOne, BugCrowd, Google, LinkedIn, …) |
 | `PWN::SDR::*` | **6** | GQRX, FlipperZero, RFIDler, SonMicro, decoders, band tables |
 | `PWN::AI::*` | **5** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama |
-| `bin/pwn_*` | **52** | Headless CLI drivers for CI/CD |
+| `bin/pwn_*` | **53** | Headless CLI drivers for CI/CD |
 | Agent toolsets | **10** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm |
 
 ## The three ways to use it

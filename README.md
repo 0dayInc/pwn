@@ -33,7 +33,7 @@ hardware / radio exploitation, to reporting and disclosure — and puts a
 **self-improving, tool-calling, multi-agent AI** on top of it.
 
 **In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
-service wrappers · 21 `PWN::WWW` site drivers · 52 `bin/pwn_*` CLI drivers ·
+service wrappers · 21 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
 5 LLM engines · 10 agent toolsets · 45+ LLM-callable tools.
 
 Full page: [What is PWN](documentation/What-is-PWN.md)
@@ -86,7 +86,7 @@ The complete wiki lives in this repo at **[`documentation/Home.md`](documentatio
 |---|---|---|---|
 | [What is PWN](documentation/What-is-PWN.md) | [`pwn` REPL](documentation/pwn-REPL.md) | [AI / LLM Integration](documentation/AI-Integration.md) | [Plugins (66)](documentation/Plugins.md) |
 | [Why PWN](documentation/Why-PWN.md) | [`pwn-ai` Agent](documentation/pwn-ai-Agent.md) | [Agent Tool Registry](documentation/Agent-Tool-Registry.md) | [SAST (48)](documentation/SAST.md) |
-| [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (52)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
+| [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (53)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
 | [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (21)](documentation/WWW.md) |
 | [General Usage](documentation/General-PWN-Usage.md) | | [Extrospection](documentation/Extrospection.md) | [SDR / Radio](documentation/SDR.md) |
 | [Configuration](documentation/Configuration.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [Hardware](documentation/Hardware.md) |
@@ -103,17 +103,30 @@ Rebuild every SVG from its Graphviz source:
 
 ### **Installation** ###
 
-Tested on Debian-based Linux & macOS, Ruby via RVM.
+PWN is a **single gem** with a built-in post-install doctor/provisioner —
+`pwn setup` — that detects your package manager (`apt` · `dnf` · `pacman` ·
+`brew` · `port`) and installs exactly the OS headers + external tools each
+`PWN::` capability needs. Tested on Kali/Debian/Ubuntu, Fedora, Arch, macOS.
 
 ```
-$ cd /opt
-$ sudo git clone https://github.com/0dayinc/pwn
-$ cd /opt/pwn
-$ ./install.sh
-$ ./install.sh ruby-gem
+$ gem install pwn
+$ pwn setup                        # read-only doctor: which capabilities are usable?
+$ pwn setup --profile full --yes   # provision everything (or: web | net | sdr | vision | …)
 $ pwn
-pwn[v0.5.627]:001 >>> PWN.help
+pwn[v0.5.629]:001 >>> PWN.help
 ```
+
+Only need a subset?
+
+```
+$ pwn setup --list-profiles
+$ pwn setup --profile web          # TransparentBrowser · Burp · ZAP · Tor · sqlmap
+$ pwn setup --profile sdr --yes    # GQRX · rtl-sdr · hackrf · SoapySDR · FFI DSP
+$ pwn setup --profile net --dry-run
+```
+
+Also available as `pwn_setup` (standalone driver) and `pwn --setup[=PROFILE]`.
+The doctor exits non-zero when capabilities are degraded, so CI can gate on it.
 
 [![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)
 
@@ -131,20 +144,16 @@ Update PWN frequently — new plugins, agent tools, skills and zero-day tooling
 land regularly:
 
 ```
-$ rvm list gemsets
-$ rvm use ruby-4.0.5@pwn
-$ gem uninstall --all --executables pwn
-$ gem install --verbose pwn
+$ gem update pwn
+$ pwn setup            # re-doctor — new versions may add capabilities
 $ pwn
-pwn[v0.5.627]:001 >>> PWN.help
+pwn[v0.5.629]:001 >>> PWN.help
 ```
 
-If using a multi-user RVM install:
+From a git checkout:
 
 ```
-$ rvm use ruby-4.0.5@pwn
-$ rvmsudo gem uninstall --all --executables pwn
-$ rvmsudo gem install --verbose pwn
+$ cd /opt/pwn && git pull && rake install && pwn setup
 ```
 
 **Inside the `pwn` REPL:**
@@ -160,11 +169,10 @@ $ echo "$LONG_PROMPT" | pwn --ai -
 $ pwn -Y ./ci/pwn.yaml --ai 'Run pwn_sast against ./src and summarise HIGH findings' > findings.txt
 ```
 
-PWN periodically upgrades to the latest Ruby (`/opt/pwn/.ruby-version`).
-Easiest upgrade of Ruby + pwn from a previous install:
+**Provision a CI runner / Docker image:**
 
 ```
-$ /opt/pwn/vagrant/provisioners/pwn.sh
+$ pwn setup --profile web --yes && pwn setup --check   # exits 1 if degraded
 ```
 
 ---

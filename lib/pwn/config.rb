@@ -65,14 +65,19 @@ module PWN
             base_uri: 'required - Base URI for Open WebUI - e.g. https://ollama.local',
             key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token',
             model: 'required - Ollama model to use',
+            embed_model: 'optional - embedding model for PWN::MemoryIndex (default nomic-embed-text)',
             system_role_content: 'You are an ethically hacking Ollama agent.',
             temp: 'optional - Ollama temperature',
+            num_ctx: 32_768,
+            keep_alive: '30m',
+            # tighten each PromptBuilder block for the local model (nil = engine defaults)
+            prompt_budget: { memory: 6, metrics: 3, mistakes: 3, learning: 2, extro: false },
             max_prompt_length: 32_000
           },
           anthropic: {
             base_uri: 'optional - Base URI for Anthropic - Use private base OR defaults to https://api.anthropic.com/v1',
             key: 'required - Anthropic API Key',
-            model: 'optional - Anthropic model to use (e.g. claude-3-5-sonnet-20240620)',
+            model: 'optional - Anthropic model id to use (see provider docs for currently-supported ids)',
             system_role_content: 'You are an ethically hacking Anthropic agent.',
             temp: 'optional - Anthropic temperature',
             max_tokens: 'optional - Max output tokens per response (default 8192). Raise if tool calls truncate.',
@@ -81,11 +86,13 @@ module PWN
           gemini: {
             base_uri: 'optional - Base URI for Gemini - Use private base OR defaults to https://generativelanguage.googleapis.com/v1beta',
             key: 'required - Google Gemini API Key',
-            model: 'optional - Gemini model to use (e.g. gemini-2.5-pro, gemini-2.5-flash)',
+            model: 'optional - Gemini model id to use (see provider docs for currently-supported ids)',
             system_role_content: 'You are an ethically hacking Gemini agent.',
             temp: 'optional - Gemini temperature',
             max_prompt_length: 1_000_000
           },
+          # teacher-student reflection: execute on :active, write durable lessons via this engine (nil = same as :active)
+          reflect_engine: nil,
           agent: {
             native_tools: true,
             max_iters: 25,
@@ -95,6 +102,10 @@ module PWN
             auto_introspect: true,
             # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_introspect
             auto_extrospect: false,
+            # engine-agnostic scaffolding (defaults tuned for local models)
+            plan_first: nil,               # nil = auto (true when :active == :ollama)
+            tool_router: false,            # slim Registry.definitions to CORE + top-K relevant tools
+            escalation_persona: nil,       # Swarm persona name for frontier corrective hints when a local model is stuck
             toolsets: nil
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
             # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl

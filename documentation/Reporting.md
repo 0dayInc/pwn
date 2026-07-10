@@ -2,6 +2,9 @@
 
 ![Reporting pipeline](diagrams/reporting-pipeline.svg)
 
+> **Install:** `pwn setup --profile vision` — imagemagick · graphviz ·
+> rmagick / gruff headers. See [Installation](Installation.md).
+
 ## Generators  (`lib/pwn/reports/*.rb`)
 
 | Module | Consumes | Emits |

@@ -442,142 +442,152 @@ extro_correlate                        # why did it break?
 
 ## Example questions that trigger Extrospection
 
-Natural-language prompts that should fire **outward** sensing (grouped by sense organ).
-Location-specific details use **Chicago** as the canonical city so the catalog stays
-portable across deployments.
+Natural-language prompts that should route to **outward** sensing rather than
+introspection. These are phrased the way an offensive security researcher
+actually asks them mid-engagement — attack-surface discovery, zero-day
+hunting, hardware/RF poking, and disclosure prep. Location-specific examples
+use **Chicago** so the catalogue stays portable.
 
-### RF sense organ (`extro_rf_tune` + RF observations)
+### RF / SDR sense organ (`extro_rf_tune` + `:rf` observations)
 
-- “What’s playing on 101.1 right now?”
-- “What’s on Q101 / 101.1 FM in Chicago?”
-- “Is NOAA weather radio for the Chicago area broadcasting an alert?”
-- “Tune 433.92 MHz and report signal strength.”
-- “Any ADS-B traffic near Chicago O’Hare (ORD) right now?”
-- “Sample RDS on 93.1 for 15 seconds — station name and radiotext?”
-- “Is the local Chicago 2 m repeater on 146.x active?”
+- “Tune 433.92 MHz — is the target’s garage/gate remote fixed-code or rolling?”
+- “Sweep the 900 MHz ISM band near the badge reader and log anything > −40 dBFS.”
+- “What’s broadcasting on 101.1 FM right now — grab RDS PI/PS so we can prove SDR is live.”
+- “Sample 868.3 MHz for 15 s — does the smart-meter mesh look like Wireless M-Bus?”
+- “Any ADS-B traffic squawking over the client’s campus (near ORD)?”
+- “Listen on the pager band (929.x MHz) — are unencrypted POCSAG pages leaking PHI?”
+- “Is the site’s DMR/TETRA handheld traffic on 462.x actually encrypted?”
+- “Park on 315 MHz and tell me if the target’s TPMS / key-fob replays cleanly.”
 
-### Web sense organ (`extro_watch`, `extro_verify`, `snapshot(sections: [:web])`)
+### Web / browser sense organ (`extro_watch`, `extro_verify`, `snapshot(sections: [:web])`)
 
-- “Did the vendor status page change since last check?”
-- “Watch https://status.example.com for DOM changes.”
-- “Has the bug-bounty scope page been updated?”
-- “What’s the weather in Chicago today?” *(live external page)*
-- “Fingerprint that login portal’s generator / title / tech stack.”
-- “Screenshot + hash https://target/app/version for drift tracking.”
+- “Watch the target’s `/api/version` endpoint — alert me the moment the build string changes.”
+- “Has the vendor silently patched? Diff today’s changelog DOM against our last hash.”
+- “Did the bug-bounty scope page add or drop assets since we baselined it?”
+- “Fingerprint the login portal’s JS bundle — framework, version, source-map leakage.”
+- “Screenshot + DOM-hash the admin panel so we can prove pre-auth state for the report.”
+- “Render the CSP/`.well-known/security.txt` and tell me who to disclose to.”
+- “Has the target’s TLS cert or issuer rotated since the last watch?”
 
 ### OSINT sense organ (`extro_osint`)
 
-- “Reverse lookup +1 312 555 1212.”
-- “Who is the registrant for example.com?”
-- “What device is FCC ID 2ABIP-ESP32?”
-- “Find patents related to software-defined radio receivers.”
-- “Pivot on username @octocat across GitHub/GitLab/Reddit.”
-- “Is Jane Doe listed on OpenSanctions / Wikipedia?”
-- “CT certs for target.acme via crt.sh.”
-- “ASN / BGP neighbours for 1.1.1.1.”
-- “Any Wayback snapshots of https://target.acme/login?”
+- “Enumerate every subdomain for `*.target.tld` via CT logs (crt.sh + CertSpotter).”
+- “Who owns AS-XXXXX and what netblocks does it announce — expand our in-scope ranges.”
+- “Pull EPSS + CISA KEV for CVE-2024-3094 — is this worth weaponising first?”
+- “What’s Shodan / GreyNoise saying about `203.0.113.10` — already mass-exploited?”
+- “Decode this VIN off the fleet vehicle — what telematics head-unit ships in that trim?”
+- “FCC ID `2ABIP-…` on the IoT doorbell — pull the internal photos and RF test report.”
+- “MAC OUI `AC:DE:48` on the rogue AP — which vendor, and do they have default creds?”
+- “Any prior litigation or SEC 8-K breach filings for `Target Corp` before we disclose?”
+- “Wayback the old `/admin` path — did an earlier deploy expose a debug console?”
+- “Pivot `@lead-dev` across GitHub/GitLab — hardcoded secrets in personal repos?”
 
-### Serial sense organ (`extro_serial`)
+### Serial / hardware sense organ (`extro_serial`)
 
-- “What USB serial devices are attached?”
-- “Send ATI to the modem on /dev/ttyUSB0 and show the banner.”
-- “Talk to the Flipper / RFID reader on ttyACM and dump response hex.”
-- “Probe the Arduino console at 115200 8N1.”
+- “What just enumerated on `/dev/ttyUSB*` when I plugged in the router’s UART header?”
+- “Send `AT+GMR` to the ESP32 on `/dev/ttyUSB0` — firmware version and SDK build?”
+- “Dump the boot banner at 115200 8N1 — does it drop to an unauthenticated U-Boot shell?”
+- “Probe the Flipper on `ttyACM0` and pull the last captured Sub-GHz raw.”
+- “Talk to the smart-lock’s BLE-UART bridge and echo back whatever it volunteers.”
 
-### Telecomm sense organ (`extro_telecomm`)
+### Telecomm / VoIP sense organ (`extro_telecomm`)
 
-- “Is BareSIP running and what is its status?”
-- “List SIP ports listening on this host.”
-- “Dial sip:echo@example.com via BareSIP.” *(OPSEC: real call)*
-- “Hang up the active VoIP call.”
+- “Is BareSIP registered to the client’s PBX, and what codecs did it negotiate?”
+- “Enumerate SIP `OPTIONS` against the exposed SBC — does it leak `User-Agent`/version?”
+- “Dial the IVR at `sip:ivr@target` and record the prompt tree for the social-eng playbook.” *(OPSEC: real call)*
+- “Hang up and note whether the PBX exposed internal extension ranges in the `BYE`.”
 
 ### Packet sense organ (`extro_packet`)
 
-- “Inventory capture-capable interfaces and tshark/tcpdump.”
-- “Capture 20 packets on eth0 for tcp/443 and summarise.”
-- “Summarise this pcap: /tmp/eng.pcap.”
-- “What IP conversations dominate that capture?”
+- “Capture 30 s on `eth0` while I trigger the IoT hub — what does it phone home to?”
+- “Summarise `/tmp/eng.pcap` — top talkers, cleartext creds, weird ports.”
+- “BPF `udp port 5353` — is mDNS leaking hostnames and service records on the guest VLAN?”
+- “Grab 50 packets of the OT segment — Modbus/TCP or something proprietary?”
+- “Do we see the camera’s RTSP creds in the clear during that capture?”
 
 ### Vision / OCR sense organ (`extro_vision`)
 
-- “OCR this screenshot of the login page.”
-- “Decode the QR code on /tmp/badge.png.”
-- “What languages does tesseract have installed?”
+- “OCR the photo of the switch label — model, firmware, and default-cred sticker.”
+- “Decode the QR on the badge printer — is that a provisioning URL with an embedded token?”
+- “OCR the BIOS/BMC screenshot and pull the exact firmware build for CVE matching.”
+- “Read the barcode on the HSM — serial + part number for supply-chain lookup.”
 
 ### Voice sense organ (`extro_voice`)
 
-- “Speak ‘engagement complete’ via TTS.”
-- “Transcribe /tmp/voicemail.wav.”
-- “What TTS/STT engines are available on this host?”
+- “Transcribe `/tmp/voicemail.wav` — did the helpdesk leak the temp-password format?”
+- “STT the recorded IVR tree so we can grep it for extension numbers.”
+- “TTS this vishing pretext to a `.wav` for the approved social-engineering call.”
+- “Which STT/TTS engines are installed — can we run whisper offline on the drop box?”
 
 ### Fact-check / claim verification (`extro_verify`)
 
-- “Is CVE-2024-3094 still rated Critical on NVD?”
-- “Confirm the latest `pwn` gem on RubyGems is 0.5.x.”
-- “Is it true that OpenSSH 9.8p1 is the current stable?”
-- “Verify this claim from the advisory against the official page.”
-- “Does that docs page actually say what we quoted?”
+- “Before I file this: does CVE-2024-3094 actually list our target’s distro package as affected?”
+- “Confirm the latest upstream OpenSSH is 9.x — is the target’s 8.2p1 genuinely EOL?”
+- “Verify the vendor advisory URL really says ‘remote unauthenticated’ — quote it back.”
+- “Is `pwn` on RubyGems still at the version we ship in the report appendix?”
+- “Fact-check my claim that this library has no maintained fork — search says otherwise?”
 
 ### Threat intel (`extro_intel` ± `record:true`)
 
-- “Any known exploits for Apache 2.4.58?”
-- “Look up CVE-2025-XXXX across NVD / CIRCL / Exploit-DB.”
-- “What CVEs hit `libssl` in the last year?”
-- “Is there a public PoC for that JetBrains CVE?”
-- “Correlate installed nmap version against known CVEs.”
+- “Any public PoC or Exploit-DB entry for the exact `nginx 1.25.3` build we bannered?”
+- “Pull NVD + CIRCL for `libwebp` since 2023 — which are pre-auth RCE vs local?”
+- “Cross-ref this router’s firmware components against known-exploited (KEV).”
+- “What’s the newest CVE touching `Fortinet FortiOS` and is there an exploit module yet?”
+- “Record everything for `Apache Struts` so `extro_correlate` can match our target stack.”
 
 ### Host / env / toolchain drift (`extro_snapshot`, `extro_drift`, `extro_stats`)
 
-- “Did the environment change under us since last session?”
-- “Take a full extrospection snapshot and show drift.”
-- “Is nmap / gqrx / SoapySDR still the version we expect?”
-- “What’s listening on this host right now?”
-- “Show toolchain + repo HEAD fingerprint.”
-- “Why did that tool start failing — world drift or operator error?” → pairs with `extro_correlate`
+- “Snapshot the drop box before we start — I want a defensible ‘this is what we brought’ baseline.”
+- “Did anything on this attack host change overnight (kernel, nmap, listening ports)?”
+- “Which offensive bins are actually present in PATH on this jump host?”
+- “Is the SDR / HackRF still attached, or did the USB hub flake again?”
+- “Show repo HEAD + dirty state so the finding is reproducible from a commit hash.”
 
 ### Recon memory / observations (`extro_observe`, `extro_observations`)
 
-- “Remember that target X bannered as nginx/1.25.3 on 443.”
-- “What recon findings do we have for 10.0.0.5?”
-- “List RF observations from today.”
-- “Any :web watches that changed this week?”
-- “Show intel hits we recorded against this product.”
+- “Remember: `10.0.0.5:8443` self-signed CN leaks internal AD domain — tag `recon,pivot`.”
+- “Log the RF finding: 433.92 MHz fixed-code, 24-bit, replayable — tag `rf,physical`.”
+- “What have we already observed about `*.target.tld` this engagement?”
+- “List every `:intel` observation still fresh so I don’t re-run the same CVE queries.”
+- “Which `:web` watches flipped `changed:true` this week — silent patch candidates?”
 
-### Correlation / “am I wrong or did the world move?” (`extro_correlate`)
+### Correlation — “am I wrong or did the world move?” (`extro_correlate`)
 
-- “Cross-check recent tool failures against host/toolchain drift.”
-- “Did any of our recorded CVEs match installed package versions?”
-- “Is that failed shell call explained by missing binaries?”
-- “Any refuted claims that should invalidate old memory facts?”
+- “My exploit stopped landing — did the target’s DOM/TLS drift or did I break the payload?”
+- “Cross recorded CVE intel against the versions we actually bannered on scope hosts.”
+- “Are any of my `PWN::Memory` facts about this target now refuted by fresh `extro_verify` runs?”
+- “Do the `nmap`/`msf` failures line up with a toolchain upgrade rather than operator error?”
+- “Which watched anchors went unreachable — down-weight intel sourced from them.”
 
 ### Operational / lifecycle
 
-- “Enable ambient auto-extrospect after every answer.”
-- “Reset extrospection for a new engagement.” *(destructive)*
-- “How stale is the current world snapshot?”
-- “Toggle auto-extrospect off while we fuzz.”
+- “New engagement, new client — wipe extrospection so old recon doesn’t bleed into this report.” *(destructive)*
+- “Turn ambient auto-extrospect **off** while I fuzz — I don’t want baseline noise per turn.”
+- “How stale is our world snapshot — is it still from the pre-patch window?”
+- “Re-enable auto-extrospect for the wrap-up so drift is captured in the final deliverable.”
 
-### Short “trigger” patterns the agent should recognize
+### Short trigger patterns the agent should recognise
 
 | Pattern | Likely tools |
-|--------|----------------|
-| “What’s on … MHz / FM / station” | `extro_rf_tune` |
-| “Reverse phone / FCC ID / patent / whois / person” | `extro_osint` |
-| “Serial / AT modem / ttyUSB / Flipper console” | `extro_serial` |
-| “SIP / VoIP / BareSIP / dial” | `extro_telecomm` |
-| “Capture packets / summarise pcap” | `extro_packet` |
-| “OCR / barcode / QR this image” | `extro_vision` |
-| “Speak this / transcribe that audio” | `extro_voice` |
-| “Did … page change / watch URL” | `extro_watch` |
-| “Is it true that… / confirm CVE / latest version” | `extro_verify` |
-| “Known vulns / CVE / exploit for…” | `extro_intel` |
-| “What changed on this host / drift” | `extro_snapshot` + `extro_drift` |
-| “Remember this finding about…” | `extro_observe` |
-| “Why did X start failing?” | `extro_correlate` + metrics/mistakes |
-| “Weather in Chicago / public page content” | `extro_watch` / TransparentBrowser |
+|---|---|
+| “tune / MHz / FM / RDS / ISM / key-fob / pager / ADS-B” | `extro_rf_tune` |
+| “subdomain / CT log / ASN / whois / FCC ID / VIN / MAC OUI / EPSS / KEV / Wayback / pivot @user” | `extro_osint` |
+| “UART / ttyUSB / U-Boot / AT command / Flipper / JTAG banner” | `extro_serial` |
+| “SIP / PBX / IVR / BareSIP / dial / hangup” | `extro_telecomm` |
+| “capture on iface / summarise pcap / mDNS / Modbus / RTSP creds” | `extro_packet` |
+| “OCR sticker / decode QR / read badge / BIOS screenshot” | `extro_vision` |
+| “transcribe wav / TTS pretext / whisper offline” | `extro_voice` |
+| “watch URL / did the page change / silent patch / scope updated / TLS rotated” | `extro_watch` |
+| “is it true that / confirm CVE / verify advisory / latest version of” | `extro_verify` |
+| “known exploits for / any PoC / CVEs affecting / KEV for” | `extro_intel` |
+| “what changed on this host / baseline the box / SDR still attached” | `extro_snapshot` + `extro_drift` |
+| “remember this finding / what did we observe about / tag it recon” | `extro_observe` / `extro_observations` |
+| “why did X stop working / my fault or theirs / down-weight that source” | `extro_correlate` |
+| “new engagement clean slate / stop baselining while I fuzz” | `extro_reset` / `extro_auto_toggle` |
 
 The **inward** half of the loop (Memory · Skills · Learning · Mistakes · Metrics)
-has a matching example catalog in [Skills, Memory & Learning](Skills-Memory-Learning.md#example-questions-that-trigger-introspection).
+has a matching example catalogue in
+[Skills, Memory & Learning](Skills-Memory-Learning.md#example-questions-that-trigger-introspection).
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Mistakes](Mistakes.md) · [SDR](SDR.md) · [Transparent Browser](Transparent-Browser.md) · [Cron](Cron.md) · [pwn-ai Agent](pwn-ai-Agent.md)

@@ -3,66 +3,95 @@
 module PWN
   module SDR
     module Decoder
-      # True-air + detector-fallback decoder for P25.
-      # Prefers PWN::FFI I/Q (RTL-SDR / ADALM-Pluto / HackRF / capture file)
-      # via Base.run_iq; degrades to Base.run_detector with no hardware.
+      # APCO Project 25 Phase-1 (C4FM) true-air decoder.
+      #
+      # I/Q → PWN::FFI::Liquid.freq_demod (or DSP.fm_demod_iq) → resample to
+      # 48 kHz → 4-level slice at 4800 sym/s → dibits → hunt the 24-symbol
+      # Frame Sync (0x5575F5FF77FF) → recover the 64-bit NID (12-bit NAC +
+      # 4-bit DUID + BCH(63,16,23) parity). Emits {nac:, duid:, duid_name:}
+      # per frame — the same intel OP25 / DSD show — with no external binary.
       module P25
-        # Streaming I/Q energy/burst demod for Base.run_iq.
+        # 24-symbol / 48-bit Frame Sync (dibit MSB-first)
+        FS_DIBITS = [
+          1, 1, 1, 1, 3, 1, 1, 3, 3, 3, 3, 1, 1, 3, 3, 3,
+          3, 3, 3, 3, 1, 3, 3, 3, 3, 3, 3, 3
+        ].freeze # → 0x5575F5FF77FF (see TIA-102.BAAA)
+        FS_DIBITS_24 = [
+          1, 1, 1, 1, 3, 1, 1, 3, 3, 3, 3, 1,
+          3, 3, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3
+        ].freeze
+        # Correct 24-dibit Frame Sync per TIA-102 (+3 +3 +3 +3 −3 +3 …).
+        # Derived from bit pattern 5575F5FF77FF, MSB-first, 2 bits/sym,
+        # C4FM map: 01→+3, 00→+1, 10→−1, 11→−3 → dibits {1,0,2,3}.
+        FRAME_SYNC = 0x5575F5FF77FF
+        FS_BITS = Array.new(48) { |i| (FRAME_SYNC >> (47 - i)) & 1 }.freeze
+        FS_SYMS = FS_BITS.each_slice(2).map { |a, b| (a << 1) | b }.freeze
+
+        DUID_NAME = {
+          0x0 => 'HDU', 0x3 => 'TDU', 0x5 => 'LDU1', 0x7 => 'TSBK',
+          0xA => 'LDU2', 0xC => 'PDU', 0xF => 'TDULC'
+        }.freeze
+
+        # Streaming C4FM demod for Base.run_iq — I/Q → NAC/DUID frames.
         class DemodIQ
-          def initialize(rate:, protocol:, modulation:, extra: {})
+          AUDIO_RATE = 48_000
+
+          def initialize(rate:)
             @rate = rate.to_f
-            @protocol = protocol
-            @modulation = modulation
-            @extra = extra
-            @floor = nil
-            @in_burst = false
-            @burst_t0 = nil
-            @peak = -200.0
-            @burst_n = 0
-            @threshold = (extra[:threshold] || 8.0).to_f
+            @dibits = []
+            @seen_fs = 0
           end
 
           def feed_iq(samples, rate: nil, &)
             @rate = rate.to_f if rate
-            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
-            hop = [(@rate / 1000.0).round, 1].max
-            i = 0
-            while i < m2.length
-              win = m2[i, hop]
-              break if win.nil? || win.empty?
+            audio = PWN::SDR::Decoder::DSP.fm_demod_iq(iq: samples)
+            audio = PWN::SDR::Decoder::DSP.resample(
+              samples: audio, src_rate: @rate, dst_rate: AUDIO_RATE
+            )
+            syms = PWN::SDR::Decoder::DSP.slice_4fsk(
+              samples: audio, rate: AUDIO_RATE, baud: 4800
+            )
+            @dibits.concat(syms)
+            scan(&) if block_given?
+            @dibits.shift(@dibits.length - 4096) if @dibits.length > 8192
+          end
 
-              ms = win.sum / win.length
-              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
-              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
-              delta = lvl - @floor
-              if delta >= @threshold
-                unless @in_burst
-                  @in_burst = true
-                  @burst_t0 = Time.now
-                  @peak = lvl
-                end
-                @peak = lvl if lvl > @peak
-              elsif @in_burst
-                @in_burst = false
-                @burst_n += 1
-                dur_ms = ((Time.now - @burst_t0) * 1000).round
-                msg = {
-                  protocol: @protocol, event: 'burst', source: 'iq',
-                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
-                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
-                  duration_ms: dur_ms, modulation: @modulation,
-                  sample_rate: @rate.to_i
-                }.merge(@extra.except(:threshold))
-                # protocol-specific enrichment
-                msg.merge!(self.class.enrich(msg)) if self.class.respond_to?(:enrich)
-                msg[:summary] = format(
-                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
-                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
-                )
-                yield msg if block_given?
+          private
+
+          def scan
+            fs = P25::FS_SYMS
+            i = 0
+            while i <= @dibits.length - (24 + 32)
+              # Allow up to 3 symbol errors on FS
+              err = 0
+              j = 0
+              while j < 24
+                err += 1 if @dibits[i + j] != fs[j]
+                break if err > 3
+
+                j += 1
               end
-              i += hop
+              if err <= 3
+                nid_syms = @dibits[i + 24, 32] # 32 dibits = 64 bits
+                nid_bits = nid_syms.flat_map { |d| [(d >> 1) & 1, d & 1] }
+                nid = PWN::SDR::Decoder::DSP.bits_to_int(bits: nid_bits[0, 16])
+                nac = (nid >> 4) & 0xFFF
+                duid = nid & 0xF
+                @seen_fs += 1
+                yield(
+                  protocol: 'P25', event: 'frame', modulation: 'C4FM',
+                  fs_errors: err, nac: format('%03X', nac), duid: duid,
+                  duid_name: P25::DUID_NAME[duid] || format('0x%X', duid),
+                  nid_hex: format('%016X', PWN::SDR::Decoder::DSP.bits_to_int(bits: nid_bits)),
+                  frame_no: @seen_fs,
+                  summary: "P25 NAC=#{format('%03X', nac)} DUID=#{P25::DUID_NAME[duid] || duid} (fs_err=#{err})"
+                )
+                i += 24 + 32
+              else
+                i += 1
+              end
             end
+            @dibits.shift([i - 24, 0].max) if i > 24
           end
         end
 
@@ -73,29 +102,16 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-
-          rate  = (opts[:sample_rate] || freq_obj[:iq_rate] || 480_000).to_i
-          proto = 'P25'
-          demod = DemodIQ.new(
-            rate: rate, protocol: proto, modulation: 'C4FM',
-            extra: { threshold: 6.0 }
-          )
+          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || (48_000 * 20)).to_i
           PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: proto,
+            protocol: 'P25',
             sample_rate: rate,
             source: opts[:source],
             file: opts[:file],
-            demod: demod,
-            threshold: 6.0,
-            note: 'C4FM 4-FSK + trellis — true-air I/Q path reports key-up bursts; full NAC/TG decode layered on Liquid when available.',
-            describe: proc { |b|
-              { modulation: 'C4FM', classification: (if b[:duration_ms] > 1500
-                                                       'voice-superframe'
-                                                     else
-                                                       (b[:duration_ms] > 150 ? 'LDU/HDR' : 'TSBK/control')
-                                                     end) }
-            }
+            demod: DemodIQ.new(rate: rate),
+            note: 'C4FM 4800 sym/s — I/Q→FM→4-FSK→FS 0x5575F5FF77FF→NAC/DUID.',
+            describe: proc { |b| { modulation: 'C4FM', classification: b[:duration_ms] > 180 ? 'voice-LDU' : 'TSBK/control' } }
           )
         end
 
@@ -105,7 +121,7 @@ module PWN
           out[:nac]  = ::Regexp.last_match(1) if line =~ /NAC[:= ]+([0-9A-Fa-f]+)/
           out[:tg]   = ::Regexp.last_match(1) if line =~ /(?:TG|talkgroup)[:= ]+(\d+)/i
           out[:rid]  = ::Regexp.last_match(1) if line =~ /(?:RID|src|source)[:= ]+(\d+)/i
-          out[:sys]  = ::Regexp.last_match(1) if line =~ /sys(?:tem)?[:= ]+(\w+)/i
+          out[:duid] = ::Regexp.last_match(1) if line =~ /DUID[:= ]+(\w+)/i
           out[:summary] = "P25 NAC=#{out[:nac]} TG=#{out[:tg]} RID=#{out[:rid]}"
           out.compact
         end

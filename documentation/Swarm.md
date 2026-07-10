@@ -49,6 +49,26 @@ agent_spawn(name: 'blue_team',
 | `swarm_bus(swarm_id)` | Tail a bus to inspect a prior/concurrent conversation |
 | `swarm_list` | Find a `swarm_id` to resume |
 
+
+## Escalation persona (local-model circuit-breaker)
+
+`Loop.run` also uses Swarm *implicitly*. When the active engine is `ollama`
+and `ai.agent.escalation_persona` names a persona here, the loop counts
+in-turn tool failures; once ≥ `Loop::ESCALATE_AFTER_FAILS` (default 4) it
+calls `Swarm.ask(name: <persona>, request: "Local agent is stuck on: … Give a
+3-line corrective hint")` and injects the reply as a synthetic
+`frontier_hint` tool result. The **local model still authors the final
+answer** — Learning / Metrics stay attributed to `:ollama`, and every
+escalation is fingerprinted into `Mistakes` (tool: `'escalation'`) so
+`export_finetune` can later teach the local model to *not* need it.
+
+```yaml
+# ~/.pwn/pwn.yaml
+ai:
+  agent:
+    escalation_persona: blue_team   # any persona in ~/.pwn/agents.yml
+```
+
 ## Example: adversarial exploit review
 
 ```ruby

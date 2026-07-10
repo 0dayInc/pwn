@@ -5,66 +5,125 @@ require 'json'
 module PWN
   module SDR
     module Decoder
-      # True-air + detector-fallback decoder for LoRa.
-      # Prefers PWN::FFI I/Q (RTL-SDR / ADALM-Pluto / HackRF / capture file)
-      # via Base.run_iq; degrades to Base.run_detector with no hardware.
+      # LoRa (Semtech CSS) true-air preamble/sync-word decoder.
+      #
+      # I/Q resampled so fs = BW (default 125 kHz), one complex sample per
+      # chirp step. For each SF ∈ 7..12: dechirp with a reference
+      # down-chirp (DSP.cmul + PWN::FFI::FFTW.cfft), find ≥6 consecutive
+      # symbols whose FFT-argmax bin is identical (preamble), then read
+      # the two sync-word symbols and two SFD down-chirps. Emits
+      # {sf:, bw_hz:, sync_word:, preamble_len:, cfo_bins:} — the same
+      # metadata gr-lora / rtl-lora surface, no external binary.
       module LoRa
-        # Streaming I/Q energy/burst demod for Base.run_iq.
+        DEFAULT_BW = 125_000
+        SF_RANGE   = (7..12)
+        # Public LoRaWAN sync = 0x34; private/Meshtastic default = 0x12.
+        KNOWN_SYNC = { 0x34 => 'LoRaWAN', 0x12 => 'private/RadioLib' }.freeze
+
+        # Streaming CSS dechirp demod for Base.run_iq.
         class DemodIQ
-          def initialize(rate:, protocol:, modulation:, extra: {})
+          def initialize(rate:, bw: DEFAULT_BW)
             @rate = rate.to_f
-            @protocol = protocol
-            @modulation = modulation
-            @extra = extra
-            @floor = nil
-            @in_burst = false
-            @burst_t0 = nil
-            @peak = -200.0
-            @burst_n = 0
-            @threshold = (extra[:threshold] || 8.0).to_f
+            @bw   = bw.to_i
+            @buf  = []
+            @dchirp = {}
+            @seen = {}
           end
 
           def feed_iq(samples, rate: nil, &)
             @rate = rate.to_f if rate
-            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
-            hop = [(@rate / 1000.0).round, 1].max
-            i = 0
-            while i < m2.length
-              win = m2[i, hop]
-              break if win.nil? || win.empty?
+            r = PWN::SDR::Decoder::DSP.resample_iq(
+              iq: samples, src_rate: @rate, dst_rate: @bw
+            )
+            @buf.concat(r)
+            SF_RANGE.each { |sf| try_sf(sf, &) if block_given? }
+            max = ((1 << 12) * 20) * 2
+            @buf.shift(@buf.length - max) if @buf.length > max
+          end
 
-              ms = win.sum / win.length
-              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
-              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
-              delta = lvl - @floor
-              if delta >= @threshold
-                unless @in_burst
-                  @in_burst = true
-                  @burst_t0 = Time.now
-                  @peak = lvl
-                end
-                @peak = lvl if lvl > @peak
-              elsif @in_burst
-                @in_burst = false
-                @burst_n += 1
-                dur_ms = ((Time.now - @burst_t0) * 1000).round
-                msg = {
-                  protocol: @protocol, event: 'burst', source: 'iq',
-                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
-                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
-                  duration_ms: dur_ms, modulation: @modulation,
-                  sample_rate: @rate.to_i
-                }.merge(@extra.except(:threshold))
-                # protocol-specific enrichment
-                msg.merge!(self.class.enrich(msg)) if self.class.respond_to?(:enrich)
-                msg[:summary] = format(
-                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
-                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
-                )
-                yield msg if block_given?
+          private
+
+          def down_chirp(sf)
+            @dchirp[sf] ||= begin
+              n = 1 << sf
+              iq = Array.new(n * 2)
+              n.times do |k|
+                # base up-chirp φ(k) = π·k·(k/N − 1); down-chirp = conj.
+                ph = Math::PI * k * ((k.to_f / n) - 1.0)
+                iq[k * 2]       = Math.cos(ph)
+                iq[(k * 2) + 1] = -Math.sin(ph)
               end
-              i += hop
+              iq
             end
+          end
+
+          def demod_symbol(iq, sf)
+            n  = 1 << sf
+            dc = down_chirp(sf)
+            de = PWN::SDR::Decoder::DSP.cmul(a: iq, b: dc)
+            mag = PWN::SDR::Decoder::DSP.cfft_mag(iq: de, n: n, shift: false)
+            pk_i = mag.each_with_index.max_by(&:first).last
+            [pk_i, mag[pk_i], mag.sum / mag.length]
+          end
+
+          def try_sf(sf)
+            n = 1 << sf
+            need = n * 12 * 2 # ≥ 8 preamble + 2 sync + 2.25 SFD
+            return if @buf.length < need
+
+            # coarse alignment: try 8 phase offsets across first symbol
+            best_off = 0
+            best_run = 0
+            best_bin = nil
+            (0...n).step([n / 8, 1].max) do |off|
+              bins = []
+              10.times do |s|
+                seg = @buf[(off + (s * n)) * 2, n * 2]
+                break if seg.nil? || seg.length < n * 2
+
+                bins << demod_symbol(seg, sf).first
+              end
+              # longest run of equal bins
+              run = 1
+              cur = 1
+              (1...bins.length).each do |i|
+                if ((bins[i] - bins[i - 1]) % n).zero?
+                  cur += 1
+                  run = cur if cur > run
+                else
+                  cur = 1
+                end
+              end
+              if run > best_run
+                best_run = run
+                best_off = off
+                best_bin = bins.group_by { |x| x }.max_by { |_, v| v.length }&.first
+              end
+            end
+            return unless best_run >= 6 && best_bin
+
+            # sync symbols follow preamble; walk forward until bin changes
+            i = best_off
+            i += n while ((demod_symbol(@buf[i * 2, n * 2], sf).first - best_bin) % n).zero? && i < (@buf.length / 2) - (4 * n)
+            s1 = demod_symbol(@buf[i * 2, n * 2], sf).first
+            s2 = demod_symbol(@buf[(i + n) * 2, n * 2], sf).first
+            # sync word nibble encoding (× 2^(SF-4)); recover both nibbles.
+            div = 1 << (sf - 4)
+            n1 = (((s1 - best_bin) % n) / div) & 0xF
+            n2 = (((s2 - best_bin) % n) / div) & 0xF
+            sync = (n1 << 4) | n2
+            key = "SF#{sf}:#{format('%02X', sync)}"
+            unless @seen[key]
+              @seen[key] = true
+              yield(
+                protocol: 'LoRa', event: 'preamble', modulation: 'CSS',
+                sf: sf, bw_hz: @bw, preamble_len: best_run,
+                cfo_bins: best_bin, sync_word: format('0x%02X', sync),
+                sync_name: KNOWN_SYNC[sync],
+                summary: "LoRa SF#{sf}/BW#{@bw / 1000}k sync=0x#{format('%02X', sync)}#{" (#{KNOWN_SYNC[sync]})" if KNOWN_SYNC[sync]} preamble=#{best_run}"
+              )
+            end
+            @buf.shift((i + (2 * n)) * 2)
           end
         end
 
@@ -75,23 +134,17 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-
-          rate  = (opts[:sample_rate] || freq_obj[:iq_rate] || 1_000_000).to_i
-          proto = 'LoRa'
-          demod = DemodIQ.new(
-            rate: rate, protocol: proto, modulation: 'CSS',
-            extra: { threshold: 8.0 }
-          )
+          bw   = (opts[:bw] || freq_obj[:lora_bw] || DEFAULT_BW).to_i
+          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || (bw * 4)).to_i
           PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: proto,
+            protocol: 'LoRa',
             sample_rate: rate,
             source: opts[:source],
             file: opts[:file],
-            demod: demod,
-            threshold: 8.0,
-            note: 'CSS over 125–500 kHz — true-air I/Q path estimates SF from chirp duration; full dechirp via FFTW is layered when available.',
-            describe: proc { |b| { modulation: 'CSS', bw_khz_assumed: 125, sf_estimate: (begin; t = b[:duration_ms] / 20.0; t.positive? ? Math.log2(t * 125).round.clamp(6, 12) : nil; end) }.compact }
+            demod: DemodIQ.new(rate: rate, bw: bw),
+            note: 'CSS 125–500 kHz — I/Q→resample_iq(fs=BW)→dechirp+FFTW per SF→preamble/sync-word.',
+            describe: proc { |b| { modulation: 'CSS', bw_khz_assumed: bw / 1000, sf_estimate: b[:sf] } }
           )
         end
 
@@ -106,8 +159,7 @@ module PWN
           bits = []
           bits << "SF#{out[:sf]}" if out[:sf]
           bits << "BW#{out[:bw]}" if out[:bw]
-          bits << "CR#{out[:cr]}" if out[:cr]
-          bits << "RSSI=#{out[:rssi]}" if out[:rssi]
+          bits << "sync=#{out[:sync_word]}" if out[:sync_word]
           bits << out[:payload].to_s[0, 40] if out[:payload]
           out[:summary] = bits.empty? ? line[0, 120] : bits.join(' ')
           out
@@ -124,7 +176,8 @@ module PWN
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
               source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture'
+              file:     'optional - .cu8/.cs16 capture',
+              bw:       'optional - LoRa BW Hz (default 125000)'
             )
 
             #{self}.authors

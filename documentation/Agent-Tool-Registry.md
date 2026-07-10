@@ -21,6 +21,30 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 | `cron` | `cron_list` · `cron_create` · `cron_run` · `cron_enable` · `cron_disable` · `cron_remove` | `PWN::Cron` → `~/.pwn/cron/jobs.yml` |
 | `swarm` | `agent_list` · `agent_spawn` · `agent_ask` · `agent_debate` · `agent_broadcast` · `swarm_bus` · `swarm_list` | `PWN::AI::Agent::Swarm` → `~/.pwn/agents.yml` + `~/.pwn/swarm/` |
 
+
+## Dynamic tool-set slimming (`ai.agent.tool_router`)
+
+Shipping every schema on every turn overwhelms a small local model — the
+choice space is huge and it mis-routes (e.g. picks an RF tool for a git
+question). When `ai.agent.tool_router: true` **and** `Loop.run` passes the
+user request through as `relevance:`, `Registry.definitions` shrinks the
+pool to:
+
+```text
+CORE_TOOLS  = shell · pwn_eval · memory_remember · memory_recall
+              mistakes_record · mistakes_resolve · learning_note_outcome
+            + top-K keyword-ranked matches for THIS request
+              (ties break on Metrics per-engine success_rate → the router
+               itself is a learned component)
+```
+
+```ruby
+PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 10)
+PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
+```
+
+Frontier engines leave `tool_router` off and receive the full set.
+
 ## Adding a tool
 
 ```ruby

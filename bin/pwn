@@ -3,6 +3,19 @@
 
 require 'pwn'
 
+# ----------------------------------------------------------------------
+# Bare-word subcommand: `pwn setup [...]` → delegate to bin/pwn_setup so
+# `gem install pwn && pwn setup` is the canonical two-step install path.
+# Must be handled BEFORE OptionParser (which would reject `setup`).
+# ----------------------------------------------------------------------
+if ARGV.first == 'setup'
+  ARGV.shift
+  setup_bin = File.expand_path('pwn_setup', __dir__)
+  setup_bin = Gem.bin_path('pwn', 'pwn_setup') unless File.file?(setup_bin)
+  load setup_bin
+  exit
+end
+
 opts = PWN::Env[:driver_opts]
 pwn_driver = PWN::Driver::Parser.new do |options|
   options.on(
@@ -14,6 +27,16 @@ pwn_driver = PWN::Driver::Parser.new do |options|
   ) do |a|
     opts[:ai] = a
   end
+
+  options.on(
+    '-S[PROFILE]',
+    '--setup[=PROFILE]',
+    '<Optional - Post-install doctor / capability provisioner. With no ' \
+    "PROFILE runs a read-only check; with PROFILE (#{PWN::Setup::PROFILES.keys.join('|')}) " \
+    'installs OS deps for that capability set. Same as `pwn setup` / `pwn_setup`>'
+  ) do |p|
+    opts[:setup] = p || true
+  end
 end
 pwn_driver.auto_opts_help = false
 pwn_driver.parse!
@@ -21,7 +44,18 @@ pwn_driver.parse!
 begin
   pwn_pid = Process.pid
 
-  if opts[:ai]
+  if opts[:setup]
+    # ------------------------------------------------------------------
+    # `pwn --setup`            → PWN::Setup.check   (read-only doctor)
+    # `pwn --setup=web`        → PWN::Setup.deps(profile: :web)
+    # ------------------------------------------------------------------
+    if opts[:setup] == true
+      r = PWN::Setup.check
+      exit(r[:ok] ? 0 : 1)
+    else
+      PWN::Setup.deps(profile: opts[:setup])
+    end
+  elsif opts[:ai]
     # ------------------------------------------------------------------
     # Headless pwn-ai: behave as if the user typed PROMPT at the pwn-ai
     # TUI, but non-interactively — a single agent-loop turn with native

@@ -16,6 +16,11 @@ writes a fully-commented template with every key below (values set to
 `'optional - …'` / `'required - …'` placeholder strings), encrypts it, and
 generates the decryptor.
 
+> **Before configuring**, run `pwn setup` — the
+> [doctor](Installation.md#pwn-setup--the-post-install-doctor--provisioner)
+> reports whether `~/.pwn/`, `pwn.yaml`, its decryptor, and an AI-engine key
+> are present, and exits non-zero for CI if any are missing.
+
 ---
 
 ## Full annotated example
@@ -30,7 +35,7 @@ ai:
   grok:
     base_uri: https://api.x.ai/v1  # xAI API base URL. Override for a self-hosted proxy / private endpoint.
     key: xai-…                     # xAI API key. If blank AND no oauth.* below, PWN prompts interactively at load.
-    model: grok-4.5                # Model id sent on every chat / tool-loop request.
+    model: <model-id>              # Model id sent on every chat / tool-loop request. See provider docs / API for currently-supported ids.
     system_role_content: 'You are an ethically hacking xAI Grok agent.'   # Base system prompt (MEMORY/SKILLS/LEARNING/EXTROSPECTION blocks are appended to this).
     temp: 1.0                      # Sampling temperature passed to the chat endpoint.
     max_prompt_length: 256000      # Soft input-context ceiling (chars) used for prompt truncation / chunking.
@@ -46,7 +51,7 @@ ai:
   openai:
     base_uri: https://api.openai.com/v1   # OpenAI API base URL. Override for Azure OpenAI / VPC gateway / local proxy.
     key: sk-…                             # OpenAI API key (`sk-…`). Prompted interactively if blank.
-    model: gpt-4o                         # Model id sent on every chat / tool-loop request.
+    model: <model-id>                     # Model id sent on every chat / tool-loop request. See provider docs / API for currently-supported ids.
     system_role_content: 'You are an ethically hacking OpenAI agent.'   # Base system prompt for this engine.
     temp: 1.0                             # Sampling temperature.
     max_prompt_length: 128000             # Soft input-context ceiling (chars) for truncation / chunking.
@@ -55,7 +60,7 @@ ai:
   anthropic:
     base_uri: https://api.anthropic.com/v1   # Anthropic API base URL. Override for Bedrock / private gateway.
     key: sk-ant-…                            # Anthropic API key (`sk-ant-…`). Prompted interactively if blank.
-    model: claude-3-5-sonnet-20240620        # Model id sent on every chat / tool-loop request.
+    model: <model-id>                        # Model id sent on every chat / tool-loop request. See provider docs / API for currently-supported ids.
     system_role_content: 'You are an ethically hacking Anthropic agent.'   # Base system prompt for this engine.
     temp: 1.0                                # Sampling temperature.
     max_tokens: 8192                         # Max OUTPUT tokens per response. Raise if tool-call JSON truncates.
@@ -64,7 +69,7 @@ ai:
   gemini:
     base_uri: https://generativelanguage.googleapis.com/v1beta   # Google Generative Language API base URL.
     key: AIza…                               # Google AI Studio API key (`AIza…`). Prompted interactively if blank.
-    model: gemini-2.5-pro                    # Model id sent on every chat / tool-loop request.
+    model: <model-id>                        # Model id sent on every chat / tool-loop request. See provider docs / API for currently-supported ids.
     system_role_content: 'You are an ethically hacking Gemini agent.'   # Base system prompt for this engine.
     temp: 1.0                                # Sampling temperature.
     max_prompt_length: 1000000               # Soft input-context ceiling (chars) — Gemini supports very large contexts.
@@ -72,10 +77,21 @@ ai:
   ollama:
     base_uri: https://ollama.local           # REQUIRED for ollama — Open WebUI / ollama-serve base URL (no vendor default).
     key: eyJ…                                # Open WebUI JWT (Settings → Account → API Key). Prompted if blank.
-    model: llama3.1:70b                      # Local model tag as `ollama list` shows it.
+    model: <local-model-tag>                 # Local model tag exactly as `ollama list` shows it.
+    embed_model: <embed-model-tag>           # Embedding model for PWN::MemoryIndex (relevance-ranked MEMORY). Must be pulled locally.
     system_role_content: 'You are an ethically hacking Ollama agent.'   # Base system prompt for this engine.
-    temp: 1.0                                # Sampling temperature.
+    temp: 1.0                                # Sampling temperature (used on the FINAL text-only turn — tool-bearing turns are pinned low for deterministic routing).
+    num_ctx: 32768                           # Context window passed to /api/chat options.num_ctx. Ollama's default (2048) is too small for the pwn-ai system prompt.
+    keep_alive: 30m                          # How long ollama keeps the model resident between iterations (avoids reload latency mid-turn).
+    prompt_budget:                           # Per-block caps applied by PromptBuilder.budget so a small model spends attention on the request, not the harness.
+      memory: 6                              # Max MEMORY entries injected (relevance-ranked via PWN::MemoryIndex when available).
+      metrics: 3                             # Max TOOL EFFECTIVENESS rows.
+      mistakes: 3                            # Max KNOWN MISTAKES / FIXES rows.
+      learning: 2                            # Max recent LEARNING outcomes shown.
+      extro: false                           # Gate the (heaviest) EXTROSPECTION block entirely for local models.
     max_prompt_length: 32000                 # Soft input-context ceiling (chars) — tune per local model's real context window.
+
+  reflect_engine: ~                # Teacher-student reflection: EXECUTE on ai.active, but write durable lessons via THIS engine (nil = same as active). Lets a local model act while a frontier model authors the Memory :lesson entries it reads back.
 
   agent:
     native_tools: true             # Use provider-native tool_calls / function-calling. false → legacy text-parsed tool protocol.
@@ -83,6 +99,9 @@ ai:
     max_depth: 3                   # Recursion guard: how many levels deep agent_ask/agent_debate sub-agents may spawn sub-agents.
     auto_introspect: true          # Run Learning.auto_introspect (outcome logging + lesson mining) after every final answer.
     auto_extrospect: false         # Optional ambient baseline (host/repo/env ONLY — never launches burpsuite/zaproxy/msf/gqrx). Sense tools (intel/verify/watch/rf_tune/observe) stay on-demand.
+    plan_first: ~                  # Plan-then-act pre-pass: force the model to externalise a numbered tool plan BEFORE its first dispatch. nil = auto (true when ai.active == ollama).
+    tool_router: false             # Dynamic tool-set slimming: ship only Registry::CORE_TOOLS + top-K keyword-relevant schemas per turn (helps small models route correctly).
+    escalation_persona: ~          # Swarm persona name to ask for a 3-line corrective hint once a local model burns ≥ Loop::ESCALATE_AFTER_FAILS in-turn failures. nil = disabled.
     toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, extrospection, learning, memory, metrics, pwn, sessions, skills, swarm, terminal.
     extrospection:
       web:
@@ -193,12 +212,17 @@ PWN::Config.refresh_env
 | `ai.module_reflection` | Boolean | `false` | `PWN::AI::Agent::Reflect`, `PWN::SAST::*`, `PWN::Plugins::BurpSuite` | Master gate for LLM-driven self-analysis (SAST triage, Burp finding enrichment, `Learning.llm_reflect`). |
 | `ai.<engine>.base_uri` | String | provider default | `PWN::AI::<Engine>.rest_call` | Override the API base URL (self-hosted proxy, private endpoint, Azure/VPC gateway). **Required** for `ollama`. |
 | `ai.<engine>.key` | String | — | `PWN::AI::<Engine>` | API key / bearer token. If blank AND no OAuth is configured, PWN prompts interactively at load. |
-| `ai.<engine>.model` | String | provider default | `PWN::AI::<Engine>.chat` / `.chat_tool_loop` | Model id sent on every request (e.g. `grok-4.5`, `gpt-4o`, `claude-3-5-sonnet-20240620`, `gemini-2.5-pro`, `llama3.1:70b`). |
+| `ai.<engine>.model` | String | provider default | `PWN::AI::<Engine>.chat` / `.chat_tool_loop` | Model id sent on every request. Use whatever id the provider / `ollama list` currently exposes — PWN never hard-codes a specific model. |
 | `ai.<engine>.system_role_content` | String | ethical-hacker persona | `PWN::AI::Agent::PromptBuilder`, `PWN::Plugins::REPL` | Base system prompt prepended to MEMORY / SKILLS / LEARNING / EXTROSPECTION blocks. |
 | `ai.<engine>.temp` | Float | `1.0` | `PWN::AI::<Engine>.chat` | Sampling temperature. |
 | `ai.<engine>.max_prompt_length` | Integer | per-engine | `PWN::AI::<Engine>`, `PWN::Plugins::REPL` | Soft input-context ceiling used for prompt truncation / chunking. |
 | `ai.anthropic.max_tokens` | Integer | `8192` | `PWN::AI::Anthropic.chat_tool_loop` | Max **output** tokens per response. Raise if tool-call JSON truncates. |
 | `ai.openai.max_tokens` | Integer | `16384` | `PWN::AI::OpenAI.chat` | Max **output** tokens per response. Mapped to OpenAI's wire param `max_completion_tokens` (legacy env key `max_completion_tokens` still accepted). |
+| `ai.ollama.embed_model` | String | provider default | `PWN::MemoryIndex` | Local embedding model tag used to build `~/.pwn/memory.idx` for **relevance-ranked** MEMORY injection. Falls back to substring recall when unset / unreachable. |
+| `ai.ollama.num_ctx` | Integer | `32768` | `PWN::AI::Ollama.chat_with_tools` | Context window sent as `options.num_ctx` on the native `/api/chat` call. Ollama's own default (2048) truncates the pwn-ai system prompt. |
+| `ai.ollama.keep_alive` | String | `30m` | `PWN::AI::Ollama.chat_with_tools` | How long the model stays resident in ollama between iterations of a single turn. |
+| `ai.ollama.prompt_budget` | Hash | `{memory:6, metrics:3, mistakes:3, learning:2, extro:false}` | `PWN::AI::Agent::PromptBuilder.budget` | Per-block caps on injected context so a small local model spends its attention on the request, not the harness. Any engine may set this. |
+| `ai.reflect_engine` | Symbol \| `nil` | `nil` (= `ai.active`) | `PWN::AI::Agent::Reflect.on`, `Learning.reflect` | **Teacher-student** override: run the task on `ai.active`, but generate durable lessons via *this* engine. Lets a local model execute while a frontier model writes the Memory it reads back. |
 | `ai.grok.oauth.refresh_token` | String | — | `PWN::AI::Grok.resolve_auth` | Durable OAuth refresh token (from `PWN::AI::Grok.obtain_oauth_bearer_token` device flow). Enables silent re-auth without an API key. |
 | `ai.grok.oauth.bearer_token` | String | — | `PWN::AI::Grok.resolve_auth` | Short-lived OAuth access JWT. Auto-refreshed each run when `refresh_token` is present; live-cached back into this hash. |
 | `ai.grok.oauth.client_id` | String | Grok-CLI public id | `PWN::AI::Grok` | Override the public OAuth client id used for device-flow / refresh. |
@@ -217,6 +241,9 @@ PWN::Config.refresh_env
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `false` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Optional ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Prefer on-demand sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`). Toggle live via `extro_auto_toggle`. |
 | `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `extrospection`, `learning`, `memory`, `metrics`, `pwn`, `sessions`, `skills`, `swarm`, `terminal`. |
+| `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active == ollama`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
+| `ai.agent.tool_router` | Boolean | `false` | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate so the router itself is a learned component. |
+| `ai.agent.escalation_persona` | String \| `nil` | `nil` | `PWN::AI::Agent::Loop.escalate` → `Swarm.ask` | Circuit-breaker: once a local model accumulates ≥ `Loop::ESCALATE_AFTER_FAILS` in-turn failures, ask this Swarm persona for a 3-line corrective hint (injected as a synthetic tool result). The local model still authors the final answer so Learning/Metrics stay attributed. |
 | `ai.agent.extrospection.web.anchors` | Array\<String\> | `DEFAULT_WEB_ANCHORS` | `PWN::AI::Agent::Extrospection.probe_web` | URLs the headless browser fingerprints on `extro_snapshot(sections:[:web])`. Alias: `web_anchors`. |
 | `ai.agent.extrospection.web.proxy` | String | — | `Extrospection.probe_web` / `.verify` / `.watch` | Upstream proxy for `PWN::Plugins::TransparentBrowser` (e.g. `tor`, `http://127.0.0.1:8080`). |
 | `ai.agent.extrospection.web.max_anchors` | Integer | `8` | `Extrospection.probe_web` | Cap on anchors rendered per snapshot. |
@@ -309,9 +336,9 @@ agent system prompt.
 
 `pwn.yaml` is the only file you edit; everything else is machine-written
 state. See **[Persistence](Persistence.md)** for the full map
-(`memory.json`, `learning.jsonl`, `mistakes.json`, `metrics.json`,
-`extrospection.json`, `sessions/`, `skills/`, `cron/`, `agents.yml`,
-`swarm/`).
+(`memory.json`, `memory.idx`, `learning.jsonl`, `mistakes.json`,
+`metrics.json`, `extrospection.json`, `sessions/`, `skills/`,
+`finetune/`, `cron/`, `agents.yml`, `swarm/`).
 
 Multi-agent personas are **not** configured here — they live in
 `~/.pwn/agents.yml` and are managed with `agent_spawn` / `agent_list`

@@ -18,6 +18,16 @@ module PWN
       #   agent/tools/*.rb         (require registry, call .register at top level)
       #          ^
       #   agent/loop.rb            (calls Registry.discover then .definitions)
+      #
+      # DYNAMIC TOOL-SET SLIMMING (local-model scaffolding)
+      # ---------------------------------------------------
+      # Shipping all ~47 tool schemas on every call overwhelms a 35B local
+      # model — it mis-routes (extro_rf_tune for a git question) because the
+      # choice space is huge. When PWN::Env[:ai][:agent][:tool_router] is
+      # truthy AND definitions(relevance: request) is passed, the pool is
+      # reduced to CORE_TOOLS + the top-K keyword-ranked matches. Routing
+      # accuracy is fed back into Metrics under name:'tool_router' so the
+      # router itself becomes a learned component.
       module Registry
         Entry = Struct.new(
           :name,        # String  - tool name exposed to the model
@@ -28,6 +38,9 @@ module PWN
           :max_chars,   # Integer - cap on serialised result before it re-enters the convo
           keyword_init: true
         )
+
+        CORE_TOOLS = %w[shell pwn_eval memory_remember memory_recall
+                        mistakes_record mistakes_resolve learning_note_outcome].freeze
 
         @entries = {}
         @discovered = false
@@ -84,15 +97,51 @@ module PWN
 
         # Supported Method Parameters::
         # tools = PWN::AI::Agent::Registry.definitions(
-        #   enabled: 'optional - Array of toolset names to include; nil = all whose check passes'
+        #   enabled: 'optional - Array of toolset names to include; nil = all whose check passes',
+        #   relevance: 'optional - user request; when set AND :tool_router is enabled, slim to CORE + top-K keyword matches',
+        #   top_k: 'optional - keyword-ranked tools to keep beyond CORE (default 10)'
         # )
 
         public_class_method def self.definitions(opts = {})
           enabled = opts[:enabled]
           enabled = enabled.map(&:to_s) if enabled
-          @entries.values
-                  .select { |e| (enabled.nil? || enabled.include?(e.toolset)) && safe_check(entry: e) }
-                  .map    { |e| { type: 'function', function: e.schema } }
+          pool = @entries.values.select { |e| (enabled.nil? || enabled.include?(e.toolset)) && safe_check(entry: e) }
+
+          if opts[:relevance] && router_enabled?
+            keep  = rank(query: opts[:relevance], entries: pool).first(opts[:top_k] || 10).map(&:name)
+            names = (CORE_TOOLS + keep).uniq
+            pool  = pool.select { |e| names.include?(e.name) }
+          end
+
+          pool.map { |e| { type: 'function', function: e.schema } }
+        end
+
+        # Supported Method Parameters::
+        # ranked = PWN::AI::Agent::Registry.rank(
+        #   query: 'required - user request text',
+        #   entries: 'optional - Entry pool to rank (default .all)'
+        # )
+        #
+        # Lightweight keyword TF router: scores each tool by the number of
+        # query tokens (≥ 3 chars, downcased) appearing in its name /
+        # description / property names. Zero-score entries drop off; ties
+        # break on historical Metrics success_rate so the router learns.
+
+        public_class_method def self.rank(opts = {})
+          query   = opts[:query].to_s.downcase
+          entries = opts[:entries] || all
+          return entries if query.strip.empty?
+
+          tokens = query.scan(/[a-z0-9_]{3,}/).uniq
+          rates  = metrics_rates
+          scored = entries.map do |e|
+            hay   = "#{e.name} #{e.toolset} #{e.schema[:description]} #{Array(e.schema.dig(:parameters, :properties)&.keys).join(' ')}".downcase
+            score = tokens.count { |t| hay.include?(t) }
+            [e, score, rates[e.name] || 0.0]
+          end
+          scored.reject { |_, s, _| s.zero? }
+                .sort_by { |_, s, r| [-s, -r] }
+                .map(&:first)
         end
 
         # Supported Method Parameters::
@@ -123,6 +172,20 @@ module PWN
           false
         end
 
+        private_class_method def self.router_enabled?
+          defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env.dig(:ai, :agent, :tool_router)
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.metrics_rates
+          return {} unless defined?(Metrics)
+
+          Metrics.summary(limit: 200).to_h { |r| [r[:name], r[:success_rate]] }
+        rescue StandardError
+          {}
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -136,6 +199,8 @@ module PWN
             USAGE:
               PWN::AI::Agent::Registry.discover
               PWN::AI::Agent::Registry.definitions(enabled: %w[terminal pwn])
+              PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10/8')  # slim (needs :tool_router)
+              PWN::AI::Agent::Registry.rank(query: 'run a shell command')
               PWN::AI::Agent::Registry.lookup(name: 'shell')   # => Entry
               PWN::AI::Agent::Registry.toolsets                # => ["memory","pwn","skills","terminal"]
               PWN::AI::Agent::Registry.register(name:, toolset:, schema:, handler:)

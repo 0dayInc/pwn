@@ -3,66 +3,96 @@
 module PWN
   module SDR
     module Decoder
-      # True-air + detector-fallback decoder for DECT.
-      # Prefers PWN::FFI I/Q (RTL-SDR / ADALM-Pluto / HackRF / capture file)
-      # via Base.run_iq; degrades to Base.run_detector with no hardware.
+      # DECT (ETSI EN 300 175) true-air decoder.
+      #
+      # 1.152 Mbit/s GFSK, 24-slot / 10 ms TDMA. I/Q → PWN::FFI::Liquid
+      # gmskdem (or DSP.fm_demod_iq→NRZ) → hunt 32-bit S-field
+      # (16-bit preamble + 16-bit sync 0xE98A FP / 0x1675 PP) → A-field
+      # (64 bits: 8-bit header + 40-bit tail + 16-bit R-CRC) → RFPI
+      # extraction on Nt/Qt tails. Emits {rfpi:, role:, slot_est:, crc_ok:}.
       module DECT
-        # Streaming I/Q energy/burst demod for Base.run_iq.
+        SYNC_FP = 0xAAAAE98A
+        SYNC_PP = 0x55551675
+        BAUD    = 1_152_000
+        # R-CRC-16 poly x^16+x^10+x^8+x^7+x^3+1 = 0x0589, init 0x0000.
+        RCRC_POLY = 0x0589
+        A_TA = { 0 => 'Ct', 1 => 'Ct', 2 => 'Nt', 3 => 'Nt', 4 => 'Qt', 5 => 'Nt', 6 => 'Mt', 7 => 'Pt' }.freeze
+
+        # Streaming DECT GFSK demod for Base.run_iq — I/Q → RFPI/A-field.
         class DemodIQ
-          def initialize(rate:, protocol:, modulation:, extra: {})
-            @rate = rate.to_f
-            @protocol = protocol
-            @modulation = modulation
-            @extra = extra
-            @floor = nil
-            @in_burst = false
-            @burst_t0 = nil
-            @peak = -200.0
-            @burst_n = 0
-            @threshold = (extra[:threshold] || 8.0).to_f
+          def initialize(rate:, carrier: nil)
+            @rate    = rate.to_f
+            @carrier = carrier
+            @bits    = []
+            @seen    = {}
           end
 
           def feed_iq(samples, rate: nil, &)
             @rate = rate.to_f if rate
-            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
-            hop = [(@rate / 1000.0).round, 1].max
-            i = 0
-            while i < m2.length
-              win = m2[i, hop]
-              break if win.nil? || win.empty?
-
-              ms = win.sum / win.length
-              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
-              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
-              delta = lvl - @floor
-              if delta >= @threshold
-                unless @in_burst
-                  @in_burst = true
-                  @burst_t0 = Time.now
-                  @peak = lvl
-                end
-                @peak = lvl if lvl > @peak
-              elsif @in_burst
-                @in_burst = false
-                @burst_n += 1
-                dur_ms = ((Time.now - @burst_t0) * 1000).round
-                msg = {
-                  protocol: @protocol, event: 'burst', source: 'iq',
-                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
-                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
-                  duration_ms: dur_ms, modulation: @modulation,
-                  sample_rate: @rate.to_i
-                }.merge(@extra.except(:threshold))
-                # protocol-specific enrichment
-                msg.merge!(self.class.enrich(msg)) if self.class.respond_to?(:enrich)
-                msg[:summary] = format(
-                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
-                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
-                )
-                yield msg if block_given?
-              end
-              i += hop
+            [false, true].each do |inv|
+              nb = PWN::SDR::Decoder::DSP.gfsk_slice(
+                iq: samples, rate: @rate, baud: BAUD, bt: 0.5, invert: inv
+              )
+              scan(nb, inv, &) if block_given?
             end
+          end
+
+          private
+
+          def scan(bits, inv)
+            @bits.concat(bits)
+            fp = Array.new(32) { |i| (SYNC_FP >> (31 - i)) & 1 }
+            pp = Array.new(32) { |i| (SYNC_PP >> (31 - i)) & 1 }
+            i = 0
+            while i <= @bits.length - (32 + 64)
+              role = nil
+              role = 'FP' if err(@bits, i, fp) <= 3
+              role ||= 'PP' if err(@bits, i, pp) <= 3
+              if role
+                a = @bits[i + 32, 64]
+                hdr  = PWN::SDR::Decoder::DSP.bits_to_int(bits: a[0, 8])
+                tail = a[8, 40]
+                rcrc = PWN::SDR::Decoder::DSP.bits_to_int(bits: a[48, 16])
+                bytes = PWN::SDR::Decoder::DSP.bytes_from_bits(bits: a[0, 48])
+                calc  = PWN::SDR::Decoder::DSP.crc16(bytes: bytes, poly: RCRC_POLY, init: 0x0000)
+                # DECT R-CRC XORs the final register with 0x0001
+                crc_ok = ((calc ^ 0x0001) & 0xFFFF) == rcrc
+                ta = (hdr >> 5) & 0x7
+                rfpi = A_TA[ta] == 'Nt' ? tail[0, 40] : nil
+                rfpi_hex = rfpi ? format('%010X', PWN::SDR::Decoder::DSP.bits_to_int(bits: rfpi)) : nil
+                key = "#{role}:#{rfpi_hex}:#{format('%02X', hdr)}"
+                unless @seen[key] && crc_ok
+                  @seen[key] = true if crc_ok
+                  @seen.shift if @seen.length > 128
+                  yield(
+                    protocol: 'DECT', event: 'a_field', role: role,
+                    modulation: 'GFSK', header: format('%02X', hdr),
+                    ta: ta, ta_name: A_TA[ta], rfpi: rfpi_hex,
+                    tail_hex: format('%010X', PWN::SDR::Decoder::DSP.bits_to_int(bits: tail)),
+                    rcrc: format('%04X', rcrc), crc_ok: crc_ok,
+                    carrier: @carrier, polarity_inverted: inv,
+                    summary: "DECT #{role} TA=#{A_TA[ta]}#{" RFPI=#{rfpi_hex}" if rfpi_hex} R-CRC=#{crc_ok ? 'OK' : 'BAD'}"
+                  )
+                end
+                i += 32 + 64 + 320 # skip past B-field
+              else
+                i += 1
+              end
+            end
+            @bits.shift([i - 32, 0].max) if i > 32
+            @bits.shift(@bits.length - 8192) if @bits.length > 65_536
+          end
+
+          def err(bits, idx, pat)
+            e = 0
+            j = 0
+            while j < pat.length
+              e += 1 if bits[idx + j] != pat[j]
+              return 99 if e > 3
+
+              j += 1
+            end
+            e
           end
         end
 
@@ -73,23 +103,19 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-
-          rate  = (opts[:sample_rate] || freq_obj[:iq_rate] || 2_000_000).to_i
-          proto = 'DECT'
-          demod = DemodIQ.new(
-            rate: rate, protocol: proto, modulation: 'GFSK',
-            extra: { threshold: 7.0 }
-          )
+          hz = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
+          # EU: carrier 0 = 1897.344 MHz, step 1.728 MHz down; US 1.9296 GHz.
+          carrier = ((1_897_344_000 - hz) / 1_728_000.0).round
+          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || 2_304_000).to_i
           PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: proto,
+            protocol: 'DECT',
             sample_rate: rate,
             source: opts[:source],
             file: opts[:file],
-            demod: demod,
-            threshold: 7.0,
-            note: '1.152 Mbit/s GFSK 24-slot TDMA — true-air I/Q path reports slot bursts.',
-            describe: proc { |b| { modulation: 'GFSK', tdma_slots: (b[:duration_ms] / 0.417).round, classification: (b[:duration_ms] / 0.417).round >= 24 ? 'FP-beacon-frame' : 'PP-burst' } }
+            demod: DemodIQ.new(rate: rate, carrier: carrier),
+            note: '1.152 Mbit/s GFSK — I/Q→gmskdem→S-field 0xE98A→A-field/RFPI/R-CRC.',
+            describe: proc { |b| { modulation: 'GFSK', tdma_slots: (b[:duration_ms] / 0.417).round } }
           )
         end
 
@@ -116,7 +142,7 @@ module PWN
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
               source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture'
+              file:     'optional - .cu8/.cs16 capture (≥2.304 Msps)'
             )
 
             #{self}.authors
