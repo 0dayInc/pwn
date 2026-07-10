@@ -10,7 +10,7 @@ with the PWN `opts = {}` convention so they compose in the REPL and in
 
 Standard AWS SDK chain: `~/.aws/credentials` profile, env vars
 (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN`), or
-instance profile. Optionally pin in `~/.pwn/config.yml` under `aws:`.
+instance profile. Optionally pin in `~/.pwn/pwn.yaml` under `aws:`.
 
 ## Quick enumeration
 

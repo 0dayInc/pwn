@@ -6,12 +6,15 @@ Every byte PWN remembers between processes lives here.
 
 | Path | Owner | Format | Reset tool | Purpose |
 |---|---|---|---|---|
-| `config.yml` | `PWN::Config` | YAML | edit by hand | engines, keys, agent options |
+| `pwn.yaml` | `PWN::Config` · `PWN::Plugins::Vault` | AES-encrypted YAML | `pwn-vault` | engines, keys, agent options |
+| `pwn.yaml.decryptor` | `PWN::Plugins::Vault` | key/IV | — | decrypts `pwn.yaml` (or set `PWN_DECRYPTOR_KEY`/`_IV`) |
 | `memory.json` | `PWN::Memory` | JSON array | `memory_clear` | facts · prefs · lessons · env — injected into every prompt |
+| `memory.idx` | `PWN::MemoryIndex` | JSON `{key → {sha,vec}}` | `PWN::MemoryIndex.reset` | local embedding index over `memory.json` — powers **relevance-ranked** MEMORY injection (incremental; only re-embeds changed entries) |
+| `finetune/*.jsonl` | `PWN::AI::Agent::Learning.export_finetune` | ShareGPT / OpenAI JSONL | `rm` | supervised dataset cut from every successful session — feed to a LoRA over the local model |
 | `skills/*.md` | `PWN::Config.load_skills` | Markdown + YAML front-matter | `skill_delete` | reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST) |
 | `learning.jsonl` | `PWN::AI::Agent::Learning` | JSON-per-line | `learning_reset` | task outcome log → success_rate |
 | **`mistakes.json`** | **`PWN::AI::Agent::Mistakes`** | **JSON `{sig → entry}`** | **`mistakes_reset`** | **failure fingerprints · cross-session count · fix · `[REPEATING]` · `[REGRESSED]`** |
-| `metrics.json` | `PWN::AI::Agent::Metrics` | JSON | `metrics_reset` | per-tool calls · success · avg_duration · last_error |
+| `metrics.json` | `PWN::AI::Agent::Metrics` | JSON | `metrics_reset` | per-tool calls · success · avg_duration · last_error · **per-engine** sub-buckets |
 | `extrospection.json` | `PWN::AI::Agent::Extrospection` | JSON | `extro_reset` | host/net/toolchain/repo/env/**rf**/**web** snapshot + previous baseline + observations[] |
 | `extrospection/web/*.png` | `PWN::AI::Agent::Extrospection` | PNG | `rm -rf` | headless-browser screenshots from `probe_web` / `extro_watch` (opt-in) |
 | `sessions/*.jsonl` | `PWN::Sessions` | JSON-per-line | `sessions_delete` | full transcript per pwn-ai run |

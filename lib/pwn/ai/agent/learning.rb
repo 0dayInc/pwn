@@ -175,7 +175,7 @@ module PWN
         # Turns the learning corpus into a supervised dataset: every session
         # whose learning.jsonl outcome is success:true becomes one training
         # sample (system, user, assistant/tool_calls, tool, ..., final). Pair
-        # with a weekly PWN::Cron job that runs `ollama create qwen-pwn -f
+        # with a weekly PWN::Cron job that runs `ollama create <tag>-pwn -f
         # Modelfile` over the export - the only path to ACTUAL parity with a
         # frontier model, because it changes the weights not just the scaffold.
 

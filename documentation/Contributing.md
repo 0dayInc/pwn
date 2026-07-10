@@ -4,10 +4,11 @@
 
 ```text
 lib/pwn/                # all namespaces
+lib/pwn/setup.rb        # PWN::Setup — doctor/provisioner data tables
 lib/pwn/plugins/        # 66 plugin modules
 lib/pwn/ai/agent/       # agent core
 lib/pwn/ai/agent/tools/ # LLM tool registrations
-bin/                    # 52 pwn_* drivers
+bin/                    # 53 pwn_* drivers (incl. pwn_setup)
 spec/                   # RSpec (incl. conventions_spec)
 documentation/          # this wiki + diagrams
 ```
@@ -23,8 +24,10 @@ documentation/          # this wiki + diagrams
 ## Quality gates
 
 ```bash
-rvmsudo rake            # rubocop + rspec — must be zero offenses
+rake            # rubocop + rspec — must be zero offenses
 ```
+
+(`rvmsudo rake` on multi-user RVM installs.)
 
 ## Adding a plugin
 
@@ -34,7 +37,14 @@ rvmsudo rake            # rubocop + rspec — must be zero offenses
 4. Optional `bin/pwn_my_thing` driver (see [Drivers](Drivers.md)).
 5. Optional agent tool in `lib/pwn/ai/agent/tools/` (see
    [Agent Tool Registry](Agent-Tool-Registry.md)).
-6. Update [Plugins.md](Plugins.md) and, if it changes a data flow, the
+6. **If it needs a native gem or external binary**, add **one row** to
+   `PWN::Setup::NATIVE_GEMS` or `PWN::Setup::TOOLCHAIN` in
+   `lib/pwn/setup.rb` (with `apt:`/`dnf:`/`pacman:`/`brew:`/`port:` package
+   names + the `plugins:` it unlocks) and, if it belongs in a capability
+   set, reference it from `PWN::Setup::PROFILES`. That single edit makes
+   `pwn setup` install it on every OS and every install path (gem, git,
+   Docker, Packer, Vagrant, CI). **Do not** add a new bash provisioner.
+7. Update [Plugins.md](Plugins.md) and, if it changes a data flow, the
    relevant `.dot` in `documentation/diagrams/dot/` → `./build.sh`.
 
 ## Commit / release

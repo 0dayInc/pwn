@@ -18,33 +18,38 @@ digraph "PWN_MemorySkills" {
     Note   [label="learning_note_outcome\nlearning_reflect",     fillcolor="#6ee7b7"];
     Dist   [label="learning_distill_skill\n(session → skill)",   fillcolor="#6ee7b7"];
     Mrec   [label="mistakes_record\nmistakes_resolve",           fillcolor="#6ee7b7"];
+    Xft    [label="Learning.export_finetune\n(sessions → dataset)", fillcolor="#6ee7b7"];
   }
-  {rank=same; Rem; Skc; Note; Dist; Mrec}
+  {rank=same; Rem; Skc; Note; Dist; Mrec; Xft}
 
   subgraph cluster_files {
     label="~/.pwn/"; fontcolor="#fde68a"; style=rounded;
     color="#a16207"; bgcolor="#422006";
     Fmem [label="memory.json\nfact · pref · lesson · env", shape=cylinder, fillcolor="#fcd34d"];
+    Fidx [label="memory.idx\nembedding index\n(sha → vec)", shape=cylinder, fillcolor="#fcd34d"];
     Fskl [label="skills/*.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
     Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
     Fses [label="sessions/*.jsonl\ntranscripts",              shape=cylinder, fillcolor="#fcd34d"];
     Fmis [label="mistakes.json\nsig → count · fix · regressed", shape=cylinder, fillcolor="#fcd34d"];
     Fext [label="extrospection.json\nsnapshot · rf · web · obs", shape=cylinder, fillcolor="#fcd34d"];
+    Fftn [label="finetune/*.jsonl\nShareGPT / OpenAI", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmem; Fskl; Flrn; Fses; Fmis; Fext}
+  {rank=same; Fmem; Fidx; Fskl; Flrn; Fses; Fmis; Fext; Fftn}
 
   subgraph cluster_read {
     label="Read-Side / Injection"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
     Rec  [label="memory_recall",       fillcolor="#c4b5fd"];
+    Midx [label="MemoryIndex\nrecall_semantic\n(cosine top-K)",   fillcolor="#c4b5fd", penwidth=2];
     Skv  [label="skill_list · view",   fillcolor="#c4b5fd"];
     Out  [label="learning_outcomes\nlearning_stats", fillcolor="#c4b5fd"];
     Sesv [label="sessions_view\nsessions_current",   fillcolor="#c4b5fd"];
     Mlst [label="mistakes_list\ncorrection_hint",    fillcolor="#c4b5fd"];
+    Exem [label="Learning.exemplars_for\n(few-shot trace)",   fillcolor="#c4b5fd"];
   }
-  {rank=same; Rec; Skv; Out; Sesv; Mlst}
+  {rank=same; Rec; Midx; Skv; Out; Sesv; Mlst; Exem}
 
-  Prompt [label="PromptBuilder\nMEMORY + SKILLS + LEARNING\n+ KNOWN MISTAKES / FIXES\n+ METRICS + EXTROSPECTION", fillcolor="#7dd3fc", penwidth=2];
+  Prompt [label="PromptBuilder.build(request:)\nengine-aware .budget\nMEMORY (relevance-ranked) + SKILLS\n+ LEARNING + KNOWN MISTAKES/FIXES\n+ METRICS (per-engine) + EXTRO", fillcolor="#7dd3fc", penwidth=2];
 
   Rem  -> Fmem [color="#f59e0b"];
   Skc  -> Fskl [color="#f59e0b"];
@@ -66,8 +71,25 @@ digraph "PWN_MemorySkills" {
   Sesv -> Prompt [color="#38bdf8"];
   Mlst -> Prompt [label="do NOT repeat", color="#fb7185", penwidth=2];
 
+  Rem  -> Fidx [label="incremental\nre-embed", style=dashed, color="#fbbf24"];
+  Xft  -> Fftn [color="#f59e0b"];
+  Xft  -> Fses [dir=back, style=dashed, color="#fbbf24", label="mine"];
+  Xft  -> Flrn [dir=back, style=dashed, color="#fbbf24", label="success:true"];
+  
+  Fidx -> Midx [color="#a78bfa"];
+  Fmem -> Midx [style=dashed, color="#a78bfa"];
+  Flrn -> Exem [color="#a78bfa"];
+  Fses -> Exem [style=dashed, color="#a78bfa"];
+  
+  Midx -> Prompt [label="MEMORY block\n(top-K by cosine)", color="#38bdf8", penwidth=2];
+  Exem -> Prompt [label="few-shot msgs\n(local only)", color="#38bdf8"];
+
   ReVal [label="Extrospection.verify\nrevalidate_memory (cron)\nbrowser-backed GC", fillcolor="#fcd34d"];
   ReVal -> Fmem [label="[UNVERIFIED yyyy-mm-dd]\nprefix stale :fact", color="#fb7185", style=dashed, penwidth=2];
   ReVal -> Fext [label=":confirmed → :intel obs\n:refuted → observe stale", color="#f59e0b", style=dashed];
   Fmem  -> ReVal [label=":fact w/ CVE|ver|URL", style=dashed, color="#94a3b8", constraint=false];
+  
+  Teach [label="Reflect.on\n(engine: reflect_engine)\nteacher-student", fillcolor="#fda4af", penwidth=2];
+  Fses  -> Teach [label="transcript", style=dashed, color="#94a3b8", constraint=false];
+  Teach -> Fmem  [label="frontier-authored\n:lesson", color="#fb7185", penwidth=2];
 }

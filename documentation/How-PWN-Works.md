@@ -19,7 +19,8 @@ hardware).
 | `pwn` REPL | `lib/pwn/plugins/repl.rb` | Pry with `PWN::` pre-loaded + custom commands |
 | `pwn-ai` | `lib/pwn/ai/agent/loop.rb` | Agent TUI inside the REPL |
 | `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
-| `bin/pwn_*` | 52 files | Thin OptionParser wrappers over one plugin each |
+| `pwn setup` | `lib/pwn/setup.rb` · `bin/pwn_setup` | Post-install doctor + capability provisioner (also `pwn --setup[=PROFILE]`) |
+| `bin/pwn_*` | 53 files | Thin OptionParser wrappers over one plugin each |
 | `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs → any of the above |
 
 ## L2 — AI agent core  (`lib/pwn/ai/agent/`)

@@ -11,7 +11,7 @@ module PWN
       #
       # TOLERANT DISPATCH (local-model scaffolding)
       # -------------------------------------------
-      # Local models (qwen/llama/mistral on Ollama) frequently emit almost-
+      # Local models running on Ollama frequently emit almost-
       # right tool calls: `run_shell` instead of `shell`, trailing commas,
       # single-quoted JSON, arguments as a bare string. Strict parsing burns
       # an iteration and often spirals. Dispatch now:

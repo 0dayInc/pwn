@@ -19,7 +19,7 @@ digraph "PWN_AI_Integration" {
     Anthropic [label="Anthropic",        fillcolor="#c4b5fd"];
     Grok      [label="Grok\nOAuth device flow", fillcolor="#c4b5fd"];
     Gemini    [label="Gemini",           fillcolor="#c4b5fd"];
-    Ollama    [label="Ollama\n(local)",  fillcolor="#c4b5fd"];
+    Ollama    [label="Ollama (local)\n/api/chat  num_ctx · keep_alive\n/api/embed → MemoryIndex",  fillcolor="#c4b5fd"];
   }
   {rank=same; OpenAI; Anthropic; Grok; Gemini; Ollama}
 
@@ -34,7 +34,7 @@ digraph "PWN_AI_Integration" {
   }
   {rank=same; A1; A2; A3; A4; A5}
 
-  Cfg [label="PWN::Config\n~/.pwn/config.yml\nengine · key · oauth", shape=cylinder, fillcolor="#fcd34d"];
+  Cfg [label="PWN::Config\n~/.pwn/config.yml\nactive · key · oauth\nprompt_budget · reflect_engine\nplan_first · tool_router · escalation", shape=cylinder, fillcolor="#fcd34d"];
 
   Loop -> OpenAI    [color="#a78bfa"];
   Loop -> Anthropic [color="#a78bfa"];
@@ -47,4 +47,5 @@ digraph "PWN_AI_Integration" {
   Gemini    -> A4 [color="#fb7185"];
   Ollama    -> A5 [color="#fb7185"];
   Cfg -> Loop [label="active engine", style=dashed, color="#fbbf24", constraint=false];
+  Loop -> Anthropic [label="reflect_engine\n(teacher-student)", style=dashed, color="#fbbf24", constraint=false];
 }

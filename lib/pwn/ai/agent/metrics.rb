@@ -21,7 +21,7 @@ module PWN
       #
       # PER-ENGINE SEGMENTATION
       # -----------------------
-      # A local qwen3.6:35b and a frontier model do NOT have the same
+      # A local Ollama model and a frontier model do NOT have the same
       # per-tool success rate — blending them mis-advises the local model
       # about itself. Every record now also increments an :engines[<engine>]
       # sub-bucket; summary/to_context accept engine: to surface only that

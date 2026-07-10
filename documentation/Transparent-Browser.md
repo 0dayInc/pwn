@@ -6,6 +6,9 @@ capture. It's the traffic source for [BurpSuite](BurpSuite.md), the engine
 under every [`PWN::WWW`](WWW.md) driver, and the agent's go-to for anything
 JS-heavy.
 
+> **Install:** `pwn setup --profile web` — chromium · geckodriver · tor ·
+> nokogiri headers. See [Installation](Installation.md).
+
 ## Open
 
 ```ruby

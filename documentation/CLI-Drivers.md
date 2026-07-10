@@ -1,6 +1,6 @@
 # CLI Drivers — `bin/pwn_*`
 
-52 headless executables, each a thin `OptionParser` wrapper over one plugin
+53 headless executables, each a thin `OptionParser` wrapper over one plugin
 (or one workflow). They exist so CI/CD can call PWN without a REPL or an LLM.
 
 ![Driver anatomy](diagrams/driver-framework.svg)
@@ -26,18 +26,33 @@ pwn_crt_sh                       pwn_serial_check_voicemail
 pwn_defectdojo_engagement_create pwn_serial_msr206
 pwn_defectdojo_importscan        pwn_serial_qualcomm_commands
 pwn_defectdojo_reimportscan      pwn_serial_son_micro_sm132_rfid
-pwn_diff_csv_files_w_column_exclude  pwn_shodan_graphql_introspection
-pwn_domain_reversewhois          pwn_shodan_search
-pwn_fuzz_net_app_proto           pwn_simple_http_server
-pwn_gqrx_scanner                 pwn_web_cache_deception
-pwn_jenkins_create_job           pwn_www_checkip
-pwn_jenkins_create_view          pwn_www_uri_buster
-pwn_jenkins_install_plugin       pwn_xss_dom_vectors
-                                 pwn_zaproxy_active_rest_api_scan
-                                 pwn_zaproxy_active_scan
+pwn_diff_csv_files_w_column_exclude  pwn_setup
+pwn_domain_reversewhois          pwn_shodan_graphql_introspection
+pwn_fuzz_net_app_proto           pwn_shodan_search
+pwn_gqrx_scanner                 pwn_simple_http_server
+pwn_jenkins_create_job           pwn_web_cache_deception
+pwn_jenkins_create_view          pwn_www_checkip
+pwn_jenkins_install_plugin       pwn_www_uri_buster
 ```
 
 Run any with `--help` for its flags.
+
+## `pwn_setup` — post-install doctor & capability provisioner
+
+The one driver that isn't a plugin wrapper. It grows a bare `gem install pwn`
+into a fully-armed host by installing OS headers / external tools for whatever
+capability profile you ask for. Also reachable as `pwn setup` and
+`pwn --setup[=PROFILE]`.
+
+```bash
+pwn_setup                        # read-only doctor; exit 1 if degraded
+pwn_setup --list-profiles
+pwn_setup --profile web --yes    # CI-friendly, non-interactive
+pwn_setup --deps --dry-run       # print the apt/dnf/pacman/brew/port commands only
+```
+
+See [Installation](Installation.md) for the full profile table and
+`PWN::Setup` API.
 
 ## Typical CI usage
 
@@ -46,6 +61,8 @@ Run any with `--help` for its flags.
 sast:
   image: 0dayinc/pwn:latest
   script:
+    - pwn_setup --profile net --yes
+    - pwn_setup --check                                   # gate: exit 1 if degraded
     - pwn_sast -d "$CI_PROJECT_DIR" -o sast_out/
     - pwn_defectdojo_importscan -f sast_out/report.json -e "$DD_ENGAGEMENT"
 ```

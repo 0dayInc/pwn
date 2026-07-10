@@ -19,6 +19,7 @@ commands.
 | Command | Implemented in | Purpose |
 |---|---|---|
 | `pwn-ai` | `Agent::Loop` | Enter the AI agent TUI |
+| `pwn-vault` | `PWN::Plugins::Vault` | Decrypt → edit `~/.pwn/pwn.yaml` → re-encrypt |
 | `pwn-asm` | `Plugins::Assembly` | Multiline asm ↔ opcodes workbench |
 | `pwn-ai-memory` | `PWN::Memory` | View/edit persistent memory |
 | `pwn-ai-sessions` | `PWN::Sessions` | List/view/delete transcripts |

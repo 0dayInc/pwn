@@ -224,7 +224,7 @@ module PWN
           PWN::MemoryIndex.reset
 
           Config:
-            PWN::Env[:ai][:ollama][:embed_model] = 'nomic-embed-text'  # or bge-m3, mxbai-embed-large
+            PWN::Env[:ai][:ollama][:embed_model] = '<embed-model-tag>'  # any embedding model pulled locally
 
           #{self}.authors
       USAGE

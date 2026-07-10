@@ -77,7 +77,7 @@ module PWN
           anthropic: {
             base_uri: 'optional - Base URI for Anthropic - Use private base OR defaults to https://api.anthropic.com/v1',
             key: 'required - Anthropic API Key',
-            model: 'optional - Anthropic model to use (e.g. claude-3-5-sonnet-20240620)',
+            model: 'optional - Anthropic model id to use (see provider docs for currently-supported ids)',
             system_role_content: 'You are an ethically hacking Anthropic agent.',
             temp: 'optional - Anthropic temperature',
             max_tokens: 'optional - Max output tokens per response (default 8192). Raise if tool calls truncate.',
@@ -86,7 +86,7 @@ module PWN
           gemini: {
             base_uri: 'optional - Base URI for Gemini - Use private base OR defaults to https://generativelanguage.googleapis.com/v1beta',
             key: 'required - Google Gemini API Key',
-            model: 'optional - Gemini model to use (e.g. gemini-2.5-pro, gemini-2.5-flash)',
+            model: 'optional - Gemini model id to use (see provider docs for currently-supported ids)',
             system_role_content: 'You are an ethically hacking Gemini agent.',
             temp: 'optional - Gemini temperature',
             max_prompt_length: 1_000_000

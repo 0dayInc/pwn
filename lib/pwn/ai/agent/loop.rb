@@ -212,6 +212,45 @@ module PWN
           nil
         end
 
+        # Publish the last engine response's token usage into
+        # PWN::Env[:ai][<engine>][:response_history] so
+        # PWN::Plugins::REPL.refresh_ps1_proc can render the live
+        # context-window fill indicator (e.g. "12K:200K"). The legacy
+        # regex-ReAct path in REPL wrote this itself; the native tool
+        # loop is the default path now and must do the same or the PS1
+        # `used_tokens` stays pinned at 0.
+        private_class_method def self.publish_usage(opts = {})
+          resp   = opts[:response]
+          engine = opts[:engine]
+          return unless resp.is_a?(Hash) && defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          eng_env = PWN::Env.dig(:ai, engine)
+          return unless eng_env.is_a?(Hash) && !eng_env.frozen?
+
+          usage = resp[:usage]
+          # Ollama native /api/chat returns prompt_eval_count / eval_count
+          # instead of an OpenAI-shape :usage hash — normalise here so the
+          # PS1 dig(:response_history, :usage, :total_tokens) works uniformly.
+          if !usage.is_a?(Hash) && (resp[:prompt_eval_count] || resp[:eval_count])
+            pt = resp[:prompt_eval_count].to_i
+            ct = resp[:eval_count].to_i
+            usage = { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct }
+          end
+          return unless usage.is_a?(Hash)
+
+          total = usage[:total_tokens] ||
+                  ((usage[:prompt_tokens] || usage[:input_tokens]).to_i +
+                   (usage[:completion_tokens] || usage[:output_tokens]).to_i)
+
+          rh = eng_env[:response_history].is_a?(Hash) ? eng_env[:response_history] : {}
+          rh[:id]    = resp[:id]    if resp[:id]
+          rh[:model] = resp[:model] if resp[:model]
+          rh[:usage] = usage.merge(total_tokens: total.to_i)
+          eng_env[:response_history] = rh
+        rescue StandardError => e
+          warn "[pwn-ai/loop] publish_usage swallowed: #{e.class}: #{e.message}"
+        end
+
         # Supported Method Parameters::
         # msg = PWN::AI::Agent::Loop.normalize_llm(
         #   response: 'required - chat_with_tools response Hash from any provider'
@@ -271,6 +310,7 @@ module PWN
               tools: tools,
               spinner: true
             )
+            publish_usage(response: response, engine: engine)
             normalize_llm(response: response)
           else
             degrade_text_only(mod: mod, messages: messages)

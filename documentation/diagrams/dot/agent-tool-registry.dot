@@ -9,7 +9,7 @@ digraph "PWN_Agent_Tool_Registry" {
         shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
   edge [color="#94a3b8", penwidth=1.1, arrowsize=0.7];
 
-  Registry [label="Registry\nJSON-Schema\nfunction defs", fillcolor="#c4b5fd", fontsize=12, penwidth=2];
+  Registry [label="Registry\nJSON-Schema function defs\nrank(query) · CORE_TOOLS\ntool_router → CORE + top-K", fillcolor="#c4b5fd", fontsize=12, penwidth=2];
 
   subgraph cluster_ts {
     label="Toolsets"; fontcolor="#a7f3d0"; style=rounded;
@@ -35,9 +35,9 @@ digraph "PWN_Agent_Tool_Registry" {
     t_mem     [label="memory_remember\nrecall · forget · clear"];
     t_skill   [label="skill_list · view\ncreate · add_reference · delete"];
     t_sess    [label="sessions_list · view\ncurrent · delete · stats"];
-    t_learn   [label="learning_note_outcome\nreflect · distill_skill\nconsolidate · outcomes · reset\nmistakes_list · record\nmistakes_resolve · reset"];
+    t_learn   [label="learning_note_outcome\nreflect · distill_skill\nexemplars_for · export_finetune\nconsolidate · outcomes · reset\nmistakes_list · record\nmistakes_resolve · reset"];
     t_metric  [label="metrics_summary\nmetrics_reset"];
-    t_extro   [label="extro_snapshot · drift\nobserve · intel · correlate\nwatch · verify · rf_tune\nobservations · stats · reset\nauto_toggle"];
+    t_extro   [label="extro_snapshot · drift\nobserve · intel · correlate\nwatch · verify · rf_tune · osint\nserial · telecomm · packet\nvision · voice · observations\nstats · reset · auto_toggle"];
     t_cron    [label="cron_list · create · run\nenable · disable · remove"];
     t_swarm   [label="agent_list · spawn · ask\ndebate · broadcast\nswarm_bus · swarm_list"];
   }
@@ -56,4 +56,6 @@ digraph "PWN_Agent_Tool_Registry" {
   extro    -> t_extro  [color="#f59e0b"];
   cron     -> t_cron   [color="#f59e0b"];
   swarm    -> t_swarm  [color="#f59e0b"];
+
+  t_metric -> Registry [label="success_rate\n→ router tie-break", style=dashed, color="#fbbf24", constraint=false];
 }

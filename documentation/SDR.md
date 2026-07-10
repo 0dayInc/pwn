@@ -2,6 +2,10 @@
 
 ![SDR flow](diagrams/sdr-radio-flow.svg)
 
+> **Install:** `pwn setup --profile sdr` — GQRX · rtl-sdr · hackrf ·
+> SoapySDR · multimon-ng · sox · libsndfile · libusb. See
+> [Installation](Installation.md).
+
 ## Modules  (`lib/pwn/sdr/*.rb`)
 
 | Module | Purpose |
