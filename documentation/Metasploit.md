@@ -1,9 +1,9 @@
 # `PWN::Plugins::Metasploit`
 
-RPC client for `msfrpcd` — search modules, set options, run exploits, interact
+RPC client for `msfrpcd` - search modules, set options, run exploits, interact
 with sessions, all from Ruby.
 
-> **Install:** `pwn setup --profile exploit` — metasploit-framework ·
+> **Install:** `pwn setup --profile exploit` - metasploit-framework ·
 > sqlmap. See [Installation](Installation.md).
 
 ## Configure
@@ -14,10 +14,10 @@ metasploit:
   host: 127.0.0.1
   port: 55553
   user: msf
-  pass: …
+  pass: ...
 ```
 
-Start the daemon: `msfrpcd -U msf -P … -a 127.0.0.1 -p 55553 -S`
+Start the daemon: `msfrpcd -U msf -P ... -a 127.0.0.1 -p 55553 -S`
 
 ## Use
 

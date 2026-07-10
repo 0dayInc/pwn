@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 377.45)">
 <title>PWN_Reports</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-377.45 571.2,-377.45 571.2,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="99.75" y="-312.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::Reports — Findings Pipeline</text>
+<text xml:space="preserve" text-anchor="start" x="106.5" y="-312.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::Reports &#45; Findings Pipeline</text>
 <g id="clust1" class="cluster">
 <title>cluster_src</title>
 <path fill="#022c22" stroke="#047857" d="M12,-8C12,-8 148.75,-8 148.75,-8 154.75,-8 160.75,-14 160.75,-20 160.75,-20 160.75,-283 160.75,-283 160.75,-289 154.75,-295 148.75,-295 148.75,-295 12,-295 12,-295 6,-295 0,-289 0,-283 0,-283 0,-20 0,-20 0,-14 6,-8 12,-8"/>

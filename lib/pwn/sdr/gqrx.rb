@@ -595,7 +595,7 @@ module PWN
       # the traditional S-meter edge_detection + find_best_peak pipeline, restricted
       # to a tight window around the candidate. Purpose: turn an FFT bin estimate
       # into the exact channel frequency so decoding (and analyze_scan retunes) land
-      # dead-centre. Failures fall back to the original detection (best-effort).
+      # dead-center. Failures fall back to the original detection (best-effort).
 
       # Supported Method Parameters::
       # geo = PWN::SDR::GQRX.fft_plan_geometry(
@@ -814,7 +814,7 @@ module PWN
         local_res = local_sr / local_nfft.to_f
         # How many raster bins either side of the seed to lock-hunt.
         # Wide FM (step 100 kHz): ±1 is enough to fix a bad snap; narrow plans
-        # hunt ±2 so bursty carriers still find a strong centre.
+        # hunt ±2 so bursty carriers still find a strong center.
         hunt_steps = plan_bw_hz >= 50_000.0 ? 1 : 2
 
         puts '-' * 86
@@ -1109,8 +1109,8 @@ module PWN
         # decoder.decode (TTY spinner). Used by agents / Extrospection / cron.
         interactive = opts.key?(:interactive) ? !opts[:interactive].nil? && opts[:interactive] != false : true
         settle_secs = opts[:settle_secs]
-        udp_ip = opts[:udp_ip]
-        udp_port = opts[:udp_port]
+        udp_ip = opts[:udp_ip] ||= '127.0.0.1'
+        udp_port = opts[:udp_port] ||= 7355
         suppress_details = opts[:suppress_details] || false
         keep_alive = opts[:keep_alive] || false
 
@@ -2386,7 +2386,7 @@ module PWN
 
         # Null DC / LO-leakage bin and band-edge guard bins BEFORE detection so
         # they neither skew the noise-floor estimate nor register as phantom
-        # signals at the centre of every retune step.
+        # signals at the center of every retune step.
         guard = [(nfft * 0.02).to_i, 2].max
         dc = nfft / 2
         sorted_db = db.sort
@@ -2478,7 +2478,7 @@ module PWN
           r += 1 while r < (nfft - 1) && (r - p) < max_half_bins && db[r + 1] >= edge_rel
           bw_hz = ([r - l + 1, 1].max * res_hz).to_i
 
-          # Power-weighted centroid over the -6 dB lobe → sub-bin centre that
+          # Power-weighted centroid over the -6 dB lobe → sub-bin center that
           # lands much closer to the true channel than the peak bin alone
           # (critical for precision-4 / 1 kHz FLEX raster snaps).
           lin_sum = 0.0
@@ -2849,7 +2849,7 @@ module PWN
         # ---- Exact-channel refine pass ------------------------------------
         # Preliminary FFT peaks are only as precise as the bin resolution
         # (sample_rate/nfft) and the band-plan raster snap. For decoding we
-        # want the true channel centre, so re-walk each survivor with the
+        # want the true channel center, so re-walk each survivor with the
         # traditional S-meter edge_detection + find_best_peak pipeline,
         # scoped to a tight window around the FFT estimate. Opt-out via
         # refine: false for pure-panorama speed.

@@ -1,4 +1,4 @@
-# `PWN::WWW` — Site-Specific Browser Automations
+# `PWN::WWW` - Site-Specific Browser Automations
 
 21 modules, each a scripted [`TransparentBrowser`](Transparent-Browser.md)
 session against a real site: log in, navigate, scrape, submit.
@@ -18,7 +18,7 @@ Source: `lib/pwn/www/*.rb`.
 ```ruby
 b = PWN::WWW::HackerOne.open(browser_type: :headless,
                              proxy: 'http://127.0.0.1:8080')
-PWN::WWW::HackerOne.login(browser_obj: b, username: '…', mfa: '…')
+PWN::WWW::HackerOne.login(browser_obj: b, username: '...', mfa: '...')
 # ... scripted navigation ...
 PWN::WWW::HackerOne.logout(browser_obj: b)
 PWN::Plugins::TransparentBrowser.close(browser_obj: b)

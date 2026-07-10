@@ -1,4 +1,4 @@
-# `PWN::Bounty` — Bug-Bounty Lifecycle Tooling
+# `PWN::Bounty` - Bug-Bounty Lifecycle Tooling
 
 | Module | Purpose |
 |---|---|
@@ -6,9 +6,9 @@
 
 Pairs naturally with:
 
-- [`PWN::WWW::HackerOne`](WWW.md) / `BugCrowd` / `Synack` — programme navigation
-- `PWN::Plugins::HackerOne` — submissions API
-- [`PWN::Plugins::BurpSuite`](BurpSuite.md) — capture the session to replay
+- [`PWN::WWW::HackerOne`](WWW.md) / `BugCrowd` / `Synack` - programme navigation
+- `PWN::Plugins::HackerOne` - submissions API
+- [`PWN::Plugins::BurpSuite`](BurpSuite.md) - capture the session to replay
 
 ```ruby
 PWN::Bounty::LifecycleAuthzReplay.start(

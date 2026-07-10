@@ -17,7 +17,7 @@ module PWN
       # PWN::AI::Agent::Extrospection is the outward-facing counterpart to
       # PWN::AI::Agent::Learning (introspection).
       #
-      # PRIMARY INTENT — on-demand external sensing
+      # PRIMARY INTENT - on-demand external sensing
       # -------------------------------------------
       # Quickly explore *external* resources when that produces a more
       # informed answer. Call a sense tool only when the question needs it:
@@ -27,12 +27,12 @@ module PWN
       #   "CVE for openssl 3.0?"    → intel(query:) / verify(claim:, kind: :cve)
       #   "did the target change?"  → watch(url:) / snapshot(sections: [:web])
       #
-      # Secondary / optional — ambient host baseline
+      # Secondary / optional - ambient host baseline
       # --------------------------------------------
       # snapshot / drift / correlate can record cheap local posture so the
       # agent can tell "I called the API wrong" from "the world moved"
       # (kernel upgrade, dongle unplugged). This is NEVER the reason to
-      # launch GUI / JVM / heavy-REPL binaries — those are presence-only.
+      # launch GUI / JVM / heavy-REPL binaries - those are presence-only.
       # auto_extrospect, when enabled, uses only side-effect-free sections.
       #
       #   INTROSPECTIVE (self)        EXTROSPECTIVE (world)
@@ -49,7 +49,7 @@ module PWN
         MAX_OBSERVATIONS = 500
         # CLI tools that accept a cheap, non-interactive --version / -V.
         SAFE_VERSION_BINS = %w[nmap curl git ruby python3 gcc openssl docker].freeze
-        # GUI / JVM / heavy REPL / interactive tools — presence-only.
+        # GUI / JVM / heavy REPL / interactive tools - presence-only.
         # NEVER spawn these from auto-probe (Burp Suite splash, ZAP UI, msfconsole, GQRX).
         PRESENCE_ONLY_BINS = %w[burpsuite zaproxy msfconsole gqrx sqlmap].freeze
         RF_BINS        = %w[rtl_sdr rtl_test rtl_433 hackrf_info gqrx dump1090 multimon-ng SoapySDRUtil].freeze
@@ -76,7 +76,7 @@ module PWN
         ].freeze
         # Public / free OSINT anchors (no key). Keys unlock richer feeds via PWN::Env.
         # Expanded from https://github.com/public-api-lists/public-api-lists
-        # (Anti-Malware, Security, Geocoding, Government, Health, Open Data, Vehicle, …).
+        # (Anti-Malware, Security, Geocoding, Government, Health, Open Data, Vehicle, ...).
         DEFAULT_OSINT_FEEDS = %i[
           ip geo dns whois rdap crtsh bgpview shodan hunter
           phone fcc_id patent person username github wayback
@@ -413,7 +413,7 @@ module PWN
         #   proxy:    'optional - upstream proxy for TransparentBrowser'
         # )
         #
-        # Passive change-detection on an external artefact you care about
+        # Passive change-detection on an external artifact you care about
         # (target /api/version, vendor changelog, bounty scope page).
         # Renders headless, hashes the DOM text, screenshots, and persists as
         # observe(category: :web). On subsequent snapshot(sections:[:web]) or
@@ -449,10 +449,10 @@ module PWN
         #   demodulator_mode: 'optional - e.g. :WFM_ST, :WFM, :FM, :AM (default from band-plan / FM range)',
         #   bandwidth:        'optional - passband Hz string, e.g. "200.000" (default from band-plan)',
         #   record:           'optional - also observe(category: :rf) so it hits EXTROSPECTION (default true)',
-        #   ttl:              'optional - observation TTL seconds (default 300 — radio content is ephemeral)'
+        #   ttl:              'optional - observation TTL seconds (default 300 - radio content is ephemeral)'
         # )
         #
-        # RF sense organ — the RF analogue of extro_watch / extro_verify.
+        # RF sense organ - the RF analogue of extro_watch / extro_verify.
         # Tunes a *running* GQRX instance (never launches the GUI), demodulates,
         # measures strength, and when appropriate samples RDS (PI / PS / RadioText)
         # so questions like "what's playing on 101.1?" have a live answer.
@@ -616,7 +616,7 @@ module PWN
         # ============================================================
         # Supported Method Parameters::
         # result = PWN::AI::Agent::Extrospection.osint(
-        #   query:    'required - phone, IP, domain, email, person name, FCC ID, patent #, username, VIN, MAC, callsign, …',
+        #   query:    'required - phone, IP, domain, email, person name, FCC ID, patent #, username, VIN, MAC, callsign, ...',
         #   kind:     'optional - auto|:ip|:geo|:dns|:whois|:rdap|:crtsh|:bgp|:shodan|:hunter|:phone|:fcc_id|:patent|:person|:username|:github|:wayback|:url|:company|:cik|:openfda|:vital_records|:threat|:vin|:mac|:callsign|:npi|:cve (default :auto)',
         #   feeds:    'optional - Array subset of DEFAULT_OSINT_FEEDS (default: auto-selected from kind)',
         #   limit:    'optional - max hits per feed (default 5)',
@@ -693,7 +693,7 @@ module PWN
         # )
         #
         # Passive inventory via snapshot(sections:[:serial]); this verb is the
-        # active serial sense — open a device (PWN::Plugins::Serial), optional
+        # active serial sense - open a device (PWN::Plugins::Serial), optional
         # payload write, drain response, disconnect. Never keeps the port
         # open across calls so other tools can claim the bus.
         public_class_method def self.serial_sense(opts = {})
@@ -800,7 +800,7 @@ module PWN
         #   ttl:     'optional - observation TTL (default 600)'
         # )
         #
-        # Telecomm analogue of rf_tune — senses live SIP / VoIP / PSTN state
+        # Telecomm analogue of rf_tune - senses live SIP / VoIP / PSTN state
         # through a *running* BareSIP instance (never launches it). Status
         # and inventory always; dial/hangup are explicit and OPSEC-sensitive.
         public_class_method def self.telecomm(opts = {})
@@ -1046,7 +1046,7 @@ module PWN
         #
         # Wraps PWN::Plugins::Voice + system TTS/STT binaries (espeak-ng,
         # festival, spd-say, whisper, sox). Inventory is always free;
-        # TTS/STT are on-demand and persist optional artefacts under
+        # TTS/STT are on-demand and persist optional artifacts under
         # ~/.pwn/extrospection/voice/.
         public_class_method def self.voice_sense(opts = {})
           action = (opts[:action] || :inventory).to_s.to_sym
@@ -1197,7 +1197,7 @@ module PWN
             Learning.outcomes(limit: 30, success: false).each do |o|
               day = o[:timestamp].to_s[0, 10]
               hit = Array(delta[:changed]).find { |c| c[:after].to_s.include?(day) || c[:path].to_s.match?(/kernel|repo|net/) }
-              findings << { kind: :failure_during_drift, task: o[:task], on: day, drift: hit, advice: 'Environment changed around this failure — re-test under current snapshot before trusting the negative result.' } if hit
+              findings << { kind: :failure_during_drift, task: o[:task], on: day, drift: hit, advice: 'Environment changed around this failure - re-test under current snapshot before trusting the negative result.' } if hit
             end
           end
 
@@ -1219,15 +1219,15 @@ module PWN
           observations(category: 'rf', limit: 50).each do |ob|
             miss = RF_BINS.select { |b| pkgs[b.to_sym].to_s.empty? }
             if !hw_present
-              findings << { kind: :rf_no_hardware, observation: ob[:data], source: ob[:source], target: ob[:target], advice: 'RF observation recorded but no SDR hardware detected in snapshot — plug in RTL-SDR/HackRF/Flipper or start gqrx (`-r`) before trusting RF results.' }
+              findings << { kind: :rf_no_hardware, observation: ob[:data], source: ob[:source], target: ob[:target], advice: 'RF observation recorded but no SDR hardware detected in snapshot - plug in RTL-SDR/HackRF/Flipper or start gqrx (`-r`) before trusting RF results.' }
             elsif rf[:gqrx_sock] == false && ob[:source].to_s == 'gqrx'
-              findings << { kind: :rf_gqrx_down, observation: ob[:data], target: ob[:target], advice: 'gqrx remote-control socket (127.0.0.1:7356) is closed — start gqrx with remote control enabled before re-running the scan.' }
+              findings << { kind: :rf_gqrx_down, observation: ob[:data], target: ob[:target], advice: 'gqrx remote-control socket (127.0.0.1:7356) is closed - start gqrx with remote control enabled before re-running the scan.' }
             elsif !miss.empty?
               findings << { kind: :rf_toolchain_gap, missing: miss, observation: ob[:data], advice: "SDR toolchain gap: install #{miss.join(', ')} to decode/act on this RF observation." }
             end
           end
 
-          # 5) :web drift on a target the same day a Learning failure references it —
+          # 5) :web drift on a target the same day a Learning failure references it -
           #    "your exploit stopped working because the TARGET changed, not your approach"
           if defined?(Learning)
             observations(category: 'web', limit: 50).each do |ob|
@@ -1236,7 +1236,7 @@ module PWN
               Learning.outcomes(limit: 30, success: false).each do |o|
                 next unless o[:task].to_s.include?(host) || o[:details].to_s.include?(host)
 
-                findings << { kind: :target_web_drift, target: tgt, dom_sha: ob.dig(:data, :dom_sha), task: o[:task], advice: "Target #{host} DOM changed (#{ob[:timestamp]}) around this failure — re-recon before assuming your technique is wrong." }
+                findings << { kind: :target_web_drift, target: tgt, dom_sha: ob.dig(:data, :dom_sha), task: o[:task], advice: "Target #{host} DOM changed (#{ob[:timestamp]}) around this failure - re-recon before assuming your technique is wrong." }
               end
             end
           end
@@ -1244,7 +1244,7 @@ module PWN
           # 6) extro_verify refutations whose claim substring appears in a PWN::Memory :fact -> stale memory
           if defined?(PWN::Memory)
             observations(category: 'web', tag: 'stale', limit: 50).each do |ob|
-              findings << { kind: :stale_memory_fact, key: ob[:target], evidence: ob[:data], advice: "PWN::Memory[:#{ob[:target]}] failed browser re-verification — audit or memory_forget it before it poisons future prompts." }
+              findings << { kind: :stale_memory_fact, key: ob[:target], evidence: ob[:data], advice: "PWN::Memory[:#{ob[:target]}] failed browser re-verification - audit or memory_forget it before it poisons future prompts." }
             end
           end
 
@@ -1256,7 +1256,7 @@ module PWN
             observations(category: 'intel', limit: 100).each do |ob|
               next unless ob[:source].to_s.include?(host.to_s) || ob[:data].to_s.include?(host.to_s)
 
-              findings << { kind: :intel_source_unreachable, source: host, status: fp[:status], intel: ob[:data].to_s[0, 120], advice: "Feed anchor #{host} is currently unreachable (#{fp[:status] || 'down'}) — treat this :intel as stale until probe_web sees it 2xx again." }
+              findings << { kind: :intel_source_unreachable, source: host, status: fp[:status], intel: ob[:data].to_s[0, 120], advice: "Feed anchor #{host} is currently unreachable (#{fp[:status] || 'down'}) - treat this :intel as stale until probe_web sees it 2xx again." }
             end
           end
 
@@ -1297,7 +1297,7 @@ module PWN
           obs = observations(limit: olim, fresh_only: true)
           unless obs.empty?
             lines << '  observed  :'
-            obs.each { |o| lines << "    * [#{o[:category]}/#{o[:source]}] #{"#{o[:target]} — " if o[:target]}#{o[:data].to_s.gsub(/\s+/, ' ')[0, 120]}" }
+            obs.each { |o| lines << "    * [#{o[:category]}/#{o[:source]}] #{"#{o[:target]} - " if o[:target]}#{o[:data].to_s.gsub(/\s+/, ' ')[0, 120]}" }
           end
 
           "EXTROSPECTION (world-state; correlate with introspective failures)\n#{lines.join("\n")}\n\n"
@@ -1345,7 +1345,7 @@ module PWN
           sid = opts[:session_id]
           return unless auto_extrospect_enabled?
 
-          # Ambient baseline only — never toolchain / rf / web (those spawn
+          # Ambient baseline only - never toolchain / rf / web (those spawn
           # hardware probes or GUI binaries and belong on the *sense* path).
           res   = snapshot(persist: true, sections: AUTO_SECTIONS)
           delta = res[:drift]
@@ -1431,7 +1431,7 @@ module PWN
 
         # Inventory of tooling PATH presence. SAFE_VERSION_BINS may receive a
         # timeout-bounded --version; PRESENCE_ONLY_BINS + anything that looks
-        # GUI/JVM never get executed — path-only. Never open Burp/ZAP/msf/GQRX.
+        # GUI/JVM never get executed - path-only. Never open Burp/ZAP/msf/GQRX.
         private_class_method def self.probe_toolchain
           PROBE_BINS.each_with_object({}) do |b, h|
             path = sh(cmd: "which #{Shellwords.escape(b)} 2>/dev/null").split("\n").first.to_s.strip
@@ -1479,7 +1479,7 @@ module PWN
         end
 
         # Passive RF / SDR hardware inventory. NO transmit, NO active spectrum
-        # scan — this is the RF analogue of probe_toolchain: "what radios and
+        # scan - this is the RF analogue of probe_toolchain: "what radios and
         # SDR plumbing are attached / reachable right now?" so drift can flag
         # "HackRF unplugged", "gqrx remote-control down", "new RTL dongle".
         private_class_method def self.probe_rf
@@ -1521,7 +1521,7 @@ module PWN
 
         # Rendered-DOM fingerprint of a small, config-declared set of canonical
         # web anchors the agent depends on for truth (feed reachability,
-        # upstream drift, in-scope target tech fingerprint). OPT-IN — never
+        # upstream drift, in-scope target tech fingerprint). OPT-IN - never
         # part of the default auto_extrospect section set because a headless
         # browser is ~1-3s cold vs ~50ms for probe_host.
         private_class_method def self.probe_web
@@ -1570,7 +1570,7 @@ module PWN
           opts[:url].to_s
         end
 
-        # One shared headless browser per call — open once, reuse across
+        # One shared headless browser per call - open once, reuse across
         # anchors, always close in ensure. Prefers :headless (firefox) which
         # is lightest; degrades to :rest (RestClient) if watir/selenium is
         # unavailable so probe_web/verify/watch never hard-fail the loop.
@@ -1708,7 +1708,7 @@ module PWN
             observe(source: 'extro_verify', category: :intel, target: ev&.dig(:final_url), data: claim, tags: %w[verify confirmed], ttl: 30 * 24 * 3600)
             :extro_observe
           else
-            Learning.note_outcome(task: "extro_verify: #{claim[0, 120]}", success: false, details: 'verdict :unknown — needs human review', tags: %w[needs_human extro_verify]) if defined?(Learning) && Learning.respond_to?(:note_outcome)
+            Learning.note_outcome(task: "extro_verify: #{claim[0, 120]}", success: false, details: 'verdict :unknown - needs human review', tags: %w[needs_human extro_verify]) if defined?(Learning) && Learning.respond_to?(:note_outcome)
             :learning_note
           end
         rescue StandardError
@@ -1897,8 +1897,8 @@ module PWN
         private_class_method def self.match_rf_band_plan(opts = {})
           hz = opts[:hz].to_i
           require 'pwn/sdr/frequency_allocation' unless defined?(PWN::SDR::FrequencyAllocation)
-          # Prefer the narrowest matching plan so e.g. fm_radio (87.9–108 MHz)
-          # wins over the broad analog_tv_vhf (54–216 MHz) that contains it.
+          # Prefer the narrowest matching plan so e.g. fm_radio (87.9-108 MHz)
+          # wins over the broad analog_tv_vhf (54-216 MHz) that contains it.
           # Explicit decoder-bearing plans also beat bare occupancy plans.
           matches = []
           PWN::SDR::FrequencyAllocation.band_plans.each do |name, plan|
@@ -1914,7 +1914,7 @@ module PWN
                 r[:target_freq].to_s.gsub(/[^\d]/, '').to_i
               end
               lo, hi = hi, lo if lo > hi
-              # FM broadcast band plan ends at 108.000.000 — include the top channel.
+              # FM broadcast band plan ends at 108.000.000 - include the top channel.
               hi += 100_000 if name.to_s == 'fm_radio'
               next unless hz.between?(lo, hi)
 
@@ -1951,7 +1951,7 @@ module PWN
         end
 
         # Sample GQRX's built-in RDS decoder over settle_secs.
-        # Canonical implementation lives on PWN::SDR::Decoder::RDS.sample —
+        # Canonical implementation lives on PWN::SDR::Decoder::RDS.sample -
         # this is a thin adapter so rf_tune stays stable for agents.
         # Returns { pi:, ps_name:, radiotext:, station:, samples: N, settle_secs: }.
         private_class_method def self.sample_rds(opts = {})
@@ -2238,7 +2238,7 @@ module PWN
           q = opts[:query].to_s.strip
           # Order matters: IPs must beat the phone heuristic (dots are valid phone punctuation).
           return :ip       if q.match?(/\A\d{1,3}(?:\.\d{1,3}){3}\z/)
-          # MAC before IPv6 — colon form "00:11:22:33:44:55" is also hex+colons.
+          # MAC before IPv6 - colon form "00:11:22:33:44:55" is also hex+colons.
           return :mac      if q.match?(/\A(?:[0-9A-Fa-f]{2}([-:])){5}[0-9A-Fa-f]{2}\z/) ||
                               q.match?(/\A[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\z/) ||
                               q.match?(/\A[0-9A-Fa-f]{12}\z/)
@@ -2584,7 +2584,7 @@ module PWN
           end
           titles = html.scan(/itemprop="title"[^>]*content="([^"]+)"/i).flatten.uniq.first(limit)
           titles = html.scan(%r{<title>(.*?)</title>}im).flatten.map { |t| t.gsub(/\s+/, ' ').strip } if titles.empty?
-          # PatentsView API (public, no key) — inventor / patent search
+          # PatentsView API (public, no key) - inventor / patent search
           pv = nil
           if q.match?(/\d{5,}/)
             num = q.gsub(/[^0-9]/, '')
@@ -2773,7 +2773,7 @@ module PWN
         private_class_method def self.osint_openfda(opts = {})
           q = opts[:query].to_s.strip
           limit = opts[:limit] || 5
-          # Device / drug / enforcement open search — best-effort public endpoints
+          # Device / drug / enforcement open search - best-effort public endpoints
           enc = URI.encode_www_form_component(q)
           device = http_get_json(url: "https://api.fda.gov/device/510k.json?search=device_name:#{enc}+device_name:\"#{enc}\"&limit=#{limit}")
           device ||= http_get_json(url: "https://api.fda.gov/device/510k.json?search=#{enc}&limit=#{limit}")
@@ -2791,7 +2791,7 @@ module PWN
         private_class_method def self.osint_nominatim(opts = {})
           q = opts[:query].to_s.strip
           limit = opts[:limit] || 5
-          # OpenStreetMap Nominatim — public, requires identifying UA (we set one)
+          # OpenStreetMap Nominatim - public, requires identifying UA (we set one)
           require 'rest-client'
           url = "https://nominatim.openstreetmap.org/search?q=#{URI.encode_www_form_component(q)}&format=json&addressdetails=1&limit=#{limit}"
           resp = RestClient::Request.execute(
@@ -2846,7 +2846,7 @@ module PWN
         private_class_method def self.osint_courtlistener(opts = {})
           q = opts[:query].to_s.strip
           limit = opts[:limit] || 5
-          # CourtListener (Free Law Project) public search — dockets / opinions
+          # CourtListener (Free Law Project) public search - dockets / opinions
           search = http_get_json(url: "https://www.courtlistener.com/api/rest/v4/search/?q=#{URI.encode_www_form_component(q)}&type=o&page_size=#{limit}")
           people = http_get_json(url: "https://www.courtlistener.com/api/rest/v4/people/?name=#{URI.encode_www_form_component(q)}&page_size=#{limit}")
           {
@@ -3434,7 +3434,7 @@ module PWN
             raw = sh(cmd: "timeout 30 zbarimg -q #{Shellwords.escape(file)} 2>/dev/null")
             return raw.lines.map(&:strip).reject(&:empty?)
           end
-          # No decoder — report guidance
+          # No decoder - report guidance
           [{ error: 'zbarimg not installed', advice: 'apt install zbar-tools' }]
         end
 
@@ -3483,7 +3483,7 @@ module PWN
             return [false, 'spd-say not found'] if bin.empty?
 
             log = sh(cmd: "#{Shellwords.escape(bin)} -w #{Shellwords.escape(text)} 2>&1")
-            # spd-say speaks to audio device — no wav; mark ok on exit
+            # spd-say speaks to audio device - no wav; mark ok on exit
             [true, log]
           when :festival
             # Use plugin if text file available
@@ -3579,7 +3579,7 @@ module PWN
               PRIMARY use = on-demand sensing (intel / verify / watch / rf_tune / osint /
               serial_sense / telecomm / packet_sense / vision / voice_sense / observe /
               rf / web / osint / serial / telecomm / packet / vision / voice).
-              auto_extrospect is OPTIONAL ambient baseline (host/repo/env only — never
+              auto_extrospect is OPTIONAL ambient baseline (host/repo/env only - never
               launches burpsuite/zaproxy/msfconsole/gqrx). Prefer calling sense tools
               when a question needs the outside world, not after every turn.
 
@@ -3595,7 +3595,7 @@ module PWN
                   { host: '127.0.0.1', port: 7356, settle_secs: 8, ttl: 300 }
 
               Configure new limbs:
-                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '…', hunter: '…', abuseipdb: '…', virustotal: '…', greynoise: '…', haveibeenpwned: '…', securitytrails: '…' } }
+                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '...', hunter: '...', abuseipdb: '...', virustotal: '...', greynoise: '...', haveibeenpwned: '...', securitytrails: '...' } }
                 PWN::Env[:ai][:agent][:extrospection][:serial]   = { block_dev: '/dev/ttyUSB0', baud: 115200, settle_secs: 1.5 }
                 PWN::Env[:ai][:agent][:extrospection][:telecomm] = { host: '127.0.0.1', port: 8000 }
                 PWN::Env[:ai][:agent][:extrospection][:packet]   = { iface: 'eth0' }

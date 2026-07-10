@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 317.45)">
 <title>PWN_SessionsCron</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-317.45 832.7,-317.45 832.7,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="127.75" y="-252.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Sessions ↔ Cron ↔ Swarm — Cross&#45;Session Continuity</text>
+<text xml:space="preserve" text-anchor="start" x="134.5" y="-252.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Sessions ↔ Cron ↔ Swarm &#45; Cross&#45;Session Continuity</text>
 <g id="clust1" class="cluster">
 <title>cluster_p</title>
 <path fill="#422006" stroke="#a16207" d="M233.25,-8C233.25,-8 335,-8 335,-8 341,-8 347,-14 347,-20 347,-20 347,-223 347,-223 347,-229 341,-235 335,-235 335,-235 233.25,-235 233.25,-235 227.25,-235 221.25,-229 221.25,-223 221.25,-223 221.25,-20 221.25,-20 221.25,-14 227.25,-8 233.25,-8"/>

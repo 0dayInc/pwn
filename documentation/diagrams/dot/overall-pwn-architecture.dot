@@ -1,6 +1,6 @@
 digraph "PWN_Overall_Architecture" {
   graph [
-    label=<<B>PWN — Offensive Security Automation Framework</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Overall Architecture · lib/pwn/*</FONT>>,
+    label=<<B>PWN - Offensive Security Automation Framework</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Overall Architecture · lib/pwn/*</FONT>>,
     labelloc=t, fontsize=22, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.55, ranksep=1.15,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, compound=true, newrank=true

@@ -90,7 +90,7 @@ module PWN
             file: opts[:file],
             demod: demod,
             threshold: 10.0,
-            note: 'True-air I/Q path characterises OOK/FSK bursts; offline rtl_433 JSON via .parse_line.',
+            note: 'True-air I/Q path characterizes OOK/FSK bursts; offline rtl_433 JSON via .parse_line.',
             describe: proc { |b|
               { modulation: 'OOK/ASK/FSK', classification: (if b[:duration_ms] < 20
                                                               'keyfob/OOK-short'

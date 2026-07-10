@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 560.58)">
 <title>PWN_Swarm</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-560.58 1009.29,-560.58 1009.29,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="198.42" y="-495.38" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Swarm — Native Multi&#45;Agent Orchestration</text>
+<text xml:space="preserve" text-anchor="start" x="205.17" y="-495.38" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Swarm &#45; Native Multi&#45;Agent Orchestration</text>
 <text xml:space="preserve" text-anchor="start" x="335.67" y="-483.93" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">personas · ask · debate · broadcast · shared bus (no daemon)</text>
 <g id="clust2" class="cluster">
 <title>cluster_verbs</title>

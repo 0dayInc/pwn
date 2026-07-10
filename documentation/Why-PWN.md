@@ -6,7 +6,7 @@ Offensive security is a **toolchain problem**. A single engagement touches
 `nmap`, `burp`, `msfconsole`, a headless browser, `adb`, `gqrx`, three cloud
 consoles, a fuzzer, `radare2`, a spreadsheet of findings, and a bug-bounty
 submission form. Each tool has its own config, its own output format, and its
-own idea of what a "target" is. Gluing them together is 80 % of the job — and
+own idea of what a "target" is. Gluing them together is 80 % of the job - and
 that glue is rewritten, badly, on every engagement.
 
 Meanwhile, LLM agents are extraordinary at *planning* attack chains but have no
@@ -23,15 +23,15 @@ PWN bets that the right abstraction is **plain Ruby methods with a uniform
 - a cron job at 3 am.
 
 Because every capability is a method, the same line of code works in all four
-contexts. Because every method is open-source Ruby, it's auditable — critical
+contexts. Because every method is open-source Ruby, it's auditable - critical
 when the caller is an autonomous agent.
 
 ## Why open primitives matter
 
 | Closed / black-box | PWN |
 |---|---|
-| "Trust our scanner" | `cat lib/pwn/sast/sql.rb` — read the regex yourself |
-| Per-seat licence for the glue | MIT-licensed glue; bring your own Burp Pro / Nessus key |
+| "Trust our scanner" | `cat lib/pwn/sast/sql.rb` - read the regex yourself |
+| Per-seat license for the glue | MIT-licensed glue; bring your own Burp Pro / Nessus key |
 | Agent output is a PDF | Agent output is a `PWN::Reports` object *and* a distilled skill *and* a memory entry |
 | One vendor's model | Five interchangeable engines; swarm can pit them against each other |
 

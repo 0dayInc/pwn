@@ -1,4 +1,4 @@
-# `PWN::AWS` — Cloud Security (90 service wrappers)
+# `PWN::AWS` - Cloud Security (90 service wrappers)
 
 One thin module per AWS service, each wrapping the official `aws-sdk-*` gem
 with the PWN `opts = {}` convention so they compose in the REPL and in
@@ -51,7 +51,7 @@ CLI: `pwn_aws_describe_resources -r us-east-1 -o out/`
   `ec2:RunInstances` with instance profile.
 - **Persist** → new access key, Lambda backdoor, EC2 userdata.
 
-Record everything with `extro_observe(source: 'aws', …)` so
+Record everything with `extro_observe(source: 'aws', ...)` so
 [Extrospection](Extrospection.md) can correlate later.
 
 [← Home](Home.md)

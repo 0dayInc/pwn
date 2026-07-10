@@ -1,6 +1,6 @@
 digraph "PWN_Persistence" {
   graph [
-    label=<<B>~/.pwn/ — Everything PWN Persists Across Sessions</B>>,
+    label=<<B>~/.pwn/ - Everything PWN Persists Across Sessions</B>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.3, ranksep=1.4,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -12,7 +12,7 @@ digraph "PWN_Persistence" {
   Root [label="~/.pwn/", shape=folder, fillcolor="#7dd3fc", fontsize=13];
 
   node [shape=cylinder, fillcolor="#fcd34d"];
-  cfg  [label="config.yml\nengines · keys · agent opts"];
+  cfg  [label="pwn.yaml (+ .decryptor)\nengines · vault-encrypted keys\nagent opts"];
   mem  [label="memory.json\nfacts · prefs · lessons · env"];
   skl  [label="skills/*.md\nreusable procedures + refs"];
   lrn  [label="learning.jsonl\ntask outcomes"];

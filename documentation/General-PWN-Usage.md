@@ -1,4 +1,4 @@
-# General Usage — Day-One Cheat Sheet
+# General Usage - Day-One Cheat Sheet
 
 ## Launch
 

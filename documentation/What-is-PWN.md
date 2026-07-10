@@ -1,23 +1,23 @@
 # What is PWN
 
-**PWN** (pronounced /pōn/ — "pone") is an open-source **offensive-security
+**PWN** (pronounced /pōn/ - "pone") is an open-source **offensive-security
 automation framework** and **continuous-security-integration** platform,
 distributed as a Ruby gem.
 
 It gives security researchers, red teamers, bug-bounty hunters and DevSecOps
-engineers a single, scriptable surface over the entire offensive toolchain —
+engineers a single, scriptable surface over the entire offensive toolchain -
 from OSINT and network discovery, through web/cloud/hardware/radio
-exploitation, to reporting and disclosure — and puts a **self-improving,
+exploitation, to reporting and disclosure - and puts a **self-improving,
 tool-calling AI agent** on top of it.
 
 ## In numbers
 
 | Namespace | Count | What it is |
 |---|---|---|
-| `PWN::Plugins::*` | **66** | Wrappers for external + native tooling (Burp, Nmap, Metasploit, Shodan, browsers, serial, …) |
+| `PWN::Plugins::*` | **66** | Wrappers for external + native tooling (Burp, Nmap, Metasploit, Shodan, browsers, serial, ...) |
 | `PWN::SAST::*` | **48** | Static-analysis rules across C/Java/Go/Python/Ruby/Scala/PHP/TS |
 | `PWN::AWS::*` | **90** | One module per AWS service for cloud enumeration |
-| `PWN::WWW::*` | **21** | Site-specific browser automations (HackerOne, BugCrowd, Google, LinkedIn, …) |
+| `PWN::WWW::*` | **21** | Site-specific browser automations (HackerOne, BugCrowd, Google, LinkedIn, ...) |
 | `PWN::SDR::*` | **6** | GQRX, FlipperZero, RFIDler, SonMicro, decoders, band tables |
 | `PWN::AI::*` | **5** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama |
 | `bin/pwn_*` | **53** | Headless CLI drivers for CI/CD |
@@ -25,12 +25,12 @@ tool-calling AI agent** on top of it.
 
 ## The three ways to use it
 
-1. **`pwn` REPL** — a Pry shell with the whole `PWN::` namespace pre-loaded.
+1. **`pwn` REPL** - a Pry shell with the whole `PWN::` namespace pre-loaded.
    Prototype an attack chain interactively, one method call at a time.
-2. **`pwn-ai`** — a natural-language TUI (or `pwn --ai "…"` one-shot) where an
+2. **`pwn-ai`** - a natural-language TUI (or `pwn --ai "..."` one-shot) where an
    LLM plans and executes those same method calls for you, records what
    worked, and gets better at it.
-3. **`bin/pwn_*` drivers** — thin CLIs over the plugins, for cron and CI/CD.
+3. **`bin/pwn_*` drivers** - thin CLIs over the plugins, for cron and CI/CD.
 
 ## What makes it different
 
@@ -39,11 +39,11 @@ tool-calling AI agent** on top of it.
   can call it, and a cron job can call it.
 - **Closed self-improvement loop.** Metrics + Learning (introspection) and
   Snapshot + Drift + Intel (extrospection) feed `extro_correlate`, which tells
-  the agent whether a failure was *its* fault or *the world* changed — and
+  the agent whether a failure was *its* fault or *the world* changed - and
   writes the lesson back into the prompt for next time.
 - **Native multi-agent.** `PWN::AI::Agent::Swarm` runs personas (each a full
   tool-calling agent, optionally on a *different* LLM engine) that debate,
-  broadcast and share an append-only bus — no IRC daemon, no external service.
+  broadcast and share an append-only bus - no IRC daemon, no external service.
 
 ![Overall Architecture](diagrams/overall-pwn-architecture.svg)
 

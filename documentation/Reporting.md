@@ -1,8 +1,8 @@
-# `PWN::Reports` — Findings Pipeline
+# `PWN::Reports` - Findings Pipeline
 
 ![Reporting pipeline](diagrams/reporting-pipeline.svg)
 
-> **Install:** `pwn setup --profile vision` — imagemagick · graphviz ·
+> **Install:** `pwn setup --profile vision` - imagemagick · graphviz ·
 > rmagick / gruff headers. See [Installation](Installation.md).
 
 ## Generators  (`lib/pwn/reports/*.rb`)
@@ -13,7 +13,7 @@
 | `Reports::Fuzz` | `PWN::Plugins::Fuzz` crash log | HTML + JSON |
 | `Reports::URIBuster` | `pwn_www_uri_buster` output | HTML |
 | `Reports::Phone` | `PWN::Plugins::BareSIP` recon | HTML |
-| `Reports::HTMLHeader` / `HTMLFooter` | — | shared chrome for all HTML reports |
+| `Reports::HTMLHeader` / `HTMLFooter` | - | shared chrome for all HTML reports |
 
 ## Delivery integrations
 

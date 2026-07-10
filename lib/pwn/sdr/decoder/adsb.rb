@@ -217,7 +217,7 @@ module PWN
             source: opts[:source],
             file: opts[:file],
             demod: DemodIQ.new(rate: rate),
-            note: 'Mode-S 2 Mbit/s PPM — true-air path uses RTL-SDR/Pluto I/Q; detector fallback characterises squitter density only.',
+            note: 'Mode-S 2 Mbit/s PPM — true-air path uses RTL-SDR/Pluto I/Q; detector fallback characterizes squitter density only.',
             describe: proc { |b| { modulation: 'PPM', frame_len_us: 120, classification: b[:duration_ms] < 5 ? 'squitter' : 'interrogation-train' } }
           )
         end

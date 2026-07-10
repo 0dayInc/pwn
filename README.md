@@ -1,7 +1,7 @@
 <!-- ![PWN](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/PWN.png) -->
 
 <p align="center">
-  <img src="documentation/pwn_silent_help_learn_demo.gif" alt="PWN Silent Demo — Help Surfaces + Learning Feedback Loop" width="640">
+  <img src="documentation/pwn_silent_help_learn_demo.gif" alt="PWN Silent Demo - Help Surfaces + Learning Feedback Loop" width="640">
 </p>
 
 ### **Table of Contents** ###
@@ -24,12 +24,12 @@
 
 #### **What is PWN** ####
 
-PWN (pronounced /pōn/ — *pone*) is an open-source **offensive-security
+PWN (pronounced /pōn/ - *pone*) is an open-source **offensive-security
 automation framework** and **continuous-security-integration** platform.
 It gives security researchers, red teamers, penetration testers and
 vulnerability researchers a single, scriptable Ruby surface over the entire
-offensive toolchain — from OSINT and network discovery, through web / cloud /
-hardware / radio exploitation, to reporting and disclosure — and puts a
+offensive toolchain - from OSINT and network discovery, through web / cloud /
+hardware / radio exploitation, to reporting and disclosure - and puts a
 **self-improving, tool-calling, multi-agent AI** on top of it.
 
 **In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
@@ -43,7 +43,7 @@ Full page: [What is PWN](documentation/What-is-PWN.md)
 Offensive security is a *toolchain problem*. PWN's bet is that the right
 abstraction is **plain Ruby methods with a uniform `opts = {}` signature**,
 exposed simultaneously to a human in a REPL, an LLM in a tool-calling loop, a
-shell script in CI, and a cron job at 3 am — all open-source and auditable,
+shell script in CI, and a cron job at 3 am - all open-source and auditable,
 which matters when the caller is autonomous.
 
 Full page: [Why PWN](documentation/Why-PWN.md)
@@ -54,10 +54,10 @@ Five layers, edges only ever go down:
 
 ![PWN Overall Architecture](documentation/diagrams/overall-pwn-architecture.svg)
 
-The AI layer closes a **self-improvement loop** on every turn — Metrics +
+The AI layer closes a **self-improvement loop** on every turn - Metrics +
 Learning + **Mistakes** (introspection / negative feedback) joined with
-Snapshot + Drift + Intel + RF + **Web** (extrospection) — plus browser-backed **`extro_verify`** / **`extro_watch`** and RF **`extro_rf_tune`** sensing — via `extro_correlate`, so the
-agent knows whether a failure was *its* fault or *the world* changed —
+Snapshot + Drift + Intel + RF + **Web** (extrospection) - plus browser-backed **`extro_verify`** / **`extro_watch`** and RF **`extro_rf_tune`** sensing - via `extro_correlate`, so the
+agent knows whether a failure was *its* fault or *the world* changed -
 **and does not repeat the same mistake twice**:
 
 ![pwn-ai Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
@@ -68,8 +68,8 @@ on the next recurrence:
 
 ![Mistakes Negative-Feedback Loop](documentation/diagrams/mistakes-negative-feedback.svg)
 
-And **Swarm** runs multiple personas — each a full tool-calling agent,
-optionally on a *different* LLM engine — over a shared append-only bus:
+And **Swarm** runs multiple personas - each a full tool-calling agent,
+optionally on a *different* LLM engine - over a shared append-only bus:
 
 ![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
@@ -103,17 +103,17 @@ Rebuild every SVG from its Graphviz source:
 
 ### **Installation** ###
 
-PWN is a **single gem** with a built-in post-install doctor/provisioner —
-`pwn setup` — that detects your package manager (`apt` · `dnf` · `pacman` ·
+PWN is a **single gem** with a built-in post-install doctor/provisioner -
+`pwn setup` - that detects your package manager (`apt` · `dnf` · `pacman` ·
 `brew` · `port`) and installs exactly the OS headers + external tools each
 `PWN::` capability needs. Tested on Kali/Debian/Ubuntu, Fedora, Arch, macOS.
 
 ```
 $ gem install pwn
 $ pwn setup                        # read-only doctor: which capabilities are usable?
-$ pwn setup --profile full --yes   # provision everything (or: web | net | sdr | vision | …)
+$ pwn setup --profile full --yes   # provision everything (or: web | net | sdr | vision | ...)
 $ pwn
-pwn[v0.5.629]:001 >>> PWN.help
+pwn[v0.5.631]:001 >>> PWN.help
 ```
 
 Only need a subset?
@@ -140,14 +140,14 @@ Full page: [Installation](documentation/Installation.md) ·
 [General Usage Quick-Start](https://github.com/0dayinc/pwn/wiki/General-PWN-Usage) ·
 local: [General PWN Usage](documentation/General-PWN-Usage.md)
 
-Update PWN frequently — new plugins, agent tools, skills and zero-day tooling
+Update PWN frequently - new plugins, agent tools, skills and zero-day tooling
 land regularly:
 
 ```
 $ gem update pwn
-$ pwn setup            # re-doctor — new versions may add capabilities
+$ pwn setup            # re-doctor - new versions may add capabilities
 $ pwn
-pwn[v0.5.629]:001 >>> PWN.help
+pwn[v0.5.631]:001 >>> PWN.help
 ```
 
 From a git checkout:
@@ -158,7 +158,7 @@ $ cd /opt/pwn && git pull && rake install && pwn setup
 
 **Inside the `pwn` REPL:**
 - Full access to every `PWN::` module.
-- `pwn-ai` — launch the autonomous agent TUI (SHIFT+ENTER newline, ENTER submit).
+- `pwn-ai` - launch the autonomous agent TUI (SHIFT+ENTER newline, ENTER submit).
 - `pwn-asm`, `pwn-ai-memory`, `pwn-ai-sessions`, `pwn-ai-cron`, `pwn-ai-delegate`.
 
 **Headless / CI one-shot (`pwn --ai`):**
@@ -181,7 +181,7 @@ $ pwn setup --profile web --yes && pwn setup --check   # exits 1 if degraded
 
 Contributions that expand PWN's offensive capabilities are welcome. If you can
 provide access to additional commercial LLMs, security scanners, or bounty
-platforms — or wish to contribute plugins, AI skills, or exploit modules —
+platforms - or wish to contribute plugins, AI skills, or exploit modules -
 please [email us](mailto:support@0dayinc.com). See
 [CONTRIBUTING.md](https://github.com/0dayInc/pwn/blob/master/CONTRIBUTING.md)
 and the local [Contributing](documentation/Contributing.md) page.
@@ -190,7 +190,7 @@ and the local [Contributing](documentation/Contributing.md) page.
 
 ### **Module Documentation** ###
 
-**Primary:** [`documentation/Home.md`](documentation/Home.md) — the full local
+**Primary:** [`documentation/Home.md`](documentation/Home.md) - the full local
 wiki with 30+ pages and 26 SVG data-flow diagrams.
 
 **API reference:** [rubydoc.info/gems/pwn](https://www.rubydoc.info/gems/pwn),
@@ -206,7 +206,7 @@ Highlights:
 [SAST](documentation/SAST.md) ·
 [AI Integration](documentation/AI-Integration.md)
 
-I hope you enjoy PWN — and remember: **always have permission** before any
+I hope you enjoy PWN - and remember: **always have permission** before any
 security testing. Now go pwn all the things (responsibly)!
 
 ---
