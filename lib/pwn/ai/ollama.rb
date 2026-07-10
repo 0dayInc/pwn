@@ -143,11 +143,25 @@ module PWN
       #   spinner: 'optional - display spinner (default false)'
       # )
       #
-      # Returns the raw /v1/chat/completions response Hash with :choices intact
-      # (including :message[:tool_calls]) — used by PWN::AI::Agent::Loop.
-      # Ollama's OpenAI-compat endpoint supports tools since 0.3.x; tool_calls
-      # come back with function.arguments as a JSON object (not string), which
-      # PWN::AI::Agent::Dispatch.parse_args handles transparently.
+      # Returns a Hash with :choices / :assistant_message intact (including
+      # :message[:tool_calls]) — used by PWN::AI::Agent::Loop.
+      #
+      # LOCAL-MODEL SCAFFOLDING
+      # -----------------------
+      # This hits Ollama's NATIVE /api/chat (not the OpenAI-compat shim) so
+      # the following actually take effect:
+      #   options.num_ctx     - Ollama defaults to 2048; the pwn-ai system
+      #                         prompt alone blows that. Defaults here to
+      #                         PWN::Env[:ai][:ollama][:num_ctx] || 32768.
+      #   options.temperature - forced to 0.1 on tool-bearing turns for
+      #                         deterministic tool selection; engine[:temp]
+      #                         (creative) on the final text-only turn.
+      #   format: 'json'      - constrains the sampler to valid JSON when
+      #                         tools are present so Dispatch never sees
+      #                         malformed function.arguments.
+      #   keep_alive: '30m'   - avoids reload latency between iterations.
+      # tool_calls come back with function.arguments as a Hash (not a JSON
+      # string), which PWN::AI::Agent::Dispatch.parse_args handles.
 
       public_class_method def self.chat_with_tools(opts = {})
         engine   = PWN::Env[:ai][:ollama]
@@ -160,18 +174,30 @@ module PWN
         temp = opts[:temp].to_f
         temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
 
+        tools_present = opts[:tools] && !opts[:tools].empty?
+        tool_temp     = (engine[:tool_temp] || 0.1).to_f
+        num_ctx       = (engine[:num_ctx]   || 32_768).to_i
+        keep_alive    = engine[:keep_alive] || '30m'
+
         http_body = {
           model: model,
           messages: messages,
-          temperature: temp,
-          stream: false
+          stream: false,
+          keep_alive: keep_alive,
+          options: {
+            num_ctx: num_ctx,
+            temperature: tools_present ? tool_temp : temp
+          }
         }
-        http_body[:tools]       = opts[:tools]       if opts[:tools] && !opts[:tools].empty?
+        if tools_present
+          http_body[:tools]  = opts[:tools]
+          http_body[:format] = engine[:format] || 'json'
+        end
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
 
         response = ollama_rest_call(
           http_method: :post,
-          rest_call: 'ollama/v1/chat/completions',
+          rest_call: 'ollama/api/chat',
           http_body: http_body,
           timeout: opts[:timeout],
           spinner: opts[:spinner]
@@ -179,7 +205,10 @@ module PWN
         return nil if response.nil?
 
         json_resp = JSON.parse(response, symbolize_names: true)
-        json_resp[:assistant_message] = json_resp.dig(:choices, 0, :message)
+        # Normalise native /api/chat shape to what Loop.normalize_llm expects.
+        msg = json_resp[:message] || json_resp.dig(:choices, 0, :message)
+        json_resp[:choices] = [{ message: msg }] if msg && !json_resp.key?(:choices)
+        json_resp[:assistant_message] = msg
         json_resp
       rescue StandardError => e
         raise e

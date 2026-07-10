@@ -32,8 +32,25 @@ module PWN
       #      have to fail 3× again to re-learn what it already knew.
       # PromptBuilder.mistakes_block re-injects the top open mistakes and
       # top known fixes into the system prompt of every future turn.
+      #
+      # LOCAL-MODEL SCAFFOLDING
+      # -----------------------
+      # When the active engine is :ollama (or the corresponding :agent flags
+      # are set) Loop.run additionally:
+      #   * threads request → PromptBuilder for relevance-ranked MEMORY,
+      #   * threads request → Registry.definitions(relevance:) for a slimmed
+      #     tool set (:tool_router),
+      #   * splices Learning.exemplars_for(request:) between system and user
+      #     as few-shot behaviour retrieval,
+      #   * runs a plan-then-act pre-pass (:plan_first) so the model
+      #     externalises a tool plan before its first dispatch,
+      #   * escalates to a frontier persona for a 3-line corrective hint
+      #     once ≥ ESCALATE_AFTER_FAILS in-turn failures accumulate
+      #     (:escalation_persona) — the local model still produces the final
+      #     answer so Learning/Metrics stay attributed to :ollama.
       module Loop
-        DEFAULT_MAX_ITERS = 777
+        DEFAULT_MAX_ITERS    = 777
+        ESCALATE_AFTER_FAILS = 4
 
         ENGINE_MODS = {
           openai: 'PWN::AI::OpenAI',
@@ -67,6 +84,21 @@ module PWN
           DEFAULT_MAX_ITERS
         end
 
+        private_class_method def self.active_engine
+          e = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase.to_sym
+          e == :'' ? :openai : e
+        rescue StandardError
+          :openai
+        end
+
+        private_class_method def self.agent_flag(opts = {})
+          key = opts[:key]
+          v = (PWN::Env.dig(:ai, :agent, key) if defined?(PWN::Env))
+          v.nil? ? opts[:default] : v
+        rescue StandardError
+          opts[:default]
+        end
+
         # Record per-tool telemetry AND, when the dispatch failed, fingerprint
         # the failure into PWN::AI::Agent::Mistakes so recurring errors are
         # counted, surfaced in the system prompt, and can be resolved with an
@@ -81,7 +113,7 @@ module PWN
           err     = raw[/"error":"([^"]{1,300})"/, 1]
           err   ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless ok
           dur     = started ? (Time.now - started) : 0.0
-          Metrics.record(name: name, success: ok, duration: dur, error: err) if defined?(Metrics)
+          Metrics.record(name: name, success: ok, duration: dur, error: err, engine: opts[:engine]) if defined?(Metrics)
           m = nil
           m = Mistakes.record(tool: name, error: err || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool) if !ok && defined?(Mistakes)
           { ok: ok, err: err, mistake: m }
@@ -136,6 +168,50 @@ module PWN
           "#{guard}\n#{result}"
         end
 
+        # Plan-then-act pre-pass: force the (usually local) model to
+        # externalise a numbered tool plan BEFORE it may call any tool. The
+        # plan rides along as an assistant message so every subsequent
+        # iteration attends over it — cheap chain-of-thought scaffolding
+        # without leaking to the user.
+        private_class_method def self.plan_first(opts = {})
+          messages = opts[:messages]
+          plan_msg = call_engine(
+            messages: messages + [{ role: 'user',
+                                    content: 'Before acting, list the exact tool calls (name + key args) you will make, in order. Reply ONLY with the numbered plan — do NOT call any tool yet.' }],
+            tools: nil
+          )
+          return unless plan_msg && !plan_msg[:content].to_s.strip.empty?
+
+          messages << { role: 'assistant', content: "PLAN:\n#{plan_msg[:content].to_s.strip}" }
+        rescue StandardError => e
+          warn "[pwn-ai/loop] plan_first swallowed: #{e.class}: #{e.message}"
+        end
+
+        # Swarm escalation circuit-breaker: when a local model has burned
+        # ≥ ESCALATE_AFTER_FAILS distinct failures this turn, ask a frontier
+        # persona for a 3-line corrective hint and inject it as a synthetic
+        # tool result. Every escalation is recorded as a Mistake so
+        # export_finetune can later teach the LoRA to NOT need it.
+        private_class_method def self.escalate(opts = {})
+          request    = opts[:request]
+          turn_fails = opts[:turn_fails]
+          persona    = agent_flag(key: :escalation_persona)
+          return nil unless persona && defined?(Swarm) && Swarm.personas.key?(persona.to_sym)
+
+          summary = turn_fails.map { |k, v| "#{k}: #{v}×" }.join(', ')
+          hint = Swarm.ask(
+            name: persona.to_s,
+            request: "Local agent is stuck on: #{request}\nFailed attempts: #{summary}\n" \
+                     'Give a 3-line corrective hint (which tool, which args, why). Reply with the hint ONLY.'
+          )
+          reply = hint.is_a?(Hash) ? hint[:reply].to_s : hint.to_s
+          Mistakes.record(tool: 'escalation', error: "local stuck after #{turn_fails.values.sum} fails; frontier hint requested", session_id: opts[:session_id], source: :loop) if defined?(Mistakes)
+          reply.strip.empty? ? nil : "[pwn-ai/escalation] frontier hint (#{persona}):\n#{reply.strip}"
+        rescue StandardError => e
+          warn "[pwn-ai/loop] escalate swallowed: #{e.class}: #{e.message}"
+          nil
+        end
+
         # Supported Method Parameters::
         # msg = PWN::AI::Agent::Loop.normalize_llm(
         #   response: 'required - chat_with_tools response Hash from any provider'
@@ -184,9 +260,7 @@ module PWN
           messages = opts[:messages]
           tools = opts[:tools]
 
-          engine = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase.to_sym
-          engine = :openai if engine == :''
-
+          engine = active_engine
           mod_name = ENGINE_MODS[engine]
           raise "ERROR: Unsupported AI engine for agent loop: #{engine}" unless mod_name
 
@@ -216,20 +290,24 @@ module PWN
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
-          system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id)
+          engine = active_engine
+          local  = engine == :ollama
+          system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id, request: request)
 
           Registry.discover
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
-          tools    = Registry.definitions(enabled: opts[:enabled_toolsets])
-          messages = [
-            { role: 'system', content: system_role_content },
-            { role: 'user',   content: request }
-          ]
+          tools    = Registry.definitions(enabled: opts[:enabled_toolsets], relevance: request)
+          messages = [{ role: 'system', content: system_role_content }]
+          messages.concat(Learning.exemplars_for(request: request)) if local && defined?(Learning) && Learning.respond_to?(:exemplars_for)
+          messages << { role: 'user', content: request }
           append_session(session_id: session_id, role: 'user', content: request)
 
+          plan_first(messages: messages) if agent_flag(key: :plan_first, default: local) && !Array(tools).empty?
+
           turn_fails = Hash.new(0)
+          escalated  = false
 
           max_iters.times do |i|
             msg = call_engine(messages: messages, tools: tools)
@@ -251,7 +329,7 @@ module PWN
               entry   = Registry.lookup(name: name)
               started = Time.now
               raw     = Dispatch.call(tool_call: tc)
-              tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id)
+              tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine)
               result  = Result.condition(content: raw, entry: entry)
 
               unless tele[:ok]
@@ -281,6 +359,15 @@ module PWN
                 content: "#{name} → #{result[0, 1_024]}"
               )
             end
+
+            next unless local && !escalated && turn_fails.values.sum >= ESCALATE_AFTER_FAILS
+
+            hint = escalate(request: request, turn_fails: turn_fails, session_id: session_id)
+            if hint
+              messages << { role: 'tool', tool_call_id: "escalation_#{i}", name: 'frontier_hint', content: hint }
+              append_session(session_id: session_id, role: 'tool', content: "frontier_hint → #{hint[0, 1_024]}")
+            end
+            escalated = true
           end
 
           Mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer', session_id: session_id, source: :loop) if defined?(Mistakes)
@@ -308,6 +395,11 @@ module PWN
 
               Supported engines: #{ENGINE_MODS.keys.join(', ')}
               Set PWN::Env[:ai][:active] to choose; PWN::Env[:ai][:agent][:max_iters] to bound.
+
+              Local-model scaffolding (PWN::Env[:ai][:agent]):
+                :plan_first          - Boolean, plan-then-act pre-pass (default: engine == :ollama)
+                :tool_router         - Boolean, slim Registry.definitions to CORE + top-K relevant
+                :escalation_persona  - Swarm persona name for frontier corrective hints when stuck
 
               #{self}.authors
           USAGE

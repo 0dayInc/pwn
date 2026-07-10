@@ -65,8 +65,13 @@ module PWN
             base_uri: 'required - Base URI for Open WebUI - e.g. https://ollama.local',
             key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token',
             model: 'required - Ollama model to use',
+            embed_model: 'optional - embedding model for PWN::MemoryIndex (default nomic-embed-text)',
             system_role_content: 'You are an ethically hacking Ollama agent.',
             temp: 'optional - Ollama temperature',
+            num_ctx: 32_768,
+            keep_alive: '30m',
+            # tighten each PromptBuilder block for the local model (nil = engine defaults)
+            prompt_budget: { memory: 6, metrics: 3, mistakes: 3, learning: 2, extro: false },
             max_prompt_length: 32_000
           },
           anthropic: {
@@ -86,6 +91,8 @@ module PWN
             temp: 'optional - Gemini temperature',
             max_prompt_length: 1_000_000
           },
+          # teacher-student reflection: execute on :active, write durable lessons via this engine (nil = same as :active)
+          reflect_engine: nil,
           agent: {
             native_tools: true,
             max_iters: 25,
@@ -95,6 +102,10 @@ module PWN
             auto_introspect: true,
             # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_introspect
             auto_extrospect: false,
+            # engine-agnostic scaffolding (defaults tuned for local models)
+            plan_first: nil,               # nil = auto (true when :active == :ollama)
+            tool_router: false,            # slim Registry.definitions to CORE + top-K relevant tools
+            escalation_persona: nil,       # Swarm persona name for frontier corrective hints when a local model is stuck
             toolsets: nil
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
             # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl

@@ -18,6 +18,7 @@ module PWN
   autoload :Config, 'pwn/config'
   autoload :Cron, 'pwn/cron'
   autoload :Memory, 'pwn/memory'
+  autoload :MemoryIndex, 'pwn/memory_index'
   autoload :Sessions, 'pwn/sessions'
   autoload :Driver, 'pwn/driver'
   autoload :FFI, 'pwn/ffi'

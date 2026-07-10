@@ -23,8 +23,10 @@ module PWN
       # Everything is file-backed under ~/.pwn so it survives across REPL
       # restarts and is shared by every future session.
       module Learning
-        LEARNING_FILE = File.join(Dir.home, '.pwn', 'learning.jsonl')
+        LEARNING_FILE      = File.join(Dir.home, '.pwn', 'learning.jsonl')
+        FINETUNE_DIR       = File.join(Dir.home, '.pwn', 'finetune')
         MAX_MEMORY_ENTRIES = 200
+        CLAIM_RX           = /CVE-\d{4}-\d{4,7}|\b[A-Za-z][\w.+-]{2,}\s+v?\d+\.\d+(?:\.\d+)?\b/
 
         # Supported Method Parameters::
         # entry = PWN::AI::Agent::Learning.note_outcome(
@@ -128,6 +130,82 @@ module PWN
         end
 
         # Supported Method Parameters::
+        # msgs = PWN::AI::Agent::Learning.exemplars_for(
+        #   request: 'required - current user request',
+        #   limit: 'optional - max exemplar traces to return (default 1)',
+        #   max_msgs: 'optional - cap on messages per exemplar (default 6)'
+        # )
+        #
+        # Retrieval-augmented BEHAVIOUR: keyword-matches request against
+        # prior successful outcomes in learning.jsonl, loads the matching
+        # session, and compresses its (user, tool, assistant) trace into a
+        # short few-shot exemplar Loop.run splices between system and user.
+        # Local models are dramatically better with 1 concrete example than
+        # with 25 abstract lessons.
+
+        public_class_method def self.exemplars_for(opts = {})
+          request  = opts[:request].to_s.downcase
+          limit    = (opts[:limit]    || 1).to_i
+          max_msgs = (opts[:max_msgs] || 6).to_i
+          return [] if request.strip.empty?
+
+          tokens = request.scan(/[a-z0-9_]{3,}/).uniq
+          return [] if tokens.empty?
+
+          hits = outcomes(limit: 500, success: true)
+                 .reject { |r| r[:session_id].to_s.empty? }
+                 .map    { |r| [r, tokens.count { |t| r[:task].to_s.downcase.include?(t) }] }
+                 .reject { |_, s| s.zero? }
+                 .sort_by { |_, s| -s }
+                 .first(limit)
+                 .map(&:first)
+
+          hits.flat_map { |r| compress_exemplar(session_id: r[:session_id], max_msgs: max_msgs) }
+        rescue StandardError
+          []
+        end
+
+        # Supported Method Parameters::
+        # info = PWN::AI::Agent::Learning.export_finetune(
+        #   format: 'optional - :sharegpt (default) | :openai_jsonl',
+        #   out: 'optional - output path (default ~/.pwn/finetune/pwn-YYYYMMDD.jsonl)',
+        #   min_tools: 'optional - only sessions with >= N tool messages (default 1)'
+        # )
+        #
+        # Turns the learning corpus into a supervised dataset: every session
+        # whose learning.jsonl outcome is success:true becomes one training
+        # sample (system, user, assistant/tool_calls, tool, ..., final). Pair
+        # with a weekly PWN::Cron job that runs `ollama create qwen-pwn -f
+        # Modelfile` over the export - the only path to ACTUAL parity with a
+        # frontier model, because it changes the weights not just the scaffold.
+
+        public_class_method def self.export_finetune(opts = {})
+          fmt       = (opts[:format] || :sharegpt).to_sym
+          min_tools = (opts[:min_tools] || 1).to_i
+          FileUtils.mkdir_p(FINETUNE_DIR)
+          out = opts[:out] || File.join(FINETUNE_DIR, "pwn-#{Time.now.utc.strftime('%Y%m%d')}.jsonl")
+
+          sids = outcomes(limit: 10_000, success: true).map { |r| r[:session_id] }.compact.uniq
+          rows = 0
+          File.open(out, 'w') do |f|
+            sids.each do |sid|
+              t = PWN::Sessions.load(session_id: sid)
+              next if t.count { |e| e[:role].to_s == 'tool' } < min_tools
+
+              conv = t.map { |e| { role: e[:role].to_s, content: e[:content].to_s } }
+                      .reject { |e| e[:role] == 'system' && e[:content].start_with?('Session started') }
+              line = case fmt
+                     when :openai_jsonl then { messages: conv }
+                     else { conversations: conv.map { |m| { from: sharegpt_role(role: m[:role]), value: m[:content] } } }
+                     end
+              f.puts(JSON.generate(line))
+              rows += 1
+            end
+          end
+          { path: out, format: fmt, sessions: sids.length, samples: rows, bytes: File.size(out) }
+        end
+
+        # Supported Method Parameters::
         # skill = PWN::AI::Agent::Learning.distill_skill(
         #   name: 'required - snake_case name for the new skill',
         #   session_id: 'optional - PWN::Sessions id to mine (uses its transcript)',
@@ -216,6 +294,7 @@ module PWN
             tags: %w[auto loop]
           )
           reflect(session_id: session_id)
+          fact_check_local_final(final: opts[:final])
           Extrospection.auto_extrospect(session_id: session_id) if defined?(Extrospection)
         rescue StandardError => e
           warn "[pwn-ai/learning] auto_introspect swallowed: #{e.class}: #{e.message}"
@@ -382,6 +461,48 @@ module PWN
           lessons.uniq.first(5)
         end
 
+        # Auto fact-check post-filter: local models hallucinate CVEs /
+        # versions ~5-10x more than frontier ones. When the active engine is
+        # :ollama, scan the final for CVE / version-shaped claims and hand
+        # each to Extrospection.verify - refuted claims become
+        # Mistakes(tool:'assumption') so KNOWN MISTAKES warns every future
+        # run off that specific hallucination.
+        private_class_method def self.fact_check_local_final(opts = {})
+          return unless defined?(PWN::Env) && PWN::Env.dig(:ai, :active).to_s.downcase.to_sym == :ollama
+          return unless defined?(Extrospection) && Extrospection.respond_to?(:verify)
+
+          claims = opts[:final].to_s.scan(CLAIM_RX).flatten.compact.uniq.first(3)
+          claims.each { |c| Extrospection.verify(claim: c, commit: true) }
+        rescue StandardError => e
+          warn "[pwn-ai/learning] fact_check swallowed: #{e.class}: #{e.message}"
+        end
+
+        private_class_method def self.compress_exemplar(opts = {})
+          sid = opts[:session_id]
+          cap = opts[:max_msgs] || 6
+          t = PWN::Sessions.load(session_id: sid)
+          user = t.find  { |e| e[:role].to_s == 'user' }
+          fin  = t.rfind { |e| e[:role].to_s == 'assistant' }
+          return [] unless user && fin
+
+          tools = t.select { |e| e[:role].to_s == 'tool' }.first([cap - 2, 0].max)
+          msgs  = [{ role: 'user', content: "[exemplar] #{user[:content].to_s[0, 400]}" }]
+          tools.each { |e| msgs << { role: 'assistant', content: "[exemplar tool] #{e[:content].to_s[0, 300]}" } }
+          msgs << { role: 'assistant', content: "[exemplar final] #{fin[:content].to_s[0, 400]}" }
+          msgs
+        rescue StandardError
+          []
+        end
+
+        private_class_method def self.sharegpt_role(opts = {})
+          case opts[:role].to_s
+          when 'user'      then 'human'
+          when 'assistant' then 'gpt'
+          when 'tool'      then 'observation'
+          else 'system'
+          end
+        end
+
         private_class_method def self.build_skill_from_session(opts = {})
           session_id = opts[:session_id]
           name       = opts[:name]
@@ -422,6 +543,8 @@ module PWN
               PWN::AI::Agent::Learning.reflect(session_id: sid)              # LLM or heuristic → PWN::Memory
               PWN::AI::Agent::Learning.auto_introspect(session_id: sid, request: req, final: text)
               PWN::AI::Agent::Learning.distill_skill(name: 'quick_recon', session_id: sid)
+              PWN::AI::Agent::Learning.exemplars_for(request: 'nmap sweep 10/8')  # few-shot for Loop.run
+              PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)        # -> ~/.pwn/finetune/*.jsonl
               PWN::AI::Agent::Learning.consolidate(max_entries: 200)         # dedupe + prune Memory
               PWN::AI::Agent::Learning.to_context(limit: 5)                  # injected by PromptBuilder
               PWN::AI::Agent::Learning.stats

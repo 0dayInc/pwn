@@ -65,6 +65,36 @@ module PWN
         attach_function :firfilt_rrrf_execute_block,
                         %i[pointer pointer uint pointer],
                         :int
+
+        # ── msresamp_crcf (complex arbitrary resampler) ───────────────
+        attach_function :msresamp_crcf_create, %i[float float], :pointer
+        attach_function :msresamp_crcf_destroy, [:pointer], :int
+        attach_function :msresamp_crcf_execute,
+                        %i[pointer pointer uint pointer pointer],
+                        :int
+
+        # ── nco_crcf (numerically-controlled oscillator / mixer) ──────
+        LIQUID_NCO = 0
+        LIQUID_VCO = 1
+        attach_function :nco_crcf_create, [:int], :pointer
+        attach_function :nco_crcf_destroy, [:pointer], :int
+        attach_function :nco_crcf_set_frequency, %i[pointer float], :int
+        attach_function :nco_crcf_mix_block_down,
+                        %i[pointer pointer pointer uint],
+                        :int
+
+        # ── gmskdem (GMSK demodulator: k samp/sym → bit) ──────────────
+        attach_function :gmskdem_create, %i[uint uint float], :pointer
+        attach_function :gmskdem_destroy, [:pointer], :int
+        attach_function :gmskdem_reset, [:pointer], :int
+        attach_function :gmskdem_demodulate,
+                        %i[pointer pointer pointer],
+                        :int
+
+        # ── fskdem (M-FSK demodulator: k samp/sym → symbol) ───────────
+        attach_function :fskdem_create, %i[uint uint float uint], :pointer
+        attach_function :fskdem_destroy, [:pointer], :int
+        attach_function :fskdem_demodulate, %i[pointer pointer], :uint
       end
 
       # Supported Method Parameters::
@@ -210,6 +240,151 @@ module PWN
         end
       end
 
+      # Supported Method Parameters::
+      # out = PWN::FFI::Liquid.resample_iq(
+      #   iq:    'required - interleaved I/Q Array<Float>',
+      #   rate:  'required - output/input ratio (>0)',
+      #   as_db: 'optional - stop-band attenuation dB (default 60.0)'
+      # )
+      # Returns interleaved Array<Float> [I0,Q0,…] resampled by `rate`.
+
+      public_class_method def self.resample_iq(opts = {})
+        raise 'ERROR: libliquid not available' unless available?
+
+        iq    = opts[:iq]
+        rate  = opts[:rate].to_f
+        as_db = (opts[:as_db] || 60.0).to_f
+        n     = iq.length / 2
+        raise 'ERROR: rate must be > 0' unless rate.positive?
+        return iq.dup if n.zero?
+
+        q = msresamp_crcf_create(rate, as_db)
+        raise 'ERROR: msresamp_crcf_create failed' if q.null?
+
+        begin
+          ny_max = [1, (2 + (2 * rate * n)).ceil].max
+          in_ptr = float_ptr(iq.first(n * 2))
+          out_ptr = PubFFI::MemoryPointer.new(:float, ny_max * 2)
+          ny_ptr  = PubFFI::MemoryPointer.new(:uint, 1)
+          rc = msresamp_crcf_execute(q, in_ptr, n, out_ptr, ny_ptr)
+          raise "ERROR: msresamp_crcf_execute rc=#{rc}" unless rc.zero?
+
+          ny = ny_ptr.read_uint
+          out_ptr.read_array_of_float(ny * 2)
+        ensure
+          msresamp_crcf_destroy(q)
+        end
+      end
+
+      # Supported Method Parameters::
+      # out = PWN::FFI::Liquid.mix_down(
+      #   iq:   'required - interleaved I/Q Array<Float>',
+      #   freq: 'required - normalised angular freq (rad/sample, i.e. 2π·f/fs)'
+      # )
+      # Returns interleaved Array<Float> shifted down by `freq`.
+
+      public_class_method def self.mix_down(opts = {})
+        raise 'ERROR: libliquid not available' unless available?
+
+        iq   = opts[:iq]
+        freq = opts[:freq].to_f
+        n    = iq.length / 2
+        return [] if n.zero?
+
+        q = nco_crcf_create(LIQUID_NCO)
+        raise 'ERROR: nco_crcf_create failed' if q.null?
+
+        begin
+          nco_crcf_set_frequency(q, freq)
+          in_ptr  = float_ptr(iq.first(n * 2))
+          out_ptr = PubFFI::MemoryPointer.new(:float, n * 2)
+          rc = nco_crcf_mix_block_down(q, in_ptr, out_ptr, n)
+          raise "ERROR: nco_crcf_mix_block_down rc=#{rc}" unless rc.zero?
+
+          out_ptr.read_array_of_float(n * 2)
+        ensure
+          nco_crcf_destroy(q)
+        end
+      end
+
+      # Supported Method Parameters::
+      # bits = PWN::FFI::Liquid.gmsk_demod(
+      #   iq:  'required - interleaved I/Q Array<Float>, length = k·sym·2',
+      #   sps: 'required - samples per symbol (integer ≥ 2)',
+      #   m:   'optional - filter delay (default 3)',
+      #   bt:  'optional - Gaussian BT (default 0.35)'
+      # )
+      # Returns Array<0|1> (one bit per symbol, floor(n/sps) bits).
+
+      public_class_method def self.gmsk_demod(opts = {})
+        raise 'ERROR: libliquid not available' unless available?
+
+        iq  = opts[:iq]
+        k   = opts[:sps].to_i
+        m   = (opts[:m] || 3).to_i
+        bt  = (opts[:bt] || 0.35).to_f
+        raise 'ERROR: sps must be ≥ 2' if k < 2
+
+        n = iq.length / 2
+        nsym = n / k
+        return [] if nsym.zero?
+
+        q = gmskdem_create(k, m, bt)
+        raise 'ERROR: gmskdem_create failed' if q.null?
+
+        begin
+          in_ptr  = float_ptr(iq.first(nsym * k * 2))
+          bit_ptr = PubFFI::MemoryPointer.new(:uint, 1)
+          bits = Array.new(nsym)
+          i = 0
+          while i < nsym
+            gmskdem_demodulate(q, in_ptr + (i * k * 2 * 4), bit_ptr)
+            bits[i] = bit_ptr.read_uint & 1
+            i += 1
+          end
+          bits
+        ensure
+          gmskdem_destroy(q)
+        end
+      end
+
+      # Supported Method Parameters::
+      # syms = PWN::FFI::Liquid.mfsk_demod(
+      #   iq:  'required - interleaved I/Q Array<Float>',
+      #   m:   'required - bits per symbol (1=2FSK, 2=4FSK, …)',
+      #   sps: 'required - samples per symbol (integer ≥ 2^m)',
+      #   bw:  'optional - normalised bandwidth 0..0.5 (default 0.25)'
+      # )
+      # Returns Array<Integer> of demodulated symbols (0..2^m-1).
+
+      public_class_method def self.mfsk_demod(opts = {})
+        raise 'ERROR: libliquid not available' unless available?
+
+        iq  = opts[:iq]
+        mb  = opts[:m].to_i
+        k   = opts[:sps].to_i
+        bw  = (opts[:bw] || 0.25).to_f
+        n   = iq.length / 2
+        nsym = n / k
+        return [] if nsym.zero?
+
+        q = fskdem_create(mb, k, bw, 0)
+        raise 'ERROR: fskdem_create failed' if q.null?
+
+        begin
+          in_ptr = float_ptr(iq.first(nsym * k * 2))
+          syms = Array.new(nsym)
+          i = 0
+          while i < nsym
+            syms[i] = fskdem_demodulate(q, in_ptr + (i * k * 2 * 4))
+            i += 1
+          end
+          syms
+        ensure
+          fskdem_destroy(q)
+        end
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -225,6 +400,10 @@ module PWN
           #{self}.resample(samples:, rate:, as_db: 60.0)  # arbitrary rate
           #{self}.fir_kaiser(samples:, length: 51, fc: 0.1, as_db: 60.0)
           #{self}.dc_block(samples:, m: 7, as_db: 60.0)
+#{self}.resample_iq(iq:, rate:, as_db: 60.0)     # complex resample
+#{self}.mix_down(iq:, freq:)                     # NCO mix (rad/samp)
+#{self}.gmsk_demod(iq:, sps:, m: 3, bt: 0.35)    # I/Q → bits
+#{self}.mfsk_demod(iq:, m:, sps:, bw: 0.25)      # I/Q → symbols
 
           #{self}.authors
         "

@@ -83,6 +83,20 @@ module PWN
     end
 
     # Supported Method Parameters::
+    #   hits = PWN::Memory.recall_semantic(query: 'nmap sweep', limit: 6)
+    #
+    # Relevance-ranked recall via PWN::MemoryIndex (local Ollama embeddings
+    # + cosine over ~/.pwn/memory.idx). Falls back to substring .recall
+    # when no embedding backend is configured.
+    public_class_method def self.recall_semantic(opts = {})
+      return recall(query: opts[:query], limit: opts[:limit]) unless defined?(PWN::MemoryIndex) && PWN::MemoryIndex.available?
+
+      PWN::MemoryIndex.recall_semantic(query: opts[:query], limit: opts[:limit])
+    rescue StandardError
+      recall(query: opts[:query], limit: opts[:limit])
+    end
+
+    # Supported Method Parameters::
     #   PWN::Memory.forget(key: :some_key)
     public_class_method def self.forget(opts = {}) # rubocop:disable Naming/PredicateMethod
       key = opts[:key]
@@ -127,6 +141,7 @@ module PWN
           mem = PWN::Memory.load
           PWN::Memory.remember(key: :user_prefers_ruby, value: 'Always prefer pure Ruby + RestClient patterns', category: :preference)
           facts = PWN::Memory.recall(query: 'recon', category: :fact, limit: 10)
+          hits  = PWN::Memory.recall_semantic(query: 'recon', limit: 6)  # embedding-ranked
           PWN::Memory.forget(key: :some_key)
           PWN::Memory.clear
           context_str = PWN::Memory.to_context

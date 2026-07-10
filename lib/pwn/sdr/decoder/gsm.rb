@@ -3,65 +3,176 @@
 module PWN
   module SDR
     module Decoder
-      # GSM (2G) true-air BCCH/CCCH activity decoder.
+      # GSM (2G) true-air FCCH/SCH decoder.
+      #
+      # 270.833 kbit/s GMSK. FCCH burst = 148 all-zero bits → a pure
+      # +67.708 kHz tone for ~547 μs. Detect via variance-dip on the FM
+      # discriminator (PWN::FFI::Liquid.freq_demod), estimate carrier
+      # offset from mean deviation, then correlate the SCH 64-bit extended
+      # training sequence 8 timeslots later and recover the 6-bit BSIC
+      # (NCC/BCC) + 19-bit reduced frame number (T1/T2/T3'). Emits
+      # {event:'fcch'|'sch', freq_offset_hz:, bsic:, ncc:, bcc:, rfn:}.
       module GSM
-        # Streaming I/Q energy/burst demod for Base.run_iq.
+        SYMBOL_RATE = 270_833.0
+        FCCH_TONE   = SYMBOL_RATE / 4.0 # 67.708 kHz above carrier
+        FCCH_BITS   = 148
+        # SCH extended training sequence (64 bits, TS 45.002 Table 5.2.5)
+        SCH_ETSC = [
+          1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0,
+          0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+          0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1,
+          0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1
+        ].freeze
+
+        # Streaming GMSK demod for Base.run_iq — I/Q → FCCH lock + SCH BSIC.
         class DemodIQ
-          def initialize(rate:, protocol:, modulation:, extra: {})
-            @rate = rate.to_f
-            @protocol = protocol
-            @modulation = modulation
-            @extra = extra
-            @floor = nil
-            @in_burst = false
-            @burst_t0 = nil
-            @peak = -200.0
-            @burst_n = 0
-            @threshold = (extra[:threshold] || 8.0).to_f
-            @carry = []
+          def initialize(rate:)
+            @rate  = rate.to_f
+            @spb   = @rate / SYMBOL_RATE
+            @audio = []
+            @fcch_n = 0
+            @sch_n  = 0
           end
 
           def feed_iq(samples, rate: nil, &)
             @rate = rate.to_f if rate
-            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
-            # process in ~1 ms hops
-            hop = [(@rate / 1000.0).round, 1].max
-            i = 0
-            while i < m2.length
-              win = m2[i, hop]
-              break if win.nil? || win.empty?
+            @spb  = @rate / SYMBOL_RATE
+            fm = PWN::SDR::Decoder::DSP.fm_demod_iq(iq: samples)
+            @audio.concat(fm)
+            scan(&) if block_given?
+            max = (@rate * 0.25).to_i
+            @audio.shift(@audio.length - max) if @audio.length > max
+          end
 
-              ms = win.sum / win.length
-              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
-              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
-              delta = lvl - @floor
-              if delta >= @threshold
-                unless @in_burst
-                  @in_burst = true
-                  @burst_t0 = Time.now
-                  @peak = lvl
-                end
-                @peak = lvl if lvl > @peak
-              elsif @in_burst
-                @in_burst = false
-                @burst_n += 1
-                dur_ms = ((Time.now - @burst_t0) * 1000).round
-                msg = {
-                  protocol: @protocol, event: 'burst', source: 'iq',
-                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
-                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
-                  duration_ms: dur_ms, modulation: @modulation,
-                  sample_rate: @rate.to_i
-                }.merge(@extra)
-                msg[:summary] = format(
-                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
-                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
-                )
-                yield msg if block_given?
-              end
+          private
+
+          def scan
+            win = (FCCH_BITS * @spb).round
+            return if @audio.length < win * 4
+
+            # slide half-burst hop, look for min-variance window (pure tone)
+            hop  = win / 4
+            best = nil
+            i = 0
+            while i < @audio.length - win
+              seg  = @audio[i, win]
+              mean = seg.sum / seg.length
+              var  = seg.sum { |v| (v - mean)**2 } / seg.length
+              best = { i: i, mean: mean, var: var } if best.nil? || var < best[:var]
               i += hop
             end
+            return unless best
+
+            # FCCH criterion: variance ≪ overall variance AND mean > 0.
+            g_mean = @audio.sum / @audio.length
+            g_var  = @audio.sum { |v| (v - g_mean)**2 } / @audio.length
+            return unless g_var.positive? && (best[:var] / g_var) < 0.15 && best[:mean].positive?
+
+            @fcch_n += 1
+            # discriminator output ≈ 2π·Δf/fs → Δf = mean · fs / (2π)
+            f_est = best[:mean] * @rate / (2 * Math::PI)
+            f_off = (f_est - FCCH_TONE).round
+            yield(
+              protocol: 'GSM', event: 'fcch', modulation: 'GMSK',
+              symbol_rate: SYMBOL_RATE.to_i, fcch_no: @fcch_n,
+              tone_hz: f_est.round, freq_offset_hz: f_off,
+              variance_ratio: (best[:var] / g_var).round(4),
+              summary: "GSM FCCH lock ##{@fcch_n} tone=#{f_est.round}Hz Δf=#{f_off}Hz"
+            )
+
+            # SCH lives 8 timeslots after FCCH: 8 × 156.25 = 1250 symbols.
+            sch_off = best[:i] + (1250 * @spb).round
+            return unless sch_off + (148 * @spb).round < @audio.length
+
+            seg  = @audio[sch_off, (156 * @spb).round]
+            bits = PWN::SDR::Decoder::DSP.nrz_slice(
+              samples: seg, rate: @rate, baud: SYMBOL_RATE
+            )
+            # GMSK data are differentially encoded (1 = no phase change).
+            db = PWN::SDR::Decoder::DSP.diff_decode(bits: bits).map { |b| b ^ 1 }
+            idx = PWN::SDR::Decoder::DSP.find_sync(
+              bits: db, pattern: SCH_ETSC, max_err: 8
+            )
+            return unless idx && idx >= 42 && idx + 64 + 39 <= db.length
+
+            # SCH burst: 3 tail + 39 enc + 64 TS + 39 enc + 3 tail + 8.25 guard
+            enc1 = db[idx - 39, 39]
+            enc2 = db[idx + 64, 39]
+            enc  = enc1 + enc2 # 78 coded bits (rate-1/2 conv, K=5)
+            info = GSM.viterbi_decode(bits: enc, k: 5, g0: 0o23, g1: 0o33)
+            # 25 info bits + 10 parity + 4 tail = 39 → we get first 39.
+            bsic = PWN::SDR::Decoder::DSP.bits_to_int(bits: info[0, 6])
+            t1   = PWN::SDR::Decoder::DSP.bits_to_int(bits: info[6, 11])
+            t2   = PWN::SDR::Decoder::DSP.bits_to_int(bits: info[17, 5])
+            t3p  = PWN::SDR::Decoder::DSP.bits_to_int(bits: info[22, 3])
+            @sch_n += 1
+            yield(
+              protocol: 'GSM', event: 'sch', modulation: 'GMSK',
+              bsic: bsic, ncc: (bsic >> 3) & 7, bcc: bsic & 7,
+              t1: t1, t2: t2, t3p: t3p, sch_no: @sch_n,
+              raw_info_hex: info[0, 25].each_slice(4).map { |n| PWN::SDR::Decoder::DSP.bits_to_int(bits: n).to_s(16) }.join,
+              summary: "GSM SCH BSIC=#{bsic} (NCC=#{(bsic >> 3) & 7} BCC=#{bsic & 7}) T1=#{t1} T2=#{t2} T3'=#{t3p}"
+            )
+            # consume up to & incl. SCH so we don't re-emit on next feed
+            @audio.shift(sch_off + (156 * @spb).round)
           end
+        end
+
+        # Supported Method Parameters::
+        # bits = PWN::SDR::Decoder::GSM.viterbi_decode(
+        #   bits: 'required - Array<0|1> soft/hard coded bits (rate-1/2)',
+        #   k: 5, g0: 0o23, g1: 0o33
+        # )
+        # Minimal hard-decision K=5 rate-½ Viterbi (GSM 05.03 CC(2,1,5)).
+
+        public_class_method def self.viterbi_decode(opts = {})
+          bits = opts[:bits]
+          k    = (opts[:k] || 5).to_i
+          g0   = (opts[:g0] || 0o23).to_i
+          g1   = (opts[:g1] || 0o33).to_i
+          nstates = 1 << (k - 1)
+          npairs  = bits.length / 2
+          pm = Array.new(nstates, 1 << 30)
+          pm[0] = 0
+          bp = Array.new(npairs) { Array.new(nstates, 0) }
+          npairs.times do |t|
+            r0 = bits[t * 2]
+            r1 = bits[(t * 2) + 1]
+            npm = Array.new(nstates, 1 << 30)
+            nstates.times do |s|
+              [0, 1].each do |u|
+                reg = (u << (k - 1)) | s
+                o0 = parity(reg & g0)
+                o1 = parity(reg & g1)
+                m  = pm[s] + (o0 == r0 ? 0 : 1) + (o1 == r1 ? 0 : 1)
+                ns = reg >> 1
+                if m < npm[ns]
+                  npm[ns] = m
+                  bp[t][ns] = (s << 1) | u
+                end
+              end
+            end
+            pm = npm
+          end
+          # traceback from best final state
+          s = pm.each_with_index.min_by(&:first).last
+          out = Array.new(npairs)
+          (npairs - 1).downto(0) do |t|
+            v = bp[t][s]
+            out[t] = v & 1
+            s = v >> 1
+          end
+          out
+        end
+
+        public_class_method def self.parity(opts = {})
+          parity = opts[:parity].to_i
+          p = 0
+          while parity.positive?
+            p ^= 1
+            parity &= parity - 1
+          end
+          p
         end
 
         # Supported Method Parameters::
@@ -71,24 +182,16 @@ module PWN
 
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
-          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || 1_000_000).to_i
-          proto = 'GSM'
-          extra = {}
-          describe = proc { |b| { modulation: 'GMSK', symbol_rate: 270_833, tdma_frames: (b[:duration_ms] / 4.615).round, classification: (b[:duration_ms] / 4.615) > 10 ? 'BCCH/CCCH-continuous' : 'RACH/paging-burst' } }
-          demod = DemodIQ.new(
-            rate: rate, protocol: proto, modulation: 'GMSK',
-            extra: { threshold: 5.0 }.merge(extra)
-          )
+          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || 1_083_333).to_i
           PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: proto,
+            protocol: 'GSM',
             sample_rate: rate,
             source: opts[:source],
             file: opts[:file],
-            demod: demod,
-            threshold: 5.0,
-            note: '270.833 kbit/s GMSK — true-air path streams I/Q from RTL-SDR/Pluto and characterises TDMA burst duty; full Viterbi/BCCH SI decode is layered on Liquid when available.',
-            describe: describe
+            demod: DemodIQ.new(rate: rate),
+            note: '270.833 kbit/s GMSK — I/Q→freqdem→FCCH tone lock→SCH TS correlate→Viterbi→BSIC/RFN.',
+            describe: proc { |b| { modulation: 'GMSK', tdma_frames: (b[:duration_ms] / 4.615).round } }
           )
         end
 
@@ -115,7 +218,6 @@ module PWN
           bits << "MCC/MNC=#{out[:mcc]}/#{out[:mnc]}" if out[:mcc]
           bits << "LAC=#{out[:lac]} CI=#{out[:cell_id]}" if out[:lac]
           bits << "IMSI=#{out[:imsi]}" if out[:imsi]
-          bits << "TMSI=#{out[:tmsi]}" if out[:tmsi]
           out[:summary] = "GSM #{bits.join(' ')}".strip
           out
         end
@@ -131,8 +233,10 @@ module PWN
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
               source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture'
+              file:     'optional - .cu8/.cs16 capture (≥1.0833 Msps)'
             )
+
+            #{self}.viterbi_decode(bits:, k: 5, g0: 0o23, g1: 0o33)
 
             #{self}.authors
           "

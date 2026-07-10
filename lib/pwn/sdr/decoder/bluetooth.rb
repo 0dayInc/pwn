@@ -3,73 +3,147 @@
 module PWN
   module SDR
     module Decoder
-      # True-air + detector-fallback decoder for Bluetooth.
-      # Prefers PWN::FFI I/Q (RTL-SDR / ADALM-Pluto / HackRF / capture file)
-      # via Base.run_iq; degrades to Base.run_detector with no hardware.
+      # Bluetooth LE (& BR/EDR sync-trailer) true-air decoder.
+      #
+      # I/Q → PWN::FFI::Liquid.gmsk_demod (or DSP.fm_demod_iq→NRZ) at
+      # 1 Mbit/s → hunt LSB-first Access Address (adv = 0x8E89BED6) →
+      # dewhiten (7-bit LFSR seeded ch|0x40) → PDU header (type/len) →
+      # AdvA (6 bytes) → CRC-24 (poly 0x65B, init 0x555555). Emits per-PDU
+      # {access_addr:, pdu_type:, adv_addr:, crc_ok:} — ubertooth-parity
+      # advertising sniff with no external binary.
       module Bluetooth
-        # Streaming I/Q energy/burst demod for Base.run_iq.
+        BLE_ADV_AA   = 0x8E89BED6
+        BLE_CRC_POLY = 0x65B
+        BLE_CRC_INIT = 0x555555
+        BLE_PDU_TYPE = {
+          0 => 'ADV_IND', 1 => 'ADV_DIRECT_IND', 2 => 'ADV_NONCONN_IND',
+          3 => 'SCAN_REQ', 4 => 'SCAN_RSP', 5 => 'CONNECT_IND',
+          6 => 'ADV_SCAN_IND', 7 => 'ADV_EXT_IND'
+        }.freeze
+        BLE_ADV_CHANNELS = { 37 => 2_402_000_000, 38 => 2_426_000_000, 39 => 2_480_000_000 }.freeze
+        # BR/EDR: 64-bit sync word derived from LAP; general-inquiry LAP=0x9E8B33.
+        GIAC_LAP = 0x9E8B33
+
+        # Streaming BLE GFSK demod for Base.run_iq — I/Q → advertising PDUs.
         class DemodIQ
-          def initialize(rate:, protocol:, modulation:, extra: {})
-            @rate = rate.to_f
-            @protocol = protocol
-            @modulation = modulation
-            @extra = extra
-            @floor = nil
-            @in_burst = false
-            @burst_t0 = nil
-            @peak = -200.0
-            @burst_n = 0
-            @threshold = (extra[:threshold] || 8.0).to_f
+          BAUD = 1_000_000
+
+          def initialize(rate:, channel: 37, ble: true)
+            @rate    = rate.to_f
+            @channel = channel
+            @ble     = ble
+            @bits    = []
+            @seen    = {}
           end
 
           def feed_iq(samples, rate: nil, &)
             @rate = rate.to_f if rate
-            m2 = PWN::SDR::Decoder::DSP.mag_sq(iq: samples)
-            hop = [(@rate / 1000.0).round, 1].max
-            i = 0
-            while i < m2.length
-              win = m2[i, hop]
-              break if win.nil? || win.empty?
+            # Try both polarities — GFSK sign depends on tuner spectral inversion.
+            new_bits = PWN::SDR::Decoder::DSP.gfsk_slice(
+              iq: samples, rate: @rate, baud: BAUD, bt: 0.5
+            )
+            @bits.concat(new_bits)
+            scan(&) if block_given?
+            @bits.shift(@bits.length - 4096) if @bits.length > 65_536
+          end
 
-              ms = win.sum / win.length
-              lvl = ms.positive? ? (10.0 * Math.log10(ms)) : -120.0
-              @floor = @floor.nil? ? lvl : ((@floor * 0.98) + (lvl * 0.02))
-              delta = lvl - @floor
-              if delta >= @threshold
-                unless @in_burst
-                  @in_burst = true
-                  @burst_t0 = Time.now
-                  @peak = lvl
+          private
+
+          # 32-bit AA is transmitted LSB-first on the air.
+          AA_BITS = Array.new(32) { |i| (BLE_ADV_AA >> i) & 1 }
+          AA_INV  = AA_BITS.map { |b| b ^ 1 }.freeze
+
+          def scan
+            i = 0
+            while i <= @bits.length - (32 + 16 + 24)
+              inv = nil
+              inv = false if match_at?(i, AA_BITS)
+              inv = true  if inv.nil? && match_at?(i, AA_INV)
+              unless inv.nil?
+                pdu = decode_pdu(@bits[(i + 32)..], inv)
+                if pdu
+                  key = "#{pdu[:adv_addr]}:#{pdu[:pdu_type]}:#{pdu[:crc_rx]}"
+                  unless @seen[key]
+                    @seen[key] = true
+                    @seen.shift if @seen.length > 256
+                    yield pdu
+                  end
+                  i += 32 + ((2 + pdu[:length].to_i + 3) * 8)
+                  next
                 end
-                @peak = lvl if lvl > @peak
-              elsif @in_burst
-                @in_burst = false
-                @burst_n += 1
-                dur_ms = ((Time.now - @burst_t0) * 1000).round
-                msg = {
-                  protocol: @protocol, event: 'burst', source: 'iq',
-                  burst_no: @burst_n, peak_dbfs: @peak.round(1),
-                  floor_dbfs: @floor.round(1), delta_db: (@peak - @floor).round(1),
-                  duration_ms: dur_ms, modulation: @modulation,
-                  sample_rate: @rate.to_i
-                }.merge(@extra.except(:threshold))
-                # protocol-specific enrichment
-                msg.merge!(self.class.enrich(msg: msg)) if self.class.respond_to?(:enrich)
-                msg[:summary] = format(
-                  '%<p>s IQ-burst #%<n>d peak=%<pk>+.1f dBFS Δ=%<d>.1f dB dur=%<ms>d ms',
-                  p: @protocol, n: @burst_n, pk: @peak, d: @peak - @floor, ms: dur_ms
-                )
-                yield msg if block_given?
               end
-              i += hop
+              i += 1
+            end
+            @bits.shift([i - 32, 0].max) if i > 32
+          end
+
+          def match_at?(idx, pat, max_err: 2)
+            err = 0
+            j = 0
+            while j < pat.length
+              err += 1 if @bits[idx + j] != pat[j]
+              return false if err > max_err
+
+              j += 1
+            end
+            true
+          end
+
+          def decode_pdu(stream, inv)
+            stream = stream.map { |b| b ^ 1 } if inv
+            hdr_b  = PWN::SDR::Decoder::DSP.bytes_from_bits(bits: stream[0, 16], lsb_first: true)
+            hdr    = PWN::SDR::Decoder::DSP.whiten_lfsr(
+              bytes: hdr_b, poly: 0x11, init: (@channel & 0x3F) | 0x40, width: 7
+            )
+            return nil if hdr.length < 2
+
+            ptype = hdr[0] & 0x0F
+            len   = hdr[1] & 0xFF
+            return nil if len > 255 || (2 + len + 3) * 8 > stream.length
+
+            body_b = PWN::SDR::Decoder::DSP.bytes_from_bits(
+              bits: stream[0, (2 + len + 3) * 8], lsb_first: true
+            )
+            dewh = PWN::SDR::Decoder::DSP.whiten_lfsr(
+              bytes: body_b, poly: 0x11, init: (@channel & 0x3F) | 0x40, width: 7
+            )
+            payload = dewh[2, len] || []
+            crc_rx  = dewh[2 + len, 3] || []
+            crc_ok  = Bluetooth.ble_crc24(bytes: dewh[0, 2 + len]) ==
+                      (crc_rx[0].to_i | (crc_rx[1].to_i << 8) | (crc_rx[2].to_i << 16))
+            adv_addr = payload.length >= 6 ? payload[0, 6].reverse.map { |b| format('%02X', b) }.join(':') : nil
+            {
+              protocol: @ble ? 'BLE' : 'BT-BR/EDR', event: 'pdu',
+              modulation: 'GFSK', channel: @channel,
+              access_addr: format('%08X', BLE_ADV_AA),
+              pdu_type: BLE_PDU_TYPE[ptype] || ptype,
+              tx_add: (hdr[0] >> 6) & 1, rx_add: (hdr[0] >> 7) & 1,
+              length: len, adv_addr: adv_addr, crc_ok: crc_ok,
+              crc_rx: crc_rx.map { |b| format('%02X', b) }.join,
+              payload_hex: payload.map { |b| format('%02X', b) }.join,
+              summary: "BLE #{BLE_PDU_TYPE[ptype] || ptype} AdvA=#{adv_addr} len=#{len} ch=#{@channel} crc=#{crc_ok ? 'OK' : 'BAD'}"
+            }
+          end
+        end
+
+        # Supported Method Parameters::
+        # crc = PWN::SDR::Decoder::Bluetooth.ble_crc24(bytes: Array<Integer>)
+        # BLE CRC-24 (LSB-first LFSR, poly 0x65B, init 0x555555).
+
+        public_class_method def self.ble_crc24(opts = {})
+          bytes = opts[:bytes] || []
+          reg = BLE_CRC_INIT
+          bytes.each do |byte|
+            8.times do |i|
+              b = (byte >> i) & 1
+              fb = (reg ^ b) & 1
+              reg >>= 1
+              reg ^= (BLE_CRC_POLY << 0) | 0xB4C000 if fb == 1
+              reg &= 0xFFFFFF
             end
           end
-
-          # Protocol-specific enrichment of an IQ-burst message (channel TBD).
-          public_class_method def self.enrich(opts = {})
-            msg = opts[:msg] || {}
-            msg.merge(channel: nil)
-          end
+          # Register holds CRC LSB-first — return as-is (matched LSB-first on air)
+          reg
         end
 
         # Supported Method Parameters::
@@ -80,31 +154,20 @@ module PWN
         public_class_method def self.decode(opts = {})
           freq_obj = opts[:freq_obj]
           hz  = PWN::SDR.hz_to_i(freq: freq_obj[:freq])
-          ble = freq_obj[:ble] || freq_obj[:mode].to_s.casecmp('ble').zero?
-          ch  = ble ? ((hz - 2_402_000_000) / 2_000_000).clamp(0, 39) : ((hz - 2_402_000_000) / 1_000_000).clamp(0, 78)
-
-          rate  = (opts[:sample_rate] || freq_obj[:iq_rate] || 2_000_000).to_i
-          proto = ble ? 'BLE' : 'BT-BR/EDR'
-          demod = DemodIQ.new(
-            rate: rate, protocol: proto, modulation: 'GFSK',
-            extra: { threshold: 9.0 }
-          )
+          ble = freq_obj[:ble] || freq_obj[:mode].to_s.casecmp('ble').zero? || true
+          # Nearest BLE advertising channel unless caller forces one.
+          ch = opts[:channel] ||
+               BLE_ADV_CHANNELS.min_by { |_, f| (f - hz).abs }&.first || 37
+          rate = (opts[:sample_rate] || freq_obj[:iq_rate] || 4_000_000).to_i
           PWN::SDR::Decoder::Base.run_iq(
             freq_obj: freq_obj,
-            protocol: proto,
+            protocol: ble ? 'BLE' : 'BT-BR/EDR',
             sample_rate: rate,
             source: opts[:source],
             file: opts[:file],
-            demod: demod,
-            threshold: 9.0,
-            note: '1 Mbit/s GFSK FHSS — true-air I/Q path reports hop-burst density per tuned channel.',
-            describe: proc { |b|
-              { modulation: 'GFSK', channel: begin
-                b[:channel]
-              rescue StandardError
-                nil
-              end, hop_slots: (b[:duration_ms] / 0.625).round }
-            }
+            demod: DemodIQ.new(rate: rate, channel: ch, ble: ble),
+            note: '1 Mbit/s GFSK — I/Q→gmskdem→AA 0x8E89BED6→dewhiten→PDU/AdvA/CRC-24.',
+            describe: proc { |b| { modulation: 'GFSK', channel: ch, hop_slots: (b[:duration_ms] / 0.625).round } }
           )
         end
 
@@ -132,8 +195,11 @@ module PWN
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
               source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture'
+              file:     'optional - .cu8/.cs16 capture (≥2 Msps)',
+              channel:  'optional - BLE adv channel 37|38|39 (default nearest to freq)'
             )
+
+            #{self}.ble_crc24(bytes: [..])
 
             #{self}.authors
           "
