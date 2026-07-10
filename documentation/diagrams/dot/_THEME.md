@@ -18,7 +18,7 @@ SVGs feel like a single coherent product.
 
 Layout rules (to avoid criss-crossed edges):
 1. `rankdir=TB` (or `LR` for pipelines), `newrank=true`, `splines=spline`.
-2. Group every layer with `{rank=same; ...}` — edges go layer→layer only.
+2. Group every layer with `{rank=same; ...}` - edges go layer→layer only.
 3. Side/back edges use `constraint=false` + `style=dashed` and are kept to ≤3 per diagram.
 4. One `subgraph cluster_*` per logical layer with a translucent fill.
 5. Node order inside a rank matches edge destinations in the next rank

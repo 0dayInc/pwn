@@ -4,7 +4,7 @@ Thin, composable wrapper over `nmap` with structured XML parsing.
 
 ![Network & infra testing](diagrams/network-infra-testing.svg)
 
-> **Install:** `pwn setup --profile net` — nmap · tshark · tcpdump ·
+> **Install:** `pwn setup --profile net` - nmap · tshark · tcpdump ·
 > pcaprub headers · whois. See [Installation](Installation.md).
 
 ```ruby

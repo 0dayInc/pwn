@@ -1,4 +1,4 @@
-# Sessions — Transcript Persistence
+# Sessions - Transcript Persistence
 
 Every `pwn-ai` conversation (top-level *and* per-persona in a Swarm) is
 appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
@@ -27,10 +27,10 @@ appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
 ## File format
 
 ```json
-{"role":"system","ts":"2026-07-07T22:08:02Z","content":"…"}
-{"role":"user","ts":"…","content":"…"}
-{"role":"assistant","ts":"…","content":"…","tool_calls":[…]}
-{"role":"tool","ts":"…","name":"shell","content":"…"}
+{"role":"system","ts":"2026-07-07T22:08:02Z","content":"..."}
+{"role":"user","ts":"...","content":"..."}
+{"role":"assistant","ts":"...","content":"...","tool_calls":[...]}
+{"role":"tool","ts":"...","name":"shell","content":"..."}
 ```
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·

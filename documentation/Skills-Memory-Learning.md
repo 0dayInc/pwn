@@ -1,7 +1,7 @@
-# Memory · Skills · Learning · Mistakes · Metrics — Introspection
+# Memory · Skills · Learning · Mistakes · Metrics - Introspection
 
 The **inward-facing** half of the pwn-ai feedback loop: how the agent measures
-its own performance, turns wins into permanent capability, and — critically —
+its own performance, turns wins into permanent capability, and - critically -
 **learns from its own mistakes so it does not repeat them**.
 
 ![Memory / Skills detail](diagrams/memory-skills-detailed.svg)
@@ -10,11 +10,11 @@ its own performance, turns wins into permanent capability, and — critically �
 
 | Store | File | Write tool | Read tool | Injected as |
 |---|---|---|---|---|
-| **Memory** | `memory.json` (+ `memory.idx`) | `memory_remember` | `memory_recall` · `PWN::MemoryIndex.recall_semantic` | `MEMORY` block — durable facts / prefs / lessons / env. **Relevance-ranked** for the current request via a local embedding index when `ai.ollama.embed_model` is available; falls back to newest-first otherwise. |
-| **Skills** | `skills/*.md` | `skill_create` · `learning_distill_skill` | `skill_list` · `skill_view` | `SKILLS` list — reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST/URL) |
-| **Learning** | `learning.jsonl` | `learning_note_outcome` · `learning_reflect` | `learning_outcomes` · `learning_stats` · `Learning.exemplars_for` | `LEARNING` block — recent outcomes + success_rate. Prior *successful* traces are also spliced in as **few-shot exemplars** for local models. |
-| **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks — do-NOT-repeat + do-THIS-instead |
-| **Metrics** | `metrics.json` | *automatic* (every Dispatch) | `metrics_summary` | `TOOL EFFECTIVENESS` block — steer tool choice. **Segmented per engine** (`engine=…`) so a local model's telemetry never blends with a frontier model's. |
+| **Memory** | `memory.json` (+ `memory.idx`) | `memory_remember` | `memory_recall` · `PWN::MemoryIndex.recall_semantic` | `MEMORY` block - durable facts / prefs / lessons / env. **Relevance-ranked** for the current request via a local embedding index when `ai.ollama.embed_model` is available; falls back to newest-first otherwise. |
+| **Skills** | `skills/*.md` | `skill_create` · `learning_distill_skill` | `skill_list` · `skill_view` | `SKILLS` list - reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST/URL) |
+| **Learning** | `learning.jsonl` | `learning_note_outcome` · `learning_reflect` | `learning_outcomes` · `learning_stats` · `Learning.exemplars_for` | `LEARNING` block - recent outcomes + success_rate. Prior *successful* traces are also spliced in as **few-shot exemplars** for local models. |
+| **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks - do-NOT-repeat + do-THIS-instead |
+| **Metrics** | `metrics.json` | *automatic* (every Dispatch) | `metrics_summary` | `TOOL EFFECTIVENESS` block - steer tool choice. **Segmented per engine** (`engine=...`) so a local model's telemetry never blends with a frontier model's. |
 
 ## The lifecycle of a lesson
 
@@ -22,7 +22,7 @@ its own performance, turns wins into permanent capability, and — critically �
 1. PromptBuilder.budget picks per-engine caps → MemoryIndex.recall_semantic
      picks the N MOST-RELEVANT memories for THIS request (not the N newest).
 2. (local model) Learning.exemplars_for(request) splices a compressed prior
-     successful trace between system and user — 1 concrete example beats 25
+     successful trace between system and user - 1 concrete example beats 25
      abstract lessons for a small model.
 3. (local model) Loop.plan_first forces a numbered tool plan BEFORE dispatch.
 4. Dispatch runs a tool              → Metrics.record(tool, ok?, ms, engine:)
@@ -30,22 +30,22 @@ its own performance, turns wins into permanent capability, and — critically �
    ↳ same sig ≥3×?                   → guard_repeated_failure + inline correction_hint
    ↳ (local) ≥ ESCALATE_AFTER_FAILS  → Swarm.ask(escalation_persona) → 3-line frontier hint
 5. Agent senses the world (opt)      → extro_verify / watch / rf_tune / osint / serial / telecomm / packet / vision / voice / intel / observe
-   ↳ extro_verify → :refuted         → Mistakes.record(tool:'assumption', …)  # proactive
+   ↳ extro_verify → :refuted         → Mistakes.record(tool:'assumption', ...)  # proactive
    ↳ extro_verify → :confirmed       → observe(:intel, ttl:30d)
 6. Final answer produced             → Learning.auto_introspect(session_id)
    ↳ (local) fact_check_local_final  → auto extro_verify every CVE/version claim in the answer
    ↳ if auto_extrospect enabled      → Extrospection.auto_extrospect  # AUTO_SECTIONS only
-7. Reflect.on(engine: reflect_engine)→ Memory.remember(lesson_xxxx, …)   # teacher-student: a
+7. Reflect.on(engine: reflect_engine)→ Memory.remember(lesson_xxxx, ...)   # teacher-student: a
                                        frontier engine may WRITE the lesson a local engine READS
 8. A whole workflow succeeded         → Learning.distill_skill(name, session_id, references:)
-9. Found a fix for a mistake          → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X — FIX: Y"
+9. Found a fix for a mistake          → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X - FIX: Y"
 10. (weekly, cron) Learning.export_finetune → ~/.pwn/finetune/*.jsonl → LoRA over the local
-     model — the ONLY step that changes weights, not just the scaffold.
+     model - the ONLY step that changes weights, not just the scaffold.
 11. Next launch: PromptBuilder injects the budgeted blocks → the model already knows:
      MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION
 ```
 
-`extro_correlate` is the **join** — it tells the agent whether a failure was
+`extro_correlate` is the **join** - it tells the agent whether a failure was
 *its* fault (belongs in Mistakes) or *the world* changed (kernel upgrade,
 dongle unplugged, target DOM moved). See **[Mistakes](Mistakes.md)** for the
 negative-feedback mechanics and **[Extrospection](Extrospection.md)** for the
@@ -64,7 +64,7 @@ references:
 
 1. Confirm injection with `' AND 1=1 --`.
 2. Find column count with `ORDER BY n`.
-3. …
+3. ...
 
 ## References
 - CWE-89
@@ -80,13 +80,13 @@ the `## References` section, deduplicates, and exposes them via
 | Tool | When |
 |---|---|
 | `learning_consolidate(max_entries: 200)` | MEMORY block getting long/noisy |
-| `PWN::AI::Agent::Extrospection.revalidate_memory` *(cron)* | MEMORY `:fact` entries getting **stale** — browser-verifies every one containing a CVE/version/URL and prefixes refuted ones `[UNVERIFIED yyyy-mm-dd]` |
+| `PWN::AI::Agent::Extrospection.revalidate_memory` *(cron)* | MEMORY `:fact` entries getting **stale** - browser-verifies every one containing a CVE/version/URL and prefixes refuted ones `[UNVERIFIED yyyy-mm-dd]` |
 | `learning_reset(confirm: true)` | dev-experiment noise polluted success_rate |
-| `mistakes_reset(confirm: true)` | new host/engagement — prior failure patterns no longer apply |
+| `mistakes_reset(confirm: true)` | new host/engagement - prior failure patterns no longer apply |
 | `metrics_reset(confirm: true)` | fixed a broken tool; stale 0 % is misleading |
 | `skill_delete(name)` | auto-distilled skill turned out low-quality |
 | `learning_auto_introspect_toggle(enabled: false)` | during noisy fuzz loops |
-| `PWN::MemoryIndex.reset` | new engagement — drop the local embedding index (`memory.idx`) so it rebuilds against the fresh `memory.json` |
+| `PWN::MemoryIndex.reset` | new engagement - drop the local embedding index (`memory.idx`) so it rebuilds against the fresh `memory.json` |
 | `PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)` | you have enough successful sessions to cut a supervised dataset for the local model |
 
 ## Example questions that trigger Introspection
@@ -98,81 +98,81 @@ when deciding which side of the loop to exercise.
 
 ### Memory (`memory_remember`, `memory_recall`, `memory_forget`, `memory_clear`)
 
-- “Remember that our preferred AI engine for long recon chains is `grok`.”
-- “What do we already know about OpenSSH 8.2p1 from prior sessions?”
-- “Forget the stale fact about the old HackRF serial — it was replaced.”
-- “Store this as a durable lesson: always back up source files before patching.”
-- “Recall any preference we set for Burp/ZAP proxy ports.”
+- "Remember that our preferred AI engine for long recon chains is `grok`."
+- "What do we already know about OpenSSH 8.2p1 from prior sessions?"
+- "Forget the stale fact about the old HackRF serial - it was replaced."
+- "Store this as a durable lesson: always back up source files before patching."
+- "Recall any preference we set for Burp/ZAP proxy ports."
 
 ### Skills (`skill_list`, `skill_view`, `skill_create`, `skill_add_reference`, `skill_delete`, `learning_distill_skill`)
 
-- “What skills do we have for SQLi / RDS / GQRX scanning?”
-- “Show me the full body of `vulnerability_research_fundamentals`.”
-- “Distill this successful session into a reusable skill for ADS-B capture.”
-- “Add CWE-89 and T1190 as references on the `sqli_union_enum` skill.”
-- “Delete the low-quality auto-distilled skill from yesterday’s fuzz loop.”
-- “Create a skill that walks GQRX remote control → `extro_rf_tune` → observe.”
+- "What skills do we have for SQLi / RDS / GQRX scanning?"
+- "Show me the full body of `vulnerability_research_fundamentals`."
+- "Distill this successful session into a reusable skill for ADS-B capture."
+- "Add CWE-89 and T1190 as references on the `sqli_union_enum` skill."
+- "Delete the low-quality auto-distilled skill from yesterday's fuzz loop."
+- "Create a skill that walks GQRX remote control → `extro_rf_tune` → observe."
 
 ### Learning outcomes & reflection (`learning_note_outcome`, `learning_reflect`, `learning_outcomes`, `learning_stats`, `learning_consolidate`)
 
-- “Record that the video-generation pipeline succeeded (ffmpeg + flite).”
-- “What was our success rate over the last 50 attempts?”
-- “Reflect on session `20260709_172057_49594079` and extract durable lessons.”
-- “Show only the recent *failures* tagged with `extrospection` or `rf`.”
-- “Consolidate near-duplicate MEMORY lessons — cap at 200 entries.”
-- “Reset learning outcomes; the dev experiment noise polluted the rate.” *(destructive)*
+- "Record that the video-generation pipeline succeeded (ffmpeg + flite)."
+- "What was our success rate over the last 50 attempts?"
+- "Reflect on session `20260709_172057_49594079` and extract durable lessons."
+- "Show only the recent *failures* tagged with `extrospection` or `rf`."
+- "Consolidate near-duplicate MEMORY lessons - cap at 200 entries."
+- "Reset learning outcomes; the dev experiment noise polluted the rate." *(destructive)*
 
 ### Mistakes / negative feedback (`mistakes_list`, `mistakes_record`, `mistakes_resolve`, `mistakes_reset`)
 
-- “What mistakes keep recurring across sessions?”
-- “I just assumed Registry had `.list` — record that as an assumption mistake.”
-- “Resolve signature `1b6f88b46ce2` — the fix is use `.all` / `.lookup`, not `.list`.”
-- “Show only unresolved fingerprints sorted by count.”
-- “That last approach was wrong; fingerprint it so we don’t repeat it.”
-- “Wipe mistakes.json for a clean slate on the new engagement host.” *(destructive)*
+- "What mistakes keep recurring across sessions?"
+- "I just assumed Registry had `.list` - record that as an assumption mistake."
+- "Resolve signature `1b6f88b46ce2` - the fix is use `.all` / `.lookup`, not `.list`."
+- "Show only unresolved fingerprints sorted by count."
+- "That last approach was wrong; fingerprint it so we don't repeat it."
+- "Wipe mistakes.json for a clean slate on the new engagement host." *(destructive)*
 
 ### Metrics / tool effectiveness (`metrics_summary`, `metrics_reset`)
 
-- “Which tools have the lowest success rate right now?”
-- “How often has `shell` been called, and what’s its avg duration?”
-- “Is `extro_rf_tune` healthier than the old GQRX helpers by metrics?”
-- “Reset metrics after we fixed the broken tool so the 0 % doesn’t steer us away.” *(destructive)*
+- "Which tools have the lowest success rate right now?"
+- "How often has `shell` been called, and what's its avg duration?"
+- "Is `extro_rf_tune` healtheir than the old GQRX helpers by metrics?"
+- "Reset metrics after we fixed the broken tool so the 0 % doesn't steer us away." *(destructive)*
 
 ### Sessions / transcripts (`sessions_list`, `sessions_view`, `sessions_current`, `sessions_stats`, `sessions_delete`)
 
-- “What’s the active session id?”
-- “List the last 10 sessions and their sizes.”
-- “Open session X and show the last 50 turns (truncated).”
-- “How much disk are session transcripts using overall?”
-- “Delete the noisy fuzz-experiment transcript so reflect() stays high-signal.”
+- "What's the active session id?"
+- "List the last 10 sessions and their sizes."
+- "Open session X and show the last 50 turns (truncated)."
+- "How much disk are session transcripts using overall?"
+- "Delete the noisy fuzz-experiment transcript so reflect() stays high-signal."
 
 ### Loop toggles & housekeeping
 
-- “Disable auto-introspect while we fuzz; re-enable for the summary turn.”
-- “Is auto-introspect currently on?”
-- “Revalidate MEMORY facts that contain CVEs / versions / URLs.” *(joins Extrospection.revalidate_memory)*
-- “Why did that tool start failing — my fault or world drift?” → `extro_correlate` then Mistakes vs Learning
+- "Disable auto-introspect while we fuzz; re-enable for the summary turn."
+- "Is auto-introspect currently on?"
+- "Revalidate MEMORY facts that contain CVEs / versions / URLs." *(joins Extrospection.revalidate_memory)*
+- "Why did that tool start failing - my fault or world drift?" → `extro_correlate` then Mistakes vs Learning
 
-### Short “trigger” patterns the agent should recognize
+### Short "trigger" patterns the agent should recognize
 
 | Pattern | Likely tools |
 |--------|----------------|
-| “Remember / recall / forget that…” | `memory_remember` / `memory_recall` / `memory_forget` |
-| “What skills do we have for… / distill this” | `skill_*` / `learning_distill_skill` |
-| “Did that work? / note the outcome / success rate” | `learning_note_outcome` / `learning_stats` |
-| “Reflect on this session / extract lessons” | `learning_reflect` / `sessions_current` |
-| “Don’t do that again / that was wrong / resolve…” | `mistakes_record` / `mistakes_resolve` / `mistakes_list` |
-| “Which tools are unhealthy / avg duration” | `metrics_summary` |
-| “What did we run in session X / active session” | `sessions_view` / `sessions_current` |
-| “Disable reflection while we fuzz” | `learning_auto_introspect_toggle` |
+| "Remember / recall / forget that..." | `memory_remember` / `memory_recall` / `memory_forget` |
+| "What skills do we have for... / distill this" | `skill_*` / `learning_distill_skill` |
+| "Did that work? / note the outcome / success rate" | `learning_note_outcome` / `learning_stats` |
+| "Reflect on this session / extract lessons" | `learning_reflect` / `sessions_current` |
+| "Don't do that again / that was wrong / resolve..." | `mistakes_record` / `mistakes_resolve` / `mistakes_list` |
+| "Which tools are unhealthy / avg duration" | `metrics_summary` |
+| "What did we run in session X / active session" | `sessions_view` / `sessions_current` |
+| "Disable reflection while we fuzz" | `learning_auto_introspect_toggle` |
 
-Contrast with **Extrospection** examples: weather in Chicago, “what’s on 101.1”,
+Contrast with **Extrospection** examples: weather in Chicago, "what's on 101.1",
 CVE fact-checks, and host drift are *outside-world* senses. The table above is
-purely *self* measurement — how well the agent did, what it must stop repeating,
+purely *self* measurement - how well the agent did, what it must stop repeating,
 and which procedures to promote permanently.
 
-**See also:** [Mistakes](Mistakes.md) — the negative-feedback half ·
-[Extrospection](Extrospection.md) — the outward-facing half ·
+**See also:** [Mistakes](Mistakes.md) - the negative-feedback half ·
+[Extrospection](Extrospection.md) - the outward-facing half ·
 [Sessions](Sessions.md) · [Persistence](Persistence.md)
 
 [← Home](Home.md)

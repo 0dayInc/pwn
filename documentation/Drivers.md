@@ -1,4 +1,4 @@
-# Drivers — Turn a REPL Session into a Shipped Binary
+# Drivers - Turn a REPL Session into a Shipped Binary
 
 A **driver** is a small executable in `bin/` that wires `OptionParser` to one
 or more `PWN::` calls. All 52 shipped `pwn_*` binaries follow the same
@@ -38,13 +38,13 @@ PWN::Reports::Fuzz.generate(result: result, dir_path: opts[:out]) if opts[:out]
 puts result
 ```
 
-## Three artefact types from one REPL session
+## Three artifact types from one REPL session
 
-| Artefact | Made with | Consumed by |
+| Artifact | Made with | Consumed by |
 |---|---|---|
 | `bin/pwn_<name>` | template above | shell / CI |
 | `~/.pwn/skills/<name>.md` | `learning_distill_skill` | every future pwn-ai prompt |
-| `cron` job | `cron_create(ruby: '…')` | system crontab → unattended |
+| `cron` job | `cron_create(ruby: '...')` | system crontab → unattended |
 
 **See also:** [CLI Drivers](CLI-Drivers.md) · [Cron](Cron.md) ·
 [Skills, Memory & Learning](Skills-Memory-Learning.md)

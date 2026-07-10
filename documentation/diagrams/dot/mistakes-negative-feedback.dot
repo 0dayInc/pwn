@@ -1,6 +1,6 @@
 digraph "PWN_Mistakes_Negative_Feedback" {
   graph [
-    label=<<B>PWN::AI::Agent::Mistakes — Negative-Feedback Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">learn from mistakes · do NOT repeat them · cross-session · self-correcting</FONT>>,
+    label=<<B>PWN::AI::Agent::Mistakes - Negative-Feedback Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">learn from mistakes · do NOT repeat them · cross-session · self-correcting</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.0,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
@@ -40,7 +40,7 @@ digraph "PWN_Mistakes_Negative_Feedback" {
     label="Reactions inside Loop.run"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Guard [label="guard_repeated_failure\nmax(turn, PERSISTENT count) ≥ 3\n→ trips on 1st recurrence\nin a new session", fillcolor="#c4b5fd"];
-    Hint  [label="correction_hint\nappend to failed result:\n\"seen N×, sig=…, KNOWN FIX: …\"\n→ self-correct NEXT iter",  fillcolor="#c4b5fd"];
+    Hint  [label="correction_hint\nappend to failed result:\n\"seen N×, sig=..., KNOWN FIX: ...\"\n→ self-correct NEXT iter",  fillcolor="#c4b5fd"];
     Regr  [label="[REGRESSED]\nresolved sig recurs\n→ reopen + tag",                                                       fillcolor="#c4b5fd"];
   }
   {rank=same; Guard; Hint; Regr}
@@ -49,9 +49,9 @@ digraph "PWN_Mistakes_Negative_Feedback" {
   subgraph cluster_out {
     label="Injected into every future prompt"; fontcolor="#fde68a"; style=rounded;
     color="#a16207"; bgcolor="#422006"; penwidth=2;
-    KMist [label="KNOWN MISTAKES\n✗ [sig] tool ×N [REPEATING]…", fillcolor="#fcd34d"];
-    KFix  [label="KNOWN FIXES\n✓ [sig] tool — FIX: …",            fillcolor="#fcd34d"];
-    Mem   [label="PWN::Memory :lesson\n\"AVOID X — FIX: Y\"",       fillcolor="#fcd34d"];
+    KMist [label="KNOWN MISTAKES\n✗ [sig] tool ×N [REPEATING]...", fillcolor="#fcd34d"];
+    KFix  [label="KNOWN FIXES\n✓ [sig] tool - FIX: ...",            fillcolor="#fcd34d"];
+    Mem   [label="PWN::Memory :lesson\n\"AVOID X - FIX: Y\"",       fillcolor="#fcd34d"];
   }
   {rank=same; KMist; KFix; Mem}
 
@@ -81,7 +81,7 @@ digraph "PWN_Mistakes_Negative_Feedback" {
   /* resolve path */
   Resolve [label="mistakes_resolve\n(signature, fix)", fillcolor="#6ee7b7", penwidth=2];
   {rank=same; Store; Resolve}
-  Resolve -> Store [label="resolved:true\nfix:…", color="#34d399", penwidth=2];
+  Resolve -> Store [label="resolved:true\nfix:...", color="#34d399", penwidth=2];
   Resolve -> KFix  [color="#f59e0b"];
   Resolve -> Mem   [label="promote", color="#f59e0b"];
 

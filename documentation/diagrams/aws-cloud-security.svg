@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 311.2)">
 <title>PWN_AWS</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-311.2 1021.2,-311.2 1021.2,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="246.38" y="-246" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AWS — Cloud Security (90 service wrappers)</text>
+<text xml:space="preserve" text-anchor="start" x="253.12" y="-246" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AWS &#45; Cloud Security (90 service wrappers)</text>
 <text xml:space="preserve" text-anchor="start" x="379.12" y="-234.55" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">enumerate → misconfig → escalate → persist</text>
 <g id="clust1" class="cluster">
 <title>cluster_enum</title>

@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 485.95)">
 <title>PWN_REPL</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-485.95 796.57,-485.95 796.57,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="183.93" y="-420.75" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">The pwn REPL — Interactive Prototyping</text>
+<text xml:space="preserve" text-anchor="start" x="190.68" y="-420.75" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">The pwn REPL &#45; Interactive Prototyping</text>
 <text xml:space="preserve" text-anchor="start" x="266.81" y="-409.3" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">Pry + full PWN:: preload + custom commands</text>
 <g id="clust1" class="cluster">
 <title>cluster_repl</title>

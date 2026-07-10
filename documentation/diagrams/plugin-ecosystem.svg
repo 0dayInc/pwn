@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 628.45)">
 <title>PWN_Plugins</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-628.45 580.2,-628.45 580.2,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="73.5" y="-563.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::Plugins — 66 Modules by Category</text>
+<text xml:space="preserve" text-anchor="start" x="80.25" y="-563.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::Plugins &#45; 66 Modules by Category</text>
 <g id="clust1" class="cluster">
 <title>cluster_cat</title>
 </g>

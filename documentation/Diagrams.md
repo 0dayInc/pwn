@@ -51,7 +51,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/pwn-ai-feedback-learning-loop.dot) · doc: [Skills, Memory & Learning](Skills-Memory-Learning.md)
 ![pwn-ai-feedback-learning-loop](diagrams/pwn-ai-feedback-learning-loop.svg)
 
-### Mistakes — Negative-Feedback Loop
+### Mistakes - Negative-Feedback Loop
 [source](diagrams/dot/mistakes-negative-feedback.dot) · doc: [Mistakes](Mistakes.md)
 ![mistakes-negative-feedback](diagrams/mistakes-negative-feedback.svg)
 
@@ -67,15 +67,15 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/memory-skills-detailed.dot) · doc: [Skills, Memory & Learning](Skills-Memory-Learning.md)
 ![memory-skills-detailed](diagrams/memory-skills-detailed.svg)
 
-### Extrospection — World Awareness
+### Extrospection - World Awareness
 [source](diagrams/dot/extrospection-world-awareness.dot) · doc: [Extrospection](Extrospection.md)
 ![extrospection-world-awareness](diagrams/extrospection-world-awareness.svg)
 
-### Swarm — Native Multi-Agent
+### Swarm - Native Multi-Agent
 [source](diagrams/dot/swarm-multi-agent.dot) · doc: [Swarm](Swarm.md)
 ![swarm-multi-agent](diagrams/swarm-multi-agent.svg)
 
-### Cron — Scheduled Jobs
+### Cron - Scheduled Jobs
 [source](diagrams/dot/cron-scheduling.dot) · doc: [Cron](Cron.md)
 ![cron-scheduling](diagrams/cron-scheduling.svg)
 

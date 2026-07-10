@@ -1,6 +1,6 @@
 digraph "PWN_SDR" {
   graph [
-    label=<<B>PWN::SDR — Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · FrequencyAllocation · Decoder::* (20) · FFI::{Volk,Liquid,FFTW,HackRF,RTLSdr,SoapySDR}</FONT>>,
+    label=<<B>PWN::SDR - Software-Defined Radio &amp; RF Hacking</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">GQRX · FlipperZero · RFIDler · FrequencyAllocation · Decoder::* (20) · Base.run_iq (true-air) · FFI::{Volk,Liquid,FFTW,RTLSdr,HackRF,AdalmPluto,SoapySDR}</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.1,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -15,7 +15,7 @@ digraph "PWN_SDR" {
   subgraph cluster_hw {
     label="Hardware"; fontcolor="#a7f3d0"; style=rounded;
     color="#047857"; bgcolor="#022c22";
-    SDRhw   [label="RTL-SDR / HackRF / Airspy\n(via GQRX / SoapySDR / FFI)", fillcolor="#6ee7b7"];
+    SDRhw   [label="RTL-SDR / HackRF / Airspy\nADALM-Pluto / any Soapy dev", fillcolor="#6ee7b7"];
     Flipper [label="SDR::FlipperZero", fillcolor="#6ee7b7"];
     RFID    [label="SDR::RFIDler\nSonMicroRFID", fillcolor="#6ee7b7"];
   }
@@ -25,7 +25,7 @@ digraph "PWN_SDR" {
     Volk   [label="FFI::Volk\nSIMD s16→f32 · accumulate", fillcolor="#7dd3fc"];
     Liquid [label="FFI::Liquid\nfreqdem · msresamp · FIR", fillcolor="#7dd3fc"];
     FFTW   [label="FFI::FFTW\nrfft · cfft · power-dB", fillcolor="#7dd3fc"];
-    Front  [label="FFI::{HackRF,RTLSdr,SoapySDR}\ninventory · raw I/Q", fillcolor="#7dd3fc"];
+    Front  [label="FFI::{RTLSdr,HackRF,\nAdalmPluto,SoapySDR}\nopen · configure · start_rx\nread_sync raw I/Q · stop_rx", fillcolor="#7dd3fc", penwidth=2];
   }
   subgraph cluster_ctrl {
     label="Control · Scan"; fontcolor="#fde68a"; style=rounded;
@@ -37,28 +37,32 @@ digraph "PWN_SDR" {
   subgraph cluster_dec {
     label="Decode · Sense · Record"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
-    DSP [label="Decoder::DSP\npure-Ruby + FFI accel\n(unpack · resample · FSK)", fillcolor="#c4b5fd"];
-    Dec [label="SDR::Decoder::*\nADSB · APT · BT · DECT · GPS\nGSM · Iridium · LoRa · LTE\nMorse · P25 · POCSAG/FLEX\nRDS · RFID · rtl_433 · RTTY\nWiFi · ZigBee", fillcolor="#c4b5fd"];
-    Obs [label="extro_observe\ncategory: :rf", fillcolor="#c4b5fd"];
-    Xrf [label="extro_snapshot :rf\nprobe_rf → hw inventory", fillcolor="#c4b5fd"];
-    Tune[label="extro_rf_tune  📡\ntune · demod · strength\nRDS.sample → now_playing", fillcolor="#c4b5fd", penwidth=2];
+    Base [label="Decoder::Base\nrun_iq (TRUE-AIR I/Q)\nrun_native (48 kHz UDP)\nrun_detector (energy)\nresolve_iq_source :auto", fillcolor="#c4b5fd", penwidth=2];
+    DSP  [label="Decoder::DSP\npure-Ruby + FFI accel\n(unpack · resample · FSK · FM)", fillcolor="#c4b5fd"];
+    Dec  [label="SDR::Decoder::*\nADSB · APT · BT · DECT · GPS\nGSM · Iridium · LoRa · LTE\nMorse · P25 · POCSAG/FLEX\nRDS · RFID · rtl_433 · RTTY\nWiFi · ZigBee", fillcolor="#c4b5fd"];
+    Obs  [label="extro_observe\ncategory: :rf", fillcolor="#c4b5fd"];
+    Xrf  [label="extro_snapshot :rf\nprobe_rf → hw inventory", fillcolor="#c4b5fd"];
+    Tune [label="extro_rf_tune  📡\ntune · demod · strength\nRDS.sample → now_playing", fillcolor="#c4b5fd", penwidth=2];
   }
 
   RF -> SDRhw   [color="#fb7185"];
   RF -> Flipper [color="#fb7185"];
   RF -> RFID    [color="#fb7185"];
-  SDRhw -> Front [color="#38bdf8"];
+  SDRhw -> Front [label="libusb / libiio", color="#38bdf8"];
   SDRhw -> GQRX  [color="#f59e0b"];
+  Front -> Base  [label="raw I/Q\ncu8/cs8/cs16", color="#38bdf8", penwidth=2];
   Front -> Volk   [style=dashed, color="#38bdf8"];
   Front -> Liquid [style=dashed, color="#38bdf8"];
   Front -> FFTW   [style=dashed, color="#38bdf8"];
   Volk   -> DSP [color="#a78bfa"];
   Liquid -> DSP [color="#a78bfa"];
   FFTW   -> DSP [color="#a78bfa"];
-  GQRX -> DSP [color="#a78bfa"];
+  GQRX -> Base [label="48 kHz UDP audio", color="#f59e0b"];
   GQRX -> Tune [label="remote :7356", color="#f59e0b", penwidth=2];
-  DSP  -> Dec [color="#a78bfa"];
-  Freq -> Dec [color="#a78bfa"];
+  Base -> DSP  [color="#a78bfa"];
+  DSP  -> Dec  [color="#a78bfa"];
+  Base -> Dec  [label="feed_iq / feed", color="#a78bfa", penwidth=2];
+  Freq -> Dec  [color="#a78bfa"];
   Flipper -> Freq [color="#f59e0b"];
   RFID  -> Scan [color="#f59e0b"];
   Freq  -> Scan [label="plan_bw/step", color="#f59e0b"];

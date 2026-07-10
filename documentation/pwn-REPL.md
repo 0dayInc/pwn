@@ -8,11 +8,11 @@ commands.
 
 ## Why Pry (not IRB)?
 
-- `ls PWN::Plugins::BurpSuite` — instant method listing
-- `show-source` / `show-doc` — read any plugin without leaving the shell
-- `edit -m` — patch a method live and retry
-- `wtf?` — full backtrace of the last exception
-- `history --replay 5..12` — re-run a range of lines
+- `ls PWN::Plugins::BurpSuite` - instant method listing
+- `show-source` / `show-doc` - read any plugin without leaving the shell
+- `edit -m` - patch a method live and retry
+- `wtf?` - full backtrace of the last exception
+- `history --replay 5..12` - re-run a range of lines
 
 ## Custom commands
 
@@ -36,13 +36,13 @@ commands.
 - **ENTER** → submit
 
 > **tmux users:** requires `set -s extended-keys on` **and**
-> `set -as terminal-features '<outerTERM>*:extkeys'` — see
+> `set -as terminal-features '<outerTERM>*:extkeys'` - see
 > [Troubleshooting](Troubleshooting.md#shiftenter-submits-instead-of-newline).
 
 ## History → Driver
 
 `~/.pwn_history` captures every line you type. When a sequence works, turn it
-into a shipped `bin/pwn_*` driver — see
+into a shipped `bin/pwn_*` driver - see
 [From REPL History to Driver](Drivers.md).
 
 **Next:** [pwn-ai Agent](pwn-ai-Agent.md) · [CLI Drivers](CLI-Drivers.md)

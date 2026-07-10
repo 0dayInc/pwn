@@ -24,7 +24,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ## Dynamic tool-set slimming (`ai.agent.tool_router`)
 
-Shipping every schema on every turn overwhelms a small local model — the
+Shipping every schema on every turn overwhelms a small local model - the
 choice space is huge and it mis-routes (e.g. picks an RF tool for a git
 question). When `ai.agent.tool_router: true` **and** `Loop.run` passes the
 user request through as `relevance:`, `Registry.definitions` shrinks the

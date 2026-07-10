@@ -16,7 +16,7 @@ module PWN
     #   run_iq       — true-air I/Q via PWN::FFI::{RTLSdr,AdalmPluto,HackRF}
     #                  or a .cu8/.cs16 capture file; all modules use this when
     #                  hardware/file is present (ADS-B fully slices Mode-S PPM)
-    #   run_detector — energy/burst characteriser fallback when no I/Q source
+    #   run_detector — energy/burst characterizer fallback when no I/Q source
     module Decoder
       autoload :ADSB,      'pwn/sdr/decoder/adsb'
       autoload :APT,       'pwn/sdr/decoder/apt'

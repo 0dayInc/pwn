@@ -4,7 +4,7 @@
 
 ```text
 lib/pwn/                # all namespaces
-lib/pwn/setup.rb        # PWN::Setup — doctor/provisioner data tables
+lib/pwn/setup.rb        # PWN::Setup - doctor/provisioner data tables
 lib/pwn/plugins/        # 66 plugin modules
 lib/pwn/ai/agent/       # agent core
 lib/pwn/ai/agent/tools/ # LLM tool registrations
@@ -16,7 +16,7 @@ documentation/          # this wiki + diagrams
 ## Conventions (enforced by `spec/conventions_spec.rb`)
 
 1. Every public module method is `public_class_method def self.name(opts = {})`.
-2. Every arg-accepting `def self.*` uses **exactly** `(opts = {})` — no
+2. Every arg-accepting `def self.*` uses **exactly** `(opts = {})` - no
    positional args, no keyword args.
 3. Every module has `self.help` returning a usage string.
 4. `# frozen_string_literal: true` at the top of every `.rb`.
@@ -24,7 +24,7 @@ documentation/          # this wiki + diagrams
 ## Quality gates
 
 ```bash
-rake            # rubocop + rspec — must be zero offenses
+rake            # rubocop + rspec - must be zero offenses
 ```
 
 (`rvmsudo rake` on multi-user RVM installs.)

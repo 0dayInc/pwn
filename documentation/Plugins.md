@@ -1,4 +1,4 @@
-# `PWN::Plugins` — All 66 Modules
+# `PWN::Plugins` - All 66 Modules
 
 Every plugin is a plain Ruby module of `public_class_method def self.x(opts = {})`
 methods with self-documenting `.help`. Source: `lib/pwn/plugins/*.rb`.
@@ -20,28 +20,28 @@ show-source PWN::Plugins::Fuzz.generate
 | Module | Purpose | Doc |
 |---|---|---|
 | **`BurpSuite`** ⭐ | Headless + REST control of Burp Pro; active/passive scan | [BurpSuite](BurpSuite.md) |
-| `Zaproxy` | OWASP ZAP (fallback) | — |
+| `Zaproxy` | OWASP ZAP (fallback) | - |
 | **`TransparentBrowser`** | Watir/Chrome headless or visible; devtools; proxy-aware | [Transparent-Browser](Transparent-Browser.md) |
-| `Spider` | Recursive crawler | — |
-| `OpenAPI` | Swagger/OpenAPI parse + fuzz targets | — |
-| `URIScheme` | URI helpers | — |
+| `Spider` | Recursive crawler | - |
+| `OpenAPI` | Swagger/OpenAPI parse + fuzz targets | - |
+| `URIScheme` | URI helpers | - |
 
 ### Network
 | Module | Purpose | Doc |
 |---|---|---|
 | **`NmapIt`** | Nmap wrapper + XML parse | [NmapIt](NmapIt.md) |
-| `Sock` | Raw TCP/UDP client; banner grab | — |
-| `Packet` | Craft/sniff L2/L3 (PacketFu) | — |
-| `Tor` | Start/rotate Tor for egress | — |
-| `IPInfo` | Geo/ASN lookup | — |
+| `Sock` | Raw TCP/UDP client; banner grab | - |
+| `Packet` | Craft/sniff L2/L3 (PacketFu) | - |
+| `Tor` | Start/rotate Tor for egress | - |
+| `IPInfo` | Geo/ASN lookup | - |
 
 ### Exploitation
 | Module | Purpose | Doc |
 |---|---|---|
 | **`Metasploit`** | msfrpcd client; run modules; sessions | [Metasploit](Metasploit.md) |
 | **`Fuzz`** | Mutation/generation fuzzer | [Fuzzing](Fuzzing.md) |
-| `BeEF` | Browser Exploitation Framework hooks | — |
-| `Assembly` | asm ↔ opcodes (multi-arch, keystone/capstone) | — |
+| `BeEF` | Browser Exploitation Framework hooks | - |
+| `Assembly` | asm ↔ opcodes (multi-arch, keystone/capstone) | - |
 
 ### OSINT / Recon
 | Module | Purpose |

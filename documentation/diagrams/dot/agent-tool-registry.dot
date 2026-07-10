@@ -1,6 +1,6 @@
 digraph "PWN_Agent_Tool_Registry" {
   graph [
-    label=<<B>PWN::AI::Agent::Registry — Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">10 toolsets · 61 callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
+    label=<<B>PWN::AI::Agent::Registry - Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">10 toolsets · 61 callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.35, ranksep=1.4,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true

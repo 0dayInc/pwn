@@ -1,4 +1,4 @@
-# `PWN::Banner` — Startup Art
+# `PWN::Banner` - Startup Art
 
 15 ANSI banners; one is picked at random every time the REPL starts. Purely
 cosmetic, entirely necessary.

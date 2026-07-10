@@ -3,7 +3,7 @@
 ![Hardware hacking](diagrams/hardware-hacking.svg)
 ![Reverse engineering](diagrams/reverse-engineering-flow.svg)
 
-> **Install:** `pwn setup --profile hardware` — libusb · adb · baresip
+> **Install:** `pwn setup --profile hardware` - libusb · adb · baresip
 > (Serial · BusPirate · Android · BareSIP · `extro_serial` ·
 > `extro_telecomm`). See [Installation](Installation.md).
 
@@ -11,7 +11,7 @@
 
 | Module | Use |
 |---|---|
-| `PWN::Plugins::Serial` | Generic UART (`/dev/ttyUSB*`) — read/write, baud detect |
+| `PWN::Plugins::Serial` | Generic UART (`/dev/ttyUSB*`) - read/write, baud detect |
 | `PWN::Plugins::BusPirate` | SPI/I²C/1-Wire via Bus Pirate |
 | `PWN::Plugins::MSR206` | ISO magstripe read/write (tracks 1-3) |
 
@@ -20,7 +20,7 @@ CLI: `pwn_serial_msr206`, `pwn_serial_qualcomm_commands`,
 
 ## Mobile
 
-`PWN::Plugins::Android` — `adb_net_connect`, `adb_sh`, `adb_push/pull`,
+`PWN::Plugins::Android` - `adb_net_connect`, `adb_sh`, `adb_push/pull`,
 `take_screenshot`, `screen_record`, `list_installed_apps`, `dumpsys`,
 `open_app`, `find_hidden_codes`, `swipe`, `input`, `input_special`,
 `invoke_event_listener`. CLI war-dialer: `pwn_android_war_dialer`.
@@ -32,13 +32,13 @@ CLI: `pwn_phone`.
 
 ## Radio
 
-See [SDR](SDR.md) — GQRX, FlipperZero, RFIDler, SonMicro.
+See [SDR](SDR.md) - GQRX, FlipperZero, RFIDler, SonMicro.
 
 ## Binary / RE
 
-- `PWN::Plugins::XXD` — hex dump / patch
-- `PWN::Plugins::Assembly` + `pwn-asm` REPL — opcodes ↔ asm, multi-arch
-- `PWN::Plugins::BlackDuckBinaryAnalysis` — SBOM + CVE match on firmware
-- [`PWN::FFI`](FFI.md) — call libc from Ruby
+- `PWN::Plugins::XXD` - hex dump / patch
+- `PWN::Plugins::Assembly` + `pwn-asm` REPL - opcodes ↔ asm, multi-arch
+- `PWN::Plugins::BlackDuckBinaryAnalysis` - SBOM + CVE match on firmware
+- [`PWN::FFI`](FFI.md) - call libc from Ruby
 
 [← Home](Home.md) · [SDR](SDR.md) · [FFI](FFI.md)

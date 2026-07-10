@@ -33,7 +33,7 @@ module PWN
       #                 recovered from a 48 kHz demodulated-audio tap (GSM,
       #                 LTE, ADS-B, WiFi, LoRa, GPS, DECT, ZigBee, Bluetooth,
       #                 Iridium, P25, ISM/RFID …). Pure-Ruby energy / burst
-      #                 characteriser: polls GQRX `l STRENGTH`, and (when the
+      #                 characterizer: polls GQRX `l STRENGTH`, and (when the
       #                 UDP tap is enabled) computes RMS-dBFS on the audio.
       #                 Emits `{event: 'burst', dbfs:, duration_ms:}` frames
       #                 whenever the signal crosses an adaptive threshold, so
@@ -144,7 +144,7 @@ module PWN
           puts 'Press [ENTER] to continue to next frequency...'
 
           spinner, max_len = build_spinner(
-            banner: "INFO: Characterising #{protocol} activity on #{log_obj[:freq] || "udp://#{udp_ip}:#{udp_port}"} (native)"
+            banner: "INFO: Characterizing #{protocol} activity on #{log_obj[:freq] || "udp://#{udp_ip}:#{udp_port}"} (native)"
           )
           log_file = log_path(protocol: protocol)
 
@@ -359,7 +359,8 @@ module PWN
                 vga_gain: opts[:vga_gain] || 20,
                 amp: opts[:amp]
               )
-              { kind: :hackrf, device: dev, rate_hz: rate, freq_hz: freq_hz, format: :cs8 }
+              rx = PWN::FFI::HackRF.start_rx(device: dev)
+              { kind: :hackrf, device: dev, handle: rx, rate_hz: rate, freq_hz: freq_hz, format: :cs8 }
             when :adalm_pluto, :pluto
               return nil unless PWN::FFI.available?(mod: :AdalmPluto)
 
@@ -375,12 +376,21 @@ module PWN
               { kind: :adalm_pluto, context: ctx, handle: handle, rate_hz: rate, freq_hz: freq_hz, format: :cs16 }
             when :soapy
               return nil unless PWN::FFI.available?(mod: :SoapySDR)
+              return nil if PWN::FFI::SoapySDR.list_devices.empty?
 
-              # Discovery only today — Soapy streaming is layered later.
-              devs = PWN::FFI::SoapySDR.list_devices
-              return nil if devs.empty?
-
-              { kind: :soapy, devices: devs, rate_hz: rate, freq_hz: freq_hz, format: :cf32, streaming: false }
+              h = PWN::FFI::SoapySDR.open(
+                args: opts[:soapy_args] || freq_obj[:soapy_args],
+                channel: opts[:channel] || 0
+              )
+              PWN::FFI::SoapySDR.configure(
+                handle: h, freq_hz: freq_hz, rate_hz: rate,
+                gain_db: opts[:gain_db] || freq_obj[:gain_db]
+              )
+              PWN::FFI::SoapySDR.start_rx(
+                handle: h,
+                samples: (opts[:chunk_samples] || 65_536).to_i
+              )
+              { kind: :soapy, handle: h, rate_hz: rate, freq_hz: freq_hz, format: :cs16, streaming: true }
             end
           rescue StandardError
             nil
@@ -418,9 +428,10 @@ module PWN
             PWN::FFI::RTLSdr.read_sync(device: src[:device], bytes: bytes)
           when :adalm_pluto
             PWN::FFI::AdalmPluto.read_sync(handle: src[:handle])
-          when :hackrf, :soapy
-            # HackRF is callback-based; Soapy streaming layered later.
-            nil
+          when :hackrf
+            PWN::FFI::HackRF.read_sync(handle: src[:handle])
+          when :soapy
+            PWN::FFI::SoapySDR.read_sync(handle: src[:handle])
           end
         rescue StandardError
           nil
@@ -459,7 +470,10 @@ module PWN
             PWN::FFI::AdalmPluto.stop_rx(handle: src[:handle]) if src[:handle]
             PWN::FFI::AdalmPluto.close(context: src[:context]) if src[:context]
           when :hackrf
+            PWN::FFI::HackRF.stop_rx(handle: src[:handle]) if src[:handle]
             PWN::FFI::HackRF.close(device: src[:device]) if src[:device]
+          when :soapy
+            PWN::FFI::SoapySDR.close(handle: src[:handle]) if src[:handle]
           end
         rescue StandardError
           nil
@@ -474,7 +488,7 @@ module PWN
         #   demod:       'required - object with #feed_iq(iq, rate:, &emit)
         #                            OR #feed(samples, &emit) when fm_demod:true',
         #   sample_rate: 'optional - Hz (default 2_048_000)',
-        #   source:      'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:file',
+        #   source:      'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:soapy|:file',
         #   file:        'optional - path to capture',
         #   fm_demod:    'optional - FM-demod I/Q→audio then #feed (default false)',
         #   chunk_bytes: 'optional - bytes per read (default 262144)',
@@ -506,17 +520,17 @@ module PWN
             chunk_samples: chunk_b / 4
           )
 
-          unless src && (src[:kind] != :soapy || src[:streaming] != false)
+          unless src && src[:streaming] != false
             case fallback
             when :raise
-              raise 'ERROR: no I/Q source available (RTL-SDR / ADALM-Pluto / HackRF / file)'
+              raise 'ERROR: no I/Q source available (RTL-SDR / ADALM-Pluto / HackRF / SoapySDR / file)'
             when :silent
               return nil
             else
               return run_detector(
                 freq_obj: freq_obj,
                 protocol: protocol,
-                note: opts[:note] || "No I/Q source — falling back to energy detector. Plug in RTL-SDR/Pluto or pass iq_file: for true-air decode of #{protocol}.",
+                note: opts[:note] || "No I/Q source — falling back to energy detector. Plug in RTL-SDR/HackRF/Pluto/Soapy or pass iq_file: for true-air decode of #{protocol}.",
                 threshold: opts[:threshold],
                 describe: opts[:describe]
               )
@@ -625,7 +639,7 @@ module PWN
               protocol:    'required - short protocol name',
               demod:       'required - #feed_iq(iq, rate:, &emit) or #feed',
               sample_rate: 'optional - Hz (default 2_048_000)',
-              source:      'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:file',
+              source:      'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:soapy|:file',
               file:        'optional - .cu8/.cs16 capture path',
               fm_demod:    'optional - FM-demod then #feed (default false)',
               fallback:    'optional - :detector|:raise|:silent (default :detector)'

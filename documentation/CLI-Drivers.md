@@ -1,4 +1,4 @@
-# CLI Drivers — `bin/pwn_*`
+# CLI Drivers - `bin/pwn_*`
 
 53 headless executables, each a thin `OptionParser` wrapper over one plugin
 (or one workflow). They exist so CI/CD can call PWN without a REPL or an LLM.
@@ -37,7 +37,7 @@ pwn_jenkins_install_plugin       pwn_www_uri_buster
 
 Run any with `--help` for its flags.
 
-## `pwn_setup` — post-install doctor & capability provisioner
+## `pwn_setup` - post-install doctor & capability provisioner
 
 The one driver that isn't a plugin wrapper. It grows a bare `gem install pwn`
 into a fully-armed host by installing OS headers / external tools for whatever
@@ -69,7 +69,7 @@ sast:
 
 ## Write your own
 
-See [Drivers](Drivers.md) — copy any file in `bin/`, swap the plugin call,
+See [Drivers](Drivers.md) - copy any file in `bin/`, swap the plugin call,
 `rake install`, done.
 
 [← Home](Home.md)

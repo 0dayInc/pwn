@@ -15,7 +15,7 @@ digraph "PWN_HistToDriver" {
   Extract [label="copy working lines", fillcolor="#6ee7b7"];
 
   subgraph cluster_out {
-    label="Reusable Artefacts"; fontcolor="#ddd6fe"; style=rounded;
+    label="Reusable Artifacts"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
     Driver [label="bin/pwn_<name>\nOptionParser + PWN calls", fillcolor="#c4b5fd"];
     Skill  [label="~/.pwn/skills/<name>.md\nlearning_distill_skill",  fillcolor="#c4b5fd"];

@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 864.64)">
 <title>PWN_Mistakes_Negative_Feedback</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-864.64 999.2,-864.64 999.2,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="221.12" y="-799.44" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Mistakes — Negative&#45;Feedback Loop</text>
+<text xml:space="preserve" text-anchor="start" x="227.88" y="-799.44" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">PWN::AI::Agent::Mistakes &#45; Negative&#45;Feedback Loop</text>
 <text xml:space="preserve" text-anchor="start" x="301.75" y="-787.99" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">learn from mistakes · do NOT repeat them · cross&#45;session · self&#45;correcting</text>
 <g id="clust1" class="cluster">
 <title>cluster_in</title>
@@ -23,13 +23,13 @@
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_react</title>
-<path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M310,-230.75C310,-230.75 868,-230.75 868,-230.75 874,-230.75 880,-236.75 880,-242.75 880,-242.75 880,-328 880,-328 880,-334 874,-340 868,-340 868,-340 310,-340 310,-340 304,-340 298,-334 298,-328 298,-328 298,-242.75 298,-242.75 298,-236.75 304,-230.75 310,-230.75"/>
+<path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M312,-230.75C312,-230.75 866,-230.75 866,-230.75 872,-230.75 878,-236.75 878,-242.75 878,-242.75 878,-328 878,-328 878,-334 872,-340 866,-340 866,-340 312,-340 312,-340 306,-340 300,-334 300,-328 300,-328 300,-242.75 300,-242.75 300,-236.75 306,-230.75 312,-230.75"/>
 <text xml:space="preserve" text-anchor="middle" x="589" y="-317" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Reactions inside Loop.run</text>
 </g>
 <g id="clust7" class="cluster">
 <title>cluster_out</title>
-<path fill="#422006" stroke="#a16207" stroke-width="2" d="M177,-110.5C177,-110.5 668,-110.5 668,-110.5 674,-110.5 680,-116.5 680,-122.5 680,-122.5 680,-181.75 680,-181.75 680,-187.75 674,-193.75 668,-193.75 668,-193.75 177,-193.75 177,-193.75 171,-193.75 165,-187.75 165,-181.75 165,-181.75 165,-122.5 165,-122.5 165,-116.5 171,-110.5 177,-110.5"/>
-<text xml:space="preserve" text-anchor="middle" x="422.5" y="-170.75" font-family="sans-Serif" font-size="20.00" fill="#fde68a">Injected into every future prompt</text>
+<path fill="#422006" stroke="#a16207" stroke-width="2" d="M182,-110.5C182,-110.5 660,-110.5 660,-110.5 666,-110.5 672,-116.5 672,-122.5 672,-122.5 672,-181.75 672,-181.75 672,-187.75 666,-193.75 660,-193.75 660,-193.75 182,-193.75 182,-193.75 176,-193.75 170,-187.75 170,-181.75 170,-181.75 170,-122.5 170,-122.5 170,-116.5 176,-110.5 182,-110.5"/>
+<text xml:space="preserve" text-anchor="middle" x="421" y="-170.75" font-family="sans-Serif" font-size="20.00" fill="#fde68a">Injected into every future prompt</text>
 </g>
 <!-- ToolFail -->
 <g id="node1" class="node">
@@ -140,26 +140,26 @@
 <!-- Guard -->
 <g id="node9" class="node">
 <title>Guard</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M860.12,-300.75C860.12,-300.75 697.88,-300.75 697.88,-300.75 691.88,-300.75 685.88,-294.75 685.88,-288.75 685.88,-288.75 685.88,-250.75 685.88,-250.75 685.88,-244.75 691.88,-238.75 697.88,-238.75 697.88,-238.75 860.12,-238.75 860.12,-238.75 866.12,-238.75 872.12,-244.75 872.12,-250.75 872.12,-250.75 872.12,-288.75 872.12,-288.75 872.12,-294.75 866.12,-300.75 860.12,-300.75"/>
-<text xml:space="preserve" text-anchor="middle" x="779" y="-286.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">guard_repeated_failure</text>
-<text xml:space="preserve" text-anchor="middle" x="779" y="-272.8" font-family="sans-Serif" font-size="11.00" fill="#0f172a">max(turn, PERSISTENT count) ≥ 3</text>
-<text xml:space="preserve" text-anchor="middle" x="779" y="-259.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">→ trips on 1st recurrence</text>
-<text xml:space="preserve" text-anchor="middle" x="779" y="-245.8" font-family="sans-Serif" font-size="11.00" fill="#0f172a">in a new session</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M858.12,-300.75C858.12,-300.75 695.88,-300.75 695.88,-300.75 689.88,-300.75 683.88,-294.75 683.88,-288.75 683.88,-288.75 683.88,-250.75 683.88,-250.75 683.88,-244.75 689.88,-238.75 695.88,-238.75 695.88,-238.75 858.12,-238.75 858.12,-238.75 864.12,-238.75 870.12,-244.75 870.12,-250.75 870.12,-250.75 870.12,-288.75 870.12,-288.75 870.12,-294.75 864.12,-300.75 858.12,-300.75"/>
+<text xml:space="preserve" text-anchor="middle" x="777" y="-286.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">guard_repeated_failure</text>
+<text xml:space="preserve" text-anchor="middle" x="777" y="-272.8" font-family="sans-Serif" font-size="11.00" fill="#0f172a">max(turn, PERSISTENT count) ≥ 3</text>
+<text xml:space="preserve" text-anchor="middle" x="777" y="-259.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">→ trips on 1st recurrence</text>
+<text xml:space="preserve" text-anchor="middle" x="777" y="-245.8" font-family="sans-Serif" font-size="11.00" fill="#0f172a">in a new session</text>
 </g>
 <!-- Store&#45;&gt;Guard -->
 <g id="edge8" class="edge">
 <title>Store&#45;&gt;Guard</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M579.21,-395.1C620.71,-369.27 678.68,-333.19 721.5,-306.54"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="722.87,-308.99 728.18,-302.38 719.91,-304.23 722.87,-308.99"/>
-<text xml:space="preserve" text-anchor="middle" x="664.25" y="-350.32" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">count</text>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M579.1,-394.91C620.29,-369.07 677.71,-333.04 720.09,-306.45"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="721.4,-308.94 726.69,-302.31 718.43,-304.19 721.4,-308.94"/>
+<text xml:space="preserve" text-anchor="middle" x="663.25" y="-350.32" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">count</text>
 </g>
 <!-- Hint -->
 <g id="node10" class="node">
 <title>Hint</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M482.25,-300.75C482.25,-300.75 317.75,-300.75 317.75,-300.75 311.75,-300.75 305.75,-294.75 305.75,-288.75 305.75,-288.75 305.75,-250.75 305.75,-250.75 305.75,-244.75 311.75,-238.75 317.75,-238.75 317.75,-238.75 482.25,-238.75 482.25,-238.75 488.25,-238.75 494.25,-244.75 494.25,-250.75 494.25,-250.75 494.25,-288.75 494.25,-288.75 494.25,-294.75 488.25,-300.75 482.25,-300.75"/>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M480,-300.75C480,-300.75 320,-300.75 320,-300.75 314,-300.75 308,-294.75 308,-288.75 308,-288.75 308,-250.75 308,-250.75 308,-244.75 314,-238.75 320,-238.75 320,-238.75 480,-238.75 480,-238.75 486,-238.75 492,-244.75 492,-250.75 492,-250.75 492,-288.75 492,-288.75 492,-294.75 486,-300.75 480,-300.75"/>
 <text xml:space="preserve" text-anchor="middle" x="400" y="-286.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">correction_hint</text>
 <text xml:space="preserve" text-anchor="middle" x="400" y="-272.8" font-family="sans-Serif" font-size="11.00" fill="#0f172a">append to failed result:</text>
-<text xml:space="preserve" text-anchor="middle" x="400" y="-259.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">&quot;seen N×, sig=…, KNOWN FIX: …&quot;</text>
+<text xml:space="preserve" text-anchor="middle" x="400" y="-259.3" font-family="sans-Serif" font-size="11.00" fill="#0f172a">&quot;seen N×, sig=..., KNOWN FIX: ...&quot;</text>
 <text xml:space="preserve" text-anchor="middle" x="400" y="-245.8" font-family="sans-Serif" font-size="11.00" fill="#0f172a">→ self&#45;correct NEXT iter</text>
 </g>
 <!-- Store&#45;&gt;Hint -->
@@ -172,44 +172,44 @@
 <!-- Regr -->
 <g id="node11" class="node">
 <title>Regr</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M631,-294C631,-294 549,-294 549,-294 543,-294 537,-288 537,-282 537,-282 537,-257.5 537,-257.5 537,-251.5 543,-245.5 549,-245.5 549,-245.5 631,-245.5 631,-245.5 637,-245.5 643,-251.5 643,-257.5 643,-257.5 643,-282 643,-282 643,-288 637,-294 631,-294"/>
-<text xml:space="preserve" text-anchor="middle" x="590" y="-279.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">[REGRESSED]</text>
-<text xml:space="preserve" text-anchor="middle" x="590" y="-266.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">resolved sig recurs</text>
-<text xml:space="preserve" text-anchor="middle" x="590" y="-252.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">→ reopen + tag</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M629,-294C629,-294 547,-294 547,-294 541,-294 535,-288 535,-282 535,-282 535,-257.5 535,-257.5 535,-251.5 541,-245.5 547,-245.5 547,-245.5 629,-245.5 629,-245.5 635,-245.5 641,-251.5 641,-257.5 641,-257.5 641,-282 641,-282 641,-288 635,-294 629,-294"/>
+<text xml:space="preserve" text-anchor="middle" x="588" y="-279.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">[REGRESSED]</text>
+<text xml:space="preserve" text-anchor="middle" x="588" y="-266.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">resolved sig recurs</text>
+<text xml:space="preserve" text-anchor="middle" x="588" y="-252.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">→ reopen + tag</text>
 </g>
 <!-- Store&#45;&gt;Regr -->
 <g id="edge10" class="edge">
 <title>Store&#45;&gt;Regr</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M540.36,-394.33C551.15,-367.46 566.25,-329.87 576.96,-303.22"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="579.43,-304.58 579.81,-296.11 574.23,-302.49 579.43,-304.58"/>
-<text xml:space="preserve" text-anchor="middle" x="591.12" y="-350.7" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">resolved∧recur</text>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M539.94,-394.33C550.34,-367.58 564.88,-330.2 575.24,-303.57"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="577.84,-304.59 578.13,-296.12 572.62,-302.56 577.84,-304.59"/>
+<text xml:space="preserve" text-anchor="middle" x="590.12" y="-350.7" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">resolved∧recur</text>
 </g>
 <!-- KMist -->
 <g id="node12" class="node">
 <title>KMist</title>
-<path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M659.5,-154.5C659.5,-154.5 514.5,-154.5 514.5,-154.5 508.5,-154.5 502.5,-148.5 502.5,-142.5 502.5,-142.5 502.5,-130.5 502.5,-130.5 502.5,-124.5 508.5,-118.5 514.5,-118.5 514.5,-118.5 659.5,-118.5 659.5,-118.5 665.5,-118.5 671.5,-124.5 671.5,-130.5 671.5,-130.5 671.5,-142.5 671.5,-142.5 671.5,-148.5 665.5,-154.5 659.5,-154.5"/>
-<text xml:space="preserve" text-anchor="middle" x="587" y="-139.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">KNOWN MISTAKES</text>
-<text xml:space="preserve" text-anchor="middle" x="587" y="-126.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">✗ [sig] tool ×N [REPEATING]…</text>
+<path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M652.38,-154.5C652.38,-154.5 509.62,-154.5 509.62,-154.5 503.62,-154.5 497.62,-148.5 497.62,-142.5 497.62,-142.5 497.62,-130.5 497.62,-130.5 497.62,-124.5 503.62,-118.5 509.62,-118.5 509.62,-118.5 652.38,-118.5 652.38,-118.5 658.38,-118.5 664.38,-124.5 664.38,-130.5 664.38,-130.5 664.38,-142.5 664.38,-142.5 664.38,-148.5 658.38,-154.5 652.38,-154.5"/>
+<text xml:space="preserve" text-anchor="middle" x="581" y="-139.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">KNOWN MISTAKES</text>
+<text xml:space="preserve" text-anchor="middle" x="581" y="-126.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">✗ [sig] tool ×N [REPEATING]...</text>
 </g>
 <!-- Guard&#45;&gt;KMist -->
 <g id="edge11" class="edge">
 <title>Guard&#45;&gt;KMist</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M734.47,-238.31C699.79,-214.6 652.39,-182.2 620.79,-160.6"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="622.53,-158.4 614.34,-156.19 619.37,-163.02 622.53,-158.4"/>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M731.54,-238.31C696.14,-214.6 647.76,-182.2 615.5,-160.6"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="617.1,-158.3 608.89,-156.18 613.98,-162.95 617.1,-158.3"/>
 </g>
 <!-- KFix -->
 <g id="node13" class="node">
 <title>KFix</title>
-<path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M447.75,-154.5C447.75,-154.5 352.25,-154.5 352.25,-154.5 346.25,-154.5 340.25,-148.5 340.25,-142.5 340.25,-142.5 340.25,-130.5 340.25,-130.5 340.25,-124.5 346.25,-118.5 352.25,-118.5 352.25,-118.5 447.75,-118.5 447.75,-118.5 453.75,-118.5 459.75,-124.5 459.75,-130.5 459.75,-130.5 459.75,-142.5 459.75,-142.5 459.75,-148.5 453.75,-154.5 447.75,-154.5"/>
+<path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M442.88,-154.5C442.88,-154.5 357.12,-154.5 357.12,-154.5 351.12,-154.5 345.12,-148.5 345.12,-142.5 345.12,-142.5 345.12,-130.5 345.12,-130.5 345.12,-124.5 351.12,-118.5 357.12,-118.5 357.12,-118.5 442.88,-118.5 442.88,-118.5 448.88,-118.5 454.88,-124.5 454.88,-130.5 454.88,-130.5 454.88,-142.5 454.88,-142.5 454.88,-148.5 448.88,-154.5 442.88,-154.5"/>
 <text xml:space="preserve" text-anchor="middle" x="400" y="-139.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">KNOWN FIXES</text>
-<text xml:space="preserve" text-anchor="middle" x="400" y="-126.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">✓ [sig] tool — FIX: …</text>
+<text xml:space="preserve" text-anchor="middle" x="400" y="-126.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">✓ [sig] tool &#45; FIX: ...</text>
 </g>
 <!-- Hint&#45;&gt;KFix -->
 <!-- Regr&#45;&gt;KMist -->
 <g id="edge13" class="edge">
 <title>Regr&#45;&gt;KMist</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M589.46,-244.98C588.94,-222.33 588.16,-188.26 587.62,-164.57"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="590.42,-164.71 587.44,-156.78 584.82,-164.84 590.42,-164.71"/>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M586.73,-244.98C585.52,-222.33 583.71,-188.26 582.44,-164.57"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="585.25,-164.61 582.03,-156.78 579.66,-164.91 585.25,-164.61"/>
 </g>
 <!-- Prompt -->
 <g id="node15" class="node">
@@ -221,15 +221,15 @@
 <!-- KMist&#45;&gt;Prompt -->
 <g id="edge17" class="edge">
 <title>KMist&#45;&gt;Prompt</title>
-<path fill="none" stroke="#fb7185" stroke-width="2" stroke-dasharray="5,2" d="M518.87,-117.86C506.34,-115.07 493.32,-112.46 481,-110.5 444.11,-104.64 171.29,-109.99 146,-82.5 117.58,-51.61 262.4,-32.24 345.26,-23.84"/>
-<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="345.33,-26.65 353.02,-23.08 344.78,-21.08 345.33,-26.65"/>
+<path fill="none" stroke="#fb7185" stroke-width="2" stroke-dasharray="5,2" d="M513.24,-117.8C500.91,-115.03 488.12,-112.45 476,-110.5 439.67,-104.67 170.9,-109.6 146,-82.5 117.6,-51.59 262.41,-32.23 345.27,-23.84"/>
+<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="345.33,-26.65 353.02,-23.07 344.78,-21.07 345.33,-26.65"/>
 <text xml:space="preserve" text-anchor="middle" x="176" y="-73.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">do NOT repeat</text>
 </g>
 <!-- KMist&#45;&gt;Prompt -->
 <!-- KFix&#45;&gt;Prompt -->
 <g id="edge18" class="edge">
 <title>KFix&#45;&gt;Prompt</title>
-<path fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5,2" d="M339.56,-119.66C312.76,-109.32 289.88,-93.67 302.75,-72 312.43,-55.69 329.09,-44.08 345.92,-35.97"/>
+<path fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5,2" d="M344.57,-117.87C328.21,-109.79 312.18,-98.37 302.75,-82.5 300.37,-78.49 300.37,-76.01 302.75,-72 312.43,-55.69 329.09,-44.08 345.92,-35.97"/>
 <polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="2" points="346.84,-38.62 353.02,-32.82 344.57,-33.51 346.84,-38.62"/>
 <text xml:space="preserve" text-anchor="middle" x="335.38" y="-73.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">do THIS instead</text>
 </g>
@@ -237,45 +237,45 @@
 <!-- Mem -->
 <g id="node14" class="node">
 <title>Mem</title>
-<path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M285,-154.5C285,-154.5 185,-154.5 185,-154.5 179,-154.5 173,-148.5 173,-142.5 173,-142.5 173,-130.5 173,-130.5 173,-124.5 179,-118.5 185,-118.5 185,-118.5 285,-118.5 285,-118.5 291,-118.5 297,-124.5 297,-130.5 297,-130.5 297,-142.5 297,-142.5 297,-148.5 291,-154.5 285,-154.5"/>
-<text xml:space="preserve" text-anchor="middle" x="235" y="-139.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">PWN::Memory :lesson</text>
-<text xml:space="preserve" text-anchor="middle" x="235" y="-126.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">&quot;AVOID X — FIX: Y&quot;</text>
+<path fill="#fcd34d" stroke="#334155" stroke-width="1.4" d="M290,-154.5C290,-154.5 190,-154.5 190,-154.5 184,-154.5 178,-148.5 178,-142.5 178,-142.5 178,-130.5 178,-130.5 178,-124.5 184,-118.5 190,-118.5 190,-118.5 290,-118.5 290,-118.5 296,-118.5 302,-124.5 302,-130.5 302,-130.5 302,-142.5 302,-142.5 302,-148.5 296,-154.5 290,-154.5"/>
+<text xml:space="preserve" text-anchor="middle" x="240" y="-139.55" font-family="sans-Serif" font-size="11.00" fill="#0f172a">PWN::Memory :lesson</text>
+<text xml:space="preserve" text-anchor="middle" x="240" y="-126.05" font-family="sans-Serif" font-size="11.00" fill="#0f172a">&quot;AVOID X &#45; FIX: Y&quot;</text>
 </g>
 <!-- Mem&#45;&gt;Prompt -->
 <g id="edge19" class="edge">
 <title>Mem&#45;&gt;Prompt</title>
-<path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M289.34,-117.85C326.92,-105.23 371.33,-89.31 378,-82.5 387.53,-72.76 392.94,-58.7 396.01,-46.27"/>
-<polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="1.3" points="398.7,-47.11 397.6,-38.71 393.22,-45.96 398.7,-47.11"/>
-<text xml:space="preserve" text-anchor="middle" x="417.91" y="-73.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">MEMORY block</text>
+<path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M300.43,-117.85C332.08,-107.56 366.58,-94.31 378,-82.5 387.47,-72.71 392.88,-58.63 395.96,-46.22"/>
+<polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="1.3" points="398.64,-47.07 397.56,-38.67 393.17,-45.92 398.64,-47.07"/>
+<text xml:space="preserve" text-anchor="middle" x="417.87" y="-73.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">MEMORY block</text>
 </g>
 <!-- Mem&#45;&gt;Prompt -->
 <!-- Resolve -->
 <g id="node16" class="node">
 <title>Resolve</title>
-<path fill="#6ee7b7" stroke="#334155" stroke-width="2" d="M278.25,-446.59C278.25,-446.59 203.75,-446.59 203.75,-446.59 197.75,-446.59 191.75,-440.59 191.75,-434.59 191.75,-434.59 191.75,-422.59 191.75,-422.59 191.75,-416.59 197.75,-410.59 203.75,-410.59 203.75,-410.59 278.25,-410.59 278.25,-410.59 284.25,-410.59 290.25,-416.59 290.25,-422.59 290.25,-422.59 290.25,-434.59 290.25,-434.59 290.25,-440.59 284.25,-446.59 278.25,-446.59"/>
-<text xml:space="preserve" text-anchor="middle" x="241" y="-431.64" font-family="sans-Serif" font-size="11.00" fill="#0f172a">mistakes_resolve</text>
-<text xml:space="preserve" text-anchor="middle" x="241" y="-418.14" font-family="sans-Serif" font-size="11.00" fill="#0f172a">(signature, fix)</text>
+<path fill="#6ee7b7" stroke="#334155" stroke-width="2" d="M280.25,-446.59C280.25,-446.59 205.75,-446.59 205.75,-446.59 199.75,-446.59 193.75,-440.59 193.75,-434.59 193.75,-434.59 193.75,-422.59 193.75,-422.59 193.75,-416.59 199.75,-410.59 205.75,-410.59 205.75,-410.59 280.25,-410.59 280.25,-410.59 286.25,-410.59 292.25,-416.59 292.25,-422.59 292.25,-422.59 292.25,-434.59 292.25,-434.59 292.25,-440.59 286.25,-446.59 280.25,-446.59"/>
+<text xml:space="preserve" text-anchor="middle" x="243" y="-431.64" font-family="sans-Serif" font-size="11.00" fill="#0f172a">mistakes_resolve</text>
+<text xml:space="preserve" text-anchor="middle" x="243" y="-418.14" font-family="sans-Serif" font-size="11.00" fill="#0f172a">(signature, fix)</text>
 </g>
 <!-- Resolve&#45;&gt;Store -->
 <g id="edge14" class="edge">
 <title>Resolve&#45;&gt;Store</title>
-<path fill="none" stroke="#34d399" stroke-width="2" d="M291.14,-428.59C331.05,-428.59 387.95,-428.59 435.87,-428.59"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="2" points="435.86,-431.39 443.86,-428.59 435.86,-425.79 435.86,-431.39"/>
-<text xml:space="preserve" text-anchor="middle" x="369" y="-444.04" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">resolved:true</text>
-<text xml:space="preserve" text-anchor="middle" x="369" y="-433.54" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">fix:…</text>
+<path fill="none" stroke="#34d399" stroke-width="2" d="M293.12,-428.59C332.56,-428.59 388.58,-428.59 435.91,-428.59"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="2" points="435.77,-431.39 443.77,-428.59 435.77,-425.79 435.77,-431.39"/>
+<text xml:space="preserve" text-anchor="middle" x="370" y="-444.04" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">resolved:true</text>
+<text xml:space="preserve" text-anchor="middle" x="370" y="-433.54" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">fix:...</text>
 </g>
 <!-- Resolve&#45;&gt;KFix -->
 <g id="edge15" class="edge">
 <title>Resolve&#45;&gt;KFix</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M241.55,-409.87C243.43,-373.56 251.69,-289.26 288,-230.75 306.16,-201.49 336.67,-176.98 361.27,-160.45"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="362.55,-162.95 367.71,-156.23 359.48,-158.27 362.55,-162.95"/>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M243.61,-409.61C245.59,-373.21 254.04,-289.27 290,-230.75 300.3,-213.98 339.44,-182.64 368.11,-160.95"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="369.6,-163.33 374.31,-156.29 366.23,-158.85 369.6,-163.33"/>
 </g>
 <!-- Resolve&#45;&gt;Mem -->
 <g id="edge16" class="edge">
 <title>Resolve&#45;&gt;Mem</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M222.1,-409.87C206.14,-393.5 184.46,-367.6 175.25,-340 159.89,-293.94 161.6,-277.35 175.25,-230.75 182.7,-205.31 199.46,-180.22 213.34,-162.49"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="215.39,-164.4 218.23,-156.41 211.03,-160.89 215.39,-164.4"/>
-<text xml:space="preserve" text-anchor="middle" x="192.12" y="-266.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">promote</text>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M224.1,-409.87C208.14,-393.5 186.46,-367.6 177.25,-340 161.89,-293.94 163.08,-277.19 177.25,-230.75 185.05,-205.18 202.48,-180.27 216.99,-162.63"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="219.1,-164.48 222.14,-156.57 214.83,-160.86 219.1,-164.48"/>
+<text xml:space="preserve" text-anchor="middle" x="194.12" y="-266.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">promote</text>
 </g>
 </g>
 </svg>

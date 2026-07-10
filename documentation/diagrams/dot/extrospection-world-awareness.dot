@@ -1,6 +1,6 @@
 digraph "PWN_Extrospection" {
   graph [
-    label=<<B>PWN::AI::Agent::Extrospection — On-demand sensing + ambient baseline</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">PRIMARY: intel · verify · watch · rf_tune · osint · serial · telecomm · packet · vision · voice · observe  ·  SECONDARY: snapshot/drift (AUTO_SECTIONS=host/repo/env)</FONT>>,
+    label=<<B>PWN::AI::Agent::Extrospection - On-demand sensing + ambient baseline</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">PRIMARY: intel · verify · watch · rf_tune · osint · serial · telecomm · packet · vision · voice · observe  ·  SECONDARY: snapshot/drift (AUTO_SECTIONS=host/repo/env)</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.3,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true

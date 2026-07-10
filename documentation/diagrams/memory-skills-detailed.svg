@@ -9,7 +9,7 @@
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(43.2 615.45)">
 <title>PWN_MemorySkills</title>
 <polygon fill="#0f172a" stroke="none" points="-43.2,43.2 -43.2,-615.45 1583.83,-615.45 1583.83,43.2 -43.2,43.2"/>
-<text xml:space="preserve" text-anchor="start" x="427.56" y="-550.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Persistent Knowledge — Memory · Skills · Learning · Mistakes · Sessions</text>
+<text xml:space="preserve" text-anchor="start" x="434.31" y="-550.25" font-family="sans-Serif" font-weight="bold" font-size="20.00" fill="#e2e8f0">Persistent Knowledge &#45; Memory · Skills · Learning · Mistakes · Sessions</text>
 <text xml:space="preserve" text-anchor="start" x="645.06" y="-538.8" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">everything under ~/.pwn/ that shapes future prompts</text>
 <g id="clust1" class="cluster">
 <title>cluster_write</title>

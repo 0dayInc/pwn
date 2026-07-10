@@ -6,7 +6,7 @@ Professional's headless mode + REST API.
 
 ![Web application testing](diagrams/web-application-testing.svg)
 
-> **Install:** `pwn setup --profile web` — burpsuite · zaproxy · chromium ·
+> **Install:** `pwn setup --profile web` - burpsuite · zaproxy · chromium ·
 > geckodriver · sqlmap · tor. See [Installation](Installation.md).
 
 ## Configure
@@ -42,7 +42,7 @@ PWN::Plugins::BurpSuite.stop(burp_obj: burp)
 ## CLI drivers
 
 - `pwn_burp_suite_pro_active_scan -t URL -o out/`
-- `pwn_burp_suite_pro_active_rest_api_scan` — pure REST, no JVM spawn
+- `pwn_burp_suite_pro_active_rest_api_scan` - pure REST, no JVM spawn
 
 ## Why preferred over ZAP
 

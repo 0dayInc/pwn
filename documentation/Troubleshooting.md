@@ -2,7 +2,7 @@
 
 ## "Which capabilities are broken on this host?"
 
-Run the built-in doctor — it tells you exactly which native gem or external
+Run the built-in doctor - it tells you exactly which native gem or external
 binary is missing, what OS package provides it, and which `PWN::` constants
 are degraded as a result:
 
@@ -20,7 +20,7 @@ $ pwn setup --deps --dry-run     # show the apt/dnf/pacman/brew/port commands wi
 See [Installation](Installation.md#pwn-setup--the-post-install-doctor--provisioner)
 for the full profile table and `PWN::Setup` API.
 
-## `LoadError` / `cannot load such file -- pg` (or rmagick, pcaprub, …)
+## `LoadError` / `cannot load such file -- pg` (or rmagick, pcaprub, ...)
 
 A native extension failed to compile because its OS headers weren't present
 at `gem install` time. `pwn setup` knows the mapping for every package
@@ -33,11 +33,11 @@ $ pwn setup --profile net     # pcaprub
 ```
 
 The runtime is `autoload`ed, so a missing extension only surfaces when you
-touch the constant that needs it — the rest of PWN keeps working.
+touch the constant that needs it - the rest of PWN keeps working.
 
-## `nmap` / `chromium` / `gqrx` / … not found on `$PATH`
+## `nmap` / `chromium` / `gqrx` / ... not found on `$PATH`
 
-Same fix — `PWN::Setup::TOOLCHAIN` maps every wrapped binary to its OS
+Same fix - `PWN::Setup::TOOLCHAIN` maps every wrapped binary to its OS
 package on `apt` / `dnf` / `pacman` / `brew` / `port`:
 
 ```bash
@@ -58,7 +58,7 @@ set -as terminal-features 'xterm*:extkeys'   # replace xterm* with your $TERM
 
 Then fully **detach and re-attach** (a `source-file` isn't enough for
 `terminal-features`). Verify with `tmux display -p '#{client_termfeatures}'`
-— it must include `extkeys`.
+- it must include `extkeys`.
 
 ## `502 Bad Gateway` from a proxy plugin
 
@@ -74,7 +74,7 @@ fix the port via `pwn-vault` (`~/.pwn/pwn.yaml`).
 
 ## `Psych::DisallowedClass` on cron/agents YAML
 
-Fixed in current `PWN::Cron` / `Swarm` — both loaders now pass
+Fixed in current `PWN::Cron` / `Swarm` - both loaders now pass
 `permitted_classes: [Symbol]`. If you see it, `gem update pwn`.
 
 ## Agent stops early ("max iterations")
@@ -91,7 +91,7 @@ the agent away: `metrics_reset(confirm: true)`.
 
 | Engine | Fix |
 |---|---|
-| grok `oauth: true` | first run prints a `https://accounts.x.ai/…` URL — open it, approve, token is cached |
+| grok `oauth: true` | first run prints a `https://accounts.x.ai/...` URL - open it, approve, token is cached |
 | ollama | ensure `ollama serve` is running and `base_uri:` matches |
 | others | check `key:` under `ai.<engine>` in `~/.pwn/pwn.yaml` (edit via `pwn-vault`) |
 

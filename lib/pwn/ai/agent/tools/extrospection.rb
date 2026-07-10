@@ -7,8 +7,8 @@ require 'pwn/ai/agent/extrospection'
 # the model. Where the `learning_*` / `metrics_*` tools are INTROSPECTIVE
 # (self-telemetry, own outcomes, own transcripts), the `extro_*` tools are
 # EXTROSPECTIVE: they probe, record and reason about the WORLD the agent
-# operates in — host state, toolchain versions, network posture, repo
-# drift, recon findings, and external threat-intel — and correlate that
+# operates in - host state, toolchain versions, network posture, repo
+# drift, recon findings, and external threat-intel - and correlate that
 # world-state back against introspective failures. Together they close
 # BOTH halves of the feedback loop.
 
@@ -78,7 +78,7 @@ PWN::AI::Agent::Registry.register(
     description: 'Record a fact about the OUTSIDE world (recon finding, ' \
                  'service banner, target fingerprint, CVE match, network ' \
                  'topology note). This is the extrospective analogue of ' \
-                 'learning_note_outcome — it persists WHAT YOU SAW rather ' \
+                 'learning_note_outcome - it persists WHAT YOU SAW rather ' \
                  'than HOW YOU PERFORMED. Observations are re-injected into ' \
                  'every future system prompt via the EXTROSPECTION block.',
     parameters: {
@@ -232,7 +232,7 @@ PWN::AI::Agent::Registry.register(
                  'baseline, and ALL recorded observations). Use when ' \
                  'moving to a new engagement / target scope so stale recon ' \
                  'and drift stop polluting the EXTROSPECTION prompt block. ' \
-                 'IRREVERSIBLE — must pass confirm:true.',
+                 'IRREVERSIBLE - must pass confirm:true.',
     parameters: {
       type: 'object',
       properties: {
@@ -259,7 +259,7 @@ PWN::AI::Agent::Registry.register(
     description: 'Enable/disable OPTIONAL ambient baseline after every ' \
                  'final answer (PWN::Env[:ai][:agent][:auto_extrospect]). ' \
                  'When on, Learning.auto_introspect runs Extrospection.' \
-                 'auto_extrospect with AUTO_SECTIONS (host/repo/env only) — ' \
+                 'auto_extrospect with AUTO_SECTIONS (host/repo/env only) - ' \
                  'never toolchain/rf/web, never launches burpsuite/zaproxy/' \
                  'msfconsole/gqrx. Primary sensing stays on-demand (intel/' \
                  'verify/watch/observe). Omit `enabled` to only query.',
@@ -300,7 +300,7 @@ PWN::AI::Agent::Registry.register(
                  'on :confirmed → observe(:intel, ttl:30d); on :unknown → ' \
                  'Learning.note_outcome(tags:[needs_human]). This is the ' \
                  'PROACTIVE trigger that catches the model being wrong ' \
-                 'about the world before a human does — the extrospective ' \
+                 'about the world before a human does - the extrospective ' \
                  'mirror of mistakes_record.',
     parameters: {
       type: 'object',
@@ -330,14 +330,14 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_watch',
-    description: 'Passive change-detection on an external web artefact you ' \
+    description: 'Passive change-detection on an external web artifact you ' \
                  'care about (a target /api/version, a vendor changelog, a ' \
                  'bug-bounty scope page). Renders the URL headlessly via ' \
                  'PWN::Plugins::TransparentBrowser, hashes the RENDERED DOM ' \
                  'text (JS-delivered changes count), captures title / TLS ' \
                  'cert fp / screenshot, and persists it as observe(' \
                  'category: :web). Re-running against the same URL returns ' \
-                 '{changed: true|false, prior_sha:, current:{…}}; a ' \
+                 '{changed: true|false, prior_sha:, current:{...}}; a ' \
                  'subsequent extro_snapshot(sections:["web"]) surfaces the ' \
                  'delta in drift() as ~web.<host>.dom_sha exactly like ' \
                  '~toolchain.nmap today.',
@@ -370,7 +370,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_rf_tune',
-    description: 'RF sense organ — the radio analogue of extro_watch / ' \
+    description: 'RF sense organ - the radio analogue of extro_watch / ' \
                  'extro_verify. Tunes a *running* GQRX instance (remote ' \
                  'control, never launches the GUI), demodulates, measures ' \
                  'signal strength, and samples RDS (PI / PS / RadioText) so ' \
@@ -388,7 +388,7 @@ PWN::AI::Agent::Registry.register(
         freq: {
           type: 'string',
           description: 'Frequency to tune. Free-form: "101.1", "101.1 FM", ' \
-                       '"101.1 MHz", "101.100.000", "101100000", "433.92", …'
+                       '"101.1 MHz", "101.100.000", "101100000", "433.92", ...'
         },
         host: { type: 'string', description: 'GQRX remote-control host (default 127.0.0.1).' },
         port: { type: 'integer', description: 'GQRX remote-control port (default 7356).' },
@@ -403,7 +403,7 @@ PWN::AI::Agent::Registry.register(
         },
         demodulator_mode: {
           type: 'string',
-          description: 'Override demod (WFM_ST, WFM, FM, AM, USB, LSB, …). ' \
+          description: 'Override demod (WFM_ST, WFM, FM, AM, USB, LSB, ...). ' \
                        'Default from band-plan / FM range heuristic.'
         },
         bandwidth: {
@@ -417,7 +417,7 @@ PWN::AI::Agent::Registry.register(
         },
         ttl: {
           type: 'integer',
-          description: 'Observation TTL seconds (default 300 — radio content is ephemeral).'
+          description: 'Observation TTL seconds (default 300 - radio content is ephemeral).'
         }
       },
       required: %w[freq]
@@ -443,7 +443,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_osint',
-    description: 'OSINT sense organ — aggregates public open APIs (also drawn ' \
+    description: 'OSINT sense organ - aggregates public open APIs (also drawn ' \
                  'from public-api-lists) for reverse phone, IP/geo/ASN/BGP + ' \
                  'threat reputation (ipapi.is/iplocate/ipwho.is/AbuseIPDB/' \
                  'GreyNoise), DNS/WHOIS/RDAP, CT (crt.sh + Cert Spotter), FCC ' \
@@ -461,7 +461,7 @@ PWN::AI::Agent::Registry.register(
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Phone, IP, domain, email, URL, person name, company, CIK, FCC ID, patent number, username, address, …' },
+        query: { type: 'string', description: 'Phone, IP, domain, email, URL, person name, company, CIK, FCC ID, patent number, username, address, ...' },
         kind: {
           type: 'string',
           enum: %w[auto ip geo dns whois rdap crtsh bgp shodan hunter phone fcc_id patent person username github wayback email domain url company cik openfda vital_records threat vin mac callsign npi cve],
@@ -495,7 +495,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_serial',
-    description: 'Serial sense organ — open a USB-UART / modem / Arduino / ' \
+    description: 'Serial sense organ - open a USB-UART / modem / Arduino / ' \
                  'RFID reader (PWN::Plugins::Serial), optional payload write ' \
                  '(AT commands, hex bytes), drain response, disconnect. ' \
                  'Returns text + hex + line-state + modem-params + device ' \
@@ -538,7 +538,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_telecomm',
-    description: 'Telecomm sense organ (SIP / VoIP / PSTN) — senses a running ' \
+    description: 'Telecomm sense organ (SIP / VoIP / PSTN) - senses a running ' \
                  'BareSIP instance over HTTP control (never launches it). ' \
                  'Actions: :inventory / :status / :dial / :hangup. Dial is ' \
                  'OPSEC-sensitive (real call). observe(category: :telecomm).',
@@ -573,7 +573,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_packet',
-    description: 'Packet sense organ — L2/L3 capture & pcap summarisation via ' \
+    description: 'Packet sense organ - L2/L3 capture & pcap summarisation via ' \
                  'tshark/tcpdump + PWN::Plugins::Packet. Actions: :inventory, ' \
                  ':capture (bounded count/timeout → ~/.pwn/extrospection/packet/*.pcap), ' \
                  ':summarize_pcap. observe(category: :packet).',
@@ -606,7 +606,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_vision',
-    description: 'Vision / OCR sense organ — OCR an image via PWN::Plugins::OCR ' \
+    description: 'Vision / OCR sense organ - OCR an image via PWN::Plugins::OCR ' \
                  '(tesseract / RTesseract) or decode barcodes/QR via zbarimg. ' \
                  'Actions: :ocr, :barcode, :inventory. observe(category: :vision).',
     parameters: {
@@ -638,9 +638,9 @@ PWN::AI::Agent::Registry.register(
   toolset: 'extrospection',
   schema: {
     name: 'extro_voice',
-    description: 'Voice sense organ — text-to-speech (espeak-ng / festival / ' \
+    description: 'Voice sense organ - text-to-speech (espeak-ng / festival / ' \
                  'spd-say via PWN::Plugins::Voice) and speech-to-text (whisper). ' \
-                 'Actions: :inventory, :tts, :stt. Artefacts under ' \
+                 'Actions: :inventory, :tts, :stt. Artifacts under ' \
                  '~/.pwn/extrospection/voice/. observe(category: :voice).',
     parameters: {
       type: 'object',

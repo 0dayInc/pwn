@@ -56,7 +56,7 @@ module PWN
                 next
               end
               @idle_bits = 0
-              # start bit found — sample 5 data bits at their centres
+              # start bit found — sample 5 data bits at their centers
               data = Array.new(5) { |i| bit_at(pos + (@spb * (i + 1))) }
               stop = bit_at(pos + (@spb * 6))
               pos += @spb * 7.5

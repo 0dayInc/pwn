@@ -1,6 +1,6 @@
 # Installation
 
-PWN ships as a **single Ruby gem** whose runtime is 100 % `autoload`ed —
+PWN ships as a **single Ruby gem** whose runtime is 100 % `autoload`ed -
 a plugin whose native extension or OS binary is missing costs nothing until
 you actually touch that constant. That means the install is **two steps**:
 
@@ -11,8 +11,8 @@ pwn setup            # 2. doctor + provision this host's capabilities
 
 `pwn setup` is the built-in **doctor / provisioner** (`PWN::Setup`). It
 detects your OS package manager (`apt` · `dnf` · `pacman` · `brew` · `port`),
-reports which `PWN::` capabilities are usable on *this* host, and — when
-asked — installs exactly the OS headers, external tools, and native gems
+reports which `PWN::` capabilities are usable on *this* host, and - when
+asked - installs exactly the OS headers, external tools, and native gems
 needed to unlock the ones you want. No `/opt/pwn` checkout, no `rvmsudo`
 chain, no bash provisioners required.
 
@@ -35,11 +35,11 @@ pwn[v0.5.628]:001 >>> PWN.help
 ```
 
 If you only need a subset (e.g. web testing on a CI runner, SDR on a lab
-box), install just that **capability profile** — see below.
+box), install just that **capability profile** - see below.
 
 ---
 
-## `pwn setup` — the post-install doctor & provisioner
+## `pwn setup` - the post-install doctor & provisioner
 
 Three equivalent spellings ship with the gem:
 
@@ -69,12 +69,12 @@ Ruby extensions
   pg             MISSING  (needs: postgresql-server-dev-all)  → PWN::Plugins::DAOPostgres
   pcaprub        ok                                            → PWN::Plugins::Packet, extro_packet
   nokogiri       ok                                            → PWN::Plugins::TransparentBrowser, PWN::WWW
-  …
+  ...
 
 External toolchain                              used by
   nmap           ok    /usr/bin/nmap            PWN::Plugins::NmapIt
   gqrx           MISSING                        PWN::SDR, extro_rf_tune
-  …
+  ...
 
 31 / 36 capabilities usable · 5 degraded
 
@@ -85,10 +85,10 @@ Run `pwn setup --deps` to install missing OS headers/tools, or
 ### Install dependencies
 
 ```bash
-pwn setup --deps                     # profile :full — everything
+pwn setup --deps                     # profile :full - everything
 pwn setup --profile web              # just TransparentBrowser · Burp · ZAP · Tor
 pwn setup --profile sdr --yes        # non-interactive (CI / packer / docker)
-pwn setup --profile net --dry-run    # print the apt/dnf/brew/… commands only
+pwn setup --profile net --dry-run    # print the apt/dnf/brew/... commands only
 pwn setup --list-profiles
 ```
 
@@ -96,7 +96,7 @@ pwn setup --list-profiles
 
 1. Resolve the profile → set of native gems + external binaries.
 2. Map those to OS packages for **your** package manager (data lives in
-   `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN` — versioned with the gem, so
+   `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN` - versioned with the gem, so
    `gem install pwn`, git checkout, Docker, Packer and Vagrant all read the
    same table).
 3. Show the exact commands, prompt (unless `--yes`), run them, then
@@ -109,7 +109,7 @@ pwn setup --list-profiles
 
 | Profile | Unlocks |
 |---|---|
-| `core` | `~/.pwn` bootstrap · vault · REPL — always applied |
+| `core` | `~/.pwn` bootstrap · vault · REPL - always applied |
 | `ai` | verify at least one AI engine key/oauth in `~/.pwn/pwn.yaml` |
 | `web` | `TransparentBrowser` · `BurpSuite` · `Zaproxy` · `extro_verify` · `extro_watch` · `sqlmap` · `tor` |
 | `net` | `NmapIt` · `Packet` · `extro_packet` · `extro_osint` · `tshark`/`tcpdump` |
@@ -150,7 +150,7 @@ pwn setup --profile full --yes       # same provisioner, same data tables
 ```
 
 The legacy `./install.sh` / `packer/provisioners/pwn.sh` bash paths still
-work, but they now simply delegate to `pwn setup` — the `case $os` package
+work, but they now simply delegate to `pwn setup` - the `case $os` package
 lists have been consolidated into `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN`.
 
 ---
@@ -165,7 +165,7 @@ RUN gem install pwn && pwn setup --profile full --yes
 ```
 
 ```yaml
-# .gitlab-ci.yml — fail the job if the runner is missing a capability
+# .gitlab-ci.yml - fail the job if the runner is missing a capability
 before_script:
   - pwn setup --profile web --yes
   - pwn setup --check
@@ -182,7 +182,7 @@ pwn setup --profile ${PWN_PROFILE:-full} --yes
 
 ```bash
 gem update pwn         # or: gem uninstall --all --executables pwn && gem install pwn
-pwn setup              # re-doctor — new versions may add capabilities
+pwn setup              # re-doctor - new versions may add capabilities
 ```
 
 From a checkout:
@@ -197,13 +197,13 @@ cd /opt/pwn && git pull && rake install && pwn setup
 
 The first `pwn` launch creates `~/.pwn/` and an **encrypted**
 `~/.pwn/pwn.yaml` template. Add at least one LLM engine key with the
-`pwn-vault` REPL command to enable `pwn-ai` — see
+`pwn-vault` REPL command to enable `pwn-ai` - see
 [Configuration](Configuration.md). `pwn setup` will report the AI-engine
 row as `MISSING` until a key is set.
 
 ---
 
-## Programmatic API — `PWN::Setup`
+## Programmatic API - `PWN::Setup`
 
 Everything above is a thin CLI over one autoloaded module:
 
@@ -213,14 +213,14 @@ PWN::Setup.deps(profile: :web, yes: true) # install, then re-check
 PWN::Setup.list_profiles
 PWN::Setup.pkg_manager                    # → { key: :apt, install: 'sudo apt-get install -y', sudo: true }
 
-# The data tables — single source of truth, versioned with the gem:
+# The data tables - single source of truth, versioned with the gem:
 PWN::Setup::NATIVE_GEMS   # native ext  → { apt:, dnf:, pacman:, brew:, port:, plugins: }
 PWN::Setup::TOOLCHAIN     # external bin → { apt:, dnf:, pacman:, brew:, port:, plugins: }
 PWN::Setup::PROFILES      # profile      → { desc:, gems:, bins: }
 ```
 
 Adding a new native dependency or wrapped binary? Add **one row** to the
-appropriate constant in `lib/pwn/setup.rb` — every install path (gem, git,
+appropriate constant in `lib/pwn/setup.rb` - every install path (gem, git,
 Docker, Packer, Vagrant, CI) picks it up automatically.
 
 ---

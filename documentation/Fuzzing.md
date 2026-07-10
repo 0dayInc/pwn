@@ -1,8 +1,8 @@
-# Fuzzing — `PWN::Plugins::Fuzz` · `Sock` · `Packet`
+# Fuzzing - `PWN::Plugins::Fuzz` · `Sock` · `Packet`
 
 ![Fuzzing workflow](diagrams/fuzzing-workflow.svg)
 
-> **Install:** `pwn setup --profile net` — pcaprub headers · tshark ·
+> **Install:** `pwn setup --profile net` - pcaprub headers · tshark ·
 > tcpdump. See [Installation](Installation.md).
 
 ## Generate

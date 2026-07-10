@@ -1,26 +1,26 @@
-# `PWN::SDR` — Software-Defined Radio & RF
+# `PWN::SDR` - Software-Defined Radio & RF
 
 ![SDR flow](diagrams/sdr-radio-flow.svg)
 
-> **Install:** `pwn setup --profile sdr` — GQRX · rtl-sdr · hackrf ·
-> SoapySDR · multimon-ng · sox · libsndfile · libusb. See
-> [Installation](Installation.md).
+> **Install:** `pwn setup --profile sdr` - GQRX, rtl-sdr, hackrf, libiio /
+> libad9361 (ADALM-Pluto), SoapySDR, libvolk, libliquid, libfftw3, libusb,
+> multimon-ng, sox, libsndfile. See [Installation](Installation.md).
 
 ## Modules  (`lib/pwn/sdr/*.rb`)
 
 | Module | Purpose |
 |---|---|
-| **`GQRX`** | Remote-control a running GQRX instance over TCP: tune, set demod, squelch, record, `get_spectrum_snapshot` (pure-Ruby FFT — median NF, relative peak/prominence, **plan-parametric** min-distance & −6 dB BW), `fast_scan_range` (**always RAW @ sample_rate** panoramic capture; band-plan IF deferred to refine/decoder; `#fft_plan_geometry` derives sep/merge/refine/snap from `(plan_bw, step, res)`; local-FFT refine + S-meter confirm; schema-parity with `scan_range`) |
+| **`GQRX`** | Remote-control a running GQRX instance over TCP: tune, set demod, squelch, record, `get_spectrum_snapshot` (pure-Ruby FFT - median NF, relative peak/prominence, **plan-parametric** min-distance & −6 dB BW), `fast_scan_range` (**always RAW @ sample_rate** panoramic capture; band-plan IF deferred to refine/decoder; `#fft_plan_geometry` derives sep/merge/refine/snap from `(plan_bw, step, res)`; local-FFT refine + S-meter confirm; schema-parity with `scan_range`) |
 | `FlipperZero` | Serial control of Flipper (sub-GHz, NFC, IR, iButton) |
 | `RFIDler` | 125 kHz RFID reader/emulator |
 | `SonMicroRFID` | SM130 13.56 MHz reader |
-| `FrequencyAllocation` | ITU/FCC band-plan lookup — "what lives at 433.92 MHz?" |
-| **`Decoder::*`** | 20 protocol demodulators/decoders — `ADSB APT Bluetooth DECT FLEX GPS GSM Iridium LoRa LTE Morse P25 Pager POCSAG RDS RFID RTL433 RTTY WiFi ZigBee` |
+| `FrequencyAllocation` | ITU/FCC band-plan lookup - "what lives at 433.92 MHz?" |
+| **`Decoder::*`** | 20 protocol demodulators/decoders - `ADSB APT Bluetooth DECT FLEX GPS GSM Iridium LoRa LTE Morse P25 Pager POCSAG RDS RFID RTL433 RTTY WiFi ZigBee` |
 
 ## CLI
 
 ```bash
-# FFT sweep — plan-parametric peak geometry + local-FFT refine for exact centres
+# FFT sweep - plan-parametric peak geometry + local-FFT refine for exact centres
 # Works for ALL band plans (CW 150 Hz → FLEX 20 kHz → FM 200 kHz → GPS 30 MHz)
 pwn_gqrx_scanner -a pager_flex --fft-scan                 # alias: flex_pager
 pwn_gqrx_scanner -a fm_radio   --fft-scan --min-snr-db 18
@@ -43,11 +43,11 @@ invariants already on each plan (`bandwidth` → `plan_bw_hz`, `precision` →
 
 | Stage | Rule |
 |---|---|
-| Capture IF | **Always** `M RAW sample_rate` (IQRECORD is demod IF — never plan FM/20 kHz) |
+| Capture IF | **Always** `M RAW sample_rate` (IQRECORD is demod IF - never plan FM/20 kHz) |
 | Peak height / prom | Relative: `median_nf + 12 dB`, prom ≥ 8 dB |
 | Peak min-distance | `#fft_plan_geometry` → `sep_hz = max(0.5·plan, step, floor)` |
 | Occupied BW | −6 dB-from-peak contour, hard-capped to `± plan_bw` |
-| Centre | Power-weighted centroid of −6 dB lobe → raster snap |
+| Center | Power-weighted centroid of −6 dB lobe → raster snap |
 | Merge | `tol = max(½ plan, step, ½ measured_bw, 2·res)` |
 | Refine window | ~0.6·plan (capped so next neighbour is outside); local high-res FFT |
 | Strength lock | Auto from live S-meter NF + 8 dB unless `-S` given |
@@ -62,7 +62,7 @@ PWN::SDR::GQRX.set_freq(gqrx_sock: g, freq: 433_920_000)
 PWN::SDR::GQRX.set_demod(gqrx_sock: g, demod: 'AM')
 snap = PWN::SDR::GQRX.get_spectrum_snapshot(gqrx_sock: g)
 PWN::SDR::FrequencyAllocation.lookup(freq: 433_920_000)
-# => { band: 'ISM 433', typical: ['garage doors', 'weather stations', …] }
+# => { band: 'ISM 433', typical: ['garage doors', 'weather stations', ...] }
 ```
 
 
@@ -80,25 +80,59 @@ has the matching shared libraries:
 
 ```ruby
 PWN::FFI.backends
-# => {FFTW: true, HackRF: true, Liquid: true, RTLSdr: true, SoapySDR: true, Volk: true}
+# => {AdalmPluto: true, FFTW: true, HackRF: true, Liquid: true, RTLSdr: true, SoapySDR: true, Volk: true}
 
 # Force pure-Ruby (e.g. for tests / A/B)
 PWN::SDR::Decoder::DSP.native = false
 ```
 
-Front-end inventory & raw I/Q capture:
+Front-end inventory & raw I/Q capture (uniform across every `PWN::FFI` radio):
 
 ```ruby
 PWN::FFI::SoapySDR.list_devices
-# => [{driver: "hackrf", label: "HackRF Pro #0 …", serial: "…"}, …]
-
 PWN::FFI::RTLSdr.list_devices
-dev = PWN::FFI::HackRF.open
-PWN::FFI::HackRF.configure(device: dev, freq_hz: 433_920_000, rate_hz: 10e6)
-PWN::FFI::HackRF.close(device: dev)
+PWN::FFI::AdalmPluto.list_uris
+PWN::FFI::HackRF.info
+
+# One-shot capture (any front-end exposes .capture / .read_sync)
+iq = PWN::FFI::HackRF.capture(freq_hz: 433_920_000, rate_hz: 10e6, samples: 262_144)
 ```
 
 See [FFI](FFI.md) for the full binding surface and design rules.
+
+## True-air I/Q decode (`Base.run_iq`)
+
+Every `PWN::SDR::Decoder::*` module can decode straight from hardware I/Q
+without GQRX in the loop. `Base.run_iq` auto-selects the first working
+front-end (`:file` -> `:rtlsdr` -> `:adalm_pluto` -> `:hackrf` -> `:soapy`),
+streams, unpacks, and feeds the module's demodulator. If no hardware or
+capture file is present it degrades gracefully to `Base.run_detector`
+(energy/burst characterizer) so you still get structured JSONL output.
+
+```ruby
+# Force a specific radio, sample rate, or replay a capture file:
+fo = PWN::SDR::GQRX.init_freq(freq: '929.612.500', decoder: :flex)
+fo[:iq_source] = :hackrf          # or :rtlsdr / :adalm_pluto / :soapy / :file
+fo[:iq_rate]   = 2_048_000
+fo[:iq_file]   = '/tmp/flex.cu8'  # replay instead of live air
+PWN::SDR::Decoder::Flex.decode(freq_obj: fo)
+
+# Or drive the pipeline directly:
+PWN::SDR::Decoder::Base.run_iq(
+  freq_obj:    fo,
+  protocol:    'ADSB',
+  demod:       PWN::SDR::Decoder::ADSB::Demod.new,
+  sample_rate: 2_000_000,
+  source:      :auto           # :rtlsdr|:hackrf|:adalm_pluto|:soapy|:file
+)
+```
+
+| Decoder | Air path | I/Q entry point |
+|---|---|---|
+| ADSB, Bluetooth, DECT, GPS, GSM, Iridium, LoRa, LTE, P25, RFID, RTL433, WiFi, ZigBee | `run_iq` (wideband) | `#feed_iq(iq, rate:)` |
+| APT, FLEX, Morse, Pager, POCSAG, RTTY | `run_iq(fm_demod: true)` or `run_native` | `#feed(audio)` |
+| RDS | GQRX built-in RDS (`RDS.sample`) | n/a |
+
 
 ## RF ↔ Extrospection
 
@@ -112,12 +146,12 @@ The AI agent is RF-aware. Two layers:
 ```ruby
 # record a recon finding
 extro_observe(source: 'gqrx', category: :rf, target: '433.920MHz',
-              data: 'peak -34.2 dBFS bw=200k FSK — likely garage remote')
+              data: 'peak -34.2 dBFS bw=200k FSK - likely garage remote')
 
 # ask the radio a question (RDS on FM broadcast)
 extro_rf_tune(freq: '101.1')
 # → { ok:true, freq:"101.1 MHz", strength_dbfs:-2.8, station:"X96",
-#     now_playing:"Mr. Brightside by The Killers", rds:{pi,ps_name,radiotext}, … }
+#     now_playing:"Mr. Brightside by The Killers", rds:{pi,ps_name,radiotext}, ... }
 # → observe(category: :rf, ttl: 300)   # songs are ephemeral
 ```
 
