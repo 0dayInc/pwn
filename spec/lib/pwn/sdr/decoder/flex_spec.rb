@@ -27,10 +27,10 @@ describe PWN::SDR::Decoder::Flex do
   it 'detects Sync-1 in a 64-bit shift register at either polarity' do
     # A(0xDEA0) | MARKER(0xA6C6AAAA) | ~A(0x215F) — canonical 3200/4 Sync-1
     buf = (0xDEA0 << 48) | (0xA6C6AAAA << 16) | 0x215F
-    code, pol = PWN::SDR::Decoder::Flex.sync_check(buf)
+    code, pol = PWN::SDR::Decoder::Flex.sync_check(buf: buf)
     expect(code).to eq(0xDEA0)
     expect(pol).to eq(0)
-    code, pol = PWN::SDR::Decoder::Flex.sync_check(~buf & 0xFFFFFFFFFFFFFFFF)
+    code, pol = PWN::SDR::Decoder::Flex.sync_check(buf: ~buf & 0xFFFFFFFFFFFFFFFF)
     expect(code).to eq(0xDEA0)
     expect(pol).to eq(1)
   end
@@ -39,7 +39,7 @@ describe PWN::SDR::Decoder::Flex do
   # (cycle 10 / frame 70, live 929.625 MHz capture) must have zero syndrome.
   it 'computes BCH(31,21) syndrome with FLEX on-air bit ordering' do
     fiw = 0xF27C46AE
-    expect(PWN::SDR::Decoder::Flex.bch_syn(fiw)).to eq(0)
+    expect(PWN::SDR::Decoder::Flex.bch_syn(word: fiw)).to eq(0)
     fixed, nerr = PWN::SDR::Decoder::Flex.bch_fix(word: fiw)
     expect(fixed).to eq(fiw)
     expect(nerr).to eq(0)

@@ -139,10 +139,10 @@ module PWN
 
           def st_sync1(sym)
             @syncbuf = ((@syncbuf << 1) | (sym < 2 ? 1 : 0)) & 0xFFFFFFFFFFFFFFFF
-            code, pol = Flex.sync_check(@syncbuf)
+            code, pol = Flex.sync_check(buf: @syncbuf)
             return unless code
 
-            m = A_TABLE.find { |k, _| Flex.popcnt(k ^ code) < 4 }
+            m = A_TABLE.find { |k, _| Flex.popcnt(val: k ^ code) < 4 }
             return unless m
 
             @sync_cw  = code
@@ -225,24 +225,26 @@ module PWN
         # rubocop:enable Metrics/ClassLength
 
         # Supported Method Parameters::
-        # code, polarity = PWN::SDR::Decoder::Flex.sync_check(buf64)
+        # code, polarity = PWN::SDR::Decoder::Flex.sync_check(buf: Integer)
         # → [16-bit A-word, 0|1] or nil
 
-        public_class_method def self.sync_check(buf)
+        public_class_method def self.sync_check(opts = {})
+          buf = opts[:buf].to_i
           [[buf, 0], [~buf & 0xFFFFFFFFFFFFFFFF, 1]].each do |b, pol|
             marker = (b >> 16) & 0xFFFFFFFF
             ch     = (b >> 48) & 0xFFFF
             cl     = (~b) & 0xFFFF
-            return [ch, pol] if popcnt(marker ^ SYNC_MARKER) < 4 && popcnt(ch ^ cl) < 4
+            return [ch, pol] if popcnt(val: marker ^ SYNC_MARKER) < 4 && popcnt(val: ch ^ cl) < 4
           end
           nil
         end
 
         # Supported Method Parameters::
-        # n = PWN::SDR::Decoder::Flex.popcnt(v)
+        # n = PWN::SDR::Decoder::Flex.popcnt(val: Integer)
 
-        public_class_method def self.popcnt(val)
-          c = 0
+        public_class_method def self.popcnt(opts = {})
+          val = opts[:val].to_i
+          c   = 0
           while val.positive?
             c += val & 1
             val >>= 1
@@ -251,10 +253,10 @@ module PWN
         end
 
         # Supported Method Parameters::
-        # ok = PWN::SDR::Decoder::Flex.even_parity?(word32)
+        # ok = PWN::SDR::Decoder::Flex.even_parity?(word: Integer)
 
-        public_class_method def self.even_parity?(word)
-          popcnt(word & 0xFFFFFFFF).even?
+        public_class_method def self.even_parity?(opts = {})
+          popcnt(val: opts[:word].to_i & 0xFFFFFFFF).even?
         end
 
         # BCH(31,21) syndrome/correction for FLEX word ordering:
@@ -263,9 +265,10 @@ module PWN
         BCH_GEN = 0x769
 
         # Supported Method Parameters::
-        # syn = PWN::SDR::Decoder::Flex.bch_syn(word)
+        # syn = PWN::SDR::Decoder::Flex.bch_syn(word: Integer)
 
-        public_class_method def self.bch_syn(word)
+        public_class_method def self.bch_syn(opts = {})
+          word = opts[:word].to_i
           # reverse bits 0..30 so bit0 → x^30 (FLEX on-air ordering)
           r = 0
           31.times { |i| r |= ((word >> i) & 1) << (30 - i) }
@@ -275,13 +278,13 @@ module PWN
 
         BCH_TAB1 = begin
           t = {}
-          31.times { |i| t[bch_syn(1 << i)] = 1 << i }
+          31.times { |i| t[bch_syn(word: 1 << i)] = 1 << i }
           t.freeze
         end
         BCH_TAB2 = begin
           t = {}
           31.times do |i|
-            ((i + 1)..30).each { |j| t[bch_syn((1 << i) | (1 << j))] ||= (1 << i) | (1 << j) }
+            ((i + 1)..30).each { |j| t[bch_syn(word: (1 << i) | (1 << j))] ||= (1 << i) | (1 << j) }
           end
           t.freeze
         end
@@ -292,17 +295,17 @@ module PWN
 
         public_class_method def self.bch_fix(opts = {})
           w = opts[:word].to_i & 0xFFFFFFFF
-          s = bch_syn(w)
-          return [w, 0] if s.zero? && even_parity?(w)
+          s = bch_syn(word: w)
+          return [w, 0] if s.zero? && even_parity?(word: w)
           return [w ^ 0x80000000, 1] if s.zero?
 
           if (m = BCH_TAB1[s])
-            return [w ^ m, 1] if even_parity?(w ^ m)
+            return [w ^ m, 1] if even_parity?(word: w ^ m)
 
             return [w ^ m ^ 0x80000000, 2]
           end
           m = BCH_TAB2[s]
-          return [w ^ m, 2] if m && even_parity?(w ^ m)
+          return [w ^ m, 2] if m && even_parity?(word: w ^ m)
 
           [w, -1]
         end

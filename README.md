@@ -113,7 +113,7 @@ $ gem install pwn
 $ pwn setup                        # read-only doctor: which capabilities are usable?
 $ pwn setup --profile full --yes   # provision everything (or: web | net | sdr | vision | ...)
 $ pwn
-pwn[v0.5.630]:001 >>> PWN.help
+pwn[v0.5.631]:001 >>> PWN.help
 ```
 
 Only need a subset?
@@ -147,7 +147,7 @@ land regularly:
 $ gem update pwn
 $ pwn setup            # re-doctor - new versions may add capabilities
 $ pwn
-pwn[v0.5.630]:001 >>> PWN.help
+pwn[v0.5.631]:001 >>> PWN.help
 ```
 
 From a git checkout:
