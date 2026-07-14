@@ -57,8 +57,8 @@ jobs:
         # Base axes → 5 images × 2 profiles = 10 legs.
         image:
           - kalilinux/kali-rolling
-          - debian:bookworm
-          - ubuntu:24.04
+          - debian:trixie
+          - ubuntu:latest
           - fedora:latest
           - archlinux:latest
         profile:
@@ -73,10 +73,10 @@ jobs:
           - image: kalilinux/kali-rolling
             pm: apt
             ruby: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
-          - image: debian:bookworm
+          - image: debian:trixie
             pm: apt
             ruby: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
-          - image: ubuntu:24.04
+          - image: ubuntu:latest
             pm: apt
             ruby: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
           - image: fedora:latest
@@ -95,8 +95,15 @@ jobs:
         run: ${{ matrix.ruby }}
 
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
+
+      - name: trust git checkout owned by host UID (container job)
+        # actions/checkout marks the repo safe under a temp $HOME that doesn't
+        # survive into subsequent steps. Without this, `git ls-files` in
+        # pwn.gemspec (and any spec that shells out to git) fails with
+        # "detected dubious ownership" and the gem builds with ZERO files.
+        run: git config --global --add safe.directory "$PWD"
       - name: build & install gem from checkout (git-checkout path in doc)
         run: |
           gem build pwn.gemspec
@@ -124,7 +131,7 @@ jobs:
       PWN_EXPECTED_PM: brew
       PWN_PROFILE: core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -164,8 +171,11 @@ jobs:
     steps:
       - run: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+
+      - name: trust git checkout owned by host UID (container job)
+        run: git config --global --add safe.directory "$PWD"
       - name: run legacy provisioner (must delegate to `pwn setup`)
         run: bash packer/provisioners/pwn.sh
 

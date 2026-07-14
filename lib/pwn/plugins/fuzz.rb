@@ -6,7 +6,9 @@ require 'htmlentities'
 
 module PWN
   module Plugins
-    # This plugin was created to support fuzzing various networking protocols
+    # This plugin was created to support fuzzing various networking protocols.
+    # A request template with fuzz delimiters is combined with a payload and
+    # optional layered encodings, then replayed over TCP/UDP (optionally TLS).
     module Fuzz
       # Supported Method Parameters::
       # socket_fuzz_results_arr = PWN::Plugins::Fuzz.socket(
@@ -17,11 +19,11 @@ module PWN
       #   fuzz_delimeter: 'optional - fuzz delimeter used in request to specify where payloads should reside (defaults to \u2665)',
       #   request: 'required - String object of socket request w/ \u001A as fuzz delimeter (e.g. "GET /\u001A\u001A HTTP/1.1\r\nHost: \u001A127..0.0.1\u001A\r\n\r\n")',
       #   payload: 'required - payload string',
+      #   response_timeout: 'optional - float (defaults to 0.9)',
+      #   request_rate_limit: 'optional - float (defaults to 0.3)',
       #   encoding: 'optional - :base64 || :hex || :html_entity || :url (Defaults to nil)',
       #   encoding_depth: 'optional - number of times to encode payload (defaults to 1)',
-      #   char_encoding: 'optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)',
-      #   response_timeout: 'optional - float (defaults to 0.9)',
-      #   request_rate_limit: 'optional - float (defaults to 0.3)'
+      #   char_encoding: 'optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)'
       # )
 
       public_class_method def self.socket(opts = {})
@@ -189,11 +191,11 @@ module PWN
             fuzz_delimeter: \"optional - fuzz delimeter used in request to specify where payloads should reside (defaults to \u2665)\",
             request: \"required - String object of socket request w/ \u2665 as fuzz delimeter (e.g. '\"GET /\u2665\u2665 HTTP/1.1\\r\\nHost: \u2665127.0.0.1\u2665\\r\\n\\r\\n\"')\",
             payload: 'required - payload string',
+            response_timeout: 'optional - float (defaults to 0.9)',
+            request_rate_limit: 'optional - float (defaults to 0.3)',
             encoding: 'optional - :base64 || :hex || :html_entity || :url (Defaults to nil)',
             encoding_depth: 'optional - number of times to encode payload (defaults to 1)',
-            char_encoding: 'optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)',
-            response_timeout: 'optional - float (defaults to 0.9)',
-            request_rate_limit: 'optional - float (defaults to 0.3)'
+            char_encoding: 'optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)'
           )
 
           #{self}.authors

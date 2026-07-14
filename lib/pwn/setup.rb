@@ -284,12 +284,19 @@ module PWN
     public_class_method def self.pkg_manager
       return @pkg_manager if defined?(@pkg_manager) && @pkg_manager
 
+      # Drop the `sudo` prefix when we are already root (Docker / CI
+      # containers, `sudo -i`, root shells) or when `sudo` is not
+      # installed — otherwise `pwn setup --profile x --yes` dies with
+      # `sh: sudo: not found` on stock debian:* / fedora:* images.
+      root = (Process.uid.zero? rescue false)
+      sudo = root || !bin?(name: 'sudo') ? '' : 'sudo '
+
       @pkg_manager =
-        if bin?(name: 'apt-get')     then { key: :apt,    install: 'sudo apt-get install -y',    sudo: true  }
-        elsif bin?(name: 'dnf')      then { key: :dnf,    install: 'sudo dnf install -y',        sudo: true  }
-        elsif bin?(name: 'pacman')   then { key: :pacman, install: 'sudo pacman -S --noconfirm', sudo: true  }
-        elsif bin?(name: 'brew')     then { key: :brew,   install: 'brew install',               sudo: false }
-        elsif bin?(name: 'port')     then { key: :port,   install: 'sudo port -N install',       sudo: true  }
+        if bin?(name: 'apt-get')     then { key: :apt,    install: "#{sudo}apt-get install -y",    sudo: !sudo.empty? }
+        elsif bin?(name: 'dnf')      then { key: :dnf,    install: "#{sudo}dnf install -y",        sudo: !sudo.empty? }
+        elsif bin?(name: 'pacman')   then { key: :pacman, install: "#{sudo}pacman -S --noconfirm", sudo: !sudo.empty? }
+        elsif bin?(name: 'brew')     then { key: :brew,   install: 'brew install',                 sudo: false        }
+        elsif bin?(name: 'port')     then { key: :port,   install: "#{sudo}port -N install",       sudo: !sudo.empty? }
         else { key: :unknown, install: nil, sudo: false }
         end
     end

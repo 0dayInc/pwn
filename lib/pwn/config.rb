@@ -397,6 +397,30 @@ module PWN
       raise e
     end
 
+    # ──────────────────────────────────────────────────────────────────────
+    #  SKILLS  (agentskills.io/specification conformant, with legacy shim)
+    # ──────────────────────────────────────────────────────────────────────
+    #
+    # On-disk layout (spec):
+    #   ~/.pwn/skills/<name>/SKILL.md      ← required entrypoint, YAML frontmatter
+    #   ~/.pwn/skills/<name>/scripts/      ← optional executables (was flat *.rb)
+    #   ~/.pwn/skills/<name>/references/   ← optional supporting docs
+    #   ~/.pwn/skills/<name>/assets/       ← optional binary assets
+    #
+    # Legacy shim (read-only, still loaded so nothing breaks on upgrade):
+    #   ~/.pwn/skills/<name>.{md,txt,rb,skill,yml,yaml}
+    #
+    # Frontmatter (SKILL.md, `---` YAML block at top of file):
+    #   name:         REQUIRED  [a-z0-9-]{1,64}, must equal parent dir name
+    #   description:  REQUIRED  1..1024 chars
+    #   license:      optional
+    #   metadata:     optional  Hash (pwn stores references here too)
+    #   allowed-tools: optional Array of toolset names
+    # ──────────────────────────────────────────────────────────────────────
+
+    SKILL_ENTRY = 'SKILL.md'
+    SKILL_NAME_RE = /\A[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\z/
+
     # Supported Method Parameters::
     # pwn_skills_path = PWN::Config.pwn_skills_path(
     #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
@@ -407,32 +431,64 @@ module PWN
     end
 
     # Supported Method Parameters::
+    # name = PWN::Config.sanitize_skill_name(name: 'My Cool Skill!')
+    #
+    # Coerce to an agentskills.io-valid identifier:
+    #   downcase → non [a-z0-9] → '-' → squeeze '-' → strip edge '-' → cap 64.
+    # Raises ArgumentError when the result is empty.
+    public_class_method def self.sanitize_skill_name(opts = {})
+      n = opts[:name].to_s.downcase
+                     .gsub(/[^a-z0-9-]+/, '-')
+                     .gsub(/-{2,}/, '-')
+                     .gsub(/\A-+|-+\z/, '')[0, 64]
+                     .to_s
+                     .gsub(/-+\z/, '') # re-strip in case truncation left a trailing '-'
+      raise ArgumentError, "skill name #{opts[:name].inspect} sanitises to empty" if n.empty?
+      raise ArgumentError, "skill name #{n.inspect} !~ #{SKILL_NAME_RE.inspect}" unless n.match?(SKILL_NAME_RE)
+
+      n
+    end
+
+    # Supported Method Parameters::
+    # fm = PWN::Config.parse_skill_frontmatter(content: '...')
+    #
+    # → { frontmatter: Hash(String keys), body: String }
+    # Missing / malformed frontmatter returns { frontmatter: {}, body: content }.
+    public_class_method def self.parse_skill_frontmatter(opts = {})
+      content = opts[:content].to_s
+      return { frontmatter: {}, body: content } unless content.start_with?("---\n")
+
+      fm_end = content.index(/^---\s*$/, 4)
+      return { frontmatter: {}, body: content } unless fm_end
+
+      require 'yaml'
+      raw = content[4...fm_end]
+      fm  = YAML.safe_load(raw, permitted_classes: [Symbol, Date, Time], aliases: true) || {}
+      fm  = {} unless fm.is_a?(Hash)
+      body = content[fm_end..].to_s.sub(/\A---\s*\n?/, '')
+      { frontmatter: fm, body: body }
+    rescue StandardError
+      { frontmatter: {}, body: content }
+    end
+
+    # Supported Method Parameters::
     # refs = PWN::Config.parse_skill_references(content: '...')
     #
     # Extracts an Array of reference strings (URLs, CWE/CVE/ATT&CK ids, etc.)
-    # from a skill body. Supports two formats:
-    #   1) YAML front-matter block:  ---\nreferences:\n  - https://...\n---\n
-    #   2) Markdown section:         ## References\n- https://...\n
+    # from a skill body. Supports three sources, merged & uniq'd:
+    #   1) frontmatter `references:` (legacy pwn)
+    #   2) frontmatter `metadata: { references: [...] }` (spec-conformant slot)
+    #   3) markdown `## References` bullet section
     public_class_method def self.parse_skill_references(opts = {})
       content = opts[:content].to_s
-      refs = []
+      parsed  = parse_skill_frontmatter(content: content)
+      fm      = parsed[:frontmatter]
+      refs    = []
 
-      # YAML front-matter (--- ... ---) at top of file
-      if content.start_with?("---\n")
-        fm_end = content.index("\n---", 4)
-        if fm_end
-          begin
-            require 'yaml'
-            fm = YAML.safe_load(content[4..fm_end], permitted_classes: [], aliases: false) || {}
-            r  = fm['references'] || fm[:references]
-            refs.concat(Array(r).map(&:to_s)) if r
-          rescue StandardError
-            # ignore malformed front-matter
-          end
-        end
-      end
+      refs.concat(Array(fm['references'] || fm[:references]).map(&:to_s))
+      md = fm['metadata'] || fm[:metadata]
+      refs.concat(Array(md['references'] || md[:references]).map(&:to_s)) if md.is_a?(Hash)
 
-      # Markdown "## References" section (bullets or bare lines until next heading / EOF)
       if content =~ /^\s*\#{1,3}\s*References\s*$/i
         in_section = false
         content.each_line do |line|
@@ -441,7 +497,7 @@ module PWN
             next
           end
           next unless in_section
-          break if line =~ /^\s*\#{1,3}\s+\S/ # next heading
+          break if line =~ /^\s*\#{1,3}\s+\S/
 
           l = line.strip.sub(/^[-*]\s*/, '')
           refs << l unless l.empty?
@@ -454,35 +510,179 @@ module PWN
     end
 
     # Supported Method Parameters::
+    # out = PWN::Config.write_skill(
+    #   name:        'required - free-form; sanitised to [a-z0-9-]',
+    #   content:     'required - markdown body (WITHOUT frontmatter)',
+    #   description: 'optional - 1..1024 chars; derived from body when omitted',
+    #   references:  'optional - Array of URLs / CWE / CVE / ATT&CK / NIST ids',
+    #   license:     'optional - SPDX id or free text',
+    #   metadata:    'optional - Hash of arbitrary metadata',
+    #   allowed_tools:   'optional - Array of toolset names',
+    #   pwn_skills_path: 'optional - override skills root'
+    # )
+    #
+    # The single agentskills.io-conformant writer used by skill_create,
+    # learning_distill_skill and migrate_legacy_skills. Always writes
+    # <root>/<name>/SKILL.md with required name+description frontmatter.
+    public_class_method def self.write_skill(opts = {})
+      root = opts[:pwn_skills_path] || pwn_skills_path
+      name = sanitize_skill_name(name: opts[:name])
+      body = opts[:content].to_s
+      raise ArgumentError, 'content is required' if body.strip.empty?
+
+      # If caller handed us a body that already has frontmatter, strip &
+      # merge it so we never emit doubled `---` blocks.
+      parsed = parse_skill_frontmatter(content: body)
+      body   = parsed[:body].to_s.sub(/\A\n+/, '')
+      merged = parsed[:frontmatter]
+
+      desc = (opts[:description] || merged['description'] || merged[:description]).to_s.strip
+      if desc.empty?
+        first = body.lines.reject { |l| l.strip.empty? || l.strip.start_with?('#') }.first.to_s.strip
+        first = body.lines.first.to_s.strip.sub(/^#+\s*/, '') if first.empty?
+        desc  = first[0, 1024]
+      end
+      desc = desc[0, 1024]
+      raise ArgumentError, 'description could not be derived (empty body?)' if desc.empty?
+
+      refs  = (Array(opts[:references]) + Array(merged['references']) + Array(merged[:references]))
+              .map(&:to_s).map(&:strip).reject(&:empty?).uniq
+      meta  = merged['metadata'] || merged[:metadata] || {}
+      meta  = {} unless meta.is_a?(Hash)
+      meta  = meta.merge(opts[:metadata]) if opts[:metadata].is_a?(Hash)
+      meta['references'] = refs unless refs.empty?
+
+      fm = { 'name' => name, 'description' => desc }
+      fm['license']       = opts[:license].to_s                       if opts[:license]
+      fm['allowed-tools'] = Array(opts[:allowed_tools]).map(&:to_s)   if opts[:allowed_tools]
+      fm['metadata']      = meta                                      unless meta.empty?
+
+      require 'yaml'
+      frontmatter = YAML.dump(fm).sub(/\A---\n/, '') # YAML.dump already emits leading ---
+      out = "---\n#{frontmatter}---\n\n#{body.rstrip}\n"
+      out << "\n## References\n#{refs.map { |r| "- #{r}" }.join("\n")}\n" if refs.any? && body !~ /^\#{1,3}\s*References\s*$/i
+
+      dir  = File.join(root, name)
+      path = File.join(dir, SKILL_ENTRY)
+      FileUtils.mkdir_p(dir)
+      File.write(path, out)
+
+      { name: name, dir: dir, path: path, bytes: out.bytesize, description: desc, references: refs, format: :agentskills }
+    end
+
+    # Supported Method Parameters::
+    # report = PWN::Config.migrate_legacy_skills(
+    #   pwn_skills_path: 'optional - override skills root',
+    #   delete_legacy:   'optional - remove flat file after migration (default true)'
+    # )
+    #
+    # One-shot converter: every flat ~/.pwn/skills/*.md (etc.) becomes a
+    # spec-conformant <name>/SKILL.md with backfilled frontmatter. Idempotent.
+    public_class_method def self.migrate_legacy_skills(opts = {})
+      root = opts[:pwn_skills_path] || pwn_skills_path
+      del  = opts.fetch(:delete_legacy, true)
+      migrated = []
+      Dir.glob(File.join(root, '*.{rb,md,txt,skill,yml,yaml}')).each do |legacy|
+        content = File.read(legacy)
+        base    = File.basename(legacy, '.*')
+        out     = write_skill(name: base, content: content, pwn_skills_path: root)
+        if File.extname(legacy) == '.rb'
+          FileUtils.mkdir_p(File.join(out[:dir], 'scripts'))
+          FileUtils.cp(legacy, File.join(out[:dir], 'scripts', File.basename(legacy)))
+        end
+        FileUtils.rm_f(legacy) if del
+        migrated << { from: legacy, to: out[:path] }
+      rescue StandardError => e
+        migrated << { from: legacy, error: e.message }
+      end
+      load_skills(pwn_skills_path: root)
+      { migrated: migrated.length, details: migrated }
+    end
+
+    # Supported Method Parameters::
     # skills = PWN::Config.load_skills(
     #   pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'
     # )
     #
-    # Loads instruction-based skills (.md, .txt, .skill, .yaml) and executable Ruby skills (.rb)
-    # into PWN::Skills constant (hash of basename => {type, path, content, loaded?}).
-    # The pwn-ai command (REPL driver) loads and is aware of this folder to expand
-    # autonomous agent capabilities (skill documents loaded for task execution).
+    # Loads skills into the PWN::Skills constant. Two on-disk shapes are
+    # accepted so upgrades are seamless:
+    #
+    #   agentskills.io  →  <root>/<name>/SKILL.md      (preferred; written by write_skill)
+    #   legacy flat     →  <root>/<name>.{md,txt,rb,skill,yml,yaml}
+    #
+    # Each entry: { type:, format:, path:, dir:, content:, description:,
+    #               references:, frontmatter:, loaded:?, error:? }
     public_class_method def self.load_skills(opts = {})
-      pwn_skills_path = opts[:pwn_skills_path] || PWN::Env[:pwn_skills_path] || pwn_skills_path
+      pwn_skills_path = opts[:pwn_skills_path] || (PWN.const_defined?(:Env) && PWN::Env.is_a?(Hash) && PWN::Env[:pwn_skills_path]) || self.pwn_skills_path
       FileUtils.mkdir_p(pwn_skills_path) if pwn_skills_path && !Dir.exist?(pwn_skills_path.to_s)
 
       skills = {}
       return skills unless pwn_skills_path && Dir.exist?(pwn_skills_path.to_s)
 
+      # ── agentskills.io directory layout ───────────────────────────────
+      Dir.glob(File.join(pwn_skills_path, '*', SKILL_ENTRY)).each do |entry|
+        dir     = File.dirname(entry)
+        key     = File.basename(dir).to_sym
+        content = File.read(entry)
+        parsed  = parse_skill_frontmatter(content: content)
+        fm      = parsed[:frontmatter]
+        desc    = (fm['description'] || fm[:description]).to_s.strip
+        desc    = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
+        scripts = Dir.glob(File.join(dir, 'scripts', '*.rb'))
+
+        meta = {
+          type: scripts.any? ? :ruby : :instruction,
+          format: :agentskills,
+          path: entry,
+          dir: dir,
+          content: content,
+          description: desc,
+          frontmatter: fm,
+          references: parse_skill_references(content: content),
+          allowed_tools: Array(fm['allowed-tools'] || fm[:'allowed-tools'] || fm['allowed_tools'])
+        }
+
+        scripts.each do |rb|
+          require rb
+        rescue StandardError => e
+          meta[:loaded] = false
+          meta[:error]  = e.message
+        end
+        meta[:loaded] = true unless meta.key?(:loaded) || scripts.empty?
+
+        skills[key] = meta
+      end
+
+      # ── legacy flat files (backward-compat shim) ──────────────────────
       Dir.glob(File.join(pwn_skills_path, '*.{rb,md,txt,skill,yml,yaml}')).each do |skill_file|
-        basename = File.basename(skill_file, '.*').to_sym
+        key = File.basename(skill_file, '.*').to_sym
+        next if skills.key?(key) # directory format wins on collision
+
         content = File.read(skill_file)
-        ext = File.extname(skill_file).downcase
+        ext     = File.extname(skill_file).downcase
+        parsed  = parse_skill_frontmatter(content: content)
+        desc    = parsed[:body].to_s.lines.reject { |l| l.strip.empty? || l.strip.start_with?('#', '---') }.first.to_s.strip
+        desc    = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
+
+        base = {
+          format: :legacy,
+          path: skill_file,
+          dir: pwn_skills_path,
+          content: content,
+          description: desc,
+          frontmatter: parsed[:frontmatter],
+          references: parse_skill_references(content: content)
+        }
 
         if ext == '.rb'
           begin
             require skill_file
-            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: true, references: parse_skill_references(content: content) }
+            skills[key] = base.merge(type: :ruby, loaded: true)
           rescue StandardError => e
-            skills[basename] = { type: :ruby, path: skill_file, content: content, loaded: false, error: e.message, references: parse_skill_references(content: content) }
+            skills[key] = base.merge(type: :ruby, loaded: false, error: e.message)
           end
         else
-          skills[basename] = { type: :instruction, path: skill_file, content: content, references: parse_skill_references(content: content) }
+          skills[key] = base.merge(type: :instruction)
         end
       end
 
@@ -536,6 +736,21 @@ module PWN
         #{self}.redact_sensitive_artifacts(
           config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
         )
+
+        #{self}.pwn_skills_path
+
+        #{self}.sanitize_skill_name(name: '...')
+
+        #{self}.write_skill(
+          name: 'required', content: 'required',
+          description: 'optional', references: 'optional Array',
+          license: 'optional', metadata: 'optional Hash',
+          allowed_tools: 'optional Array', pwn_skills_path: 'optional'
+        )
+
+        #{self}.load_skills(pwn_skills_path: 'optional')
+
+        #{self}.migrate_legacy_skills(pwn_skills_path: 'optional', delete_legacy: true)
 
         #{self}.refresh_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',

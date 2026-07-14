@@ -8,7 +8,7 @@ require 'pwn/version'
 Gem::Specification.new do |spec|
   ruby_version = ">= #{File.read('.ruby-version').split('-').last.chomp}".freeze
   # spec.required_ruby_version = ruby_version
-  spec.required_ruby_version = '>= 4.0.0'
+  spec.required_ruby_version = '>= 3.3'
   spec.name = 'pwn'
   spec.version = PWN::VERSION
   spec.authors = ['0day Inc.']
@@ -20,7 +20,14 @@ Gem::Specification.new do |spec|
   spec.metadata['rubygems_mfa_required'] = 'true'
   spec.metadata['funding_uri'] = 'https://github.com/sponsors/0dayInc'
 
-  spec.files = `git ls-files -z`.split("\x00")
+  # `-c safe.directory='*'` — container CI (actions/checkout in a `container:` job)
+  # leaves the checkout owned by a different UID than the step's shell, so a
+  # bare `git ls-files` fails with "detected dubious ownership" and this gem
+  # would silently build with ZERO files. Force-trust the cwd for this one
+  # read-only invocation and fail LOUD if it's still empty.
+  spec.files = `git -c safe.directory='*' ls-files -z 2>/dev/null`.split("\x00")
+  raise "pwn.gemspec: git ls-files returned no files - not a git checkout, or git safe.directory refused '#{__dir__}'" if spec.files.empty?
+
   spec.executables = spec.files.grep(%r{^bin/}) do |f|
     File.basename(f)
   end
@@ -52,6 +59,29 @@ Gem::Specification.new do |spec|
     rspec
   ]
 
+  # Native-extension gems (and gems that hard-depend on them) whose OS
+  # headers are provisioned *after* install by `pwn setup` / PWN::Setup.
+  # They are declared as *development* dependencies so that
+  #     gem install pwn
+  # succeeds on a bare host (documentation/Installation.md's two-step
+  # promise) and `pwn setup --profile <x>` then installs the OS packages
+  # + `gem install`s these on demand. Keep in sync with
+  # PWN::Setup::NATIVE_GEMS (lib/pwn/setup.rb).
+  setup_managed_arr = %w[
+    curses
+    eventmachine
+    faye-websocket
+    gruff
+    libusb
+    pg
+    rmagick
+    rtesseract
+    ruby-audio
+    sqlite3
+    thin
+    waveform
+  ]
+
   File.readlines('./Gemfile').each do |line|
     # Robust parser: extract name and version using regex to handle quotes, operators (>=, <), and avoid empty/invalid versions.
     # Anchor with ^\\s* to only match active (non-commented) gem declarations at start of line.
@@ -64,7 +94,9 @@ Gem::Specification.new do |spec|
     # Good for debugging issues in Gemfile
     # puts "pwn.gemspec: Adding dependency: #{gem_name} #{gem_version}"
 
-    if dev_dependency_arr.include?(gem_name.to_sym)
+    if dev_dependency_arr.include?(gem_name.to_sym) || setup_managed_arr.include?(gem_name)
+      # setup_managed_arr gems are installed post-hoc by `pwn setup` (PWN::Setup.deps)
+      # once the matching OS headers are present — NOT hard runtime dependencies.
       spec.add_development_dependency(
         gem_name,
         gem_version

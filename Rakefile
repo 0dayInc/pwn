@@ -20,5 +20,5 @@ if defined?(RDoc::Task)
 end
 
 default_tasks = %i[spec rubocop]
-default_tasks << :rdoc if defined?(RDoc::Task)
+default_tasks << :rerdoc if defined?(RDoc::Task)
 task default: default_tasks

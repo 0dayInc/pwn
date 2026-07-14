@@ -34,7 +34,9 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts "USAGE:
+        # NB: bare `puts` here would resolve to the FFI-attached libc puts
+        # (writes to C stdout, bypasses $stdout capture, flushes at exit).
+        $stdout.puts "USAGE:
           #{self}.puts string
           #{self}.printf(\"format string\", str, int, etc)
 

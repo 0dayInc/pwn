@@ -41,7 +41,8 @@ echo "[pwn.sh] provider=${pwn_provider:-none} root=${pwn_root} profile=${pwn_pro
 if ! command -v pwn >/dev/null 2>&1; then
   if [[ -f "${pwn_root}/pwn.gemspec" ]]; then
     echo "[pwn.sh] building & installing gem from ${pwn_root}"
-    ( cd "${pwn_root}" && bundle install && rake install ) \
+    git config --global --add safe.directory "${pwn_root}" 2>/dev/null || true
+    ( cd "${pwn_root}" && command -v bundle >/dev/null 2>&1 && bundle install && rake install ) \
       || ( cd "${pwn_root}" && gem build pwn.gemspec && gem install --no-document ./pwn-*.gem )
   else
     echo "[pwn.sh] no checkout at ${pwn_root}; installing from rubygems.org"

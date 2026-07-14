@@ -17,7 +17,7 @@ needed to unlock the ones you want. No `/opt/pwn` checkout, no `rvmsudo`
 chain, no bash provisioners required.
 
 Tested on **Kali / Debian / Ubuntu**, **Fedora**, **Arch**, and **macOS**
-(Homebrew or MacPorts). Ruby ≥ 3.4 (RVM, rbenv, asdf, or system Ruby).
+(Homebrew or MacPorts). Ruby ≥ 3.3 (RVM, rbenv, asdf, or system Ruby).
 
 ---
 
