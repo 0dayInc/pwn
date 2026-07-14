@@ -105,7 +105,13 @@ jobs:
         # "detected dubious ownership" and the gem builds with ZERO files.
         run: git config --global --add safe.directory "$PWD"
       - name: build & install gem from checkout (git-checkout path in doc)
+        # `gem update --system` first: distro rubies ship RubyGems 3.x whose
+        # Molinillo resolver crashes with `undefined method 'request' for nil`
+        # (rubygems/rubygems#6215) instead of naming the unsatisfiable dep
+        # when a runtime dependency's required_ruby_version excludes this ruby.
+        # A modern RubyGems prints the real conflict.
         run: |
+          gem update --system --no-document || true
           gem build pwn.gemspec
           gem install --no-document ./pwn-*.gem
           gem install --no-document rspec
@@ -139,6 +145,7 @@ jobs:
 
       - name: build & install gem from checkout
         run: |
+          gem update --system --no-document || true
           gem build pwn.gemspec
           gem install --no-document ./pwn-*.gem
           gem install --no-document rspec

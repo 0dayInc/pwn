@@ -102,6 +102,16 @@ module PWN
         apt: %w[imagemagick libmagickwand-dev], dnf: %w[ImageMagick-devel],
         pacman: %w[imagemagick], brew: %w[imagemagick], port: %w[imagemagick],
         plugins: %w[PWN::Reports]
+      },
+      # Not a native extension, but gated by required_ruby_version >= 4.0 on
+      # rubygems.org — so it cannot be a hard runtime dependency of pwn while
+      # pwn.gemspec advertises `>= 3.3`. Managed here instead so
+      # `gem install pwn` succeeds on distro rubies (3.3/3.4) and `pwn setup`
+      # installs it post-hoc where possible. See install-matrix.yml.
+      'meshtastic' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        min_ruby: '4.0.0',
+        plugins: %w[PWN::Plugins::REPL#pwn-mesh]
       }
     }.freeze
 
@@ -398,6 +408,15 @@ module PWN
 
       prof     = PROFILES[profile]
       gems     = Array(prof[:gems])
+      # Drop setup-managed gems whose upstream required_ruby_version excludes
+      # THIS ruby (e.g. meshtastic >= 4.0 on a distro ruby 3.3) — otherwise
+      # `gem install` in the loop below fails and takes the whole profile with it.
+      gems = gems.reject do |g|
+        floor = NATIVE_GEMS.dig(g, :min_ruby)
+        skip  = floor && Gem::Version.new(RUBY_VERSION) < Gem::Version.new(floor)
+        io.puts "  \e[33mskip\e[0m #{g} — requires ruby >= #{floor} (running #{RUBY_VERSION})" if skip
+        skip
+      end
       bins     = Array(prof[:bins])
       os_pkgs  = []
       gems.each { |g| os_pkgs.concat(Array(NATIVE_GEMS.dig(g, pm[:key]))) }
