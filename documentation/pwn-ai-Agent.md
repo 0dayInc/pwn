@@ -10,7 +10,7 @@ a final answer - **learning from every failure so it doesn't repeat it**.
 
 ```text
 # 1. Interactive TUI (inside the pwn REPL)
-pwn[v0.5.622]:001 >>> pwn-ai
+pwn[CURRENT_VERSION]:001 >>> pwn-ai
 ✨ pwn-ai · anthropic · session 20260707_225041_d7f2f3bb
 > Use NmapIt to sweep 10.0.0.0/24, then TransparentBrowser via Burp on any
   host with 443 open, active-scan, and give me a Reports::SAST summary.

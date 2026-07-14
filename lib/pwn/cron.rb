@@ -199,6 +199,44 @@ module PWN
       jobs[id]
     end
 
+    # Supported Method Parameters::
+    #   PWN::Cron.install_defaults
+    # Idempotently seed the RL feedback-loop cron jobs so a fresh install
+    # closes the loop by default (S1 nightly practice + W2 weekly train dry-run).
+    # Re-running is a no-op if jobs with these names already exist.
+    # These are seeded to jobs.yml only — pass install_crontab: true to
+    # PWN::Cron.create yourself if you also want a system crontab entry.
+    public_class_method def self.install_defaults
+      jobs = load_jobs
+      names = jobs.values.map { |j| j[:name] }
+      seeded = []
+
+      unless names.include?('curriculum_practice_nightly')
+        seeded << create(
+          name: 'curriculum_practice_nightly',
+          schedule: '0 3 * * *',
+          ruby: 'PWN::AI::Agent::Curriculum.practice(limit: 3) if defined?(PWN::AI::Agent::Curriculum)',
+          delivery: 'log',
+          enabled: true
+        )
+      end
+
+      unless names.include?('curriculum_train_weekly')
+        seeded << create(
+          name: 'curriculum_train_weekly',
+          schedule: '0 4 * * 0',
+          ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true) if defined?(PWN::AI::Agent::Curriculum)',
+          delivery: 'log',
+          enabled: true
+        )
+      end
+
+      seeded
+    rescue StandardError => e
+      warn("[PWN::Cron] install_defaults failed: #{e.class}: #{e.message}")
+      []
+    end
+
     # Author(s):: 0day Inc. <support@0dayinc.com>
 
     public_class_method def self.authors
@@ -216,6 +254,7 @@ module PWN
           PWN::Cron.disable(id: 'abc123')
           PWN::Cron.remove(id: 'abc123')
           # To have system cron call it, use install_crontab_entry or the :install_crontab option on create
+          PWN::Cron.install_defaults  # seed S1/W2 curriculum jobs (idempotent)
 
           #{self}.authors
       USAGE

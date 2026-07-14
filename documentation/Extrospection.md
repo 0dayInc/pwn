@@ -13,7 +13,7 @@ say when I need it for a better answer?"*
 | Song on 101.1 FM (RDS) | **`extro_rf_tune(freq: "101.1")`** → RDS `now_playing` / `station` |
 | CVE / Exploit-DB hit | `extro_intel` / `extro_verify(kind: :cve)` |
 | Target DOM / TLS drift | `extro_watch(url:)` / `extro_snapshot(sections: [:web])` |
-| Reverse phone / person / FCC ID / patent / IP pivot | **`extro_osint(query:)`** |
+| Reverse phone / person / @handle sweep / FCC ID / patent / IP pivot | **`extro_osint(query:)`** |
 | Serial / USB-UART / AT-modem banner | **`extro_serial`** |
 | SIP / VoIP / BareSIP status or dial | **`extro_telecomm`** |
 | Live capture / pcap summary | **`extro_packet`** |
@@ -81,7 +81,7 @@ Override / extend via `PWN::Env[:ai][:agent][:extrospection][:web][:anchors]`; s
 | **`extro_watch`** | **Render a URL headless, hash the *rendered* DOM, screenshot, diff vs prior** | `observations[]` (`category: :web`) |
 | **`extro_verify`** | **Browser-backed self fact-check of a claim (`:cve` `:version` `:doc` `:generic`) → `:confirmed`/`:refuted`/`:unknown`** | `Mistakes.record` / `observe(:intel)` / `Learning.note_outcome` |
 | **`extro_rf_tune`** | **Tune running GQRX + demod + strength + RDS sample → `now_playing` / `station`** | `observations[]` (`category: :rf`, ttl 300s) |
-| **`extro_osint`** | **Aggregate public OSINT APIs (phone / IP / domain / FCC ID / patent / VIN / MAC / callsign / person / company / SEC / CourtListener / Federal Register / UK Police / OTX / URLHaus / openFDA / NPPES / Nominatim / EPSS / CISA KEV / Microlink / vital records / Shodan / Hunter / AbuseIPDB / VT / HIBP / Wayback)** | `observations[]` (`category: :osint`) |
+| **`extro_osint`** | **Aggregate public OSINT APIs (phone / IP / domain / FCC ID / patent / VIN / MAC / callsign / person / company / SEC / CourtListener / Federal Register / UK Police / OTX / URLHaus / openFDA / NPPES / Nominatim / EPSS / CISA KEV / Microlink / vital records / Shodan / Hunter / AbuseIPDB / VT / HIBP / Wayback) + social/identity feeds (Keybase / Gravatar / Mastodon / Bluesky / HN / StackExchange / npm / PyPI / RubyGems / crates / DockerHub / Codeberg / Steam / Telegram + ~100-site presence sweep) + local-tool bridges (theHarvester / spiderfoot / amass / recon-ng)** | `observations[]` (`category: :osint`) |
 | **`extro_serial`** | **Open serial device · optional payload · drain response · disconnect** | `observations[]` (`category: :serial`) |
 | **`extro_telecomm`** | **BareSIP inventory / status / dial / hangup (never launches baresip)** | `observations[]` (`category: :telecomm`) |
 | **`extro_packet`** | **Inventory · bounded live capture · pcap summarise (tshark/PacketFu)** | `observations[]` (`category: :packet`) |
@@ -185,14 +185,15 @@ unreachable endpoints return `{error:...}` instead of raising.
 |---|---|---|
 | `:ip` | IPv4 / IPv6 | ip · geo · ipapi_is · iplocate · ipwhois · dns · rdap · bgpview · otx · abuseipdb · greynoise · shodan · hackertarget |
 | `:geo` | street-like address / geo query | geo · nominatim · ip |
-| `:domain` / `:dns` / `:whois` / `:rdap` | FQDN | dns · whois · rdap · crtsh · certspotter · wayback · otx · urlhaus · urlscan · shodan · securitytrails · hackertarget |
+| `:domain` / `:dns` / `:whois` / `:rdap` | FQDN | dns · whois · rdap · crtsh · certspotter · wayback · otx · urlhaus · urlscan · shodan · securitytrails · hackertarget · theharvester · amass |
 | `:url` | `http(s)://...` | urlscan · otx · urlhaus · wayback · microlink · virustotal |
-| `:email` | `a@b.c` | hunter · person · github · haveibeenpwned |
+| `:email` | `a@b.c` | hunter · person · github · haveibeenpwned · gravatar · keybase |
 | `:phone` | E.164 / NANP | phone · person |
 | `:fcc_id` | `2ABIP-ESP32` style | fcc_id |
 | `:patent` | `US10123456` / `patent ...` | patent |
 | `:person` | `Jane Doe` | person · username · github · open_sanctions · agify · genderize · nationalize · vital_records |
-| `:username` / `:github` | `@handle` / `gh:` | username · github |
+| `:username` / `:github` | bare `handle` / `gh:` | username · github · keybase · hackernews · social_sweep |
+| `:social` | `@handle` / `@user@instance` (Fediverse) | keybase · gravatar · mastodon · bluesky · hackernews · stackexchange · npm · pypi · rubygems · crates · dockerhub · codeberg · sourcehut · chesscom · lichess · steam · telegram · github · social_sweep |
 | `:company` | `... Inc.` / `LLC` / `Ltd` | opencorporates · sec_edgar · federal_register · person · courtlistener |
 | `:cik` | 10-digit CIK | sec_edgar · opencorporates |
 | `:vital_records` | birth/death/marriage keywords | vital_records · person |
@@ -220,7 +221,7 @@ unreachable endpoints return `{error:...}` instead of raising.
 | `:fcc_id` | fccid.io · device.report · fcc.gov OET | grantee/product, MHz excerpts |
 | `:patent` | Google Patents HTML + PatentsView API | title, number, assignee, date |
 | `:person` | Wikipedia · Wikidata · OpenSanctions + NamUs/FBI/Charley targets | missing-person pivot plan |
-| `:username` / `:github` | GitHub · GitLab · Reddit public APIs | profile pivots |
+| `:username` / `:github` | GitHub · GitLab · Reddit public APIs | legacy 3-platform profile pivots (kept for back-compat) |
 | `:wayback` | archive.org availability + CDX | snapshots |
 | `:otx` | AlienVault OTX indicators + passive DNS | IP/domain/url |
 | `:urlhaus` | abuse.ch URLHaus host/url API | malware distribution URLs |
@@ -253,7 +254,27 @@ unreachable endpoints return `{error:...}` instead of raising.
 | `:agify` / `:genderize` / `:nationalize` | agify.io · genderize.io · nationalize.io | First-name age/gender/nationality estimates |
 | `:haveibeenpwned` | haveibeenpwned.com v3 | Breach membership - **needs** `HIBP_API_KEY` |
 | `:securitytrails` | api.securitytrails.com | Domain DNS history - **needs** `SECURITYTRAILS_API_KEY` |
-
+| `:keybase` | keybase.io lookup API | **crypto-proven** cross-links (Twitter/GitHub/DNS/PGP) → highest-confidence pivots |
+| `:gravatar` | gravatar.com profile JSON | email → md5 → username, verified accounts, bio, urls |
+| `:mastodon` | `<instance>/api/v1/accounts/lookup` + WebFinger | Fediverse identity; instance defaults to `mastodon.social` |
+| `:bluesky` | public.api.bsky.app `getProfile` | DID, handle, followers, bio |
+| `:hackernews` | hn.algolia.com users + submissions | karma, about, recent posts |
+| `:stackexchange` | api.stackexchange.com users?inname= | rep, location, website |
+| `:npm` | registry.npmjs.org user + maintainer search | packages, email, GitHub/Twitter |
+| `:pypi` | pypi.org/user/ (HTML) | packages maintained |
+| `:rubygems` | rubygems.org owners/gems API | gems, downloads, homepage |
+| `:crates` | crates.io users API | login, name, url |
+| `:dockerhub` | hub.docker.com v2 users + repos | full_name, company, images |
+| `:codeberg` | codeberg.org Gitea API | login, full_name, website, location |
+| `:sourcehut` | sr.ht/~user (presence) | HTTP presence check |
+| `:chesscom` / `:lichess` | api.chess.com · lichess.org/api | real name, country, timezone leak |
+| `:steam` | steamcommunity.com XML / ISteamUser | vanity → SteamID64, persona; **key upgrades** to ISteamUser |
+| `:telegram` | t.me/<user> og:meta scrape | display name, description (200 always → body-heuristic) |
+| `:social_sweep` | `etc/osint/social_sites.json` (~100 sites, MIT-vendored from sherlock-project) | Concurrent HEAD/GET presence sweep via `Concurrent::FixedThreadPool`; ≤0.5 confidence (soft-404s possible) |
+| `:theharvester` | **local bin** `theHarvester -b <sources> -f json` | domain → hosts, emails, IPs, ASNs (passive sources only) |
+| `:amass` | **local bin** `amass enum -passive -json` | domain → subdomains + resolved addresses |
+| `:spiderfoot` | **local bin** `spiderfoot -s <t> -m <mods> -o json -q` | headless CLI events grouped by type; web UI never launched |
+| `:reconng` | **local bin** `recon-ng -r <resource>` | domain → hosts via hackertarget + CT modules; workspace auto-cleaned |
 > Feed selection inspired by [public-api-lists/public-api-lists](https://github.com/public-api-lists/public-api-lists) (Anti-Malware, Security, Geocoding, Government, Health, Open Data, Vehicle, Development).
 
 ### Examples
@@ -294,6 +315,18 @@ extro_osint(query: "CVE-2021-44228")
 
 extro_osint(query: "8.8.8.8", feeds: ["ipapi_is", "iplocate", "greynoise", "abuseipdb"])
   → multi-source IP threat/geo (keyed feeds skip cleanly when no key)
+
+extro_osint(query: "@defunkt")
+  → kind=:social · Keybase proofs + Bluesky DID + HN karma + npm/RubyGems/DockerHub + ~100-site sweep
+
+extro_osint(query: "@gargron@mastodon.social")
+  → kind=:social · Fediverse WebFinger + Mastodon profile
+
+extro_osint(query: "defunkt", feeds: ["social_sweep"], limit: 50)
+  → Sherlock-mode presence sweep only (107 sites, ~10-15 s @ 16 threads)
+
+extro_osint(query: "target.tld", feeds: ["theharvester", "amass"])
+  → local-tool bridges: passive subdomain + email harvest (skips cleanly if bins absent)
 ```
 
 Configure:
@@ -308,12 +341,26 @@ PWN::Env[:ai][:agent][:extrospection][:osint] = {
     virustotal: '...',
     greynoise: '...',
     haveibeenpwned: '...',
-    securitytrails: '...'
+    securitytrails: '...',
+    steam: '...'
+  },
+  social: {
+    sites_file: '/opt/pwn/etc/osint/social_sites.json',   # override / extend the vendored sherlock-derived list
+    max_threads: 16,                                       # concurrent presence checks in :social_sweep
+    max_sites: 120,                                        # cap sites read from sites_file
+    timeout: 6,                                            # per-site HTTP timeout (seconds)
+    mastodon_instance: 'mastodon.social'                   # default Fediverse instance for bare @handle
+  },
+  bridges: {
+    timeout: 120,                                          # per-tool wall clock (seconds)
+    theharvester_sources: 'anubis,crtsh,hackertarget,otx,rapiddns,urlscan,certspotter,dnsdumpster,duckduckgo',
+    spiderfoot_modules: 'sfp_dnsresolve,sfp_crt,sfp_hackertarget,sfp_dnsdumpster,sfp_wayback,sfp_social',
+    amass_passive: true                                    # false → active enum (touches target DNS)
   }
 }
 # ENV fallbacks also accepted:
 #   SHODAN_API_KEY, HUNTER_API_KEY, ABUSEIPDB_API_KEY, VIRUSTOTAL_API_KEY,
-#   GREYNOISE_API_KEY, HIBP_API_KEY, SECURITYTRAILS_API_KEY
+#   GREYNOISE_API_KEY, HIBP_API_KEY, SECURITYTRAILS_API_KEY, STEAM_API_KEY
 ```
 
 
@@ -481,6 +528,10 @@ use **Chicago** so the catalog stays portable.
 - "Any prior litigation or SEC 8-K breach filings for `Target Corp` before we disclose?"
 - "Wayback the old `/admin` path - did an earlier deploy expose a debug console?"
 - "Pivot `@lead-dev` across GitHub/GitLab - hardcoded secrets in personal repos?"
+- "Sweep `@lead-dev` across ~100 socials - which platforms reuse that handle, and does Keybase crypto-prove any of them?"
+- "Gravatar `alice@target.tld` - what username, avatar and verified accounts leak from that email?"
+- "Which npm / PyPI / RubyGems / DockerHub packages does `@maintainer` own - supply-chain blast radius?"
+- "Run theHarvester + amass (passive) against `target.tld` and merge with our crt.sh subdomains."
 
 ### Serial / hardware sense organ (`extro_serial`)
 
@@ -571,7 +622,7 @@ use **Chicago** so the catalog stays portable.
 | Pattern | Likely tools |
 |---|---|
 | "tune / MHz / FM / RDS / ISM / key-fob / pager / ADS-B" | `extro_rf_tune` |
-| "subdomain / CT log / ASN / whois / FCC ID / VIN / MAC OUI / EPSS / KEV / Wayback / pivot @user" | `extro_osint` |
+| "subdomain / CT log / ASN / whois / FCC ID / VIN / MAC OUI / EPSS / KEV / Wayback / pivot @user / Keybase / Gravatar / social sweep / theHarvester / amass" | `extro_osint` |
 | "UART / ttyUSB / U-Boot / AT command / Flipper / JTAG banner" | `extro_serial` |
 | "SIP / PBX / IVR / BareSIP / dial / hangup" | `extro_telecomm` |
 | "capture on iface / summarise pcap / mDNS / Modbus / RTSP creds" | `extro_packet` |

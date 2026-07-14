@@ -40,7 +40,11 @@ module PWN
     #   PWN::Memory.remember(
     #     key: 'required - Symbol or String key for the memory fact',
     #     value: 'required - The value (any JSON serializable)',
-    #     category: 'optional - e.g. :fact, :preference, :lesson, :env (default: :fact)'
+    #     category: 'optional - e.g. :fact, :preference, :lesson, :env (default: :fact)',
+    #     source: 'optional - :human | :reflect | :heuristic | :resolve | :consolidate (M3 provenance)',
+    #     confidence: 'optional - 0.0..1.0 how sure the writer was (M3)',
+    #     importance: 'optional - 0.0..1.0 retrieval/eviction weight (M2/M3)',
+    #     ttl: 'optional - seconds until stale (M3; consolidate evicts stale low-conf first)'
     #   )
     public_class_method def self.remember(opts = {})
       key = opts[:key]
@@ -50,12 +54,19 @@ module PWN
       raise 'ERROR: key and value are required' if key.nil? || value.nil?
 
       mem = load
-      mem[key.to_sym] = {
+      entry = {
         value: value,
         category: category.to_sym,
         timestamp: Time.now.utc.iso8601,
-        source: 'pwn-ai'
-      }
+        # M3 — provenance & scoring so Learning.consolidate evicts by
+        # (age/ttl)/(importance×confidence) instead of oldest-first, and
+        # MemoryIndex.recall_semantic ranks by sim × recency × importance.
+        source: (opts[:source] || 'pwn-ai').to_s,
+        confidence: opts[:confidence]&.to_f&.clamp(0.0, 1.0),
+        importance: opts[:importance]&.to_f&.clamp(0.0, 1.0),
+        ttl: opts[:ttl]&.to_i
+      }.compact
+      mem[key.to_sym] = entry
       save(mem: mem)
       mem[key.to_sym]
     end

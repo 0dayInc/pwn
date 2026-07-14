@@ -1,0 +1,177 @@
+# .github/workflows/install-matrix.yml
+#
+# Layer 3 of the Installation.md verification strategy: prove the
+# fresh-host install path ("gem install pwn && pwn setup") on clean
+# images for every distro / package manager the doc claims to support,
+# then assert the result *via rspec* so failures read like the rest of
+# the test suite.
+#
+# Layers 1 & 2 (doc↔code parity, behavioural contracts) live in
+# spec/documentation/installation_md_spec.rb.
+# Layer 3's functional assertions live in
+# spec/integration/fresh_install_spec.rb and only activate when
+# PWN_FRESH_INSTALL is set — this workflow sets it, `rake` on a
+# developer box does not.
+#
+# This is world-drift, not repo-drift — distro package names change
+# upstream — so it also runs nightly.
+name: install-matrix
+
+on:
+  push:
+    paths:
+      - 'lib/pwn/setup.rb'
+      - 'bin/pwn_setup'
+      - 'bin/pwn'
+      - 'documentation/Installation.md'
+      - 'install.sh'
+      - 'packer/provisioners/pwn.sh'
+      - 'pwn.gemspec'
+      - '.github/workflows/install-matrix.yml'
+      - 'spec/documentation/installation_md_spec.rb'
+      - 'spec/integration/**'
+  pull_request:
+    paths:
+      - 'lib/pwn/setup.rb'
+      - 'bin/pwn_setup'
+      - 'bin/pwn'
+      - 'documentation/Installation.md'
+      - 'install.sh'
+      - 'packer/provisioners/pwn.sh'
+      - 'pwn.gemspec'
+      - 'spec/documentation/installation_md_spec.rb'
+      - 'spec/integration/**'
+  schedule:
+    - cron: '17 4 * * *'   # nightly — catch upstream distro package-name drift
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: ${{ matrix.image }} / ${{ matrix.pm }} / ${{ matrix.profile }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Base axes → 5 images × 2 profiles = 10 legs.
+        image:
+          - kalilinux/kali-rolling
+          - debian:bookworm
+          - ubuntu:24.04
+          - fedora:latest
+          - archlinux:latest
+        profile:
+          - core
+          - net
+        # `include` here EXTENDS each base combo whose `image` matches
+        # with the per-distro pm + ruby-bootstrap command; it does NOT
+        # add new combos. (Putting these under `include` alone with a
+        # separate top-level `profile:` would collapse to 2 legs — the
+        # bug this rewrite fixes.)
+        include:
+          - image: kalilinux/kali-rolling
+            pm: apt
+            ruby: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
+          - image: debian:bookworm
+            pm: apt
+            ruby: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
+          - image: ubuntu:24.04
+            pm: apt
+            ruby: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
+          - image: fedora:latest
+            pm: dnf
+            ruby: dnf install -y ruby ruby-devel redhat-rpm-config gcc gcc-c++ make git
+          - image: archlinux:latest
+            pm: pacman
+            ruby: pacman -Sy --noconfirm ruby base-devel git
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      PWN_FRESH_INSTALL: '1'
+      PWN_EXPECTED_PM: ${{ matrix.pm }}
+      PWN_PROFILE: ${{ matrix.profile }}
+    steps:
+      - name: bootstrap ruby (${{ matrix.pm }})
+        run: ${{ matrix.ruby }}
+
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: build & install gem from checkout (git-checkout path in doc)
+        run: |
+          gem build pwn.gemspec
+          gem install --no-document ./pwn-*.gem
+          gem install --no-document rspec
+          ruby -r pwn -e 'puts "pwn #{PWN::VERSION} ruby #{RUBY_VERSION} #{RUBY_PLATFORM}"'
+
+      - name: dry-run — every package name resolves for this distro
+        run: pwn setup --profile full --dry-run --yes
+
+      - name: provision profile (documentation/Installation.md verbatim)
+        run: pwn setup --profile ${{ matrix.profile }} --yes
+
+      - name: rspec — doc↔code parity + behavioural + fresh-install functional
+        run: |
+          rspec --format documentation \
+            spec/documentation/installation_md_spec.rb \
+            spec/integration/fresh_install_spec.rb
+
+  macos:
+    name: macos / brew / core
+    runs-on: macos-latest
+    env:
+      PWN_FRESH_INSTALL: '1'
+      PWN_EXPECTED_PM: brew
+      PWN_PROFILE: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+
+      - name: build & install gem from checkout
+        run: |
+          gem build pwn.gemspec
+          gem install --no-document ./pwn-*.gem
+          gem install --no-document rspec
+
+      - name: dry-run full profile
+        run: pwn setup --profile full --dry-run --yes
+
+      - name: provision core
+        run: pwn setup --profile core --yes
+
+      - name: rspec — doc↔code parity + behavioural + fresh-install functional
+        run: |
+          rspec --format documentation \
+            spec/documentation/installation_md_spec.rb \
+            spec/integration/fresh_install_spec.rb
+
+  git-checkout:
+    # "From a git checkout (contributors)" section of Installation.md —
+    # exercises packer/provisioners/pwn.sh end-to-end.
+    name: kali / git-checkout / packer-provisioner
+    runs-on: ubuntu-latest
+    container:
+      image: kalilinux/kali-rolling
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      PWN_FRESH_INSTALL: '1'
+      PWN_EXPECTED_PM: apt
+      PWN_PROFILE: core
+      PWN_ROOT: ${{ github.workspace }}
+    steps:
+      - run: apt-get update && apt-get install -y ruby-full ruby-dev build-essential git
+
+      - uses: actions/checkout@v4
+
+      - name: run legacy provisioner (must delegate to `pwn setup`)
+        run: bash packer/provisioners/pwn.sh
+
+      - name: rspec — fresh-install functional
+        run: |
+          gem install --no-document rspec
+          rspec --format documentation \
+            spec/documentation/installation_md_spec.rb \
+            spec/integration/fresh_install_spec.rb

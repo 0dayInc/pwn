@@ -101,7 +101,8 @@ module PWN
             # run PWN::AI::Agent::Learning.auto_introspect after every final answer
             auto_introspect: true,
             # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_introspect
-            auto_extrospect: false,
+            # (host/repo/env probes only — no toolchain/GUI/net side-effects)
+            auto_extrospect: true,
             # engine-agnostic scaffolding (defaults tuned for local models)
             plan_first: nil,               # nil = auto (true when :active == :ollama)
             tool_router: false,            # slim Registry.definitions to CORE + top-K relevant tools
@@ -204,6 +205,7 @@ module PWN
       env[:pwn_memory_path] = PWN::Memory::MEMORY_FILE if defined?(PWN::Memory)
       env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
       env[:pwn_cron_path] = PWN::Cron.cron_dir if defined?(PWN::Cron)
+      PWN::Cron.install_defaults if defined?(PWN::Cron) && PWN::Cron.respond_to?(:install_defaults)
 
       PWN.send(:remove_const, :Env) if PWN.const_defined?(:Env)
 
@@ -330,7 +332,13 @@ module PWN
                            (real_cfg.call(oauth[:client_id]) && real_cfg.call(oauth[:client_secret]))
       end
 
-      if key.nil? && !oauth_configured
+      # Never block a non-interactive process (backticks, CI, `pwn setup`
+      # under rvmsudo, headless -A) waiting on a TTY::Prompt read — only
+      # solicit an API key when BOTH stdin and stdout are terminals. Set
+      # PWN_NONINTERACTIVE=1 to force-skip even on a real TTY.
+      interactive = $stdin.tty? && $stdout.tty? && ENV['PWN_NONINTERACTIVE'].to_s.empty?
+
+      if key.nil? && !oauth_configured && interactive
         key = PWN::Plugins::AuthenticationHelper.mask_password(
           prompt: "#{engine} API Key (or store ai.grok.oauth.refresh_token via pwn-vault -- run PWN::AI::Grok.obtain_oauth_bearer_token to enroll)"
         )
@@ -369,6 +377,7 @@ module PWN
       PWN::Memory.load if defined?(PWN::Memory)
       env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
       env[:pwn_cron_path] = PWN::Cron.cron_dir if defined?(PWN::Cron)
+      PWN::Cron.install_defaults if defined?(PWN::Cron) && PWN::Cron.respond_to?(:install_defaults)
 
       # Assign the refreshed env to PWN::Env
 

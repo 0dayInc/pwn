@@ -1,6 +1,19 @@
 #!/bin/bash --login
+# install.sh — legacy multi-target deploy wrapper.
+#
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │  ALL OS-level provisioning (apt/dnf/pacman/brew/port packages,      │
+# │  native-gem headers, external toolchain) is delegated to           │
+# │                                                                     │
+# │      pwn setup --profile ${PWN_PROFILE:-full} --yes                 │
+# │                                                                     │
+# │  via packer/provisioners/pwn.sh → PWN::Setup (lib/pwn/setup.rb).    │
+# │  See documentation/Installation.md. For a plain user install just  │
+# │  run `gem install pwn && pwn setup` — this script is only needed   │
+# │  when building AWS / Docker / VirtualBox / VMware / vSphere images. │
+# └─────────────────────────────────────────────────────────────────────┘
 if [[ -d '/opt/pwn' ]]; then
-  pwn_root='/opt/pwn' 
+  pwn_root='/opt/pwn'
 else
   pwn_root="${PWN_ROOT}"
 fi
@@ -10,36 +23,31 @@ debug=$2
 pwn_deploy_type=$1
 os=$(uname -s)
 
-# TODO: Check that all configs exist
-# MAKE .EXAMPLE and actual file the same
-# if they're the same size prompt user to 
-# configure
-# TODO: install ansible in this script if not installed
-# to take advantage of encrypted configs early on
-
 function usage() {
   echo $"Usage: $0 <aws | docker_pwn_prototyper | docker_pwn_fuzz_net_app_proto | docker_pwn_transparent_browser | docker_pwn_sast | docker_pwn_www_checkip | ruby-gem | virtualbox | virtualbox-gui | vmware-fusion | vmware-fusion-gui | vmware-workstation | vmware-workstation-gui | vsphere>"
+  echo
+  echo "For a plain user install (no image build) just run:"
+  echo "    gem install pwn && pwn setup"
   date -u +%Y-%m-%d_%H.%M.%S
   exit 1
 }
 
 function deploy_docker_container() {
   export PWN_PROVIDER="docker"
-  
+
   if [[ $debug == '' ]]; then
     vagrant up --provider=docker
   else
     vagrant up --provider=docker --debug
   fi
-
 }
 
-if [[ $# != 1  ]] && [[ $# != 2 ]]; then
+if [[ $# != 1 ]] && [[ $# != 2 ]]; then
   usage
 fi
 
 case $pwn_deploy_type in
-  "aws") 
+  "aws")
     export PWN_PROVIDER="aws"
     if [[ -e "./etc/userland/aws/vagrant.yaml" ]]; then
       vagrant plugin install vagrant-reload
@@ -57,7 +65,6 @@ case $pwn_deploy_type in
     fi
     ;;
   "kvm")
-    # TODO: Coming soon
     echo "Coming soon..."
     ;;
   "docker_pwn_prototyper")
@@ -81,12 +88,16 @@ case $pwn_deploy_type in
     deploy_docker_container
     ;;
   "ruby-gem")
+    # Bootstrap RVM + Ruby on a bare host, install the gem from this
+    # checkout, then hand ALL OS provisioning to `pwn setup` via
+    # packer/provisioners/pwn.sh (PWN::Setup). PWN_PROFILE selects the
+    # capability set (default: full).
     export PWN_PROVIDER="ruby-gem"
     ./packer/provisioners/upload_globals.sh
     ./packer/provisioners/rvm.sh
     ./packer/provisioners/bashrc.sh
     ./packer/provisioners/ruby.sh
-    ./packer/provisioners/pwn.sh
+    ./packer/provisioners/pwn.sh   # → pwn setup --profile ${PWN_PROFILE:-full} --yes
     ;;
   "virtualbox"|"virtualbox-gui")
     if [[ -e "./etc/userland/virtualbox/vagrant.yaml" ]]; then
@@ -110,13 +121,12 @@ case $pwn_deploy_type in
       license_file=$(ruby -e "require 'yaml'; print YAML.load_file('./etc/userland/vmware/vagrant.yaml')['vagrant_vmware_license']")
       vagrant plugin install vagrant-vmware-desktop
       vagrant plugin license vagrant-vmware-desktop $license_file
-      
+
       case $pwn_deploy_type in
         "vmware-fusion"|"vmware-fusion-gui")
           if [[ $pwn_deploy_type == "vmware-fusion-gui" ]]; then
             export VAGRANT_GUI="true"
           fi
-
           if [[ $debug == '' ]]; then
             vagrant up --provider=vmware_fusion
           else
@@ -127,13 +137,12 @@ case $pwn_deploy_type in
           if [[ $pwn_deploy_type == "vmware-workstation-gui" ]]; then
             export VAGRANT_GUI="true"
           fi
-
           if [[ $debug == '' ]]; then
             vagrant up --provider=vmware_workstation
           else
             vagrant up --provider=vmware_workstation --debug
           fi
-          ;;        
+          ;;
       esac
     else
       echo "ERROR: Missing vagrant.yaml Config"

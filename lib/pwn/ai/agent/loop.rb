@@ -109,16 +109,40 @@ module PWN
           name    = opts[:name]
           started = opts[:started]
           raw     = opts[:raw].to_s
-          ok      = raw.include?('"success":true') && !raw.match?(/"exit":[1-9]/)
-          err     = raw[/"error":"([^"]{1,300})"/, 1]
-          err   ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless ok
-          dur     = started ? (Time.now - started) : 0.0
-          Metrics.record(name: name, success: ok, duration: dur, error: err, engine: opts[:engine]) if defined?(Metrics)
+          # R4 — structured result: :ok = handler didn't raise, :semantic_ok
+          # additionally knows grep exit 1 / diff exit 1 / xargs 123 are
+          # informational. Metrics records :ok; Mistakes only records
+          # !semantic_ok. Kills the phantom 31f1871b8a15 class permanently.
+          sem = defined?(Reward) ? Reward.semantic_ok(name: name, raw: raw, args: opts[:args]) : { ok: raw.include?('"success":true'), semantic_ok: raw.include?('"success":true'), err: raw[/"error":"([^"]{1,300})"/, 1] }
+          dur = started ? (Time.now - started) : 0.0
+          Metrics.record(name: name, success: sem[:ok], duration: dur, error: sem[:err], engine: opts[:engine]) if defined?(Metrics)
           m = nil
-          m = Mistakes.record(tool: name, error: err || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool) if !ok && defined?(Mistakes)
-          { ok: ok, err: err, mistake: m }
+          if !sem[:semantic_ok] && defined?(Mistakes)
+            # E1 — automatic blame attribution: if this tool just tripped a
+            # CUSUM changepoint AND extro drift is present, tag the mistake
+            # cause: :env_drift so it does NOT count toward [REPEATING].
+            cause = attribute_cause(name: name)
+            m = Mistakes.record(tool: name, error: sem[:err] || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause)
+          end
+          { ok: sem[:semantic_ok], err: sem[:err], mistake: m, benign: sem[:benign] }
         rescue StandardError
           { ok: true, err: nil, mistake: nil }
+        end
+
+        # E1 — did the environment change under this tool? If Metrics CUSUM
+        # tripped for it in the last hour AND Extrospection.drift shows a
+        # toolchain/net/repo change, blame the WORLD not the AGENT.
+        private_class_method def self.attribute_cause(opts = {})
+          return :self unless defined?(Metrics) && Metrics.respond_to?(:changepoints)
+
+          cp = Metrics.changepoints(within_secs: 3_600).find { |c| c[:name] == opts[:name].to_s }
+          return :self unless cp
+          return :self unless defined?(Extrospection)
+
+          d = Extrospection.drift(live: false)
+          Array(d[:changed]).any? { |c| c[:path].to_s.match?(/toolchain|net|repo|host/) } ? :env_drift : :self
+        rescue StandardError
+          :self
         end
 
         # Stash the active session_id under PWN::Env[:ai][:session_id] so
@@ -177,14 +201,23 @@ module PWN
           messages = opts[:messages]
           plan_msg = call_engine(
             messages: messages + [{ role: 'user',
-                                    content: 'Before acting, list the exact tool calls (name + key args) you will make, in order. Reply ONLY with the numbered plan — do NOT call any tool yet.' }],
+                                    content: 'Before acting: (1) list the exact tool calls (name + key args) you will make, in order; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.' }],
             tools: nil
           )
-          return unless plan_msg && !plan_msg[:content].to_s.strip.empty?
+          return nil unless plan_msg && !plan_msg[:content].to_s.strip.empty?
 
-          messages << { role: 'assistant', content: "PLAN:\n#{plan_msg[:content].to_s.strip}" }
+          plan = plan_msg[:content].to_s.strip
+          messages << { role: 'assistant', content: "PLAN:\n#{plan}" }
+          # S4 — adversarial plan review grounded in THIS host's telemetry
+          if defined?(Curriculum)
+            rt = Curriculum.red_team_plan(request: opts[:request], plan: plan)
+            messages << { role: 'user', content: rt } if rt
+          end
+          # W3 — extract predicted p(success) for calibration tracking
+          plan[/p\(success\)\s*=\s*([01](?:\.\d+)?)/i, 1]&.to_f
         rescue StandardError => e
           warn "[pwn-ai/loop] plan_first swallowed: #{e.class}: #{e.message}"
+          nil
         end
 
         # Swarm escalation circuit-breaker: when a local model has burned
@@ -344,7 +377,8 @@ module PWN
           messages << { role: 'user', content: request }
           append_session(session_id: session_id, role: 'user', content: request)
 
-          plan_first(messages: messages) if agent_flag(key: :plan_first, default: local) && !Array(tools).empty?
+          predicted = nil
+          predicted = plan_first(messages: messages, request: request) if agent_flag(key: :plan_first, default: local) && !Array(tools).empty?
 
           turn_fails = Hash.new(0)
           escalated  = false
@@ -359,7 +393,7 @@ module PWN
             if calls.empty?
               text = msg[:content].to_s
               append_session(session_id: session_id, role: 'assistant', content: text)
-              Learning.auto_introspect(session_id: session_id, request: request, final: text) if defined?(Learning)
+              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted) if defined?(Learning)
               return text
             end
 
@@ -376,13 +410,17 @@ module PWN
                 fkey = Digest::SHA256.hexdigest("#{name}|#{args}")[0, 16]
                 turn_fails[fkey] += 1
                 persist = tele.dig(:mistake, :count).to_i
+                count   = [turn_fails[fkey], persist].max
                 hint    = defined?(Mistakes) ? Mistakes.correction_hint(tool: name, error: tele[:err] || raw[0, 300]) : ''
-                result  = guard_repeated_failure(
-                  name: name,
-                  count: [turn_fails[fkey], persist].max,
-                  hint: hint,
-                  result: result
-                )
+                # S2 — counterfactual A/B: at the repeat threshold, fork an
+                # alt-persona branch, judge both, inject the winner. Real
+                # advantage estimation; (loser, winner) → DPO preference.
+                thresh = defined?(Mistakes) ? Mistakes::REPEAT_THRESHOLD : 3
+                if count == thresh && defined?(Curriculum)
+                  cf = Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint)
+                  hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
+                end
+                result = guard_repeated_failure(name: name, count: count, hint: hint, result: result)
               end
 
               on_tool&.call(name, args, result)
@@ -440,6 +478,11 @@ module PWN
                 :plan_first          - Boolean, plan-then-act pre-pass (default: engine == :ollama)
                 :tool_router         - Boolean, slim Registry.definitions to CORE + top-K relevant
                 :escalation_persona  - Swarm persona name for frontier corrective hints when stuck
+                :critic              - S3 constitutional critic before every final (Boolean)
+                :red_team_plan       - S4 adversarial plan review after plan_first (Boolean)
+                :counterfactual      - S2 A/B branch on REPEAT_THRESHOLD → DPO pair (Boolean)
+                :hindsight           - C3 HER-relabel failures (Boolean, default true)
+                :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
 
               #{self}.authors
           USAGE

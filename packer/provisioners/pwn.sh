@@ -1,100 +1,64 @@
 #!/bin/bash --login
-source /etc/profile.d/globals.sh
+# packer/provisioners/pwn.sh
+#
+# Thin delegator to `pwn setup` (PWN::Setup) — the single, versioned-with-
+# the-gem source of truth for OS packages / native-gem headers / external
+# toolchain across apt · dnf · pacman · brew · port.
+#
+# The historical `case $os` + per-package `apt install` blocks that lived
+# here have been consolidated into PWN::Setup::NATIVE_GEMS / ::TOOLCHAIN
+# (lib/pwn/setup.rb). Every install path — gem, git checkout, Docker,
+# Packer, Vagrant, CI — now reads the same data tables.
+#
+#   PWN_PROFILE  — capability profile to provision (default: full)
+#                  one of: core ai web net db sdr vision voice exploit hardware full
+#   PWN_ROOT     — git checkout to build/install from (optional; falls back
+#                  to the already-installed gem if unset/absent)
+#
+# See documentation/Installation.md.
+source /etc/profile.d/globals.sh 2>/dev/null || true
+set -e
 
-if [[ $PWN_ROOT == '' ]]; then
-  if [[ ! -d '/pwn' ]]; then
-    pwn_root=$(pwd)
-  else
-    pwn_root='/pwn'
+if [[ -z "${PWN_ROOT}" ]]; then
+  if   [[ -d '/opt/pwn' ]]; then pwn_root='/opt/pwn'
+  elif [[ -d '/pwn'     ]]; then pwn_root='/pwn'
+  else pwn_root="$(pwd)"
   fi
 else
   pwn_root="${PWN_ROOT}"
 fi
 
-pwn_provider=`echo $PWN_PROVIDER`
-os=$(uname -s)
+pwn_profile="${PWN_PROFILE:-full}"
+pwn_provider="${PWN_PROVIDER:-}"
 
-case $os in
-  "Darwin")
-    echo 'Installing wget to retrieve tesseract trained data...'
-    sudo port -N install wget
+echo "[pwn.sh] provider=${pwn_provider:-none} root=${pwn_root} profile=${pwn_profile}"
 
-    echo "Installing fontconfig..."
-    sudo port -N install fontconfig
+# ---------------------------------------------------------------------------
+# 1. Ensure the `pwn` gem (and therefore `pwn setup` / PWN::Setup) is present.
+#    Prefer building from the checkout so image builds track the repo HEAD;
+#    fall back to rubygems.org when no checkout exists.
+# ---------------------------------------------------------------------------
+if ! command -v pwn >/dev/null 2>&1; then
+  if [[ -f "${pwn_root}/pwn.gemspec" ]]; then
+    echo "[pwn.sh] building & installing gem from ${pwn_root}"
+    ( cd "${pwn_root}" && bundle install && rake install ) \
+      || ( cd "${pwn_root}" && gem build pwn.gemspec && gem install --no-document ./pwn-*.gem )
+  else
+    echo "[pwn.sh] no checkout at ${pwn_root}; installing from rubygems.org"
+    gem install --no-document pwn
+  fi
+fi
 
-    echo "Installing cmatrix..."
-    sudo port -N install cmatrix
+# ---------------------------------------------------------------------------
+# 2. Delegate ALL OS-level provisioning to PWN::Setup.
+#    This replaces the old `case $(uname -s)` apt/port blocks entirely.
+# ---------------------------------------------------------------------------
+echo "[pwn.sh] pwn setup --profile ${pwn_profile} --yes"
+pwn setup --profile "${pwn_profile}" --yes
 
-    echo 'Installing Postgres Libraries for pg gem...'
-    sudo port -N install postgresql96-server
-
-    echo 'Installing libpcap Libraries...'
-    sudo port -N install libpcap
-
-    echo "Installing libsndfile1 & libsndfile1-dev Libraries..."
-    sudo port -N install libsndfile
-
-    echo 'Installing ImageMagick...'
-    sudo port -N install imagemagick
-
-    echo 'Installing Tesseract OCR...'
-    sudo port -N install tesseract
-    sudo /bin/bash --login -c 'cd /opt/local/share/tessdata && wget https://raw.githubusercontent.com/tesseract-ocr/tessdata/master/eng.traineddata'
-    ;;
-  "Linux")
-    apt --version > /dev/null 2>&1
-    if [[ $? == 0 ]]; then
-      echo "Installing wget to retrieve tesseract trained data..."
-      $screen_cmd "${apt} install -y wget ${assess_update_errors}"
-      grok_error
-
-      echo "Installing fontconfig..."
-      $screen_cmd "${apt} install -y fontconfig ${assess_update_errors}"
-      grok_error
-
-      echo "Installing fontmatrix..."
-      $screen_cmd "${apt} install -y cmatrix-xfont ${assess_update_errors}"
-      grok_error
-
-      echo "Installing Postgres Libraries for pg gem..."
-      $screen_cmd "${apt} install -y postgresql-server-dev-all ${assess_update_errors}"
-      grok_error
-
-      echo "Installing libpcap Libraries..."
-      $screen_cmd "${apt} install -y libpcap-dev ${assess_update_errors}"
-      grok_error
-
-      echo "Installing fftw Libraries..."
-      $screen_cmd "${apt} install -y libfftw3-dev ${assess_update_errors}"
-      grok_error
-
-      echo "Installing libsndfile1 & libsndfile1-dev Libraries..."
-      $screen_cmd "${apt} install -y libsndfile1 ${assess_update_errors}"
-      grok_error
-
-      $screen_cmd "${apt} install -y libsndfile1-dev ${assess_update_errors}"
-      grok_error
-
-      echo "Installing imagemagick & libmagickwand-dev Libraries..."
-      $screen_cmd "${apt} install -y imagemagick ${assess_update_errors}"
-      grok_error
-
-      $screen_cmd "${apt} install -y libmagickwand-dev ${assess_update_errors}"
-      grok_error
-
-      echo "Installing tesseract-ocr-all & trainers..."
-      $screen_cmd "${apt} install -y tesseract-ocr-all ${assess_update_errors}"
-      grok_error
-
-      $screen_cmd "cd /usr/share/tesseract-ocr && wget https://raw.githubusercontent.com/tesseract-ocr/tessdata/master/eng.traineddata ${assess_update_errors}"
-      grok_error
-    else
-      echo "A Linux Distro was Detected, however, ${0} currently only supports Kali Rolling, Ubuntu, & OSX for now...feel free to install manually."
-    fi
-    ;;
-  *)
-    echo "${os} not currently supported."
-    exit 1
-esac
-
-rvmsudo /bin/bash --login -c "cd ${pwn_root} && cp etc/userland/${pwn_provider}/metasploit/vagrant.yaml.EXAMPLE etc/userland/${pwn_provider}/metasploit/vagrant.yaml && ./reinstall_gemset.sh && ./build_gem.sh && rubocop"
+# ---------------------------------------------------------------------------
+# 3. Doctor — non-zero exit if any capability in the profile is degraded,
+#    so packer / vagrant / CI fail loudly instead of shipping a broken image.
+# ---------------------------------------------------------------------------
+echo "[pwn.sh] pwn setup --check"
+pwn setup --check

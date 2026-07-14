@@ -108,4 +108,72 @@ describe PWN::AI::Agent::Extrospection do
     vin_feeds = PWN::AI::Agent::Extrospection.send(:osint_feeds_for, kind: :vin)
     expect(vin_feeds).to eq(%i[nhtsa])
   end
+  # ── social / identity feeds (extrospection/osint/social.rb) ─────────
+
+  it 'should expose SOCIAL_FEEDS and BRIDGE_FEEDS constants and vendored sites file' do
+    e = PWN::AI::Agent::Extrospection
+    expect(e.const_get(:SOCIAL_FEEDS)).to include(:keybase, :gravatar, :mastodon, :bluesky, :hackernews, :social_sweep)
+    expect(e.const_get(:BRIDGE_FEEDS)).to eq(%i[theharvester spiderfoot amass reconng])
+    expect(File.exist?(e.const_get(:SOCIAL_SITES_FILE))).to be true
+    sites = e.send(:load_social_sites)
+    expect(sites).to be_an(Array)
+    expect(sites.length).to be > 50
+    expect(sites.first).to include(:name, :url, :method, :absent_status, :absent_body)
+  end
+
+  it 'should detect :social kind for @handle and @user@instance (Fediverse)' do
+    det = ->(q) { PWN::AI::Agent::Extrospection.send(:detect_osint_kind, query: q) }
+    expect(det.call('@torvalds')).to eq :social
+    expect(det.call('@gargron@mastodon.social')).to eq :social
+    # Bare handle (no @) still routes :username for back-compat.
+    expect(det.call('torvalds')).to eq :username
+    # Real email must NOT be stolen by :social.
+    expect(det.call('alice@example.com')).to eq :email
+  end
+
+  it 'should route :social kind to the social feed set and :domain to bridge tools' do
+    e = PWN::AI::Agent::Extrospection
+    social = e.send(:osint_feeds_for, kind: :social)
+    expect(social).to include(:keybase, :gravatar, :mastodon, :bluesky, :hackernews, :npm, :rubygems, :dockerhub, :social_sweep)
+    expect(e.send(:osint_feeds_for, kind: :username)).to include(:keybase, :social_sweep)
+    expect(e.send(:osint_feeds_for, kind: :email)).to include(:gravatar, :keybase)
+    expect(e.send(:osint_feeds_for, kind: :domain)).to include(:theharvester, :amass)
+  end
+
+  it 'should include social + bridge feeds in DEFAULT_OSINT_FEEDS' do
+    feeds = PWN::AI::Agent::Extrospection.const_get(:DEFAULT_OSINT_FEEDS)
+    (PWN::AI::Agent::Extrospection.const_get(:SOCIAL_FEEDS) +
+     PWN::AI::Agent::Extrospection.const_get(:BRIDGE_FEEDS)).each do |f|
+      expect(feeds).to include(f)
+    end
+  end
+
+  it 'should compute social_sweep_verdict correctly' do
+    e = PWN::AI::Agent::Extrospection
+    site = { absent_status: [404], absent_body: ['No such user'] }
+    expect(e.send(:social_sweep_verdict, site: site, resp: { error: 'x' })).to eq :error
+    expect(e.send(:social_sweep_verdict, site: site, resp: { code: 404, body: '' })).to eq :absent
+    expect(e.send(:social_sweep_verdict, site: site, resp: { code: 200, body: 'No such user.' })).to eq :absent
+    expect(e.send(:social_sweep_verdict, site: site, resp: { code: 500, body: '' })).to eq :absent
+    expect(e.send(:social_sweep_verdict, site: site, resp: { code: 200, body: '<html>profile</html>' })).to eq :present
+  end
+
+  it 'should route social + bridge feeds through osint_dispatch without raising' do
+    e = PWN::AI::Agent::Extrospection
+    (e.const_get(:SOCIAL_FEEDS) - %i[social_sweep] + e.const_get(:BRIDGE_FEEDS)).each do |f|
+      q = e.const_get(:BRIDGE_FEEDS).include?(f) ? 'notadomain' : 'defunkt'
+      res = e.send(:osint_dispatch, feed: f, query: q, limit: 1, keys: {})
+      expect(res).to be_a(Hash)
+    end
+  end
+
+  it 'should surface social config, bridge config, and steam api key slot' do
+    e = PWN::AI::Agent::Extrospection
+    expect(e.send(:osint_config)).to include(:social, :bridges)
+    sc = e.send(:osint_social_config)
+    expect(sc).to include(:sites_file, :max_threads, :timeout, :max_sites, :mastodon_instance)
+    bc = e.send(:osint_bridge_config)
+    expect(bc).to include(:timeout, :theharvester_sources, :spiderfoot_modules, :amass_passive)
+    expect(e.send(:osint_api_keys).keys).to include(:steam)
+  end
 end
