@@ -1,5 +1,6 @@
 AllCops: 
   UseCache: false
+  SuggestExtensions: false
   NewCops: enable
 Layout/LineLength:
   Max: 1620

@@ -27,7 +27,11 @@ describe PWN::FFI::AdalmPluto do
   it 'should list URIs (possibly empty) when libiio is present' do
     skip 'libiio not installed' unless PWN::FFI::AdalmPluto.available?
 
-    list = PWN::FFI::AdalmPluto.list_uris
+    # Restrict to usb,local so libiio does not attempt mDNS/DNS-SD (avahi)
+    # discovery during the test suite — avoids the noisy
+    #   "ERROR: Unable to create Avahi DNS-SD client :Daemon not running"
+    # C-level stderr write on hosts where avahi-daemon is not running.
+    list = PWN::FFI::AdalmPluto.list_uris(backends: 'usb,local')
     expect(list).to be_a(Array)
   end
 

@@ -117,11 +117,15 @@ module PWN
           return '' unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) && !PWN::Skills.empty?
 
           lines = PWN::Skills.map do |name, meta|
-            first = meta[:content].to_s.lines.reject { |l| l.strip.empty? || l.start_with?('---') }.first.to_s.strip
-            first = first[0, 100]
+            desc = meta[:description].to_s.strip
+            if desc.empty?
+              # legacy / stubbed entry without a parsed description — fall back
+              desc = meta[:content].to_s.lines.reject { |l| l.strip.empty? || l.start_with?('---') }.first.to_s.strip
+            end
+            desc = desc[0, 100]
             rc = Array(meta[:references]).length
             ref_tag = rc.positive? ? " [#{rc} refs]" : ''
-            "  - #{name}: #{first}#{ref_tag}"
+            "  - #{name}: #{desc}#{ref_tag}"
           end
           "SKILLS (call skill_view to read full body)\n#{lines.join("\n")}\n\n"
         rescue StandardError

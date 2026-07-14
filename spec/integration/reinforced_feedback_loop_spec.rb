@@ -242,8 +242,75 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   end
 
   # ═══════════════════════════════════════════════════════════════════════
+  describe 'M1 · Learning.consolidate → semantic_merge' do
+    it 'greedy-clusters :lesson embeddings at cosine ≥0.92 and merges each cluster to one entry' do
+      skip 'PWN::MemoryIndex unavailable' unless defined?(PWN::MemoryIndex)
+      now = Time.now.utc.iso8601
+      mem = {
+        a: { value: 'use nmap -sV for service detection',   category: 'lesson', timestamp: now, importance: 0.5 },
+        b: { value: 'prefer nmap -sV to detect services',   category: 'lesson', timestamp: now, importance: 0.5 },
+        c: { value: 'nmap -sV is best for service versions', category: 'lesson', timestamp: now, importance: 0.5 },
+        d: { value: 'unrelated: rotate api keys quarterly',  category: 'lesson', timestamp: now, importance: 0.5 }
+      }
+      allow(PWN::MemoryIndex).to receive(:available?).and_return(true)
+      allow(PWN::MemoryIndex).to receive(:refresh).and_return(
+        a: { vec: [1.0, 0.0, 0.0] }, b: { vec: [0.99, 0.14, 0.0] },
+        c: { vec: [0.98, 0.19, 0.0] }, d: { vec: [0.0, 0.0, 1.0] }
+      )
+      removed = learning.send(:semantic_merge, mem: mem)
+      expect(removed).to contain_exactly(:b, :c)
+      expect(mem[:a][:source]).to eq 'consolidate'
+      expect(mem[:a][:importance]).to be >= 0.7
+    end
+  end
+
+  describe 'M2 · MemoryIndex.recall_semantic (sim × recency × importance)' do
+    it 'ranks by 0.6·sim + 0.25·recency + 0.15·importance so a fresh important fact outranks a stale similar one' do
+      skip 'PWN::MemoryIndex unavailable' unless defined?(PWN::MemoryIndex)
+      old = (Time.now.utc - (60 * 86_400)).iso8601
+      now = Time.now.utc.iso8601
+      mem = {
+        stale: { value: 'nmap notes', category: 'lesson', timestamp: old, importance: 0.1 },
+        fresh: { value: 'nmap notes', category: 'fact',   timestamp: now, importance: 0.9 }
+      }
+      allow(PWN::Memory).to receive(:load).and_return(mem)
+      allow(PWN::MemoryIndex).to receive(:embed).and_return([[1.0, 0.0]])
+      allow(PWN::MemoryIndex).to receive(:refresh).and_return(
+        stale: { vec: [1.0, 0.0] }, fresh: { vec: [0.95, 0.31] }
+      )
+      hits = PWN::MemoryIndex.recall_semantic(query: 'nmap', limit: 2)
+      expect(hits.first[:key]).to eq :fresh
+      expect(hits.first[:score]).to be > hits.last[:score]
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
   # Tier 4 — Curriculum & self-play
   # ═══════════════════════════════════════════════════════════════════════
+
+  describe 'S1 · Curriculum.practice (mistake-driven auto-curriculum)' do
+    it 'mines Mistakes.top → generate_reproducers → self_play, and auto-resolves on judge ≥0.7' do
+      mistakes.record(tool: 'shell', error: 'nmpa: command not found')
+      sig = mistakes.top(limit: 1).first[:signature]
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      allow(curriculum).to receive(:self_play).and_return(score: 0.85, verdict: :solved,
+                                                          final: 'use `nmap` (typo: nmpa→nmap)')
+      r = curriculum.practice(limit: 1, prompts_per: 1)
+      expect(r[:practiced]).to eq 1
+      expect(r[:resolved]).to eq 1
+      expect(mistakes.top(limit: 5, unresolved_only: true).map { |m| m[:signature] }).not_to include(sig)
+      expect(reward.preferences(source: 'curriculum')).not_to be_empty
+    end
+
+    it 'dry_run:true generates reproducer prompts but never self-plays' do
+      mistakes.record(tool: 'shell', error: 'boom')
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      expect(curriculum).not_to receive(:self_play)
+      r = curriculum.practice(limit: 1, prompts_per: 2, dry_run: true)
+      expect(r[:dry_run]).to be true
+      expect(r[:results].first[:prompts]).not_to be_empty
+    end
+  end
 
   describe 'S2 · Curriculum.counterfactual' do
     it 'forks an alt-persona branch, judges both, and emits a (loser,winner) DPO pair' do
@@ -332,6 +399,35 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
     end
   end
 
+  describe 'W2 · Curriculum.train_and_gate (regression-gated LoRA promotion)' do
+    it 'dry_run exports SFT+DPO datasets + eval set + manual CLI without training' do
+      allow(learning).to receive(:export_finetune).and_return(path: File.join(@tmp, 'sft.jsonl'), rows: 3)
+      allow(reward).to   receive(:export_dpo).and_return(path: File.join(@tmp, 'dpo.jsonl'), rows: 2)
+      2.times { mistakes.record(tool: 'shell', error: 'x') }
+      r = curriculum.train_and_gate(dry_run: true, base_model: 'llama3')
+      expect(r[:dry_run]).to be true
+      expect(r[:version]).to eq 1
+      expect(r[:sft][:rows]).to eq 3
+      expect(r[:dpo][:rows]).to eq 2
+      expect(r[:manual_cli]).to be_an(Array).and(all(be_a(String)))
+      expect(r).not_to have_key(:promoted)
+    end
+
+    it 'promotes iff resolved(candidate) > resolved(baseline) on the Mistakes eval set' do
+      allow(learning).to   receive(:export_finetune).and_return(path: 'sft', rows: 0)
+      allow(reward).to     receive(:export_dpo).and_return(path: 'dpo', rows: 0)
+      allow(curriculum).to receive(:detect_trainer).and_return(:unsloth)
+      allow(curriculum).to receive(:run_trainer).and_return(File.join(@tmp, 'adapter'))
+      allow(curriculum).to receive(:ollama_create).and_return('pwn-v1')
+      allow(curriculum).to receive(:build_eval_set).and_return(%w[p1 p2 p3])
+      allow(curriculum).to receive(:ab_gate).and_return(baseline_resolved: 1, candidate_resolved: 3)
+      r = curriculum.train_and_gate(dry_run: false, base_model: 'llama3')
+      expect(r[:promoted]).to be true
+      expect(r[:gate][:candidate_resolved]).to be > r[:gate][:baseline_resolved]
+      expect(File.exist?(curriculum::MODELS_FILE)).to be true
+    end
+  end
+
   describe 'W3 · plan-confidence calibration' do
     it 'tracks per-engine Brier + overconfidence' do
       curriculum.calibrate(predicted: 0.9, actual: 0.3, engine: :ollama)
@@ -369,6 +465,31 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       allow(PWN::AI::Agent::Extrospection).to receive(:drift)
         .and_return(changed: [{ path: 'toolchain.nmap' }], added: [], removed: [])
       expect(loop_mod.send(:attribute_cause, name: 'shell')).to eq :env_drift
+    end
+  end
+
+  describe 'E2 · Extrospection.correlate rule 9 (causal lead-lag drift)' do
+    it 'emits :causal_drift when a Metrics changepoint FOLLOWS a toolchain drift within 24h' do
+      extro = PWN::AI::Agent::Extrospection
+      cp_at = Time.now.utc
+      naive = ->(t) { t.strftime('%Y-%m-%dT%H:%M:%S') }
+      snap  = { captured_at: naive.call(cp_at), host: {}, toolchain: {}, rf: {}, web: {} }
+      allow(extro).to receive(:load).and_return(snapshot: snap, previous: {}, observations: [])
+      allow(extro).to receive(:drift).and_return(
+        changed: [{ path: 'toolchain.nmap', before: '7.94', after: naive.call(cp_at - 7_200) }],
+        added: [], removed: []
+      )
+      allow(extro).to receive(:observations).and_return([])
+      allow(metrics).to receive(:summary).and_return([])
+      allow(metrics).to receive(:changepoints).and_return([{ name: 'nmap', at: naive.call(cp_at) }])
+      allow(learning).to receive(:outcomes).and_return([])
+
+      f = extro.correlate(limit: 20).find { |x| x[:kind] == :causal_drift }
+      expect(f).not_to be_nil
+      expect(f[:cause]).to eq 'toolchain.nmap'
+      expect(f[:effect]).to include('nmap')
+      expect(f[:lag_h]).to be_within(0.2).of(2.0)
+      expect(f[:confidence]).to be_between(0.3, 0.95)
     end
   end
 

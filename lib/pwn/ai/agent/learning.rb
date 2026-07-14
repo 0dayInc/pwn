@@ -225,26 +225,23 @@ module PWN
         # )
 
         public_class_method def self.distill_skill(opts = {})
-          name = opts[:name].to_s.gsub(/[^a-z0-9_-]/i, '_')
-          raise 'ERROR: name is required' if name.empty?
+          raise 'ERROR: name is required' if opts[:name].to_s.strip.empty?
 
           body = opts[:content].to_s
-          body = build_skill_from_session(session_id: opts[:session_id], name: name) if body.strip.empty? && opts[:session_id]
+          body = build_skill_from_session(session_id: opts[:session_id], name: opts[:name]) if body.strip.empty? && opts[:session_id]
           raise 'ERROR: content or session_id is required' if body.strip.empty?
 
-          refs = Array(opts[:references]).map(&:to_s).map(&:strip).reject(&:empty?).uniq
-          unless refs.empty?
-            body = "---\nreferences:\n#{refs.map { |r| "  - #{r}" }.join("\n")}\n---\n#{body}" unless body.start_with?("---\n")
-            body = "#{body.rstrip}\n\n## References\n#{refs.map { |r| "- #{r}" }.join("\n")}\n" unless body =~ /^\#{1,3}\s*References\s*$/i
-          end
-
-          dir = skills_dir
-          FileUtils.mkdir_p(dir)
-          path = File.join(dir, "#{name}.md")
-          File.write(path, body)
-          PWN::Config.load_skills(pwn_skills_path: dir) if defined?(PWN::Config) && PWN::Config.respond_to?(:load_skills)
-          note_outcome(task: "distill_skill:#{name}", success: true, details: "Saved #{path}", tags: %w[skill auto])
-          { saved: true, name: name, path: path, bytes: body.bytesize, references: refs }
+          root = skills_dir
+          out  = PWN::Config.write_skill(
+            name: opts[:name],
+            description: opts[:description],
+            content: body,
+            references: opts[:references],
+            pwn_skills_path: root
+          )
+          PWN::Config.load_skills(pwn_skills_path: root) if PWN::Config.respond_to?(:load_skills)
+          note_outcome(task: "distill_skill:#{out[:name]}", success: true, details: "Saved #{out[:path]}", tags: %w[skill auto])
+          out.merge(saved: true)
         end
 
         # Supported Method Parameters::
