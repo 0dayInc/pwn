@@ -288,7 +288,11 @@ module PWN
       # containers, `sudo -i`, root shells) or when `sudo` is not
       # installed — otherwise `pwn setup --profile x --yes` dies with
       # `sh: sudo: not found` on stock debian:* / fedora:* images.
-      root = (Process.uid.zero? rescue false)
+      root = begin
+        Process.uid.zero?
+      rescue StandardError
+        false
+      end
       sudo = root || !bin?(name: 'sudo') ? '' : 'sudo '
 
       @pkg_manager =
