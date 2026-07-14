@@ -53,7 +53,7 @@ module PWN
         # NEVER spawn these from auto-probe (Burp Suite splash, ZAP UI, msfconsole, GQRX).
         PRESENCE_ONLY_BINS = %w[burpsuite zaproxy msfconsole gqrx sqlmap].freeze
         RF_BINS        = %w[rtl_sdr rtl_test rtl_433 hackrf_info gqrx dump1090 multimon-ng SoapySDRUtil].freeze
-        OSINT_BINS     = %w[whois dig host curl jq].freeze
+        OSINT_BINS     = %w[whois dig host curl jq theHarvester spiderfoot amass recon-ng].freeze
         SERIAL_BINS    = %w[minicom picocom screen cu].freeze
         TELECOMM_BINS  = %w[baresip asterisk linphone sngrep].freeze
         PACKET_BINS    = %w[tshark tcpdump tcpreplay dumpcap].freeze
@@ -89,6 +89,10 @@ module PWN
           mac_vendor universities microlink
           agify genderize nationalize
           haveibeenpwned securitytrails
+          keybase gravatar mastodon bluesky hackernews stackexchange
+          npm pypi rubygems crates dockerhub codeberg sourcehut
+          chesscom lichess steam telegram social_sweep
+          theharvester spiderfoot amass reconng
         ].freeze
 
         # Supported Method Parameters::
@@ -1260,6 +1264,33 @@ module PWN
             end
           end
 
+          # 9) E2 — causal drift graph (lead-lag): for each Metrics
+          #    changepoint, find the drift event that PRECEDED it within
+          #    24h and emit {cause:, effect:, lag_h:, confidence:}. This is
+          #    the automatic form of "did nmap start failing BECAUSE it was
+          #    upgraded 2h earlier?".
+          if defined?(Metrics) && Metrics.respond_to?(:changepoints)
+            drift_events = (Array(delta[:changed]) + Array(delta[:added]) + Array(delta[:removed])).map do |c|
+              at = c[:after].to_s[/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/] || snap[:captured_at]
+              { path: c[:path], at: at }
+            end
+            Metrics.changepoints(within_secs: 86_400).each do |cp|
+              cp_t = Time.parse(cp[:at])
+              cause = drift_events.filter_map do |d|
+                dt = d[:at] ? Time.parse(d[:at]) : nil
+                next unless dt && dt < cp_t && (cp_t - dt) < 86_400
+
+                [d, (cp_t - dt) / 3_600.0]
+              rescue StandardError
+                nil
+              end.min_by(&:last)
+              next unless cause
+
+              conf = (1.0 - (cause.last / 24.0)).clamp(0.3, 0.95).round(2)
+              findings << { kind: :causal_drift, effect: "#{cp[:name]} success_rate regime change", cause: cause.first[:path], lag_h: cause.last.round(1), confidence: conf, advice: "#{cp[:name]} started failing #{cause.last.round(1)}h AFTER #{cause.first[:path]} changed — treat recent #{cp[:name]} Mistakes as ENV_DRIFT, not agent error. Re-baseline with extro_snapshot." }
+            end
+          end
+
           # 8) raw drift as low-priority findings when nothing else matched
           Array(delta[:added]).first(5).each   { |c| findings << { kind: :env_added,   detail: c } } if findings.empty?
           Array(delta[:removed]).first(5).each { |c| findings << { kind: :env_removed, detail: c } } if findings.empty?
@@ -1995,8 +2026,11 @@ module PWN
               virustotal: !keys[:virustotal].to_s.empty?,
               greynoise: !keys[:greynoise].to_s.empty?,
               haveibeenpwned: !keys[:haveibeenpwned].to_s.empty?,
-              securitytrails: !keys[:securitytrails].to_s.empty?
+              securitytrails: !keys[:securitytrails].to_s.empty?,
+              steam: !keys[:steam].to_s.empty?
             },
+            social_sites_file: (defined?(SOCIAL_SITES_FILE) && File.exist?(SOCIAL_SITES_FILE) ? SOCIAL_SITES_FILE : nil),
+            bridges: presence_map(bins: %w[theHarvester theharvester spiderfoot amass recon-ng]),
             bins: presence_map(bins: OSINT_BINS),
             endpoints: {
               ip_api: 'http://ip-api.com/json/',
@@ -2162,9 +2196,14 @@ module PWN
 
         private_class_method def self.osint_config
           cfg = (PWN::Env.dig(:ai, :agent, :extrospection, :osint) if defined?(PWN::Env) && PWN::Env.is_a?(Hash)) || {}
-          { ttl: (cfg[:ttl] || 86_400).to_i, proxy: cfg[:proxy] }
+          {
+            ttl: (cfg[:ttl] || 86_400).to_i,
+            proxy: cfg[:proxy],
+            social: cfg[:social] || {},
+            bridges: cfg[:bridges] || {}
+          }
         rescue StandardError
-          { ttl: 86_400, proxy: nil }
+          { ttl: 86_400, proxy: nil, social: {}, bridges: {} }
         end
 
         private_class_method def self.serial_config
@@ -2220,7 +2259,8 @@ module PWN
             virustotal: pick.call(:virustotal, 'VIRUSTOTAL_API_KEY', 'VT_API_KEY', 'PWN_VIRUSTOTAL_API_KEY'),
             greynoise: pick.call(:greynoise, 'GREYNOISE_API_KEY', 'PWN_GREYNOISE_API_KEY'),
             haveibeenpwned: pick.call(:haveibeenpwned, 'HIBP_API_KEY', 'HAVEIBEENPWNED_API_KEY', 'PWN_HIBP_API_KEY'),
-            securitytrails: pick.call(:securitytrails, 'SECURITYTRAILS_API_KEY', 'PWN_SECURITYTRAILS_API_KEY')
+            securitytrails: pick.call(:securitytrails, 'SECURITYTRAILS_API_KEY', 'PWN_SECURITYTRAILS_API_KEY'),
+            steam: pick.call(:steam, 'STEAM_API_KEY', 'PWN_STEAM_API_KEY')
           }
         rescue StandardError
           {
@@ -2230,7 +2270,8 @@ module PWN
             virustotal: ENV['VIRUSTOTAL_API_KEY'].to_s,
             greynoise: ENV['GREYNOISE_API_KEY'].to_s,
             haveibeenpwned: ENV['HIBP_API_KEY'].to_s,
-            securitytrails: ENV['SECURITYTRAILS_API_KEY'].to_s
+            securitytrails: ENV['SECURITYTRAILS_API_KEY'].to_s,
+            steam: ENV['STEAM_API_KEY'].to_s
           }
         end
 
@@ -2244,7 +2285,7 @@ module PWN
                               q.match?(/\A[0-9A-Fa-f]{12}\z/)
           # IPv6: require at least two ':' and a hex group structure (not MAC's 6 octets).
           return :ip       if q.include?(':') && q.count(':') >= 2 && q.match?(/\A[0-9a-f:.]+\z/i) && !q.match?(/\A(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\z/i)
-          return :email    if q.include?('@') && q.include?('.')
+          return :email    if q.include?('@') && q.include?('.') && !q.start_with?('@')
           return :url      if q.match?(%r{\Ahttps?://}i)
           return :cve      if q.match?(/\ACVE-\d{4}-\d{4,}\z/i)
           # 17-char VIN (excludes I,O,Q per ISO 3779)
@@ -2253,6 +2294,7 @@ module PWN
           return :callsign if q.match?(%r{\A(?:[A-Z0-9]{1,3}/)?[A-Z]{1,2}\d[A-Z]{1,3}\z}i) && q.match?(/\d/)
           return :domain   if q.match?(/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\z/i) && !q.include?(' ')
           return :github   if q.start_with?('github.com/', 'gh:')
+          return :social   if q.start_with?('@') && q.match?(/\A@[A-Za-z0-9_.-]{2,32}(?:@[A-Za-z0-9.-]+)?\z/)
           return :patent   if q.match?(/\A(?:US|EP|WO|CN|JP)\s?\d{5,}[A-Z]?\d?\z/i) || q.match?(/\Apatent\b/i)
           return :cik      if q.match?(/\A(?:CIK)?\s?\d{10}\z/i)
           # NPI is 10-digit; only when prefixed so bare digits don't steal phone/CIK.
@@ -2275,14 +2317,15 @@ module PWN
           case opts[:kind].to_sym
           when :ip then %i[ip geo ipapi_is iplocate ipwhois dns rdap bgpview otx abuseipdb greynoise shodan hackertarget]
           when :geo then %i[geo nominatim ip]
-          when :domain, :dns, :whois, :rdap then %i[dns whois rdap crtsh certspotter wayback otx urlhaus urlscan shodan securitytrails hackertarget]
+          when :domain, :dns, :whois, :rdap then %i[dns whois rdap crtsh certspotter wayback otx urlhaus urlscan shodan securitytrails hackertarget theharvester amass]
           when :url then %i[urlscan otx urlhaus wayback microlink virustotal]
-          when :email then %i[hunter person github haveibeenpwned]
+          when :email then %i[hunter person github haveibeenpwned gravatar keybase]
           when :phone then %i[phone person]
           when :fcc_id then %i[fcc_id]
           when :patent then %i[patent]
           when :person then %i[person username github open_sanctions agify genderize nationalize vital_records]
-          when :username, :github then %i[username github]
+          when :username, :github then %i[username github keybase hackernews social_sweep]
+          when :social then %i[keybase gravatar mastodon bluesky hackernews stackexchange npm pypi rubygems crates dockerhub codeberg sourcehut chesscom lichess steam telegram github social_sweep]
           when :company then %i[opencorporates sec_edgar federal_register person courtlistener]
           when :cik then %i[sec_edgar opencorporates]
           when :wayback then %i[wayback]
@@ -2357,6 +2400,30 @@ module PWN
           when :nationalize then osint_nationalize(query: query)
           when :haveibeenpwned, :hibp then osint_haveibeenpwned(query: query, api_key: keys[:haveibeenpwned])
           when :securitytrails then osint_securitytrails(query: query, api_key: keys[:securitytrails])
+          # ── social / identity feeds (extrospection/osint/social.rb) ──
+          when :keybase then osint_keybase(query: query)
+          when :gravatar then osint_gravatar(query: query)
+          when :mastodon then osint_mastodon(query: query)
+          when :bluesky then osint_bluesky(query: query)
+          when :hackernews, :hn then osint_hackernews(query: query, limit: limit)
+          when :stackexchange, :stackoverflow then osint_stackexchange(query: query, limit: limit)
+          when :npm then osint_npm(query: query, limit: limit)
+          when :pypi then osint_pypi(query: query, limit: limit)
+          when :rubygems then osint_rubygems(query: query, limit: limit)
+          when :crates then osint_crates(query: query)
+          when :dockerhub then osint_dockerhub(query: query, limit: limit)
+          when :codeberg, :gitea then osint_codeberg(query: query)
+          when :sourcehut then osint_sourcehut(query: query)
+          when :chesscom then osint_chesscom(query: query)
+          when :lichess then osint_lichess(query: query)
+          when :steam then osint_steam(query: query, api_key: keys[:steam])
+          when :telegram then osint_telegram(query: query)
+          when :social_sweep, :sherlock then osint_social_sweep(query: query, limit: limit)
+          # ── local-tool bridges (extrospection/osint/bridges.rb) ──────
+          when :theharvester then osint_theharvester(query: query, limit: limit)
+          when :spiderfoot then osint_spiderfoot(query: query, limit: limit)
+          when :amass then osint_amass(query: query, limit: limit)
+          when :reconng, :recon_ng then osint_reconng(query: query, limit: limit)
           else { error: "unknown feed: #{feed}" }
           end
         end
@@ -3595,7 +3662,7 @@ module PWN
                   { host: '127.0.0.1', port: 7356, settle_secs: 8, ttl: 300 }
 
               Configure new limbs:
-                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '...', hunter: '...', abuseipdb: '...', virustotal: '...', greynoise: '...', haveibeenpwned: '...', securitytrails: '...' } }
+                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '...', hunter: '...', abuseipdb: '...', virustotal: '...', greynoise: '...', haveibeenpwned: '...', securitytrails: '...', steam: '...' }, social: { max_threads: 16, timeout: 6, sites_file: 'etc/osint/social_sites.json', mastodon_instance: 'mastodon.social' }, bridges: { timeout: 120, amass_passive: true } }
                 PWN::Env[:ai][:agent][:extrospection][:serial]   = { block_dev: '/dev/ttyUSB0', baud: 115200, settle_secs: 1.5 }
                 PWN::Env[:ai][:agent][:extrospection][:telecomm] = { host: '127.0.0.1', port: 8000 }
                 PWN::Env[:ai][:agent][:extrospection][:packet]   = { iface: 'eth0' }
@@ -3609,3 +3676,6 @@ module PWN
     end
   end
 end
+
+require_relative 'extrospection/osint/social'
+require_relative 'extrospection/osint/bridges'

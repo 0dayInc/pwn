@@ -51,14 +51,13 @@ module PWN
             tags: Array(opts[:tags]).map(&:to_s),
             timestamp: Time.now.utc.iso8601
           }
+          entry[:score] = opts[:score].to_f if opts.key?(:score)
           FileUtils.mkdir_p(File.dirname(LEARNING_FILE))
           File.open(LEARNING_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
 
-          key = :"lesson_#{entry[:id]}"
-          cat = :lesson
-          val = "#{success ? 'SUCCESS' : 'FAILURE'}: #{task} — #{opts[:details].to_s.strip[0, 200]}"
-          PWN::Memory.remember(key: key, value: val, category: cat) if defined?(PWN::Memory)
-
+          # M4 — outcomes live in learning.jsonl ONLY. PWN::Memory[:lesson] is
+          # reserved for reflect / mistakes_resolve / human — this alone
+          # removed 40 % of the noise in the injected MEMORY block.
           entry
         end
 
@@ -93,6 +92,7 @@ module PWN
           rows   = outcomes(limit: 10_000)
           total  = rows.length
           ok     = rows.count { |r| r[:success] }
+          jsum   = rows.sum { |r| r[:score] ? r[:score].to_f : { true => 1.0, false => 0.0 }[r[:success]] }
           skills = defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) ? PWN::Skills.keys.length : 0
           mem    = defined?(PWN::Memory) ? PWN::Memory.load.keys.length : 0
           {
@@ -102,6 +102,10 @@ module PWN
             success_rate: total.positive? ? (ok.to_f / total).round(3) : 0.0,
             skills_known: skills,
             memory_entries: mem,
+            judge_mean: total.positive? ? (jsum / total).round(3) : nil,
+            reward_sentinel: (Reward.sentinel if defined?(Reward)),
+            calibration: (Metrics.calibration if defined?(Metrics) && Metrics.respond_to?(:calibration)),
+            preference_pairs: (Reward.preferences(limit: 100_000).length if defined?(Reward)),
             tool_metrics: (Metrics.summary(limit: 5) if defined?(Metrics)),
             extrospection: (Extrospection.stats if defined?(Extrospection))
           }
@@ -123,7 +127,8 @@ module PWN
             "  #{flag} #{r[:task].to_s[0, 100]} (#{r[:timestamp]})"
           end
           s   = stats
-          hdr = "RECENT OUTCOMES (success_rate=#{(s[:success_rate] * 100).round(1)}% over #{s[:total_outcomes]} attempts)"
+          jm  = s[:judge_mean]
+          hdr = "RECENT OUTCOMES (success_rate=#{(s[:success_rate] * 100).round(1)}%#{" judge_mean=#{jm}" if jm} over #{s[:total_outcomes]} attempts)"
           out = "#{hdr}\n#{rows.map(&fmt).join("\n")}\n"
           out += "RECENT FAILURES (learn from these — do not repeat)\n#{fails.map(&fmt).join("\n")}\n" unless fails.empty?
           "#{out}\n"
@@ -152,13 +157,19 @@ module PWN
           tokens = request.scan(/[a-z0-9_]{3,}/).uniq
           return [] if tokens.empty?
 
-          hits = outcomes(limit: 500, success: true)
-                 .reject { |r| r[:session_id].to_s.empty? }
-                 .map    { |r| [r, tokens.count { |t| r[:task].to_s.downcase.include?(t) }] }
-                 .reject { |_, s| s.zero? }
-                 .sort_by { |_, s| -s }
-                 .first(limit)
-                 .map(&:first)
+          now = Time.now.utc
+          # C2 — prioritized replay: priority = judge_score × recency_decay × keyword_sim
+          pool = outcomes(limit: 500, success: true).reject { |r| r[:session_id].to_s.empty? }
+          scored = pool.map do |r|
+            sim   = tokens.count { |t| r[:task].to_s.downcase.include?(t) }.to_f / tokens.length
+            age_d = (now - Time.parse(r[:timestamp].to_s)) / 86_400.0
+            decay = Math.exp(-age_d / 30.0)
+            score = (r[:score] || 1.0).to_f
+            [r, sim * decay * score]
+          rescue StandardError
+            [r, 0.0]
+          end
+          hits = scored.reject { |_, pr| pr <= 0.0 }.sort_by { |_, pr| -pr }.first(limit).map(&:first)
 
           hits.flat_map { |r| compress_exemplar(session_id: r[:session_id], max_msgs: max_msgs) }
         rescue StandardError
@@ -255,6 +266,7 @@ module PWN
           return { session_id: session_id, lessons: [], reason: 'empty transcript' } if transcript.empty?
 
           lessons = introspective_lessons(transcript: transcript)
+          source, conf = lessons.empty? ? [:heuristic, 0.3] : [:reflect, 0.8]
           lessons = heuristic_lessons(transcript: transcript) if lessons.empty?
 
           saved = []
@@ -262,7 +274,9 @@ module PWN
             next if l.to_s.strip.empty?
 
             key = :"reflect_#{session_id}_#{Digest::SHA256.hexdigest(l)[0, 8]}"
-            PWN::Memory.remember(key: key, value: l, category: :lesson) unless dry_run
+            # M3 — provenance + confidence + ttl so consolidate evicts
+            # low-confidence heuristic lessons before hand-written ones.
+            PWN::Memory.remember(key: key, value: l, category: :lesson, source: source, confidence: conf, importance: conf, ttl: source == :heuristic ? 7 * 86_400 : nil) unless dry_run
             saved << { key: key, lesson: l }
           end
           consolidate unless dry_run
@@ -285,16 +299,39 @@ module PWN
           return unless session_id
           return unless auto_introspect_enabled?
 
-          ok = infer_success(session_id: session_id, final: opts[:final])
+          proxy_ok = infer_success(session_id: session_id, final: opts[:final])
+          # S3 — tool-armed constitutional critic runs BEFORE the reward
+          # model so its verdict is evidence, not hindsight.
+          crit = defined?(Curriculum) ? Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id) : { verdict: :pass }
+          # R1 — LLM Outcome Reward Model (falls back to calibrated heuristic)
+          v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok) if defined?(Reward)
+          v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
+          v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw
+          ok = v[:score] >= 0.6
+
+          # W1 — complete any pending (rejected, chosen) pair from a
+          # user correction on the previous turn.
+          pend = Thread.current[:pwn_pending_pref]
+          if pend && ok && defined?(Reward)
+            Reward.record_preference(prompt: pend[:prompt], rejected: pend[:rejected], chosen: opts[:final].to_s, source: :user_correction)
+            Thread.current[:pwn_pending_pref] = nil
+          end
+
           note_outcome(
             task: opts[:request].to_s[0, 120],
             success: ok,
-            details: opts[:final].to_s[0, 300],
+            score: v[:score],
+            details: "#{v[:verdict]}(#{v[:score].round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
             session_id: session_id,
-            tags: %w[auto loop]
+            tags: ['auto', 'loop', v[:verdict].to_s]
           )
-          reflect(session_id: session_id)
-          fact_check_local_final(final: opts[:final])
+          # R2 — per-step credit assignment; C3 — HER on failure
+          Reward.prm(request: opts[:request], session_id: session_id) if defined?(Reward) && ok
+          Curriculum.hindsight(request: opts[:request], final: opts[:final], session_id: session_id) if !ok && defined?(Curriculum)
+          # W3 — calibration: predicted (from plan_first) vs actual
+          Curriculum.calibrate(predicted: opts[:predicted], actual: v[:score], engine: PWN::Env.dig(:ai, :active)) if opts[:predicted] && defined?(Curriculum)
+          reflect(session_id: session_id) if ok
+          Reward.sentinel if defined?(Reward)
           Extrospection.auto_extrospect(session_id: session_id) if defined?(Extrospection)
         rescue StandardError => e
           warn "[pwn-ai/learning] auto_introspect swallowed: #{e.class}: #{e.message}"
@@ -325,9 +362,12 @@ module PWN
           last[:success]    = false
           last[:flipped_by] = 'user_correction'
           last[:details]    = "#{last[:details]} | CORRECTED: #{opts[:reason].to_s[0, 200]}".strip
+          last[:score]      = 0.0
           lines[-1] = "#{JSON.generate(last)}\n"
           File.write(LEARNING_FILE, lines.join)
-          { flipped: true, id: last[:id] }
+          # W1 — the (rejected_prev_answer, chosen_next_answer) pair is
+          # captured by Mistakes.check_user_correction which has both.
+          { flipped: true, id: last[:id], rejected: last[:details].to_s[0, 2_000] }
         rescue StandardError
           { flipped: false }
         end
@@ -346,26 +386,41 @@ module PWN
           return { removed: 0 } unless defined?(PWN::Memory)
 
           mem = PWN::Memory.load
-          seen = {}
           removed = []
+
+          # M1 — semantic clustering: embed :lesson entries, greedy-merge
+          # near-duplicates (cosine ≥ 0.92) via Reflect into ONE imperative
+          # lesson. Falls back to sha-dedup when no embed backend.
+          removed.concat(semantic_merge(mem: mem)) if defined?(PWN::MemoryIndex) && PWN::MemoryIndex.available?
+
+          seen = {}
           mem.each do |k, v|
             sig = Digest::SHA256.hexdigest(v[:value].to_s.strip.downcase)[0, 16]
-            if seen[sig]
-              removed << k
-            else
-              seen[sig] = k
-            end
+            seen[sig] ? removed << k : seen[sig] = k
           end
-          removed.each { |k| mem.delete(k) }
+          removed.uniq.each { |k| mem.delete(k) }
 
+          # M3 — evict by (age/ttl) / (importance × confidence), NOT
+          # oldest-first. Hand-written high-value lessons survive; low-
+          # confidence :heuristic auto-gen self-evicts first.
           if mem.size > cap
-            sorted = mem.sort_by { |_k, v| v[:timestamp].to_s }
-            drop   = sorted.first(mem.size - cap).map(&:first)
+            now = Time.now.utc
+            sorted = mem.sort_by do |_k, v|
+              age_d = (now - Time.parse(v[:timestamp].to_s)) / 86_400.0
+              ttl_d = (v[:ttl].to_f / 86_400.0)
+              imp   = (v[:importance] || 0.5).to_f.clamp(0.05, 1.0)
+              conf  = (v[:confidence] || (v[:source].to_s == 'human' ? 0.95 : 0.5)).to_f.clamp(0.05, 1.0)
+              staleness = ttl_d.positive? ? age_d / ttl_d : age_d / 90.0
+              -(staleness / (imp * conf))
+            rescue StandardError
+              0.0
+            end
+            drop = sorted.first(mem.size - cap).map(&:first)
             drop.each { |k| mem.delete(k) }
             removed.concat(drop)
           end
           PWN::Memory.save(mem: mem)
-          { removed: removed.length, remaining: mem.size }
+          { removed: removed.uniq.length, remaining: mem.size }
         end
 
         # Supported Method Parameters::
@@ -407,7 +462,10 @@ module PWN
           tool    = entries.select { |e| e[:role].to_s == 'tool' }
           return true if tool.empty?
 
-          bad = tool.count { |e| e[:content].to_s.include?('"success":false') || e[:content].to_s.match?(/"exit":[1-9]/) }
+          bad = tool.count do |e|
+            c = e[:content].to_s
+            defined?(Reward) ? !Reward.semantic_ok(name: c[/^(\w+) →/, 1] || 'shell', raw: c)[:semantic_ok] : c.include?('"success":false')
+          end
           (bad.to_f / tool.length) < 0.5
         rescue StandardError
           !final.strip.empty?
@@ -449,10 +507,15 @@ module PWN
             c = e[:content].to_s
             next unless e[:role].to_s == 'tool'
 
-            if c.include?('"success":false') || c.match?(/error|Error|ERROR/)
-              tool = c[/^(\w+) →/, 1] || c[/"error":"([^"]{5,120})"/, 1] || 'tool'
-              lessons << "Avoid repeating failure pattern from #{tool}: #{c[0, 160]}"
-            end
+            # R4 — only true dispatch failures (semantic_ok=false), NOT any
+            # stdout containing the substring 'error'. This alone eliminated
+            # 64/200 garbage lessons on the reference host.
+            tool = c[/^(\w+) →/, 1] || 'tool'
+            sem  = defined?(Reward) ? Reward.semantic_ok(name: tool, raw: c) : { semantic_ok: !c.include?('"success":false') }
+            next if sem[:semantic_ok]
+
+            err = sem[:err] || c[/"error":"([^"]{5,200})"/, 1] || c[0, 120]
+            lessons << "When #{tool} fails with '#{err.to_s.gsub(/\s+/, ' ')[0, 120]}', try a different approach — do not retry verbatim."
           end
           if lessons.empty?
             asst = transcript.rfind { |e| e[:role].to_s == 'assistant' }
@@ -485,7 +548,11 @@ module PWN
           fin  = t.rfind { |e| e[:role].to_s == 'assistant' }
           return [] unless user && fin
 
-          tools = t.select { |e| e[:role].to_s == 'tool' }.first([cap - 2, 0].max)
+          # C4 — minimal sufficient trace: prefer steps PRM tagged reward>0
+          tools = t.select { |e| e[:role].to_s == 'tool' }
+          rewarded = tools.select { |e| e[:step_reward].to_i.positive? }
+          tools = rewarded unless rewarded.empty?
+          tools = tools.first([cap - 2, 0].max)
           msgs  = [{ role: 'user', content: "[exemplar] #{user[:content].to_s[0, 400]}" }]
           tools.each { |e| msgs << { role: 'assistant', content: "[exemplar tool] #{e[:content].to_s[0, 300]}" } }
           msgs << { role: 'assistant', content: "[exemplar final] #{fin[:content].to_s[0, 400]}" }
@@ -507,8 +574,11 @@ module PWN
           session_id = opts[:session_id]
           name       = opts[:name]
           transcript = PWN::Sessions.load(session_id: session_id)
-          steps = transcript.select { |e| %w[tool assistant].include?(e[:role].to_s) }
-                            .map { |e| "- **#{e[:role]}**: #{e[:content].to_s.strip[0, 300]}" }
+          # C4 — minimal sufficient trace: only steps PRM tagged reward>0
+          pool = transcript.select { |e| %w[tool assistant].include?(e[:role].to_s) }
+          rewarded = pool.select { |e| e[:step_reward].to_i.positive? }
+          pool = rewarded unless rewarded.empty?
+          steps = pool.map { |e| "- **#{e[:role]}**: #{e[:content].to_s.strip[0, 300]}" }
           user = transcript.find { |e| e[:role].to_s == 'user' }
           goal = user ? user[:content].to_s.strip[0, 200] : name
           <<~MD
@@ -525,6 +595,83 @@ module PWN
             ## Notes
             Refine this skill by editing #{name}.md under ~/.pwn/skills.
           MD
+        end
+
+        # M1 — greedy cosine clustering over :lesson embeddings, then ask
+        # Reflect to merge each cluster into ONE ≤120-char imperative.
+        private_class_method def self.semantic_merge(opts = {})
+          mem = opts[:mem]
+          lessons = mem.select { |_k, v| v[:category].to_s == 'lesson' }
+          return [] if lessons.length < 4
+
+          idx = PWN::MemoryIndex.refresh(mem: mem)
+          removed = []
+          done = {}
+          lessons.each_key do |k|
+            next if done[k]
+
+            va = idx.dig(k, :vec)
+            next unless va
+
+            cluster = lessons.keys.select do |k2|
+              next false if k2 == k || done[k2]
+
+              vb = idx.dig(k2, :vec)
+              vb && PWN::MemoryIndex.send(:cosine, a: va, b: vb) >= 0.92
+            end
+            next if cluster.empty?
+
+            group = ([k] + cluster).map { |kk| mem[kk][:value].to_s }
+            merged = merge_cluster(values: group)
+            mem[k][:value]      = merged
+            mem[k][:source]     = 'consolidate'
+            mem[k][:confidence] = 0.8
+            mem[k][:importance] = [(mem[k][:importance] || 0.5).to_f, 0.7].max
+            cluster.each do |kk|
+              removed << kk
+              done[kk] = true
+            end
+            done[k] = true
+          end
+          removed
+        rescue StandardError
+          []
+        end
+
+        private_class_method def self.merge_cluster(opts = {})
+          values = opts[:values]
+          if defined?(Reflect) && PWN::Env.dig(:ai, :module_reflection)
+            req = "Merge these near-duplicate lessons into ONE imperative sentence (≤120 chars, no preamble):\n#{values.map { |v| "- #{v[0, 200]}" }.join("\n")}"
+            r = Reflect.on(request: req, suppress_pii_warning: true).to_s.strip.lines.first.to_s.strip
+            return r[0, 200] unless r.empty?
+          end
+          values.min_by(&:length)[0, 200]
+        rescue StandardError
+          values.first[0, 200]
+        end
+
+        # Supported Method Parameters::
+        # PWN::AI::Agent::Learning.purge_noise
+        #
+        # One-shot GC of the pre-R1 garbage: drops every PWN::Memory entry
+        # matching the old `SUCCESS: <req> — <final>` / `Avoid repeating
+        # failure pattern from <tool>: {"success":true` shapes. Run once
+        # after upgrading; subsequent writes never produce these.
+
+        public_class_method def self.purge_noise
+          return { removed: 0 } unless defined?(PWN::Memory)
+
+          mem = PWN::Memory.load
+          before = mem.size
+          mem.reject! do |_k, v|
+            next false unless v[:category].to_s == 'lesson'
+
+            val = v[:value].to_s
+            val.start_with?('SUCCESS: ', 'FAILURE: ') ||
+              val.match?(/\AAvoid repeating failure pattern from \w+: .{0,5}\{"success":true/)
+          end
+          PWN::Memory.save(mem: mem)
+          { removed: before - mem.size, remaining: mem.size }
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -545,7 +692,8 @@ module PWN
               PWN::AI::Agent::Learning.distill_skill(name: 'quick_recon', session_id: sid)
               PWN::AI::Agent::Learning.exemplars_for(request: 'nmap sweep 10/8')  # few-shot for Loop.run
               PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)        # -> ~/.pwn/finetune/*.jsonl
-              PWN::AI::Agent::Learning.consolidate(max_entries: 200)         # dedupe + prune Memory
+              PWN::AI::Agent::Learning.consolidate(max_entries: 200)         # M1 semantic-merge + M3 importance-evict
+              PWN::AI::Agent::Learning.purge_noise                            # one-shot GC of pre-R1 garbage lessons
               PWN::AI::Agent::Learning.to_context(limit: 5)                  # injected by PromptBuilder
               PWN::AI::Agent::Learning.stats
               PWN::AI::Agent::Learning.reset

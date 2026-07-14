@@ -52,7 +52,7 @@ describe PWN::AI::Agent::Learning do
 
     report = PWN::AI::Agent::Learning.reflect(session_id: s[:id])
     expect(report[:count]).to be >= 1
-    expect(PWN::Memory.recall(query: 'failure').keys).not_to be_empty
+    expect(PWN::Memory.recall(query: 'fails').keys).not_to be_empty
   end
 
   it 'distills a skill from an explicit body' do

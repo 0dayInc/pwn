@@ -122,10 +122,11 @@ module PWN
         #   entries: 'optional - Entry pool to rank (default .all)'
         # )
         #
-        # Lightweight keyword TF router: scores each tool by the number of
-        # query tokens (≥ 3 chars, downcased) appearing in its name /
-        # description / property names. Zero-score entries drop off; ties
-        # break on historical Metrics success_rate so the router learns.
+        # C1 advantage-weighted router: score = α·keyword_sim + β·(tool
+        # rolling success_rate − global rate) + γ·UCB1(tool). Untried tools
+        # get an exploration bonus; tools that outperform the fleet get an
+        # exploitation bonus. Thompson sampling is available via
+        # Metrics.thompson for stochastic routing.
 
         public_class_method def self.rank(opts = {})
           query   = opts[:query].to_s.downcase
@@ -133,14 +134,23 @@ module PWN
           return entries if query.strip.empty?
 
           tokens = query.scan(/[a-z0-9_]{3,}/).uniq
-          rates  = metrics_rates
+          # C1 — advantage-weighted router:
+          #   score = α·keyword_sim + β·advantage + γ·UCB(tool)
+          # UCB gives untried / low-N tools an exploration bonus so a single
+          # early failure (before its dep was installed) does not blacklist
+          # it forever; advantage prefers tools that outperform the fleet.
+          alpha = 1.0
+          beta  = 0.3
+          gamma = 0.2
           scored = entries.map do |e|
             hay   = "#{e.name} #{e.toolset} #{e.schema[:description]} #{Array(e.schema.dig(:parameters, :properties)&.keys).join(' ')}".downcase
-            score = tokens.count { |t| hay.include?(t) }
-            [e, score, rates[e.name] || 0.0]
+            sim   = tokens.count { |t| hay.include?(t) }
+            adv   = defined?(Metrics) && Metrics.respond_to?(:advantage) ? Metrics.advantage(name: e.name) : 0.0
+            ucb   = defined?(Metrics) && Metrics.respond_to?(:ucb) ? Metrics.ucb(name: e.name) : 0.5
+            [e, sim, (alpha * sim) + (beta * adv) + (gamma * ucb)]
           end
-          scored.reject { |_, s, _| s.zero? }
-                .sort_by { |_, s, r| [-s, -r] }
+          scored.reject { |_, sim, _| sim.zero? }
+                .sort_by { |_, _, s| -s }
                 .map(&:first)
         end
 

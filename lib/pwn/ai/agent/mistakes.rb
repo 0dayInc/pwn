@@ -136,11 +136,20 @@ module PWN
           m = store[key] ||= {
             signature: sig, tool: tool, error: norm,
             snippet: error.to_s.strip[0, 300],
-            count: 0, first_seen: now, sessions: [],
+            count: 0, drift_count: 0, first_seen: now, sessions: [],
             resolved: false, fix: nil, source: (opts[:source] || :tool).to_s
           }
-          was_resolved     = m[:resolved]
-          m[:count]       += 1
+          was_resolved = m[:resolved]
+          # E1 — env-drift-attributed failures are counted separately so
+          # they do NOT push the signature toward [REPEATING]. "The world
+          # changed under me" is not the same lesson as "I did it wrong".
+          cause = (opts[:cause] || :self).to_sym
+          if cause == :env_drift
+            m[:drift_count] = m[:drift_count].to_i + 1
+            m[:cause] = 'env_drift'
+          else
+            m[:count] += 1
+          end
           m[:last_seen]    = now
           m[:snippet]      = error.to_s.strip[0, 300]
           m[:sample_args]  = opts[:args].to_s[0, 200] if opts[:args]
@@ -179,7 +188,20 @@ module PWN
             PWN::Memory.remember(
               key: :"mistake_fix_#{sig}",
               value: "AVOID: #{store[key][:tool]} → #{store[key][:error]} — FIX: #{fix.strip[0, 300]}",
-              category: :lesson
+              category: :lesson,
+              source: :resolve,
+              confidence: 0.9,
+              importance: 0.9
+            )
+          end
+          # W1 — every resolve is a naturally-generated preference pair:
+          # (rejected: the failing action, chosen: the fix).
+          if defined?(Reward)
+            Reward.record_preference(
+              prompt: "#{store[key][:tool]}: #{store[key][:error]}",
+              rejected: store[key][:snippet].to_s,
+              chosen: fix.strip,
+              source: :mistakes_resolve
             )
           end
           store[key]
@@ -220,7 +242,8 @@ module PWN
           unless open.empty?
             lines = open.map do |m|
               tags = []
-              tags << 'REPEATING' if m[:count].to_i >= REPEAT_THRESHOLD
+              tags << 'REPEATING' if effective_count(mistake: m) >= REPEAT_THRESHOLD
+              tags << 'ENV_DRIFT' if m[:cause].to_s == 'env_drift'
               tags << 'REGRESSED' if m[:regressed]
               tag = tags.empty? ? '' : " [#{tags.join(',')}]"
               fix = m[:fix] ? " — last fix (insufficient): #{m[:fix][0, 100]}" : ''
@@ -286,6 +309,9 @@ module PWN
 
           prev = previous_assistant(session_id: session_id)
           Learning.flip_last_outcome(session_id: session_id, reason: request[0, 200]) if defined?(Learning)
+          # W1 — stash the rejected answer + user prompt so the NEXT final
+          # (the correction) completes a (rejected, chosen) preference pair.
+          Thread.current[:pwn_pending_pref] = { prompt: previous_user(session_id: session_id).to_s, rejected: prev.to_s } if defined?(Reward)
           record(
             tool: 'assistant_answer',
             error: "user rejected previous answer: #{request.strip[0, 200]}",
@@ -325,6 +351,29 @@ module PWN
           e = e.gsub(/\bpid\s*\d+\b/, 'pid N')
           e = e.gsub(/\b\d{4,}\b/, 'N')
           e.gsub(/\s+/, ' ')[0, 300]
+        end
+
+        # Age-weighted count for [REPEATING] threshold — a ×8 signature from
+        # 6 months ago on a since-rewritten module decays toward zero.
+        public_class_method def self.effective_count(opts = {})
+          m = opts[:mistake] || find(signature: opts[:signature])
+          return 0 unless m
+
+          days = (Time.now.utc - Time.parse(m[:last_seen].to_s)) / 86_400.0
+          (m[:count].to_f * (0.5**(days / 30.0))).ceil
+        rescue StandardError
+          m ? m[:count].to_i : 0
+        end
+
+        private_class_method def self.previous_user(opts = {})
+          sid = opts[:session_id]
+          return nil unless sid && defined?(PWN::Sessions)
+
+          t = PWN::Sessions.load(session_id: sid)
+          users = t.select { |e| e[:role].to_s == 'user' }
+          users.length >= 2 ? users[-2][:content] : users.last&.[](:content)
+        rescue StandardError
+          nil
         end
 
         private_class_method def self.previous_assistant(opts = {})

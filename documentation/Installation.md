@@ -31,7 +31,7 @@ pwn                            # launch the REPL
 ```
 
 ```text
-pwn[v0.5.628]:001 >>> PWN.help
+pwn[CURRENT_VERSION]:001 >>> PWN.help
 ```
 
 If you only need a subset (e.g. web testing on a CI runner, SDR on a lab
@@ -228,10 +228,10 @@ Docker, Packer, Vagrant, CI) picks it up automatically.
 ## Verify
 
 ```ruby
-pwn[v0.5.628]:001 >>> PWN::Setup.check[:ok]          # => true
-pwn[v0.5.628]:002 >>> PWN::Plugins.constants.count   # => 66
-pwn[v0.5.628]:003 >>> PWN::SAST.constants.count      # => 48
-pwn[v0.5.628]:004 >>> pwn-ai                         # launches agent TUI
+pwn[CURRENT_VERSION]:001 >>> PWN::Setup.check[:ok]          # => true
+pwn[CURRENT_VERSION]:002 >>> PWN::Plugins.constants.count   # => 66
+pwn[CURRENT_VERSION]:003 >>> PWN::SAST.constants.count      # => 48
+pwn[CURRENT_VERSION]:004 >>> pwn-ai                         # launches agent TUI
 ```
 
 **Next:** [Configuration](Configuration.md) · [General Usage](General-PWN-Usage.md)

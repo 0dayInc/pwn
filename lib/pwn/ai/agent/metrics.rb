@@ -28,7 +28,11 @@ module PWN
       # engine's telemetry so the TOOL EFFECTIVENESS block becomes a
       # genuine per-engine learned policy.
       module Metrics
-        METRICS_FILE = File.join(Dir.home, '.pwn', 'metrics.json')
+        METRICS_FILE   = File.join(Dir.home, '.pwn', 'metrics.json')
+        HALF_LIFE_DAYS = 14.0
+        CUSUM_K        = 0.15
+        CUSUM_H        = 0.6
+        WINDOW         = 30
 
         # Supported Method Parameters::
         # metrics = PWN::AI::Agent::Metrics.load
@@ -136,6 +140,114 @@ module PWN
         end
 
         # Supported Method Parameters::
+        # score = PWN::AI::Agent::Metrics.ucb(
+        #   name: 'required - tool name',
+        #   c: 'optional - exploration constant (default 1.4)'
+        # )
+        #
+        # C1 — Upper Confidence Bound. Tools with few calls get an
+        # exploration bonus so a single early failure (before its dep was
+        # installed) does NOT permanently blacklist it. Registry.rank uses
+        # this instead of raw success_rate.
+
+        public_class_method def self.ucb(opts = {})
+          name = opts[:name].to_s
+          c    = (opts[:c] || 1.4).to_f
+          data = load[:tools] || {}
+          t    = data[name.to_sym] || blank_bucket
+          n    = [t[:calls].to_f, 1.0].max
+          total = [data.values.sum { |v| v[:calls].to_f }, 1.0].max
+          mean  = t[:ok].to_f / n
+          mean + (c * Math.sqrt(Math.log(total) / n))
+        rescue StandardError
+          1.0
+        end
+
+        # Supported Method Parameters::
+        # p = PWN::AI::Agent::Metrics.thompson(name: 'shell')
+        #
+        # C1 — Thompson sample from Beta(ok+1, fail+1). Naturally balances
+        # exploit/explore; used by Registry.rank as the tie-breaker.
+
+        public_class_method def self.thompson(opts = {})
+          t = (load[:tools] || {})[opts[:name].to_s.to_sym] || blank_bucket
+          beta_sample(alpha: t[:ok].to_f + 1.0, beta: t[:fail].to_f + 1.0)
+        rescue StandardError
+          0.5
+        end
+
+        # Supported Method Parameters::
+        # a = PWN::AI::Agent::Metrics.advantage(name: 'shell')
+        #
+        # C1 — tool.success_rate − global_rate over the rolling window.
+
+        public_class_method def self.advantage(opts = {})
+          data = load[:tools] || {}
+          t    = data[opts[:name].to_s.to_sym]
+          return 0.0 unless t
+
+          global = data.values.sum { |v| v[:ok].to_f } / [data.values.sum { |v| v[:calls].to_f }, 1.0].max
+          win    = Array(t[:window])
+          local  = win.empty? ? (t[:ok].to_f / [t[:calls].to_f, 1.0].max) : (win.sum.to_f / win.length)
+          (local - global).round(3)
+        rescue StandardError
+          0.0
+        end
+
+        # Supported Method Parameters::
+        # cps = PWN::AI::Agent::Metrics.changepoints
+        #
+        # E1 — tools whose CUSUM tripped (success_rate regime change). The
+        # caller (Mistakes.record / Curriculum) triggers extro_snapshot +
+        # correlate on these so a Mistake caused by env drift is tagged
+        # cause: :env_drift and does NOT count toward [REPEATING].
+
+        public_class_method def self.changepoints(opts = {})
+          within = (opts[:within_secs] || 3_600).to_i
+          now = Time.now.utc
+          (load[:tools] || {}).filter_map do |name, t|
+            cp = t[:changepoint_at]
+            next unless cp && (now - Time.parse(cp)) < within
+
+            { name: name.to_s, at: cp, window_rate: Array(t[:window]).sum.to_f / [Array(t[:window]).length, 1].max }
+          end
+        rescue StandardError
+          []
+        end
+
+        # Supported Method Parameters::
+        # PWN::AI::Agent::Metrics.record_calibration(predicted:, actual:, brier:, engine:)
+        #
+        # W3 — plan_first emits p(success); Loop.run calls this with the
+        # realised outcome. Tracked per-engine so calibration of the local
+        # LoRA vs frontier is comparable.
+
+        public_class_method def self.record_calibration(opts = {})
+          m = load
+          m[:calibration] ||= {}
+          eng = (opts[:engine] || :global).to_s.to_sym
+          c = m[:calibration][eng] ||= { n: 0, brier_sum: 0.0, p_sum: 0.0, a_sum: 0.0 }
+          c[:n]         += 1
+          c[:brier_sum] += opts[:brier].to_f
+          c[:p_sum]     += opts[:predicted].to_f
+          c[:a_sum]     += opts[:actual].to_f
+          save(metrics: m)
+          c
+        end
+
+        # Supported Method Parameters::
+        # cal = PWN::AI::Agent::Metrics.calibration(engine: :ollama)
+
+        public_class_method def self.calibration(opts = {})
+          eng = (opts[:engine] || :global).to_s.to_sym
+          c = (load[:calibration] || {})[eng]
+          return { n: 0, brier: nil } unless c && c[:n].to_i.positive?
+
+          n = c[:n].to_f
+          { n: c[:n], brier: (c[:brier_sum] / n).round(4), mean_predicted: (c[:p_sum] / n).round(3), mean_actual: (c[:a_sum] / n).round(3), overconfidence: ((c[:p_sum] - c[:a_sum]) / n).round(3) }
+        end
+
+        # Supported Method Parameters::
         # PWN::AI::Agent::Metrics.reset
 
         public_class_method def self.reset
@@ -144,7 +256,30 @@ module PWN
         end
 
         private_class_method def self.blank_bucket
-          { calls: 0, ok: 0, fail: 0, total_duration: 0.0, last_error: nil, last_at: nil }
+          { calls: 0, ok: 0, fail: 0, total_duration: 0.0, last_error: nil, last_at: nil, window: [], cusum_lo: 0.0, cusum_hi: 0.0 }
+        end
+
+        # Marsaglia-Tsang gamma → Beta(a,b) sampler; no external gem.
+        private_class_method def self.beta_sample(opts = {})
+          a = gamma_sample(shape: opts[:alpha])
+          b = gamma_sample(shape: opts[:beta])
+          a / (a + b)
+        end
+
+        private_class_method def self.gamma_sample(opts = {})
+          k = opts[:shape].to_f
+          return gamma_sample(shape: k + 1.0) * (rand**(1.0 / k)) if k < 1.0
+
+          d = k - (1.0 / 3.0)
+          c = 1.0 / Math.sqrt(9.0 * d)
+          loop do
+            x = Math.sqrt(-2.0 * Math.log(rand)) * Math.cos(2.0 * Math::PI * rand)
+            v = (1.0 + (c * x))**3
+            next if v <= 0
+
+            u = rand
+            return d * v if Math.log(u) < (0.5 * x * x) + d - (d * v) + (d * Math.log(v))
+          end
         end
 
         private_class_method def self.bump(opts = {})
@@ -152,13 +287,42 @@ module PWN
           success  = opts[:success]
           duration = opts[:duration].to_f
           error    = opts[:error]
+          decay(bucket: b)
           b[:calls]          += 1
           b[:ok]             += 1 if success
           b[:fail]           += 1 unless success
           b[:total_duration]  = b[:total_duration].to_f + duration
           b[:last_error]      = error.to_s[0, 300] if error && !success
           b[:last_at]         = Time.now.utc.iso8601
+          # Rolling window for changepoint / advantage estimation
+          b[:window] = (Array(b[:window]) + [success ? 1 : 0]).last(WINDOW)
+          # E1 — CUSUM changepoint on success_rate
+          mean = b[:calls].positive? ? b[:ok].to_f / b[:calls] : 0.5
+          x = success ? 1.0 : 0.0
+          b[:cusum_lo] = [0.0, b[:cusum_lo].to_f + (mean - x - CUSUM_K)].max
+          b[:cusum_hi] = [0.0, b[:cusum_hi].to_f + (x - mean - CUSUM_K)].max
+          if b[:cusum_lo] > CUSUM_H || b[:cusum_hi] > CUSUM_H
+            b[:changepoint_at] = Time.now.utc.iso8601
+            b[:cusum_lo] = 0.0
+            b[:cusum_hi] = 0.0
+          end
           b
+        end
+
+        # Exponential decay so a mistake from months ago on a since-rewritten
+        # module stops dominating the policy. Applied lazily on bump.
+        private_class_method def self.decay(opts = {})
+          b = opts[:bucket]
+          last = b[:last_at]
+          return unless last
+
+          days = (Time.now.utc - Time.parse(last)) / 86_400.0
+          return if days < 1.0
+
+          f = 0.5**(days / HALF_LIFE_DAYS)
+          %i[calls ok fail total_duration].each { |k| b[k] = (b[k].to_f * f) }
+        rescue StandardError
+          nil
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -175,6 +339,12 @@ module PWN
               PWN::AI::Agent::Metrics.record(name: 'shell', success: true, duration: 0.42, engine: :ollama)
               PWN::AI::Agent::Metrics.summary(limit: 10, engine: :ollama)
               PWN::AI::Agent::Metrics.to_context(limit: 8, engine: :ollama)   # injected by PromptBuilder
+              PWN::AI::Agent::Metrics.ucb(name: 'shell')                 # C1 exploration bonus
+              PWN::AI::Agent::Metrics.thompson(name: 'shell')            # C1 Beta(ok+1,fail+1) sample
+              PWN::AI::Agent::Metrics.advantage(name: 'shell')           # C1 local − global
+              PWN::AI::Agent::Metrics.changepoints(within_secs: 3600)    # E1 CUSUM regime changes
+              PWN::AI::Agent::Metrics.record_calibration(predicted: 0.8, actual: 1.0, brier: 0.04, engine: :ollama)
+              PWN::AI::Agent::Metrics.calibration(engine: :ollama)       # W3 Brier / overconfidence
               PWN::AI::Agent::Metrics.reset
               PWN::AI::Agent::Metrics.load
               PWN::AI::Agent::Metrics.save(metrics: hash)

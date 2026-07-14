@@ -449,7 +449,12 @@ PWN::AI::Agent::Registry.register(
                  'GreyNoise), DNS/WHOIS/RDAP, CT (crt.sh + Cert Spotter), FCC ' \
                  'ID, patent, VIN (NHTSA), MAC OUI, ham callsign (Callook), ' \
                  'person / missing-person (Wikipedia/Wikidata/OpenSanctions + ' \
-                 'NamUs/FBI/Charley), username pivots (GitHub/GitLab/Reddit), ' \
+                 'NamUs/FBI/Charley), username / social pivots (Keybase/Gravatar/' \
+                 'Mastodon/Bluesky/HN/StackExchange/npm/PyPI/RubyGems/crates/' \
+                 'DockerHub/Codeberg/Chess.com/Lichess/Steam/Telegram + a ' \
+                 '~100-site Sherlock-mode presence sweep + GitHub/GitLab/' \
+                 'Reddit), local-tool bridges (theHarvester/spiderfoot/amass/' \
+                 'recon-ng when installed), ' \
                  'name demographics (Agify/Genderize/Nationalize), Shodan/' \
                  'Hunter/VirusTotal/HIBP/SecurityTrails (keyed), Wayback, ' \
                  'OTX/URLHaus/ThreatFox/urlscan, HackerTarget, openFDA, NPPES, ' \
@@ -461,15 +466,15 @@ PWN::AI::Agent::Registry.register(
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Phone, IP, domain, email, URL, person name, company, CIK, FCC ID, patent number, username, address, ...' },
+        query: { type: 'string', description: 'Phone, IP, domain, email, URL, person name, company, CIK, FCC ID, patent number, @handle / username, Fediverse acct (@user@host), address, ...' },
         kind: {
           type: 'string',
-          enum: %w[auto ip geo dns whois rdap crtsh bgp shodan hunter phone fcc_id patent person username github wayback email domain url company cik openfda vital_records threat vin mac callsign npi cve],
+          enum: %w[auto ip geo dns whois rdap crtsh bgp shodan hunter phone fcc_id patent person username social github wayback email domain url company cik openfda vital_records threat vin mac callsign npi cve],
           description: 'Force an OSINT kind. Omit / auto to detect from query shape.'
         },
         feeds: {
           type: 'array',
-          items: { type: 'string', enum: %w[ip geo dns whois rdap crtsh bgpview shodan hunter phone fcc_id patent person username github wayback otx urlhaus threatfox urlscan hackertarget openfda nominatim opencorporates courtlistener sec_edgar vital_records ipapi_is iplocate ipwhois abuseipdb virustotal greynoise certspotter epss cisa_kev nhtsa nppes federal_register uk_police callook mac_vendor universities microlink agify genderize nationalize haveibeenpwned securitytrails] }
+          items: { type: 'string', enum: %w[ip geo dns whois rdap crtsh bgpview shodan hunter phone fcc_id patent person username github wayback otx urlhaus threatfox urlscan hackertarget openfda nominatim opencorporates courtlistener sec_edgar vital_records ipapi_is iplocate ipwhois abuseipdb virustotal greynoise certspotter epss cisa_kev nhtsa nppes federal_register uk_police callook mac_vendor universities microlink agify genderize nationalize haveibeenpwned securitytrails keybase gravatar mastodon bluesky hackernews stackexchange npm pypi rubygems crates dockerhub codeberg sourcehut chesscom lichess steam telegram social_sweep theharvester spiderfoot amass reconng] }
         },
         limit: { type: 'integer', default: 5 },
         record: { type: 'boolean', default: true },

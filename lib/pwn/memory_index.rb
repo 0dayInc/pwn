@@ -53,11 +53,22 @@ module PWN
       return fallback(query: query, limit: limit) unless qv
 
       idx = refresh(mem: mem)
+      now = Time.now.utc
+      # M2 — Generative-Agents retrieval: score = α·sim + β·recency + γ·importance
+      # (Park '23). pwn had only sim; recency and importance now let a
+      # 3-day-old human :fact outrank a 1-hour-old heuristic :lesson.
       scored = mem.map do |k, v|
         vec = idx.dig(k, :vec)
         next unless vec
 
-        { key: k, value: v[:value], category: v[:category], timestamp: v[:timestamp], score: cosine(a: qv, b: vec) }
+        sim = cosine(a: qv, b: vec)
+        age_h = (now - Time.parse(v[:timestamp].to_s)) / 3_600.0
+        rec = Math.exp(-age_h / (24.0 * 7.0))
+        imp = (v[:importance] || 0.5).to_f
+        score = (0.6 * sim) + (0.25 * rec) + (0.15 * imp)
+        { key: k, value: v[:value], category: v[:category], timestamp: v[:timestamp], score: score, sim: sim.round(3), importance: imp }
+      rescue StandardError
+        nil
       end
       scored.compact.sort_by { |h| -h[:score] }.first(limit)
     rescue StandardError

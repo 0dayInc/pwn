@@ -118,6 +118,29 @@ ai:
         port: 7356                 # GQRX remote-control port.
         settle_secs: 8             # Seconds to sample RDS after tuning (max 30).
         ttl: 300                   # Observation TTL for :rf (songs change - keep short).
+      osint:
+        ttl: 86400                 # Observation TTL for :osint (default 1 day).
+        proxy: ~                   # Optional upstream proxy for OSINT HTTP feeds.
+        api_keys:                  # Per-feed API keys (all optional; keyed feeds return {skipped:} when absent). ENV fallbacks also honoured.
+          shodan: ...              #   ← SHODAN_API_KEY
+          hunter: ...              #   ← HUNTER_API_KEY
+          abuseipdb: ...           #   ← ABUSEIPDB_API_KEY
+          virustotal: ...          #   ← VIRUSTOTAL_API_KEY / VT_API_KEY
+          greynoise: ...           #   ← GREYNOISE_API_KEY
+          haveibeenpwned: ...      #   ← HIBP_API_KEY
+          securitytrails: ...      #   ← SECURITYTRAILS_API_KEY
+          steam: ...               #   ← STEAM_API_KEY
+        social:
+          sites_file: etc/osint/social_sites.json   # Vendored sherlock-derived presence list used by :social_sweep. Override to extend.
+          max_threads: 16          # Concurrent presence checks in :social_sweep.
+          max_sites: 120           # Hard cap on sites read from sites_file.
+          timeout: 6               # Per-site HTTP timeout (seconds).
+          mastodon_instance: mastodon.social         # Default Fediverse instance for a bare @handle.
+        bridges:
+          timeout: 120             # Per local-tool wall clock (seconds) for theHarvester/amass/spiderfoot/recon-ng.
+          theharvester_sources: anubis,crtsh,hackertarget,otx,rapiddns,urlscan,certspotter,dnsdumpster,duckduckgo
+          spiderfoot_modules: sfp_dnsresolve,sfp_crt,sfp_hackertarget,sfp_dnsdumpster,sfp_wayback,sfp_social
+          amass_passive: true      # false → active enum (touches target DNS - OPSEC).
 
 plugins:
   asm:
@@ -178,10 +201,6 @@ cron:
 
 targets:                           # Optional - engagement-scope URLs/hosts. Merged into :web snapshot anchors
   - https://target.example.com     #   ONLY when ai.agent.extrospection.web.allow_targets: true.
-| `ai.agent.extrospection.rf.host` | String | `127.0.0.1` | `Extrospection.rf_tune` | GQRX remote-control host for the RF sense organ. |
-| `ai.agent.extrospection.rf.port` | Integer | `7356` | `Extrospection.rf_tune` | GQRX remote-control port. |
-| `ai.agent.extrospection.rf.settle_secs` | Integer | `8` | `Extrospection.rf_tune` | Seconds to sample RDS after tuning (capped at 30). |
-| `ai.agent.extrospection.rf.ttl` | Integer | `300` | `Extrospection.rf_tune` | TTL (seconds) for `:rf` observations written by `extro_rf_tune` (ephemeral radio content). |
 ```
 
 ---
@@ -250,6 +269,22 @@ PWN::Config.refresh_env
 | `ai.agent.extrospection.web.per_page_timeout` | Integer | `15` | `Extrospection` (headless browser) | Seconds before a page render is abandoned. |
 | `ai.agent.extrospection.web.screenshot` | Boolean | `false` | `Extrospection.probe_web` / `.watch` | Persist a PNG per anchor to `~/.pwn/extrospection/web/`. |
 | `ai.agent.extrospection.web.allow_targets` | Boolean | `false` | `Extrospection.web_anchors` | Merge top-level `targets:` into the anchor list (opt-in - off by default to avoid touching in-scope hosts unprompted). |
+| `ai.agent.extrospection.rf.host` | String | `127.0.0.1` | `Extrospection.rf_tune` | GQRX remote-control host for the RF sense organ. |
+| `ai.agent.extrospection.rf.port` | Integer | `7356` | `Extrospection.rf_tune` | GQRX remote-control port. |
+| `ai.agent.extrospection.rf.settle_secs` | Integer | `8` | `Extrospection.rf_tune` | Seconds to sample RDS after tuning (capped at 30). |
+| `ai.agent.extrospection.rf.ttl` | Integer | `300` | `Extrospection.rf_tune` | TTL (seconds) for `:rf` observations written by `extro_rf_tune` (ephemeral radio content). |
+| `ai.agent.extrospection.osint.ttl` | Integer | `86400` | `Extrospection.osint` | TTL (seconds) for `:osint` observations written by `extro_osint`. |
+| `ai.agent.extrospection.osint.proxy` | String | - | `Extrospection.osint` | Optional upstream proxy for OSINT HTTP feeds. |
+| `ai.agent.extrospection.osint.api_keys.<feed>` | String | - | `Extrospection.osint_api_keys` | Per-feed API keys for keyed OSINT sources: `shodan`, `hunter`, `abuseipdb`, `virustotal`, `greynoise`, `haveibeenpwned`, `securitytrails`, `steam`. Keyed feeds return `{skipped:}` when absent. ENV fallbacks (`SHODAN_API_KEY`, `HUNTER_API_KEY`, `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`/`VT_API_KEY`, `GREYNOISE_API_KEY`, `HIBP_API_KEY`, `SECURITYTRAILS_API_KEY`, `STEAM_API_KEY`) also honoured. Redacted. |
+| `ai.agent.extrospection.osint.social.sites_file` | Path | `etc/osint/social_sites.json` | `Extrospection.osint_social_sweep` | JSON of `{sites:{Name:{url:"...{u}...",absent_status:[404],absent_body:[...],head:bool}}}` used by the `:social_sweep` presence check. Vendored subset of sherlock-project (MIT). Override to add/remove platforms. |
+| `ai.agent.extrospection.osint.social.max_threads` | Integer | `16` | `Extrospection.osint_social_sweep` | Concurrency for the presence sweep (`Concurrent::FixedThreadPool`). |
+| `ai.agent.extrospection.osint.social.max_sites` | Integer | `120` | `Extrospection.osint_social_sweep` | Hard cap on sites loaded from `sites_file`. |
+| `ai.agent.extrospection.osint.social.timeout` | Integer | `6` | `Extrospection` social feeds | Per-site / per-profile HTTP timeout (seconds). |
+| `ai.agent.extrospection.osint.social.mastodon_instance` | String | `mastodon.social` | `Extrospection.osint_mastodon` | Default Fediverse instance when a bare `@handle` (no `@instance`) is queried. |
+| `ai.agent.extrospection.osint.bridges.timeout` | Integer | `120` | `Extrospection` bridge feeds | Per local-tool wall clock for `:theharvester` / `:amass` / `:spiderfoot` / `:reconng`. |
+| `ai.agent.extrospection.osint.bridges.theharvester_sources` | String | passive set | `Extrospection.osint_theharvester` | Comma-separated `-b` sources passed to theHarvester. |
+| `ai.agent.extrospection.osint.bridges.spiderfoot_modules` | String | passive set | `Extrospection.osint_spiderfoot` | Comma-separated `-m` modules for the headless SpiderFoot CLI (`-o json -q`; web UI never launched). |
+| `ai.agent.extrospection.osint.bridges.amass_passive` | Boolean | `true` | `Extrospection.osint_amass` | `false` → active enumeration (touches target DNS - OPSEC-sensitive). |
 
 ### `plugins` - module credentials & wiring
 
