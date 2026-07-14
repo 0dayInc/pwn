@@ -2,7 +2,6 @@
 
 require 'curses'
 require 'fileutils'
-require 'meshtastic'
 require 'pry'
 require 'reline'
 require 'tty-prompt'
@@ -613,6 +612,18 @@ module PWN
 
           def process
             pi = pry_instance
+            # meshtastic is a *setup-managed* gem (see pwn.gemspec / PWN::Setup):
+            # its rubygems.org releases carry `required_ruby_version >= 4.0`, so
+            # it cannot be a hard runtime dependency while pwn supports ruby 3.3+.
+            begin
+              require 'meshtastic'
+            rescue LoadError => e
+              output.puts "pwn-mesh unavailable: #{e.message}"
+              output.puts "  meshtastic requires ruby >= 4.0 (running #{RUBY_VERSION})." if Gem::Version.new(RUBY_VERSION) < Gem::Version.new('4.0.0')
+              output.puts '  Run: `pwn setup --profile full` (or `gem install meshtastic`) on ruby >= 4.0.'
+              return
+            end
+
             pi.config.pwn_mesh = true
             meshtastic_env = PWN::Env[:plugins][:meshtastic]
 

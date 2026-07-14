@@ -73,6 +73,7 @@ Gem::Specification.new do |spec|
     faye-websocket
     gruff
     libusb
+    meshtastic
     pg
     rmagick
     rtesseract
