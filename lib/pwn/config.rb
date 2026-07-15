@@ -7,26 +7,16 @@ module PWN
   # Used to manage PWN configuration settings within PWN drivers.
   module Config
     # Supported Method Parameters::
-    # env = PWN::Config.default_env(
-    #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
-    # )
-    public_class_method def self.default_env(opts = {})
-      pwn_env_path = opts[:pwn_env_path]
-      pwn_dec_path = "#{pwn_env_path}.decryptor"
-
-      puts "
-        [*] NOTICE:
-        1. Writing minimal PWN::Env to:
-           #{pwn_env_path}
-        2. Your decryptor file will be written to:
-           #{pwn_dec_path}
-        3. Use the pwn-vault command in the pwn prototyping driver to update:
-           #{pwn_env_path}
-        4. For optimal security, it's recommended to move:
-           #{pwn_dec_path}
-           to a secure location and use the --pwn-dec parameter for PWN drivers.
-      "
-      env = {
+    # tmpl = PWN::Config.env_template
+    #
+    # The canonical current-release ~/.pwn/pwn.yaml shape as a pure Hash
+    # (no I/O, no vault write, no puts).  Single source of truth used by:
+    #   * PWN::Config.default_env      — seed a fresh ~/.pwn/pwn.yaml
+    #   * PWN::Migrate.vault_drift     — diff a user vault against this release
+    #   * PWN::Migrate.backfill_vault  — deep-merge missing keys UNDER the
+    #     user values on `pwn setup --migrate --fix`
+    public_class_method def self.env_template
+      {
         ai: {
           active: 'grok',
           module_reflection: false,
@@ -174,6 +164,31 @@ module PWN
           provider: 'yaml'
         }
       }
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
+    # env = PWN::Config.default_env(
+    #   pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+    # )
+    public_class_method def self.default_env(opts = {})
+      pwn_env_path = opts[:pwn_env_path]
+      pwn_dec_path = "#{pwn_env_path}.decryptor"
+
+      puts "
+        [*] NOTICE:
+        1. Writing minimal PWN::Env to:
+           #{pwn_env_path}
+        2. Your decryptor file will be written to:
+           #{pwn_dec_path}
+        3. Use the pwn-vault command in the pwn prototyping driver to update:
+           #{pwn_env_path}
+        4. For optimal security, it's recommended to move:
+           #{pwn_dec_path}
+           to a secure location and use the --pwn-dec parameter for PWN drivers.
+      "
+      env = env_template
 
       # Remove beginning colon from key names
 
@@ -393,6 +408,13 @@ module PWN
       Pry.config.refresh_pwn_env = false if defined?(Pry)
 
       puts "[*] PWN::Env loaded via: #{pwn_env_path}\n"
+
+      # Upgrade drift — cheap schema-stamp check only (no per-file probes).
+      if defined?(PWN::Migrate) && PWN::Migrate.needed?
+        puts "[!] ~/.pwn state predates pwn #{PWN::VERSION} (schema " \
+             "#{PWN::Migrate.installed_schema} < #{PWN::Migrate::SCHEMA_VERSION}). " \
+             'Run `pwn setup --migrate --fix` to autofix (backup taken first).'
+      end
     rescue StandardError => e
       raise e
     end

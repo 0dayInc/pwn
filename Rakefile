@@ -16,7 +16,13 @@ if defined?(RDoc::Task)
   RDoc::Task.new do |rdoc|
     rdoc.rdoc_files.include('lib/**/*.rb')
     rdoc.rdoc_dir = 'rdoc'
+    rdoc.options << '--quiet'
   end
+  # RDoc::Task's default :clobber_rdoc uses Rake's verbose FileUtils, which
+  # echoes "rm -r rdoc" to STDOUT on every `rake` (via :rerdoc). Replace it
+  # with a silent rm_rf so the default task emits only spec/rubocop output.
+  Rake::Task[:clobber_rdoc].clear_actions
+  task(:clobber_rdoc) { FileUtils.rm_rf('rdoc') }
 end
 
 default_tasks = %i[spec rubocop]

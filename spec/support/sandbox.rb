@@ -49,6 +49,12 @@ RSpec.shared_context 'pwn tmp sandbox' do
       stub_const(const, File.join(@tmp, rel)) if Object.const_defined?(owner)
     end
     stub_const('PWN::MemoryIndex::INDEX_FILE', File.join(@tmp, 'memory.idx')) if defined?(PWN::MemoryIndex)
+    if defined?(PWN::Migrate)
+      stub_const('PWN::Migrate::PWN_ROOT', @tmp)
+      stub_const('PWN::Migrate::SCHEMA_FILE', File.join(@tmp, '.schema'))
+      stub_const('PWN::Migrate::BACKUP_ROOT', File.join(@tmp, 'backup'))
+      stub_const('PWN::Migrate::QUARANTINE_DIR', File.join(@tmp, 'quarantine'))
+    end
 
     # Controllable env — module_reflection OFF so nothing hits an engine.
     @agent_cfg = {}

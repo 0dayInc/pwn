@@ -15,6 +15,8 @@ describe PWN::AI::Agent::Mistakes do
 
   it 'fingerprints, counts and resolves recurring failures' do
     stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(Dir.mktmpdir, 'prefs.jsonl')) if defined?(PWN::AI::Agent::Reward)
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(Dir.mktmpdir, 'memory.json')) if defined?(PWN::Memory)
     PWN::AI::Agent::Mistakes.reset
     a = PWN::AI::Agent::Mistakes.record(tool: 'shell', error: 'nmpa: command not found at /tmp/x:42')
     b = PWN::AI::Agent::Mistakes.record(tool: 'shell', error: 'nmpa: command not found at /var/y:99')

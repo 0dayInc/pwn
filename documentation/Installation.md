@@ -208,7 +208,8 @@ row as `MISSING` until a key is set.
 Everything above is a thin CLI over one autoloaded module:
 
 ```ruby
-PWN::Setup.check                          # → { ok:, native_gems_missing:, toolchain_missing:, pkg_manager:, os:, arch: }
+PWN::Setup.check                          # → { ok:, native_gems_missing:, toolchain_missing:, state:, pkg_manager:, os:, arch: }
+PWN::Setup.migrate(fix: true)             # verify + autofix ~/.pwn state files (see PWN::Migrate)
 PWN::Setup.deps(profile: :web, yes: true) # install, then re-check
 PWN::Setup.list_profiles
 PWN::Setup.pkg_manager                    # → { key: :apt, install: 'sudo apt-get install -y', sudo: true }
@@ -237,3 +238,27 @@ pwn[CURRENT_VERSION]:004 >>> pwn-ai                         # launches agent TUI
 **Next:** [Configuration](Configuration.md) · [General Usage](General-PWN-Usage.md)
 
 [← Home](Home.md)
+
+---
+
+## Upgrading — `~/.pwn` state migration
+
+After `gem update pwn`, run the state doctor to verify (and autofix)
+every persisted file under `~/.pwn` against the new release:
+
+```bash
+pwn setup --migrate            # verify + apply schema migrations (backup taken)
+pwn setup --migrate --fix      # also autofix incompatible files
+pwn setup --migrate --dry-run  # report only, write nothing
+```
+
+`PWN::Migrate` (autoloaded) stamps `~/.pwn/.schema` with the release
+schema number, checks each state file (`memory.json`, `metrics.json`,
+`mistakes.json`, `learning.jsonl`, `agents.yml`, `cron/jobs.yml`,
+`skills/`, …) against its owning module's loader, and — with `--fix` —
+deep-merges any keys the current `PWN::Config.env_template` added into
+your encrypted `~/.pwn/pwn.yaml` **without overwriting your values**.
+Every run takes a timestamped backup under `~/.pwn/backup/<ts>/` first.
+
+The plain `pwn` launcher will also print a one-line drift warning on
+startup whenever `~/.pwn/.schema` predates the running gem.
