@@ -372,6 +372,13 @@ module PWN
       end
       io.puts
 
+      # ~/.pwn state ----------------------------------------------------
+      migrate = nil
+      if defined?(PWN::Migrate)
+        migrate = PWN::Migrate.check(io: io)
+        io.puts
+      end
+
       total   = NATIVE_GEMS.size + TOOLCHAIN.size
       missing = gem_missing.size + bin_missing.size
       io.puts "#{total - missing} / #{total} capabilities usable · #{missing} degraded"
@@ -381,8 +388,9 @@ module PWN
         io.puts '    `pwn setup --profile <name>` for a subset. See `pwn setup --list-profiles`.'
       end
 
-      { ok: missing.zero?, native_gems_missing: gem_missing, toolchain_missing: bin_missing,
-        pkg_manager: pm[:key], os: os, arch: arch }
+      { ok: missing.zero? && Array(migrate && migrate[:incompatible]).empty?,
+        native_gems_missing: gem_missing, toolchain_missing: bin_missing,
+        state: migrate, pkg_manager: pm[:key], os: os, arch: arch }
     rescue StandardError => e
       raise e
     end
@@ -493,6 +501,28 @@ module PWN
       raise e
     end
 
+    # Supported Method Parameters::
+    # PWN::Setup.migrate(
+    #   fix:     'optional - also autofix incompatible ~/.pwn files (default false)',
+    #   dry_run: 'optional - print what WOULD happen (default false)',
+    #   yes:     'optional - alias for fix:true (CI-friendly)',
+    #   io:      'optional - IO to write to (default $stdout)'
+    # )
+    #
+    # Delegate to PWN::Migrate.run — verify every ~/.pwn state file is
+    # compatible with THIS pwn release and (optionally) autofix it.  A
+    # timestamped backup of ~/.pwn is taken first.  See `PWN::Migrate.help`.
+
+    public_class_method def self.migrate(opts = {})
+      PWN::Migrate.run(
+        fix: opts[:fix] || opts[:yes],
+        dry_run: opts[:dry_run],
+        io: opts[:io] || $stdout
+      )
+    rescue StandardError => e
+      raise e
+    end
+
     # ------------------------------------------------------------------
 
     private_class_method def self.detect_os_attr(opts = {})
@@ -585,6 +615,8 @@ module PWN
         pwn setup --profile sdr --yes
         pwn setup --list-profiles
         pwn setup --dry-run --profile net
+        pwn setup --migrate                  # verify + upgrade ~/.pwn schema
+        pwn setup --migrate --fix            # also autofix incompatible files
 
         #{self}.authors
       "

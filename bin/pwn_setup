@@ -29,6 +29,16 @@ pwn_driver = PWN::Driver::Parser.new do |options|
     opts[:list] = o
   end
 
+  options.on('-m', '--migrate',
+             '<Optional - Verify ~/.pwn state files are compatible with this pwn version; apply schema migrations>') do |o|
+    opts[:migrate] = o
+  end
+
+  options.on('-f', '--fix',
+             '<Optional - With --migrate: also autofix incompatible files (backup taken first)>') do |o|
+    opts[:fix] = o
+  end
+
   options.on('-y', '--yes',
              '<Optional - Assume yes; non-interactive (CI-friendly)>') do |o|
     opts[:yes] = o
@@ -45,6 +55,12 @@ pwn_driver.parse!
 begin
   if opts[:list]
     PWN::Setup.list_profiles
+  elsif opts[:migrate]
+    r = PWN::Setup.migrate(
+      fix: opts[:fix] || opts[:yes],
+      dry_run: opts[:dry_run]
+    )
+    exit 1 unless r && r[:after] && r[:after][:incompatible].empty?
   elsif opts[:deps] || opts[:profile]
     PWN::Setup.deps(
       profile: opts[:profile],
