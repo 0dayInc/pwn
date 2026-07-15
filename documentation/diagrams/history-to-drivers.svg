@@ -66,15 +66,15 @@
 <!-- Skill -->
 <g id="node5" class="node">
 <title>Skill</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M720.5,-124C720.5,-124 617.5,-124 617.5,-124 611.5,-124 605.5,-118 605.5,-112 605.5,-112 605.5,-100 605.5,-100 605.5,-94 611.5,-88 617.5,-88 617.5,-88 720.5,-88 720.5,-88 726.5,-88 732.5,-94 732.5,-100 732.5,-100 732.5,-112 732.5,-112 732.5,-118 726.5,-124 720.5,-124"/>
-<text xml:space="preserve" text-anchor="middle" x="669" y="-108.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">~/.pwn/skills/&lt;name&gt;.md</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M735.5,-124C735.5,-124 602.5,-124 602.5,-124 596.5,-124 590.5,-118 590.5,-112 590.5,-112 590.5,-100 590.5,-100 590.5,-94 596.5,-88 602.5,-88 602.5,-88 735.5,-88 735.5,-88 741.5,-88 747.5,-94 747.5,-100 747.5,-100 747.5,-112 747.5,-112 747.5,-118 741.5,-124 735.5,-124"/>
+<text xml:space="preserve" text-anchor="middle" x="669" y="-108.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">~/.pwn/skills/&lt;name&gt;/SKILL.md</text>
 <text xml:space="preserve" text-anchor="middle" x="669" y="-96.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">learning_distill_skill</text>
 </g>
 <!-- Extract&#45;&gt;Skill -->
 <g id="edge4" class="edge">
 <title>Extract&#45;&gt;Skill</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M502.87,-106C530.14,-106 564.8,-106 595.32,-106"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="595.1,-108.8 603.1,-106 595.1,-103.2 595.1,-108.8"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M502.87,-106C525.74,-106 553.8,-106 580.27,-106"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="579.96,-108.8 587.96,-106 579.96,-103.2 579.96,-108.8"/>
 </g>
 <!-- Cron -->
 <g id="node6" class="node">
@@ -105,8 +105,8 @@
 <!-- Skill&#45;&gt;CI -->
 <g id="edge7" class="edge">
 <title>Skill&#45;&gt;CI</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M732.88,-106C772.64,-106 823.07,-106 858.76,-106"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="858.45,-108.8 866.45,-106 858.45,-103.2 858.45,-108.8"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M748.08,-106C784.8,-106 827.29,-106 858.55,-106"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="858.31,-108.8 866.31,-106 858.31,-103.2 858.31,-108.8"/>
 <text xml:space="preserve" text-anchor="middle" x="809.25" y="-107.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">pwn &#45;&#45;ai</text>
 </g>
 <!-- Cron&#45;&gt;CI -->

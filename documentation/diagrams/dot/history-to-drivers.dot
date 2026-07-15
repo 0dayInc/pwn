@@ -18,7 +18,7 @@ digraph "PWN_HistToDriver" {
     label="Reusable Artifacts"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
     Driver [label="bin/pwn_<name>\nOptionParser + PWN calls", fillcolor="#c4b5fd"];
-    Skill  [label="~/.pwn/skills/<name>.md\nlearning_distill_skill",  fillcolor="#c4b5fd"];
+    Skill  [label="~/.pwn/skills/<name>/SKILL.md\nlearning_distill_skill",  fillcolor="#c4b5fd"];
     Cron   [label="cron_create\nprompt: | ruby:",              fillcolor="#c4b5fd"];
   }
   CI [label="⚙️  CI / CD\nheadless run", fillcolor="#7dd3fc"];

@@ -44,6 +44,12 @@ pwn_driver = PWN::Driver::Parser.new do |options|
     opts[:yes] = o
   end
 
+  options.on('-t', '--terminal',
+             '<Optional - Opt-in SHIFT+ENTER multi-line support: prints ~/.tmux.conf lines and, ' \
+             'under Terminator, installs the PWNShiftEnter GTK plugin (with confirmation)>') do |o|
+    opts[:terminal] = o
+  end
+
   options.on('-n', '--dry-run',
              '<Optional - Print the commands that would run, do not execute>') do |o|
     opts[:dry_run] = o
@@ -61,6 +67,11 @@ begin
       dry_run: opts[:dry_run]
     )
     exit 1 unless r && r[:after] && r[:after][:incompatible].empty?
+  elsif opts[:terminal]
+    PWN::Setup.terminal(
+      yes: opts[:yes],
+      dry_run: opts[:dry_run]
+    )
   elsif opts[:deps] || opts[:profile]
     PWN::Setup.deps(
       profile: opts[:profile],

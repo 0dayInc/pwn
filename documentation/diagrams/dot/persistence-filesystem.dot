@@ -1,6 +1,6 @@
 digraph "PWN_Persistence" {
   graph [
-    label=<<B>~/.pwn/ - Everything PWN Persists Across Sessions</B>>,
+    label=<<B>~/.pwn/ - Everything PWN Persists Across Sessions</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">verified / auto-repaired by PWN::Migrate  ·  pwn setup --migrate --fix</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.3, ranksep=1.4,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -13,21 +13,28 @@ digraph "PWN_Persistence" {
 
   node [shape=cylinder, fillcolor="#fcd34d"];
   cfg  [label="pwn.yaml (+ .decryptor)\nengines · vault-encrypted keys\nagent opts"];
+  schm [label=".schema\n{schema:, pwn_version:, at:}\ndrives launch drift warning"];
   mem  [label="memory.json\nfacts · prefs · lessons · env"];
-  skl  [label="skills/*.md\nreusable procedures + refs"];
+  midx [label="memory.idx\nlocal embedding index\n(relevance-ranked MEMORY)"];
+  skl  [label="skills/<name>/SKILL.md\nagentskills.io spec\nname+description frontmatter + refs"];
   lrn  [label="learning.jsonl\ntask outcomes"];
+  prf  [label="preferences.jsonl\nDPO/KTO/ORPO pairs\nuser_correction · resolve · counterfactual"];
   mis  [label="mistakes.json\nfailure fingerprints · fixes\n[REPEATING] · [REGRESSED]"];
-  met  [label="metrics.json\nper-tool · per-engine telemetry"];
-  ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/rf/web)\n+ previous + observations[]"];
-  ews  [label="extrospection/web/*.png\nprobe_web / extro_watch shots"];
-  ses  [label="sessions/*.jsonl\ntranscripts"];
-  crn  [label="cron/jobs.yml\nscheduled jobs + logs"];
+  met  [label="metrics.json\nper-tool · per-engine telemetry\ncalibration"];
+  rws  [label="reward_sentinel.json\nproxy vs judge vs correction gap"];
+  ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/\nrf/web/osint/serial/telecomm/\npacket/vision/voice) + prev + obs[]"];
+  eart [label="extrospection/{web,packet,voice}/*\nscreenshots · pcaps · wav/txt"];
+  ses  [label="sessions/*.jsonl\ntranscripts (+ step_reward)"];
+  crn  [label="cron/jobs.yml + log/\nseeded: curriculum_practice_nightly\ncurriculum_train_weekly"];
   agt  [label="agents.yml\npersona registry"];
   swm  [label="swarm/<id>/bus.jsonl\nmulti-agent chat"];
-midx [label="memory.idx\nlocal embedding index\n(relevance-ranked MEMORY)"];
-ftn  [label="finetune/*.jsonl\nShareGPT / OpenAI\nsupervised dataset"];
+  cur  [label="curriculum/\nself-play reproducers · A/B eval"];
+  ftn  [label="finetune/*.jsonl\nShareGPT / OpenAI SFT + DPO"];
+  bkp  [label="backup/<ts>/ · quarantine/\nMigrate autofix snapshots"];
   hist [label="~/.pwn_history\nREPL history"];
 
-  Root->cfg; Root->mem; Root->skl; Root->lrn; Root->mis; Root->met; Root->ext;
-  Root->ews; Root->ses; Root->crn; Root->agt; Root->swm; Root->midx; Root->ftn; Root->hist;
+  Root->cfg;  Root->schm; Root->mem;  Root->midx; Root->skl;  Root->lrn;
+  Root->prf;  Root->mis;  Root->met;  Root->rws;  Root->ext;  Root->eart;
+  Root->ses;  Root->crn;  Root->agt;  Root->swm;  Root->cur;  Root->ftn;
+  Root->bkp;  Root->hist;
 }

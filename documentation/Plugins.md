@@ -54,7 +54,7 @@ show-source PWN::Plugins::Fuzz.generate
 ### Data Access / Parsing
 | Module | Purpose |
 |---|---|
-| `DAOLdap` · `DAOMongo` · `DAOPostgres` · `DAOSqlite3` | DB clients |
+| `DAOLDAP` · `DAOMongo` · `DAOPostgres` · `DAOSQLite3` | DB clients |
 | `JSONPathify` | JSONPath query |
 | `PDFParse` · `OCR` | document extraction |
 | `ScannableCodes` | QR/barcode gen/read |
@@ -92,17 +92,17 @@ show-source PWN::Plugins::Fuzz.generate
 | `RabbitMQ` | AMQP |
 
 ### Utility
-`FileFu` · `ThreadPool` · `Log` · `PwnLogger` · `Char` · `XXD` · `DetectOS` ·
+`FileFu` · `ThreadPool` · `Log` · `PWNLogger` · `Char` · `XXD` · `DetectOS` ·
 `CreditCard` · `SSN` · `EIN` · `VIN` · `PS` · `MonkeyPatch` · `REPL`
 
 ## Full alphabetical list
 
 `Android Assembly AuthenticationHelper BareSIP BasicAuth BeEF
-BlackDuckBinaryAnalysis BurpSuite BusPirate Char CreditCard DAOLdap DAOMongo
-DAOPostgres DAOSqlite3 DefectDojo DetectOS EIN FileFu Fuzz Git Github
+BlackDuckBinaryAnalysis BurpSuite BusPirate Char CreditCard DAOLDAP DAOMongo
+DAOPostgres DAOSQLite3 DefectDojo DetectOS EIN FileFu Fuzz Git Github
 HackerOne Hunter IPInfo IRC Jenkins JiraDataCenter JSONPathify Log MailAgent
 Metasploit MonkeyPatch MSR206 NessusCloud NexposeVulnScan NmapIt OAuth2 OCR
-OpenAPI OpenVAS Packet PDFParse Pony PS PwnLogger RabbitMQ REPL ScannableCodes
+OpenAPI OpenVAS Packet PDFParse Pony PS PWNLogger RabbitMQ REPL ScannableCodes
 Serial Shodan SlackClient Sock Spider SSN ThreadPool Tor TransparentBrowser
 TwitterAPI URIScheme Vault VIN Voice Vsphere XXD Zaproxy`
 

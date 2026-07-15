@@ -24,6 +24,26 @@ invokes `PWN::Cron.run(<id>)` on schedule.
 | `cron_enable` / `cron_disable` | Toggle without deleting |
 | `cron_remove` | Delete from `jobs.yml` (does **not** scrub crontab - `crontab -e` yourself) |
 
+## Seeded self-improvement jobs (`PWN::Cron.install_defaults`)
+
+`pwn setup --migrate` (schema `v1`) seeds two jobs into every fresh
+`~/.pwn/cron/jobs.yml`:
+
+| Name | Schedule | Ruby |
+|---|---|---|
+| `curriculum_practice_nightly` | `0 3 * * *` | `PWN::AI::Agent::Curriculum.practice(limit: 3)` |
+| `curriculum_train_weekly` | `0 4 * * 0` | `PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)` |
+
+The first practises the top unresolved `Mistakes` under `Reward.judge` and
+auto-`resolve`s any it now solves; the second exports SFT + DPO datasets to
+`~/.pwn/finetune/`, LoRA-trains a `pwn-vN+1` local model, replays the
+`Mistakes.top` set on both, and only promotes the new adapter when it wins.
+Set `dry_run: false` (via `pwn-ai-cron` or `cron_create`) once a local
+trainer is installed. See [Reinforcement Learning](Reinforcement-Learning.md).
+
+`cron_disable(id:)` turns either off; `install_defaults` is idempotent and
+never overwrites a job you already have with the same name.
+
 ## Example
 
 ```ruby
@@ -57,6 +77,6 @@ yyyy-mm-dd]` so the injected MEMORY block stops calcifying into
 confidently-wrong priors - see [Extrospection § revalidate_memory](Extrospection.md).
 
 **See also:** [Sessions](Sessions.md) · [Extrospection](Extrospection.md) ·
-[CLI Drivers](CLI-Drivers.md)
+[Reinforcement Learning](Reinforcement-Learning.md) · [CLI Drivers](CLI-Drivers.md)
 
 [← Home](Home.md)

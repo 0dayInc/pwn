@@ -9,7 +9,11 @@ appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
 
 - `learning_reflect(session_id:)` mines them for durable lessons → Memory.
 - `learning_distill_skill(name:, session_id:)` turns a winning run into a
-  reusable Skill.
+  reusable Skill (only steps with `step_reward > 0` are kept — the minimal
+  sufficient trace).
+- `Reward.prm(request:, session_id:)` back-labels every tool step in the
+  transcript with `step_reward: +1/0/−1` for credit assignment.
+- `Reward.judge(request:, final:, session_id:)` grades the whole run.
 - `sessions_view` lets you (or a later agent) re-read exactly what happened.
 - Swarm maps each persona to its own session so its private context survives
   across `agent_ask` calls.
@@ -30,7 +34,7 @@ appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
 {"role":"system","ts":"2026-07-07T22:08:02Z","content":"..."}
 {"role":"user","ts":"...","content":"..."}
 {"role":"assistant","ts":"...","content":"...","tool_calls":[...]}
-{"role":"tool","ts":"...","name":"shell","content":"..."}
+{"role":"tool","ts":"...","name":"shell","content":"...","step_reward":1}
 ```
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·

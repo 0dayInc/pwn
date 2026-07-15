@@ -20,6 +20,29 @@ $ pwn setup --deps --dry-run     # show the apt/dnf/pacman/brew/port commands wi
 See [Installation](Installation.md#pwn-setup--the-post-install-doctor--provisioner)
 for the full profile table and `PWN::Setup` API.
 
+## `[pwn] ~/.pwn schema is stale — run pwn setup --migrate` on launch
+
+Your `~/.pwn` state files were written by an older PWN release than the one
+now running. The launcher checks `PWN::Migrate.needed?` on every start.
+
+```bash
+$ pwn setup --migrate            # verify each state file against its owning module
+$ pwn setup --migrate --fix      # + backup → schema migrations → repair → vault backfill
+$ pwn setup --migrate --dry-run  # report only
+```
+
+Corrupt / incompatible files are moved to `~/.pwn/quarantine/` (never
+deleted); a full timestamped backup is written to `~/.pwn/backup/<ts>/`
+first. Missing config keys added by the new release are deep-merged into
+your encrypted `~/.pwn/pwn.yaml` **under** your existing values. See
+[Installation § Upgrading](Installation.md#upgrading--pwn-state-migration-pwnmigrate).
+
+## `KeyError` / `NoMethodError for nil` reading memory / metrics / mistakes / cron / agents
+
+Same cause — the on-disk shape predates the current loader.
+`pwn setup --migrate --fix` will quarantine or repair the offending file
+and re-seed a valid one on next write.
+
 ## `LoadError` / `cannot load such file -- pg` (or rmagick, pcaprub, ...)
 
 A native extension failed to compile because its OS headers weren't present

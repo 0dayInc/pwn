@@ -40,8 +40,9 @@ when the caller is an autonomous agent.
 A pentest framework that doesn't learn repeats the same dead-end scans forever.
 PWN records **per-tool success rate**, **per-task outcome**, **host drift**,
 and **external CVE intel**, then correlates them so tomorrow's run starts where
-today's finished. See [Skills, Memory & Learning](Skills-Memory-Learning.md)
-and [Extrospection](Extrospection.md).
+today's finished. See [Skills, Memory & Learning](Skills-Memory-Learning.md),
+[Reinforcement Learning](Reinforcement-Learning.md) and
+[Extrospection](Extrospection.md).
 
 **Next:** [How PWN Works](How-PWN-Works.md)
 

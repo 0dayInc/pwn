@@ -17,10 +17,10 @@
 | [What is PWN](What-is-PWN.md) | One-paragraph elevator pitch |
 | [Why PWN](Why-PWN.md) | Design philosophy - why another framework |
 | [How PWN Works](How-PWN-Works.md) | The five layers, with the architecture diagram |
-| [Installation](Installation.md) | `gem install pwn` → `pwn setup` doctor/provisioner · capability profiles |
+| [Installation](Installation.md) | `gem install pwn` → `pwn setup` doctor/provisioner · capability profiles · `--migrate` state doctor |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
 | [Configuration](Configuration.md) | `~/.pwn/pwn.yaml` (encrypted) - engines, keys, agent options · `pwn-vault` |
-| **[All Data-Flow Diagrams](Diagrams.md)** | **27 SVGs** in one scrollable page |
+| **[All Data-Flow Diagrams](Diagrams.md)** | **28 SVGs** in one scrollable page |
 
 ## 🚪 Entry Points
 
@@ -36,13 +36,14 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · 61 LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · **71** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
-| [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · correlate · **rf** · **web** |
+| [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum`** - ORM/PRM judge · sentinel · HER · self-play · DPO export · **regression-gated LoRA** |
+| [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · **osint** · serial · telecomm · packet · vision · voice · correlate |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
-| [Cron](Cron.md) | Scheduled autonomous jobs |
+| [Cron](Cron.md) | Scheduled autonomous jobs (nightly self-play + weekly weight-loop seeded by default) |
 
 ## 🧩 Capability Namespaces  (`lib/pwn/*`)
 
@@ -62,14 +63,14 @@
 | [Blockchain](Blockchain.md) | BTC · ETH helpers |
 | [Bounty](Bounty.md) | Lifecycle / auth-replay tooling |
 | [Reports](Reporting.md) | HTML/JSON output + DefectDojo/Jira |
-| [FFI](FFI.md) | Native DSP/RF backends (Volk · Liquid · FFTW · HackRF · RTL-SDR · SoapySDR) |
+| [FFI](FFI.md) | Native DSP/RF backends (Volk · Liquid · FFTW · HackRF · RTL-SDR · **AdalmPluto** · SoapySDR · Stdio) |
 | [Banner](Banner.md) | 15 startup banners |
 
 ## 🛠️ Meta
 
 | | |
 |---|---|
-| [`~/.pwn/` Filesystem Map](Persistence.md) | Every file PWN writes and why |
+| [`~/.pwn/` Filesystem Map](Persistence.md) | Every file PWN writes and why · `PWN::Migrate` state doctor |
 | [Troubleshooting](Troubleshooting.md) | Common errors and fixes |
 | [Contributing](Contributing.md) | Conventions, RuboCop, spec rules |
 

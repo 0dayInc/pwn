@@ -1,0 +1,102 @@
+digraph "PWN_Reinforcement_Learning" {
+  graph [
+    label=<<B>PWN::AI::Agent - Reward + Curriculum Reinforcement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">R1..R4 reward signal  ·  C1..C4 credit assignment  ·  M1..M4 memory  ·  S1..S4 self-play  ·  W1..W3 weight loop  ·  E1..E3 intro↔extro join</FONT>>,
+    labelloc=t, fontsize=20, fontname="Helvetica",
+    rankdir=TB, splines=spline, nodesep=0.55, ranksep=1.05,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
+  ];
+  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
+
+  /* L0 — request/loop */
+  Req  [label="👤  request", fillcolor="#7dd3fc"];
+  Loop [label="Loop.run\nplan_first · Dispatch · guard\nfinal answer", fillcolor="#7dd3fc", penwidth=2];
+  {rank=same; Req; Loop}
+
+  /* Tier 1 — Reward signal */
+  subgraph cluster_reward {
+    label="Tier 1 · Reward  (PWN::AI::Agent::Reward)"; fontcolor="#ddd6fe";
+    style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
+    R1 [label="R1  judge (ORM)\nscore · verdict · rationale", fillcolor="#c4b5fd", penwidth=2];
+    R2 [label="R2  prm (PRM)\nper-step +1/0/−1", fillcolor="#c4b5fd"];
+    R3 [label="R3  sentinel\nproxy ≠ judge ≠ (1−corr)", fillcolor="#c4b5fd"];
+    R4 [label="R4  semantic_ok\ngrep exit 1 ≠ failure", fillcolor="#c4b5fd"];
+    E3 [label="E3  verify_as_reward\nextro_verify caps/floors judge", fillcolor="#c4b5fd"];
+  }
+  {rank=same; R1; R2; R3; R4; E3}
+
+  /* Tier 4 — Curriculum / self-play */
+  subgraph cluster_curr {
+    label="Tier 4 · Curriculum  (PWN::AI::Agent::Curriculum)"; fontcolor="#a7f3d0";
+    style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
+    S1 [label="S1  practice\nMistakes.top → self-play\nauto-resolve on judge≥0.7", fillcolor="#6ee7b7", penwidth=2];
+    S2 [label="S2  counterfactual\nfork alt-persona A/B", fillcolor="#6ee7b7"];
+    S3 [label="S3  critic\ntool-armed constitutional", fillcolor="#6ee7b7"];
+    S4 [label="S4  red_team_plan\nadversarial plan review", fillcolor="#6ee7b7"];
+    C3 [label="C3  hindsight (HER)\nrelabel achieved-goal", fillcolor="#6ee7b7"];
+  }
+  {rank=same; S1; S2; S3; S4; C3}
+
+  /* Tier 5 — Weight loop */
+  subgraph cluster_weight {
+    label="Tier 5 · Weight Loop"; fontcolor="#fecaca";
+    style=rounded; color="#b91c1c"; bgcolor="#450a0a"; penwidth=2;
+    W1 [label="W1  preference ledger\n(prompt, rejected, chosen)\n5 free sources", fillcolor="#fda4af"];
+    W2 [label="W2  train_and_gate\nSFT+DPO → LoRA vN+1\nreplay Mistakes.top vN vs vN+1\npromote iff resolved(N+1) > (N)", fillcolor="#fda4af", penwidth=2];
+    W3 [label="W3  calibrate\np(success) vs actual → Brier", fillcolor="#fda4af"];
+  }
+  {rank=same; W1; W2; W3}
+
+  /* Persistence */
+  subgraph cluster_files {
+    label="~/.pwn/"; fontcolor="#fde68a"; style="rounded,dashed";
+    color="#a16207"; bgcolor="#422006";
+    Fmis [label="mistakes.json", shape=cylinder, fillcolor="#fcd34d"];
+    Fses [label="sessions/*.jsonl\n(step_reward)", shape=cylinder, fillcolor="#fcd34d"];
+    Fprf [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
+    Fcur [label="curriculum/", shape=cylinder, fillcolor="#fcd34d"];
+    Fftn [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
+    Frws [label="reward_sentinel.json", shape=cylinder, fillcolor="#fcd34d"];
+  }
+  {rank=same; Fmis; Fses; Fprf; Fcur; Fftn; Frws}
+
+  Ollama [label="ollama create pwn-vN+1\n(local LoRA adapter)", fillcolor="#7dd3fc"];
+
+  /* edges */
+  Req  -> Loop [color="#38bdf8", penwidth=2];
+  Loop -> R4   [label="Dispatch", color="#a78bfa"];
+  Loop -> R1   [label="final", color="#a78bfa", penwidth=2];
+  Loop -> R2   [label="session", color="#a78bfa"];
+  Loop -> R3   [color="#a78bfa"];
+  R1   -> E3   [label="ground", style=dashed, color="#fbbf24"];
+  Loop -> S4   [label="plan_first", color="#34d399"];
+  Loop -> S3   [label="final", color="#34d399"];
+  Loop -> S2   [label="[REPEATING]", color="#fb7185"];
+  Loop -> C3   [label="failed goal", color="#fb7185"];
+
+  R2 -> Fses [label="step_reward", color="#f59e0b"];
+  R3 -> Frws [color="#f59e0b"];
+  R3 -> Fmis [label="reward_signal", color="#fb7185", style=dashed];
+  S1 -> Fmis [label="auto-resolve", color="#34d399", dir=both];
+  S1 -> Fcur [color="#f59e0b"];
+  S2 -> W1   [label="(loser,winner)", color="#fb7185"];
+  S3 -> W1   [color="#fb7185"];
+  C3 -> Fses [label="success:true", color="#f59e0b"];
+
+  W1 -> Fprf [color="#f59e0b", penwidth=2];
+  Fprf -> W2 [label="export_dpo", color="#f59e0b"];
+  Fses -> W2 [label="export_finetune", color="#f59e0b"];
+  W2 -> Fftn [color="#f59e0b"];
+  W2 -> Ollama [label="LoRA", color="#fb7185", penwidth=2];
+  Fmis -> W2 [label="eval set", style=dashed, color="#fbbf24", constraint=false];
+  W3 -> Loop [label="calibration", style=dashed, color="#fbbf24", constraint=false];
+
+  /* cron seeds */
+  Cron [label="⏱  PWN::Cron.install_defaults\nnightly practice · weekly train", fillcolor="#7dd3fc"];
+  Cron -> S1 [label="0 3 * * *", color="#38bdf8", constraint=false];
+  Cron -> W2 [label="0 4 * * 0", color="#38bdf8", constraint=false];
+
+  Ollama -> Loop [label="promoted vN+1\n(next session)", style=dashed, color="#fb7185", constraint=false, penwidth=2];
+}
