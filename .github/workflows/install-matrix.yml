@@ -92,6 +92,13 @@ jobs:
               { sed -i '/--user-install/d' /etc/gemrc || true; }
     env:
       DEBIAN_FRONTEND: noninteractive
+      # Minimal debian/ubuntu/fedora containers ship with no LANG →
+      # Encoding.default_external == US-ASCII → any regex over the
+      # UTF-8 doc/bin files raises `invalid byte sequence in US-ASCII`
+      # (kali/arch already default to UTF-8, which is why only 6/12
+      # legs failed). C.UTF-8 exists on every glibc ≥ 2.35 image.
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
       PWN_FRESH_INSTALL: '1'
       PWN_EXPECTED_PM: ${{ matrix.pm }}
       PWN_PROFILE: ${{ matrix.profile }}
@@ -183,6 +190,13 @@ jobs:
       image: kalilinux/kali-rolling
     env:
       DEBIAN_FRONTEND: noninteractive
+      # Minimal debian/ubuntu/fedora containers ship with no LANG →
+      # Encoding.default_external == US-ASCII → any regex over the
+      # UTF-8 doc/bin files raises `invalid byte sequence in US-ASCII`
+      # (kali/arch already default to UTF-8, which is why only 6/12
+      # legs failed). C.UTF-8 exists on every glibc ≥ 2.35 image.
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
       PWN_FRESH_INSTALL: '1'
       PWN_EXPECTED_PM: apt
       PWN_PROFILE: core
