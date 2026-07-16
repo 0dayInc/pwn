@@ -83,6 +83,8 @@ module PWN
           },
           # teacher-student reflection: execute on :active, write durable lessons via this engine (nil = same as :active)
           reflect_engine: nil,
+          # optional model override on :reflect_engine (nil = engine default)
+          reflect_model: nil,
           agent: {
             native_tools: true,
             max_iters: 25,

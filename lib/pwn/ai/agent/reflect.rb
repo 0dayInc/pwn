@@ -36,6 +36,7 @@ module PWN
         #   request: 'required - String - What you want the AI to reflect on',
         #   system_role_content: 'optional - context to set up the model behavior for reflection',
         #   engine: 'optional - override engine for THIS reflection only (Symbol/String); defaults to PWN::Env[:ai][:reflect_engine] || :active',
+        #   model: 'optional - override model on the reflection engine for THIS call only; defaults to PWN::Env[:ai][:reflect_model]',
         #   spinner: 'optional - Boolean - Display spinner during operation (default: false)',
         #   suppress_pii_warning: 'optional - Boolean - Suppress PII Warnings (default: false)'
         # )
@@ -56,12 +57,13 @@ module PWN
 
           if ai_module_reflection && request.length.positive?
             override = opts[:engine] || PWN::Env.dig(:ai, :reflect_engine)
+            model    = opts[:model]  || PWN::Env.dig(:ai, :reflect_model)
             engine   = (override || PWN::Env[:ai][:active]).to_s.downcase.to_sym
             valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :agent }.map(&:downcase)
             raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
 
             warn "AI Reflection is enabled.  Ensure #{engine} has been authorized for use and/or requests are sanitized properly." unless suppress_pii_warning
-            response = with_engine(engine: override) do
+            response = with_engine(engine: override, model: model) do
               PWN::AI::Agent::Loop.run(
                 request: request.chomp,
                 system_role_content: system_role_content,
@@ -81,15 +83,24 @@ module PWN
         # engine is nil/blank or PWN::Env[:ai] is frozen.
         private_class_method def self.with_engine(opts = {})
           engine = opts[:engine].to_s
+          model  = opts[:model].to_s
           ai = defined?(PWN::Env) && PWN::Env.is_a?(Hash) ? PWN::Env[:ai] : nil
-          return yield if engine.empty? || !ai.is_a?(Hash) || ai.frozen?
+          return yield if (engine.empty? && model.empty?) || !ai.is_a?(Hash) || ai.frozen?
 
-          prev = ai[:active]
-          ai[:active] = engine
+          eff_engine = engine.empty? ? ai[:active].to_s : engine
+          eng_key    = eff_engine.downcase.to_sym
+          eng_env    = ai[eng_key].is_a?(Hash) ? ai[eng_key] : nil
+
+          prev_active = ai[:active]
+          prev_model  = eng_env ? eng_env[:model] : nil
+
+          ai[:active]      = engine unless engine.empty?
+          eng_env[:model]  = model  if eng_env && !eng_env.frozen? && !model.empty?
           begin
             yield
           ensure
-            ai[:active] = prev
+            ai[:active]     = prev_active
+            eng_env[:model] = prev_model if eng_env && !eng_env.frozen? && !model.empty?
           end
         end
 

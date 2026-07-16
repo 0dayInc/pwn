@@ -35,6 +35,9 @@ if [[ $old_ruby_version == $new_ruby_version ]]; then
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && bundle exec rake rerdoc"
   echo "Invoking bundle-audit Gemfile Scanner..."
   rvmsudo /bin/bash --login -c "cd ${pwn_root} && bundle exec bundle-audit"
+  # Restore ownership of artifacts (rdoc/, pkg/, Gemfile.lock, etc.) generated
+  # under rvmsudo above so a subsequent unprivileged `rake` / `git` can operate.
+  sudo chown -R $USER:$USER "$pwn_root"
 else
   cd $pwn_root && ./upgrade_ruby.sh $new_ruby_version $old_ruby_version
 fi

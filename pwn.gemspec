@@ -59,6 +59,22 @@ Gem::Specification.new do |spec|
     rspec
   ]
 
+  # RVM-internal plumbing gems — auto-added to the gemset by RVM, NOT
+  # `require`d by pwn's code. Their `extconf.rb` post-install hooks fail
+  # on non-RVM system rubies:
+  #   * executable-hooks — calls String#untaint (removed in Ruby ≥ 3.2)
+  #   * gem-wrappers     — require 'erb' at extconf time (Arch's minimal
+  #                        `ruby` package doesn't ship it)
+  # They stay in the Gemfile so `bundle install` under an RVM-managed
+  # ruby keeps working, but are excluded from the built gem's dependency
+  # graph entirely so `gem install pwn` succeeds on distro rubies.
+  # See .github/workflows/install-matrix.yml.
+  rvm_only_arr = %w[
+    executable-hooks
+    gem-wrappers
+    rvm
+  ]
+
   # Native-extension gems (and gems that hard-depend on them) whose OS
   # headers are provisioned *after* install by `pwn setup` / PWN::Setup.
   # They are declared as *development* dependencies so that
@@ -93,6 +109,8 @@ Gem::Specification.new do |spec|
 
     gem_name = match[1]
     gem_version = match[2]
+
+    next if rvm_only_arr.include?(gem_name)
 
     # Good for debugging issues in Gemfile
     # puts "pwn.gemspec: Adding dependency: #{gem_name} #{gem_version}"

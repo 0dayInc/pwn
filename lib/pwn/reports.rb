@@ -8,6 +8,7 @@ module PWN
     # autoload :HTML, 'pwn/reports/html'
     # autoload :JSON, 'pwn/reports/json'
     # autoload :PDF, 'pwn/reports/pdf'
+    autoload :AIRedTeam, 'pwn/reports/ai_red_team'
     autoload :Fuzz, 'pwn/reports/fuzz'
     autoload :HTMLFooter, 'pwn/reports/html_footer'
     autoload :HTMLHeader, 'pwn/reports/html_header'

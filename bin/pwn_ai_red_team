@@ -1,0 +1,150 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'htmlentities'
+require 'pwn'
+
+opts = PWN::Env[:driver_opts]
+PWN::Driver::Parser.new do |options|
+  options.on('-eENGINE', '--target-engine=ENGINE', '<Required - AI Engine Under Test (openai|anthropic|grok|gemini|ollama)>') do |e|
+    opts[:target_engine] = e
+  end
+
+  options.on('-mMODEL', '--target-model=MODEL', '<Optional - Specific Model on the Target Engine (Defaults to engine default)>') do |m|
+    opts[:target_model] = m
+  end
+
+  options.on('-rROLE', '--system-role=ROLE', '<Optional - System Prompt Applied to the Target for Every Payload>') do |r|
+    opts[:system_role_content] = r
+  end
+
+  options.on('-dDIR', '--dir-path=DIR', '<Optional - Report Output Directory (Defaults to ".")>') do |d|
+    opts[:dir_path] = d
+  end
+
+  options.on('-tTHREADS', '--max-threads=THREADS', '<Optional # Test Cases to Run Simultaneously (Default 5)>') do |t|
+    opts[:max_threads] = t
+  end
+
+  options.on('-TCASE', '--test-cases=CASE', '<Optional Comma-Delimited Test Cases to Invoke (-l for List)>') do |c|
+    opts[:chosen_test_cases] = c
+  end
+
+  options.on('-l', '--[no-]list-test-cases', '<Optional List Available Test Cases to Invoke and Exit>') do |l|
+    opts[:list_test_cases] = l
+  end
+
+  options.on('-nREPORTNAME', '--report-name=REPORTNAME', '<Optional Report Name (Defaults to, "<engine>-<model>-<timestamp>")>') do |n|
+    opts[:report_name] = n
+  end
+
+  options.on('-s', '--[no-]start-reporting-server', '<Optional - Start Simple HTTP Server for Reporting>') do |s|
+    opts[:start_reporting_server] = s
+  end
+end.parse!
+
+begin
+  timestamp = Time.now.strftime('%Y-%m-%d_%H:%M:%S%z')
+
+  pwn_env_path = opts[:pwn_env_path]
+  pwn_dec_path = opts[:pwn_dec_path]
+
+  pwn_provider = 'ruby-gem'
+  pwn_provider = ENV.fetch('PWN_PROVIDER') if ENV.keys.any? { |s| s == 'PWN_PROVIDER' }
+
+  green = "\e[32m"
+  end_of_color = "\e[0m"
+
+  dir_path = opts[:dir_path] ||= '.'
+
+  target_engine = opts[:target_engine]
+  target_model = opts[:target_model]
+  system_role_content = opts[:system_role_content]
+
+  max_threads = opts[:max_threads]
+  max_threads ||= 5
+
+  chosen_test_cases = opts[:chosen_test_cases]
+  list_test_cases = opts[:list_test_cases]
+
+  report_name = opts[:report_name]
+  report_name ||= "#{target_engine}-#{target_model || 'default'}-#{timestamp}"
+
+  start_reporting_server = opts[:start_reporting_server]
+
+  # Define Test Cases to Run & Start Thread Pool
+  if chosen_test_cases && !list_test_cases
+    test_cases = chosen_test_cases.to_s.scrub.chomp.strip.delete("\s").split(',').map(&:to_sym)
+  else
+    test_cases = %i[
+      ExcessiveAgency
+      InsecureOutputHandling
+      Jailbreak
+      ModelDenialOfService
+      Overreliance
+      PayloadSplitting
+      PromptInjection
+      SensitiveInformationDisclosure
+      SystemPromptExtraction
+      TokenSmuggling
+    ].sort.uniq
+  end
+
+  if list_test_cases
+    test_cases.each { |tc| puts "#{green}#{tc}#{end_of_color}" }
+    exit
+  end
+
+  raise "ERROR: Invalid Directory #{dir_path}" unless File.directory?(dir_path)
+
+  results_hash = {
+    report_name: HTMLEntities.new.encode(
+      report_name.to_s.scrub.strip.chomp
+    ),
+    data: []
+  }
+
+  mutex = Mutex.new
+
+  PWN::Plugins::ThreadPool.fill(
+    enumerable_array: test_cases,
+    max_threads: max_threads
+  ) do |test_case|
+    rt_arr = PWN::AI::RedTeam.const_get(
+      test_case.to_s.scrub
+    ).scan(
+      target_engine: target_engine,
+      target_model: target_model,
+      system_role_content: system_role_content
+    )
+
+    rt_arr.each { |hash_line| mutex.synchronize { results_hash[:data].push(hash_line) } }
+  end
+
+  # Generate HTML Report
+  print "#{File.basename($PROGRAM_NAME)} Generating Report..."
+  PWN::Reports::AIRedTeam.generate(
+    dir_path: dir_path,
+    results_hash: results_hash,
+    report_name: report_name
+  )
+  puts 'complete.'
+
+  # Start Simple HTTP Server (If Requested)
+  if start_reporting_server
+    listen_ip = '127.0.0.1'
+    listen_ip = '0.0.0.0' if pwn_provider == 'docker'
+    listen_port = PWN::Plugins::Sock.get_random_unused_port.to_s
+    puts "For Scan Results Navigate to: http://127.0.0.1:#{listen_port}/#{report_name}.html"
+
+    system(
+      'pwn_simple_http_server',
+      '--bind-ip',
+      listen_ip,
+      '--port',
+      listen_port
+    )
+  end
+rescue SystemExit, Interrupt
+  puts "\nGoodbye."
+end

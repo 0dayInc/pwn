@@ -84,7 +84,12 @@ jobs:
             ruby: dnf install -y ruby ruby-devel redhat-rpm-config gcc gcc-c++ make git
           - image: archlinux:latest
             pm: pacman
-            ruby: pacman -Sy --noconfirm ruby base-devel git
+            # ruby-stdlib/ruby-bundled-gems: Arch splits erb/etc. out of the
+            # base `ruby` package; sed: Arch's /etc/gemrc defaults to
+            # `--user-install` which puts pwn/rspec binstubs off PATH.
+            ruby: >-
+              pacman -Sy --noconfirm ruby ruby-stdlib ruby-bundled-gems rubygems base-devel git &&
+              { sed -i '/--user-install/d' /etc/gemrc || true; }
     env:
       DEBIAN_FRONTEND: noninteractive
       PWN_FRESH_INSTALL: '1'
@@ -116,6 +121,13 @@ jobs:
           gem install --no-document ./pwn-*.gem
           gem install --no-document rspec
           ruby -r pwn -e 'puts "pwn #{PWN::VERSION} ruby #{RUBY_VERSION} #{RUBY_PLATFORM}"'
+
+      - name: expose gem binstubs on PATH
+        # Distros disagree on where `gem install` writes executables (system
+        # bindir on apt/dnf, ~/.local/share/gem/.../bin on Arch's default
+        # --user-install). Put both on PATH so `pwn` / `rspec` resolve on
+        # every leg without hard-coding per-distro paths.
+        run: ruby -e 'puts Gem.bindir; puts File.join(Gem.user_dir, "bin")' >> "$GITHUB_PATH"
 
       - name: dry-run — every package name resolves for this distro
         run: pwn setup --profile full --dry-run --yes
