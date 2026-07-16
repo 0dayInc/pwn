@@ -72,14 +72,17 @@ begin
       yes: opts[:yes],
       dry_run: opts[:dry_run]
     )
-  elsif opts[:deps] || opts[:profile]
+  elsif (opts[:deps] || opts[:profile]) && !opts[:check]
     PWN::Setup.deps(
       profile: opts[:profile],
       yes: opts[:yes],
       dry_run: opts[:dry_run]
     )
   else
-    r = PWN::Setup.check
+    # `pwn setup`                       → doctor gate on EVERYTHING
+    # `pwn setup --check`               → same
+    # `pwn setup --check --profile net` → gate ONLY on the :net profile
+    r = PWN::Setup.check(profile: opts[:profile])
     exit 1 unless r[:ok]
   end
 rescue Interrupt

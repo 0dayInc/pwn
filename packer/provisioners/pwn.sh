@@ -61,5 +61,5 @@ pwn setup --profile "${pwn_profile}" --yes
 # 3. Doctor — non-zero exit if any capability in the profile is degraded,
 #    so packer / vagrant / CI fail loudly instead of shipping a broken image.
 # ---------------------------------------------------------------------------
-echo "[pwn.sh] pwn setup --check"
-pwn setup --check
+echo "[pwn.sh] pwn setup --check --profile ${pwn_profile}"
+pwn setup --check --profile "${pwn_profile}"

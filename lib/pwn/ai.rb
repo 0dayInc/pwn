@@ -11,6 +11,7 @@ module PWN
     autoload :Grok, 'pwn/ai/grok'
     autoload :Ollama, 'pwn/ai/ollama'
     autoload :OpenAI, 'pwn/ai/open_ai'
+    autoload :RedTeam, 'pwn/ai/red_team'
 
     # Display a List of Every PWN::AI Module
 

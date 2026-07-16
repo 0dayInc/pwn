@@ -335,8 +335,9 @@ module PWN
     # )
 
     public_class_method def self.check(opts = {})
-      io = opts[:io] || $stdout
-      pm = pkg_manager
+      io      = opts[:io] || $stdout
+      profile = opts[:profile]&.to_sym
+      pm      = pkg_manager
       os = detect_os_attr(attr: :type, fallback: RbConfig::CONFIG['host_os'])
       arch = detect_os_attr(attr: :arch, fallback: RbConfig::CONFIG['host_cpu'])
 
@@ -402,7 +403,25 @@ module PWN
         io.puts '    `pwn setup --profile <name>` for a subset. See `pwn setup --list-profiles`.'
       end
 
-      { ok: missing.zero? && Array(migrate && migrate[:incompatible]).empty?,
+      # When a profile is given (`pwn setup --check --profile core`), :ok is
+      # gated ONLY on that profile's gems/bins so a partially-provisioned host
+      # can still pass its own doctor gate. `packer/provisioners/pwn.sh` and
+      # spec/integration/fresh_install_spec.rb rely on this — a `core` leg of
+      # install-matrix must not fail because gqrx/burpsuite/etc. are absent.
+      gate_gems = gem_missing
+      gate_bins = bin_missing
+      if profile && PROFILES.key?(profile)
+        prof      = PROFILES[profile]
+        gate_gems = gem_missing & Array(prof[:gems])
+        gate_bins = bin_missing & Array(prof[:bins])
+        io.puts
+        io.puts "Profile '#{profile}' gate: " \
+                "#{gate_gems.empty? && gate_bins.empty? ? OK : MISS} " \
+                "(gems: #{gate_gems.empty? ? '—' : gate_gems.join(' ')}, " \
+                "bins: #{gate_bins.empty? ? '—' : gate_bins.join(' ')})"
+      end
+
+      { ok: gate_gems.empty? && gate_bins.empty? && Array(migrate && migrate[:incompatible]).empty?,
         native_gems_missing: gem_missing, toolchain_missing: bin_missing,
         state: migrate, pkg_manager: pm[:key], os: os, arch: arch }
     rescue StandardError => e
