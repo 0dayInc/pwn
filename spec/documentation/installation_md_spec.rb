@@ -22,7 +22,12 @@ require 'pwn/setup'
 RSpec.describe 'documentation/Installation.md' do
   repo_root = File.expand_path('../..', __dir__)
   doc_path  = File.join(repo_root, 'documentation', 'Installation.md')
-  doc       = File.read(doc_path)
+  # File.read must force UTF-8: minimal Debian/Ubuntu/Fedora containers ship
+  # with no LANG (Encoding.default_external == US-ASCII) so any regex on the
+  # UTF-8 doc/bin files below raises `invalid byte sequence in US-ASCII`.
+  # See .github/workflows/install-matrix.yml — this spec must be locale-proof.
+  read_utf8 = ->(p) { File.read(p, encoding: 'UTF-8') }
+  doc       = read_utf8.call(doc_path)
 
   # ------------------------------------------------------------------
   # Layer 1 — static doc ↔ code introspection
@@ -76,7 +81,7 @@ RSpec.describe 'documentation/Installation.md' do
     end
 
     it 'all three invocation spellings are wired in bin/pwn' do
-      pwn_bin = File.read(File.join(repo_root, 'bin/pwn'))
+      pwn_bin = read_utf8.call(File.join(repo_root, 'bin/pwn'))
       expect(pwn_bin).to match(/ARGV\.first == 'setup'/)   # `pwn setup ...`
       expect(pwn_bin).to include('pwn_setup')              # → bin/pwn_setup
       expect(pwn_bin).to match(/--setup\[?=/)              # `pwn --setup[=PROFILE]`
@@ -93,8 +98,8 @@ RSpec.describe 'documentation/Installation.md' do
         path = File.join(repo_root, f)
         next unless File.exist?(path)
 
-        expect(File.read(path)).to match(/pwn[ _]setup|PWN::Setup/),
-                                   "#{f} does not delegate to `pwn setup` — doc claims it does"
+        expect(read_utf8.call(path)).to match(/pwn[ _]setup|PWN::Setup/),
+                                        "#{f} does not delegate to `pwn setup` — doc claims it does"
       end
     end
 
@@ -162,7 +167,7 @@ RSpec.describe 'documentation/Installation.md' do
       r = PWN::Setup.check(io: StringIO.new)
       expect([true, false]).to include(r[:ok])
       # bin/pwn_setup: `exit 1 unless r[:ok]` — assert that line still exists
-      expect(File.read(File.join(repo_root, 'bin/pwn_setup')))
+      expect(read_utf8.call(File.join(repo_root, 'bin/pwn_setup')))
         .to match(/exit 1 unless r\[:ok\]/)
     end
 
