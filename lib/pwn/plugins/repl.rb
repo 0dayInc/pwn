@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'curses'
-require 'fileutils'
 require 'pry'
 require 'reline'
 require 'tty-prompt'
@@ -13,11 +12,21 @@ module PWN
     # This module contains methods related to the pwn REPL Driver.
     module REPL
       # Custom input handler for pwn-ai and pwn-asm to support multi-line
-      # submissions:
-      # - Use *only* SHIFT+ENTER to insert a newline (continue editing).
-      # - Plain ENTER submits the full (possibly multi-line) buffer.
-      # - Multi-line pastes are supported (Reline handles \n in buffer; submit with ENTER).
-      # Strict SHIFT+ENTER only — no Ctrl+J, Alt-Enter, or other fallbacks (per requirements).
+      # submissions. Plain ENTER submits the full (possibly multi-line)
+      # buffer; a newline is inserted (keep editing) by ANY of:
+      #
+      #   - SHIFT+ENTER   on capable terminals (kitty, wezterm, foot,
+      #                   alacritty, xterm, Konsole, iTerm2, Windows
+      #                   Terminal; and Terminator via `pwn setup --terminal`)
+      #   - ALT+ENTER     terminal-agnostic fallback — every emulator,
+      #                   including bare VTE, sends `\e\r` for this.
+      #   - trailing `\`  bash/zsh/irb/psql-style continuation: end a line
+      #                   with backslash + ENTER to keep composing. The
+      #                   backslashes are stripped before submit.
+      #
+      # Multi-line pastes work (Reline holds \n in the buffer; ENTER submits).
+      # See documentation/pwn-REPL.md § Multi-line input for the terminal
+      # support matrix and `pwn setup --terminal` for the opt-in VTE fix.
       class PWNMultiLineInput
         attr_reader :line_buffer
 
@@ -45,8 +54,8 @@ module PWN
           [27, 91, 49, 51, 59, 50, 117],             # \e[13;2u (CSI u)
           [27, 91, 50, 55, 59, 50, 59, 49, 51, 117], # \e[27;2;13u
           [27, 91, 49, 59, 50, 126],                 # \e[1;2~
-          [27, 13],                                  # \e\r (ESC+CR variant)
-          [27, 10],                                  # \e\n (ESC+LF variant)
+          [27, 13],                                  # \e\r  ALT+ENTER — universal fallback (all emulators, incl. VTE)
+          [27, 10],                                  # \e\n  ALT+ENTER (LF variant)
           [27, 91, 13, 59, 50, 126],                 # \e[13;2~ alt numeric
           [27, 91, 49, 59, 50, 117],                 # \e[1;2u
           [27, 91, 50, 55, 59, 50, 13, 126],         # \e[27;2;13~ variant
@@ -77,6 +86,7 @@ module PWN
           @line_buffer = ''
           pry_instance.config.pwn_ai_original_input = Pry.input
           ensure_tmux_extended_keys
+          ensure_vte_shift_enter
           install_shift_enter_bindings
         end
 
@@ -155,6 +165,53 @@ module PWN
           warn "[pwn] ensure_tmux_extended_keys: #{e.class}: #{e.message}"
         end
 
+        # VTE-based emulators (Terminator, GNOME Terminal, Tilix, xfce4-terminal,
+        # Guake, Ptyxis, MATE Terminal, ...) do *not* implement xterm
+        # modifyOtherKeys (CSI >4;Nm) nor the kitty keyboard protocol
+        # (CSI >1u) — see GNOME/vte issues #2601 and #2607. The
+        # ENABLE_EXTENDED_KEYS request we emit (and that tmux emits to the
+        # outer terminal via Eneks) is silently ignored, so a physical
+        # Shift+Enter reaches us as an indistinguishable plain 0x0D. No
+        # tmux/Reline configuration can fix that — the modifier was lost at
+        # the outer terminal.
+        #
+        # This method therefore ONLY detects and hints. It never mutates the
+        # user's host. Terminal-agnostic fallbacks (Alt+Enter, trailing `\`)
+        # already work; for real Shift+Enter under Terminator the user can
+        # opt in with `pwn setup --terminal`, which installs
+        # third_party/terminator/pwn_shift_enter.py into
+        # ~/.config/terminator/plugins/ after asking permission.
+        def ensure_vte_shift_enter
+          return if self.class.instance_variable_get(:@vte_shift_enter_checked)
+
+          self.class.instance_variable_set(:@vte_shift_enter_checked, true)
+          vte_ver = ENV['VTE_VERSION'].to_s
+          return if vte_ver.empty?
+
+          in_terminator = !ENV['TERMINATOR_UUID'].to_s.empty? || !ENV['TERMINATOR_DBUS_NAME'].to_s.empty?
+          # If the plugin is already installed & enabled, stay silent.
+          if in_terminator
+            cfg = File.join(Dir.home, '.config', 'terminator', 'config')
+            return if File.exist?(cfg) && File.read(cfg).include?('PWNShiftEnter')
+          end
+
+          host = if in_terminator then 'Terminator'
+                 elsif ENV['GNOME_TERMINAL_SCREEN'] || ENV['GNOME_TERMINAL_SERVICE'] then 'GNOME Terminal'
+                 elsif ENV['TILIX_ID'] then 'Tilix'
+                 else "a VTE-#{vte_ver} terminal"
+                 end
+
+          warn "[pwn] #{host} (libvte) can't distinguish SHIFT+ENTER from ENTER — the modifier is dropped at the emulator."
+          warn '[pwn] Multi-line input still works: use ALT+ENTER, or end the line with `\` then ENTER.'
+          if in_terminator
+            warn '[pwn] For real SHIFT+ENTER support here, run: `pwn setup --terminal` (installs a Terminator plugin — opt-in, one-time).'
+          else
+            warn '[pwn] For native SHIFT+ENTER, use kitty / wezterm / foot / alacritty / xterm / Konsole / iTerm2 / Terminator.'
+          end
+        rescue StandardError => e
+          warn "[pwn] ensure_vte_shift_enter: #{e.class}: #{e.message}"
+        end
+
         # Register SHIFT+ENTER → :key_newline on Reline's default keymaps.
         #
         # IMPORTANT: do NOT use add_oneshot_key_binding for this. Reline's
@@ -193,11 +250,17 @@ module PWN
           end
 
           begin
-            # readmultiline with confirm block that *always* returns true:
-            #   => default (plain) ENTER triggers finish/submit of the (multi-line) buffer
-            # SHIFT+ENTER (matched seq) triggers :key_newline (insert \n, stay in edit mode)
-            # Reline handles multi-line pastes by splitting on \n in the buffer.
-            @line_buffer = Reline.readmultiline(prompt, true) { |_buffer| true } || ''
+            # Plain ENTER submits UNLESS the last non-whitespace char on the
+            # last line is `\` (bash/irb/psql-style continuation) — that is
+            # the terminal-agnostic fallback for emulators that can't send a
+            # distinct SHIFT+ENTER (all VTE hosts). SHIFT+ENTER / ALT+ENTER
+            # (matched via SHIFT_ENTER_SEQS) trigger :key_newline directly.
+            # Reline handles multi-line pastes by splitting on \n in-buffer.
+            @line_buffer = Reline.readmultiline(prompt, true) do |buffer|
+              !buffer.split("\n", -1).last.to_s.rstrip.end_with?('\\')
+            end || ''
+            # Strip the continuation markers before handing off to the caller.
+            @line_buffer = @line_buffer.gsub(/\\[ \t]*\n/, "\n")
           ensure
             if tty
               $stdout.write(DISABLE_EXTENDED_KEYS)
@@ -341,7 +404,7 @@ module PWN
               [pi.input.line_buffer]
             end
 
-            puts '[*] MULTILINE in pwn-asm: SHIFT+ENTER inserts a newline (e.g. multi-instruction asm); ENTER submits.'
+            puts '[*] MULTILINE in pwn-asm: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits.'
           end
         end
 
@@ -385,7 +448,7 @@ module PWN
             puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"
             puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) + memory/sessions/cron to expand autonomous capabilities."
             puts "[*] Type 'back' to exit pwn-ai mode."
-            puts '[*] MULTILINE in pwn-ai: Use ONLY SHIFT+ENTER for newlines (plain ENTER submits to AI).'
+            puts '[*] MULTILINE in pwn-ai: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits to the AI.'
             puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
           end
         end

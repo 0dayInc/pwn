@@ -1,47 +1,52 @@
 # CLI Drivers - `bin/pwn_*`
 
-53 headless executables, each a thin `OptionParser` wrapper over one plugin
-(or one workflow). They exist so CI/CD can call PWN without a REPL or an LLM.
+53 headless executables (52 `pwn_*` + `pwn`), each a thin `OptionParser`
+wrapper over one plugin (or one workflow). They exist so CI/CD can call PWN
+without a REPL or an LLM.
 
 ![Driver anatomy](diagrams/driver-framework.svg)
 
 ## Full list
 
 ```text
-pwn                              pwn_jenkins_thinBackup_aws_s3
-pwn_android_war_dialer           pwn_jenkins_update_plugins
-pwn_autoinc_version              pwn_jenkins_useradd
-pwn_aws_describe_resources       pwn_mail_agent
-pwn_bdba_groups                  pwn_msf_postgres_login
-pwn_bdba_scan                    pwn_nessus_cloud_scan_crud
-pwn_burp_suite_pro_active_rest_api_scan   pwn_nessus_cloud_vulnscan
-pwn_burp_suite_pro_active_scan   pwn_nexpose
-pwn_char_base64_encoding         pwn_nmap_discover_tcp_udp
-pwn_char_dec_encoding            pwn_openvas_vulnscan
-pwn_char_hex_escaped_encoding    pwn_pastebin_sample_filter
-pwn_char_html_entity_encoding    pwn_phone
-pwn_char_unicode_escaped_encoding  pwn_rdoc_to_jsonl
-pwn_char_url_encoding            pwn_sast
-pwn_crt_sh                       pwn_serial_check_voicemail
-pwn_defectdojo_engagement_create pwn_serial_msr206
-pwn_defectdojo_importscan        pwn_serial_qualcomm_commands
-pwn_defectdojo_reimportscan      pwn_serial_son_micro_sm132_rfid
-pwn_diff_csv_files_w_column_exclude  pwn_setup
-pwn_domain_reversewhois          pwn_shodan_graphql_introspection
-pwn_fuzz_net_app_proto           pwn_shodan_search
-pwn_gqrx_scanner                 pwn_simple_http_server
-pwn_jenkins_create_job           pwn_web_cache_deception
-pwn_jenkins_create_view          pwn_www_checkip
-pwn_jenkins_install_plugin       pwn_www_uri_buster
+pwn                                pwn_mail_agent
+pwn_android_war_dialer             pwn_msf_postgres_login
+pwn_autoinc_version                pwn_nessus_cloud_scan_crud
+pwn_aws_describe_resources         pwn_nessus_cloud_vulnscan
+pwn_bdba_groups                    pwn_nexpose
+pwn_bdba_scan                      pwn_nmap_discover_tcp_udp
+pwn_burp_suite_pro_active_rest_api_scan   pwn_openvas_vulnscan
+pwn_burp_suite_pro_active_scan     pwn_pastebin_sample_filter
+pwn_char_base64_encoding           pwn_phone
+pwn_char_dec_encoding              pwn_rdoc_to_jsonl
+pwn_char_hex_escaped_encoding      pwn_sast
+pwn_char_html_entity_encoding      pwn_serial_check_voicemail
+pwn_char_unicode_escaped_encoding  pwn_serial_msr206
+pwn_char_url_encoding              pwn_serial_qualcomm_commands
+pwn_crt_sh                         pwn_serial_son_micro_sm132_rfid
+pwn_defectdojo_engagement_create   pwn_setup
+pwn_defectdojo_importscan          pwn_shodan_graphql_introspection
+pwn_defectdojo_reimportscan        pwn_shodan_search
+pwn_diff_csv_files_w_column_exclude  pwn_simple_http_server
+pwn_domain_reversewhois            pwn_web_cache_deception
+pwn_fuzz_net_app_proto             pwn_www_checkip
+pwn_gqrx_scanner                   pwn_www_uri_buster
+pwn_jenkins_create_job             pwn_xss_dom_vectors
+pwn_jenkins_create_view            pwn_zaproxy_active_rest_api_scan
+pwn_jenkins_install_plugin         pwn_zaproxy_active_scan
+pwn_jenkins_thinBackup_aws_s3
+pwn_jenkins_update_plugins
+pwn_jenkins_useradd
 ```
 
 Run any with `--help` for its flags.
 
-## `pwn_setup` - post-install doctor & capability provisioner
+## `pwn_setup` - post-install doctor / provisioner / state migrator
 
 The one driver that isn't a plugin wrapper. It grows a bare `gem install pwn`
 into a fully-armed host by installing OS headers / external tools for whatever
-capability profile you ask for. Also reachable as `pwn setup` and
+capability profile you ask for, **and** verifies/repairs every persisted
+`~/.pwn` state file after an upgrade. Also reachable as `pwn setup` and
 `pwn --setup[=PROFILE]`.
 
 ```bash
@@ -49,10 +54,11 @@ pwn_setup                        # read-only doctor; exit 1 if degraded
 pwn_setup --list-profiles
 pwn_setup --profile web --yes    # CI-friendly, non-interactive
 pwn_setup --deps --dry-run       # print the apt/dnf/pacman/brew/port commands only
+pwn_setup --migrate --fix        # ~/.pwn state doctor + autofix (PWN::Migrate)
 ```
 
-See [Installation](Installation.md) for the full profile table and
-`PWN::Setup` API.
+See [Installation](Installation.md) for the full profile table, the
+`PWN::Setup` API and the `PWN::Migrate` state-file registry.
 
 ## Typical CI usage
 

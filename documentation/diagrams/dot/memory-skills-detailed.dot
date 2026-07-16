@@ -19,22 +19,24 @@ digraph "PWN_MemorySkills" {
     Dist   [label="learning_distill_skill\n(session → skill)",   fillcolor="#6ee7b7"];
     Mrec   [label="mistakes_record\nmistakes_resolve",           fillcolor="#6ee7b7"];
     Xft    [label="Learning.export_finetune\n(sessions → dataset)", fillcolor="#6ee7b7"];
+    Rdpo   [label="Reward.record_preference\nexport_dpo", fillcolor="#6ee7b7"];
   }
-  {rank=same; Rem; Skc; Note; Dist; Mrec; Xft}
+  {rank=same; Rem; Skc; Note; Dist; Mrec; Xft; Rdpo}
 
   subgraph cluster_files {
     label="~/.pwn/"; fontcolor="#fde68a"; style=rounded;
     color="#a16207"; bgcolor="#422006";
     Fmem [label="memory.json\nfact · pref · lesson · env", shape=cylinder, fillcolor="#fcd34d"];
     Fidx [label="memory.idx\nembedding index\n(sha → vec)", shape=cylinder, fillcolor="#fcd34d"];
-    Fskl [label="skills/*.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
+    Fskl [label="skills/<n>/SKILL.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
     Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
     Fses [label="sessions/*.jsonl\ntranscripts",              shape=cylinder, fillcolor="#fcd34d"];
     Fmis [label="mistakes.json\nsig → count · fix · regressed", shape=cylinder, fillcolor="#fcd34d"];
     Fext [label="extrospection.json\nsnapshot · rf · web · obs", shape=cylinder, fillcolor="#fcd34d"];
-    Fftn [label="finetune/*.jsonl\nShareGPT / OpenAI", shape=cylinder, fillcolor="#fcd34d"];
+    Fftn [label="finetune/*.jsonl\nShareGPT / OpenAI / DPO", shape=cylinder, fillcolor="#fcd34d"];
+    Fprf [label="preferences.jsonl\nDPO (prompt,rejected,chosen)", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmem; Fidx; Fskl; Flrn; Fses; Fmis; Fext; Fftn}
+  {rank=same; Fmem; Fidx; Fskl; Flrn; Fses; Fmis; Fext; Fftn; Fprf}
 
   subgraph cluster_read {
     label="Read-Side / Injection"; fontcolor="#ddd6fe"; style=rounded;
@@ -92,4 +94,8 @@ digraph "PWN_MemorySkills" {
   Teach [label="Reflect.on\n(engine: reflect_engine)\nteacher-student", fillcolor="#fda4af", penwidth=2];
   Fses  -> Teach [label="transcript", style=dashed, color="#94a3b8", constraint=false];
   Teach -> Fmem  [label="frontier-authored\n:lesson", color="#fb7185", penwidth=2];
+  Rdpo -> Fprf [color="#f59e0b"];
+  Mrec -> Fprf [label="resolve → pair", style=dashed, color="#fbbf24"];
+  Fprf -> Fftn [label="export_dpo", style=dashed, color="#fbbf24", constraint=false];
+
 }

@@ -43,7 +43,7 @@ puts result
 | Artifact | Made with | Consumed by |
 |---|---|---|
 | `bin/pwn_<name>` | template above | shell / CI |
-| `~/.pwn/skills/<name>.md` | `learning_distill_skill` | every future pwn-ai prompt |
+| `~/.pwn/skills/<name>/SKILL.md` | `learning_distill_skill` | every future pwn-ai prompt |
 | `cron` job | `cron_create(ruby: '...')` | system crontab → unattended |
 
 **See also:** [CLI Drivers](CLI-Drivers.md) · [Cron](Cron.md) ·

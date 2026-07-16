@@ -1,6 +1,6 @@
 digraph "PWN_Cron" {
   graph [
-    label=<<B>PWN::Cron - Scheduled Autonomous Jobs</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">prompt · ruby · script → jobs.yml → crontab → pwn-ai</FONT>>,
+    label=<<B>PWN::Cron - Scheduled Autonomous Jobs</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">prompt · ruby · script → jobs.yml → crontab → pwn-ai  ·  seeded self-improvement (Curriculum)</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.3,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -10,10 +10,13 @@ digraph "PWN_Cron" {
   edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
         fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  Create [label="cron_create\nname · schedule\nprompt | ruby | script", fillcolor="#7dd3fc"];
-  Jobs   [label="~/.pwn/cron/jobs.yml", shape=cylinder, fillcolor="#fcd34d"];
-  Crontab[label="system crontab\n(install_crontab: true)", fillcolor="#fda4af"];
-  Runner [label="PWN::Cron.run(id)", fillcolor="#c4b5fd"];
+  Create  [label="cron_create\nname · schedule\nprompt | ruby | script", fillcolor="#7dd3fc"];
+  Seed    [label="PWN::Cron.install_defaults\n(pwn setup --migrate)", fillcolor="#7dd3fc"];
+  {rank=same; Create; Seed}
+
+  Jobs    [label="~/.pwn/cron/jobs.yml", shape=cylinder, fillcolor="#fcd34d"];
+  Crontab [label="system crontab\n(install_crontab: true)", fillcolor="#fda4af"];
+  Runner  [label="PWN::Cron.run(id)", fillcolor="#c4b5fd"];
 
   subgraph cluster_kinds {
     label="Job Kinds"; fontcolor="#a7f3d0"; style=rounded;
@@ -24,17 +27,30 @@ digraph "PWN_Cron" {
   }
   {rank=same; Prompt; Ruby; Script}
 
+  subgraph cluster_seed {
+    label="Seeded Self-Improvement"; fontcolor="#ddd6fe"; style=rounded;
+    color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
+    Practice [label="curriculum_practice_nightly\n0 3 * * *\nCurriculum.practice(limit:3)", fillcolor="#c4b5fd"];
+    Train    [label="curriculum_train_weekly\n0 4 * * 0\nCurriculum.train_and_gate", fillcolor="#c4b5fd"];
+  }
+  {rank=same; Practice; Train}
+
   Log [label="~/.pwn/cron/log/<id>.log\nlast_run · last_status", shape=cylinder, fillcolor="#fcd34d"];
 
   Create  -> Jobs    [label="write", color="#38bdf8"];
+  Seed    -> Jobs    [label="idempotent seed", color="#38bdf8"];
   Create  -> Crontab [label="append", color="#fb7185"];
   Crontab -> Runner  [label="fire on schedule", color="#fb7185", penwidth=2];
   Jobs    -> Runner  [label="load job", color="#f59e0b"];
   Runner  -> Prompt  [color="#34d399"];
   Runner  -> Ruby    [color="#34d399"];
   Runner  -> Script  [color="#34d399"];
-  Prompt  -> Log     [color="#f59e0b"];
-  Ruby    -> Log     [color="#f59e0b"];
-  Script  -> Log     [color="#f59e0b"];
-  Log     -> Jobs    [label="update status", style=dashed, color="#fbbf24", constraint=false];
+  Ruby    -> Practice [color="#a78bfa"];
+  Ruby    -> Train    [color="#a78bfa"];
+  Prompt  -> Log [color="#f59e0b"];
+  Ruby    -> Log [color="#f59e0b"];
+  Script  -> Log [color="#f59e0b"];
+  Log     -> Jobs [label="update status", style=dashed, color="#fbbf24", constraint=false];
+  Practice -> Log [style=dashed, color="#fbbf24", constraint=false];
+  Train    -> Log [style=dashed, color="#fbbf24", constraint=false];
 }

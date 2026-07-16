@@ -2,9 +2,10 @@
 
 `pwn-ai` is a natural-language front end to everything in `PWN::`. You describe
 the goal; the agent plans a sequence of tool calls (`pwn_eval`, `shell`,
-`memory_*`, `skill_*`, `mistakes_*`, `extro_*`, `agent_*`, ...), executes them
-against the live process, observes the results, and loops until it can give you
-a final answer - **learning from every failure so it doesn't repeat it**.
+`memory_*`, `skill_*`, `mistakes_*`, `reward_*`, `curriculum_*`, `extro_*`,
+`agent_*`, ...), executes them against the live process, observes the results,
+and loops until it can give you a final answer - **learning from every failure
+so it doesn't repeat it**.
 
 ## Two ways to run it
 
@@ -33,23 +34,27 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
    task, not the harness.
 2. **Loop** checks the incoming message against `Mistakes::CORRECTION_RX` - if
    it reads like *"no, that's wrong"* the previous outcome is flipped to
-   `success:false` and fingerprinted.
+   `success:false`, fingerprinted, **and recorded as a `(prompt, rejected,
+   chosen)` DPO preference pair** in `~/.pwn/preferences.jsonl`.
 3. **Registry** hands Loop the tool schemas - the full set for frontier
    engines, or `CORE_TOOLS` + top-K keyword-relevant when
    `ai.agent.tool_router` is on. *(local)* `Learning.exemplars_for` splices a
    compressed prior-success trace as few-shot; *(local)* `plan_first` forces a
-   numbered tool plan before the first dispatch.
+   numbered tool plan before the first dispatch (optionally red-teamed by
+   `Curriculum.red_team_plan`).
 4. Loop sends the prompt to the active `PWN::AI::<Engine>` client.
 5. Provider replies with `tool_calls` → **Dispatch** executes each one via the
    [Registry](Agent-Tool-Registry.md); **Metrics** records
-   `duration/success/engine`. Dispatch is *tolerant* - Levenshtein-repairs
-   near-miss tool names and cleans up almost-JSON args, fingerprinting every
-   repair into **Mistakes**. Any *failure* is fingerprinted (`count++`,
-   cross-session) and the tool result gets an inline `correction_hint`
-   (`seen N×, sig=..., KNOWN FIX: ...`) so the very next iteration self-corrects.
-   If the persistent count ≥ 3, `guard_repeated_failure` interrupts with an
-   explicit *change-approach* instruction. *(local)* once in-turn failures
-   ≥ `ESCALATE_AFTER_FAILS`, `Loop.escalate` asks the
+   `duration/success/engine` (via `Reward.semantic_ok` - `grep` exit 1 ≠
+   failure). Dispatch is *tolerant* - Levenshtein-repairs near-miss tool names
+   and cleans up almost-JSON args, fingerprinting every repair into
+   **Mistakes**. Any *failure* is fingerprinted (`count++`, cross-session) and
+   the tool result gets an inline `correction_hint`
+   (`seen N×, sig=..., KNOWN FIX: ...`) so the very next iteration
+   self-corrects. If the persistent count ≥ 3, `guard_repeated_failure`
+   interrupts with an explicit *change-approach* instruction (optionally
+   forking a `Curriculum.counterfactual` A/B branch). *(local)* once in-turn
+   failures ≥ `ESCALATE_AFTER_FAILS`, `Loop.escalate` asks the
    `ai.agent.escalation_persona` Swarm persona for a 3-line frontier hint and
    injects it as a synthetic tool result. On-demand sense tools
    (`extro_verify` / `extro_watch` / `extro_rf_tune` / `extro_osint` /
@@ -61,9 +66,13 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 7. When the reply has *no* tool_calls it's the **final answer** →
    `Learning.auto_introspect` fires (if enabled): *(local)*
    `fact_check_local_final` auto-`extro_verify`s every CVE / version-shaped
-   claim in the answer; `Reflect.on` writes durable lessons via
+   claim in the answer; **`Reward.judge`** scores (request, final) →
+   `{score, verdict, rationale}`; **`Reward.prm`** back-labels each transcript
+   step with `step_reward:+1/0/-1`; failed goals are optionally HER-relabeled
+   by `Curriculum.hindsight`; `Reflect.on` writes durable lessons via
    `ai.reflect_engine` (teacher-student - a frontier engine may author the
-   lesson a local engine reads); when `auto_extrospect` is also on,
+   lesson a local engine reads); `Reward.sentinel` warns when success_rate ≠
+   judge_mean ≠ (1 − user_correction_rate); when `auto_extrospect` is also on,
    `Extrospection.auto_extrospect` runs (`AUTO_SECTIONS = host/repo/env` only -
    never toolchain/rf/web, never launches Burp/ZAP/msf/gqrx). Transcript is
    flushed to `~/.pwn/sessions/`.
@@ -72,7 +81,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## What the agent can call
 
-10 toolsets · 61 tools - full table at
+10 toolsets · **71 tools** - full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:
@@ -82,9 +91,9 @@ The two that matter most:
 | `pwn_eval` | **Any** Ruby in-process - the whole `PWN::` namespace, `require`, monkey-patch, everything |
 | `shell` | **Any** OS command on the host |
 
-Everything else (memory, skills, learning, **mistakes**, extrospection, cron,
-swarm, sessions, metrics) is a convenience wrapper the model can discover from
-the schema alone.
+Everything else (memory, skills, learning, **mistakes**, **reward**,
+**curriculum**, extrospection, cron, swarm, sessions, metrics) is a
+convenience wrapper the model can discover from the schema alone.
 
 ## Delegating to other agents
 
@@ -98,22 +107,25 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 - `back` / `exit` returns to the plain REPL.
 - Set `ai.agent.max_iters` in `~/.pwn/pwn.yaml` if long tasks get truncated.
 - Disable `auto_introspect` during noisy fuzz loops
-  (`learning_auto_introspect_toggle(enabled: false)`), re-enable for the summary
-  turn.
-- Run `mistakes_list` before retrying something that failed last session - the
-- `ai.agent.tool_router: true` + `ai.agent.plan_first: true` when running on a
-  local model - dramatically cuts mis-routing.
+  (`learning_auto_introspect_toggle(enabled: false)`), re-enable for the
+  summary turn.
+- Run `mistakes_list` before retrying something that failed last session -
+  the fix may already be recorded.
+- `ai.agent.tool_router: true` + `ai.agent.plan_first: true` when running on
+  a local model - dramatically cuts mis-routing.
 - Set `ai.reflect_engine:` to a frontier provider so lessons written to
   `~/.pwn/memory.json` are high-signal even when the *executing* engine is
   local.
-- `PWN::AI::Agent::Learning.export_finetune` turns every successful session
-  into a supervised dataset (`~/.pwn/finetune/*.jsonl`) - schedule via
-  `PWN::Cron` and LoRA the local model on it.
-  fix may already be recorded.
+- `PWN::AI::Agent::Learning.export_finetune` + `Reward.export_dpo` turn every
+  successful session and every preference pair into supervised / DPO
+  datasets under `~/.pwn/finetune/` - `Curriculum.train_and_gate` then
+  LoRA-tunes the local model on them and only promotes the new adapter if it
+  beats the old one on the current `Mistakes.top` set. See
+  [Reinforcement Learning](Reinforcement-Learning.md).
 
 **See also:** [AI Integration](AI-Integration.md) ·
 [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
-[Mistakes](Mistakes.md) · [Extrospection](Extrospection.md) ·
-[Swarm](Swarm.md) · [Cron](Cron.md)
+[Mistakes](Mistakes.md) · [Reinforcement Learning](Reinforcement-Learning.md) ·
+[Extrospection](Extrospection.md) · [Swarm](Swarm.md) · [Cron](Cron.md)
 
 [← Home](Home.md)

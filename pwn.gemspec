@@ -74,6 +74,8 @@ Gem::Specification.new do |spec|
     gruff
     libusb
     meshtastic
+    packetfu
+    packetgen
     pg
     rmagick
     rtesseract

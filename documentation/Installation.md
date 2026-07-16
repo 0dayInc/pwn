@@ -59,9 +59,9 @@ Prints a per-capability report and **exits non-zero if anything is degraded**
 (so you can gate CI on it):
 
 ```text
-PWN v0.5.628 · ruby 4.0.5 · linux x86_64 · pkg-manager: apt
+PWN vCURRENT_VERSION · ruby 4.0.5 · linux x86_64 · pkg-manager: apt
 
-~/.pwn/                    ok   (11 entries)
+~/.pwn/                    ok   (13 entries · schema v1)
 ~/.pwn/pwn.yaml            ok   (encrypted, decryptor present)
 AI engine                  ok   anthropic (key set)
 
@@ -74,6 +74,12 @@ Ruby extensions
 External toolchain                              used by
   nmap           ok    /usr/bin/nmap            PWN::Plugins::NmapIt
   gqrx           MISSING                        PWN::SDR, extro_rf_tune
+  ...
+
+~/.pwn state files                              owner
+  pwn.yaml       ok                             PWN::Config
+  memory.json    ok                             PWN::Memory
+  skills/        drift  1 legacy flat file(s)   PWN::Config     → run --migrate --fix
   ...
 
 31 / 36 capabilities usable · 5 degraded
@@ -113,7 +119,7 @@ pwn setup --list-profiles
 | `ai` | verify at least one AI engine key/oauth in `~/.pwn/pwn.yaml` |
 | `web` | `TransparentBrowser` · `BurpSuite` · `Zaproxy` · `extro_verify` · `extro_watch` · `sqlmap` · `tor` |
 | `net` | `NmapIt` · `Packet` · `extro_packet` · `extro_osint` · `tshark`/`tcpdump` |
-| `db` | `DAOPostgres` · `DAOSqlite3` · `DAOMongo` |
+| `db` | `DAOPostgres` · `DAOSQLite3` · `DAOMongo` |
 | `sdr` | `PWN::SDR` · GQRX · `PWN::FFI` DSP backends · `extro_rf_tune` · rtl-sdr / hackrf / SoapySDR |
 | `vision` | `OCR` · `ScannableCodes` · `Reports` · `extro_vision` · tesseract / zbar / graphviz |
 | `voice` | `PWN::Plugins::Voice` · `extro_voice` · espeak-ng / sox |
@@ -125,7 +131,7 @@ pwn setup --list-profiles
 
 ```text
 pwn setup [--check] [--deps] [--profile NAME] [--list-profiles]
-          [--yes] [--dry-run]
+          [--migrate [--fix]] [--yes] [--dry-run]
 ```
 
 | Flag | Meaning |
@@ -134,8 +140,60 @@ pwn setup [--check] [--deps] [--profile NAME] [--list-profiles]
 | `-d`, `--deps` | Install OS packages + rebuild native gems for `--profile` (default `full`). |
 | `-p`, `--profile NAME` | One of the profiles above. Implies `--deps`. |
 | `-l`, `--list-profiles` | Print profile table and exit. |
-| `-y`, `--yes` | Assume yes; non-interactive (CI / Docker / Packer). |
+| **`-m`, `--migrate`** | **Verify every `~/.pwn` state file against this pwn version; apply schema migrations. See below.** |
+| **`-f`, `--fix`** | **With `--migrate`: also autofix incompatible files (timestamped backup taken first).** |
+| `-y`, `--yes` | Assume yes; non-interactive (CI / Docker / Packer). Also implies `--fix` when combined with `--migrate`. |
 | `-n`, `--dry-run` | Print the commands that *would* run, do nothing. |
+
+---
+
+## Upgrading — `~/.pwn` state migration (`PWN::Migrate`)
+
+PWN persists a growing set of files under `~/.pwn` (encrypted config,
+memory, learning, metrics, mistakes, extrospection, cron, agents, skills,
+sessions, swarm, curriculum, finetune, …). Each file is owned by a different
+module and each release can add keys or change shape. `PWN::Migrate` closes
+that gap so `gem update pwn` never leaves you with a `KeyError` or a silent
+empty-fallback.
+
+```bash
+gem update pwn
+pwn setup --migrate            # verify + apply schema migrations (backup taken)
+pwn setup --migrate --fix      # also autofix incompatible files
+pwn setup --migrate --dry-run  # report only, write nothing
+```
+
+What `--migrate` does:
+
+1. **Stamp** `~/.pwn/.schema` with `{ schema:, pwn_version:, at: }`. Any
+   release that changes the on-disk shape of a `~/.pwn` file bumps
+   `PWN::Migrate::SCHEMA_VERSION` and appends an idempotent lambda to
+   `PWN::Migrate::MIGRATIONS`.
+2. **Verify** every state file against its owning module's *own* loader
+   (`PWN::Migrate::STATE_FILES` - no re-implemented parsers). If the raw
+   file has bytes but the owner returned its empty-fallback, the file is
+   flagged incompatible.
+3. **Autofix** (with `--fix`): timestamped backup under `~/.pwn/backup/<ts>/`
+   → ordered schema migrations → per-file repair (quarantine corrupt to
+   `~/.pwn/quarantine/`, re-seed missing dirs, strip unparsable JSONL lines,
+   convert legacy flat skills to the [agentskills.io](https://agentskills.io)
+   directory layout) → **deep-merge** any keys the current
+   `PWN::Config.env_template` added into your encrypted `~/.pwn/pwn.yaml`
+   **without overwriting your values** (re-encrypted with the same key/IV).
+
+Everything is idempotent and dry-run capable. The plain `pwn` launcher also
+prints a one-line drift warning on startup whenever `~/.pwn/.schema`
+predates the running gem (`PWN::Migrate.needed?`).
+
+Schema `v1` also seeds `PWN::Cron.install_defaults` — the nightly
+`curriculum_practice` and weekly `curriculum_train` self-improvement jobs
+(see [Reinforcement Learning](Reinforcement-Learning.md)).
+
+From a checkout:
+
+```bash
+cd /opt/pwn && git pull && rake install && pwn setup --migrate --fix
+```
 
 ---
 
@@ -178,21 +236,6 @@ pwn setup --profile ${PWN_PROFILE:-full} --yes
 
 ---
 
-## Upgrading
-
-```bash
-gem update pwn         # or: gem uninstall --all --executables pwn && gem install pwn
-pwn setup              # re-doctor - new versions may add capabilities
-```
-
-From a checkout:
-
-```bash
-cd /opt/pwn && git pull && rake install && pwn setup
-```
-
----
-
 ## First-run configuration
 
 The first `pwn` launch creates `~/.pwn/` and an **encrypted**
@@ -203,26 +246,38 @@ row as `MISSING` until a key is set.
 
 ---
 
-## Programmatic API - `PWN::Setup`
+## Programmatic API - `PWN::Setup` / `PWN::Migrate`
 
-Everything above is a thin CLI over one autoloaded module:
+Everything above is a thin CLI over two autoloaded modules:
 
 ```ruby
 PWN::Setup.check                          # → { ok:, native_gems_missing:, toolchain_missing:, state:, pkg_manager:, os:, arch: }
-PWN::Setup.migrate(fix: true)             # verify + autofix ~/.pwn state files (see PWN::Migrate)
 PWN::Setup.deps(profile: :web, yes: true) # install, then re-check
 PWN::Setup.list_profiles
+PWN::Setup.migrate(fix: true)             # thin wrapper → PWN::Migrate.run
 PWN::Setup.pkg_manager                    # → { key: :apt, install: 'sudo apt-get install -y', sudo: true }
 
 # The data tables - single source of truth, versioned with the gem:
 PWN::Setup::NATIVE_GEMS   # native ext  → { apt:, dnf:, pacman:, brew:, port:, plugins: }
 PWN::Setup::TOOLCHAIN     # external bin → { apt:, dnf:, pacman:, brew:, port:, plugins: }
 PWN::Setup::PROFILES      # profile      → { desc:, gems:, bins: }
+
+# ~/.pwn state doctor / auto-migrator (lib/pwn/migrate.rb)
+PWN::Migrate.needed?                      # cheap: schema stamp < SCHEMA_VERSION ?
+PWN::Migrate.status                       # per-file compatibility rows (never writes)
+PWN::Migrate.check                        # human report + { compatible:[], incompatible:[], missing:[] }
+PWN::Migrate.run(fix: true, dry_run:false)# backup → ordered migrations → per-file repair → vault backfill
+PWN::Migrate.vault_drift                  # keys env_template has that your pwn.yaml is missing
+PWN::Migrate.backfill_vault               # deep-merge those keys under your values, re-encrypt
+PWN::Migrate::STATE_FILES                 # declarative registry of every ~/.pwn artefact
+PWN::Migrate::SCHEMA_VERSION              # bump when a state file changes shape
 ```
 
 Adding a new native dependency or wrapped binary? Add **one row** to the
-appropriate constant in `lib/pwn/setup.rb` - every install path (gem, git,
-Docker, Packer, Vagrant, CI) picks it up automatically.
+appropriate constant in `lib/pwn/setup.rb`. Adding a new persisted state
+file under `~/.pwn`? Add **one entry** to `PWN::Migrate::STATE_FILES` in
+`lib/pwn/migrate.rb` - every install path (gem, git, Docker, Packer,
+Vagrant, CI) picks it up automatically.
 
 ---
 
@@ -230,35 +285,12 @@ Docker, Packer, Vagrant, CI) picks it up automatically.
 
 ```ruby
 pwn[CURRENT_VERSION]:001 >>> PWN::Setup.check[:ok]          # => true
-pwn[CURRENT_VERSION]:002 >>> PWN::Plugins.constants.count   # => 66
-pwn[CURRENT_VERSION]:003 >>> PWN::SAST.constants.count      # => 48
-pwn[CURRENT_VERSION]:004 >>> pwn-ai                         # launches agent TUI
+pwn[CURRENT_VERSION]:002 >>> PWN::Migrate.needed?           # => false
+pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 66
+pwn[CURRENT_VERSION]:004 >>> PWN::SAST.constants.count      # => 48
+pwn[CURRENT_VERSION]:005 >>> pwn-ai                         # launches agent TUI
 ```
 
-**Next:** [Configuration](Configuration.md) · [General Usage](General-PWN-Usage.md)
+**Next:** [Configuration](Configuration.md) · [General Usage](General-PWN-Usage.md) · [Persistence](Persistence.md)
 
 [← Home](Home.md)
-
----
-
-## Upgrading — `~/.pwn` state migration
-
-After `gem update pwn`, run the state doctor to verify (and autofix)
-every persisted file under `~/.pwn` against the new release:
-
-```bash
-pwn setup --migrate            # verify + apply schema migrations (backup taken)
-pwn setup --migrate --fix      # also autofix incompatible files
-pwn setup --migrate --dry-run  # report only, write nothing
-```
-
-`PWN::Migrate` (autoloaded) stamps `~/.pwn/.schema` with the release
-schema number, checks each state file (`memory.json`, `metrics.json`,
-`mistakes.json`, `learning.jsonl`, `agents.yml`, `cron/jobs.yml`,
-`skills/`, …) against its owning module's loader, and — with `--fix` —
-deep-merges any keys the current `PWN::Config.env_template` added into
-your encrypted `~/.pwn/pwn.yaml` **without overwriting your values**.
-Every run takes a timestamped backup under `~/.pwn/backup/<ts>/` first.
-
-The plain `pwn` launcher will also print a one-line drift warning on
-startup whenever `~/.pwn/.schema` predates the running gem.

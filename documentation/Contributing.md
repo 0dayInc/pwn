@@ -5,10 +5,11 @@
 ```text
 lib/pwn/                # all namespaces
 lib/pwn/setup.rb        # PWN::Setup - doctor/provisioner data tables
+lib/pwn/migrate.rb      # PWN::Migrate - ~/.pwn state doctor / auto-migrator
 lib/pwn/plugins/        # 66 plugin modules
 lib/pwn/ai/agent/       # agent core
 lib/pwn/ai/agent/tools/ # LLM tool registrations
-bin/                    # 53 pwn_* drivers (incl. pwn_setup)
+bin/                    # 52 pwn_* drivers + pwn (incl. pwn_setup)
 spec/                   # RSpec (incl. conventions_spec)
 documentation/          # this wiki + diagrams
 ```
@@ -44,7 +45,13 @@ rake            # rubocop + rspec - must be zero offenses
    set, reference it from `PWN::Setup::PROFILES`. That single edit makes
    `pwn setup` install it on every OS and every install path (gem, git,
    Docker, Packer, Vagrant, CI). **Do not** add a new bash provisioner.
-7. Update [Plugins.md](Plugins.md) and, if it changes a data flow, the
+7. **If it persists a new file under `~/.pwn/`**, add **one entry** to
+   `PWN::Migrate::STATE_FILES` in `lib/pwn/migrate.rb` (owner, kind,
+   `:fix` strategy, shallow verifier). If the change breaks *existing*
+   files, bump `PWN::Migrate::SCHEMA_VERSION` and append an idempotent
+   lambda to `PWN::Migrate::MIGRATIONS`. `pwn setup --migrate --fix`
+   then heals every user's `~/.pwn` on upgrade.
+8. Update [Plugins.md](Plugins.md) and, if it changes a data flow, the
    relevant `.dot` in `documentation/diagrams/dot/` → `./build.sh`.
 
 ## Commit / release

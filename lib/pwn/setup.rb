@@ -53,6 +53,20 @@ module PWN
         pacman: %w[libpcap], brew: %w[libpcap], port: %w[libpcap],
         plugins: %w[PWN::Plugins::Packet extro_packet]
       },
+      'packetfu' => {
+        # Transitively requires pcaprub (native, libpcap headers) — moved to
+        # setup-managed so `gem install pwn` succeeds on a bare host and
+        # `pwn setup --profile net` installs libpcap + this + pcaprub together.
+        apt: %w[libpcap-dev], dnf: %w[libpcap-devel],
+        pacman: %w[libpcap], brew: %w[libpcap], port: %w[libpcap],
+        plugins: %w[PWN::Plugins::Packet extro_packet]
+      },
+      'packetgen' => {
+        # Same rationale as packetfu — hard-depends on pcaprub.
+        apt: %w[libpcap-dev], dnf: %w[libpcap-devel],
+        pacman: %w[libpcap], brew: %w[libpcap], port: %w[libpcap],
+        plugins: %w[PWN::Plugins::Packet extro_packet]
+      },
       'rmagick' => {
         apt: %w[imagemagick libmagickwand-dev], dnf: %w[ImageMagick-devel],
         pacman: %w[imagemagick], brew: %w[imagemagick], port: %w[imagemagick],
@@ -245,7 +259,7 @@ module PWN
       },
       net: {
         desc: 'NmapIt · Packet · extro_packet · extro_osint',
-        gems: %w[pcaprub],
+        gems: %w[pcaprub packetfu packetgen],
         bins: %w[nmap tshark tcpdump whois jq]
       },
       db: {
@@ -482,6 +496,147 @@ module PWN
     end
 
     # Supported Method Parameters::
+    # PWN::Setup.terminal(
+    #   yes:     'optional - assume yes; non-interactive (default false)',
+    #   dry_run: 'optional - print what WOULD happen (default false)',
+    #   io:      'optional - IO to write to (default $stdout)'
+    # )
+    #
+    # Opt-in installer for SHIFT+ENTER multi-line support in the pwn-ai /
+    # pwn-asm REPL. Never runs implicitly — the user invokes it with
+    # `pwn setup --terminal` after PWNMultiLineInput#ensure_vte_shift_enter
+    # tells them their emulator can't distinguish Shift+Enter from Enter.
+    #
+    # What it does:
+    #   1. Prints the two `~/.tmux.conf` lines that persist the runtime
+    #      `tmux set -s` calls PWNMultiLineInput already makes.
+    #   2. If running under Terminator (a VTE host), copies
+    #      third_party/terminator/pwn_shift_enter.py to
+    #      ~/.config/terminator/plugins/ and enables the PWNShiftEnter
+    #      plugin in ~/.config/terminator/config — WITH confirmation and
+    #      a .pwnbak backup. This is the only VTE emulator we can fix at
+    #      the GTK layer without patching libvte itself.
+    #
+    # Everything here is host-config mutation, which is why it lives in
+    # `pwn setup` and NOT in the REPL's runtime path. See GNOME/vte
+    # issues #2601 / #2607 for why VTE can't be fixed with escape
+    # sequences alone.
+
+    public_class_method def self.terminal(opts = {})
+      require 'fileutils'
+      io      = opts[:io] || $stdout
+      yes     = opts[:yes]
+      dry_run = opts[:dry_run]
+
+      io.puts "\n─── pwn setup --terminal ── SHIFT+ENTER multi-line support ───\n\n"
+
+      # ---- tmux persistence hint (always shown) --------------------
+      io.puts 'tmux users — persist extended-keys (pwn already sets these at runtime,'
+      io.puts 'but they are lost when the tmux server exits). Add to ~/.tmux.conf:'
+      io.puts
+      io.puts '    set -s  extended-keys on'
+      io.puts "    set -as terminal-features 'xterm*:extkeys'"
+      io.puts "    set -as terminal-features 'tmux*:extkeys'"
+      io.puts "    set -as terminal-features 'screen*:extkeys'"
+      io.puts
+
+      # ---- VTE / Terminator plugin (opt-in, mutating) --------------
+      vte_ver       = ENV['VTE_VERSION'].to_s
+      in_terminator = !ENV['TERMINATOR_UUID'].to_s.empty? || !ENV['TERMINATOR_DBUS_NAME'].to_s.empty?
+
+      unless in_terminator
+        if vte_ver.empty?
+          io.puts "This terminal already encodes SHIFT+ENTER distinctly (or isn't VTE-based)."
+          io.puts 'No further action needed — SHIFT+ENTER should work in pwn-ai / pwn-asm.'
+        else
+          io.puts "Detected a VTE-#{vte_ver} terminal that is NOT Terminator."
+          io.puts 'libvte cannot distinguish SHIFT+ENTER from ENTER (GNOME/vte #2601, #2607)'
+          io.puts 'and pwn only ships a GTK-level shim for Terminator. Use ALT+ENTER or a'
+          io.puts 'trailing `\` for multi-line, or switch to kitty / wezterm / foot /'
+          io.puts 'alacritty / xterm / Konsole / iTerm2 / Terminator for native SHIFT+ENTER.'
+        end
+        return { installed: false, reason: if in_terminator
+                                             nil
+                                           else
+                                             (vte_ver.empty? ? :not_vte : :vte_not_terminator)
+                                           end }
+      end
+
+      gem_root   = File.expand_path('../..', __dir__)
+      plugin_src = File.join(gem_root, 'third_party', 'terminator', 'pwn_shift_enter.py')
+      plugin_dir = File.join(Dir.home, '.config', 'terminator', 'plugins')
+      plugin_dst = File.join(plugin_dir, 'pwn_shift_enter.py')
+      cfg_path   = File.join(Dir.home, '.config', 'terminator', 'config')
+
+      unless File.exist?(plugin_src)
+        io.puts "ERROR: plugin source not found: #{plugin_src}"
+        io.puts '       (was pwn installed from a git checkout with third_party/ present?)'
+        return { installed: false, reason: :missing_source }
+      end
+
+      io.puts 'Terminator detected. pwn ships a GTK plugin that intercepts <Shift>Return'
+      io.puts 'BEFORE libvte encodes it and injects `\e[27;2;13~` into the pty, so pwn-ai'
+      io.puts 'and pwn-asm see a real SHIFT+ENTER. Installing it will:'
+      io.puts
+      io.puts "    write   #{plugin_dst}"
+      io.puts "    edit    #{cfg_path}   (add PWNShiftEnter to enabled_plugins)"
+      io.puts "    backup  #{cfg_path}.pwnbak"
+      io.puts
+
+      unless yes
+        io.print 'Proceed? [y/N] '
+        io.flush
+        ans = $stdin.gets.to_s.strip.downcase
+        unless %w[y yes].include?(ans)
+          io.puts 'aborted.'
+          return { installed: false, reason: :declined }
+        end
+      end
+
+      if dry_run
+        io.puts '[dry-run] would mkdir -p, cp, and edit the files above.'
+        return { installed: false, reason: :dry_run }
+      end
+
+      FileUtils.mkdir_p(plugin_dir)
+      FileUtils.cp(plugin_src, plugin_dst)
+      io.puts "  #{OK} installed #{plugin_dst}"
+
+      if File.exist?(cfg_path)
+        cfg = File.read(cfg_path)
+        if cfg.include?('PWNShiftEnter')
+          io.puts "  #{OK} PWNShiftEnter already enabled in #{cfg_path}"
+        else
+          FileUtils.cp(cfg_path, "#{cfg_path}.pwnbak") unless File.exist?("#{cfg_path}.pwnbak")
+          new_cfg =
+            if cfg =~ /^\s*enabled_plugins\s*=\s*(.*)$/
+              cfg.sub(/^(\s*enabled_plugins\s*=\s*)(.*)$/) do
+                lead = Regexp.last_match(1)
+                rest = Regexp.last_match(2).strip
+                rest.empty? ? "#{lead}PWNShiftEnter" : "#{lead}#{rest}, PWNShiftEnter"
+              end
+            elsif cfg =~ /^\[global_config\]\s*$/
+              cfg.sub(/^\[global_config\]\s*$/) { |m| "#{m}\n  enabled_plugins = PWNShiftEnter" }
+            else
+              "[global_config]\n  enabled_plugins = PWNShiftEnter\n#{cfg}"
+            end
+          File.write(cfg_path, new_cfg)
+          io.puts "  #{OK} enabled PWNShiftEnter in #{cfg_path} (backup: config.pwnbak)"
+        end
+      else
+        FileUtils.mkdir_p(File.dirname(cfg_path))
+        File.write(cfg_path, "[global_config]\n  enabled_plugins = PWNShiftEnter\n[plugins]\n")
+        io.puts "  #{OK} wrote #{cfg_path}"
+      end
+
+      io.puts
+      io.puts '>>> RESTART Terminator (close ALL its windows) for SHIFT+ENTER to take effect. <<<'
+      { installed: true, plugin: plugin_dst, config: cfg_path }
+    rescue StandardError => e
+      raise e
+    end
+
+    # Supported Method Parameters::
     # PWN::Setup.list_profiles(
     #   io: 'optional - IO to write to (default $stdout)'
     # )
@@ -563,12 +718,16 @@ module PWN
       name = opts[:name].to_s
       Gem::Specification.find_by_name(name)
       true
-    rescue StandardError
-      # Fall back to require in case the ext is present but spec lookup lies
+    rescue LoadError, StandardError
+      # Gem::MissingSpecError < Gem::LoadError < LoadError < ScriptError —
+      # NOT a StandardError. Rescuing StandardError alone let a missing
+      # setup-managed gem crash `pwn setup --dry-run` on a fresh host
+      # (install-matrix macOS leg). Fall back to a real `require` in case
+      # the spec index is stale but the extension is present.
       begin
         require name.tr('-', '/')
         true
-      rescue StandardError
+      rescue LoadError, StandardError
         false
       end
     end
@@ -596,6 +755,13 @@ module PWN
           dry_run: 'optional - print commands only'
         )
 
+
+# Opt-in SHIFT+ENTER multi-line support (Terminator plugin + tmux.conf hints).
+#{self}.terminal(
+  yes:     'optional - assume yes (non-interactive)',
+  dry_run: 'optional - print what would happen'
+)
+
         # List capability profiles.
         #{self}.list_profiles
 
@@ -613,6 +779,7 @@ module PWN
         pwn setup --deps                # profile :full
         pwn setup --profile web
         pwn setup --profile sdr --yes
+        pwn setup --terminal              # opt-in SHIFT+ENTER multi-line (Terminator/tmux)
         pwn setup --list-profiles
         pwn setup --dry-run --profile net
         pwn setup --migrate                  # verify + upgrade ~/.pwn schema

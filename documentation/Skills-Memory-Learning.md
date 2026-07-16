@@ -11,7 +11,7 @@ its own performance, turns wins into permanent capability, and - critically -
 | Store | File | Write tool | Read tool | Injected as |
 |---|---|---|---|---|
 | **Memory** | `memory.json` (+ `memory.idx`) | `memory_remember` | `memory_recall` · `PWN::MemoryIndex.recall_semantic` | `MEMORY` block - durable facts / prefs / lessons / env. **Relevance-ranked** for the current request via a local embedding index when `ai.ollama.embed_model` is available; falls back to newest-first otherwise. |
-| **Skills** | `skills/*.md` | `skill_create` · `learning_distill_skill` | `skill_list` · `skill_view` | `SKILLS` list - reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST/URL) |
+| **Skills** | `skills/<name>/SKILL.md` | `skill_create` · `skill_migrate_legacy` · `learning_distill_skill` | `skill_list` · `skill_view` | `SKILLS` list - reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST/URL) |
 | **Learning** | `learning.jsonl` | `learning_note_outcome` · `learning_reflect` | `learning_outcomes` · `learning_stats` · `Learning.exemplars_for` | `LEARNING` block - recent outcomes + success_rate. Prior *successful* traces are also spliced in as **few-shot exemplars** for local models. |
 | **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks - do-NOT-repeat + do-THIS-instead |
 | **Metrics** | `metrics.json` | *automatic* (every Dispatch) | `metrics_summary` | `TOOL EFFECTIVENESS` block - steer tool choice. **Segmented per engine** (`engine=...`) so a local model's telemetry never blends with a frontier model's. |
@@ -51,16 +51,26 @@ dongle unplugged, target DOM moved). See **[Mistakes](Mistakes.md)** for the
 negative-feedback mechanics and **[Extrospection](Extrospection.md)** for the
 outward half.
 
-## Skill file format
+## Skill file format ([agentskills.io](https://agentskills.io) spec)
+
+Each skill lives in its own directory as `~/.pwn/skills/<name>/SKILL.md`.
+The name is sanitised to `[a-z0-9-]{1,64}`. Front-matter **must** carry
+`name` + `description`; `metadata.references` and `allowed-tools` are
+optional.
 
 ```markdown
 ---
-references:
-  - CWE-89
-  - T1190
-  - https://portswigger.net/web-security/sql-injection
+name: sqli-union-enum
+description: Manual UNION-based SQLi column enumeration and data extraction.
+license: MIT
+allowed-tools: [terminal, pwn, extrospection]
+metadata:
+  references:
+    - CWE-89
+    - T1190
+    - https://portswigger.net/web-security/sql-injection
 ---
-# sqli_union_enum
+# sqli-union-enum
 
 1. Confirm injection with `' AND 1=1 --`.
 2. Find column count with `ORDER BY n`.
@@ -71,9 +81,15 @@ references:
 - T1190
 ```
 
-`PWN::Config.parse_skill_references` reads both the YAML front-matter **and**
-the `## References` section, deduplicates, and exposes them via
+`PWN::Config.parse_skill_references` reads both the YAML `metadata.references`
+**and** the `## References` section, deduplicates, and exposes them via
 `skill_view(name)[:references]`.
+
+Legacy flat `~/.pwn/skills/*.md` files are still read, but
+`skill_migrate_legacy` (also run by `pwn setup --migrate --fix`) converts
+them in-place to the spec-conformant `<name>/SKILL.md` layout with
+back-filled `name`/`description` front-matter. `skill_create` always writes
+the new format.
 
 ## Housekeeping
 
@@ -135,7 +151,7 @@ when deciding which side of the loop to exercise.
 
 - "Which tools have the lowest success rate right now?"
 - "How often has `shell` been called, and what's its avg duration?"
-- "Is `extro_rf_tune` healtheir than the old GQRX helpers by metrics?"
+- "Is `extro_rf_tune` healthier than the old GQRX helpers by metrics?"
 - "Reset metrics after we fixed the broken tool so the 0 % doesn't steer us away." *(destructive)*
 
 ### Sessions / transcripts (`sessions_list`, `sessions_view`, `sessions_current`, `sessions_stats`, `sessions_delete`)

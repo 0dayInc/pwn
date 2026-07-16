@@ -6,6 +6,8 @@ LATS, Generative Agents, PRM, RLAIF, DPO, Self-Refine, Toolformer, DSPy)
 on at least one axis, and on **five axes simultaneously** for the full
 `Curriculum.practice → Reward.export_dpo → Curriculum.train_and_gate` path.
 
+![Reinforcement-learning loop](diagrams/reinforcement-learning.svg)
+
 ```
                        ┌────────────────────────────────────────────────┐
         request ──────►│ Loop.run                                       │
@@ -121,3 +123,8 @@ PWN::Cron.create(name: 'mem_gc',      schedule: '0 5 * * *',
 3. **Reward-hacking self-detection** (R3)
 4. **Mistake-driven curriculum with regression-gated LoRA promotion** (S1+W2)
 5. **Five naturally-generated DPO sources** with zero human labelling (W1)
+
+**See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
+[Mistakes](Mistakes.md) · [Cron](Cron.md) · [pwn-ai Agent](pwn-ai-Agent.md)
+
+[← Home](Home.md)

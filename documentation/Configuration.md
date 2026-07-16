@@ -20,6 +20,9 @@ generates the decryptor.
 > [doctor](Installation.md#pwn-setup--the-post-install-doctor--provisioner)
 > reports whether `~/.pwn/`, `pwn.yaml`, its decryptor, and an AI-engine key
 > are present, and exits non-zero for CI if any are missing.
+> After `gem update pwn`, run `pwn setup --migrate --fix` — `PWN::Migrate`
+> deep-merges any keys the new `PWN::Config.env_template` added into your
+> encrypted `pwn.yaml` **without overwriting your values**.
 
 ---
 
@@ -263,6 +266,11 @@ PWN::Config.refresh_env
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active == ollama`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean | `false` | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate so the router itself is a learned component. |
 | `ai.agent.escalation_persona` | String \| `nil` | `nil` | `PWN::AI::Agent::Loop.escalate` → `Swarm.ask` | Circuit-breaker: once a local model accumulates ≥ `Loop::ESCALATE_AFTER_FAILS` in-turn failures, ask this Swarm persona for a 3-line corrective hint (injected as a synthetic tool result). The local model still authors the final answer so Learning/Metrics stay attributed. |
+| `ai.agent.critic` | Boolean | `false` | `PWN::AI::Agent::Curriculum.critic` (S3) | Tool-armed constitutional self-critic reviews (and may `shell`/`extro_verify`) every final answer before it is returned. |
+| `ai.agent.red_team_plan` | Boolean | `false` | `PWN::AI::Agent::Curriculum.red_team_plan` (S4) | Adversarial review of the `plan_first` numbered plan, grounded in Metrics/Mistakes/`extro_drift` telemetry, before the first dispatch. |
+| `ai.agent.counterfactual` | Boolean | `false` | `PWN::AI::Agent::Curriculum.counterfactual` (S2) | On `[REPEATING]`, fork an alt-persona branch, judge both, and record the `(loser, winner)` DPO preference pair. |
+| `ai.agent.hindsight` | Boolean | `true` | `PWN::AI::Agent::Curriculum.hindsight` (C3) | Hindsight Experience Replay — relabel a failed trajectory as `success:true` for whatever it *did* accomplish. Free positive samples from failures. |
+| `ai.agent.verify_as_reward` | Boolean | `false` | `PWN::AI::Agent::Reward.verify_as_reward` (E3) | Ground the LLM judge score by browser-verifying any checkable claim in the final via `extro_verify`; verdict caps/floors `Reward.judge`. |
 | `ai.agent.extrospection.web.anchors` | Array\<String\> | `DEFAULT_WEB_ANCHORS` | `PWN::AI::Agent::Extrospection.probe_web` | URLs the headless browser fingerprints on `extro_snapshot(sections:[:web])`. Alias: `web_anchors`. |
 | `ai.agent.extrospection.web.proxy` | String | - | `Extrospection.probe_web` / `.verify` / `.watch` | Upstream proxy for `PWN::Plugins::TransparentBrowser` (e.g. `tor`, `http://127.0.0.1:8080`). |
 | `ai.agent.extrospection.web.max_anchors` | Integer | `8` | `Extrospection.probe_web` | Cap on anchors rendered per snapshot. |
@@ -371,9 +379,14 @@ agent system prompt.
 
 `pwn.yaml` is the only file you edit; everything else is machine-written
 state. See **[Persistence](Persistence.md)** for the full map
-(`memory.json`, `memory.idx`, `learning.jsonl`, `mistakes.json`,
-`metrics.json`, `extrospection.json`, `sessions/`, `skills/`,
-`finetune/`, `cron/`, `agents.yml`, `swarm/`).
+(`.schema`, `memory.json`, `memory.idx`, `learning.jsonl`,
+`preferences.jsonl`, `mistakes.json`, `metrics.json`,
+`reward_sentinel.json`, `extrospection.json`, `sessions/`,
+`skills/<name>/SKILL.md`, `curriculum/`, `finetune/`, `cron/`,
+`agents.yml`, `swarm/`, `backup/`, `quarantine/`).
+
+`pwn setup --migrate` verifies (and `--fix` autorepairs) every
+one of them against the running gem version.
 
 Multi-agent personas are **not** configured here - they live in
 `~/.pwn/agents.yml` and are managed with `agent_spawn` / `agent_list`
