@@ -93,3 +93,54 @@ PWN::AI::Agent::Registry.register(
   check: -> { defined?(PWN::AI::Agent::Learning) },
   handler: ->(_args) { PWN::AI::Agent::Learning.purge_noise }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'curriculum_offline_judge',
+  toolset: 'learning',
+  schema: {
+    name: 'curriculum_offline_judge',
+    description: 'P3 — Offline ORM/PRM pass over recent sessions so local ' \
+                 ':failure_only introspect does not starve the reward corpus. ' \
+                 'Scores last-N-hours sessions with Reward.judge(commit:true) + ' \
+                 'optional PRM. Cron this nightly after curriculum_practice.',
+    parameters: {
+      type: 'object',
+      properties: {
+        since_hours: { type: 'integer', default: 24 },
+        limit: { type: 'integer', default: 40 },
+        prm: { type: 'boolean', default: true },
+        commit: { type: 'boolean', default: true }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Curriculum) && PWN::AI::Agent::Curriculum.respond_to?(:offline_judge) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Curriculum.offline_judge(
+      since_hours: args[:since_hours],
+      limit: args[:limit],
+      prm: args.key?(:prm) ? args[:prm] : true,
+      commit: args.key?(:commit) ? args[:commit] : true
+    )
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'curriculum_preference_balance',
+  toolset: 'learning',
+  schema: {
+    name: 'curriculum_preference_balance',
+    description: 'P5 — W1 preference-source diversity report. Flags monoculture ' \
+                 '(>70% from one source) so DPO export quality is visible before ' \
+                 'train_and_gate.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', default: 10_000 }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Curriculum) && PWN::AI::Agent::Curriculum.respond_to?(:preference_balance) },
+  handler: ->(args) { PWN::AI::Agent::Curriculum.preference_balance(limit: args[:limit]) }
+)

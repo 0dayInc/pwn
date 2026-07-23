@@ -28,12 +28,14 @@ digraph "PWN_Cron" {
   {rank=same; Prompt; Ruby; Script}
 
   subgraph cluster_seed {
-    label="Seeded Self-Improvement"; fontcolor="#ddd6fe"; style=rounded;
+    label="Seeded Self-Improvement (install_defaults)"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Practice [label="curriculum_practice_nightly\n0 3 * * *\nCurriculum.practice(limit:3)", fillcolor="#c4b5fd"];
-    Train    [label="curriculum_train_weekly\n0 4 * * 0\nCurriculum.train_and_gate", fillcolor="#c4b5fd"];
+    Offline  [label="curriculum_offline_judge\n30 3 * * *\nCurriculum.offline_judge", fillcolor="#c4b5fd"];
+    Train    [label="curriculum_train_weekly\n0 4 * * 0\nCurriculum.train_and_gate\n(dry_run / export_ready)", fillcolor="#c4b5fd"];
+    MemGC    [label="learning_consolidate_nightly\n0 5 * * *\nLearning.consolidate", fillcolor="#c4b5fd"];
   }
-  {rank=same; Practice; Train}
+  {rank=same; Practice; Offline; Train; MemGC}
 
   Log [label="~/.pwn/cron/log/<id>.log\nlast_run · last_status", shape=cylinder, fillcolor="#fcd34d"];
 
@@ -46,11 +48,15 @@ digraph "PWN_Cron" {
   Runner  -> Ruby    [color="#34d399"];
   Runner  -> Script  [color="#34d399"];
   Ruby    -> Practice [color="#a78bfa"];
+  Ruby    -> Offline  [color="#a78bfa"];
   Ruby    -> Train    [color="#a78bfa"];
+  Ruby    -> MemGC    [color="#a78bfa"];
   Prompt  -> Log [color="#f59e0b"];
   Ruby    -> Log [color="#f59e0b"];
   Script  -> Log [color="#f59e0b"];
   Log     -> Jobs [label="update status", style=dashed, color="#fbbf24", constraint=false];
   Practice -> Log [style=dashed, color="#fbbf24", constraint=false];
+  Offline  -> Log [style=dashed, color="#fbbf24", constraint=false];
   Train    -> Log [style=dashed, color="#fbbf24", constraint=false];
+  MemGC    -> Log [style=dashed, color="#fbbf24", constraint=false];
 }

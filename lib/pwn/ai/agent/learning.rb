@@ -39,7 +39,13 @@ module PWN
 
         public_class_method def self.note_outcome(opts = {})
           task    = opts[:task].to_s
-          success = opts[:success] ? true : false
+          # 4.1 — allow success: 'soft' (HER) distinct from true/false
+          raw_ok  = opts[:success]
+          success = if ['soft', :soft].include?(raw_ok)
+                      'soft'
+                    else
+                      raw_ok ? true : false
+                    end
           raise 'ERROR: task is required' if task.strip.empty?
 
           entry = {
@@ -80,7 +86,7 @@ module PWN
             nil
           end
           rows.compact!
-          rows.select! { |r| r[:success] == want_ok } unless want_ok.nil?
+          rows.select! { |r| want_ok == true ? r[:success] == true : r[:success] == want_ok } unless want_ok.nil?
           rows.select! { |r| Array(r[:tags]).any? { |t| t.to_s.downcase.include?(tag) } } unless tag.empty?
           rows.reverse.first(limit)
         end
@@ -91,7 +97,7 @@ module PWN
         public_class_method def self.stats
           rows   = outcomes(limit: 10_000)
           total  = rows.length
-          ok     = rows.count { |r| r[:success] }
+          ok     = rows.count { |r| r[:success] == true }
           jsum   = rows.sum { |r| r[:score] ? r[:score].to_f : { true => 1.0, false => 0.0 }[r[:success]] }
           skills = defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) ? PWN::Skills.keys.length : 0
           mem    = defined?(PWN::Memory) ? PWN::Memory.load.keys.length : 0
@@ -159,12 +165,18 @@ module PWN
 
           now = Time.now.utc
           # C2 — prioritized replay: priority = judge_score × recency_decay × keyword_sim
+          # C2 — strict success:true only (excludes HER success:'soft'). Also
+          # down-weight any residual hindsight-tagged rows so partial failures
+          # never launder into full-strength few-shot exemplars.
           pool = outcomes(limit: 500, success: true).reject { |r| r[:session_id].to_s.empty? }
           scored = pool.map do |r|
             sim   = tokens.count { |t| r[:task].to_s.downcase.include?(t) }.to_f / tokens.length
             age_d = (now - Time.parse(r[:timestamp].to_s)) / 86_400.0
             decay = Math.exp(-age_d / 30.0)
             score = (r[:score] || 1.0).to_f
+            tags  = Array(r[:tags]).map(&:to_s)
+            # HER / soft / hindsight → 0.35× so they cannot dominate C2 priority
+            score *= 0.35 if r[:success].to_s == 'soft' || tags.intersect?(%w[hindsight her soft])
             [r, sim * decay * score]
           rescue StandardError
             [r, 0.0]
@@ -196,7 +208,12 @@ module PWN
           FileUtils.mkdir_p(FINETUNE_DIR)
           out = opts[:out] || File.join(FINETUNE_DIR, "pwn-#{Time.now.utc.strftime('%Y%m%d')}.jsonl")
 
-          sids = outcomes(limit: 10_000, success: true).map { |r| r[:session_id] }.compact.uniq
+          # 4.1 — exclude HER soft-success from SFT gold (success: 'soft' or tags)
+          gold = outcomes(limit: 10_000, success: true).reject do |r|
+            r[:success].to_s == 'soft' ||
+              Array(r[:tags]).any? { |t| %w[hindsight her].include?(t.to_s) }
+          end
+          sids = gold.map { |r| r[:session_id] }.compact.uniq
           rows = 0
           File.open(out, 'w') do |f|
             sids.each do |sid|
@@ -299,7 +316,29 @@ module PWN
           proxy_ok = infer_success(session_id: session_id, final: opts[:final])
           # S3 — tool-armed constitutional critic runs BEFORE the reward
           # model so its verdict is evidence, not hindsight.
-          crit = defined?(Curriculum) ? Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id) : { verdict: :pass }
+          # P7 — force critic when W3 says this engine is overconfident
+          force_critic = begin
+            eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env))
+            cal = defined?(Metrics) ? Metrics.calibration(engine: eng) : { n: 0 }
+            cal[:n].to_i >= 8 && (cal[:brier].to_f > 0.35 || cal[:overconfidence].to_f > 0.25)
+          rescue StandardError
+            false
+          end
+          crit = if defined?(Curriculum)
+                   if force_critic
+                     prev = (PWN::Env[:ai][:agent][:critic] if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash))
+                     begin
+                       PWN::Env[:ai][:agent][:critic] = true if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
+                       Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
+                     ensure
+                       PWN::Env[:ai][:agent][:critic] = prev if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
+                     end
+                   else
+                     Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
+                   end
+                 else
+                   { verdict: :pass }
+                 end
           # R1 — LLM Outcome Reward Model (falls back to calibrated heuristic)
           v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok) if defined?(Reward)
           v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
@@ -322,8 +361,10 @@ module PWN
             session_id: session_id,
             tags: ['auto', 'loop', v[:verdict].to_s]
           )
-          # R2 — per-step credit assignment; C3 — HER on failure
-          Reward.prm(request: opts[:request], session_id: session_id) if defined?(Reward) && ok
+          # R2 — per-step credit assignment ALWAYS (1.6): failed trajectories
+          # are where step credit matters; feed negative steps into counterfactual.
+          # C3 — HER soft-relabel on failure only.
+          Reward.prm(request: opts[:request], session_id: session_id) if defined?(Reward)
           Curriculum.hindsight(request: opts[:request], final: opts[:final], session_id: session_id) if !ok && defined?(Curriculum)
           # W3 — calibration: predicted (from plan_first) vs actual
           Curriculum.calibrate(predicted: opts[:predicted], actual: v[:score], engine: PWN::Env.dig(:ai, :active)) if opts[:predicted] && defined?(Curriculum)
@@ -541,19 +582,50 @@ module PWN
           sid = opts[:session_id]
           cap = opts[:max_msgs] || 6
           t = PWN::Sessions.load(session_id: sid)
-          user = t.find  { |e| e[:role].to_s == 'user' }
-          fin  = t.rfind { |e| e[:role].to_s == 'assistant' }
-          return [] unless user && fin
+          return [] if t.nil? || t.empty?
+
+          # Prefer the LAST non-empty assistant as the exemplar final.
+          # Blank assistants (common when a prior local-model turn stopped
+          # with empty content / eval_count=1) must never be few-shot into
+          # the next Ollama turn — Qwen/abliterated builds then echo the
+          # empty final and the agent loop returns "" to the user.
+          fin_idx = t.rindex { |e| e[:role].to_s == 'assistant' && !e[:content].to_s.strip.empty? }
+          return [] if fin_idx.nil?
+
+          fin = t[fin_idx]
+          # Pair with the nearest preceding user so multi-turn sessions do
+          # not attach an unrelated first-user prompt to a later answer.
+          user = t[0...fin_idx].reverse.find { |e| e[:role].to_s == 'user' }
+          return [] unless user
 
           # C4 — minimal sufficient trace: prefer steps PRM tagged reward>0
-          tools = t.select { |e| e[:role].to_s == 'tool' }
+          # scoped to the window between that user and the final answer.
+          user_idx = t[0...fin_idx].rindex { |e| e.equal?(user) || (e[:role].to_s == 'user' && e[:content] == user[:content]) } || 0
+          window = t[user_idx..fin_idx] || []
+          tools = window.select { |e| e[:role].to_s == 'tool' }
           rewarded = tools.select { |e| e[:step_reward].to_i.positive? }
           tools = rewarded unless rewarded.empty?
           tools = tools.first([cap - 2, 0].max)
-          msgs  = [{ role: 'user', content: "[exemplar] #{user[:content].to_s[0, 400]}" }]
-          tools.each { |e| msgs << { role: 'assistant', content: "[exemplar tool] #{e[:content].to_s[0, 300]}" } }
-          msgs << { role: 'assistant', content: "[exemplar final] #{fin[:content].to_s[0, 400]}" }
-          msgs
+
+          # Emit a SINGLE user/assistant pair (never consecutive assistant
+          # turns). Many local chat templates (Qwen3, Llama-3) collapse or
+          # early-stop when two assistant messages land back-to-back with
+          # no user between them — observed as done_reason=stop, eval_count=1,
+          # empty content, no tool_calls.
+          tool_bits = tools.map { |e| e[:content].to_s[0, 220] }.reject { |s| s.strip.empty? }
+          body = +''
+          unless tool_bits.empty?
+            body << "[exemplar tools]\n"
+            tool_bits.each_with_index { |s, i| body << "#{i + 1}. #{s}\n" }
+            body << "\n"
+          end
+          body << "[exemplar final]\n#{fin[:content].to_s.strip[0, 400]}"
+          return [] if fin[:content].to_s.strip.empty?
+
+          [
+            { role: 'user', content: "[exemplar] #{user[:content].to_s[0, 400]}" },
+            { role: 'assistant', content: body }
+          ]
         rescue StandardError
           []
         end

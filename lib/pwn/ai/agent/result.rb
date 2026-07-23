@@ -8,7 +8,8 @@ module PWN
       # redaction. Keeps the context window bounded and avoids leaking
       # PWN::Env credentials back into the model.
       module Result
-        DEFAULT_MAX = 24_000
+        DEFAULT_MAX       = 24_000
+        LOCAL_DEFAULT_MAX = 4_000
 
         # Generic high-confidence credential shapes scrubbed from tool
         # output regardless of PWN::Env contents. Built via concatenation
@@ -36,10 +37,26 @@ module PWN
         public_class_method def self.condition(opts = {})
           content = opts[:content].to_s
           entry   = opts[:entry]
-          cap     = entry ? entry.max_chars : DEFAULT_MAX
+          cap     = entry ? entry.max_chars : default_max
 
           content = "#{content[0, cap]}…[truncated #{opts[:content].to_s.length - cap} chars]" if content.length > cap
           redact(content: content)
+        end
+
+        # Engine-aware default: ollama keeps history inside a tight num_ctx;
+        # a 24k tool dump on every call eats the window before useful work.
+        # Override via PWN::Env[:ai][:ollama][:result_max].
+        public_class_method def self.default_max
+          eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase
+          if eng == 'ollama'
+            v = (PWN::Env.dig(:ai, :ollama, :result_max) if defined?(PWN::Env))
+            return v.to_i if v.to_i.positive?
+
+            return LOCAL_DEFAULT_MAX
+          end
+          DEFAULT_MAX
+        rescue StandardError
+          DEFAULT_MAX
         end
 
         # Supported Method Parameters::

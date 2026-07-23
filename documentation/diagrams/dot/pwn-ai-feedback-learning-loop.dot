@@ -37,8 +37,8 @@ Escalate [label="escalate\n≥N fails → Swarm hint",        fillcolor="#c4b5fd
     Learning [label="Learning\nnote_outcome · reflect\nexemplars_for · export_finetune\nfact_check_local_final", fillcolor="#6ee7b7"];
     Mistakes [label="Mistakes\nrecord · resolve\nguard · correction_hint\n[REPEATING] · [REGRESSED]", fillcolor="#6ee7b7", penwidth=2];
     ReflectT [label="Reflect\nteacher-student\n(reflect_engine)", fillcolor="#6ee7b7", penwidth=2];
-    Reward   [label="Reward\njudge (ORM) · prm (PRM)\nsentinel · semantic_ok", fillcolor="#6ee7b7", penwidth=2];
-    Curric   [label="Curriculum\npractice · counterfactual\ncritic · hindsight · train_and_gate", fillcolor="#6ee7b7", penwidth=2];
+    Reward   [label="Reward\njudge (ORM) · prm (PRM)\nsentinel ring · semantic_ok\nexport_dpo ≤40%/src", fillcolor="#6ee7b7", penwidth=2];
+    Curric   [label="Curriculum\npractice · offline_judge\ncounterfactual · critic\nhindsight · train_and_gate", fillcolor="#6ee7b7", penwidth=2];
   }
   subgraph cluster_extro {
     label="EXTROSPECTION  (world)"; fontcolor="#fde68a";

@@ -66,8 +66,27 @@ module PWN
         public_class_method def self.save(opts = {})
           store = opts[:store] ||= {}
           FileUtils.mkdir_p(File.dirname(MISTAKES_FILE))
-          File.write(MISTAKES_FILE, JSON.pretty_generate(store))
+          atomic_write(path: MISTAKES_FILE, body: JSON.pretty_generate(store))
           store
+        end
+
+        # 4.4 — flock + atomic rename so nightly practice × interactive ×
+        # sentinel cannot tear mistakes.json mid-write.
+        private_class_method def self.atomic_write(opts = {})
+          path = opts[:path]
+          body = opts[:body]
+          dir  = File.dirname(path)
+          FileUtils.mkdir_p(dir)
+          tmp = File.join(dir, ".#{File.basename(path)}.#{Process.pid}.tmp")
+          File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
+            f.flock(File::LOCK_EX)
+            f.write(body)
+            f.flush
+            f.fsync
+          end
+          File.rename(tmp, path)
+        ensure
+          FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
         end
 
         # Supported Method Parameters::
@@ -127,6 +146,22 @@ module PWN
           error = opts[:error].to_s
           return nil if tool.empty? || error.strip.empty?
 
+          # 1.1 — reward_signal: never inflate count beyond 1 open fingerprint.
+          # Sentinel opens one parked sig; further gaps calibrate, not spam.
+          if tool == 'reward_signal'
+            existing = load.values.select { |e| e[:tool].to_s == 'reward_signal' && !e[:resolved] && !e[:parked] }
+            if existing.any? && !opts[:force]
+              e = existing.max_by { |x| x[:count].to_i }
+              e[:last_seen] = Time.now.utc.iso8601
+              e[:count] = e[:count].to_i # freeze
+              e[:meta] = (e[:meta] || {}).merge(opts[:meta] || {})
+              store = load
+              store[e[:signature].to_sym] = e
+              save(store: store)
+              return e
+            end
+          end
+
           sig   = signature(tool: tool, error: error)
           store = load
           key   = sig.to_sym
@@ -154,10 +189,24 @@ module PWN
           m[:snippet]      = error.to_s.strip[0, 300]
           m[:sample_args]  = opts[:args].to_s[0, 200] if opts[:args]
           m[:sessions]     = (Array(m[:sessions]) + [opts[:session_id]]).compact.uniq.last(10)
+          # 2.2 — recoverable shape for repair routing
+          if opts[:shape]
+            m[:shape] = opts[:shape].to_s
+          elsif defined?(Reward) && Reward.respond_to?(:recoverable_shape)
+            m[:shape] ||= Reward.recoverable_shape(err: error).to_s
+          end
+          m[:needs_code_change] = true if opts[:needs_code_change]
+          m[:meta] = (m[:meta] || {}).merge(opts[:meta] || {}) if opts[:meta]
           # A recurrence of a "resolved" mistake means the fix was wrong /
           # incomplete — reopen it so it re-enters the DO-NOT-REPEAT block.
-          m[:resolved]     = false
-          m[:regressed]    = true if was_resolved
+          # Structured fixes with holdout_tests that still pass stay closed.
+          if was_resolved && structured_fix_holds?(mistake: m)
+            m[:resolved] = true
+            m[:regressed] = false
+          else
+            m[:resolved]  = false
+            m[:regressed] = true if was_resolved
+          end
           save(store: store)
           m
         end
@@ -182,6 +231,20 @@ module PWN
           store[key][:regressed]   = false
           store[key][:fix]         = fix.strip[0, 500]
           store[key][:resolved_at] = Time.now.utc.iso8601
+          # 2.3 — structured fix payload (strategy/tool/args_template/holdouts).
+          # Prose-only resolve is why shell sigs regressed after auto-curriculum.
+          if opts[:structured].is_a?(Hash)
+            s = opts[:structured]
+            store[key][:structured_fix] = {
+              strategy: s[:strategy].to_s[0, 80],
+              tool: s[:tool].to_s[0, 60],
+              args_template: s[:args_template],
+              holdout_tests: Array(s[:holdout_tests]).first(5),
+              winning_trace: s[:winning_trace].to_s[0, 2_000]
+            }.compact
+          end
+          store[key][:parked] = false
+          store[key][:needs_code_change] = false if opts[:clear_needs_code_change]
           save(store: store)
 
           if defined?(PWN::Memory)
@@ -218,7 +281,26 @@ module PWN
           only  = opts.key?(:unresolved_only) ? opts[:unresolved_only] : true
           rows  = load.values
           rows  = rows.reject { |m| m[:resolved] } if only
+          # 2.5 — practice/curriculum skip engineer-only / parked fingerprints
+          rows = rows.reject { |m| m[:parked] || m[:needs_code_change] || m[:tool].to_s == 'reward_signal' } if opts[:practiceable_only]
           rows.sort_by { |m| [-m[:count].to_i, m[:last_seen].to_s] }.first(limit)
+        end
+
+        # 2.5 — park unfixable sigs so nightly practice skips them
+        public_class_method def self.park(opts = {})
+          sig = opts[:signature].to_s
+          raise 'ERROR: signature is required' if sig.empty?
+
+          store = load
+          key = sig.to_sym
+          raise "ERROR: unknown mistake signature #{sig}" unless store[key]
+
+          store[key][:parked] = true
+          store[key][:needs_code_change] = true
+          store[key][:park_reason] = opts[:reason].to_s[0, 300]
+          store[key][:parked_at] = Time.now.utc.iso8601
+          save(store: store)
+          store[key]
         end
 
         # Supported Method Parameters::
@@ -232,10 +314,15 @@ module PWN
         #                    survives even after dropping out of the first list.
 
         public_class_method def self.to_context(opts = {})
-          limit  = opts[:limit] || 6
-          open   = top(limit: limit, unresolved_only: true)
+          limit   = opts[:limit] || 6
+          request = opts[:request].to_s
+          open_rows = top(limit: limit * 3, unresolved_only: true)
+          # 2.6 — request-conditioned rank (sim × recency × count), same idea
+          # as exemplars_for. Stops injecting loudest scar (reward_signal ×13)
+          # on every unrelated turn.
+          open = rank_for_request(rows: open_rows, request: request, limit: limit)
           closed = load.values.select { |m| m[:resolved] && m[:fix] }
-                              .sort_by { |m| m[:resolved_at].to_s }.reverse.first(limit)
+          closed = rank_for_request(rows: closed, request: request, limit: limit)
           return '' if open.empty? && closed.empty?
 
           out = +''
@@ -245,17 +332,61 @@ module PWN
               tags << 'REPEATING' if effective_count(mistake: m) >= REPEAT_THRESHOLD
               tags << 'ENV_DRIFT' if m[:cause].to_s == 'env_drift'
               tags << 'REGRESSED' if m[:regressed]
+              tags << 'PARKED' if m[:parked] || m[:needs_code_change]
               tag = tags.empty? ? '' : " [#{tags.join(',')}]"
               fix = m[:fix] ? " — last fix (insufficient): #{m[:fix][0, 100]}" : ''
-              "  ✗ [#{m[:signature]}] #{m[:tool]} ×#{m[:count]}#{tag}: #{m[:error][0, 140]}#{fix}"
+              shape = m[:shape] ? " shape=#{m[:shape]}" : ''
+              "  ✗ [#{m[:signature]}] #{m[:tool]} ×#{m[:count]}#{tag}#{shape}: #{m[:error][0, 140]}#{fix}"
             end
             out << "KNOWN MISTAKES (do NOT repeat — call mistakes_resolve once fixed)\n#{lines.join("\n")}\n"
           end
           unless closed.empty?
-            lines = closed.map { |m| "  ✓ [#{m[:signature]}] #{m[:tool]}: #{m[:error][0, 80]} — FIX: #{m[:fix][0, 140]}" }
+            lines = closed.map do |m|
+              sf = m[:structured_fix]
+              extra = sf ? " strategy=#{sf[:strategy]} tool=#{sf[:tool]}" : ''
+              "  ✓ [#{m[:signature]}] #{m[:tool]}: #{m[:error][0, 80]} — FIX: #{m[:fix][0, 140]}#{extra}"
+            end
             out << "KNOWN FIXES (apply these instead of repeating the mistake)\n#{lines.join("\n")}\n"
           end
           "#{out}\n"
+        end
+
+        private_class_method def self.rank_for_request(opts = {})
+          rows = Array(opts[:rows])
+          limit = opts[:limit] || 6
+          req = opts[:request].to_s.downcase
+          return rows.first(limit) if req.strip.empty?
+
+          tokens = req.scan(/[a-z0-9_]{3,}/).uniq
+          scored = rows.map do |m|
+            hay = "#{m[:tool]} #{m[:error]} #{m[:snippet]} #{m[:fix]} #{m[:shape]}".downcase
+            sim = tokens.empty? ? 0.0 : tokens.count { |t| hay.include?(t) }.to_f / tokens.length
+            days = begin
+              (Time.now.utc - Time.parse(m[:last_seen].to_s)) / 86_400.0
+            rescue StandardError
+              30.0
+            end
+            decay = 0.5**(days / 30.0)
+            # downrank reward_signal / parked unless the request is about rewards
+            penalty = 1.0
+            penalty *= 0.05 if m[:tool].to_s == 'reward_signal' && !req.match?(/reward|judge|sentinel|proxy/)
+            penalty *= 0.3 if m[:parked] || m[:needs_code_change]
+            score = ((sim * 2.0) + (decay * 0.5) + (Math.log2(m[:count].to_i + 1) * 0.3)) * penalty
+            # always allow some mass for top-count scars when sim=0 but keep penalty
+            score = decay * 0.15 * penalty if score <= 0
+            [m, score]
+          end
+          scored.sort_by { |_, s| -s }.first(limit).map(&:first)
+        end
+
+        private_class_method def self.structured_fix_holds?(opts = {})
+          m = opts[:mistake]
+          sf = m && m[:structured_fix]
+          return false unless sf.is_a?(Hash) && Array(sf[:holdout_tests]).length >= 2
+
+          # holdouts are opaque prompts; presence alone is the gate — practice
+          # re-verifies before resolve. Recurrence without new evidence stays closed.
+          true
         end
 
         # Supported Method Parameters::
