@@ -35,4 +35,31 @@ describe PWN::AI::Agent::Mistakes do
     expect(PWN::AI::Agent::Mistakes.correction?(request: "no that's wrong, try again")).to be true
     expect(PWN::AI::Agent::Mistakes.correction?(request: 'please scan 10.0.0.0/24')).to be false
   end
+
+  it 'supports park and practiceable_only filter (2.5)' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    described_class.reset if described_class.respond_to?(:reset)
+    m = described_class.record(tool: 'shell', error: 'needs engineer fix XYZ unique')
+    described_class.park(signature: m[:signature], reason: 'needs_code_change')
+    open_all = described_class.top(limit: 10, unresolved_only: true)
+    open_prac = described_class.top(limit: 10, unresolved_only: true, practiceable_only: true)
+    expect(open_all.map { |r| r[:signature] }).to include(m[:signature])
+    expect(open_prac.map { |r| r[:signature] }).not_to include(m[:signature])
+  end
+
+  it 'stores structured_fix on resolve (2.3)' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(Dir.mktmpdir, 'prefs.jsonl')) if defined?(PWN::AI::Agent::Reward)
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(Dir.mktmpdir, 'memory.json')) if defined?(PWN::Memory)
+    described_class.reset if described_class.respond_to?(:reset)
+    m = described_class.record(tool: 'shell', error: 'typo binary nmpa unique')
+    described_class.resolve(
+      signature: m[:signature],
+      fix: 'use nmap',
+      structured: { strategy: 'typo', tool: 'shell', args_template: { command: 'nmap' }, holdout_tests: %w[a b] }
+    )
+    got = described_class.find(signature: m[:signature])
+    expect(got[:structured_fix][:strategy]).to eq 'typo'
+    expect(got[:structured_fix][:holdout_tests].length).to eq 2
+  end
 end

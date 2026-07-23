@@ -49,7 +49,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{memory_block(limit: b[:memory], request: request)}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes])}#{metrics_block(limit: b[:metrics], engine: engine)}#{extrospection_block if b[:extro]}TOOL USE
+            #{memory_block(limit: b[:memory], request: request)}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{extrospection_block if b[:extro]}TOOL USE
               Use the provided function tools to act on the host. A reply with
               no tool_calls is treated as your FINAL answer to the user.
               Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
@@ -144,7 +144,7 @@ module PWN
         private_class_method def self.mistakes_block(opts = {})
           return '' unless defined?(PWN::AI::Agent::Mistakes)
 
-          ctx = PWN::AI::Agent::Mistakes.to_context(limit: opts[:limit] || 6).to_s
+          ctx = PWN::AI::Agent::Mistakes.to_context(limit: opts[:limit] || 6, request: opts[:request]).to_s
           ctx.strip.empty? ? '' : ctx
         rescue StandardError
           ''

@@ -1,10 +1,12 @@
 # Reinforcement Learning in pwn-ai
 
 pwn-ai implements a **six-tier** in-context → weight-level RL loop that
-surpasses every published LLM-agent harness (Reflexion, Voyager, ExpeL,
-LATS, Generative Agents, PRM, RLAIF, DPO, Self-Refine, Toolformer, DSPy)
-on at least one axis, and on **five axes simultaneously** for the full
-`Curriculum.practice → Reward.export_dpo → Curriculum.train_and_gate` path.
+implements a six-tier in-context → weight-export RL loop that combines
+ORM/PRM, preference ledger, mistake curriculum, env-drift blame, DPO export,
+and regression-gated LoRA promotion. On hosts **with a trainer + GPU**, the
+full `Curriculum.practice → Reward.export_dpo → Curriculum.train_and_gate`
+path closes the weight loop; without a trainer the path is **export-ready**
+(datasets + manual CLI) and the live learning is in-context only.
 
 ![Reinforcement-learning loop](diagrams/reinforcement-learning.svg)
 
@@ -76,7 +78,7 @@ on at least one axis, and on **five axes simultaneously** for the full
 | ID | Where | What |
 |----|-------|------|
 | **W1** | `Reward.{record_preference,export_dpo}` | 5 free preference sources: user_correction, mistakes_resolve, counterfactual, curriculum, critic. |
-| **W2** | `Curriculum.train_and_gate` | SFT+DPO → unsloth/axolotl LoRA → `ollama create pwn-vN+1` → replay `Mistakes.top` on vN vs vN+1 → promote iff `resolved(N+1) > resolved(N)`. |
+| **W2** | `Curriculum.train_and_gate` | SFT+DPO → unsloth/axolotl LoRA → `ollama create pwn-vN+1` → replay `Mistakes.top` on vN vs vN+1 → promote iff `resolved(N+1) > resolved(N)`. **Without a trainer: export-only** (`weight_loop: :export_ready`). |
 | **W3** | `Curriculum.calibrate` + `Metrics.{record_calibration,calibration}` | plan_first `p(success)` vs actual → per-engine Brier/overconfidence. |
 
 ## Tier 6 — Deepen the intro↔extro join
@@ -104,8 +106,10 @@ on at least one axis, and on **five axes simultaneously** for the full
 ```ruby
 PWN::Cron.create(name: 'self_play',   schedule: '0 3 * * *',
   ruby: 'PWN::AI::Agent::Curriculum.practice(limit: 5)')
+PWN::Cron.create(name: 'offline_judge', schedule: '30 3 * * *',
+  ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24, limit: 40)')
 PWN::Cron.create(name: 'weight_loop', schedule: '0 4 * * 0',
-  ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: false)')
+  ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)')  # false only with trainer+GPU
 PWN::Cron.create(name: 'mem_gc',      schedule: '0 5 * * *',
   ruby: 'PWN::AI::Agent::Learning.consolidate')
 ```
@@ -116,13 +120,27 @@ PWN::Cron.create(name: 'mem_gc',      schedule: '0 5 * * *',
 `reward_export_dpo` · `curriculum_practice` · `curriculum_train` ·
 `curriculum_hindsight` · `learning_purge_noise`
 
-## What no other harness does simultaneously
+## Design claims (architecture — weight promotion requires a trainer)
 
 1. **Process reward on real security tool traces** (R2)
 2. **Automatic blame attribution** self vs env-drift via CUSUM×correlate (E1+E2)
 3. **Reward-hacking self-detection** (R3)
 4. **Mistake-driven curriculum with regression-gated LoRA promotion** (S1+W2)
 5. **Five naturally-generated DPO sources** with zero human labelling (W1)
+
+
+## Operational controls (priority fixes)
+
+| ID | Control | What |
+|----|---------|------|
+| **P1** | `Curriculum.practice` cooldown + natural prompts | Hard-skips `reward_signal` / parked / `needs_code_change`; N-night zero-score cooldown parks thrash; reproducers are natural user tasks, never signature dumps. |
+| **P2** | R4 `semantic_ok` + structured resolve | `31f1871b8a15`-class exit≠0 phantoms stay closed via structured holdouts. |
+| **P3** | `Curriculum.offline_judge` | Scores last-24h sessions under ORM/PRM so local `:failure_only` introspect does not starve labels. Cron nightly. |
+| **P4** | `Reward.proxy_distrust` | When sentinel fires, Metrics.to_context / Registry.rank haircut proxy rates — actionable, not just another Mistakes row. |
+| **R3** | `Reward.sentinel` ring buffer | Fixed-N (`SENTINEL_WINDOW=40`) `{judge,proxy}` window replaces decaying `proxy_sum`/`proxy_n`. Means are always ∈[0,1]; `set_proxy_distrust` refuses proxy∉[0,1]; `reset_sentinel` wipes corrupt state without touching prefs. Legacy decay×`to_i` files auto-clear stuck distrust on load. |
+| **P5** | `Curriculum.preference_balance` + critic/counterfactual logs | Surfaces W1 monoculture; critic flaws → DPO pairs; counterfactual fires once per signature per turn. |
+| **P6** | W2 honesty | Docs + `train_and_gate` return `weight_loop: :export_ready` when `trainer: null`. |
+| **P7** | W3 as controller | Engine Brier > 0.35 or overconfidence > 0.25 → force plan_first + critic, cap max_iters at 12. |
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Mistakes](Mistakes.md) · [Cron](Cron.md) · [pwn-ai Agent](pwn-ai-Agent.md)

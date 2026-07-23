@@ -180,24 +180,121 @@ module PWN
         # r = PWN::AI::Agent::Reward.sentinel
 
         public_class_method def self.sentinel
-          s = load_sentinel
-          n = s[:samples].to_i
+          s = normalize_sentinel(load_sentinel)
+          window = s[:window]
+          n = window.length
           return { samples: n, status: :insufficient } if n < SENTINEL_WINDOW
 
-          proxy = s[:proxy_sum].to_f / n
-          judge = s[:judge_sum].to_f / n
+          means = window_means(window)
+          proxy = means[:proxy]
+          judge = means[:judge]
+          # Refuse to act on corrupt arithmetic — proxy must be a rate in [0,1].
+          if proxy.nil? || proxy < 0.0 || proxy > 1.0
+            return {
+              samples: n,
+              status: :corrupt_proxy,
+              proxy: proxy,
+              judge: judge&.round(3),
+              reward_hacked: false,
+              proxy_distrust: proxy_distrust
+            }
+          end
+
           human = 1.0 - user_correction_rate
           gap_pj = (proxy - judge).abs
           gap_ph = (proxy - human).abs
           hacked = gap_pj > SENTINEL_GAP || gap_ph > SENTINEL_GAP
-          if hacked && defined?(Mistakes)
-            Mistakes.record(
-              tool: 'reward_signal',
-              error: "proxy success_rate #{proxy.round(2)} diverges from judge #{judge.round(2)} / human #{human.round(2)} by >#{SENTINEL_GAP}",
-              source: :model
-            )
+          if hacked
+            # 1.1 — freeze auto-Mistakes.record on tool:reward_signal after the
+            # first open sig per gap-bucket. Endless ×13 fingerprints were
+            # the loudest scar in every prompt and taught nothing. Open a
+            # calibration path instead; park the sig as needs_code_change.
+            bucket = "gap_pj=#{gap_pj.round(2)}|gap_ph=#{gap_ph.round(2)}"
+            open_sig = defined?(Mistakes) ? Mistakes.for_tool(tool: 'reward_signal', unresolved_only: true) : []
+            if open_sig.empty? && defined?(Mistakes)
+              m = Mistakes.record(
+                tool: 'reward_signal',
+                error: "proxy success_rate #{proxy.round(2)} diverges from judge #{judge.round(2)} / human #{human.round(2)} by >#{SENTINEL_GAP}",
+                source: :model,
+                needs_code_change: true,
+                meta: { bucket: bucket, proxy: proxy, judge: judge, human: human }
+              )
+              Mistakes.park(signature: m[:signature], reason: 'reward_signal needs calibration, not practice') if m && Mistakes.respond_to?(:park)
+            end
+            Curriculum.calibrate(predicted: proxy, actual: judge, engine: :reward_sentinel) if defined?(Curriculum) && Curriculum.respond_to?(:calibrate)
+            # P4 — make sentinel ACTIONABLE: persist a distrust factor so
+            # Metrics.to_context / Registry.rank haircut proxy success instead of
+            # just opening another Mistakes row the model learns to ignore.
+            set_proxy_distrust(gap: [gap_pj, gap_ph].max, proxy: proxy, judge: judge)
+          else
+            clear_proxy_distrust
           end
-          { samples: n, proxy: proxy.round(3), judge: judge.round(3), human: human.round(3), gap_proxy_judge: gap_pj.round(3), gap_proxy_human: gap_ph.round(3), reward_hacked: hacked }
+          {
+            samples: n,
+            proxy: proxy.round(3),
+            judge: judge.round(3),
+            human: human.round(3),
+            gap_proxy_judge: gap_pj.round(3),
+            gap_proxy_human: gap_ph.round(3),
+            reward_hacked: hacked,
+            proxy_distrust: proxy_distrust
+          }
+        end
+
+        # P4 — scalar 0.0..1.0 haircut applied to Metrics success / Registry β when
+        # the proxy is lying. 0.0 = trust proxy fully; 1.0 = ignore proxy rates.
+        public_class_method def self.proxy_distrust
+          s = load_sentinel
+          d = s[:proxy_distrust].to_f
+          # auto-expire after 7d without refresh so a one-off gap doesn't stick
+          if s[:distrust_at]
+            age = Time.now.utc - Time.parse(s[:distrust_at].to_s)
+            return 0.0 if age > 7 * 86_400
+          end
+          d.clamp(0.0, 1.0)
+        rescue StandardError
+          0.0
+        end
+
+        public_class_method def self.set_proxy_distrust(opts = {})
+          s = normalize_sentinel(load_sentinel)
+          gap = opts[:gap].to_f
+          proxy = opts[:proxy]
+          # Guard: never set distrust from a nonsensical proxy (pre-ring-buffer
+          # decay×to_i bug produced means ≫ 1.0 and hard-pegged distrust at 1.0).
+          if !proxy.nil?
+            pf = proxy.to_f
+            return s[:proxy_distrust].to_f if pf < 0.0 || pf > 1.0
+          end
+          # map gap 0.15→0.4, 0.30→0.8, ≥0.40→1.0
+          factor = ((((gap - SENTINEL_GAP) / SENTINEL_GAP) * 0.4) + 0.4).clamp(0.3, 1.0)
+          s[:proxy_distrust] = factor
+          s[:distrust_at] = Time.now.utc.iso8601
+          s[:distrust_meta] = { proxy: opts[:proxy], judge: opts[:judge], gap: gap }
+          FileUtils.mkdir_p(File.dirname(SENTINEL_FILE))
+          atomic_write(path: SENTINEL_FILE, body: JSON.generate(s))
+          factor
+        rescue StandardError
+          nil
+        end
+
+        public_class_method def self.clear_proxy_distrust
+          s = load_sentinel
+          return if s[:proxy_distrust].to_f <= 0.0
+
+          s[:proxy_distrust] = 0.0
+          s[:distrust_cleared_at] = Time.now.utc.iso8601
+          atomic_write(path: SENTINEL_FILE, body: JSON.generate(s))
+        rescue StandardError
+          nil
+        end
+
+        # One-shot: wipe sentinel window + distrust after deploying the
+        # ring-buffer arithmetic (or any time the live file is known-corrupt).
+        # Does NOT touch preferences / DPO exports (unlike .reset).
+        public_class_method def self.reset_sentinel
+          FileUtils.rm_f(SENTINEL_FILE)
+          { cleared: true, path: SENTINEL_FILE }
         end
 
         # ----------------------------------------------------------------
@@ -225,15 +322,45 @@ module PWN
           stderr    = raw[/"stderr":"([^"]{0,400})"/, 1].to_s
 
           benign = false
+          shape  = nil
           if name == 'shell' && ok && exit_code && exit_code != 0
             cmd = extract_cmd(args: opts[:args])
-            benign = BENIGN_EXIT.any? { |rx, codes| cmd.match?(rx) && codes.include?(exit_code) }
-            benign ||= stderr.strip.empty? && exit_code == 1
+            # 2.1 — ONLY BENIGN_EXIT regex × allowed codes. The old global
+            # `stderr.empty? && exit==1 ⇒ benign` laundered real failures
+            # (pipelines without pipefail, bare false, etc.) into "success".
+            # For pipelines, match the LAST stage (post-pipe) first, then any.
+            stages = cmd.split('|').map(&:strip)
+            last   = stages.last.to_s
+            benign = BENIGN_EXIT.any? { |rx, codes| last.match?(rx) && codes.include?(exit_code) }
+            benign ||= stages.length > 1 && BENIGN_EXIT.any? { |rx, codes| stages.any? { |s| s.match?(rx) } && codes.include?(exit_code) && stderr.strip.empty? }
+            shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err)
+          elsif !ok
+            shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err || raw[0, 200])
           end
 
           semantic = ok && (exit_code.nil? || exit_code.zero? || benign)
           err ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless semantic
-          { ok: ok, semantic_ok: semantic, exit: exit_code, err: err, benign: benign }
+          { ok: ok, semantic_ok: semantic, exit: exit_code, err: err, benign: benign, shape: shape }
+        end
+
+        # 2.2 — coarse recoverable shape beside the fingerprint. Paths are
+        # normalised away for counting; shape stays for repair routing
+        # (enoent → install/check path; exit127 → missing binary; …).
+        public_class_method def self.recoverable_shape(opts = {})
+          err = "#{opts[:err]} #{opts[:stderr]}".downcase
+          ec  = opts[:exit_code]
+          return :exit127 if ec == 127 || err.include?('command not found')
+          return :exit126 if ec == 126
+          return :enoent if err.match?(/no such file|enoent|cannot access|not a directory/)
+          return :eacces if err.match?(/permission denied|eacces|operation not permitted/)
+          return :auth_required if err.match?(/auth|unauthorized|401|403|forbidden|login required|api.?key/)
+          return :timeout if ec == 124 || err.include?('timed out') || err.include?('timeout')
+          return :network if err.match?(/connection refused|name or service not known|could not resolve|network is unreachable/)
+          return :syntax if err.match?(/syntax error|parse error|unexpected token|json::parser/)
+          return :nonzero_exit if ec && ec != 0
+          return :handler_error if err.strip.length.positive?
+
+          :unknown
         end
 
         # ----------------------------------------------------------------
@@ -245,11 +372,23 @@ module PWN
 
         public_class_method def self.verify_as_reward(opts = {})
           return nil unless defined?(Extrospection) && Extrospection.respond_to?(:verify)
-          return nil unless agent_flag(key: :verify_as_reward, default: false)
 
           final = opts[:final].to_s
           claim = final[Learning::CLAIM_RX] if defined?(Learning)
           return nil if claim.to_s.empty?
+
+          # 1.5 — sampled E3: always when flag true; never when false;
+          # nil/auto → always on frontier, ~10% on local when CLAIM_RX hits.
+          flag = agent_flag(key: :verify_as_reward, default: nil)
+          eng  = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase
+          local = eng == 'ollama'
+          run = case flag
+                when true then true
+                when false then false
+                else
+                  local ? (Digest::SHA256.hexdigest(claim.to_s)[0, 2].to_i(16) % 10).zero? : true
+                end
+          return nil unless run
 
           r = Extrospection.verify(claim: claim, commit: true)
           { claim: claim, verdict: r[:verdict], confidence: r[:confidence], reward: VERDICTS[r[:verdict]] || 0.5 }
@@ -378,13 +517,42 @@ module PWN
         end
 
         private_class_method def self.heuristic_judge(opts = {})
-          final = opts[:final]
-          trace = opts[:trace]
+          final   = opts[:final].to_s
+          request = opts[:request].to_s
+          trace   = opts[:trace]
+          # 1.4 — empty / polite / failure-language finals cannot score high
+          # just because tools mostly returned handler-ok.
+          return { score: 0.0, verdict: :wrong, rationale: 'empty final', key_step: -1, source: :heuristic } if final.strip.empty?
+          return { score: 0.0, verdict: :wrong, rationale: 'failure-language final', key_step: -1, source: :heuristic } if defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX)
+
+          polite = final.match?(/\A\s*(sure|happy to help|of course|i can help|how can i|let me know)\b/i) && final.length < 120
+          return { score: 0.1, verdict: :partial, rationale: 'polite non-answer', key_step: -1, source: :heuristic } if polite && trace.empty?
+
           bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
-          ratio = trace.empty? ? 1.0 : 1.0 - (bad.to_f / trace.length)
-          score = final.strip.empty? ? 0.0 : ratio.clamp(0.1, 0.9)
-          score = 0.0 if defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX)
-          { score: score.round(2), verdict: score >= 0.6 ? :solved : :partial, rationale: 'heuristic (module_reflection off)', key_step: -1, source: :heuristic }
+          ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
+          score = ratio.clamp(0.1, 0.9)
+
+          # require claim ↔ request token overlap (stops "non-empty + ok tools"
+          # from looking solved when the final never addressed the ask)
+          req_toks = request.downcase.scan(/[a-z0-9_]{3,}/).uniq
+          fin_toks = final.downcase.scan(/[a-z0-9_]{3,}/).uniq
+          overlap  = req_toks.empty? ? 1.0 : (req_toks & fin_toks).length.to_f / req_toks.length
+          score   *= (0.4 + (0.6 * overlap))
+          score    = [score, 0.45].min if overlap < 0.15 && req_toks.length >= 3
+
+          # trace evidence: if tools ran, prefer finals that echo something from them
+          if trace.any?
+            blob = trace.join(' ')[0, 2_000].downcase
+            echoed = fin_toks.count { |t| t.length >= 4 && blob.include?(t) }
+            score *= 0.7 if echoed.zero? && final.length > 40
+          end
+
+          score = score.round(2).clamp(0.0, 0.9)
+          verdict = if score >= 0.6 then :solved
+                    elsif score >= 0.3 then :partial
+                    else :wrong
+                    end
+          { score: score, verdict: verdict, rationale: "heuristic overlap=#{overlap.round(2)} ratio=#{ratio.round(2)}", key_step: -1, source: :heuristic }
         end
 
         private_class_method def self.heuristic_prm(opts = {})
@@ -433,24 +601,143 @@ module PWN
         end
 
         private_class_method def self.record_sentinel(opts = {})
-          s = load_sentinel
-          s[:samples]   = s[:samples].to_i + 1
-          s[:judge_sum] = s[:judge_sum].to_f + opts[:judge].to_f
-          s[:proxy_sum] = s[:proxy_sum].to_f + (opts[:proxy] == false ? 0.0 : 1.0) unless opts[:proxy].nil?
-          # Rolling window — decay so old episodes stop dominating.
-          %i[samples judge_sum proxy_sum].each { |k| s[k] = s[k].to_f * 0.9 } if s[:samples] > SENTINEL_WINDOW * 3
+          s = normalize_sentinel(load_sentinel)
+          # Clamp judge to [0,1] — LLM/heuristic should already, but a bad
+          # write must not poison rolling means forever.
+          judge = opts[:judge].to_f.clamp(0.0, 1.0)
+          entry = { judge: judge, at: Time.now.utc.iso8601 }
+          # 1.3 — only roll proxy into the window when the caller actually
+          # supplied a R4-aligned proxy_ok. Pre-ORM boolean noise no longer
+          # dilutes gap_proxy_judge. Proxy is ALWAYS 0.0 or 1.0 when present.
+          unless opts[:proxy].nil?
+            entry[:proxy] = opts[:proxy] ? 1.0 : 0.0
+          end
+          s[:window] = (Array(s[:window]) + [entry]).last(SENTINEL_WINDOW)
+          # Derived counters kept for back-compat with Learning.stats / operators
+          # that still read samples/proxy_sum/proxy_n from the on-disk file.
+          means = window_means(s[:window])
+          s[:samples]   = s[:window].length
+          s[:judge_sum] = s[:window].sum { |e| e[:judge].to_f }
+          proxied = s[:window].select { |e| !e[:proxy].nil? }
+          s[:proxy_n]   = proxied.length
+          s[:proxy_sum] = proxied.sum { |e| e[:proxy].to_f }
+          s[:proxy_mean] = means[:proxy]
+          s[:judge_mean] = means[:judge]
           FileUtils.mkdir_p(File.dirname(SENTINEL_FILE))
-          File.write(SENTINEL_FILE, JSON.generate(s))
+          atomic_write(path: SENTINEL_FILE, body: JSON.generate(s))
         rescue StandardError
           nil
         end
 
-        private_class_method def self.load_sentinel
-          return { samples: 0, judge_sum: 0.0, proxy_sum: 0.0 } unless File.exist?(SENTINEL_FILE)
+        private_class_method def self.atomic_write(opts = {})
+          path = opts[:path]
+          body = opts[:body]
+          dir  = File.dirname(path)
+          FileUtils.mkdir_p(dir)
+          tmp = File.join(dir, ".#{File.basename(path)}.#{Process.pid}.tmp")
+          File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
+            f.flock(File::LOCK_EX)
+            f.write(body)
+            f.flush
+            f.fsync
+          end
+          File.rename(tmp, path)
+        ensure
+          FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+        end
 
-          JSON.parse(File.read(SENTINEL_FILE), symbolize_names: true)
+        private_class_method def self.load_sentinel
+          return empty_sentinel unless File.exist?(SENTINEL_FILE)
+
+          normalize_sentinel(JSON.parse(File.read(SENTINEL_FILE), symbolize_names: true))
         rescue StandardError
-          { samples: 0, judge_sum: 0.0, proxy_sum: 0.0 }
+          empty_sentinel
+        end
+
+        # Empty / default on-disk shape. :window is the sole source of truth
+        # for rolling means; sum/n fields are derived projections.
+        private_class_method def self.empty_sentinel
+          {
+            window: [],
+            samples: 0,
+            judge_sum: 0.0,
+            proxy_sum: 0.0,
+            proxy_n: 0,
+            proxy_distrust: 0.0
+          }
+        end
+
+        # Migrate legacy {samples, judge_sum, proxy_sum, proxy_n} decaying-sum
+        # files onto a fixed ring buffer. Legacy sums are NOT replayed into
+        # synthetic samples — decay×to_i desync made proxy_sum/proxy_n
+        # untrustworthy (means ≫ 1). Fresh window starts empty; distrust is
+        # cleared so a corrupt detector cannot keep blinding Metrics.
+        private_class_method def self.normalize_sentinel(raw)
+          s = (raw.is_a?(Hash) ? raw.dup : empty_sentinel)
+          s[:window] = Array(s[:window]).map do |e|
+            next nil unless e.is_a?(Hash)
+
+            h = { judge: e[:judge].to_f.clamp(0.0, 1.0) }
+            h[:at] = e[:at] if e[:at]
+            unless e[:proxy].nil?
+              pv = e[:proxy]
+              pv = 1.0 if pv == true || pv.to_s == 'true'
+              pv = 0.0 if pv == false || pv.to_s == 'false'
+              pv = pv.to_f
+              next nil if pv < 0.0 || pv > 1.0
+
+              h[:proxy] = pv
+            end
+            h
+          end.compact.last(SENTINEL_WINDOW)
+
+          # Drop legacy decaying counters so operators do not re-read them as truth.
+          if s[:window].empty?
+            s[:samples] = 0
+            s[:judge_sum] = 0.0
+            s[:proxy_sum] = 0.0
+            s[:proxy_n] = 0
+            # Corrupt legacy file (proxy mean outside [0,1]) → clear stuck distrust.
+            legacy_pn = raw.is_a?(Hash) ? raw[:proxy_n].to_i : 0
+            legacy_ps = raw.is_a?(Hash) ? raw[:proxy_sum].to_f : 0.0
+            if legacy_pn.positive?
+              legacy_mean = legacy_ps / legacy_pn
+              if legacy_mean < 0.0 || legacy_mean > 1.0
+                s[:proxy_distrust] = 0.0
+                s[:distrust_cleared_at] ||= Time.now.utc.iso8601
+                s[:distrust_meta] = {
+                  reason: 'legacy_corrupt_proxy_mean',
+                  legacy_proxy_mean: legacy_mean,
+                  cleared: true
+                }
+                s.delete(:distrust_at)
+              end
+            end
+          else
+            means = window_means(s[:window])
+            s[:samples] = s[:window].length
+            s[:judge_sum] = s[:window].sum { |e| e[:judge].to_f }
+            proxied = s[:window].select { |e| !e[:proxy].nil? }
+            s[:proxy_n] = proxied.length
+            s[:proxy_sum] = proxied.sum { |e| e[:proxy].to_f }
+            s[:proxy_mean] = means[:proxy]
+            s[:judge_mean] = means[:judge]
+          end
+          s
+        end
+
+        private_class_method def self.window_means(window)
+          w = Array(window)
+          return { proxy: nil, judge: 0.0 } if w.empty?
+
+          judge = w.sum { |e| e[:judge].to_f } / w.length
+          proxied = w.select { |e| !e[:proxy].nil? }
+          proxy = if proxied.empty?
+                    nil
+                  else
+                    proxied.sum { |e| e[:proxy].to_f } / proxied.length
+                  end
+          { proxy: proxy, judge: judge }
         end
 
         private_class_method def self.user_correction_rate
@@ -501,6 +788,7 @@ module PWN
               PWN::AI::Agent::Reward.judge(request: req, final: text, session_id: sid)     # R1 ORM → {score:, verdict:, rationale:}
               PWN::AI::Agent::Reward.prm(request: req, session_id: sid)                    # R2 PRM → per-step credit
               PWN::AI::Agent::Reward.sentinel                                              # R3 reward-hacking detector
+              PWN::AI::Agent::Reward.reset_sentinel                                        # wipe corrupt window + distrust
               PWN::AI::Agent::Reward.semantic_ok(name: 'shell', raw: json, args: args)     # R4 kills phantom exit≠0 mistakes
 
               # Tier 5 — preference pairs → DPO

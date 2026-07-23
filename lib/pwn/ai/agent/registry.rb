@@ -24,7 +24,8 @@ module PWN
       # Shipping all ~47 tool schemas on every call overwhelms a 35B local
       # model — it mis-routes (extro_rf_tune for a git question) because the
       # choice space is huge. When PWN::Env[:ai][:agent][:tool_router] is
-      # truthy AND definitions(relevance: request) is passed, the pool is
+      # truthy (or nil while active==:ollama) AND definitions(relevance:)
+      # is passed, the pool is
       # reduced to CORE_TOOLS + the top-K keyword-ranked matches. Routing
       # accuracy is fed back into Metrics under name:'tool_router' so the
       # router itself becomes a learned component.
@@ -140,7 +141,9 @@ module PWN
           # early failure (before its dep was installed) does not blacklist
           # it forever; advantage prefers tools that outperform the fleet.
           alpha = 1.0
-          beta  = 0.3
+          # P4 — haircut advantage weight when reward proxy is hacked
+          trust = defined?(Metrics) && Metrics.respond_to?(:proxy_trust) ? Metrics.proxy_trust : 1.0
+          beta  = 0.3 * trust
           gamma = 0.2
           scored = entries.map do |e|
             hay   = "#{e.name} #{e.toolset} #{e.schema[:description]} #{Array(e.schema.dig(:parameters, :properties)&.keys).join(' ')}".downcase
@@ -183,7 +186,14 @@ module PWN
         end
 
         private_class_method def self.router_enabled?
-          defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env.dig(:ai, :agent, :tool_router)
+          return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          v = PWN::Env.dig(:ai, :agent, :tool_router)
+          # nil = auto: on for ollama (largest single local-model win — ~11k→~3k
+          # schema tokens/turn); off for frontier unless explicitly enabled.
+          return v ? true : false unless v.nil?
+
+          PWN::Env.dig(:ai, :active).to_s.downcase.to_sym == :ollama
         rescue StandardError
           false
         end

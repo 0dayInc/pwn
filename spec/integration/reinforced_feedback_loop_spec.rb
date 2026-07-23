@@ -191,7 +191,9 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
                                session_id: 'sid_her')
       expect(r[:achieved]).to eq 'enumerated open ports on 10.0.0.1'
       row = learning.outcomes(tag: 'hindsight').first
-      expect(row[:success]).to be true
+      # 4.1 — HER is success:'soft' (excluded from SFT export), not boolean true
+      expect(row[:success].to_s).to eq 'soft'
+      expect(Array(row[:tags])).to include('soft')
       expect(row[:task]).to eq 'enumerated open ports on 10.0.0.1'
     end
   end
@@ -205,10 +207,24 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       PWN::Sessions.append(session_id: s[:id], role: 'assistant', content: 'done')
       reward.prm(request: 'scan', session_id: s[:id]) # writes :step_reward
 
+      # C4 contract: single user/assistant pair (no consecutive assistant
+      # turns — breaks Qwen/Llama local chat templates). Rewarded tools are
+      # folded into the assistant body under [exemplar tools]; bad steps
+      # (step_reward <= 0) must not appear.
       msgs = learning.send(:compress_exemplar, session_id: s[:id], max_msgs: 6)
-      tool_msgs = msgs.select { |m| m[:content].start_with?('[exemplar tool]') }
-      expect(tool_msgs.length).to eq 1
-      expect(tool_msgs.first[:content]).to include('3 hosts up')
+      expect(msgs.map { |m| m[:role].to_s }).to eq %w[user assistant]
+      expect(msgs.first[:content]).to include('[exemplar]')
+      body = msgs.last[:content]
+      expect(body).to include('[exemplar tools]')
+      expect(body).to include('3 hosts up')
+      expect(body).not_to include('nmap: command not found')
+      expect(body).to include('[exemplar final]')
+      expect(body).to include('done')
+      # only the +1 step is listed (one numbered line under tools)
+      tool_block = body[/\[exemplar tools\]\n(.*?)\n\n\[exemplar final\]/m, 1].to_s
+      expect(tool_block.lines.map(&:strip).reject(&:empty?)).to eq [
+        '1. {"success":true,"result":{"stdout":"3 hosts up","stderr":"","exit":0}}'
+      ]
     end
   end
 
@@ -289,17 +305,50 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   # ═══════════════════════════════════════════════════════════════════════
 
   describe 'S1 · Curriculum.practice (mistake-driven auto-curriculum)' do
-    it 'mines Mistakes.top → generate_reproducers → self_play, and auto-resolves on judge ≥0.7' do
+    it 'mines Mistakes.top → generate_reproducers → self_play, and auto-resolves only with N≥2 holdouts (2.4)' do
       mistakes.record(tool: 'shell', error: 'nmpa: command not found')
       sig = mistakes.top(limit: 1).first[:signature]
       allow(curriculum).to receive(:reflect_available?).and_return(false)
-      allow(curriculum).to receive(:self_play).and_return(score: 0.85, verdict: :solved,
-                                                          final: 'use `nmap` (typo: nmpa→nmap)')
-      r = curriculum.practice(limit: 1, prompts_per: 1)
+      # 2.4 — N≥2 solved holdouts required; practice bumps prompts_per to ≥2
+      allow(curriculum).to receive(:self_play).and_return(
+        score: 0.85, verdict: :solved,
+        final: 'use `nmap` (typo: nmpa→nmap)',
+        prompt: 'fix nmap typo',
+        trace: 'shell → nmap -sn 10.0.0.0/24'
+      )
+      r = curriculum.practice(limit: 1, prompts_per: 2)
       expect(r[:practiced]).to eq 1
       expect(r[:resolved]).to eq 1
       expect(mistakes.top(limit: 5, unresolved_only: true).map { |m| m[:signature] }).not_to include(sig)
+      fixed = mistakes.find(signature: sig)
+      expect(fixed[:structured_fix]).to be_a(Hash)
+      expect(fixed[:structured_fix][:strategy]).to eq 'curriculum_practice'
       expect(reward.preferences(source: 'curriculum')).not_to be_empty
+    end
+
+    it 'does NOT auto-resolve with a single holdout success (2.4 gate)' do
+      mistakes.record(tool: 'shell', error: 'single-holdout-unique-xyz')
+      sig = mistakes.top(limit: 1).first[:signature]
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      allow(curriculum).to receive(:generate_reproducers).and_return(['only one prompt'])
+      allow(curriculum).to receive(:self_play).and_return(
+        score: 0.95, verdict: :solved, final: 'looks good', prompt: 'only one prompt'
+      )
+      r = curriculum.practice(limit: 1, prompts_per: 1)
+      expect(r[:practiced]).to eq 1
+      expect(r[:resolved]).to eq 0
+      expect(mistakes.top(limit: 5, unresolved_only: true).map { |m| m[:signature] }).to include(sig)
+    end
+
+    it 'skips reward_signal and parked / needs_code_change fingerprints (2.5)' do
+      m = mistakes.record(tool: 'reward_signal', error: 'proxy diverges unique-abc')
+      mistakes.park(signature: m[:signature], reason: 'calibration')
+      m2 = mistakes.record(tool: 'shell', error: 'engineer-only unique-def', needs_code_change: true)
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      expect(curriculum).not_to receive(:self_play)
+      r = curriculum.practice(limit: 5, prompts_per: 1)
+      # practiceable_only filter + explicit next guards → nothing practiced
+      expect(r[:practiced]).to eq 0
     end
 
     it 'dry_run:true generates reproducer prompts but never self-plays' do

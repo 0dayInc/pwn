@@ -59,9 +59,15 @@ module PWN
             system_role_content: 'You are an ethically hacking Ollama agent.',
             temp: 'optional - Ollama temperature',
             num_ctx: 32_768,
+            # Cap decode length so thinking models cannot stream forever
+            # (Net::HTTP read_timeout only fires on idle gaps between chunks).
+            num_predict: 4_096,
             keep_alive: '30m',
             # tighten each PromptBuilder block for the local model (nil = engine defaults)
             prompt_budget: { memory: 6, metrics: 3, mistakes: 3, learning: 2, extro: false },
+            # omit format:'json' when tools present unless explicitly set (see chat_with_tools)
+            # format: nil,
+            result_max: 4_000, # tool-result cap for local models (frontier keeps Result::DEFAULT_MAX)
             max_prompt_length: 32_000
           },
           anthropic: {
@@ -87,7 +93,7 @@ module PWN
           reflect_model: nil,
           agent: {
             native_tools: true,
-            max_iters: 25,
+            max_iters: 25, # live override 80 is frontier leakage; ollama should stay ≤25
             # Swarm (agent_ask/agent_debate) sub-agent recursion cap
             max_depth: 3,
             # run PWN::AI::Agent::Learning.auto_introspect after every final answer
@@ -97,8 +103,16 @@ module PWN
             auto_extrospect: true,
             # engine-agnostic scaffolding (defaults tuned for local models)
             plan_first: nil,               # nil = auto (true when :active == :ollama)
-            tool_router: false,            # slim Registry.definitions to CORE + top-K relevant tools
-            escalation_persona: nil,       # Swarm persona name for frontier corrective hints when a local model is stuck
+            tool_router: nil,              # nil = auto (true when :active == :ollama) — cuts ~11k→~3k schema tokens
+            escalation_persona: 'escalator', # Swarm persona for frontier corrective hints when a local model is stuck
+            # sample E3 verify_as_reward: true|false|nil(auto: ~10% local / always frontier when CLAIM_RX hits)
+            verify_as_reward: nil,
+            # end-of-turn auto_introspect policy for local: :always | :failure_only | :every_n (with introspect_every_n)
+            local_introspect: :failure_only,
+            introspect_every_n: 3,
+            # history compaction keep last K tool pairs + plan (chars budget for ollama)
+            history_keep_tool_pairs: 6,
+            history_tool_max_chars: 2_000,
             toolsets: nil
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
             # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
@@ -287,6 +301,56 @@ module PWN
     #   pwn_dec_path: 'optional - Path to pwn.yaml.decryptor file.  Defaults to ~/.pwn/pwn.yaml.decryptor'
     # )
 
+    # Deep-fill missing Hash keys from defaults into target (mutates target).
+    # Existing keys (including explicit false/nil) are preserved — only
+    # ABSENT keys are filled. Arrays and scalars on either side are left alone.
+    private_class_method def self.deep_fill!(opts = {})
+      target = opts[:target]
+      defaults = opts[:defaults]
+      return target unless target.is_a?(Hash) && defaults.is_a?(Hash)
+
+      defaults.each do |k, v|
+        if !target.key?(k)
+          target[k] = v.is_a?(Hash) ? deep_fill!(target: {}, defaults: v) : v
+        elsif target[k].is_a?(Hash) && v.is_a?(Hash)
+          deep_fill!(target: target[k], defaults: v)
+        end
+      end
+      target
+    end
+
+    # Inject Ollama/RL scaffolding defaults into a vault-loaded env hash
+    # before freeze. Never overwrites operator choices already in the vault.
+    private_class_method def self.merge_ai_defaults!(opts = {})
+      env = opts[:env]
+      return env unless env.is_a?(Hash) && env[:ai].is_a?(Hash)
+
+      # Pull the in-code default template without writing a file.
+      template = {
+        ollama: {
+          result_max: 4_000
+        },
+        agent: {
+          max_iters: 25,
+          tool_router: nil,
+          escalation_persona: 'escalator',
+          verify_as_reward: nil,
+          local_introspect: :failure_only,
+          introspect_every_n: 3,
+          history_keep_tool_pairs: 6,
+          history_tool_max_chars: 2_000
+        }
+      }
+      env[:ai][:ollama] = {} unless env[:ai][:ollama].is_a?(Hash)
+      env[:ai][:agent]  = {} unless env[:ai][:agent].is_a?(Hash)
+      deep_fill!(target: env[:ai][:ollama], defaults: template[:ollama])
+      deep_fill!(target: env[:ai][:agent], defaults: template[:agent])
+      env
+    rescue StandardError => e
+      warn "[pwn/config] merge_ai_defaults! swallowed: #{e.class}: #{e.message}"
+      env
+    end
+
     public_class_method def self.refresh_env(opts = {})
       pwn_env_root = "#{Dir.home}/.pwn"
       pwn_env_path = opts[:pwn_env_path] ||= "#{pwn_env_root}/pwn.yaml"
@@ -395,6 +459,13 @@ module PWN
       env[:pwn_sessions_path] = PWN::Sessions.sessions_dir if defined?(PWN::Sessions)
       env[:pwn_cron_path] = PWN::Cron.cron_dir if defined?(PWN::Cron)
       PWN::Cron.install_defaults if defined?(PWN::Cron) && PWN::Cron.respond_to?(:install_defaults)
+
+      # Fill missing ai.agent / ai.ollama knobs from code defaults so older
+      # vault files pick up Ollama/RL fixes (tool_router nil-auto, local
+      # introspect policy, history compaction, result_max, escalation
+      # default) without requiring a full pwn-vault rewrite. Explicit
+      # vault values always win — deep_merge only supplies ABSENT keys.
+      merge_ai_defaults!(env: env)
 
       # Assign the refreshed env to PWN::Env
 

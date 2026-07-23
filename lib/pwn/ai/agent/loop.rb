@@ -79,9 +79,40 @@ module PWN
 
         private_class_method def self.max_iters
           v = (PWN::Env.dig(:ai, :agent, :max_iters) if defined?(PWN::Env))
-          v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
+          n = v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
+          # 0.3 — frontier leakage: live max_iters=80 burns local models.
+          # Cap ollama at 25 unless the operator set an explicit lower value.
+          n = 25 if active_engine == :ollama && n > 25
+          # P7 — W3 controller: when this engine is badly overconfident,
+          # shrink the tool budget so thrash can't compound on bad plans.
+          cal = calibration_state
+          n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
+          n
         rescue StandardError
           DEFAULT_MAX_ITERS
+        end
+
+        # P7 — read Metrics.calibration for the active engine and decide
+        # whether to force plan_first/critic and cap iters.
+        # Thresholds: brier > 0.35 OR overconfidence > 0.25 with n >= 8.
+        private_class_method def self.calibration_state
+          eng = active_engine
+          cal = defined?(Metrics) && Metrics.respond_to?(:calibration) ? Metrics.calibration(engine: eng) : { n: 0 }
+          n = cal[:n].to_i
+          return { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 25, cal: cal } if n < 8
+
+          brier = cal[:brier].to_f
+          over  = cal[:overconfidence].to_f
+          bad   = brier > 0.35 || over > 0.25
+          {
+            overconfident: bad,
+            force_plan: bad,
+            force_critic: bad,
+            max_iters_cap: bad ? 12 : 25,
+            cal: cal
+          }
+        rescue StandardError
+          { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 25 }
         end
 
         private_class_method def self.active_engine
@@ -115,14 +146,17 @@ module PWN
           # !semantic_ok. Kills the phantom 31f1871b8a15 class permanently.
           sem = defined?(Reward) ? Reward.semantic_ok(name: name, raw: raw, args: opts[:args]) : { ok: raw.include?('"success":true'), semantic_ok: raw.include?('"success":true'), err: raw[/"error":"([^"]{1,300})"/, 1] }
           dur = started ? (Time.now - started) : 0.0
-          Metrics.record(name: name, success: sem[:ok], duration: dur, error: sem[:err], engine: opts[:engine]) if defined?(Metrics)
+          # 1.2 — align Metrics proxy with R4 semantic_ok (handler-ok alone
+          # was the reward-signal lie: grep exit 1 looked like 100% success
+          # while Mistakes stayed quiet, OR the inverse phantom class).
+          Metrics.record(name: name, success: sem[:semantic_ok], duration: dur, error: sem[:err], engine: opts[:engine]) if defined?(Metrics)
           m = nil
           if !sem[:semantic_ok] && defined?(Mistakes)
             # E1 — automatic blame attribution: if this tool just tripped a
             # CUSUM changepoint AND extro drift is present, tag the mistake
             # cause: :env_drift so it does NOT count toward [REPEATING].
             cause = attribute_cause(name: name)
-            m = Mistakes.record(tool: name, error: sem[:err] || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause)
+            m = Mistakes.record(tool: name, error: sem[:err] || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause, shape: sem[:shape])
           end
           { ok: sem[:semantic_ok], err: sem[:err], mistake: m, benign: sem[:benign] }
         rescue StandardError
@@ -225,11 +259,28 @@ module PWN
         # persona for a 3-line corrective hint and inject it as a synthetic
         # tool result. Every escalation is recorded as a Mistake so
         # export_finetune can later teach the LoRA to NOT need it.
+        @escalate_warned = false
         private_class_method def self.escalate(opts = {})
           request    = opts[:request]
           turn_fails = opts[:turn_fails]
           persona    = agent_flag(key: :escalation_persona)
-          return nil unless persona && defined?(Swarm) && Swarm.personas.key?(persona.to_sym)
+          # Vault files pre-dating PR-A leave escalation_persona nil; if the
+          # default "escalator" persona exists on disk, use it automatically.
+          persona = :escalator if (persona.nil? || persona.to_s.empty?) && defined?(Swarm) && Swarm.personas.key?(:escalator)
+          unless persona && defined?(Swarm)
+            unless @escalate_warned
+              warn '[pwn-ai/loop] escalation_persona unset or Swarm unavailable — local thrash will burn iters without a frontier hint. Set PWN::Env[:ai][:agent][:escalation_persona] (default: escalator).'
+              @escalate_warned = true
+            end
+            return nil
+          end
+          unless Swarm.personas.key?(persona.to_sym)
+            unless @escalate_warned
+              warn "[pwn-ai/loop] escalation_persona=#{persona.inspect} not in ~/.pwn/agents.yml — define it or set nil. ESCALATE_AFTER_FAILS is a no-op."
+              @escalate_warned = true
+            end
+            return nil
+          end
 
           summary = turn_fails.map { |k, v| "#{k}: #{v}×" }.join(', ')
           hint = Swarm.ask(
@@ -296,10 +347,20 @@ module PWN
           msg = resp.dig(:choices, 0, :message) || resp[:assistant_message]
           return nil unless msg
 
+          content = msg[:content]
+          tool_calls = Array(msg[:tool_calls])
+          # Local/thinking models (Ollama Qwen3, DeepSeek-R1, etc.) sometimes
+          # return only :thinking with empty :content and no tool_calls. Promote
+          # thinking so the agent does not print a blank final answer.
+          if content.to_s.strip.empty? && tool_calls.empty?
+            thinking = msg[:thinking].to_s
+            content = thinking unless thinking.strip.empty?
+          end
+
           out = {
             role: 'assistant',
-            content: msg[:content],
-            tool_calls: Array(msg[:tool_calls]).map do |tc|
+            content: content,
+            tool_calls: tool_calls.map do |tc|
               {
                 id: tc[:id],
                 type: 'function',
@@ -314,6 +375,7 @@ module PWN
           # them exactly on the next iteration (e.g. Anthropic requires the
           # original tool_use block to precede a tool_result).
           out[:_native_content] = msg[:_native_content] if msg[:_native_content]
+          out[:thinking] = msg[:thinking] if msg[:thinking]
           out
         end
 
@@ -350,6 +412,64 @@ module PWN
           end
         end
 
+        # 3.1 — sliding-window history compaction for local models.
+        # Keep: system, original user, PLAN assistant (if any), last K tool
+        # pairs (assistant+tool), and the most recent assistant. Stale tool
+        # bodies are truncated to history_tool_max_chars.
+        private_class_method def self.compact_history!(opts = {})
+          messages = opts[:messages]
+          return messages unless messages.is_a?(Array) && messages.length > 12
+
+          keep_pairs = (agent_flag(key: :history_keep_tool_pairs, default: 6) || 6).to_i
+          max_chars  = (agent_flag(key: :history_tool_max_chars, default: 2_000) || 2_000).to_i
+
+          head = []
+          rest = messages.dup
+          # always keep leading system + first user + optional PLAN
+          while rest.any? && %w[system user].include?(rest.first[:role].to_s)
+            head << rest.shift
+            break if head.any? { |m| m[:role].to_s == 'user' }
+          end
+          head << rest.shift if rest.any? && rest.first[:role].to_s == 'assistant' && rest.first[:content].to_s.start_with?('PLAN:')
+
+          # find indices of tool messages in rest; keep only last keep_pairs tool groups
+          tool_idxs = rest.each_index.select { |i| rest[i][:role].to_s == 'tool' }
+          drop_before = tool_idxs.length > keep_pairs ? tool_idxs[-keep_pairs] : 0
+          # include the assistant tool_call message immediately before first kept tool
+          start = drop_before
+          start -= 1 if start.positive? && rest[start - 1] && rest[start - 1][:role].to_s == 'assistant'
+          kept = rest[start..] || []
+          kept.each do |m|
+            next unless m[:role].to_s == 'tool' && m[:content].to_s.length > max_chars
+
+            m[:content] = "#{m[:content].to_s[0, max_chars]}…[compacted]"
+          end
+          messages.replace(head + kept)
+          messages
+        rescue StandardError => e
+          warn "[pwn-ai/loop] compact_history swallowed: #{e.class}: #{e.message}"
+          opts[:messages]
+        end
+
+        # 3.2 — local models cannot afford auto_introspect (judge+prm+critic+
+        # sentinel+extro) on every success. Default :failure_only when local.
+        private_class_method def self.should_auto_introspect?(opts = {})
+          return true unless opts[:local]
+
+          policy = agent_flag(key: :local_introspect, default: :failure_only).to_s.to_sym
+          case policy
+          when :always then true
+          when :every_n
+            n = (agent_flag(key: :introspect_every_n, default: 3) || 3).to_i
+            n = 3 if n < 1
+            (opts[:iter].to_i % n).zero?
+          else # :failure_only
+            opts[:turn_fails].is_a?(Hash) && opts[:turn_fails].values.sum.positive?
+          end
+        rescue StandardError
+          true
+        end
+
         # Supported Method Parameters::
         # final = PWN::AI::Agent::Loop.run(
         #   request: 'required - what the human typed',
@@ -378,22 +498,53 @@ module PWN
           append_session(session_id: session_id, role: 'user', content: request)
 
           predicted = nil
-          predicted = plan_first(messages: messages, request: request) if agent_flag(key: :plan_first, default: local) && !Array(tools).empty?
+          cal_state = calibration_state
+          force_plan = cal_state[:force_plan]
+          predicted = plan_first(messages: messages, request: request) if (force_plan || agent_flag(key: :plan_first, default: local)) && !Array(tools).empty?
+          if force_plan && cal_state[:cal]
+            messages << {
+              role: 'user',
+              content: "[pwn-ai/w3] engine=#{active_engine} is overconfident " \
+                       "(brier=#{cal_state[:cal][:brier]}, overconf=#{cal_state[:cal][:overconfidence]}). " \
+                       'Prefer high-judge exemplars, verify claims, and avoid speculative tool calls.'
+            }
+          end
 
           turn_fails = Hash.new(0)
           escalated  = false
 
           max_iters.times do |i|
+            # 3.1 — compact history on local so tool dumps don't fill num_ctx
+            compact_history!(messages: messages) if local
+
             msg = call_engine(messages: messages, tools: tools)
             return '[pwn-ai] engine returned no message' if msg.nil?
 
-            messages << msg
             calls = Array(msg[:tool_calls])
+            text  = msg[:content].to_s
+
+            # Empty-final guard (local/thinking models): Ollama sometimes
+            # returns done_reason=stop with eval_count<=1, empty content, no
+            # tool_calls — historically surface as a blank TUI reply. Do NOT
+            # commit that as the answer; drop the empty assistant turn,
+            # inject a one-shot nudge, and keep iterating.
+            if calls.empty? && text.strip.empty?
+              warn "[pwn-ai/loop] empty final from #{engine} on iter=#{i}; nudging" if local
+              messages << {
+                role: 'user',
+                content: 'Your previous reply was empty (no tool_calls and no content). ' \
+                         'Either call a tool now, or write the final answer for the user as plain text. ' \
+                         'Do not reply with an empty message.'
+              }
+              turn_fails['empty_final'] += 1
+              next
+            end
+
+            messages << msg
 
             if calls.empty?
-              text = msg[:content].to_s
               append_session(session_id: session_id, role: 'assistant', content: text)
-              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted) if defined?(Learning)
+              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               return text
             end
 
@@ -416,8 +567,8 @@ module PWN
                 # alt-persona branch, judge both, inject the winner. Real
                 # advantage estimation; (loser, winner) → DPO preference.
                 thresh = defined?(Mistakes) ? Mistakes::REPEAT_THRESHOLD : 3
-                if count == thresh && defined?(Curriculum)
-                  cf = Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint)
+                if count >= thresh && !escalated && defined?(Curriculum)
+                  cf = (turn_fails["cf:#{fkey}"] += 1) == 1 ? Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint) : nil
                   hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
                 end
                 result = guard_repeated_failure(name: name, count: count, hint: hint, result: result)
@@ -476,7 +627,7 @@ module PWN
 
               Local-model scaffolding (PWN::Env[:ai][:agent]):
                 :plan_first          - Boolean, plan-then-act pre-pass (default: engine == :ollama)
-                :tool_router         - Boolean, slim Registry.definitions to CORE + top-K relevant
+                :tool_router         - Boolean/nil, slim Registry.definitions (nil=auto on for ollama)
                 :escalation_persona  - Swarm persona name for frontier corrective hints when stuck
                 :critic              - S3 constitutional critic before every final (Boolean)
                 :red_team_plan       - S4 adversarial plan review after plan_first (Boolean)

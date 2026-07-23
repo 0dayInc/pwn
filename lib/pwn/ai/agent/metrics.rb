@@ -55,8 +55,20 @@ module PWN
           metrics = opts[:metrics] ||= { tools: {} }
           metrics[:updated_at] = Time.now.utc.iso8601
           FileUtils.mkdir_p(File.dirname(METRICS_FILE))
-          File.write(METRICS_FILE, JSON.pretty_generate(metrics))
+          # 4.4 — flock + atomic rename
+          path = METRICS_FILE
+          tmp  = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
+          body = JSON.pretty_generate(metrics)
+          File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
+            f.flock(File::LOCK_EX)
+            f.write(body)
+            f.flush
+            f.fsync
+          end
+          File.rename(tmp, path)
           metrics
+        ensure
+          FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
         end
 
         # Supported Method Parameters::
@@ -131,24 +143,31 @@ module PWN
           rows   = summary(limit: limit, engine: engine)
           return '' if rows.empty?
 
+          # P4 — when Reward.sentinel says proxy is hacked, haircut displayed
+          # success rates so the model does not trust the lie in the prompt.
+          distrust = defined?(Reward) && Reward.respond_to?(:proxy_distrust) ? Reward.proxy_distrust : 0.0
           scope = engine.to_s.empty? ? 'historical' : "engine=#{engine}"
+          scope = "#{scope}, proxy_distrust=#{distrust.round(2)}" if distrust.positive?
           lines = rows.map do |r|
+            rate = r[:success_rate].to_f
+            # blend toward 0.5 (uninformative) proportional to distrust
+            adj = rate - ((rate - 0.5) * distrust)
             err = r[:last_error] ? " last_err=#{r[:last_error][0, 60]}" : ''
-            "  - #{r[:name]}: calls=#{r[:calls]} success=#{(r[:success_rate] * 100).round(1)}% avg=#{r[:avg_duration]}s#{err}"
+            tag = distrust.positive? ? ' (adj)' : ''
+            "  - #{r[:name]}: calls=#{r[:calls]} success=#{(adj * 100).round(1)}%#{tag} avg=#{r[:avg_duration]}s#{err}"
           end
-          "TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
+          warn_line = distrust.positive? ? "WARNING: reward proxy diverges from judge — success rates haircut by distrust=#{distrust.round(2)}; prefer judge-scored exemplars over raw rates.\n" : ''
+          "#{warn_line}TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
         end
 
-        # Supported Method Parameters::
-        # score = PWN::AI::Agent::Metrics.ucb(
-        #   name: 'required - tool name',
-        #   c: 'optional - exploration constant (default 1.4)'
-        # )
-        #
-        # C1 — Upper Confidence Bound. Tools with few calls get an
-        # exploration bonus so a single early failure (before its dep was
-        # installed) does NOT permanently blacklist it. Registry.rank uses
-        # this instead of raw success_rate.
+        # P4 helper — Registry.rank calls this so β·advantage is scaled down
+        # when the proxy is untrustworthy.
+        public_class_method def self.proxy_trust
+          d = defined?(Reward) && Reward.respond_to?(:proxy_distrust) ? Reward.proxy_distrust : 0.0
+          (1.0 - d.to_f).clamp(0.0, 1.0)
+        rescue StandardError
+          1.0
+        end
 
         public_class_method def self.ucb(opts = {})
           name = opts[:name].to_s

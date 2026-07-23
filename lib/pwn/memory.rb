@@ -32,8 +32,20 @@ module PWN
     public_class_method def self.save(opts = {})
       mem = opts[:mem] ||= {}
       FileUtils.mkdir_p(File.dirname(MEMORY_FILE))
-      File.write(MEMORY_FILE, JSON.pretty_generate(mem))
+      # 4.4 — flock + atomic rename (nightly practice × interactive)
+      path = MEMORY_FILE
+      tmp  = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
+      body = JSON.pretty_generate(mem)
+      File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
+        f.flock(File::LOCK_EX)
+        f.write(body)
+        f.flush
+        f.fsync
+      end
+      File.rename(tmp, path)
       mem
+    ensure
+      FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
     end
 
     # Supported Method Parameters::
