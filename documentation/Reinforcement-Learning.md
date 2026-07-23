@@ -1,10 +1,10 @@
 # Reinforcement Learning in pwn-ai
 
-pwn-ai implements a **six-tier** in-context → weight-level RL loop that
-implements a six-tier in-context → weight-export RL loop that combines
-ORM/PRM, preference ledger, mistake curriculum, env-drift blame, DPO export,
-and regression-gated LoRA promotion. On hosts **with a trainer + GPU**, the
-full `Curriculum.practice → Reward.export_dpo → Curriculum.train_and_gate`
+pwn-ai implements a **six-tier** in-context → weight-export RL loop that
+combines ORM/PRM, preference ledger, mistake curriculum, env-drift blame,
+balanced DPO export, and regression-gated LoRA promotion. On hosts **with a
+trainer + GPU**, the full
+`Curriculum.practice → Reward.export_dpo → Curriculum.train_and_gate`
 path closes the weight loop; without a trainer the path is **export-ready**
 (datasets + manual CLI) and the live learning is in-context only.
 
@@ -52,7 +52,7 @@ path closes the weight loop; without a trainer the path is **export-ready**
 |----|-------|------|
 | **C1** | `Registry.rank` + `Metrics.{ucb,thompson,advantage}` | score = α·keyword_sim + β·advantage + γ·UCB1. Untried tools get exploration bonus. |
 | **C2** | `Learning.exemplars_for` | priority = judge_score × e^(−Δt/30d) × keyword_sim. |
-| **C3** | `Curriculum.hindsight` | HER — relabel failed trajectory with achieved-goal as `success:true`. |
+| **C3** | `Curriculum.hindsight` | HER — relabel failed trajectory with achieved-goal as `success: 'soft'` + tags `hindsight/her/soft`. Soft rows are excluded from SFT and 0.35×-weighted in C2 exemplars. |
 | **C4** | `Learning.{compress_exemplar,build_skill_from_session}` | keep only `step_reward > 0` — minimal sufficient trace. |
 
 ## Tier 3 — Memory that stays high-signal
@@ -77,7 +77,7 @@ path closes the weight loop; without a trainer the path is **export-ready**
 
 | ID | Where | What |
 |----|-------|------|
-| **W1** | `Reward.{record_preference,export_dpo}` | 5 free preference sources: user_correction, mistakes_resolve, counterfactual, curriculum, critic. |
+| **W1** | `Reward.{record_preference,export_dpo}` | 5 free preference sources: user_correction, mistakes_resolve, counterfactual, curriculum, critic. `export_dpo` enforces ≤40% per-source (`DPO_SOURCE_CAP`); pass `balance: false` for a raw dump. |
 | **W2** | `Curriculum.train_and_gate` | SFT+DPO → unsloth/axolotl LoRA → `ollama create pwn-vN+1` → replay `Mistakes.top` on vN vs vN+1 → promote iff `resolved(N+1) > resolved(N)`. **Without a trainer: export-only** (`weight_loop: :export_ready`). |
 | **W3** | `Curriculum.calibrate` + `Metrics.{record_calibration,calibration}` | plan_first `p(success)` vs actual → per-engine Brier/overconfidence. |
 
@@ -93,32 +93,35 @@ path closes the weight loop; without a trainer the path is **export-ready**
 
 ```yaml
 :ai:
+  :module_reflection: false  # gates Reflect lesson writing (not ORM alone)
   :agent:
-    :critic: true            # S3
-    :red_team_plan: true     # S4
-    :counterfactual: true    # S2
-    :hindsight: true         # C3 (default true)
-    :verify_as_reward: true  # E3
+    :critic: null            # S3 — nil = ON for remote engines, OFF for ollama
+    :red_team_plan: null     # S4 — same auto policy
+    :counterfactual: null    # S2 — same auto policy
+    :hindsight: true         # C3 (default true; soft-success, 0.35× in C2)
+    :verify_as_reward: null  # E3 — nil = auto (~10% local / always remote on CLAIM_RX)
+    :reward_llm: null        # nil = ORM/PRM use LLM teacher on remote even if module_reflection is false
+    :local_introspect: :failure_only   # ollama cost policy; remote always introspects
+    :introspect_every_n: 3
 ```
 
 ## Cron self-improvement
 
 ```ruby
-PWN::Cron.create(name: 'self_play',   schedule: '0 3 * * *',
-  ruby: 'PWN::AI::Agent::Curriculum.practice(limit: 5)')
-PWN::Cron.create(name: 'offline_judge', schedule: '30 3 * * *',
-  ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24, limit: 40)')
-PWN::Cron.create(name: 'weight_loop', schedule: '0 4 * * 0',
-  ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)')  # false only with trainer+GPU
-PWN::Cron.create(name: 'mem_gc',      schedule: '0 5 * * *',
-  ruby: 'PWN::AI::Agent::Learning.consolidate')
+# Seeded idempotently by PWN::Cron.install_defaults (pwn setup --migrate):
+PWN::Cron.install_defaults
+# → curriculum_practice_nightly   0 3  * * *  Curriculum.practice(limit: 3)
+# → curriculum_offline_judge     30 3  * * *  Curriculum.offline_judge(since_hours: 24, limit: 40)
+# → curriculum_train_weekly       0 4  * * 0  Curriculum.train_and_gate(dry_run: true)  # false only with trainer+GPU
+# → learning_consolidate_nightly  0 5  * * *  Learning.consolidate
 ```
 
 ## Tools exposed to the model
 
 `reward_judge` · `reward_prm` · `reward_sentinel` · `reward_preferences` ·
 `reward_export_dpo` · `curriculum_practice` · `curriculum_train` ·
-`curriculum_hindsight` · `learning_purge_noise`
+`curriculum_hindsight` · `curriculum_offline_judge` ·
+`curriculum_preference_balance` · `learning_purge_noise`
 
 ## Design claims (architecture — weight promotion requires a trainer)
 
@@ -138,9 +141,10 @@ PWN::Cron.create(name: 'mem_gc',      schedule: '0 5 * * *',
 | **P3** | `Curriculum.offline_judge` | Scores last-24h sessions under ORM/PRM so local `:failure_only` introspect does not starve labels. Cron nightly. |
 | **P4** | `Reward.proxy_distrust` | When sentinel fires, Metrics.to_context / Registry.rank haircut proxy rates — actionable, not just another Mistakes row. |
 | **R3** | `Reward.sentinel` ring buffer | Fixed-N (`SENTINEL_WINDOW=40`) `{judge,proxy}` window replaces decaying `proxy_sum`/`proxy_n`. Means are always ∈[0,1]; `set_proxy_distrust` refuses proxy∉[0,1]; `reset_sentinel` wipes corrupt state without touching prefs. Legacy decay×`to_i` files auto-clear stuck distrust on load. |
-| **P5** | `Curriculum.preference_balance` + critic/counterfactual logs | Surfaces W1 monoculture; critic flaws → DPO pairs; counterfactual fires once per signature per turn. |
+| **P5** | `Curriculum.preference_balance` + `export_dpo` source-cap | Surfaces W1 monoculture **and enforces** ≤40% per source at export (`DPO_SOURCE_CAP`); critic/counterfactual auto-ON for remote engines so the diet rebalances online. |
 | **P6** | W2 honesty | Docs + `train_and_gate` return `weight_loop: :export_ready` when `trainer: null`. |
-| **P7** | W3 as controller | Engine Brier > 0.35 or overconfidence > 0.25 → force plan_first + critic, cap max_iters at 12. |
+| **P7** | W3 as controller | Engine Brier > 0.35 or overconfidence > 0.25 (n≥8) → force plan_first + critic, cap max_iters at 12. `offline_judge` also records calibration from PLAN `p(success)=` so the controller can fire under `:failure_only`. |
+| **P8** | Remote reward teacher | `agent.reward_llm` nil → ORM/PRM use the LLM teacher on remote engines even when `module_reflection` is false. Local ollama stays heuristic unless explicitly enabled. PRM prompts carry R4 tags so benign recon exits score 0 not −1. |
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Mistakes](Mistakes.md) · [Cron](Cron.md) · [pwn-ai Agent](pwn-ai-Agent.md)

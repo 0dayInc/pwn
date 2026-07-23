@@ -21,7 +21,7 @@ digraph "PWN_Reinforcement_Learning" {
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     R1 [label="R1  judge (ORM)\nscore · verdict · rationale", fillcolor="#c4b5fd", penwidth=2];
     R2 [label="R2  prm (PRM)\nper-step +1/0/−1", fillcolor="#c4b5fd"];
-    R3 [label="R3  sentinel\nproxy ≠ judge ≠ (1−corr)", fillcolor="#c4b5fd"];
+    R3 [label="R3  sentinel (ring N=40)\nproxy ≠ judge ≠ (1−corr)\n→ proxy_distrust haircut", fillcolor="#c4b5fd"];
     R4 [label="R4  semantic_ok\ngrep exit 1 ≠ failure", fillcolor="#c4b5fd"];
     E3 [label="E3  verify_as_reward\nextro_verify caps/floors judge", fillcolor="#c4b5fd"];
   }
@@ -43,7 +43,7 @@ digraph "PWN_Reinforcement_Learning" {
   subgraph cluster_weight {
     label="Tier 5 · Weight Loop"; fontcolor="#fecaca";
     style=rounded; color="#b91c1c"; bgcolor="#450a0a"; penwidth=2;
-    W1 [label="W1  preference ledger\n(prompt, rejected, chosen)\n5 free sources", fillcolor="#fda4af"];
+    W1 [label="W1  preference ledger\n(prompt, rejected, chosen)\n5 free sources\nexport_dpo ≤40%/source", fillcolor="#fda4af"];
     W2 [label="W2  train_and_gate\nSFT+DPO → LoRA vN+1\nreplay Mistakes.top vN vs vN+1\npromote iff resolved(N+1) > (N)", fillcolor="#fda4af", penwidth=2];
     W3 [label="W3  calibrate\np(success) vs actual → Brier", fillcolor="#fda4af"];
   }
@@ -94,9 +94,15 @@ digraph "PWN_Reinforcement_Learning" {
   W3 -> Loop [label="calibration", style=dashed, color="#fbbf24", constraint=false];
 
   /* cron seeds */
-  Cron [label="⏱  PWN::Cron.install_defaults\nnightly practice · weekly train", fillcolor="#7dd3fc"];
+  Cron [label="⏱  PWN::Cron.install_defaults\npractice · offline_judge\ntrain dry_run · consolidate", fillcolor="#7dd3fc"];
+  OJ [label="P3  offline_judge\nORM/PRM + W3 cal from PLAN", fillcolor="#6ee7b7"];
+  MemGC [label="M1/M3  Learning.consolidate\nnightly memory GC", fillcolor="#6ee7b7"];
   Cron -> S1 [label="0 3 * * *", color="#38bdf8", constraint=false];
+  Cron -> OJ [label="30 3 * * *", color="#38bdf8", constraint=false];
   Cron -> W2 [label="0 4 * * 0", color="#38bdf8", constraint=false];
+  Cron -> MemGC [label="0 5 * * *", color="#38bdf8", constraint=false];
+  OJ -> R1 [label="backfill", style=dashed, color="#a78bfa", constraint=false];
+  OJ -> W3 [label="p(success)", style=dashed, color="#fbbf24", constraint=false];
 
   Ollama -> Loop [label="promoted vN+1\n(next session)", style=dashed, color="#fb7185", constraint=false, penwidth=2];
 }

@@ -377,8 +377,10 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.annotate_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.annotate_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.atomic_write Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.atomic_write`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.balance_preference_rows Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.balance_preference_rows`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.clear_proxy_distrust Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.clear_proxy_distrust`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.export_dpo Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.export_dpo`: Supported Method Parameters\n\ninfo = PWN::AI::Agent::Reward.export_dpo(\n\nout: 'optional - path (default ~/.pwn/finetune/pwn-dpo-YYYYMMDD.jsonl)',\nformat: 'optional - :dpo (default) | :kto | :orpo'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.empty_sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.empty_sentinel`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.export_dpo Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.export_dpo`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.extract_cmd Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.extract_cmd`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.heuristic_judge Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.heuristic_judge`: "}]}
@@ -388,6 +390,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.llm_prm Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.llm_prm`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.load_sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.load_sentinel`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.load_trace Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.load_trace`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.normalize_sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.normalize_sentinel`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.preferences Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.preferences`: Supported Method Parameters\n\nrows = PWN::AI::Agent::Reward.preferences(limit: 500, source: nil)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.prm Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.prm`: Supported Method Parameters\n\nsteps = PWN::AI::Agent::Reward.prm(\n\nrequest: 'required - user goal',\nsession_id: 'optional - session to score in place',\ntrace: 'optional - Array of {name:, args:, result:} or Strings'\n\n)\n\nReturns [{idx:, step:, reward: -1|0|1}, …] and, when session_id is given, rewrites each tool line in the transcript with a ‘[step_reward=N]` prefix so exemplars_for / distill_skill can keep only reward>0 steps (C4 minimal sufficient trace).\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.proxy_distrust Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.proxy_distrust`: "}]}
@@ -395,12 +398,14 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.record_sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.record_sentinel`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.recoverable_shape Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.recoverable_shape`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.reflect_available? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.reflect_available?`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.reset Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.reset`: Supported Method Parameters\n\nPWN::AI::Agent::Reward.reset\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.reset Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.reset`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.reset_sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.reset_sentinel`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.semantic_ok Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.semantic_ok`: Supported Method Parameters\n\nh = PWN::AI::Agent::Reward.semantic_ok(\n\nname: 'required - tool name',\nraw: 'required - JSON string returned by Dispatch.call',\nargs: 'optional - the tool call arguments (used for BENIGN_EXIT)'\n\n)\n\nReturns { ok:, semantic_ok:, exit:, err:, benign: }. :ok is the old proxy (handler didn’t raise); :semantic_ok additionally knows that grep/diff/find exit≠0 with empty stderr is not a failure. Loop.run records Metrics on :ok but only records Mistakes on !semantic_ok.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.sentinel`: Supported Method Parameters\n\nr = PWN::AI::Agent::Reward.sentinel\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.set_proxy_distrust Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.set_proxy_distrust`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.user_correction_rate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.user_correction_rate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.verify_as_reward Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.verify_as_reward`: Supported Method Parameters\n\ng = PWN::AI::Agent::Reward.verify_as_reward(final: text)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.window_means Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.window_means`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SAST.analyze Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SAST.analyze`: Supported Method Parameters\n\nai_analysis = PWN::AI::Agent::SAST.analyze(\n\nrequest: 'required - A string containing the source code snippet to be analyzed for SAST antipatterns and vulnerabilities.'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SAST.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SAST.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SAST.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SAST.help`: "}]}

@@ -26,20 +26,22 @@ invokes `PWN::Cron.run(<id>)` on schedule.
 
 ## Seeded self-improvement jobs (`PWN::Cron.install_defaults`)
 
-`pwn setup --migrate` (schema `v1`) seeds two jobs into every fresh
-`~/.pwn/cron/jobs.yml`:
+`pwn setup --migrate` (schema `v1`) seeds four jobs into every fresh
+`~/.pwn/cron/jobs.yml` via `PWN::Cron.install_defaults`:
 
 | Name | Schedule | Ruby |
 |---|---|---|
 | `curriculum_practice_nightly` | `0 3 * * *` | `PWN::AI::Agent::Curriculum.practice(limit: 3)` |
+| `curriculum_offline_judge` | `30 3 * * *` | `PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24, limit: 40)` |
 | `curriculum_train_weekly` | `0 4 * * 0` | `PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)` |
+| `learning_consolidate_nightly` | `0 5 * * *` | `PWN::AI::Agent::Learning.consolidate` |
 
-The first practises the top unresolved `Mistakes` under `Reward.judge` and
-auto-`resolve`s any it now solves; the second exports SFT + DPO datasets to
-`~/.pwn/finetune/`, LoRA-trains a `pwn-vN+1` local model, replays the
-`Mistakes.top` set on both, and only promotes the new adapter when it wins.
-Set `dry_run: false` (via `pwn-ai-cron` or `cron_create`) once a local
-trainer is installed. See [Reinforcement Learning](Reinforcement-Learning.md).
+- **practice** — top unresolved `Mistakes` under `Reward.judge`; auto-`resolve` with ≥2 holdouts
+- **offline_judge** — P3 backfill of ORM/PRM labels + W3 calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus
+- **train** — export SFT + balanced DPO, LoRA-train `pwn-vN+1`, replay Mistakes.top, promote only on win. `dry_run: false` only with a trainer+GPU
+- **consolidate** — M1/M3 memory GC so the injected MEMORY block stays high-signal
+
+See [Reinforcement Learning](Reinforcement-Learning.md).
 
 `cron_disable(id:)` turns either off; `install_defaults` is idempotent and
 never overwrites a job you already have with the same name.

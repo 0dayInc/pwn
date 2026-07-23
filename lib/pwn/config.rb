@@ -110,6 +110,14 @@ module PWN
             # end-of-turn auto_introspect policy for local: :always | :failure_only | :every_n (with introspect_every_n)
             local_introspect: :failure_only,
             introspect_every_n: 3,
+            # S2/S3/S4 — nil = auto (ON for remote engines, OFF for ollama cost)
+            critic: nil,
+            counterfactual: nil,
+            red_team_plan: nil,
+            hindsight: true,
+            # nil = auto: ORM/PRM use LLM teacher on remote engines even when
+            # module_reflection is false (keeps local heuristic-only)
+            reward_llm: nil,
             # history compaction keep last K tool pairs + plan (chars budget for ollama)
             history_keep_tool_pairs: 6,
             history_tool_max_chars: 2_000,
@@ -337,6 +345,11 @@ module PWN
           verify_as_reward: nil,
           local_introspect: :failure_only,
           introspect_every_n: 3,
+          critic: nil,
+          counterfactual: nil,
+          red_team_plan: nil,
+          hindsight: true,
+          reward_llm: nil,
           history_keep_tool_pairs: 6,
           history_tool_max_chars: 2_000
         }

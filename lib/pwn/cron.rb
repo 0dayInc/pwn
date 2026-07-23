@@ -202,7 +202,7 @@ module PWN
     # Supported Method Parameters::
     #   PWN::Cron.install_defaults
     # Idempotently seed the RL feedback-loop cron jobs so a fresh install
-    # closes the loop by default (S1 nightly practice + W2 weekly train dry-run).
+    # closes the loop by default (S1 practice + P3 offline_judge + W2 train dry-run + M1 consolidate).
     # Re-running is a no-op if jobs with these names already exist.
     # These are seeded to jobs.yml only — pass install_crontab: true to
     # PWN::Cron.create yourself if you also want a system crontab entry.
@@ -231,6 +231,28 @@ module PWN
         )
       end
 
+      # P3 — backfill ORM/PRM labels when local :failure_only introspect is on
+      unless names.include?('curriculum_offline_judge')
+        seeded << create(
+          name: 'curriculum_offline_judge',
+          schedule: '30 3 * * *',
+          ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24, limit: 40) if defined?(PWN::AI::Agent::Curriculum)',
+          delivery: 'log',
+          enabled: true
+        )
+      end
+
+      # M1/M3 — nightly memory GC so the injected MEMORY block stays high-signal
+      unless names.include?('learning_consolidate_nightly')
+        seeded << create(
+          name: 'learning_consolidate_nightly',
+          schedule: '0 5 * * *',
+          ruby: 'PWN::AI::Agent::Learning.consolidate if defined?(PWN::AI::Agent::Learning)',
+          delivery: 'log',
+          enabled: true
+        )
+      end
+
       seeded
     rescue StandardError => e
       warn("[PWN::Cron] install_defaults failed: #{e.class}: #{e.message}")
@@ -254,7 +276,7 @@ module PWN
           PWN::Cron.disable(id: 'abc123')
           PWN::Cron.remove(id: 'abc123')
           # To have system cron call it, use install_crontab_entry or the :install_crontab option on create
-          PWN::Cron.install_defaults  # seed S1/W2 curriculum jobs (idempotent)
+          PWN::Cron.install_defaults  # seed S1/P3/W2/M1 curriculum jobs (idempotent)
 
           #{self}.authors
       USAGE

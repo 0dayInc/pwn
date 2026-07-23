@@ -180,12 +180,12 @@ module PWN
         # r = PWN::AI::Agent::Reward.sentinel
 
         public_class_method def self.sentinel
-          s = normalize_sentinel(load_sentinel)
+          s = normalize_sentinel(raw: load_sentinel)
           window = s[:window]
           n = window.length
           return { samples: n, status: :insufficient } if n < SENTINEL_WINDOW
 
-          means = window_means(window)
+          means = window_means(window: window)
           proxy = means[:proxy]
           judge = means[:judge]
           # Refuse to act on corrupt arithmetic — proxy must be a rate in [0,1].
@@ -257,12 +257,12 @@ module PWN
         end
 
         public_class_method def self.set_proxy_distrust(opts = {})
-          s = normalize_sentinel(load_sentinel)
+          s = normalize_sentinel(raw: load_sentinel)
           gap = opts[:gap].to_f
           proxy = opts[:proxy]
           # Guard: never set distrust from a nonsensical proxy (pre-ring-buffer
           # decay×to_i bug produced means ≫ 1.0 and hard-pegged distrust at 1.0).
-          if !proxy.nil?
+          unless proxy.nil?
             pf = proxy.to_f
             return s[:proxy_distrust].to_f if pf < 0.0 || pf > 1.0
           end
@@ -453,28 +453,41 @@ module PWN
         #   format: 'optional - :dpo (default) | :kto | :orpo'
         # )
 
+        # Max share any single preference source may occupy in a DPO export.
+        # Without this cap, mistakes_resolve monoculture (often >80%) teaches
+        # the LoRA "emit fix prose" instead of trajectory preference (P5 enforce).
+        DPO_SOURCE_CAP = 0.40
+
         public_class_method def self.export_dpo(opts = {})
           fmt = (opts[:format] || :dpo).to_sym
           FileUtils.mkdir_p(DPO_DIR)
           out = opts[:out] || File.join(DPO_DIR, "pwn-dpo-#{Time.now.utc.strftime('%Y%m%d')}.jsonl")
           rows = preferences(limit: 100_000)
+          # P5 — downsample so no single source exceeds DPO_SOURCE_CAP of the export.
+          # opt-out with balance: false (raw dump for diagnostics).
+          balance = opts.key?(:balance) ? opts[:balance] : true
+          selected = balance ? balance_preference_rows(rows: rows, cap: (opts[:source_cap] || DPO_SOURCE_CAP).to_f) : rows
+          dropped = rows.length - selected.length
           File.open(out, 'w') do |f|
-            rows.each do |r|
+            selected.each do |r|
               line = case fmt
                      when :kto
                        [{ prompt: r[:prompt], completion: r[:chosen], label: true },
                         { prompt: r[:prompt], completion: r[:rejected], label: false }]
                      else
-                       { prompt: r[:prompt], chosen: r[:chosen], rejected: r[:rejected] }
+                       # Keep source for auditability / preference_balance post-export.
+                       { prompt: r[:prompt], chosen: r[:chosen], rejected: r[:rejected], source: r[:source] }
                      end
               (line.is_a?(Array) ? line : [line]).each { |l| f.puts(JSON.generate(l)) }
             end
           end
-          { path: out, format: fmt, pairs: rows.length, bytes: File.size(out) }
+          by_src = selected.group_by { |r| r[:source].to_s }.transform_values(&:length)
+          {
+            path: out, format: fmt, pairs: selected.length, bytes: File.size(out),
+            balanced: balance, dropped: dropped, by_source: by_src,
+            source_cap: balance ? (opts[:source_cap] || DPO_SOURCE_CAP).to_f : nil
+          }
         end
-
-        # Supported Method Parameters::
-        # PWN::AI::Agent::Reward.reset
 
         public_class_method def self.reset
           FileUtils.rm_f(PREFERENCES_FILE)
@@ -508,8 +521,21 @@ module PWN
           return nil unless reflect_available?
           return nil if opts[:trace].empty?
 
-          steps = opts[:trace].each_with_index.map { |s, i| "#{i + 1}. #{s.to_s.gsub(/\s+/, ' ')[0, 250]}" }.join("\n")
-          req = "GOAL: #{opts[:request][0, 400]}\n\nSTEPS:\n#{steps}"
+          # Annotate each step with R4 semantic_ok/benign so the PRM teacher
+          # does not anti-correlate recon (grep miss / find empty) with −1.
+          steps = opts[:trace].each_with_index.map do |s, i|
+            raw = s.to_s
+            sem = semantic_ok(name: 'shell', raw: raw)
+            tag = if sem[:benign] then ' [R4:benign_nonzero]'
+                  elsif sem[:semantic_ok] then ' [R4:ok]'
+                  else ' [R4:fail]'
+                  end
+            "#{i + 1}.#{tag} #{raw.gsub(/\s+/, ' ')[0, 220]}"
+          end.join("\n")
+          req = "GOAL: #{opts[:request][0, 400]}\n\n" \
+                'R4 tags: [R4:ok]=tool succeeded, [R4:benign_nonzero]=informational ' \
+                "non-zero (grep/diff/find miss — score 0 not -1), [R4:fail]=real failure.\n\n" \
+                "STEPS:\n#{steps}"
           resp = Reflect.on(request: req, system_role_content: PRM_SYSTEM, suppress_pii_warning: true).to_s
           resp.scan(/-?1|0/).map(&:to_i).first(opts[:trace].length)
         rescue StandardError
@@ -601,7 +627,7 @@ module PWN
         end
 
         private_class_method def self.record_sentinel(opts = {})
-          s = normalize_sentinel(load_sentinel)
+          s = normalize_sentinel(raw: load_sentinel)
           # Clamp judge to [0,1] — LLM/heuristic should already, but a bad
           # write must not poison rolling means forever.
           judge = opts[:judge].to_f.clamp(0.0, 1.0)
@@ -615,10 +641,10 @@ module PWN
           s[:window] = (Array(s[:window]) + [entry]).last(SENTINEL_WINDOW)
           # Derived counters kept for back-compat with Learning.stats / operators
           # that still read samples/proxy_sum/proxy_n from the on-disk file.
-          means = window_means(s[:window])
+          means = window_means(window: s[:window])
           s[:samples]   = s[:window].length
           s[:judge_sum] = s[:window].sum { |e| e[:judge].to_f }
-          proxied = s[:window].select { |e| !e[:proxy].nil? }
+          proxied = s[:window].reject { |e| e[:proxy].nil? }
           s[:proxy_n]   = proxied.length
           s[:proxy_sum] = proxied.sum { |e| e[:proxy].to_f }
           s[:proxy_mean] = means[:proxy]
@@ -649,7 +675,7 @@ module PWN
         private_class_method def self.load_sentinel
           return empty_sentinel unless File.exist?(SENTINEL_FILE)
 
-          normalize_sentinel(JSON.parse(File.read(SENTINEL_FILE), symbolize_names: true))
+          normalize_sentinel(raw: JSON.parse(File.read(SENTINEL_FILE), symbolize_names: true))
         rescue StandardError
           empty_sentinel
         end
@@ -672,7 +698,8 @@ module PWN
         # synthetic samples — decay×to_i desync made proxy_sum/proxy_n
         # untrustworthy (means ≫ 1). Fresh window starts empty; distrust is
         # cleared so a corrupt detector cannot keep blinding Metrics.
-        private_class_method def self.normalize_sentinel(raw)
+        private_class_method def self.normalize_sentinel(opts = {})
+          raw = opts.is_a?(Hash) && opts.key?(:raw) ? opts[:raw] : opts
           s = (raw.is_a?(Hash) ? raw.dup : empty_sentinel)
           s[:window] = Array(s[:window]).map do |e|
             next nil unless e.is_a?(Hash)
@@ -714,10 +741,10 @@ module PWN
               end
             end
           else
-            means = window_means(s[:window])
+            means = window_means(window: s[:window])
             s[:samples] = s[:window].length
             s[:judge_sum] = s[:window].sum { |e| e[:judge].to_f }
-            proxied = s[:window].select { |e| !e[:proxy].nil? }
+            proxied = s[:window].reject { |e| e[:proxy].nil? }
             s[:proxy_n] = proxied.length
             s[:proxy_sum] = proxied.sum { |e| e[:proxy].to_f }
             s[:proxy_mean] = means[:proxy]
@@ -726,12 +753,12 @@ module PWN
           s
         end
 
-        private_class_method def self.window_means(window)
-          w = Array(window)
+        private_class_method def self.window_means(opts = {})
+          w = Array(opts.is_a?(Hash) && opts.key?(:window) ? opts[:window] : opts)
           return { proxy: nil, judge: 0.0 } if w.empty?
 
           judge = w.sum { |e| e[:judge].to_f } / w.length
-          proxied = w.select { |e| !e[:proxy].nil? }
+          proxied = w.reject { |e| e[:proxy].nil? }
           proxy = if proxied.empty?
                     nil
                   else
@@ -760,8 +787,64 @@ module PWN
           opts[:args].to_s
         end
 
+        # P5 enforce — downsample so no source exceeds `cap` of the FINAL export.
+        # Keeps newest rows first (preferences() already newest-first).
+        # Single-source corpora are left intact (cannot diversify what is absent);
+        # multi-source corpora are iteratively clipped until every share ≤ cap.
+        private_class_method def self.balance_preference_rows(opts = {})
+          rows = Array(opts[:rows])
+          cap  = (opts[:cap] || DPO_SOURCE_CAP).to_f
+          cap  = 0.40 if cap <= 0.0 || cap > 1.0
+          return rows if rows.length < 5
+
+          id_order = rows.each_with_index.to_h { |r, i| [r[:id] || r.object_id, i] }
+          by = rows.group_by { |r| r[:source].to_s.empty? ? 'unknown' : r[:source].to_s }
+                   .transform_values(&:dup)
+          return rows if by.length < 2
+
+          64.times do
+            total = by.values.sum(&:length)
+            break if total.zero?
+
+            worst_src, worst_list = by.max_by { |_, list| list.length }
+            share = worst_list.length.to_f / total
+            break if share <= (cap + 1e-9)
+
+            # max allowed from greediest source given current total of the others
+            others = total - worst_list.length
+            # want keep/(keep+others) ≤ cap  ⇒  keep ≤ cap/(1-cap) * others
+            max_keep = if (1.0 - cap).positive?
+                         [((cap / (1.0 - cap)) * others).floor, 1].max
+                       else
+                         1
+                       end
+            max_keep = [max_keep, worst_list.length - 1].min
+            break if max_keep < 1 || max_keep >= worst_list.length
+
+            by[worst_src] = worst_list.first(max_keep)
+          end
+
+          selected = by.values.flatten
+          selected.sort_by { |r| id_order[r[:id] || r.object_id] || 0 }
+        rescue StandardError
+          rows
+        end
+
+        # ORM/PRM teacher availability.
+        # module_reflection gates Reflect lesson writing; reward models need a
+        # teacher even when that is off. For remote engines default ON so grok
+        # answers are not graded by a shell-exit heuristic. Local ollama stays
+        # heuristic unless module_reflection or agent.reward_llm is true.
         private_class_method def self.reflect_available?
-          defined?(Reflect) && defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env.dig(:ai, :module_reflection)
+          return false unless defined?(Reflect) && defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          return true if PWN::Env.dig(:ai, :module_reflection)
+
+          flag = PWN::Env.dig(:ai, :agent, :reward_llm)
+          return flag ? true : false unless flag.nil?
+
+          eng = PWN::Env.dig(:ai, :active).to_s.downcase
+          !(eng.empty? || eng == 'ollama')
         rescue StandardError
           false
         end
@@ -794,13 +877,15 @@ module PWN
               # Tier 5 — preference pairs → DPO
               PWN::AI::Agent::Reward.record_preference(prompt: p, rejected: r, chosen: c, source: :user_correction)
               PWN::AI::Agent::Reward.preferences(limit: 100)
-              PWN::AI::Agent::Reward.export_dpo(format: :dpo)                              # W1 → ~/.pwn/finetune/pwn-dpo-*.jsonl
+              PWN::AI::Agent::Reward.export_dpo(format: :dpo)                              # W1 → ~/.pwn/finetune/pwn-dpo-*.jsonl (≤40%/source)
+              PWN::AI::Agent::Reward.export_dpo(format: :dpo, balance: false)              # raw dump (diagnostics)
 
               # Tier 6 — grounded reward
               PWN::AI::Agent::Reward.verify_as_reward(final: text)                         # E3 browser-verified reward
 
               Config (PWN::Env[:ai][:agent]):
-                :verify_as_reward   - Boolean, ground every final via extro_verify (default false)
+                :verify_as_reward   - Boolean/nil, ground finals via extro_verify (nil=auto)
+                :reward_llm         - Boolean/nil, force ORM/PRM LLM teacher (nil=on for remote engines)
 
               #{self}.authors
           USAGE

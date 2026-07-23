@@ -165,12 +165,18 @@ module PWN
 
           now = Time.now.utc
           # C2 — prioritized replay: priority = judge_score × recency_decay × keyword_sim
+          # C2 — strict success:true only (excludes HER success:'soft'). Also
+          # down-weight any residual hindsight-tagged rows so partial failures
+          # never launder into full-strength few-shot exemplars.
           pool = outcomes(limit: 500, success: true).reject { |r| r[:session_id].to_s.empty? }
           scored = pool.map do |r|
             sim   = tokens.count { |t| r[:task].to_s.downcase.include?(t) }.to_f / tokens.length
             age_d = (now - Time.parse(r[:timestamp].to_s)) / 86_400.0
             decay = Math.exp(-age_d / 30.0)
             score = (r[:score] || 1.0).to_f
+            tags  = Array(r[:tags]).map(&:to_s)
+            # HER / soft / hindsight → 0.35× so they cannot dominate C2 priority
+            score *= 0.35 if r[:success].to_s == 'soft' || tags.intersect?(%w[hindsight her soft])
             [r, sim * decay * score]
           rescue StandardError
             [r, 0.0]

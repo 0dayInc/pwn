@@ -117,7 +117,7 @@ describe PWN::AI::Agent::Reward do
     path = File.join(tmp, 's.json')
     stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', path)
     # Reproduce live bug shape: proxy_sum/proxy_n >> 1 after decay×to_i
-    File.write(path, JSON.generate(
+    legacy = {
       samples: 101,
       judge_sum: 71.9,
       proxy_sum: 82.0,
@@ -125,7 +125,8 @@ describe PWN::AI::Agent::Reward do
       proxy_distrust: 1.0,
       distrust_at: Time.now.utc.iso8601,
       distrust_meta: { proxy: 3.72, judge: 0.71, gap: 3.01 }
-    ))
+    }
+    File.write(path, JSON.generate(legacy))
     s = described_class.send(:load_sentinel)
     expect(s[:window]).to eq []
     expect(s[:proxy_distrust].to_f).to eq 0.0

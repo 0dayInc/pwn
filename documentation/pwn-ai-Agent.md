@@ -123,6 +123,18 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
   beats the old one on the current `Mistakes.top` set. See
   [Reinforcement Learning](Reinforcement-Learning.md).
 
+## RL feature flags (`PWN::Env[:ai][:agent]`)
+
+| Flag | Default | Effect |
+|---|---|---|
+| `critic` / `counterfactual` / `red_team_plan` | `nil` (auto) | ON for remote engines, OFF for ollama |
+| `hindsight` | `true` | C3 HER soft-relabel on failed turns |
+| `reward_llm` | `nil` (auto) | ORM/PRM use LLM teacher on remote even when `module_reflection` is false |
+| `verify_as_reward` | `nil` (auto) | E3 sample policy |
+| `local_introspect` | `:failure_only` | ollama end-of-turn introspect policy |
+
+Full tier table: [Reinforcement Learning](Reinforcement-Learning.md).
+
 **See also:** [AI Integration](AI-Integration.md) ·
 [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Mistakes](Mistakes.md) · [Reinforcement Learning](Reinforcement-Learning.md) ·

@@ -220,6 +220,17 @@ module PWN
 
             v = Reward.judge(request: req, final: fin, session_id: sid, commit: commit)
             Reward.prm(request: req, session_id: sid) if do_prm
+            # P7/W3 — offline path must also fill calibration so the controller
+            # (force plan_first/critic at n≥8) actually becomes reachable under
+            # :failure_only local introspect. Pull p(success)= out of any PLAN.
+            if commit
+              plan = t.find { |e| e[:role].to_s == 'assistant' && e[:content].to_s.start_with?('PLAN:') }
+              pred = plan && plan[:content].to_s[/p\(success\)\s*=\s*([01](?:\.\d+)?)/i, 1]
+              if pred
+                eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env))
+                calibrate(predicted: pred.to_f, actual: v[:score].to_f, engine: eng)
+              end
+            end
             if commit && defined?(Learning)
               Learning.note_outcome(
                 task: req[0, 120],
@@ -1056,9 +1067,24 @@ module PWN
           nil
         end
 
+        # Feature-flag lookup. When the operator left the key unset (nil):
+        #   - honour explicit opts[:default] if provided
+        #   - else for remote engines default critic/counterfactual/red_team_plan ON
+        #     (S2/S3/S4 were coded but dark on grok/openai/anthropic hosts —
+        #     that starved W1 diversity and produced resolve-monoculture DPO)
+        #   - local ollama stays off unless the flag is explicitly true (cost)
         private_class_method def self.enabled?(opts = {})
-          v = (PWN::Env.dig(:ai, :agent, opts[:key]) if defined?(PWN::Env))
-          v.nil? ? (opts[:default] || false) : v
+          key = opts[:key]
+          v = (PWN::Env.dig(:ai, :agent, key) if defined?(PWN::Env))
+          return v unless v.nil?
+
+          return opts[:default] if opts.key?(:default)
+
+          eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase
+          local = eng.empty? || eng == 'ollama'
+          return false if local
+
+          %i[critic counterfactual red_team_plan].include?(key.to_sym)
         rescue StandardError
           false
         end
@@ -1090,37 +1116,34 @@ module PWN
 
         public_class_method def self.help
           puts <<~USAGE
-                        USAGE:
-                          # Tier 4 — self-play
-                          PWN::AI::Agent::Curriculum.practice(limit: 3)                     # S1 mistake-driven auto-curriculum
-                          PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24)         # P3 offline ORM/PRM fill
-                          PWN::AI::Agent::Curriculum.preference_balance                     # P5 W1 diversity report
-            PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24)         # P3 offline ORM/PRM fill
-            PWN::AI::Agent::Curriculum.preference_balance                     # P5 W1 diversity report
-                          PWN::AI::Agent::Curriculum.counterfactual(request:, name:, args:, error:, hint:)  # S2 A/B → DPO pair
-                          PWN::AI::Agent::Curriculum.critic(request:, final:)               # S3 tool-armed constitutional critic
-                          PWN::AI::Agent::Curriculum.red_team_plan(request:, plan:)         # S4 telemetry-grounded plan review
-                          PWN::AI::Agent::Curriculum.hindsight(request:, final:, session_id:) # C3 HER relabel
+            USAGE:
+              # Tier 4 — self-play
+              PWN::AI::Agent::Curriculum.practice(limit: 3)                     # S1 mistake-driven auto-curriculum
+              PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24)         # P3 offline ORM/PRM fill
+              PWN::AI::Agent::Curriculum.preference_balance                     # P5 W1 diversity report
+              PWN::AI::Agent::Curriculum.counterfactual(request:, name:, args:, error:, hint:)  # S2 A/B → DPO pair
+              PWN::AI::Agent::Curriculum.critic(request:, final:)               # S3 tool-armed constitutional critic
+              PWN::AI::Agent::Curriculum.red_team_plan(request:, plan:)         # S4 telemetry-grounded plan review
+              PWN::AI::Agent::Curriculum.hindsight(request:, final:, session_id:) # C3 HER soft-relabel
 
-                          # Tier 5 — close the weight loop
-                          PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)          # W2 export-ready; promote only with trainer+dry_run:false
-                          PWN::AI::Agent::Curriculum.calibrate(predicted: 0.8, actual: 1.0) # W3 Brier → Metrics[:calibration]
+              # Tier 5 — close the weight loop
+              PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)          # W2 export-ready; promote only with trainer+dry_run:false
+              PWN::AI::Agent::Curriculum.calibrate(predicted: 0.8, actual: 1.0) # W3 Brier → Metrics[:calibration]
 
-                          Cron self-improvement (nightly):
-                            PWN::Cron.create(name: 'self_play', schedule: '0 3 * * *',
-                              ruby: 'PWN::AI::Agent::Curriculum.practice(limit: 5)')
-                            PWN::Cron.create(name: 'offline_judge', schedule: '30 3 * * *',
-                              ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24, limit: 40)')
-                            PWN::Cron.create(name: 'weight_loop', schedule: '0 4 * * 0',
-                              ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)')  # export-only until trainer
+              Cron self-improvement (seeded by PWN::Cron.install_defaults):
+                curriculum_practice_nightly  0 3 * * *   Curriculum.practice(limit: 3)
+                curriculum_offline_judge     30 3 * * *  Curriculum.offline_judge(since_hours: 24, limit: 40)
+                curriculum_train_weekly      0 4 * * 0   Curriculum.train_and_gate(dry_run: true)
+                learning_consolidate_nightly 0 5 * * *   Learning.consolidate
 
-                          Config (PWN::Env[:ai][:agent]):
-                            :critic         - Boolean, run S3 before every note_outcome
-                            :red_team_plan  - Boolean, run S4 after every plan_first
-                            :counterfactual - Boolean, run S2 on REPEAT_THRESHOLD
-                            :hindsight      - Boolean, HER soft-relabel failures (excluded from SFT; default true)
+              Config (PWN::Env[:ai][:agent]) — nil = auto (ON for remote engines, OFF for ollama):
+                :critic         - Boolean/nil, run S3 before every note_outcome
+                :red_team_plan  - Boolean/nil, run S4 after every plan_first
+                :counterfactual - Boolean/nil, run S2 on REPEAT_THRESHOLD
+                :hindsight      - Boolean, HER soft-relabel failures (default true)
+                :reward_llm     - Boolean/nil, force ORM/PRM LLM teacher (nil=on for remote)
 
-                          #{self}.authors
+              #{self}.authors
           USAGE
         end
       end

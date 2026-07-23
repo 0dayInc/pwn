@@ -101,17 +101,28 @@ PWN::AI::Agent::Registry.register(
   schema: {
     name: 'reward_export_dpo',
     description: 'W1 — Export the preference-pair ledger as a DPO/KTO/ORPO ' \
-                 'jsonl dataset under ~/.pwn/finetune/. Pair with ' \
-                 'curriculum_train for the fully-autonomous weight loop.',
+                 'jsonl dataset under ~/.pwn/finetune/. Enforces ≤40% per ' \
+                 'source (DPO_SOURCE_CAP) so resolve-monoculture cannot poison ' \
+                 'LoRA; pass balance:false for a raw dump. Pair with ' \
+                 'curriculum_train for the weight loop.',
     parameters: {
       type: 'object',
       properties: {
         format: { type: 'string', enum: %w[dpo kto orpo], default: 'dpo' },
-        out: { type: 'string' }
+        out: { type: 'string' },
+        balance: { type: 'boolean', default: true, description: 'Downsample to ≤40% per source (default true).' },
+        source_cap: { type: 'number', description: 'Override DPO_SOURCE_CAP (default 0.40).' }
       },
       required: []
     }
   },
   check: -> { defined?(PWN::AI::Agent::Reward) },
-  handler: ->(args) { PWN::AI::Agent::Reward.export_dpo(format: args[:format], out: args[:out]) }
+  handler: lambda { |args|
+    PWN::AI::Agent::Reward.export_dpo(
+      format: args[:format],
+      out: args[:out],
+      balance: args.key?(:balance) ? args[:balance] : true,
+      source_cap: args[:source_cap]
+    )
+  }
 )
