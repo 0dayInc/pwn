@@ -49,7 +49,22 @@ module PWN
             system_role_content: 'You are an ethically hacking OpenAI agent.',
             temp: 'optional - OpenAI temperature',
             max_tokens: 'optional - Max output tokens per response (default 16384). Mapped to OpenAI wire param max_completion_tokens.',
-            max_prompt_length: 128_000
+            max_prompt_length: 128_000,
+            # OAuth support for ChatGPT / Codex subscriptions (in addition to API key)
+            # Populate via pwn-vault (values stored encrypted in ~/.pwn/pwn.yaml)
+            oauth: {
+              # OpenAI OAuth uses the PUBLIC Codex client (app_EMoamEEZ73f0CkXaXp7hrann) --
+              # NO client_secret. Run PWN::AI::OpenAI.obtain_oauth_bearer_token once
+              # (Codex device-code flow) then store refresh_token here; PWN refreshes
+              # the short-lived access_token automatically on every run.
+              refresh_token: 'optional - ChatGPT/Codex OAuth Refresh Token (durable; enables silent re-auth)',
+              bearer_token: 'optional - ChatGPT/Codex OAuth Access Token (short-lived JWT; auto-refreshed if refresh_token set)',
+              client_id: 'optional - override public Codex client_id (default: app_EMoamEEZ73f0CkXaXp7hrann)',
+              account_id: 'optional - ChatGPT account/workspace id (sent as ChatGPT-Account-Id when set)',
+              issuer: 'optional - override OAuth issuer (default: https://auth.openai.com)',
+              token_uri: 'optional - override OAuth token endpoint (default: https://auth.openai.com/oauth/token)',
+              enroll: 'optional - set true to force device-flow enrollment even when an API key is present'
+            }
           },
           ollama: {
             base_uri: 'required - Base URI for Open WebUI - e.g. https://ollama.local',
@@ -77,7 +92,25 @@ module PWN
             system_role_content: 'You are an ethically hacking Anthropic agent.',
             temp: 'optional - Anthropic temperature',
             max_tokens: 'optional - Max output tokens per response (default 8192). Raise if tool calls truncate.',
-            max_prompt_length: 200_000
+            max_prompt_length: 200_000,
+            # OAuth support for Claude Pro/Max subscriptions (in addition to API key)
+            # Populate via pwn-vault (values stored encrypted in ~/.pwn/pwn.yaml)
+            oauth: {
+              # Anthropic OAuth uses the PUBLIC Claude Code client
+              # (9d1c250a-e61b-44d9-88ed-5944d1962f5e) -- NO client_secret.
+              # Run PWN::AI::Anthropic.obtain_oauth_bearer_token once (PKCE paste
+              # flow) then store refresh_token here; PWN refreshes the short-lived
+              # access_token automatically on every run.
+              refresh_token: 'optional - Claude Pro/Max OAuth Refresh Token (durable; enables silent re-auth)',
+              bearer_token: 'optional - Claude Pro/Max OAuth Access Token (short-lived; auto-refreshed if refresh_token set)',
+              client_id: 'optional - override public Claude Code client_id (default: 9d1c250a-e61b-44d9-88ed-5944d1962f5e)',
+              scope: 'optional - override OAuth scope (default: user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload)',
+              authorize_uri: 'optional - override authorize endpoint (default: https://claude.ai/oauth/authorize)',
+              token_uri: 'optional - override token endpoint (default: https://platform.claude.com/v1/oauth/token)',
+              redirect_uri: 'optional - override redirect_uri (default: https://platform.claude.com/oauth/code/callback)',
+              beta_flags: 'optional - anthropic-beta header value for OAuth requests',
+              enroll: 'optional - set true to force PKCE enrollment even when an API key is present'
+            }
           },
           gemini: {
             base_uri: 'optional - Base URI for Gemini - Use private base OR defaults to https://generativelanguage.googleapis.com/v1beta',
@@ -416,13 +449,16 @@ module PWN
       key = nil unless real_cfg.call(key)
 
       oauth_configured = false
-      if engine == :grok
+      if %i[grok openai anthropic].include?(engine)
         oauth = env[:ai][engine][:oauth]
         oauth = env[:ai][engine][:oauth] = {} unless oauth.is_a?(Hash)
-        # OAuth is considered configured when either a bearer_token is
-        # stored (preferred, long-lived) OR client_id + client_secret are
-        # present (PWN::AI::Grok will run the singular enrollment flow).
+        # OAuth is considered configured when a bearer_token / refresh_token
+        # is stored, enroll is truthy, or a non-placeholder client_id is set
+        # (module will run the singular enrollment flow).
         oauth_configured = real_cfg.call(oauth[:bearer_token]) ||
+                           real_cfg.call(oauth[:refresh_token]) ||
+                           oauth[:enroll] == true ||
+                           real_cfg.call(oauth[:client_id]) ||
                            (real_cfg.call(oauth[:client_id]) && real_cfg.call(oauth[:client_secret]))
       end
 
@@ -433,9 +469,14 @@ module PWN
       interactive = $stdin.tty? && $stdout.tty? && ENV['PWN_NONINTERACTIVE'].to_s.empty?
 
       if key.nil? && !oauth_configured && interactive
-        key = PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: "#{engine} API Key (or store ai.grok.oauth.refresh_token via pwn-vault -- run PWN::AI::Grok.obtain_oauth_bearer_token to enroll)"
-        )
+        enroll_hints = {
+          grok: 'or store ai.grok.oauth.refresh_token via pwn-vault -- run PWN::AI::Grok.obtain_oauth_bearer_token to enroll',
+          openai: 'or store ai.openai.oauth.refresh_token via pwn-vault -- run PWN::AI::OpenAI.obtain_oauth_bearer_token to enroll',
+          anthropic: 'or store ai.anthropic.oauth.refresh_token via pwn-vault -- run PWN::AI::Anthropic.obtain_oauth_bearer_token to enroll'
+        }
+        enroll_hint = enroll_hints[engine]
+        prompt = enroll_hint ? "#{engine} API Key (#{enroll_hint})" : "#{engine} API Key"
+        key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: prompt)
         env[:ai][engine][:key] = key
       end
 

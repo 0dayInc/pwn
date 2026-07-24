@@ -4,6 +4,8 @@ require 'json'
 require 'base64'
 require 'securerandom'
 require 'tty-spinner'
+require 'digest'
+require 'uri'
 
 module PWN
   module AI
@@ -12,6 +14,264 @@ module PWN
     # This is based on the following OpenAI API Specification:
     # https://api.openai.com/v1
     module OpenAI
+      # Internal helper: true when +opts[:value]+ is a *real* configured value
+      # coming from PWN::Config / pwn-vault (not a placeholder string).
+      private_class_method def self.real_config_value?(opts = {})
+        s = opts[:value].to_s.strip
+        return false if s.empty?
+        return false if s.match?(/\A(optional|required)\b/i)
+
+        true
+      end
+
+      # ------------------------------------------------------------------
+      # OpenAI / ChatGPT OAuth (Codex / ChatGPT subscription) -- public client.
+      #
+      # Same identity path openai/codex uses:
+      #   * public client_id app_EMoamEEZ73f0CkXaXp7hrann (no secret)
+      #   * issuer https://auth.openai.com
+      #   * device-code UX via /api/accounts/deviceauth/* then authorization_code
+      #     exchange at /oauth/token (PKCE verifier supplied by the deviceauth
+      #     token response -- no localhost listener)
+      #   * refresh_token grant at /oauth/token (JSON body, same as codex)
+      #
+      # Access tokens are short-lived JWTs. Persist refresh_token via
+      # pwn-vault under ai.openai.oauth.refresh_token.
+      # ------------------------------------------------------------------
+      OPENAI_OAUTH_ISSUER     = 'https://auth.openai.com'
+      OPENAI_OAUTH_TOKEN_URI  = "#{OPENAI_OAUTH_ISSUER}/oauth/token".freeze
+      OPENAI_OAUTH_CLIENT_ID  = 'app_EMoamEEZ73f0CkXaXp7hrann'
+      OPENAI_OAUTH_SCOPE      = 'openid profile email offline_access'
+      OPENAI_OAUTH_DEVICE_USERCODE_URI = "#{OPENAI_OAUTH_ISSUER}/api/accounts/deviceauth/usercode".freeze
+      OPENAI_OAUTH_DEVICE_TOKEN_URI    = "#{OPENAI_OAUTH_ISSUER}/api/accounts/deviceauth/token".freeze
+      OPENAI_OAUTH_DEVICE_VERIFY_URI   = "#{OPENAI_OAUTH_ISSUER}/codex/device".freeze
+      OPENAI_OAUTH_DEVICE_REDIRECT_URI = "#{OPENAI_OAUTH_ISSUER}/deviceauth/callback".freeze
+
+      private_class_method def self.jwt_exp(opts = {})
+        seg = opts[:token].to_s.split('.')[1]
+        return nil unless seg
+
+        seg += '=' * ((4 - (seg.length % 4)) % 4)
+        JSON.parse(Base64.urlsafe_decode64(seg))['exp']
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.oauth_token_expiring?(opts = {})
+        token = opts[:token]
+        skew  = opts[:skew] || 120
+        return true unless real_config_value?(value: token)
+
+        expires_at = opts[:expires_at]
+        return Time.now.to_i >= (expires_at.to_i - skew) if expires_at
+
+        exp = jwt_exp(token: token)
+        return false if exp.nil?
+
+        Time.now.to_i >= (exp.to_i - skew)
+      end
+
+      # Supported Method Parameters::
+      # access_token = PWN::AI::OpenAI.refresh_oauth_bearer_token(
+      #   refresh_token: 'required - OpenAI/ChatGPT OAuth refresh_token',
+      #   client_id:     'optional - defaults to Codex public client',
+      #   token_uri:     'optional - defaults to https://auth.openai.com/oauth/token'
+      # )
+      #
+      # Codex posts JSON (not form-urlencoded) to the refresh endpoint.
+      public_class_method def self.refresh_oauth_bearer_token(opts = {})
+        refresh_token = opts[:refresh_token]
+        raise 'refresh_token is required' unless real_config_value?(value: refresh_token)
+
+        client_id = real_config_value?(value: opts[:client_id]) ? opts[:client_id] : OPENAI_OAUTH_CLIENT_ID
+        token_uri = real_config_value?(value: opts[:token_uri]) ? opts[:token_uri] : OPENAI_OAUTH_TOKEN_URI
+
+        resp = RestClient.post(
+          token_uri,
+          {
+            client_id: client_id,
+            grant_type: 'refresh_token',
+            refresh_token: refresh_token
+          }.to_json,
+          content_type: 'application/json',
+          accept: 'application/json'
+        )
+        data = JSON.parse(resp.body)
+        raise "OpenAI OAuth refresh error: #{data['error']} - #{data['error_description'] || data.dig('error', 'message')}" if data['error'] && !data['access_token']
+
+        access = data['access_token']
+        raise 'OpenAI OAuth refresh returned no access_token.' unless access
+
+        opts[:bearer_token]  = access
+        opts[:refresh_token] = data['refresh_token'] if data['refresh_token']
+        opts[:id_token]      = data['id_token'] if data['id_token']
+        opts[:expires_at]    = Time.now.to_i + data['expires_in'].to_i if data['expires_in']
+        # Prefer explicit account id; fall back to JWT claim when present.
+        if data['id_token']
+          begin
+            exp_seg = data['id_token'].to_s.split('.')[1]
+            if exp_seg
+              exp_seg += '=' * ((4 - (exp_seg.length % 4)) % 4)
+              claims = JSON.parse(Base64.urlsafe_decode64(exp_seg))
+              acct = claims.dig('https://api.openai.com/auth', 'chatgpt_account_id')
+              opts[:account_id] = acct if acct
+            end
+          rescue StandardError
+            # ignore claim parse failures
+          end
+        end
+        access
+      rescue RestClient::ExceptionWithResponse => e
+        raise "OpenAI OAuth refresh failed (HTTP #{e.http_code}): #{e.response&.body}"
+      end
+
+      # Supported Method Parameters::
+      # bearer = PWN::AI::OpenAI.obtain_oauth_bearer_token(
+      #   client_id: 'optional - Codex public client id',
+      #   issuer:    'optional - defaults to https://auth.openai.com',
+      #   timeout:   'optional - seconds to wait for user consent (default 900)'
+      # )
+      #
+      # Runs the Codex device-code login:
+      #   1. POST /api/accounts/deviceauth/usercode  -> device_auth_id, user_code
+      #   2. User opens https://auth.openai.com/codex/device and enters code
+      #   3. Poll POST /api/accounts/deviceauth/token until authorization_code + pkce
+      #   4. POST /oauth/token authorization_code grant -> access/refresh/id tokens
+      public_class_method def self.obtain_oauth_bearer_token(opts = {})
+        client_id = real_config_value?(value: opts[:client_id]) ? opts[:client_id] : OPENAI_OAUTH_CLIENT_ID
+        issuer    = real_config_value?(value: opts[:issuer])    ? opts[:issuer].to_s.sub(%r{/*\z}, '') : OPENAI_OAUTH_ISSUER
+        token_uri = real_config_value?(value: opts[:token_uri]) ? opts[:token_uri] : "#{issuer}/oauth/token"
+        usercode_uri = "#{issuer}/api/accounts/deviceauth/usercode"
+        poll_uri     = "#{issuer}/api/accounts/deviceauth/token"
+        verify_uri   = "#{issuer}/codex/device"
+        redirect_uri = "#{issuer}/deviceauth/callback"
+        timeout      = (opts[:timeout] || 900).to_i
+
+        # -- Step 1: request user code ---------------------------------------
+        uc = JSON.parse(
+          RestClient.post(
+            usercode_uri,
+            { client_id: client_id }.to_json,
+            content_type: 'application/json',
+            accept: 'application/json'
+          ).body
+        )
+        raise "OpenAI device usercode error: #{uc['error'] || uc}" if uc['error'] && !uc['device_auth_id']
+
+        device_auth_id = uc['device_auth_id']
+        user_code      = uc['user_code'] || uc['usercode']
+        interval       = (uc['interval'] || 5).to_i
+        interval       = 5 if interval <= 0
+        deadline       = Time.now.to_i + timeout
+
+        raise 'OpenAI device usercode response missing device_auth_id/user_code' if device_auth_id.to_s.empty? || user_code.to_s.empty?
+
+        puts "\n[*] OpenAI / ChatGPT OAuth -- Device Authorization (Codex public client, no secret)"
+        puts '    A ChatGPT Plus / Pro / Team / Enterprise plan is typically required for Codex API access.'
+        puts ''
+        puts '    Step 1: In a browser (any device), open:'
+        puts "            #{verify_uri}"
+        puts "    Step 2: Enter this one-time code:  #{user_code}"
+        puts '    Step 3: Approve access for Codex / ChatGPT.'
+        puts ''
+        puts "    Waiting for approval (polling every #{interval}s, timeout #{timeout}s)..."
+
+        # -- Step 2: poll until authorization_code + pkce material -----------
+        code_resp = nil
+        loop do
+          sleep interval
+          begin
+            poll = RestClient.post(
+              poll_uri,
+              {
+                device_auth_id: device_auth_id,
+                user_code: user_code
+              }.to_json,
+              content_type: 'application/json',
+              accept: 'application/json'
+            )
+            code_resp = JSON.parse(poll.body)
+            break if code_resp['authorization_code']
+          rescue RestClient::ExceptionWithResponse => e
+            # Codex treats 403/404 as "still pending"
+            if [403, 404].include?(e.http_code)
+              raise 'OpenAI OAuth device flow timed out waiting for user approval.' if Time.now.to_i >= deadline
+
+              next
+            end
+            body = begin
+              JSON.parse(e.response.body)
+            rescue StandardError
+              { 'error' => "http_#{e.http_code}", 'error_description' => e.response&.body }
+            end
+            raise "OpenAI OAuth device poll error: #{body['error']} - #{body['error_description'] || body}"
+          end
+          raise 'OpenAI OAuth device flow timed out waiting for user approval.' if Time.now.to_i >= deadline
+        end
+
+        authorization_code = code_resp['authorization_code']
+        code_verifier      = code_resp['code_verifier']
+        raise 'OpenAI deviceauth/token returned no authorization_code.' unless authorization_code
+        raise 'OpenAI deviceauth/token returned no code_verifier.' unless code_verifier
+
+        # -- Step 3: exchange authorization_code for tokens ------------------
+        resp = RestClient.post(
+          token_uri,
+          URI.encode_www_form(
+            grant_type: 'authorization_code',
+            code: authorization_code,
+            redirect_uri: redirect_uri,
+            client_id: client_id,
+            code_verifier: code_verifier
+          ),
+          content_type: 'application/x-www-form-urlencoded',
+          accept: 'application/json'
+        )
+        data = JSON.parse(resp.body)
+        raise "OpenAI OAuth token error: #{data['error']} - #{data['error_description']}" if data['error'] && !data['access_token']
+
+        access_token  = data['access_token']
+        refresh_token = data['refresh_token']
+        id_token      = data['id_token']
+        raise 'OpenAI OAuth token endpoint returned no access_token.' unless access_token
+
+        opts[:bearer_token]  = access_token
+        opts[:refresh_token] = refresh_token if refresh_token
+        opts[:id_token]      = id_token if id_token
+        opts[:expires_at]    = Time.now.to_i + data['expires_in'].to_i if data['expires_in']
+
+        if id_token
+          begin
+            seg = id_token.to_s.split('.')[1]
+            if seg
+              seg += '=' * ((4 - (seg.length % 4)) % 4)
+              claims = JSON.parse(Base64.urlsafe_decode64(seg))
+              acct = claims.dig('https://api.openai.com/auth', 'chatgpt_account_id')
+              opts[:account_id] = acct if acct
+            end
+          rescue StandardError
+            # ignore
+          end
+        end
+
+        puts "\n[*] SUCCESS: OpenAI / ChatGPT OAuth bearer obtained via device_code grant."
+        puts '    Cached in-memory for this pwn / pwn-ai process.'
+        puts ''
+        puts '    TO MAKE THIS PERMANENT (recommended -- one-time), store via pwn-vault:'
+        puts "      ai.openai.oauth.refresh_token = #{refresh_token}" if refresh_token
+        puts "      ai.openai.oauth.bearer_token  = #{access_token}"
+        puts "      ai.openai.oauth.account_id    = #{opts[:account_id]}" if opts[:account_id]
+        puts '    On future runs the refresh_token alone is enough -- PWN::AI::OpenAI will'
+        puts '    silently exchange it for a fresh access_token (no browser, no prompt).'
+        puts ''
+
+        access_token
+      rescue RestClient::ExceptionWithResponse => e
+        raise "Failed to obtain OpenAI OAuth bearer token (HTTP #{e.http_code}): #{e.response&.body}"
+      rescue StandardError => e
+        raise "Failed to obtain OpenAI OAuth bearer token: #{e.message}"
+      end
+
       # Supported Method Parameters::
       # open_ai_rest_call(
       #   http_method: 'optional HTTP method (defaults to GET)
@@ -23,23 +283,62 @@ module PWN
       # )
 
       private_class_method def self.open_ai_rest_call(opts = {})
-        engine = PWN::Env[:ai][:openai]
-        raise 'ERROR: Jira Server Hash not found in PWN::Env.  Run i`pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
+        engine = PWN::Env[:ai][:openai] if defined?(PWN::Env)
+        raise 'ERROR: OpenAI Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
-        token = engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'OpenAI API Key')
+        # ------------------------------------------------------------------
+        # Credential resolution (PWN::Config / pwn-vault via PWN::Env).
+        # Priority:
+        #   1. oauth[:bearer_token]  (not expiring)
+        #   2. oauth[:refresh_token] (silent refresh)
+        #   3. oauth device flow when oauth opted-in OR no API key
+        #   4. engine[:key] (classic OpenAI API key)
+        #   5. interactive prompt
+        # ------------------------------------------------------------------
+        oauth = engine[:oauth].is_a?(Hash) ? engine[:oauth] : (engine[:oauth] ||= {})
+        token = nil
+
+        if real_config_value?(value: oauth[:bearer_token]) &&
+           !oauth_token_expiring?(token: oauth[:bearer_token], expires_at: oauth[:expires_at])
+          token = oauth[:bearer_token]
+        end
+
+        if token.nil? && real_config_value?(value: oauth[:refresh_token])
+          begin
+            token = refresh_oauth_bearer_token(oauth)
+          rescue StandardError => e
+            warn "[!] OpenAI OAuth refresh failed, falling back: #{e.message}"
+          end
+        end
+
+        oauth_opt_in = real_config_value?(value: oauth[:client_id]) ||
+                       oauth[:enroll] == true ||
+                       real_config_value?(value: oauth[:bearer_token]) ||
+                       real_config_value?(value: oauth[:refresh_token])
+
+        token = obtain_oauth_bearer_token(oauth) if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key]))
+
+        token = engine[:key] if token.nil? && real_config_value?(value: engine[:key])
+
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'OpenAI API Key (or run PWN::AI::OpenAI.obtain_oauth_bearer_token for ChatGPT/Codex OAuth)'
+        )
+
         http_method = if opts[:http_method].nil?
                         :get
                       else
                         opts[:http_method].to_s.scrub.to_sym
                       end
 
-        base_uri = engine[:base_uri] ||= 'https://api.openai.com/v1'
+        base_uri = real_config_value?(value: engine[:base_uri]) ? engine[:base_uri] : 'https://api.openai.com/v1'
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
         headers = {
           content_type: 'application/json; charset=UTF-8',
           authorization: "Bearer #{token}"
         }
+        # ChatGPT subscription tokens often need the account id header (codex).
+        headers['ChatGPT-Account-Id'] = oauth[:account_id] if real_config_value?(value: oauth[:account_id])
 
         http_body = opts[:http_body]
         http_body ||= {}
@@ -745,6 +1044,10 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
+
+          # One-time ChatGPT/Codex OAuth enrollment (device-code flow):
+          bearer = #{self}.obtain_oauth_bearer_token
+          # Subsequent runs silently refresh via ai.openai.oauth.refresh_token
 
           response = #{self}.chat(
             request: 'required - message to ChatGPT',
