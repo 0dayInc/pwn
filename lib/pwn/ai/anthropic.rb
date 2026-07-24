@@ -4,6 +4,9 @@ require 'json'
 require 'rest-client'
 require 'tty-spinner'
 require 'securerandom'
+require 'base64'
+require 'digest'
+require 'uri'
 
 module PWN
   module AI
@@ -12,6 +15,205 @@ module PWN
     # API documentation: https://docs.anthropic.com/en/api
     # Obtain an API key from https://console.anthropic.com/
     module Anthropic
+      # Internal helper: true when +opts[:value]+ is a *real* configured value coming
+      # from PWN::Config / pwn-vault (i.e. not nil, not blank, and not one of
+      # the "optional - ..." / "required - ..." placeholder strings that
+      # PWN::Config.default_env writes into a fresh ~/.pwn/pwn.yaml).
+      private_class_method def self.real_config_value?(opts = {})
+        s = opts[:value].to_s.strip
+        return false if s.empty?
+        return false if s.match?(/\A(optional|required)\b/i)
+
+        true
+      end
+
+      # ------------------------------------------------------------------
+      # Anthropic / Claude OAuth (Claude Pro/Max) -- public-client PKCE.
+      #
+      # Same identity path Claude Code / community tools use:
+      #   * public client_id 9d1c250a-e61b-44d9-88ed-5944d1962f5e (no secret)
+      #   * authorization_code + S256 PKCE against claude.ai
+      #   * token endpoint at platform.claude.com
+      #   * redirect_uri is the official hosted callback that returns a
+      #     pasteable code (code=true) -- SSH / headless friendly, no
+      #     localhost listener required.
+      #
+      # Access tokens are short-lived; refresh_token is durable. Persist via
+      # pwn-vault under ai.anthropic.oauth.refresh_token.
+      #
+      # Wire format for OAuth bearers is different from API keys:
+      #   Authorization: Bearer <access_token>
+      #   anthropic-beta: <claude-code betas>
+      #   (NO x-api-key)
+      # ------------------------------------------------------------------
+      ANTHROPIC_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+      ANTHROPIC_OAUTH_AUTHORIZE_URI = 'https://claude.ai/oauth/authorize'
+      ANTHROPIC_OAUTH_TOKEN_URI = 'https://platform.claude.com/v1/oauth/token'
+      ANTHROPIC_OAUTH_REDIRECT_URI = 'https://platform.claude.com/oauth/code/callback'
+      ANTHROPIC_OAUTH_SCOPE = 'user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload'
+      ANTHROPIC_OAUTH_USER_AGENT = 'claude-cli/2.1.81 (external, cli)'
+      ANTHROPIC_OAUTH_BETA_FLAGS = 'claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,prompt-caching-scope-2026-01-05'
+
+      private_class_method def self.pkce_pair
+        verifier = Base64.urlsafe_encode64(SecureRandom.random_bytes(32), padding: false)
+        challenge = Base64.urlsafe_encode64(
+          Digest::SHA256.digest(verifier),
+          padding: false
+        )
+        { verifier: verifier, challenge: challenge }
+      end
+
+      private_class_method def self.jwt_exp(opts = {})
+        seg = opts[:token].to_s.split('.')[1]
+        return nil unless seg
+
+        seg += '=' * ((4 - (seg.length % 4)) % 4)
+        JSON.parse(Base64.urlsafe_decode64(seg))['exp']
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.oauth_token_expiring?(opts = {})
+        token = opts[:token]
+        skew  = opts[:skew] || 120
+        return true unless real_config_value?(value: token)
+
+        # Prefer explicit expires_at when present (Anthropic access tokens are often opaque).
+        expires_at = opts[:expires_at]
+        return Time.now.to_i >= (expires_at.to_i - skew) if expires_at
+
+        exp = jwt_exp(token: token)
+        return false if exp.nil? # opaque token -- trust it until 401
+
+        Time.now.to_i >= (exp.to_i - skew)
+      end
+
+      # Supported Method Parameters::
+      # access_token = PWN::AI::Anthropic.refresh_oauth_bearer_token(
+      #   refresh_token: 'required - Anthropic OAuth refresh_token',
+      #   client_id:     'optional - defaults to Claude Code public client',
+      #   token_uri:     'optional - defaults to platform.claude.com token endpoint'
+      # )
+      public_class_method def self.refresh_oauth_bearer_token(opts = {})
+        refresh_token = opts[:refresh_token]
+        raise 'refresh_token is required' unless real_config_value?(value: refresh_token)
+
+        client_id = real_config_value?(value: opts[:client_id]) ? opts[:client_id] : ANTHROPIC_OAUTH_CLIENT_ID
+        token_uri = real_config_value?(value: opts[:token_uri]) ? opts[:token_uri] : ANTHROPIC_OAUTH_TOKEN_URI
+
+        resp = RestClient.post(
+          token_uri,
+          {
+            grant_type: 'refresh_token',
+            refresh_token: refresh_token,
+            client_id: client_id
+          },
+          content_type: 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+          user_agent: ANTHROPIC_OAUTH_USER_AGENT
+        )
+        data = JSON.parse(resp.body)
+        raise "Anthropic OAuth refresh error: #{data['error']} - #{data['error_description'] || data['message']}" if data['error']
+
+        opts[:bearer_token]  = data['access_token']
+        opts[:refresh_token] = data['refresh_token'] if data['refresh_token']
+        opts[:expires_at]    = Time.now.to_i + data['expires_in'].to_i if data['expires_in']
+        data['access_token']
+      rescue RestClient::ExceptionWithResponse => e
+        raise "Anthropic OAuth refresh failed (HTTP #{e.http_code}): #{e.response&.body}"
+      end
+
+      # Supported Method Parameters::
+      # bearer = PWN::AI::Anthropic.obtain_oauth_bearer_token(
+      #   client_id:    'optional - Claude Code public client id',
+      #   scope:        'optional - space-delimited scopes',
+      #   redirect_uri: 'optional - must match registered callback',
+      #   authorize_uri:'optional - claude.ai authorize endpoint',
+      #   token_uri:    'optional - platform.claude.com token endpoint'
+      # )
+      #
+      # Runs the OAuth 2.0 Authorization Code + PKCE (S256) flow against
+      # Anthropic's public Claude Code client. The hosted redirect returns a
+      # pasteable code (code=true) so this works over SSH with no localhost
+      # listener -- same UX class as the Grok device flow.
+      public_class_method def self.obtain_oauth_bearer_token(opts = {})
+        client_id     = real_config_value?(value: opts[:client_id])     ? opts[:client_id]     : ANTHROPIC_OAUTH_CLIENT_ID
+        scope         = real_config_value?(value: opts[:scope])         ? opts[:scope]         : ANTHROPIC_OAUTH_SCOPE
+        redirect_uri  = real_config_value?(value: opts[:redirect_uri])  ? opts[:redirect_uri]  : ANTHROPIC_OAUTH_REDIRECT_URI
+        authorize_uri = real_config_value?(value: opts[:authorize_uri]) ? opts[:authorize_uri] : ANTHROPIC_OAUTH_AUTHORIZE_URI
+        token_uri     = real_config_value?(value: opts[:token_uri])     ? opts[:token_uri]     : ANTHROPIC_OAUTH_TOKEN_URI
+
+        pkce = pkce_pair
+        params = {
+          'code' => 'true',
+          'response_type' => 'code',
+          'client_id' => client_id,
+          'redirect_uri' => redirect_uri,
+          'scope' => scope,
+          'code_challenge' => pkce[:challenge],
+          'code_challenge_method' => 'S256',
+          'state' => pkce[:verifier]
+        }
+        auth_url = "#{authorize_uri}?#{URI.encode_www_form(params)}"
+
+        puts "\n[*] Anthropic / Claude OAuth -- Authorization Code + PKCE (S256, public client, no secret)"
+        puts '    A Claude Pro / Max subscription on the approving account is required for inference scope.'
+        puts ''
+        puts '    Step 1: In a browser (any device), open:'
+        puts "            #{auth_url}"
+        puts '    Step 2: Approve access for Claude Code / CLI.'
+        puts '    Step 3: Copy the authorization code shown after redirect and paste it below.'
+        puts ''
+        print '    Authorization code> '
+        raw = $stdin.gets
+        raise 'Anthropic OAuth enrollment aborted: no code provided.' if raw.nil?
+
+        # Hosted callback sometimes returns "code#state" — take the code segment only.
+        code = raw.to_s.strip.split('#', 2).first
+        raise 'Anthropic OAuth enrollment aborted: empty code.' if code.empty?
+
+        resp = RestClient.post(
+          token_uri,
+          {
+            grant_type: 'authorization_code',
+            code: code,
+            code_verifier: pkce[:verifier],
+            client_id: client_id,
+            redirect_uri: redirect_uri,
+            state: pkce[:verifier]
+          },
+          content_type: 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+          user_agent: ANTHROPIC_OAUTH_USER_AGENT
+        )
+        data = JSON.parse(resp.body)
+        raise "Anthropic OAuth token error: #{data['error']} - #{data['error_description'] || data['message']}" if data['error']
+
+        access_token  = data['access_token']
+        refresh_token = data['refresh_token']
+        raise 'Anthropic OAuth token endpoint returned no access_token.' unless access_token
+
+        opts[:bearer_token]  = access_token
+        opts[:refresh_token] = refresh_token if refresh_token
+        opts[:expires_at]    = Time.now.to_i + data['expires_in'].to_i if data['expires_in']
+
+        puts "\n[*] SUCCESS: Anthropic OAuth bearer obtained via authorization_code + PKCE."
+        puts '    Cached in-memory for this pwn / pwn-ai process.'
+        puts ''
+        puts '    TO MAKE THIS PERMANENT (recommended -- one-time), store via pwn-vault:'
+        puts "      ai.anthropic.oauth.refresh_token = #{refresh_token}" if refresh_token
+        puts "      ai.anthropic.oauth.bearer_token  = #{access_token}"
+        puts '    On future runs the refresh_token alone is enough -- PWN::AI::Anthropic will'
+        puts '    silently exchange it for a fresh access_token (no browser, no prompt).'
+        puts ''
+
+        access_token
+      rescue RestClient::ExceptionWithResponse => e
+        raise "Failed to obtain Anthropic OAuth bearer token (HTTP #{e.http_code}): #{e.response&.body}"
+      rescue StandardError => e
+        raise "Failed to obtain Anthropic OAuth bearer token: #{e.message}"
+      end
+
       # Supported Method Parameters::
       # anthropic_rest_call(
       #   token: 'required - anthropic api key',
@@ -25,10 +227,55 @@ module PWN
       # )
 
       private_class_method def self.anthropic_rest_call(opts = {})
-        engine = PWN::Env[:ai][:anthropic]
+        engine = PWN::Env[:ai][:anthropic] if defined?(PWN::Env)
         raise 'ERROR: Anthropic Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
-        token = engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Anthropic API Key')
+        # ------------------------------------------------------------------
+        # Credential resolution (PWN::Config / pwn-vault via PWN::Env).
+        # Priority:
+        #   1. oauth[:bearer_token]  (not expiring)
+        #   2. oauth[:refresh_token] (silent refresh)
+        #   3. oauth device/PKCE enroll when oauth opted-in OR no API key
+        #   4. engine[:key] (classic console API key via x-api-key)
+        #   5. interactive prompt
+        # ------------------------------------------------------------------
+        oauth = engine[:oauth].is_a?(Hash) ? engine[:oauth] : (engine[:oauth] ||= {})
+        token = nil
+        using_oauth = false
+
+        if real_config_value?(value: oauth[:bearer_token]) &&
+           !oauth_token_expiring?(token: oauth[:bearer_token], expires_at: oauth[:expires_at])
+          token = oauth[:bearer_token]
+          using_oauth = true
+        end
+
+        if token.nil? && real_config_value?(value: oauth[:refresh_token])
+          begin
+            token = refresh_oauth_bearer_token(oauth)
+            using_oauth = true
+          rescue StandardError => e
+            warn "[!] Anthropic OAuth refresh failed, falling back: #{e.message}"
+          end
+        end
+
+        oauth_opt_in = real_config_value?(value: oauth[:client_id]) ||
+                       oauth[:enroll] == true ||
+                       real_config_value?(value: oauth[:bearer_token]) ||
+                       real_config_value?(value: oauth[:refresh_token])
+
+        if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key]))
+          token = obtain_oauth_bearer_token(oauth)
+          using_oauth = true
+        end
+
+        if token.nil? && real_config_value?(value: engine[:key])
+          token = engine[:key]
+          using_oauth = false
+        end
+
+        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
+          prompt: 'Anthropic API Key (or run PWN::AI::Anthropic.obtain_oauth_bearer_token for Claude Pro/Max OAuth)'
+        )
 
         http_method = if opts[:http_method].nil?
                         :get
@@ -36,14 +283,24 @@ module PWN
                         opts[:http_method].to_s.scrub.to_sym
                       end
 
-        base_uri = engine[:base_uri] ||= 'https://api.anthropic.com/v1'
+        base_uri = real_config_value?(value: engine[:base_uri]) ? engine[:base_uri] : 'https://api.anthropic.com/v1'
         rest_call = opts[:rest_call].to_s.scrub
         params = opts[:params]
         headers = {
           content_type: 'application/json; charset=UTF-8',
-          'x-api-key': token,
           'anthropic-version': '2023-06-01'
         }
+        if using_oauth
+          beta = real_config_value?(value: oauth[:beta_flags]) ? oauth[:beta_flags] : ANTHROPIC_OAUTH_BETA_FLAGS
+          ua   = real_config_value?(value: oauth[:user_agent]) ? oauth[:user_agent] : ANTHROPIC_OAUTH_USER_AGENT
+          headers[:authorization] = "Bearer #{token}"
+          headers['anthropic-beta'] = beta
+          headers['anthropic-dangerous-direct-browser-access'] = 'true'
+          headers['user-agent'] = ua
+          headers['x-app'] = 'cli'
+        else
+          headers['x-api-key'] = token
+        end
 
         http_body = opts[:http_body]
         http_body ||= {}
@@ -475,6 +732,10 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
+
+          # One-time Claude Pro/Max OAuth enrollment (PKCE paste flow):
+          bearer = #{self}.obtain_oauth_bearer_token
+          # Subsequent runs silently refresh via ai.anthropic.oauth.refresh_token
 
           response = #{self}.chat(
             request: 'required - message to Anthropic',
