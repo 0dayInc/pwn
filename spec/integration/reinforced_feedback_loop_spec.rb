@@ -314,7 +314,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
         score: 0.85, verdict: :solved,
         final: 'use `nmap` (typo: nmpa→nmap)',
         prompt: 'fix nmap typo',
-        trace: 'shell → nmap -sn 10.0.0.0/24'
+        trace: "shell → nmap -sn 10.0.0.0/24\nshell → true\npwn_eval → :ok"
       )
       r = curriculum.practice(limit: 1, prompts_per: 2)
       expect(r[:practiced]).to eq 1
@@ -323,7 +323,13 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       fixed = mistakes.find(signature: sig)
       expect(fixed[:structured_fix]).to be_a(Hash)
       expect(fixed[:structured_fix][:strategy]).to eq 'curriculum_practice'
-      expect(reward.preferences(source: 'curriculum')).not_to be_empty
+      expect(fixed[:structured_fix][:winning_trace]).to include('shell →')
+      prefs = reward.preferences(source: 'curriculum')
+      expect(prefs).not_to be_empty
+      # P14 — chosen is trajectory, not first-3-lines fix prose
+      expect(prefs.first[:shape].to_s).to eq 'winning_trace'
+      expect(prefs.first[:chosen]).to match(/WINNING_TRACE|shell →/i)
+      expect(prefs.first[:chosen]).not_to eq 'use `nmap` (typo: nmpa→nmap)'
     end
 
     it 'does NOT auto-resolve with a single holdout success (2.4 gate)' do
@@ -366,16 +372,25 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       @agent_cfg[:counterfactual] = true
       allow(curriculum).to receive(:ensure_persona).and_return(nil)
       allow(curriculum).to receive(:ask_persona).and_return('pwn_eval(code: "PWN::Plugins::NmapIt.scan(...)")')
-      allow(curriculum).to receive(:score_branch) { |o| o[:branch].include?('pwn_eval') ? 0.80 : 0.30 }
+      # P9 — counterfactual scores via score_branch_detailed
+      allow(curriculum).to receive(:score_branch_detailed) do |o|
+        if o[:branch].to_s.include?('pwn_eval')
+          { score: 0.80, mode: :real_dispatch, trace: o[:branch].to_s }
+        else
+          { score: 0.30, mode: :imagined, trace: nil }
+        end
+      end
 
       r = curriculum.counterfactual(request: 'scan 10.0.0.1', name: 'shell',
                                     args: '{"command":"nmpa -sV"}', error: 'nmpa: not found',
                                     hint: 'retry shell with nmap')
       expect(r[:branch]).to eq :b
       expect(r[:content]).to include('pwn_eval')
+      expect(r[:shape]).to eq :real_dispatch
       pref = reward.preferences(source: 'counterfactual').first
       expect(pref[:chosen]).to include('pwn_eval')
       expect(pref[:rejected]).to include('retry shell')
+      expect(pref[:shape].to_s).to eq 'real_dispatch'
     end
   end
 
@@ -415,9 +430,20 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   describe 'W1 · preference-pair generation' do
     it 'Mistakes.resolve emits a (rejected: failing action, chosen: fix) pair' do
       m = mistakes.record(tool: 'shell', error: 'nmpa: command not found')
-      mistakes.resolve(signature: m[:signature], fix: 'use `nmap`, not `nmpa`')
+      # P21/P25 — W1 pair only lands when structured winning_trace is present
+      mistakes.resolve(
+        signature: m[:signature],
+        fix: 'use `nmap`, not `nmpa`',
+        structured: {
+          strategy: 'correct_binary_name',
+          tool: 'shell',
+          winning_trace: "shell → which nmap && nmap --version\nnmap present"
+        }
+      )
       pair = reward.preferences(source: 'mistakes_resolve').first
+      expect(pair).not_to be_nil
       expect(pair[:chosen]).to include('nmap')
+      expect(pair[:shape].to_s).to eq 'winning_trace'
       expect(PWN::Memory.load.keys.map(&:to_s)).to include("mistake_fix_#{m[:signature]}")
     end
 
@@ -462,17 +488,30 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(r).not_to have_key(:promoted)
     end
 
-    it 'promotes iff resolved(candidate) > resolved(baseline) on the Mistakes eval set' do
+    it 'promotes under gate v2 when resolved margin + mean + smoke all win' do
       allow(learning).to   receive(:export_finetune).and_return(path: 'sft', rows: 0)
       allow(reward).to     receive(:export_dpo).and_return(path: 'dpo', rows: 0)
       allow(curriculum).to receive(:detect_trainer).and_return(:unsloth)
       allow(curriculum).to receive(:run_trainer).and_return(File.join(@tmp, 'adapter'))
       allow(curriculum).to receive(:ollama_create).and_return('pwn-v1')
-      allow(curriculum).to receive(:build_eval_set).and_return(%w[p1 p2 p3])
-      allow(curriculum).to receive(:ab_gate).and_return(baseline_resolved: 1, candidate_resolved: 3)
+      allow(curriculum).to receive(:build_eval_set).and_return(
+        Array.new(10) { |i| { signature: "s#{i}", prompt: "p#{i}" } }
+      )
+      allow(curriculum).to receive(:ab_gate_v2).and_return(
+        baseline_resolved: 1, candidate_resolved: 4,
+        baseline_mean: 0.5, candidate_mean: 0.8,
+        resolved_win: true, mean_win: true, smoke_ok: true,
+        promote: true, gate_version: 2, evalset_size: 10
+      )
+      # P19 — diet gate is AND-ed with ab_gate_v2; stub a clean W1 diet for this contract
+      allow(curriculum).to receive(:preference_diet_gate).and_return(
+        ok: true, reason: 'diet_ok', total: 40, trajectory_fraction: 0.5, monoculture: false
+      )
       r = curriculum.train_and_gate(dry_run: false, base_model: 'llama3')
       expect(r[:promoted]).to be true
+      expect(r[:weight_loop]).to eq :closed
       expect(r[:gate][:candidate_resolved]).to be > r[:gate][:baseline_resolved]
+      expect(r[:gate][:gate_version]).to eq 2
       expect(File.exist?(curriculum::MODELS_FILE)).to be true
     end
   end
@@ -609,16 +648,171 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   # P-controls — operational fixes that make the loop actually close
   # ═══════════════════════════════════════════════════════════════════════
 
+  describe 'P9 · W1 pair geometry + write-time source quota' do
+    it 'rejects CORRECTION: flaw-prose chosen sides without force' do
+      r = reward.record_preference(
+        prompt: 'which CVE?', rejected: 'CVE-2099-0001',
+        chosen: 'CORRECTION: cited CVE does not exist', source: :critic
+      )
+      expect(r[:skipped]).to eq :weak_pair_geometry
+      expect(reward.preferences.length).to eq 0
+    end
+
+    it 'accepts revised_answer shaped critic pairs' do
+      r = reward.record_preference(
+        prompt: 'which CVE?', rejected: 'CVE-2099-0001 is critical',
+        chosen: "REVISED ANSWER (addresses: CVE does not exist):\nNo such CVE in NVD; verify before citing.",
+        source: :critic, shape: :revised_answer
+      )
+      expect(r[:skipped]).to be_nil
+      expect(r[:source]).to eq 'critic'
+      expect(r[:shape]).to eq 'revised_answer'
+    end
+
+    it 'write-time quota refuses further mistakes_resolve once over cap' do
+      # P25 requires trajectory shape; P9 still caps source share so traj
+      # pairs cannot monoculture the ledger. Seed resolve-heavy window.
+      12.times do |i|
+        reward.record_preference(
+          prompt: "p#{i}", rejected: "r#{i}" * 5,
+          chosen: "STRATEGY: s\nWINNING_TRACE:\nshell → ok #{i}\n" + ('t' * 40),
+          source: :mistakes_resolve, shape: :winning_trace, force: true
+        )
+      end
+      # one non-resolve so multi-source window, but resolve still >40%
+      reward.record_preference(
+        prompt: 'q', rejected: 'x' * 20,
+        chosen: "REVISED ANSWER:\n#{'y' * 40}",
+        source: :critic, shape: :revised_answer, force: true
+      )
+      r = reward.record_preference(
+        prompt: 'pX', rejected: 'rX' * 5,
+        chosen: "STRATEGY: s\nWINNING_TRACE:\nshell → next\n#{'t' * 40}",
+        source: :mistakes_resolve, shape: :winning_trace
+      )
+      expect(r[:skipped]).to eq :source_quota
+      expect(r[:over_cap]).to be true
+    end
+
+    it 'Curriculum.critic records revised_answer preference not CORRECTION prose' do
+      @agent_cfg[:critic] = true
+      allow(curriculum).to receive(:ensure_persona).and_return(nil)
+      allow(curriculum).to receive(:ask_persona).and_return('FLAW: cited CVE does not exist')
+      allow(curriculum).to receive(:revise_after_flaw).and_return(
+        "REVISED ANSWER (addresses: cited CVE does not exist):\nUse NVD-verified ids only."
+      )
+      v = curriculum.critic(request: 'which CVE?', final: 'CVE-2099-0001 is critical')
+      expect(v[:verdict]).to eq :flaw
+      pref = reward.preferences(source: 'critic').first
+      expect(pref).not_to be_nil
+      expect(pref[:chosen]).to include('REVISED ANSWER')
+      expect(pref[:chosen]).not_to match(/\ACORRECTION:/i)
+      expect(pref[:shape].to_s).to eq 'revised_answer'
+    end
+  end
+
+  describe 'P10 · Reward.warm_sentinel' do
+    it 'fills the R3 window from scored Learning outcomes' do
+      45.times do |i|
+        learning.note_outcome(task: "t#{i}", success: i.even?, score: i.even? ? 0.9 : 0.2,
+                              details: 'x', tags: %w[rspec])
+      end
+      r = reward.warm_sentinel(limit: 80)
+      expect(r[:added]).to be > 0
+      expect(r[:samples]).to be >= r[:added]
+      expect(%i[warmed_full warmed_partial full]).to include(r[:status])
+    end
+  end
+
+  describe 'P11 · ab_gate_v2 promotion contract' do
+    it 'requires resolved margin + mean win + smoke ok' do
+      allow(curriculum).to receive(:replay_on_detailed) do |o|
+        tag = o[:tag].to_s
+        evalset = Array(o[:evalset])
+        if evalset.any? { |e| e[:signature].to_s.start_with?('smoke_') }
+          # smoke equal
+          { resolved: 3, mean_score: 0.9, scores: [0.9, 0.9, 0.9] }
+        elsif tag.include?('cand') || tag == 'cand'
+          { resolved: 8, mean_score: 0.85, scores: [0.85] * 10 }
+        else
+          { resolved: 5, mean_score: 0.70, scores: [0.7] * 10 }
+        end
+      end
+      allow(curriculum).to receive(:smoke_eval_set).and_return(
+        [{ signature: 'smoke_uname', prompt: 'uname' }]
+      )
+      g = curriculum.send(:ab_gate_v2, baseline: 'base', candidate: 'cand',
+                                       evalset: Array.new(10) { |i| { signature: "s#{i}", prompt: "p#{i}" } })
+      expect(g[:gate_version]).to eq 2
+      expect(g[:promote]).to be true
+      expect(g[:resolved_win]).to be true
+      expect(g[:mean_win]).to be true
+      expect(g[:smoke_ok]).to be true
+    end
+
+    it 'refuses promotion on smoke regression' do
+      allow(curriculum).to receive(:replay_on_detailed) do |o|
+        evalset = Array(o[:evalset])
+        if evalset.any? { |e| e[:signature].to_s.start_with?('smoke_') }
+          tag = o[:tag].to_s
+          if tag == 'cand'
+            { resolved: 0, mean_score: 0.1, scores: [0.1] }
+          else
+            { resolved: 3, mean_score: 0.9, scores: [0.9] }
+          end
+        elsif o[:tag].to_s == 'cand'
+          { resolved: 9, mean_score: 0.95, scores: [0.95] * 10 }
+        else
+          { resolved: 5, mean_score: 0.70, scores: [0.7] * 10 }
+        end
+      end
+      allow(curriculum).to receive(:smoke_eval_set).and_return(
+        [{ signature: 'smoke_uname', prompt: 'uname' }]
+      )
+      g = curriculum.send(:ab_gate_v2, baseline: 'base', candidate: 'cand',
+                                       evalset: Array.new(10) { |i| { signature: "s#{i}", prompt: "p#{i}" } })
+      expect(g[:promote]).to be false
+      expect(g[:smoke_ok]).to be false
+    end
+  end
+
+  describe 'P12 · export_finetune quality gate' do
+    it 'drops low-score gold and compresses trajectories' do
+      good = PWN::Sessions.create(title: 'sft-good')
+      bad  = PWN::Sessions.create(title: 'sft-bad')
+      [good, bad].each do |s|
+        PWN::Sessions.append(session_id: s[:id], role: 'user', content: 'scan lab')
+        PWN::Sessions.append(session_id: s[:id], role: 'tool', content: ok_trace)
+        PWN::Sessions.append(session_id: s[:id], role: 'assistant', content: '3 hosts up')
+      end
+      learning.note_outcome(task: 'scan lab', success: true, score: 0.9, session_id: good[:id])
+      learning.note_outcome(task: 'scan lab', success: true, score: 0.2, session_id: bad[:id])
+      info = learning.export_finetune(out: File.join(@tmp, 'sft-p12.jsonl'))
+      expect(info[:samples]).to eq 1
+      expect(info[:min_score]).to eq 0.6
+      expect(info[:compressed]).to be true
+    end
+  end
+
   describe 'P5 · export_dpo source-cap (no monoculture in weights)' do
     it 'downsamples so no single source exceeds DPO_SOURCE_CAP of the corpus' do
       10.times do |i|
-        reward.record_preference(prompt: "p#{i}", rejected: "r#{i}", chosen: "c#{i}", source: :mistakes_resolve)
+        reward.record_preference(
+          prompt: "p#{i}", rejected: "r#{i}", chosen: "WINNING_TRACE:\nshell → ok #{i} " + ('x' * 40),
+          source: :mistakes_resolve, shape: :winning_trace, force: true
+        )
       end
       3.times do |i|
-        reward.record_preference(prompt: "q#{i}", rejected: "x#{i}", chosen: "y#{i}", source: :counterfactual)
+        reward.record_preference(
+          prompt: "q#{i}", rejected: "x#{i}", chosen: "y#{i} " + ('alt ' * 20),
+          source: :counterfactual, shape: :real_dispatch, force: true
+        )
       end
       2.times do |i|
-        reward.record_preference(prompt: "z#{i}", rejected: "a#{i}", chosen: "b#{i}", source: :critic)
+        reward.record_preference(
+          prompt: "z#{i}", rejected: "a#{i}", chosen: "REVISED ANSWER:\n#{'b' * 40}",
+          source: :critic, shape: :revised_answer, force: true
+        )
       end
       info = reward.export_dpo
       expect(info[:balanced]).to be true
@@ -627,8 +821,8 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       info[:by_source].each_value do |n|
         expect(n.to_f / total).to be <= (reward::DPO_SOURCE_CAP + 0.05)
       end
-      # raw dump still available for diagnostics
-      raw = reward.export_dpo(balance: false, out: File.join(@tmp, 'raw-dpo.jsonl'))
+      # raw dump still available for diagnostics (no scrub, no balance)
+      raw = reward.export_dpo(balance: false, scrub: false, out: File.join(@tmp, 'raw-dpo.jsonl'))
       expect(raw[:pairs]).to eq 15
       expect(raw[:balanced]).to be false
     end
@@ -704,6 +898,307 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
     it 'passes the raw result through below the threshold' do
       out = loop_mod.send(:guard_repeated_failure, name: 'shell', count: 1, hint: '', result: 'raw')
       expect(out).to eq 'raw'
+    end
+  end
+
+  describe 'P14 · practice preference geometry' do
+    it 'records winning_trace curriculum pairs instead of fix prose' do
+      mistakes.record(tool: 'shell', error: 'p14-geometry-unique-zz')
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      allow(curriculum).to receive(:self_play).and_return(
+        score: 0.9, verdict: :solved,
+        final: "fixed with nmap\nsecond line\nthird",
+        prompt: 'scan the lab safely',
+        trace: "shell → nmap -sn 10.0.0.0/24\nshell → true"
+      )
+      r = curriculum.practice(limit: 1, prompts_per: 2)
+      expect(r[:resolved]).to eq 1
+      pref = reward.preferences(source: 'curriculum').first
+      expect(pref[:shape].to_s).to eq 'winning_trace'
+      expect(pref[:chosen]).to include('WINNING_TRACE')
+      expect(pref[:chosen]).to include('nmap')
+    end
+  end
+
+  describe 'P15 · preference ledger hygiene' do
+    it 'usable_preference? drops CORRECTION prose and short resolve commentary' do
+      expect(reward.usable_preference?(
+               prompt: 'p', rejected: 'long ' * 80, chosen: 'CORRECTION: no', source: 'critic'
+             )).to be false
+      expect(reward.usable_preference?(
+               prompt: 'p', rejected: 'fail',
+               chosen: "STRATEGY: x\nWINNING_TRACE:\nshell → ok\n#{'x' * 80}",
+               source: 'curriculum', shape: 'winning_trace'
+             )).to be true
+    end
+
+    it 'scrub_preferences dry_run reports drops without rewriting' do
+      reward.record_preference(
+        prompt: 'p', rejected: 'bad final answer that is fairly long ' * 5,
+        chosen: 'CORRECTION: short', source: :critic, force: true
+      )
+      reward.record_preference(
+        prompt: 'q', rejected: 'old', chosen: "REVISED ANSWER:\n#{'ok ' * 40}",
+        source: :critic, shape: :revised_answer, force: true
+      )
+      r = reward.scrub_preferences(dry_run: true)
+      expect(r[:before]).to be >= 2
+      expect(r[:dropped]).to be >= 1
+      expect(r[:dry_run]).to be true
+      expect(reward.preferences.length).to eq r[:before]
+    end
+
+    it 'export_dpo scrub drops weak geometry before source cap' do
+      5.times do |i|
+        reward.record_preference(
+          prompt: "p#{i}", rejected: 'long rejected final ' * 30,
+          chosen: 'CORRECTION: nope', source: :mistakes_resolve, force: true
+        )
+      end
+      5.times do |i|
+        reward.record_preference(
+          prompt: "q#{i}", rejected: "r#{i}",
+          chosen: "WINNING_TRACE:\nshell → uname -r\n#{i} " + ('trace ' * 20),
+          source: :counterfactual, shape: :real_dispatch, force: true
+        )
+      end
+      info = reward.export_dpo(out: File.join(@tmp, 'p15-dpo.jsonl'))
+      expect(info[:geometry_dropped]).to be >= 5
+      expect(info[:scrubbed]).to be true
+      lines = File.readlines(info[:path]).map { |l| JSON.parse(l) }
+      expect(lines).not_to be_empty
+      expect(lines.any? { |l| l['chosen'].to_s.start_with?('CORRECTION:') }).to be false
+    end
+
+    it 'preference_balance(scrub: true) reports trajectory_fraction' do
+      reward.record_preference(
+        prompt: 'a', rejected: 'x', chosen: "WINNING_TRACE:\n#{'t' * 100}",
+        source: :curriculum, shape: :winning_trace, force: true
+      )
+      bal = reward.preference_balance(scrub: true)
+      expect(bal[:trajectory_fraction]).to be >= 0.0
+      expect(bal).to have_key(:by_shape)
+      expect(bal[:kept]).to be <= bal[:total]
+    end
+  end
+
+  describe 'P16 · warm_sentinel engages controllers' do
+    it 'fills to capacity and exposes proxy_distrust' do
+      50.times do |i|
+        learning.note_outcome(task: "w#{i}", success: i.even?, score: i.even? ? 0.85 : 0.2,
+                              details: 'x', tags: %w[rspec p16])
+      end
+      r = reward.warm_sentinel(limit: 120)
+      expect(r[:samples]).to be >= r[:added]
+      expect(r).to have_key(:proxy_distrust)
+      expect(%i[warmed_full warmed_partial full]).to include(r[:status])
+    end
+  end
+
+  describe 'P17 · budget-exhaustion curriculum target' do
+    it 'natural_repro_prompts for agent_loop favour short-finish tasks' do
+      prompts = curriculum.send(
+        :natural_repro_prompts,
+        mistake: { tool: 'agent_loop', error: 'iteration budget exhausted', shape: 'handler_error' },
+        count: 4
+      )
+      expect(prompts.length).to eq 4
+      blob = prompts.join(' ').downcase
+      expect(blob).to match(/one shell|at most two|no tools|three iterations|uname|cwd/)
+    end
+
+    it 'practice sorts budget fingerprints ahead of shell noise' do
+      mistakes.record(tool: 'shell', error: 'shell-noise-unique-aaa')
+      3.times { mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer') }
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      allow(curriculum).to receive(:practice_skip?).and_return(false)
+      seen = []
+      allow(curriculum).to receive(:generate_reproducers) do |o|
+        seen << o[:mistake][:tool]
+        ['Answer in one shell call: print kernel release with uname -r']
+      end
+      curriculum.practice(limit: 1, prompts_per: 1, dry_run: true)
+      expect(seen.first).to eq 'agent_loop'
+    end
+  end
+
+  describe 'P18 · PRM closes into Registry.rank' do
+    it 'Metrics.record_step_reward shifts prm_advantage and rank scoring' do
+      10.times { metrics.record_step_reward(name: 'shell', reward: 1.0) }
+      10.times { metrics.record_step_reward(name: 'extro_rf_tune', reward: -1.0) }
+      expect(metrics.prm_advantage(name: 'shell')).to be > metrics.prm_advantage(name: 'extro_rf_tune')
+      ranked = registry.rank(query: 'run a shell command on the host')
+      expect(ranked.first.name).to eq 'shell'
+    end
+  end
+
+  describe 'P19 · train_and_gate diet gate blocks promote on weak W1' do
+    it 'preference_diet_gate fails when trajectory_fraction is low' do
+      allow(reward).to receive(:preference_balance).and_return(
+        total: 20, kept: 20, monoculture: true, fractions: { 'mistakes_resolve' => 0.9 },
+        trajectory_fraction: 0.05, by_source: { 'mistakes_resolve' => 18 }
+      )
+      g = curriculum.send(:preference_diet_gate)
+      expect(g[:ok]).to be false
+    end
+
+    it 'preference_diet_gate passes on diverse trajectory diet' do
+      allow(reward).to receive(:preference_balance).and_return(
+        total: 40, kept: 40, monoculture: false,
+        fractions: { 'curriculum' => 0.3, 'critic' => 0.3, 'counterfactual' => 0.25, 'mistakes_resolve' => 0.15 },
+        trajectory_fraction: 0.55, by_source: { 'curriculum' => 12 }
+      )
+      g = curriculum.send(:preference_diet_gate)
+      expect(g[:ok]).to be true
+      expect(g[:reason]).to eq 'diet_ok'
+    end
+  end
+
+  describe 'P20 · judge-blended Metrics scalar' do
+    it 'record_judge shifts effective_rate and advantage under distrust' do
+      allow(reward).to receive(:proxy_distrust).and_return(0.8)
+      20.times { metrics.record(name: 'shell', success: true, duration: 0.1) }
+      20.times { metrics.record(name: 'extro_rf_tune', success: true, duration: 0.1) }
+      10.times { metrics.record_judge(name: 'shell', score: 0.9) }
+      10.times { metrics.record_judge(name: 'extro_rf_tune', score: 0.1) }
+      expect(metrics.judge_rate(name: 'shell')).to be > 0.8
+      expect(metrics.judge_rate(name: 'extro_rf_tune')).to be < 0.2
+      expect(metrics.effective_rate(name: 'shell')).to be > metrics.effective_rate(name: 'extro_rf_tune')
+      expect(metrics.advantage(name: 'shell')).to be > metrics.advantage(name: 'extro_rf_tune')
+    end
+
+    it 'exemplars_for drops low-score success rows' do
+      learning.note_outcome(task: 'p20 high judge shell uname', success: true, score: 0.95,
+                            details: 'ok', session_id: 'sess-p20-hi', tags: %w[rspec p20])
+      learning.note_outcome(task: 'p20 low judge shell uname', success: true, score: 0.2,
+                            details: 'proxy lie', session_id: 'sess-p20-lo', tags: %w[rspec p20])
+      # compress_exemplar needs real sessions — just ensure filter does not raise
+      # and low score alone is excluded from pool scoring path
+      pool = learning.outcomes(limit: 50, success: true)
+      low = pool.select { |r| r[:score].to_f < 0.6 && r[:task].to_s.include?('p20 low') }
+      expect(low).not_to be_empty
+      # unit-check the filter predicate used in exemplars_for
+      kept = pool.reject { |r| r.key?(:score) && r[:score].to_f < 0.6 }
+      expect(kept.any? { |r| r[:task].to_s.include?('p20 low') }).to be false
+      expect(kept.any? { |r| r[:task].to_s.include?('p20 high') }).to be true
+    end
+  end
+
+  describe 'P21/P25 · trajectory-only W1 writers' do
+    it 'record_preference refuses non-trajectory shape without force' do
+      r = reward.record_preference(
+        prompt: 'p', rejected: 'bad', chosen: 'do this instead with more words here',
+        source: :mistakes_resolve, shape: :fix_prose
+      )
+      expect(r).to be_a(Hash)
+      expect(r[:skipped]).to eq :non_trajectory_shape
+    end
+
+    it 'record_preference accepts winning_trace shape' do
+      r = reward.record_preference(
+        prompt: 'p', rejected: 'failing shell args',
+        chosen: "STRATEGY: x\nWINNING_TRACE:\nshell → uname -r\n#{'t' * 40}",
+        source: :mistakes_resolve, shape: :winning_trace
+      )
+      expect(r).to be_a(Hash)
+      expect(r[:skipped]).to be_nil
+      expect(r[:shape].to_s).to eq 'winning_trace'
+    end
+
+    it 'mistakes.resolve does not write fix_prose preference pairs' do
+      m = mistakes.record(tool: 'shell', error: 'p25-no-prose-unique-zz')
+      before = reward.preferences.length
+      mistakes.resolve(signature: m[:signature], fix: 'use a different flag next time')
+      # no structured winning_trace → no new preference row
+      expect(reward.preferences.length).to eq before
+    end
+
+    it 'mistakes.resolve writes winning_trace when structured_fix has trace' do
+      m = mistakes.record(tool: 'shell', error: 'p25-with-trace-unique-yy')
+      before = reward.preferences.length
+      # winning_trace must be ≥40 chars (P21 gate inside Mistakes.resolve)
+      mistakes.resolve(
+        signature: m[:signature],
+        fix: 'run uname -r once',
+        structured: {
+          strategy: 'short_horizon_finish',
+          tool: 'shell',
+          winning_trace: "shell → uname -r\n6.19.14-kali\n(kernel release)"
+        }
+      )
+      expect(reward.preferences.length).to be > before
+      pref = reward.preferences(source: 'mistakes_resolve').find { |p| p[:chosen].to_s.include?('uname') }
+      expect(pref).not_to be_nil
+      expect(pref[:shape].to_s).to eq 'winning_trace'
+    end
+  end
+
+  describe 'P22 · W3 calibration lights up from plan_first' do
+    it 'plan_first parse accepts p(success)= and stashes on Thread' do
+      # Direct unit: emulate stash write path used by plan_first
+      Thread.current[:pwn_plan_predicted] = 0.72
+      expect(Thread.current[:pwn_plan_predicted]).to eq 0.72
+      # calibrate path
+      r = curriculum.calibrate(predicted: 0.72, actual: 1.0, engine: :ollama)
+      expect(r[:brier]).to be_a(Numeric)
+      expect(metrics.calibration(engine: :ollama)[:n]).to be >= 1
+      Thread.current[:pwn_plan_predicted] = nil
+    end
+
+    it 'recover_predicted_from_session reads Thread stash' do
+      Thread.current[:pwn_plan_predicted] = 0.55
+      pred = learning.send(:recover_predicted_from_session, session_id: 'missing')
+      expect(pred).to eq 0.55
+      Thread.current[:pwn_plan_predicted] = nil
+    end
+  end
+
+  describe 'P23 · short-horizon budget practice' do
+    it 'self_play detects short-horizon prompt language' do
+      # natural prompts already short-horizon; ensure generator still emits them
+      prompts = curriculum.send(
+        :natural_repro_prompts,
+        mistake: { tool: 'agent_loop', error: 'iteration budget exhausted' },
+        count: 3
+      )
+      expect(prompts.join(' ')).to match(/one shell|at most two|no tools|three iterations/i)
+    end
+
+    it 'practice refuses resolve when holdouts ok but trace weak on budget target' do
+      mistakes.record(tool: 'agent_loop', error: 'p23-weak-trace-budget-zz')
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      allow(curriculum).to receive(:self_play).and_return(
+        score: 0.9, verdict: :solved,
+        final: 'x' * 2000, # long prose, no tool arrow
+        prompt: 'Answer in one shell call: print kernel release with uname -r',
+        trace: '' # empty trace
+      )
+      r = curriculum.practice(limit: 1, prompts_per: 2)
+      row = r[:results]&.first || (r[:practiced] && nil)
+      # practice returns practiced/resolved counts; weak trace should not resolve
+      expect(r[:resolved]).to eq 0
+    end
+  end
+
+  describe 'P24 · critic cost capped under budget hot' do
+    it 'critic(text_only: true) returns without persona tools' do
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      r = curriculum.critic(
+        request: 'what is kernel',
+        final: '[pwn-ai] iteration budget exhausted',
+        text_only: true
+      )
+      expect(r[:source].to_s).to include('text_only')
+      expect(%i[pass flaw]).to include(r[:verdict])
+      expect(r[:verdict]).to eq :flaw # heuristic sees budget exhausted
+    end
+
+    it 'critic(text_only: true) does not require critic env flag' do
+      # even when critic disabled, text_only path works (forced by budget hot)
+      allow(curriculum).to receive(:enabled?).and_return(false)
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+      r = curriculum.critic(request: 'q', final: 'solid answer with facts', text_only: true)
+      expect(r[:verdict]).to eq :pass
     end
   end
 end

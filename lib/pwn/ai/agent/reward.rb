@@ -297,6 +297,58 @@ module PWN
           { cleared: true, path: SENTINEL_FILE }
         end
 
+        # P10 — backfill the R3 ring from Learning outcomes so offline/local
+        # hosts reach SENTINEL_WINDOW without waiting for live remote
+        # introspect. Only fills empty slots; never flushes a warm window.
+        # Called by Curriculum.offline_judge and safe to cron.
+        public_class_method def self.warm_sentinel(opts = {})
+          s = normalize_sentinel(raw: load_sentinel)
+          have = Array(s[:window]).length
+          return { added: 0, samples: have, status: :full, proxy_distrust: proxy_distrust } if have >= SENTINEL_WINDOW
+          return { added: 0, samples: have, status: :no_learning, proxy_distrust: proxy_distrust } unless defined?(Learning)
+
+          need = SENTINEL_WINDOW - have
+          limit = (opts[:limit] || [need * 4, 200].max).to_i
+          # Prefer scored rows; fall back to success-boolean so local hosts still warm.
+          rows = Learning.outcomes(limit: limit)
+          scored, unscored = rows.partition { |r| !r[:score].nil? }
+          ordered = scored.reverse + unscored.reverse
+          added = 0
+          ordered.each do |r|
+            break if added >= need
+
+            judge = if r[:score]
+                      r[:score].to_f.clamp(0.0, 1.0)
+                    else
+                      case r[:success]
+                      when true, 'true' then 0.75
+                      when 'soft' then 0.55
+                      when false, 'false' then 0.25
+                      else 0.5
+                      end
+                    end
+            proxy = case r[:success]
+                    when true, 'true' then true
+                    when false, 'false', 'soft' then false
+                    else judge >= 0.6
+                    end
+            record_sentinel(proxy: proxy, judge: judge)
+            added += 1
+          end
+          final_n = Array(load_sentinel[:window]).length
+          # Recompute distrust once window is full so controllers can engage.
+          snap = final_n >= SENTINEL_WINDOW ? sentinel : { samples: final_n, status: :insufficient }
+          {
+            added: added,
+            samples: final_n,
+            status: (final_n >= SENTINEL_WINDOW ? :warmed_full : :warmed_partial),
+            proxy_distrust: proxy_distrust,
+            sentinel: snap.is_a?(Hash) ? snap.slice(:samples, :status, :reward_hacked, :proxy_distrust, :proxy, :judge) : nil
+          }
+        rescue StandardError => e
+          { added: 0, error: "#{e.class}: #{e.message}" }
+        end
+
         # ----------------------------------------------------------------
         # R4 — Structured tool-result classifier
         # ----------------------------------------------------------------
@@ -408,6 +460,16 @@ module PWN
         #   source: 'optional - :user_correction | :mistakes_resolve | :counterfactual | :critic'
         # )
 
+        # Trajectory-shaped chosen sides that may land DPO without prose flood.
+        TRAJECTORY_SHAPES = %w[winning_trace revised_answer real_dispatch].freeze
+
+        # P9 — write-time source quota (not only export). Prefer diverse online
+        # generators over resolve-prose flood. Window is last WRITE_SOURCE_WINDOW
+        # pairs; a source already above WRITE_SOURCE_CAP is refused unless
+        # force: true (user_correction always forces).
+        WRITE_SOURCE_CAP    = 0.40
+        WRITE_SOURCE_WINDOW = 100
+
         public_class_method def self.record_preference(opts = {})
           prompt   = opts[:prompt].to_s
           rejected = opts[:rejected].to_s
@@ -415,18 +477,192 @@ module PWN
           return nil if prompt.strip.empty? || chosen.strip.empty? || rejected.strip.empty?
           return nil if chosen.strip == rejected.strip
 
+          # Reject weak pair geometry: CORRECTION: flaw-prose is not a trajectory.
+          return { skipped: :weak_pair_geometry, reason: 'chosen looks like flaw prose, not a revised answer/trace' } if chosen.match?(/\A\s*CORRECTION:\s*/i) && chosen.length < 400 && !opts[:force]
+
+          source = (opts[:source] || :unknown).to_s
+          shape  = opts[:shape].to_s
+          # P25 — require trajectory shape at write time unless force / user_correction.
+          # Stops resolve-prose flood from ever landing in the ledger; export scrub
+          # is defense-in-depth, not the primary gate.
+          traj = TRAJECTORY_SHAPES.include?(shape)
+          # P25 — non-trajectory prose never lands (export scrub is defense-in-depth).
+          # user_correction and explicit force: still allowed for human / migration paths.
+          unless traj || opts[:force] || source == 'user_correction'
+            return {
+              skipped: :non_trajectory_shape,
+              reason: "shape=#{shape.inspect} not in #{TRAJECTORY_SHAPES.join(',')}; pass force:true or a trajectory shape",
+              source: source
+            }
+          end
+          # P9 — write-time source quota still applies to trajectory pairs.
+          # P25 made every auto-written row trajectory-shaped; if traj also
+          # bypassed the quota, resolve monoculture would return via winning_trace
+          # flood. Only user_correction and explicit force:true skip the cap.
+          bypass_quota = opts[:force] || source == 'user_correction'
+          unless bypass_quota
+            quota = write_source_quota(source: source)
+            return quota.merge(skipped: :source_quota) if quota[:over_cap]
+          end
+
           entry = {
             id: Digest::SHA256.hexdigest("#{prompt}|#{rejected}|#{chosen}")[0, 12],
             prompt: prompt[0, 4_000],
             rejected: rejected[0, 4_000],
             chosen: chosen[0, 4_000],
-            source: (opts[:source] || :unknown).to_s,
+            source: source,
             engine: (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s,
             timestamp: Time.now.utc.iso8601
           }
+          entry[:meta] = opts[:meta] if opts[:meta].is_a?(Hash)
+          entry[:shape] = opts[:shape].to_s if opts[:shape]
           FileUtils.mkdir_p(File.dirname(PREFERENCES_FILE))
           File.open(PREFERENCES_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
           entry
+        end
+
+        # Share of `source` among the newest WRITE_SOURCE_WINDOW prefs.
+        public_class_method def self.write_source_quota(opts = {})
+          source = opts[:source].to_s
+          recent = preferences(limit: WRITE_SOURCE_WINDOW)
+          return { over_cap: false, share: 0.0, n: 0, window: recent.length } if recent.length < 10
+
+          n = recent.count { |r| r[:source].to_s == source }
+          share = n.to_f / recent.length
+          {
+            over_cap: share > WRITE_SOURCE_CAP,
+            share: share.round(3),
+            n: n,
+            window: recent.length,
+            source: source,
+            cap: WRITE_SOURCE_CAP
+          }
+        rescue StandardError
+          { over_cap: false, share: 0.0 }
+        end
+
+        # P15 — keep only usable preference pairs for balance/export/promote.
+        # Drops CORRECTION-only chosen, resolve rows without trajectory shape,
+        # and chosen≪rejected unless shape is a known trajectory form.
+        public_class_method def self.usable_preference?(opts = {})
+          r = opts.is_a?(Hash) && opts.key?(:row) ? opts[:row] : opts
+          r = r.transform_keys(&:to_sym) if r.respond_to?(:transform_keys)
+          chosen = r[:chosen].to_s
+          rejected = r[:rejected].to_s
+          shape = r[:shape].to_s
+          source = r[:source].to_s
+          return false if chosen.strip.empty? || rejected.strip.empty?
+          return false if chosen.strip == rejected.strip
+          return false if chosen.match?(/\A\s*CORRECTION:\s*/i) && chosen.length < 400
+          return false if shape == 'fix_prose'
+          # P25 — resolve rows must be trajectory-shaped to count as usable
+          return false if source == 'mistakes_resolve' && !TRAJECTORY_SHAPES.include?(shape)
+
+          # chosen ≪ rejected without trajectory shape → commentary, not policy
+          unless TRAJECTORY_SHAPES.include?(shape)
+            return false if rejected.length >= 200 && chosen.length < (rejected.length * 0.25) && chosen.length < 200
+            return false if rejected.length >= 400 && chosen.length < 120
+          end
+          true
+        rescue StandardError
+          false
+        end
+
+        # P15 — one-shot ledger hygiene. Filters in place (rewrite jsonl) or
+        # report-only. Returns {before:, after:, dropped:, by_reason:, path:}.
+        public_class_method def self.scrub_preferences(opts = {})
+          dry = opts.key?(:dry_run) ? opts[:dry_run] : false
+          path = PREFERENCES_FILE
+          return { before: 0, after: 0, dropped: 0, dry_run: dry, path: path } unless File.exist?(path)
+
+          raw = File.readlines(path)
+          kept = []
+          reasons = Hash.new(0)
+          raw.each do |line|
+            begin
+              r = JSON.parse(line, symbolize_names: true)
+            rescue StandardError
+              reasons[:parse_error] += 1
+              next
+            end
+            if usable_preference?(row: r)
+              kept << r
+            else
+              why = if r[:chosen].to_s.match?(/\A\s*CORRECTION:\s*/i)
+                      :correction_prose
+                    elsif r[:shape].to_s == 'fix_prose'
+                      :fix_prose
+                    elsif r[:chosen].to_s.length < (r[:rejected].to_s.length * 0.25)
+                      :chosen_too_short
+                    else
+                      :weak_geometry
+                    end
+              reasons[why] += 1
+            end
+          end
+          unless dry
+            bak = "#{path}.bak-p15-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}"
+            FileUtils.cp(path, bak)
+            File.open(path, 'w') { |f| kept.each { |r| f.puts(JSON.generate(r)) } }
+          end
+          {
+            before: raw.length,
+            after: kept.length,
+            dropped: raw.length - kept.length,
+            by_reason: reasons,
+            dry_run: dry,
+            path: path,
+            backup: dry ? nil : bak
+          }
+        rescue StandardError => e
+          { error: "#{e.class}: #{e.message}" }
+        end
+
+        # P15/P5 — geometry-aware source mix. scrub:true uses usable_preference?
+        # so operators see the post-hygiene diet (what export_dpo will train on).
+        public_class_method def self.preference_balance(opts = {})
+          limit = opts[:limit] || 10_000
+          scrub = opts.key?(:scrub) ? opts[:scrub] : false
+          rows = preferences(limit: limit)
+          before = rows.length
+          rows = rows.select { |r| usable_preference?(row: r) } if scrub
+          by = Hash.new(0)
+          by_shape = Hash.new(0)
+          rows.each do |r|
+            by[r[:source].to_s] += 1
+            sh = r[:shape].to_s
+            sh = 'unspecified' if sh.empty?
+            by_shape[sh] += 1
+          end
+          total = rows.length
+          frac = by.transform_values { |n| total.zero? ? 0.0 : (n.to_f / total).round(3) }
+          shape_frac = by_shape.transform_values { |n| total.zero? ? 0.0 : (n.to_f / total).round(3) }
+          traj_n = rows.count { |r| TRAJECTORY_SHAPES.include?(r[:shape].to_s) }
+          traj_frac = total.zero? ? 0.0 : (traj_n.to_f / total).round(3)
+          monoculture = total.positive? && (by.values.max.to_f / total) > 0.7
+          {
+            total: before,
+            kept: total,
+            scrubbed: scrub,
+            dropped: before - total,
+            by_source: by,
+            fractions: frac,
+            by_shape: by_shape,
+            by_shape_fraction: shape_frac,
+            trajectory_fraction: traj_frac,
+            monoculture: monoculture,
+            advice: if total < 12
+                      'W1 thin: need more trajectory-shaped pairs before LoRA promote.'
+                    elsif monoculture
+                      'W1 monoculture: run Reward.scrub_preferences; enable :counterfactual/:critic; stop resolve-prose flood.'
+                    elsif traj_frac < 0.30
+                      'W1 geometry weak: <30% trajectory-shaped chosen sides — DPO would teach commentary.'
+                    else
+                      'W1 source mix OK for gated export'
+                    end
+          }
+        rescue StandardError => e
+          { error: "#{e.class}: #{e.message}" }
         end
 
         # Supported Method Parameters::
@@ -463,6 +699,15 @@ module PWN
           FileUtils.mkdir_p(DPO_DIR)
           out = opts[:out] || File.join(DPO_DIR, "pwn-dpo-#{Time.now.utc.strftime('%Y%m%d')}.jsonl")
           rows = preferences(limit: 100_000)
+          # P15 — drop weak geometry before source-cap so resolve prose cannot
+          # dominate the kept set after balance. opt-out with scrub: false.
+          scrub = opts.key?(:scrub) ? opts[:scrub] : true
+          geometry_dropped = 0
+          if scrub
+            usable = rows.select { |r| usable_preference?(row: r) }
+            geometry_dropped = rows.length - usable.length
+            rows = usable
+          end
           # P5 — downsample so no single source exceeds DPO_SOURCE_CAP of the export.
           # opt-out with balance: false (raw dump for diagnostics).
           balance = opts.key?(:balance) ? opts[:balance] : true
@@ -484,8 +729,14 @@ module PWN
           by_src = selected.group_by { |r| r[:source].to_s }.transform_values(&:length)
           {
             path: out, format: fmt, pairs: selected.length, bytes: File.size(out),
-            balanced: balance, dropped: dropped, by_source: by_src,
-            source_cap: balance ? (opts[:source_cap] || DPO_SOURCE_CAP).to_f : nil
+            balanced: balance, dropped: dropped, geometry_dropped: geometry_dropped,
+            scrubbed: scrub, by_source: by_src,
+            source_cap: balance ? (opts[:source_cap] || DPO_SOURCE_CAP).to_f : nil,
+            preference_balance: begin
+              preference_balance(limit: 10_000, scrub: true)
+            rescue StandardError
+              nil
+            end
           }
         end
 
@@ -615,13 +866,32 @@ module PWN
             j = JSON.parse(l, symbolize_names: true)
             if j[:role].to_s == 'tool'
               ti += 1
-              j[:step_reward] = rewards[ti] if rewards[ti]
+              if rewards[ti]
+                j[:step_reward] = rewards[ti]
+                # P18 — fold step_reward into Metrics so Registry.rank can bias
+                fold_step_reward_to_metrics(content: j[:content], reward: rewards[ti])
+              end
             end
             "#{JSON.generate(j)}\n"
           rescue StandardError
             l
           end
           File.write(path, lines.join)
+        rescue StandardError
+          nil
+        end
+
+        # Extract tool name from "name → …" session content and record PRM.
+        private_class_method def self.fold_step_reward_to_metrics(opts = {})
+          return unless defined?(Metrics) && Metrics.respond_to?(:record_step_reward)
+
+          content = opts[:content].to_s
+          name = content[/\A([a-z_][a-z0-9_]*)\s*→/i, 1] ||
+                 content[/\A([a-z_][a-z0-9_]*)\s*->/i, 1] ||
+                 content[/\A([a-z_][a-z0-9_]*)/, 1]
+          return if name.to_s.empty?
+
+          Metrics.record_step_reward(name: name, reward: opts[:reward])
         rescue StandardError
           nil
         end
@@ -872,13 +1142,17 @@ module PWN
               PWN::AI::Agent::Reward.prm(request: req, session_id: sid)                    # R2 PRM → per-step credit
               PWN::AI::Agent::Reward.sentinel                                              # R3 reward-hacking detector
               PWN::AI::Agent::Reward.reset_sentinel                                        # wipe corrupt window + distrust
+              PWN::AI::Agent::Reward.warm_sentinel                                         # P10 fill R3 window from Learning outcomes
               PWN::AI::Agent::Reward.semantic_ok(name: 'shell', raw: json, args: args)     # R4 kills phantom exit≠0 mistakes
 
               # Tier 5 — preference pairs → DPO
               PWN::AI::Agent::Reward.record_preference(prompt: p, rejected: r, chosen: c, source: :user_correction)
               PWN::AI::Agent::Reward.preferences(limit: 100)
-              PWN::AI::Agent::Reward.export_dpo(format: :dpo)                              # W1 → ~/.pwn/finetune/pwn-dpo-*.jsonl (≤40%/source)
+              PWN::AI::Agent::Reward.export_dpo(format: :dpo)                              # W1 → ~/.pwn/finetune/pwn-dpo-*.jsonl (≤40%/source, scrubbed)
               PWN::AI::Agent::Reward.export_dpo(format: :dpo, balance: false)              # raw dump (diagnostics)
+              PWN::AI::Agent::Reward.scrub_preferences(dry_run: true)                      # P15 ledger hygiene report
+              PWN::AI::Agent::Reward.scrub_preferences                                      # P15 rewrite jsonl (backup first)
+              PWN::AI::Agent::Reward.preference_balance(scrub: true)                       # P15 geometry-aware mix
 
               # Tier 6 — grounded reward
               PWN::AI::Agent::Reward.verify_as_reward(final: text)                         # E3 browser-verified reward

@@ -94,6 +94,15 @@ module PWN
                          []
                        end
           cool = load_cooldown
+          # P17 — prefer budget-exhaustion fingerprints (agent_loop / critic)
+          # so nightly self-play attacks the #1 live skill gap first.
+          candidates = candidates.sort_by do |m|
+            t = m[:tool].to_s
+            e = m[:error].to_s.downcase
+            budget = t == 'agent_loop' || t == 'assistant_answer' ||
+                     e.include?('budget exhausted') || e.include?('iteration budget')
+            [budget ? 0 : 1, -m[:count].to_i]
+          end
           targets = candidates.reject { |m| practice_skip?(mistake: m, cooldown: cool) }.first(limit)
           results = []
 
@@ -107,20 +116,68 @@ module PWN
               mean = runs.empty? ? 0.0 : (runs.sum { |r| r[:score].to_f } / runs.length)
               resolved = false
               # 2.4 — auto-resolve only with N≥2 holdout successes + store trace
+              # P23 — auto-resolve only with N≥2 holdouts at judge≥0.7 AND a
+              # real tool trace (not empty-final luck). Budget fingerprints
+              # additionally require mean holdout ≥0.7 and short-horizon tags.
               if solved.length >= 2 && defined?(Mistakes)
                 best = solved.max_by { |r| r[:score] }
+                winning = best[:trace].to_s.strip
+                winning = best[:final].to_s.strip if winning.length < 20
+                budgetish = %w[agent_loop assistant_answer].include?(m[:tool].to_s) ||
+                            m[:error].to_s.downcase.include?('budget')
+                # refuse resolve on budget targets when winning_trace is prose-only
+                trace_ok = winning.length >= 20 && (
+                  !budgetish || winning.match?(/→|shell|pwn_eval|tool/i) || best[:final].to_s.length.between?(1, 800)
+                )
+                unless trace_ok
+                  bump_cooldown!(cooldown: cool, signature: m[:signature], mean: mean) unless dry_run
+                  results << {
+                    signature: m[:signature], tool: m[:tool], prompts: prompts,
+                    runs: runs.map { |r| { score: r[:score], verdict: r[:verdict] } },
+                    resolved: false, mean_score: mean.round(3),
+                    reason: 'holdouts_ok_but_trace_weak'
+                  }
+                  next
+                end
                 fix = best[:final].to_s.lines.first(3).join.strip[0, 400]
                 Mistakes.resolve(
                   signature: m[:signature],
                   fix: "auto-curriculum: #{fix}",
                   structured: {
-                    strategy: 'curriculum_practice',
+                    strategy: budgetish ? 'short_horizon_finish' : 'curriculum_practice',
                     tool: m[:tool],
                     holdout_tests: solved.map { |r| r[:prompt] || r[:request] }.compact.first(5),
-                    winning_trace: best[:trace].to_s[0, 2_000]
+                    winning_trace: winning[0, 2_000]
                   }
                 )
-                Reward.record_preference(prompt: prompts.first.to_s, rejected: m[:snippet].to_s, chosen: fix, source: :curriculum) if defined?(Reward)
+                # P14 — trajectory-shaped curriculum pair (not first-3-lines fix prose).
+                # Mistakes.resolve also lands a mistakes_resolve pair via winning_trace;
+                # this :curriculum row keeps W1 source diversity honest.
+                if defined?(Reward)
+                  rejected = m[:snippet].to_s
+                  rejected = "FAILING: tool=#{m[:tool]} err=#{m[:error]}" if rejected.strip.empty?
+                  chosen = if best[:trace].to_s.strip.length >= 20
+                             parts = []
+                             parts << "STRATEGY: curriculum_practice | #{m[:tool]}"
+                             parts << "WINNING_TRACE:\n#{best[:trace].to_s[0, 3_000]}"
+                             parts << "FINAL:\n#{best[:final].to_s[0, 800]}" unless best[:final].to_s.strip.empty?
+                             parts.join("\n")
+                           else
+                             best[:final].to_s[0, 3_500]
+                           end
+                  Reward.record_preference(
+                    prompt: (best[:prompt] || prompts.first).to_s,
+                    rejected: rejected[0, 2_000],
+                    chosen: chosen,
+                    source: :curriculum,
+                    shape: :winning_trace,
+                    meta: {
+                      signature: m[:signature],
+                      score: best[:score],
+                      holdouts: solved.length
+                    }
+                  )
+                end
                 resolved = true
                 cool.delete(m[:signature].to_s)
               elsif !dry_run
@@ -245,7 +302,12 @@ module PWN
           end
 
           mean = scored.empty? ? nil : (scored.sum { |r| r[:score].to_f } / scored.length).round(3)
-          out = { scored: scored.length, mean: mean, since_hours: since_h, results: scored.first(10) }
+          # P10 — keep R3 window warm so proxy_distrust can engage on local hosts
+          warm = (Reward.warm_sentinel(limit: 120) if commit && defined?(Reward) && Reward.respond_to?(:warm_sentinel))
+          out = {
+            scored: scored.length, mean: mean, since_hours: since_h,
+            results: scored.first(10), sentinel_warm: warm
+          }
           log(event: :offline_judge, data: out)
           out
         rescue StandardError => e
@@ -256,6 +318,14 @@ module PWN
 
         public_class_method def self.preference_balance(opts = {})
           return { total: 0 } unless defined?(Reward)
+
+          # P15 — prefer Reward.preference_balance (geometry-aware + optional scrub).
+          if Reward.respond_to?(:preference_balance)
+            return Reward.preference_balance(
+              limit: opts[:limit] || 10_000,
+              scrub: opts.key?(:scrub) ? opts[:scrub] : false
+            )
+          end
 
           rows = Reward.preferences(limit: opts[:limit] || 10_000)
           by = Hash.new(0)
@@ -292,12 +362,39 @@ module PWN
           end
           return nil if branch_b.to_s.strip.empty?
 
-          sa = score_branch(request: request, branch: branch_a)
-          sb = score_branch(request: request, branch: branch_b)
-          winner, loser, tag = sb > sa ? [branch_b, branch_a, :b] : [branch_a, branch_b, :a]
-          Reward.record_preference(prompt: "#{request} | failing: #{opts[:name]} → #{opts[:error]}", rejected: loser, chosen: winner, source: :counterfactual) if defined?(Reward)
-          log(event: :counterfactual, data: { branch: tag, a: sa, b: sb, tool: opts[:name].to_s })
-          { branch: tag, content: winner, score: [sa, sb].max, a: sa, b: sb }
+          sa_h = score_branch_detailed(request: request, branch: branch_a)
+          sb_h = score_branch_detailed(request: request, branch: branch_b)
+          sa = sa_h[:score]
+          sb = sb_h[:score]
+          if sb > sa
+            winner = branch_b
+            loser = branch_a
+            tag = :b
+            wmeta = sb_h
+          else
+            winner = branch_a
+            loser = branch_b
+            tag = :a
+            wmeta = sa_h
+          end
+          real_hit = sa_h[:mode] == :real_dispatch || sb_h[:mode] == :real_dispatch
+          shape = real_hit ? :real_dispatch : :imagined
+          if defined?(Reward)
+            Reward.record_preference(
+              prompt: "#{request} | failing: #{opts[:name]} → #{opts[:error]}",
+              rejected: loser.to_s[0, 2_000],
+              chosen: winner.to_s[0, 2_000],
+              source: :counterfactual,
+              shape: shape,
+              meta: {
+                a_score: sa, b_score: sb,
+                a_mode: sa_h[:mode], b_mode: sb_h[:mode],
+                winner_trace: wmeta[:trace].to_s[0, 500]
+              }
+            )
+          end
+          log(event: :counterfactual, data: { branch: tag, a: sa, b: sb, tool: opts[:name].to_s, shape: shape })
+          { branch: tag, content: winner, score: [sa, sb].max, a: sa, b: sb, shape: shape, a_mode: sa_h[:mode], b_mode: sb_h[:mode] }
         rescue StandardError => e
           warn "[pwn-ai/curriculum] counterfactual swallowed: #{e.class}: #{e.message}"
           nil
@@ -319,8 +416,13 @@ module PWN
         # self-correction becomes DPO signal.
 
         public_class_method def self.critic(opts = {})
-          return { verdict: :pass, source: :disabled } unless enabled?(key: :critic)
+          return { verdict: :pass, source: :disabled } unless enabled?(key: :critic) || opts[:text_only]
           return { verdict: :pass, source: :recursion } if in_curriculum?
+
+          # P24 — text_only: single Reflect shot, no tool-armed persona swarm.
+          # Used when budget_exhaustion_hot? so critic cannot thrash the budget
+          # that auto_introspect is trying to protect.
+          return critic_text_only(request: opts[:request], final: opts[:final], session_id: opts[:session_id]) if opts[:text_only]
 
           ensure_persona(name: CRITIC_NAME, role: "You are pwn-ai's constitutional critic. Given a REQUEST and a candidate ANSWER, find ONE concrete, verifiable flaw (wrong fact, missing step, unsupported claim, broken command). You MAY call shell / extro_verify / pwn_eval to check. If none found reply exactly: PASS. Otherwise reply: FLAW: <one line>.")
           reply = with_curriculum_guard do
@@ -332,13 +434,22 @@ module PWN
           else
             flaw = reply.to_s.sub(/\AFLAW:\s*/i, '').strip[0, 300]
             Mistakes.record(tool: 'assistant_answer', error: "critic: #{flaw}", args: opts[:final].to_s[0, 200], session_id: opts[:session_id], source: :model) if defined?(Mistakes)
-            # P5 — critic flaws are free DPO signal (rejected=answer, chosen=correction)
+            # P9 — DPO pair geometry: rejected=bad final, chosen=REVISED full
+            # answer (not "CORRECTION: flaw" prose). Prefer persona rewrite.
             if defined?(Reward) && !flaw.to_s.empty?
+              revised = revise_after_flaw(
+                request: opts[:request],
+                final: opts[:final],
+                flaw: flaw,
+                session_id: opts[:session_id]
+              )
               Reward.record_preference(
                 prompt: opts[:request].to_s[0, 1_000],
                 rejected: opts[:final].to_s[0, 2_000],
-                chosen: "CORRECTION: #{flaw}",
-                source: :critic
+                chosen: revised,
+                source: :critic,
+                shape: :revised_answer,
+                meta: { flaw: flaw.to_s[0, 200] }
               )
             end
             log(event: :critic, data: { verdict: :flaw, flaw: flaw.to_s[0, 200] })
@@ -462,8 +573,15 @@ module PWN
 
           candidate = ollama_create(base: base, adapter: adapter, version: version)
           baseline  = state[:tag] || base
-          gate = ab_gate(baseline: baseline, candidate: candidate, evalset: evalset)
-          promoted = gate[:candidate_resolved] > gate[:baseline_resolved]
+          # P11 — gate v2: resolved delta + mean judge + frozen smoke set.
+          gate = ab_gate_v2(baseline: baseline, candidate: candidate, evalset: evalset)
+          # P19 — refuse promote when W1 diet is still prose/monoculture.
+          # Export-only is correct until scrubbed pairs show trajectory diversity.
+          diet = preference_diet_gate
+          gate = gate.merge(preference_diet: diet)
+          promoted = gate[:promote] == true && diet[:ok] == true
+          gate[:promote] = promoted
+          gate[:promote_blocked_by_diet] = true unless diet[:ok]
           if promoted
             state[:previous] = state[:tag]
             state[:tag] = candidate
@@ -472,7 +590,7 @@ module PWN
             state[:gate] = gate
             save_models(state: state)
           end
-          result.merge(adapter: adapter, candidate: candidate, gate: gate, promoted: promoted)
+          result.merge(adapter: adapter, candidate: candidate, gate: gate, promoted: promoted, weight_loop: :closed)
         rescue StandardError => e
           { error: "#{e.class}: #{e.message}" }
         end
@@ -495,6 +613,70 @@ module PWN
         # ----------------------------------------------------------------
         # privates
         # ----------------------------------------------------------------
+
+        # P24 — single-shot text critic (no tools, no persona Loop.run).
+        private_class_method def self.critic_text_only(opts = {})
+          req = opts[:request].to_s
+          final = opts[:final].to_s
+          return { verdict: :pass, source: :text_only_empty } if final.strip.empty?
+
+          reply = if reflect_available?
+                    Reflect.on(
+                      request: "You are a strict critic. Given REQUEST and ANSWER, reply PASS or FLAW: <one line>.\nREQUEST:\n#{req[0, 600]}\nANSWER:\n#{final[0, 1_200]}",
+                      suppress_pii_warning: true
+                    ).to_s
+                  else
+                    # heuristic fallback: empty / self-reported failure / budget stop
+                    if final.match?(/\[pwn-ai\].*budget|iteration budget exhausted|i (was )?unable to|failed to\b/i)
+                      'FLAW: answer reports failure or budget exhaustion'
+                    else
+                      'PASS'
+                    end
+                  end
+          if reply.to_s.strip.upcase.start_with?('PASS')
+            { verdict: :pass, source: :text_only, confidence: 0.55 }
+          else
+            flaw = reply.to_s.sub(/\AFLAW:\s*/i, '').strip[0, 300]
+            # Do NOT Mistakes.record assistant_answer thrash from text_only path —
+            # that was feeding the budget-exhaustion mistake pile.
+            { verdict: :flaw, flaw: flaw, source: :text_only, confidence: 0.55 }
+          end
+        rescue StandardError => e
+          { verdict: :pass, source: :text_only_error, error: e.message }
+        end
+
+        # P9 — turn a critic flaw into a DPO-chosen REVISED answer (trajectory
+        # shaped), not "CORRECTION: <flaw>" commentary. Best-effort: ask Reflect
+        # to rewrite; fall back to a structured scaffold that still contains the
+        # original answer + the concrete fix.
+        private_class_method def self.revise_after_flaw(opts = {})
+          req = opts[:request].to_s
+          final = opts[:final].to_s
+          flaw = opts[:flaw].to_s
+          revised = nil
+          if reflect_available?
+            prompt = <<~P
+              Revise the ANSWER so it no longer has this flaw. Return the FULL
+              corrected answer only (no preamble, no "CORRECTION:" prefix).
+              REQUEST: #{req[0, 600]}
+              FLAW: #{flaw[0, 300]}
+              ANSWER: #{final[0, 1_500]}
+            P
+            revised = Reflect.on(request: prompt, suppress_pii_warning: true).to_s.strip
+          end
+          if revised.to_s.strip.empty? || revised.strip == final.strip || revised.match?(/\A\s*CORRECTION:/i)
+            revised = <<~REV.strip
+              REVISED ANSWER (addresses: #{flaw[0, 180]}):
+              #{final[0, 1_200]}
+
+              Fix applied: #{flaw[0, 300]}
+              Do not repeat the flawed claim or step above; prefer verified evidence from tools.
+            REV
+          end
+          revised.to_s[0, 4_000]
+        rescue StandardError
+          "REVISED ANSWER (addresses: #{opts[:flaw].to_s[0, 180]}):\n#{opts[:final].to_s[0, 1_200]}"
+        end
 
         private_class_method def self.generate_reproducers(opts = {})
           m = opts[:mistake]
@@ -581,13 +763,34 @@ module PWN
                      'Use pwn_eval to list PWN::AI::Agent constants',
                      'Return Dir.pwd from pwn_eval'
                    ]
-                 else
+                 when 'agent_loop', 'assistant_answer'
+                   # P17 — dominant live failure: iteration / critic budget exhaustion.
+                   # Practise finishing under a tight tool budget, not shell shapes.
                    [
-                     "Demonstrate a correct use of the #{tool} tool on this host",
-                     "Use #{tool} to answer a simple factual question about this system",
-                     "Show a minimal successful #{tool} call with valid arguments",
-                     "Recover from a bad #{tool} invocation without retrying the same args"
+                     'Answer in one shell call: print kernel release with uname -r',
+                     'In at most two tools, show cwd and ruby version then stop',
+                     'Give a final answer with no tools: what is 7 times 8?',
+                     'Finish under three iterations: list /tmp and report file count',
+                     'Do not explore — one pwn_eval of Dir.pwd and return the path',
+                     'Short plan then one command: show free disk with df -h /'
                    ]
+                 else
+                   if err.include?('budget exhausted') || err.include?('iteration budget') ||
+                      (err.include?('handler_error') && err.include?('budget'))
+                     [
+                       'Answer in one shell call: print kernel release with uname -r',
+                       'In at most two tools, show cwd and ruby version then stop',
+                       'Give a final answer with no tools: what is 7 times 8?',
+                       'Finish under three iterations: list /tmp and report file count'
+                     ]
+                   else
+                     [
+                       "Demonstrate a correct use of the #{tool} tool on this host",
+                       "Use #{tool} to answer a simple factual question about this system",
+                       "Show a minimal successful #{tool} call with valid arguments",
+                       "Recover from a bad #{tool} invocation without retrying the same args"
+                     ]
+                   end
                  end
           Array.new(n) { |i| pool[i % pool.length] }
         end
@@ -654,8 +857,29 @@ module PWN
 
         private_class_method def self.self_play(opts = {})
           sid = PWN::Sessions.create(title: "curriculum #{opts[:tag]}")[:id]
-          final = Loop.run(request: opts[:prompt], session_id: sid, enabled_toolsets: %w[terminal pwn memory learning])
-          v = Reward.judge(request: opts[:prompt], final: final, session_id: sid, commit: false)
+          # P23 — short-horizon graded tasks: cap iters so practice actually
+          # teaches finish-under-N instead of letting DEFAULT_MAX_ITERS mask it.
+          prompt = opts[:prompt].to_s
+          short = prompt.match?(/\b(one shell|at most two|no tools|three iterations|finish under|do not explore|short plan)\b/i)
+          prev_max = :__unset__
+          capped = false
+          if short && defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
+            prev_max = PWN::Env[:ai][:agent].key?(:max_iters) ? PWN::Env[:ai][:agent][:max_iters] : :__unset__
+            PWN::Env[:ai][:agent][:max_iters] = 5
+            capped = true
+          end
+          begin
+            final = Loop.run(request: prompt, session_id: sid, enabled_toolsets: %w[terminal pwn memory learning])
+          ensure
+            if capped && defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
+              if prev_max == :__unset__
+                PWN::Env[:ai][:agent].delete(:max_iters)
+              else
+                PWN::Env[:ai][:agent][:max_iters] = prev_max
+              end
+            end
+          end
+          v = Reward.judge(request: prompt, final: final, session_id: sid, commit: false)
           # 2.4 — capture tool trace for structured_fix.winning_trace
           trace = begin
             if defined?(PWN::Sessions)
@@ -673,21 +897,25 @@ module PWN
         end
 
         private_class_method def self.score_branch(opts = {})
-          # 4.2 — prefer one-step real Dispatch when branch looks like tool JSON;
-          # otherwise label imagined Reflect scores explicitly (not "advantage").
+          score_branch_detailed(**opts)[:score]
+        end
+
+        # Returns {score:, mode: :real_dispatch|:imagined|:default, trace:}.
+        # Callers that need honest advantage estimation should inspect :mode.
+        private_class_method def self.score_branch_detailed(opts = {})
           branch = opts[:branch].to_s
           request = opts[:request].to_s
           real = try_real_dispatch_score(branch: branch)
-          return real if real
+          return { score: real, mode: :real_dispatch, trace: branch.to_s[0, 500] } if real
 
-          return 0.5 unless reflect_available?
+          return { score: 0.5, mode: :default, trace: nil } unless reflect_available?
 
           req = "Goal: #{request}\nProposed next action: #{branch}\nOn a scale 0.0-1.0, how likely is this to advance the goal on a Kali Linux host? Reply with ONLY the number."
           imagined = Reflect.on(request: req, suppress_pii_warning: true).to_s[/[01](?:\.\d+)?/].to_f.clamp(0.0, 1.0)
           # haircut imagined scores so they never outrank a real dispatch
-          (imagined * 0.6).clamp(0.0, 0.6)
+          { score: (imagined * 0.6).clamp(0.0, 0.6), mode: :imagined, trace: nil }
         rescue StandardError
-          0.5
+          { score: 0.5, mode: :default, trace: nil }
         end
 
         # Best-effort: if branch names a registered tool + args, run ONE Dispatch
@@ -765,6 +993,114 @@ module PWN
           baseline = replay_on(tag: opts[:baseline], evalset: evalset)
           candid   = replay_on(tag: opts[:candidate], evalset: evalset)
           { baseline: opts[:baseline], candidate: opts[:candidate], baseline_resolved: baseline, candidate_resolved: candid, evalset_size: evalset.length }
+        end
+
+        # P11 — promote only when candidate beats baseline on (a) resolved count
+        # with margin, (b) mean judge score, and (c) no smoke regression. Smoke
+        # set is fixed natural tasks, not Mistakes.top, so eval-set memorisation
+        # cannot self-promote.
+        private_class_method def self.ab_gate_v2(opts = {})
+          evalset  = Array(opts[:evalset])
+          baseline = replay_on_detailed(tag: opts[:baseline], evalset: evalset)
+          candid   = replay_on_detailed(tag: opts[:candidate], evalset: evalset)
+          smoke    = smoke_eval_set
+          base_smoke = replay_on_detailed(tag: opts[:baseline], evalset: smoke)
+          cand_smoke = replay_on_detailed(tag: opts[:candidate], evalset: smoke)
+
+          b_res = baseline[:resolved].to_i
+          c_res = candid[:resolved].to_i
+          n     = [evalset.length, 1].max
+          delta = c_res - b_res
+          rel   = delta.to_f / n
+          resolved_win = delta >= 1 && (n < 10 || rel >= 0.05)
+
+          b_mean = baseline[:mean_score].to_f
+          c_mean = candid[:mean_score].to_f
+          mean_win = c_mean + 1e-9 >= b_mean
+
+          smoke_ok = cand_smoke[:resolved].to_i >= base_smoke[:resolved].to_i &&
+                     cand_smoke[:mean_score].to_f + 0.05 >= base_smoke[:mean_score].to_f
+
+          promote = resolved_win && mean_win && smoke_ok
+          {
+            baseline: opts[:baseline],
+            candidate: opts[:candidate],
+            baseline_resolved: b_res,
+            candidate_resolved: c_res,
+            baseline_mean: b_mean.round(3),
+            candidate_mean: c_mean.round(3),
+            delta_resolved: delta,
+            relative_delta: rel.round(3),
+            smoke: {
+              baseline_resolved: base_smoke[:resolved],
+              candidate_resolved: cand_smoke[:resolved],
+              baseline_mean: base_smoke[:mean_score],
+              candidate_mean: cand_smoke[:mean_score]
+            },
+            resolved_win: resolved_win,
+            mean_win: mean_win,
+            smoke_ok: smoke_ok,
+            promote: promote,
+            evalset_size: evalset.length,
+            gate_version: 2
+          }
+        end
+
+        private_class_method def self.smoke_eval_set
+          [
+            { signature: 'smoke_uname', prompt: 'Print the kernel release with uname -r' },
+            { signature: 'smoke_pwd',   prompt: 'Show the current working directory' },
+            { signature: 'smoke_ruby',  prompt: 'Display the active ruby version' }
+          ]
+        end
+
+        # P19 — weight promote requires scrubbed trajectory diversity, not just
+        # A/B eval win. export_ready remains the correct posture otherwise.
+        private_class_method def self.preference_diet_gate(opts = {})
+          return { ok: false, reason: 'no Reward' } unless defined?(Reward)
+
+          bal = if Reward.respond_to?(:preference_balance)
+                  Reward.preference_balance(limit: opts[:limit] || 10_000, scrub: true)
+                else
+                  preference_balance(limit: opts[:limit] || 10_000)
+                end
+          total = bal[:kept].to_i
+          total = bal[:total].to_i if total <= 0
+          return { ok: false, reason: 'too_few_pairs', total: total, min: 12 } if total < 12
+
+          frac = bal[:fractions] || {}
+          max_share = frac.values.map(&:to_f).max || 1.0
+          traj_frac = bal[:trajectory_fraction].to_f
+          ok = !bal[:monoculture] && max_share <= 0.45 && traj_frac >= 0.30
+          {
+            ok: ok,
+            total: total,
+            monoculture: bal[:monoculture],
+            max_source_share: max_share.round(3),
+            trajectory_fraction: traj_frac.round(3),
+            by_source: bal[:by_source],
+            reason: ok ? 'diet_ok' : 'need_trajectory_diversity_or_rebalance'
+          }
+        rescue StandardError => e
+          { ok: false, reason: "#{e.class}: #{e.message}" }
+        end
+
+        private_class_method def self.replay_on_detailed(opts = {})
+          tag = opts[:tag].to_s
+          return { resolved: 0, mean_score: 0.0, scores: [] } if tag.empty?
+
+          scores = []
+          with_ollama_model(tag: tag) do
+            Array(opts[:evalset]).each do |e|
+              r = self_play(prompt: e[:prompt], tag: "gate:#{tag}")
+              scores << r[:score].to_f
+            end
+          end
+          resolved = scores.count { |s| s >= 0.7 }
+          mean = scores.empty? ? 0.0 : (scores.sum / scores.length)
+          { resolved: resolved, mean_score: mean.round(3), scores: scores }
+        rescue StandardError
+          { resolved: 0, mean_score: 0.0, scores: [] }
         end
 
         private_class_method def self.replay_on(opts = {})
@@ -1118,7 +1454,7 @@ module PWN
           puts <<~USAGE
             USAGE:
               # Tier 4 — self-play
-              PWN::AI::Agent::Curriculum.practice(limit: 3)                     # S1 mistake-driven auto-curriculum
+              PWN::AI::Agent::Curriculum.practice(limit: 3)                     # S1 + P14 trajectory DPO pairs + P17 budget-first
               PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24)         # P3 offline ORM/PRM fill
               PWN::AI::Agent::Curriculum.preference_balance                     # P5 W1 diversity report
               PWN::AI::Agent::Curriculum.counterfactual(request:, name:, args:, error:, hint:)  # S2 A/B → DPO pair
@@ -1127,7 +1463,7 @@ module PWN
               PWN::AI::Agent::Curriculum.hindsight(request:, final:, session_id:) # C3 HER soft-relabel
 
               # Tier 5 — close the weight loop
-              PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)          # W2 export-ready; promote only with trainer+dry_run:false
+              PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)          # W2 export-ready; P11 gate v2 promote only with trainer+dry_run:false
               PWN::AI::Agent::Curriculum.calibrate(predicted: 0.8, actual: 1.0) # W3 Brier → Metrics[:calibration]
 
               Cron self-improvement (seeded by PWN::Cron.install_defaults):

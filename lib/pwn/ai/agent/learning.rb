@@ -168,7 +168,10 @@ module PWN
           # C2 — strict success:true only (excludes HER success:'soft'). Also
           # down-weight any residual hindsight-tagged rows so partial failures
           # never launder into full-strength few-shot exemplars.
+          # P20 — strict success:true AND prefer high judge scores. Drop rows
+          # with explicit low ORM score so proxy-true / judge-low cannot be few-shot.
           pool = outcomes(limit: 500, success: true).reject { |r| r[:session_id].to_s.empty? }
+          pool = pool.reject { |r| r.key?(:score) && r[:score].to_f < 0.6 }
           scored = pool.map do |r|
             sim   = tokens.count { |t| r[:task].to_s.downcase.include?(t) }.to_f / tokens.length
             age_d = (now - Time.parse(r[:timestamp].to_s)) / 86_400.0
@@ -202,26 +205,65 @@ module PWN
         # Modelfile` over the export - the only path to ACTUAL parity with a
         # frontier model, because it changes the weights not just the scaffold.
 
+        # P12 — SFT quality gate (as hard as DPO source-cap): drop HER/soft,
+        # low judge_score, auto-only noise without score, and PRM-compress
+        # trajectories so LoRA is not 5MB of "how we flailed".
+        SFT_MIN_SCORE = 0.6
+        SFT_MAX_TOOL_CHARS = 1_200
+
         public_class_method def self.export_finetune(opts = {})
           fmt       = (opts[:format] || :sharegpt).to_sym
           min_tools = (opts[:min_tools] || 1).to_i
+          min_score = (opts[:min_score] || SFT_MIN_SCORE).to_f
+          compress  = opts.key?(:compress) ? opts[:compress] : true
           FileUtils.mkdir_p(FINETUNE_DIR)
           out = opts[:out] || File.join(FINETUNE_DIR, "pwn-#{Time.now.utc.strftime('%Y%m%d')}.jsonl")
 
-          # 4.1 — exclude HER soft-success from SFT gold (success: 'soft' or tags)
+          # 4.1 / P12 — exclude HER soft-success + low-score + untagged auto flail
           gold = outcomes(limit: 10_000, success: true).reject do |r|
-            r[:success].to_s == 'soft' ||
-              Array(r[:tags]).any? { |t| %w[hindsight her].include?(t.to_s) }
+            tags = Array(r[:tags]).map(&:to_s)
+            soft = r[:success].to_s == 'soft' || tags.intersect?(%w[hindsight her soft])
+            low  = !r[:score].nil? && r[:score].to_f < min_score
+            # require a score when present in corpus era that has scores
+            soft || low
           end
-          sids = gold.map { |r| r[:session_id] }.compact.uniq
+          # prefer highest-score outcome per session
+          by_sid = {}
+          gold.each do |r|
+            sid = r[:session_id].to_s
+            next if sid.empty?
+
+            prev = by_sid[sid]
+            by_sid[sid] = r if prev.nil? || r[:score].to_f >= prev[:score].to_f
+          end
+          sids = by_sid.keys
           rows = 0
+          dropped = { tools: 0, empty: 0, load: 0 }
           File.open(out, 'w') do |f|
             sids.each do |sid|
-              t = PWN::Sessions.load(session_id: sid)
-              next if t.count { |e| e[:role].to_s == 'tool' } < min_tools
+              t = begin
+                PWN::Sessions.load(session_id: sid)
+              rescue StandardError
+                dropped[:load] += 1
+                next
+              end
+              tool_n = t.count { |e| e[:role].to_s == 'tool' }
+              if tool_n < min_tools
+                dropped[:tools] += 1
+                next
+              end
 
-              conv = t.map { |e| { role: e[:role].to_s, content: e[:content].to_s } }
-                      .reject { |e| e[:role] == 'system' && e[:content].start_with?('Session started') }
+              conv = if compress
+                       compress_finetune_trace(transcript: t, max_tool_chars: SFT_MAX_TOOL_CHARS)
+                     else
+                       t.map { |e| { role: e[:role].to_s, content: e[:content].to_s } }
+                        .reject { |e| e[:role] == 'system' && e[:content].start_with?('Session started') }
+                     end
+              if conv.nil? || conv.empty? || conv.none? { |m| m[:role].to_s == 'assistant' }
+                dropped[:empty] += 1
+                next
+              end
+
               line = case fmt
                      when :openai_jsonl then { messages: conv }
                      else { conversations: conv.map { |m| { from: sharegpt_role(role: m[:role]), value: m[:content] } } }
@@ -230,7 +272,11 @@ module PWN
               rows += 1
             end
           end
-          { path: out, format: fmt, sessions: sids.length, samples: rows, bytes: File.size(out) }
+          {
+            path: out, format: fmt, sessions: sids.length, samples: rows,
+            bytes: File.size(out), min_score: min_score, compressed: compress,
+            dropped: dropped
+          }
         end
 
         # Supported Method Parameters::
@@ -317,6 +363,14 @@ module PWN
           # S3 — tool-armed constitutional critic runs BEFORE the reward
           # model so its verdict is evidence, not hindsight.
           # P7 — force critic when W3 says this engine is overconfident
+          # P24 — under budget_exhaustion_hot?, skip tool-armed critic entirely
+          # (or single-shot text) so the critic cannot re-thrash the budget.
+          budget_hot = begin
+            defined?(Loop) && Loop.respond_to?(:budget_exhaustion_hot?, true) &&
+              Loop.send(:budget_exhaustion_hot?)
+          rescue StandardError
+            false
+          end
           force_critic = begin
             eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env))
             cal = defined?(Metrics) ? Metrics.calibration(engine: eng) : { n: 0 }
@@ -324,7 +378,15 @@ module PWN
           rescue StandardError
             false
           end
-          crit = if defined?(Curriculum)
+          crit = if budget_hot && defined?(Curriculum)
+                   # P24 — cheap text-only critic: no persona tool swarm
+                   Curriculum.critic(
+                     request: opts[:request],
+                     final: opts[:final],
+                     session_id: session_id,
+                     text_only: true
+                   )
+                 elsif defined?(Curriculum)
                    if force_critic
                      prev = (PWN::Env[:ai][:agent][:critic] if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash))
                      begin
@@ -349,7 +411,14 @@ module PWN
           # user correction on the previous turn.
           pend = Thread.current[:pwn_pending_pref]
           if pend && ok && defined?(Reward)
-            Reward.record_preference(prompt: pend[:prompt], rejected: pend[:rejected], chosen: opts[:final].to_s, source: :user_correction)
+            Reward.record_preference(
+              prompt: pend[:prompt],
+              rejected: pend[:rejected],
+              chosen: opts[:final].to_s,
+              source: :user_correction,
+              shape: :revised_answer,
+              force: true
+            )
             Thread.current[:pwn_pending_pref] = nil
           end
 
@@ -361,13 +430,22 @@ module PWN
             session_id: session_id,
             tags: ['auto', 'loop', v[:verdict].to_s]
           )
+          # P20 — fold episode ORM score into per-tool Metrics so UCB/Thompson
+          # /advantage track judge, not only handler-ok. Attribution: every
+          # tool touched this session gets the episode score (coarse but
+          # closes the bandit onto the north-star scalar).
+          fold_judge_into_metrics(session_id: session_id, score: v[:score])
           # R2 — per-step credit assignment ALWAYS (1.6): failed trajectories
           # are where step credit matters; feed negative steps into counterfactual.
           # C3 — HER soft-relabel on failure only.
           Reward.prm(request: opts[:request], session_id: session_id) if defined?(Reward)
           Curriculum.hindsight(request: opts[:request], final: opts[:final], session_id: session_id) if !ok && defined?(Curriculum)
-          # W3 — calibration: predicted (from plan_first) vs actual
-          Curriculum.calibrate(predicted: opts[:predicted], actual: v[:score], engine: PWN::Env.dig(:ai, :active)) if opts[:predicted] && defined?(Curriculum)
+          # W3 — calibration: predicted (from plan_first) vs actual.
+          # Always try: also recover p(success)= from session PLAN if the
+          # live return value was lost (nil) but plan_first did emit one.
+          predicted = opts[:predicted]
+          predicted = recover_predicted_from_session(session_id: session_id) if predicted.nil?
+          Curriculum.calibrate(predicted: predicted, actual: v[:score], engine: PWN::Env.dig(:ai, :active)) if !predicted.nil? && defined?(Curriculum)
           reflect(session_id: session_id) if ok
           Reward.sentinel if defined?(Reward)
           Extrospection.auto_extrospect(session_id: session_id) if defined?(Extrospection)
@@ -473,6 +551,46 @@ module PWN
         # privates
         # -------------------------------------------------------------
 
+        # P20 — attribute episode judge score to every tool used in session.
+        private_class_method def self.fold_judge_into_metrics(opts = {})
+          return unless defined?(Metrics) && Metrics.respond_to?(:record_judge)
+
+          sid = opts[:session_id]
+          score = opts[:score]
+          return if sid.to_s.empty? || score.nil?
+          return unless defined?(PWN::Sessions)
+
+          names = PWN::Sessions.load(session_id: sid)
+                               .select { |e| e[:role].to_s == 'tool' }
+                               .map { |e| e[:content].to_s[/\A([a-z0-9_]+)\s*→/i, 1] }
+                               .compact
+                               .uniq
+          names.each { |n| Metrics.record_judge(name: n, score: score) }
+        rescue StandardError
+          nil
+        end
+
+        # P22 — recover plan_first p(success)= from session transcript when
+        # the live return floated away (rescue path / degrade).
+        private_class_method def self.recover_predicted_from_session(opts = {})
+          # Prefer live stash from plan_first in this process.
+          stash = Thread.current[:pwn_plan_predicted]
+          return stash.to_f.clamp(0.0, 1.0) unless stash.nil?
+
+          sid = opts[:session_id]
+          return nil if sid.to_s.empty? || !defined?(PWN::Sessions)
+
+          entries = PWN::Sessions.load(session_id: sid)
+          plan = entries.reverse.find do |e|
+            e[:role].to_s == 'assistant' && e[:content].to_s.match?(/\bPLAN:\b|p\(success\)\s*=/i)
+          end
+          return nil unless plan
+
+          plan[:content].to_s[/p\(success\)\s*=\s*([01](?:\.\d+)?)/i, 1]&.to_f
+        rescue StandardError
+          nil
+        end
+
         private_class_method def self.auto_introspect_enabled?
           return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
@@ -576,6 +694,34 @@ module PWN
           claims.each { |c| Extrospection.verify(claim: c, commit: true) }
         rescue StandardError => e
           warn "[pwn-ai/learning] fact_check swallowed: #{e.class}: #{e.message}"
+        end
+
+        # P12 — PRM-aware SFT trace: keep user + reward>0 tools (else first N) +
+        # final assistant, truncate tool payloads. Drops system noise.
+        private_class_method def self.compress_finetune_trace(opts = {})
+          t = Array(opts[:transcript])
+          cap = (opts[:max_tool_chars] || SFT_MAX_TOOL_CHARS).to_i
+          fin_idx = t.rindex { |e| e[:role].to_s == 'assistant' && !e[:content].to_s.strip.empty? }
+          return [] if fin_idx.nil?
+
+          user_idx = t[0...fin_idx].rindex { |e| e[:role].to_s == 'user' }
+          return [] if user_idx.nil?
+
+          window = t[user_idx..fin_idx]
+          tools = window.select { |e| e[:role].to_s == 'tool' }
+          rewarded = tools.select { |e| e[:step_reward].to_i.positive? }
+          tools = rewarded unless rewarded.empty?
+          tools = tools.first(8)
+
+          out = []
+          out << { role: 'user', content: t[user_idx][:content].to_s[0, 2_000] }
+          tools.each do |e|
+            out << { role: 'tool', content: e[:content].to_s[0, cap] }
+          end
+          out << { role: 'assistant', content: t[fin_idx][:content].to_s[0, 4_000] }
+          out
+        rescue StandardError
+          []
         end
 
         private_class_method def self.compress_exemplar(opts = {})

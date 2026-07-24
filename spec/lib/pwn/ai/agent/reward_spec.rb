@@ -35,7 +35,12 @@ describe PWN::AI::Agent::Reward do
     stub_const('PWN::AI::Agent::Reward::DPO_DIR', tmp)
 
     described_class.record_preference(prompt: 'p', rejected: 'bad', chosen: 'good', source: :user_correction)
-    described_class.record_preference(prompt: 'p2', rejected: 'x', chosen: 'y', source: :mistakes_resolve)
+    # P21/P25 — mistakes_resolve requires a trajectory shape
+    described_class.record_preference(
+      prompt: 'p2', rejected: 'failing shell args',
+      chosen: "STRATEGY: x\nWINNING_TRACE:\nshell → uname -r\n#{'t' * 40}",
+      source: :mistakes_resolve, shape: :winning_trace
+    )
     expect(described_class.preferences.length).to eq 2
     expect(described_class.preferences(source: 'user_correction').length).to eq 1
 
@@ -143,5 +148,63 @@ describe PWN::AI::Agent::Reward do
     described_class.reset_sentinel
     expect(File.exist?(File.join(tmp, 's.json'))).to be false
     expect(File.exist?(File.join(tmp, 'prefs.jsonl'))).to be true
+  end
+  it 'write_source_quota and weak pair geometry (P9)' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(tmp, 'prefs.jsonl'))
+    r = described_class.record_preference(prompt: 'p', rejected: 'a', chosen: 'CORRECTION: no', source: :critic)
+    expect(r[:skipped]).to eq :weak_pair_geometry
+    11.times do |i|
+      described_class.record_preference(prompt: "p#{i}", rejected: "r#{i}", chosen: "c#{i}", source: :mistakes_resolve, force: true)
+    end
+    q = described_class.write_source_quota(source: 'mistakes_resolve')
+    expect(q[:over_cap]).to be true
+  end
+
+  it 'warm_sentinel fills from learning outcomes (P10)' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(tmp, 's.json'))
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(tmp, 'l.jsonl'))
+    50.times do |i|
+      PWN::AI::Agent::Learning.note_outcome(task: "t#{i}", success: true, score: 0.8, details: 'd')
+    end
+    r = described_class.warm_sentinel(limit: 60)
+    expect(r[:added]).to be > 0
+  end
+
+  it 'scrub_preferences and usable_preference? (P15)' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(tmp, 'prefs.jsonl'))
+    described_class.record_preference(
+      prompt: 'p', rejected: 'long rejected text ' * 20,
+      chosen: 'CORRECTION: no', source: :critic, force: true
+    )
+    described_class.record_preference(
+      prompt: 'q', rejected: 'bad',
+      chosen: "WINNING_TRACE:\n#{'shell ok ' * 30}",
+      source: :curriculum, shape: :winning_trace, force: true
+    )
+    dry = described_class.scrub_preferences(dry_run: true)
+    expect(dry[:dropped]).to be >= 1
+    wet = described_class.scrub_preferences(dry_run: false)
+    expect(wet[:after]).to be < wet[:before]
+    bal = described_class.preference_balance(scrub: true)
+    expect(bal).to have_key(:trajectory_fraction)
+  end
+
+  it 'export_dpo reports geometry_dropped (P15)' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(tmp, 'prefs.jsonl'))
+    stub_const('PWN::AI::Agent::Reward::DPO_DIR', tmp)
+    described_class.record_preference(
+      prompt: 'p', rejected: 'r' * 500, chosen: 'CORRECTION: x', source: :mistakes_resolve, force: true
+    )
+    described_class.record_preference(
+      prompt: 'q', rejected: 'r', chosen: "WINNING_TRACE:\n#{'t' * 100}",
+      source: :counterfactual, shape: :real_dispatch, force: true
+    )
+    info = described_class.export_dpo(out: File.join(tmp, 'd.jsonl'))
+    expect(info[:geometry_dropped]).to be >= 1
+    expect(info[:scrubbed]).to be true
   end
 end

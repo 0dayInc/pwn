@@ -122,6 +122,8 @@ module PWN
               name: name.to_s,
               calls: calls,
               success_rate: rate,
+              judge_rate: judge_rate(name: name),
+              effective_rate: effective_rate(name: name),
               avg_duration: avg,
               last_error: b[:last_error],
               last_at: b[:last_at]
@@ -149,12 +151,19 @@ module PWN
           scope = engine.to_s.empty? ? 'historical' : "engine=#{engine}"
           scope = "#{scope}, proxy_distrust=#{distrust.round(2)}" if distrust.positive?
           lines = rows.map do |r|
+            # P20 — display effective_rate (judge-blended) when available;
+            # fall back to distrust haircut on raw proxy.
             rate = r[:success_rate].to_f
-            # blend toward 0.5 (uninformative) proportional to distrust
-            adj = rate - ((rate - 0.5) * distrust)
+            eff  = r[:effective_rate]
+            adj  = if eff
+                     eff.to_f
+                   else
+                     rate - ((rate - 0.5) * distrust)
+                   end
             err = r[:last_error] ? " last_err=#{r[:last_error][0, 60]}" : ''
-            tag = distrust.positive? ? ' (adj)' : ''
-            "  - #{r[:name]}: calls=#{r[:calls]} success=#{(adj * 100).round(1)}%#{tag} avg=#{r[:avg_duration]}s#{err}"
+            jtag = r[:judge_rate] ? " judge=#{(r[:judge_rate].to_f * 100).round(1)}%" : ''
+            tag = distrust.positive? || r[:judge_rate] ? ' (adj)' : ''
+            "  - #{r[:name]}: calls=#{r[:calls]} success=#{(adj * 100).round(1)}%#{tag}#{jtag} avg=#{r[:avg_duration]}s#{err}"
           end
           warn_line = distrust.positive? ? "WARNING: reward proxy diverges from judge — success rates haircut by distrust=#{distrust.round(2)}; prefer judge-scored exemplars over raw rates.\n" : ''
           "#{warn_line}TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
@@ -176,7 +185,8 @@ module PWN
           t    = data[name.to_sym] || blank_bucket
           n    = [t[:calls].to_f, 1.0].max
           total = [data.values.sum { |v| v[:calls].to_f }, 1.0].max
-          mean  = t[:ok].to_f / n
+          # P20 — mean from effective_rate (judge-blended when distrust high)
+          mean  = effective_rate(name: name)
           mean + (c * Math.sqrt(Math.log(total) / n))
         rescue StandardError
           1.0
@@ -190,7 +200,21 @@ module PWN
 
         public_class_method def self.thompson(opts = {})
           t = (load[:tools] || {})[opts[:name].to_s.to_sym] || blank_bucket
-          beta_sample(alpha: t[:ok].to_f + 1.0, beta: t[:fail].to_f + 1.0)
+          # P20 — when judge samples exist and distrust > 0, tilt Beta toward
+          # judge_rate so Thompson explore/exploit tracks ORM not handler-ok.
+          ok = t[:ok].to_f
+          fail = t[:fail].to_f
+          jn = Array(t[:judge_window]).length
+          if jn >= 3 && proxy_trust < 0.95
+            jr = judge_rate(name: opts[:name]).to_f
+            # pseudo-counts from judge window, mixed by distrust
+            d = (1.0 - proxy_trust).clamp(0.0, 1.0)
+            jok = jr * jn
+            jfail = (1.0 - jr) * jn
+            ok = (ok * (1.0 - d)) + (jok * d)
+            fail = (fail * (1.0 - d)) + (jfail * d)
+          end
+          beta_sample(alpha: ok + 1.0, beta: fail + 1.0)
         rescue StandardError
           0.5
         end
@@ -205,12 +229,115 @@ module PWN
           t    = data[opts[:name].to_s.to_sym]
           return 0.0 unless t
 
-          global = data.values.sum { |v| v[:ok].to_f } / [data.values.sum { |v| v[:calls].to_f }, 1.0].max
-          win    = Array(t[:window])
-          local  = win.empty? ? (t[:ok].to_f / [t[:calls].to_f, 1.0].max) : (win.sum.to_f / win.length)
+          # P20 — local/global from effective_rate so bandit tracks judge
+          # when the handler-ok proxy is hacked (proxy_distrust high).
+          local = effective_rate(name: opts[:name])
+          rates = data.keys.map { |k| effective_rate(name: k) }
+          global = rates.empty? ? 0.5 : (rates.sum / rates.length)
           (local - global).round(3)
         rescue StandardError
           0.0
+        end
+
+        # P18 — rolling mean step_reward for a tool (from Reward.prm annotations
+        # folded into Metrics via record_step_reward). Range ≈ [-1, 1].
+        public_class_method def self.prm_advantage(opts = {})
+          data = load[:tools] || {}
+          t = data[opts[:name].to_s.to_sym]
+          return 0.0 unless t
+
+          win = Array(t[:prm_window])
+          return 0.0 if win.empty?
+
+          mean = win.sum.to_f / win.length
+          # global mean across tools that have prm signal
+          globals = data.values.map { |v| Array(v[:prm_window]) }.reject(&:empty?)
+          gmean = if globals.empty?
+                    0.0
+                  else
+                    all = globals.flatten
+                    all.sum.to_f / all.length
+                  end
+          (mean - gmean).round(3)
+        rescue StandardError
+          0.0
+        end
+
+        # P18 — called by Reward.prm after session annotate so live routing
+        # can bias toward tools that recently advanced goals (+1 step_reward).
+        public_class_method def self.record_step_reward(opts = {})
+          name = opts[:name].to_s
+          return if name.empty?
+
+          rew = opts[:reward].to_f.clamp(-1.0, 1.0)
+          m = load
+          m[:tools] ||= {}
+          t = m[:tools][name.to_sym] ||= blank_bucket
+          t[:prm_window] = (Array(t[:prm_window]) + [rew]).last(40)
+          t[:prm_sum] = t[:prm_window].sum
+          t[:prm_n] = t[:prm_window].length
+          save(metrics: m)
+          t
+        rescue StandardError
+          nil
+        end
+
+        # P20 — fold ORM judge (0..1) into per-tool telemetry so UCB /
+        # Thompson / advantage can prefer judge-grounded rates over the
+        # inflated handler-ok proxy when proxy_distrust is high.
+        public_class_method def self.record_judge(opts = {})
+          name = opts[:name].to_s
+          return if name.empty?
+
+          score = opts[:score].to_f.clamp(0.0, 1.0)
+          m = load
+          m[:tools] ||= {}
+          t = m[:tools][name.to_sym] ||= blank_bucket
+          t[:judge_window] = (Array(t[:judge_window]) + [score]).last(40)
+          t[:judge_sum] = t[:judge_window].sum.to_f
+          t[:judge_n] = t[:judge_window].length
+          save(metrics: m)
+          t
+        rescue StandardError
+          nil
+        end
+
+        # Mean judge score for a tool (nil when no ORM samples yet).
+        public_class_method def self.judge_rate(opts = {})
+          t = (load[:tools] || {})[opts[:name].to_s.to_sym]
+          return nil unless t
+
+          win = Array(t[:judge_window])
+          return nil if win.empty?
+
+          (win.sum.to_f / win.length).round(3)
+        rescue StandardError
+          nil
+        end
+
+        # Blended success rate: when proxy_distrust > 0 and judge samples
+        # exist, mix judge_rate into the handler-ok rate. distrust=1 → pure
+        # judge (or 0.5 if no judge data). distrust=0 → pure proxy.
+        public_class_method def self.effective_rate(opts = {})
+          name = opts[:name].to_s
+          data = load[:tools] || {}
+          t = data[name.to_sym]
+          return 0.5 unless t
+
+          calls = [t[:calls].to_f, 1.0].max
+          proxy = t[:ok].to_f / calls
+          win = Array(t[:window])
+          proxy = win.sum.to_f / win.length if win.length >= 3
+          distrust = 1.0 - proxy_trust
+          jrate = judge_rate(name: name)
+          if distrust > 0.05 && !jrate.nil?
+            # blend: higher distrust → more judge weight
+            ((proxy * (1.0 - distrust)) + (jrate * distrust)).clamp(0.0, 1.0).round(3)
+          else
+            proxy.round(3)
+          end
+        rescue StandardError
+          0.5
         end
 
         # Supported Method Parameters::
@@ -360,7 +487,10 @@ module PWN
               PWN::AI::Agent::Metrics.to_context(limit: 8, engine: :ollama)   # injected by PromptBuilder
               PWN::AI::Agent::Metrics.ucb(name: 'shell')                 # C1 exploration bonus
               PWN::AI::Agent::Metrics.thompson(name: 'shell')            # C1 Beta(ok+1,fail+1) sample
-              PWN::AI::Agent::Metrics.advantage(name: 'shell')           # C1 local − global
+              PWN::AI::Agent::Metrics.advantage(name: 'shell')           # C1 local − global (P20 judge-blended)
+              PWN::AI::Agent::Metrics.record_judge(name: 'shell', score: 0.8) # P20 ORM→metrics
+              PWN::AI::Agent::Metrics.judge_rate(name: 'shell')         # P20 mean ORM
+              PWN::AI::Agent::Metrics.effective_rate(name: 'shell')     # P20 proxy⋈judge
               PWN::AI::Agent::Metrics.changepoints(within_secs: 3600)    # E1 CUSUM regime changes
               PWN::AI::Agent::Metrics.record_calibration(predicted: 0.8, actual: 1.0, brier: 0.04, engine: :ollama)
               PWN::AI::Agent::Metrics.calibration(engine: :ollama)       # W3 Brier / overconfidence

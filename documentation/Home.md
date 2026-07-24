@@ -39,7 +39,7 @@
 | [Agent Tool Registry](Agent-Tool-Registry.md) | 10 toolsets · **71** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
-| [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum`** - ORM/PRM judge · sentinel · HER · self-play · DPO export · **regression-gated LoRA** |
+| [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum`** - ORM/PRM · P9/P14 trajectory DPO · P15 scrub · P16 warm · P17 budget skill · P18 PRM→rank · P19 diet gate · export-ready LoRA |
 | [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · **osint** · serial · telecomm · packet · vision · voice · correlate |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |

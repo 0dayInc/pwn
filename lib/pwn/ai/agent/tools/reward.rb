@@ -126,3 +126,69 @@ PWN::AI::Agent::Registry.register(
     )
   }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'reward_warm_sentinel',
+  toolset: 'learning',
+  schema: {
+    name: 'reward_warm_sentinel',
+    description: 'P10 — Backfill the R3 sentinel ring buffer from Learning ' \
+                 'outcomes so proxy_distrust can engage on local/offline hosts ' \
+                 'without waiting for live remote introspect. Only fills empty ' \
+                 'slots; never flushes a warm window.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', default: 120, description: 'Max outcomes to scan.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Reward) && PWN::AI::Agent::Reward.respond_to?(:warm_sentinel) },
+  handler: ->(args) { PWN::AI::Agent::Reward.warm_sentinel(limit: args[:limit] || 120) }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'reward_scrub_preferences',
+  toolset: 'learning',
+  schema: {
+    name: 'reward_scrub_preferences',
+    description: 'P15 — One-shot W1 ledger hygiene. Drops CORRECTION:-only chosen, resolve rows without trajectory shape, and chosen≪rejected pairs. dry_run:true reports; false rewrites ~/.pwn/preferences.jsonl (backup first).',
+    parameters: {
+      type: 'object',
+      properties: {
+        dry_run: { type: 'boolean', default: true, description: 'Report only (default true).' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Reward) && PWN::AI::Agent::Reward.respond_to?(:scrub_preferences) },
+  handler: lambda { |args|
+    dry = args.key?(:dry_run) ? args[:dry_run] : true
+    PWN::AI::Agent::Reward.scrub_preferences(dry_run: dry)
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'reward_preference_balance',
+  toolset: 'learning',
+  schema: {
+    name: 'reward_preference_balance',
+    description: 'P15/P5 — Geometry-aware W1 diversity report. scrub:true scores the post-hygiene diet (trajectory_fraction, by_shape) so promote/export gates see usable pairs only.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', default: 10_000 },
+        scrub: { type: 'boolean', default: true }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Reward) && PWN::AI::Agent::Reward.respond_to?(:preference_balance) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Reward.preference_balance(
+      limit: args[:limit] || 10_000,
+      scrub: args.key?(:scrub) ? args[:scrub] : true
+    )
+  }
+)
