@@ -99,6 +99,19 @@ drift so the agent can distinguish "I called the API wrong" from "nmap was
 upgraded", "the HackRF was unplugged", or "the target DOM moved". See
 [Extrospection](Extrospection.md#extro_correlate--the-point-of-the-whole-thing).
 
+
+## Preference pairs from resolve (W1 / P9)
+
+`Mistakes.resolve` writes a DPO preference into `~/.pwn/preferences.jsonl`:
+
+- **rejected** — the failing snippet / action
+- **chosen** — prefers `structured_fix.winning_trace` (+ strategy/tool) when
+  present; falls back to `AVOID_ARGS` / fix prose only when no trace exists
+
+Curriculum auto-resolve always attaches a winning tool trace so the ledger
+learns **trajectories**, not commentary. Write-time source quotas (P9) still
+apply to pure prose resolves so resolve-monoculture cannot flood the ledger.
+
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Extrospection](Extrospection.md) · [Persistence](Persistence.md) ·
 [pwn-ai Agent](pwn-ai-Agent.md)

@@ -136,7 +136,7 @@ module PWN
 
           tokens = query.scan(/[a-z0-9_]{3,}/).uniq
           # C1 — advantage-weighted router:
-          #   score = α·keyword_sim + β·advantage + γ·UCB(tool)
+          #   score = α·keyword_sim + β·advantage + γ·UCB(tool) + δ·prm_advantage
           # UCB gives untried / low-N tools an exploration bonus so a single
           # early failure (before its dep was installed) does not blacklist
           # it forever; advantage prefers tools that outperform the fleet.
@@ -145,12 +145,15 @@ module PWN
           trust = defined?(Metrics) && Metrics.respond_to?(:proxy_trust) ? Metrics.proxy_trust : 1.0
           beta  = 0.3 * trust
           gamma = 0.2
+          # P18 — PRM step_reward advantage closes R2 into the controller
+          delta = 0.25 * trust
           scored = entries.map do |e|
             hay   = "#{e.name} #{e.toolset} #{e.schema[:description]} #{Array(e.schema.dig(:parameters, :properties)&.keys).join(' ')}".downcase
             sim   = tokens.count { |t| hay.include?(t) }
             adv   = defined?(Metrics) && Metrics.respond_to?(:advantage) ? Metrics.advantage(name: e.name) : 0.0
             ucb   = defined?(Metrics) && Metrics.respond_to?(:ucb) ? Metrics.ucb(name: e.name) : 0.5
-            [e, sim, (alpha * sim) + (beta * adv) + (gamma * ucb)]
+            prm   = defined?(Metrics) && Metrics.respond_to?(:prm_advantage) ? Metrics.prm_advantage(name: e.name) : 0.0
+            [e, sim, (alpha * sim) + (beta * adv) + (gamma * ucb) + (delta * prm)]
           end
           scored.reject { |_, sim, _| sim.zero? }
                 .sort_by { |_, _, s| -s }

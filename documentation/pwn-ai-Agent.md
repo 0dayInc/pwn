@@ -118,10 +118,11 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
   local.
 - `PWN::AI::Agent::Learning.export_finetune` + `Reward.export_dpo` turn every
   successful session and every preference pair into supervised / DPO
-  datasets under `~/.pwn/finetune/` - `Curriculum.train_and_gate` then
-  LoRA-tunes the local model on them and only promotes the new adapter if it
-  beats the old one on the current `Mistakes.top` set. See
-  [Reinforcement Learning](Reinforcement-Learning.md).
+  datasets under `~/.pwn/finetune/` — `Curriculum.train_and_gate` then
+  LoRA-tunes the local model and promotes only under **gate v2** (resolved
+  margin + mean judge + frozen smoke set). Preference pairs use trajectory
+  geometry (P9/P14/P15): revised answers / winning traces, not `CORRECTION:` prose; `scrub_preferences` + export filter; practice lands `shape: :winning_trace`.
+  See [Reinforcement Learning](Reinforcement-Learning.md).
 
 ## RL feature flags (`PWN::Env[:ai][:agent]`)
 

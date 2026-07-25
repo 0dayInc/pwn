@@ -231,8 +231,11 @@ module PWN
         )
       end
 
-      # P3 — backfill ORM/PRM labels when local :failure_only introspect is on
-      unless names.include?('curriculum_offline_judge')
+      # P3 — backfill ORM/PRM labels when local :failure_only introspect is on.
+      # P13 — treat legacy alias offline_judge_nightly as the same job so
+      # install_defaults never double-seeds the 30 3 * * * slot.
+      offline_names = %w[curriculum_offline_judge offline_judge_nightly]
+      unless names.intersect?(offline_names)
         seeded << create(
           name: 'curriculum_offline_judge',
           schedule: '30 3 * * *',
@@ -240,6 +243,15 @@ module PWN
           delivery: 'log',
           enabled: true
         )
+      end
+      # Disable duplicate alias if both exist (idempotent cleanup).
+      if names.include?('curriculum_offline_judge') && names.include?('offline_judge_nightly')
+        begin
+          dup = jobs.values.find { |j| j[:name].to_s == 'offline_judge_nightly' }
+          disable(id: dup[:id]) if dup && dup[:enabled]
+        rescue StandardError
+          nil
+        end
       end
 
       # M1/M3 — nightly memory GC so the injected MEMORY block stays high-signal

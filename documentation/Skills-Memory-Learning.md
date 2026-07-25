@@ -39,8 +39,10 @@ its own performance, turns wins into permanent capability, and - critically -
                                        frontier engine may WRITE the lesson a local engine READS
 8. A whole workflow succeeded         → Learning.distill_skill(name, session_id, references:)
 9. Found a fix for a mistake          → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X - FIX: Y"
-10. (weekly, cron) Learning.export_finetune → ~/.pwn/finetune/*.jsonl → LoRA over the local
-     model - the ONLY step that changes weights, not just the scaffold.
+10. (weekly, cron) Learning.export_finetune (P12: min_score + PRM-compress) +
+     Reward.export_dpo (≤40%/src, P15 geometry scrub) → ~/.pwn/finetune/*.jsonl → LoRA over the local
+     model via Curriculum.train_and_gate (P11 gate v2) — the ONLY step that
+     changes weights, not just the scaffold. Without a trainer this stays export-ready.
 11. Next launch: PromptBuilder injects the budgeted blocks → the model already knows:
      MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION
 ```
@@ -103,7 +105,7 @@ the new format.
 | `skill_delete(name)` | auto-distilled skill turned out low-quality |
 | `learning_auto_introspect_toggle(enabled: false)` | during noisy fuzz loops |
 | `PWN::MemoryIndex.reset` | new engagement - drop the local embedding index (`memory.idx`) so it rebuilds against the fresh `memory.json` |
-| `PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)` | you have enough successful sessions to cut a supervised dataset for the local model |
+| `PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)` | you have enough **high-score** sessions for SFT (P12 drops score&lt;0.6 / HER/soft and PRM-compresses traces) |
 
 ## Example questions that trigger Introspection
 

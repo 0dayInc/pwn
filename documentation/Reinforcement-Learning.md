@@ -77,8 +77,8 @@ path closes the weight loop; without a trainer the path is **export-ready**
 
 | ID | Where | What |
 |----|-------|------|
-| **W1** | `Reward.{record_preference,export_dpo}` | 5 free preference sources: user_correction, mistakes_resolve, counterfactual, curriculum, critic. `export_dpo` enforces ≤40% per-source (`DPO_SOURCE_CAP`); pass `balance: false` for a raw dump. |
-| **W2** | `Curriculum.train_and_gate` | SFT+DPO → unsloth/axolotl LoRA → `ollama create pwn-vN+1` → replay `Mistakes.top` on vN vs vN+1 → promote iff `resolved(N+1) > resolved(N)`. **Without a trainer: export-only** (`weight_loop: :export_ready`). |
+| **W1** | `Reward.{record_preference,export_dpo}` | 5 free preference sources: user_correction, mistakes_resolve, counterfactual, curriculum, critic. Write-time `WRITE_SOURCE_CAP` + export `DPO_SOURCE_CAP` (≤40%). Trajectory shapes (`winning_trace` / `revised_answer` / `real_dispatch`) force-land. |
+| **W2** | `Curriculum.train_and_gate` | SFT+DPO → unsloth/axolotl LoRA → `ollama create pwn-vN+1` → **gate v2** (resolved margin + mean judge + smoke). **Without a trainer: export-only** (`weight_loop: :export_ready`). |
 | **W3** | `Curriculum.calibrate` + `Metrics.{record_calibration,calibration}` | plan_first `p(success)` vs actual → per-engine Brier/overconfidence. |
 
 ## Tier 6 — Deepen the intro↔extro join
@@ -118,7 +118,8 @@ PWN::Cron.install_defaults
 
 ## Tools exposed to the model
 
-`reward_judge` · `reward_prm` · `reward_sentinel` · `reward_preferences` ·
+`reward_judge` · `reward_prm` · `reward_sentinel` · `reward_warm_sentinel` · `reward_preferences` ·
+`reward_scrub_preferences` · `reward_preference_balance` ·
 `reward_export_dpo` · `curriculum_practice` · `curriculum_train` ·
 `curriculum_hindsight` · `curriculum_offline_judge` ·
 `curriculum_preference_balance` · `learning_purge_noise`
@@ -145,6 +146,39 @@ PWN::Cron.install_defaults
 | **P6** | W2 honesty | Docs + `train_and_gate` return `weight_loop: :export_ready` when `trainer: null`. |
 | **P7** | W3 as controller | Engine Brier > 0.35 or overconfidence > 0.25 (n≥8) → force plan_first + critic, cap max_iters at 12. `offline_judge` also records calibration from PLAN `p(success)=` so the controller can fire under `:failure_only`. |
 | **P8** | Remote reward teacher | `agent.reward_llm` nil → ORM/PRM use the LLM teacher on remote engines even when `module_reflection` is false. Local ollama stays heuristic unless explicitly enabled. PRM prompts carry R4 tags so benign recon exits score 0 not −1. |
+| **P9** | W1 pair geometry + write-time quota | Critic chosen = **revised full answer** (not `CORRECTION:` flaw prose). Resolve prefers `structured_fix.winning_trace`. Counterfactual tags `:real_dispatch` vs `:imagined`. `record_preference` enforces `WRITE_SOURCE_CAP=0.40` online (trajectory shapes force-land). |
+| **P10** | `Reward.warm_sentinel` | Backfills R3 ring from scored Learning outcomes so local `:failure_only` hosts reach `SENTINEL_WINDOW` without waiting for live remote introspect. `offline_judge` calls it every night. |
+| **P11** | W2 gate v2 | Promote only when candidate wins on resolved margin **and** mean judge **and** frozen smoke set (uname/pwd/ruby) does not regress. Coarse `resolved(N+1)>resolved(N)` alone cannot self-promote eval memorisation. |
+| **P12** | SFT quality gate | `export_finetune` drops HER/soft + score&lt;`SFT_MIN_SCORE` (0.6), de-dupes per session by best score, PRM-compresses traces (`compress_finetune_trace`). |
+| **P13** | Cron offline_judge dedupe | `install_defaults` treats `offline_judge_nightly` as alias of `curriculum_offline_judge` and disables duplicates so the 30 3 * * * slot runs once. |
+| **P14** | Practice → DPO geometry | `Curriculum.practice` records `chosen: winning_trace` (+ final), `shape: :winning_trace` — never first-3-lines fix prose. |
+| **P15** | Ledger hygiene | `Reward.usable_preference?` / `scrub_preferences` / geometry filter in `export_dpo` drop `CORRECTION:` prose, resolve-without-trace, and chosen≪rejected. `preference_balance(scrub:true)` reports `trajectory_fraction`. |
+| **P16** | R3 warm for real | `warm_sentinel` fills from scored **and** success-boolean outcomes, returns `proxy_distrust`, runs `sentinel` once full so controllers can engage. |
+| **P17** | Budget-exhaustion skill | Practice prioritises `agent_loop`/`assistant_answer`; natural prompts teach finish-under-N; Loop hard-stops empty-final thrash and tightens max_iters when budget fingerprints dominate. |
+| **P18** | PRM → controller | `Metrics.record_step_reward` + `prm_advantage`; `Registry.rank` adds `δ·prm_advantage` so R2 biases live tool choice. |
+| **P19** | Promote diet gate | `train_and_gate` refuses promote unless scrubbed W1 diet has ≥12 pairs, no monoculture, max source ≤45%, trajectory_fraction ≥30%. Export-only stays correct otherwise. |
+| **P20** | Judge-blended Metrics | `Metrics.record_judge` / `judge_rate` / `effective_rate` fold episode ORM into per-tool UCB/Thompson/advantage when `proxy_distrust>0`. `exemplars_for` drops success rows with score&lt;0.6 so proxy-true/judge-low cannot be few-shot. |
+| **P21** | Resolve trajectory-only | `Mistakes.resolve` writes W1 only when `structured_fix.winning_trace` ≥40 chars (`shape: :winning_trace`). Prose-only resolve still updates Memory + structured_fix; it does **not** flood DPO. |
+| **P22** | W3 calibration live | `Loop.plan_first` stashes `p(success)=` on `Thread.current[:pwn_plan_predicted]`; `Learning.recover_predicted_from_session` + `Curriculum.calibrate` light the Brier/overconfidence controller under `:failure_only`. |
+| **P23** | Short-horizon budget practice | Budget-exhaustion fingerprints get natural "finish under N" prompts; practice auto-resolve requires N≥2 holdouts at judge≥0.7 **and** a real winning_trace (no long-prose resolve). |
+| **P24** | Critic cost under budget-hot | When `budget_exhaustion_hot?`, `auto_introspect` forces `critic(text_only: true)` — single Reflect/heuristic shot, no tool-armed persona swarm that burns the remaining iteration budget. |
+| **P25** | Write-time trajectory gate | `Reward.record_preference` refuses non-`TRAJECTORY_SHAPES` unless `force:` / `user_correction`. Write-time source quota **still** applies to trajectory pairs so winning_trace cannot re-monoculture the ledger. |
+
+## Preference / trajectory signal quality (current ops posture)
+
+The in-context loop (R4 + Mistakes + prompt injection) is production-ready.
+The **weight path** is export-ready and gated; its bottleneck is pair geometry
+and source diversity, not missing tiers:
+
+1. Write-time + export caps keep resolve-monoculture from teaching "emit fix prose".
+2. Critic/resolve/counterfactual/**practice** emit **trajectory-shaped** chosen sides (P9/P14).
+3. P15 scrub + export geometry filter purge historical prose flood before DPO/LoRA.
+4. R3/W3 warm via `offline_judge` + `warm_sentinel` so controllers are not permanently cold on ollama hosts (P10/P16).
+5. SFT is filtered as hard as DPO; gate v2 needs smoke + mean, not count alone; P19 also requires trajectory diet.
+6. Budget-exhaustion is a first-class curriculum target (P17/P23); PRM step_reward biases `Registry.rank` (P18); critic is text-only when budget-hot (P24).
+7. ORM judge blends into Metrics/UCB when distrust is high (P20); W3 calibration lights from plan_first `p(success)=` (P22).
+8. Resolve/record_preference are trajectory-only at write time (P21/P25); write-time source quota still caps traj monoculture.
+9. Without unsloth/axolotl **or** a clean preference diet, `train_and_gate` stays `weight_loop: :export_ready` (honest).
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Mistakes](Mistakes.md) · [Cron](Cron.md) · [pwn-ai Agent](pwn-ai-Agent.md)

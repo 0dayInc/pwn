@@ -257,15 +257,33 @@ module PWN
               importance: 0.9
             )
           end
-          # W1 — every resolve is a naturally-generated preference pair:
-          # (rejected: the failing action, chosen: the fix).
+          # W1/P9 — every resolve is a preference pair. Prefer structured
+          # winning_trace (+ strategy/tool) over first-line fix prose so DPO
+          # learns tool trajectories, not commentary.
           if defined?(Reward)
-            Reward.record_preference(
-              prompt: "#{store[key][:tool]}: #{store[key][:error]}",
-              rejected: store[key][:snippet].to_s,
-              chosen: fix.strip,
-              source: :mistakes_resolve
-            )
+            sf = store[key][:structured_fix] || {}
+            trace = sf[:winning_trace].to_s.strip
+            strat = [sf[:strategy], sf[:tool], sf[:args_template]].compact.map(&:to_s).reject(&:empty?).join(' | ')
+            # P21/P25 — only write W1 pairs when we have a real winning_trace.
+            # Prose-only resolve still updates Memory lesson + structured_fix;
+            # it must NOT flood DPO with fix commentary (shape: :fix_prose).
+            if trace.length >= 40
+              parts = []
+              parts << "STRATEGY: #{strat}" unless strat.empty?
+              parts << "WINNING_TRACE:\n#{trace[0, 3_500]}"
+              parts << "FIX: #{fix.strip[0, 400]}"
+              chosen = parts.join("\n")
+              rejected = store[key][:snippet].to_s
+              rejected = "FAILING: tool=#{store[key][:tool]} err=#{store[key][:error]}" if rejected.strip.empty?
+              Reward.record_preference(
+                prompt: "#{store[key][:tool]}: #{store[key][:error]}",
+                rejected: rejected,
+                chosen: chosen,
+                source: :mistakes_resolve,
+                shape: :winning_trace,
+                meta: { signature: sig, strategy: sf[:strategy], tool: sf[:tool] }.compact
+              )
+            end
           end
           store[key]
         end

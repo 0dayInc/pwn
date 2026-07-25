@@ -51,6 +51,10 @@ module PWN
       module Loop
         DEFAULT_MAX_ITERS    = 777
         ESCALATE_AFTER_FAILS = 4
+        # P17 — when empty_final / known thrash shapes dominate, stop before
+        # burning the full ollama cap so the corpus is not pure terminal failure.
+        BUDGET_HARD_STOP_FAILS = 8
+        BUDGET_EMPTY_FINAL_STOP = 3
 
         ENGINE_MODS = {
           openai: 'PWN::AI::OpenAI',
@@ -77,6 +81,25 @@ module PWN
           { role: 'assistant', content: txt, tool_calls: [] }
         end
 
+        # P17 — true when unresolved agent_loop / assistant_answer budget
+        # fingerprints dominate Mistakes.top (the #1 live failure mode).
+        private_class_method def self.budget_exhaustion_hot?
+          return false unless defined?(Mistakes)
+
+          top = Mistakes.top(limit: 8, unresolved_only: true)
+          return false if top.empty?
+
+          budgetish = top.count do |m|
+            t = m[:tool].to_s
+            e = m[:error].to_s.downcase
+            t == 'agent_loop' || t == 'assistant_answer' ||
+              e.include?('budget exhausted') || e.include?('iteration budget')
+          end
+          budgetish >= 2 || (budgetish >= 1 && top.first[:tool].to_s == 'agent_loop')
+        rescue StandardError
+          false
+        end
+
         private_class_method def self.max_iters
           v = (PWN::Env.dig(:ai, :agent, :max_iters) if defined?(PWN::Env))
           n = v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
@@ -87,6 +110,11 @@ module PWN
           # shrink the tool budget so thrash can't compound on bad plans.
           cal = calibration_state
           n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
+          # P17 — tighter default when agent_loop budget_exhaustion dominates
+          # open mistakes: finish-under-N is the skill gap, not more thrash.
+          if budget_exhaustion_hot?
+            n = [n, active_engine == :ollama ? 12 : 20].min
+          end
           n
         rescue StandardError
           DEFAULT_MAX_ITERS
@@ -247,8 +275,15 @@ module PWN
             rt = Curriculum.red_team_plan(request: opts[:request], plan: plan)
             messages << { role: 'user', content: rt } if rt
           end
-          # W3 — extract predicted p(success) for calibration tracking
-          plan[/p\(success\)\s*=\s*([01](?:\.\d+)?)/i, 1]&.to_f
+          # W3/P22 — extract predicted p(success) for calibration tracking.
+          # Accept p(success)=0.7 | p(success) = .7 | confidence=0.7 on last lines.
+          predicted = plan[/p\(\s*success\s*\)\s*=\s*([01]?(?:\.\d+)?)/i, 1]&.to_f
+          predicted = plan[/\bconfidence\s*=\s*([01]?(?:\.\d+)?)/i, 1]&.to_f if predicted.nil?
+          predicted = predicted.clamp(0.0, 1.0) if predicted
+          # Stash so auto_introspect / recover can always see it even if the
+          # return value is dropped by a caller rescue.
+          Thread.current[:pwn_plan_predicted] = predicted
+          predicted
         rescue StandardError => e
           warn "[pwn-ai/loop] plan_first swallowed: #{e.class}: #{e.message}"
           nil
@@ -498,9 +533,20 @@ module PWN
           append_session(session_id: session_id, role: 'user', content: request)
 
           predicted = nil
+          Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
-          predicted = plan_first(messages: messages, request: request) if (force_plan || agent_flag(key: :plan_first, default: local)) && !Array(tools).empty?
+          if (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
+            predicted = plan_first(messages: messages, request: request)
+            # P22 — prefer explicit return; fall back to thread stash
+            predicted = Thread.current[:pwn_plan_predicted] if predicted.nil?
+          end
+          if budget_exhaustion_hot?
+            messages << {
+              role: 'user',
+              content: '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. Prefer the SHORTEST plan that finishes the ask (≤3 tool calls). Emit a final answer as soon as you have evidence — do not explore.'
+            }
+          end
           if force_plan && cal_state[:cal]
             messages << {
               role: 'user',
@@ -589,6 +635,31 @@ module PWN
               )
             end
 
+            # P17 — hard stop: empty-final thrash or cumulative fails past cap.
+            # Prefer a short apologetic final over another 10 useless tool dumps
+            # that poison ORM/PRM/DPO with terminal failures.
+            empty_n = turn_fails['empty_final'].to_i
+            fail_n  = turn_fails.values.sum
+            if empty_n >= BUDGET_EMPTY_FINAL_STOP || fail_n >= BUDGET_HARD_STOP_FAILS
+              msg = if empty_n >= BUDGET_EMPTY_FINAL_STOP
+                      '[pwn-ai] stopped: repeated empty finals (budget thrash guard)'
+                    else
+                      '[pwn-ai] stopped: too many in-turn failures (budget thrash guard)'
+                    end
+              if defined?(Mistakes)
+                Mistakes.record(
+                  tool: 'agent_loop',
+                  error: "budget thrash guard fired empty=#{empty_n} fails=#{fail_n} iter=#{i}",
+                  session_id: session_id,
+                  source: :loop,
+                  shape: :budget_thrash
+                )
+              end
+              append_session(session_id: session_id, role: 'assistant', content: msg)
+              Learning.auto_introspect(session_id: session_id, request: request, final: msg, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              return msg
+            end
+
             next unless local && !escalated && turn_fails.values.sum >= ESCALATE_AFTER_FAILS
 
             hint = escalate(request: request, turn_fails: turn_fails, session_id: session_id)
@@ -599,7 +670,7 @@ module PWN
             escalated = true
           end
 
-          Mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer', session_id: session_id, source: :loop) if defined?(Mistakes)
+          Mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer', session_id: session_id, source: :loop, shape: :budget_exhausted) if defined?(Mistakes)
           '[pwn-ai] iteration budget exhausted'
         end
 
