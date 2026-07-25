@@ -121,6 +121,40 @@ module PWN
           v = llm_judge(request: request, final: final, trace: trace)
           v ||= heuristic_judge(request: request, final: final, trace: trace)
 
+          # P1 — local/heuristic calibration: thin judges must not be treated
+          # as ground truth when proxy_distrust is already high. Two levers:
+          #   (1) low :confidence so Metrics.effective_rate haircuts blend
+          #       weight (distrust × confidence) instead of replacing proxy;
+          #   (2) score-path caps only for decisive failure floors and for
+          #       local no-trace highs (false "solved"). Do NOT pull known
+          #       wrong (0.0 failure-language) toward 0.5, and do NOT deflate
+          #       tool-backed heuristic scores that already cleared the bar —
+          #       confidence handles that in the bandit blend.
+          eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase
+          local = eng == 'ollama' || eng.empty?
+          if v[:source].to_s == 'heuristic'
+            v[:confidence] = local ? 0.35 : 0.5
+            raw = v[:score].to_f
+            v[:score_raw] = raw
+            # preserve empty / failure-language / polite floors exactly (raw <= 0.15)
+            # and pass-through non-capped heuristics via the default arm.
+            if local && raw > 0.15 && trace.empty? && raw >= 0.6 && final.length < 400
+              v[:score] = [raw, 0.45].min
+              v[:rationale] = "#{v[:rationale]} | P1:local_no_trace_cap"
+            elsif local && raw > 0.15 && trace.length < 2 && raw >= 0.85
+              # thin-evidence local highs: mild shrink toward 0.5
+              v[:score] = (0.5 + ((raw - 0.5) * 0.7)).round(3).clamp(0.0, 1.0)
+            else
+              v[:score] = raw
+            end
+            v[:verdict] = if v[:score] >= 0.6 then :solved
+                          elsif v[:score] >= 0.3 then :partial
+                          else :wrong
+                          end
+          else
+            v[:confidence] ||= 0.85
+          end
+
           ground = verify_as_reward(final: final)
           unless ground.nil?
             # Ground-truth override: a browser-refuted claim caps score at
@@ -129,13 +163,17 @@ module PWN
             v[:score] = [v[:score], 0.2].min if ground[:verdict] == :refuted
             v[:score] = [v[:score], 0.6].max if ground[:verdict] == :confirmed
             v[:grounded] = ground
+            v[:confidence] = [v[:confidence].to_f, ground[:confidence].to_f].max if ground[:confidence]
           end
 
           v[:success] = v[:score] >= 0.6
-          record_sentinel(proxy: opts[:proxy_ok], judge: v[:score]) if commit
+          v[:engine] = eng
+          # P1 — sentinel stores confidence so distrust math can haircut
+          # heuristic-heavy windows differently from LLM ORM windows.
+          record_sentinel(proxy: opts[:proxy_ok], judge: v[:score], confidence: v[:confidence]) if commit
           v
         rescue StandardError => e
-          { score: 0.5, verdict: :unknown, rationale: "judge error: #{e.class}", success: !final.strip.empty?, error: e.message }
+          { score: 0.5, verdict: :unknown, rationale: "judge error: #{e.class}", success: !final.strip.empty?, error: e.message, confidence: 0.2, source: :error }
         end
 
         # ----------------------------------------------------------------
@@ -470,6 +508,19 @@ module PWN
         WRITE_SOURCE_CAP    = 0.40
         WRITE_SOURCE_WINDOW = 100
 
+        # P0 — target online generator mix for W1. Gates alone cannot fill
+        # an empty promote; the controller must *prefer underfilled* sources
+        # (counterfactual / critic / curriculum / user_correction) when
+        # resolve already dominates. Shares are soft targets, not hard caps
+        # (hard cap remains WRITE_SOURCE_CAP). Trajectory-only still applies.
+        TARGET_SOURCE_MIX = {
+          'mistakes_resolve' => 0.30,
+          'curriculum' => 0.25,
+          'counterfactual' => 0.20,
+          'critic' => 0.15,
+          'user_correction' => 0.10
+        }.freeze
+
         public_class_method def self.record_preference(opts = {})
           prompt   = opts[:prompt].to_s
           rejected = opts[:rejected].to_s
@@ -525,20 +576,112 @@ module PWN
         public_class_method def self.write_source_quota(opts = {})
           source = opts[:source].to_s
           recent = preferences(limit: WRITE_SOURCE_WINDOW)
-          return { over_cap: false, share: 0.0, n: 0, window: recent.length } if recent.length < 10
+          return { over_cap: false, share: 0.0, n: 0, window: recent.length, underfilled: true } if recent.length < 10
 
           n = recent.count { |r| r[:source].to_s == source }
           share = n.to_f / recent.length
+          target = TARGET_SOURCE_MIX[source]
           {
             over_cap: share > WRITE_SOURCE_CAP,
             share: share.round(3),
             n: n,
             window: recent.length,
             source: source,
-            cap: WRITE_SOURCE_CAP
+            cap: WRITE_SOURCE_CAP,
+            target: target,
+            underfilled: target ? share < (target * 0.5) : share < 0.05,
+            deficit: target ? (target - share).round(3) : nil
           }
         rescue StandardError
-          { over_cap: false, share: 0.0 }
+          { over_cap: false, share: 0.0, underfilled: true }
+        end
+
+        # P0 — online generator mix report + urgency flags. Controllers
+        # (auto_introspect, practice, counterfactual gate) consult this so
+        # underfilled sources get scheduling priority while over-cap
+        # resolve stops flooding. Returns {by_source, trajectory_fraction,
+        # urgent:[], suppress:[], healthy:}.
+        public_class_method def self.generator_mix(opts = {})
+          limit = opts[:limit] || WRITE_SOURCE_WINDOW
+          rows = preferences(limit: limit)
+          usable = rows.select { |r| usable_preference?(row: r) }
+          by = Hash.new(0)
+          usable.each { |r| by[r[:source].to_s] += 1 }
+          n = usable.length
+          shares = {}
+          TARGET_SOURCE_MIX.each_key { |k| shares[k] = n.zero? ? 0.0 : (by[k].to_f / n).round(3) }
+          by.each_key { |k| shares[k] ||= (by[k].to_f / n).round(3) }
+
+          traj_n = usable.count { |r| TRAJECTORY_SHAPES.include?(r[:shape].to_s) }
+          traj_f = n.zero? ? 0.0 : (traj_n.to_f / n).round(3)
+
+          urgent = []
+          suppress = []
+          TARGET_SOURCE_MIX.each do |src, target|
+            sh = shares[src].to_f
+            urgent << src if sh < (target * 0.5) && n >= 5
+            suppress << src if sh > WRITE_SOURCE_CAP && n >= 10
+          end
+          suppress << 'mistakes_resolve' if shares['mistakes_resolve'].to_f > WRITE_SOURCE_CAP && n >= 10 && !suppress.include?('mistakes_resolve')
+
+          healthy = urgent.empty? && suppress.empty? && traj_f >= 0.5 && n >= 10
+          {
+            n: n,
+            raw_n: rows.length,
+            by_source: by,
+            shares: shares,
+            targets: TARGET_SOURCE_MIX,
+            trajectory_fraction: traj_f,
+            urgent: urgent.uniq,
+            suppress: suppress.uniq,
+            healthy: healthy,
+            recommendation: if healthy
+                              'mix_ok'
+                            elsif n < 10
+                              'need_more_pairs'
+                            elsif traj_f < 0.5
+                              'need_trajectory_shape'
+                            elsif urgent.any?
+                              "boost:#{urgent.join(',')}"
+                            else
+                              "suppress:#{suppress.join(',')}"
+                            end
+          }
+        rescue StandardError => e
+          {
+            n: 0, healthy: false, error: "#{e.class}: #{e.message}",
+            urgent: %w[curriculum counterfactual critic user_correction],
+            suppress: []
+          }
+        end
+
+        # P0 ops — infer trajectory shape for legacy ledger rows that predate
+        # P21/P25 shape tags. Used by scrub_preferences rewrite so generator_mix
+        # trajectory_fraction reflects content, not missing keys.
+        public_class_method def self.infer_shape(opts = {})
+          r = opts.is_a?(Hash) && opts.key?(:row) ? opts[:row] : opts
+          r = r.transform_keys(&:to_sym) if r.respond_to?(:transform_keys)
+          existing = r[:shape].to_s
+          return existing if TRAJECTORY_SHAPES.include?(existing) || existing == 'fix_prose'
+
+          chosen = r[:chosen].to_s
+          source = r[:source].to_s
+          # tool-call / trace markers → winning_trace
+          if chosen.match?(/\b(shell|pwn_eval|memory_|sessions_|reward_|curriculum_|extro_|mistakes_)\b/i) &&
+             (chosen.include?('→') || chosen.include?('tool_call') || chosen.include?('"name"') ||
+              chosen.lines.count { |l| l.strip.start_with?('{') || l.include?('arguments') } >= 1)
+            return 'winning_trace'
+          end
+          # long revised answer from critic / user / CF → revised_answer
+          return 'revised_answer' if chosen.length >= 200 && %w[critic user_correction counterfactual curriculum].include?(source)
+
+          # counterfactual real dispatch tag in meta
+          meta = r[:meta].is_a?(Hash) ? r[:meta] : {}
+          return 'real_dispatch' if meta[:mode].to_s == 'real_dispatch' || meta['mode'].to_s == 'real_dispatch'
+
+          existing.empty? ? nil : existing
+        rescue StandardError
+          nil
         end
 
         # P15 — keep only usable preference pairs for balance/export/promote.
@@ -586,6 +729,11 @@ module PWN
               next
             end
             if usable_preference?(row: r)
+              # P0 ops — backfill shape so trajectory_fraction is meaningful
+              if r[:shape].to_s.empty?
+                inferred = infer_shape(row: r)
+                r = r.merge(shape: inferred) if inferred
+              end
               kept << r
             else
               why = if r[:chosen].to_s.match?(/\A\s*CORRECTION:\s*/i)
@@ -640,6 +788,11 @@ module PWN
           traj_n = rows.count { |r| TRAJECTORY_SHAPES.include?(r[:shape].to_s) }
           traj_frac = total.zero? ? 0.0 : (traj_n.to_f / total).round(3)
           monoculture = total.positive? && (by.values.max.to_f / total) > 0.7
+          mix = begin
+            generator_mix(limit: limit)
+          rescue StandardError
+            nil
+          end
           {
             total: before,
             kept: total,
@@ -651,12 +804,15 @@ module PWN
             by_shape_fraction: shape_frac,
             trajectory_fraction: traj_frac,
             monoculture: monoculture,
+            generator_mix: mix,
             advice: if total < 12
                       'W1 thin: need more trajectory-shaped pairs before LoRA promote.'
                     elsif monoculture
                       'W1 monoculture: run Reward.scrub_preferences; enable :counterfactual/:critic; stop resolve-prose flood.'
                     elsif traj_frac < 0.30
                       'W1 geometry weak: <30% trajectory-shaped chosen sides — DPO would teach commentary.'
+                    elsif mix && !mix[:healthy]
+                      "W1 generator mix: #{mix[:recommendation]}"
                     else
                       'W1 source mix OK for gated export'
                     end
@@ -902,6 +1058,8 @@ module PWN
           # write must not poison rolling means forever.
           judge = opts[:judge].to_f.clamp(0.0, 1.0)
           entry = { judge: judge, at: Time.now.utc.iso8601 }
+          # P1 — optional per-sample confidence (heuristic < LLM ORM)
+          entry[:confidence] = opts[:confidence].to_f.clamp(0.0, 1.0) unless opts[:confidence].nil?
           # 1.3 — only roll proxy into the window when the caller actually
           # supplied a R4-aligned proxy_ok. Pre-ORM boolean noise no longer
           # dilutes gap_proxy_judge. Proxy is ALWAYS 0.0 or 1.0 when present.

@@ -144,3 +144,26 @@ PWN::AI::Agent::Registry.register(
   check: -> { defined?(PWN::AI::Agent::Curriculum) && PWN::AI::Agent::Curriculum.respond_to?(:preference_balance) },
   handler: ->(args) { PWN::AI::Agent::Curriculum.preference_balance(limit: args[:limit]) }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'curriculum_practice_kpi',
+  toolset: 'curriculum',
+  schema: {
+    name: 'curriculum_practice_kpi',
+    description: 'P1 — Outer curriculum KPI: unresolved [REPEATING] count + week-over-week trend (improving|flat|regressing). Snapshots land in ~/.pwn/curriculum_kpi.jsonl from practice().',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', description: 'Trend window snapshots (default 14)' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Curriculum) && PWN::AI::Agent::Curriculum.respond_to?(:repeating_trend) },
+  handler: lambda { |args|
+    {
+      trend: PWN::AI::Agent::Curriculum.repeating_trend(limit: args[:limit]),
+      snapshot: PWN::AI::Agent::Curriculum.practice_kpi(results: [])
+    }
+  }
+)

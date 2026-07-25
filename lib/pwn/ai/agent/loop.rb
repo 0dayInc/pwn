@@ -112,8 +112,11 @@ module PWN
           n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
           # P17 — tighter default when agent_loop budget_exhaustion dominates
           # open mistakes: finish-under-N is the skill gap, not more thrash.
+          # Caps are intentionally harsh (8 local / 12 remote): the open
+          # fingerprint is "iteration budget exhausted" ×N; more headroom
+          # only produces more empty terminal failures for ORM/PRM/DPO.
           if budget_exhaustion_hot?
-            n = [n, active_engine == :ollama ? 12 : 20].min
+            n = [n, active_engine == :ollama ? 8 : 12].min
           end
           n
         rescue StandardError
@@ -563,7 +566,21 @@ module PWN
             # 3.1 — compact history on local so tool dumps don't fill num_ctx
             compact_history!(messages: messages) if local
 
-            msg = call_engine(messages: messages, tools: tools)
+            # P17 — on the final iteration, strip tools and demand a plain-text
+            # answer. Without this the model happily emits one more tool_calls
+            # batch, burns the last slot, and lands on budget_exhausted with
+            # nothing the user (or ORM) can use.
+            last_iter = (i >= max_iters - 1)
+            if last_iter
+              messages << {
+                role: 'user',
+                content: '[pwn-ai/p17] FINAL ITERATION — do NOT call any more tools. ' \
+                         'Write the best answer you can from evidence already in this ' \
+                         'transcript. If blocked, say what failed and the next single step.'
+              }
+            end
+
+            msg = call_engine(messages: messages, tools: last_iter ? nil : tools)
             return '[pwn-ai] engine returned no message' if msg.nil?
 
             calls = Array(msg[:tool_calls])
@@ -613,7 +630,10 @@ module PWN
                 # alt-persona branch, judge both, inject the winner. Real
                 # advantage estimation; (loser, winner) → DPO preference.
                 thresh = defined?(Mistakes) ? Mistakes::REPEAT_THRESHOLD : 3
-                if count >= thresh && !escalated && defined?(Curriculum)
+                # P17 — never fork counterfactual when budget fingerprints dominate:
+                # CF is another mini agent loop and is the #1 amplifier of
+                # iteration-budget exhaustion on this host.
+                if count >= thresh && !escalated && defined?(Curriculum) && !budget_exhaustion_hot?
                   cf = (turn_fails["cf:#{fkey}"] += 1) == 1 ? Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint) : nil
                   hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
                 end
@@ -670,8 +690,29 @@ module PWN
             escalated = true
           end
 
-          Mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer', session_id: session_id, source: :loop, shape: :budget_exhausted) if defined?(Mistakes)
-          '[pwn-ai] iteration budget exhausted'
+          # P17 — exhaust path must still feed Learning so ORM/PRM/HER see the
+          # failure (previously we only Mistakes.record'd and returned a bare
+          # string — no session row, no judge, no hindsight).
+          final_msg = '[pwn-ai] iteration budget exhausted'
+          if defined?(Mistakes)
+            Mistakes.record(
+              tool: 'agent_loop',
+              error: 'iteration budget exhausted without a final answer',
+              session_id: session_id,
+              source: :loop,
+              shape: :budget_exhausted
+            )
+          end
+          append_session(session_id: session_id, role: 'assistant', content: final_msg)
+          if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: max_iters)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: final_msg,
+              predicted: predicted
+            )
+          end
+          final_msg
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

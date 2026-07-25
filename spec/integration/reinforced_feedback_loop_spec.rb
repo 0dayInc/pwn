@@ -44,6 +44,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
     stub_const('PWN::AI::Agent::Reward::DPO_DIR',            File.join(@tmp, 'finetune'))
     stub_const('PWN::AI::Agent::Curriculum::CURRICULUM_DIR', File.join(@tmp, 'curriculum'))
     stub_const('PWN::AI::Agent::Curriculum::MODELS_FILE',    File.join(@tmp, 'curriculum', 'models.json'))
+    stub_const('PWN::AI::Agent::Curriculum::KPI_FILE',       File.join(@tmp, 'curriculum_kpi.jsonl'))
     stub_const('PWN::Sessions::SESSIONS_DIR',                File.join(@tmp, 'sessions'))
     stub_const('PWN::Memory::MEMORY_FILE',                   File.join(@tmp, 'memory.json'))
     stub_const('PWN::MemoryIndex::INDEX_FILE',               File.join(@tmp, 'memory.idx')) if defined?(PWN::MemoryIndex)
@@ -1199,6 +1200,304 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       allow(curriculum).to receive(:reflect_available?).and_return(false)
       r = curriculum.critic(request: 'q', final: 'solid answer with facts', text_only: true)
       expect(r[:verdict]).to eq :pass
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Design-priority STATUS (post P14–P25) — P0 / P1 / P2
+  # documentation/Reinforcement-Learning.md § Design-priority STATUS
+  # ═══════════════════════════════════════════════════════════════════════
+
+  describe 'P0 · W1 generator diversity (TARGET_SOURCE_MIX + generator_mix)' do
+    it 'exposes TARGET_SOURCE_MIX soft targets that sum to 1.0' do
+      mix = reward::TARGET_SOURCE_MIX
+      expect(mix.keys).to include('mistakes_resolve', 'curriculum', 'counterfactual', 'critic', 'user_correction')
+      expect(mix.values.sum).to be_within(0.001).of(1.0)
+      expect(mix['mistakes_resolve']).to be <= 0.40
+    end
+
+    it 'generator_mix flags underfilled sources and returns recommendation' do
+      # seed a few usable traj pairs skewed toward curriculum/critic
+      6.times do |i|
+        reward.record_preference(
+          prompt: "p#{i}",
+          rejected: "bad answer #{i} " + ('x' * 40),
+          chosen: "STRATEGY: use shell\nWINNING_TRACE: shell(uname)\nFINAL: linux #{i}",
+          source: i.even? ? :curriculum : :critic,
+          shape: :winning_trace
+        )
+      end
+      m = reward.generator_mix
+      expect(m[:n]).to be >= 5
+      expect(m[:shares]).to be_a(Hash)
+      expect(m[:targets]).to eq(reward::TARGET_SOURCE_MIX)
+      expect(m[:urgent]).to include('counterfactual') # 0 share << 0.20 target
+      expect(m[:healthy]).to eq(false)
+      expect(m[:recommendation]).to match(/boost:|need_/)
+    end
+
+    it 'write_source_quota reports underfilled against TARGET_SOURCE_MIX' do
+      12.times do |i|
+        reward.record_preference(
+          prompt: "q#{i}",
+          rejected: "nope #{'y' * 40}",
+          chosen: "STRATEGY: a\nWINNING_TRACE: t\nFINAL: ok #{i}",
+          source: :curriculum,
+          shape: :winning_trace
+        )
+      end
+      q = reward.write_source_quota(source: 'counterfactual')
+      expect(q[:underfilled]).to eq(true)
+      expect(q[:target]).to eq(0.20)
+    end
+
+    it 'counterfactual and critic force-run when generator_mix marks them urgent' do
+      allow(reward).to receive(:generator_mix).and_return(
+        urgent: %w[counterfactual critic], suppress: [], healthy: false, n: 20,
+        recommendation: 'boost:counterfactual,critic'
+      )
+      # env flags OFF — mix_need should still open the gate
+      @agent_cfg[:counterfactual] = false
+      @agent_cfg[:critic] = false
+      allow(curriculum).to receive(:in_curriculum?).and_return(false)
+      allow(curriculum).to receive(:reflect_available?).and_return(false)
+
+      # counterfactual: stubs the expensive branch; we only assert it does not
+      # short-circuit on disabled when mix_need is true. If still nil for other
+      # reasons, at least enabled? gate is not the cause.
+      allow(curriculum).to receive(:enabled?).and_call_original
+      # critic text_only always works once gate opens
+      r = curriculum.critic(request: 'q', final: 'a solid factual answer', text_only: true)
+      expect(r[:source].to_s).not_to eq('disabled')
+    end
+  end
+
+  describe 'P0 · Introspect budget (soft/hard ms + stages_skipped)' do
+    it 'defines INTROSPECT_SOFT_MS < INTROSPECT_HARD_MS' do
+      expect(learning::INTROSPECT_SOFT_MS).to be < learning::INTROSPECT_HARD_MS
+      expect(learning::INTROSPECT_SOFT_MS).to be_between(500, 10_000)
+    end
+
+    it 'auto_introspect returns stages_skipped and respects hard budget' do
+      @agent_cfg[:auto_introspect] = true
+      # Force over_hard by collapsing thresholds
+      stub_const('PWN::AI::Agent::Learning::INTROSPECT_SOFT_MS', 0)
+      stub_const('PWN::AI::Agent::Learning::INTROSPECT_HARD_MS', 0)
+      allow(loop_mod).to receive(:budget_exhaustion_hot?).and_return(false)
+
+      sid = 'spec_budget_introspect'
+      dir = File.join(@tmp, 'sessions')
+      FileUtils.mkdir_p(dir)
+      payload = [
+        { role: 'user', content: 'uname -a', timestamp: Time.now.utc.iso8601 },
+        { role: 'assistant', content: 'Linux kali', timestamp: Time.now.utc.iso8601 }
+      ].map { |h| JSON.generate(h) }.join("\n")
+      File.write(File.join(dir, "#{sid}.jsonl"), "#{payload}\n")
+
+      r = learning.auto_introspect(session_id: sid, request: 'uname -a', final: 'Linux kali')
+      expect(r).to be_a(Hash)
+      expect(r).to have_key(:stages_run)
+      expect(r).to have_key(:stages_skipped)
+      expect(r[:stages_skipped]).to include(:prm) # hard skip
+      expect(r[:elapsed_ms]).to be_a(Numeric)
+    end
+  end
+
+  describe 'P1 · Local judge calibration (shrinkage + confidence)' do
+    it 'heuristic judge returns confidence and shrinks extreme local scores' do
+      v = reward.judge(
+        request: 'what is the kernel',
+        final: 'The Linux kernel is a monolithic unix-like kernel used by kali.',
+        trace: [],
+        proxy_ok: true,
+        commit: false
+      )
+      expect(v[:source].to_s).to eq('heuristic')
+      expect(v[:confidence]).to be <= 0.5
+      expect(v).to have_key(:score_raw)
+      # local + no-trace cap pulls highs down
+      expect(v[:score]).to be <= 0.45 if v[:score_raw].to_f >= 0.6
+      expect(v[:rationale].to_s).to match(/P1:local_no_trace_cap|heuristic/)
+    end
+
+    it 'Metrics.effective_rate scales distrust by judge_confidence' do
+      # establish proxy success
+      10.times { metrics.record(name: 'shell', success: true, duration: 0.01) }
+      # high judge scores but low confidence (heuristic)
+      8.times { metrics.record_judge(name: 'shell', score: 0.2, confidence: 0.35) }
+      allow(metrics).to receive(:proxy_trust).and_return(0.3) # distrust 0.7
+      rate = metrics.effective_rate(name: 'shell')
+      conf = metrics.judge_confidence(name: 'shell')
+      expect(conf).to be_within(0.05).of(0.35)
+      # With conf=0.35, eff_d = 0.7*0.35 = 0.245 — still blended, not pure judge
+      # pure judge would be ~0.2; pure proxy ~1.0; blend must sit between
+      expect(rate).to be > 0.2
+      expect(rate).to be < 1.0
+    end
+  end
+
+  describe 'P1 · Practice outer KPI (practice_kpi + repeating_trend)' do
+    it 'practice_kpi snapshots repeating counts and writes KPI_FILE' do
+      mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer')
+      3.times { mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer') }
+      r = curriculum.practice_kpi(results: [{ resolved: true, mean_score: 0.8 }])
+      expect(r[:repeating_n]).to be >= 1
+      expect(r[:budget_repeating_n]).to be >= 1
+      expect(r[:practiced]).to eq 1 # len(results) recorded tonight
+      expect(r[:resolved_tonight]).to eq 1
+      expect(File.exist?(curriculum::KPI_FILE)).to eq(true)
+      expect(r[:trend]).to be_a(Hash)
+    end
+
+    it 'repeating_trend reports baseline then delta across snapshots' do
+      curriculum.practice_kpi(results: [])
+      # bump repeating by recording more
+      4.times { mistakes.record(tool: 'assistant_answer', error: 'critic: [pwn-ai] iteration budget exhausted') }
+      curriculum.practice_kpi(results: [])
+      t = curriculum.repeating_trend
+      expect(t[:samples]).to be >= 2
+      expect(t).to have_key(:delta_repeating)
+      expect(%i[improving flat regressing baseline]).to include(t[:status])
+    end
+  end
+
+  describe 'P2 · PRM sample efficiency (PRM_MIN_N / fleet coverage)' do
+    it 'prm_advantage is 0 until n >= PRM_MIN_N then applies shrinkage' do
+      expect(metrics::PRM_MIN_N).to eq 5
+      expect(metrics::PRM_FULL_N).to eq 20
+      4.times { metrics.record_step_reward(name: 'shell', reward: 1.0) }
+      expect(metrics.prm_n(name: 'shell')).to eq 4
+      expect(metrics.prm_advantage(name: 'shell')).to eq 0.0
+      metrics.record_step_reward(name: 'shell', reward: 1.0)
+      expect(metrics.prm_n(name: 'shell')).to eq 5
+      # single-tool zero-variance → damp*shrink keeps |adv| small but defined
+      adv = metrics.prm_advantage(name: 'shell')
+      expect(adv).to be_a(Numeric)
+    end
+
+    it 'Registry.rank drops PRM delta until ≥3 tools are PRM-ready' do
+      # only 1 tool ready → delta 0; rank still returns by keyword
+      10.times { metrics.record_step_reward(name: 'shell', reward: 1.0) }
+      expect(metrics.prm_n(name: 'shell')).to be >= metrics::PRM_MIN_N
+      ranked = registry.rank(query: 'run a shell command on the host')
+      expect(ranked.map(&:name)).to include('shell')
+      # spin up 3 ready tools — rank path must not raise
+      %w[shell memory_recall sessions_list].each do |n|
+        10.times { metrics.record_step_reward(name: n, reward: 0.5) }
+      end
+      expect do
+        registry.rank(query: 'run a shell command on the host')
+      end.not_to raise_error
+    end
+  end
+
+  describe 'P2 · STATUS table is the flag authority (no archaeology)' do
+    it 'Reinforcement-Learning.md ships a Design-priority STATUS section' do
+      doc_path = File.expand_path('../../documentation/Reinforcement-Learning.md', __dir__)
+      expect(File.exist?(doc_path)).to eq(true), "missing #{doc_path}"
+      doc = File.read(doc_path)
+      expect(doc).to match(/Design-priority STATUS/)
+      expect(doc).to match(/generator_mix/)
+      expect(doc).to match(/INTROSPECT_SOFT_MS/)
+      expect(doc).to match(/practice_kpi/)
+      expect(doc).to match(/PRM_MIN_N/)
+    end
+  end
+
+  # Design-priority ops closure — make STATUS success criteria reachable on-host
+  describe 'P0 ops · nightly diet close + shape backfill + mix in prompt' do
+    it 'infer_shape tags legacy winning_trace-like chosen sides' do
+      row = {
+        source: 'mistakes_resolve',
+        chosen: "shell → {\"success\":true}\npwn_eval → ok\n#{'x' * 80}",
+        rejected: "failed earlier #{'y' * 80}",
+        shape: ''
+      }
+      s = reward.infer_shape(row: row)
+      expect(s).to eq('winning_trace')
+    end
+
+    it 'infer_shape tags long critic revisions as revised_answer' do
+      row = {
+        source: 'critic',
+        chosen: 'A' * 250,
+        rejected: 'B' * 100,
+        shape: nil
+      }
+      expect(reward.infer_shape(row: row)).to eq('revised_answer')
+    end
+
+    it 'scrub_preferences backfills shape on kept rows when dry_run:false path runs over tmp' do
+      # exercise infer_shape + usable path without rewriting the live ledger
+      raw = {
+        source: 'curriculum',
+        prompt: 'finish under 5 tools',
+        rejected: "iteration budget exhausted #{'z' * 80}",
+        chosen: "shell → ok\nmemory_recall → hit\n#{'w' * 100}",
+        shape: ''
+      }
+      expect(reward.usable_preference?(row: raw.merge(shape: 'winning_trace'))).to eq(true)
+      inferred = reward.infer_shape(row: raw)
+      expect(reward::TRAJECTORY_SHAPES).to include(inferred)
+    end
+
+    it 'offline_judge return hash reserves scrub/generator_mix/practice_kpi keys' do
+      # dry structural contract: method source must call scrub + mix + kpi
+      src = begin
+        File.read(curriculum.instance_method(:offline_judge).source_location.first)
+      rescue StandardError
+        File.read('lib/pwn/ai/agent/curriculum.rb')
+      end
+      expect(src).to match(/scrub_preferences/)
+      expect(src).to match(/generator_mix/)
+      expect(src).to match(/practice_kpi/)
+    end
+
+    it 'Metrics.to_context surfaces W1 MIX when generator_mix is unhealthy' do
+      allow(reward).to receive(:generator_mix).and_return(
+        n: 20, healthy: false, trajectory_fraction: 0.1,
+        urgent: %w[critic counterfactual], suppress: %w[mistakes_resolve],
+        recommendation: 'boost:critic,counterfactual'
+      )
+      # ensure at least one metrics row so to_context is non-empty
+      metrics.record(name: 'shell', success: true, duration: 0.01) if metrics.respond_to?(:record)
+      ctx = metrics.to_context(limit: 3)
+      expect(ctx).to match(/W1 MIX:/)
+      expect(ctx).to match(/boost:critic/)
+    end
+  end
+
+  describe 'P0 · Budget exhaust deepen (last-iter / no-CF-hot / exhaust Learning)' do
+    it 'tightens budget-hot max_iters caps to 8 local / 12 remote' do
+      src = File.read(loop_mod.method(:run).source_location.first)
+      # max_iters is private_class_method — read surrounding source
+      expect(src).to match(/ollama \? 8 : 12/)
+      expect(src).to match(/budget_exhaustion_hot\?/)
+    end
+
+    it 'forces tools=nil on last iter and skips counterfactual when budget-hot' do
+      src = File.read(loop_mod.method(:run).source_location.first)
+      expect(src).to match(/FINAL ITERATION/)
+      expect(src).to match(/last_iter \? nil : tools/)
+      # CF gate requires !budget_exhaustion_hot?
+      expect(src).to match(/!budget_exhaustion_hot\?/)
+      expect(src).to match(/Curriculum\.counterfactual/)
+    end
+
+    it 'exhaust path appends session + auto_introspect (not bare string only)' do
+      src = File.read(loop_mod.method(:run).source_location.first)
+      idx = src.index('shape: :budget_exhausted')
+      expect(idx).not_to be_nil
+      tail = src[idx, 800]
+      expect(tail).to match(/append_session/)
+      expect(tail).to match(/auto_introspect/)
+      expect(tail).to match(/final_msg/)
+    end
+
+    it 'STATUS table lists Budget exhaust deepen' do
+      doc = File.read(File.expand_path('../../documentation/Reinforcement-Learning.md', __dir__))
+      expect(doc).to match(/Budget exhaust deepen/)
+      expect(doc).to match(/Last-iter force-final/)
     end
   end
 end

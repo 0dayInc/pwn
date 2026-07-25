@@ -22,7 +22,7 @@ tool-calling AI agent** on top of it.
 | `PWN::FFI::*` | **8** | Native DSP/RF backends: Volk · Liquid · FFTW · RTLSdr · HackRF · AdalmPluto · SoapySDR · Stdio |
 | `PWN::AI::*` | **5** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama |
 | `bin/pwn_*` | **53** | Headless CLI drivers for CI/CD |
-| Agent toolsets | **10** · **71 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm |
+| Agent toolsets | **12** · **78 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm |
 
 ## The three ways to use it
 

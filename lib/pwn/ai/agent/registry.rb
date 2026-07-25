@@ -145,8 +145,27 @@ module PWN
           trust = defined?(Metrics) && Metrics.respond_to?(:proxy_trust) ? Metrics.proxy_trust : 1.0
           beta  = 0.3 * trust
           gamma = 0.2
-          # P18 — PRM step_reward advantage closes R2 into the controller
-          delta = 0.25 * trust
+          # P18/P2 — PRM step_reward advantage closes R2 into the controller.
+          # Sample-efficiency: if fewer than 3 tools have prm_n≥PRM_MIN_N,
+          # drop delta to 0 so sparse PRM cannot inject rank variance.
+          # Otherwise scale delta by fleet coverage fraction.
+          prm_ready = 0
+          if defined?(Metrics) && Metrics.respond_to?(:prm_n)
+            prm_ready = entries.count do |e|
+              Metrics.prm_n(name: e.name).to_i >= begin
+                Metrics::PRM_MIN_N
+              rescue StandardError
+                5
+              end
+            end
+          end
+          fleet = [entries.length, 1].max
+          coverage = prm_ready.to_f / fleet
+          delta = if prm_ready < 3
+                    0.0
+                  else
+                    0.25 * trust * [coverage / 0.3, 1.0].min
+                  end
           scored = entries.map do |e|
             hay   = "#{e.name} #{e.toolset} #{e.schema[:description]} #{Array(e.schema.dig(:parameters, :properties)&.keys).join(' ')}".downcase
             sim   = tokens.count { |t| hay.include?(t) }

@@ -193,12 +193,15 @@ module PWN
           end
           save_cooldown(cooldown: cool)
           log(event: :practice, data: results)
+          kpi = practice_kpi(results: results)
           {
             practiced: results.length,
             resolved: results.count { |r| r[:resolved] },
             skipped_cooldown: cool.count { |_, v| v[:fail_nights].to_i >= COOLDOWN_FAIL_NIGHTS },
             results: results,
-            dry_run: dry_run
+            dry_run: dry_run,
+            kpi: kpi,
+            generator_mix: (defined?(Reward) && Reward.respond_to?(:generator_mix) ? Reward.generator_mix : nil)
           }
         rescue StandardError => e
           { error: "#{e.class}: #{e.message}" }
@@ -304,11 +307,22 @@ module PWN
           mean = scored.empty? ? nil : (scored.sum { |r| r[:score].to_f } / scored.length).round(3)
           # P10 — keep R3 window warm so proxy_distrust can engage on local hosts
           warm = (Reward.warm_sentinel(limit: 120) if commit && defined?(Reward) && Reward.respond_to?(:warm_sentinel))
+          # P0 ops — nightly ledger hygiene so generator_mix success criteria can
+          # fire: drop prose flood, backfill missing shapes, then snapshot mix+KPI.
+          scrub = nil
+          mix = nil
+          kpi = nil
+          if commit && defined?(Reward)
+            scrub = Reward.scrub_preferences(dry_run: false) if Reward.respond_to?(:scrub_preferences)
+            mix = Reward.generator_mix if Reward.respond_to?(:generator_mix)
+          end
+          kpi = practice_kpi(results: []) if commit && respond_to?(:practice_kpi)
           out = {
             scored: scored.length, mean: mean, since_hours: since_h,
-            results: scored.first(10), sentinel_warm: warm
+            results: scored.first(10), sentinel_warm: warm,
+            scrub: scrub, generator_mix: mix, practice_kpi: kpi
           }
-          log(event: :offline_judge, data: out)
+          log(event: :offline_judge, data: out.except(:results))
           out
         rescue StandardError => e
           { error: "#{e.class}: #{e.message}" }
@@ -349,7 +363,16 @@ module PWN
         end
 
         public_class_method def self.counterfactual(opts = {})
-          return nil unless enabled?(key: :counterfactual)
+          # P0 — when generator_mix marks counterfactual underfilled, run even
+          # if the auto-flag would keep it off (remote-default still respected
+          # only when mix is healthy). Still refuse recursion.
+          mix_need = begin
+            m = defined?(Reward) && Reward.respond_to?(:generator_mix) ? Reward.generator_mix : {}
+            Array(m[:urgent]).include?('counterfactual')
+          rescue StandardError
+            false
+          end
+          return nil unless enabled?(key: :counterfactual) || mix_need || opts[:force]
           return nil if in_curriculum?
 
           request = opts[:request].to_s
@@ -416,7 +439,13 @@ module PWN
         # self-correction becomes DPO signal.
 
         public_class_method def self.critic(opts = {})
-          return { verdict: :pass, source: :disabled } unless enabled?(key: :critic) || opts[:text_only]
+          mix_need = begin
+            m = defined?(Reward) && Reward.respond_to?(:generator_mix) ? Reward.generator_mix : {}
+            Array(m[:urgent]).include?('critic')
+          rescue StandardError
+            false
+          end
+          return { verdict: :pass, source: :disabled } unless enabled?(key: :critic) || opts[:text_only] || mix_need || opts[:force]
           return { verdict: :pass, source: :recursion } if in_curriculum?
 
           # P24 — text_only: single Reflect shot, no tool-armed persona swarm.
@@ -601,6 +630,86 @@ module PWN
 
         # Supported Method Parameters::
         # PWN::AI::Agent::Curriculum.calibrate(predicted:, actual:, engine:)
+
+        # ----------------------------------------------------------------
+        # P1 — Outer curriculum KPI: does practice cut live [REPEATING]?
+        # ----------------------------------------------------------------
+        # Snapshot unresolved repeating counts before/after practice nights
+        # into ~/.pwn/curriculum_kpi.jsonl so week-over-week delta is visible
+        # without scraping Mistakes by hand. practice() always appends a row.
+
+        KPI_FILE = File.join(Dir.home, '.pwn', 'curriculum_kpi.jsonl')
+
+        public_class_method def self.practice_kpi(opts = {})
+          results = Array(opts[:results])
+          top = defined?(Mistakes) ? Mistakes.top(limit: 50, unresolved_only: true) : []
+          repeating = top.select { |m| m[:count].to_i >= 3 }
+          budgetish = repeating.count do |m|
+            t = m[:tool].to_s
+            e = m[:error].to_s.downcase
+            t == 'agent_loop' || t == 'assistant_answer' ||
+              e.include?('budget') || e.include?('iteration budget')
+          end
+          row = {
+            at: Time.now.utc.iso8601,
+            unresolved_total: top.length,
+            repeating_n: repeating.length,
+            repeating_sum_count: repeating.sum { |m| m[:count].to_i },
+            budget_repeating_n: budgetish,
+            practiced: results.length,
+            resolved_tonight: results.count { |r| r[:resolved] },
+            mean_holdout: if results.empty?
+                            nil
+                          else
+                            (results.sum { |r| r[:mean_score].to_f } / results.length).round(3)
+                          end
+          }
+          begin
+            FileUtils.mkdir_p(File.dirname(KPI_FILE))
+            File.open(KPI_FILE, 'a') { |f| f.puts(JSON.generate(row)) }
+          rescue StandardError
+            nil
+          end
+          trend = repeating_trend
+          row.merge(trend: trend)
+        rescue StandardError => e
+          { error: "#{e.class}: #{e.message}" }
+        end
+
+        # Week-over-week (or last-N snapshots) delta on repeating_n.
+        # Positive delta_repeating = getting worse; negative = practice working.
+        public_class_method def self.repeating_trend(opts = {})
+          limit = (opts[:limit] || 14).to_i
+          return { samples: 0, delta_repeating: nil, status: :no_data } unless File.exist?(KPI_FILE)
+
+          rows = File.readlines(KPI_FILE).last(limit).filter_map do |l|
+            JSON.parse(l, symbolize_names: true)
+          rescue StandardError
+            nil
+          end
+          return { samples: 0, delta_repeating: nil, status: :no_data } if rows.empty?
+          return { samples: rows.length, delta_repeating: 0, status: :baseline, latest: rows.last } if rows.length < 2
+
+          first = rows.first
+          last = rows.last
+          d_rep = last[:repeating_n].to_i - first[:repeating_n].to_i
+          d_budget = last[:budget_repeating_n].to_i - first[:budget_repeating_n].to_i
+          status = if d_rep <= -2 then :improving
+                   elsif d_rep >= 2 then :regressing
+                   else :flat
+                   end
+          {
+            samples: rows.length,
+            from: first[:at],
+            to: last[:at],
+            delta_repeating: d_rep,
+            delta_budget_repeating: d_budget,
+            latest_repeating_n: last[:repeating_n],
+            status: status
+          }
+        rescue StandardError => e
+          { samples: 0, status: :error, error: "#{e.class}: #{e.message}" }
+        end
 
         public_class_method def self.calibrate(opts = {})
           p = opts[:predicted].to_f.clamp(0.0, 1.0)
