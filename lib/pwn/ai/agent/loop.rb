@@ -112,15 +112,15 @@ module PWN
           n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
           # P17 — tighter default when agent_loop budget_exhaustion dominates
           # open mistakes: finish-under-N is the skill gap, not more thrash.
-          # Caps are intentionally harsh (8 local / 12 remote): the open
-          # fingerprint is "iteration budget exhausted" ×N; more headroom
-          # only produces more empty terminal failures for ORM/PRM/DPO.
+          # Cap is intentionally harsh (8 for ALL engines): the open fingerprint
+          # is "iteration budget exhausted" ×N; more headroom only produces more
+          # empty terminal failures for ORM/PRM/DPO.
           if budget_exhaustion_hot?
-            # Remote/overconfident thrash (this host): 12 was still burning full
-            # 12-step tool plans. Cap tighter when calibration also says overconfident.
-            base = active_engine == :ollama ? 8 : 12
-            base = [base, 8].min if cal[:overconfident]
-            n = [n, base].min
+            # P17 deepen² — remote was still burning full 12-step plans even when
+            # overconfidence sat just under the 0.25 gate (0.242 on grok). Always
+            # cap to 8 for ALL engines while budget fingerprints dominate; finish-
+            # under-N is the skill gap, more headroom only yields empty terminals.
+            n = [n, 8].min
           end
           n
         rescue StandardError
@@ -138,12 +138,14 @@ module PWN
 
           brier = cal[:brier].to_f
           over  = cal[:overconfidence].to_f
-          bad   = brier > 0.35 || over > 0.25
+          # P17 — gate lowered 0.25→0.20: grok lived at 0.242 and never tripped,
+          # leaving force_plan off while still thrashing tool budgets.
+          bad   = brier > 0.35 || over > 0.20
           {
             overconfident: bad,
             force_plan: bad,
             force_critic: bad,
-            max_iters_cap: bad ? 12 : 25,
+            max_iters_cap: bad ? 8 : 25,
             cal: cal
           }
         rescue StandardError

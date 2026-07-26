@@ -1468,11 +1468,13 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   end
 
   describe 'P0 · Budget exhaust deepen (last-iter / no-CF-hot / exhaust Learning)' do
-    it 'tightens budget-hot max_iters caps to 8 local / 12 remote' do
+    it 'tightens budget-hot max_iters cap to 8 for ALL engines' do
       src = File.read(loop_mod.method(:run).source_location.first)
       # max_iters is private_class_method — read surrounding source
-      expect(src).to match(/ollama \? 8 : 12/)
+      # P17 deepen²: always cap to 8 (not ollama? 8 : 12) while budget-hot
       expect(src).to match(/budget_exhaustion_hot\?/)
+      expect(src).to match(/n = \[n, 8\]\.min/)
+      expect(src).not_to match(/ollama \? 8 : 12/)
     end
 
     it 'forces tools=nil on last iter and skips counterfactual when budget-hot' do
