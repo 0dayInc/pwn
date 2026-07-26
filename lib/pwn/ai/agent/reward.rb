@@ -466,6 +466,13 @@ module PWN
           final = opts[:final].to_s
           claim = final[Learning::CLAIM_RX] if defined?(Learning)
           return nil if claim.to_s.empty?
+          # P26 — drop metric crumbs ("cap 0.2") that match loose patterns
+          if defined?(Learning) && Learning.respond_to?(:checkable_claim?, true)
+            return nil unless Learning.send(:checkable_claim?, claim: claim)
+          elsif claim.match?(/\A(?:cap|share|proxy|judge|success|only|now|gap|score|rate)\b/i) ||
+                (claim.match?(/\d+\.\d+/) && !claim.match?(/\d+\.\d+\.\d+|CVE-/i))
+            return nil
+          end
 
           # 1.5 — sampled E3: always when flag true; never when false;
           # nil/auto → always on frontier, ~10% on local when CLAIM_RX hits.

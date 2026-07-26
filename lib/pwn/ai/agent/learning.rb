@@ -34,7 +34,32 @@ module PWN
         INTROSPECT_MIN_STAGES = %i[judge note_outcome fold_judge sentinel].freeze
 
         MAX_MEMORY_ENTRIES = 200
-        CLAIM_RX           = /CVE-\d{4}-\d{4,7}|\b[A-Za-z][\w.+-]{2,}\s+v?\d+\.\d+(?:\.\d+)?\b/
+        # E3/P26 — only CVE-ids or software-name + full semver (x.y.z).
+        # Two-part floats ("cap 0.2", "proxy 1.0", "judge 37.0") are RL
+        # metric crumbs that were scraped by verify_as_reward and flooded
+        # learning.jsonl with extro_verify :unknown failures.
+        CLAIM_METRIC_WORDS = %w[
+          cap share proxy judge success only now clears gap score rate mean
+          brier overconf distrust trajectory_fraction handler orm prm delta
+          limit window pct percent ms iter budget conf confidence n
+          ruby python linux kernel host cwd e.g e.g.
+        ].freeze
+        CLAIM_RX = /
+          CVE-\d{4}-\d{4,7}
+          |
+          \b
+          (?!
+            (?:cap|share|proxy|judge|success|only|now|clears|gap|score|rate|mean|
+               brier|overconf|distrust|trajectory_fraction|handler|orm|prm|delta|
+               limit|window|pct|percent|ms|iter|budget|conf|confidence|
+               ruby|python|linux|kernel|host|cwd|e\.g)
+            \b
+          )
+          [A-Za-z][\w.+-]{2,}
+          \s+
+          v?\d+\.\d+\.\d+(?:[-+][\w.]+)?
+          \b
+        /x
 
         # Supported Method Parameters::
         # entry = PWN::AI::Agent::Learning.note_outcome(
@@ -745,6 +770,23 @@ module PWN
           lessons.uniq.first(5)
         end
 
+        # P26 — is this CLAIM_RX hit worth spending a headless browser on?
+        # Reject metric crumbs, OS/runtime banner lines, and bare versions.
+        private_class_method def self.checkable_claim?(opts = {})
+          c = opts[:claim].to_s.strip
+          return false if c.empty? || c.length < 8
+          return true if c.match?(/CVE-\d{4}-\d{4,7}/i)
+
+          head = c[/\A[A-Za-z][\w.+-]*/].to_s
+          return false if CLAIM_METRIC_WORDS.any? { |w| head.casecmp?(w) }
+          # require full semver x.y.z for non-CVE claims
+          return false unless c.match?(/\bv?\d+\.\d+\.\d+/)
+
+          true
+        rescue StandardError
+          false
+        end
+
         # Auto fact-check post-filter: local models hallucinate CVEs /
         # versions ~5-10x more than frontier ones. When the active engine is
         # :ollama, scan the final for CVE / version-shaped claims and hand
@@ -755,7 +797,8 @@ module PWN
           return unless defined?(PWN::Env) && PWN::Env.dig(:ai, :active).to_s.downcase.to_sym == :ollama
           return unless defined?(Extrospection) && Extrospection.respond_to?(:verify)
 
-          claims = opts[:final].to_s.scan(CLAIM_RX).flatten.compact.uniq.first(3)
+          claims = opts[:final].to_s.scan(CLAIM_RX).flatten.compact.uniq
+          claims = claims.select { |c| checkable_claim?(claim: c) }.first(3)
           claims.each { |c| Extrospection.verify(claim: c, commit: true) }
         rescue StandardError => e
           warn "[pwn-ai/learning] fact_check swallowed: #{e.class}: #{e.message}"

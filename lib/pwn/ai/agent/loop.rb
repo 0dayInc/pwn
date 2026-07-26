@@ -116,7 +116,11 @@ module PWN
           # fingerprint is "iteration budget exhausted" ×N; more headroom
           # only produces more empty terminal failures for ORM/PRM/DPO.
           if budget_exhaustion_hot?
-            n = [n, active_engine == :ollama ? 8 : 12].min
+            # Remote/overconfident thrash (this host): 12 was still burning full
+            # 12-step tool plans. Cap tighter when calibration also says overconfident.
+            base = active_engine == :ollama ? 8 : 12
+            base = [base, 8].min if cal[:overconfident]
+            n = [n, base].min
           end
           n
         rescue StandardError
@@ -264,17 +268,31 @@ module PWN
         # without leaking to the user.
         private_class_method def self.plan_first(opts = {})
           messages = opts[:messages]
+          # P17 — under budget_exhaustion_hot the plan must be ultra-short:
+          # red_team_plan is a nested agent loop and was the #1 amplifier of
+          # iteration-budget exhaustion on this host (together with CF).
+          hot = begin
+            budget_exhaustion_hot?
+          rescue StandardError
+            false
+          end
+          plan_prompt = if hot
+                          'Before acting: write AT MOST 3 numbered tool calls (name + key args) that finish the ask. Prefer fewer. LAST line: "p(success)=<0.0-1.0>". Reply ONLY with the plan + that line — no tools, no prose.'
+                        else
+                          'Before acting: (1) list the exact tool calls (name + key args) you will make, in order; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.'
+                        end
           plan_msg = call_engine(
-            messages: messages + [{ role: 'user',
-                                    content: 'Before acting: (1) list the exact tool calls (name + key args) you will make, in order; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.' }],
+            messages: messages + [{ role: 'user', content: plan_prompt }],
             tools: nil
           )
           return nil unless plan_msg && !plan_msg[:content].to_s.strip.empty?
 
           plan = plan_msg[:content].to_s.strip
           messages << { role: 'assistant', content: "PLAN:\n#{plan}" }
-          # S4 — adversarial plan review grounded in THIS host's telemetry
-          if defined?(Curriculum)
+          # S4 — adversarial plan review grounded in THIS host's telemetry.
+          # P17 — never fork red_team when budget fingerprints dominate: it is
+          # another mini agent loop and compounds iteration-budget exhaustion.
+          if defined?(Curriculum) && !hot
             rt = Curriculum.red_team_plan(request: opts[:request], plan: plan)
             messages << { role: 'user', content: rt } if rt
           end
@@ -570,11 +588,15 @@ module PWN
             # answer. Without this the model happily emits one more tool_calls
             # batch, burns the last slot, and lands on budget_exhausted with
             # nothing the user (or ORM) can use.
-            last_iter = (i >= max_iters - 1)
+            # P17 deepen — when budget_hot, force text-only on the LAST TWO
+            # iters so a final tool_calls batch cannot burn the terminal slot.
+            text_only_iters = budget_exhaustion_hot? ? 2 : 1
+            last_iter = (i >= max_iters - text_only_iters)
             if last_iter
+              tag = (i >= max_iters - 1) ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
               messages << {
                 role: 'user',
-                content: '[pwn-ai/p17] FINAL ITERATION — do NOT call any more tools. ' \
+                content: "[pwn-ai/p17] #{tag} — do NOT call any more tools. " \
                          'Write the best answer you can from evidence already in this ' \
                          'transcript. If blocked, say what failed and the next single step.'
               }

@@ -39,19 +39,38 @@ PWN::AI::Agent::Registry.register(
       # INTENTIONAL: this IS the pwn-ai → PWN bridge
       # As YTCracker says, "It ain't a bug, it's a featcha."
       # https://www.youtube.com/watch?v=2nALqqSqdDw
-      # val = eval(code, TOPLEVEL_BINDING, '(pwn_eval)')
+      #
+      # File label '(pwn_eval)' (not __FILE__) so SyntaxError / NameError
+      # messages cite the *payload* line, not ruby_eval.rb:49 glued to source
+      # (e.g. "ruby_eval:49results = probes.map do |R|").
+      # Rescue ScriptError (SyntaxError, LoadError, NotImplementedError) as
+      # well as StandardError — Dispatch only catches StandardError, so an
+      # unrescued SyntaxError previously escaped the tool loop. Returning a
+      # structured error lets the model self-heal (fix code and retry).
       proc = eval(
-        "proc { #{code} }",
+        "proc { #{code}\n}",
         TOPLEVEL_BINDING,
-        __FILE__,
-        __LINE__ - 3
+        '(pwn_eval)',
+        1
       )
       val = proc.call
       # rubocop:enable Security/Eval
       # rubocop:enable Style/DocumentDynamicEvalDefinition
       { stdout: buf.string, value: val.inspect }
-
-      # TODO: A rescue here may enable self-healing of the agent if the model emits code that raises an exception. The model could then be prompted to fix the code and try again.
+    rescue ScriptError, StandardError => e
+      {
+        stdout: buf.string,
+        error: "#{e.class}: #{e.message}",
+        backtrace: Array(e.backtrace).first(5),
+        # Hint common payload footguns the model keeps emitting
+        hint: (
+          if e.is_a?(SyntaxError) && e.message.match?(/formal argument cannot be a constant/)
+            'Block parameters must be local variables (lowercase), e.g. |r| not |R|. Also close every do/end.'
+          elsif e.is_a?(SyntaxError)
+            'Payload failed to parse. Check matching do/end, braces, and that no line-number prefix was glued onto the code.'
+          end
+        )
+      }
     ensure
       $stdout = old_stdout
     end

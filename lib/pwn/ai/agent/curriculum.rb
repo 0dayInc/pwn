@@ -501,6 +501,16 @@ module PWN
         public_class_method def self.red_team_plan(opts = {})
           return nil unless enabled?(key: :red_team_plan)
           return nil if in_curriculum?
+          # P17 — never nest a red-team persona loop when budget_exhaustion
+          # fingerprints dominate open mistakes (amplifier of agent_loop ×N).
+          begin
+            if defined?(Loop) && Loop.respond_to?(:budget_exhaustion_hot?, true) &&
+               Loop.send(:budget_exhaustion_hot?)
+              return nil
+            end
+          rescue StandardError
+            # fall through
+          end
 
           ensure_persona(name: RED_TEAM_NAME, role: 'You are pwn-ai\'s adversarial plan reviewer. Given a numbered tool plan and telemetry from THIS host (tool success rates, known mistakes, environment drift), identify the ONE step most likely to fail and say why in ≤2 lines. Cite the metric/mistake/drift. If the plan is sound reply: SOUND.')
           telemetry = build_telemetry
