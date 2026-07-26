@@ -1722,14 +1722,24 @@ module PWN
           c = opts[:claim].to_s
           return :doc     if opts[:url] || c =~ URI::DEFAULT_PARSER.make_regexp(%w[http https])
           return :cve     if c =~ /CVE-\d{4}-\d{4,}/i
-          return :version if c =~ /\bv?\d+\.\d+(?:\.\d+)?\b/
+          # P26 — full semver (x.y.z) OR "latest X is [v]N.N" product claims.
+          # Bare two-part floats alone stay :generic (metrics like "cap 0.2").
+          return :version if c =~ /\b[A-Za-z][\w.+-]{2,}\s+v?\d+\.\d+\.\d+\b/
+          return :version if c =~ /\blatest\b.+\bis\b\s+v?\d+\.\d+/i
 
           :generic
         end
 
         private_class_method def self.commit_verdict(opts = {})
-          claim = opts[:claim]
+          claim = opts[:claim].to_s
           ev    = Array(opts[:evidence]).first
+          # P26 — never pollute learning.jsonl with :unknown on metric crumbs
+          # or sub-8-char blobs; those are not human-reviewable world claims.
+          junk_unknown = opts[:verdict].to_s == 'unknown' && (
+            claim.length < 12 ||
+            claim.match?(/\A(?:cap|share|proxy|judge|success|only|now|clears|gap|score|rate|mean|brier|overconf|distrust|trajectory_fraction|handler|orm|prm|delta|limit|window|pct|percent|ms|iter|budget|conf|confidence|ruby|python|linux|kernel|host|cwd|e\.g)\b/i) ||
+            (claim.match?(/\d+\.\d+/) && !claim.match?(/CVE-|\d+\.\d+\.\d+/i))
+          )
           case opts[:verdict]
           when :refuted
             Mistakes.record(tool: 'assumption', error: "REFUTED (extro_verify #{opts[:kind]}, conf=#{opts[:confidence].round(2)}): #{claim}", args: ev&.dig(:final_url), source: :model) if defined?(Mistakes)
@@ -1739,8 +1749,12 @@ module PWN
             observe(source: 'extro_verify', category: :intel, target: ev&.dig(:final_url), data: claim, tags: %w[verify confirmed], ttl: 30 * 24 * 3600)
             :extro_observe
           else
-            Learning.note_outcome(task: "extro_verify: #{claim[0, 120]}", success: false, details: 'verdict :unknown - needs human review', tags: %w[needs_human extro_verify]) if defined?(Learning) && Learning.respond_to?(:note_outcome)
-            :learning_note
+            if junk_unknown
+              :skipped_junk
+            else
+              Learning.note_outcome(task: "extro_verify: #{claim[0, 120]}", success: false, details: 'verdict :unknown - needs human review', tags: %w[needs_human extro_verify]) if defined?(Learning) && Learning.respond_to?(:note_outcome)
+              :learning_note
+            end
           end
         rescue StandardError
           nil

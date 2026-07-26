@@ -192,3 +192,23 @@ PWN::AI::Agent::Registry.register(
     )
   }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'reward_generator_mix',
+  toolset: 'reward',
+  schema: {
+    name: 'reward_generator_mix',
+    description: 'P0 — Online W1 generator mix vs TARGET_SOURCE_MIX. Returns urgent/suppress sources, trajectory_fraction, recommendation (boost:… / suppress:…). Controllers use this to schedule counterfactual/critic/curriculum over resolve flood.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', description: 'Window size (default WRITE_SOURCE_WINDOW)' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Reward) && PWN::AI::Agent::Reward.respond_to?(:generator_mix) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Reward.generator_mix(limit: args[:limit])
+  }
+)

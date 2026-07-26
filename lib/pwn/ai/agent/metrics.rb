@@ -166,7 +166,23 @@ module PWN
             "  - #{r[:name]}: calls=#{r[:calls]} success=#{(adj * 100).round(1)}%#{tag}#{jtag} avg=#{r[:avg_duration]}s#{err}"
           end
           warn_line = distrust.positive? ? "WARNING: reward proxy diverges from judge — success rates haircut by distrust=#{distrust.round(2)}; prefer judge-scored exemplars over raw rates.\n" : ''
-          "#{warn_line}TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
+          # P0 ops — surface W1 generator_mix when diet is unhealthy so the
+          # online controller (and the model) prefer underfilled sources.
+          mix_line = ''
+          if defined?(Reward) && Reward.respond_to?(:generator_mix)
+            begin
+              m = Reward.generator_mix
+              unless m[:healthy]
+                mix_line = "W1 MIX: n=#{m[:n]} traj=#{m[:trajectory_fraction]} " \
+                           "urgent=#{Array(m[:urgent]).join(',')} " \
+                           "suppress=#{Array(m[:suppress]).join(',')} " \
+                           "rec=#{m[:recommendation]}\n"
+              end
+            rescue StandardError
+              mix_line = ''
+            end
+          end
+          "#{warn_line}#{mix_line}TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
         end
 
         # P4 helper — Registry.rank calls this so β·advantage is scaled down
@@ -239,28 +255,49 @@ module PWN
           0.0
         end
 
-        # P18 — rolling mean step_reward for a tool (from Reward.prm annotations
-        # folded into Metrics via record_step_reward). Range ≈ [-1, 1].
+        # P18/P2 — rolling mean step_reward advantage for a tool.
+        # Sample-efficiency gate: < PRM_MIN_N samples → 0 (no rank noise).
+        # Shrinkage: adv *= min(1, n/PRM_FULL_N) so sparse signal cannot
+        # dominate UCB. Zero-variance windows (all +1 or all -1 from a
+        # single session) damp to 0.5×.
+        PRM_MIN_N  = 5
+        PRM_FULL_N = 20
+
         public_class_method def self.prm_advantage(opts = {})
           data = load[:tools] || {}
           t = data[opts[:name].to_s.to_sym]
           return 0.0 unless t
 
           win = Array(t[:prm_window])
-          return 0.0 if win.empty?
+          n = win.length
+          return 0.0 if n < PRM_MIN_N
 
-          mean = win.sum.to_f / win.length
-          # global mean across tools that have prm signal
-          globals = data.values.map { |v| Array(v[:prm_window]) }.reject(&:empty?)
+          mean = win.sum.to_f / n
+          globals = data.values.map { |v| Array(v[:prm_window]) }.select { |w| w.length >= PRM_MIN_N }
           gmean = if globals.empty?
                     0.0
                   else
                     all = globals.flatten
                     all.sum.to_f / all.length
                   end
-          (mean - gmean).round(3)
+          adv = mean - gmean
+          # shrinkage toward 0 until PRM_FULL_N
+          shrink = [n.to_f / PRM_FULL_N, 1.0].min
+          # variance damp: if all equal, halve influence
+          uniq = win.uniq
+          var_damp = uniq.length <= 1 ? 0.5 : 1.0
+          (adv * shrink * var_damp).round(3)
         rescue StandardError
           0.0
+        end
+
+        public_class_method def self.prm_n(opts = {})
+          t = (load[:tools] || {})[opts[:name].to_s.to_sym]
+          return 0 unless t
+
+          Array(t[:prm_window]).length
+        rescue StandardError
+          0
         end
 
         # P18 — called by Reward.prm after session annotate so live routing
@@ -290,14 +327,29 @@ module PWN
           return if name.empty?
 
           score = opts[:score].to_f.clamp(0.0, 1.0)
+          conf  = opts.key?(:confidence) ? opts[:confidence].to_f.clamp(0.0, 1.0) : 0.7
           m = load
           m[:tools] ||= {}
           t = m[:tools][name.to_sym] ||= blank_bucket
           t[:judge_window] = (Array(t[:judge_window]) + [score]).last(40)
+          t[:judge_conf_window] = (Array(t[:judge_conf_window]) + [conf]).last(40)
           t[:judge_sum] = t[:judge_window].sum.to_f
           t[:judge_n] = t[:judge_window].length
           save(metrics: m)
           t
+        rescue StandardError
+          nil
+        end
+
+        # P1 — mean judge confidence for a tool (nil when no samples).
+        public_class_method def self.judge_confidence(opts = {})
+          t = (load[:tools] || {})[opts[:name].to_s.to_sym]
+          return nil unless t
+
+          win = Array(t[:judge_conf_window])
+          return nil if win.empty?
+
+          (win.sum.to_f / win.length).round(3)
         rescue StandardError
           nil
         end
@@ -331,8 +383,15 @@ module PWN
           distrust = 1.0 - proxy_trust
           jrate = judge_rate(name: name)
           if distrust > 0.05 && !jrate.nil?
-            # blend: higher distrust → more judge weight
-            ((proxy * (1.0 - distrust)) + (jrate * distrust)).clamp(0.0, 1.0).round(3)
+            # P1 — scale judge weight by judge confidence so a thin local
+            # heuristic ORM cannot fully replace proxy when distrust is high.
+            # effective_distrust = distrust * mean(confidence), floor 0.15 when
+            # we do have judge samples so the signal still moves the needle.
+            jconf = judge_confidence(name: name)
+            jconf = 0.7 if jconf.nil?
+            eff_d = (distrust * jconf).clamp(0.0, 1.0)
+            eff_d = [eff_d, 0.15].max if jconf >= 0.3
+            ((proxy * (1.0 - eff_d)) + (jrate * eff_d)).clamp(0.0, 1.0).round(3)
           else
             proxy.round(3)
           end

@@ -6,7 +6,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ![Tool registry](diagrams/agent-tool-registry.svg)
 
-## Toolsets → Tools  (10 toolsets · 71 tools)
+## Toolsets → Tools  (12 toolsets · 78 tools)
 
 | Toolset | Tools | Backed by |
 |---|---|---|
@@ -15,7 +15,9 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 | `memory` | `memory_remember` · `memory_recall` · `memory_forget` · `memory_clear` | `PWN::Memory` → `~/.pwn/memory.json` |
 | `skills` | `skill_list` · `skill_view` · `skill_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
 | `sessions` | `sessions_list` · `sessions_view` · `sessions_current` · `sessions_delete` · `sessions_stats` | `PWN::Sessions` → `~/.pwn/sessions/` |
-| `learning` | `learning_note_outcome` · `learning_reflect` · `learning_distill_skill` · `learning_stats` · `learning_outcomes` · `learning_consolidate` · `learning_reset` · `learning_auto_introspect_toggle` · **`mistakes_list`** · **`mistakes_record`** · **`mistakes_resolve`** · **`mistakes_reset`** · **`reward_judge`** · **`reward_prm`** · **`reward_sentinel`** · **`reward_preferences`** · **`reward_export_dpo`** · **`curriculum_practice`** · **`curriculum_train`** · **`curriculum_hindsight`** · **`learning_purge_noise`** | `PWN::AI::Agent::Learning` + `Mistakes` + `Reward` + `Curriculum` → `~/.pwn/learning.jsonl` + `~/.pwn/mistakes.json` + `~/.pwn/preferences.jsonl` + `~/.pwn/curriculum/` + `~/.pwn/finetune/` |
+| `learning` | `learning_note_outcome` · `learning_reflect` · `learning_distill_skill` · `learning_stats` · `learning_outcomes` · `learning_consolidate` · `learning_reset` · `learning_auto_introspect_toggle` · **`mistakes_list`** · **`mistakes_record`** · **`mistakes_resolve`** · **`mistakes_reset`** · **`reward_judge`** · **`reward_prm`** · **`reward_sentinel`** · **`reward_preferences`** · **`reward_export_dpo`** · **`reward_warm_sentinel`** · **`reward_scrub_preferences`** · **`reward_preference_balance`** · **`curriculum_practice`** · **`curriculum_train`** · **`curriculum_hindsight`** · **`curriculum_offline_judge`** · **`curriculum_preference_balance`** · **`learning_purge_noise`** | `PWN::AI::Agent::Learning` + `Mistakes` + `Reward` + `Curriculum` → `~/.pwn/learning.jsonl` + `~/.pwn/mistakes.json` + `~/.pwn/preferences.jsonl` + `~/.pwn/curriculum/` + `~/.pwn/finetune/` |
+| `reward` | **`reward_generator_mix`** | `PWN::AI::Agent::Reward.generator_mix` → W1 online source-mix controller (`preferences.jsonl`) |
+| `curriculum` | **`curriculum_practice_kpi`** | `PWN::AI::Agent::Curriculum.practice_kpi` → `~/.pwn/curriculum_kpi.jsonl` |
 | `metrics` | `metrics_summary` · `metrics_reset` | `PWN::AI::Agent::Metrics` → `~/.pwn/metrics.json` |
 | `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · **`extro_watch`** · **`extro_verify`** · **`extro_rf_tune`** · **`extro_osint`** · **`extro_serial`** · **`extro_telecomm`** · **`extro_packet`** · **`extro_vision`** · **`extro_voice`** · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` | `PWN::AI::Agent::Extrospection` (+ Serial/Packet/OCR/Voice/BareSIP/TransparentBrowser/GQRX) → `~/.pwn/extrospection.json` |
 | `cron` | `cron_list` · `cron_create` · `cron_run` · `cron_enable` · `cron_disable` · `cron_remove` | `PWN::Cron` → `~/.pwn/cron/jobs.yml` |
@@ -24,7 +26,10 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 The `learning` toolset is deliberately fat: **Mistakes** (negative feedback),
 **Reward** (ORM/PRM/sentinel/DPO ledger) and **Curriculum** (self-play, HER,
 regression-gated LoRA) are all facets of the same self-improvement loop -
-see [Reinforcement Learning](Reinforcement-Learning.md).
+see [Reinforcement Learning](Reinforcement-Learning.md). The thin `reward` and
+`curriculum` toolsets expose controller/KPI surfaces (`reward_generator_mix`,
+`curriculum_practice_kpi`) so personas can grant just those without the full
+learning surface.
 
 ## Dynamic tool-set slimming (`ai.agent.tool_router`)
 
@@ -45,8 +50,8 @@ CORE_TOOLS  = shell · pwn_eval · memory_remember · memory_recall
 ```ruby
 PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 10)
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
-PWN::AI::Agent::Registry.toolsets                              # → the 10 names above
-PWN::AI::Agent::Registry.all.count                             # → 71
+PWN::AI::Agent::Registry.toolsets                              # → the 12 names above
+PWN::AI::Agent::Registry.all.count                             # → 78
 ```
 
 Frontier engines leave `tool_router` off and receive the full set.

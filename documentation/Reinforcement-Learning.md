@@ -175,10 +175,45 @@ and source diversity, not missing tiers:
 3. P15 scrub + export geometry filter purge historical prose flood before DPO/LoRA.
 4. R3/W3 warm via `offline_judge` + `warm_sentinel` so controllers are not permanently cold on ollama hosts (P10/P16).
 5. SFT is filtered as hard as DPO; gate v2 needs smoke + mean, not count alone; P19 also requires trajectory diet.
-6. Budget-exhaustion is a first-class curriculum target (P17/P23); PRM step_reward biases `Registry.rank` (P18); critic is text-only when budget-hot (P24).
+6. Budget-exhaustion is a first-class curriculum target (P17/P23); PRM step_reward biases `Registry.rank` (P18); critic is text-only when budget-hot (P24); last-iter force-final + no-CF-when-hot + exhaust-path Learning close the bare-string hole.
 7. ORM judge blends into Metrics/UCB when distrust is high (P20); W3 calibration lights from plan_first `p(success)=` (P22).
 8. Resolve/record_preference are trajectory-only at write time (P21/P25); write-time source quota still caps traj monoculture.
 9. Without unsloth/axolotl **or** a clean preference diet, `train_and_gate` stays `weight_loop: :export_ready` (honest).
+
+## Design-priority STATUS (post P14–P25)
+
+Collapse of the review-driven priority order into a living table. Stop minting new P-numbers for chores already covered; track these outcomes instead.
+
+| Pri | ID | Control | Module(s) | Success criterion |
+|-----|----|---------|-----------|-------------------|
+| **P0** | W1 generator diversity | `Reward::TARGET_SOURCE_MIX` + `generator_mix` + mix-urgent force on critic/counterfactual | `reward.rb`, `curriculum.rb` | `generator_mix.healthy` OR `recommendation` not stuck on `suppress:mistakes_resolve`; trajectory_fraction ≥ 0.5 |
+| **P0** | Introspect budget | `Learning::INTROSPECT_SOFT_MS` / `HARD_MS`; stage skip under soft/hard / `budget_exhaustion_hot?` | `learning.rb` | `auto_introspect` returns `stages_skipped` when over soft; post-answer path cannot re-thrash tool critic |
+| **P1** | Local judge calibration | Heuristic score shrinkage + `confidence`; `Metrics.effective_rate` scales distrust by `judge_confidence` | `reward.rb`, `metrics.rb` | distrust×heuristic no longer fully replaces proxy; local no-trace highs capped |
+| **P1** | Practice outer KPI | `Curriculum.practice_kpi` / `repeating_trend` → `~/.pwn/curriculum_kpi.jsonl` | `curriculum.rb` | week-over-week `delta_repeating` ≤ 0 on budget fingerprints after practice nights |
+| **P2** | PRM sample efficiency | `PRM_MIN_N=5`, shrinkage to `PRM_FULL_N=20`, fleet coverage gate in `Registry.rank` | `metrics.rb`, `registry.rb` | `prm_advantage=0` until n≥5; rank delta=0 until ≥3 tools ready |
+| **P2** | STATUS over flag archaeology | This table | docs | New work cites Pri/ID here, not fresh P26+ comments for the same theme |
+| **ops** | Nightly diet close | `offline_judge` → `scrub_preferences` + `generator_mix` + `practice_kpi` | `curriculum.rb` | Cron path returns `scrub`/`generator_mix`/`practice_kpi`; raw resolve prose does not survive the night |
+| **ops** | Shape backfill | `Reward.infer_shape` + scrub rewrite | `reward.rb` | Legacy shapeless rows get `winning_trace`/`revised_answer` when content warrants; traj_f measurable |
+| **ops** | Mix in prompt | `Metrics.to_context` emits `W1 MIX:` when unhealthy | `metrics.rb` | Unhealthy diet visible every turn without a tool call |
+| **P0** | Budget exhaust deepen | Last-iter force-final (tools=nil); skip CF when `budget_exhaustion_hot?`; tighter caps 8/12; exhaust path `append_session`+`auto_introspect` | `loop.rb` | Exhaust returns a judged final, not a bare string; CF cannot re-enter under hot; last iter cannot tool-call |
+
+
+### Config additions
+
+```yaml
+:ai:
+  :agent:
+    # P0 introspect budget (ms wall-clock inside auto_introspect)
+    # INTROSPECT_SOFT_MS / HARD_MS are constants; override only via code/reload today.
+    :critic: null            # also force-on when generator_mix.urgent includes critic
+    :counterfactual: null    # also force-on when generator_mix.urgent includes counterfactual
+```
+
+### Tools (design-priority)
+
+`reward_generator_mix` · `curriculum_practice_kpi` (plus existing reward/curriculum set)
+
+---
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Mistakes](Mistakes.md) · [Cron](Cron.md) · [pwn-ai Agent](pwn-ai-Agent.md)

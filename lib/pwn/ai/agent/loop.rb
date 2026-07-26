@@ -112,8 +112,15 @@ module PWN
           n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
           # P17 — tighter default when agent_loop budget_exhaustion dominates
           # open mistakes: finish-under-N is the skill gap, not more thrash.
+          # Caps are intentionally harsh (8 local / 12 remote): the open
+          # fingerprint is "iteration budget exhausted" ×N; more headroom
+          # only produces more empty terminal failures for ORM/PRM/DPO.
           if budget_exhaustion_hot?
-            n = [n, active_engine == :ollama ? 12 : 20].min
+            # Remote/overconfident thrash (this host): 12 was still burning full
+            # 12-step tool plans. Cap tighter when calibration also says overconfident.
+            base = active_engine == :ollama ? 8 : 12
+            base = [base, 8].min if cal[:overconfident]
+            n = [n, base].min
           end
           n
         rescue StandardError
@@ -261,17 +268,31 @@ module PWN
         # without leaking to the user.
         private_class_method def self.plan_first(opts = {})
           messages = opts[:messages]
+          # P17 — under budget_exhaustion_hot the plan must be ultra-short:
+          # red_team_plan is a nested agent loop and was the #1 amplifier of
+          # iteration-budget exhaustion on this host (together with CF).
+          hot = begin
+            budget_exhaustion_hot?
+          rescue StandardError
+            false
+          end
+          plan_prompt = if hot
+                          'Before acting: write AT MOST 3 numbered tool calls (name + key args) that finish the ask. Prefer fewer. LAST line: "p(success)=<0.0-1.0>". Reply ONLY with the plan + that line — no tools, no prose.'
+                        else
+                          'Before acting: (1) list the exact tool calls (name + key args) you will make, in order; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.'
+                        end
           plan_msg = call_engine(
-            messages: messages + [{ role: 'user',
-                                    content: 'Before acting: (1) list the exact tool calls (name + key args) you will make, in order; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.' }],
+            messages: messages + [{ role: 'user', content: plan_prompt }],
             tools: nil
           )
           return nil unless plan_msg && !plan_msg[:content].to_s.strip.empty?
 
           plan = plan_msg[:content].to_s.strip
           messages << { role: 'assistant', content: "PLAN:\n#{plan}" }
-          # S4 — adversarial plan review grounded in THIS host's telemetry
-          if defined?(Curriculum)
+          # S4 — adversarial plan review grounded in THIS host's telemetry.
+          # P17 — never fork red_team when budget fingerprints dominate: it is
+          # another mini agent loop and compounds iteration-budget exhaustion.
+          if defined?(Curriculum) && !hot
             rt = Curriculum.red_team_plan(request: opts[:request], plan: plan)
             messages << { role: 'user', content: rt } if rt
           end
@@ -563,7 +584,25 @@ module PWN
             # 3.1 — compact history on local so tool dumps don't fill num_ctx
             compact_history!(messages: messages) if local
 
-            msg = call_engine(messages: messages, tools: tools)
+            # P17 — on the final iteration, strip tools and demand a plain-text
+            # answer. Without this the model happily emits one more tool_calls
+            # batch, burns the last slot, and lands on budget_exhausted with
+            # nothing the user (or ORM) can use.
+            # P17 deepen — when budget_hot, force text-only on the LAST TWO
+            # iters so a final tool_calls batch cannot burn the terminal slot.
+            text_only_iters = budget_exhaustion_hot? ? 2 : 1
+            last_iter = (i >= max_iters - text_only_iters)
+            if last_iter
+              tag = i >= max_iters - 1 ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
+              messages << {
+                role: 'user',
+                content: "[pwn-ai/p17] #{tag} — do NOT call any more tools. " \
+                         'Write the best answer you can from evidence already in this ' \
+                         'transcript. If blocked, say what failed and the next single step.'
+              }
+            end
+
+            msg = call_engine(messages: messages, tools: last_iter ? nil : tools)
             return '[pwn-ai] engine returned no message' if msg.nil?
 
             calls = Array(msg[:tool_calls])
@@ -613,7 +652,10 @@ module PWN
                 # alt-persona branch, judge both, inject the winner. Real
                 # advantage estimation; (loser, winner) → DPO preference.
                 thresh = defined?(Mistakes) ? Mistakes::REPEAT_THRESHOLD : 3
-                if count >= thresh && !escalated && defined?(Curriculum)
+                # P17 — never fork counterfactual when budget fingerprints dominate:
+                # CF is another mini agent loop and is the #1 amplifier of
+                # iteration-budget exhaustion on this host.
+                if count >= thresh && !escalated && defined?(Curriculum) && !budget_exhaustion_hot?
                   cf = (turn_fails["cf:#{fkey}"] += 1) == 1 ? Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint) : nil
                   hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
                 end
@@ -670,8 +712,29 @@ module PWN
             escalated = true
           end
 
-          Mistakes.record(tool: 'agent_loop', error: 'iteration budget exhausted without a final answer', session_id: session_id, source: :loop, shape: :budget_exhausted) if defined?(Mistakes)
-          '[pwn-ai] iteration budget exhausted'
+          # P17 — exhaust path must still feed Learning so ORM/PRM/HER see the
+          # failure (previously we only Mistakes.record'd and returned a bare
+          # string — no session row, no judge, no hindsight).
+          final_msg = '[pwn-ai] iteration budget exhausted'
+          if defined?(Mistakes)
+            Mistakes.record(
+              tool: 'agent_loop',
+              error: 'iteration budget exhausted without a final answer',
+              session_id: session_id,
+              source: :loop,
+              shape: :budget_exhausted
+            )
+          end
+          append_session(session_id: session_id, role: 'assistant', content: final_msg)
+          if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: max_iters)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: final_msg,
+              predicted: predicted
+            )
+          end
+          final_msg
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

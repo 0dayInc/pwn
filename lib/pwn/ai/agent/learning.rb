@@ -25,8 +25,41 @@ module PWN
       module Learning
         LEARNING_FILE      = File.join(Dir.home, '.pwn', 'learning.jsonl')
         FINETUNE_DIR       = File.join(Dir.home, '.pwn', 'finetune')
+        # P0 — post-answer introspect must not train "stop early" while
+        # spending the iteration budget after the final. Soft cap skips
+        # expensive stages (tool critic, PRM-LLM, reflect, extrospect);
+        # hard cap keeps only note_outcome + judge(heuristic) + sentinel.
+        INTROSPECT_SOFT_MS = 2_500
+        INTROSPECT_HARD_MS = 8_000
+        INTROSPECT_MIN_STAGES = %i[judge note_outcome fold_judge sentinel].freeze
+
         MAX_MEMORY_ENTRIES = 200
-        CLAIM_RX           = /CVE-\d{4}-\d{4,7}|\b[A-Za-z][\w.+-]{2,}\s+v?\d+\.\d+(?:\.\d+)?\b/
+        # E3/P26 — only CVE-ids or software-name + full semver (x.y.z).
+        # Two-part floats ("cap 0.2", "proxy 1.0", "judge 37.0") are RL
+        # metric crumbs that were scraped by verify_as_reward and flooded
+        # learning.jsonl with extro_verify :unknown failures.
+        CLAIM_METRIC_WORDS = %w[
+          cap share proxy judge success only now clears gap score rate mean
+          brier overconf distrust trajectory_fraction handler orm prm delta
+          limit window pct percent ms iter budget conf confidence n
+          ruby python linux kernel host cwd e.g e.g.
+        ].freeze
+        CLAIM_RX = /
+          CVE-\d{4}-\d{4,7}
+          |
+          \b
+          (?!
+            (?:cap|share|proxy|judge|success|only|now|clears|gap|score|rate|mean|
+               brier|overconf|distrust|trajectory_fraction|handler|orm|prm|delta|
+               limit|window|pct|percent|ms|iter|budget|conf|confidence|
+               ruby|python|linux|kernel|host|cwd|e\.g)
+            \b
+          )
+          [A-Za-z][\w.+-]{2,}
+          \s+
+          v?\d+\.\d+\.\d+(?:[-+][\w.]+)?
+          \b
+        /x
 
         # Supported Method Parameters::
         # entry = PWN::AI::Agent::Learning.note_outcome(
@@ -359,18 +392,33 @@ module PWN
           return unless session_id
           return unless auto_introspect_enabled?
 
-          proxy_ok = infer_success(session_id: session_id, final: opts[:final])
-          # S3 — tool-armed constitutional critic runs BEFORE the reward
-          # model so its verdict is evidence, not hindsight.
-          # P7 — force critic when W3 says this engine is overconfident
-          # P24 — under budget_exhaustion_hot?, skip tool-armed critic entirely
-          # (or single-shot text) so the critic cannot re-thrash the budget.
+          t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          stages_run = []
+          stages_skipped = []
           budget_hot = begin
             defined?(Loop) && Loop.respond_to?(:budget_exhaustion_hot?, true) &&
               Loop.send(:budget_exhaustion_hot?)
           rescue StandardError
             false
           end
+
+          elapsed_ms = lambda do
+            ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0) * 1000).round
+          end
+          # soft = skip expensive; hard = stop almost everything
+          over_soft = lambda do
+            ms = elapsed_ms.call
+            ms >= INTROSPECT_SOFT_MS || budget_hot
+          end
+          over_hard = lambda do
+            ms = elapsed_ms.call
+            ms >= INTROSPECT_HARD_MS
+          end
+
+          proxy_ok = infer_success(session_id: session_id, final: opts[:final])
+
+          # S3 critic — BEFORE reward so verdict is evidence.
+          # P24/P0 — budget_hot or soft-cap → text_only or skip.
           force_critic = begin
             eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env))
             cal = defined?(Metrics) ? Metrics.calibration(engine: eng) : { n: 0 }
@@ -378,39 +426,51 @@ module PWN
           rescue StandardError
             false
           end
-          crit = if budget_hot && defined?(Curriculum)
-                   # P24 — cheap text-only critic: no persona tool swarm
-                   Curriculum.critic(
-                     request: opts[:request],
-                     final: opts[:final],
-                     session_id: session_id,
-                     text_only: true
-                   )
-                 elsif defined?(Curriculum)
-                   if force_critic
-                     prev = (PWN::Env[:ai][:agent][:critic] if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash))
-                     begin
-                       PWN::Env[:ai][:agent][:critic] = true if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
-                       Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
-                     ensure
-                       PWN::Env[:ai][:agent][:critic] = prev if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
-                     end
-                   else
-                     Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
-                   end
-                 else
-                   { verdict: :pass }
-                 end
-          # R1 — LLM Outcome Reward Model (falls back to calibrated heuristic)
+          # P0 — when W1 mix urgently needs :critic pairs, prefer running critic
+          need_critic_mix = begin
+            mix = defined?(Reward) && Reward.respond_to?(:generator_mix) ? Reward.generator_mix : {}
+            Array(mix[:urgent]).include?('critic')
+          rescue StandardError
+            false
+          end
+
+          crit = { verdict: :pass, source: :skipped }
+          # Single skip path (Lint/DuplicateBranch): hard-budget OR no Curriculum.
+          if !defined?(Curriculum) || (over_hard.call && !need_critic_mix)
+            stages_skipped << :critic
+          elsif budget_hot || (over_soft.call && !force_critic && !need_critic_mix)
+            stages_run << :critic_text_only
+            crit = Curriculum.critic(
+              request: opts[:request],
+              final: opts[:final],
+              session_id: session_id,
+              text_only: true
+            )
+          elsif force_critic
+            stages_run << :critic_forced
+            prev = (PWN::Env[:ai][:agent][:critic] if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash))
+            begin
+              PWN::Env[:ai][:agent][:critic] = true if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
+              crit = Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
+            ensure
+              PWN::Env[:ai][:agent][:critic] = prev if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
+            end
+          else
+            stages_run << :critic
+            crit = Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
+          end
+
+          # R1 judge — always attempt (heuristic is cheap; LLM gated inside)
+          stages_run << :judge
           v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok) if defined?(Reward)
           v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
           v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw
           ok = v[:score] >= 0.6
 
-          # W1 — complete any pending (rejected, chosen) pair from a
-          # user correction on the previous turn.
+          # W1 pending user_correction pair
           pend = Thread.current[:pwn_pending_pref]
           if pend && ok && defined?(Reward)
+            stages_run << :user_correction_pref
             Reward.record_preference(
               prompt: pend[:prompt],
               rejected: pend[:rejected],
@@ -422,6 +482,7 @@ module PWN
             Thread.current[:pwn_pending_pref] = nil
           end
 
+          stages_run << :note_outcome
           note_outcome(
             task: opts[:request].to_s[0, 120],
             success: ok,
@@ -430,40 +491,68 @@ module PWN
             session_id: session_id,
             tags: ['auto', 'loop', v[:verdict].to_s]
           )
-          # P20 — fold episode ORM score into per-tool Metrics so UCB/Thompson
-          # /advantage track judge, not only handler-ok. Attribution: every
-          # tool touched this session gets the episode score (coarse but
-          # closes the bandit onto the north-star scalar).
-          fold_judge_into_metrics(session_id: session_id, score: v[:score])
-          # R2 — per-step credit assignment ALWAYS (1.6): failed trajectories
-          # are where step credit matters; feed negative steps into counterfactual.
-          # C3 — HER soft-relabel on failure only.
-          Reward.prm(request: opts[:request], session_id: session_id) if defined?(Reward)
-          Curriculum.hindsight(request: opts[:request], final: opts[:final], session_id: session_id) if !ok && defined?(Curriculum)
-          # W3 — calibration: predicted (from plan_first) vs actual.
-          # Always try: also recover p(success)= from session PLAN if the
-          # live return value was lost (nil) but plan_first did emit one.
+
+          stages_run << :fold_judge
+          fold_judge_into_metrics(session_id: session_id, score: v[:score], confidence: v[:confidence])
+
+          # R2 PRM — skip under hard cap (expensive LLM); keep under soft if heuristic path
+          if over_hard.call
+            stages_skipped << :prm
+          elsif defined?(Reward)
+            stages_run << :prm
+            Reward.prm(request: opts[:request], session_id: session_id)
+          end
+
+          # C3 HER — only on failure; skip hard
+          if !ok && defined?(Curriculum) && !over_hard.call
+            stages_run << :hindsight
+            Curriculum.hindsight(request: opts[:request], final: opts[:final], session_id: session_id)
+          else
+            stages_skipped << :hindsight unless ok
+          end
+
+          # W3 calibrate — cheap; always when predicted available
           predicted = opts[:predicted]
           predicted = recover_predicted_from_session(session_id: session_id) if predicted.nil?
-          Curriculum.calibrate(predicted: predicted, actual: v[:score], engine: PWN::Env.dig(:ai, :active)) if !predicted.nil? && defined?(Curriculum)
-          reflect(session_id: session_id) if ok
-          Reward.sentinel if defined?(Reward)
-          Extrospection.auto_extrospect(session_id: session_id) if defined?(Extrospection)
+          if !predicted.nil? && defined?(Curriculum)
+            stages_run << :calibrate
+            Curriculum.calibrate(predicted: predicted, actual: v[:score], engine: PWN::Env.dig(:ai, :active))
+          end
+
+          # reflect on success — skip soft/hard (LLM + memory writes)
+          if ok && !over_soft.call
+            stages_run << :reflect
+            reflect(session_id: session_id)
+          elsif ok
+            stages_skipped << :reflect
+          end
+
+          # R3 sentinel — cheap disk math; always
+          if defined?(Reward)
+            stages_run << :sentinel
+            Reward.sentinel
+          end
+
+          # E ambient extrospect — skip soft (can launch probes)
+          if defined?(Extrospection) && !over_soft.call
+            stages_run << :extrospect
+            Extrospection.auto_extrospect(session_id: session_id)
+          else
+            stages_skipped << :extrospect
+          end
+
+          {
+            ok: ok,
+            score: v[:score],
+            elapsed_ms: elapsed_ms.call,
+            budget_hot: budget_hot,
+            stages_run: stages_run,
+            stages_skipped: stages_skipped
+          }
         rescue StandardError => e
           warn "[pwn-ai/learning] auto_introspect swallowed: #{e.class}: #{e.message}"
           nil
         end
-
-        # Supported Method Parameters::
-        # PWN::AI::Agent::Learning.flip_last_outcome(
-        #   session_id: 'optional - only flip if the newest outcome belongs to this session',
-        #   reason: 'optional - why it is being flipped (usually the user correction text)'
-        # )
-        #
-        # Rewrites the most-recently-appended learning.jsonl entry from
-        # success:true to success:false. Called by Mistakes.check_user_correction
-        # when the user's next message rejects the previous answer, so the
-        # 100 %-success illusion is broken and the failure enters the corpus.
 
         public_class_method def self.flip_last_outcome(opts = {})
           return { flipped: false } unless File.exist?(LEARNING_FILE)
@@ -557,6 +646,7 @@ module PWN
 
           sid = opts[:session_id]
           score = opts[:score]
+          conf = opts[:confidence]
           return if sid.to_s.empty? || score.nil?
           return unless defined?(PWN::Sessions)
 
@@ -565,7 +655,7 @@ module PWN
                                .map { |e| e[:content].to_s[/\A([a-z0-9_]+)\s*→/i, 1] }
                                .compact
                                .uniq
-          names.each { |n| Metrics.record_judge(name: n, score: score) }
+          names.each { |n| Metrics.record_judge(name: n, score: score, confidence: conf) }
         rescue StandardError
           nil
         end
@@ -680,6 +770,23 @@ module PWN
           lessons.uniq.first(5)
         end
 
+        # P26 — is this CLAIM_RX hit worth spending a headless browser on?
+        # Reject metric crumbs, OS/runtime banner lines, and bare versions.
+        private_class_method def self.checkable_claim?(opts = {})
+          c = opts[:claim].to_s.strip
+          return false if c.empty? || c.length < 8
+          return true if c.match?(/CVE-\d{4}-\d{4,7}/i)
+
+          head = c[/\A[A-Za-z][\w.+-]*/].to_s
+          return false if CLAIM_METRIC_WORDS.any? { |w| head.casecmp?(w) }
+          # require full semver x.y.z for non-CVE claims
+          return false unless c.match?(/\bv?\d+\.\d+\.\d+/)
+
+          true
+        rescue StandardError
+          false
+        end
+
         # Auto fact-check post-filter: local models hallucinate CVEs /
         # versions ~5-10x more than frontier ones. When the active engine is
         # :ollama, scan the final for CVE / version-shaped claims and hand
@@ -690,7 +797,8 @@ module PWN
           return unless defined?(PWN::Env) && PWN::Env.dig(:ai, :active).to_s.downcase.to_sym == :ollama
           return unless defined?(Extrospection) && Extrospection.respond_to?(:verify)
 
-          claims = opts[:final].to_s.scan(CLAIM_RX).flatten.compact.uniq.first(3)
+          claims = opts[:final].to_s.scan(CLAIM_RX).flatten.compact.uniq
+          claims = claims.select { |c| checkable_claim?(claim: c) }.first(3)
           claims.each { |c| Extrospection.verify(claim: c, commit: true) }
         rescue StandardError => e
           warn "[pwn-ai/learning] fact_check swallowed: #{e.class}: #{e.message}"
