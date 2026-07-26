@@ -47,12 +47,16 @@ PWN::AI::Agent::Registry.register(
       # well as StandardError — Dispatch only catches StandardError, so an
       # unrescued SyntaxError previously escaped the tool loop. Returning a
       # structured error lets the model self-heal (fix code and retry).
+      # rubocop:disable Style/EvalWithLocation -- intentional file label
+      # '(pwn_eval)' so SyntaxError/NameError messages cite the payload, not
+      # this library line (specs + model self-heal depend on that string).
       proc = eval(
         "proc { #{code}\n}",
         TOPLEVEL_BINDING,
         '(pwn_eval)',
         1
       )
+      # rubocop:enable Style/EvalWithLocation
       val = proc.call
       # rubocop:enable Security/Eval
       # rubocop:enable Style/DocumentDynamicEvalDefinition

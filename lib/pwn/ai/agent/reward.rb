@@ -466,6 +466,7 @@ module PWN
           final = opts[:final].to_s
           claim = final[Learning::CLAIM_RX] if defined?(Learning)
           return nil if claim.to_s.empty?
+
           # P26 — drop metric crumbs ("cap 0.2") that match loose patterns
           if defined?(Learning) && Learning.respond_to?(:checkable_claim?, true)
             return nil unless Learning.send(:checkable_claim?, claim: claim)

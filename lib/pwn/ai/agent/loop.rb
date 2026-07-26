@@ -593,7 +593,7 @@ module PWN
             text_only_iters = budget_exhaustion_hot? ? 2 : 1
             last_iter = (i >= max_iters - text_only_iters)
             if last_iter
-              tag = (i >= max_iters - 1) ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
+              tag = i >= max_iters - 1 ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
               messages << {
                 role: 'user',
                 content: "[pwn-ai/p17] #{tag} — do NOT call any more tools. " \

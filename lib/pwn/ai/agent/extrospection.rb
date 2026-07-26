@@ -1722,9 +1722,10 @@ module PWN
           c = opts[:claim].to_s
           return :doc     if opts[:url] || c =~ URI::DEFAULT_PARSER.make_regexp(%w[http https])
           return :cve     if c =~ /CVE-\d{4}-\d{4,}/i
-          # P26 — only full semver (x.y.z) is a version claim; two-part
-          # floats are almost always internal metrics ("cap 0.2").
+          # P26 — full semver (x.y.z) OR "latest X is [v]N.N" product claims.
+          # Bare two-part floats alone stay :generic (metrics like "cap 0.2").
           return :version if c =~ /\b[A-Za-z][\w.+-]{2,}\s+v?\d+\.\d+\.\d+\b/
+          return :version if c =~ /\blatest\b.+\bis\b\s+v?\d+\.\d+/i
 
           :generic
         end

@@ -501,6 +501,7 @@ module PWN
         public_class_method def self.red_team_plan(opts = {})
           return nil unless enabled?(key: :red_team_plan)
           return nil if in_curriculum?
+
           # P17 — never nest a red-team persona loop when budget_exhaustion
           # fingerprints dominate open mistakes (amplifier of agent_loop ×N).
           begin
