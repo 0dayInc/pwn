@@ -48,7 +48,7 @@ fallback) as its **web sense organ** - the counterpart to `probe_rf`'s ears:
 | `extro_verify(claim:, kind:)` | **Proactive self fact-check** - render NVD/CVE.org, rubygems/PyPI, a cited URL, or DuckDuckGo HTML and return `:confirmed` / `:refuted` / `:unknown`. `:refuted` → `Mistakes.record(tool:'assumption', ...)` |
 | `revalidate_memory` (cron) | Garbage-collect stale `PWN::Memory` `:fact` entries by re-`verify()`ing every one containing a CVE / version / URL |
 
-All four honour `proxy:` (Burp / `tor`) so attribution stays controlled, reuse
+All four honor `proxy:` (Burp / `tor`) so attribution stays controlled, reuse
 **one** browser handle across anchors, and `close` in an `ensure`. See
 [Extrospection](Extrospection.md) for the full loop.
 

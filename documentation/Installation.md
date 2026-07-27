@@ -147,11 +147,11 @@ pwn setup [--check] [--deps] [--profile NAME] [--list-profiles]
 
 ---
 
-## Upgrading — `~/.pwn` state migration (`PWN::Migrate`)
+## Upgrading - `~/.pwn` state migration (`PWN::Migrate`)
 
 PWN persists a growing set of files under `~/.pwn` (encrypted config,
 memory, learning, metrics, mistakes, extrospection, cron, agents, skills,
-sessions, swarm, curriculum, finetune, …). Each file is owned by a different
+sessions, swarm, curriculum, finetune, ...). Each file is owned by a different
 module and each release can add keys or change shape. `PWN::Migrate` closes
 that gap so `gem update pwn` never leaves you with a `KeyError` or a silent
 empty-fallback.
@@ -185,7 +185,7 @@ Everything is idempotent and dry-run capable. The plain `pwn` launcher also
 prints a one-line drift warning on startup whenever `~/.pwn/.schema`
 predates the running gem (`PWN::Migrate.needed?`).
 
-Schema `v1` also seeds `PWN::Cron.install_defaults` — the nightly
+Schema `v1` also seeds `PWN::Cron.install_defaults` - the nightly
 `curriculum_practice` and weekly `curriculum_train` self-improvement jobs
 (see [Reinforcement Learning](Reinforcement-Learning.md)).
 
@@ -269,7 +269,7 @@ PWN::Migrate.check                        # human report + { compatible:[], inco
 PWN::Migrate.run(fix: true, dry_run:false)# backup → ordered migrations → per-file repair → vault backfill
 PWN::Migrate.vault_drift                  # keys env_template has that your pwn.yaml is missing
 PWN::Migrate.backfill_vault               # deep-merge those keys under your values, re-encrypt
-PWN::Migrate::STATE_FILES                 # declarative registry of every ~/.pwn artefact
+PWN::Migrate::STATE_FILES                 # declarative registry of every ~/.pwn artifact
 PWN::Migrate::SCHEMA_VERSION              # bump when a state file changes shape
 ```
 

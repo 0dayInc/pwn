@@ -36,11 +36,11 @@ invokes `PWN::Cron.run(<id>)` on schedule.
 | `curriculum_train_weekly` | `0 4 * * 0` | `PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)` |
 | `learning_consolidate_nightly` | `0 5 * * *` | `PWN::AI::Agent::Learning.consolidate` |
 
-- **practice** — top unresolved `Mistakes` under `Reward.judge`; auto-`resolve` with ≥2 holdouts
-- **offline_judge** — P3 backfill of ORM/PRM labels + W3 calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus; also runs **P10** `Reward.warm_sentinel` so the R3 ring can fill on local hosts
-- **dedupe (P13)** — legacy alias `offline_judge_nightly` counts as the same job; `install_defaults` will not double-seed `30 3 * * *` and disables the alias when both exist
-- **train** — export SFT + balanced DPO, LoRA-train `pwn-vN+1`, replay Mistakes.top, promote only on win. `dry_run: false` only with a trainer+GPU
-- **consolidate** — M1/M3 memory GC so the injected MEMORY block stays high-signal
+- **practice** - top unresolved `Mistakes` under `Reward.judge`; auto-`resolve` with ≥2 holdouts
+- **offline_judge** - P3 backfill of ORM/PRM labels + W3 calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus; also runs **P10** `Reward.warm_sentinel` so the R3 ring can fill on local hosts
+- **dedupe (P13)** - legacy alias `offline_judge_nightly` counts as the same job; `install_defaults` will not double-seed `30 3 * * *` and disables the alias when both exist
+- **train** - export SFT + balanced DPO, LoRA-train `pwn-vN+1`, replay Mistakes.top, promote only on win. `dry_run: false` only with a trainer+GPU
+- **consolidate** - M1/M3 memory GC so the injected MEMORY block stays high-signal
 
 See [Reinforcement Learning](Reinforcement-Learning.md).
 

@@ -41,14 +41,14 @@ commands.
 | Keystroke | Works on | Notes |
 |---|---|---|
 | **SHIFT + ENTER** | kitty · wezterm · foot · alacritty · ghostty · xterm · Konsole · iTerm2 · Windows Terminal · Terminator¹ | preferred; requires the emulator to encode modified Enter |
-| **ALT + ENTER** | *everything*, incl. all VTE terminals | universal fallback — every emulator sends `\e\r` |
+| **ALT + ENTER** | *everything*, incl. all VTE terminals | universal fallback - every emulator sends `\e\r` |
 | trailing **`\`** + ENTER | *everything* | bash/irb/psql-style continuation; `\` is stripped on submit |
 
-¹ Terminator (and every other libvte host — GNOME Terminal, Tilix,
+¹ Terminator (and every other libvte host - GNOME Terminal, Tilix,
 xfce4-terminal, Guake, Ptyxis) cannot distinguish SHIFT+ENTER from
 ENTER at the escape-sequence level ([GNOME/vte #2601](https://gitlab.gnome.org/GNOME/vte/-/issues/2601),
 [#2607](https://gitlab.gnome.org/GNOME/vte/-/issues/2607)). For
-Terminator specifically, pwn ships a GTK plugin that fixes it — install
+Terminator specifically, pwn ships a GTK plugin that fixes it - install
 with:
 
 ```console

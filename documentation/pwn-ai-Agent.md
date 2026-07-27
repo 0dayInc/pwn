@@ -72,7 +72,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
    by `Curriculum.hindsight`; `Reflect.on` writes durable lessons via
    `ai.reflect_engine` (teacher-student - a frontier engine may author the
    lesson a local engine reads); `Reward.sentinel` warns when success_rate ≠
-   judge_mean ≠ (1 − user_correction_rate); when `auto_extrospect` is also on,
+   judge_mean ≠ (1 - user_correction_rate); when `auto_extrospect` is also on,
    `Extrospection.auto_extrospect` runs (`AUTO_SECTIONS = host/repo/env` only -
    never toolchain/rf/web, never launches Burp/ZAP/msf/gqrx). Transcript is
    flushed to `~/.pwn/sessions/`.
@@ -118,7 +118,7 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
   local.
 - `PWN::AI::Agent::Learning.export_finetune` + `Reward.export_dpo` turn every
   successful session and every preference pair into supervised / DPO
-  datasets under `~/.pwn/finetune/` — `Curriculum.train_and_gate` then
+  datasets under `~/.pwn/finetune/` - `Curriculum.train_and_gate` then
   LoRA-tunes the local model and promotes only under **gate v2** (resolved
   margin + mean judge + frozen smoke set). Preference pairs use trajectory
   geometry (P9/P14/P15): revised answers / winning traces, not `CORRECTION:` prose; `scrub_preferences` + export filter; practice lands `shape: :winning_trace`.

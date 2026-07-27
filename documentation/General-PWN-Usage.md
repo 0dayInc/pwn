@@ -4,7 +4,7 @@
 
 ```bash
 $ pwn                         # interactive REPL
-$ pwn --ai "scan 10.0.0.0/24 with NmapIt and summarise open services"
+$ pwn --ai "scan 10.0.0.0/24 with NmapIt and summarize open services"
 $ pwn_nmap_discover_tcp_udp -t 10.0.0.0/24 -o out/   # headless driver
 ```
 

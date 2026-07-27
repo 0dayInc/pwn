@@ -84,7 +84,7 @@ Override / extend via `PWN::Env[:ai][:agent][:extrospection][:web][:anchors]`; s
 | **`extro_osint`** | **Aggregate public OSINT APIs (phone / IP / domain / FCC ID / patent / VIN / MAC / callsign / person / company / SEC / CourtListener / Federal Register / UK Police / OTX / URLHaus / openFDA / NPPES / Nominatim / EPSS / CISA KEV / Microlink / vital records / Shodan / Hunter / AbuseIPDB / VT / HIBP / Wayback) + social/identity feeds (Keybase / Gravatar / Mastodon / Bluesky / HN / StackExchange / npm / PyPI / RubyGems / crates / DockerHub / Codeberg / Steam / Telegram + ~100-site presence sweep) + local-tool bridges (theHarvester / spiderfoot / amass / recon-ng)** | `observations[]` (`category: :osint`) |
 | **`extro_serial`** | **Open serial device · optional payload · drain response · disconnect** | `observations[]` (`category: :serial`) |
 | **`extro_telecomm`** | **BareSIP inventory / status / dial / hangup (never launches baresip)** | `observations[]` (`category: :telecomm`) |
-| **`extro_packet`** | **Inventory · bounded live capture · pcap summarise (tshark/PacketFu)** | `observations[]` (`category: :packet`) |
+| **`extro_packet`** | **Inventory · bounded live capture · pcap summarize (tshark/PacketFu)** | `observations[]` (`category: :packet`) |
 | **`extro_vision`** | **OCR (tesseract/RTesseract) · barcode/QR (zbarimg)** | `observations[]` (`category: :vision`) |
 | **`extro_voice`** | **TTS (espeak-ng/festival/spd-say) · STT (whisper) · inventory** | `observations[]` (`category: :voice`) |
 | `extro_correlate` | **Join** introspection ↔ extrospection | - actionable findings |
@@ -397,7 +397,7 @@ PWN::Env[:ai][:agent][:extrospection][:telecomm] = {
 
 ## `extro_packet` - Packet sense organ
 
-Bounded L2/L3 sensing via `tshark` / `tcpdump` + pcap summarisation through
+Bounded L2/L3 sensing via `tshark` / `tcpdump` + pcap summarization through
 `PWN::Plugins::Packet` / tshark hierarchy & conversations:
 
 | action | Effect |
@@ -498,7 +498,7 @@ use **Chicago** so the catalog stays portable.
 ### RF / SDR sense organ (`extro_rf_tune` + `:rf` observations)
 
 - "Tune 433.92 MHz - is the target's garage/gate remote fixed-code or rolling?"
-- "Sweep the 900 MHz ISM band near the badge reader and log anything > −40 dBFS."
+- "Sweep the 900 MHz ISM band near the badge reader and log anything > -40 dBFS."
 - "What's broadcasting on 101.1 FM right now - grab RDS PI/PS so we can prove SDR is live."
 - "Sample 868.3 MHz for 15 s - does the smart-meter mesh look like Wireless M-Bus?"
 - "Any ADS-B traffic squawking over the client's campus (near ORD)?"
@@ -551,7 +551,7 @@ use **Chicago** so the catalog stays portable.
 ### Packet sense organ (`extro_packet`)
 
 - "Capture 30 s on `eth0` while I trigger the IoT hub - what does it phone home to?"
-- "Summarise `/tmp/eng.pcap` - top talkers, cleartext creds, weird ports."
+- "Summarize `/tmp/eng.pcap` - top talkers, cleartext creds, weird ports."
 - "BPF `udp port 5353` - is mDNS leaking hostnames and service records on the guest VLAN?"
 - "Grab 50 packets of the OT segment - Modbus/TCP or something proprietary?"
 - "Do we see the camera's RTSP creds in the clear during that capture?"
@@ -625,7 +625,7 @@ use **Chicago** so the catalog stays portable.
 | "subdomain / CT log / ASN / whois / FCC ID / VIN / MAC OUI / EPSS / KEV / Wayback / pivot @user / Keybase / Gravatar / social sweep / theHarvester / amass" | `extro_osint` |
 | "UART / ttyUSB / U-Boot / AT command / Flipper / JTAG banner" | `extro_serial` |
 | "SIP / PBX / IVR / BareSIP / dial / hangup" | `extro_telecomm` |
-| "capture on iface / summarise pcap / mDNS / Modbus / RTSP creds" | `extro_packet` |
+| "capture on iface / summarize pcap / mDNS / Modbus / RTSP creds" | `extro_packet` |
 | "OCR sticker / decode QR / read badge / BIOS screenshot" | `extro_vision` |
 | "transcribe wav / TTS pretext / whisper offline" | `extro_voice` |
 | "watch URL / did the page change / silent patch / scope updated / TLS rotated" | `extro_watch` |
