@@ -2,20 +2,20 @@
 
 ## The problem
 
-Offensive security is a **toolchain problem**. A single engagement touches
+Offensive security is a **toolchain problem**. One engagement may touch
 `nmap`, `burp`, `msfconsole`, a headless browser, `adb`, `gqrx`, three cloud
 consoles, a fuzzer, `radare2`, a spreadsheet of findings, and a bug-bounty
-submission form. Each tool has its own config, its own output format, and its
-own idea of what a "target" is. Gluing them together is 80 % of the job - and
-that glue is rewritten, badly, on every engagement.
+form. Each tool has its own config, its own output format, and its own idea
+of what a "target" is. Gluing them together is most of the job - and that
+glue gets rewritten, badly, on every engagement.
 
-Meanwhile, LLM agents are extraordinary at *planning* attack chains but have no
-reliable, auditable way to *execute* them against a real host.
+LLM agents are strong at *planning* attack chains, but they still need a
+reliable, auditable way to *run* those steps on a real host.
 
 ## The design bet
 
 PWN bets that the right abstraction is **plain Ruby methods with a uniform
-`opts = {}` signature**, exposed simultaneously to:
+`opts = {}` signature**, exposed at the same time to:
 
 - a human in a REPL,
 - an LLM in a tool-calling loop,
@@ -23,8 +23,8 @@ PWN bets that the right abstraction is **plain Ruby methods with a uniform
 - a cron job at 3 am.
 
 Because every capability is a method, the same line of code works in all four
-contexts. Because every method is open-source Ruby, it's auditable - critical
-when the caller is an autonomous agent.
+places. Because every method is open-source Ruby, you can read it - which is
+critical when the caller is an autonomous agent.
 
 ## Why open primitives matter
 
@@ -35,13 +35,14 @@ when the caller is an autonomous agent.
 | Agent output is a PDF | Agent output is a `PWN::Reports` object *and* a distilled skill *and* a memory entry |
 | One vendor's model | Five interchangeable engines; swarm can pit them against each other |
 
-## Why the self-improvement loop matters
+## Why the feedback loop matters
 
-A pentest framework that doesn't learn repeats the same dead-end scans forever.
-PWN records **per-tool success rate**, **per-task outcome**, **host drift**,
-and **external CVE intel**, then correlates them so tomorrow's run starts where
-today's finished. See [Skills, Memory & Learning](Skills-Memory-Learning.md),
-[Reinforcement Learning](Reinforcement-Learning.md) and
+A pentest framework that does not learn repeats the same dead-end scans
+forever. PWN records **per-tool success rate**, **per-task outcome**, **host
+drift**, and **external CVE intel**, then correlates them so tomorrow's run
+can start where today's left off. See
+[Skills, Memory & Learning](Skills-Memory-Learning.md),
+[Reinforcement Learning](Reinforcement-Learning.md), and
 [Extrospection](Extrospection.md).
 
 **Next:** [How PWN Works](How-PWN-Works.md)

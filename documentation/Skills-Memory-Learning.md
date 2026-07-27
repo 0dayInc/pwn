@@ -41,7 +41,7 @@ its own performance, turns wins into permanent capability, and - critically -
 9. Found a fix for a mistake          → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X - FIX: Y"
 10. (weekly, cron) Learning.export_finetune (P12: min_score + PRM-compress) +
      Reward.export_dpo (≤40%/src, P15 geometry scrub) → ~/.pwn/finetune/*.jsonl → LoRA over the local
-     model via Curriculum.train_and_gate (P11 gate v2) — the ONLY step that
+     model via Curriculum.train_and_gate (P11 gate v2) - the ONLY step that
      changes weights, not just the scaffold. Without a trainer this stays export-ready.
 11. Next launch: PromptBuilder injects the budgeted blocks → the model already knows:
      MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION

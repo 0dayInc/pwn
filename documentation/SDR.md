@@ -10,7 +10,7 @@
 
 | Module | Purpose |
 |---|---|
-| **`GQRX`** | Remote-control a running GQRX instance over TCP: tune, set demod, squelch, record, `get_spectrum_snapshot` (pure-Ruby FFT - median NF, relative peak/prominence, **plan-parametric** min-distance & −6 dB BW), `fast_scan_range` (**always RAW @ sample_rate** panoramic capture; band-plan IF deferred to refine/decoder; `#fft_plan_geometry` derives sep/merge/refine/snap from `(plan_bw, step, res)`; local-FFT refine + S-meter confirm; schema-parity with `scan_range`) |
+| **`GQRX`** | Remote-control a running GQRX instance over TCP: tune, set demod, squelch, record, `get_spectrum_snapshot` (pure-Ruby FFT - median NF, relative peak/prominence, **plan-parametric** min-distance & -6 dB BW), `fast_scan_range` (**always RAW @ sample_rate** panoramic capture; band-plan IF deferred to refine/decoder; `#fft_plan_geometry` derives sep/merge/refine/snap from `(plan_bw, step, res)`; local-FFT refine + S-meter confirm; schema-parity with `scan_range`) |
 | `FlipperZero` | Serial control of Flipper (sub-GHz, NFC, IR, iButton) |
 | `RFIDler` | 125 kHz RFID reader/emulator |
 | `SonMicroRFID` | SM130 13.56 MHz reader |
@@ -20,7 +20,7 @@
 ## CLI
 
 ```bash
-# FFT sweep - plan-parametric peak geometry + local-FFT refine for exact centres
+# FFT sweep - plan-parametric peak geometry + local-FFT refine for exact centers
 # Works for ALL band plans (CW 150 Hz → FLEX 20 kHz → FM 200 kHz → GPS 30 MHz)
 pwn_gqrx_scanner -a pager_flex --fft-scan                 # alias: flex_pager
 pwn_gqrx_scanner -a fm_radio   --fft-scan --min-snr-db 18
@@ -46,8 +46,8 @@ invariants already on each plan (`bandwidth` → `plan_bw_hz`, `precision` →
 | Capture IF | **Always** `M RAW sample_rate` (IQRECORD is demod IF - never plan FM/20 kHz) |
 | Peak height / prom | Relative: `median_nf + 12 dB`, prom ≥ 8 dB |
 | Peak min-distance | `#fft_plan_geometry` → `sep_hz = max(0.5·plan, step, floor)` |
-| Occupied BW | −6 dB-from-peak contour, hard-capped to `± plan_bw` |
-| Center | Power-weighted centroid of −6 dB lobe → raster snap |
+| Occupied BW | -6 dB-from-peak contour, hard-capped to `± plan_bw` |
+| Center | Power-weighted centroid of -6 dB lobe → raster snap |
 | Merge | `tol = max(½ plan, step, ½ measured_bw, 2·res)` |
 | Refine window | ~0.6·plan (capped so next neighbour is outside); local high-res FFT |
 | Strength lock | Auto from live S-meter NF + 8 dB unless `-S` given |

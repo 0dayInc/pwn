@@ -1,7 +1,7 @@
 # AI / LLM Integration - `PWN::AI`
 
 One agent loop, five interchangeable engines. Swap providers by changing one
-line in `~/.pwn/pwn.yaml`; the tool-calling contract is normalised so the
+line in `~/.pwn/pwn.yaml`; the tool-calling contract is normalized so the
 agent code never cares which model is behind it.
 
 ![Multi-provider integration](diagrams/ai-integration-tool-calling.svg)

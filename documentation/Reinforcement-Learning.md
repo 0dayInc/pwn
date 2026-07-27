@@ -37,34 +37,34 @@ path closes the weight loop; without a trainer the path is **export-ready**
                     Metrics.changepoints (E1 CUSUM) ──► Mistakes(cause: :env_drift)
 ```
 
-## Tier 1 — Reward signal (`PWN::AI::Agent::Reward`)
+## Tier 1 - Reward signal (`PWN::AI::Agent::Reward`)
 
 | ID | Method | What it does | Beats |
 |----|--------|-------------|-------|
 | **R1** | `.judge` | LLM Outcome Reward Model → `{score:0..1, verdict:, rationale:, key_step:}`. Replaces `infer_success` regex. | Reflexion (binary self-eval) |
-| **R2** | `.prm` | Process Reward Model — per-tool-step `+1/0/−1` written into `Sessions[:step_reward]`. | Lightman '23 (math only) — first PRM on security tooling |
-| **R3** | `.sentinel` | proxy vs judge vs (1 − user_correction_rate); >0.15 gap → `Mistakes.record(tool:'reward_signal')`. | — novel |
-| **R4** | `.semantic_ok` | `grep exit 1` ≠ failure. `Loop.record_metrics` records Metrics on `:ok`, Mistakes on `!semantic_ok`. Kills phantom `31f1871b8a15`. | — bugfix |
+| **R2** | `.prm` | Process Reward Model - per-tool-step `+1/0/-1` written into `Sessions[:step_reward]`. | Lightman '23 (math only) - first PRM on security tooling |
+| **R3** | `.sentinel` | proxy vs judge vs (1 - user_correction_rate); >0.15 gap → `Mistakes.record(tool:'reward_signal')`. | - novel |
+| **R4** | `.semantic_ok` | `grep exit 1` ≠ failure. `Loop.record_metrics` records Metrics on `:ok`, Mistakes on `!semantic_ok`. Kills phantom `31f1871b8a15`. | - bugfix |
 
-## Tier 2 — Credit assignment & replay
+## Tier 2 - Credit assignment & replay
 
 | ID | Where | What |
 |----|-------|------|
 | **C1** | `Registry.rank` + `Metrics.{ucb,thompson,advantage}` | score = α·keyword_sim + β·advantage + γ·UCB1. Untried tools get exploration bonus. |
-| **C2** | `Learning.exemplars_for` | priority = judge_score × e^(−Δt/30d) × keyword_sim. |
-| **C3** | `Curriculum.hindsight` | HER — relabel failed trajectory with achieved-goal as `success: 'soft'` + tags `hindsight/her/soft`. Soft rows are excluded from SFT and 0.35×-weighted in C2 exemplars. |
-| **C4** | `Learning.{compress_exemplar,build_skill_from_session}` | keep only `step_reward > 0` — minimal sufficient trace. |
+| **C2** | `Learning.exemplars_for` | priority = judge_score × e^(-Δt/30d) × keyword_sim. |
+| **C3** | `Curriculum.hindsight` | HER - relabel failed trajectory with achieved-goal as `success: 'soft'` + tags `hindsight/her/soft`. Soft rows are excluded from SFT and 0.35×-weighted in C2 exemplars. |
+| **C4** | `Learning.{compress_exemplar,build_skill_from_session}` | keep only `step_reward > 0` - minimal sufficient trace. |
 
-## Tier 3 — Memory that stays high-signal
+## Tier 3 - Memory that stays high-signal
 
 | ID | Where | What |
 |----|-------|------|
 | **M1** | `Learning.consolidate` → `semantic_merge` | embed `:lesson`, greedy cosine ≥0.92, `Reflect.on("merge → 1 imperative")`. |
 | **M2** | `MemoryIndex.recall_semantic` | score = 0.6·sim + 0.25·recency + 0.15·importance (Park '23). |
-| **M3** | `Memory.remember(source:,confidence:,importance:,ttl:)` | consolidate evicts by `(age/ttl)/(importance×confidence)` — heuristic garbage self-evicts. |
+| **M3** | `Memory.remember(source:,confidence:,importance:,ttl:)` | consolidate evicts by `(age/ttl)/(importance×confidence)` - heuristic garbage self-evicts. |
 | **M4** | `Learning.note_outcome` | outcomes → `learning.jsonl` ONLY. Memory `:lesson` reserved for reflect/resolve/human. `purge_noise` GCs pre-R1 garbage. |
 
-## Tier 4 — Curriculum & self-play (`PWN::AI::Agent::Curriculum`)
+## Tier 4 - Curriculum & self-play (`PWN::AI::Agent::Curriculum`)
 
 | ID | Method | What |
 |----|--------|------|
@@ -73,7 +73,7 @@ path closes the weight loop; without a trainer the path is **export-ready**
 | **S3** | `.critic` | tool-armed constitutional critic (can `shell`/`extro_verify` the claim). |
 | **S4** | `.red_team_plan` | adversarial plan review grounded in Metrics/Mistakes/extro_drift telemetry. |
 
-## Tier 5 — Close the weight loop
+## Tier 5 - Close the weight loop
 
 | ID | Where | What |
 |----|-------|------|
@@ -81,7 +81,7 @@ path closes the weight loop; without a trainer the path is **export-ready**
 | **W2** | `Curriculum.train_and_gate` | SFT+DPO → unsloth/axolotl LoRA → `ollama create pwn-vN+1` → **gate v2** (resolved margin + mean judge + smoke). **Without a trainer: export-only** (`weight_loop: :export_ready`). |
 | **W3** | `Curriculum.calibrate` + `Metrics.{record_calibration,calibration}` | plan_first `p(success)` vs actual → per-engine Brier/overconfidence. |
 
-## Tier 6 — Deepen the intro↔extro join
+## Tier 6 - Deepen the intro↔extro join
 
 | ID | Where | What |
 |----|-------|------|
@@ -95,11 +95,11 @@ path closes the weight loop; without a trainer the path is **export-ready**
 :ai:
   :module_reflection: false  # gates Reflect lesson writing (not ORM alone)
   :agent:
-    :critic: null            # S3 — nil = ON for remote engines, OFF for ollama
-    :red_team_plan: null     # S4 — same auto policy
-    :counterfactual: null    # S2 — same auto policy
+    :critic: null            # S3 - nil = ON for remote engines, OFF for ollama
+    :red_team_plan: null     # S4 - same auto policy
+    :counterfactual: null    # S2 - same auto policy
     :hindsight: true         # C3 (default true; soft-success, 0.35× in C2)
-    :verify_as_reward: null  # E3 — nil = auto (~10% local / always remote on CLAIM_RX)
+    :verify_as_reward: null  # E3 - nil = auto (~10% local / always remote on CLAIM_RX)
     :reward_llm: null        # nil = ORM/PRM use LLM teacher on remote even if module_reflection is false
     :local_introspect: :failure_only   # ollama cost policy; remote always introspects
     :introspect_every_n: 3
@@ -124,7 +124,7 @@ PWN::Cron.install_defaults
 `curriculum_hindsight` · `curriculum_offline_judge` ·
 `curriculum_preference_balance` · `learning_purge_noise`
 
-## Design claims (architecture — weight promotion requires a trainer)
+## Design claims (architecture - weight promotion requires a trainer)
 
 1. **Process reward on real security tool traces** (R2)
 2. **Automatic blame attribution** self vs env-drift via CUSUM×correlate (E1+E2)
@@ -140,18 +140,18 @@ PWN::Cron.install_defaults
 | **P1** | `Curriculum.practice` cooldown + natural prompts | Hard-skips `reward_signal` / parked / `needs_code_change`; N-night zero-score cooldown parks thrash; reproducers are natural user tasks, never signature dumps. |
 | **P2** | R4 `semantic_ok` + structured resolve | `31f1871b8a15`-class exit≠0 phantoms stay closed via structured holdouts. |
 | **P3** | `Curriculum.offline_judge` | Scores last-24h sessions under ORM/PRM so local `:failure_only` introspect does not starve labels. Cron nightly. |
-| **P4** | `Reward.proxy_distrust` | When sentinel fires, Metrics.to_context / Registry.rank haircut proxy rates — actionable, not just another Mistakes row. |
+| **P4** | `Reward.proxy_distrust` | When sentinel fires, Metrics.to_context / Registry.rank haircut proxy rates - actionable, not just another Mistakes row. |
 | **R3** | `Reward.sentinel` ring buffer | Fixed-N (`SENTINEL_WINDOW=40`) `{judge,proxy}` window replaces decaying `proxy_sum`/`proxy_n`. Means are always ∈[0,1]; `set_proxy_distrust` refuses proxy∉[0,1]; `reset_sentinel` wipes corrupt state without touching prefs. Legacy decay×`to_i` files auto-clear stuck distrust on load. |
 | **P5** | `Curriculum.preference_balance` + `export_dpo` source-cap | Surfaces W1 monoculture **and enforces** ≤40% per source at export (`DPO_SOURCE_CAP`); critic/counterfactual auto-ON for remote engines so the diet rebalances online. |
 | **P6** | W2 honesty | Docs + `train_and_gate` return `weight_loop: :export_ready` when `trainer: null`. |
 | **P7** | W3 as controller | Engine Brier > 0.35 or overconfidence > 0.25 (n≥8) → force plan_first + critic, cap max_iters at 12. `offline_judge` also records calibration from PLAN `p(success)=` so the controller can fire under `:failure_only`. |
-| **P8** | Remote reward teacher | `agent.reward_llm` nil → ORM/PRM use the LLM teacher on remote engines even when `module_reflection` is false. Local ollama stays heuristic unless explicitly enabled. PRM prompts carry R4 tags so benign recon exits score 0 not −1. |
+| **P8** | Remote reward teacher | `agent.reward_llm` nil → ORM/PRM use the LLM teacher on remote engines even when `module_reflection` is false. Local ollama stays heuristic unless explicitly enabled. PRM prompts carry R4 tags so benign recon exits score 0 not -1. |
 | **P9** | W1 pair geometry + write-time quota | Critic chosen = **revised full answer** (not `CORRECTION:` flaw prose). Resolve prefers `structured_fix.winning_trace`. Counterfactual tags `:real_dispatch` vs `:imagined`. `record_preference` enforces `WRITE_SOURCE_CAP=0.40` online (trajectory shapes force-land). |
 | **P10** | `Reward.warm_sentinel` | Backfills R3 ring from scored Learning outcomes so local `:failure_only` hosts reach `SENTINEL_WINDOW` without waiting for live remote introspect. `offline_judge` calls it every night. |
 | **P11** | W2 gate v2 | Promote only when candidate wins on resolved margin **and** mean judge **and** frozen smoke set (uname/pwd/ruby) does not regress. Coarse `resolved(N+1)>resolved(N)` alone cannot self-promote eval memorisation. |
 | **P12** | SFT quality gate | `export_finetune` drops HER/soft + score&lt;`SFT_MIN_SCORE` (0.6), de-dupes per session by best score, PRM-compresses traces (`compress_finetune_trace`). |
 | **P13** | Cron offline_judge dedupe | `install_defaults` treats `offline_judge_nightly` as alias of `curriculum_offline_judge` and disables duplicates so the 30 3 * * * slot runs once. |
-| **P14** | Practice → DPO geometry | `Curriculum.practice` records `chosen: winning_trace` (+ final), `shape: :winning_trace` — never first-3-lines fix prose. |
+| **P14** | Practice → DPO geometry | `Curriculum.practice` records `chosen: winning_trace` (+ final), `shape: :winning_trace` - never first-3-lines fix prose. |
 | **P15** | Ledger hygiene | `Reward.usable_preference?` / `scrub_preferences` / geometry filter in `export_dpo` drop `CORRECTION:` prose, resolve-without-trace, and chosen≪rejected. `preference_balance(scrub:true)` reports `trajectory_fraction`. |
 | **P16** | R3 warm for real | `warm_sentinel` fills from scored **and** success-boolean outcomes, returns `proxy_distrust`, runs `sentinel` once full so controllers can engage. |
 | **P17** | Budget-exhaustion skill | Practice prioritises `agent_loop`/`assistant_answer`; natural prompts teach finish-under-N; Loop hard-stops empty-final thrash and tightens max_iters when budget fingerprints dominate. |
@@ -161,7 +161,7 @@ PWN::Cron.install_defaults
 | **P21** | Resolve trajectory-only | `Mistakes.resolve` writes W1 only when `structured_fix.winning_trace` ≥40 chars (`shape: :winning_trace`). Prose-only resolve still updates Memory + structured_fix; it does **not** flood DPO. |
 | **P22** | W3 calibration live | `Loop.plan_first` stashes `p(success)=` on `Thread.current[:pwn_plan_predicted]`; `Learning.recover_predicted_from_session` + `Curriculum.calibrate` light the Brier/overconfidence controller under `:failure_only`. |
 | **P23** | Short-horizon budget practice | Budget-exhaustion fingerprints get natural "finish under N" prompts; practice auto-resolve requires N≥2 holdouts at judge≥0.7 **and** a real winning_trace (no long-prose resolve). |
-| **P24** | Critic cost under budget-hot | When `budget_exhaustion_hot?`, `auto_introspect` forces `critic(text_only: true)` — single Reflect/heuristic shot, no tool-armed persona swarm that burns the remaining iteration budget. |
+| **P24** | Critic cost under budget-hot | When `budget_exhaustion_hot?`, `auto_introspect` forces `critic(text_only: true)` - single Reflect/heuristic shot, no tool-armed persona swarm that burns the remaining iteration budget. |
 | **P25** | Write-time trajectory gate | `Reward.record_preference` refuses non-`TRAJECTORY_SHAPES` unless `force:` / `user_correction`. Write-time source quota **still** applies to trajectory pairs so winning_trace cannot re-monoculture the ledger. |
 
 ## Preference / trajectory signal quality (current ops posture)
@@ -180,7 +180,7 @@ and source diversity, not missing tiers:
 8. Resolve/record_preference are trajectory-only at write time (P21/P25); write-time source quota still caps traj monoculture.
 9. Without unsloth/axolotl **or** a clean preference diet, `train_and_gate` stays `weight_loop: :export_ready` (honest).
 
-## Design-priority STATUS (post P14–P25)
+## Design-priority STATUS (post P14-P25)
 
 Collapse of the review-driven priority order into a living table. Stop minting new P-numbers for chores already covered; track these outcomes instead.
 

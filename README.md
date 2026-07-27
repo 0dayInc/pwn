@@ -24,57 +24,68 @@
 
 #### **What is PWN** ####
 
-PWN (pronounced /pōn/ - *pone*) is an open-source **offensive-security
-automation framework** and **continuous-security-integration** platform.
-It gives security researchers, red teamers, penetration testers and
-vulnerability researchers a single, scriptable Ruby surface over the entire
-offensive toolchain - from OSINT and network discovery, through web / cloud /
-hardware / radio exploitation, to reporting and disclosure - and puts a
-**self-improving, tool-calling, multi-agent AI** on top of it.
+PWN (pronounced *pone*, like "own" with a p) is an open-source Ruby toolkit for
+**offensive security automation**. One workspace ties together the tools you
+already use: OSINT, network scanning, web and cloud testing, hardware and
+radio, reporting, and disclosure. A **tool-calling AI agent** sits on top and
+can run those same methods for you.
+
+Red teamers, pentesters, and vulnerability researchers get one place to script
+and automate instead of gluing together a pile of separate CLIs.
 
 **In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
 service wrappers · 21 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
-5 LLM engines · 10 agent toolsets · 45+ LLM-callable tools.
+5 LLM engines · 12 agent toolsets · 78 LLM-callable tools.
 
 Full page: [What is PWN](documentation/What-is-PWN.md)
 
 #### **Why PWN** ####
 
-Offensive security is a *toolchain problem*. PWN's bet is that the right
-abstraction is **plain Ruby methods with a uniform `opts = {}` signature**,
-exposed simultaneously to a human in a REPL, an LLM in a tool-calling loop, a
-shell script in CI, and a cron job at 3 am - all open-source and auditable,
-which matters when the caller is autonomous.
+Offensive work is hard because the *tools* do not fit together. PWN's fix is
+simple: every capability is a plain Ruby method with the same `opts = {}`
+shape. That one idea means the *same* code runs:
+
+- live in the REPL
+- from an LLM agent in a tool loop
+- in a shell script or CI job
+- on a cron schedule while you sleep
+
+The whole stack is open source and easy to read. That matters when software
+is driving security decisions without you watching every click.
 
 Full page: [Why PWN](documentation/Why-PWN.md)
 
 #### **How PWN Works** ####
 
-Five layers, edges only ever go down:
+PWN is five layers. Dependencies only point downward, so each level stays
+small and easy to swap:
 
 ![PWN Overall Architecture](documentation/diagrams/overall-pwn-architecture.svg)
 
-The AI layer closes a **self-improvement loop** on every turn - Metrics +
-Learning + **Mistakes** (introspection / negative feedback) joined with
-Snapshot + Drift + Intel + RF + **Web** (extrospection) - plus browser-backed **`extro_verify`** / **`extro_watch`** and RF **`extro_rf_tune`** sensing - via `extro_correlate`, so the
-agent knows whether a failure was *its* fault or *the world* changed -
-**and does not repeat the same mistake twice**:
+On every turn the AI layer runs a **feedback loop**. It checks inward
+(Metrics, Learning, and **Mistakes**: what failed last time) and outward
+(Snapshot, Drift, Intel, RF, and **Web**: did the host or network change?).
+Live checks use browser-backed **`extro_verify`** / **`extro_watch`** and RF
+**`extro_rf_tune`**. `extro_correlate` joins those views so the agent can tell
+*"I messed up"* from *"the world moved"*, and **does not repeat the same
+mistake**:
 
 ![pwn-ai Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
 
-Failures are fingerprinted cross-session (`~/.pwn/mistakes.json`), tagged
-`[REPEATING]` / `[REGRESSED]`, and their **fix** is handed straight back inline
-on the next recurrence:
+Failures are fingerprinted across sessions (`~/.pwn/mistakes.json`), tagged
+`[REPEATING]` / `[REGRESSED]`, and when the same slip shows up again the saved
+**fix** is dropped straight back into the prompt:
 
 ![Mistakes Negative-Feedback Loop](documentation/diagrams/mistakes-negative-feedback.svg)
 
-And **Swarm** runs multiple personas - each a full tool-calling agent,
-optionally on a *different* LLM engine - over a shared append-only bus:
+**Swarm** runs several personas at once. Each is a full tool-calling agent,
+optionally on a *different* LLM engine, talking over a shared append-only
+message bus:
 
 ![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
 Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·
-[All 27 Data-Flow Diagrams](documentation/Diagrams.md)
+[All data-flow diagrams](documentation/Diagrams.md)
 
 ---
 
@@ -105,7 +116,7 @@ Rebuild every SVG from its Graphviz source:
 
 PWN is a **single gem** with a built-in post-install doctor/provisioner -
 `pwn setup` - that detects your package manager (`apt` · `dnf` · `pacman` ·
-`brew` · `port`) and installs exactly the OS headers + external tools each
+`brew` · `port`) and installs the OS headers and external tools each
 `PWN::` capability needs. Tested on Kali/Debian/Ubuntu, Fedora, Arch, macOS.
 
 ```
@@ -166,7 +177,7 @@ $ cd /opt/pwn && git pull && rake install && pwn setup
 ```
 $ pwn --ai 'What ports are listening on this host?'
 $ echo "$LONG_PROMPT" | pwn --ai -
-$ pwn -Y ./ci/pwn.yaml --ai 'Run pwn_sast against ./src and summarise HIGH findings' > findings.txt
+$ pwn -Y ./ci/pwn.yaml --ai 'Run pwn_sast against ./src and summarize HIGH findings' > findings.txt
 ```
 
 **Provision a CI runner / Docker image:**
@@ -206,13 +217,13 @@ Highlights:
 [SAST](documentation/SAST.md) ·
 [AI Integration](documentation/AI-Integration.md)
 
-I hope you enjoy PWN - and remember: **always have permission** before any
-security testing. Now go pwn all the things (responsibly)!
+Remember: **always have permission** before any security testing. Then go
+pwn all the things (responsibly).
 
 ---
 
 ### **Keep Us Caffeinated** ###
-If you've found this project useful and you're interested in supporting our efforts, we invite you to take a brief moment to keep us caffeinated:
+If this project helped you and you want to support the work, keep us caffeinated:
 
 [![Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoff.ee/0dayinc)
 

@@ -20,7 +20,7 @@ generates the decryptor.
 > [doctor](Installation.md#pwn-setup--the-post-install-doctor--provisioner)
 > reports whether `~/.pwn/`, `pwn.yaml`, its decryptor, and an AI-engine key
 > are present, and exits non-zero for CI if any are missing.
-> After `gem update pwn`, run `pwn setup --migrate --fix` — `PWN::Migrate`
+> After `gem update pwn`, run `pwn setup --migrate --fix` - `PWN::Migrate`
 > deep-merges any keys the new `PWN::Config.env_template` added into your
 > encrypted `pwn.yaml` **without overwriting your values**.
 
@@ -269,7 +269,7 @@ PWN::Config.refresh_env
 | `ai.agent.critic` | Boolean | `false` | `PWN::AI::Agent::Curriculum.critic` (S3) | Tool-armed constitutional self-critic reviews (and may `shell`/`extro_verify`) every final answer before it is returned. |
 | `ai.agent.red_team_plan` | Boolean | `false` | `PWN::AI::Agent::Curriculum.red_team_plan` (S4) | Adversarial review of the `plan_first` numbered plan, grounded in Metrics/Mistakes/`extro_drift` telemetry, before the first dispatch. |
 | `ai.agent.counterfactual` | Boolean | `false` | `PWN::AI::Agent::Curriculum.counterfactual` (S2) | On `[REPEATING]`, fork an alt-persona branch, judge both, and record the `(loser, winner)` DPO preference pair. |
-| `ai.agent.hindsight` | Boolean | `true` | `PWN::AI::Agent::Curriculum.hindsight` (C3) | Hindsight Experience Replay — relabel a failed trajectory as `success:true` for whatever it *did* accomplish. Free positive samples from failures. |
+| `ai.agent.hindsight` | Boolean | `true` | `PWN::AI::Agent::Curriculum.hindsight` (C3) | Hindsight Experience Replay - relabel a failed trajectory as `success:true` for whatever it *did* accomplish. Free positive samples from failures. |
 | `ai.agent.verify_as_reward` | Boolean | `false` | `PWN::AI::Agent::Reward.verify_as_reward` (E3) | Ground the LLM judge score by browser-verifying any checkable claim in the final via `extro_verify`; verdict caps/floors `Reward.judge`. |
 | `ai.agent.extrospection.web.anchors` | Array\<String\> | `DEFAULT_WEB_ANCHORS` | `PWN::AI::Agent::Extrospection.probe_web` | URLs the headless browser fingerprints on `extro_snapshot(sections:[:web])`. Alias: `web_anchors`. |
 | `ai.agent.extrospection.web.proxy` | String | - | `Extrospection.probe_web` / `.verify` / `.watch` | Upstream proxy for `PWN::Plugins::TransparentBrowser` (e.g. `tor`, `http://127.0.0.1:8080`). |

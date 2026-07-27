@@ -12,7 +12,7 @@ once one is found so the avoidance lesson becomes an actionable correction.
 
 ## The failure fingerprint
 
-A "mistake" is keyed by `sha12(tool + normalised_error)`. Normalisation strips
+A "mistake" is keyed by `sha12(tool + normalised_error)`. Normalization strips
 volatile bits - paths, hex addresses, `:LINE`, `port N`, timestamps, UUIDs,
 PIDs - so `NoMethodError ... at foo.rb:42` and `... at foo.rb:99` collapse to
 **one** signature and its `:count` climbs. **That count *is* the repeat
@@ -22,7 +22,7 @@ detector**, and it survives across sessions.
 |---|---|
 | `signature` | 12-hex-char sha of `(tool, normalised_error)` - stable across runs |
 | `tool` | component the failure was in (`shell`, `pwn_eval`, `assumption`, `assistant_answer`, a module name...) |
-| `error` | normalised error text (paths/lines/addrs/ts stripped) |
+| `error` | normalized error text (paths/lines/addrs/ts stripped) |
 | `count` | **cross-session** recurrence count - drives `[REPEATING]` at ≥ 3 |
 | `resolved` / `fix` | set by `mistakes_resolve` - promoted to a `PWN::Memory` `:lesson` |
 | `regressed` | auto-set when a *resolved* signature recurs - reopened as `[REGRESSED]` |
@@ -104,8 +104,8 @@ upgraded", "the HackRF was unplugged", or "the target DOM moved". See
 
 `Mistakes.resolve` writes a DPO preference into `~/.pwn/preferences.jsonl`:
 
-- **rejected** — the failing snippet / action
-- **chosen** — prefers `structured_fix.winning_trace` (+ strategy/tool) when
+- **rejected** - the failing snippet / action
+- **chosen** - prefers `structured_fix.winning_trace` (+ strategy/tool) when
   present; falls back to `AVOID_ARGS` / fix prose only when no trace exists
 
 Curriculum auto-resolve always attaches a winning tool trace so the ledger

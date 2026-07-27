@@ -1,6 +1,6 @@
 # How PWN Works
 
-PWN is five layers, each visible in the source tree. Edges only ever go
+PWN is five layers, each visible in the source tree. Edges only go
 **down** one layer (or sideways within a layer), which is why the diagrams
 below have no criss-crossing lines.
 
@@ -47,7 +47,7 @@ call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 `Plugins` (66) · `SAST` (48) · `WWW` (21) · `AWS` (90) · `SDR` · `Blockchain` ·
 `Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
-callable identically from the REPL, from `pwn_eval`, or from a driver.
+callable the same way from the REPL, from `pwn_eval`, or from a driver.
 
 ## L4 - Persistence  (`~/.pwn/`)
 
@@ -57,22 +57,22 @@ autofixes every file in it after a `gem update pwn`:
 
 ![~/.pwn map](diagrams/persistence-filesystem.svg)
 
-See [Persistence](Persistence.md) for the byte-level layout of each file and
+See [Persistence](Persistence.md) for the layout of each file and
 [Installation § Upgrading](Installation.md#upgrading--pwn-state-migration-pwnmigrate)
 for the migrator.
 
 ## The feedback loop
 
-The reason L2 exists is to close this loop on every turn - successes
-become skills/lessons, **failures become fingerprinted mistakes with fixes**,
-**world-state is sensed on demand** (`extro_verify` / `extro_watch` /
-`extro_rf_tune` / `extro_osint` / `extro_serial` / `extro_telecomm` /
-`extro_packet` / `extro_vision` / `extro_voice` / `extro_intel`) and
-correlated against those failures, an **LLM judge scores the final** and a
-**process reward model tags each tool step**, and **all six prompt blocks**
-(MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS ·
-EXTROSPECTION) are re-injected into the very next system prompt.
-Nightly cron practises the top unresolved Mistakes; weekly cron cuts a
+L2 exists to close this loop on every turn - successes become skills and
+lessons, **failures become fingerprinted mistakes with fixes**, **world state
+is sensed on demand** (`extro_verify` / `extro_watch` / `extro_rf_tune` /
+`extro_osint` / `extro_serial` / `extro_telecomm` / `extro_packet` /
+`extro_vision` / `extro_voice` / `extro_intel`) and correlated against those
+failures, an **LLM judge scores the final answer** and a **process reward
+model tags each tool step**, and **all six prompt blocks** (MEMORY · SKILLS ·
+LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION) are
+re-injected into the next system prompt.
+Nightly cron practices the top unresolved Mistakes; weekly cron builds a
 LoRA and only promotes it if it beats the previous adapter on that same
 mistake set:
 
