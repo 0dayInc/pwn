@@ -16,6 +16,7 @@ pwn_provider=`echo $PWN_PROVIDER`
 $screen_cmd "${apt} install -y apache2 ${assess_update_errors}"
 $screen_cmd "a2enmod proxy ${assess_update_errors}"
 $screen_cmd "a2enmod proxy_http ${assess_update_errors}"
+$screen_cmd "a2enmod proxy_wstunnel ${assess_update_errors}"
 $screen_cmd "a2enmod rewrite ${assess_update_errors}"
 $screen_cmd "a2enmod ssl ${assess_update_errors}"
 $screen_cmd "a2enmod headers ${assess_update_errors}"
