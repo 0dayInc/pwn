@@ -146,10 +146,12 @@ module PWN
           # is "iteration budget exhausted" ×N; more headroom only produces more
           # empty terminal failures for ORM/PRM/DPO.
           if budget_exhaustion_hot?
-            # P17 deepen² — remote was still burning full 12-step plans even when
-            # overconfidence sat just under the 0.25 gate (0.242 on grok). Always
-            # cap to 8 for ALL engines while budget fingerprints dominate; finish-
-            # under-N is the skill gap, more headroom only yields empty terminals.
+            # P17 — always 8 for ALL engines while budget fingerprints dominate.
+            # P28 remote runway (40) applies only to W3 overconf above; stacking
+            # a 40 hot-cap on top re-opens multi-dozen-iter thrash and is the
+            # 2026-08-04 regression (22 exhaust hits / day). Finish-under-8 is
+            # the sustained drop; incomplete_final? keeps multi-step autonomy
+            # inside that budget without polite handoffs.
             n = [n, 8].min
           end
           n
@@ -633,7 +635,9 @@ module PWN
             # nothing the user (or ORM) can use.
             # P17 deepen — when budget_hot, force text-only on the LAST TWO
             # iters so a final tool_calls batch cannot burn the terminal slot.
-            text_only_iters = budget_exhaustion_hot? ? 2 : 1
+            # P17 deepen³ — under hot, force text-only on last THREE of the
+            # 8-iter cap so a late tool binge cannot burn every salvage slot.
+            text_only_iters = budget_exhaustion_hot? ? 3 : 1
             last_iter = (i >= max_iters - text_only_iters)
             if last_iter
               tag = i >= max_iters - 1 ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
@@ -829,6 +833,7 @@ module PWN
 
               P28 autonomy: incomplete-final detector refuses mid-goal handoffs;
               W3 overconf max_iters_cap is 40 on remote engines (8 on ollama).
+              P17 budget-hot always caps max_iters to 8 for ALL engines (not only ollama).
 
               #{self}.authors
           USAGE
