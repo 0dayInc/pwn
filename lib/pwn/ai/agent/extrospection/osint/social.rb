@@ -327,7 +327,7 @@ module PWN
           body = r[:body].to_s
           absent = site[:absent_status].include?(code) ||
                    # substring match against page body — NOT a set intersection despite the cop name.
-                   site[:absent_body].any? { |s| body.include?(s) } || # rubocop:disable Style/ArrayIntersect
+                   site[:absent_body].any? { |s| body.include?(s) } ||
                    !code.between?(200, 399)
           absent ? :absent : :present
         end
