@@ -1502,5 +1502,35 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(doc).to match(/Last-iter force-final/)
     end
   end
+
+  describe 'P28 · autonomy (remote overconf runway + incomplete-final)' do
+    it 'sets W3 overconf max_iters_cap to 40 on remote, 8 on ollama' do
+      src = File.read(loop_mod.method(:run).source_location.first)
+      expect(src).to match(/P28/)
+      expect(src).to match(/remote_cap = 40/)
+      expect(src).to match(/local_cap\s*=\s*8/)
+      expect(src).to match(/eng == :ollama \? local_cap : remote_cap/)
+      # budget-hot still always 8 (P17)
+      expect(src).to match(/n = \[n, 8\]\.min/)
+    end
+
+    it 'defines incomplete_final? and continues on mid-goal handoff' do
+      src = File.read(loop_mod.method(:run).source_location.first)
+      expect(src).to match(/incomplete_final\?/)
+      expect(src).to match(/INCOMPLETE_FINAL_RX/)
+      expect(src).to match(%r{\[pwn-ai/p28\]})
+      expect(src).to match(/continuing autonomously/)
+      # last-iter wording no longer coaches "next single step" handoffs
+      expect(src).not_to match(/next single step/)
+      expect(src).to match(/do NOT ask the/)
+    end
+
+    it 'PromptBuilder injects AUTONOMY block' do
+      src = File.read(File.expand_path('../../lib/pwn/ai/agent/prompt_builder.rb', __dir__))
+      expect(src).to match(/AUTONOMY/)
+      expect(src).to match(/Do NOT stop to/)
+      expect(src).to match(/Multi-step goals must be finished in one Loop\.run/)
+    end
+  end
 end
 # rubocop:enable Metrics/BlockLength

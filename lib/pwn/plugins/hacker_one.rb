@@ -2,6 +2,7 @@
 
 require 'base64'
 require 'json'
+require 'rest-client'
 
 module PWN
   module Plugins
@@ -95,13 +96,13 @@ module PWN
         return response if raw
 
         JSON.parse(response.body, symbolize_names: true)
-      rescue RestClient::TooManyRequests
+      rescue ::RestClient::TooManyRequests
         @@logger.warn('HackerOne rate limit (429). Sleeping 10s then retrying...')
         sleep 10
         retry
-      rescue RestClient::Unauthorized, RestClient::Forbidden,
-             RestClient::BadRequest, RestClient::NotFound,
-             RestClient::UnprocessableEntity => e
+      rescue ::RestClient::Unauthorized, ::RestClient::Forbidden,
+             ::RestClient::BadRequest, ::RestClient::NotFound,
+             ::RestClient::UnprocessableEntity => e
         @@logger.error("HackerOne #{e.class}: #{e.response&.body}")
         raise e
       rescue StandardError => e

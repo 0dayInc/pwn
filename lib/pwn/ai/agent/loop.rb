@@ -100,6 +100,36 @@ module PWN
           false
         end
 
+        # P28 — incomplete / handoff finals: model emitted text-only before the
+        # goal was done ("shall I proceed?", "next step:", "want me to…").
+        # Loop.run treats no-tool_calls as FINAL; this detector lets us refuse
+        # that handoff and keep the tool loop alive for multi-step autonomy.
+        INCOMPLETE_FINAL_RX = /
+          \b(shall\s+i|should\s+i|may\s+i|can\s+i|want\s+me\s+to|do\s+you\s+want\s+me|
+             next\s+single\s+step|next\s+step\s*:|awaiting\s+your\s+(ok|approval|go-ahead|confirmation)|
+             if\s+you(?:'d|\s+would)\s+like\s+me\s+to|say\s+the\s+word|confirm\s+(before|and\s+i)|
+             ready\s+to\s+proceed|ok\s+to\s+(proceed|continue|apply)|proceed\?|
+             continue\?|before\s+i\s+(apply|change|run|continue|proceed)|
+             once\s+you\s+(confirm|approve)|let\s+me\s+know\s+if|
+             i(?:'ll|\s+will)\s+wait\b|waiting\s+for\s+(your\s+)?(go|ok|approval|confirmation)
+          )\b
+        /ix
+
+        private_class_method def self.incomplete_final?(opts = {})
+          text = opts[:text].to_s
+          return false if text.strip.empty?
+          # Hard last-iter forces a real final; do not bounce that forever.
+          return false if opts[:last_iter]
+          return true if text.match?(INCOMPLETE_FINAL_RX)
+          # Short status-only dumps with a trailing question are handoffs.
+          return true if text.include?('?') && text.length < 900 &&
+                         text.match?(/\b(proceed|continue|confirm|apply|next)\b/i)
+
+          false
+        rescue StandardError
+          false
+        end
+
         private_class_method def self.max_iters
           v = (PWN::Env.dig(:ai, :agent, :max_iters) if defined?(PWN::Env))
           n = v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
@@ -141,11 +171,22 @@ module PWN
           # P17 — gate lowered 0.25→0.20: grok lived at 0.242 and never tripped,
           # leaving force_plan off while still thrashing tool budgets.
           bad   = brier > 0.35 || over > 0.20
+          # P28 — autonomy: overconfidence must force plan+critic and shrink thrash,
+          # but must NOT collapse multi-step remote work to 8 iters (user-visible
+          # "stop to confirm next step" / early text-only handoffs). Local models
+          # keep the harsh 8; remote engines keep a usable multi-step runway.
+          remote_cap = 40
+          local_cap  = 8
+          cap = if bad
+                  (eng == :ollama ? local_cap : remote_cap)
+                else
+                  25
+                end
           {
             overconfident: bad,
             force_plan: bad,
             force_critic: bad,
-            max_iters_cap: bad ? 8 : 25,
+            max_iters_cap: cap,
             cal: cal
           }
         rescue StandardError
@@ -281,7 +322,7 @@ module PWN
           plan_prompt = if hot
                           'Before acting: write AT MOST 3 numbered tool calls (name + key args) that finish the ask. Prefer fewer. LAST line: "p(success)=<0.0-1.0>". Reply ONLY with the plan + that line — no tools, no prose.'
                         else
-                          'Before acting: (1) list the exact tool calls (name + key args) you will make, in order; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.'
+                          'Before acting: (1) list the exact tool calls (name + key args) that FULLY finish the user goal, in order — do not stop at a checkpoint for confirmation; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.'
                         end
           plan_msg = call_engine(
             messages: messages + [{ role: 'user', content: plan_prompt }],
@@ -599,8 +640,10 @@ module PWN
               messages << {
                 role: 'user',
                 content: "[pwn-ai/p17] #{tag} — do NOT call any more tools. " \
-                         'Write the best answer you can from evidence already in this ' \
-                         'transcript. If blocked, say what failed and the next single step.'
+                         'Write the best complete answer you can from evidence already in this ' \
+                         'transcript. If the goal is unfinished, report exactly what is done, ' \
+                         'what is blocked, and the concrete remaining work — do NOT ask the ' \
+                         'user to confirm the next step.'
               }
             end
 
@@ -630,6 +673,19 @@ module PWN
             messages << msg
 
             if calls.empty?
+              # P28 — refuse polite mid-goal handoffs so multi-step tasks stay autonomous.
+              if incomplete_final?(text: text, last_iter: last_iter) && turn_fails['incomplete_final'].to_i < 2
+                turn_fails['incomplete_final'] += 1
+                warn "[pwn-ai/loop] incomplete final on iter=#{i}; continuing autonomously"
+                messages << {
+                  role: 'user',
+                  content: '[pwn-ai/p28] That reply handed control back before the goal was done. ' \
+                           'Do NOT ask the user to confirm the next step. Continue with the ' \
+                           'necessary tool calls now and finish the goal autonomously. Only ' \
+                           'emit a final answer when the request is complete or truly blocked.'
+                }
+                next
+              end
               append_session(session_id: session_id, role: 'assistant', content: text)
               Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               return text
@@ -770,6 +826,9 @@ module PWN
                 :counterfactual      - S2 A/B branch on REPEAT_THRESHOLD → DPO pair (Boolean)
                 :hindsight           - C3 HER-relabel failures (Boolean, default true)
                 :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
+
+              P28 autonomy: incomplete-final detector refuses mid-goal handoffs;
+              W3 overconf max_iters_cap is 40 on remote engines (8 on ollama).
 
               #{self}.authors
           USAGE

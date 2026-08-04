@@ -301,6 +301,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.expose_current_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.expose_current_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.guard_repeated_failure Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.guard_repeated_failure`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.incomplete_final? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.incomplete_final?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.max_iters Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.max_iters`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.normalize_llm Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.normalize_llm`: Supported Method Parameters\n\nmsg = PWN::AI::Agent::Loop.normalize_llm(\n\nresponse: 'required - chat_with_tools response Hash from any provider'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.plan_first Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.plan_first`: "}]}

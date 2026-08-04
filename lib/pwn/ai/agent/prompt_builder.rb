@@ -54,6 +54,15 @@ module PWN
               no tool_calls is treated as your FINAL answer to the user.
               Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
               for OS commands. Save durable facts with `memory_remember`.
+
+            AUTONOMY
+              Multi-step goals must be finished in one Loop.run. Keep calling
+              tools until the request is done or truly blocked. Do NOT stop to
+              ask the user to confirm the next step, approve a partial plan, or
+              green-light the obvious continuation. Only ask when a credential,
+              irreversible destructive action, or missing external decision is
+              strictly required. Partial progress reports without completing the
+              goal are incorrect behavior.
           "
         end
 
