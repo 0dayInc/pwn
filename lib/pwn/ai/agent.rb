@@ -31,6 +31,7 @@ module PWN
       autoload :Swarm,         'pwn/ai/agent/swarm'
       autoload :Reward,        'pwn/ai/agent/reward'
       autoload :Curriculum,    'pwn/ai/agent/curriculum'
+      autoload :TaskSummarizer, 'pwn/ai/agent/task_summarizer'
 
       # Display a List of Every PWN::AI Module
 
