@@ -453,7 +453,7 @@ cron_create(name: 'memory_revalidate', schedule: '0 4 * * 0',
 ```ruby
 PWN::Env[:ai][:agent][:extrospection][:web] = {
   anchors:          ['https://target.acme/api/version', ...],  # else DEFAULT_WEB_ANCHORS
-  proxy:            'tor',      # or 'http://127.0.0.1:8080' (Burp) - honoured by verify/watch/probe_web
+  proxy:            'tor',      # or 'http://127.0.0.1:8080' (Burp) - honored by verify/watch/probe_web
   max_anchors:      8,
   per_page_timeout: 15,
   screenshot:       false,      # → ~/.pwn/extrospection/web/<host>.png

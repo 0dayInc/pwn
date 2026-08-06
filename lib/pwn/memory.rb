@@ -22,18 +22,35 @@ module PWN
       FileUtils.mkdir_p(File.dirname(MEMORY_FILE))
       return {} unless File.exist?(MEMORY_FILE)
 
-      JSON.parse(File.read(MEMORY_FILE), symbolize_names: true)
-    rescue StandardError
-      {}
+      raw = File.read(MEMORY_FILE)
+      return {} if raw.strip.empty? || raw.strip == '{}'
+
+      JSON.parse(raw, symbolize_names: true)
+    rescue JSON::ParserError, EncodingError => e
+      # Never silently return {} for a non-trivial file — that turns the next
+      # consolidate/save into a full wipe. Quarantine + empty is safer only
+      # when the caller opted in; default is keep last good and warn.
+      warn "[pwn-ai/memory] load parse failed (#{e.class}: #{e.message}); refusing empty fallback for #{File.size(MEMORY_FILE)}B file"
+      raise
+    rescue StandardError => e
+      warn "[pwn-ai/memory] load failed: #{e.class}: #{e.message}"
+      raise
     end
 
     # Supported Method Parameters::
     #   PWN::Memory.save(mem: memory_hash)
     public_class_method def self.save(opts = {})
       mem = opts[:mem] ||= {}
+      force = opts[:force] ? true : false
       FileUtils.mkdir_p(File.dirname(MEMORY_FILE))
       # 4.4 — flock + atomic rename (nightly practice × interactive)
       path = MEMORY_FILE
+      # Guard: never clobber a non-empty memory.json with {} unless force.
+      # Root cause of 2026-08-05 wipe: load-rescue→{} then consolidate/save.
+      if !force && mem.respond_to?(:empty?) && mem.empty? && File.exist?(path) && File.size(path) > 4
+        warn "[pwn-ai/memory] refusing empty overwrite of #{File.size(path)}B #{path} (pass force:true to clear)"
+        return load_raw_or_empty(path: path)
+      end
       tmp  = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
       body = JSON.pretty_generate(mem)
       File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
@@ -46,6 +63,16 @@ module PWN
       mem
     ensure
       FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+    end
+
+    # Best-effort re-read used by the empty-overwrite guard (no raise).
+    private_class_method def self.load_raw_or_empty(opts = {})
+      path = opts[:path] || MEMORY_FILE
+      return {} unless File.exist?(path)
+
+      JSON.parse(File.read(path), symbolize_names: true)
+    rescue StandardError
+      {}
     end
 
     # Supported Method Parameters::
@@ -125,7 +152,8 @@ module PWN
       key = opts[:key]
       mem = load
       mem.delete(key.to_sym)
-      save(mem: mem)
+      # Last-key delete legitimately yields {}; force so empty-guard does not revive it.
+      save(mem: mem, force: mem.empty?)
       true
     end
 
@@ -133,6 +161,7 @@ module PWN
     #   PWN::Memory.clear
     public_class_method def self.clear
       FileUtils.rm_f(MEMORY_FILE)
+      save(mem: {}, force: true) # recreate empty file atomically
       {}
     end
 

@@ -1,6 +1,6 @@
 # CLI Drivers - `bin/pwn_*`
 
-53 headless executables (52 `pwn_*` + `pwn`), each a thin `OptionParser`
+54 headless executables (53 `pwn_*` + `pwn`), each a thin `OptionParser`
 wrapper over one plugin (or one workflow). They exist so CI/CD can call PWN
 without a REPL or an LLM.
 

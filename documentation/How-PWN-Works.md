@@ -20,21 +20,22 @@ hardware).
 | `pwn-ai` | `lib/pwn/ai/agent/loop.rb` | Agent TUI inside the REPL |
 | `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
 | `pwn setup` | `lib/pwn/setup.rb` · `bin/pwn_setup` | Post-install doctor + capability provisioner + `--migrate` state doctor (also `pwn --setup[=PROFILE]`) |
-| `bin/pwn_*` | 52 files | Thin OptionParser wrappers over one plugin each |
+| `bin/pwn_*` | 53 files | Thin OptionParser wrappers over one plugin each |
 | `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs → any of the above (nightly self-play + weekly weight-loop seeded by default) |
 
 ## L2 - AI agent core  (`lib/pwn/ai/agent/`)
 
 | Module | Role |
 |---|---|
-| `Loop` | plan → dispatch tool_calls → observe → repeat until final answer |
+| `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
+| **`TaskSummarizer`** | Executive UX: `emit_plan!` (full goal once) · `about_to` per tool batch (`tool_counts_phrase` + `intent_phrase`) · `last_brief_fp` dedup · plan_idx advance |
 | `Registry` | JSON-Schema function definitions grouped into 12 **toolsets** · **78 tools** |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
 | `Metrics` · `Learning` · `Reflect` | **introspection** - how well am I doing? |
 | `Mistakes` | **negative feedback** - fingerprint failures, do NOT repeat, `[REPEATING]`/`[REGRESSED]`, inline `correction_hint` |
-| **`Reward`** | **R1** ORM `judge` · **R2** PRM per-step credit · **R3** `sentinel` reward-hacking detector · **R4** `semantic_ok` · **W1** DPO `preferences.jsonl` |
-| **`Curriculum`** | **S1** mistake-driven self-play `practice` · **S2** `counterfactual` A/B · **S3** tool-armed `critic` · **S4** `red_team_plan` · **C3** `hindsight` (HER) · **W2** `train_and_gate` regression-gated LoRA |
+| **`Reward`** | outcome `judge` · per-step process credit · `sentinel` (proxy vs judge drift) · `semantic_ok` · DPO `preferences.jsonl` |
+| **`Curriculum`** | mistake-driven self-play `practice` · `counterfactual` A/B · tool-armed `critic` · `red_team_plan` · `hindsight` (HER) · `train_and_gate` regression-gated LoRA |
 | `Extrospection` | **extrospection** - on-demand world sensing (`intel` · **`verify`** · **`watch`** · **`rf_tune`** · **`osint`** · `serial` · `telecomm` · `packet` · `vision` · `voice`) + ambient baseline (host · net · toolchain · repo · env · **rf** · **web**) joined to introspection via `correlate` |
 | `Swarm` | multi-agent personas over a shared JSONL bus |
 

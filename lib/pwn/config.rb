@@ -126,7 +126,7 @@ module PWN
           reflect_model: nil,
           agent: {
             native_tools: true,
-            max_iters: 25, # live override 80 is frontier leakage; ollama should stay ≤25
+            max_iters: 75, # live override 80 is frontier leakage; ollama should stay ≤25
             # Swarm (agent_ask/agent_debate) sub-agent recursion cap
             max_depth: 3,
             # run PWN::AI::Agent::Learning.auto_introspect after every final answer
@@ -372,7 +372,7 @@ module PWN
           result_max: 4_000
         },
         agent: {
-          max_iters: 25,
+          max_iters: 75,
           tool_router: nil,
           escalation_persona: 'escalator',
           verify_as_reward: nil,

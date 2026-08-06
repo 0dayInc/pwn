@@ -32,9 +32,19 @@ PWN::AI::Agent::Registry.register(
   },
   max_chars: 24_000,
   handler: lambda { |args|
-    cmd     = args[:command].to_s
+    # Sanitize model/tool JSON junk that becomes syntax error: \ in sh:
+    # 1) UTF-8 replace invalid bytes
+    # 2) join line-continuation backslash+newline (mid-cmd) into space
+    # 3) strip a bare trailing backslash (+ following ws)
+    # Prefer pwn_eval / cat <<'EOF' over nested ruby -e with JSON \ layers.
+    # Fix for mistakes 30e55df3a6d6 / 853b3ca24b9e (REGRESSED shell syntax \).
+    cmd = args[:command].to_s
+                        .encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+                        .gsub(/\\\r?\n/, ' ')
+                        .gsub(/\\+\s*\z/, '')
+                        .strip
     timeout = (args[:timeout] || 120).to_i
-    raise ArgumentError, 'command is required' if cmd.strip.empty?
+    raise ArgumentError, 'command is required' if cmd.empty?
 
     stdout = +''
     stderr = +''
@@ -80,21 +90,23 @@ PWN::AI::Agent::Registry.register(
         end
       end
 
-      # Ensure pipes are closed so readers unblock even if the child
-      # ignored signals or left descendants holding fds.
-      begin
-        out_io.close unless out_io.closed?
-      rescue StandardError
-        nil
-      end
-      begin
-        err_io.close unless err_io.closed?
-      rescue StandardError
-        nil
+      # On the timeout path, force-close pipes so readers unblock.
+      # On the success path, join readers FIRST so a fast child cannot
+      # lose stdout to a close-before-read race (empty stdout, exit 0).
+      if timed_out
+        begin
+          out_io.close unless out_io.closed?
+        rescue StandardError
+          nil
+        end
+        begin
+          err_io.close unless err_io.closed?
+        rescue StandardError
+          nil
+        end
       end
 
-      # Join readers; swallow the IOError that arrives when the pipe was
-      # closed mid-read (timeout path). report_on_exception is already off.
+      # Join readers; swallow IOError if pipes were closed mid-read (timeout).
       begin
         stdout = out_reader.value.to_s
       rescue StandardError
@@ -104,6 +116,18 @@ PWN::AI::Agent::Registry.register(
         stderr = err_reader.value.to_s
       rescue StandardError
         stderr = +''
+      end
+
+      # Close after join on success so fds do not leak.
+      begin
+        out_io.close unless out_io.closed?
+      rescue StandardError
+        nil
+      end
+      begin
+        err_io.close unless err_io.closed?
+      rescue StandardError
+        nil
       end
 
       unless timed_out

@@ -985,7 +985,7 @@ module PWN
           capped = false
           if short && defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
             prev_max = PWN::Env[:ai][:agent].key?(:max_iters) ? PWN::Env[:ai][:agent][:max_iters] : :__unset__
-            PWN::Env[:ai][:agent][:max_iters] = 5
+            PWN::Env[:ai][:agent][:max_iters] = 15
             capped = true
           end
           begin
@@ -1085,7 +1085,7 @@ module PWN
           return unless defined?(Swarm)
           return if Swarm.personas.key?(opts[:name].to_sym)
 
-          Swarm.spawn(name: opts[:name], role: opts[:role], toolsets: %w[terminal pwn extrospection], max_iters: 8)
+          Swarm.spawn(name: opts[:name], role: opts[:role], toolsets: %w[terminal pwn extrospection], max_iters: 24)
         rescue StandardError
           nil
         end

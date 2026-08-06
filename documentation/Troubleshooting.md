@@ -133,4 +133,22 @@ $ cd documentation/diagrams && ./build.sh
 systems use `pwn setup --dry-run --profile <name>` to print the package
 list, then install equivalents by hand.
 
+
+## pwn-ai shows the same task line twice
+
+**Cause:** older dual-emit paths or `about_to` restating the full goal every batch.
+
+**Current behavior (v0.5.660+):**
+
+1. `Loop.task_summary_about_to!` is the only about_to entry.
+2. `TaskSummarizer.about_to` builds distinct lines with `tool_counts_phrase` + `intent_phrase`.
+3. `duplicate_brief?` / `last_brief_fp` suppress identical fingerprints (`nil` = no emit).
+4. Full goal appears on `emit_plan!` only when a plan exists.
+
+If you still see doubles, confirm you are on a build with `lib/pwn/ai/agent/task_summarizer.rb` containing `last_brief_fp` and restart the REPL so the module reloads.
+
+## Agent stops early / "iteration budget exhausted"
+
+When unresolved budget-exhaustion mistakes dominate, the Loop tightens effective `max_iters` (stricter on local/ollama than remote), and the last iterations are text-only so a final answer is forced without starving multi-step autonomy. Check `mistakes_list`, resolve fixed signatures, or raise `ai.agent.max_iters` after the scar cools. Exhaust paths still run Learning + task_summary flush.
+
 [← Home](Home.md)

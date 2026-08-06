@@ -37,14 +37,14 @@ invokes `PWN::Cron.run(<id>)` on schedule.
 | `learning_consolidate_nightly` | `0 5 * * *` | `PWN::AI::Agent::Learning.consolidate` |
 
 - **practice** - top unresolved `Mistakes` under `Reward.judge`; auto-`resolve` with ≥2 holdouts
-- **offline_judge** - P3 backfill of ORM/PRM labels + W3 calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus; also runs **P10** `Reward.warm_sentinel` so the R3 ring can fill on local hosts
-- **dedupe (P13)** - legacy alias `offline_judge_nightly` counts as the same job; `install_defaults` will not double-seed `30 3 * * *` and disables the alias when both exist
+- **offline_judge** - backfill outcome/process labels + plan calibration from PLAN `p(success)=` so `:failure_only` local introspect does not starve the corpus; also runs `Reward.warm_sentinel` so the reward-sentinel window can fill on local hosts
+- **dedupe** - legacy alias `offline_judge_nightly` counts as the same job; `install_defaults` will not double-seed `30 3 * * *` and disables the alias when both exist
 - **train** - export SFT + balanced DPO, LoRA-train `pwn-vN+1`, replay Mistakes.top, promote only on win. `dry_run: false` only with a trainer+GPU
-- **consolidate** - M1/M3 memory GC so the injected MEMORY block stays high-signal
+- **consolidate** - memory GC (semantic merge + importance eviction) so the injected MEMORY block stays high-signal
 
 See [Reinforcement Learning](Reinforcement-Learning.md).
 
-`cron_disable(id:)` turns either off; `install_defaults` is idempotent (including P13 alias collapse) and
+`cron_disable(id:)` turns either off; `install_defaults` is idempotent (including legacy alias collapse) and
 never overwrites a job you already have with the same name.
 
 ## Example

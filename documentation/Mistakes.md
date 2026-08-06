@@ -100,7 +100,7 @@ upgraded", "the HackRF was unplugged", or "the target DOM moved". See
 [Extrospection](Extrospection.md#extro_correlate--the-point-of-the-whole-thing).
 
 
-## Preference pairs from resolve (W1 / P9)
+## Preference pairs from resolve
 
 `Mistakes.resolve` writes a DPO preference into `~/.pwn/preferences.jsonl`:
 
@@ -109,7 +109,7 @@ upgraded", "the HackRF was unplugged", or "the target DOM moved". See
   present; falls back to `AVOID_ARGS` / fix prose only when no trace exists
 
 Curriculum auto-resolve always attaches a winning tool trace so the ledger
-learns **trajectories**, not commentary. Write-time source quotas (P9) still
+learns **trajectories**, not commentary. Write-time source quotas still
 apply to pure prose resolves so resolve-monoculture cannot flood the ledger.
 
 **See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·

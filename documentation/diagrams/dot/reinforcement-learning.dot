@@ -1,6 +1,6 @@
 digraph "PWN_Reinforcement_Learning" {
   graph [
-    label=<<B>PWN::AI::Agent - Reward + Curriculum Reinforcement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">R1..R4 reward signal  ·  C1..C4 credit assignment  ·  M1..M4 memory  ·  S1..S4 self-play  ·  W1..W3 weight loop  ·  E1..E3 intro↔extro join</FONT>>,
+    label=<<B>PWN::AI::Agent - Reward + Curriculum Reinforcement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">reward signal · credit assignment · memory · self-play · weight loop · intro/extro join</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.55, ranksep=1.05,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
@@ -12,18 +12,18 @@ digraph "PWN_Reinforcement_Learning" {
 
   /* L0 — request/loop */
   Req  [label="👤  request", fillcolor="#7dd3fc"];
-  Loop [label="Loop.run\nplan_first · Dispatch · guard\nfinal answer", fillcolor="#7dd3fc", penwidth=2];
+  Loop [label="Loop.run\nTaskSummarizer · budget pressure\nplan_first · Dispatch · guard\nfinal answer", fillcolor="#7dd3fc", penwidth=2];
   {rank=same; Req; Loop}
 
   /* Tier 1 — Reward signal */
   subgraph cluster_reward {
     label="Tier 1 · Reward  (PWN::AI::Agent::Reward)"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    R1 [label="R1  judge (ORM)\nscore · verdict · rationale", fillcolor="#c4b5fd", penwidth=2];
-    R2 [label="R2  prm (PRM)\nper-step +1/0/−1\n→ Registry.rank (P18)", fillcolor="#c4b5fd"];
-    R3 [label="R3  sentinel (ring N=40)\nproxy ≠ judge ≠ (1−corr)\nwarm full (P10/P16) + distrust", fillcolor="#c4b5fd"];
-    R4 [label="R4  semantic_ok\ngrep exit 1 ≠ failure", fillcolor="#c4b5fd"];
-    E3 [label="E3  verify_as_reward\nextro_verify caps/floors judge", fillcolor="#c4b5fd"];
+    R1 [label="judge (outcome)\nscore · verdict · rationale", fillcolor="#c4b5fd", penwidth=2];
+    R2 [label="prm (process)\nper-step +1/0/-1\n→ Registry.rank", fillcolor="#c4b5fd"];
+    R3 [label="sentinel (ring N=40)\nproxy != judge != (1-corr)\nwarm + proxy distrust", fillcolor="#c4b5fd"];
+    R4 [label="semantic_ok\ngrep exit 1 != failure", fillcolor="#c4b5fd"];
+    E3 [label="verify_as_reward\nextro_verify caps/floors judge", fillcolor="#c4b5fd"];
   }
   {rank=same; R1; R2; R3; R4; E3}
 
@@ -31,11 +31,11 @@ digraph "PWN_Reinforcement_Learning" {
   subgraph cluster_curr {
     label="Tier 4 · Curriculum  (PWN::AI::Agent::Curriculum)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    S1 [label="S1  practice (P14/P17)\nbudget-first + winning_trace DPO\nauto-resolve on judge≥0.7", fillcolor="#6ee7b7", penwidth=2];
-    S2 [label="S2  counterfactual\nreal_dispatch vs imagined", fillcolor="#6ee7b7"];
-    S3 [label="S3  critic\ntool-armed · revised_answer DPO", fillcolor="#6ee7b7"];
-    S4 [label="S4  red_team_plan\nadversarial plan review", fillcolor="#6ee7b7"];
-    C3 [label="C3  hindsight (HER)\nrelabel achieved-goal", fillcolor="#6ee7b7"];
+    S1 [label="practice\nbudget-first + winning_trace DPO\nauto-resolve on judge>=0.7", fillcolor="#6ee7b7", penwidth=2];
+    S2 [label="counterfactual\nreal_dispatch vs imagined", fillcolor="#6ee7b7"];
+    S3 [label="critic\ntool-armed · revised_answer DPO", fillcolor="#6ee7b7"];
+    S4 [label="red_team_plan\nadversarial plan review", fillcolor="#6ee7b7"];
+    C3 [label="hindsight (HER)\nrelabel achieved-goal", fillcolor="#6ee7b7"];
   }
   {rank=same; S1; S2; S3; S4; C3}
 
@@ -43,9 +43,9 @@ digraph "PWN_Reinforcement_Learning" {
   subgraph cluster_weight {
     label="Tier 5 · Weight Loop"; fontcolor="#fecaca";
     style=rounded; color="#b91c1c"; bgcolor="#450a0a"; penwidth=2;
-    W1 [label="W1  preference ledger\ntrajectory pairs (P9/P14)\nscrub+geometry (P15)\nwrite+export ≤40%/src", fillcolor="#fda4af"];
-    W2 [label="W2  train_and_gate\nSFT(P12)+DPO → LoRA vN+1\ngate v2 + diet (P11/P19)\nexport_ready without trainer", fillcolor="#fda4af", penwidth=2];
-    W3 [label="W3  calibrate\np(success) vs actual → Brier", fillcolor="#fda4af"];
+    W1 [label="preference ledger\ntrajectory pairs\nscrub + geometry filter\nwrite+export <=40%/src", fillcolor="#fda4af"];
+    W2 [label="train_and_gate\nSFT+DPO → LoRA vN+1\ngate + preference diet\nexport_ready without trainer", fillcolor="#fda4af", penwidth=2];
+    W3 [label="calibrate\np(success) vs actual → Brier", fillcolor="#fda4af"];
   }
   {rank=same; W1; W2; W3}
 
@@ -95,8 +95,8 @@ digraph "PWN_Reinforcement_Learning" {
 
   /* cron seeds */
   Cron [label="⏱  PWN::Cron.install_defaults\npractice · offline_judge\ntrain dry_run · consolidate", fillcolor="#7dd3fc"];
-  OJ [label="P3  offline_judge\nORM/PRM + W3 cal + P10 warm", fillcolor="#6ee7b7"];
-  MemGC [label="M1/M3  Learning.consolidate\nnightly memory GC", fillcolor="#6ee7b7"];
+  OJ [label="offline_judge\njudges + calibrate + warm sentinel", fillcolor="#6ee7b7"];
+  MemGC [label="Learning.consolidate\nnightly memory GC", fillcolor="#6ee7b7"];
   Cron -> S1 [label="0 3 * * *", color="#38bdf8", constraint=false];
   Cron -> OJ [label="30 3 * * *", color="#38bdf8", constraint=false];
   Cron -> W2 [label="0 4 * * 0", color="#38bdf8", constraint=false];
