@@ -30,7 +30,24 @@ module PWN
       # local Ollama model EXECUTE the task while a frontier model WRITES
       # the durable lessons about it — the local model then reads back
       # distilled reasoning it could never have produced itself.
+      #
+      # IMPLEMENTATION NOTE
+      # -------------------
+      # Reflect.on MUST call the engine's text .chat API directly — never
+      # Loop.run. Nesting Loop.run re-enters TaskSummarizer/PromptBuilder/
+      # auto_introspect and produces SystemStackError at the Pry after_read
+      # boundary whenever module_reflection is enabled. A thread-local
+      # depth counter still gates re-entrant Reflect.on (e.g. chat_for_plan
+      # inside an outer agent turn that also judges/reflects).
       module Reflect
+        ENGINE_MODS = {
+          openai: 'PWN::AI::OpenAI',
+          grok: 'PWN::AI::Grok',
+          ollama: 'PWN::AI::Ollama',
+          anthropic: 'PWN::AI::Anthropic',
+          gemini: 'PWN::AI::Gemini'
+        }.freeze
+
         # Supported Method Parameters::
         # response = PWN::AI::Agent::Reflect.on(
         #   request: 'required - String - What you want the AI to reflect on',
@@ -55,21 +72,36 @@ module PWN
 
           ai_module_reflection = PWN::Env[:ai][:module_reflection]
 
+          # Re-entrancy guard: nested Reflect.on (TaskSummarizer inside a
+          # Reflect call, Reward.judge during auto_introspect, etc.) returns
+          # nil so the outer caller can fall back. Never Loop.run from here.
+          return nil if Thread.current[:pwn_reflect_depth].to_i.positive?
+
           if ai_module_reflection && request.length.positive?
             override = opts[:engine] || PWN::Env.dig(:ai, :reflect_engine)
             model    = opts[:model]  || PWN::Env.dig(:ai, :reflect_model)
             engine   = (override || PWN::Env[:ai][:active]).to_s.downcase.to_sym
-            valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :agent }.map(&:downcase)
+            valid_ai_engines = ENGINE_MODS.keys
             raise "ERROR: Unsupported AI engine. Supported engines are: #{valid_ai_engines}" unless valid_ai_engines.include?(engine)
 
             warn "AI Reflection is enabled.  Ensure #{engine} has been authorized for use and/or requests are sanitized properly." unless suppress_pii_warning
-            response = with_engine(engine: override, model: model) do
-              PWN::AI::Agent::Loop.run(
-                request: request.chomp,
-                system_role_content: system_role_content,
-                enabled_toolsets: [],
-                spinner: spinner
-              )
+            Thread.current[:pwn_reflect_depth] = Thread.current[:pwn_reflect_depth].to_i + 1
+            begin
+              response = with_engine(engine: override, model: model) do
+                engine_chat(
+                  engine: engine,
+                  request: request.chomp,
+                  system_role_content: system_role_content,
+                  spinner: spinner
+                )
+              end
+            ensure
+              d = Thread.current[:pwn_reflect_depth].to_i - 1
+              if d.positive?
+                Thread.current[:pwn_reflect_depth] = d
+              else
+                Thread.current[:pwn_reflect_depth] = nil
+              end
             end
           end
 
@@ -78,7 +110,23 @@ module PWN
           raise e
         end
 
-        # Temporarily override PWN::Env[:ai][:active] so Loop.run routes to
+        # Direct provider .chat — never Loop.run (avoids after_read stack blow).
+        private_class_method def self.engine_chat(opts = {})
+          engine = opts[:engine].to_s.downcase.to_sym
+          mod_name = ENGINE_MODS[engine]
+          raise "ERROR: Unsupported AI engine: #{engine}" unless mod_name
+
+          mod = Object.const_get(mod_name)
+          raise "ERROR: #{mod_name} does not implement .chat" unless mod.respond_to?(:chat)
+
+          mod.chat(
+            request: opts[:request],
+            system_role_content: opts[:system_role_content],
+            spinner: opts[:spinner]
+          )
+        end
+
+        # Temporarily override PWN::Env[:ai][:active] so engine_chat routes to
         # the teacher engine, restoring afterwards even on raise. No-op when
         # engine is nil/blank or PWN::Env[:ai] is frozen.
         private_class_method def self.with_engine(opts = {})

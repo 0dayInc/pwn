@@ -453,9 +453,25 @@ module PWN
           # S4 — adversarial plan review grounded in THIS host's telemetry.
           # P17 — never fork red_team when budget fingerprints dominate: it is
           # another mini agent loop and compounds iteration-budget exhaustion.
+          rt = nil
           if defined?(Curriculum) && !hot
             rt = Curriculum.red_team_plan(request: opts[:request], plan: plan)
             messages << { role: 'user', content: rt } if rt
+          end
+          # P2 — unify TaskSummarizer plan object with surviving outline so the
+          # task line and adversarial/plan_first plan are one thing. Index-only;
+          # credit stays in Reward. Optional: only when ts_state is live.
+          if defined?(TaskSummarizer) && opts[:ts_state].is_a?(Hash)
+            outline = [plan.to_s, rt.to_s].reject { |s| s.to_s.strip.empty? }.join("\n")
+            begin
+              TaskSummarizer.unify_plan!(
+                state: opts[:ts_state],
+                outline: outline,
+                source: rt ? :red_team : :plan_first
+              )
+            rescue StandardError => e
+              warn "[pwn-ai/loop] unify_plan! swallowed: #{e.class}: #{e.message}"
+            end
           end
           # W3/P22 — extract predicted p(success) for calibration tracking.
           # Accept p(success)=0.7 | p(success) = .7 | confidence=0.7 on last lines.
@@ -706,13 +722,33 @@ module PWN
           nil
         end
 
+        # Push active English task into model messages when plan_idx changes.
+        # Uses TaskSummarizer.active_task_prompt (full plan_context on first
+        # force, compact focus thereafter). No-ops when already injected.
+        private_class_method def self.inject_task_focus!(opts = {})
+          state = opts[:state]
+          messages = opts[:messages]
+          return nil unless state.is_a?(Hash) && messages.is_a?(Array)
+          return nil unless defined?(TaskSummarizer) && TaskSummarizer.enabled?
+
+          text =
+            (TaskSummarizer.active_task_prompt(state: state, force: opts[:force]) if TaskSummarizer.respond_to?(:active_task_prompt))
+          return nil if text.to_s.strip.empty?
+
+          messages << { role: 'user', content: text }
+          text
+        rescue StandardError => e
+          warn "[pwn-ai/loop] inject_task_focus! swallowed: #{e.class}: #{e.message}"
+          nil
+        end
+
         # On user-request submit: break the goal into tangible tasks and
         # emit the FULL plan on the pwn-ai task line (no truncation).
         private_class_method def self.task_summary_plan!(opts = {})
           state = opts[:state]
           return nil unless state && defined?(TaskSummarizer) && TaskSummarizer.enabled?
 
-          line = TaskSummarizer.emit_plan!(state, request: opts[:request])
+          line = TaskSummarizer.emit_plan!(state: state, request: opts[:request])
           emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
           line
         rescue StandardError
@@ -727,8 +763,8 @@ module PWN
           return nil unless state && defined?(TaskSummarizer) && TaskSummarizer.enabled?
 
           line = TaskSummarizer.about_to(
-            opts[:name],
-            opts[:args],
+            name: opts[:name],
+            args: opts[:args],
             state: state,
             request: opts[:request],
             tools: opts[:tools]
@@ -746,7 +782,12 @@ module PWN
           state = opts[:state]
           return nil unless state && defined?(TaskSummarizer)
 
-          line = TaskSummarizer.record!(state, opts[:name], opts[:args], opts[:result])
+          line = TaskSummarizer.record!(
+            state: state,
+            name: opts[:name],
+            args: opts[:args],
+            result: opts[:result]
+          )
           # record! is silent by default; only verbose progress returns a line
           emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
           line
@@ -758,7 +799,7 @@ module PWN
           state = opts[:state]
           return nil unless state && defined?(TaskSummarizer)
 
-          line = TaskSummarizer.flush!(state)
+          line = TaskSummarizer.flush!(state: state)
           # Closing brief only — still no result payload on the task row
           emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
           line
@@ -780,7 +821,7 @@ module PWN
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
           # Live coalesced "what am I doing" lines for the TUI (not a model tool).
-          ts_state = (TaskSummarizer.fresh(request: request) if defined?(TaskSummarizer) && TaskSummarizer.enabled?)
+          ts_state = (TaskSummarizer.fresh(request: request) if defined?(TaskSummarizer) && TaskSummarizer.enabled? && Thread.current[:pwn_reflect_depth].to_i.zero?)
           engine = active_engine
           local  = engine == :ollama
           system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id, request: request)
@@ -789,6 +830,10 @@ module PWN
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
+          # Initial tool pool from the user request (bootstrap only). After
+          # TaskSummarizer.emit_plan! we re-rank using English tangible tasks
+          # so generated tasks — not the bare request — drive which tools
+          # the model may call.
           tools    = Registry.definitions(enabled: opts[:enabled_toolsets], relevance: request)
           messages = [{ role: 'system', content: system_role_content }]
           messages.concat(Learning.exemplars_for(request: request)) if local && defined?(Learning) && Learning.respond_to?(:exemplars_for)
@@ -797,15 +842,32 @@ module PWN
 
           # Show full tangible-task breakdown as soon as the user submits.
           task_summary_plan!(state: ts_state, request: request, on_tool: on_tool)
+          # Re-bind tools from English plan so task list is the sole driver of
+          # tool exposure/ranking (Registry keyword router + CORE).
+          if ts_state.is_a?(Hash) && defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:relevance_query)
+            rq = TaskSummarizer.relevance_query(state: ts_state, request: request)
+            tools = Registry.definitions(enabled: opts[:enabled_toolsets], relevance: rq) unless rq.to_s.strip.empty?
+          end
+          # English-task-as-primary: inject the same tangible tasks into model
+          # context so tool selection follows the plan, not only the TUI banner.
+          inject_task_focus!(messages: messages, state: ts_state, force: true)
 
           predicted = nil
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
           if (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
-            predicted = plan_first(messages: messages, request: request)
+            predicted = plan_first(messages: messages, request: request, ts_state: ts_state)
             # P22 — prefer explicit return; fall back to thread stash
             predicted = Thread.current[:pwn_plan_predicted] if predicted.nil?
+            # unify_plan! may have rewritten English tasks — force refresh focus.
+            # Re-rank tools from (possibly unified) English plan; never from
+            # PLAN: tool-call scaffold jargon (unify_plan! refuses that).
+            if ts_state.is_a?(Hash) && defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:relevance_query)
+              rq = TaskSummarizer.relevance_query(state: ts_state, request: request)
+              tools = Registry.definitions(enabled: opts[:enabled_toolsets], relevance: rq) unless rq.to_s.strip.empty?
+            end
+            inject_task_focus!(messages: messages, state: ts_state, force: true)
           end
           if budget_exhaustion_hot?
             hot_hint = if active_engine == :ollama
@@ -837,6 +899,9 @@ module PWN
           max_iters.times do |i|
             # 3.1 — compact history on local so tool dumps don't fill num_ctx
             compact_history!(messages: messages) if local
+            # English-task-as-primary: when plan_idx advanced, tell the model
+            # which plain-English task is active before the next tool batch.
+            inject_task_focus!(messages: messages, state: ts_state)
 
             # P17 — on the final iteration, strip tools and demand a plain-text
             # answer. Without this the model happily emits one more tool_calls
@@ -934,7 +999,7 @@ module PWN
                 next
               end
               append_session(session_id: session_id, role: 'assistant', content: text)
-              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
               return text
             end
@@ -1039,7 +1104,7 @@ module PWN
                 )
               end
               append_session(session_id: session_id, role: 'assistant', content: msg)
-              Learning.auto_introspect(session_id: session_id, request: request, final: msg, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              Learning.auto_introspect(session_id: session_id, request: request, final: msg, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
               return msg
             end
@@ -1068,14 +1133,7 @@ module PWN
             )
           end
           append_session(session_id: session_id, role: 'assistant', content: final_msg)
-          if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: max_iters)
-            Learning.auto_introspect(
-              session_id: session_id,
-              request: request,
-              final: final_msg,
-              predicted: predicted
-            )
-          end
+          Learning.auto_introspect(session_id: session_id, request: request, final: final_msg, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: max_iters)
           task_summary_flush!(state: ts_state, on_tool: on_tool)
           final_msg
         end

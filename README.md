@@ -41,9 +41,33 @@ Full page: [What is PWN](documentation/What-is-PWN.md)
 
 #### **Why PWN** ####
 
+Here's what `grok-4.5` has to say about pwn (more specifically `pwn-ai`):
+```
+pwn.ai:grok/grok-4.5/0:500K[CURRENT_VERSION]:002 >>> Briefly describe your take on the reinforced learning feedback loop implemented within `pwn-ai` in clear, concise English so that a human understands your response.
+
+[ <TIMESTAMP> → pwn-ai → task ]   Goal: Briefly describe your take on the reinforced learning feedback loop implemented within `pwn-ai` in clear, concise English so that a human understands your response.
+  Tangible tasks (6) — each task may leverage one or more tools to complete its objective(s):
+    task 1/6: Review available knowledge of pwn-ai architecture and any reinforced learning elements
+    task 2/6: Identify the key stages of the feedback loop used for reinforcement
+    task 3/6: Summarize how actions, rewards, and model updates connect in that loop
+    task 4/6: Draft a brief plain-English explanation of the overall take on the loop
+    task 5/6: Refine the draft for clarity and conciseness suitable for a human reader
+    task 6/6: Present the final short description
+
+... performs tasks ...
+
+**My take, in plain English:**
+
+pwn-ai’s reinforcement loop is mostly **learning in context**, not only weight training.
+
+On every turn the agent acts with tools. Each result is scored in a few ways: quick “did this tool call really fail?” checks, longer-term tool success stats, and—when a final answer lands—a judge that scores whether the *goal* was actually met, plus per-step credit for which tool calls helped or hurt. Failures become fingerprints (mistakes) with fixes; wins become outcomes, exemplars, memory lessons, and sometimes skills. All of that is written back into the next prompt as “what worked,” “what not to repeat,” and “which tools pay off,” so behavior improves on the following run without waiting for a model train.
+
+Around that core sit self-checks: a sentinel that distrusts inflated success rates when the judge disagrees, night jobs that practice the worst repeating mistakes, and optional export of preference pairs for a gated LoRA update when a trainer and GPU exist. So the loop is: **act → measure honestly → remember (and fix) → bias the next act**—with real weight updates as an optional outer ring, not the main daily path.
+```
+
 Offensive work is hard because the *tools* do not fit together. PWN's fix is
-simple: every capability is a plain Ruby method with the same `opts = {}`
-shape. That one idea means the *same* code runs:
+simple: every capability is a ruby module that can be used with other modules to produce
+a diverse set of security "drivers". That one idea means the *same* code runs:
 
 - live in the REPL
 - from an LLM agent in a tool loop

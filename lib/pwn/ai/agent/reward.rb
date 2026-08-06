@@ -211,6 +211,84 @@ module PWN
         end
 
         # ----------------------------------------------------------------
+        # Plan-quality soft signal (W3 feature / Learning tag)
+        # ----------------------------------------------------------------
+        # Cheap heuristic: did the final (+ optional tool trace) cover the
+        # tangible plan tasks? Not full DPO — trajectory-shaped pairs come
+        # later. Score is a soft feature for calibration / tagging only.
+        #
+        # Supported Method Parameters::
+        # r = PWN::AI::Agent::Reward.plan_coverage(
+        #   plan: 'required - Array of task strings or outline text',
+        #   final: 'required - assistant final answer',
+        #   request: 'optional - original user request',
+        #   trace: 'optional - Array of tool-result strings',
+        #   session_id: 'optional - load trace from session when trace empty'
+        # )
+        # => { score: 0.0..1.0, covered: N, total: M, missing: [...], tag: 'plan_cover_high|mid|low' }
+        public_class_method def self.plan_coverage(opts = {})
+          plan = opts[:plan]
+          tasks =
+            case plan
+            when Array then plan.map(&:to_s)
+            when String
+              if defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:parse_outline_tasks)
+                TaskSummarizer.parse_outline_tasks(outline: plan)
+              else
+                plan.to_s.split(/\n+/).map { |l| l.sub(/\A(?:\d+[.):]|[-*•])\s+/, '').strip }
+              end
+            else
+              Array(plan).map(&:to_s)
+            end
+          tasks = tasks.map { |t| t.to_s.gsub(/\s+/, ' ').strip }.reject(&:empty?)
+          return { score: 0.0, covered: 0, total: 0, missing: [], tag: 'plan_cover_none' } if tasks.empty?
+
+          final = opts[:final].to_s
+          request = opts[:request].to_s
+          trace = Array(opts[:trace])
+          trace = load_trace(session_id: opts[:session_id]) if trace.empty? && opts[:session_id]
+          blob = "#{final}\n#{request}\n#{trace.join("\n")}".downcase
+
+          covered = []
+          missing = []
+          tasks.each do |task|
+            stems = task.downcase.scan(/[a-z0-9]{4,}/).uniq
+            # Drop ultra-generic plan fillers that would false-positive everything.
+            stems.reject! { |s| %w[result results report verify complete completion present carry work task step this that with from into].include?(s) }
+            if stems.empty?
+              covered << task
+              next
+            end
+            # A task is covered when >= half of its distinctive stems appear
+            # in final+trace (soft — not DPO-grade evidence).
+            hits = stems.count { |s| blob.include?(s) }
+            need = [1, (stems.length / 2.0).ceil].max
+            if hits >= need
+              covered << task
+            else
+              missing << task
+            end
+          end
+
+          total = tasks.length
+          score = (covered.length.to_f / total).round(3).clamp(0.0, 1.0)
+          tag =
+            if score >= 0.75 then 'plan_cover_high'
+            elsif score >= 0.4 then 'plan_cover_mid'
+            else 'plan_cover_low'
+            end
+          {
+            score: score,
+            covered: covered.length,
+            total: total,
+            missing: missing.first(6),
+            tag: tag
+          }
+        rescue StandardError
+          { score: 0.0, covered: 0, total: 0, missing: [], tag: 'plan_cover_error' }
+        end
+
+        # ----------------------------------------------------------------
         # R3 — Reward-hacking sentinel
         # ----------------------------------------------------------------
 
@@ -1306,6 +1384,7 @@ module PWN
               # Tier 1 — reward signal
               PWN::AI::Agent::Reward.judge(request: req, final: text, session_id: sid)     # R1 ORM → {score:, verdict:, rationale:}
               PWN::AI::Agent::Reward.prm(request: req, session_id: sid)                    # R2 PRM → per-step credit
+              PWN::AI::Agent::Reward.plan_coverage(plan: tasks, final: text, session_id: sid) # soft plan-quality feature
               PWN::AI::Agent::Reward.sentinel                                              # R3 reward-hacking detector
               PWN::AI::Agent::Reward.reset_sentinel                                        # wipe corrupt window + distrust
               PWN::AI::Agent::Reward.warm_sentinel                                         # P10 fill R3 window from Learning outcomes

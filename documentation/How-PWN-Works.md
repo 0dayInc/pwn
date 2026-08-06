@@ -28,7 +28,7 @@ hardware).
 | Module | Role |
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
-| **`TaskSummarizer`** | Executive UX: `emit_plan!` (full goal once) · `about_to` per tool batch (`tool_counts_phrase` + `intent_phrase`) · `last_brief_fp` dedup · plan_idx advance |
+| **`TaskSummarizer`** | Executive UX: English tasks primary  -  `emit_plan!` · `about_to` as `task k/n` + via tools · Loop `plan_context` injection · clearer `plan_idx` advance |
 | `Registry` | JSON-Schema function definitions grouped into 12 **toolsets** · **78 tools** |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
