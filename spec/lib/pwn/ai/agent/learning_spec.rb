@@ -65,4 +65,25 @@ describe PWN::AI::Agent::Learning do
     expect(out[:saved]).to be true
     expect(File.exist?(out[:path])).to be true
   end
+
+  it 'promotes rubocop/rake process SOPs into PWN::Memory on note_outcome' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(tmp, 'learning.jsonl'))
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(tmp, 'memory.json'))
+
+    PWN::AI::Agent::Learning.reset
+    PWN::AI::Agent::Learning.note_outcome(
+      task: 'Ensure rake and rubocop violations are fixed after patch',
+      success: true,
+      score: 0.9,
+      details: 'bundle exec rubocop clean; rake green',
+      tags: %w[hygiene]
+    )
+    mem = PWN::Memory.load
+    expect(mem.keys).to include(:process_sop_code_hygiene)
+    expect(mem[:process_sop_code_hygiene][:value].to_s).to match(/rubocop/i)
+    expect(mem[:process_sop_code_hygiene][:category].to_s).to eq('lesson')
+  ensure
+    FileUtils.rm_rf(tmp) if defined?(tmp) && tmp
+  end
 end

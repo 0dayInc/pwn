@@ -1,6 +1,6 @@
 digraph "PWN_Agent_Tool_Registry" {
   graph [
-    label=<<B>PWN::AI::Agent::Registry - Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">10 toolsets · 71 callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
+    label=<<B>PWN::AI::Agent::Registry - Toolsets exposed to the LLM</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">12 toolsets · 78 callable tools · lib/pwn/ai/agent/tools/*</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.35, ranksep=1.4,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -24,6 +24,8 @@ digraph "PWN_Agent_Tool_Registry" {
     extro    [label="extrospection", fillcolor="#6ee7b7"];
     cron     [label="cron",     fillcolor="#6ee7b7"];
     swarm    [label="swarm",    fillcolor="#6ee7b7"];
+    reward   [label="reward",   fillcolor="#6ee7b7"];
+    curric   [label="curriculum", fillcolor="#6ee7b7"];
   }
 
   subgraph cluster_tools {
@@ -40,11 +42,14 @@ digraph "PWN_Agent_Tool_Registry" {
     t_extro   [label="extro_snapshot · drift\nobserve · observations · intel\nwatch · verify · rf_tune · osint\nserial · telecomm · packet\nvision · voice · correlate\nstats · reset · auto_toggle"];
     t_cron    [label="cron_list · create · run\nenable · disable · remove"];
     t_swarm   [label="agent_list · spawn · ask\ndebate · broadcast\nswarm_bus · swarm_list"];
+    t_reward  [label="reward_generator_mix"];
+    t_curric  [label="curriculum_practice_kpi"];
   }
 
   Registry -> terminal; Registry -> pwn; Registry -> memory;
   Registry -> skills; Registry -> sessions; Registry -> learning;
   Registry -> metrics; Registry -> extro; Registry -> cron; Registry -> swarm;
+  Registry -> reward; Registry -> curric;
 
   terminal -> t_shell  [color="#f59e0b"];
   pwn      -> t_eval   [color="#f59e0b"];
@@ -56,6 +61,8 @@ digraph "PWN_Agent_Tool_Registry" {
   extro    -> t_extro  [color="#f59e0b"];
   cron     -> t_cron   [color="#f59e0b"];
   swarm    -> t_swarm  [color="#f59e0b"];
+  reward   -> t_reward [color="#f59e0b"];
+  curric   -> t_curric [color="#f59e0b"];
 
   t_metric -> Registry [label="success_rate\n→ router tie-break", style=dashed, color="#fbbf24", constraint=false];
 }

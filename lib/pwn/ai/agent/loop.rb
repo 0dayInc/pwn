@@ -81,21 +81,135 @@ module PWN
           { role: 'assistant', content: txt, tool_calls: [] }
         end
 
-        # P17 — true when unresolved agent_loop / assistant_answer budget
-        # fingerprints dominate Mistakes.top (the #1 live failure mode).
+        # P17 — true when RECENT unresolved agent_loop / assistant_answer budget
+        # fingerprints dominate Mistakes.top. Sliding window + auto-cool so the
+        # loop's own exhaust-path Mistakes.record cannot permanently latch hot
+        # (scar 8ec3303ed69e self-latch). Do NOT deepen caps; cool the detector.
+        HOT_WINDOW_SECS     = 48 * 3600
+        HOT_COOL_MAX_RECENT = 1 # <=1 budget hit in window => cooled (not hot)
+
+        private_class_method def self.budget_hit?(opts = {})
+          mistake = opts[:mistake] || opts[:m] || opts
+          tool = mistake[:tool].to_s
+          err = mistake[:error].to_s.downcase
+          shape = (mistake[:shape] || mistake['shape']).to_s
+          budget_shape = %w[budget_exhausted budget_thrash].include?(shape)
+          budget_err = err.include?('budget exhausted') ||
+                       err.include?('iteration budget') ||
+                       err.include?('budget thrash')
+          # Only budget-shaped agent_loop / assistant_answer rows count.
+          # Prior "any agent_loop tool" match permanently latched hot on unrelated
+          # loop failures (scar 8ec3303ed69e self-latch).
+          (%w[agent_loop assistant_answer].include?(tool) && (budget_shape || budget_err)) ||
+            budget_err
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.mistake_ts(opts = {})
+          mistake = opts[:mistake] || opts[:m] || opts
+          stamp = (mistake[:last_seen] || mistake[:updated_at] || mistake[:first_seen]).to_s
+          Time.parse(stamp)
+        rescue StandardError
+          nil
+        end
+
+        # P17 rate-based cool/park for permanent budget scars (8ec3303ed69e).
+        # Leaves scar open but parks it so it stops dominating Mistakes.top.
+        # Resolve is rate-based only (external / after multi-day cool) — never
+        # because a guard patch landed. PARK_COOL_SECS (24h) is intentionally
+        # shorter than HOT_WINDOW (48h): once hot?=false, a single cooled scar
+        # must not keep owning Mistakes.top for another full day.
+        PARK_COOL_SECS = 24 * 3600
+
+        private_class_method def self.maybe_park_budget_scars!
+          return unless defined?(Mistakes)
+          return if budget_exhaustion_hot?
+          return unless Mistakes.respond_to?(:park)
+
+          top = Mistakes.top(limit: 12, unresolved_only: true)
+          now = Time.now
+          top.each do |mistake|
+            next unless budget_hit?(mistake: mistake)
+            next if mistake[:parked]
+
+            stamp = mistake_ts(mistake: mistake)
+            # cool detector + scar older than PARK_COOL_SECS → park
+            next if stamp && (now - stamp) <= PARK_COOL_SECS
+
+            Mistakes.park(
+              signature: mistake[:signature].to_s,
+              reason: 'p17 rate-cool: outside PARK_COOL_SECS while hot?=false'
+            )
+          end
+        rescue StandardError
+          nil
+        end
+
         private_class_method def self.budget_exhaustion_hot?
           return false unless defined?(Mistakes)
 
-          top = Mistakes.top(limit: 8, unresolved_only: true)
+          top = Mistakes.top(limit: 24, unresolved_only: true)
           return false if top.empty?
 
-          budgetish = top.count do |m|
-            t = m[:tool].to_s
-            e = m[:error].to_s.downcase
-            t == 'agent_loop' || t == 'assistant_answer' ||
-              e.include?('budget exhausted') || e.include?('iteration budget')
+          now = Time.now
+          recent = top.select do |mistake|
+            next false if mistake[:parked]
+
+            stamp = mistake_ts(mistake: mistake)
+            stamp.nil? || (now - stamp) <= HOT_WINDOW_SECS
           end
-          budgetish >= 2 || (budgetish >= 1 && top.first[:tool].to_s == 'agent_loop')
+          return false if recent.empty?
+
+          budgetish = recent.count { |mistake| budget_hit?(mistake: mistake) }
+          # Auto-cool: old unresolved scar alone must not keep the host hot.
+          return false if budgetish <= HOT_COOL_MAX_RECENT
+
+          budgetish >= 2 || (budgetish >= 1 && recent.first[:tool].to_s == 'agent_loop')
+        rescue StandardError
+          false
+        end
+
+        # P17 — evidence-enough early final: latest tool rounds already answer
+        # the ask → force synthesis instead of burning iters into text-only tail.
+        private_class_method def self.evidence_enough_to_finalize?(opts = {})
+          messages = Array(opts[:messages])
+          turn_fails = opts[:turn_fails] || {}
+          iter = opts[:i].to_i
+          max_i = opts[:max_iters].to_i
+          request = opts[:request].to_s
+          return false if max_i <= 0 || iter < 2
+          # Need runway before the text-only strip, and no thrash.
+          return false if turn_fails['empty_final'].to_i.positive?
+          return false if turn_fails['incomplete_final'].to_i > 1
+
+          fail_n = turn_fails.values.sum
+          return false if fail_n >= 3
+
+          tools_ok = messages.select { |msg| msg[:role].to_s == 'tool' }
+          return false if tools_ok.size < 2
+
+          # Last two tool payloads should look like successful evidence, not errors.
+          last2 = tools_ok.last(2)
+          return false if last2.any? do |msg|
+            content = msg[:content].to_s
+            content.match?(/traceback|error:|exception|budget exhausted|syntax error/i) &&
+            !content.match?(/"success"\s*:\s*true/i)
+          end
+
+          # Prefer when plan was short / we already spent half the budget usefully.
+          plan_steps = opts[:plan_steps].to_i
+          short_plan = plan_steps.positive? && plan_steps <= 3
+          deep_enough = tools_ok.size >= 3 || (short_plan && tools_ok.size >= plan_steps)
+          return false unless deep_enough
+
+          # Request looks satisfied if tool names/content echo key nouns from request
+          # OR we clearly completed a mutation (write/patch/resolve) successfully.
+          recent_txt = last2.map { |msg| msg[:content].to_s[0, 500] }.join(' ')
+          return true if recent_txt.match?(/"success"\s*:\s*true|syntax ok|wrote |patched|resolved|File\.write|ruby -c/i)
+          return true if short_plan && tools_ok.size >= plan_steps && fail_n.zero?
+
+          false
         rescue StandardError
           false
         end
@@ -135,24 +249,22 @@ module PWN
           n = v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
           # 0.3 — frontier leakage: live max_iters=80 burns local models.
           # Cap ollama at 25 unless the operator set an explicit lower value.
-          n = 25 if active_engine == :ollama && n > 25
+          n = 75 if active_engine == :ollama && n > 75
           # P7 — W3 controller: when this engine is badly overconfident,
           # shrink the tool budget so thrash can't compound on bad plans.
           cal = calibration_state
           n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
-          # P17 — tighter default when agent_loop budget_exhaustion dominates
-          # open mistakes: finish-under-N is the skill gap, not more thrash.
-          # Cap is intentionally harsh (8 for ALL engines): the open fingerprint
-          # is "iteration budget exhausted" ×N; more headroom only produces more
-          # empty terminal failures for ORM/PRM/DPO.
+          # P17 — when agent_loop budget_exhaustion dominates open mistakes,
+          # shrink thrash WITHOUT collapsing long multi-step autonomy.
+          # Local (ollama) stays harsh (8). Remote engines keep a multi-step
+          # runway (25): the always-8-for-ALL policy starved long-lived goals
+          # (only ~5 tool rounds after the hot text-only tail) while scars were
+          # still open. incomplete_final? + evidence_enough_to_finalize? still
+          # refuse polite handoffs and finish early when evidence is enough.
+          # CF / red_team forks stay suppressed while hot.
           if budget_exhaustion_hot?
-            # P17 — always 8 for ALL engines while budget fingerprints dominate.
-            # P28 remote runway (40) applies only to W3 overconf above; stacking
-            # a 40 hot-cap on top re-opens multi-dozen-iter thrash and is the
-            # 2026-08-04 regression (22 exhaust hits / day). Finish-under-8 is
-            # the sustained drop; incomplete_final? keeps multi-step autonomy
-            # inside that budget without polite handoffs.
-            n = [n, 8].min
+            hot_cap = active_engine == :ollama ? 24 : 75
+            n = [n, hot_cap].min
           end
           n
         rescue StandardError
@@ -166,7 +278,7 @@ module PWN
           eng = active_engine
           cal = defined?(Metrics) && Metrics.respond_to?(:calibration) ? Metrics.calibration(engine: eng) : { n: 0 }
           n = cal[:n].to_i
-          return { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 25, cal: cal } if n < 8
+          return { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 75, cal: cal } if n < 24
 
           brier = cal[:brier].to_f
           over  = cal[:overconfidence].to_f
@@ -177,12 +289,12 @@ module PWN
           # but must NOT collapse multi-step remote work to 8 iters (user-visible
           # "stop to confirm next step" / early text-only handoffs). Local models
           # keep the harsh 8; remote engines keep a usable multi-step runway.
-          remote_cap = 40
-          local_cap  = 8
+          remote_cap = 120
+          local_cap  = 24
           cap = if bad
                   (eng == :ollama ? local_cap : remote_cap)
                 else
-                  25
+                  75
                 end
           {
             overconfident: bad,
@@ -192,7 +304,7 @@ module PWN
             cal: cal
           }
         rescue StandardError
-          { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 25 }
+          { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 75 }
         end
 
         private_class_method def self.active_engine
@@ -321,8 +433,12 @@ module PWN
           rescue StandardError
             false
           end
-          plan_prompt = if hot
+          plan_prompt = if hot && active_engine == :ollama
+                          # Local hot: ultra-short plan — finish-under-8 is the skill gap.
                           'Before acting: write AT MOST 3 numbered tool calls (name + key args) that finish the ask. Prefer fewer. LAST line: "p(success)=<0.0-1.0>". Reply ONLY with the plan + that line — no tools, no prose.'
+                        elsif hot
+                          # Remote hot: efficient FULL plan — do not cut multi-step goals to 3 steps.
+                          'Before acting: (1) list the exact tool calls (name + key args) that FULLY finish the user goal, in order — prefer the shortest plan that still completes every step, do not stop at a checkpoint for confirmation; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.'
                         else
                           'Before acting: (1) list the exact tool calls (name + key args) that FULLY finish the user goal, in order — do not stop at a checkpoint for confirmation; (2) on the LAST line write "p(success)=<0.0-1.0>". Reply ONLY with the numbered plan + that line — do NOT call any tool yet.'
                         end
@@ -571,6 +687,85 @@ module PWN
           true
         end
 
+        # Push a name='task' event through the REPL on_tool UI
+        # (repl.rb) so arg_preview is the plain-English executive brief.
+        # result is ALWAYS '' for task lines — displaying a task must not
+        # also print a result row (one-to-many: one task, many tools).
+        private_class_method def self.emit_task_summary(opts = {})
+          line = opts[:line]
+          return if line.nil? || line.to_s.strip.empty?
+
+          on_tool = opts[:on_tool]
+          return unless on_tool
+
+          # name MUST be 'task'; third arg MUST be empty (no result noise).
+          # Only the REPL on_tool path prints: [ ts → pwn-ai → task ] <brief>
+          # Do not also warn with a redundant [pwn-ai/task] prefix.
+          on_tool.call('task', line.to_s, '')
+        rescue StandardError
+          nil
+        end
+
+        # On user-request submit: break the goal into tangible tasks and
+        # emit the FULL plan on the pwn-ai task line (no truncation).
+        private_class_method def self.task_summary_plan!(opts = {})
+          state = opts[:state]
+          return nil unless state && defined?(TaskSummarizer) && TaskSummarizer.enabled?
+
+          line = TaskSummarizer.emit_plan!(state, request: opts[:request])
+          emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
+          line
+        rescue StandardError
+          nil
+        end
+
+        # Pre-dispatch: one high-level brief for the whole upcoming tool
+        # collection (pwn-ai → task is one-to-many with pwn-ai → <tool>).
+        # Prefer opts[:tools] = [{name:, args:}, ...]; falls back to single name.
+        private_class_method def self.task_summary_about_to!(opts = {})
+          state = opts[:state]
+          return nil unless state && defined?(TaskSummarizer) && TaskSummarizer.enabled?
+
+          line = TaskSummarizer.about_to(
+            opts[:name],
+            opts[:args],
+            state: state,
+            request: opts[:request],
+            tools: opts[:tools]
+          )
+          # about_to returns nil when the brief is a duplicate of the last one
+          emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
+          line
+        rescue StandardError
+          nil
+        end
+
+        # Track completed tools for optional verbose/flush briefs.
+        # Never attaches tool results to a task line.
+        private_class_method def self.task_summary_record!(opts = {})
+          state = opts[:state]
+          return nil unless state && defined?(TaskSummarizer)
+
+          line = TaskSummarizer.record!(state, opts[:name], opts[:args], opts[:result])
+          # record! is silent by default; only verbose progress returns a line
+          emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
+          line
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.task_summary_flush!(opts = {})
+          state = opts[:state]
+          return nil unless state && defined?(TaskSummarizer)
+
+          line = TaskSummarizer.flush!(state)
+          # Closing brief only — still no result payload on the task row
+          emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
+          line
+        rescue StandardError
+          nil
+        end
+
         # Supported Method Parameters::
         # final = PWN::AI::Agent::Loop.run(
         #   request: 'required - what the human typed',
@@ -584,6 +779,8 @@ module PWN
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
+          # Live coalesced "what am I doing" lines for the TUI (not a model tool).
+          ts_state = (TaskSummarizer.fresh(request: request) if defined?(TaskSummarizer) && TaskSummarizer.enabled?)
           engine = active_engine
           local  = engine == :ollama
           system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id, request: request)
@@ -598,6 +795,9 @@ module PWN
           messages << { role: 'user', content: request }
           append_session(session_id: session_id, role: 'user', content: request)
 
+          # Show full tangible-task breakdown as soon as the user submits.
+          task_summary_plan!(state: ts_state, request: request, on_tool: on_tool)
+
           predicted = nil
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
@@ -608,10 +808,18 @@ module PWN
             predicted = Thread.current[:pwn_plan_predicted] if predicted.nil?
           end
           if budget_exhaustion_hot?
-            messages << {
-              role: 'user',
-              content: '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. Prefer the SHORTEST plan that finishes the ask (≤3 tool calls). Emit a final answer as soon as you have evidence — do not explore.'
-            }
+            hot_hint = if active_engine == :ollama
+                         '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. ' \
+                           'Prefer the SHORTEST plan that finishes the ask (≤3 tool calls). ' \
+                           'Emit a final answer as soon as you have evidence — do not explore.'
+                       else
+                         '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. ' \
+                           'Prefer the shortest plan that FULLY finishes the ask — no polite ' \
+                           'handoffs, no exploration side-quests. Emit a final answer as soon ' \
+                           'as you have evidence; keep going with tools until the goal is done ' \
+                           'or truly blocked.'
+                       end
+            messages << { role: 'user', content: hot_hint }
           end
           if force_plan && cal_state[:cal]
             messages << {
@@ -624,6 +832,7 @@ module PWN
 
           turn_fails = Hash.new(0)
           escalated  = false
+          maybe_park_budget_scars!
 
           max_iters.times do |i|
             # 3.1 — compact history on local so tool dumps don't fill num_ctx
@@ -637,7 +846,38 @@ module PWN
             # iters so a final tool_calls batch cannot burn the terminal slot.
             # P17 deepen³ — under hot, force text-only on last THREE of the
             # 8-iter cap so a late tool binge cannot burn every salvage slot.
-            text_only_iters = budget_exhaustion_hot? ? 3 : 1
+            # P17 structural: default hot text-only tail stays 3 (do NOT deepen to 4/6).
+            # Plan-faithful headroom — short plan executing cleanly → delay strip to
+            # last 1–2 so multi-step goals are not predestined to exhaust under cap 8.
+            hot = budget_exhaustion_hot?
+            plan_steps = begin
+              predicted_plan = predicted || Thread.current[:pwn_plan_predicted]
+              if predicted_plan.is_a?(Hash)
+                Array(predicted_plan[:steps] || predicted_plan[:tools] || predicted_plan[:plan]).size
+              elsif predicted_plan.is_a?(Array)
+                predicted_plan.size
+              else
+                predicted_plan.to_s.scan(/\b(?:shell|pwn_eval|memory_|mistakes_|skill_|extro_|learning_|sessions_)\w*/).size
+              end
+            rescue StandardError
+              0
+            end
+            # Plan-faithful: delay the text-only strip when a plan is executing
+            # cleanly. Remote hot allows longer plans (runway 25); local hot
+            # still favors short plans under the 8-iter cap.
+            plan_step_limit = active_engine == :ollama ? 3 : 12
+            plan_faithful = hot && plan_steps.positive? && plan_steps <= plan_step_limit &&
+                            turn_fails['empty_final'].to_i.zero? &&
+                            turn_fails.values.sum < 2
+            text_only_iters = if hot
+                                if plan_faithful
+                                  1
+                                else
+                                  (active_engine == :ollama ? 3 : 2)
+                                end
+                              else
+                                1
+                              end
             last_iter = (i >= max_iters - text_only_iters)
             if last_iter
               tag = i >= max_iters - 1 ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
@@ -652,7 +892,10 @@ module PWN
             end
 
             msg = call_engine(messages: messages, tools: last_iter ? nil : tools)
-            return '[pwn-ai] engine returned no message' if msg.nil?
+            if msg.nil?
+              task_summary_flush!(state: ts_state, on_tool: on_tool)
+              return '[pwn-ai] engine returned no message'
+            end
 
             calls = Array(msg[:tool_calls])
             text  = msg[:content].to_s
@@ -692,8 +935,23 @@ module PWN
               end
               append_session(session_id: session_id, role: 'assistant', content: text)
               Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              task_summary_flush!(state: ts_state, on_tool: on_tool)
               return text
             end
+
+            # One executive task brief for the whole collection, then the
+            # individual tool lines. pwn-ai → task is one-to-many with tools.
+            task_summary_about_to!(
+              state: ts_state,
+              tools: calls.map do |tool_call|
+                {
+                  name: tool_call.dig(:function, :name).to_s,
+                  args: tool_call.dig(:function, :arguments)
+                }
+              end,
+              request: request,
+              on_tool: on_tool
+            )
 
             calls.each do |tc|
               name    = tc.dig(:function, :name).to_s
@@ -725,6 +983,7 @@ module PWN
               end
 
               on_tool&.call(name, args, result)
+              task_summary_record!(state: ts_state, name: name, args: args, result: result, on_tool: on_tool)
 
               messages << {
                 role: 'tool',
@@ -737,6 +996,26 @@ module PWN
                 role: 'tool',
                 content: "#{name} → #{result[0, 1_024]}"
               )
+            end
+
+            # P17 — evidence-enough early final (finish-under-N). When tools already
+            # answered the ask, inject a synthesis nudge once and let the next
+            # non-incomplete text final win — do not burn remaining iters to exhaust.
+            if !last_iter && evidence_enough_to_finalize?(
+              messages: messages,
+              turn_fails: turn_fails,
+              i: i,
+              max_iters: max_iters,
+              request: request,
+              plan_steps: plan_steps
+            ) && turn_fails['evidence_final'].to_i < 1
+              turn_fails['evidence_final'] += 1
+              messages << {
+                role: 'user',
+                content: '[pwn-ai/p17] Evidence from the last tool results is enough to answer. ' \
+                         'Do NOT call more tools. Write the complete final answer now from that ' \
+                         'evidence. If anything remains blocked, state exactly what and stop.'
+              }
             end
 
             # P17 — hard stop: empty-final thrash or cumulative fails past cap.
@@ -761,6 +1040,7 @@ module PWN
               end
               append_session(session_id: session_id, role: 'assistant', content: msg)
               Learning.auto_introspect(session_id: session_id, request: request, final: msg, predicted: predicted) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              task_summary_flush!(state: ts_state, on_tool: on_tool)
               return msg
             end
 
@@ -796,6 +1076,7 @@ module PWN
               predicted: predicted
             )
           end
+          task_summary_flush!(state: ts_state, on_tool: on_tool)
           final_msg
         end
 
@@ -817,6 +1098,16 @@ module PWN
                 on_tool: ->(name, args, result) { puts "→ \#{name}: \#{result[0,1_024]}" },
                 system_role_content: 'You are a helpful assistant that can call tools to answer questions.'
               )
+              # Live task summaries (default ON): BEFORE each tool *collection*,
+              # on_tool('task', high_level_brief, '') — one-to-many with real tools.
+              # Task lines never carry a result payload (no result row in the TUI).
+              # so repl.rb prints name=task with arg_preview=summary. Also coalesce bursts into
+              # via on_tool only: [ ts → pwn-ai → task ] <brief> (no [pwn-ai/task] prefix)
+              # Toggle via PWN::Env[:ai][:agent]:
+              #   task_summary: true|false
+              #   task_summary_every: 5          # emit every N tools
+              #   task_summary_interval_s: 8.0   # or every N seconds
+              #   task_summary_verbose: false
 
               Supported engines: #{ENGINE_MODS.keys.join(', ')}
               Set PWN::Env[:ai][:active] to choose; PWN::Env[:ai][:agent][:max_iters] to bound.
@@ -832,8 +1123,9 @@ module PWN
                 :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
 
               P28 autonomy: incomplete-final detector refuses mid-goal handoffs;
-              W3 overconf max_iters_cap is 40 on remote engines (8 on ollama).
-              P17 budget-hot always caps max_iters to 8 for ALL engines (not only ollama).
+              W3 overconf max_iters_cap is 120 on remote engines (8 on ollama).
+              P17 budget-hot caps max_iters to 24 on ollama and 75 on remote engines
+              so long multi-step goals keep a usable runway while thrash is cooled.
 
               #{self}.authors
           USAGE

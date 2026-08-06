@@ -99,13 +99,17 @@ ai:
   agent:
     native_tools: true             # Use provider-native tool_calls / function-calling. false → legacy text-parsed tool protocol.
     max_iters: 25                  # Hard cap on tool-call rounds per user turn before a forced final answer.
+    task_summary: true             # Executive task briefs via TaskSummarizer (plan + about_to). false disables.
+    task_summary_every: 5          # When task_summary_verbose: emit Progress every N completed tools.
+    task_summary_interval_s: 8.0   # When verbose: also emit when this many seconds elapsed.
+    task_summary_verbose: false    # Mid-flight Progress/Finished lines (default: only plan + about_to).
     max_depth: 3                   # Recursion guard: how many levels deep agent_ask/agent_debate sub-agents may spawn sub-agents.
     auto_introspect: true          # Run Learning.auto_introspect (outcome logging + lesson mining) after every final answer.
     auto_extrospect: false         # Optional ambient baseline (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools (intel/verify/watch/rf_tune/observe) stay on-demand.
-    plan_first: ~                  # Plan-then-act pre-pass: force the model to externalise a numbered tool plan BEFORE its first dispatch. nil = auto (true when ai.active == ollama).
+    plan_first: ~                  # Plan-then-act pre-pass: force the model to externalize a numbered tool plan BEFORE its first dispatch. nil = auto (true when ai.active == ollama).
     tool_router: false             # Dynamic tool-set slimming: ship only Registry::CORE_TOOLS + top-K keyword-relevant schemas per turn (helps small models route correctly).
     escalation_persona: ~          # Swarm persona name to ask for a 3-line corrective hint once a local model burns ≥ Loop::ESCALATE_AFTER_FAILS in-turn failures. nil = disabled.
-    toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, extrospection, learning, memory, metrics, pwn, sessions, skills, swarm, terminal.
+    toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, curriculum, extrospection, learning, memory, metrics, pwn, reward, sessions, skills, swarm, terminal.
     extrospection:
       web:
         anchors:                   # URLs the headless browser fingerprints on extro_snapshot(sections:[:web]). Alias: web_anchors.
@@ -124,7 +128,7 @@ ai:
       osint:
         ttl: 86400                 # Observation TTL for :osint (default 1 day).
         proxy: ~                   # Optional upstream proxy for OSINT HTTP feeds.
-        api_keys:                  # Per-feed API keys (all optional; keyed feeds return {skipped:} when absent). ENV fallbacks also honoured.
+        api_keys:                  # Per-feed API keys (all optional; keyed feeds return {skipped:} when absent). ENV fallbacks also honored.
           shodan: ...              #   ← SHODAN_API_KEY
           hunter: ...              #   ← HUNTER_API_KEY
           abuseipdb: ...           #   ← ABUSEIPDB_API_KEY
@@ -224,7 +228,7 @@ PWN::Config.refresh_env
 
 ---
 
-## Exhaustive key reference
+## Full key reference
 
 ### `ai` - AI engines & agent loop
 
@@ -258,11 +262,15 @@ PWN::Config.refresh_env
 | Key path | Type | Default | Consumed by | Purpose |
 |---|---|---|---|---|
 | `ai.agent.native_tools` | Boolean | `true` | `PWN::Plugins::REPL` (`pwn-ai` cmd) | Use provider-native `tool_calls` / function-calling. `false` falls back to the legacy text-parsed tool protocol. |
-| `ai.agent.max_iters` | Integer | `25` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn before a forced final answer. |
+| `ai.agent.max_iters` | Integer | `25` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn before a forced final answer. When budget-exhaustion pressure is high, the effective cap is tightened (stricter on local/ollama than remote) so long multi-step goals keep a usable runway without thrashing. |
+| `ai.agent.task_summary` | Boolean | `true` | `PWN::AI::Agent::TaskSummarizer`, `Loop` | Master switch for executive task briefs (`emit_plan!` / `about_to`). |
+| `ai.agent.task_summary_every` | Integer | `5` | `TaskSummarizer.every_n` | Verbose progress cadence (tools). |
+| `ai.agent.task_summary_interval_s` | Float | `8.0` | `TaskSummarizer.interval_s` | Verbose progress cadence (seconds). |
+| `ai.agent.task_summary_verbose` | Boolean | `false` | `TaskSummarizer.verbose?` | Emit mid-flight `Progress:` / `Finished:` lines; default keeps only plan + about_to. |
 | `ai.agent.max_depth` | Integer | `3` | `PWN::AI::Agent::Swarm` | Recursion guard for `agent_ask` / `agent_debate` sub-agents spawning sub-agents. |
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `false` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Optional ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Prefer on-demand sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`). Toggle live via `extro_auto_toggle`. |
-| `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `extrospection`, `learning`, `memory`, `metrics`, `pwn`, `sessions`, `skills`, `swarm`, `terminal`. |
+| `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `curriculum`, `extrospection`, `learning`, `memory`, `metrics`, `pwn`, `reward`, `sessions`, `skills`, `swarm`, `terminal`. |
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active == ollama`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean | `false` | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate so the router itself is a learned component. |
 | `ai.agent.escalation_persona` | String \| `nil` | `nil` | `PWN::AI::Agent::Loop.escalate` → `Swarm.ask` | Circuit-breaker: once a local model accumulates ≥ `Loop::ESCALATE_AFTER_FAILS` in-turn failures, ask this Swarm persona for a 3-line corrective hint (injected as a synthetic tool result). The local model still authors the final answer so Learning/Metrics stay attributed. |
@@ -283,7 +291,7 @@ PWN::Config.refresh_env
 | `ai.agent.extrospection.rf.ttl` | Integer | `300` | `Extrospection.rf_tune` | TTL (seconds) for `:rf` observations written by `extro_rf_tune` (ephemeral radio content). |
 | `ai.agent.extrospection.osint.ttl` | Integer | `86400` | `Extrospection.osint` | TTL (seconds) for `:osint` observations written by `extro_osint`. |
 | `ai.agent.extrospection.osint.proxy` | String | - | `Extrospection.osint` | Optional upstream proxy for OSINT HTTP feeds. |
-| `ai.agent.extrospection.osint.api_keys.<feed>` | String | - | `Extrospection.osint_api_keys` | Per-feed API keys for keyed OSINT sources: `shodan`, `hunter`, `abuseipdb`, `virustotal`, `greynoise`, `haveibeenpwned`, `securitytrails`, `steam`. Keyed feeds return `{skipped:}` when absent. ENV fallbacks (`SHODAN_API_KEY`, `HUNTER_API_KEY`, `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`/`VT_API_KEY`, `GREYNOISE_API_KEY`, `HIBP_API_KEY`, `SECURITYTRAILS_API_KEY`, `STEAM_API_KEY`) also honoured. Redacted. |
+| `ai.agent.extrospection.osint.api_keys.<feed>` | String | - | `Extrospection.osint_api_keys` | Per-feed API keys for keyed OSINT sources: `shodan`, `hunter`, `abuseipdb`, `virustotal`, `greynoise`, `haveibeenpwned`, `securitytrails`, `steam`. Keyed feeds return `{skipped:}` when absent. ENV fallbacks (`SHODAN_API_KEY`, `HUNTER_API_KEY`, `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`/`VT_API_KEY`, `GREYNOISE_API_KEY`, `HIBP_API_KEY`, `SECURITYTRAILS_API_KEY`, `STEAM_API_KEY`) also honored. Redacted. |
 | `ai.agent.extrospection.osint.social.sites_file` | Path | `etc/osint/social_sites.json` | `Extrospection.osint_social_sweep` | JSON of `{sites:{Name:{url:"...{u}...",absent_status:[404],absent_body:[...],head:bool}}}` used by the `:social_sweep` presence check. Vendored subset of sherlock-project (MIT). Override to add/remove platforms. |
 | `ai.agent.extrospection.osint.social.max_threads` | Integer | `16` | `Extrospection.osint_social_sweep` | Concurrency for the presence sweep (`Concurrent::FixedThreadPool`). |
 | `ai.agent.extrospection.osint.social.max_sites` | Integer | `120` | `Extrospection.osint_social_sweep` | Hard cap on sites loaded from `sites_file`. |

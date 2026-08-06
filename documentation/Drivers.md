@@ -1,7 +1,7 @@
 # Drivers - Turn a REPL Session into a Shipped Binary
 
 A **driver** is a small executable in `bin/` that wires `OptionParser` to one
-or more `PWN::` calls. All 52 shipped `pwn_*` binaries follow the same
+or more `PWN::` calls. All 53 shipped `pwn_*` binaries follow the same
 15-line template.
 
 ![History → Driver → CI](diagrams/history-to-drivers.svg)

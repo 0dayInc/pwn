@@ -16,6 +16,13 @@ its own performance, turns wins into permanent capability, and - critically -
 | **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks - do-NOT-repeat + do-THIS-instead |
 | **Metrics** | `metrics.json` | *automatic* (every Dispatch) | `metrics_summary` | `TOOL EFFECTIVENESS` block - steer tool choice. **Segmented per engine** (`engine=...`) so a local model's telemetry never blends with a frontier model's. |
 
+## Memory write guard
+
+`PWN::Memory.save` will not replace a non-empty `memory.json` with an empty
+hash unless `force: true` is set. That keeps a bad load/consolidate path from
+wiping durable facts, preferences, and lessons. Clearing is still available via
+`memory_clear` (uses force) or `save(mem: {}, force: true)`.
+
 ## The lifecycle of a lesson
 
 ```text
@@ -39,9 +46,9 @@ its own performance, turns wins into permanent capability, and - critically -
                                        frontier engine may WRITE the lesson a local engine READS
 8. A whole workflow succeeded         → Learning.distill_skill(name, session_id, references:)
 9. Found a fix for a mistake          → mistakes_resolve(sig, fix) → Memory :lesson "AVOID X - FIX: Y"
-10. (weekly, cron) Learning.export_finetune (P12: min_score + PRM-compress) +
-     Reward.export_dpo (≤40%/src, P15 geometry scrub) → ~/.pwn/finetune/*.jsonl → LoRA over the local
-     model via Curriculum.train_and_gate (P11 gate v2) - the ONLY step that
+10. (weekly, cron) Learning.export_finetune (min judge score + process-reward compress) +
+     Reward.export_dpo (per-source cap + trajectory geometry scrub) → ~/.pwn/finetune/*.jsonl → LoRA over the local
+     model via Curriculum.train_and_gate (resolved margin + mean judge + smoke) - the ONLY step that
      changes weights, not just the scaffold. Without a trainer this stays export-ready.
 11. Next launch: PromptBuilder injects the budgeted blocks → the model already knows:
      MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION
@@ -105,7 +112,7 @@ the new format.
 | `skill_delete(name)` | auto-distilled skill turned out low-quality |
 | `learning_auto_introspect_toggle(enabled: false)` | during noisy fuzz loops |
 | `PWN::MemoryIndex.reset` | new engagement - drop the local embedding index (`memory.idx`) so it rebuilds against the fresh `memory.json` |
-| `PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)` | you have enough **high-score** sessions for SFT (P12 drops score&lt;0.6 / HER/soft and PRM-compresses traces) |
+| `PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)` | you have enough **high-score** sessions for SFT (drops low scores / HER soft rows and compresses traces by process reward) |
 
 ## Example questions that trigger Introspection
 
@@ -192,5 +199,10 @@ and which procedures to promote permanently.
 **See also:** [Mistakes](Mistakes.md) - the negative-feedback half ·
 [Extrospection](Extrospection.md) - the outward-facing half ·
 [Sessions](Sessions.md) · [Persistence](Persistence.md)
+
+
+## Task briefs vs learning
+
+`TaskSummarizer` is **UX**, not a persistence layer. Plan/`about_to` lines are ephemeral TUI briefs (deduped by `last_brief_fp`). Durable learning still flows through Learning · Mistakes · Reward · sessions only. See [pwn-ai Agent § Task summaries](pwn-ai-Agent.md#task-summaries-long-autonomous-turns).
 
 [← Home](Home.md)

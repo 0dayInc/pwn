@@ -27,7 +27,7 @@ digraph "PWN_Overall_Architecture" {
     style=rounded; color="#0369a1"; bgcolor="#0c4a6e"; penwidth=2;
     REPL  [label="🐚  pwn REPL\nPry + PWN:: preload",       fillcolor="#7dd3fc"];
     PwnAI [label="✨  pwn-ai\nAgent TUI · pwn --ai",         fillcolor="#7dd3fc"];
-    CLI   [label="📜  bin/pwn_*\n52 CLI drivers",            fillcolor="#7dd3fc"];
+    CLI   [label="📜  bin/pwn_*\n53 CLI drivers",            fillcolor="#7dd3fc"];
     Cronb [label="⏱  PWN::Cron\nScheduled jobs",            fillcolor="#7dd3fc"];
   }
   {rank=same; REPL; PwnAI; CLI; Cronb}
@@ -36,8 +36,8 @@ digraph "PWN_Overall_Architecture" {
   subgraph cluster_agent {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Loop     [label="Loop\nplan_first → dispatch\n→ observe → escalate",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n10 toolsets · 71 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
+    Loop     [label="Loop\nTaskSummarizer briefs\nplan_first → dispatch\n→ observe → escalate\nbudget-pressure caps",      fillcolor="#c4b5fd"];
+    Registry [label="Registry\n12 toolsets · 78 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
     Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
   }

@@ -20,15 +20,15 @@
 | [Installation](Installation.md) | `gem install pwn` → `pwn setup` doctor/provisioner · capability profiles · `--migrate` state doctor |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
 | [Configuration](Configuration.md) | `~/.pwn/pwn.yaml` (encrypted) - engines, keys, agent options · `pwn-vault` |
-| **[All Data-Flow Diagrams](Diagrams.md)** | **28 SVGs** in one scrollable page |
+| **[All Data-Flow Diagrams](Diagrams.md)** | **29 SVGs** in one scrollable page |
 
 ## 🚪 Entry Points
 
 | | |
 |---|---|
 | [The `pwn` REPL](pwn-REPL.md) | Pry shell with the whole `PWN::` namespace pre-loaded |
-| [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot |
-| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 53 headless executables for CI/CD |
+| [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot · **TaskSummarizer** briefs · iteration budget guard |
+| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 53 `pwn_*` + `pwn` headless executables for CI/CD |
 | [Drivers (build your own)](Drivers.md) | Turn a REPL session into a shipped binary |
 
 ## 🤖 AI Subsystem  (`PWN::AI`)
@@ -39,7 +39,7 @@
 | [Agent Tool Registry](Agent-Tool-Registry.md) | 12 toolsets · **78** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
-| [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum`** - ORM/PRM · P9/P14 trajectory DPO · P15 scrub · P16 warm · P17 budget skill · P18 PRM→rank · P19 diet gate · export-ready LoRA |
+| [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum`** - outcome/process judges · preference ledger · self-play practice · export-ready LoRA gate |
 | [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · **osint** · serial · telecomm · packet · vision · voice · correlate |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |

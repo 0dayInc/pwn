@@ -94,9 +94,12 @@ module PWN
           FileUtils.mkdir_p(File.dirname(LEARNING_FILE))
           File.open(LEARNING_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
 
-          # M4 — outcomes live in learning.jsonl ONLY. PWN::Memory[:lesson] is
-          # reserved for reflect / mistakes_resolve / human — this alone
-          # removed 40 % of the noise in the injected MEMORY block.
+          # M4 — default: outcomes live in learning.jsonl ONLY.
+          # M4.1 — PROCESS SOPs (rubocop/rake/spec after code changes, etc.)
+          # are promoted into PWN::Memory[:lesson] so PromptBuilder recall
+          # survives across sessions. Without this, the agent re-learns
+          # "run rubocop after every patch" every turn (empty memory.json).
+          promote_process_lesson(entry: entry) if defined?(PWN::Memory)
           entry
         end
 
@@ -520,11 +523,27 @@ module PWN
           end
 
           # reflect on success — skip soft/hard (LLM + memory writes)
-          if ok && !over_soft.call
+          # M4.1 — also reflect when the request/final is a process SOP
+          # (code hygiene) even if judge score < 0.6, so rubocop/rake
+          # lessons still land in PWN::Memory.
+          process_sop = process_sop_text?(text: "#{opts[:request]} #{opts[:final]}")
+          if (ok || process_sop) && !over_soft.call
             stages_run << :reflect
             reflect(session_id: session_id)
-          elsif ok
+          elsif ok || process_sop
             stages_skipped << :reflect
+            # Cheap path under soft budget: still promote a canned process lesson
+            if process_sop && defined?(PWN::Memory)
+              promote_process_lesson(
+                entry: {
+                  task: opts[:request].to_s[0, 120],
+                  success: ok,
+                  score: v[:score],
+                  details: opts[:final].to_s[0, 500],
+                  tags: %w[auto process_sop]
+                }
+              )
+            end
           end
 
           # R3 sentinel — cheap disk math; always
@@ -590,7 +609,17 @@ module PWN
           cap = opts[:max_entries] || MAX_MEMORY_ENTRIES
           return { removed: 0 } unless defined?(PWN::Memory)
 
-          mem = PWN::Memory.load
+          mem = nil
+          load_err = nil
+          begin
+            mem = PWN::Memory.load
+          rescue StandardError => e
+            load_err = e
+          end
+          if load_err
+            warn "[pwn-ai/learning] consolidate aborted (memory load failed): #{load_err.class}: #{load_err.message}"
+            return { removed: 0, aborted: true, error: "#{load_err.class}: #{load_err.message}" }
+          end
           removed = []
 
           # M1 — semantic clustering: embed :lesson entries, greedy-merge
@@ -624,7 +653,7 @@ module PWN
             drop.each { |k| mem.delete(k) }
             removed.concat(drop)
           end
-          PWN::Memory.save(mem: mem)
+          PWN::Memory.save(mem: mem, force: mem.empty?)
           { removed: removed.uniq.length, remaining: mem.size }
         end
 
@@ -678,6 +707,61 @@ module PWN
 
           plan[:content].to_s[/p\(success\)\s*=\s*([01](?:\.\d+)?)/i, 1]&.to_f
         rescue StandardError
+          nil
+        end
+
+        # M4.1 — keyword gate for "process / hygiene" SOPs the operator keeps
+        # re-requesting (rubocop, rake, rspec, conventions). These must become
+        # durable Memory lessons, not just learning.jsonl rows.
+        PROCESS_SOP_RX = %r{\b(rubocop|rake\b|rspec|bundle\s+exec|conventions?|lint(?:ing)?|style/|code\s*hygiene|post[- ]?patch|after\s+(?:every\s+)?(?:patch|change|edit))\b}i
+
+        private_class_method def self.process_sop_text?(opts = {})
+          opts[:text].to_s.match?(PROCESS_SOP_RX)
+        rescue StandardError
+          false
+        end
+
+        # Promote a short, imperative process lesson into PWN::Memory when the
+        # outcome looks like a repeated hygiene SOP. Idempotent per key.
+        private_class_method def self.promote_process_lesson(opts = {})
+          entry = opts[:entry] || {}
+          blob  = "#{entry[:task]} #{entry[:details]} #{Array(entry[:tags]).join(' ')}"
+          return nil unless process_sop_text?(text: blob)
+
+          # Only promote successes or near-successes / operator-driven asks
+          score = entry[:score]
+          okish = entry[:success] == true || entry[:success] == 'soft' ||
+                  (score && score.to_f >= 0.5) ||
+                  process_sop_text?(text: entry[:task].to_s)
+          return nil unless okish
+
+          lesson =
+            if blob.match?(/rubocop/i) && blob.match?(/rake|rspec/i)
+              'After every code change under /opt/pwn: run `bundle exec rubocop -a` on touched files, then `bundle exec rake` (or targeted rspec). Fix offenses and failures before claiming done. Do not wait for the operator to re-ask.'
+            elsif blob.match?(/rubocop/i)
+              'After every Ruby edit: run `bundle exec rubocop -a` on the touched paths and clear all offenses before the final answer.'
+            elsif blob.match?(/rake|rspec/i)
+              'After every code change: run the relevant `bundle exec rspec` / `bundle exec rake` target and leave the suite green before the final answer.'
+            else
+              'After code changes: run project lint + tests (rubocop, rake/rspec) and fix violations before declaring the task complete.'
+            end
+
+          key = :process_sop_code_hygiene
+          # Reinforce importance if already present; never duplicate noisy keys
+          existing = PWN::Memory.load[key]
+          conf = [((existing && existing[:confidence]) || 0.6).to_f + 0.05, 0.99].min
+          PWN::Memory.remember(
+            key: key,
+            value: lesson,
+            category: :lesson,
+            source: :process_sop,
+            confidence: conf,
+            importance: 0.95,
+            ttl: nil
+          )
+          { key: key, lesson: lesson, confidence: conf }
+        rescue StandardError => e
+          warn "[pwn-ai/learning] promote_process_lesson swallowed: #{e.class}: #{e.message}"
           nil
         end
 
@@ -984,7 +1068,17 @@ module PWN
         public_class_method def self.purge_noise
           return { removed: 0 } unless defined?(PWN::Memory)
 
-          mem = PWN::Memory.load
+          mem = nil
+          load_err = nil
+          begin
+            mem = PWN::Memory.load
+          rescue StandardError => e
+            load_err = e
+          end
+          if load_err
+            warn "[pwn-ai/learning] purge_noise aborted (memory load failed): #{load_err.class}: #{load_err.message}"
+            return { removed: 0, aborted: true, error: "#{load_err.class}: #{load_err.message}" }
+          end
           before = mem.size
           mem.reject! do |_k, v|
             next false unless v[:category].to_s == 'lesson'
@@ -993,7 +1087,7 @@ module PWN
             val.start_with?('SUCCESS: ', 'FAILURE: ') ||
               val.match?(/\AAvoid repeating failure pattern from \w+: .{0,5}\{"success":true/)
           end
-          PWN::Memory.save(mem: mem)
+          PWN::Memory.save(mem: mem, force: mem.empty?)
           { removed: before - mem.size, remaining: mem.size }
         end
 

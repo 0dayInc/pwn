@@ -84,6 +84,11 @@ message bus:
 
 ![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
+Long-running turns also show **executive task briefs** (not raw commands) via
+`TaskSummarizer`: one full plan on submit (`emit_plan!`), then per-batch
+`about_to` lines keyed by `tool_counts_phrase` + `intent_phrase` with
+`last_brief_fp` duplicate suppression. When recent turns keep hitting the iteration ceiling, the Loop tightens the remaining runway (lower `max_iters` on local engines, text-only tail, no counterfactual fork) so the agent still finishes instead of thrashing.
+
 Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·
 [All data-flow diagrams](documentation/Diagrams.md)
 
@@ -101,11 +106,11 @@ The complete wiki lives in this repo at **[`documentation/Home.md`](documentatio
 | [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (21)](documentation/WWW.md) |
 | [General Usage](documentation/General-PWN-Usage.md) | | [Extrospection](documentation/Extrospection.md) | [SDR / Radio](documentation/SDR.md) |
 | [Configuration](documentation/Configuration.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [Hardware](documentation/Hardware.md) |
-| [Configuration](documentation/Configuration.md) | | [Sessions](documentation/Sessions.md) · [Cron](documentation/Cron.md) | [Reports](documentation/Reporting.md) |
-| [`~/.pwn/` Persistence](documentation/Persistence.md) | | | [BurpSuite](documentation/BurpSuite.md) · [NmapIt](documentation/NmapIt.md) |
-| **[All Diagrams](documentation/Diagrams.md)** | | | [Metasploit](documentation/Metasploit.md) · [Fuzzing](documentation/Fuzzing.md) |
-| [Troubleshooting](documentation/Troubleshooting.md) | | | [Hardware](documentation/Hardware.md) · [Blockchain](documentation/Blockchain.md) |
-| [Contributing](documentation/Contributing.md) | | | [Bounty](documentation/Bounty.md) · [FFI](documentation/FFI.md) · [Banner](documentation/Banner.md) |
+| [`~/.pwn/` Persistence](documentation/Persistence.md) | | [Sessions](documentation/Sessions.md) · [Cron](documentation/Cron.md) | [Reports](documentation/Reporting.md) |
+| **[All Diagrams](documentation/Diagrams.md)** (29) | | | [BurpSuite](documentation/BurpSuite.md) · [NmapIt](documentation/NmapIt.md) |
+| [Troubleshooting](documentation/Troubleshooting.md) | | | [Metasploit](documentation/Metasploit.md) · [Fuzzing](documentation/Fuzzing.md) |
+| [Contributing](documentation/Contributing.md) | | | [Blockchain](documentation/Blockchain.md) · [Bounty](documentation/Bounty.md) |
+| | | | [FFI](documentation/FFI.md) · [Banner](documentation/Banner.md) |
 
 Rebuild every SVG from its Graphviz source:
 `cd documentation/diagrams && ./build.sh`
@@ -202,7 +207,7 @@ and the local [Contributing](documentation/Contributing.md) page.
 ### **Module Documentation** ###
 
 **Primary:** [`documentation/Home.md`](documentation/Home.md) - the full local
-wiki with 30+ pages and 26 SVG data-flow diagrams.
+wiki with 30+ pages and 29 SVG data-flow diagrams.
 
 **API reference:** [rubydoc.info/gems/pwn](https://www.rubydoc.info/gems/pwn),
 or in-REPL: `PWN::Plugins::BurpSuite.help`, `show-source`, `ls`.

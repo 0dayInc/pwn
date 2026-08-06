@@ -20,15 +20,15 @@ with a **tool-calling AI agent** on top that can run the same methods.
 | `PWN::FFI::*` | **8** | Native DSP/RF backends: Volk · Liquid · FFTW · RTLSdr · HackRF · AdalmPluto · SoapySDR · Stdio |
 | `PWN::AI::*` | **5** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama |
 | `bin/pwn_*` | **53** | Headless CLI drivers for CI/CD |
-| Agent toolsets | **12** · **78 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm |
+| Agent toolsets | **12** · **78 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm · reward · curriculum |
 
 ## Three ways to use it
 
 1. **`pwn` REPL** - a Pry shell with the whole `PWN::` namespace loaded.
    Prototype an attack chain one method call at a time.
 2. **`pwn-ai`** - a natural-language TUI (or `pwn --ai "..."` one-shot) where an
-   LLM plans and runs those same method calls, records what worked, and
-   improves over time.
+   LLM plans and runs those same method calls, shows **TaskSummarizer** executive
+   briefs on long turns, records what worked, and improves over time.
 3. **`bin/pwn_*` drivers** - thin CLIs over the plugins, for cron and CI/CD.
 
 ## What makes it different

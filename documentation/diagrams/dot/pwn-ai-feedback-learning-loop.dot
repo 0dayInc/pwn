@@ -18,27 +18,28 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
 
   /* L1 ─ agent core */
   subgraph cluster_core {
-    label="PWN::AI::Agent::Loop"; fontcolor="#ddd6fe";
+    label="PWN::AI::Agent::Loop  ·  budget pressure · TaskSummarizer"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Prompt   [label="PromptBuilder\nbudget · MemoryIndex\nrelevance-ranked ctx", fillcolor="#c4b5fd"];
     Dispatch [label="Dispatch\ntolerant parse\nrepair_name", fillcolor="#c4b5fd"];
 Router   [label="Registry\ntool_router\nCORE + top-K",   fillcolor="#c4b5fd"];
 Plan     [label="plan_first\n(pre-pass, local)",         fillcolor="#c4b5fd"];
-Escalate [label="escalate\n≥N fails → Swarm hint",        fillcolor="#c4b5fd", penwidth=2];
+TaskSum  [label="TaskSummarizer\nemit_plan! · about_to\ndedup last_brief_fp", fillcolor="#c4b5fd", penwidth=2];
+Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd", penwidth=2];
     Result   [label="Result\nfinal answer",           fillcolor="#c4b5fd"];
   }
-  {rank=same; Prompt; Router; Plan; Dispatch; Escalate; Result}
+  {rank=same; Prompt; Router; Plan; TaskSum; Dispatch; Escalate; Result}
 
   /* L2 ─ triple engines */
   subgraph cluster_intro {
     label="INTROSPECTION  (self)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
     Metrics  [label="Metrics\nper-tool · PER-ENGINE\nsuccess · avg ms", fillcolor="#6ee7b7"];
-    Learning [label="Learning\nnote_outcome · reflect\nexemplars_for · SFT P12 gate\nfact_check_local_final", fillcolor="#6ee7b7"];
+    Learning [label="Learning\nnote_outcome · reflect\nexemplars_for · SFT quality gate\nfact_check_local_final", fillcolor="#6ee7b7"];
     Mistakes [label="Mistakes\nrecord · resolve\nguard · correction_hint\n[REPEATING] · [REGRESSED]", fillcolor="#6ee7b7", penwidth=2];
     ReflectT [label="Reflect\nteacher-student\n(reflect_engine)", fillcolor="#6ee7b7", penwidth=2];
-    Reward   [label="Reward\njudge · prm · semantic_ok\nsentinel warm (P10/P16)\nDPO P9/P14/P15 scrub ≤40%", fillcolor="#6ee7b7", penwidth=2];
-    Curric   [label="Curriculum\npractice P14/P17 · offline_judge\ncritic/CF geometry · gate v2+P19 diet", fillcolor="#6ee7b7", penwidth=2];
+    Reward   [label="Reward\njudge · prm · semantic_ok\nsentinel warm\nDPO scrub <=40%/src", fillcolor="#6ee7b7", penwidth=2];
+    Curric   [label="Curriculum\npractice · offline_judge\ncritic/CF geometry · gate + diet", fillcolor="#6ee7b7", penwidth=2];
   }
   subgraph cluster_extro {
     label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
@@ -78,8 +79,9 @@ Escalate [label="escalate\n≥N fails → Swarm hint",        fillcolor="#c4b5fd
   /* L1 internal */
   Prompt -> Router   [color="#a78bfa"];
   Router -> Plan     [color="#a78bfa"];
-  Plan   -> Dispatch [color="#a78bfa"];
-  Dispatch -> Escalate [label="turn_fails ≥ N", color="#fb7185", style=dashed];
+  Plan   -> TaskSum  [color="#a78bfa"];
+  TaskSum -> Dispatch [color="#a78bfa"];
+  Dispatch -> Escalate [label="turn_fails >= N", color="#fb7185", style=dashed];
   Dispatch -> Result [color="#a78bfa"];
   Escalate -> Result [style=invis];
 

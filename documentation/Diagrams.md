@@ -1,6 +1,6 @@
 # PWN Data-Flow Diagrams
 
-28 SVG diagrams, all rendered from Graphviz sources in
+29 SVG diagrams, all rendered from Graphviz sources in
 [`diagrams/dot/`](diagrams/dot/) with a single shared visual theme
 (see [`_THEME.md`](diagrams/dot/_THEME.md)). Rebuild everything with:
 
@@ -51,6 +51,11 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/pwn-ai-feedback-learning-loop.dot) · doc: [Skills, Memory & Learning](Skills-Memory-Learning.md)
 ![pwn-ai-feedback-learning-loop](diagrams/pwn-ai-feedback-learning-loop.svg)
 
+
+### TaskSummarizer - Executive Task Briefs
+[source](diagrams/dot/task-summarizer.dot) · doc: [pwn-ai Agent](pwn-ai-Agent.md)
+![task-summarizer](diagrams/task-summarizer.svg)
+
 ### Mistakes - Negative-Feedback Loop
 [source](diagrams/dot/mistakes-negative-feedback.dot) · doc: [Mistakes](Mistakes.md)
 ![mistakes-negative-feedback](diagrams/mistakes-negative-feedback.svg)
@@ -63,7 +68,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/ai-integration-tool-calling.dot) · doc: [AI Integration](AI-Integration.md)
 ![ai-integration-tool-calling](diagrams/ai-integration-tool-calling.svg)
 
-### Agent Tool Registry (10 toolsets · 71 tools)
+### Agent Tool Registry (12 toolsets · 78 tools)
 [source](diagrams/dot/agent-tool-registry.dot) · doc: [Agent Tool Registry](Agent-Tool-Registry.md)
 ![agent-tool-registry](diagrams/agent-tool-registry.svg)
 

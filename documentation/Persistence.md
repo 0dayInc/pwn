@@ -16,7 +16,7 @@ Every byte PWN remembers between processes lives here.
 | **`preferences.jsonl`** | **`PWN::AI::Agent::Reward`** | JSON-per-line `{prompt,rejected,chosen,source}` | `rm` | **DPO/KTO/ORPO preference-pair ledger - user_correction · mistakes_resolve · counterfactual · critic · curriculum** |
 | **`mistakes.json`** | **`PWN::AI::Agent::Mistakes`** | **JSON `{sig → entry}`** | **`mistakes_reset`** | **failure fingerprints · cross-session count · fix · `[REPEATING]` · `[REGRESSED]`** |
 | `metrics.json` | `PWN::AI::Agent::Metrics` | JSON | `metrics_reset` | per-tool calls · success · avg_duration · last_error · **per-engine** sub-buckets · calibration |
-| `reward_sentinel.json` | `PWN::AI::Agent::Reward` | JSON | `rm` | R3 - proxy vs judge vs user-correction gap history |
+| `reward_sentinel.json` | `PWN::AI::Agent::Reward` | JSON | `rm` | proxy vs judge vs user-correction gap history |
 | `extrospection.json` | `PWN::AI::Agent::Extrospection` | JSON | `extro_reset` | host/net/toolchain/repo/env/**rf**/**web**/osint/serial/telecomm/packet/vision/voice snapshot + previous baseline + observations[] |
 | `extrospection/web/*.png` | `Extrospection` | PNG | `rm -rf` | headless-browser screenshots from `probe_web` / `extro_watch` (opt-in) |
 | `extrospection/packet/*.pcap` | `Extrospection` | pcap | `rm -rf` | bounded captures from `extro_packet(action: :capture)` |
@@ -27,11 +27,21 @@ Every byte PWN remembers between processes lives here.
 | `agents.yml` | `PWN::AI::Agent::Swarm` | YAML | edit / `agent_spawn` | persona registry |
 | `swarm/<id>/bus.jsonl` | `Swarm` | JSON-per-line | rm -rf | append-only multi-agent chat |
 | `swarm/<id>/personas.json` | `Swarm` | JSON | rm | persona → session_id map |
-| `curriculum/` | `PWN::AI::Agent::Curriculum` | JSONL | rm -rf | S1 self-play reproducers · W2 A/B eval sets |
+| `curriculum/` | `PWN::AI::Agent::Curriculum` | JSONL | rm -rf | self-play reproducers · train/gate A/B eval sets |
 | `finetune/*.jsonl` | `Learning.export_finetune` · `Reward.export_dpo` | ShareGPT / OpenAI / DPO JSONL | `rm` | supervised + preference datasets - feed to a LoRA over the local model |
 | `backup/<ts>/` | `PWN::Migrate` | tree copy | rm -rf | timestamped snapshot taken before every `--migrate --fix` |
 | `quarantine/` | `PWN::Migrate` | quarantined originals | rm -rf | corrupt/incompatible state files moved aside so the owner re-seeds |
 | `~/.pwn_history` | Pry | text | rm | REPL input history |
+
+
+## `memory.json` safety
+
+`PWN::Memory.save` **refuses** to overwrite a non-empty `memory.json` with `{}`
+unless you pass `force: true`. That blocks the failure mode where a parse error
+was rescued into an empty hash and then written back (full wipe). `memory_clear`
+and deleting the last key use `force: true` on purpose. Load no longer falls
+back to `{}` on parse failure for a non-empty file; it warns and keeps the bytes
+on disk for repair.
 
 ## Verify / repair the whole tree
 

@@ -1119,10 +1119,29 @@ module PWN
             if pi.config.pwn_ai_agent && native
               begin
                 sess_id = pi.config.pwn_ai_session_id
+                # on_tool UI contract: Loop.run emits ONE name='task' brief
+                # BEFORE each tool *collection* (TaskSummarizer.about_to with
+                # tools: [...]). arg_preview is plain-English what/why for
+                # executives. Task lines never show a result row — results
+                # belong only to the subsequent per-tool lines (one-to-many).
                 on_tool = lambda do |name, args, result|
-                  arg_preview = args.is_a?(String) ? args[0, 80] : args.inspect[0, 80]
-                  puts "\001\e[33m\002[ pwn-ai → #{name} ]\001\e[0m\002 #{arg_preview}"
-                  puts "\001\e[36m\002#{result[0, 700]}\001\e[0m\002\n"
+                  # Task summaries are shown in their entirety (multi-line OK).
+                  # Per-tool arg previews stay capped so the TUI stays readable.
+                  if name.to_s == 'task'
+                    body = args.is_a?(String) ? args.to_s : args.inspect
+                    timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+                    print "\001\e[33m\002[ #{timestamp} → pwn-ai → task ]\001\e[0m\002\s"
+                    body.to_s.each_line { |ln| puts "\001\e[32m\002  #{ln.rstrip}\001\e[0m\002" }
+                    # Never pair a result row with a task brief
+                    next
+                  end
+
+                  arg_preview = args.is_a?(String) ? args[0, 280] : args.inspect[0, 280]
+                  timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+                  puts "\001\e[33m\002[ #{timestamp} → pwn-ai → #{name} ]\001\e[0m\002 #{arg_preview}"
+
+                  timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+                  puts "\001\e[36m\002#{timestamp} → result → #{result.to_s[0, 700]}\001\e[0m\002\n"
                 end
                 final = PWN::AI::Agent::Loop.run(
                   request: orig_request,
