@@ -58,11 +58,20 @@ pwn.ai:grok/grok-4.5/0:500K[CURRENT_VERSION]:002 >>> Briefly describe your take 
 
 **My take, in plain English:**
 
-pwn-ai’s reinforcement loop is mostly **learning in context**, not only weight training.
+pwn-ai’s reinforced learning loop is less a classic offline RL trainer and more a living, multi-store control system wrapped around an agent turn. My take is that it is one of the more complete in-context self-improvement stacks I’ve seen in an agent harness, and also that its real power and its main failure modes come from the same place: it learns loudly in the prompt long before it learns quietly in weights.
 
-On every turn the agent acts with tools. Each result is scored in a few ways: quick “did this tool call really fail?” checks, longer-term tool success stats, and—when a final answer lands—a judge that scores whether the *goal* was actually met, plus per-step credit for which tool calls helped or hurt. Failures become fingerprints (mistakes) with fixes; wins become outcomes, exemplars, memory lessons, and sometimes skills. All of that is written back into the next prompt as “what worked,” “what not to repeat,” and “which tools pay off,” so behavior improves on the following run without waiting for a model train.
+## Bottom line
 
-Around that core sit self-checks: a sentinel that distrusts inflated success rates when the judge disagrees, night jobs that practice the worst repeating mistakes, and optional export of preference pairs for a gated LoRA update when a trainer and GPU exist. So the loop is: **act → measure honestly → remember (and fix) → bias the next act**—with real weight updates as an optional outer ring, not the main daily path.
+My take: pwn-ai implements a **closed-loop, dual-horizon, self-and-world-aware reinforcement system** around an LLM agent. The clever part is not that it has a reward model. The clever part is that it treats agent work as an ongoing control problem with:
+
+- fast aversive conditioning (Mistakes),
+- value estimates for actions (Metrics),
+- episode scoring and replay (Learning/Reward),
+- deliberate practice (Curriculum),
+- and an external reality check (Extrospection),
+- with a slower supervised/DPO hatch only when the diet and gates look sane.
+
+It feels less like “fine-tune the model forever” and more like giving the agent a nervous system: pain, habit, memory, practice, and a rudimentary sense of whether the world changed. That is why it can improve overnight on a host with no trainer. It is also why health has to be measured by judge gap, repeating-mistake trend, trajectory fraction, and resolved scars rather than by tool success_rate alone.
 ```
 
 Offensive work is hard because the *tools* do not fit together. PWN's fix is
