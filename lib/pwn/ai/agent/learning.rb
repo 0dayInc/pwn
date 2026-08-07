@@ -485,14 +485,43 @@ module PWN
             Thread.current[:pwn_pending_pref] = nil
           end
 
+          # Soft plan-quality feature (W3) — tag only; not full DPO.
+          plan_cov = nil
+          if defined?(Reward) && Reward.respond_to?(:plan_coverage)
+            begin
+              plan_for_cov = opts[:plan]
+              plan_for_cov = opts[:ts_state][:plan] if plan_for_cov.nil? && opts[:ts_state].is_a?(Hash)
+              if plan_for_cov.nil? && defined?(TaskSummarizer)
+                # Recover numbered tasks from the final/request only when caller
+                # did not pass a plan — still keeps TaskSummarizer out of the
+                # credit path (parse is pure text).
+                plan_for_cov = nil
+              end
+              if !plan_for_cov.nil? || opts[:final].to_s.length.positive?
+                plan_cov = Reward.plan_coverage(
+                  plan: plan_for_cov || [],
+                  final: opts[:final],
+                  request: opts[:request],
+                  session_id: session_id
+                )
+                stages_run << :plan_coverage if plan_cov && plan_cov[:total].to_i.positive?
+              end
+            rescue StandardError => e
+              warn "[pwn-ai/learning] plan_coverage swallowed: #{e.class}: #{e.message}"
+            end
+          end
+
           stages_run << :note_outcome
+          outcome_tags = ['auto', 'loop', v[:verdict].to_s]
+          outcome_tags << plan_cov[:tag] if plan_cov && plan_cov[:tag]
+          outcome_tags << "plan_cover=#{plan_cov[:score]}" if plan_cov && plan_cov[:total].to_i.positive?
           note_outcome(
             task: opts[:request].to_s[0, 120],
             success: ok,
             score: v[:score],
             details: "#{v[:verdict]}(#{v[:score].round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
             session_id: session_id,
-            tags: ['auto', 'loop', v[:verdict].to_s]
+            tags: outcome_tags
           )
 
           stages_run << :fold_judge

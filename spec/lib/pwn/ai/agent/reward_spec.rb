@@ -207,4 +207,30 @@ describe PWN::AI::Agent::Reward do
     expect(info[:geometry_dropped]).to be >= 1
     expect(info[:scrubbed]).to be true
   end
+
+  it 'plan_coverage scores soft task coverage for W3 / Learning tags' do
+    plan = [
+      'locate the TaskSummarizer source',
+      'fix the truncation bug',
+      'run rspec to verify'
+    ]
+    good = described_class.plan_coverage(
+      plan: plan,
+      final: 'Located TaskSummarizer, fixed the truncation bug, rspec is green.',
+      request: 'fix truncation',
+      trace: ['shell → rg TaskSummarizer', 'shell → bundle exec rspec']
+    )
+    expect(good[:total]).to eq 3
+    expect(good[:score]).to be >= 0.4
+    expect(good[:tag]).to match(/plan_cover_/)
+
+    bad = described_class.plan_coverage(
+      plan: plan,
+      final: 'hello world',
+      request: 'x',
+      trace: []
+    )
+    expect(bad[:score]).to be < good[:score]
+    expect(bad[:missing]).not_to be_empty
+  end
 end

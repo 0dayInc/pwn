@@ -117,16 +117,18 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 
 | Surface | When | Content |
 |---|---|---|
-| `emit_plan!` | User submit | **Full** goal + ordered tangible tasks (each task may need many tools) |
-| `about_to` | Before each tool batch | `Next: shell×2 (search) [task 2/5: ...]` - capabilities + counts + intent, not raw argv |
-| `record!` | After each tool | Silent by default; advances `plan_idx`; verbose progress only if `task_summary_verbose` |
-| `flush!` | End of turn | Optional closing brief |
+| `emit_plan!` | User submit | **Full** goal + ordered plain-English tangible tasks (each may need many tools) |
+| `about_to` | Before each tool batch | **Primary:** `task k/n: <english>`  -  **secondary:** `via shell×2 (search)` (not raw argv) |
+| `plan_context` / `active_task_prompt` | Into Loop messages | Same English tasks steer tool choice (not TUI-only) |
+| `record!` | After each tool | Advances `plan_idx`; emits English advancement brief when the index moves; verbose progress only if `task_summary_verbose` |
+| `flush!` | End of turn | Optional closing brief with active `task k/n` |
 
 **Dedup rules (operational):**
 
 - Fingerprint = whitespace-normalized brief; `last_brief_fp` match → return `nil` (no emit).
 - Intent verbs distinguish batches that share tools (`shell` search ≠ `shell` edit).
-- Goal string only on the plan line when a plan exists (`why_bit(with_goal: !has_plan)`).
+- Goal string only on the plan line when a plan exists (`why_bit(with_goal:)` when no plan bit).
+- Advancement needs a PRM +1 streak or a clear phase shift after tools on the active task (not a blind every-3-tools hop).
 - REPL contract: `on_tool.call('task', full_summary_text, '')` - result empty, no truncation.
 
 **Budget pressure:** when unresolved `agent_loop` / `assistant_answer` budget-exhaustion fingerprints dominate, `Loop.budget_exhaustion_hot?` tightens the live turn (stricter `max_iters` on local engines than remote), forces a text-only tail, skips counterfactual forks, and still flushes task state + Learning on the exhaust path.
