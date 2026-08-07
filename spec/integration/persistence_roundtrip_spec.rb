@@ -25,7 +25,7 @@ RSpec.describe 'PWN persistence stores — write → reload → delete round-tri
       hist = PWN::Sessions.to_response_history(session_id: s[:id])
       expect(hist).to be_a(Hash).or be_an(Array)
       expect(PWN::Sessions.stats[:total_sessions]).to be >= 1
-      expect(PWN::Sessions.delete(session_id: s[:id])).to be_truthy
+      expect(PWN::Sessions.delete(session_id: s[:id], force: true)).to be_truthy
       expect(PWN::Sessions.load(session_id: s[:id])).to eq([])
     end
   end
@@ -38,7 +38,7 @@ RSpec.describe 'PWN persistence stores — write → reload → delete round-tri
       expect(PWN::Memory.forget(key: 'rt_key')).to be_truthy
       expect(PWN::Memory.recall(query: 'needle')).to be_empty
       PWN::Memory.remember(key: 'x', value: 'y')
-      PWN::Memory.clear
+      PWN::Memory.clear(force: true)
       expect(PWN::Memory.load).to eq({})
     end
   end

@@ -11,12 +11,14 @@ module PWN
       # PWN::AI::Agent::Learning is the self-improvement engine that closes
       # the pwn-ai feedback loop. It captures task outcomes, mines session
       # transcripts for durable lessons, promotes successful workflows into
-      # reusable skills, and prunes / consolidates persistent memory so the
-      # agent gets sharper over time instead of accumulating noise.
+      # reusable skills, and keeps ~/.pwn lean (memory + learning.jsonl +
+      # mistakes + sessions) so the agent gets sharper over time instead of
+      # accumulating noise.
       #
       # Data flows:
       #   Loop.run --(tool telemetry)--> Metrics.record
       #   Loop.run --(final answer)----> Learning.auto_introspect (opt-in)
+      #     auto_introspect --(throttled)--> Learning.gc_stores!  # ~/.pwn lean
       #   model    --(tool calls)------> learning_note_outcome / _distill_skill
       #   PromptBuilder <----------------- Learning.to_context + Metrics.to_context
       #
@@ -34,6 +36,22 @@ module PWN
         INTROSPECT_MIN_STAGES = %i[judge note_outcome fold_judge sentinel].freeze
 
         MAX_MEMORY_ENTRIES = 200
+        # Lean outcome retention — keep gold RL signal, drop bulk auto noise.
+        MAX_OUTCOME_ROWS = 800
+        OUTCOME_RETAIN_DAYS = 45
+        OUTCOME_RECENT_DAYS = 14
+        OUTCOME_DETAILS_MAX = 800
+        GOLD_MIN_SCORE = 0.6
+        EXEMPLARS_POOL_MIN = 200
+        FAILURE_WINDOW_MIN = 200
+        HIGH_VALUE_TAGS = %w[
+          needs_human extro_verify sdr gqrx rl pwn-ai curriculum hindsight her
+        ].freeze
+        LOW_VALUE_ONLY_TAGS = %w[
+          auto loop partial wrong solved offline_judge plan_cover_high
+        ].freeze
+        PRUNE_EVERY_N_APPENDS = 25
+
         # E3/P26 — only CVE-ids or software-name + full semver (x.y.z).
         # Two-part floats ("cap 0.2", "proxy 1.0", "judge 37.0") are RL
         # metric crumbs that were scraped by verify_as_reward and flooded
@@ -85,7 +103,7 @@ module PWN
             id: Digest::SHA256.hexdigest("#{task}-#{Time.now.to_f}")[0, 12],
             task: task,
             success: success,
-            details: opts[:details].to_s[0, 2_000],
+            details: opts[:details].to_s[0, OUTCOME_DETAILS_MAX],
             session_id: opts[:session_id],
             tags: Array(opts[:tags]).map(&:to_s),
             timestamp: Time.now.utc.iso8601
@@ -93,6 +111,7 @@ module PWN
           entry[:score] = opts[:score].to_f if opts.key?(:score)
           FileUtils.mkdir_p(File.dirname(LEARNING_FILE))
           File.open(LEARNING_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
+          maybe_prune_outcomes!
 
           # M4 — default: outcomes live in learning.jsonl ONLY.
           # M4.1 — PROCESS SOPs (rubocop/rake/spec after code changes, etc.)
@@ -160,13 +179,33 @@ module PWN
 
         public_class_method def self.to_context(opts = {})
           limit = opts[:limit] || 5
-          rows  = outcomes(limit: limit)
-          fails = outcomes(limit: 200, success: false).first(limit)
+          # Fetch a wider window so prefer_primary_tasks can drop critic/red_team
+          # envelope rows (REQUEST:/GOAL: prefixes) without starving the block.
+          rows  = prefer_primary_tasks(rows: outcomes(limit: limit * 4)).first(limit)
+          fails = prefer_primary_tasks(rows: outcomes(limit: 200, success: false))
+          # Do not mirror the same ids under both headings — that doubled the
+          # failure signal and made RECENT OUTCOMES == RECENT FAILURES when the
+          # last N attempts all failed (the injected block looked "stuck").
+          row_ids = rows.map { |r| r[:id] }.compact
+          fails = fails.reject { |r| row_ids.include?(r[:id]) }.first(limit)
           return '' if rows.empty? && fails.empty?
 
           fmt = lambda do |r|
-            flag = r[:success] ? '✓' : '✗'
-            "  #{flag} #{r[:task].to_s[0, 100]} (#{r[:timestamp]})"
+            flag = case r[:success]
+                   when true then '✓'
+                   when 'soft', :soft then '∼'
+                   else '✗'
+                   end
+            score = r.key?(:score) ? format('%.2f', r[:score].to_f) : '-'
+            task  = display_task(task: r[:task])
+            line  = "  #{flag} [#{score}] #{task} (#{r[:timestamp]})"
+            # Surface a one-line cause crumb so the agent can actually learn
+            # from failures instead of only seeing that they failed.
+            if r[:success] != true
+              crumb = cause_crumb(details: r[:details])
+              line += "\n      cause: #{crumb}" unless crumb.empty?
+            end
+            line
           end
           s   = stats
           jm  = s[:judge_mean]
@@ -468,7 +507,12 @@ module PWN
           v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok) if defined?(Reward)
           v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
           v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw
-          ok = v[:score] >= 0.6
+          # P29 — critic floor used to leave stale verdict=:solved at score=0.3,
+          # producing learning.jsonl rows tagged "solved" with success=false
+          # (116+ rows). Always resync verdict/success from the final score.
+          v[:verdict] = verdict_for_score(score: v[:score])
+          v[:success] = v[:score].to_f >= 0.6
+          ok = v[:success]
 
           # W1 pending user_correction pair
           pend = Thread.current[:pwn_pending_pref]
@@ -515,11 +559,14 @@ module PWN
           outcome_tags = ['auto', 'loop', v[:verdict].to_s]
           outcome_tags << plan_cov[:tag] if plan_cov && plan_cov[:tag]
           outcome_tags << "plan_cover=#{plan_cov[:score]}" if plan_cov && plan_cov[:total].to_i.positive?
+          # P29 — persist the bare user ask (strip REQUEST:/GOAL: envelopes at write time)
+          task_txt = display_task(task: opts[:request].to_s)
+          task_txt = opts[:request].to_s[0, 100] if task_txt.empty?
           note_outcome(
-            task: opts[:request].to_s[0, 120],
+            task: task_txt,
             success: ok,
             score: v[:score],
-            details: "#{v[:verdict]}(#{v[:score].round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
+            details: "#{v[:verdict]}(#{v[:score].to_f.round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
             session_id: session_id,
             tags: outcome_tags
           )
@@ -587,6 +634,20 @@ module PWN
             Extrospection.auto_extrospect(session_id: session_id)
           else
             stages_skipped << :extrospect
+          end
+
+          # Keep ~/.pwn RL stores lean on the feedback path (memory +
+          # learning.jsonl + mistakes + sessions). Throttled; never raises.
+          # Disk-only work: skip only hard budget / budget_hot.
+          begin
+            if !over_hard.call && !budget_hot && should_gc_stores?
+              stages_run << :lean_gc
+              gc_stores!(current_session_id: session_id)
+            elsif should_gc_stores?
+              stages_skipped << :lean_gc
+            end
+          rescue StandardError => e
+            warn "[pwn-ai/learning] post-introspect lean swallowed: #{e.class}: #{e.message}"
           end
 
           {
@@ -668,21 +729,44 @@ module PWN
           # confidence :heuristic auto-gen self-evicts first.
           if mem.size > cap
             now = Time.now.utc
-            sorted = mem.sort_by do |_k, v|
+            scored = mem.map do |k, v|
+              if defined?(PWN::Memory) && PWN::Memory.respond_to?(:protected_entry?) &&
+                 PWN::Memory.protected_entry?(key: k, entry: v)
+                next [k, Float::INFINITY]
+              end
+
               age_d = (now - Time.parse(v[:timestamp].to_s)) / 86_400.0
               ttl_d = (v[:ttl].to_f / 86_400.0)
               imp   = (v[:importance] || 0.5).to_f.clamp(0.05, 1.0)
               conf  = (v[:confidence] || (v[:source].to_s == 'human' ? 0.95 : 0.5)).to_f.clamp(0.05, 1.0)
               staleness = ttl_d.positive? ? age_d / ttl_d : age_d / 90.0
-              -(staleness / (imp * conf))
+              # lower score = drop first; Infinity protected sorts last
+              [k, -(staleness / (imp * conf))]
             rescue StandardError
-              0.0
+              [k, 0.0]
             end
-            drop = sorted.first(mem.size - cap).map(&:first)
+            # sort ascending by score so lowest (most stale/low-imp) first
+            ordered = scored.sort_by { |_k, s| s }
+            drop = []
+            ordered.each do |pair|
+              k = pair[0]
+              break if mem.size - drop.size <= cap
+              next if defined?(PWN::Memory) && PWN::Memory.respond_to?(:protected_entry?) &&
+                      PWN::Memory.protected_entry?(key: k, entry: mem[k])
+
+              drop << k
+            end
             drop.each { |k| mem.delete(k) }
             removed.concat(drop)
           end
           PWN::Memory.save(mem: mem, force: mem.empty?)
+          if PWN::Memory.respond_to?(:lean!)
+            begin
+              PWN::Memory.lean!
+            rescue StandardError => e
+              warn "[pwn-ai/learning] post-consolidate memory.lean! swallowed: #{e.class}: #{e.message}"
+            end
+          end
           { removed: removed.uniq.length, remaining: mem.size }
         end
 
@@ -792,6 +876,103 @@ module PWN
         rescue StandardError => e
           warn "[pwn-ai/learning] promote_process_lesson swallowed: #{e.class}: #{e.message}"
           nil
+        end
+
+        # P29 — map score → verdict with the same thresholds as Reward.judge.
+        private_class_method def self.verdict_for_score(opts = {})
+          s = opts[:score].to_f
+          return :solved if s >= 0.6
+          return :partial if s >= 0.3
+
+          :wrong
+        end
+
+        # Strip critic/red_team envelope prefixes so the injected block shows
+        # the human ask, not "REQUEST:\n…\nANSWER:" / "GOAL:\n…\nPLAN:".
+        private_class_method def self.display_task(opts = {})
+          t = opts[:task].to_s.gsub(/\s+/, ' ').strip
+          if t.match?(/\AREQUEST:\s*/i)
+            body = t.sub(/\AREQUEST:\s*/i, '')
+            body = body.split(/\bANSWER:\s*/i, 2).first.to_s
+            t = body.strip
+          elsif t.match?(/\AGOAL:\s*/i)
+            body = t.sub(/\AGOAL:\s*/i, '')
+            body = body.split(/\bPLAN:\s*/i, 2).first.to_s
+            t = body.strip
+          end
+          t[0, 100]
+        end
+
+        # Prefer bare user goals over REQUEST:/GOAL: swarm envelopes when both
+        # describe the same underlying attempt (offline_judge + critic sessions).
+        private_class_method def self.prefer_primary_tasks(opts = {})
+          rows = Array(opts[:rows])
+          return rows if rows.empty?
+
+          scored = rows.map do |r|
+            t = r[:task].to_s
+            envelope = t.match?(/\A\s*(REQUEST:|GOAL:)/i) ? 1 : 0
+            # Higher is better: bare task first, then newer (rows already newest-first)
+            [r, -envelope]
+          end
+          # stable: keep relative order within same envelope rank
+          scored.sort_by.with_index { |(_, rank), i| [rank, i] }.map(&:first)
+        end
+
+        private_class_method def self.cause_crumb(opts = {})
+          d = opts[:details].to_s.gsub(/\s+/, ' ').strip
+          return '' if d.empty?
+
+          # Prefer explicit FLAW / CORRECTED crumbs; else verdict(score) head.
+          if (m = d.match(/\bFLAW:\s*(.+)\z/i)) || (m = d.match(/\bFLAW:\s*([^|]+)/i))
+            return m[1].to_s.strip[0, 120]
+          end
+          if (m = d.match(/\bCORRECTED:\s*(.+)\z/i))
+            return "corrected: #{m[1].to_s.strip[0, 100]}"
+          end
+
+          d[0, 120]
+        end
+
+        # One-shot / on-load repair: rewrite tags+details where verdict label
+        # disagrees with score (solved @ 0.3 etc.). Safe to call repeatedly.
+        public_class_method def self.reconcile_verdict_tags!(opts = {})
+          return { repaired: 0 } unless File.exist?(LEARNING_FILE)
+
+          dry = opts[:dry_run] ? true : false
+          repaired = 0
+          lines = File.readlines(LEARNING_FILE)
+          out = lines.map do |l|
+            r = JSON.parse(l, symbolize_names: true)
+            score = r.key?(:score) ? r[:score].to_f : nil
+            next l if score.nil?
+
+            want = verdict_for_score(score: score).to_s
+            tags = Array(r[:tags]).map(&:to_s)
+            stale = tags & %w[solved partial wrong unknown]
+            next l if stale.empty? || stale.include?(want)
+
+            repaired += 1
+            next l if dry
+
+            cleaned = tags - %w[solved partial wrong unknown]
+            cleaned << want
+            r[:tags] = cleaned
+            # Fix leading "solved(0.3)" style details head when present
+            det = r[:details].to_s
+            r[:details] = det.sub(
+              /\A(solved|partial|wrong|unknown)\(\d+(?:\.\d+)?\)/i,
+              "#{want}(#{format('%.2f', score)})"
+            )
+            r[:success] = (score >= 0.6) if [true, false].include?(r[:success])
+            "#{JSON.generate(r)}\n"
+          rescue StandardError
+            l
+          end
+          File.write(LEARNING_FILE, out.join) if !dry && repaired.positive?
+          { repaired: repaired, dry_run: dry }
+        rescue StandardError => e
+          { repaired: 0, error: "#{e.class}: #{e.message}" }
         end
 
         private_class_method def self.auto_introspect_enabled?
@@ -1087,6 +1268,249 @@ module PWN
         end
 
         # Supported Method Parameters::
+        # result = PWN::AI::Agent::Learning.prune_outcomes!(
+        #   dry_run: 'optional - Boolean (default false)',
+        #   max_rows: 'optional - hard cap (default MAX_OUTCOME_ROWS)',
+        #   retain_days: 'optional - age floor for low-value drop',
+        #   recent_days: 'optional - always keep newer than this'
+        # )
+        #
+        # Keep gold RL rows (success+score>=0.6+session_id), recent window,
+        # high-value tags, and near-miss failures. Dedupe by task+success
+        # keeping best score. Truncate details. Never sacrifices exemplar pool.
+
+        public_class_method def self.prune_outcomes!(opts = {})
+          dry = opts[:dry_run] ? true : false
+          max_rows = (opts[:max_rows] || MAX_OUTCOME_ROWS).to_i
+          retain_days = (opts[:retain_days] || OUTCOME_RETAIN_DAYS).to_f
+          recent_days = (opts[:recent_days] || OUTCOME_RECENT_DAYS).to_f
+          details_max = (opts[:details_max] || OUTCOME_DETAILS_MAX).to_i
+          gold_min = (opts[:gold_min_score] || GOLD_MIN_SCORE).to_f
+
+          return { kept: 0, removed: 0, skipped: true } unless File.exist?(LEARNING_FILE)
+
+          before_bytes = File.size(LEARNING_FILE)
+          rows = File.readlines(LEARNING_FILE).map do |l|
+            JSON.parse(l, symbolize_names: true)
+          rescue StandardError
+            nil
+          end.compact
+
+          now = Time.now.utc
+          age_days = lambda do |r|
+            (now - Time.parse(r[:timestamp].to_s)) / 86_400.0
+          rescue StandardError
+            999.0
+          end
+
+          protected_row = lambda do |r|
+            tags = Array(r[:tags]).map(&:to_s)
+            a = age_days.call(r)
+            return true if a <= recent_days
+            return true if r[:success] == true && r.key?(:score) && r[:score].to_f >= gold_min && r[:session_id].to_s != ''
+            return true if r[:success] == true && !r.key?(:score) && r[:session_id].to_s != '' && a <= retain_days
+            return true if tags.intersect?(HIGH_VALUE_TAGS)
+            return true if r[:success] == false && r.key?(:score) && r[:score].to_f >= 0.5
+
+            false
+          end
+
+          rows.reject! { |r| r[:task].to_s.strip.empty? }
+
+          best = {}
+          rows.each do |r|
+            key = [r[:task].to_s.strip.downcase.gsub(/\s+/, ' ')[0, 160], r[:success].to_s]
+            prev = best[key]
+            if prev.nil?
+              best[key] = r
+            else
+              ps = prev.key?(:score) ? prev[:score].to_f : -1.0
+              rs = r.key?(:score) ? r[:score].to_f : -1.0
+              better = rs > ps || (rs == ps && r[:timestamp].to_s > prev[:timestamp].to_s)
+              better ||= protected_row.call(r) && !protected_row.call(prev)
+              best[key] = r if better
+            end
+          end
+          deduped = best.values
+          removed_dupes = rows.size - deduped.size
+
+          truncated = 0
+          deduped.each do |r|
+            d = r[:details].to_s
+            next if d.bytesize <= details_max
+
+            r[:details] = "#{d[0, details_max]}…[compacted]"
+            truncated += 1
+          end
+
+          protected, unprotected = deduped.partition { |r| protected_row.call(r) }
+
+          kept_unprot = unprotected.reject do |r|
+            a = age_days.call(r)
+            tags = Array(r[:tags]).map(&:to_s)
+            score = r.key?(:score) ? r[:score].to_f : 1.0
+            noise_tags = (tags - LOW_VALUE_ONLY_TAGS).empty? && tags.any?
+            a > retain_days && noise_tags && score < 0.4
+          end
+
+          gold = (protected + kept_unprot).select do |r|
+            r[:success] == true && r[:session_id].to_s != '' &&
+              (!r.key?(:score) || r[:score].to_f >= gold_min)
+          end
+          if gold.size < EXEMPLARS_POOL_MIN
+            need = EXEMPLARS_POOL_MIN - gold.size
+            extra = unprotected.select { |r| r[:success] == true && r[:session_id].to_s != '' }
+                               .sort_by { |r| r[:timestamp].to_s }
+                               .last(need)
+            kept_unprot = (kept_unprot + extra).uniq
+          end
+
+          fails = (protected + kept_unprot).reject { |r| r[:success] == true }
+          if fails.size < FAILURE_WINDOW_MIN
+            need = FAILURE_WINDOW_MIN - fails.size
+            extra = unprotected.reject { |r| r[:success] == true }
+                               .sort_by { |r| r[:timestamp].to_s }
+                               .last(need)
+            kept_unprot = (kept_unprot + extra).uniq
+          end
+
+          kept = (protected + kept_unprot).uniq
+          if kept.size > max_rows
+            prot_ids = protected.map { |r| r[:id] }.compact
+            over = kept.size - max_rows
+            victims = kept.reject { |r| prot_ids.include?(r[:id]) }
+                          .sort_by { |r| r[:timestamp].to_s }
+                          .first(over)
+            v_ids = victims.map { |r| r[:id] }
+            kept = kept.reject { |r| v_ids.include?(r[:id]) }
+          end
+
+          kept = kept.sort_by { |r| r[:timestamp].to_s }
+
+          atomic_jsonl_write(path: LEARNING_FILE, rows: kept) unless dry
+
+          {
+            kept: kept.size,
+            removed: (rows.size - kept.size) + removed_dupes,
+            deduped: removed_dupes,
+            truncated_details: truncated,
+            protected: protected.size,
+            bytes_before: before_bytes,
+            bytes_after: if dry
+                           before_bytes
+                         else
+                           (File.exist?(LEARNING_FILE) ? File.size(LEARNING_FILE) : 0)
+                         end,
+            dry_run: dry
+          }
+        end
+
+        # Memory lean + outcome prune.
+        public_class_method def self.lean!(opts = {})
+          dry = opts[:dry_run] ? true : false
+          out = { dry_run: dry }
+          out[:memory] = if defined?(PWN::Memory) && PWN::Memory.respond_to?(:lean!)
+                           PWN::Memory.lean!(dry_run: dry)
+                         else
+                           { skipped: true }
+                         end
+          out[:memory_consolidate] = consolidate(max_entries: opts[:max_entries] || MAX_MEMORY_ENTRIES) unless dry
+          out[:learning] = prune_outcomes!(
+            dry_run: dry,
+            max_rows: opts[:max_rows],
+            retain_days: opts[:retain_days],
+            recent_days: opts[:recent_days],
+            details_max: opts[:details_max],
+            gold_min_score: opts[:gold_min_score]
+          )
+          out
+        end
+
+        # One-shot lean across memory + learning + mistakes + sessions.
+        # Called from auto_introspect (throttled) so the RL feedback loop
+        # keeps ~/.pwn high-signal without a manual learning_gc_stores turn.
+        # Supported Method Parameters::
+        #   result = PWN::AI::Agent::Learning.gc_stores!(
+        #     dry_run: 'optional - Boolean (default false)',
+        #     current_session_id: 'optional - never delete this sessions id',
+        #     max_entries: 'optional - Memory consolidate cap',
+        #     max_rows: 'optional - learning.jsonl cap',
+        #     retain_days: 'optional - outcome / session age floor'
+        #   )
+        public_class_method def self.gc_stores!(opts = {})
+          dry = opts[:dry_run] ? true : false
+          res = lean!(
+            dry_run: dry,
+            max_entries: opts[:max_entries],
+            max_rows: opts[:max_rows],
+            retain_days: opts[:retain_days],
+            recent_days: opts[:recent_days],
+            details_max: opts[:details_max],
+            gold_min_score: opts[:gold_min_score]
+          )
+          res[:mistakes] = if defined?(Mistakes) && Mistakes.respond_to?(:lean!)
+                             Mistakes.lean!(dry_run: dry)
+                           else
+                             { skipped: true }
+                           end
+          res[:sessions] = if defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:lean!)
+                             sess_opts = { dry_run: dry }
+                             sid = opts[:current_session_id].to_s
+                             sess_opts[:current_session_id] = sid unless sid.empty?
+                             sess_opts[:retain_days] = opts[:retain_days] if opts.key?(:retain_days)
+                             sess_opts[:max_files] = opts[:max_files] if opts.key?(:max_files)
+                             PWN::Sessions.lean!(**sess_opts)
+                           else
+                             { skipped: true }
+                           end
+          res
+        end
+
+        # True every PRUNE_EVERY_N_APPENDS rows, or once learning.jsonl
+        # exceeds MAX_OUTCOME_ROWS (forces lean even if modulo miss).
+        private_class_method def self.should_gc_stores?
+          return true unless File.exist?(LEARNING_FILE)
+
+          lines = File.foreach(LEARNING_FILE).count
+          return true if lines >= MAX_OUTCOME_ROWS
+          return true if lines.positive? && (lines % PRUNE_EVERY_N_APPENDS).zero?
+
+          false
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.maybe_prune_outcomes!
+          return unless File.exist?(LEARNING_FILE)
+
+          lines = File.foreach(LEARNING_FILE).count
+          return if lines < MAX_OUTCOME_ROWS && (lines % PRUNE_EVERY_N_APPENDS != 0)
+
+          prune_outcomes!
+        rescue StandardError => e
+          warn "[pwn-ai/learning] maybe_prune_outcomes! swallowed: #{e.class}: #{e.message}"
+        end
+
+        private_class_method def self.atomic_jsonl_write(opts = {})
+          path = opts[:path]
+          rows = Array(opts[:rows])
+          dir = File.dirname(path)
+          FileUtils.mkdir_p(dir)
+          bak = "#{path}.bak-lean-#{Time.now.utc.strftime('%Y%m%d')}"
+          FileUtils.cp(path, bak) if File.exist?(path) && !File.exist?(bak)
+          tmp = File.join(dir, ".#{File.basename(path)}.#{Process.pid}.tmp")
+          File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
+            f.flock(File::LOCK_EX)
+            rows.each { |r| f.puts(JSON.generate(r)) }
+            f.flush
+            f.fsync
+          end
+          File.rename(tmp, path)
+        ensure
+          FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+        end
+
+        # Supported Method Parameters::
         # PWN::AI::Agent::Learning.purge_noise
         #
         # One-shot GC of the pre-R1 garbage: drops every PWN::Memory entry
@@ -1139,6 +1563,9 @@ module PWN
               PWN::AI::Agent::Learning.exemplars_for(request: 'nmap sweep 10/8')  # few-shot for Loop.run
               PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)        # -> ~/.pwn/finetune/*.jsonl
               PWN::AI::Agent::Learning.consolidate(max_entries: 200)         # M1 semantic-merge + M3 importance-evict
+              PWN::AI::Agent::Learning.lean!                                 # memory + learning.jsonl prune
+              PWN::AI::Agent::Learning.gc_stores!                            # full ~/.pwn RL lean (mem/learn/mistakes/sessions)
+              PWN::AI::Agent::Learning.prune_outcomes!                       # learning.jsonl gold-keep cap
               PWN::AI::Agent::Learning.purge_noise                            # one-shot GC of pre-R1 garbage lessons
               PWN::AI::Agent::Learning.to_context(limit: 5)                  # injected by PromptBuilder
               PWN::AI::Agent::Learning.stats
@@ -1146,6 +1573,8 @@ module PWN
 
               Enable end-of-run auto-learning with:
                 PWN::Env[:ai][:agent][:auto_introspect] = true
+              # auto_introspect throttles gc_stores! every PRUNE_EVERY_N_APPENDS
+              # outcomes so ~/.pwn stays lean without a manual GC turn.
 
               #{self}.authors
           USAGE

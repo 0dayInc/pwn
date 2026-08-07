@@ -60,16 +60,19 @@ PWN::AI::Agent::Registry.register(
   toolset: 'memory',
   schema: {
     name: 'memory_forget',
-    description: 'Delete a persistent memory entry by key.',
+    description: 'Delete a persistent memory entry by key. Protected keys (operator_pref_*, process_sop_*, mistake_fix_*, memory_*, category preference) require force:true.',
     parameters: {
       type: 'object',
-      properties: { key: { type: 'string' } },
+      properties: {
+        key: { type: 'string' },
+        force: { type: 'boolean', description: 'Bypass protect policy (default false).' }
+      },
       required: %w[key]
     }
   },
   check: -> { defined?(PWN::Memory) },
   handler: lambda { |args|
-    PWN::Memory.forget(key: args[:key].to_s.to_sym)
+    PWN::Memory.forget(key: args[:key].to_s.to_sym, force: args[:force] == true)
     { forgotten: args[:key] }
   }
 )
@@ -96,7 +99,29 @@ PWN::AI::Agent::Registry.register(
     raise ArgumentError, 'refusing to clear memory without confirm:true' unless args[:confirm] == true
 
     before = PWN::Memory.load.keys.length
-    PWN::Memory.clear
+    PWN::Memory.clear(force: true)
     { cleared: true, entries_removed: before, file: PWN::Memory::MEMORY_FILE }
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'memory_lean',
+  toolset: 'memory',
+  schema: {
+    name: 'memory_lean',
+    description: 'Drop expired ephemeral session_* memory keys and truncate overlong ' \
+                 'values. Never removes operator prefs, process SOPs, or mistake_fix_* ' \
+                 'lessons. dry_run:true plans only.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dry_run: { type: 'boolean', default: false }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::Memory) && PWN::Memory.respond_to?(:lean!) },
+  handler: lambda { |args|
+    PWN::Memory.lean!(dry_run: args[:dry_run] ? true : false)
   }
 )

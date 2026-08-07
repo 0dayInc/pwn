@@ -219,3 +219,25 @@ PWN::AI::Agent::Registry.register(
     { previous: prev, current: ai[:agent][:auto_introspect] ? true : false }
   }
 )
+
+PWN::AI::Agent::Registry.register(
+  name: 'learning_gc_stores',
+  toolset: 'learning',
+  schema: {
+    name: 'learning_gc_stores',
+    description: 'Lean-keep ~/.pwn RL stores (memory, learning.jsonl, mistakes.json, ' \
+                 'sessions/) without dropping gold outcomes, open mistakes, prefs/SOPs, ' \
+                 'or reference-pinned session transcripts. dry_run:true plans only.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dry_run: { type: 'boolean', default: false, description: 'Report only; do not rewrite.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Learning) && PWN::AI::Agent::Learning.respond_to?(:gc_stores!) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Learning.gc_stores!(dry_run: args[:dry_run] ? true : false)
+  }
+)

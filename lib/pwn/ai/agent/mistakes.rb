@@ -35,6 +35,14 @@ module PWN
       module Mistakes
         MISTAKES_FILE    = File.join(Dir.home, '.pwn', 'mistakes.json')
         REPEAT_THRESHOLD = 3
+        # Lean retention for mistakes.json
+        SAMPLE_ARGS_MAX = 160
+        SNIPPET_MAX = 160
+        ERROR_MAX = 300
+        SESSIONS_KEEP = 3
+        MAX_RESOLVED_KEPT = 80
+        RESOLVED_MIN_AGE_DAYS = 21
+        FIX_MAX = 500
 
         CORRECTION_RX = /
           \b(
@@ -169,8 +177,8 @@ module PWN
           norm  = normalize_error(error: error)
 
           m = store[key] ||= {
-            signature: sig, tool: tool, error: norm,
-            snippet: error.to_s.strip[0, 300],
+            signature: sig, tool: tool, error: norm.to_s[0, ERROR_MAX],
+            snippet: error.to_s.strip[0, SNIPPET_MAX],
             count: 0, drift_count: 0, first_seen: now, sessions: [],
             resolved: false, fix: nil, source: (opts[:source] || :tool).to_s
           }
@@ -186,9 +194,10 @@ module PWN
             m[:count] += 1
           end
           m[:last_seen]    = now
-          m[:snippet]      = error.to_s.strip[0, 300]
-          m[:sample_args]  = opts[:args].to_s[0, 200] if opts[:args]
-          m[:sessions]     = (Array(m[:sessions]) + [opts[:session_id]]).compact.uniq.last(10)
+          m[:error]        = norm.to_s[0, ERROR_MAX]
+          m[:snippet]      = error.to_s.strip[0, SNIPPET_MAX]
+          m[:sample_args]  = opts[:args].to_s[0, SAMPLE_ARGS_MAX] if opts[:args]
+          m[:sessions]     = (Array(m[:sessions]) + [opts[:session_id]]).compact.uniq.last(SESSIONS_KEEP)
           # 2.2 — recoverable shape for repair routing
           if opts[:shape]
             m[:shape] = opts[:shape].to_s
@@ -229,7 +238,7 @@ module PWN
 
           store[key][:resolved]    = true
           store[key][:regressed]   = false
-          store[key][:fix]         = fix.strip[0, 500]
+          store[key][:fix]         = fix.strip[0, FIX_MAX]
           store[key][:resolved_at] = Time.now.utc.iso8601
           # 2.3 — structured fix payload (strategy/tool/args_template/holdouts).
           # Prose-only resolve is why shell sigs regressed after auto-curriculum.
@@ -471,6 +480,115 @@ module PWN
         rescue StandardError => e
           warn "[pwn-ai/mistakes] check_user_correction swallowed: #{e.class}: #{e.message}"
           nil
+        end
+
+        # Supported Method Parameters::
+        # result = PWN::AI::Agent::Mistakes.lean!(
+        #   dry_run: 'optional - Boolean (default false)',
+        #   max_resolved_kept: 'optional - cap on resolved-with-fix records',
+        #   resolved_min_age_days: 'optional - age before resolved count=1 may drop'
+        # )
+        #
+        # Compact text fields on every record. Never drops unresolved,
+        # regressed, or high-count repeaters. Aged resolved-once fixes may
+        # drop after Memory already holds mistake_fix_<sig>.
+
+        public_class_method def self.lean!(opts = {})
+          dry = opts[:dry_run] ? true : false
+          max_resolved = (opts[:max_resolved_kept] || MAX_RESOLVED_KEPT).to_i
+          min_age = (opts[:resolved_min_age_days] || RESOLVED_MIN_AGE_DAYS).to_f
+          store = load
+          before_bytes = File.exist?(MISTAKES_FILE) ? File.size(MISTAKES_FILE) : 0
+          now = Time.now.utc
+          compacted = 0
+          dropped = []
+
+          store.each_value do |m|
+            before = begin
+              m.to_json.bytesize
+            rescue StandardError
+              0
+            end
+            m[:sample_args] = m[:sample_args].to_s[0, SAMPLE_ARGS_MAX] if m[:sample_args].to_s.bytesize > SAMPLE_ARGS_MAX
+            m[:snippet] = m[:snippet].to_s[0, SNIPPET_MAX] if m[:snippet].to_s.bytesize > SNIPPET_MAX
+            m[:error] = m[:error].to_s[0, ERROR_MAX] if m[:error].to_s.bytesize > ERROR_MAX
+            m[:sessions] = Array(m[:sessions]).compact.uniq.last(SESSIONS_KEEP)
+            after = begin
+              m.to_json.bytesize
+            rescue StandardError
+              before
+            end
+            compacted += 1 if after < before
+          end
+
+          age_days = lambda do |m|
+            t = m[:resolved_at] || m[:last_seen]
+            (now - Time.parse(t.to_s)) / 86_400.0
+          rescue StandardError
+            0.0
+          end
+
+          protected_m = lambda do |m|
+            return true unless m[:resolved]
+            return true if m[:regressed]
+            return true if effective_count(mistake: m) >= REPEAT_THRESHOLD
+            return true if m[:count].to_i >= 2 && m[:fix].to_s.strip != ''
+            return true if m[:fix].to_s.strip != '' && age_days.call(m) < min_age
+
+            false
+          end
+
+          # Drop aged resolved-once when fix lives in Memory or past age
+          store.each do |sig, m|
+            next if protected_m.call(m)
+            next unless m[:resolved] && m[:fix].to_s.strip != '' && m[:count].to_i <= 1
+            next unless age_days.call(m) >= min_age
+
+            mem_has = false
+            if defined?(PWN::Memory)
+              begin
+                mem_has = PWN::Memory.load.key?(:"mistake_fix_#{sig}")
+              rescue StandardError
+                mem_has = false
+              end
+            end
+            # Drop when Memory has the fix OR age is well past (2× min) even without mem key
+            dropped << sig.to_s if mem_has || age_days.call(m) >= (min_age * 2)
+          end
+
+          dropped.each { |s| store.delete(s.to_sym) } unless dry
+
+          # Cap resolved-with-fix by oldest resolved_at
+          resolved = store.select { |_s, m| m[:resolved] && m[:fix].to_s.strip != '' }
+          if resolved.size > max_resolved
+            excess = resolved.sort_by { |_s, m| m[:resolved_at].to_s }
+                             .first(resolved.size - max_resolved)
+            excess.each do |sig, m|
+              next if m[:regressed] || m[:count].to_i >= 2
+              next if effective_count(mistake: m) >= REPEAT_THRESHOLD
+
+              dropped << sig.to_s
+              store.delete(sig) unless dry
+            end
+          end
+
+          save(store: store) unless dry
+
+          open_n = store.values.count { |m| !m[:resolved] }
+          {
+            compacted_fields: compacted,
+            dropped: dropped.uniq.length,
+            dropped_sigs: dropped.uniq.first(20),
+            remaining: store.size,
+            unresolved: open_n,
+            bytes_before: before_bytes,
+            bytes_after: if dry
+                           before_bytes
+                         else
+                           (File.exist?(MISTAKES_FILE) ? File.size(MISTAKES_FILE) : 0)
+                         end,
+            dry_run: dry
+          }
         end
 
         # Supported Method Parameters::
