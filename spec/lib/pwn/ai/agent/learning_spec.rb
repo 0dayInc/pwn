@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'tmpdir'
+require 'fileutils'
 
 describe PWN::AI::Agent::Learning do
   it 'should display information for authors' do
@@ -146,5 +147,80 @@ describe PWN::AI::Agent::Learning do
     expect(PWN::AI::Agent::Learning.send(:verdict_for_score, score: 0.59)).to eq(:partial)
     expect(PWN::AI::Agent::Learning.send(:verdict_for_score, score: 0.3)).to eq(:partial)
     expect(PWN::AI::Agent::Learning.send(:verdict_for_score, score: 0.29)).to eq(:wrong)
+  end
+
+  it 'note_outcome enforces OUTCOME_DETAILS_MAX' do
+    tmp = Dir.mktmpdir
+    path = File.join(tmp, 'learning.jsonl')
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', path)
+    long = 'D' * (PWN::AI::Agent::Learning::OUTCOME_DETAILS_MAX + 100)
+    e = PWN::AI::Agent::Learning.note_outcome(task: 'policy details cap', success: true, details: long, tags: %w[spec])
+    expect(e[:details].bytesize).to be <= PWN::AI::Agent::Learning::OUTCOME_DETAILS_MAX
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
+
+  it 'prune_outcomes! keeps gold/high-value and enforces MAX_OUTCOME_ROWS' do
+    tmp = Dir.mktmpdir
+    path = File.join(tmp, 'learning.jsonl')
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', path)
+    stub_const('PWN::AI::Agent::Learning::MAX_OUTCOME_ROWS', 30)
+    stub_const('PWN::AI::Agent::Learning::EXEMPLARS_POOL_MIN', 5)
+    stub_const('PWN::AI::Agent::Learning::FAILURE_WINDOW_MIN', 5)
+    stub_const('PWN::AI::Agent::Learning::OUTCOME_RECENT_DAYS', 1)
+    stub_const('PWN::AI::Agent::Learning::OUTCOME_RETAIN_DAYS', 2)
+
+    now = Time.now.utc
+    rows = []
+    # gold protected
+    5.times do |i|
+      rows << {
+        id: "g#{i}", task: "gold task #{i}", success: true, score: 0.9,
+        session_id: "sid_g#{i}", details: 'ok', tags: %w[auto],
+        timestamp: (now - (10 * 86_400)).iso8601
+      }
+    end
+    # high-value tag protected
+    rows << {
+      id: 'hv1', task: 'needs human row', success: false, score: 0.2,
+      session_id: 'sid_hv', details: 'x', tags: %w[needs_human],
+      timestamp: (now - (20 * 86_400)).iso8601
+    }
+    # old low-value noise (should be droppable)
+    40.times do |i|
+      rows << {
+        id: "n#{i}", task: "noise #{i}", success: false, score: 0.1,
+        session_id: "sid_n#{i}", details: 'noise', tags: %w[auto loop partial],
+        timestamp: (now - (30 * 86_400)).iso8601
+      }
+    end
+    File.open(path, 'w') { |f| rows.each { |r| f.puts(JSON.generate(r)) } }
+
+    res = PWN::AI::Agent::Learning.prune_outcomes!
+    kept = File.readlines(path).map { |l| JSON.parse(l, symbolize_names: true) }
+    ids = kept.map { |r| r[:id] }
+    expect(ids).to include('g0', 'hv1')
+    expect(kept.size).to be <= 30
+    expect(res[:kept]).to eq(kept.size)
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
+
+  it 'consolidate respects MAX_MEMORY_ENTRIES and PROTECT prefixes' do
+    tmp = Dir.mktmpdir
+    mem_path = File.join(tmp, 'memory.json')
+    stub_const('PWN::Memory::MEMORY_FILE', mem_path)
+    PWN::Memory.clear(force: true)
+    PWN::Memory.remember(key: :operator_pref_keep, value: 'must survive', category: :preference)
+    25.times do |i|
+      PWN::Memory.remember(key: :"bulk_#{i}", value: "lesson body #{i} unique #{i}", category: :lesson, importance: 0.1, confidence: 0.1)
+    end
+    res = PWN::AI::Agent::Learning.consolidate(max_entries: 10)
+    mem = PWN::Memory.load
+    expect(mem.keys).to include(:operator_pref_keep)
+    expect(mem.size).to be <= 10
+    expect(res[:remaining]).to eq(mem.size)
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
   end
 end

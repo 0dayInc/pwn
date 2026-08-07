@@ -172,6 +172,9 @@ module PWN
 
         # P17 — evidence-enough early final: latest tool rounds already answer
         # the ask → force synthesis instead of burning iters into text-only tail.
+        # Must NOT fire on routine tool JSON {"success":true} while a multi-step
+        # English plan still has open tasks — that blocks legitimate completion
+        # (mid-fix "write the complete final answer now" thrash).
         private_class_method def self.evidence_enough_to_finalize?(opts = {})
           messages = Array(opts[:messages])
           turn_fails = opts[:turn_fails] || {}
@@ -186,10 +189,23 @@ module PWN
           fail_n = turn_fails.values.sum
           return false if fail_n >= 3
 
+          # English-task gate: multi-step plans only early-final on/after the
+          # last tangible task. plan_idx is 0-based; open work => not enough.
+          ts_state = opts[:ts_state]
+          if ts_state.is_a?(Hash)
+            plan = Array(ts_state[:plan])
+            if plan.length >= 2
+              idx = ts_state[:plan_idx].to_i
+              return false if idx < (plan.length - 1)
+            end
+          end
+
           tools_ok = messages.select { |msg| msg[:role].to_s == 'tool' }
           return false if tools_ok.size < 2
 
           # Last two tool payloads should look like successful evidence, not errors.
+          # Agent tool wrappers always emit "success":true on ok — that alone is
+          # NOT proof the user goal is done (do not match bare success JSON).
           last2 = tools_ok.last(2)
           return false if last2.any? do |msg|
             content = msg[:content].to_s
@@ -203,11 +219,14 @@ module PWN
           deep_enough = tools_ok.size >= 3 || (short_plan && tools_ok.size >= plan_steps)
           return false unless deep_enough
 
-          # Request looks satisfied if tool names/content echo key nouns from request
-          # OR we clearly completed a mutation (write/patch/resolve) successfully.
           recent_txt = last2.map { |msg| msg[:content].to_s[0, 500] }.join(' ')
-          return true if recent_txt.match?(/"success"\s*:\s*true|syntax ok|wrote |patched|resolved|File\.write|ruby -c/i)
-          return true if short_plan && tools_ok.size >= plan_steps && fail_n.zero?
+          # Goal-shaped completion only — write/patch/verify, not shell success wrappers.
+          mutation_done = recent_txt.match?(
+            /syntax ok|wrote |patched|resolved|File\.write|ruby -c|0 offenses|examples?,\s*0 failures/i
+          )
+          return true if mutation_done
+          return true if short_plan && tools_ok.size >= plan_steps && fail_n.zero? &&
+                         request.match?(/\b(what|who|when|where|which|how many|status|list|show|print|uname|cwd|version)\b/i)
 
           false
         rescue StandardError
@@ -1072,7 +1091,8 @@ module PWN
               i: i,
               max_iters: max_iters,
               request: request,
-              plan_steps: plan_steps
+              plan_steps: plan_steps,
+              ts_state: ts_state
             ) && turn_fails['evidence_final'].to_i < 1
               turn_fails['evidence_final'] += 1
               messages << {

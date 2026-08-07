@@ -80,7 +80,11 @@ PWN::AI::Agent::Registry.register(
     parameters: {
       type: 'object',
       properties: {
-        session_id: { type: 'string' }
+        session_id: { type: 'string' },
+        force: {
+          type: 'boolean',
+          description: 'Bypass pin policy for hot/gold/mistake sessions (default false).'
+        }
       },
       required: %w[session_id]
     }
@@ -90,7 +94,10 @@ PWN::AI::Agent::Registry.register(
     sid = args[:session_id].to_s
     raise ArgumentError, 'session_id is required' if sid.empty?
 
-    { session_id: sid, deleted: PWN::Sessions.delete(session_id: sid) }
+    {
+      session_id: sid,
+      deleted: PWN::Sessions.delete(session_id: sid, force: args[:force] == true)
+    }
   }
 )
 
@@ -135,5 +142,33 @@ PWN::AI::Agent::Registry.register(
       path: path,
       exists: (path && File.exist?(path)) || false
     }
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'sessions_lean',
+  toolset: 'sessions',
+  schema: {
+    name: 'sessions_lean',
+    description: 'Prune/compact ~/.pwn/sessions: delete stubs and unreferenced aged ' \
+                 'transcripts; compact oversized tool/assistant content. Pins gold ' \
+                 'learning outcomes and open-mistake session refs. dry_run:true plans only.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dry_run: { type: 'boolean', default: false },
+        retain_days: { type: 'integer', default: 30 },
+        max_files: { type: 'integer', default: 400 }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:lean!) },
+  handler: lambda { |args|
+    PWN::Sessions.lean!(
+      dry_run: args[:dry_run] ? true : false,
+      retain_days: args[:retain_days],
+      max_files: args[:max_files]
+    )
   }
 )

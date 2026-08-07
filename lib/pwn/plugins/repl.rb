@@ -472,7 +472,7 @@ module PWN
               PWN::Memory.forget(key: args[1])
               puts "Forgot #{args[1]}"
             when 'clear'
-              PWN::Memory.clear
+              PWN::Memory.clear(force: true)
               puts 'Memory cleared'
             else
               puts PWN::Memory.help
@@ -493,7 +493,7 @@ module PWN
               hist = PWN::Sessions.to_response_history(session_id: sid)
               puts "Loaded session #{sid} with #{hist[:choices].size} entries (set manually into response_history if needed)"
             when 'delete'
-              PWN::Sessions.delete(session_id: args[1])
+              PWN::Sessions.delete(session_id: args[1], force: true)
               puts "Deleted #{args[1]}"
             when 'stats'
               puts PWN::Sessions.stats

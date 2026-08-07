@@ -60,6 +60,48 @@ describe PWN::AI::Agent::Loop do
       expect(src).to match(/task_summary_plan!.*relevance_query|relevance_query.*inject_task_focus!/m)
     end
 
+    it 'P17 evidence_enough does not early-final on bare success while plan open' do
+      # Multi-step English plan mid-flight + tool {"success":true} must NOT
+      # force text-only — that blocked legitimate completion.
+      loop_mod = described_class
+      msgs = [
+        { role: 'user', content: 'fix p17' },
+        { role: 'tool', content: '{"success":true,"result":{"stdout":"a"}}' },
+        { role: 'tool', content: '{"success":true,"result":{"stdout":"b"}}' },
+        { role: 'tool', content: '{"success":true,"result":{"stdout":"c"}}' }
+      ]
+      open_plan = { plan: %w[identify determine inspect implement verify confirm], plan_idx: 2 }
+      r_open = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: msgs, turn_fails: {}, i: 5, max_iters: 40,
+        request: 'fix p17', plan_steps: 6, ts_state: open_plan
+      )
+      expect(r_open).to be false
+
+      last_plan = { plan: %w[identify implement verify], plan_idx: 2 }
+      msgs_mut = msgs + [
+        { role: 'tool', content: '{"success":true,"result":{"stdout":"0 offenses detected"}}' }
+      ]
+      r_mut = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: msgs_mut, turn_fails: {}, i: 5, max_iters: 40,
+        request: 'fix p17', plan_steps: 3, ts_state: last_plan
+      )
+      expect(r_mut).to be true
+
+      r_bare = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: msgs, turn_fails: {}, i: 5, max_iters: 40,
+        request: 'fix p17', plan_steps: 3, ts_state: last_plan
+      )
+      expect(r_bare).to be false
+
+      # call site must pass ts_state
+      src = File.read(loop_mod.method(:run).source_location.first)
+      expect(src).to match(/evidence_enough_to_finalize\?\([\s\S]*?ts_state: ts_state/)
+      expect(src).to match(/English-task gate/)
+    end
+
     it 'does not put TaskSummarizer into Reward credit paths' do
       # Loop may call TaskSummarizer executive APIs, not Reward.judge from TaskSummarizer
       ts = File.read(PWN::AI::Agent::TaskSummarizer.method(:plan).source_location.first)

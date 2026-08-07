@@ -15,6 +15,12 @@ module PWN
   # via ruby code blocks during execution loops.
   module Memory
     MEMORY_FILE = File.join(Dir.home, '.pwn', 'memory.json')
+    # Lean retention — keep RL-quality signal, drop ephemeral bulk.
+    VALUE_MAX_CHARS = 2_000
+    PROTECT_KEY_PREFIXES = %w[operator_pref_ process_sop_ mistake_fix_ memory_].freeze
+    PROTECT_CATEGORIES = %i[preference].freeze
+    EPHEMERAL_KEY_PREFIXES = %w[session_].freeze
+    EPHEMERAL_TTL_SECS = 7 * 86_400
 
     # Supported Method Parameters::
     #   memory = PWN::Memory.load
@@ -51,7 +57,7 @@ module PWN
         warn "[pwn-ai/memory] refusing empty overwrite of #{File.size(path)}B #{path} (pass force:true to clear)"
         return load_raw_or_empty(path: path)
       end
-      tmp  = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
+      tmp = File.join(File.dirname(path), ".#{File.basename(path)}.#{Process.pid}.tmp")
       body = JSON.pretty_generate(mem)
       File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o644) do |f|
         f.flock(File::LOCK_EX)
@@ -93,8 +99,10 @@ module PWN
       raise 'ERROR: key and value are required' if key.nil? || value.nil?
 
       mem = load
+      val = value.is_a?(String) ? value.to_s : value
+      val = "#{val.to_s[0, VALUE_MAX_CHARS]}…[compacted]" if val.is_a?(String) && val.bytesize > VALUE_MAX_CHARS
       entry = {
-        value: value,
+        value: val,
         category: category.to_sym,
         timestamp: Time.now.utc.iso8601,
         # M3 — provenance & scoring so Learning.consolidate evicts by
@@ -147,10 +155,20 @@ module PWN
     end
 
     # Supported Method Parameters::
-    #   PWN::Memory.forget(key: :some_key)
+    #   PWN::Memory.forget(
+    #     key: :some_key,
+    #     force: 'optional - Boolean bypass protect policy (default false)'
+    #   )
+    # Refuses PROTECT_KEY_PREFIXES / PROTECT_CATEGORIES unless force:true.
     public_class_method def self.forget(opts = {}) # rubocop:disable Naming/PredicateMethod
       key = opts[:key]
+      raise 'ERROR: key is required' if key.nil?
+
+      force = opts[:force] ? true : false
       mem = load
+      entry = mem[key.to_sym]
+      raise "ERROR: refusing to forget protected memory key #{key.inspect} (matches PROTECT_KEY_PREFIXES/PROTECT_CATEGORIES; pass force:true)" if entry && protected_entry?(key: key, entry: entry) && !force
+
       mem.delete(key.to_sym)
       # Last-key delete legitimately yields {}; force so empty-guard does not revive it.
       save(mem: mem, force: mem.empty?)
@@ -158,8 +176,16 @@ module PWN
     end
 
     # Supported Method Parameters::
-    #   PWN::Memory.clear
-    public_class_method def self.clear
+    #   PWN::Memory.clear(force: true)
+    # Requires force:true — protected prefs/SOPs must not vanish via bare clear.
+    public_class_method def self.clear(opts = {})
+      force = if opts.is_a?(Hash)
+                opts[:force] ? true : false
+              else
+                false
+              end
+      raise 'ERROR: refusing Memory.clear without force:true (would drop PROTECT_KEY_PREFIXES/PROTECT_CATEGORIES)' unless force
+
       FileUtils.rm_f(MEMORY_FILE)
       save(mem: {}, force: true) # recreate empty file atomically
       {}
@@ -180,6 +206,77 @@ module PWN
       ctx
     end
 
+    # True when a memory key must survive cap eviction / age GC.
+    public_class_method def self.protected_entry?(opts = {})
+      key = opts[:key].to_s
+      entry = opts[:entry] || {}
+      return true if PROTECT_KEY_PREFIXES.any? { |p| key.start_with?(p) }
+      return true if PROTECT_CATEGORIES.map(&:to_s).include?(entry[:category].to_s)
+
+      false
+    end
+
+    # Supported Method Parameters::
+    #   result = PWN::Memory.lean!(
+    #     dry_run: 'optional - Boolean plan only (default false)',
+    #     value_max_chars: 'optional - truncate values (default VALUE_MAX_CHARS)',
+    #     ephemeral_ttl_secs: 'optional - drop expired session_* keys'
+    #   )
+    #
+    # Compact overlong values and drop expired ephemeral session_* keys.
+    # Never removes protected prefs/SOPs/fix lessons. Safe with empty-save guard.
+    public_class_method def self.lean!(opts = {})
+      dry = opts[:dry_run] ? true : false
+      vmax = (opts[:value_max_chars] || VALUE_MAX_CHARS).to_i
+      ttl_secs = (opts[:ephemeral_ttl_secs] || EPHEMERAL_TTL_SECS).to_i
+      mem = load
+      before_bytes = File.exist?(MEMORY_FILE) ? File.size(MEMORY_FILE) : 0
+      removed = []
+      truncated = []
+      now = Time.now.utc
+
+      mem.each do |k, v|
+        key = k.to_s
+        next if protected_entry?(key: key, entry: v)
+
+        if EPHEMERAL_KEY_PREFIXES.any? { |p| key.start_with?(p) }
+          age = begin
+            now - Time.parse(v[:timestamp].to_s)
+          rescue StandardError
+            ttl_secs + 1
+          end
+          exp = v[:ttl].to_i.positive? ? v[:ttl].to_i : ttl_secs
+          if age > exp
+            removed << key
+            next
+          end
+        end
+
+        next unless v[:value].is_a?(String) && v[:value].to_s.bytesize > vmax
+
+        truncated << key
+        v[:value] = "#{v[:value].to_s[0, vmax]}…[compacted]" unless dry
+      end
+
+      removed.each { |k| mem.delete(k.to_sym) } unless dry
+      save(mem: mem, force: mem.empty?) unless dry || (removed.empty? && truncated.empty?)
+
+      {
+        removed: removed.length,
+        truncated: truncated.length,
+        remaining: mem.size,
+        removed_keys: removed.first(20),
+        truncated_keys: truncated.first(20),
+        bytes_before: before_bytes,
+        bytes_after: if dry
+                       before_bytes
+                     else
+                       (File.exist?(MEMORY_FILE) ? File.size(MEMORY_FILE) : 0)
+                     end,
+        dry_run: dry
+      }
+    end
+
     # Author(s):: 0day Inc. <support@0dayinc.com>
 
     public_class_method def self.authors
@@ -195,8 +292,10 @@ module PWN
           facts = PWN::Memory.recall(query: 'recon', category: :fact, limit: 10)
           hits  = PWN::Memory.recall_semantic(query: 'recon', limit: 6)  # embedding-ranked
           PWN::Memory.forget(key: :some_key)
-          PWN::Memory.clear
+          PWN::Memory.forget(key: :operator_pref_x) rescue puts('protected')
+          PWN::Memory.clear(force: true)
           context_str = PWN::Memory.to_context
+          PWN::Memory.lean!(dry_run: true)  # drop expired session_* + truncate values
 
           #{self}.authors
       USAGE

@@ -105,6 +105,28 @@ PWN::AI::Agent::Registry.register(
 )
 
 PWN::AI::Agent::Registry.register(
+  name: 'mistakes_lean',
+  toolset: 'learning',
+  schema: {
+    name: 'mistakes_lean',
+    description: 'Compact mistakes.json fields and age-out resolved-once signatures ' \
+                 'after fixes live in Memory. Never drops unresolved or regressed. ' \
+                 'dry_run:true plans only.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dry_run: { type: 'boolean', default: false }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Mistakes) && PWN::AI::Agent::Mistakes.respond_to?(:lean!) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Mistakes.lean!(dry_run: args[:dry_run] ? true : false)
+  }
+)
+
+PWN::AI::Agent::Registry.register(
   name: 'mistakes_reset',
   toolset: 'learning',
   schema: {

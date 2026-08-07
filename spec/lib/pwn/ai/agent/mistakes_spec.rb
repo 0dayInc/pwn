@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tmpdir'
+require 'fileutils'
 
 describe PWN::AI::Agent::Mistakes do
   it 'should display information for authors' do
@@ -61,5 +63,78 @@ describe PWN::AI::Agent::Mistakes do
     got = described_class.find(signature: m[:signature])
     expect(got[:structured_fix][:strategy]).to eq 'typo'
     expect(got[:structured_fix][:holdout_tests].length).to eq 2
+  end
+
+  it 'enforces SAMPLE_ARGS_MAX SNIPPET_MAX ERROR_MAX SESSIONS_KEEP on record' do
+    tmp = Dir.mktmpdir
+    path = File.join(tmp, 'mistakes.json')
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', path)
+    FileUtils.rm_f(path)
+    long_err = 'E' * (PWN::AI::Agent::Mistakes::ERROR_MAX + 200)
+    long_args = 'A' * (PWN::AI::Agent::Mistakes::SAMPLE_ARGS_MAX + 80)
+    m = nil
+    5.times do |i|
+      m = PWN::AI::Agent::Mistakes.record(
+        tool: 'shell',
+        error: long_err,
+        args: long_args,
+        session_id: "sess_#{i}"
+      )
+    end
+    expect(m[:snippet].to_s.bytesize).to be <= PWN::AI::Agent::Mistakes::SNIPPET_MAX
+    expect(m[:error].to_s.bytesize).to be <= PWN::AI::Agent::Mistakes::ERROR_MAX
+    expect(m[:sample_args].to_s.bytesize).to be <= PWN::AI::Agent::Mistakes::SAMPLE_ARGS_MAX
+    expect(Array(m[:sessions]).length).to be <= PWN::AI::Agent::Mistakes::SESSIONS_KEEP
+    expect(m[:count]).to eq(5)
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
+
+  it 'lean! keeps unresolved and REPEATING scars; caps resolved via MAX_RESOLVED_KEPT' do
+    tmp = Dir.mktmpdir
+    path = File.join(tmp, 'mistakes.json')
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', path)
+    stub_const('PWN::AI::Agent::Mistakes::MAX_RESOLVED_KEPT', 2)
+    stub_const('PWN::AI::Agent::Mistakes::RESOLVED_MIN_AGE_DAYS', 0)
+    FileUtils.rm_f(path)
+
+    open_m = PWN::AI::Agent::Mistakes.record(tool: 'open_tool', error: 'still broken open')
+    rep = nil
+    3.times { rep = PWN::AI::Agent::Mistakes.record(tool: 'rep_tool', error: 'repeat me') }
+    expect(rep[:count]).to be >= PWN::AI::Agent::Mistakes::REPEAT_THRESHOLD
+
+    resolved_sigs = []
+    4.times do |i|
+      m = PWN::AI::Agent::Mistakes.record(tool: "done_#{i}", error: "once #{i}")
+      PWN::AI::Agent::Mistakes.resolve(signature: m[:signature], fix: "fix #{i}")
+      # age resolved_at into the past for drop eligibility
+      store = PWN::AI::Agent::Mistakes.load
+      store[m[:signature].to_sym][:resolved_at] = (Time.now.utc - (40 * 86_400)).iso8601
+      store[m[:signature].to_sym][:count] = 1
+      PWN::AI::Agent::Mistakes.save(store: store)
+      resolved_sigs << m[:signature]
+    end
+
+    res = PWN::AI::Agent::Mistakes.lean!
+    store = PWN::AI::Agent::Mistakes.load
+    expect(store.keys.map(&:to_s)).to include(open_m[:signature], rep[:signature])
+    resolved_left = store.values.count { |e| e[:resolved] && e[:fix].to_s != '' }
+    expect(resolved_left).to be <= 2
+    expect(res[:remaining]).to be <= store.size
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
+
+  it 'resolve clamps fix to FIX_MAX' do
+    tmp = Dir.mktmpdir
+    path = File.join(tmp, 'mistakes.json')
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', path)
+    FileUtils.rm_f(path)
+    m = PWN::AI::Agent::Mistakes.record(tool: 't', error: 'e')
+    long_fix = 'F' * (PWN::AI::Agent::Mistakes::FIX_MAX + 50)
+    got = PWN::AI::Agent::Mistakes.resolve(signature: m[:signature], fix: long_fix)
+    expect(got[:fix].bytesize).to eq(PWN::AI::Agent::Mistakes::FIX_MAX)
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
   end
 end
