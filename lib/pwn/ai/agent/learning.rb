@@ -160,13 +160,33 @@ module PWN
 
         public_class_method def self.to_context(opts = {})
           limit = opts[:limit] || 5
-          rows  = outcomes(limit: limit)
-          fails = outcomes(limit: 200, success: false).first(limit)
+          # Fetch a wider window so prefer_primary_tasks can drop critic/red_team
+          # envelope rows (REQUEST:/GOAL: prefixes) without starving the block.
+          rows  = prefer_primary_tasks(rows: outcomes(limit: limit * 4)).first(limit)
+          fails = prefer_primary_tasks(rows: outcomes(limit: 200, success: false))
+          # Do not mirror the same ids under both headings — that doubled the
+          # failure signal and made RECENT OUTCOMES == RECENT FAILURES when the
+          # last N attempts all failed (the injected block looked "stuck").
+          row_ids = rows.map { |r| r[:id] }.compact
+          fails = fails.reject { |r| row_ids.include?(r[:id]) }.first(limit)
           return '' if rows.empty? && fails.empty?
 
           fmt = lambda do |r|
-            flag = r[:success] ? '✓' : '✗'
-            "  #{flag} #{r[:task].to_s[0, 100]} (#{r[:timestamp]})"
+            flag = case r[:success]
+                   when true then '✓'
+                   when 'soft', :soft then '∼'
+                   else '✗'
+                   end
+            score = r.key?(:score) ? format('%.2f', r[:score].to_f) : '-'
+            task  = display_task(task: r[:task])
+            line  = "  #{flag} [#{score}] #{task} (#{r[:timestamp]})"
+            # Surface a one-line cause crumb so the agent can actually learn
+            # from failures instead of only seeing that they failed.
+            if r[:success] != true
+              crumb = cause_crumb(details: r[:details])
+              line += "\n      cause: #{crumb}" unless crumb.empty?
+            end
+            line
           end
           s   = stats
           jm  = s[:judge_mean]
@@ -468,7 +488,12 @@ module PWN
           v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok) if defined?(Reward)
           v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
           v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw
-          ok = v[:score] >= 0.6
+          # P29 — critic floor used to leave stale verdict=:solved at score=0.3,
+          # producing learning.jsonl rows tagged "solved" with success=false
+          # (116+ rows). Always resync verdict/success from the final score.
+          v[:verdict] = verdict_for_score(score: v[:score])
+          v[:success] = v[:score].to_f >= 0.6
+          ok = v[:success]
 
           # W1 pending user_correction pair
           pend = Thread.current[:pwn_pending_pref]
@@ -515,11 +540,14 @@ module PWN
           outcome_tags = ['auto', 'loop', v[:verdict].to_s]
           outcome_tags << plan_cov[:tag] if plan_cov && plan_cov[:tag]
           outcome_tags << "plan_cover=#{plan_cov[:score]}" if plan_cov && plan_cov[:total].to_i.positive?
+          # P29 — persist the bare user ask (strip REQUEST:/GOAL: envelopes at write time)
+          task_txt = display_task(task: opts[:request].to_s)
+          task_txt = opts[:request].to_s[0, 100] if task_txt.empty?
           note_outcome(
-            task: opts[:request].to_s[0, 120],
+            task: task_txt,
             success: ok,
             score: v[:score],
-            details: "#{v[:verdict]}(#{v[:score].round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
+            details: "#{v[:verdict]}(#{v[:score].to_f.round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
             session_id: session_id,
             tags: outcome_tags
           )
@@ -792,6 +820,103 @@ module PWN
         rescue StandardError => e
           warn "[pwn-ai/learning] promote_process_lesson swallowed: #{e.class}: #{e.message}"
           nil
+        end
+
+        # P29 — map score → verdict with the same thresholds as Reward.judge.
+        private_class_method def self.verdict_for_score(opts = {})
+          s = opts[:score].to_f
+          return :solved if s >= 0.6
+          return :partial if s >= 0.3
+
+          :wrong
+        end
+
+        # Strip critic/red_team envelope prefixes so the injected block shows
+        # the human ask, not "REQUEST:\n…\nANSWER:" / "GOAL:\n…\nPLAN:".
+        private_class_method def self.display_task(opts = {})
+          t = opts[:task].to_s.gsub(/\s+/, ' ').strip
+          if t.match?(/\AREQUEST:\s*/i)
+            body = t.sub(/\AREQUEST:\s*/i, '')
+            body = body.split(/\bANSWER:\s*/i, 2).first.to_s
+            t = body.strip
+          elsif t.match?(/\AGOAL:\s*/i)
+            body = t.sub(/\AGOAL:\s*/i, '')
+            body = body.split(/\bPLAN:\s*/i, 2).first.to_s
+            t = body.strip
+          end
+          t[0, 100]
+        end
+
+        # Prefer bare user goals over REQUEST:/GOAL: swarm envelopes when both
+        # describe the same underlying attempt (offline_judge + critic sessions).
+        private_class_method def self.prefer_primary_tasks(opts = {})
+          rows = Array(opts[:rows])
+          return rows if rows.empty?
+
+          scored = rows.map do |r|
+            t = r[:task].to_s
+            envelope = t.match?(/\A\s*(REQUEST:|GOAL:)/i) ? 1 : 0
+            # Higher is better: bare task first, then newer (rows already newest-first)
+            [r, -envelope]
+          end
+          # stable: keep relative order within same envelope rank
+          scored.sort_by.with_index { |(_, rank), i| [rank, i] }.map(&:first)
+        end
+
+        private_class_method def self.cause_crumb(opts = {})
+          d = opts[:details].to_s.gsub(/\s+/, ' ').strip
+          return '' if d.empty?
+
+          # Prefer explicit FLAW / CORRECTED crumbs; else verdict(score) head.
+          if (m = d.match(/\bFLAW:\s*(.+)\z/i)) || (m = d.match(/\bFLAW:\s*([^|]+)/i))
+            return m[1].to_s.strip[0, 120]
+          end
+          if (m = d.match(/\bCORRECTED:\s*(.+)\z/i))
+            return "corrected: #{m[1].to_s.strip[0, 100]}"
+          end
+
+          d[0, 120]
+        end
+
+        # One-shot / on-load repair: rewrite tags+details where verdict label
+        # disagrees with score (solved @ 0.3 etc.). Safe to call repeatedly.
+        public_class_method def self.reconcile_verdict_tags!(opts = {})
+          return { repaired: 0 } unless File.exist?(LEARNING_FILE)
+
+          dry = opts[:dry_run] ? true : false
+          repaired = 0
+          lines = File.readlines(LEARNING_FILE)
+          out = lines.map do |l|
+            r = JSON.parse(l, symbolize_names: true)
+            score = r.key?(:score) ? r[:score].to_f : nil
+            next l if score.nil?
+
+            want = verdict_for_score(score: score).to_s
+            tags = Array(r[:tags]).map(&:to_s)
+            stale = tags & %w[solved partial wrong unknown]
+            next l if stale.empty? || stale.include?(want)
+
+            repaired += 1
+            next l if dry
+
+            cleaned = tags - %w[solved partial wrong unknown]
+            cleaned << want
+            r[:tags] = cleaned
+            # Fix leading "solved(0.3)" style details head when present
+            det = r[:details].to_s
+            r[:details] = det.sub(
+              /\A(solved|partial|wrong|unknown)\(\d+(?:\.\d+)?\)/i,
+              "#{want}(#{format('%.2f', score)})"
+            )
+            r[:success] = (score >= 0.6) if [true, false].include?(r[:success])
+            "#{JSON.generate(r)}\n"
+          rescue StandardError
+            l
+          end
+          File.write(LEARNING_FILE, out.join) if !dry && repaired.positive?
+          { repaired: repaired, dry_run: dry }
+        rescue StandardError => e
+          { repaired: 0, error: "#{e.class}: #{e.message}" }
         end
 
         private_class_method def self.auto_introspect_enabled?

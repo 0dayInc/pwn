@@ -292,13 +292,21 @@ module PWN
               end
             end
             if commit && defined?(Learning)
+              # P29 — keep verdict tag score-aligned (same as auto_introspect).
+              sc = v[:score].to_f
+              verd = if defined?(Learning) && Learning.respond_to?(:verdict_for_score, true)
+                       Learning.send(:verdict_for_score, score: sc).to_s
+                     elsif sc >= 0.6 then 'solved'
+                     elsif sc >= 0.3 then 'partial'
+                     else 'wrong'
+                     end
               Learning.note_outcome(
                 task: req[0, 120],
-                success: v[:score].to_f >= 0.6,
-                score: v[:score],
-                details: "offline_judge #{v[:verdict]}(#{v[:score]}) #{v[:rationale]}",
+                success: sc >= 0.6,
+                score: sc,
+                details: "offline_judge #{verd}(#{sc.round(2)}) #{v[:rationale]}",
                 session_id: sid,
-                tags: %w[offline_judge auto]
+                tags: ['offline_judge', 'auto', verd]
               )
             end
             scored << { session_id: sid, score: v[:score], verdict: v[:verdict] }
