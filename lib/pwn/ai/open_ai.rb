@@ -79,6 +79,12 @@ module PWN
       # )
       #
       # Codex posts JSON (not form-urlencoded) to the refresh endpoint.
+      # On success, writes :bearer_token (and a rotated :refresh_token if
+      # returned) back into the passed opts/oauth Hash so the live PWN::Env
+      # stays warm for the rest of the process. Also mirrors those values
+      # onto PWN::Env[:ai][:openai][:oauth] when that Hash is available, then
+      # attempts to re-encrypt the updated tokens into ~/.pwn/pwn.yaml when
+      # the matching decryptor (key + iv) is present.
       public_class_method def self.refresh_oauth_bearer_token(opts = {})
         refresh_token = opts[:refresh_token]
         raise 'refresh_token is required' unless real_config_value?(value: refresh_token)
@@ -120,9 +126,106 @@ module PWN
             # ignore claim parse failures
           end
         end
+
+        # Always keep the live session Env warm, even when +opts+ is a copy
+        # rather than the object identity of PWN::Env[:ai][:openai][:oauth].
+        sync_oauth_into_env(oauth: opts)
+        persist_oauth_to_vault(oauth: opts)
+
         access
       rescue RestClient::ExceptionWithResponse => e
         raise "OpenAI OAuth refresh failed (HTTP #{e.http_code}): #{e.response&.body}"
+      end
+
+      # Mirror refreshed OAuth material into PWN::Env[:ai][:openai][:oauth].
+      # Nested Env hashes are mutable even when PWN::Env itself is frozen.
+      private_class_method def self.sync_oauth_into_env(opts = {})
+        oauth = opts[:oauth]
+        return false unless oauth.is_a?(Hash)
+        return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+        engine = PWN::Env.dig(:ai, :openai)
+        return false unless engine.is_a?(Hash)
+
+        live = engine[:oauth]
+        live = engine[:oauth] = {} unless live.is_a?(Hash)
+
+        live[:bearer_token]  = oauth[:bearer_token] if real_config_value?(value: oauth[:bearer_token])
+        live[:refresh_token] = oauth[:refresh_token] if real_config_value?(value: oauth[:refresh_token])
+        live[:id_token] = oauth[:id_token] if real_config_value?(value: oauth[:id_token])
+        live[:account_id] = oauth[:account_id] if real_config_value?(value: oauth[:account_id])
+        live[:expires_at] = oauth[:expires_at] if oauth.key?(:expires_at) && !oauth[:expires_at].nil?
+        true
+      rescue StandardError
+        false
+      end
+
+      # Persist refreshed OpenAI OAuth tokens into the encrypted pwn.yaml using
+      # the SAME key + iv from pwn.yaml.decryptor (never mint new secrets).
+      # When decryptor artifacts are missing / unreadable, leave the on-disk
+      # vault untouched and emit an info line so the operator knows the new
+      # bearer lives in-session only.
+      private_class_method def self.persist_oauth_to_vault(opts = {})
+        oauth = opts[:oauth]
+        return false unless oauth.is_a?(Hash)
+        return false unless real_config_value?(value: oauth[:bearer_token])
+
+        env_path = nil
+        dec_path = nil
+        if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+          env_path = PWN::Env.dig(:driver_opts, :pwn_env_path)
+          dec_path = PWN::Env.dig(:driver_opts, :pwn_dec_path)
+        end
+        env_path = env_path.to_s.strip
+        env_path = File.join(Dir.home, '.pwn', 'pwn.yaml') if env_path.empty?
+        dec_path = dec_path.to_s.strip
+        dec_path = "#{env_path}.decryptor" if dec_path.empty?
+
+        unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+          puts '[*] INFO: OpenAI OAuth tokens updated in this session only; ' \
+               "persistence to #{env_path} skipped (missing decryption artifacts" \
+               "#{" at #{dec_path}" unless dec_path.empty?})."
+          return false
+        end
+
+        decryptor = YAML.load_file(dec_path, symbolize_names: true)
+        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
+        iv  = decryptor.is_a?(Hash) ? decryptor[:iv]  : nil
+        unless real_config_value?(value: key) && real_config_value?(value: iv)
+          puts '[*] INFO: OpenAI OAuth tokens updated in this session only; ' \
+               "persistence to #{env_path} skipped (decryptor at #{dec_path} " \
+               'has no usable key/iv).'
+          return false
+        end
+
+        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
+        begin
+          cfg = YAML.load_file(env_path, symbolize_names: true)
+          cfg = {} unless cfg.is_a?(Hash)
+          cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
+          cfg[:ai][:openai] = {} unless cfg[:ai][:openai].is_a?(Hash)
+          vault_oauth = cfg[:ai][:openai][:oauth]
+          vault_oauth = cfg[:ai][:openai][:oauth] = {} unless vault_oauth.is_a?(Hash)
+
+          vault_oauth[:bearer_token] = oauth[:bearer_token]
+          vault_oauth[:refresh_token] = oauth[:refresh_token] if real_config_value?(value: oauth[:refresh_token])
+          vault_oauth[:id_token] = oauth[:id_token] if real_config_value?(value: oauth[:id_token])
+          vault_oauth[:account_id] = oauth[:account_id] if real_config_value?(value: oauth[:account_id])
+          vault_oauth[:expires_at] = oauth[:expires_at] if oauth.key?(:expires_at) && !oauth[:expires_at].nil?
+
+          # Match PWN::Config.default_env YAML style (string keys, no leading ':').
+          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
+          File.write(env_path, yaml_env)
+          File.chmod(0o600, env_path)
+        ensure
+          # Always re-encrypt with the IDENTICAL key + iv — never rotate.
+          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
+        end
+
+        true
+      rescue StandardError => e
+        warn "[!] OpenAI OAuth vault persistence failed (session tokens still updated): #{e.class}: #{e.message}"
+        false
       end
 
       # Supported Method Parameters::
