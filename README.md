@@ -35,7 +35,7 @@ and automate instead of gluing together a pile of separate CLIs.
 
 **In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
 service wrappers · 21 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
-5 LLM engines · 12 agent toolsets · 78 LLM-callable tools.
+6 LLM engines · 12 agent toolsets · 82 LLM-callable tools.
 
 Full page: [What is PWN](documentation/What-is-PWN.md)
 
@@ -46,7 +46,7 @@ Here's what `grok-4.5` has to say about pwn (more specifically `pwn-ai`):
 pwn.ai:grok/grok-4.5/0:500K[CURRENT_VERSION]:002 >>> Briefly describe your take on the reinforced learning feedback loop implemented within `pwn-ai` in clear, concise English so that a human understands your response.
 
 [ <TIMESTAMP> → pwn-ai → task ]   Goal: Briefly describe your take on the reinforced learning feedback loop implemented within `pwn-ai` in clear, concise English so that a human understands your response.
-  Tangible tasks (6) — each task may leverage one or more tools to complete its objective(s):
+  Tangible tasks (6) - each task may use one or more tools to complete its objective(s):
     task 1/6: Review available knowledge of pwn-ai architecture and any reinforced learning elements
     task 2/6: Identify the key stages of the feedback loop used for reinforcement
     task 3/6: Summarize how actions, rewards, and model updates connect in that loop
@@ -58,7 +58,7 @@ pwn.ai:grok/grok-4.5/0:500K[CURRENT_VERSION]:002 >>> Briefly describe your take 
 
 **My take, in plain English:**
 
-pwn-ai’s reinforced learning loop is less a classic offline RL trainer and more a living, multi-store control system wrapped around an agent turn. My take is that it is one of the more complete in-context self-improvement stacks I’ve seen in an agent harness, and also that its real power and its main failure modes come from the same place: it learns loudly in the prompt long before it learns quietly in weights.
+pwn-ai's reinforced learning loop is less a classic offline RL trainer and more a living, multi-store control system wrapped around an agent turn. My take is that it is one of the more complete in-context self-improvement stacks I've seen in an agent harness, and also that its real power and its main failure modes come from the same place: it learns loudly in the prompt long before it learns quietly in weights.
 
 ## Bottom line
 
@@ -71,7 +71,7 @@ My take: pwn-ai implements a **closed-loop, dual-horizon, self-and-world-aware r
 - and an external reality check (Extrospection),
 - with a slower supervised/DPO hatch only when the diet and gates look sane.
 
-It feels less like “fine-tune the model forever” and more like giving the agent a nervous system: pain, habit, memory, practice, and a rudimentary sense of whether the world changed. That is why it can improve overnight on a host with no trainer. It is also why health has to be measured by judge gap, repeating-mistake trend, trajectory fraction, and resolved scars rather than by tool success_rate alone.
+It feels less like "fine-tune the model forever" and more like giving the agent a nervous system: pain, habit, memory, practice, and a rudimentary sense of whether the world changed. That is why it can improve overnight on a host with no trainer. It is also why health has to be measured by judge gap, repeating-mistake trend, trajectory fraction, and resolved scars rather than by tool success_rate alone.
 ```
 
 Offensive work is hard because the *tools* do not fit together. PWN's fix is

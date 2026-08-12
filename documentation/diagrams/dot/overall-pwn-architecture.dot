@@ -16,7 +16,7 @@ digraph "PWN_Overall_Architecture" {
     color="#334155"; bgcolor="#1e293b";
     User   [label="👤  Researcher\nRed Team · Bug Hunter", fillcolor="#7dd3fc"];
     CI     [label="⚙️  CI / CD\nHeadless pipelines",       fillcolor="#7dd3fc"];
-    LLM    [label="🤖  LLM Providers\nOpenAI · Anthropic\nGrok · Gemini · Ollama", fillcolor="#c4b5fd"];
+    LLM    [label="🤖  LLM Providers\nOpenAI · Anthropic · Grok\nGemini · Ollama · Open WebUI", fillcolor="#c4b5fd"];
     Target [label="🎯  Attack Surface\nHosts · Web · Cloud\nRadio · Hardware", fillcolor="#fda4af"];
   }
   {rank=same; User; CI; LLM; Target}
@@ -37,7 +37,7 @@ digraph "PWN_Overall_Architecture" {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Loop     [label="Loop\nTaskSummarizer briefs\nplan_first → dispatch\n→ observe → escalate\nbudget-pressure caps",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n12 toolsets · 78 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
+    Registry [label="Registry\n12 toolsets · 82 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
     Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
   }
@@ -51,7 +51,7 @@ digraph "PWN_Overall_Architecture" {
     SAST    [label="SAST\n48 rules",          fillcolor="#6ee7b7"];
     WWW     [label="WWW\n21 site drivers",    fillcolor="#6ee7b7"];
     AWS     [label="AWS\n90 services",        fillcolor="#6ee7b7"];
-    SDR     [label="SDR\nGQRX · Flipper · RFID\nDecoder::* (20)", fillcolor="#6ee7b7"];
+    SDR     [label="SDR\nGQRX · Flipper · RFID\nDecoder::* (20+Base/DSP)", fillcolor="#6ee7b7"];
     Chain   [label="Blockchain\nBTC · ETH",   fillcolor="#6ee7b7"];
     Bounty  [label="Bounty\nlifecycle replay", fillcolor="#6ee7b7"];
     Reports [label="Reports\nHTML · JSON",    fillcolor="#6ee7b7"];
@@ -73,8 +73,9 @@ digraph "PWN_Overall_Architecture" {
     SwarmB   [label="swarm/*/bus.jsonl",  shape=cylinder, fillcolor="#fcd34d"];
     CronF    [label="cron/jobs.yml",      shape=cylinder, fillcolor="#fcd34d"];
     Finetune [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
+    Prefs    [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Memory; MemIdx; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF; Finetune}
+  {rank=same; Memory; MemIdx; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF; Finetune; Prefs}
 
   /* ── L0 → L1 ── */
   User -> REPL   [color="#38bdf8"];
@@ -110,6 +111,7 @@ digraph "PWN_Overall_Architecture" {
   Chain   -> Sessions [color="#f59e0b"];
   Bounty  -> SwarmB   [color="#f59e0b"];
   Reports -> CronF    [color="#f59e0b"];
+  Reports -> Prefs    [style=invis];
 
   /* ── side flows (few, non-constraining) ── */
   Loop    -> LLM    [label="tool-use API", color="#c4b5fd", constraint=false, penwidth=2];

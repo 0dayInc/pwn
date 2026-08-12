@@ -28,6 +28,7 @@ Every byte PWN remembers between processes lives here.
 | `swarm/<id>/bus.jsonl` | `Swarm` | JSON-per-line | rm -rf | append-only multi-agent chat |
 | `swarm/<id>/personas.json` | `Swarm` | JSON | rm | persona → session_id map |
 | `curriculum/` | `PWN::AI::Agent::Curriculum` | JSONL | rm -rf | self-play reproducers · train/gate A/B eval sets |
+| `curriculum_kpi.jsonl` | `PWN::AI::Agent::Curriculum.practice_kpi` | JSONL | rm | outer curriculum KPI snapshots (repeating-mistake trend) |
 | `finetune/*.jsonl` | `Learning.export_finetune` · `Reward.export_dpo` | ShareGPT / OpenAI / DPO JSONL | `rm` | supervised + preference datasets - feed to a LoRA over the local model |
 | `backup/<ts>/` | `PWN::Migrate` | tree copy | rm -rf | timestamped snapshot taken before every `--migrate --fix` |
 | `quarantine/` | `PWN::Migrate` | quarantined originals | rm -rf | corrupt/incompatible state files moved aside so the owner re-seeds |
@@ -78,3 +79,19 @@ metrics_reset(confirm: true)   # tool telemetry (optional)
 ```
 
 [← Home](Home.md) · [Configuration](Configuration.md) · [Installation](Installation.md)
+
+## Store hygiene (lean / GC)
+
+Keep `~/.pwn` small without dropping gold learning outcomes, open mistakes, or
+protected operator preferences:
+
+| Tool | What it trims |
+|---|---|
+| `memory_lean` | expired `session_*` keys and overlong values (`VALUE_MAX_CHARS`) |
+| `sessions_lean` | stub/aged transcripts not pinned by gold outcomes or open mistakes |
+| `mistakes_lean` | compact fields; age out resolved-once signatures whose fix already lives in Memory |
+| `learning_gc_stores` | coordinated lean pass across memory, learning, mistakes, and sessions |
+
+All four support `dry_run: true` (plan only). Protected `operator_pref_*`,
+`process_sop_*`, and `mistake_fix_*` memory keys are never removed by lean.
+

@@ -1104,6 +1104,175 @@ module PWN
           nil
         end
 
+        # Request intent for routing (how-to vs act/recon). Local models thrash when
+        # pure explanation asks are force-planned into multi-step host probes.
+        # :howto → answer with explanation only (no plan_first / no live recon).
+        # :recon_act → live discovery; requires explicit authorization language.
+        # :act → general agent work with tools.
+        HOWTO_RX = /
+          \b(
+            how\s+to|how\s+do\s+i|how\s+can\s+i|how\s+would\s+i|how\s+does\s+one|
+            what\s+is\s+the\s+(?:syntax|command|usage|flag|option)|
+            explain\s+how|show\s+me\s+how|examples?\s+of\s+using|
+            manual\s+for|usage\s+of|syntax\s+for|man\s+page
+          )\b
+        /ix
+
+        LIVE_RECON_RX = /
+          \b(
+            (?:find|discover|enumerate|scan|sweep|probe|map)\s+
+            (?:live\s+)?(?:hosts?|ips?|targets?|subnet|network|range)|
+            live\s+hosts?\s+(?:can\s+you\s+)?find|
+            what\s+live\s+hosts|
+            ping\s+sweep\s+(?:of\s+)?(?:this|the|my)\s+
+            |(?:run|do|perform)\s+(?:a\s+)?(?:ping\s+)?sweep
+            |scan\s+(?:this|the|my)\s+(?:subnet|network|lan|range)
+          )\b
+        /ix
+
+        AUTH_SCOPE_RX = /
+          \b(
+            (?:in[-\s]?scope|authorized|authorised|engagement|written\s+permission|
+               bug\s*bounty|explicit(?:ly)?\s+allowed|lab\s+only|my\s+lab|
+               roe\b|rules?\s+of\s+engagement|i\s+own\s+this|owned\s+by\s+me|
+               permission\s+to\s+(?:scan|test|probe)|scope:\s*\S+)
+          )\b
+        /ix
+
+        public_class_method def self.request_intent(opts = {})
+          req = opts[:request].to_s
+          return :empty if req.strip.empty?
+
+          # Live-action recon takes precedence over bare "how to" when both appear
+          # only if the user clearly asks the agent to do the sweep here.
+          live = req.match?(LIVE_RECON_RX) && req.match?(
+            /\b(can\s+you|could\s+you|please|go\s+ahead|now|on\s+this\s+host|
+                this\s+subnet|this\s+network|find\s+(?:for\s+me|me)|discover)\b/ix
+          )
+          return :recon_act if live || (req.match?(LIVE_RECON_RX) && !req.match?(HOWTO_RX))
+          return :howto if req.match?(HOWTO_RX)
+          # Interrogative documentation without "how to"
+          if req.match?(/\b(what\s+(?:flags?|options?|switches?)|usage|syntax)\b/i) &&
+             !req.match?(/\b(run|execute|scan|find|discover)\b/i)
+            return :howto
+          end
+
+          :act
+        rescue StandardError
+          :act
+        end
+
+        public_class_method def self.recon_authorized?(opts = {})
+          req = opts[:request].to_s
+          return true if req.match?(AUTH_SCOPE_RX)
+
+          # Explicit engage flag from operator / REPL
+          v = (PWN::Env.dig(:ai, :agent, :recon_authorized) if defined?(PWN::Env))
+          return true if v == true || v.to_s =~ /\A(1|true|yes|on)\z/i
+
+          false
+        rescue StandardError
+          false
+        end
+
+        # Pure how-to: one text-only chat (no tools, no plan_first, no task recon).
+        private_class_method def self.answer_howto(opts = {})
+          request = opts[:request].to_s
+          session_id = opts[:session_id]
+          system_role_content = opts[:system_role_content].to_s
+          engine = active_engine
+          mod_name = ENGINE_MODS[engine]
+          raise "ERROR: Unsupported AI engine for agent loop: #{engine}" unless mod_name
+
+          mod = Object.const_get(mod_name)
+          howto_sys = <<~SYS
+            #{system_role_content}
+
+            INTENT: HOW-TO / DOCUMENTATION (this turn only)
+              The user wants a concise explanation of how to use a tool or technique.
+              Answer in plain US English with example command lines only.
+              Do NOT call tools. Do NOT plan multi-step work. Do NOT run scans,
+              probes, rubocop, rake, or host verification. Do NOT invent task
+              traces or internal planner monologue. Do NOT claim you ran anything.
+              If the topic is network discovery, give safe lab examples and note
+              that live sweeps need explicit in-scope authorization.
+          SYS
+
+          txt =
+            if mod.respond_to?(:chat)
+              r = mod.chat(
+                request: request,
+                system_role_content: howto_sys,
+                spinner: true
+              )
+              if r.is_a?(Hash)
+                (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
+              else
+                r.to_s
+              end
+            else
+              # chat_with_tools without tools
+              messages = [
+                { role: 'system', content: howto_sys },
+                { role: 'user', content: request }
+              ]
+              msg = call_engine(messages: messages, tools: nil)
+              msg.is_a?(Hash) ? msg[:content].to_s : msg.to_s
+            end
+
+          txt = txt.to_s.strip
+          if txt.empty?
+            txt = <<~FALLBACK
+              Example hping3 ICMP ping sweep (lab / authorized targets only):
+
+                # Needs root/CAP_NET_RAW for raw sockets
+                sudo hping3 -1 --flood -c 1 192.168.1.x
+                # Or loop a /24 carefully (slow rate to avoid DoS):
+                for i in $(seq 1 254); do
+                  sudo hping3 -1 -c 1 -N $i 192.168.1.$i 2>/dev/null | grep -q "icmp"                      && echo "up 192.168.1.$i"
+                done
+
+              Prefer intentional CIDR targeting over blind sweeps. Live host
+              discovery without explicit engagement/scope authorization is out
+              of bounds for this agent.
+            FALLBACK
+          end
+
+          append_session(session_id: session_id, role: 'user', content: request)
+          append_session(session_id: session_id, role: 'assistant', content: txt)
+          if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: txt,
+              predicted: 0.9,
+              plan: ['Explain tool usage without live recon'],
+              ts_state: nil
+            )
+          end
+          txt
+        rescue StandardError => e
+          warn "[pwn-ai/loop] answer_howto swallowed: #{e.class}: #{e.message}"
+          "Could not produce a how-to answer (#{e.class}: #{e.message}). Retry with a frontier engine or ask for a specific flag/example."
+        end
+
+        private_class_method def self.refuse_unauthorized_recon(opts = {})
+          request = opts[:request].to_s
+          session_id = opts[:session_id]
+          txt = <<~REFUSE
+            I will not run a live subnet sweep or raw-socket host discovery from this agent without explicit in-scope authorization.
+
+            Your request looks like active recon on "this" network/subnet. To proceed, restate with engagement language such as:
+              - "authorized engagement" / "in-scope" / "lab only" / "I own this network"
+              - or set PWN::Env[:ai][:agent][:recon_authorized] = true for this session
+
+            If you only wanted the command syntax, ask: how to do a ping sweep of a subnet using hping3?
+          REFUSE
+          append_session(session_id: session_id, role: 'user', content: request)
+          append_session(session_id: session_id, role: 'assistant', content: txt)
+          txt
+        end
+
         # Supported Method Parameters::
         # final = PWN::AI::Agent::Loop.run(
         #   request: 'required - what the human typed',
@@ -1126,6 +1295,20 @@ module PWN
           Registry.discover
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
+
+          intent = request_intent(request: request)
+          Thread.current[:pwn_request_intent] = intent
+          Thread.current[:pwn_recon_authorized] = recon_authorized?(request: request)
+          # How-to: never enter plan_first / task recon / tool thrash (ollama/openwebui).
+          if intent == :howto && opts[:force_tools] != true
+            return answer_howto(
+              request: request,
+              session_id: session_id,
+              system_role_content: system_role_content
+            )
+          end
+          # Live recon without authorization: refuse rather than probe the LAN.
+          return refuse_unauthorized_recon(request: request, session_id: session_id) if intent == :recon_act && !recon_authorized?(request: request) && opts[:force_tools] != true
 
           # Initial tool pool from the user request (bootstrap only). After
           # TaskSummarizer.emit_plan! we re-rank using English tangible tasks
@@ -1153,7 +1336,8 @@ module PWN
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
-          if (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
+          skip_plan = (intent == :howto)
+          if !skip_plan && (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
             predicted = plan_first(messages: messages, request: request, ts_state: ts_state)
             # P22 — prefer explicit return; fall back to thread stash
             predicted = Thread.current[:pwn_plan_predicted] if predicted.nil?
@@ -1483,6 +1667,10 @@ module PWN
               Supported engines: #{ENGINE_MODS.keys.join(', ')}
               Set PWN::Env[:ai][:active] to choose; PWN::Env[:ai][:agent][:max_iters] to bound.
 
+              Intent routing (all engines; critical for ollama/openwebui):
+                how-to / usage questions → text-only explanation (no tools, no plan_first)
+                live subnet sweeps without scope language → refuse
+                :recon_authorized    - Boolean session flag to allow raw-socket / sweep tools
               Local-model scaffolding (PWN::Env[:ai][:agent]):
                 :plan_first          - Boolean, plan-then-act pre-pass (default: local engine :ollama/:openwebui)
                 :tool_router         - Boolean/nil, slim Registry.definitions (nil=auto on for ollama)

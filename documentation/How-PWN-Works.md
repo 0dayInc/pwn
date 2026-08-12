@@ -12,7 +12,7 @@ Humans (`pwn` REPL, `pwn-ai` TUI), CI runners (`pwn --ai "..."`, `bin/pwn_*`),
 LLM providers (over HTTPS), and targets (hosts, web apps, clouds, radios,
 hardware).
 
-## L1 - Entry points  (`bin/`)
+## L1 - Entry points (`bin/`)
 
 | Entry | File | Purpose |
 |---|---|---|
@@ -23,13 +23,13 @@ hardware).
 | `bin/pwn_*` | 53 files | Thin OptionParser wrappers over one plugin each |
 | `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs → any of the above (nightly self-play + weekly weight-loop seeded by default) |
 
-## L2 - AI agent core  (`lib/pwn/ai/agent/`)
+## L2 - AI agent core (`lib/pwn/ai/agent/`)
 
 | Module | Role |
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
-| **`TaskSummarizer`** | Executive UX: English tasks primary  -  `emit_plan!` · `about_to` as `task k/n` + via tools · Loop `plan_context` injection · clearer `plan_idx` advance |
-| `Registry` | JSON-Schema function definitions grouped into 12 **toolsets** · **78 tools** |
+| **`TaskSummarizer`** | Executive UX: English tasks primary - `emit_plan!` · `about_to` as `task k/n` + via tools · Loop `plan_context` injection · clearer `plan_idx` advance |
+| `Registry` | JSON-Schema function definitions grouped into 12 **toolsets** · **82 tools** |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
 | `Metrics` · `Learning` · `Reflect` | **introspection** - how well am I doing? |
@@ -43,14 +43,14 @@ See [Agent Tool Registry](Agent-Tool-Registry.md) for every tool the LLM can
 call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 `Reward` + `Curriculum` close the weight-level loop.
 
-## L3 - Capability namespaces  (`lib/pwn/*`)
+## L3 - Capability namespaces (`lib/pwn/*`)
 
 `Plugins` (66) · `SAST` (48) · `WWW` (21) · `AWS` (90) · `SDR` · `Blockchain` ·
 `Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
 callable the same way from the REPL, from `pwn_eval`, or from a driver.
 
-## L4 - Persistence  (`~/.pwn/`)
+## L4 - Persistence (`~/.pwn/`)
 
 Everything the framework remembers between processes lives in one directory.
 `PWN::Migrate` (schema-stamped, idempotent, dry-run capable) verifies and

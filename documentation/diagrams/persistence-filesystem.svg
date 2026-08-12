@@ -254,16 +254,16 @@
 <!-- cur -->
 <g id="node18" class="node">
 <title>cur</title>
-<path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M408.62,-238C408.62,-240.21 374.45,-242 332.38,-242 290.3,-242 256.12,-240.21 256.12,-238 256.12,-238 256.12,-202 256.12,-202 256.12,-199.79 290.3,-198 332.38,-198 374.45,-198 408.62,-199.79 408.62,-202 408.62,-202 408.62,-238 408.62,-238"/>
-<path fill="none" stroke="#334155" stroke-width="1.3" d="M408.62,-238C408.62,-235.79 374.45,-234 332.38,-234 290.3,-234 256.12,-235.79 256.12,-238"/>
-<text xml:space="preserve" text-anchor="middle" x="332.38" y="-222.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">curriculum/</text>
-<text xml:space="preserve" text-anchor="middle" x="332.38" y="-210.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">self&#45;play reproducers · A/B eval</text>
+<path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M413.5,-238C413.5,-240.21 377.14,-242 332.38,-242 287.61,-242 251.25,-240.21 251.25,-238 251.25,-238 251.25,-202 251.25,-202 251.25,-199.79 287.61,-198 332.38,-198 377.14,-198 413.5,-199.79 413.5,-202 413.5,-202 413.5,-238 413.5,-238"/>
+<path fill="none" stroke="#334155" stroke-width="1.3" d="M413.5,-238C413.5,-235.79 377.14,-234 332.38,-234 287.61,-234 251.25,-235.79 251.25,-238"/>
+<text xml:space="preserve" text-anchor="middle" x="332.38" y="-222.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">curriculum/ + curriculum_kpi.jsonl</text>
+<text xml:space="preserve" text-anchor="middle" x="332.38" y="-210.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">self&#45;play · A/B eval · KPI trend</text>
 </g>
 <!-- Root&#45;&gt;cur -->
 <g id="edge17" class="edge">
 <title>Root&#45;&gt;cur</title>
-<path fill="none" stroke="#94a3b8" stroke-width="1.1" d="M105.59,-671.76C106.02,-605.83 116.42,-377.3 235.5,-253 239.43,-248.9 243.89,-245.31 248.68,-242.17"/>
-<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="1.1" points="249.72,-244.4 254.49,-238.72 247.22,-240.18 249.72,-244.4"/>
+<path fill="none" stroke="#94a3b8" stroke-width="1.1" d="M105.59,-671.76C106.02,-605.83 116.42,-377.3 235.5,-253 238.03,-250.35 240.79,-247.92 243.72,-245.68"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="1.1" points="245.06,-247.73 249.45,-241.75 242.29,-243.69 245.06,-247.73"/>
 </g>
 <!-- ftn -->
 <g id="node19" class="node">

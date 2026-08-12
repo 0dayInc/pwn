@@ -90,7 +90,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## What the agent can call
 
-12 toolsets · **78 tools** - full table at
+12 toolsets · **82 tools** - full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:
@@ -118,7 +118,7 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 | Surface | When | Content |
 |---|---|---|
 | `emit_plan!` | User submit | **Full** goal + ordered plain-English tangible tasks (each may need many tools) |
-| `about_to` | Before each tool batch | **Primary:** `task k/n: <english>`  -  **secondary:** `via shell×2 (search)` (not raw argv) |
+| `about_to` | Before each tool batch | **Primary:** `task k/n: <english>` - **secondary:** `via shell×2 (search)` (not raw argv) |
 | `plan_context` / `active_task_prompt` | Into Loop messages | Same English tasks steer tool choice (not TUI-only) |
 | `record!` | After each tool | Advances `plan_idx`; emits English advancement brief when the index moves; verbose progress only if `task_summary_verbose` |
 | `flush!` | End of turn | Optional closing brief with active `task k/n` |
@@ -131,7 +131,7 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 - Advancement needs a PRM +1 streak or a clear phase shift after tools on the active task (not a blind every-3-tools hop).
 - REPL contract: `on_tool.call('task', full_summary_text, '')` - result empty, no truncation.
 
-**Budget pressure:** when unresolved `agent_loop` / `assistant_answer` budget-exhaustion fingerprints dominate, `Loop.budget_exhaustion_hot?` tightens the live turn (stricter `max_iters` on local engines than remote), forces a text-only tail, skips counterfactual forks, and still flushes task state + Learning on the exhaust path.
+**Long-run pressure:** when recent turns keep hitting the iteration ceiling, the agent tightens the rest of the turn: lower `max_iters` (stricter on local engines than remote), a text-only finish, and no extra counterfactual forks. Task state and Learning still flush on the way out so the run ends with a real answer instead of thrashing.
 
 ![TaskSummarizer](diagrams/task-summarizer.svg)
 
@@ -157,18 +157,17 @@ max_iters: 25                   # budget pressure may lower the effective cap (s
 - Run `mistakes_list` before retrying something that failed last session -
   the fix may already be recorded.
 - `ai.agent.tool_router: true` + `ai.agent.plan_first: true` when running on
-  a local model - dramatically cuts mis-routing.
+  a local model - that cuts mis-routing a lot.
 - Set `ai.reflect_engine:` to a frontier provider so lessons written to
-  `~/.pwn/memory.json` are high-signal even when the *executing* engine is
+  `~/.pwn/memory.json` stay high-signal even when the executing engine is
   local.
-- `PWN::AI::Agent::Learning.export_finetune` + `Reward.export_dpo` turn every
-  successful session and every preference pair into supervised / DPO
-  datasets under `~/.pwn/finetune/` - `Curriculum.train_and_gate` then
-  LoRA-tunes the local model and promotes only under **gate v2** (resolved
-  margin + mean judge + frozen smoke set). Preference pairs prefer trajectory
-  geometry: revised answers and winning traces, not fix-commentary prose.
-  `scrub_preferences` and the export filter enforce that; practice lands
-  winning traces.
+- `PWN::AI::Agent::Learning.export_finetune` and `Reward.export_dpo` turn
+  successful sessions and preference pairs into supervised / preference
+  datasets under `~/.pwn/finetune/`. `Curriculum.train_and_gate` can then
+  fine-tune a local model and promote only when resolved-mistake margin,
+  mean judge score, and a frozen smoke set all look healthy. Preference
+  pairs should be real answer revisions and winning traces, not fix-commentary
+  prose. `scrub_preferences` and the export filter enforce that.
   See [Reinforcement Learning](Reinforcement-Learning.md).
 
 ## RL feature flags (`PWN::Env[:ai][:agent]`)
@@ -189,3 +188,20 @@ Full detail: [Reinforcement Learning](Reinforcement-Learning.md).
 [Extrospection](Extrospection.md) · [Swarm](Swarm.md) · [Cron](Cron.md)
 
 [← Home](Home.md)
+
+## Intent routing (how-to vs act vs recon)
+
+On local engines (`ollama`, `openwebui`), plain "how do I..." questions used to
+kick off multi-step host probes and planner noise. Each user turn is classified
+first:
+
+| Intent | Example | Behavior |
+|--------|---------|----------|
+| How-to | "how to do a ping sweep of a subnet using hping3?" | Short explanation with example commands only. No tools and no live scan plan. |
+| Live recon | "using hping3 what live hosts can you find in this subnet?" | Needs clear in-scope / authorized engagement wording, or set `ai.agent.recon_authorized=true`. Otherwise the agent refuses and points you at the how-to form. |
+| Act | "refactor Loop.run and run rubocop" | Normal multi-step agent work with tools. |
+
+The `shell` tool also blocks hping3 / nmap-style sweep commands when recon is
+not authorized. On how-to asks, memory SOPs about repo rubocop/rake hygiene are
+kept out of the prompt so the model does not pivot into unrelated verification.
+

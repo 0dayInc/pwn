@@ -12,30 +12,30 @@ every turn.
 ![Reinforcement-learning loop](diagrams/reinforcement-learning.svg)
 
 ```
-                       ┌────────────────────────────────────────────────┐
-        request ──────►│ Loop.run                                       │
-                       │  plan_first ─► Curriculum.red_team_plan  (S4)  │
-                       │  Dispatch ──► Reward.semantic_ok         (R4)  │
-                       │            └► Mistakes.record(cause:)    (E1)  │
-                       │  guard ────► Curriculum.counterfactual   (S2)  │──► Reward.record_preference (W1)
-                       │  final ────► Curriculum.critic           (S3)  │
-                       │            └► Reward.judge (ORM)         (R1)  │──► Reward.verify_as_reward   (E3)
-                       │            └► Reward.prm   (PRM)         (R2)  │──► Sessions[step_reward]     (C4)
-                       │            └► Curriculum.hindsight       (C3)  │
-                       │            └► Curriculum.calibrate       (W3)  │──► Metrics.calibration
-                       │            └► Reward.sentinel            (R3)  │──► Mistakes(reward_signal)
-                       └────────────────────────────────────────────────┘
-                                           │
-                    Learning.consolidate (M1 semantic-merge, M3 importance-evict)
-                    MemoryIndex.recall_semantic (M2 sim × recency × importance)
-                    Registry.rank (C1 keyword sim + advantage + UCB)
+                       +------------------------------------------------+
+        request -----> | Loop.run                                       |
+                       |  plan_first -> Curriculum.red_team_plan  (S4)  |
+                       |  Dispatch   -> Reward.semantic_ok        (R4)  |
+                       |             -> Mistakes.record(cause:)         |
+                       |  guard      -> Curriculum.counterfactual (S2)  |--> preference ledger (W1)
+                       |  final      -> Curriculum.critic         (S3)  |
+                       |             -> Reward.judge (outcome)    (R1)  |--> verify_as_reward (E3)
+                       |             -> Reward.prm (process)      (R2)  |--> Sessions[step_reward] (C4)
+                       |             -> Curriculum.hindsight      (C3)  |
+                       |             -> Curriculum.calibrate      (W3)  |--> Metrics.calibration
+                       |             -> Reward.sentinel           (R3)  |--> Mistakes(reward_signal)
+                       +------------------------------------------------+
+                                           |
+                    Learning.consolidate (M1 semantic merge, M3 importance eviction)
+                    MemoryIndex.recall_semantic (M2 similarity x recency x importance)
+                    Registry.rank (C1 keyword fit + advantage + UCB)
                     Learning.exemplars_for (C2 prioritized replay, C4 minimal trace)
-                                           │
-              nightly cron ──► Curriculum.practice (S1) ──► Mistakes.resolve ──► preference (W1)
-              weekly  cron ──► Curriculum.train_and_gate (W2) ──► LoRA vN+1 ──► A/B gate ──► promote
-                                           │
-                    Extrospection.correlate rule 9 (E2 causal lead-lag)
-                    Metrics.changepoints (E1 CUSUM) ──► Mistakes(cause: :env_drift)
+                                           |
+              nightly cron --> Curriculum.practice (S1) --> Mistakes.resolve --> preference ledger (W1)
+              weekly  cron --> Curriculum.train_and_gate (W2) --> optional LoRA --> A/B gate --> promote
+                                           |
+                    Extrospection.correlate (E2 world vs self join)
+                    Metrics.changepoints (E1) --> Mistakes(cause: :env_drift)
 ```
 
 ## Reward signal (`PWN::AI::Agent::Reward`)
@@ -48,7 +48,7 @@ every turn.
 | **R4** | `.semantic_ok` | Treats informational non-zero exits (e.g. `grep`/`rg` with no match) as benign. Metrics count them as OK; Mistakes only see true dispatch failures. |
 | - | `.warm_sentinel` | Backfills the sentinel window from scored Learning outcomes so local hosts can engage proxy distrust without waiting for live remote introspect. |
 | **W1** | `.record_preference` / `.export_dpo` | Preference ledger (`~/.pwn/preferences.jsonl`) from user corrections, resolve, counterfactual, critic, and practice. Caps per source; keeps trajectory-shaped pairs (winning traces / revised answers), not fix commentary. |
-| - | `.scrub_preferences` / `.preference_balance` / `.generator_mix` | Ledger hygiene and source-mix health so one channel cannot flood DPO export. |
+| - | `.scrub_preferences` / `.preference_balance` / `.generator_mix` | Ledger hygiene and source-mix health so one channel cannot flood preference export. |
 
 ## Credit assignment and replay
 
@@ -85,7 +85,7 @@ every turn.
 ## Budget pressure (iteration ceiling)
 
 When unresolved `agent_loop` / `assistant_answer` budget-exhaustion fingerprints
-dominate, `Loop.budget_exhaustion_hot?` tightens the live turn:
+dominate, the loop marks the budget path hot and tightens the live turn:
 
 - lower effective `max_iters` (stricter on local/ollama engines than remote)
 - **Last-iter force-final**: tools=nil on the final iteration so a text answer is required
@@ -98,11 +98,11 @@ Raising `ai.agent.max_iters` or resolving the scar returns normal runway.
 
 ## Intro and extro join
 
-| ID | Where | What |
-|----|-------|------|
-| **E1** | `Metrics.changepoints` + `Loop.attribute_cause` | Env-drift-attributed failures get `cause: :env_drift` and do not inflate `[REPEATING]`. |
-| **E2** | `Extrospection.correlate` | Lead-lag style joins ("tool X started failing after toolchain Y changed"). |
-| **E3** | `Reward.verify_as_reward` | Browser-backed claim checks can floor/cap the outcome score. |
+| Where | What |
+|-------|------|
+| `Metrics.changepoints` + `Loop.attribute_cause` (**E1**) | Env-drift-attributed failures get `cause: :env_drift` and do not inflate `[REPEATING]`. |
+| `Extrospection.correlate` (**E2**) | Lead-lag style joins ("tool X started failing after toolchain Y changed"). |
+| `Reward.verify_as_reward` (**E3**) | Browser-backed claim checks can floor/cap the outcome score. |
 
 ## Config (`PWN::Env[:ai][:agent]`)
 
@@ -113,7 +113,7 @@ Raising `ai.agent.max_iters` or resolving the scar returns normal runway.
     :critic: null            # S3 - nil = ON for remote engines, OFF for ollama
     :red_team_plan: null     # S4 - same auto policy
     :counterfactual: null    # S2 - same auto policy
-    :hindsight: true         # C3 - HER soft-relabel (default true)
+    :hindsight: true         # C3 - hindsight relabel on failed turns (default true)
     :verify_as_reward: null  # E3 - nil = auto sample on claim-shaped answers
     :reward_llm: null        # nil = outcome/process judges use LLM teacher on remote
     :local_introspect: :failure_only   # ollama cost policy; remote always introspects
@@ -168,21 +168,21 @@ keep it honest by:
 
 ## Design-priority STATUS
 
-Living flag authority for the reinforced feedback loop. Cite the Pri/ID here
-instead of inventing new milestone labels for the same theme.
+Living checklist for the reinforced feedback loop. Cite the Pri/ID here instead
+of inventing new milestone labels for the same theme.
 
 | Pri | ID | Control | Module(s) | Success criterion |
 |-----|----|---------|-----------|-------------------|
 | **P0** | W1 generator diversity | `Reward::TARGET_SOURCE_MIX` + `generator_mix` + mix-urgent force on critic/counterfactual | `reward.rb`, `curriculum.rb` | `generator_mix.healthy` OR `recommendation` not stuck on `suppress:mistakes_resolve`; trajectory_fraction ≥ 0.5 |
-| **P0** | Introspect budget | `Learning::INTROSPECT_SOFT_MS` / `HARD_MS`; stage skip under soft/hard / `budget_exhaustion_hot?` | `learning.rb` | `auto_introspect` returns `stages_skipped` when over soft; post-answer path cannot re-thrash tool critic |
-| **P1** | Local judge calibration | Heuristic score shrinkage + `confidence`; `Metrics.effective_rate` scales distrust by `judge_confidence` | `reward.rb`, `metrics.rb` | distrust×heuristic no longer fully replaces proxy; local no-trace highs capped |
-| **P1** | Practice outer KPI | `Curriculum.practice_kpi` / `repeating_trend` → `~/.pwn/curriculum_kpi.jsonl` | `curriculum.rb` | week-over-week `delta_repeating` ≤ 0 on budget fingerprints after practice nights |
-| **P2** | PRM sample efficiency | `PRM_MIN_N=5`, shrinkage to `PRM_FULL_N=20`, fleet coverage gate in `Registry.rank` | `metrics.rb`, `registry.rb` | `prm_advantage=0` until n≥5; rank delta=0 until ≥3 tools ready |
-| **P2** | STATUS over flag archaeology | This table | docs | New work cites Pri/ID here, not fresh comments for the same theme |
+| **P0** | Introspect budget | `Learning::INTROSPECT_SOFT_MS` / `HARD_MS`; stage skip under soft/hard / budget-pressure mode | `learning.rb` | `auto_introspect` returns `stages_skipped` when over soft; post-answer path cannot re-thrash tool critic |
+| **P0** | Local judge calibration | Heuristic score shrinkage + `confidence`; `Metrics.effective_rate` scales distrust by `judge_confidence` | `reward.rb`, `metrics.rb` | distrust×heuristic no longer fully replaces proxy; local no-trace highs capped |
+| **P0** | Practice outer KPI | `Curriculum.practice_kpi` / `repeating_trend` → `~/.pwn/curriculum_kpi.jsonl` | `curriculum.rb` | week-over-week `delta_repeating` ≤ 0 on budget fingerprints after practice nights |
+| **P0** | PRM sample efficiency | `PRM_MIN_N=5`, shrinkage to `PRM_FULL_N=20`, fleet coverage gate in `Registry.rank` | `metrics.rb`, `registry.rb` | `prm_advantage=0` until n≥5; rank delta=0 until ≥3 tools ready |
+| **P0** | STATUS over flag archaeology | This table | docs | New work cites Pri/ID here, not fresh comments for the same theme |
 | **ops** | Nightly diet close | `offline_judge` → `scrub_preferences` + `generator_mix` + `practice_kpi` | `curriculum.rb` | Cron path returns `scrub`/`generator_mix`/`practice_kpi`; raw resolve prose does not survive the night |
 | **ops** | Shape backfill | `Reward.infer_shape` + scrub rewrite | `reward.rb` | Legacy shapeless rows get `winning_trace`/`revised_answer` when content warrants; traj_f measurable |
 | **ops** | Mix in prompt | `Metrics.to_context` emits `W1 MIX:` when unhealthy | `metrics.rb` | Unhealthy diet visible every turn without a tool call |
-| **P0** | Budget exhaust deepen | Last-iter force-final (tools=nil); skip CF when `budget_exhaustion_hot?`; hot caps 24 ollama / 75 remote; exhaust path `append_session`+`auto_introspect` | `loop.rb` | Exhaust returns a judged final, not a bare string; CF cannot re-enter under hot; last iter cannot tool-call |
+| **P0** | Budget exhaust deepen | Last-iter force-final (tools=nil); skip CF under budget-pressure mode; hot caps 24 ollama / 75 remote; exhaust path `append_session`+`auto_introspect` | `loop.rb` | Exhaust returns a judged final, not a bare string; CF cannot re-enter under hot; last iter cannot tool-call |
 
 ### Config additions
 

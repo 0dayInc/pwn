@@ -60,3 +60,16 @@ rake            # rubocop + rspec - must be zero offenses
 `third_party/pwn_rdoc.jsonl`, runs the gates, and pushes.
 
 [← Home](Home.md)
+
+## Documentation after code changes
+
+When you change code under `/opt/pwn`:
+
+1. Clear RuboCop on the paths you touched (`bundle exec rubocop -a <paths>`).
+2. Run the test suite (`bundle exec rake`) and fix failures.
+3. Only then refresh user docs: `README.md`, `documentation/*`, and
+   `documentation/diagrams/dot/*.dot` (rebuild with `documentation/diagrams/build.sh`).
+4. Keep user-facing markdown in plain US English (ASCII hyphens, no marketing
+   filler, no internal agent backlog codes).
+
+Do not commit doc refreshes while lint or tests are still red.
