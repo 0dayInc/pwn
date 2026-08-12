@@ -51,7 +51,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{memory_block(limit: b[:memory], request: request)}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{extrospection_block if b[:extro]}TOOL USE
+            #{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{extrospection_block if b[:extro]}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).
@@ -72,10 +72,19 @@ module PWN
               goal are incorrect behavior.
 
             INTENT AND SCOPE
-              Match effort to the user ask. Pure how-to / syntax / usage questions
+              First classify every user request as one of:
+                - general statement — observation or FYI; no multi-step task plan
+                - question — answer concisely; no multi-step task breakdown
+                - autonomous goal — MUST decompose into ordered tangible work units
+                  (each unit may use one or more tools) and finish them in this run
+              Match effort to that kind. Pure how-to / syntax / usage questions
               get a concise explanation with example commands only — no tool calls,
               no multi-step recon plan, no live probes, no rubocop/rake/docs side
               quests, and no invented planner or verification monologue.
+              Pure prior-turn recall ("what did I just say?") is answered from the
+              RECENT TURNS block or one memory_recall — never a multi-tool plan.
+              Pure greetings / light smalltalk short-circuit to a fixed ack — never
+              echo weather or invent social filler ("noted, cloudy out there").
               Do not treat process_sop_* or operator_pref_* memory about code
               hygiene as the current user goal unless they asked to change code.
               Live subnet sweeps, raw-socket discovery (hping3/nmap -sn mass
@@ -102,10 +111,12 @@ module PWN
             metrics: (b[:metrics] || (local ? 3 : 8)).to_i,
             mistakes: (b[:mistakes] || (local ?  3 :  6)).to_i,
             learning: (b[:learning] || (local ?  2 :  5)).to_i,
+            # Always inject last user/assistant pair(s); local keeps it tiny.
+            recent_turns: (b[:recent_turns] || (local ? 1 : 2)).to_i,
             extro: b[:extro].nil? ? !local : b[:extro]
           }
         rescue StandardError
-          { memory: 25, metrics: 8, mistakes: 6, learning: 5, extro: true }
+          { memory: 25, metrics: 8, mistakes: 6, learning: 5, recent_turns: 2, extro: true }
         end
 
         private_class_method def self.active_engine
@@ -124,6 +135,50 @@ module PWN
 
         private_class_method def self.pwn_version
           defined?(PWN::VERSION) ? PWN::VERSION : '?'
+        end
+
+        # Inject the previous user/assistant pair(s) from the active session so
+        # "what did I just say?" never depends on the model calling tools first.
+        # Always-on and cheap; pairs capped via budget[:recent_turns].
+        private_class_method def self.recent_turns_block(opts = {})
+          return '' unless defined?(PWN::Memory) && PWN::Memory.respond_to?(:recent_dialog)
+
+          sid = opts[:session_id]
+          pairs = (opts[:limit] || 2).to_i
+          pairs = 1 if pairs <= 0
+          # On pure-recall / vague cues, prefer a slightly richer window if budget allows.
+          req = opts[:request].to_s
+          if req.match?(
+            /
+              \b(
+                what\s+did\s+i\s+(just\s+)?say|
+                what\s+was\s+my\s+last|
+                how\s+did\s+you\s+respond|
+                what\s+did\s+you\s+(just\s+)?(?:say|answer|reply)|
+                what\s+(?:was|is)\s+your\s+(?:last|previous)|
+                remind\s+me\s+what|
+                previous\s+(request|message|turn)|
+                last\s+(thing|request|message)\s+i
+              )\b
+            /ix
+          )
+            pairs = [pairs, 2].max
+          end
+          dialog = PWN::Memory.recent_dialog(session_id: sid, pairs: pairs, max_chars: 1_200)
+          return '' if dialog.nil? || dialog.empty?
+
+          lines = dialog.map do |t|
+            role = t[:role].to_s.upcase
+            body = t[:content].to_s.gsub(/\s+/, ' ').strip
+            "  [#{role}] #{body}"
+          end
+          <<~BLK
+            RECENT TURNS (same session — prior context; do not re-fetch with tools unless missing)
+            #{lines.join("\n")}
+
+          BLK
+        rescue StandardError
+          ''
         end
 
         private_class_method def self.memory_block(opts = {})

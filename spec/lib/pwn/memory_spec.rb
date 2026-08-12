@@ -134,6 +134,68 @@ describe PWN::Memory do
     FileUtils.rm_rf(sess_tmp) if sess_tmp
   end
 
+  it 'recent_dialog returns chronological prior user/assistant pairs' do
+    mem_tmp = Dir.mktmpdir('pwn-mem')
+    sess_tmp = Dir.mktmpdir('pwn-sess')
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(mem_tmp, 'memory.json'))
+    stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+    PWN::Memory.clear(force: true)
+    sid = 'dialog_spec'
+    PWN::Sessions.create(id: sid, title: 'dialog-spec')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'first user')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'first asst')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'THIS WAS MY LAST REQUEST')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'second asst')
+
+    dialog = PWN::Memory.recent_dialog(session_id: sid, pairs: 1)
+    expect(dialog.map { |d| d[:role] }).to eq(%w[user assistant])
+    expect(dialog[0][:content]).to eq('THIS WAS MY LAST REQUEST')
+    expect(dialog[1][:content]).to eq('second asst')
+
+    expect(PWN::Memory.prior_user_message(session_id: sid)[:content]).to eq('THIS WAS MY LAST REQUEST')
+    expect(PWN::Memory.prior_assistant_message(session_id: sid)[:content]).to eq('second asst')
+  ensure
+    FileUtils.rm_rf(mem_tmp) if mem_tmp
+    FileUtils.rm_rf(sess_tmp) if sess_tmp
+  end
+
+  it 'find_turn_pair matches a quoted earlier utterance and skips meta recall pairs' do
+    mem_tmp = Dir.mktmpdir('pwn-mem')
+    sess_tmp = Dir.mktmpdir('pwn-sess')
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(mem_tmp, 'memory.json'))
+    stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+    PWN::Memory.clear(force: true)
+    sid = 'pair_spec'
+    PWN::Sessions.create(id: sid, title: 'pair-spec')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'howdy ho from down below!')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Howdy ho right back! System is up.')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'what did I just say?')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: "You just said:\n\nhowdy ho from down below!")
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'and what did you say when I said that?')
+    PWN::Sessions.append(
+      session_id: sid,
+      role: 'assistant',
+      content: "Immediately prior user message:\nwhat did I just say?\n\nImmediately prior assistant response:\nYou just said:\n\nhowdy ho from down below!"
+    )
+
+    pairs = PWN::Memory.turn_pairs(session_id: sid, pairs: 6)
+    expect(pairs.length).to eq(3)
+
+    hit = PWN::Memory.find_turn_pair(session_id: sid, match: 'howdy ho from down below!')
+    expect(hit).not_to be_nil
+    expect(hit[:user_content]).to eq('howdy ho from down below!')
+    expect(hit[:assistant_content]).to include('Howdy ho right back')
+
+    non_meta = PWN::Memory.find_turn_pair(session_id: sid, skip_meta: true)
+    expect(non_meta[:user_content]).to eq('howdy ho from down below!')
+    expect(non_meta[:assistant_content]).to include('Howdy ho right back')
+
+    expect(PWN::Memory.prior_assistant_message(session_id: sid, skip_meta: true)[:content]).to include('Howdy ho right back')
+  ensure
+    FileUtils.rm_rf(mem_tmp) if mem_tmp
+    FileUtils.rm_rf(sess_tmp) if sess_tmp
+  end
+
   it 'lean! drops expired session_* but keeps protected prefixes' do
     tmp = Dir.mktmpdir
     stub_const('PWN::Memory::MEMORY_FILE', File.join(tmp, 'memory.json'))

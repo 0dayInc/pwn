@@ -113,11 +113,20 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 
 ## Task summaries (long autonomous turns)
 
-`PWN::AI::Agent::TaskSummarizer` keeps the TUI readable during multi-step work:
+`PWN::AI::Agent::TaskSummarizer` keeps the TUI readable during multi-step work.
+First it classifies the request with `request_kind` (LLM when enabled, else
+heuristics / `request_intent`):
+
+| Kind | Example | Task breakdown |
+|---|---|---|
+| `statement` | "FYI the build is green." | None - brief ack only |
+| `question` | "what is the default GQRX port?" / "how to ...?" | None - concise answer only |
+| `autonomous_goal` | "refactor Loop.run and run rubocop" / "what is my hostname?" | **Required** ordered work units (each may use one or more tools) |
 
 | Surface | When | Content |
 |---|---|---|
-| `emit_plan!` | User submit | **Full** goal + ordered plain-English tangible tasks (each may need many tools) |
+| `request_kind` | User submit | `statement` \| `question` \| `autonomous_goal` |
+| `emit_plan!` | Autonomous goals only | **Full** goal + ordered plain-English tangible tasks (each may need many tools) |
 | `about_to` | Before each tool batch | **Primary:** `task k/n: <english>` - **secondary:** `via shell×2 (search)` (not raw argv) |
 | `plan_context` / `active_task_prompt` | Into Loop messages | Same English tasks steer tool choice (not TUI-only) |
 | `record!` | After each tool | Advances `plan_idx`; emits English advancement brief when the index moves; verbose progress only if `task_summary_verbose` |
@@ -142,6 +151,8 @@ task_summary: true              # master switch (default on)
 task_summary_every: 5           # verbose progress every N tools
 task_summary_interval_s: 8.0    # or every N seconds (verbose)
 task_summary_verbose: false     # mid-flight Progress: lines
+task_summary_llm: true          # LLM task decompose for autonomous goals (default on)
+request_kind_llm: null          # null = follow task_summary_llm; false = heuristic-only
 max_iters: 25                   # budget pressure may lower the effective cap (stricter on local engines)
 ```
 
@@ -189,17 +200,28 @@ Full detail: [Reinforcement Learning](Reinforcement-Learning.md).
 
 [← Home](Home.md)
 
-## Intent routing (how-to vs act vs recon)
+## Intent routing (kind + fine-grained intent)
 
-On local engines (`ollama`, `openwebui`), plain "how do I..." questions used to
-kick off multi-step host probes and planner noise. Each user turn is classified
-first:
+Every user turn is classified on two layers:
 
-| Intent | Example | Behavior |
-|--------|---------|----------|
-| How-to | "how to do a ping sweep of a subnet using hping3?" | Short explanation with example commands only. No tools and no live scan plan. |
-| Live recon | "using hping3 what live hosts can you find in this subnet?" | Needs clear in-scope / authorized engagement wording, or set `ai.agent.recon_authorized=true`. Otherwise the agent refuses and points you at the how-to form. |
-| Act | "refactor Loop.run and run rubocop" | Normal multi-step agent work with tools. |
+1. **`request_kind`** - `statement` | `question` | `autonomous_goal` (TaskSummarizer is the
+   single source of truth; `Loop.request_kind` delegates). Classification order:
+   injected label (tests) → cheap `request_intent` short-circuits (greeting/howto/recall/recon) →
+   strong agent-do / host-evidence heuristics → **LLM classify** via `chat_for_kind`
+   (when `ai.agent.request_kind_llm` is on / follows `task_summary_llm`) → offline
+   `heuristic_request_kind`. Only autonomous goals receive a multi-step tangible-task plan.
+2. **`request_intent`** - fine-grained route for cheap short-circuits and recon guard.
+
+| Intent | Kind | Example | Behavior |
+|--------|------|---------|----------|
+| How-to | question | "how to do a ping sweep of a subnet using hping3?" | Short explanation with example commands only. No tools and no multi-step plan. |
+| Question | question | "what is the default GQRX remote-control port?" | Concise answer. No multi-step task breakdown. |
+| Host evidence | autonomous_goal | "what is my hostname?" / "excellent - what is my hostname?" | Needs a live local lookup (hostname, cwd, whoami, IP, ...). Treated as a goal so tools run; not text-only Q&A. |
+| Greeting | statement | "Howdy, it's cloudy." / "hi" | Fixed short ack that the system is ready. No tools, no LLM, and no weather echo such as "noted, cloudy out there." |
+| Statement | statement | "FYI the build is green." | Brief note. No multi-step task plan. |
+| Recall | question | "what did I just say?" / "how did you respond?" | Cheap prior-turn answer from the session transcript. No plan_first and no multi-tool archaeology. |
+| Live recon | autonomous_goal | "using hping3 what live hosts can you find in this subnet?" | Needs clear in-scope / authorized engagement wording, or set `ai.agent.recon_authorized=true`. Otherwise the agent refuses and points you at the how-to form. |
+| Act | autonomous_goal | "refactor Loop.run and run rubocop" | Normal multi-step agent work: decompose into ordered work units, each may use one or more tools. |
 
 The `shell` tool also blocks hping3 / nmap-style sweep commands when recon is
 not authorized. On how-to asks, memory SOPs about repo rubocop/rake hygiene are

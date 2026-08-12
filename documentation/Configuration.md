@@ -103,6 +103,8 @@ ai:
     task_summary_every: 5          # When task_summary_verbose: emit Progress every N completed tools.
     task_summary_interval_s: 8.0   # When verbose: also emit when this many seconds elapsed.
     task_summary_verbose: false    # Mid-flight Progress/Finished lines (default: only plan + about_to).
+    task_summary_llm: true         # LLM tangible-task decompose for autonomous goals (default on). false = offline fallback.
+    request_kind_llm: ~            # LLM request_kind classifier (statement|question|autonomous_goal). nil = follow task_summary_llm.
     max_depth: 3                   # Recursion guard: how many levels deep agent_ask/agent_debate sub-agents may spawn sub-agents.
     auto_introspect: true          # Run Learning.auto_introspect (outcome logging + lesson mining) after every final answer.
     auto_extrospect: false         # Optional ambient baseline (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools (intel/verify/watch/rf_tune/observe) stay on-demand.
@@ -268,6 +270,8 @@ PWN::Config.refresh_env
 | `ai.agent.task_summary_every` | Integer | `5` | `TaskSummarizer.every_n` | Verbose progress cadence (tools). |
 | `ai.agent.task_summary_interval_s` | Float | `8.0` | `TaskSummarizer.interval_s` | Verbose progress cadence (seconds). |
 | `ai.agent.task_summary_verbose` | Boolean | `false` | `TaskSummarizer.verbose?` | Emit mid-flight `Progress:` / `Finished:` lines; default keeps only plan + about_to. |
+| `ai.agent.task_summary_llm` | Boolean \| `nil` | `nil` (on) | `TaskSummarizer.llm_plan_enabled?` | LLM tangible-task decomposition for autonomous goals. `false` forces offline generic fallback (tests / air-gap). |
+| `ai.agent.request_kind_llm` | Boolean \| `nil` | `nil` (follow `task_summary_llm`) | `TaskSummarizer.llm_kind_enabled?` / `request_kind` | LLM classifier for `statement` \| `question` \| `autonomous_goal`. Cheap intents and host-evidence heuristics still win first; `false` is heuristic-only. |
 | `ai.agent.max_depth` | Integer | `3` | `PWN::AI::Agent::Swarm` | Recursion guard for `agent_ask` / `agent_debate` sub-agents spawning sub-agents. |
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `false` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Optional ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Prefer on-demand sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`). Toggle live via `extro_auto_toggle`. |

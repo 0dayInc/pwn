@@ -303,7 +303,11 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.verdict_for_score Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.verdict_for_score`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.active_engine Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.active_engine`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.agent_flag`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_greeting Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_greeting`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_howto Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_howto`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_question Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_question`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_recall Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_recall`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_statement Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_statement`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.append_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.append_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.attribute_cause Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.attribute_cause`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -317,6 +321,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.escalate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.escalate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.evidence_enough_to_finalize? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.evidence_enough_to_finalize?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.expose_current_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.expose_current_session`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.extract_recall_match Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.extract_recall_match`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.guard_repeated_failure Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.guard_repeated_failure`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.incomplete_final? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.incomplete_final?`: "}]}
@@ -333,10 +338,12 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.parse_tool_arguments Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.parse_tool_arguments`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.plan_first Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.plan_first`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.publish_usage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.publish_usage`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.recall_target Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.recall_target`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.recon_authorized? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.recon_authorized?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.record_metrics Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.record_metrics`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.refuse_unauthorized_recon Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.refuse_unauthorized_recon`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.request_intent Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.request_intent`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.request_kind Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.request_kind`: Supported Method Parameters\n\nkind = PWN::AI::Agent::Loop.request_kind(\n\nrequest: 'required - user text',\nkind: 'optional - precomputed',\nllm_kind: 'optional - injected LLM label',\nheuristic_only: 'optional - skip LLM'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.run Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.run`: Supported Method Parameters\n\nfinal = PWN::AI::Agent::Loop.run(\n\nrequest: 'required - what the human typed',\nsession_id: 'optional - PWN::Sessions id (transcript is appended to it)',\nenabled_toolsets: 'optional - subset of Registry.toolsets, or nil for all',\non_tool: 'optional - ->(name, args, result) callback for live UI',\nsystem_role_content: 'optional - override default system prompt (built from session_id if not provided)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.should_auto_introspect? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.should_auto_introspect?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.stringify_tool_arguments Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.stringify_tool_arguments`: "}]}
@@ -407,6 +414,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.metrics_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.metrics_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.mistakes_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.mistakes_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.pwn_version Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.pwn_version`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.recent_turns_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.recent_turns_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.skills_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.skills_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reflect.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reflect.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reflect.engine_chat Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reflect.engine_chat`: "}]}
@@ -510,10 +518,11 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.brief_fingerprint Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.brief_fingerprint`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.capabilities_for Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.capabilities_for`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.capability_label Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.capability_label`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.chat_for_kind Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.chat_for_kind`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.chat_for_plan Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.chat_for_plan`: Supported Method Parameters\n\ntext = PWN::AI::Agent::TaskSummarizer.chat_for_plan(\n\nrequest: 'required - user goal to decompose'\n\n) Kept public so specs can stub the LLM boundary.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.duplicate_brief? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.duplicate_brief?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.emit! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.emit!`: Supported Method Parameters\n\nline = PWN::AI::Agent::TaskSummarizer.emit!(\n\nstate: 'required - fresh() hash',\nfinal: 'optional - Boolean closing brief (default: false)'\n\n)\n"}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.emit_plan! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.emit_plan!`: Supported Method Parameters\n\ntext = PWN::AI::Agent::TaskSummarizer.emit_plan!(\n\nstate: 'required - fresh() hash',\nrequest: 'optional - goal override when state[:request] empty'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.emit_plan! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.emit_plan!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.enabled? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.engine_chat Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.engine_chat`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.every_n Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.every_n`: "}]}
@@ -524,14 +533,19 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.fresh Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.fresh`: Supported Method Parameters\n\nstate = PWN::AI::Agent::TaskSummarizer.fresh(\n\nrequest: 'optional - original user goal string'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.heuristic_decompose Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.heuristic_decompose`: Supported Method Parameters\n\ntasks = PWN::AI::Agent::TaskSummarizer.heuristic_decompose(\n\ngoal: 'required - user goal string'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.heuristic_request_kind Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.heuristic_request_kind`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.howto_goal? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.howto_goal?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.intent_phrase Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.intent_phrase`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.interval_s Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.interval_s`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.llm_classify_kind Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.llm_classify_kind`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.llm_decompose Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.llm_decompose`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.llm_kind_enabled? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.llm_kind_enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.llm_plan_enabled? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.llm_plan_enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.maybe_advance_plan! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.maybe_advance_plan!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.needs_task_breakdown? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?`: Supported Method Parameters\n\nyes = PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?(\n\nrequest: 'optional - user text',\nkind: 'optional - precomputed request_kind'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.normalize_task_list Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.normalize_task_list`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.normalize_tools Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.normalize_tools`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.parse_kind_label Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.parse_kind_label`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.parse_llm_tasks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.parse_llm_tasks`: Supported Method Parameters\n\ntasks = PWN::AI::Agent::TaskSummarizer.parse_llm_tasks(\n\nraw: 'required - raw LLM response text'\n\n) Public so unit tests can exercise the parser without network I/O.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.parse_outline_tasks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.parse_outline_tasks`: Supported Method Parameters\n\ntasks = PWN::AI::Agent::TaskSummarizer.parse_outline_tasks(\n\noutline: 'required - free-text plan outline'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.plan Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.plan`: Supported Method Parameters\n\ntasks = PWN::AI::Agent::TaskSummarizer.plan(\n\nrequest: 'required - user goal string',\nstate: 'optional - fresh() hash to mutate',\ntasks: 'optional - injected plan array (tests)',\nllm_tasks: 'optional - injected LLM task array (tests)'\n\n)\n\n"}]}
@@ -541,6 +555,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.reflect_text Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.reflect_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.relevance_query Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.relevance_query`: Supported Method Parameters\n\nq = PWN::AI::Agent::TaskSummarizer.relevance_query(\n\nstate: 'optional - fresh() hash',\nrequest: 'optional - original user goal fallback'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.remember_brief! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.remember_brief!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.request_kind Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.request_kind`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.task_intent_match? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.task_intent_match?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.tool_counts_phrase Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.tool_counts_phrase`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.tool_jargon_task? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.tool_jargon_task?`: Supported Method Parameters\n\nyes = PWN::AI::Agent::TaskSummarizer.tool_jargon_task?(\n\nitem: 'required - candidate task string'\n\n)\n"}]}
@@ -1269,18 +1284,26 @@
 {"messages":[{"role":"user","content":"PWN::Memory.authors Usage"},{"role":"assistant","content":"`PWN::Memory.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.clear Usage"},{"role":"assistant","content":"`PWN::Memory.clear`: Supported Method Parameters\n\nPWN::Memory.clear(force: true)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.current_session_id Usage"},{"role":"assistant","content":"`PWN::Memory.current_session_id`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.find_turn_pair Usage"},{"role":"assistant","content":"`PWN::Memory.find_turn_pair`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.forget Usage"},{"role":"assistant","content":"`PWN::Memory.forget`: Supported Method Parameters\n\nPWN::Memory.forget(\n\nkey: :some_key,\nforce: 'optional - Boolean bypass protect policy (default false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.help Usage"},{"role":"assistant","content":"`PWN::Memory.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.lean! Usage"},{"role":"assistant","content":"`PWN::Memory.lean!`: Supported Method Parameters\n\nresult = PWN::Memory.lean!(\n\ndry_run: 'optional - Boolean plan only (default false)',\nvalue_max_chars: 'optional - truncate values (default VALUE_MAX_CHARS)',\nephemeral_ttl_secs: 'optional - drop expired session_* keys'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.load Usage"},{"role":"assistant","content":"`PWN::Memory.load`: Supported Method Parameters\n\nmemory = PWN::Memory.load\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.load_raw_or_empty Usage"},{"role":"assistant","content":"`PWN::Memory.load_raw_or_empty`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.meta_recall_assistant? Usage"},{"role":"assistant","content":"`PWN::Memory.meta_recall_assistant?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.meta_recall_user? Usage"},{"role":"assistant","content":"`PWN::Memory.meta_recall_user?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.normalize_utterance Usage"},{"role":"assistant","content":"`PWN::Memory.normalize_utterance`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.prior_assistant_message Usage"},{"role":"assistant","content":"`PWN::Memory.prior_assistant_message`: "}]}
+{"messages":[{"role":"user","content":"PWN::Memory.prior_user_message Usage"},{"role":"assistant","content":"`PWN::Memory.prior_user_message`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.protected_entry? Usage"},{"role":"assistant","content":"`PWN::Memory.protected_entry?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.recall Usage"},{"role":"assistant","content":"`PWN::Memory.recall`: Supported Method Parameters\n\nresults = PWN::Memory.recall(\n\nquery: 'optional - string to search keys/values/categories (simple match)',\ncategory: 'optional - filter by category (:session = transcript only)',\nlimit: 'optional - max results (default 50)',\nsession_id: 'optional - current session (default Env/Pry active id)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.recall_semantic Usage"},{"role":"assistant","content":"`PWN::Memory.recall_semantic`: Supported Method Parameters\n\nhits = PWN::Memory.recall_semantic(query: ‘nmap sweep’, limit: 6)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Memory.recent_dialog Usage"},{"role":"assistant","content":"`PWN::Memory.recent_dialog`: Supported Method Parameters\n\ndialog = PWN::Memory.recent_dialog(\n\nsession_id: 'optional',\npairs: 'optional - max user/assistant pairs (default 2)',\nmax_chars: 'optional - per-turn truncation (default 1200)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.remember Usage"},{"role":"assistant","content":"`PWN::Memory.remember`: Supported Method Parameters\n\nPWN::Memory.remember(\n\nkey: 'required - Symbol or String key for the memory fact',\nvalue: 'required - The value (any JSON serializable)',\ncategory: 'optional - e.g. :fact, :preference, :lesson, :env (default: :fact)',\nsource: 'optional - :human | :reflect | :heuristic | :resolve | :consolidate (M3 provenance)',\nconfidence: 'optional - 0.0..1.0 how sure the writer was (M3)',\nimportance: 'optional - 0.0..1.0 retrieval/eviction weight (M2/M3)',\nttl: 'optional - seconds until stale (M3; consolidate evicts stale low-conf first)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.save Usage"},{"role":"assistant","content":"`PWN::Memory.save`: Supported Method Parameters\n\nPWN::Memory.save(mem: memory_hash)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Memory.session_turns Usage"},{"role":"assistant","content":"`PWN::Memory.session_turns`: "}]}
 {"messages":[{"role":"user","content":"PWN::Memory.to_context Usage"},{"role":"assistant","content":"`PWN::Memory.to_context`: Supported Method Parameters\n\ncontext = PWN::Memory.to_context(limit: 20) (used internally by pwn-ai hook to inject into system prompt)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Memory.turn_pairs Usage"},{"role":"assistant","content":"`PWN::Memory.turn_pairs`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.authors Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.available? Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.available?`: Supported Method Parameters\n\nbool = PWN::MemoryIndex.available?\n"}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.cosine Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.cosine`: "}]}
@@ -2431,7 +2454,7 @@
 {"messages":[{"role":"user","content":"PWN::Sessions.append Usage"},{"role":"assistant","content":"`PWN::Sessions.append`: Supported Method Parameters\n\nPWN::Sessions.append(\n\nsession_id: 'required',\nrole: 'user|assistant|system|observation',\ncontent: 'the message or obs'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.authors Usage"},{"role":"assistant","content":"`PWN::Sessions.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.compact_transcript! Usage"},{"role":"assistant","content":"`PWN::Sessions.compact_transcript!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Sessions.create Usage"},{"role":"assistant","content":"`PWN::Sessions.create`: Supported Method Parameters\n\nsession = PWN::Sessions.create(\n\ntitle: 'optional - human title',\nsource: 'optional - e.g. pwn-ai-repl'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.create Usage"},{"role":"assistant","content":"`PWN::Sessions.create`: Supported Method Parameters\n\nsession = PWN::Sessions.create(\n\ntitle: 'optional - human title',\nsource: 'optional - e.g. pwn-ai-repl',\nid: 'optional - fixed session id (tests / replay); default timestamp_hex'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.delete Usage"},{"role":"assistant","content":"`PWN::Sessions.delete`: Supported Method Parameters\n\nPWN::Sessions.delete(\n\nsession_id: 'required',\nforce: 'optional - Boolean bypass pin policy (default false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.help Usage"},{"role":"assistant","content":"`PWN::Sessions.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.lean! Usage"},{"role":"assistant","content":"`PWN::Sessions.lean!`: Supported Method Parameters\n\nresult = PWN::Sessions.lean!(\n\ndry_run: 'optional - Boolean (default false)',\nretain_days: 'optional - drop unreferenced older than this',\nhot_days: 'optional - always keep newer than this',\nmax_files: 'optional - soft file cap after protections',\ncurrent_session_id: 'optional - never delete this id'\n\n)\n"}]}

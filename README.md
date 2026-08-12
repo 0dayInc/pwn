@@ -118,8 +118,10 @@ message bus:
 ![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
 Long-running turns also show **executive task briefs** (not raw commands) via
-`TaskSummarizer`: one full plan on submit (`emit_plan!`), then per-batch
-`about_to` lines keyed by `tool_counts_phrase` + `intent_phrase` with
+`TaskSummarizer`. Every request is first classified as a **general statement**,
+a **question**, or an **autonomous goal**. Only autonomous goals get a multi-step
+breakdown on submit (`emit_plan!`); statements and questions stay single-turn.
+Per-batch `about_to` lines use `tool_counts_phrase` + `intent_phrase` with
 `last_brief_fp` duplicate suppression. When recent turns keep hitting the iteration ceiling, the Loop tightens the remaining runway (lower `max_iters` on local engines, text-only tail, no counterfactual fork) so the agent still finishes instead of thrashing.
 
 Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·

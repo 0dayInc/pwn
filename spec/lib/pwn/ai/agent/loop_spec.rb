@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tmpdir'
+require 'fileutils'
 
-describe PWN::AI::Agent::Loop do
+describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
   it 'should display information for authors' do
     authors_response = PWN::AI::Agent::Loop
     expect(authors_response).to respond_to :authors
@@ -152,6 +154,55 @@ describe PWN::AI::Agent::Loop do
       expect(described_class.request_intent(request: 'refactor Loop.run and run rubocop')).to eq(:act)
     end
 
+    it 'request_kind maps statement | question | autonomous_goal' do
+      expect(described_class).to respond_to :request_kind
+      expect(described_class.request_kind(request: 'FYI the build is green.')).to eq(:statement)
+      expect(described_class.request_kind(request: 'how to do a ping sweep with hping3?')).to eq(:question)
+      expect(described_class.request_kind(request: 'what did I just say?')).to eq(:question)
+      expect(described_class.request_kind(request: 'hi')).to eq(:statement)
+      expect(described_class.request_kind(request: 'refactor Loop.run and run rubocop')).to eq(:autonomous_goal)
+      expect(described_class.request_kind(request: 'using hping3 what live hosts can you find in this subnet?')).to eq(:autonomous_goal)
+      # Live host-fact Qs need tools — not text-only question path.
+      expect(described_class.request_kind(request: 'what is my hostname?')).to eq(:autonomous_goal)
+      expect(described_class.request_kind(request: 'excellent - what is my hostname?')).to eq(:autonomous_goal)
+    end
+
+    it 'run short-circuits statement/question but not host-evidence goals' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/kind\.to_sym == :statement/)
+      expect(src).to match(/kind\.to_sym == :question/)
+      expect(src).to match(/needs_breakdown/)
+      expect(src).to match(/answer_statement/)
+      expect(src).to match(/answer_question/)
+    end
+
+    it 'classifies pure prior-turn recall and vague memory cues as :recall' do
+      expect(described_class.request_intent(request: 'what did I just say?')).to eq(:recall)
+      expect(described_class.request_intent(request: 'What did I just say')).to eq(:recall)
+      expect(described_class.request_intent(request: 'what was my last request?')).to eq(:recall)
+      expect(described_class.request_intent(request: 'remind me what I said')).to eq(:recall)
+      expect(described_class.request_intent(request: 'how did you respond to what I just said?')).to eq(:recall)
+      expect(described_class.request_intent(request: 'what did you just say?')).to eq(:recall)
+      expect(described_class.request_intent(request: 'what was your last answer?')).to eq(:recall)
+      # Doing-verb keeps full agent work
+      expect(
+        described_class.request_intent(
+          request: 'remember what I said about nmap and implement the scanner fix'
+        )
+      ).to eq(:act)
+    end
+
+    it 'classifies pure greetings and light weather smalltalk as :greeting' do
+      expect(described_class.request_intent(request: 'hi')).to eq(:greeting)
+      expect(described_class.request_intent(request: 'Hello!')).to eq(:greeting)
+      expect(described_class.request_intent(request: "Howdy, it's cloudy.")).to eq(:greeting)
+      expect(described_class.request_intent(request: 'good morning')).to eq(:greeting)
+      expect(described_class.request_intent(request: "hey how's it going")).to eq(:greeting)
+      # Security work with a leading hi stays full agent work
+      expect(described_class.request_intent(request: 'hi, please refactor Loop.run')).to eq(:act)
+      expect(described_class.request_intent(request: 'how to do a ping sweep with hping3?')).to eq(:howto)
+    end
+
     it 'recon_authorized? requires scope language or env flag' do
       expect(described_class.recon_authorized?(request: 'find live hosts on this subnet')).to eq(false)
       expect(described_class.recon_authorized?(request: 'authorized engagement: find live hosts on this lab subnet')).to eq(true)
@@ -163,16 +214,178 @@ describe PWN::AI::Agent::Loop do
     it 'run short-circuits how-to without plan_first or tools' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/request_intent/)
+      expect(src).to match(/request_kind/)
       expect(src).to match(/answer_howto/)
+      expect(src).to match(/answer_statement/)
+      expect(src).to match(/answer_question/)
       expect(src).to match(/refuse_unauthorized_recon/)
       expect(src).to match(/intent == :howto/)
       expect(src).to match(/skip_plan/)
+      expect(src).to match(/needs_breakdown/)
     end
 
     it 'answer_howto does not register shell tool use in source path' do
       src = File.read(described_class.method(:run).source_location.first)
       # how-to return happens before task_summary_plan!
       expect(src).to match(/if intent == :howto.*?return answer_howto/m)
+    end
+
+    it 'run short-circuits pure recall via answer_recall before plan_first' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/RECALL_RX/)
+      expect(src).to match(/answer_recall/)
+      expect(src).to match(/intent == :recall.*?return answer_recall/m)
+      expect(src).to match(/skip_plan/)
+      expect(src).to match(/request_kind/)
+      expect(src).to match(/needs_breakdown|autonomous_goal|statement|question/)
+    end
+
+    it 'run short-circuits greetings via answer_greeting before plan_first' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/GREETING_RX/)
+      expect(src).to match(/answer_greeting/)
+      expect(src).to match(/intent == :greeting.*?return answer_greeting/m)
+      expect(src).to match(/skip_plan/)
+      expect(src).to match(/request_kind/)
+      expect(src).to match(/needs_breakdown|autonomous_goal|statement|question/)
+    end
+
+    it 'answer_greeting returns fixed ack without weather echo or tools' do
+      sess_tmp = Dir.mktmpdir('pwn-sess-greet')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'greet_spec_sess'
+      PWN::Sessions.create(id: sid, title: 'greet-spec')
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      allow(described_class).to receive(:plan_first).and_raise('plan_first must not run on greeting')
+      out = described_class.send(
+        :answer_greeting,
+        request: "Howdy, it's cloudy.",
+        session_id: sid
+      )
+      expect(out).to match(/acknowledged|ready/i)
+      expect(out).not_to match(/cloudy out there|noted, cloudy|Howdy —/i)
+      expect(out).not_to match(/plan_first|shell\(/i)
+      run_out = described_class.run(
+        request: "Howdy, it's cloudy.",
+        session_id: sid,
+        system_role_content: 'test system'
+      )
+      expect(run_out).to eq(out)
+      expect(run_out).not_to match(/cloudy out there/i)
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
+    end
+
+    it 'answer_recall returns prior user text from the session without tools' do
+      sess_tmp = Dir.mktmpdir('pwn-sess-recall')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'recall_spec_sess'
+      PWN::Sessions.create(id: sid, title: 'recall-user-spec')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'THIS WAS MY LAST REQUEST. THIS IS A TEST OF MEMORY RECALL.')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'ack prior asst')
+      # Avoid side-effect introspect noise
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      out = described_class.send(
+        :answer_recall,
+        request: 'what did I just say?',
+        session_id: sid,
+        system_role_content: 'test'
+      )
+      expect(out).to include('THIS WAS MY LAST REQUEST. THIS IS A TEST OF MEMORY RECALL.')
+      expect(out).to match(/you just said/i)
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
+    end
+
+    it 'answer_recall returns prior assistant text for how-did-you-respond without tools' do
+      sess_tmp = Dir.mktmpdir('pwn-sess-recall-asst')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'recall_spec_asst'
+      PWN::Sessions.create(id: sid, title: 'recall-asst-spec')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'this is a test.')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Acknowledged — test message received.')
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      out = described_class.send(
+        :answer_recall,
+        request: 'how did you respond to what I just said?',
+        session_id: sid,
+        system_role_content: 'test'
+      )
+      expect(out).to include('Acknowledged — test message received.')
+      expect(out).to match(/prior assistant response|I responded:/i)
+      # Must not re-enter multi-tool scaffolding markers
+      expect(out).not_to match(/plan_first|shell\(/i)
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
+    end
+
+    it 'answer_recall resolves how-did-you-respond-when-I-said across nested meta pairs' do
+      sess_tmp = Dir.mktmpdir('pwn-sess-recall-nested')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'recall_spec_nested'
+      PWN::Sessions.create(id: sid, title: 'recall-nested')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'howdy ho from down below!')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Howdy ho right back! System is up on Kali.')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'what did I just say?')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: "You just said:\n\nhowdy ho from down below!")
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'and what did you say when I said that?')
+      PWN::Sessions.append(
+        session_id: sid,
+        role: 'assistant',
+        content: "Immediately prior user message:\nwhat did I just say?\n\nImmediately prior assistant response:\nYou just said:\n\nhowdy ho from down below!"
+      )
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+
+      out = described_class.send(
+        :answer_recall,
+        request: 'how did you respond when I said, `howdy ho from down below!`?',
+        session_id: sid,
+        system_role_content: 'test'
+      )
+      expect(out).to include('Howdy ho right back! System is up on Kali.')
+      expect(out).to include('howdy ho from down below!')
+      expect(out).not_to include('what did I just say?')
+      expect(out).not_to match(/plan_first|shell\(/i)
+
+      out2 = described_class.send(
+        :answer_recall,
+        request: 'and what did you say when I said that?',
+        session_id: sid,
+        system_role_content: 'test'
+      )
+      expect(out2).to include('Howdy ho right back! System is up on Kali.')
+      expect(out2).not_to match(/Immediately prior user message:\nwhat did I just say/i)
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
+    end
+
+    it 'Loop.run short-circuits pure recall without plan_first or TaskSummarizer tools' do
+      sess_tmp = Dir.mktmpdir('pwn-sess-recall-run')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'recall_run_spec'
+      PWN::Sessions.create(id: sid, title: 'recall-run')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'SHIP MARKER ALPHA')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'SHIP MARKER BETA ASST')
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      allow(described_class).to receive(:plan_first).and_raise('plan_first must not run on pure recall')
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:emit_plan!).and_raise('emit_plan must not run on pure recall') if defined?(PWN::AI::Agent::TaskSummarizer)
+      out = described_class.run(
+        request: 'what did I just say?',
+        session_id: sid,
+        system_role_content: 'test system'
+      )
+      expect(out).to include('SHIP MARKER ALPHA')
+      out2 = described_class.run(
+        request: 'how did you respond to what I just said?',
+        session_id: sid,
+        system_role_content: 'test system'
+      )
+      # After first recall, prior assistant becomes the first recall answer;
+      # ensure second path still short-circuits (no plan_first raise).
+      expect(out2).to be_a(String)
+      expect(out2).not_to be_empty
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
     end
   end
 
@@ -261,4 +474,4 @@ describe PWN::AI::Agent::Loop do
       expect(wire[0].dig(:tool_calls, 0, :function, :arguments)).to eq(command: 'uname')
     end
   end
-end
+end # rubocop:enable Metrics/BlockLength
