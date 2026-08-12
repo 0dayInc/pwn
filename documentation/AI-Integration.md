@@ -48,7 +48,7 @@ The harness adapts to the *class* of engine, not the model name:
 | **MEMORY ranking** | relevance-ranked when a local Ollama `embed_model` is reachable, else newest-first | relevance-ranked via `PWN::MemoryIndex` (`~/.pwn/memory.idx`) |
 | **Tool schemas shipped** | all toolsets | `CORE_TOOLS` + top-K keyword matches when `ai.agent.tool_router` is on |
 | **Pre-pass** | none | `plan_first` numbered tool plan before first dispatch |
-| **Intent route** | always | `request_intent` short-circuits how-to (text only) and unauthorized recon (refuse) on all engines; critical for ollama/openwebui |
+| **Intent route** | always | `request_intent` + LLM/heuristic `request_kind` (statement \| question \| autonomous_goal). Short-circuits how-to/questions (text only), greetings/statements (fixed ack), pure recall, and unauthorized recon on all engines; host-evidence Qs (hostname/cwd/whoami) and only true autonomous goals get multi-step TaskSummarizer plans. Critical for ollama/openwebui |
 | **Few-shot** | none | `Learning.exemplars_for(request)` splices a prior successful trace |
 | **Dispatch parsing** | strict | tolerant - Levenshtein tool-name repair + JSON5-ish arg cleanup, each repair fingerprinted into `Mistakes` |
 | **Post-answer** | `auto_introspect` | `auto_introspect` **+** `fact_check_local_final` (auto `extro_verify` on CVE/version-shaped claims) |

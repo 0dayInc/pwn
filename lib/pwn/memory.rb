@@ -268,6 +268,194 @@ module PWN
     end
 
     # Supported Method Parameters::
+    #   dialog = PWN::Memory.recent_dialog(
+    #     session_id: 'optional',
+    #     pairs: 'optional - max user/assistant pairs (default 2)',
+    #     max_chars: 'optional - per-turn truncation (default 1200)'
+    #   )
+    # Chronological user/assistant turns ending at the previous assistant
+    # response (current session only). Empty/invalid/tool noise skipped.
+
+    public_class_method def self.recent_dialog(opts = {})
+      pairs = (opts[:pairs] || 2).to_i
+      pairs = 2 if pairs <= 0
+      max_chars = (opts[:max_chars] || 1_200).to_i
+      max_chars = 1_200 if max_chars <= 0
+      turns = session_turns(session_id: opts[:session_id], limit: pairs * 6)
+      dialog = turns.select { |t| %w[user assistant].include?(t[:role].to_s) }
+      # session_turns is previous-assistant-first (newest → older). Take the
+      # newest 2*pairs dialog turns and flip to chronological for prompts.
+      slice = dialog.first(pairs * 2).reverse
+      slice.map do |t|
+        body = t[:value].to_s
+        body = "#{body[0, max_chars]}…[truncated]" if body.length > max_chars
+        {
+          role: t[:role].to_s,
+          content: body,
+          timestamp: t[:timestamp],
+          session_id: t[:session_id]
+        }
+      end
+    rescue StandardError
+      []
+    end
+
+    # Meta prior-turn recall asks (not substantive conversational content).
+    # Used so nested "what did you say when I said that?" skips the intermediate
+    # recall Q/A and lands on the real user↔assistant pair.
+    META_RECALL_USER_RX = /
+      \A\s*(?:and\s+)?(?:
+        what\s+did\s+i\s+|
+        what\s+was\s+my\s+last|
+        how\s+did\s+you\s+respond|
+        how\s+did\s+you\s+(?:just\s+)?(?:answer|reply)|
+        what\s+(?:was|is)\s+your\s+(?:last|previous|prior)\s+|
+        what\s+did\s+you\s+(?:just\s+)?(?:say|answer|reply|respond)|
+        remind\s+me\s+what\s+|
+        repeat\s+(?:my\s+|your\s+)?(?:last|previous)|
+        last\s+thing\s+i\s+said|
+        say\s+that\s+again
+      )
+    /ix
+
+    META_RECALL_ASST_RX = /
+      \A\s*(?:
+        You\s+just\s+said:|
+        Immediately\s+prior\s+(?:user\s+message|assistant\s+response):|
+        I\s+do\s+not\s+have\s+a\s+prior\s+assistant\s+reply
+      )
+    /ix
+
+    # Previous non-empty user message in the active session (what the human
+    # "just said" before the current request). Nil when none.
+    # skip_meta:true walks past pure-recall intermediate asks.
+    public_class_method def self.prior_user_message(opts = {})
+      pairs = (opts[:pairs] || 6).to_i
+      max_chars = opts[:max_chars] || 4_000
+      skip_meta = opts.key?(:skip_meta) ? opts[:skip_meta] : false
+      dialog = recent_dialog(session_id: opts[:session_id], pairs: pairs, max_chars: max_chars)
+      dialog.reverse.find do |t|
+        next false unless t[:role].to_s == 'user'
+        next false if skip_meta && meta_recall_user?(t[:content])
+
+        true
+      end
+    rescue StandardError
+      nil
+    end
+
+    # Previous non-empty assistant message in the active session.
+    # skip_meta:true walks past canned recall answers so the substantive reply
+    # stays findable after nested "what did you say when…" follow-ups.
+    public_class_method def self.prior_assistant_message(opts = {})
+      pairs = (opts[:pairs] || 6).to_i
+      max_chars = opts[:max_chars] || 4_000
+      skip_meta = opts.key?(:skip_meta) ? opts[:skip_meta] : false
+      dialog = recent_dialog(session_id: opts[:session_id], pairs: pairs, max_chars: max_chars)
+      dialog.reverse.find do |t|
+        next false unless t[:role].to_s == 'assistant'
+        next false if skip_meta && meta_recall_assistant?(t[:content])
+
+        true
+      end
+    rescue StandardError
+      nil
+    end
+
+    # Build chronological user→assistant pairs from the active session.
+    # Each pair is { user:, assistant:, user_content:, assistant_content: }.
+    # Solo user turns (no reply yet) are omitted unless include_orphan_user:true.
+    public_class_method def self.turn_pairs(opts = {})
+      pairs_n = (opts[:pairs] || 8).to_i
+      pairs_n = 8 if pairs_n <= 0
+      max_chars = (opts[:max_chars] || 4_000).to_i
+      dialog = recent_dialog(session_id: opts[:session_id], pairs: pairs_n, max_chars: max_chars)
+      out = []
+      i = 0
+      while i < dialog.length
+        t = dialog[i]
+        if t[:role].to_s == 'user'
+          nxt = dialog[i + 1]
+          if nxt && nxt[:role].to_s == 'assistant'
+            out << {
+              user: t,
+              assistant: nxt,
+              user_content: t[:content].to_s,
+              assistant_content: nxt[:content].to_s
+            }
+            i += 2
+            next
+          elsif opts[:include_orphan_user]
+            out << {
+              user: t,
+              assistant: nil,
+              user_content: t[:content].to_s,
+              assistant_content: nil
+            }
+          end
+        end
+        i += 1
+      end
+      out
+    rescue StandardError
+      []
+    end
+
+    # Find a user↔assistant pair in the active session.
+    #   match: optional substring / quoted utterance to locate the user turn
+    #   skip_meta: skip pure-recall intermediate pairs (default true)
+    # Returns the newest matching pair hash, or nil.
+    public_class_method def self.find_turn_pair(opts = {})
+      match = opts[:match].to_s.strip
+      skip_meta = opts.key?(:skip_meta) ? opts[:skip_meta] : true
+      pairs = turn_pairs(
+        session_id: opts[:session_id],
+        pairs: opts[:pairs] || 12,
+        max_chars: opts[:max_chars] || 4_000
+      )
+      return nil if pairs.empty?
+
+      candidates = pairs
+      if skip_meta
+        candidates = pairs.reject do |p|
+          meta_recall_user?(p[:user_content]) || meta_recall_assistant?(p[:assistant_content])
+        end
+        candidates = pairs if candidates.empty?
+      end
+
+      return candidates.last if match.empty?
+
+      needle = normalize_utterance(match)
+      return nil if needle.empty?
+
+      # Prefer exact normalized equality, then include, newest first.
+      exact = candidates.reverse.find { |p| normalize_utterance(p[:user_content]) == needle }
+      return exact if exact
+
+      candidates.reverse.find do |p|
+        body = normalize_utterance(p[:user_content])
+        body.include?(needle) || needle.include?(body)
+      end
+    rescue StandardError
+      nil
+    end
+
+    public_class_method def self.meta_recall_user?(opts = {})
+      text = opts.is_a?(Hash) ? opts[:text] : opts
+      text.to_s.match?(META_RECALL_USER_RX)
+    end
+
+    public_class_method def self.meta_recall_assistant?(opts = {})
+      text = opts.is_a?(Hash) ? opts[:text] : opts
+      text.to_s.match?(META_RECALL_ASST_RX)
+    end
+
+    public_class_method def self.normalize_utterance(opts = {})
+      text = opts.is_a?(Hash) ? opts[:text] : opts
+      text.to_s.downcase.gsub(/[`"'“”‘’]/, '').gsub(/\s+/, ' ').strip
+    end
+
+    # Supported Method Parameters::
     #   hits = PWN::Memory.recall_semantic(query: 'nmap sweep', limit: 6)
     #
     # Relevance-ranked recall via PWN::MemoryIndex (local Ollama embeddings

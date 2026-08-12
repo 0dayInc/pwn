@@ -153,8 +153,13 @@ module PWN
             # (host/repo/env probes only — no toolchain/GUI/net side-effects)
             auto_extrospect: true,
             # engine-agnostic scaffolding (defaults tuned for local models)
-            plan_first: nil,               # nil = auto (true when :active is :ollama or :openwebui)
-            tool_router: nil,              # nil = auto (true when :active is local :ollama/:openwebui) — cuts ~11k→~3k schema tokens
+            plan_first: nil, # nil = auto (true when :active is :ollama or :openwebui)
+            # LLM request-kind classifier (statement|question|autonomous_goal).
+            # nil = follow :task_summary_llm (default on). false = heuristic-only.
+            request_kind_llm: nil,
+            # LLM tangible-task decomposition for autonomous goals (default on).
+            task_summary_llm: nil,
+            tool_router: nil, # nil = auto (true when :active is local :ollama/:openwebui) — cuts ~11k→~3k schema tokens
             escalation_persona: 'escalator', # Swarm persona for frontier corrective hints when a local model is stuck
             # sample E3 verify_as_reward: true|false|nil(auto: ~10% local / always frontier when CLAIM_RX hits)
             verify_as_reward: nil,

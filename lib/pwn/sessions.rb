@@ -48,14 +48,19 @@ module PWN
     # Supported Method Parameters::
     #   session = PWN::Sessions.create(
     #     title: 'optional - human title',
-    #     source: 'optional - e.g. pwn-ai-repl'
+    #     source: 'optional - e.g. pwn-ai-repl',
+    #     id: 'optional - fixed session id (tests / replay); default timestamp_hex'
     #   )
     public_class_method def self.create(opts = {})
       dir = sessions_dir
-      ts = Time.now.utc.strftime('%Y%m%d_%H%M%S')
-      rand = SecureRandom.hex(4)
-      id = "#{ts}_#{rand}"
+      id = opts[:id].to_s.strip
+      if id.empty?
+        ts = Time.now.utc.strftime('%Y%m%d_%H%M%S')
+        rand = SecureRandom.hex(4)
+        id = "#{ts}_#{rand}"
+      end
       path = File.join(dir, "#{id}.jsonl")
+      raise "Session #{id} already exists" if File.exist?(path)
 
       meta = {
         id: id,

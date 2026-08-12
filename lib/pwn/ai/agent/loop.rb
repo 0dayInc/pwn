@@ -1104,9 +1104,12 @@ module PWN
           nil
         end
 
-        # Request intent for routing (how-to vs act/recon). Local models thrash when
-        # pure explanation asks are force-planned into multi-step host probes.
+        # Request intent for routing (how-to vs act/recon vs pure recall/greeting).
+        # Local models thrash when pure explanation/recall/greeting asks are
+        # force-planned into multi-step host probes or multi-tool session archaeology.
         # :howto → answer with explanation only (no plan_first / no live recon).
+        # :recall → prior-turn / vague memory cue; cheap path only.
+        # :greeting → short hello / light smalltalk; deterministic ack, no tools.
         # :recon_act → live discovery; requires explicit authorization language.
         # :act → general agent work with tools.
         HOWTO_RX = /
@@ -1116,6 +1119,69 @@ module PWN
             explain\s+how|show\s+me\s+how|examples?\s+of\s+using|
             manual\s+for|usage\s+of|syntax\s+for|man\s+page
           )\b
+        /ix
+
+        # Pure prior-turn recall — must never enter plan_first / multi-tool loops.
+        # Covers both "what did I just say?" (user) and "how did you respond?"
+        # / "what did you just say?" (assistant) so last-turn injection is used.
+        RECALL_RX = /
+          \A\s*(
+            what\s+did\s+i\s+(just\s+)?say\??|
+            what\s+did\s+i\s+(just\s+)?(?:ask|type|write|request)\??|
+            what\s+was\s+my\s+last\s+(?:request|message|question|prompt|turn)\??|
+            what\s+was\s+(?:the\s+)?(?:previous|prior|last)\s+(?:thing\s+i\s+said|request|message|turn)\??|
+            remind\s+me\s+what\s+i\s+(?:just\s+)?(?:said|asked)\??|
+            repeat\s+(?:my\s+)?(?:last|previous)\s+(?:request|message)\??|
+            say\s+that\s+again\??|
+            recollection\s+test\??|
+            memory\s+recall\s+test\??|
+            how\s+did\s+you\s+respond(?:\s+to\s+what\s+i\s+(?:just\s+)?(?:said|asked))?\??|
+            how\s+did\s+you\s+(?:just\s+)?(?:answer|reply)(?:\s+to\s+(?:me|that|my\s+last))?\??|
+            what\s+(?:was|is)\s+your\s+(?:last|previous|prior)\s+(?:answer|response|reply)\??|
+            what\s+did\s+you\s+(?:just\s+)?(?:say|answer|reply|respond)\??|
+            remind\s+me\s+what\s+you\s+(?:just\s+)?(?:said|answered|replied)\??|
+            repeat\s+your\s+(?:last|previous)\s+(?:answer|response|reply)\??
+          )\s*\z
+        /ix
+
+        # Broader "use your memory / prior context" cues. Still cheap: inject
+        # last turn + at most one memory_recall; never multi-step plans.
+        VAGUE_MEMORY_RX = /
+          \b(
+            what\s+did\s+i\s+(just\s+)?(?:say|ask|type|request)|
+            what\s+was\s+my\s+last|
+            how\s+did\s+you\s+respond|
+            what\s+did\s+you\s+(?:just\s+)?(?:say|answer|reply|respond)|
+            what\s+(?:was|is)\s+your\s+(?:last|previous|prior)\s+(?:answer|response|reply)|
+            (?:without\s+looking\s+up).{0,40}(?:session|discussing|talking)|
+            (?:from\s+)?(?:memory|context|earlier|previously|prior\s+turn)|
+            (?:do\s+you\s+)?remember\s+what\s+(?:i|you)|
+            recall\s+(?:what|my|your|the\s+last)|
+            last\s+thing\s+(?:i|you)\s+said
+          )\b
+        /ix
+
+        # Pure greeting / light smalltalk — never full :act tool loop.
+        # Anchored short forms only so "hi, please scan X" stays :act/:recon_act.
+        # Do NOT echo weather or invent social filler; answer_greeting is fixed.
+        GREETING_RX = /
+          \A\s*(
+            (?:hi|hello|howdy|hey|yo|sup|hiya|greetings)(?:\s*[.!?]*)?
+            (?:\s*,?\s*(?:there|all|folks|team|everyone|y'?all))?
+            |
+            good\s+(?:morning|afternoon|evening|day|night)(?:\s*[.!?]*)?
+            |
+            (?:hi|hello|howdy|hey)(?:\s*[.!?*,]*)?\s+
+            (?:it'?s|its|it\s+is)\s+
+            (?:cloudy|sunny|rainy|raining|foggy|windy|stormy|nice|cold|hot|warm|
+               beautiful|gloomy|overcast|clear|chilly|humid|snow(?:ing|y)?)
+            (?:\s+out(?:\s+there)?)?(?:\s*[.!?]*)?
+            |
+            (?:hi|hello|howdy|hey)(?:\s*[.!?*,]*)?\s+
+            (?:the\s+weather\s+is\s+\w+|what'?s\s+up|how\s+are\s+you|
+               how'?s\s+it\s+going|how\s+goes\s+it)
+            (?:\s*[.!?]*)?
+          )\s*\z
         /ix
 
         LIVE_RECON_RX = /
@@ -1143,6 +1209,24 @@ module PWN
           req = opts[:request].to_s
           return :empty if req.strip.empty?
 
+          # Pure greeting / weather smalltalk before how-to/recon/act.
+          # Deterministic short-circuit — never freeform model weather echo.
+          return :greeting if req.match?(GREETING_RX)
+
+          # Pure prior-turn recall before how-to/recon (short, decisive).
+          return :recall if req.match?(RECALL_RX)
+
+          # Vague memory cues that are still "about the prior turn" and not
+          # general work ("remember what we decided about nmap and implement it"
+          # stays :act because it pairs memory with a doing verb outside the cue).
+          if req.match?(VAGUE_MEMORY_RX) && !req.match?(HOWTO_RX) && !req.match?(LIVE_RECON_RX)
+            doing = req.match?(
+              /\b(implement|fix|patch|refactor|run|execute|scan|write|edit|
+                  change|deploy|install|build|compile|commit|push)\b/ix
+            )
+            return :recall unless doing
+          end
+
           # Live-action recon takes precedence over bare "how to" when both appear
           # only if the user clearly asks the agent to do the sweep here.
           live = req.match?(LIVE_RECON_RX) && req.match?(
@@ -1162,6 +1246,55 @@ module PWN
           :act
         end
 
+        # Top-level request kind for task planning (statement | question | autonomous_goal).
+        # Single source of truth: TaskSummarizer.request_kind (LLM + heuristics).
+        # Mirrors intent/heuristics only when TaskSummarizer is unavailable.
+        #
+        # Supported Method Parameters::
+        # kind = PWN::AI::Agent::Loop.request_kind(
+        #   request: 'required - user text',
+        #   kind: 'optional - precomputed',
+        #   llm_kind: 'optional - injected LLM label',
+        #   heuristic_only: 'optional - skip LLM'
+        # )
+        public_class_method def self.request_kind(opts = {})
+          req = opts[:request].to_s
+          if defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:request_kind)
+            return TaskSummarizer.request_kind(
+              request: req,
+              kind: opts[:kind],
+              llm_kind: opts[:llm_kind],
+              heuristic_only: opts[:heuristic_only]
+            )
+          end
+
+          case request_intent(request: req)
+          when :greeting, :empty
+            :statement
+          when :howto, :recall
+            :question
+          when :recon_act
+            :autonomous_goal
+          else
+            # :act — distinguish bare questions from work the agent must do.
+            # Host-local facts need tools → autonomous_goal.
+            if defined?(TaskSummarizer) && TaskSummarizer.const_defined?(:NEEDS_LOCAL_EVIDENCE_RX)
+              return :autonomous_goal if req.match?(TaskSummarizer::NEEDS_LOCAL_EVIDENCE_RX)
+            elsif req.match?(/\b(?:hostname|whoami|\bcwd\b|\bpwd\b|my\s+ip)\b/i)
+              return :autonomous_goal
+            end
+            return :question if req.match?(/\?\s*\z/) && !req.match?(
+              /\b(please|implement|fix|patch|refactor|run|scan|find|write|change)\b/i
+            )
+            return :question if req.match?(/\A\s*(?:what|why|when|where|who|which|how)\b/i) &&
+                                !req.match?(/\b(please|implement|fix|patch|run|scan)\b/i)
+
+            :autonomous_goal
+          end
+        rescue StandardError
+          :autonomous_goal
+        end
+
         public_class_method def self.recon_authorized?(opts = {})
           req = opts[:request].to_s
           return true if req.match?(AUTH_SCOPE_RX)
@@ -1176,6 +1309,122 @@ module PWN
         end
 
         # Pure how-to: one text-only chat (no tools, no plan_first, no task recon).
+        # Deterministic greeting ack — no LLM, no tools, never mirror weather.
+
+        # Deterministic ack for general statements — no tools, no multi-step plan.
+        private_class_method def self.answer_statement(opts = {})
+          request = opts[:request].to_s
+          session_id = opts[:session_id]
+          txt = <<~ACK.strip
+            Noted. No multi-step task breakdown for a general statement — ready when you have a question or a goal to accomplish.
+          ACK
+
+          append_session(session_id: session_id, role: 'user', content: request)
+          append_session(session_id: session_id, role: 'assistant', content: txt)
+          if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: txt,
+              predicted: 0.9,
+              plan: [],
+              ts_state: nil
+            )
+          end
+          txt
+        rescue StandardError => e
+          warn "[pwn-ai/loop] answer_statement swallowed: #{e.class}: #{e.message}"
+          'Noted.'
+        end
+
+        # Concise Q&A without multi-step task breakdown or plan_first thrash.
+        private_class_method def self.answer_question(opts = {})
+          request = opts[:request].to_s
+          session_id = opts[:session_id]
+          system_role_content = opts[:system_role_content].to_s
+          engine = active_engine
+          mod_name = ENGINE_MODS[engine]
+          raise "ERROR: Unsupported AI engine for agent loop: #{engine}" unless mod_name
+
+          mod = Object.const_get(mod_name)
+          q_sys = <<~SYS
+            #{system_role_content}
+
+            INTENT: QUESTION (this turn only)
+              The user asked a question — not an autonomous multi-step goal.
+              Answer concisely in plain US English. Do NOT call tools unless a
+              single factual lookup is strictly required and already present in
+              context. Do NOT plan multi-step work. Do NOT invent task traces,
+              planner monologue, rubocop, rake, or live recon.
+          SYS
+
+          txt =
+            if mod.respond_to?(:chat)
+              r = mod.chat(
+                request: request,
+                system_role_content: q_sys,
+                spinner: true
+              )
+              if r.is_a?(Hash)
+                (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
+              else
+                r.to_s
+              end
+            else
+              messages = [
+                { role: 'system', content: q_sys },
+                { role: 'user', content: request }
+              ]
+              msg = call_engine(messages: messages, tools: nil)
+              msg.is_a?(Hash) ? msg[:content].to_s : msg.to_s
+            end
+
+          txt = txt.to_s.strip
+          txt = 'I do not have enough context to answer that yet.' if txt.empty?
+
+          append_session(session_id: session_id, role: 'user', content: request)
+          append_session(session_id: session_id, role: 'assistant', content: txt)
+          if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: txt,
+              predicted: 0.85,
+              plan: [],
+              ts_state: nil
+            )
+          end
+          txt
+        rescue StandardError => e
+          warn "[pwn-ai/loop] answer_question swallowed: #{e.class}: #{e.message}"
+          "Could not answer the question (#{e.class}: #{e.message})."
+        end
+
+        private_class_method def self.answer_greeting(opts = {})
+          request = opts[:request].to_s
+          session_id = opts[:session_id]
+          txt = <<~ACK.strip
+            Acknowledged. System online - ready for a security task whenever you are.
+          ACK
+
+          append_session(session_id: session_id, role: 'user', content: request)
+          append_session(session_id: session_id, role: 'assistant', content: txt)
+          if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: txt,
+              predicted: 0.95,
+              plan: ['Acknowledge greeting without tools or weather echo'],
+              ts_state: nil
+            )
+          end
+          txt
+        rescue StandardError => e
+          warn "[pwn-ai/loop] answer_greeting swallowed: #{e.class}: #{e.message}"
+          'Acknowledged. Ready for a security task.'
+        end
+
         private_class_method def self.answer_howto(opts = {})
           request = opts[:request].to_s
           session_id = opts[:session_id]
@@ -1256,6 +1505,274 @@ module PWN
           "Could not produce a how-to answer (#{e.class}: #{e.message}). Retry with a frontier engine or ask for a specific flag/example."
         end
 
+        # Classify pure-recall ask: :user (what did I say), :assistant (how did
+        # you respond), or :either (vague memory cue — prefer user then asst).
+        private_class_method def self.recall_target(opts = {})
+          req = opts[:request].to_s
+          return :assistant if req.match?(
+            /
+              how\s+did\s+you\s+respond|
+              how\s+did\s+you\s+(?:just\s+)?(?:answer|reply)|
+              what\s+(?:was|is)\s+your\s+(?:last|previous|prior)\s+(?:answer|response|reply)|
+              what\s+did\s+you\s+(?:just\s+)?(?:say|answer|reply|respond)|
+              remind\s+me\s+what\s+you\s+|
+              repeat\s+your\s+(?:last|previous)
+            /ix
+          )
+          return :user if req.match?(
+            /
+              what\s+did\s+i\s+|
+              what\s+was\s+my\s+last|
+              remind\s+me\s+what\s+i\s+|
+              repeat\s+(?:my\s+)?(?:last|previous)|
+              last\s+thing\s+i\s+said|
+              say\s+that\s+again
+            /ix
+          )
+
+          :either
+        rescue StandardError
+          :either
+        end
+
+        # Extract an explicit utterance the user wants matched in history
+        # ("how did you respond when I said `howdy`?" / ... "X").
+        private_class_method def self.extract_recall_match(opts = {})
+          req = opts[:request].to_s
+          # Backticks, straight/smart quotes
+          m = req.match(/when\s+i\s+said\s*[,: ]\s*[`"'“”](.+?)[`"'“”]/im) ||
+              req.match(/when\s+i\s+said\s*[,:]\s*(.+?)\s*\??\s*\z/im) ||
+              req.match(/respond(?:ed)?\s+to\s*[`"'“”](.+?)[`"'“”]/im) ||
+              req.match(/you\s+(?:said|answered|replied)\s+(?:to|when)\s*[`"'“”](.+?)[`"'“”]/im)
+          return m[1].to_s.strip if m && !m[1].to_s.strip.empty?
+
+          # "when I said that" / "to what I just said" → resolve non-meta pair
+          return :non_meta if req.match?(/when\s+i\s+said\s+that\b|to\s+what\s+i\s+just\s+said\b|to\s+(?:my\s+)?(?:last|previous)\b/i)
+
+          nil
+        rescue StandardError
+          nil
+        end
+
+        # Pure prior-turn / vague memory recall: answer from injected RECENT TURNS
+        # (and/or one in-process Memory.recall) — never plan_first, never tool loop.
+        private_class_method def self.answer_recall(opts = {})
+          request = opts[:request].to_s
+          session_id = opts[:session_id]
+          system_role_content = opts[:system_role_content].to_s
+          target = recall_target(request: request)
+
+          prior_user = nil
+          prior_asst = nil
+          dialog = []
+          pair = nil
+          if defined?(PWN::Memory)
+            match = extract_recall_match(request: request)
+            # Assistant-target asks: resolve the full user↔assistant pair, not
+            # merely the newest assistant line (which is often a prior recall
+            # answer after nested follow-ups).
+            if target == :assistant && PWN::Memory.respond_to?(:find_turn_pair)
+              pair =
+                if match == :non_meta || match.nil?
+                  PWN::Memory.find_turn_pair(
+                    session_id: session_id,
+                    skip_meta: true,
+                    pairs: 12,
+                    max_chars: 4_000
+                  )
+                else
+                  PWN::Memory.find_turn_pair(
+                    session_id: session_id,
+                    match: match,
+                    skip_meta: true,
+                    pairs: 12,
+                    max_chars: 4_000
+                  ) || PWN::Memory.find_turn_pair(
+                    session_id: session_id,
+                    skip_meta: true,
+                    pairs: 12,
+                    max_chars: 4_000
+                  )
+                end
+            end
+
+            if pair
+              prior_user = { content: pair[:user_content] }
+              prior_asst = { content: pair[:assistant_content] } if pair[:assistant_content]
+            else
+              # User-target / fallback: skip meta intermediate recall asks so
+              # "what did I just say?" after a nested chain still surfaces the
+              # original utterance when appropriate; default stays newest.
+              skip_meta = target == :assistant
+              prior_user = PWN::Memory.prior_user_message(
+                session_id: session_id,
+                max_chars: 4_000,
+                skip_meta: skip_meta,
+                pairs: 8
+              )
+              prior_asst = PWN::Memory.prior_assistant_message(
+                session_id: session_id,
+                max_chars: 4_000,
+                skip_meta: skip_meta,
+                pairs: 8
+              )
+            end
+            dialog = PWN::Memory.recent_dialog(session_id: session_id, pairs: 4, max_chars: 1_500)
+          end
+
+          user_body = prior_user && prior_user[:content].to_s.strip
+          asst_body = prior_asst && prior_asst[:content].to_s.strip
+          user_body = nil if user_body.to_s.empty?
+          asst_body = nil if asst_body.to_s.empty?
+
+          # Deterministic short-circuit when session already holds the text.
+          # One cheap recall — no LLM multi-tool thrash / plan_first.
+          txt = nil
+          plan_label = nil
+          case target
+          when :assistant
+            if asst_body
+              txt =
+                if user_body
+                  <<~ANS.strip
+                    When you said:
+                    #{user_body}
+
+                    I responded:
+                    #{asst_body}
+                  ANS
+                else
+                  <<~ANS.strip
+                    Immediately prior assistant response:
+
+                    #{asst_body}
+                  ANS
+                end
+              plan_label = 'Recall prior assistant turn from session transcript'
+            elsif user_body
+              # Fall back: at least return what the user said if asst missing.
+              txt = <<~ANS.strip
+                I do not have a prior assistant reply in this session yet.
+                You just said:
+
+                #{user_body}
+              ANS
+              plan_label = 'Recall prior user turn (assistant missing)'
+            end
+          when :user
+            if user_body
+              txt = <<~ANS.strip
+                You just said:
+
+                #{user_body}
+              ANS
+              plan_label = 'Recall prior user turn from session transcript'
+            end
+          else # :either — prefer user, then assistant
+            if user_body
+              txt = <<~ANS.strip
+                You just said:
+
+                #{user_body}
+              ANS
+              plan_label = 'Recall prior user turn from session transcript'
+            elsif asst_body
+              txt = <<~ANS.strip
+                Immediately prior assistant response:
+
+                #{asst_body}
+              ANS
+              plan_label = 'Recall prior assistant turn from session transcript'
+            end
+          end
+
+          if txt
+            append_session(session_id: session_id, role: 'user', content: request)
+            append_session(session_id: session_id, role: 'assistant', content: txt)
+            if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
+              Learning.auto_introspect(
+                session_id: session_id,
+                request: request,
+                final: txt,
+                predicted: 0.95,
+                plan: [plan_label || 'Recall prior turn from session transcript'],
+                ts_state: nil
+              )
+            end
+            return txt
+          end
+
+          # Session empty / brand-new: one text-only chat with RECENT TURNS (if any)
+          # still in system_role_content — still no tools / plan_first.
+          engine = active_engine
+          mod_name = ENGINE_MODS[engine]
+          raise "ERROR: Unsupported AI engine for agent loop: #{engine}" unless mod_name
+
+          mod = Object.const_get(mod_name)
+          dialog_txt =
+            if dialog && !dialog.empty?
+              dialog.map { |t| "[#{t[:role]}] #{t[:content]}" }.join("\n")
+            elsif prior_asst
+              "[assistant] #{prior_asst[:content]}"
+            else
+              '(no prior user/assistant turns in this session yet)'
+            end
+
+          recall_sys = <<~SYS
+            #{system_role_content}
+
+            INTENT: PURE PRIOR-TURN / MEMORY RECALL (this turn only)
+              Answer ONLY what the user just said or asked in this session.
+              Use RECENT TURNS / the dialog snapshot below. Do NOT call tools.
+              Do NOT plan. Do NOT run shell, sessions_view, or memory_recall.
+              If nothing prior exists, say so in one short sentence.
+
+            DIALOG SNAPSHOT:
+            #{dialog_txt}
+          SYS
+
+          txt =
+            if mod.respond_to?(:chat)
+              r = mod.chat(
+                request: request,
+                system_role_content: recall_sys,
+                spinner: true
+              )
+              if r.is_a?(Hash)
+                (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
+              else
+                r.to_s
+              end
+            else
+              messages = [
+                { role: 'system', content: recall_sys },
+                { role: 'user', content: request }
+              ]
+              msg = call_engine(messages: messages, tools: nil)
+              msg.is_a?(Hash) ? msg[:content].to_s : msg.to_s
+            end
+
+          txt = txt.to_s.strip
+          txt = 'I do not have a prior user turn in this session transcript yet.' if txt.empty?
+
+          append_session(session_id: session_id, role: 'user', content: request)
+          append_session(session_id: session_id, role: 'assistant', content: txt)
+          if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
+            Learning.auto_introspect(
+              session_id: session_id,
+              request: request,
+              final: txt,
+              predicted: 0.85,
+              plan: ['Recall prior turn (empty session fallback)'],
+              ts_state: nil
+            )
+          end
+          txt
+        rescue StandardError => e
+          warn "[pwn-ai/loop] answer_recall swallowed: #{e.class}: #{e.message}"
+          "Could not recall the prior turn (#{e.class}: #{e.message})."
+        end
+
         private_class_method def self.refuse_unauthorized_recon(opts = {})
           request = opts[:request].to_s
           session_id = opts[:session_id]
@@ -1297,8 +1814,17 @@ module PWN
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
           intent = request_intent(request: request)
+          kind = request_kind(request: request)
           Thread.current[:pwn_request_intent] = intent
+          Thread.current[:pwn_request_kind] = kind
           Thread.current[:pwn_recon_authorized] = recon_authorized?(request: request)
+          # Greeting / light smalltalk: deterministic ack — no weather echo, no tools.
+          if intent == :greeting && opts[:force_tools] != true
+            return answer_greeting(
+              request: request,
+              session_id: session_id
+            )
+          end
           # How-to: never enter plan_first / task recon / tool thrash (ollama/openwebui).
           if intent == :howto && opts[:force_tools] != true
             return answer_howto(
@@ -1307,6 +1833,33 @@ module PWN
               system_role_content: system_role_content
             )
           end
+          # Pure prior-turn / vague memory recall: one cheap path, no plan_first.
+          if intent == :recall && opts[:force_tools] != true
+            return answer_recall(
+              request: request,
+              session_id: session_id,
+              system_role_content: system_role_content
+            )
+          end
+          # General statements: acknowledge briefly — no multi-step task plan.
+          # Kind is source of truth (LLM+heuristic). Never short-circuit goals.
+          if kind.to_sym == :statement && intent != :recon_act && opts[:force_tools] != true
+            return answer_statement(
+              request: request,
+              session_id: session_id
+            )
+          end
+          # Pure questions that are not how-to/recall: concise answer, no multi-step plan.
+          # Host-evidence interrogatives classify as autonomous_goal above so they
+          # keep tools (e.g. "what is my hostname?"). force_tools bypasses for tests.
+          if kind.to_sym == :question && !%i[recon_act].include?(intent) && opts[:force_tools] != true
+            return answer_question(
+              request: request,
+              session_id: session_id,
+              system_role_content: system_role_content
+            )
+          end
+
           # Live recon without authorization: refuse rather than probe the LAN.
           return refuse_unauthorized_recon(request: request, session_id: session_id) if intent == :recon_act && !recon_authorized?(request: request) && opts[:force_tools] != true
 
@@ -1320,23 +1873,47 @@ module PWN
           messages << { role: 'user', content: request }
           append_session(session_id: session_id, role: 'user', content: request)
 
-          # Show full tangible-task breakdown as soon as the user submits.
-          task_summary_plan!(state: ts_state, request: request, on_tool: on_tool)
+          # Tangible-task breakdown ONLY for autonomous goals.
+          # General statements and questions stay without multi-step plans.
+          needs_breakdown =
+            if defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:needs_task_breakdown?)
+              TaskSummarizer.needs_task_breakdown?(kind: kind, request: request)
+            else
+              kind.to_sym == :autonomous_goal
+            end
+          ts_state[:request_kind] = kind if ts_state.is_a?(Hash)
+          if needs_breakdown
+            task_summary_plan!(state: ts_state, request: request, on_tool: on_tool)
+          elsif ts_state.is_a?(Hash) && defined?(TaskSummarizer)
+            # Record kind on state; optional one-line kind banner (no task list).
+            ts_state[:plan] = []
+            ts_state[:request_kind] = kind
+            if TaskSummarizer.respond_to?(:format_plan)
+              banner = TaskSummarizer.format_plan(tasks: [], request: request, request_kind: kind)
+              if banner && !banner.to_s.empty?
+                ts_state[:plan_text] = banner
+                ts_state[:plan_emitted] = true
+                emit_task_summary(line: banner, on_tool: on_tool)
+              end
+            end
+          end
           # Re-bind tools from English plan so task list is the sole driver of
           # tool exposure/ranking (Registry keyword router + CORE).
           if ts_state.is_a?(Hash) && defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:relevance_query)
             rq = TaskSummarizer.relevance_query(state: ts_state, request: request)
             tools = Registry.definitions(enabled: opts[:enabled_toolsets], relevance: rq) unless rq.to_s.strip.empty?
           end
-          # English-task-as-primary: inject the same tangible tasks into model
-          # context so tool selection follows the plan, not only the TUI banner.
-          inject_task_focus!(messages: messages, state: ts_state, force: true)
+          # English-task-as-primary: inject tangible tasks only for autonomous goals.
+          inject_task_focus!(messages: messages, state: ts_state, force: true) if needs_breakdown
 
           predicted = nil
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
-          skip_plan = (intent == :howto)
+          # Skip plan_first for non-goals (statements/questions) and cheap intents.
+          skip_plan = %i[howto recall greeting].include?(intent) ||
+                      %i[statement question].include?(kind.to_sym) ||
+                      !needs_breakdown
           if !skip_plan && (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
             predicted = plan_first(messages: messages, request: request, ts_state: ts_state)
             # P22 — prefer explicit return; fall back to thread stash
@@ -1669,6 +2246,8 @@ module PWN
 
               Intent routing (all engines; critical for ollama/openwebui):
                 how-to / usage questions → text-only explanation (no tools, no plan_first)
+                pure prior-turn recall ("what did I just say?") → answer_recall (no tools)
+                pure greeting / light smalltalk → answer_greeting (no tools, no weather echo)
                 live subnet sweeps without scope language → refuse
                 :recon_authorized    - Boolean session flag to allow raw-socket / sweep tools
               Local-model scaffolding (PWN::Env[:ai][:agent]):
