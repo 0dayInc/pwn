@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'securerandom'
 
 module PWN
   module AI
@@ -118,6 +119,165 @@ module PWN
           raise ArgumentError, "invalid JSON arguments: #{e.message}"
         end
 
+        # Supported Method Parameters::
+        # calls = PWN::AI::Agent::Dispatch.tool_calls_from_text(
+        #   text: 'required - assistant plain-text that may embed shell(...) / JSON tool forms'
+        # )
+        #
+        # Local / abliterated models often print tool invocations as content
+        # instead of native message.tool_calls. Supported shapes include:
+        #   shell(command="id") / shell({"command":"id"}) / shell("id")
+        #   {"name":"shell","arguments":{...}} / {"function":{"name":...}}
+        #   {"tool":"shell","arguments":{...}} / {"call":"shell","arguments":{...}}
+        #   call:shell{command: "uname -s"} / tool:shell{"command":"id"}
+        # When structured tool_calls are empty, Loop coerces those strings into
+        # OpenAI-shaped tool_call hashes so Dispatch runs them instead of
+        # treating the string as a FINAL answer.
+
+        public_class_method def self.tool_calls_from_text(opts = {})
+          text = opts[:text].to_s
+          return [] if text.strip.empty?
+
+          Registry.discover if defined?(Registry) && Registry.respond_to?(:discover)
+          known = if defined?(Registry)
+                    Registry.all.map { |e| e.name.to_s }.reject(&:empty?)
+                  else
+                    %w[shell pwn_eval]
+                  end
+          return [] if known.empty?
+
+          names_alt = known.map { |n| Regexp.escape(n) }.join('|')
+          calls = []
+          seen = {}
+
+          add = lambda do |name, args|
+            name = name.to_s
+            next unless known.include?(name)
+
+            args_h = case args
+                     when Hash then symbolize(hash: args)
+                     when String
+                       s = args.strip
+                       begin
+                         parsed = JSON.parse(s, symbolize_names: true)
+                         parsed.is_a?(Hash) ? parsed : { value: parsed }
+                       rescue JSON::ParserError
+                         h = {}
+                         s.scan(/([A-Za-z_]\w*)\s*[:=]\s*(?:"((?:\\.|[^"])*)"|'((?:\\.|[^'])*)'|([^\s,)}{]+))/) do
+                           k = Regexp.last_match(1)
+                           h[k.to_sym] = Regexp.last_match(2) || Regexp.last_match(3) || Regexp.last_match(4)
+                         end
+                         if h.empty?
+                           entry = (Registry.lookup(name: name) if defined?(Registry))
+                           req = Array(entry&.schema&.dig(:parameters, :required))
+                           h = req.length == 1 ? { req.first.to_sym => s } : { command: s }
+                         end
+                         h
+                       end
+                     else
+                       {}
+                     end
+            key = "#{name}|#{JSON.generate(args_h)}"
+            next if seen[key]
+
+            seen[key] = true
+            calls << {
+              id: "textcall_#{calls.length + 1}_#{SecureRandom.hex(3)}",
+              type: 'function',
+              function: {
+                name: name,
+                # OpenAI/xAI wire format requires a JSON string, not a map.
+                arguments: JSON.generate(args_h)
+              }
+            }
+          end
+
+          # Balanced-delimiter extractor used for name(...) and call:name{...}.
+          extract_balanced = lambda do |open_ch, close_ch, from|
+            depth = 1
+            i = from
+            in_s = nil
+            esc = false
+            while i < text.length && depth.positive?
+              ch = text[i]
+              if in_s
+                if esc
+                  esc = false
+                elsif ch == '\\'
+                  esc = true
+                elsif ch == in_s
+                  in_s = nil
+                end
+              elsif ['"', "'"].include?(ch)
+                in_s = ch
+              elsif ch == open_ch
+                depth += 1
+              elsif ch == close_ch
+                depth -= 1
+              end
+              i += 1
+            end
+            depth.zero? ? [text[from...(i - 1)].to_s.strip, i] : nil
+          end
+
+          # JSON object forms:
+          #   {"name":"shell","arguments":{...}}
+          #   {"function":{"name":"shell","arguments":{...}}}
+          #   {"tool":"shell","arguments":{...}} / {"call":"shell",...}
+          #   {"type":"call","name":"shell",...}
+          text.scan(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/m).each do |blob|
+            begin
+              j = JSON.parse(blob, symbolize_names: true)
+            rescue JSON::ParserError
+              next
+            end
+            next unless j.is_a?(Hash)
+
+            name = (
+              j[:name] || j[:tool] || j[:call] ||
+              j.dig(:function, :name) || j.dig(:tool_call, :name)
+            ).to_s
+            # Skip pure type tags mistaken as names (e.g. {"call":{...}} trees).
+            next if name.empty? || %w[function tool_call].include?(name)
+
+            args = j[:arguments] || j[:args] || j[:parameters] ||
+                   j.dig(:function, :arguments) || j.dig(:tool_call, :arguments) || {}
+            add.call(name, args)
+          end
+
+          # Colon-brace forms (OpenWebUI / abliterated dumps):
+          #   call:shell{command: "uname -s"}
+          #   tool:shell{"command":"id"}
+          #   call:shell{command="id"}
+          rx_colon = /\b(?:call|tool)\s*:\s*(#{names_alt})\s*\{/i
+          idx = 0
+          while (m = text.match(rx_colon, idx))
+            name = m[1]
+            extracted = extract_balanced.call('{', '}', m.end(0))
+            if extracted
+              # Re-wrap: balanced extractor yields the interior only. Paren form
+              # shell({...}) keeps braces inside (...); brace form must restore
+              # them so JSON.parse / kwarg scan see a full object body.
+              add.call(name, "{#{extracted[0]}}")
+            end
+            idx = m.begin(0) + 1
+          end
+
+          # Call forms: shell(command="...") / shell({"command":"id"}) / shell("id")
+          rx = /\b(#{names_alt})\s*\(/i
+          idx = 0
+          while (m = text.match(rx, idx))
+            name = m[1]
+            extracted = extract_balanced.call('(', ')', m.end(0))
+            add.call(name, extracted[0]) if extracted
+            idx = m.begin(0) + 1
+          end
+
+          calls
+        rescue StandardError
+          []
+        end
+
         private_class_method def self.symbolize(opts = {})
           hash = opts[:hash] ||= {}
           hash.each_with_object({}) { |(k, v), m| m[k.to_sym] = v }
@@ -143,6 +303,7 @@ module PWN
               )
 
               PWN::AI::Agent::Dispatch.repair_name(name: 'run_shell')  # => 'shell'
+              PWN::AI::Agent::Dispatch.tool_calls_from_text(text: 'shell(command="id")')
 
               #{self}.authors
           USAGE

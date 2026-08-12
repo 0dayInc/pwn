@@ -112,5 +112,122 @@ describe PWN::AI::Agent::Loop do
       # Index pull from R2 is OK via apply_prm_advancement!
       expect(ts).to match(/apply_prm_advancement!/)
     end
+
+    it 'coerces plain-text tool forms and forces ollama tool_choice when needed' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/tool_calls_from_text/)
+      expect(src).to match(/_text_tool_coerced/)
+      expect(src).to match(/tool_choice/)
+      # stay required while monologue / unfinished; only auto when settled
+      expect(src).to match(/still_acting/)
+      expect(src).to match(/has_tool_result && !still_acting/)
+      # normalize_llm must promote text tool forms
+      expect(src).to match(/normalize_llm[\s\S]*tool_calls_from_text/m)
+      expect(src).to match(/MONOLOGUE_TOOL_INTENT_RX/)
+    end
+
+    it 'flags narrated tool monologue as incomplete_final (ollama gemma thrash)' do
+      sample = <<~TXT
+        Wait, let's try `hping3 -c 1` with a known IP like `127.0.0.1`.
+        If it fails (due to permissions), then we can say "Verification complete".
+        Actually, I will just report that the verification failed or we found no hosts.
+        Wait, let's try one more thing: check if any way exists a host using hping3.
+      TXT
+      expect(described_class.send(:incomplete_final?, text: sample, last_iter: false)).to eq(true)
+      expect(described_class.send(:incomplete_final?, text: sample, last_iter: true)).to eq(false)
+      expect(
+        described_class.send(
+          :incomplete_final?,
+          text: 'Live hosts: 10.3.3.1 via sudo hping3 -1 -c 1 on 10.3.3.0/27.',
+          last_iter: false
+        )
+      ).to eq(false)
+    end
+  end
+
+  describe '.openai_wire_messages' do
+    it 'stringifies Hash function.arguments and drops private keys' do
+      wire = described_class.openai_wire_messages(
+        messages: [
+          {
+            role: 'assistant',
+            content: nil,
+            _text_tool_coerced: true,
+            thinking: 'secret',
+            tool_calls: [
+              {
+                id: 'c1',
+                type: 'function',
+                function: { name: 'shell', arguments: { command: 'id' } }
+              }
+            ]
+          },
+          {
+            role: 'tool',
+            tool_call_id: 'c1',
+            name: 'shell',
+            content: { success: true, result: 'uid=0' }
+          }
+        ]
+      )
+      asst = wire[0]
+      expect(asst.keys).to match_array(%i[role content tool_calls])
+      expect(asst[:tool_calls][0].dig(:function, :arguments)).to eq('{"command":"id"}')
+      tool = wire[1]
+      expect(tool[:content]).to eq('{"success":true,"result":"uid=0"}')
+    end
+  end
+
+  describe '.ollama_wire_messages' do
+    it 'parses JSON-string function.arguments into a Hash and coerces nil content' do
+      wire = described_class.ollama_wire_messages(
+        messages: [
+          {
+            role: 'assistant',
+            content: nil,
+            _text_tool_coerced: true,
+            thinking: 'secret',
+            tool_calls: [
+              {
+                id: 'c1',
+                type: 'function',
+                function: { name: 'shell', arguments: '{"command":"id"}' }
+              }
+            ]
+          },
+          {
+            role: 'tool',
+            tool_call_id: 'c1',
+            name: 'shell',
+            content: { success: true, result: 'uid=0' }
+          }
+        ]
+      )
+      asst = wire[0]
+      expect(asst.keys).to match_array(%i[role content tool_calls])
+      expect(asst[:content]).to eq('')
+      expect(asst[:tool_calls][0].dig(:function, :arguments)).to eq(command: 'id')
+      tool = wire[1]
+      expect(tool[:content]).to eq('{"success":true,"result":"uid=0"}')
+    end
+
+    it 'passes through Hash function.arguments unchanged' do
+      wire = described_class.ollama_wire_messages(
+        messages: [
+          {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'c2',
+                type: 'function',
+                function: { name: 'shell', arguments: { command: 'uname' } }
+              }
+            ]
+          }
+        ]
+      )
+      expect(wire[0].dig(:tool_calls, 0, :function, :arguments)).to eq(command: 'uname')
+    end
   end
 end

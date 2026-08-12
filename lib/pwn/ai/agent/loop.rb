@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'securerandom'
 require 'digest'
 require 'pwn/ai/agent/mistakes'
 
@@ -60,6 +61,7 @@ module PWN
           openai: 'PWN::AI::OpenAI',
           grok: 'PWN::AI::Grok',
           ollama: 'PWN::AI::Ollama',
+          openwebui: 'PWN::AI::OpenWebUI',
           anthropic: 'PWN::AI::Anthropic',
           gemini: 'PWN::AI::Gemini'
         }.freeze
@@ -237,6 +239,11 @@ module PWN
         # goal was done ("shall I proceed?", "next step:", "want me to…").
         # Loop.run treats no-tool_calls as FINAL; this detector lets us refuse
         # that handoff and keep the tool loop alive for multi-step autonomy.
+        #
+        # Local/thinking models (gemma/Qwen abliterated etc.) often emit a
+        # monologue that NARRATES the next tool ("Wait, let's try hping3…")
+        # without producing native tool_calls or shell(...). Treat that as
+        # incomplete too so the loop re-pressures tools instead of FINAL.
         INCOMPLETE_FINAL_RX = /
           \b(shall\s+i|should\s+i|may\s+i|can\s+i|want\s+me\s+to|do\s+you\s+want\s+me|
              next\s+single\s+step|next\s+step\s*:|awaiting\s+your\s+(ok|approval|go-ahead|confirmation)|
@@ -246,6 +253,21 @@ module PWN
              once\s+you\s+(confirm|approve)|let\s+me\s+know\s+if|
              i(?:'ll|\s+will)\s+wait\b|waiting\s+for\s+(your\s+)?(go|ok|approval|confirmation)
           )\b
+        /ix
+
+        # Narrated-intent monologue without a structured tool call.
+        # Distinct from INCOMPLETE_FINAL_RX (polite handoff to the human).
+        MONOLOGUE_TOOL_INTENT_RX = /
+          \b(
+            wait[,\s]+let'?s\s+try|
+            let'?s\s+try\s+(one|to|again|hping|nmap|ping|sudo|shell|running|checking)|
+            i\s+(?:will|'ll)\s+(?:just\s+)?(?:try|run|check|probe|scan|use)\b|
+            actually,?\s+i\s+will\b|
+            one\s+more\s+thing\b|
+            if\s+it\s+fails\b.{0,80}\bthen\s+we\s+can\b|
+            verification\s+complete\b|
+            report\s+that\s+(?:the\s+)?verification\s+failed\b
+          )
         /ix
 
         private_class_method def self.incomplete_final?(opts = {})
@@ -258,6 +280,22 @@ module PWN
           return true if text.include?('?') && text.length < 900 &&
                          text.match?(/\b(proceed|continue|confirm|apply|next)\b/i)
 
+          # Thinking/monologue that plans tools in prose (esp. Ollama gemma).
+          # Cap length so a real long final answer is not bounced forever.
+          if text.length < 12_000 && text.match?(MONOLOGUE_TOOL_INTENT_RX)
+            # Prefer bounce when no concrete shell(...) / tool call is embedded.
+            return true unless defined?(Dispatch) && Dispatch.respond_to?(:tool_calls_from_text)
+            return true if Dispatch.tool_calls_from_text(text: text).empty?
+
+          end
+
+          # Degenerate repetition ("Wait, let's try…" loop) always incomplete.
+          lines = text.lines.map { |l| l.strip.downcase }.reject(&:empty?)
+          if lines.length >= 6
+            uniq_ratio = lines.uniq.length.to_f / lines.length
+            return true if uniq_ratio < 0.35
+          end
+
           false
         rescue StandardError
           false
@@ -268,7 +306,7 @@ module PWN
           n = v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
           # 0.3 — frontier leakage: live max_iters=80 burns local models.
           # Cap ollama at 25 unless the operator set an explicit lower value.
-          n = 75 if active_engine == :ollama && n > 75
+          n = 75 if local_engine? && n > 75
           # P7 — W3 controller: when this engine is badly overconfident,
           # shrink the tool budget so thrash can't compound on bad plans.
           cal = calibration_state
@@ -282,7 +320,7 @@ module PWN
           # refuse polite handoffs and finish early when evidence is enough.
           # CF / red_team forks stay suppressed while hot.
           if budget_exhaustion_hot?
-            hot_cap = active_engine == :ollama ? 24 : 75
+            hot_cap = local_engine? ? 24 : 75
             n = [n, hot_cap].min
           end
           n
@@ -311,7 +349,7 @@ module PWN
           remote_cap = 120
           local_cap  = 24
           cap = if bad
-                  (eng == :ollama ? local_cap : remote_cap)
+                  (local_engine?(engine: eng) ? local_cap : remote_cap)
                 else
                   75
                 end
@@ -324,6 +362,16 @@ module PWN
           }
         rescue StandardError
           { overconfident: false, force_plan: false, force_critic: false, max_iters_cap: 75 }
+        end
+
+        # Local/on-box engines share tight-context scaffolding (plan_first,
+        # tool_router, result caps, tool_choice pressure). Both :ollama
+        # (native server) and :openwebui (gateway in front of models) count.
+        private_class_method def self.local_engine?(opts = {})
+          eng = opts.key?(:engine) ? opts[:engine].to_s.downcase.to_sym : active_engine
+          %i[ollama openwebui].include?(eng)
+        rescue StandardError
+          false
         end
 
         private_class_method def self.active_engine
@@ -452,7 +500,7 @@ module PWN
           rescue StandardError
             false
           end
-          plan_prompt = if hot && active_engine == :ollama
+          plan_prompt = if hot && local_engine?
                           # Local hot: ultra-short plan — finish-under-8 is the skill gap.
                           'Before acting: write AT MOST 3 numbered tool calls (name + key args) that finish the ask. Prefer fewer. LAST line: "p(success)=<0.0-1.0>". Reply ONLY with the plan + that line — no tools, no prose.'
                         elsif hot
@@ -587,6 +635,184 @@ module PWN
           warn "[pwn-ai/loop] publish_usage swallowed: #{e.class}: #{e.message}"
         end
 
+        # Ollama / Open WebUI proxied /ollama/api/chat expect function.arguments
+        # as a JSON *object* (map), not a JSON-encoded string. Loop.normalize_llm
+        # and openai_wire_tool_call stringify for OpenAI/xAI; replaying that
+        # history into local engines produces HTTP 400:
+        #   {"detail":"Value looks like object, but can't find closing '}' symbol"}
+        # because the gateway parses the string as if it were raw object text.
+        private_class_method def self.parse_tool_arguments(opts = {})
+          raw = opts[:arguments]
+          case raw
+          when Hash, Array
+            # Object form (Hash) is Ollama-native; Array is rare but keep as-is.
+            raw
+          when nil
+            {}
+          when String
+            s = raw.strip
+            return {} if s.empty?
+
+            begin
+              parsed = JSON.parse(s, symbolize_names: true)
+              return parsed if parsed.is_a?(Hash) || parsed.is_a?(Array)
+            rescue JSON::ParserError
+              # fall through
+            end
+            # Non-JSON bare string — wrap so the schema still gets an object.
+            { value: s }
+          else
+            { value: raw.to_s }
+          end
+        end
+
+        private_class_method def self.ollama_wire_tool_call(opts = {})
+          tc = opts[:tool_call]
+          return nil unless tc.is_a?(Hash)
+
+          fn = tc[:function] || tc['function'] || {}
+          name = fn[:name] || fn['name'] || tc[:name] || tc['name']
+          args = fn[:arguments] || fn['arguments'] || tc[:arguments] || tc['arguments']
+          {
+            id: (tc[:id] || tc['id'] || "call_#{SecureRandom.hex(4)}").to_s,
+            type: (tc[:type] || tc['type'] || 'function').to_s,
+            function: {
+              name: name.to_s,
+              arguments: parse_tool_arguments(arguments: args)
+            }
+          }
+        end
+
+        # Supported Method Parameters::
+        # wire = PWN::AI::Agent::Loop.ollama_wire_messages(
+        #   messages: 'required - in-memory OpenAI-ish messages (may have String args)'
+        # )
+        #
+        # Returns a deep-copied array safe for Ollama / Open WebUI ollama/api/chat:
+        # - parses JSON-string function.arguments into Hash/Array objects
+        # - coerces nil assistant content to '' when tool_calls present
+        #   (Open WebUI GenerateChatCompletionForm rejects content:null alone)
+        # - drops _native_content / _text_tool_coerced / thinking private keys
+        # - stringifies Hash/Array message content (tool results) to JSON text
+
+        public_class_method def self.ollama_wire_messages(opts = {})
+          messages = opts[:messages]
+          Array(messages).filter_map do |m|
+            next unless m.is_a?(Hash)
+
+            role = (m[:role] || m['role']).to_s
+            out = { role: role }
+
+            tcs = m[:tool_calls] || m['tool_calls']
+            wired_tcs = nil
+            if tcs
+              wired_tcs = Array(tcs).filter_map { |tc| ollama_wire_tool_call(tool_call: tc) }
+              out[:tool_calls] = wired_tcs unless wired_tcs.empty?
+            end
+
+            if m.key?(:content) || m.key?('content')
+              content = m.key?(:content) ? m[:content] : m['content']
+              out[:content] = case content
+                              when nil
+                                # Open WebUI: null content without tool_calls 400s;
+                                # with tool_calls prefer "" over null.
+                                wired_tcs && !wired_tcs.empty? ? '' : nil
+                              when String then content
+                              when Hash, Array then JSON.generate(content)
+                              else content.to_s
+                              end
+            elsif wired_tcs && !wired_tcs.empty?
+              out[:content] = ''
+            end
+
+            name = m[:name] || m['name']
+            out[:name] = name.to_s if name && !name.to_s.empty?
+
+            tcid = m[:tool_call_id] || m['tool_call_id']
+            out[:tool_call_id] = tcid.to_s if tcid && !tcid.to_s.empty?
+
+            out
+          end
+        end
+
+        # OpenAI-compatible wire format (xAI Grok / OpenAI chat.completions):
+        # function.arguments MUST be a JSON string, not a map; message.content
+        # MUST be a string (or null). Internal Hash arguments from Ollama or
+        # Dispatch.tool_calls_from_text caused:
+        #   422 Unprocessable Entity: messages[N]: invalid type: map, expected a string
+        private_class_method def self.stringify_tool_arguments(opts = {})
+          raw = opts[:arguments]
+          case raw
+          when String then raw.empty? ? '{}' : raw
+          when Hash, Array then JSON.generate(raw)
+          when nil then '{}'
+          else
+            s = raw.to_s
+            s.empty? ? '{}' : s
+          end
+        end
+
+        private_class_method def self.openai_wire_tool_call(opts = {})
+          tc = opts[:tool_call]
+          return nil unless tc.is_a?(Hash)
+
+          fn = tc[:function] || tc['function'] || {}
+          name = fn[:name] || fn['name'] || tc[:name] || tc['name']
+          args = fn[:arguments] || fn['arguments'] || tc[:arguments] || tc['arguments']
+          {
+            id: (tc[:id] || tc['id'] || "call_#{SecureRandom.hex(4)}").to_s,
+            type: (tc[:type] || tc['type'] || 'function').to_s,
+            function: {
+              name: name.to_s,
+              arguments: stringify_tool_arguments(arguments: args)
+            }
+          }
+        end
+
+        # Supported Method Parameters::
+        # wire = PWN::AI::Agent::Loop.openai_wire_messages(
+        #   messages: 'required - in-memory OpenAI-ish messages (may have Hash args / internal keys)'
+        # )
+        #
+        # Returns a deep-copied array safe for OpenAI / xAI chat.completions:
+        # - drops _native_content / _text_tool_coerced / thinking private keys
+        # - stringifies function.arguments maps
+        # - coerces Hash/non-string content to JSON/string (nil kept for assistant tool turns)
+
+        public_class_method def self.openai_wire_messages(opts = {})
+          messages = opts[:messages]
+          Array(messages).filter_map do |m|
+            next unless m.is_a?(Hash)
+
+            role = (m[:role] || m['role']).to_s
+            out = { role: role }
+
+            if m.key?(:content) || m.key?('content')
+              content = m.key?(:content) ? m[:content] : m['content']
+              out[:content] = case content
+                              when nil then nil
+                              when String then content
+                              when Hash, Array then JSON.generate(content)
+                              else content.to_s
+                              end
+            end
+
+            name = m[:name] || m['name']
+            out[:name] = name.to_s if name && !name.to_s.empty?
+
+            tcid = m[:tool_call_id] || m['tool_call_id']
+            out[:tool_call_id] = tcid.to_s if tcid && !tcid.to_s.empty?
+
+            tcs = m[:tool_calls] || m['tool_calls']
+            if tcs
+              wired = Array(tcs).filter_map { |tc| openai_wire_tool_call(tool_call: tc) }
+              out[:tool_calls] = wired unless wired.empty?
+            end
+
+            out
+          end
+        end
+
         # Supported Method Parameters::
         # msg = PWN::AI::Agent::Loop.normalize_llm(
         #   response: 'required - chat_with_tools response Hash from any provider'
@@ -618,7 +844,9 @@ module PWN
                 type: 'function',
                 function: {
                   name: tc.dig(:function, :name) || tc[:name],
-                  arguments: tc.dig(:function, :arguments) || tc[:arguments]
+                  arguments: stringify_tool_arguments(
+                    arguments: tc.dig(:function, :arguments) || tc[:arguments]
+                  )
                 }
               }
             end
@@ -628,6 +856,17 @@ module PWN
           # original tool_use block to precede a tool_result).
           out[:_native_content] = msg[:_native_content] if msg[:_native_content]
           out[:thinking] = msg[:thinking] if msg[:thinking]
+          # Local/abliterated models sometimes emit shell(...) as plain content
+          # with empty tool_calls. Coerce registered call-shaped text into
+          # structured tool_calls so Loop dispatches instead of FINAL-answering.
+          if out[:tool_calls].empty? && defined?(Dispatch) && Dispatch.respond_to?(:tool_calls_from_text)
+            coerced = Dispatch.tool_calls_from_text(text: out[:content].to_s)
+            if coerced.any?
+              out[:tool_calls] = coerced.map { |tc| openai_wire_tool_call(tool_call: tc) }
+              out[:content] = nil
+              out[:_text_tool_coerced] = true
+            end
+          end
           out
         end
 
@@ -652,11 +891,50 @@ module PWN
 
           mod = Object.const_get(mod_name)
           if mod.respond_to?(:chat_with_tools)
-            response = mod.chat_with_tools(
-              messages: messages,
+            # xAI/OpenAI reject Hash function.arguments / Hash content (422 map→string).
+            # Ollama / Open WebUI reject *string* function.arguments (HTTP 400
+            # "can't find closing '}' symbol") — opposite of OpenAI wire form.
+            wire_msgs = if %i[grok openai].include?(engine)
+                          openai_wire_messages(messages: messages)
+                        elsif local_engine?(engine: engine)
+                          ollama_wire_messages(messages: messages)
+                        else
+                          messages
+                        end
+            cwt_opts = {
+              messages: wire_msgs,
               tools: tools,
               spinner: true
-            )
+            }
+            # Ollama + abliterated / weak chat-templates often ignore tools: and
+            # answer in prose (or print shell(...) as text). Force native
+            # tool_calls until at least one tool result is already in history;
+            # after that, auto so the model can emit a real final answer.
+            # Respect explicit PWN::Env[:ai][:ollama][:tool_choice] override.
+            if local_engine?(engine: engine) && tools && !tools.empty?
+              env_tc = begin
+                PWN::Env.dig(:ai, engine, :tool_choice)
+              rescue StandardError
+                nil
+              end
+              if env_tc && !env_tc.to_s.empty?
+                cwt_opts[:tool_choice] = env_tc
+              else
+                # Weak chat templates (TEMPLATE {{ .Prompt }} on abliterated
+                # Gemma etc.) ignore tools: under tool_choice=auto and dump
+                # monologue as content. Stay on required until a tool result
+                # exists AND the last assistant turn already looks like a
+                # genuine final (no monologue / handoff markers). That keeps
+                # pressure on native tool_calls through the mid-loop thrash
+                # that previously returned "Wait, let's try hping3…" as FINAL.
+                has_tool_result = Array(messages).any? { |m| m[:role].to_s == 'tool' }
+                last_asst = Array(messages).reverse.find { |m| m[:role].to_s == 'assistant' }
+                last_txt = last_asst.is_a?(Hash) ? last_asst[:content].to_s : ''
+                still_acting = last_txt.strip.empty? || incomplete_final?(text: last_txt, last_iter: false)
+                cwt_opts[:tool_choice] = has_tool_result && !still_acting ? 'auto' : 'required'
+              end
+            end
+            response = mod.chat_with_tools(**cwt_opts)
             publish_usage(response: response, engine: engine)
             normalize_llm(response: response)
           else
@@ -842,7 +1120,7 @@ module PWN
           # Live coalesced "what am I doing" lines for the TUI (not a model tool).
           ts_state = (TaskSummarizer.fresh(request: request) if defined?(TaskSummarizer) && TaskSummarizer.enabled? && Thread.current[:pwn_reflect_depth].to_i.zero?)
           engine = active_engine
-          local  = engine == :ollama
+          local  = local_engine?(engine: engine)
           system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id, request: request)
 
           Registry.discover
@@ -889,7 +1167,7 @@ module PWN
             inject_task_focus!(messages: messages, state: ts_state, force: true)
           end
           if budget_exhaustion_hot?
-            hot_hint = if active_engine == :ollama
+            hot_hint = if local_engine?
                          '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. ' \
                            'Prefer the SHORTEST plan that finishes the ask (≤3 tool calls). ' \
                            'Emit a final answer as soon as you have evidence — do not explore.'
@@ -949,7 +1227,7 @@ module PWN
             # Plan-faithful: delay the text-only strip when a plan is executing
             # cleanly. Remote hot allows longer plans (runway 25); local hot
             # still favors short plans under the 8-iter cap.
-            plan_step_limit = active_engine == :ollama ? 3 : 12
+            plan_step_limit = local_engine? ? 3 : 12
             plan_faithful = hot && plan_steps.positive? && plan_steps <= plan_step_limit &&
                             turn_fails['empty_final'].to_i.zero? &&
                             turn_fails.values.sum < 2
@@ -957,7 +1235,7 @@ module PWN
                                 if plan_faithful
                                   1
                                 else
-                                  (active_engine == :ollama ? 3 : 2)
+                                  (local_engine? ? 3 : 2)
                                 end
                               else
                                 1
@@ -984,6 +1262,20 @@ module PWN
             calls = Array(msg[:tool_calls])
             text  = msg[:content].to_s
 
+            # Belt-and-suspenders: plain-text shell(...) / tool forms from local
+            # models under weak TEMPLATE {{ .Prompt }} become real tool_calls.
+            if calls.empty? && !text.strip.empty? && !last_iter &&
+               defined?(Dispatch) && Dispatch.respond_to?(:tool_calls_from_text)
+              coerced = Dispatch.tool_calls_from_text(text: text)
+              if coerced.any?
+                wired = coerced.map { |tc| openai_wire_tool_call(tool_call: tc) }
+                msg = msg.merge(tool_calls: wired, content: nil, _text_tool_coerced: true)
+                calls = wired
+                text = ''
+                warn "[pwn-ai/loop] coerced #{wired.length} text tool call(s) on iter=#{i}" if local
+              end
+            end
+
             # Empty-final guard (local/thinking models): Ollama sometimes
             # returns done_reason=stop with eval_count<=1, empty content, no
             # tool_calls — historically surface as a blank TUI reply. Do NOT
@@ -1005,15 +1297,16 @@ module PWN
 
             if calls.empty?
               # P28 — refuse polite mid-goal handoffs so multi-step tasks stay autonomous.
-              if incomplete_final?(text: text, last_iter: last_iter) && turn_fails['incomplete_final'].to_i < 2
+              if incomplete_final?(text: text, last_iter: last_iter) && turn_fails['incomplete_final'].to_i < 4
                 turn_fails['incomplete_final'] += 1
                 warn "[pwn-ai/loop] incomplete final on iter=#{i}; continuing autonomously"
                 messages << {
                   role: 'user',
-                  content: '[pwn-ai/p28] That reply handed control back before the goal was done. ' \
-                           'Do NOT ask the user to confirm the next step. Continue with the ' \
-                           'necessary tool calls now and finish the goal autonomously. Only ' \
-                           'emit a final answer when the request is complete or truly blocked.'
+                  content: '[pwn-ai/p28] That reply was incomplete (handoff or narrated next step). ' \
+                           'Do NOT monologue about what you will try. Do NOT ask the user to ' \
+                           'confirm. Emit NATIVE tool_calls NOW (e.g. shell with a concrete ' \
+                           'command). Never print shell(...) as plain text. Only emit a final ' \
+                           'answer when the request is complete or truly blocked with evidence.'
                 }
                 next
               end
@@ -1191,7 +1484,7 @@ module PWN
               Set PWN::Env[:ai][:active] to choose; PWN::Env[:ai][:agent][:max_iters] to bound.
 
               Local-model scaffolding (PWN::Env[:ai][:agent]):
-                :plan_first          - Boolean, plan-then-act pre-pass (default: engine == :ollama)
+                :plan_first          - Boolean, plan-then-act pre-pass (default: local engine :ollama/:openwebui)
                 :tool_router         - Boolean/nil, slim Registry.definitions (nil=auto on for ollama)
                 :escalation_persona  - Swarm persona name for frontier corrective hints when stuck
                 :critic              - S3 constitutional critic before every final (Boolean)

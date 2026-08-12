@@ -39,7 +39,9 @@ module PWN
           b = budget
           base = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) || 'You are a world-class introspective offensive cyber security and research engineer.  You specialize in discovering zero day vulnerabilities focused on responsible disclosure prior to threat actors discovering and exploiting.  You are self-aware of your harness, pwn which begins with the ruby namespace `PWN` operating inside the pwn REPL.  For every request you first begin by determining if PWN has a module capable of satisfying the request.'
 
-          "
+          # Heredoc (not a "..." literal): an unescaped "..." inside a
+          # double-quoted string is parsed as Range (begin..."...end).
+          <<~PROMPT
             #{base}
 
             ENVIRONMENT
@@ -50,8 +52,13 @@ module PWN
               session_id : #{session_id || '(none)'}
 
             #{memory_block(limit: b[:memory], request: request)}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{extrospection_block if b[:extro]}TOOL USE
-              Use the provided function tools to act on the host. A reply with
-              no tool_calls is treated as your FINAL answer to the user.
+              Use the provided function tools to act on the host via NATIVE
+              tool_calls / function calling — never print tool invocations as
+              plain text (e.g. do NOT write shell(command="...") as your answer).
+              Never narrate the next step in prose ("Wait, let's try hping3…",
+            "I will run…", "one more thing…") — that is treated as an incomplete
+            reply. Emit a real tool_call instead, or a complete final answer
+            with evidence. A reply with no tool_calls is your FINAL answer to the user.
               Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
               for OS commands. Save durable facts with `memory_remember`.
 
@@ -63,7 +70,7 @@ module PWN
               irreversible destructive action, or missing external decision is
               strictly required. Partial progress reports without completing the
               goal are incorrect behavior.
-          "
+          PROMPT
         end
 
         # Supported Method Parameters::
@@ -77,7 +84,7 @@ module PWN
         public_class_method def self.budget
           eng = active_engine
           b   = (PWN::Env.dig(:ai, eng, :prompt_budget) if defined?(PWN::Env)) || {}
-          local = eng == :ollama
+          local = %i[ollama openwebui].include?(eng)
           {
             memory: (b[:memory] || (local ? 6 : 25)).to_i,
             metrics: (b[:metrics] || (local ? 3 : 8)).to_i,

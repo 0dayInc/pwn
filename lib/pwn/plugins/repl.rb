@@ -1260,16 +1260,18 @@ module PWN
               chat_opts[:system_role_content] = system_role if system_role
 
               case engine
+              when :anthropic
+                response = PWN::AI::Anthropic.chat(**chat_opts)
+              when :gemini
+                response = PWN::AI::Gemini.chat(**chat_opts)
               when :grok
                 response = PWN::AI::Grok.chat(**chat_opts)
               when :ollama
                 response = PWN::AI::Ollama.chat(**chat_opts)
               when :openai
                 response = PWN::AI::OpenAI.chat(**chat_opts)
-              when :anthropic
-                response = PWN::AI::Anthropic.chat(**chat_opts)
-              when :gemini
-                response = PWN::AI::Gemini.chat(**chat_opts)
+              when :openwebui
+                response = PWN::AI::OpenWebUI.chat(**chat_opts)
               else
                 raise "ERROR: Unsupported AI Engine: #{engine}"
               end

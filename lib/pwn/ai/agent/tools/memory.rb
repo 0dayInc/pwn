@@ -39,19 +39,33 @@ PWN::AI::Agent::Registry.register(
   toolset: 'memory',
   schema: {
     name: 'memory_recall',
-    description: 'Search persistent memory for entries matching a substring query.',
+    description: 'Recall context for the active session: starts at the previous ' \
+                 'assistant response and walks backward through the current ' \
+                 'session only (skipping empty/invalid turns), then fills with ' \
+                 'matching durable ~/.pwn/memory.json entries (newest first).',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Substring to match against keys and values. Omit for all.' },
-        limit: { type: 'integer', default: 20 }
+        query: {
+          type: 'string',
+          description: 'Substring to match against session content / durable keys and values. Omit for all.'
+        },
+        limit: { type: 'integer', default: 20 },
+        session_id: {
+          type: 'string',
+          description: 'Optional session id (default: active PWN::Env / current session).'
+        }
       },
       required: []
     }
   },
   check: -> { defined?(PWN::Memory) },
   handler: lambda { |args|
-    PWN::Memory.recall(query: args[:query], limit: args[:limit] || 20)
+    PWN::Memory.recall(
+      query: args[:query],
+      limit: args[:limit] || 20,
+      session_id: args[:session_id]
+    )
   }
 )
 

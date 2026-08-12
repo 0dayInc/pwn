@@ -2,23 +2,23 @@
 
 require 'spec_helper'
 
-describe PWN::AI::Ollama do
+describe PWN::AI::OpenWebUI do
   it 'should display information for authors' do
-    authors_response = PWN::AI::Ollama
+    authors_response = PWN::AI::OpenWebUI
     expect(authors_response).to respond_to :authors
   end
 
   it 'should display information for existing help method' do
-    help_response = PWN::AI::Ollama
+    help_response = PWN::AI::OpenWebUI
     expect(help_response).to respond_to :help
   end
 
   it 'omits format:json when tools present unless engine[:format] set (0.2)' do
     engine = { model: 'test', num_ctx: 2048, keep_alive: '1m', temp: 0.1, tool_temp: 0.1 }
     allow(PWN::Env).to receive(:[]).and_call_original
-    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ ollama: engine, active: 'ollama' })
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ openwebui: engine, active: 'openwebui' })
     captured = nil
-    allow(described_class).to receive(:ollama_rest_call) do |**kwargs|
+    allow(described_class).to receive(:openwebui_rest_call) do |**kwargs|
       captured = kwargs[:http_body]
       '{"message":{"role":"assistant","content":"ok","tool_calls":[]}}'
     end
@@ -42,10 +42,10 @@ describe PWN::AI::Ollama do
       system_role_content: 'sys'
     }
     allow(PWN::Env).to receive(:[]).and_call_original
-    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ ollama: engine, active: 'ollama' })
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ openwebui: engine, active: 'openwebui' })
 
     captured = nil
-    allow(described_class).to receive(:ollama_rest_call) do |**kwargs|
+    allow(described_class).to receive(:openwebui_rest_call) do |**kwargs|
       captured = kwargs[:http_body]
       '{"message":{"role":"assistant","content":"ok","tool_calls":[]},"done":true}'
     end
@@ -58,7 +58,7 @@ describe PWN::AI::Ollama do
     expect(captured.dig(:options, :num_ctx)).to eq(2048)
 
     captured_chat = nil
-    allow(described_class).to receive(:ollama_rest_call) do |**kwargs|
+    allow(described_class).to receive(:openwebui_rest_call) do |**kwargs|
       captured_chat = kwargs[:http_body]
       '{"choices":[{"message":{"role":"assistant","content":"hi"}}]}'
     end
@@ -80,9 +80,9 @@ describe PWN::AI::Ollama do
     ].join("\n")
 
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: body,
-      rest_call: 'ollama/api/chat'
+      rest_call: 'api/chat'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     expect(parsed.dig(:message, :content)).to eq('Hello!')
@@ -108,9 +108,9 @@ describe PWN::AI::Ollama do
     ].join("\n")
 
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: body,
-      rest_call: 'ollama/api/chat'
+      rest_call: 'api/chat'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     tc = parsed.dig(:message, :tool_calls, 0)
@@ -129,9 +129,9 @@ describe PWN::AI::Ollama do
     body = "#{sse_lines.join("\n")}\n"
 
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: body,
-      rest_call: 'ollama/v1/chat/completions'
+      rest_call: 'api/v1/chat/completions'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     expect(parsed[:object]).to eq('chat.completion')
@@ -176,9 +176,9 @@ describe PWN::AI::Ollama do
     body = "#{sse_lines.join("\n")}\n"
 
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: body,
-      rest_call: 'ollama/v1/chat/completions'
+      rest_call: 'api/v1/chat/completions'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     tc = parsed.dig(:choices, 0, :message, :tool_calls, 0)
@@ -201,9 +201,9 @@ describe PWN::AI::Ollama do
     ].join("\n")
 
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: body,
-      rest_call: 'ollama/api/chat'
+      rest_call: 'api/chat'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     expect(parsed.dig(:message, :content)).to eq('Hello there')
@@ -225,9 +225,9 @@ describe PWN::AI::Ollama do
     ].join("\n")
 
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: body,
-      rest_call: 'ollama/api/chat'
+      rest_call: 'api/chat'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     expect(parsed.dig(:message, :content)).to eq('')
@@ -237,12 +237,12 @@ describe PWN::AI::Ollama do
   it 'raises a clear error on non-2xx stream instead of NoMethodError/nil' do
     engine = { model: 'test', base_uri: 'http://127.0.0.1:9', key: 'k', num_ctx: 2048, keep_alive: '1m', temp: 0.1 }
     allow(PWN::Env).to receive(:[]).and_call_original
-    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ ollama: engine, active: 'ollama' })
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ openwebui: engine, active: 'openwebui' })
 
     # Simulate the stream path's error object without needing a live HTTP stack:
-    # ollama_rest_call must raise (not return nil) so chat_with_tools cannot
+    # openwebui_rest_call must raise (not return nil) so chat_with_tools cannot
     # collapse into a silent empty agent reply.
-    allow(described_class).to receive(:ollama_rest_call).and_return(nil)
+    allow(described_class).to receive(:openwebui_rest_call).and_return(nil)
 
     expect do
       described_class.chat_with_tools(
@@ -255,21 +255,21 @@ describe PWN::AI::Ollama do
 
   it 'marks empty stream payloads instead of returning bare {}' do
     out = described_class.send(
-      :assemble_ollama_stream,
+      :assemble_openwebui_stream,
       body: '',
-      rest_call: 'ollama/api/chat'
+      rest_call: 'api/chat'
     )
     parsed = JSON.parse(out, symbolize_names: true)
     expect(parsed[:done_reason]).to eq('error')
     expect(parsed.dig(:message, :error)).to eq('empty_stream_payloads')
   end
 
-  it 'normalizes string function.arguments into objects before ollama_rest_call' do
+  it 'normalizes string function.arguments into objects before openwebui_rest_call' do
     engine = { model: 'test', num_ctx: 2048, keep_alive: '1m', temp: 0.1, tool_temp: 0.1 }
     allow(PWN::Env).to receive(:[]).and_call_original
-    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ ollama: engine, active: 'ollama' })
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ openwebui: engine, active: 'openwebui' })
     captured = nil
-    allow(described_class).to receive(:ollama_rest_call) do |**kwargs|
+    allow(described_class).to receive(:openwebui_rest_call) do |**kwargs|
       captured = kwargs[:http_body]
       '{"message":{"role":"assistant","content":"ok","tool_calls":[]},"done":true}'
     end

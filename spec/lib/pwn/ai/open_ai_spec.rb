@@ -12,4 +12,9 @@ describe PWN::AI::OpenAI do
     help_response = PWN::AI::OpenAI
     expect(help_response).to respond_to :help
   end
+
+  it 'chat_with_tools sanitizes messages via Loop.openai_wire_messages' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to match(/openai_wire_messages/)
+  end
 end

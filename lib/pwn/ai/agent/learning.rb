@@ -1088,7 +1088,8 @@ module PWN
         # Mistakes(tool:'assumption') so KNOWN MISTAKES warns every future
         # run off that specific hallucination.
         private_class_method def self.fact_check_local_final(opts = {})
-          return unless defined?(PWN::Env) && PWN::Env.dig(:ai, :active).to_s.downcase.to_sym == :ollama
+          eng = defined?(PWN::Env) ? PWN::Env.dig(:ai, :active).to_s.downcase.to_sym : nil
+          return unless %i[ollama openwebui].include?(eng)
           return unless defined?(Extrospection) && Extrospection.respond_to?(:verify)
 
           claims = opts[:final].to_s.scan(CLAIM_RX).flatten.compact.uniq

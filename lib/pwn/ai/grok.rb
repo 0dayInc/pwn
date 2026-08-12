@@ -513,6 +513,9 @@ module PWN
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
+        # xAI rejects Hash function.arguments / Hash content (422 map → string).
+        messages = PWN::AI::Agent::Loop.openai_wire_messages(messages: messages) if defined?(PWN::AI::Agent::Loop) && PWN::AI::Agent::Loop.respond_to?(:openai_wire_messages)
+
         model = opts[:model] ||= engine[:model]
         raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
 

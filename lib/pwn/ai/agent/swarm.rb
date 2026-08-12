@@ -60,7 +60,7 @@ module PWN
         #     name: 'required - persona name (snake_case)',
         #     role: 'required - system_role_content overlay for this persona',
         #     toolsets: 'optional - Array of Registry toolset names',
-        #     engine: 'optional - :openai / :anthropic / :grok / :gemini / :ollama',
+        #     engine: 'optional - :openai / :anthropic / :grok / :gemini / :ollama / :openwebui',
         #     max_iters: 'optional - per-turn iteration cap for this persona'
         #   )
 

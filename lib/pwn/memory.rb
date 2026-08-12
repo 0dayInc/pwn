@@ -121,23 +121,150 @@ module PWN
     # Supported Method Parameters::
     #   results = PWN::Memory.recall(
     #     query: 'optional - string to search keys/values/categories (simple match)',
-    #     category: 'optional - filter by category',
-    #     limit: 'optional - max results (default 50)'
+    #     category: 'optional - filter by category (:session = transcript only)',
+    #     limit: 'optional - max results (default 50)',
+    #     session_id: 'optional - current session (default Env/Pry active id)'
     #   )
+    # Returns session turns first (previous assistant response -> older, current
+    # session only, empty/invalid skipped), then durable memory newest-first.
+
     public_class_method def self.recall(opts = {})
       query = opts[:query].to_s.downcase
       category = opts[:category]
-      limit = opts[:limit] || 50
+      limit = (opts[:limit] || 50).to_i
+      limit = 50 if limit <= 0
+      session_id = opts[:session_id]
+      session_id = current_session_id if session_id.to_s.empty?
+      # Default ON for memory_recall tool UX. to_context passes false so the
+      # injected MEMORY block stays durable cross-session facts only.
+      include_session = if opts.key?(:include_session)
+                          opts[:include_session] ? true : false
+                        else
+                          true
+                        end
 
-      mem = load
-      results = mem.select do |k, v|
-        match = true
-        match &&= k.to_s.downcase.include?(query) || v[:value].to_s.downcase.include?(query) || v[:category].to_s.downcase.include?(query) if query && !query.empty?
-        match &&= (v[:category] == category.to_sym) if category
-        match
+      ordered = {}
+
+      # 1) Current-session turns first: start at previous response, walk older.
+      #    Skips empty/invalid turns. Stays scoped to this session only.
+      if include_session && !(category && category.to_sym != :session)
+        session_turns(session_id: session_id, query: query, limit: limit).each do |entry|
+          break if ordered.length >= limit
+
+          key = entry[:key]
+          ordered[key] = entry.except(:key)
+        end
       end
 
-      results.to_a.first(limit).to_h
+      # 2) Durable ~/.pwn/memory.json (newest timestamp first) fills remaining slots.
+      if ordered.length < limit && !(category && category.to_sym == :session)
+        mem = load
+        durable = mem.select do |k, v|
+          match = true
+          if query && !query.empty?
+            match &&= k.to_s.downcase.include?(query) ||
+                      v[:value].to_s.downcase.include?(query) ||
+                      v[:category].to_s.downcase.include?(query)
+          end
+          match &&= (v[:category].to_s == category.to_s) if category
+          match
+        end
+        durable_sorted = durable.sort_by do |k, v|
+          [-Time.parse(v[:timestamp].to_s).to_i, k.to_s]
+        rescue StandardError
+          [0, k.to_s]
+        end
+        durable_sorted.each do |k, v|
+          break if ordered.length >= limit
+          next if ordered.key?(k)
+
+          ordered[k] = v
+        end
+      end
+
+      ordered
+    end
+
+    # Resolve the active pwn-ai session id (Env, then Pry config).
+    public_class_method def self.current_session_id(opts = {})
+      sid = opts[:session_id].to_s
+      return sid unless sid.empty?
+
+      if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+        sid = PWN::Env.dig(:ai, :session_id).to_s
+        return sid unless sid.empty?
+      end
+
+      return Pry.config.pwn_ai_session_id.to_s if defined?(Pry) && Pry.respond_to?(:config) && Pry.config.respond_to?(:pwn_ai_session_id)
+
+      ''
+    end
+
+    # Walk the current session transcript from the previous assistant response
+    # backward (previous -> older). Empty/invalid turns are skipped.
+    # Returns Array of hashes with :key plus entry fields (role/value/...).
+    public_class_method def self.session_turns(opts = {})
+      sid = opts[:session_id].to_s
+      sid = current_session_id if sid.empty?
+      return [] if sid.empty?
+      return [] unless defined?(PWN::Sessions)
+
+      query = opts[:query].to_s.downcase
+      limit = (opts[:limit] || 50).to_i
+      limit = 50 if limit <= 0
+
+      rows = PWN::Sessions.load(session_id: sid)
+      return [] if rows.nil? || rows.empty?
+
+      valid = []
+      rows.each_with_index do |e, idx|
+        next unless e.is_a?(Hash)
+
+        role = e[:role].to_s
+        content = e[:content].to_s
+        next if content.strip.empty?
+        next unless %w[assistant user tool system observation].include?(role)
+        # Skip the bootstrap system line when it has no useful body.
+        next if role == 'system' && content.match?(/\ASession started:/i)
+
+        valid << {
+          idx: idx,
+          role: role,
+          content: content,
+          timestamp: e[:timestamp]
+        }
+      end
+      return [] if valid.empty?
+
+      # Previous response = most recent non-empty assistant turn in-session.
+      last_asst = valid.rindex { |e| e[:role] == 'assistant' }
+      # If no assistant yet, still walk backward from the latest valid turn.
+      start_at = last_asst || (valid.length - 1)
+      backward = valid[0..start_at].reverse
+
+      hits = []
+      backward.each do |e|
+        break if hits.length >= limit
+
+        content = e[:content]
+        role = e[:role]
+        if query && !query.empty? && !(content.downcase.include?(query) ||
+                      role.include?(query) ||
+                      "session_#{sid}".include?(query))
+          next
+        end
+
+        hits << {
+          key: :"session_turn_#{sid}_#{e[:idx]}",
+          value: content,
+          category: :session,
+          role: role,
+          timestamp: e[:timestamp],
+          session_id: sid,
+          source: 'session_backward'
+        }
+      end
+      hits
     end
 
     # Supported Method Parameters::
@@ -196,7 +323,7 @@ module PWN
     #   (used internally by pwn-ai hook to inject into system prompt)
     public_class_method def self.to_context(opts = {})
       limit = opts[:limit] || 20
-      mem = recall(limit: limit)
+      mem = recall(limit: limit, include_session: false)
       return '' if mem.empty?
 
       ctx = "\n\nPERSISTENT MEMORY (cross-session facts, prefs, lessons - use PWN::Memory.remember to store new ones):\n"
@@ -290,6 +417,8 @@ module PWN
           mem = PWN::Memory.load
           PWN::Memory.remember(key: :user_prefers_ruby, value: 'Always prefer pure Ruby + RestClient patterns', category: :preference)
           facts = PWN::Memory.recall(query: 'recon', category: :fact, limit: 10)
+          # session-first (previous response → older), then durable newest-first:
+          sess  = PWN::Memory.recall(limit: 10)  # or session_id: '20260811_...'
           hits  = PWN::Memory.recall_semantic(query: 'recon', limit: 6)  # embedding-ranked
           PWN::Memory.forget(key: :some_key)
           PWN::Memory.forget(key: :operator_pref_x) rescue puts('protected')
