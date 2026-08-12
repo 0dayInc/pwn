@@ -176,4 +176,40 @@ describe PWN::AI::Agent::Extrospection do
     expect(bc).to include(:timeout, :theharvester_sources, :spiderfoot_modules, :amass_passive)
     expect(e.send(:osint_api_keys).keys).to include(:steam)
   end
+
+  describe '.correlate' do
+    it 'does not raise TypeError when web observation data is a String' do
+      allow(described_class).to receive(:drift).and_return(changed: [], added: [], removed: [])
+      allow(described_class).to receive(:load).and_return(snapshot: { toolchain: {}, rf: {}, web: {} })
+      allow(described_class).to receive(:observations).and_return([])
+      allow(described_class).to receive(:observations).with(hash_including(category: 'web')).and_return(
+        [{ target: 'https://example.com/app', data: 'plain string observation', timestamp: '2026-08-12T00:00:00Z' }]
+      )
+      if defined?(PWN::AI::Agent::Learning)
+        allow(PWN::AI::Agent::Learning).to receive(:outcomes).and_return(
+          [{ task: 'scan example.com', details: 'failed against example.com', timestamp: '2026-08-12T00:00:00Z' }]
+        )
+      end
+      expect { described_class.correlate(limit: 5) }.not_to raise_error
+      findings = described_class.correlate(limit: 5)
+      expect(findings).to be_an(Array)
+    end
+
+    it 'reads dom_sha only when observation data is a Hash' do
+      allow(described_class).to receive(:drift).and_return(changed: [], added: [], removed: [])
+      allow(described_class).to receive(:load).and_return(snapshot: { toolchain: {}, rf: {}, web: {} })
+      allow(described_class).to receive(:observations).and_return([])
+      allow(described_class).to receive(:observations).with(hash_including(category: 'web')).and_return(
+        [{ target: 'https://target.example/', data: { dom_sha: 'abc123' }, timestamp: '2026-08-12T00:00:00Z' }]
+      )
+      if defined?(PWN::AI::Agent::Learning)
+        allow(PWN::AI::Agent::Learning).to receive(:outcomes).and_return(
+          [{ task: 'hit target.example', details: 'boom target.example', timestamp: '2026-08-12T00:00:00Z' }]
+        )
+      end
+      findings = described_class.correlate(limit: 10)
+      web_hit = findings.find { |f| f[:kind] == :target_web_drift }
+      expect(web_hit[:dom_sha]).to eq('abc123') if web_hit
+    end
+  end
 end

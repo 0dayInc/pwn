@@ -67,12 +67,14 @@ module PWN
             }
           },
           ollama: {
-            base_uri: 'required - Base URI for Open WebUI - e.g. https://ollama.local',
-            key: 'required - Open WebUI API Key Under Settings  >> Account >> JWT Token',
-            model: 'required - Ollama model to use',
+            # Direct Ollama server (stock: http://127.0.0.1:11434). No key required.
+            base_uri: 'optional - Base URI for Ollama server (default http://127.0.0.1:11434)',
+            key: 'optional - bearer token only if a reverse-proxy sits in front of Ollama (stock ollama needs none)',
+            model: 'required - Ollama model tag to use',
             embed_model: 'optional - embedding model for PWN::MemoryIndex (default nomic-embed-text)',
             system_role_content: 'You are an ethically hacking Ollama agent.',
             temp: 'optional - Ollama temperature',
+            tool_temp: 0.1, # lower temperature when tools are present (chat_with_tools)
             num_ctx: 32_768,
             # Cap decode length so thinking models cannot stream forever
             # (Net::HTTP read_timeout only fires on idle gaps between chunks).
@@ -83,6 +85,22 @@ module PWN
             # omit format:'json' when tools present unless explicitly set (see chat_with_tools)
             # format: nil,
             result_max: 4_000, # tool-result cap for local models (frontier keeps Result::DEFAULT_MAX)
+            max_prompt_length: 32_000
+          },
+          openwebui: {
+            # Open WebUI gateway in front of one or more model backends.
+            base_uri: 'required - Base URI for Open WebUI - e.g. https://openwebui.local',
+            key: 'required - Open WebUI API Key Under Settings >> Account >> JWT Token',
+            model: 'required - model id/tag exposed by Open WebUI',
+            embed_model: 'optional - embedding model for PWN::MemoryIndex when ollama direct is unset (default nomic-embed-text)',
+            system_role_content: 'You are an ethically hacking Open WebUI agent.',
+            temp: 'optional - Open WebUI temperature',
+            tool_temp: 0.1, # lower temperature when tools are present (chat_with_tools)
+            num_ctx: 32_768,
+            num_predict: 4_096,
+            keep_alive: '30m',
+            prompt_budget: { memory: 6, metrics: 3, mistakes: 3, learning: 2, extro: false },
+            result_max: 4_000,
             max_prompt_length: 32_000
           },
           anthropic: {
@@ -135,8 +153,8 @@ module PWN
             # (host/repo/env probes only — no toolchain/GUI/net side-effects)
             auto_extrospect: true,
             # engine-agnostic scaffolding (defaults tuned for local models)
-            plan_first: nil,               # nil = auto (true when :active == :ollama)
-            tool_router: nil,              # nil = auto (true when :active == :ollama) — cuts ~11k→~3k schema tokens
+            plan_first: nil,               # nil = auto (true when :active is :ollama or :openwebui)
+            tool_router: nil,              # nil = auto (true when :active is local :ollama/:openwebui) — cuts ~11k→~3k schema tokens
             escalation_persona: 'escalator', # Swarm persona for frontier corrective hints when a local model is stuck
             # sample E3 verify_as_reward: true|false|nil(auto: ~10% local / always frontier when CLAIM_RX hits)
             verify_as_reward: nil,
@@ -360,37 +378,33 @@ module PWN
       target
     end
 
-    # Inject Ollama/RL scaffolding defaults into a vault-loaded env hash
-    # before freeze. Never overwrites operator choices already in the vault.
+    # Inject AI engine + agent scaffolding defaults into a vault-loaded env
+    # hash before freeze. Never overwrites operator choices already in the vault.
+    # Also seeds a missing engine block when ai.active points at a known engine
+    # that is absent from older vaults (e.g. active: ollama with no ai.ollama
+    # hash) so refresh_env does not NoMethodError on env[:ai][engine][:key].
     private_class_method def self.merge_ai_defaults!(opts = {})
       env = opts[:env]
       return env unless env.is_a?(Hash) && env[:ai].is_a?(Hash)
 
-      # Pull the in-code default template without writing a file.
-      template = {
-        ollama: {
-          result_max: 4_000
-        },
-        agent: {
-          max_iters: 75,
-          tool_router: nil,
-          escalation_persona: 'escalator',
-          verify_as_reward: nil,
-          local_introspect: :failure_only,
-          introspect_every_n: 3,
-          critic: nil,
-          counterfactual: nil,
-          red_team_plan: nil,
-          hindsight: true,
-          reward_llm: nil,
-          history_keep_tool_pairs: 6,
-          history_tool_max_chars: 2_000
-        }
-      }
-      env[:ai][:ollama] = {} unless env[:ai][:ollama].is_a?(Hash)
-      env[:ai][:agent]  = {} unless env[:ai][:agent].is_a?(Hash)
-      deep_fill!(target: env[:ai][:ollama], defaults: template[:ollama])
-      deep_fill!(target: env[:ai][:agent], defaults: template[:agent])
+      ai_tmpl = env_template[:ai]
+      return env unless ai_tmpl.is_a?(Hash)
+
+      # Deep-fill every Hash-shaped ai.* slot from the release template
+      # (engines + :agent). Scalars like :active / :module_reflection are
+      # left untouched — only ABSENT nested keys are supplied.
+      ai_tmpl.each do |slot, defaults|
+        next unless defaults.is_a?(Hash)
+
+        env[:ai][slot] = {} unless env[:ai][slot].is_a?(Hash)
+        deep_fill!(target: env[:ai][slot], defaults: defaults)
+      end
+
+      # If active names a supported engine symbol and the slot is still
+      # somehow non-Hash, force an empty Hash so callers can index safely.
+      engine = env[:ai][:active].to_s.downcase.to_sym
+      env[:ai][engine] = {} if !engine.empty? && engine != :agent && !env[:ai][engine].is_a?(Hash)
+
       env
     rescue StandardError => e
       warn "[pwn/config] merge_ai_defaults! swallowed: #{e.class}: #{e.message}"
@@ -430,8 +444,16 @@ module PWN
 
       valid_ai_engines = PWN::AI.help.reject { |e| e.downcase == :agent }.map(&:downcase)
 
+      raise "ERROR: PWN Environment (#{pwn_env_path}) is missing ai: Hash" unless env.is_a?(Hash) && env[:ai].is_a?(Hash)
+
       engine = env[:ai][:active].to_s.downcase.to_sym
       raise "ERROR: Unsupported AI Engine: #{engine} in #{pwn_env_path}.  Supported AI Engines:\n#{valid_ai_engines.inspect}" unless valid_ai_engines.include?(engine)
+
+      # Backfill missing ai.<engine> / ai.agent keys from env_template BEFORE
+      # indexing env[:ai][engine][:key]. Older vaults may set ai.active to a
+      # newly supported engine (e.g. ollama) without shipping that engine's
+      # config block yet.
+      merge_ai_defaults!(env: env)
 
       # Determine whether the active engine already has usable auth
       # material so the pwn / pwn-ai REPL driver does not prompt for an
@@ -442,7 +464,10 @@ module PWN
       # written by PWN::Config.default_env into a fresh ~/.pwn/pwn.yaml.
       real_cfg = lambda do |v|
         s = v.to_s.strip
-        !s.empty? && !s.match?(/\A(optional|required)\b/i)
+        !(s.empty? ||
+           s.match?(/\A(optional|required)\b/i) ||
+           s.match?(/REDACTED/i) ||
+           s.match?(/\A<{3}.*>{3}\z/))
       end
 
       key = env[:ai][engine][:key]
@@ -475,9 +500,18 @@ module PWN
           anthropic: 'or store ai.anthropic.oauth.refresh_token via pwn-vault -- run PWN::AI::Anthropic.obtain_oauth_bearer_token to enroll'
         }
         enroll_hint = enroll_hints[engine]
-        prompt = enroll_hint ? "#{engine} API Key (#{enroll_hint})" : "#{engine} API Key"
-        key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: prompt)
-        env[:ai][engine][:key] = key
+        # engine is a Symbol (e.g. :ollama). Compare as Symbol — the old
+        # String check `!= 'ollama'` was ALWAYS true, so active: ollama still
+        # prompted for an API key even though stock ollama needs none.
+        # openwebui still requires a JWT/API key and is NOT skipped here.
+        # Keep this skip list engine-symbol based only. Do not gate on base_uri
+        # hostnames — reverse-proxied ollama may still need no key.
+
+        if engine != :ollama
+          prompt = enroll_hint ? "#{engine} API Key (#{enroll_hint})" : "#{engine} API Key"
+          key = PWN::Plugins::AuthenticationHelper.mask_password(prompt: prompt)
+          env[:ai][engine][:key] = key
+        end
       end
 
       model = env[:ai][engine][:model]

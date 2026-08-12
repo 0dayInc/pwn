@@ -40,6 +40,7 @@ module PWN
           openai: 'PWN::AI::OpenAI',
           grok: 'PWN::AI::Grok',
           ollama: 'PWN::AI::Ollama',
+          openwebui: 'PWN::AI::OpenWebUI',
           anthropic: 'PWN::AI::Anthropic',
           gemini: 'PWN::AI::Gemini'
         }.freeze

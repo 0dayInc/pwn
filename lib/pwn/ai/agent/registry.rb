@@ -215,7 +215,7 @@ module PWN
           # schema tokens/turn); off for frontier unless explicitly enabled.
           return v ? true : false unless v.nil?
 
-          PWN::Env.dig(:ai, :active).to_s.downcase.to_sym == :ollama
+          %i[ollama openwebui].include?(PWN::Env.dig(:ai, :active).to_s.downcase.to_sym)
         rescue StandardError
           false
         end

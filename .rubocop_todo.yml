@@ -73,6 +73,7 @@ Naming/AccessorMethodName:
     - 'lib/pwn/ai/grok.rb'
     - 'lib/pwn/ai/ollama.rb'
     - 'lib/pwn/ai/open_ai.rb'
+    - 'lib/pwn/ai/open_web_ui.rb'
     - 'lib/pwn/blockchain/btc.rb'
     - 'lib/pwn/plugins/jira_data_center.rb'
     - 'lib/pwn/plugins/vin.rb'

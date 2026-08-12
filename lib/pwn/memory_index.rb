@@ -8,9 +8,10 @@ module PWN
   # PWN::MemoryIndex is a lightweight local embedding index over
   # PWN::Memory (~/.pwn/memory.json) so PromptBuilder can inject the N
   # MOST-RELEVANT memories for the current request instead of the N
-  # newest. Embeddings come from the local Ollama instance
-  # (PWN::Env[:ai][:ollama][:embed_model], default 'nomic-embed-text') via
-  # its native /api/embed endpoint — everything stays on-box.
+  # newest. Embeddings prefer a direct Ollama /api/embed endpoint
+  # (PWN::Env[:ai][:ollama][:embed_model], default 'nomic-embed-text').
+  # When only Open WebUI is configured, embeddings go through its
+  # /ollama/api/embed proxy with the openwebui key/base_uri.
   #
   # Index layout (~/.pwn/memory.idx):
   #   { "<key>": { "sha": "<sha16 of value>", "vec": [Float,…] }, … }
@@ -24,11 +25,11 @@ module PWN
     # Supported Method Parameters::
     #   bool = PWN::MemoryIndex.available?
     #
-    # True when a local Ollama base_uri is configured. All public methods
-    # degrade to substring recall when this is false.
+    # True when a local Ollama or Open WebUI base_uri is configured. All
+    # public methods degrade to substring recall when this is false.
 
     public_class_method def self.available?
-      !ollama_base.nil?
+      !embed_endpoint.nil?
     rescue StandardError
       false
     end
@@ -122,26 +123,27 @@ module PWN
     # Supported Method Parameters::
     #   vecs = PWN::MemoryIndex.embed(texts: ['a', 'b'])
     #
-    # POST /api/embed on the local Ollama; returns Array<Array<Float>> (one
-    # vector per input, nil on per-item failure). Batches of 32.
+    # POST /api/embed on direct Ollama, or /ollama/api/embed via Open WebUI.
+    # Returns Array<Array<Float>> (one vector per input, nil on per-item
+    # failure). Batches of 32.
 
     public_class_method def self.embed(opts = {})
       texts = Array(opts[:texts]).map(&:to_s)
-      base  = ollama_base
-      return Array.new(texts.length) unless base && !texts.empty?
+      ep = embed_endpoint
+      return Array.new(texts.length) unless ep && !texts.empty?
 
-      model = (PWN::Env.dig(:ai, :ollama, :embed_model) if defined?(PWN::Env)) || DEFAULT_EMBED_MODEL
+      model = ep[:model]
       browser = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
       rest    = browser[:browser]::Request
       headers = { content_type: 'application/json; charset=UTF-8' }
-      token   = PWN::Env.dig(:ai, :ollama, :key) if defined?(PWN::Env)
-      headers[:authorization] = "Bearer #{token}" if token
+      token   = ep[:token]
+      headers[:authorization] = "Bearer #{token}" if token && !token.to_s.empty?
 
       out = []
       texts.each_slice(32) do |batch|
         resp = rest.execute(
           method: :post,
-          url: "#{base}/ollama/api/embed",
+          url: ep[:url],
           headers: headers,
           payload: { model: model, input: batch }.to_json,
           verify_ssl: false,
@@ -201,11 +203,50 @@ module PWN
       Digest::SHA256.hexdigest(opts[:text].to_s)[0, 16]
     end
 
-    private_class_method def self.ollama_base
+    # Prefer direct Ollama (native /api/embed). Fall back to Open WebUI's
+    # /ollama/api/embed proxy when only openwebui is configured.
+    private_class_method def self.embed_endpoint
       return nil unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
-      b = PWN::Env.dig(:ai, :ollama, :base_uri).to_s
-      b.start_with?('http') ? b.chomp('/') : nil
+      ollama_b = PWN::Env.dig(:ai, :ollama, :base_uri).to_s.strip
+      if ollama_b.start_with?('http')
+        model = PWN::Env.dig(:ai, :ollama, :embed_model).to_s
+        model = DEFAULT_EMBED_MODEL if model.empty? || model.match?(/\A(optional|required)\b/i)
+        token = PWN::Env.dig(:ai, :ollama, :key)
+        token = nil if token.to_s.strip.empty? || token.to_s.match?(/\A(optional|required)\b/i)
+        return {
+          url: "#{ollama_b.chomp('/')}/api/embed",
+          model: model,
+          token: token,
+          via: :ollama
+        }
+      end
+
+      owu_b = PWN::Env.dig(:ai, :openwebui, :base_uri).to_s.strip
+      return nil unless owu_b.start_with?('http')
+
+      model = PWN::Env.dig(:ai, :openwebui, :embed_model).to_s
+      model = PWN::Env.dig(:ai, :ollama, :embed_model).to_s if model.empty?
+      model = DEFAULT_EMBED_MODEL if model.empty? || model.match?(/\A(optional|required)\b/i)
+      token = PWN::Env.dig(:ai, :openwebui, :key)
+      token = nil if token.to_s.strip.empty? || token.to_s.match?(/\A(optional|required)\b/i)
+      {
+        url: "#{owu_b.chomp('/')}/ollama/api/embed",
+        model: model,
+        token: token,
+        via: :openwebui
+      }
+    rescue StandardError
+      nil
+    end
+
+    # Backward-compatible private alias (specs / older callers).
+    private_class_method def self.ollama_base
+      ep = embed_endpoint
+      return nil unless ep
+
+      # Strip trailing path so callers that append still work if any remain.
+      ep[:url].sub(%r{/api/embed\z}, '').sub(%r{/ollama\z}, '')
     end
 
     private_class_method def self.fallback(opts = {})
@@ -234,8 +275,13 @@ module PWN
           PWN::MemoryIndex.embed(texts: ['a', 'b'])                   # raw vectors
           PWN::MemoryIndex.reset
 
-          Config:
-            PWN::Env[:ai][:ollama][:embed_model] = '<embed-model-tag>'  # any embedding model pulled locally
+          Config (prefer direct Ollama; Open WebUI is the fallback proxy):
+            PWN::Env[:ai][:ollama][:base_uri] = 'http://127.0.0.1:11434'
+            PWN::Env[:ai][:ollama][:embed_model] = '<embed-model-tag>'
+            # or:
+            PWN::Env[:ai][:openwebui][:base_uri] = 'https://openwebui.local'
+            PWN::Env[:ai][:openwebui][:key] = '<jwt>'
+            PWN::Env[:ai][:openwebui][:embed_model] = '<embed-model-tag>'
 
           #{self}.authors
       USAGE

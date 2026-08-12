@@ -7,17 +7,19 @@ require 'tty-spinner'
 
 module PWN
   module AI
-    # Direct client for a local/remote Ollama server REST API.
-    # No API key is required for a stock ollama serve (http://127.0.0.1:11434).
-    # Paths are native Ollama:
-    #   GET  /api/tags
-    #   POST /api/chat          (native tool_calls, options.num_ctx / num_predict)
-    #   POST /api/embed
-    #   POST /v1/chat/completions (OpenAI-compat shim)
-    # Spec: https://github.com/ollama/ollama/blob/main/docs/api.md
-    module Ollama
-      DEFAULT_BASE_URI = 'http://127.0.0.1:11434'
-
+    # Client for Open WebUI's REST API via PWN::Plugins::TransparentBrowser (:rest).
+    #
+    # Live Open WebUI routes (gateway base_uri, no trailing slash):
+    #   GET  /api/v1/models              OpenAI-compat model list (:data)
+    #   POST /api/v1/chat/completions    OpenAI-compat chat (SSE when stream:true)
+    #   POST /api/chat/completions       alias of the above
+    #   GET  /ollama/api/tags            proxied Ollama tags (:models)
+    #   POST /ollama/api/chat            proxied Ollama chat (NDJSON when stream:true)
+    #   POST /ollama/api/embed           proxied embeddings (see PWN::MemoryIndex)
+    #
+    # Bare /api/chat and bare /v1/* are NOT API routes on stock Open WebUI —
+    # they 405 or return the SPA HTML shell.
+    module OpenWebUI
       private_class_method def self.real_config_value?(opts = {})
         s = opts[:value].to_s.strip
         return false if s.empty?
@@ -29,26 +31,36 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # ollama_rest_call(
+      # openwebui_rest_call(
       #   http_method: 'optional HTTP method (defaults to GET)',
-      #   rest_call: 'required rest call path relative to base_uri (e.g. api/chat)',
+      #   rest_call: 'required rest call path relative to base_uri',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
       #   timeout: 'optional timeout in seconds (defaults to 900)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
 
-      private_class_method def self.ollama_rest_call(opts = {})
-        engine = PWN::Env[:ai][:ollama]
-        raise 'ERROR: Ollama engine hash not found in PWN::Env[:ai][:ollama]. Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
+      private_class_method def self.openwebui_rest_call(opts = {})
+        engine = PWN::Env[:ai][:openwebui]
+        raise 'ERROR: Open WebUI engine hash not found in PWN::Env[:ai][:openwebui]. Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         base_uri = engine[:base_uri].to_s.strip
-        base_uri = DEFAULT_BASE_URI if base_uri.empty? || base_uri.match?(/\A(optional|required)\b/i)
+        raise 'ERROR: base_uri must be provided in PWN::Env[:ai][:openwebui][:base_uri]' unless real_config_value?(value: base_uri)
+
         base_uri = base_uri.chomp('/')
 
-        # Stock ollama needs no key. Only attach Authorization when the operator
-        # set a real key (e.g. reverse-proxy basic/JWT in front of ollama).
         token = real_config_value?(value: engine[:key]) ? engine[:key].to_s.strip : nil
+        if token.nil?
+          # JWT/API key is required for Open WebUI. Only solicit on a real TTY;
+          # never hang CI / agent tool loops waiting on mask_password.
+          interactive = $stdin.tty? && $stdout.tty? && ENV['PWN_NONINTERACTIVE'].to_s.empty?
+          raise 'ERROR: Open WebUI API key missing in PWN::Env[:ai][:openwebui][:key]. Set it via pwn-vault (Settings >> Account >> JWT Token).' unless interactive
+
+          token = PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Open WebUI (i.e. OpenAPI) Key')
+          raise 'ERROR: Open WebUI API key is required' if token.to_s.strip.empty?
+
+          engine[:key] = token
+        end
 
         http_method = if opts[:http_method].nil?
                         :get
@@ -59,9 +71,9 @@ module PWN
         params = opts[:params]
 
         headers = {
-          content_type: 'application/json; charset=UTF-8'
+          content_type: 'application/json; charset=UTF-8',
+          authorization: "Bearer #{token}"
         }
-        headers[:authorization] = "Bearer #{token}" if token
 
         http_body = opts[:http_body]
         http_body ||= {}
@@ -107,15 +119,14 @@ module PWN
               )
             elsif stream
               # RestClient :block_response yields Net::HTTPResponse; we must
-              # drain the body ourselves. Ollama emits NDJSON (native /api/*)
-              # or SSE data: lines (OpenAI-compat /v1/*). Assemble into a
-              # single non-stream JSON body so callers keep JSON.parse + the
-              # same :message / :choices shape.
+              # drain the body ourselves. Open WebUI emits NDJSON (proxied
+              # /ollama/api/*) or SSE data: lines (OpenAI-compat /api/v1/*).
+              # Assemble into a single non-stream JSON body so callers keep
+              # JSON.parse + the same :message / :choices shape.
               #
               # IMPORTANT: do NOT RestClient::Response.create(..., request=nil).
               # AbstractResponse#history calls request.redirection_history and
-              # raises NoMethodError, which previously escaped as a confusing
-              # failure (or, when swallowed upstream, an empty agent reply).
+              # raises NoMethodError.
               #
               # ABSOLUTE DEADLINE: Net::HTTP read_timeout only fires on *idle*
               # gaps between chunks. A thinking model that dribbles tokens
@@ -139,7 +150,7 @@ module PWN
                   http_resp.read_body do |chunk|
                     now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
                     if now > deadline
-                      stream_err = "ERROR: Ollama stream absolute timeout after #{timeout}s for #{rest_call} (received #{bytes} bytes - model likely stuck in unbounded thinking; lower num_ctx / set num_predict)"
+                      stream_err = "ERROR: Open WebUI stream absolute timeout after #{timeout}s for #{rest_call} (received #{bytes} bytes - model likely stuck in unbounded thinking; lower num_ctx / set num_predict)"
                       raise stream_err
                     end
                     buf << chunk
@@ -147,18 +158,23 @@ module PWN
                   end
                   code = http_resp.code.to_i
                   unless code.between?(200, 299)
-                    stream_err = "ERROR: Ollama HTTP #{code} for #{rest_call}: #{buf.to_s[0, 800]}"
+                    stream_err = "ERROR: Open WebUI HTTP #{code} for #{rest_call}: #{buf.to_s[0, 800]}"
                     return
                   end
                   if buf.to_s.strip.empty?
-                    stream_err = "ERROR: Ollama empty stream body for #{rest_call} (HTTP #{code})"
+                    stream_err = "ERROR: Open WebUI empty stream body for #{rest_call} (HTTP #{code})"
                     return
                   end
-                  assembled = assemble_ollama_stream(body: buf, rest_call: rest_call)
+                  # SPA HTML mis-route (wrong path → 200 HTML shell)
+                  if buf.lstrip.start_with?('<!DOCTYPE', '<!doctype', '<html')
+                    stream_err = "ERROR: Open WebUI returned HTML for #{rest_call} (wrong API path or unauthenticated SPA fallback)"
+                    return
+                  end
+                  assembled = assemble_openwebui_stream(body: buf, rest_call: rest_call)
                 end
               )
               raise stream_err if stream_err
-              raise "ERROR: Ollama stream produced no assembled body for #{rest_call}" if assembled.nil?
+              raise "ERROR: Open WebUI stream produced no assembled body for #{rest_call}" if assembled.nil?
 
               response = assembled
             else
@@ -175,6 +191,15 @@ module PWN
           else
             raise "Unsupported HTTP Method #{http_method} for #{self} Plugin"
           end
+
+          # Non-stream path: stock Open WebUI returns the SPA HTML shell
+          # (200) for wrong routes like bare /api/chat or /v1/* — reject so
+          # callers do not JSON.parse markup into nil choices.
+          if response.respond_to?(:to_s)
+            body_s = response.to_s
+            raise "ERROR: Open WebUI returned HTML for #{rest_call} (wrong API path or unauthenticated SPA fallback)" if body_s.lstrip.start_with?('<!DOCTYPE', '<!doctype', '<html')
+          end
+
           response
         rescue RestClient::TooManyRequests => e
           retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
@@ -184,12 +209,15 @@ module PWN
           retry
         end
       rescue RestClient::ExceptionWithResponse => e
+        # Never return nil here — chat_with_tools used to `return nil if response.nil?`
+        # which made the agent loop print "[pwn-ai] engine returned no message"
+        # with no actionable error. Raise so the caller / REPL surfaces the body.
         body = begin
           e.response.to_s[0, 800]
         rescue StandardError
           ''
         end
-        raise "ERROR: Ollama #{e.message}: #{body}"
+        raise "ERROR: Open WebUI #{e.message}: #{body}"
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
@@ -224,14 +252,15 @@ module PWN
         thinking.strip
       end
 
-      # Merge an Ollama streaming body (NDJSON native /api/chat OR OpenAI-compat
-      # SSE on /v1/chat/completions) into a single JSON string matching the
-      # non-stream response shape used by #chat / #chat_with_tools.
-      private_class_method def self.assemble_ollama_stream(opts = {})
+      # Merge an Open WebUI streaming body (NDJSON proxied /ollama/api/chat OR
+      # OpenAI-compat SSE on /api/v1/chat/completions) into a single JSON string
+      # matching the non-stream response shape used by #chat / #chat_with_tools.
+      private_class_method def self.assemble_openwebui_stream(opts = {})
         body = opts[:body].to_s
         rest_call = opts[:rest_call].to_s
 
         lines = body.each_line.map(&:strip).reject(&:empty?)
+        # Strip SSE "data: " prefix when present; drop the terminal [DONE].
         payloads = lines.filter_map do |line|
           line = line.sub(/\Adata:\s*/, '')
           next if line.empty? || line == '[DONE]'
@@ -256,6 +285,7 @@ module PWN
 
         openai_compat = rest_call.include?('/v1/') ||
                         rest_call.start_with?('v1/') ||
+                        rest_call.include?('chat/completions') ||
                         payloads.any? { |p| p.key?(:choices) }
 
         if openai_compat
@@ -265,7 +295,7 @@ module PWN
         end
       end
 
-      # Native Ollama /api/chat NDJSON → single-object JSON string.
+      # Proxied Ollama /ollama/api/chat NDJSON → single-object JSON string.
       private_class_method def self.assemble_native_chat_stream(opts = {})
         payloads = opts[:payloads]
         final = payloads.reverse.find { |p| p[:done] } || payloads.last
@@ -279,6 +309,7 @@ module PWN
           role = msg[:role] if msg[:role]
           content << msg[:content].to_s if msg[:content]
           thinking << msg[:thinking].to_s if msg[:thinking]
+          thinking << msg[:reasoning_content].to_s if msg[:reasoning_content]
           Array(msg[:tool_calls]).each do |tc|
             tool_calls << tc unless tool_calls.any? { |existing| existing == tc }
           end
@@ -307,11 +338,12 @@ module PWN
         merged.to_json
       end
 
-      # OpenAI-compat /v1/chat/completions SSE → single chat.completion JSON.
+      # OpenAI-compat /api/v1/chat/completions SSE → single chat.completion JSON.
       private_class_method def self.assemble_openai_compat_stream(opts = {})
         payloads = opts[:payloads]
         base = payloads.first || {}
         content = +''
+        thinking = +''
         role = 'assistant'
         tool_calls_by_idx = {}
         finish_reason = nil
@@ -324,6 +356,8 @@ module PWN
             delta = ch[:delta] || ch[:message] || {}
             role = delta[:role] if delta[:role]
             content << delta[:content].to_s if delta[:content]
+            thinking << delta[:reasoning_content].to_s if delta[:reasoning_content]
+            thinking << delta[:thinking].to_s if delta[:thinking]
 
             Array(delta[:tool_calls]).each do |tc|
               idx = tc[:index] || 0
@@ -341,7 +375,10 @@ module PWN
           end
         end
 
+        content = visible_from_thinking(thinking: thinking) if content.empty? && !thinking.empty? && tool_calls_by_idx.empty?
+
         message = { role: role, content: content }
+        message[:thinking] = thinking unless thinking.empty?
         unless tool_calls_by_idx.empty?
           message[:tool_calls] = tool_calls_by_idx.keys.sort.map do |idx|
             tool_calls_by_idx[idx]
@@ -364,12 +401,18 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::Ollama.get_models
+      # response = PWN::AI::OpenWebUI.get_models
 
       public_class_method def self.get_models
-        models = ollama_rest_call(rest_call: 'api/tags')
+        # Prefer Open WebUI's own OpenAI-compat catalog; fall back to the
+        # proxied Ollama tag list when needed.
+        raw = openwebui_rest_call(rest_call: 'api/v1/models')
+        parsed = JSON.parse(raw, symbolize_names: true)
+        return parsed[:data] if parsed[:data].is_a?(Array)
+        return parsed[:models] if parsed[:models].is_a?(Array)
 
-        JSON.parse(models, symbolize_names: true)[:models]
+        raw = openwebui_rest_call(rest_call: 'ollama/api/tags')
+        JSON.parse(raw, symbolize_names: true)[:models]
       rescue StandardError => e
         raise e
       end
@@ -454,27 +497,28 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::Ollama.chat_with_tools(
+      # response = PWN::AI::OpenWebUI.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
       #   tool_choice: 'optional - "auto" | "none" | {type:"function", function:{name:..}}',
-      #   model: 'optional - overrides PWN::Env[:ai][:ollama][:model]',
-      #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:ollama][:temp] || 1)',
+      #   model: 'optional - overrides PWN::Env[:ai][:openwebui][:model]',
+      #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:openwebui][:temp] || 1)',
       #   timeout: 'optional - seconds (default 900)',
       #   spinner: 'optional - display spinner (default false)'
       # )
       #
-      # Hits Ollama NATIVE POST /api/chat so options.num_ctx / num_predict /
-      # keep_alive take effect. Streaming is ON; ollama_rest_call assembles
-      # NDJSON chunks back into a single response.
+      # Hits Open WebUI's PROXIED Ollama POST /ollama/api/chat so
+      # options.num_ctx / num_predict / keep_alive take effect. Streaming is ON;
+      # openwebui_rest_call assembles NDJSON chunks back into a single response.
+      # Bare POST /api/chat is not an API route on stock Open WebUI (405).
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine   = PWN::Env[:ai][:ollama]
+        engine   = PWN::Env[:ai][:openwebui]
         messages = normalize_messages_for_ollama(messages: opts[:messages])
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
         model = opts[:model] ||= engine[:model]
-        raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
+        raise 'ERROR: Model is required.  Call #get_models method for details' unless real_config_value?(value: model)
 
         temp = opts[:temp].to_f
         temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
@@ -503,26 +547,27 @@ module PWN
         end
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
 
-        response = ollama_rest_call(
+        response = openwebui_rest_call(
           http_method: :post,
-          rest_call: 'api/chat',
+          rest_call: 'ollama/api/chat',
           http_body: http_body,
           timeout: opts[:timeout],
           spinner: opts[:spinner]
         )
-        raise 'ERROR: Ollama chat_with_tools received empty response from ollama_rest_call' if response.nil? || (response.respond_to?(:empty?) && response.empty?)
+        raise 'ERROR: Open WebUI chat_with_tools received empty response from openwebui_rest_call' if response.nil? || (response.respond_to?(:empty?) && response.empty?)
 
         json_resp = JSON.parse(response, symbolize_names: true)
         msg = json_resp[:message] || json_resp.dig(:choices, 0, :message)
         if msg.is_a?(Hash)
           content = msg[:content].to_s
           thinking = msg[:thinking].to_s
+          thinking = msg[:reasoning_content].to_s if thinking.empty?
           tcalls = Array(msg[:tool_calls])
           msg = msg.merge(content: visible_from_thinking(thinking: thinking)) if content.strip.empty? && !thinking.strip.empty? && tcalls.empty?
         end
         json_resp[:choices] = [{ message: msg }] if msg && !json_resp.key?(:choices)
         json_resp[:assistant_message] = msg
-        raise "ERROR: Ollama response missing message/choices: #{json_resp.inspect[0, 400]}" if msg.nil?
+        raise "ERROR: Open WebUI response missing message/choices: #{json_resp.inspect[0, 400]}" if msg.nil?
 
         json_resp
       rescue StandardError => e
@@ -530,11 +575,11 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # response = PWN::AI::Ollama.chat(
-      #   request: 'required - message to Ollama'
-      #   model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:ollama][:model])',
-      #   temp: 'optional - creative response float (defaults to PWN::Env[:ai][:ollama][:temp])',
-      #   system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',
+      # response = PWN::AI::OpenWebUI.chat(
+      #   request: 'required - message to Open WebUI'
+      #   model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:openwebui][:model])',
+      #   temp: 'optional - creative response float (deafults to PWN::Env[:ai][:openwebui][:temp])',
+      #   system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:openwebui][:system_role_content])',
       #   response_history: 'optional - pass response back in to have a conversation',
       #   speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
       #   timeout: 'optional timeout in seconds (defaults to 900)',
@@ -542,22 +587,24 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine = PWN::Env[:ai][:ollama]
+        engine = PWN::Env[:ai][:openwebui]
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 1_000_000
         request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor
         request = request[0..request_trunc_idx]
 
         model = opts[:model] ||= engine[:model]
-        raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
+        raise 'ERROR: Model is required.  Call #get_models method for details' unless real_config_value?(value: model)
 
         temp = opts[:temp].to_f ||= engine[:temp].to_f
         temp = 1 if temp.zero?
 
-        # OpenAI-compat shim on the ollama server (no api-key needed).
-        rest_call = 'v1/chat/completions'
+        # Open WebUI OpenAI-compat path (NOT bare v1/* — that hits the SPA).
+        rest_call = 'api/v1/chat/completions'
 
         response_history = opts[:response_history]
+
+        max_tokens = response_history[:usage][:total_tokens] unless response_history.nil?
 
         system_role_content = opts[:system_role_content] ||= engine[:system_role_content]
 
@@ -572,6 +619,7 @@ module PWN
         }
 
         response_history ||= { choices: [system_role] }
+        choices_len = response_history[:choices].length
 
         http_body = {
           model: model,
@@ -581,7 +629,7 @@ module PWN
         }
 
         if response_history[:choices].length > 1
-          response_history[:choices][1..-1].each do |message|
+          response_history[:choices][1..].each do |message|
             http_body[:messages].push(message)
           end
         end
@@ -591,7 +639,7 @@ module PWN
         timeout = opts[:timeout]
         spinner = opts[:spinner]
 
-        response = ollama_rest_call(
+        response = openwebui_rest_call(
           http_method: :post,
           rest_call: rest_call,
           http_body: http_body,
@@ -601,6 +649,12 @@ module PWN
 
         json_resp = JSON.parse(response, symbolize_names: true)
         assistant_resp = json_resp[:choices].first[:message]
+        if assistant_resp.is_a?(Hash)
+          content = assistant_resp[:content].to_s
+          thinking = assistant_resp[:thinking].to_s
+          thinking = assistant_resp[:reasoning_content].to_s if thinking.empty?
+          assistant_resp = assistant_resp.merge(content: visible_from_thinking(thinking: thinking)) if content.strip.empty? && !thinking.strip.empty?
+        end
         json_resp[:choices] = http_body[:messages]
         json_resp[:choices].push(assistant_resp)
 
@@ -634,10 +688,10 @@ module PWN
           models = #{self}.get_models
 
           response = #{self}.chat(
-            request: 'required - message to Ollama',
-            model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:ollama][:model])',
-            temp: 'optional - creative response float (defaults to PWN::Env[:ai][:ollama][:temp])',
-            system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',
+            request: 'required - message to Open WebUI',
+            model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:openwebui][:model])',
+            temp: 'optional - creative response float (defaults to PWN::Env[:ai][:openwebui][:temp])',
+            system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:openwebui][:system_role_content])',
             response_history: 'optional - pass response back in to have a conversation',
             speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
             timeout: 'optional - timeout in seconds (defaults to 900)',
@@ -645,9 +699,12 @@ module PWN
           )
 
           response = #{self}.chat_with_tools(
-            messages: 'required - messages array',
+            messages: 'required - OpenAI-format messages array',
             tools: 'optional - OpenAI tools array',
-            model: 'optional - overrides PWN::Env[:ai][:ollama][:model]'
+            model: 'optional - overrides PWN::Env[:ai][:openwebui][:model]',
+            temp: 'optional - temperature',
+            timeout: 'optional - seconds (default 900)',
+            spinner: 'optional - display spinner (default false)'
           )
 
           #{self}.authors

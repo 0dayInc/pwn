@@ -71,6 +71,69 @@ describe PWN::Memory do
     FileUtils.rm_rf(tmp) if tmp
   end
 
+  it 'recall begins at previous assistant response and walks backward in-session' do
+    mem_tmp = Dir.mktmpdir('pwn-mem')
+    sess_tmp = Dir.mktmpdir('pwn-sess')
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(mem_tmp, 'memory.json'))
+    stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+    PWN::Memory.clear(force: true)
+
+    # Durable entry (should trail session turns when room remains).
+    PWN::Memory.remember(key: :durable_fact, value: 'persistent knowledge', category: :fact)
+
+    sess = PWN::Sessions.create(title: 'recall-order-test')
+    sid = sess[:id]
+    # Empty / invalid should be skipped.
+    PWN::Sessions.append(session_id: sid, role: 'user', content: '')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: '   ')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'first user question')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'first assistant answer')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'second user question')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'second assistant answer PREVIOUS')
+    # Current user turn after previous response — not older than previous, so excluded.
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'third current user')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: '') # empty invalid
+
+    turns = PWN::Memory.session_turns(session_id: sid, limit: 20)
+    expect(turns.first[:value]).to eq('second assistant answer PREVIOUS')
+    expect(turns.first[:role]).to eq('assistant')
+    expect(turns.first[:source]).to eq('session_backward')
+    values = turns.map { |t| t[:value] }
+    expect(values).to eq(
+      [
+        'second assistant answer PREVIOUS',
+        'second user question',
+        'first assistant answer',
+        'first user question'
+      ]
+    )
+    expect(values).not_to include('third current user')
+    expect(values).not_to include('')
+
+    res = PWN::Memory.recall(session_id: sid, limit: 10)
+    keys = res.keys
+    expect(keys.first.to_s).to match(/session_turn_#{sid}_/)
+    expect(res[keys.first][:value]).to eq('second assistant answer PREVIOUS')
+    # durable fills after session
+    expect(keys).to include(:durable_fact)
+
+    # category: :session → session only
+    only_sess = PWN::Memory.recall(session_id: sid, category: :session, limit: 10)
+    expect(only_sess.keys).not_to include(:durable_fact)
+    expect(only_sess.values.map { |v| v[:value] }.first).to eq('second assistant answer PREVIOUS')
+
+    # include_session:false keeps durable-only path for to_context
+    durable_only = PWN::Memory.recall(session_id: sid, include_session: false, limit: 10)
+    expect(durable_only.keys).to eq([:durable_fact])
+
+    ctx = PWN::Memory.to_context(limit: 5)
+    expect(ctx).to include('durable_fact')
+    expect(ctx).not_to include('second assistant answer PREVIOUS')
+  ensure
+    FileUtils.rm_rf(mem_tmp) if mem_tmp
+    FileUtils.rm_rf(sess_tmp) if sess_tmp
+  end
+
   it 'lean! drops expired session_* but keeps protected prefixes' do
     tmp = Dir.mktmpdir
     stub_const('PWN::Memory::MEMORY_FILE', File.join(tmp, 'memory.json'))

@@ -47,9 +47,9 @@ module PWN
         # a 24k tool dump on every call eats the window before useful work.
         # Override via PWN::Env[:ai][:ollama][:result_max].
         public_class_method def self.default_max
-          eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase
-          if eng == 'ollama'
-            v = (PWN::Env.dig(:ai, :ollama, :result_max) if defined?(PWN::Env))
+          eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase.to_sym
+          if %i[ollama openwebui].include?(eng)
+            v = (PWN::Env.dig(:ai, eng, :result_max) if defined?(PWN::Env))
             return v.to_i if v.to_i.positive?
 
             return LOCAL_DEFAULT_MAX

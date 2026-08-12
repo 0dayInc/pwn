@@ -1468,13 +1468,13 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   end
 
   describe 'P0 · Budget exhaust deepen (last-iter / no-CF-hot / exhaust Learning)' do
-    it 'tightens budget-hot max_iters: 24 ollama / 75 remote (long-goal runway)' do
+    it 'tightens budget-hot max_iters: 24 local (ollama/openwebui) / 75 remote (long-goal runway)' do
       src = File.read(loop_mod.method(:run).source_location.first)
       # max_iters is private_class_method — read surrounding source
       # P17 long-autonomy: local stays 24; remote keeps multi-step runway 75.
       # always-24-for-ALL starved long-lived goals after the hot text-only tail.
       expect(src).to match(/budget_exhaustion_hot\?/)
-      expect(src).to match(/hot_cap = active_engine == :ollama \? 24 : 75/)
+      expect(src).to match(/hot_cap = local_engine\? \? 24 : 75/)
       expect(src).to match(/n = \[n, hot_cap\]\.min/)
       expect(src).not_to match(/n = \[n, 24\]\.min/)
     end
@@ -1506,25 +1506,27 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   end
 
   describe 'P28 · autonomy (remote overconf runway + incomplete-final)' do
-    it 'sets W3 overconf max_iters_cap to 120 on remote, 24 on ollama' do
+    it 'sets W3 overconf max_iters_cap to 120 on remote, 24 on local engines' do
       src = File.read(loop_mod.method(:run).source_location.first)
       expect(src).to match(/P28/)
       expect(src).to match(/remote_cap = 120/)
       expect(src).to match(/local_cap\s*=\s*24/)
-      expect(src).to match(/eng == :ollama \? local_cap : remote_cap/)
+      expect(src).to match(/local_engine\?\(engine: eng\) \? local_cap : remote_cap/)
       # P17 budget-hot: 24 ollama / 75 remote (not always-24)
-      expect(src).to match(/hot_cap = active_engine == :ollama \? 24 : 75/)
+      expect(src).to match(/hot_cap = local_engine\? \? 24 : 75/)
     end
 
     it 'defines incomplete_final? and continues on mid-goal handoff' do
       src = File.read(loop_mod.method(:run).source_location.first)
       expect(src).to match(/incomplete_final\?/)
       expect(src).to match(/INCOMPLETE_FINAL_RX/)
+      expect(src).to match(/MONOLOGUE_TOOL_INTENT_RX/)
       expect(src).to match(%r{\[pwn-ai/p28\]})
       expect(src).to match(/continuing autonomously/)
       # last-iter wording no longer coaches "next single step" handoffs
       expect(src).not_to match(/next single step/)
-      expect(src).to match(/do NOT ask the/)
+      expect(src).to match(/Do NOT monologue/)
+      expect(src).to match(/Emit NATIVE tool_calls NOW/)
     end
 
     it 'PromptBuilder injects AUTONOMY block' do

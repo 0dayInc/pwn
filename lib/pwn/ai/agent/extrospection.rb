@@ -1189,7 +1189,8 @@ module PWN
 
               bin = m[:name].to_s.split('_').first
               tc  = Array(delta[:changed]).find { |c| c[:path].to_s.include?("toolchain.#{bin}") }
-              miss = snap.dig(:toolchain, bin.to_sym).to_s.empty?
+              tc_map = snap[:toolchain].is_a?(Hash) ? snap[:toolchain] : {}
+              miss = tc_map[bin.to_sym].to_s.empty?
               next unless tc || miss
 
               findings << { kind: :tool_env_mismatch, tool: m[:name], success_rate: m[:success_rate], evidence: tc || "binary '#{bin}' not found in PATH", advice: "Re-verify `which #{bin}` / reinstall before relying on #{m[:name]}." }
@@ -1206,7 +1207,7 @@ module PWN
           end
 
           # 3) intel observations matching installed components
-          pkgs = snap[:toolchain] || {}
+          pkgs = snap[:toolchain].is_a?(Hash) ? snap[:toolchain] : {}
           observations(category: 'intel', limit: 100).each do |ob|
             blob = ob[:data].to_s.downcase
             pkgs.each do |bin, ver|
@@ -1218,7 +1219,7 @@ module PWN
           end
 
           # 4) :rf observations vs missing SDR hardware / binaries
-          rf = snap[:rf] || {}
+          rf = snap[:rf].is_a?(Hash) ? snap[:rf] : {}
           hw_present = %i[rtl_sdr hackrf flipper gqrx_sock].any? { |k| rf_present?(val: rf[k]) }
           observations(category: 'rf', limit: 50).each do |ob|
             miss = RF_BINS.select { |b| pkgs[b.to_sym].to_s.empty? }
@@ -1240,7 +1241,10 @@ module PWN
               Learning.outcomes(limit: 30, success: false).each do |o|
                 next unless o[:task].to_s.include?(host) || o[:details].to_s.include?(host)
 
-                findings << { kind: :target_web_drift, target: tgt, dom_sha: ob.dig(:data, :dom_sha), task: o[:task], advice: "Target #{host} DOM changed (#{ob[:timestamp]}) around this failure - re-recon before assuming your technique is wrong." }
+                dom_sha = case ob[:data]
+                          when Hash then ob[:data][:dom_sha] || ob[:data]['dom_sha']
+                          end
+                findings << { kind: :target_web_drift, target: tgt, dom_sha: dom_sha, task: o[:task], advice: "Target #{host} DOM changed (#{ob[:timestamp]}) around this failure - re-recon before assuming your technique is wrong." }
               end
             end
           end
@@ -1253,7 +1257,7 @@ module PWN
           end
 
           # 7) :intel observations whose source anchor is currently probe_web-unreachable -> downgrade
-          web = snap[:web] || {}
+          web = snap[:web].is_a?(Hash) ? snap[:web] : {}
           web.each do |host, fp|
             next unless fp.is_a?(Hash) && (fp[:reachable] == false || fp[:status].to_i >= 500)
 
