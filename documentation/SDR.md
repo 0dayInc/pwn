@@ -15,7 +15,7 @@
 | `RFIDler` | 125 kHz RFID reader/emulator |
 | `SonMicroRFID` | SM130 13.56 MHz reader |
 | `FrequencyAllocation` | ITU/FCC band-plan lookup - "what lives at 433.92 MHz?" |
-| **`Decoder::*`** | 20 protocol demodulators/decoders - `ADSB APT Bluetooth DECT FLEX GPS GSM Iridium LoRa LTE Morse P25 Pager POCSAG RDS RFID RTL433 RTTY WiFi ZigBee` |
+| **`Decoder::*`** | 20 protocol demodulators/decoders (+ Base/DSP helpers) - `ADSB APT Bluetooth DECT FLEX GPS GSM Iridium LoRa LTE Morse P25 Pager POCSAG RDS RFID RTL433 RTTY WiFi ZigBee` |
 
 ## CLI
 

@@ -46,6 +46,38 @@ PWN::AI::Agent::Registry.register(
     timeout = (args[:timeout] || 120).to_i
     raise ArgumentError, 'command is required' if cmd.empty?
 
+    # Guard: raw-socket / subnet discovery without explicit engagement auth.
+    # Intent routing should short-circuit most of these; this is defense-in-depth
+    # when a local model still emits hping3/nmap sweeps mid-loop.
+    recon_blocked = begin
+      auth = Thread.current[:pwn_recon_authorized] == true
+      unless auth
+        v = (PWN::Env.dig(:ai, :agent, :recon_authorized) if defined?(PWN::Env))
+        auth = v == true || v.to_s =~ /\A(1|true|yes|on)\z/i
+      end
+      !auth && cmd.match?(
+        %r{
+          (?:^|[;&|\s])(?:sudo\s+)?hping3?(?:\s|$).*(?:-1|--icmp|--flood|/[0-9]{1,2}|seq\s+|for\s+)
+          |(?:^|[;&|\s])(?:sudo\s+)?nmap\b[^\n]*(?:-sn|-sP|-PE|-PP|-PM)[^\n]*(?:/[0-9]{1,2}|\d+\.\d+\.\d+\.\d+)
+          |(?:^|[;&|\s])(?:sudo\s+)?masscan\b
+          |(?:^|[;&|\s])(?:sudo\s+)?nping\b
+          |(?:^|[;&|\s])(?:sudo\s+)?fping\b[^\n]*/
+          |for\s+\w+\s+in\s+\$?\(?seq[^)]*\)?[^;]*;\s*do\s[^;]*(?:hping|ping\s+-c|nmap)
+        }ix
+      )
+    rescue StandardError
+      false
+    end
+    if recon_blocked
+      msg = "[pwn-ai/guard] blocked unauthorized recon/sweep command. Need explicit in-scope authorization on the user request or PWN::Env[:ai][:agent][:recon_authorized]=true. Refused: #{cmd[0, 200]}"
+      return {
+        stdout: '',
+        stderr: msg,
+        exit: 126,
+        error: 'unauthorized_recon_blocked'
+      }
+    end
+
     stdout = +''
     stderr = +''
     exitstatus = nil

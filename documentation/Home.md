@@ -3,7 +3,7 @@
 > **PWN** (/pōn/) - an open-source offensive-security automation framework and
 > continuous-security-integration platform written in Ruby.
 > 66 plugins · 48 SAST rules · 90 AWS wrappers · 21 WWW drivers · 53 CLI
-> drivers · 5 LLM engines · a self-improving multi-agent AI · one REPL.
+> drivers · 6 LLM engines · a self-improving multi-agent AI · one REPL.
 
 **Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
 **Rebuild diagrams:** `documentation/diagrams/build.sh`
@@ -35,8 +35,8 @@
 
 | | |
 |---|---|
-| [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 12 toolsets · **78** LLM-callable tools |
+| [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama · Open WebUI |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 12 toolsets · **82** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum`** - outcome/process judges · preference ledger · self-play practice · export-ready LoRA gate |
@@ -59,7 +59,7 @@
 | [SAST (48 rules)](SAST.md) | Static analysis + test-case engine |
 | [WWW (21 drivers)](WWW.md) | Browser automations for real sites |
 | [AWS (90 services)](AWS.md) | Cloud-security enumeration |
-| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20)** · FFI-accelerated DSP |
+| [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20 protocols + Base/DSP)** · FFI-accelerated DSP |
 | [Blockchain](Blockchain.md) | BTC · ETH helpers |
 | [Bounty](Bounty.md) | Lifecycle / auth-replay tooling |
 | [Reports](Reporting.md) | HTML/JSON output + DefectDojo/Jira |

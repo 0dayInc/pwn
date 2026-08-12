@@ -145,6 +145,37 @@ describe PWN::AI::Agent::Loop do
     end
   end
 
+  describe 'intent routing (ollama/openwebui how-to + recon guard)' do
+    it 'classifies pure how-to vs live recon vs act' do
+      expect(described_class.request_intent(request: 'how to do a ping sweep of a subnet using hping3?')).to eq(:howto)
+      expect(described_class.request_intent(request: 'using hping3 what live hosts can you find in this subnet?')).to eq(:recon_act)
+      expect(described_class.request_intent(request: 'refactor Loop.run and run rubocop')).to eq(:act)
+    end
+
+    it 'recon_authorized? requires scope language or env flag' do
+      expect(described_class.recon_authorized?(request: 'find live hosts on this subnet')).to eq(false)
+      expect(described_class.recon_authorized?(request: 'authorized engagement: find live hosts on this lab subnet')).to eq(true)
+      allow(PWN::Env).to receive(:dig).and_call_original
+      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :recon_authorized).and_return(true)
+      expect(described_class.recon_authorized?(request: 'find live hosts')).to eq(true)
+    end
+
+    it 'run short-circuits how-to without plan_first or tools' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/request_intent/)
+      expect(src).to match(/answer_howto/)
+      expect(src).to match(/refuse_unauthorized_recon/)
+      expect(src).to match(/intent == :howto/)
+      expect(src).to match(/skip_plan/)
+    end
+
+    it 'answer_howto does not register shell tool use in source path' do
+      src = File.read(described_class.method(:run).source_location.first)
+      # how-to return happens before task_summary_plan!
+      expect(src).to match(/if intent == :howto.*?return answer_howto/m)
+    end
+  end
+
   describe '.openai_wire_messages' do
     it 'stringifies Hash function.arguments and drops private keys' do
       wire = described_class.openai_wire_messages(

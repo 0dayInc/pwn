@@ -113,6 +113,8 @@ the new format.
 | `learning_auto_introspect_toggle(enabled: false)` | during noisy fuzz loops |
 | `PWN::MemoryIndex.reset` | new engagement - drop the local embedding index (`memory.idx`) so it rebuilds against the fresh `memory.json` |
 | `PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)` | you have enough **high-score** sessions for SFT (drops low scores / HER soft rows and compresses traces by process reward) |
+| `memory_lean` / `sessions_lean` / `mistakes_lean` | trim ephemeral or oversized state; never drop protected prefs or open mistakes |
+| `learning_gc_stores` | one coordinated lean pass across the RL stores (supports `dry_run: true`) |
 
 ## Example questions that trigger Introspection
 

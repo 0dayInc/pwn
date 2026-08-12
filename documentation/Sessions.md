@@ -27,6 +27,7 @@ appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
 | `sessions_view(session_id:, truncate:)` | Read entries |
 | `sessions_delete(session_id:)` | Prune noisy/dev transcripts so `reflect` corpus stays clean |
 | `sessions_stats` | totals across the whole directory |
+| `sessions_lean` | prune stubs and aged unreferenced transcripts; compact oversized tool/assistant content (pins gold outcomes and open-mistake refs) |
 
 ## File format
 

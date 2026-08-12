@@ -70,6 +70,18 @@ module PWN
               irreversible destructive action, or missing external decision is
               strictly required. Partial progress reports without completing the
               goal are incorrect behavior.
+
+            INTENT AND SCOPE
+              Match effort to the user ask. Pure how-to / syntax / usage questions
+              get a concise explanation with example commands only — no tool calls,
+              no multi-step recon plan, no live probes, no rubocop/rake/docs side
+              quests, and no invented planner or verification monologue.
+              Do not treat process_sop_* or operator_pref_* memory about code
+              hygiene as the current user goal unless they asked to change code.
+              Live subnet sweeps, raw-socket discovery (hping3/nmap -sn mass
+              probes, etc.) require explicit in-scope / authorized engagement
+              language from the user. Without it, refuse the live scan and offer
+              the command syntax instead.
           PROMPT
         end
 
@@ -119,11 +131,18 @@ module PWN
 
           limit = opts[:limit] || 25
           req   = opts[:request]
-          ctx   = if req && defined?(PWN::MemoryIndex) && PWN::MemoryIndex.available?
-                    PWN::MemoryIndex.to_context(query: req, limit: limit)
-                  else
-                    PWN::Memory.to_context(limit: limit)
-                  end
+          # How-to / non-code asks: do not let code-hygiene SOPs dominate local context.
+          drop_hygiene = req.to_s.match?(/\b(how\s+to|how\s+do\s+i|syntax|usage|hping|nmap|ping\s+sweep|live\s+hosts?)\b/i) &&
+                         !req.to_s.match?(%r{\b(rubocop|rake|rspec|/opt/pwn|refactor|documentation|commit)\b}i)
+          ctx = if req && defined?(PWN::MemoryIndex) && PWN::MemoryIndex.available?
+                  PWN::MemoryIndex.to_context(query: req, limit: limit, drop_hygiene_sops: drop_hygiene)
+                else
+                  PWN::Memory.to_context(limit: limit)
+                end
+          if drop_hygiene && ctx.to_s.match?(/process_sop_.*rubocop|operator_pref_docs_after_rubocop|docs_after_rubocop_rake/i)
+            # Fallback filter when MemoryIndex unavailable or still returns SOPs
+            ctx = ctx.to_s.lines.grep_v(/process_sop_.*(?:rubocop|rake|docs_after)|operator_pref_docs_after_rubocop|code_hygiene/i).join
+          end
           ctx.to_s.strip.empty? ? '' : "MEMORY#{ctx}\n\n"
         rescue StandardError
           ''

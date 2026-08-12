@@ -13,7 +13,7 @@ digraph "PWN_MemorySkills" {
   subgraph cluster_write {
     label="Write-Side Tools"; fontcolor="#a7f3d0"; style=rounded;
     color="#047857"; bgcolor="#022c22";
-    Rem    [label="memory_remember\nkey · value · category",   fillcolor="#6ee7b7"];
+    Rem    [label="memory_remember · lean\nkey · value · category",   fillcolor="#6ee7b7"];
     Skc    [label="skill_create\nskill_add_reference",           fillcolor="#6ee7b7"];
     Note   [label="learning_note_outcome\nlearning_reflect",     fillcolor="#6ee7b7"];
     Dist   [label="learning_distill_skill\n(session → skill)",   fillcolor="#6ee7b7"];
@@ -30,7 +30,7 @@ digraph "PWN_MemorySkills" {
     Fidx [label="memory.idx\nembedding index\n(sha → vec)", shape=cylinder, fillcolor="#fcd34d"];
     Fskl [label="skills/<n>/SKILL.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
     Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
-    Fses [label="sessions/*.jsonl\ntranscripts",              shape=cylinder, fillcolor="#fcd34d"];
+    Fses [label="sessions/*.jsonl\ntranscripts (+ lean)",      shape=cylinder, fillcolor="#fcd34d"];
     Fmis [label="mistakes.json\nsig → count · fix · regressed", shape=cylinder, fillcolor="#fcd34d"];
     Fext [label="extrospection.json\nsnapshot · rf · web · obs", shape=cylinder, fillcolor="#fcd34d"];
     Fftn [label="finetune/*.jsonl\nShareGPT / OpenAI / DPO", shape=cylinder, fillcolor="#fcd34d"];

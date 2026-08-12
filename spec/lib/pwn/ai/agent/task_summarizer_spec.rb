@@ -360,6 +360,16 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(second).not_to include(subnet_req)
     end
 
+    it 'how-to goals stay explanation-only without rubocop verify padding' do
+      allow(PWN::Env).to receive(:dig).and_call_original
+      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)
+      tasks = described_class.plan(request: 'how to do a ping sweep of a subnet using hping3?')
+      joined = tasks.join(' | ').downcase
+      expect(joined).to match(/explain|example|present|how/)
+      expect(joined).not_to match(/rubocop|live hosts|sweep the subnet|discover/)
+      expect(tasks.length).to be <= 3
+    end
+
     it 'falls back generically when LLM is disabled (no static domain scripts)' do
       allow(PWN::Env).to receive(:dig).and_call_original
       allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)

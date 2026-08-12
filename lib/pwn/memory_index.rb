@@ -84,8 +84,23 @@ module PWN
     # identical so PromptBuilder needs no special-casing.
 
     public_class_method def self.to_context(opts = {})
-      hits = recall_semantic(query: opts[:query], limit: opts[:limit] || 6)
-      return PWN::Memory.to_context(limit: opts[:limit] || 6) if hits.empty?
+      limit = opts[:limit] || 6
+      # Fetch extra when filtering hygiene SOPs so we still fill the budget.
+      fetch_n = opts[:drop_hygiene_sops] ? [limit * 3, 18].max : limit
+      hits = recall_semantic(query: opts[:query], limit: fetch_n)
+      return PWN::Memory.to_context(limit: limit) if hits.empty?
+
+      if opts[:drop_hygiene_sops]
+        hits = hits.reject do |h|
+          k = h[:key].to_s
+          v = h[:value].to_s
+          k.match?(/process_sop_.*(?:rubocop|rake|docs_after|code_hygiene)|operator_pref_docs_after_rubocop/i) ||
+            v.match?(/\b(?:bundle exec )?rubocop\b.*\brake\b|docs_after_rubocop_rake|Documentation after code changes/i)
+        end.first(limit)
+        return PWN::Memory.to_context(limit: limit) if hits.empty?
+      else
+        hits = hits.first(limit)
+      end
 
       ctx = "\n\nPERSISTENT MEMORY (relevance-ranked for this request - use PWN::Memory.remember to store new ones):\n"
       hits.each do |h|

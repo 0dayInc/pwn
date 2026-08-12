@@ -303,6 +303,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.verdict_for_score Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.verdict_for_score`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.active_engine Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.active_engine`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.agent_flag`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_howto Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_howto`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.append_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.append_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.attribute_cause Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.attribute_cause`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -332,7 +333,10 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.parse_tool_arguments Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.parse_tool_arguments`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.plan_first Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.plan_first`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.publish_usage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.publish_usage`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.recon_authorized? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.recon_authorized?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.record_metrics Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.record_metrics`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.refuse_unauthorized_recon Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.refuse_unauthorized_recon`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.request_intent Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.request_intent`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.run Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.run`: Supported Method Parameters\n\nfinal = PWN::AI::Agent::Loop.run(\n\nrequest: 'required - what the human typed',\nsession_id: 'optional - PWN::Sessions id (transcript is appended to it)',\nenabled_toolsets: 'optional - subset of Registry.toolsets, or nil for all',\non_tool: 'optional - ->(name, args, result) callback for live UI',\nsystem_role_content: 'optional - override default system prompt (built from session_id if not provided)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.should_auto_introspect? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.should_auto_introspect?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.stringify_tool_arguments Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.stringify_tool_arguments`: "}]}
@@ -520,6 +524,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.fresh Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.fresh`: Supported Method Parameters\n\nstate = PWN::AI::Agent::TaskSummarizer.fresh(\n\nrequest: 'optional - original user goal string'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.heuristic_decompose Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.heuristic_decompose`: Supported Method Parameters\n\ntasks = PWN::AI::Agent::TaskSummarizer.heuristic_decompose(\n\ngoal: 'required - user goal string'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.howto_goal? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.howto_goal?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.intent_phrase Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.intent_phrase`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.interval_s Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.interval_s`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.llm_decompose Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.llm_decompose`: "}]}

@@ -51,12 +51,19 @@ module PWN
           should perform. Rules:
           - 2..12 tasks. Each task is one coherent unit of work (may need many tools).
           - Plain US English. Imperative mood. No tool names, paths, or shell commands.
+          - Match effort to intent: pure how-to / usage / syntax questions get 1..2
+            documentation tasks only (explain usage, present examples). Do NOT invent
+            live recon, host discovery, rubocop, rake, or code-verification steps for
+            those. Only plan discovery/recon when the user asked to scan/find live hosts.
           - Cover discovery/recon, the core work, verification, and the requested
-            deliverable/format when relevant.
+            deliverable/format ONLY when relevant to THIS request.
           - Tailor steps to THIS request only — do not reuse a canned domain script.
           - Last task should verify or present the final result when that fits.
+          - Never append unrelated repo hygiene (rubocop/rake/docs) unless the user
+            asked to change code under /opt/pwn.
           - Output ONLY a JSON array of strings. No markdown, no prose, no keys.
           Example: ["determine the local IPv4 subnet","find live hosts on that subnet","present live hosts as JSON"]
+          How-to example: ["Explain hping3 ping-sweep syntax with safe lab examples","Present the commands clearly"]
         SYS
 
         public_class_method def self.enabled?
@@ -319,11 +326,33 @@ module PWN
           goal.empty? ? [] : normalize_task_list(tasks: ["Carry out: #{goal}"], goal: goal)
         end
 
+        private_class_method def self.howto_goal?(opts = {})
+          goal = opts[:goal].to_s
+          return true if defined?(PWN::AI::Agent::Loop) &&
+                         PWN::AI::Agent::Loop.respond_to?(:request_intent) &&
+                         PWN::AI::Agent::Loop.request_intent(request: goal) == :howto
+
+          goal.match?(/\b(how\s+to|how\s+do\s+i|how\s+can\s+i|syntax|usage of|explain how|show me how)\b/i)
+        rescue StandardError
+          false
+        end
+
         private_class_method def self.normalize_task_list(opts = {})
           goal = opts[:goal]
           list = Array(opts[:tasks]).map { |t| t.to_s.gsub(/\s+/, ' ').strip }.reject(&:empty?).uniq
           list = ["Carry out: #{goal}"] if list.empty?
-          # Ensure a verify/close step when the model omitted one.
+          # Strip contaminated repo-hygiene tasks on non-code requests.
+          unless goal.to_s.match?(%r{\b(rubocop|rake|rspec|/opt/pwn|refactor|patch|commit|documentation)\b}i)
+            list.reject! { |t| t.match?(/\b(rubocop|rvmsudo\s+rake|bundle\s+exec\s+rake|fix rake|lint offenses)\b/i) }
+            list = ["Carry out: #{goal}"] if list.empty?
+          end
+          # How-to: keep explanation-only plan; never force recon/verify thrash.
+          if howto_goal?(goal: goal)
+            list = list.first(2)
+            list = ['Explain the requested tool usage with concrete examples', 'Present the answer clearly'] if list.empty?
+            return list.first(MAX_PLAN_TASKS)
+          end
+          # Ensure a verify/close step when the model omitted one (act/recon only).
           list << 'Verify the result and report completion' unless list.last.to_s.match?(/verif|test|confirm|rubocop|rake|accept|done|close|summar|json|yaml|table|present|format|convert|report completion|report results/i)
           list.first(MAX_PLAN_TASKS)
         end
@@ -584,6 +613,12 @@ module PWN
             return tasks
           end
 
+          if howto_goal?(goal: goal_text)
+            tasks << "Explain how to do: #{truncate_goal(goal: goal_text)}"
+            tasks << 'Present clear example commands only (no live probes)'
+            return tasks
+          end
+
           tasks << "Understand the request: #{truncate_goal(goal: goal_text)}"
           tasks << "Carry out the core work for: #{truncate_goal(goal: goal_text)}"
 
@@ -594,7 +629,9 @@ module PWN
             tasks << 'Present the final results in the requested format'
           end
 
-          tasks << 'Run specs, rubocop, and/or rake to verify' if goal_lc.match?(/\b(test|spec|rubocop|rake|lint|verify|accept)\b/)
+          # Only when the user actually asked about tests/lint — not bare "verify".
+          tasks << 'Run specs, rubocop, and/or rake to verify' if goal_lc.match?(/\b(test|spec|rubocop|rake|lint)\b/) &&
+                                                                  goal_lc.match?(%r{\b(/opt/pwn|code|patch|refactor|commit)\b})
 
           tasks
         rescue StandardError
