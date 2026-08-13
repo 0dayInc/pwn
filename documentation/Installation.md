@@ -187,7 +187,9 @@ predates the running gem (`PWN::Migrate.needed?`).
 
 Schema `v1` also seeds `PWN::Cron.install_defaults` - the nightly
 `curriculum_practice` and weekly `curriculum_train` self-improvement jobs
-(see [Reinforcement Learning](Reinforcement-Learning.md)).
+(see [Reinforcement Learning](Reinforcement-Learning.md)). Live Policy
+files (`policy.json`, `policy_traj.jsonl`) are created on first agent turn
+when `ai.agent.policy` is on.
 
 From a checkout:
 

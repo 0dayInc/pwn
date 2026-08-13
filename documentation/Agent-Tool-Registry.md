@@ -6,12 +6,12 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ![Tool registry](diagrams/agent-tool-registry.svg)
 
-## Toolsets to tools  (12 toolsets · 82 tools)
+## Toolsets to tools  (13 toolsets · 85 tools)
 
 | Toolset | Tools | Backed by |
 |---|---|---|
-| `terminal` | `shell` | `Open3.capture3` on the host |
-| `pwn` | `pwn_eval` | `TOPLEVEL_BINDING.eval` in the live REPL process |
+| `terminal` | `shell` | `Open3.capture3` on the host, after `PWN::AI::Agent::ToolGuard` |
+| `pwn` | `pwn_eval` | `TOPLEVEL_BINDING.eval` in the live REPL process, after `ToolGuard` |
 | `memory` | `memory_remember` · `memory_recall` · `memory_forget` · `memory_clear` · **`memory_lean`** | `PWN::Memory` → `~/.pwn/memory.json` |
 | `skills` | `skill_list` · `skill_view` · `skill_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
 | `sessions` | `sessions_list` · `sessions_view` · `sessions_current` · `sessions_delete` · `sessions_stats` · **`sessions_lean`** | `PWN::Sessions` → `~/.pwn/sessions/` |
@@ -19,6 +19,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 | `reward` | **`reward_generator_mix`** | `PWN::AI::Agent::Reward.generator_mix` → online preference source-mix controller (`preferences.jsonl`) |
 | `curriculum` | **`curriculum_practice_kpi`** | `PWN::AI::Agent::Curriculum.practice_kpi` → `~/.pwn/curriculum_kpi.jsonl` |
 | `metrics` | `metrics_summary` · `metrics_reset` | `PWN::AI::Agent::Metrics` → `~/.pwn/metrics.json` |
+| `policy` | **`policy_stats`** · **`policy_evaluate`** · **`policy_recommend`** | `PWN::AI::Agent::Policy` → `~/.pwn/policy.json` + `~/.pwn/policy_traj.jsonl` |
 | `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · **`extro_watch`** · **`extro_verify`** · **`extro_rf_tune`** · **`extro_osint`** · **`extro_serial`** · **`extro_telecomm`** · **`extro_packet`** · **`extro_vision`** · **`extro_voice`** · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` | `PWN::AI::Agent::Extrospection` (+ Serial/Packet/OCR/Voice/BareSIP/TransparentBrowser/GQRX) → `~/.pwn/extrospection.json` |
 | `cron` | `cron_list` · `cron_create` · `cron_run` · `cron_enable` · `cron_disable` · `cron_remove` | `PWN::Cron` → `~/.pwn/cron/jobs.yml` |
 | `swarm` | `agent_list` · `agent_spawn` · `agent_ask` · `agent_debate` · `agent_broadcast` · `swarm_bus` · `swarm_list` | `PWN::AI::Agent::Swarm` → `~/.pwn/agents.yml` + `~/.pwn/swarm/` |
@@ -30,6 +31,17 @@ the same self-improvement loop - see [Reinforcement Learning](Reinforcement-Lear
 The thin `reward` and `curriculum` toolsets expose controller and KPI surfaces
 (`reward_generator_mix`, `curriculum_practice_kpi`) so personas can grant just
 those without the full learning surface.
+`shell` and `pwn_eval` share `PWN::AI::Agent::ToolGuard`
+(`lib/pwn/ai/agent/tool_guard.rb`) before they run. The guard remaps common
+wrong keys, rejects ellipsis placeholders, refuses bash-only syntax unless
+`ai.agent.shell_bash` is true (default runner is `/bin/sh`), and blocks live
+host-discovery unless the request is in-scope or `ai.agent.recon_authorized`
+is true.
+
+The `policy` toolset is inspect-only. `policy_stats`, `policy_evaluate`, and
+`policy_recommend` read the live Q / REINFORCE table. Reset is Ruby-only, so a
+tool call cannot wipe the weights. `Registry.rank` may add a small Q-advantage
+after a pair has been visited at least twice. Planning still owns the work.
 
 **Store hygiene tools** (`memory_lean`, `sessions_lean`, `mistakes_lean`,
 `learning_gc_stores`) trim ephemeral or oversized state without dropping
@@ -54,8 +66,8 @@ CORE_TOOLS  = shell · pwn_eval · memory_remember · memory_recall
 ```ruby
 PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 10)
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
-PWN::AI::Agent::Registry.toolsets                              # → the 12 names above
-PWN::AI::Agent::Registry.all.count                             # → 82
+PWN::AI::Agent::Registry.toolsets                              # → the 13 names above
+PWN::AI::Agent::Registry.all.count                             # → 85
 ```
 
 Frontier engines leave `tool_router` off and receive the full set.

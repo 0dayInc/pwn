@@ -60,7 +60,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/mistakes-negative-feedback.dot) · doc: [Mistakes](Mistakes.md)
 ![mistakes-negative-feedback](diagrams/mistakes-negative-feedback.svg)
 
-### Reinforcement Learning - Reward + Curriculum
+### Reinforcement Learning - Reward + Curriculum + Policy
 [source](diagrams/dot/reinforcement-learning.dot) · doc: [Reinforcement Learning](Reinforcement-Learning.md)
 ![reinforcement-learning](diagrams/reinforcement-learning.svg)
 
@@ -68,7 +68,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/ai-integration-tool-calling.dot) · doc: [AI Integration](AI-Integration.md)
 ![ai-integration-tool-calling](diagrams/ai-integration-tool-calling.svg)
 
-### Agent Tool Registry (12 toolsets · 82 tools)
+### Agent Tool Registry (13 toolsets · 85 tools)
 [source](diagrams/dot/agent-tool-registry.dot) · doc: [Agent Tool Registry](Agent-Tool-Registry.md)
 ![agent-tool-registry](diagrams/agent-tool-registry.svg)
 

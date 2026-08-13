@@ -1,6 +1,6 @@
 digraph "PWN_AI_Feedback_Learning_Loop" {
   graph [
-    label=<<B>pwn-ai - Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)  ·  Mistakes (negative)  ·  Reward + Curriculum (RL)  ·  Local-model scaffolding</FONT>>,
+    label=<<B>pwn-ai - Closed Self-Improvement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Introspection (self)  ⟷  Extrospection (world)  ·  Mistakes (negative)  ·  Reward + Curriculum + Policy (RL)  ·  Local-model scaffolding</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.0,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
@@ -21,7 +21,7 @@ digraph "PWN_AI_Feedback_Learning_Loop" {
     label="PWN::AI::Agent::Loop  ·  budget pressure · TaskSummarizer"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Prompt   [label="PromptBuilder\nbudget · MemoryIndex\nrelevance-ranked ctx", fillcolor="#c4b5fd"];
-    Dispatch [label="Dispatch\ntolerant parse\nrepair_name", fillcolor="#c4b5fd"];
+    Dispatch [label="Dispatch\ntolerant parse\nToolGuard · repair_name", fillcolor="#c4b5fd"];
 Router   [label="Registry\ntool_router\nCORE + top-K",   fillcolor="#c4b5fd"];
 Plan     [label="plan_first\n(pre-pass, local)",         fillcolor="#c4b5fd"];
 TaskSum  [label="TaskSummarizer\nemit_plan! · about_to\ndedup last_brief_fp", fillcolor="#c4b5fd", penwidth=2];
@@ -40,6 +40,7 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
     ReflectT [label="Reflect\nteacher-student\n(reflect_engine)", fillcolor="#6ee7b7", penwidth=2];
     Reward   [label="Reward\njudge · prm · semantic_ok\nsentinel warm\nDPO scrub <=40%/src", fillcolor="#6ee7b7", penwidth=2];
     Curric   [label="Curriculum\npractice · offline_judge\ncritic/CF geometry · gate + diet", fillcolor="#6ee7b7", penwidth=2];
+    Policy   [label="Policy\nlive Q / REINFORCE\nbegin · observe · finish\nadvisory rank only", fillcolor="#6ee7b7", penwidth=2];
   }
   subgraph cluster_extro {
     label="EXTROSPECTION  (world)"; fontcolor="#fde68a";
@@ -49,7 +50,7 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
     Verify    [label="verify (browser)\nfact-check own claims\nrevalidate_memory", fillcolor="#fcd34d", penwidth=2];
     RFTune    [label="rf_tune  📡\ntune GQRX · demod\nRDS → now_playing",           fillcolor="#fcd34d", penwidth=2];
   }
-  {rank=same; Metrics; Learning; Mistakes; ReflectT; Reward; Curric; Snapshot; Observe; Verify; RFTune}
+  {rank=same; Metrics; Learning; Mistakes; ReflectT; Reward; Curric; Policy; Snapshot; Observe; Verify; RFTune}
 
   /* L3 ─ correlate */
   Correlate [label="extro_correlate()\n\"I did it wrong\"  vs  \"the world changed\"",
@@ -68,8 +69,9 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
     Fext [label="extrospection.json", shape=cylinder, fillcolor="#fcd34d"];
     Fftn [label="finetune/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
     Fprf [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
+    Fpol [label="policy.json\npolicy_traj.jsonl", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmet; Flrn; Fmis; Fmem; Fidx; Fskl; Fext; Fftn; Fprf}
+  {rank=same; Fmet; Flrn; Fmis; Fmem; Fidx; Fskl; Fext; Fftn; Fprf; Fpol}
 
   /* L0 → L1 */
   User -> Prompt   [label="task", color="#38bdf8", penwidth=2];
@@ -87,7 +89,9 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
 
   /* L1 → L2 */
   Dispatch -> Metrics  [label="record(engine:)", color="#34d399"];
+  Dispatch -> Policy   [label="observe_step", color="#34d399"];
   Result   -> Learning [label="auto_introspect", color="#34d399"];
+  Result   -> Policy   [label="finish (judge)", color="#34d399"];
   Dispatch -> Mistakes [label="on failure\nrecord()", color="#fb7185", penwidth=2];
   User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",
                         style=dashed, constraint=false];
@@ -111,6 +115,7 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
   /* L3 → L4 */
   Correlate -> Fmet [style=invis];
   Metrics   -> Fmet [color="#94a3b8"];
+  Policy    -> Fpol [color="#94a3b8"];
   Learning  -> Flrn [color="#94a3b8"];
   Mistakes  -> Fmis [color="#94a3b8"];
   Mistakes  -> Fmem [label="resolve→lesson", color="#94a3b8"];
@@ -141,6 +146,8 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
   Fidx -> Prompt [label="MemoryIndex\ncosine top-K", style=dashed, color="#fbbf24", constraint=false, penwidth=2];
   Flrn -> Plan   [label="exemplars_for\n(few-shot, local)", style=dashed, color="#fbbf24", constraint=false];
   Fmet -> Router [label="success_rate\n→ tie-break", style=dashed, color="#fbbf24", constraint=false];
+  Fpol -> Prompt [label="POLICY block", style=dashed, color="#fbbf24", constraint=false];
+  Fpol -> Router [label="Q-advantage\nvisits≥2", style=dashed, color="#fbbf24", constraint=false];
   Escalate -> LLM [label="Swarm.ask(persona)\nfrontier hint", color="#a78bfa", constraint=false, penwidth=2, style=dashed];
   Escalate -> Mistakes [label="record\n(tool:'escalation')", color="#fb7185", constraint=false, style=dashed];
   Fftn -> LLM  [label="LoRA (weights)\ncron weekly", style=dashed, color="#fb7185", constraint=false, penwidth=2];

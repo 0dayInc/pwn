@@ -124,6 +124,40 @@ module PWN
         # must not keep owning Mistakes.top for another full day.
         PARK_COOL_SECS = 24 * 3600
 
+        PRIVILEGED_TOOLSETS = %w[cron swarm].freeze
+        SNAPSHOT_STALE_SECS = 6 * 3600
+
+        private_class_method def self.default_interactive_toolsets(opts = {})
+          req = opts[:request].to_s
+          all = defined?(Registry) ? Registry.toolsets.map(&:to_s) : []
+          drop = PRIVILEGED_TOOLSETS.dup
+          drop.delete('swarm') if req.match?(/\b(swarm|persona|debate|agent_ask|multi-agent)\b/i)
+          drop.delete('cron') if req.match?(/\b(cron|schedule|nightly job)\b/i)
+          all - drop
+        end
+
+        private_class_method def self.maybe_refresh_extro_snapshot!
+          return unless defined?(Extrospection)
+
+          captured = nil
+          begin
+            stats = Extrospection.stats if Extrospection.respond_to?(:stats)
+            captured = stats[:snapshot_captured_at] || stats[:captured_at] if stats.is_a?(Hash)
+          rescue StandardError
+            captured = nil
+          end
+          stale = captured.to_s.empty?
+          if captured && !stale
+            age = Time.now.utc - Time.parse(captured.to_s)
+            stale = age > SNAPSHOT_STALE_SECS
+          end
+          return unless stale
+
+          Extrospection.snapshot(persist: true, sections: %w[host repo env]) if Extrospection.respond_to?(:snapshot)
+        rescue StandardError
+          nil
+        end
+
         private_class_method def self.maybe_park_budget_scars!
           return unless defined?(Mistakes)
           return if budget_exhaustion_hot?
@@ -144,6 +178,14 @@ module PWN
               reason: 'p17 rate-cool: outside PARK_COOL_SECS while hot?=false'
             )
           end
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.maybe_extinguish_parked!
+          return unless defined?(Mistakes) && Mistakes.respond_to?(:extinguish_parked!)
+
+          Mistakes.extinguish_parked!(limit: 12)
         rescue StandardError
           nil
         end
@@ -395,6 +437,24 @@ module PWN
         # explicit fix. Returns { ok:, err:, mistake: } — :mistake carries the
         # PERSISTED entry (with cumulative :count and any prior :fix) so the
         # caller drives cross-session repeat detection, not just per-turn.
+        # R5 — close a leftover MDP episode when auto_introspect was skipped
+        # or swallowed. No-op once Policy.finish already ran inside introspect.
+        private_class_method def self.maybe_finish_policy(opts = {})
+          return unless defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:current_episode)
+          return unless Policy.current_episode
+
+          Policy.finish(
+            session_id: opts[:session_id],
+            score: opts[:score],
+            verdict: opts[:verdict],
+            proxy_ok: opts.fetch(:proxy_ok, false),
+            final: opts[:final],
+            ts_state: opts[:ts_state]
+          )
+        rescue StandardError
+          nil
+        end
+
         private_class_method def self.record_metrics(opts = {})
           name    = opts[:name]
           started = opts[:started]
@@ -409,13 +469,25 @@ module PWN
           # was the reward-signal lie: grep exit 1 looked like 100% success
           # while Mistakes stayed quiet, OR the inverse phantom class).
           Metrics.record(name: name, success: sem[:semantic_ok], duration: dur, error: sem[:err], engine: opts[:engine]) if defined?(Metrics)
+          # R5 — live MDP step. Hygiene reward only; terminal credit is judge.
+          if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:observe_step)
+            Policy.observe_step(
+              session_id: opts[:session_id],
+              action: name,
+              ok: sem[:semantic_ok],
+              duration: dur,
+              engine: opts[:engine],
+              ts_state: opts[:ts_state]
+            )
+          end
           m = nil
-          if !sem[:semantic_ok] && defined?(Mistakes)
+          if !sem[:semantic_ok] && defined?(Mistakes) && sem[:shape].to_s != 'invalid_payload' && !raw.include?('extinguished_repeat')
             # E1 — automatic blame attribution: if this tool just tripped a
             # CUSUM changepoint AND extro drift is present, tag the mistake
             # cause: :env_drift so it does NOT count toward [REPEATING].
             cause = attribute_cause(name: name)
             m = Mistakes.record(tool: name, error: sem[:err] || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause, shape: sem[:shape])
+            m = Mistakes.extinguish!(signature: m[:signature], args: opts[:args], shape: sem[:shape]) || m if m && defined?(Mistakes) && Mistakes.respond_to?(:extinguish!)
           end
           { ok: sem[:semantic_ok], err: sem[:err], mistake: m, benign: sem[:benign] }
         rescue StandardError
@@ -477,9 +549,16 @@ module PWN
           result = "#{result}\n#{hint}" unless hint.empty?
           return result if count < thresh
 
-          guard = "[pwn-ai/mistakes] REPEATED FAILURE — this #{opts[:name]} failure signature has " \
-                  "occurred #{count}× (across sessions). DO NOT retry it verbatim; change " \
-                  'arguments, pick a different tool, apply the KNOWN FIX below if present, or ' \
+          if defined?(Mistakes) && Mistakes.respond_to?(:extinguish!)
+            sig = opts[:mistake].is_a?(Hash) ? opts[:mistake][:signature] : nil
+            Mistakes.extinguish!(signature: sig, args: opts[:args], shape: opts[:shape], force: true) if sig
+          end
+          Thread.current[:pwn_extinguished] ||= {}
+          Thread.current[:pwn_extinguished][opts[:name].to_s] = true
+
+          guard = "[pwn-ai/mistakes] EXTINGUISHED / REPEATED FAILURE — this #{opts[:name]} failure signature has " \
+                  "occurred #{count}× (across sessions). DO NOT retry it verbatim. Apply the " \
+                  'KNOWN FIX if present, pick a different tool, or explain the blocker. ' \
                   'explain why it cannot succeed. Once a working alternative is found, call ' \
                   'mistakes_resolve(signature:, fix:) so future runs skip straight to it.'
           "#{guard}\n#{result}"
@@ -1773,23 +1852,6 @@ module PWN
           "Could not recall the prior turn (#{e.class}: #{e.message})."
         end
 
-        private_class_method def self.refuse_unauthorized_recon(opts = {})
-          request = opts[:request].to_s
-          session_id = opts[:session_id]
-          txt = <<~REFUSE
-            I will not run a live subnet sweep or raw-socket host discovery from this agent without explicit in-scope authorization.
-
-            Your request looks like active recon on "this" network/subnet. To proceed, restate with engagement language such as:
-              - "authorized engagement" / "in-scope" / "lab only" / "I own this network"
-              - or set PWN::Env[:ai][:agent][:recon_authorized] = true for this session
-
-            If you only wanted the command syntax, ask: how to do a ping sweep of a subnet using hping3?
-          REFUSE
-          append_session(session_id: session_id, role: 'user', content: request)
-          append_session(session_id: session_id, role: 'assistant', content: txt)
-          txt
-        end
-
         # Supported Method Parameters::
         # final = PWN::AI::Agent::Loop.run(
         #   request: 'required - what the human typed',
@@ -1810,6 +1872,8 @@ module PWN
           system_role_content = opts[:system_role_content] ||= PWN::AI::Agent::PromptBuilder.build(session_id: session_id, request: request)
 
           Registry.discover
+          maybe_refresh_extro_snapshot!
+          opts[:enabled_toolsets] = default_interactive_toolsets(request: request) unless opts.key?(:enabled_toolsets)
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
@@ -1818,6 +1882,7 @@ module PWN
           Thread.current[:pwn_request_intent] = intent
           Thread.current[:pwn_request_kind] = kind
           Thread.current[:pwn_recon_authorized] = recon_authorized?(request: request)
+          Thread.current[:pwn_extinguished] = {}
           # Greeting / light smalltalk: deterministic ack — no weather echo, no tools.
           if intent == :greeting && opts[:force_tools] != true
             return answer_greeting(
@@ -1860,8 +1925,18 @@ module PWN
             )
           end
 
-          # Live recon without authorization: refuse rather than probe the LAN.
-          return refuse_unauthorized_recon(request: request, session_id: session_id) if intent == :recon_act && !recon_authorized?(request: request) && opts[:force_tools] != true
+          # R5 — open the live MDP episode BEFORE the first Registry.rank so
+          # Q(s,a) can advise this turn. Planning still owns the task list.
+          if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:begin_episode)
+            Policy.begin_episode(
+              session_id: session_id,
+              request: request,
+              kind: kind,
+              intent: intent,
+              engine: engine,
+              ts_state: ts_state
+            )
+          end
 
           # Initial tool pool from the user request (bootstrap only). After
           # TaskSummarizer.emit_plan! we re-rank using English tangible tasks
@@ -1953,6 +2028,7 @@ module PWN
           turn_fails = Hash.new(0)
           escalated  = false
           maybe_park_budget_scars!
+          maybe_extinguish_parked!
 
           max_iters.times do |i|
             # 3.1 — compact history on local so tool dumps don't fill num_ctx
@@ -2073,6 +2149,7 @@ module PWN
               end
               append_session(session_id: session_id, role: 'assistant', content: text)
               Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              maybe_finish_policy(session_id: session_id, proxy_ok: true, ts_state: ts_state)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
               return text
             end
@@ -2096,8 +2173,16 @@ module PWN
               args    = tc.dig(:function, :arguments)
               entry   = Registry.lookup(name: name)
               started = Time.now
-              raw     = Dispatch.call(tool_call: tc)
-              tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine)
+              if Thread.current[:pwn_extinguished].is_a?(Hash) && Thread.current[:pwn_extinguished][name]
+                raw = JSON.generate(
+                  success: false,
+                  error: "extinguished_repeat: #{name} already failed this signature this turn — change args or tool",
+                  result: { stdout: '', stderr: "extinguished_repeat: #{name}", exit: 2 }
+                )
+              else
+                raw = Dispatch.call(tool_call: tc)
+              end
+              tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)
               result  = Result.condition(content: raw, entry: entry)
 
               unless tele[:ok]
@@ -2117,7 +2202,7 @@ module PWN
                   cf = (turn_fails["cf:#{fkey}"] += 1) == 1 ? Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint) : nil
                   hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
                 end
-                result = guard_repeated_failure(name: name, count: count, hint: hint, result: result)
+                result = guard_repeated_failure(name: name, count: count, hint: hint, result: result, mistake: tele[:mistake], args: args, shape: tele.dig(:mistake, :shape))
               end
 
               on_tool&.call(name, args, result)
@@ -2179,6 +2264,7 @@ module PWN
               end
               append_session(session_id: session_id, role: 'assistant', content: msg)
               Learning.auto_introspect(session_id: session_id, request: request, final: msg, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              maybe_finish_policy(session_id: session_id, proxy_ok: false, ts_state: ts_state)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
               return msg
             end
@@ -2208,6 +2294,7 @@ module PWN
           end
           append_session(session_id: session_id, role: 'assistant', content: final_msg)
           Learning.auto_introspect(session_id: session_id, request: request, final: final_msg, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: max_iters)
+          maybe_finish_policy(session_id: session_id, proxy_ok: false, ts_state: ts_state)
           task_summary_flush!(state: ts_state, on_tool: on_tool)
           final_msg
         end
@@ -2258,6 +2345,7 @@ module PWN
                 :red_team_plan       - S4 adversarial plan review after plan_first (Boolean)
                 :counterfactual      - S2 A/B branch on REPEAT_THRESHOLD → DPO pair (Boolean)
                 :hindsight           - C3 HER-relabel failures (Boolean, default true)
+                :policy              - R5 live tabular Q / REINFORCE (Boolean, default true; advisory only)
                 :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
 
               P28 autonomy: incomplete-final detector refuses mid-goal handoffs;

@@ -32,6 +32,8 @@ module PWN
       autoload :Reward,        'pwn/ai/agent/reward'
       autoload :Curriculum,    'pwn/ai/agent/curriculum'
       autoload :TaskSummarizer, 'pwn/ai/agent/task_summarizer'
+      autoload :Policy, 'pwn/ai/agent/policy'
+      autoload :ToolGuard, 'pwn/ai/agent/tool_guard'
 
       # Display a List of Every PWN::AI Module
 

@@ -136,7 +136,7 @@ module PWN
 
           tokens = query.scan(/[a-z0-9_]{3,}/).uniq
           # C1 — advantage-weighted router:
-          #   score = α·keyword_sim + β·advantage + γ·UCB(tool) + δ·prm_advantage
+          #   score = α·keyword_sim + β·advantage + γ·UCB(tool) + δ·prm_advantage + ε·Q_adv
           # UCB gives untried / low-N tools an exploration bonus so a single
           # early failure (before its dep was installed) does not blacklist
           # it forever; advantage prefers tools that outperform the fleet.
@@ -166,13 +166,28 @@ module PWN
                   else
                     0.25 * trust * [coverage / 0.3, 1.0].min
                   end
+          # R5 — tabular Q(s,a)−V(s). Weight sits next to Metrics advantage
+          # so a warm table actually moves rank. Keyword fit stays first
+          # (alpha=1.0); CORE_TOOLS still always included.
+          eps_q = if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:advantage) && Policy.respond_to?(:enabled?) && Policy.enabled?
+                    warm = Policy.respond_to?(:episode_budget_met?) && Policy.episode_budget_met?
+                    (warm ? 0.45 : 0.20) * [trust, 0.55].max
+                  else
+                    0.0
+                  end
+          pol_state = (Policy.current_state || Policy.state(request: query) if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:current_state))
           scored = entries.map do |e|
             hay   = "#{e.name} #{e.toolset} #{e.schema[:description]} #{Array(e.schema.dig(:parameters, :properties)&.keys).join(' ')}".downcase
             sim   = tokens.count { |t| hay.include?(t) }
             adv   = defined?(Metrics) && Metrics.respond_to?(:advantage) ? Metrics.advantage(name: e.name) : 0.0
             ucb   = defined?(Metrics) && Metrics.respond_to?(:ucb) ? Metrics.ucb(name: e.name) : 0.5
             prm   = defined?(Metrics) && Metrics.respond_to?(:prm_advantage) ? Metrics.prm_advantage(name: e.name) : 0.0
-            [e, sim, (alpha * sim) + (beta * adv) + (gamma * ucb) + (delta * prm)]
+            qadv  = if eps_q.positive? && pol_state
+                      Policy.advantage(state: pol_state, action: e.name)
+                    else
+                      0.0
+                    end
+            [e, sim, (alpha * sim) + (beta * adv) + (gamma * ucb) + (delta * prm) + (eps_q * qadv)]
           end
           scored.reject { |_, sim, _| sim.zero? }
                 .sort_by { |_, _, s| -s }
@@ -223,7 +238,7 @@ module PWN
         private_class_method def self.metrics_rates
           return {} unless defined?(Metrics)
 
-          Metrics.summary(limit: 200).to_h { |r| [r[:name], r[:success_rate]] }
+          Metrics.summary(limit: 200).to_h { |r| [r[:name], r[:effective_rate] || r[:success_rate]] }
         rescue StandardError
           {}
         end

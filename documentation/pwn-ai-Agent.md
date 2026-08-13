@@ -24,13 +24,13 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## Anatomy of a turn
 
-1. **PromptBuilder** assembles the system prompt: your request + **six
- engine-budgeted blocks** - MEMORY (relevance-ranked via `PWN::MemoryIndex`
- when a local embedding model is reachable) · SKILLS · LEARNING ·
- **KNOWN MISTAKES / KNOWN FIXES** · TOOL EFFECTIVENESS (**per-engine**) ·
- **EXTROSPECTION** (live host fp + drift + fresh observations including
- `:rf` now-playing and `:web` DOM watches). `PromptBuilder.budget` shrinks
- each block for local engines so a small model spends its attention on the
+1. **PromptBuilder** assembles the system prompt: your request + **engine-budgeted
+ blocks** - MEMORY (relevance-ranked via `PWN::MemoryIndex` when a local embedding
+ model is reachable) · SKILLS · LEARNING · **KNOWN MISTAKES / KNOWN FIXES** ·
+ TOOL EFFECTIVENESS (**per-engine**) · **POLICY** (live Q / REINFORCE snapshot,
+ advisory only) · **EXTROSPECTION** (live host fp + drift + fresh observations
+ including `:rf` now-playing and `:web` DOM watches) · RECENT TURNS. `PromptBuilder.budget`
+ shrinks each block for local engines so a small model spends its attention on the
  task, not the harness.
 2. **Loop** checks the incoming message against `Mistakes::CORRECTION_RX` - if
  it reads like *"no, that's wrong"* the previous outcome is flipped to
@@ -38,9 +38,11 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
  chosen)` DPO preference pair** in `~/.pwn/preferences.jsonl`.
 3. **Registry** hands Loop the tool schemas - the full set for frontier
  engines, or `CORE_TOOLS` + top-K keyword-relevant when
- `ai.agent.tool_router` is on. *(local)* `Learning.exemplars_for` splices a
- compressed prior-success trace as few-shot; *(local)* `plan_first` forces a
- numbered tool plan before the first dispatch (optionally red-teamed by
+ `ai.agent.tool_router` is on. Rank can include a Q-advantage term from
+ `Policy` after a pair has been visited at least twice. Planning still owns
+ the task list. *(local)* `Learning.exemplars_for` splices a compressed
+ prior-success trace as few-shot; *(local)* `plan_first` forces a numbered
+ tool plan before the first dispatch (optionally red-teamed by
  `Curriculum.red_team_plan`).
 4. **TaskSummarizer** (if `ai.agent.task_summary` is on, default true):
  `emit_plan!` prints the full goal + numbered tangible tasks once on
@@ -51,11 +53,17 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
  are suppressed via `last_brief_fp` (returns `nil` → no second line).
  Full goal text is **not** restated on every batch when a plan exists.
  `Loop.task_summary_about_to!` is the sole about_to entry path.
-5. Loop sends the prompt to the active `PWN::AI::<Engine>` client.
+5. Loop opens a **Policy** episode (`begin_episode`) so live Q / REINFORCE can
+ advise rank on this turn, then sends the prompt to the active `PWN::AI::<Engine>`
+ client.
 6. Provider replies with `tool_calls` → **Dispatch** executes each one via the
- [Registry](Agent-Tool-Registry.md); **Metrics** records
+ [Registry](Agent-Tool-Registry.md). **ToolGuard** runs first on `shell` and
+ `pwn_eval`: it maps common wrong keys (`value`/`cmd`) onto the schema, drops
+ placeholder payloads (`...`, `{...}`), refuses bash-only syntax unless
+ `ai.agent.shell_bash` is on, and blocks live sweeps unless the request is
+ in-scope or `ai.agent.recon_authorized` is true. **Metrics** records
  `duration/success/engine` (via `Reward.semantic_ok` - `grep` exit 1 ≠
- failure). Dispatch is *tolerant* - Levenshtein-repairs near-miss tool names
+ failure); **Policy.observe_step** records the hygiene reward for that tool. Dispatch is *tolerant* - Levenshtein-repairs near-miss tool names
  and cleans up almost-JSON args, fingerprinting every repair into
  **Mistakes**. Any *failure* is fingerprinted (`count++`, cross-session) and
  the tool result gets an inline `correction_hint`
@@ -75,8 +83,9 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 8. When the reply has *no* tool_calls it's the **final answer** →
  `Learning.auto_introspect` fires (if enabled): *(local)*
  `fact_check_local_final` auto-`extro_verify`s every CVE / version-shaped
- claim in the answer; **`Reward.judge`** scores (request, final) →
- `{score, verdict, rationale}`; **`Reward.prm`** back-labels each transcript
+ claim in the answer; **`Reward.judge`** scores (request, final) with a cheap LLM ORM →
+ `{score, verdict, rationale, source}` (heuristic overlap only if the engine is unavailable); **`Policy.finish`** applies that judge score as
+ the terminal reward and updates Q / REINFORCE; **`Reward.prm`** back-labels each transcript
  step with `step_reward:+1/0/-1`; failed goals are optionally HER-relabeled
  by `Curriculum.hindsight`; `Reflect.on` writes durable lessons via
  `ai.reflect_engine` (teacher-student - a frontier engine may author the
@@ -90,7 +99,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## What the agent can call
 
-12 toolsets · **82 tools** - full table at
+13 toolsets · **85 tools** - full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:
@@ -98,10 +107,10 @@ The two that matter most:
 | Tool | Reach |
 |---|---|
 | `pwn_eval` | **Any** Ruby in-process - the whole `PWN::` namespace, `require`, monkey-patch, everything |
-| `shell` | **Any** OS command on the host |
+| `shell` | **Any** OS command on the host. Runs through `PWN::AI::Agent::ToolGuard` first (placeholder, schema, bash-only syntax, unauthorized recon). |
 
 Everything else (memory, skills, learning, **mistakes**, **reward**,
-**curriculum**, extrospection, cron, swarm, sessions, metrics) is a
+**curriculum**, **policy**, extrospection, cron, swarm, sessions, metrics) is a
 convenience wrapper the model can discover from the schema alone.
 
 ## Delegating to other agents
@@ -187,7 +196,10 @@ max_iters: 25                   # budget pressure may lower the effective cap (s
 |---|---|---|
 | `critic` / `counterfactual` / `red_team_plan` | `nil` (auto) | ON for remote engines, OFF for ollama |
 | `hindsight` | `true` | HER soft-relabel on failed turns |
-| `reward_llm` | `nil` (auto) | outcome/process judges use LLM teacher on remote even when `module_reflection` is false |
+| `policy` | `true` | Live tabular Q / REINFORCE. Advisory rank only. `false` disables. |
+| `reward_llm` | `nil` (auto) | outcome/process judges use a cheap LLM teacher on remote even when `module_reflection` is false |
+| `reward_model` | `nil` | optional cheaper model id for `Reward.judge` / `.prm` (nil = active engine default) |
+| `reward_llm_timeout` | `12` | seconds for the cheap ORM chat (clamped 2..30) |
 | `verify_as_reward` | `nil` (auto) | browser-grounded claim sample policy |
 | `local_introspect` | `:failure_only` | ollama end-of-turn introspect policy |
 

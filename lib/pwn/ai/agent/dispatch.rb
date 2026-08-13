@@ -2,6 +2,7 @@
 
 require 'json'
 require 'securerandom'
+require 'pwn/ai/agent/tool_guard'
 
 module PWN
   module AI
@@ -43,6 +44,8 @@ module PWN
           return JSON.generate(error: "unknown tool: #{name}") unless entry
 
           args = parse_args(raw: raw, entry: entry)
+          required = Array(entry.schema&.dig(:parameters, :required))
+          args = ToolGuard.coerce_args(args: args, required: required) if defined?(ToolGuard)
           result = entry.handler.call(args)
           JSON.generate(success: true, result: result)
         rescue StandardError => e

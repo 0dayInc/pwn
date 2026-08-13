@@ -1,6 +1,6 @@
 digraph "PWN_MemorySkills" {
   graph [
-    label=<<B>Persistent Knowledge - Memory · Skills · Learning · Mistakes · Sessions</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">everything under ~/.pwn/ that shapes future prompts</FONT>>,
+    label=<<B>Persistent Knowledge - Memory · Skills · Learning · Mistakes · Policy · Sessions</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">everything under ~/.pwn/ that shapes future prompts</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.55, ranksep=0.95,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -20,8 +20,9 @@ digraph "PWN_MemorySkills" {
     Mrec   [label="mistakes_record\nmistakes_resolve",           fillcolor="#6ee7b7"];
     Xft    [label="Learning.export_finetune\n(sessions → dataset)", fillcolor="#6ee7b7"];
     Rdpo   [label="Reward.record_preference\nexport_dpo", fillcolor="#6ee7b7"];
+    PolW   [label="Policy.begin / observe / finish\n(Q + REINFORCE)", fillcolor="#6ee7b7"];
   }
-  {rank=same; Rem; Skc; Note; Dist; Mrec; Xft; Rdpo}
+  {rank=same; Rem; Skc; Note; Dist; Mrec; Xft; Rdpo; PolW}
 
   subgraph cluster_files {
     label="~/.pwn/"; fontcolor="#fde68a"; style=rounded;
@@ -35,8 +36,9 @@ digraph "PWN_MemorySkills" {
     Fext [label="extrospection.json\nsnapshot · rf · web · obs", shape=cylinder, fillcolor="#fcd34d"];
     Fftn [label="finetune/*.jsonl\nShareGPT / OpenAI / DPO", shape=cylinder, fillcolor="#fcd34d"];
     Fprf [label="preferences.jsonl\nDPO (prompt,rejected,chosen)", shape=cylinder, fillcolor="#fcd34d"];
+    Fpol [label="policy.json + policy_traj.jsonl\nQ table · REINFORCE · MDP log", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmem; Fidx; Fskl; Flrn; Fses; Fmis; Fext; Fftn; Fprf}
+  {rank=same; Fmem; Fidx; Fskl; Flrn; Fses; Fmis; Fext; Fftn; Fprf; Fpol}
 
   subgraph cluster_read {
     label="Read-Side / Injection"; fontcolor="#ddd6fe"; style=rounded;
@@ -48,10 +50,11 @@ digraph "PWN_MemorySkills" {
     Sesv [label="sessions_view\nsessions_current",   fillcolor="#c4b5fd"];
     Mlst [label="mistakes_list\ncorrection_hint",    fillcolor="#c4b5fd"];
     Exem [label="Learning.exemplars_for\n(few-shot trace)",   fillcolor="#c4b5fd"];
+    PolR [label="policy_stats · evaluate\npolicy_recommend",   fillcolor="#c4b5fd"];
   }
-  {rank=same; Rec; Midx; Skv; Out; Sesv; Mlst; Exem}
+  {rank=same; Rec; Midx; Skv; Out; Sesv; Mlst; Exem; PolR}
 
-  Prompt [label="PromptBuilder.build(request:)\nengine-aware .budget\nMEMORY (relevance-ranked) + SKILLS\n+ LEARNING + KNOWN MISTAKES/FIXES\n+ METRICS (per-engine) + EXTRO", fillcolor="#7dd3fc", penwidth=2];
+  Prompt [label="PromptBuilder.build(request:)\nengine-aware .budget\nMEMORY (relevance-ranked) + SKILLS\n+ LEARNING + KNOWN MISTAKES/FIXES\n+ METRICS (per-engine) + POLICY + EXTRO", fillcolor="#7dd3fc", penwidth=2];
 
   Rem  -> Fmem [color="#f59e0b"];
   Skc  -> Fskl [color="#f59e0b"];
@@ -94,6 +97,10 @@ digraph "PWN_MemorySkills" {
   Teach [label="Reflect.on\n(engine: reflect_engine)\nteacher-student", fillcolor="#fda4af", penwidth=2];
   Fses  -> Teach [label="transcript", style=dashed, color="#94a3b8", constraint=false];
   Teach -> Fmem  [label="frontier-authored\n:lesson", color="#fb7185", penwidth=2];
+
+  PolW -> Fpol [color="#f59e0b"];
+  Fpol -> PolR [color="#a78bfa"];
+  PolR -> Prompt [label="POLICY block\nadvisory only", color="#38bdf8"];
   Rdpo -> Fprf [color="#f59e0b"];
   Mrec -> Fprf [label="resolve → pair", style=dashed, color="#fbbf24"];
   Fprf -> Fftn [label="export_dpo", style=dashed, color="#fbbf24", constraint=false];

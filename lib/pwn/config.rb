@@ -174,9 +174,16 @@ module PWN
             # nil = auto: ORM/PRM use LLM teacher on remote engines even when
             # module_reflection is false (keeps local heuristic-only)
             reward_llm: nil,
+            # optional cheaper model id for Reward.judge / .prm (nil = engine default)
+            reward_model: nil,
+            # cheap ORM chat timeout seconds (clamped 2..30)
+            reward_llm_timeout: 12,
             # history compaction keep last K tool pairs + plan (chars budget for ollama)
             history_keep_tool_pairs: 6,
             history_tool_max_chars: 2_000,
+            # R5 — live tabular Q / REINFORCE. nil/true = on; false = off.
+            # Advisory only: never replaces TaskSummarizer / plan_first.
+            policy: true,
             toolsets: nil
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
             # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl

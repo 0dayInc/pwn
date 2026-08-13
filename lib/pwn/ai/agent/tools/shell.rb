@@ -3,6 +3,7 @@
 require 'open3'
 require 'timeout'
 require 'pwn/ai/agent/registry'
+require 'pwn/ai/agent/tool_guard'
 
 # Run a shell command on the pwn host. Lifted from the bash branch of the
 # legacy :pwn_ai_hook (repl.rb).
@@ -38,44 +39,34 @@ PWN::AI::Agent::Registry.register(
     # 3) strip a bare trailing backslash (+ following ws)
     # Prefer pwn_eval / cat <<'EOF' over nested ruby -e with JSON \ layers.
     # Fix for mistakes 30e55df3a6d6 / 853b3ca24b9e (REGRESSED shell syntax \).
+    args = PWN::AI::Agent::ToolGuard.coerce_args(args: args, required: %w[command])
+    return PWN::AI::Agent::ToolGuard.invalid_payload(hint: args[:__schema_hint]) if args[:__schema_error]
+
     cmd = args[:command].to_s
                         .encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
                         .gsub(/\\\r?\n/, ' ')
                         .gsub(/\\+\s*\z/, '')
                         .strip
     timeout = (args[:timeout] || 120).to_i
-    raise ArgumentError, 'command is required' if cmd.empty?
+    if cmd.empty? || PWN::AI::Agent::ToolGuard.placeholder?(text: cmd)
+      return PWN::AI::Agent::ToolGuard.invalid_payload(
+        hint: 'command is required (string). Do not send ..., {...}, {…}, or empty. ' \
+              'Example: shell(command="uname -r").'
+      )
+    end
+
+    if PWN::AI::Agent::ToolGuard.bashism?(text: cmd) && !PWN::AI::Agent::ToolGuard.shell_bash?
+      return PWN::AI::Agent::ToolGuard.invalid_payload(
+        hint: 'Command uses bash-only syntax (PIPESTATUS, [[ ]], process substitution, ' \
+              'source, &>). This handler runs /bin/sh (dash) unless ' \
+              'PWN::Env[:ai][:agent][:shell_bash]=true. Rewrite as POSIX or opt in to bash.'
+      )
+    end
 
     # Guard: raw-socket / subnet discovery without explicit engagement auth.
-    # Intent routing should short-circuit most of these; this is defense-in-depth
-    # when a local model still emits hping3/nmap sweeps mid-loop.
-    recon_blocked = begin
-      auth = Thread.current[:pwn_recon_authorized] == true
-      unless auth
-        v = (PWN::Env.dig(:ai, :agent, :recon_authorized) if defined?(PWN::Env))
-        auth = v == true || v.to_s =~ /\A(1|true|yes|on)\z/i
-      end
-      !auth && cmd.match?(
-        %r{
-          (?:^|[;&|\s])(?:sudo\s+)?hping3?(?:\s|$).*(?:-1|--icmp|--flood|/[0-9]{1,2}|seq\s+|for\s+)
-          |(?:^|[;&|\s])(?:sudo\s+)?nmap\b[^\n]*(?:-sn|-sP|-PE|-PP|-PM)[^\n]*(?:/[0-9]{1,2}|\d+\.\d+\.\d+\.\d+)
-          |(?:^|[;&|\s])(?:sudo\s+)?masscan\b
-          |(?:^|[;&|\s])(?:sudo\s+)?nping\b
-          |(?:^|[;&|\s])(?:sudo\s+)?fping\b[^\n]*/
-          |for\s+\w+\s+in\s+\$?\(?seq[^)]*\)?[^;]*;\s*do\s[^;]*(?:hping|ping\s+-c|nmap)
-        }ix
-      )
-    rescue StandardError
-      false
-    end
-    if recon_blocked
-      msg = "[pwn-ai/guard] blocked unauthorized recon/sweep command. Need explicit in-scope authorization on the user request or PWN::Env[:ai][:agent][:recon_authorized]=true. Refused: #{cmd[0, 200]}"
-      return {
-        stdout: '',
-        stderr: msg,
-        exit: 126,
-        error: 'unauthorized_recon_blocked'
-      }
+    if PWN::AI::Agent::ToolGuard.recon_text?(text: cmd) &&
+       !PWN::AI::Agent::ToolGuard.recon_authorized?
+      return PWN::AI::Agent::ToolGuard.recon_blocked(text: cmd)
     end
 
     stdout = +''
@@ -85,7 +76,12 @@ PWN::AI::Agent::Registry.register(
 
     # pgroup: true => child is session/process-group leader; kill(-pid)
     # reaps the whole tree (shell + grandchildren) on timeout.
-    Open3.popen3(cmd, pgroup: true) do |stdin, out_io, err_io, wait_thr|
+    spawn_cmd = if PWN::AI::Agent::ToolGuard.shell_bash?
+                  ['bash', '-lc', cmd]
+                else
+                  cmd
+                end
+    Open3.popen3(*Array(spawn_cmd), pgroup: true) do |stdin, out_io, err_io, wait_thr|
       stdin.close
       pid = wait_thr.pid
 
@@ -168,8 +164,8 @@ PWN::AI::Agent::Registry.register(
       end
     end
 
-    return { stdout: stdout, stderr: stderr, exit: nil, error: "timeout after #{timeout}s" } if timed_out
+    return { stdout: stdout, stderr: stderr, exit: nil, error: "timeout after #{timeout}s", shell: PWN::AI::Agent::ToolGuard.shell_name } if timed_out
 
-    { stdout: stdout, stderr: stderr, exit: exitstatus }
+    { stdout: stdout, stderr: stderr, exit: exitstatus, shell: PWN::AI::Agent::ToolGuard.shell_name }
   }
 )

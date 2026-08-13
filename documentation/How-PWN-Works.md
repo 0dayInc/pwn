@@ -29,19 +29,19 @@ hardware).
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
 | **`TaskSummarizer`** | Executive UX: LLM/heuristic `request_kind` gates plans (only autonomous goals, including host-evidence Qs) - English tasks primary - `emit_plan!` · `about_to` as `task k/n` + via tools · Loop `plan_context` injection · clearer `plan_idx` advance |
-| `Registry` | JSON-Schema function definitions grouped into 12 **toolsets** · **82 tools** |
+| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **85 tools** |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
-| `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / EXTROSPECTION blocks |
-| `Metrics` · `Learning` · `Reflect` | **introspection** - how well am I doing? |
+| `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / **POLICY** / EXTROSPECTION / RECENT TURNS |
+| `Metrics` · `Learning` · `Reflect` · **`Policy`** | **introspection** - how well am I doing? (Policy is live Q / REINFORCE, advisory rank only) |
 | `Mistakes` | **negative feedback** - fingerprint failures, do NOT repeat, `[REPEATING]`/`[REGRESSED]`, inline `correction_hint` |
-| **`Reward`** | outcome `judge` · per-step process credit · `sentinel` (proxy vs judge drift) · `semantic_ok` · DPO `preferences.jsonl` |
+| **`Reward`** | cheap LLM outcome `judge` (heuristic overlap last) · per-step process credit · `sentinel` (proxy vs ORM-weighted judge) · `semantic_ok` · DPO `preferences.jsonl` |
 | **`Curriculum`** | mistake-driven self-play `practice` · `counterfactual` A/B · tool-armed `critic` · `red_team_plan` · `hindsight` (HER) · `train_and_gate` regression-gated LoRA |
 | `Extrospection` | **extrospection** - on-demand world sensing (`intel` · **`verify`** · **`watch`** · **`rf_tune`** · **`osint`** · `serial` · `telecomm` · `packet` · `vision` · `voice`) + ambient baseline (host · net · toolchain · repo · env · **rf** · **web**) joined to introspection via `correlate` |
 | `Swarm` | multi-agent personas over a shared JSONL bus |
 
 See [Agent Tool Registry](Agent-Tool-Registry.md) for every tool the LLM can
 call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
-`Reward` + `Curriculum` close the weight-level loop.
+`Reward` + `Curriculum` + `Policy` close the learning loop.
 
 ## L3 - Capability namespaces (`lib/pwn/*`)
 
@@ -69,10 +69,12 @@ lessons, **failures become fingerprinted mistakes with fixes**, **world state
 is sensed on demand** (`extro_verify` / `extro_watch` / `extro_rf_tune` /
 `extro_osint` / `extro_serial` / `extro_telecomm` / `extro_packet` /
 `extro_vision` / `extro_voice` / `extro_intel`) and correlated against those
-failures, an **LLM judge scores the final answer** and a **process reward
-model tags each tool step**, and **all six prompt blocks** (MEMORY · SKILLS ·
-LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION) are
-re-injected into the next system prompt.
+failures, a **cheap LLM judge scores the final answer** (token overlap only if the engine is unavailable) and a **process reward
+model tags each tool step**, **Policy records the live MDP step** and updates
+Q / REINFORCE when the judge scores the turn, and **the prompt blocks**
+(MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS ·
+POLICY · EXTROSPECTION · RECENT TURNS) are re-injected into the next system
+prompt.
 Nightly cron practices the top unresolved Mistakes; weekly cron builds a
 LoRA and only promotes it if it beats the previous adapter on that same
 mistake set:

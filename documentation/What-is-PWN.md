@@ -20,7 +20,7 @@ with a **tool-calling AI agent** on top that can run the same methods.
 | `PWN::FFI::*` | **8** | Native DSP/RF backends: Volk · Liquid · FFTW · RTLSdr · HackRF · AdalmPluto · SoapySDR · Stdio |
 | `PWN::AI::*` | **6** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama, Open WebUI |
 | `bin/pwn_*` | **53** | Headless CLI drivers for CI/CD |
-| Agent toolsets | **12** · **82 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · extrospection · cron · swarm · reward · curriculum |
+| Agent toolsets | **13** · **85 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · policy · extrospection · cron · swarm · reward · curriculum |
 
 ## Three ways to use it
 
@@ -36,12 +36,13 @@ with a **tool-calling AI agent** on top that can run the same methods.
 - **Everything is Ruby, everything is a method.** No YAML DSLs, no black-box
   plugins. If you can call it in the REPL, the AI agent can call it, a driver
   can call it, and a cron job can call it.
-- **Closed feedback loop.** Metrics + Learning + **Reward** (ORM/PRM judge,
-  sentinel) + **Curriculum** (mistake-driven self-play, HER, regression-gated
-  LoRA) on the introspection side; Snapshot + Drift + Intel + Verify on the
-  extrospection side; joined by `extro_correlate`, which tells the agent
-  whether a failure was *its* fault or *the world* changed - and writes the
-  lesson back into the next prompt.
+- **Closed feedback loop.** Metrics + Learning + **Reward** (outcome and process
+  judges, sentinel) + **Curriculum** (mistake-driven self-play, hindsight relabel,
+  export-ready LoRA gate) + **Policy** (live tabular Q-learning and REINFORCE on
+  each turn, advisory rank only) on the introspection side; Snapshot + Drift +
+  Intel + Verify on the extrospection side; joined by `extro_correlate`, which
+  tells the agent whether a failure was *its* fault or *the world* changed - and
+  writes the lesson back into the next prompt.
 - **Native multi-agent.** `PWN::AI::Agent::Swarm` runs personas (each a full
   tool-calling agent, optionally on a *different* LLM engine) that debate,
   broadcast, and share an append-only bus - no IRC daemon, no external service.

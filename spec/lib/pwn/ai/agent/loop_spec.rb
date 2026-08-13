@@ -218,7 +218,6 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/answer_howto/)
       expect(src).to match(/answer_statement/)
       expect(src).to match(/answer_question/)
-      expect(src).to match(/refuse_unauthorized_recon/)
       expect(src).to match(/intent == :howto/)
       expect(src).to match(/skip_plan/)
       expect(src).to match(/needs_breakdown/)

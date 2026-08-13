@@ -198,6 +198,8 @@ module PWN
             practiced: results.length,
             resolved: results.count { |r| r[:resolved] },
             skipped_cooldown: cool.count { |_, v| v[:fail_nights].to_i >= COOLDOWN_FAIL_NIGHTS },
+            skipped_parked: (defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox) ? Mistakes.operator_inbox[:count] : 0),
+            operator_inbox: (defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox) ? Mistakes.operator_inbox[:items] : []),
             results: results,
             dry_run: dry_run,
             kpi: kpi,
@@ -306,7 +308,8 @@ module PWN
                 score: sc,
                 details: "offline_judge #{verd}(#{sc.round(2)}) #{v[:rationale]}",
                 session_id: sid,
-                tags: ['offline_judge', 'auto', verd]
+                tags: ['offline_judge', 'auto', verd],
+                judge_source: v[:source]
               )
             end
             scored << { session_id: sid, score: v[:score], verdict: v[:verdict] }
@@ -731,7 +734,7 @@ module PWN
         end
 
         public_class_method def self.calibrate(opts = {})
-          p = opts[:predicted].to_f.clamp(0.0, 1.0)
+          p = (opts.key?(:predicted) && !opts[:predicted].nil? ? opts[:predicted] : 0.5).to_f.clamp(0.0, 1.0)
           a = opts[:actual].to_f.clamp(0.0, 1.0)
           brier = (p - a)**2
           Metrics.record_calibration(predicted: p, actual: a, brier: brier, engine: opts[:engine]) if defined?(Metrics) && Metrics.respond_to?(:record_calibration)
@@ -1112,7 +1115,13 @@ module PWN
         end
 
         private_class_method def self.build_eval_set
-          rows = defined?(Mistakes) ? Mistakes.top(limit: 20, unresolved_only: false) : []
+          rows = if defined?(Mistakes)
+                   Mistakes.top(limit: 40, unresolved_only: false).reject do |m|
+                     m[:parked] || m[:needs_code_change] || m[:needs_human]
+                   end.first(20)
+                 else
+                   []
+                 end
           rows.map { |m| { signature: m[:signature], prompt: generate_reproducers(mistake: m, count: 1).first } }
         end
 
@@ -1199,7 +1208,7 @@ module PWN
           frac = bal[:fractions] || {}
           max_share = frac.values.map(&:to_f).max || 1.0
           traj_frac = bal[:trajectory_fraction].to_f
-          ok = !bal[:monoculture] && max_share <= 0.45 && traj_frac >= 0.30
+          ok = !bal[:monoculture] && max_share <= 0.45 && traj_frac >= 0.5
           {
             ok: ok,
             total: total,

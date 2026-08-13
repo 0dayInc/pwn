@@ -35,7 +35,7 @@ and automate instead of gluing together a pile of separate CLIs.
 
 **In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
 service wrappers · 21 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
-6 LLM engines · 12 agent toolsets · 82 LLM-callable tools.
+6 LLM engines · 13 agent toolsets · 85 LLM-callable tools.
 
 Full page: [What is PWN](documentation/What-is-PWN.md)
 
@@ -66,7 +66,7 @@ My take: pwn-ai implements a **closed-loop, dual-horizon, self-and-world-aware r
 
 - fast aversive conditioning (Mistakes),
 - value estimates for actions (Metrics),
-- episode scoring and replay (Learning/Reward),
+- episode scoring and replay (Learning/Reward, cheap LLM ORM with overlap last),
 - deliberate practice (Curriculum),
 - and an external reality check (Extrospection),
 - with a slower supervised/DPO hatch only when the diet and gates look sane.
@@ -96,12 +96,13 @@ small and easy to swap:
 ![PWN Overall Architecture](documentation/diagrams/overall-pwn-architecture.svg)
 
 On every turn the AI layer runs a **feedback loop**. It checks inward
-(Metrics, Learning, and **Mistakes**: what failed last time) and outward
+(Metrics, Learning, **Mistakes**, and **Policy**: what failed last time, and
+which tool the live Q / REINFORCE table currently prefers) and outward
 (Snapshot, Drift, Intel, RF, and **Web**: did the host or network change?).
 Live checks use browser-backed **`extro_verify`** / **`extro_watch`** and RF
 **`extro_rf_tune`**. `extro_correlate` joins those views so the agent can tell
 *"I messed up"* from *"the world moved"*, and **does not repeat the same
-mistake**:
+mistake**. Policy is advice only. Planning still owns the task list:
 
 ![pwn-ai Feedback Learning Loop](documentation/diagrams/pwn-ai-feedback-learning-loop.svg)
 
@@ -139,9 +140,10 @@ The complete wiki lives in this repo at **[`documentation/Home.md`](documentatio
 | [Why PWN](documentation/Why-PWN.md) | [`pwn-ai` Agent](documentation/pwn-ai-Agent.md) | [Agent Tool Registry](documentation/Agent-Tool-Registry.md) | [SAST (48)](documentation/SAST.md) |
 | [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (53)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
 | [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (21)](documentation/WWW.md) |
-| [General Usage](documentation/General-PWN-Usage.md) | | [Extrospection](documentation/Extrospection.md) | [SDR / Radio](documentation/SDR.md) |
-| [Configuration](documentation/Configuration.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [Hardware](documentation/Hardware.md) |
-| [`~/.pwn/` Persistence](documentation/Persistence.md) | | [Sessions](documentation/Sessions.md) · [Cron](documentation/Cron.md) | [Reports](documentation/Reporting.md) |
+| [General Usage](documentation/General-PWN-Usage.md) | | [Reinforcement Learning](documentation/Reinforcement-Learning.md) | [SDR / Radio](documentation/SDR.md) |
+| [Configuration](documentation/Configuration.md) | | [Extrospection](documentation/Extrospection.md) | [Hardware](documentation/Hardware.md) |
+| [`~/.pwn/` Persistence](documentation/Persistence.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [Reports](documentation/Reporting.md) |
+| | | [Sessions](documentation/Sessions.md) · [Cron](documentation/Cron.md) | |
 | **[All Diagrams](documentation/Diagrams.md)** (29) | | | [BurpSuite](documentation/BurpSuite.md) · [NmapIt](documentation/NmapIt.md) |
 | [Troubleshooting](documentation/Troubleshooting.md) | | | [Metasploit](documentation/Metasploit.md) · [Fuzzing](documentation/Fuzzing.md) |
 | [Contributing](documentation/Contributing.md) | | | [Blockchain](documentation/Blockchain.md) · [Bounty](documentation/Bounty.md) |

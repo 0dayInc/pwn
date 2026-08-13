@@ -137,4 +137,37 @@ describe PWN::AI::Agent::Mistakes do
   ensure
     FileUtils.rm_rf(tmp) if tmp
   end
+  it 'extinguish! resolves recoverable repeating shell shapes' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(Dir.mktmpdir, 'prefs.jsonl')) if defined?(PWN::AI::Agent::Reward)
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(Dir.mktmpdir, 'memory.json')) if defined?(PWN::Memory)
+    described_class.reset if described_class.respond_to?(:reset)
+    m = nil
+    3.times { m = described_class.record(tool: 'shell', error: 'argumenterror: command is required', shape: 'handler_error') }
+    out = described_class.extinguish!(signature: m[:signature], shape: 'handler_error', force: true)
+    expect(out[:resolved]).to be true
+    expect(out[:fix].to_s).to match(/command is required|uname -r/)
+    expect(described_class.top(unresolved_only: true).map { |r| r[:signature] }).not_to include(m[:signature])
+  end
+
+  it 'extinguish! does not close budget-exhaustion handler_error scars' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    described_class.reset if described_class.respond_to?(:reset)
+    m = described_class.record(tool: 'assistant_answer', error: 'critic: [pwn-ai] iteration budget exhausted', shape: 'handler_error')
+    out = described_class.extinguish!(signature: m[:signature], shape: 'handler_error', force: true)
+    expect(out[:resolved]).not_to eq(true)
+    expect(described_class.find(signature: m[:signature])[:resolved]).not_to eq(true)
+  end
+
+  it 'extinguish_parked! closes recoverable inbox scars' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    stub_const('PWN::AI::Agent::Reward::PREFERENCES_FILE', File.join(Dir.mktmpdir, 'prefs.jsonl')) if defined?(PWN::AI::Agent::Reward)
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(Dir.mktmpdir, 'memory.json')) if defined?(PWN::Memory)
+    described_class.reset if described_class.respond_to?(:reset)
+    m = described_class.record(tool: 'shell', error: 'argumenterror: command is required', shape: 'handler_error')
+    described_class.park(signature: m[:signature], reason: 'needs_human leftover')
+    out = described_class.extinguish_parked!(limit: 10)
+    expect(out[:extinguished]).to be >= 1
+    expect(described_class.find(signature: m[:signature])[:resolved]).to be true
+  end
 end

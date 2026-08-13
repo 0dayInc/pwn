@@ -24,4 +24,14 @@ describe PWN::AI::Agent::Metrics do
     expect(row[:success_rate]).to eq 0.5
     expect(PWN::AI::Agent::Metrics.to_context).to include('shell')
   end
+  it 'judge_rate weights llm_orm above heuristic overlap' do
+    stub_const('PWN::AI::Agent::Metrics::METRICS_FILE', File.join(Dir.mktmpdir, 'metrics.json'))
+    PWN::AI::Agent::Metrics.reset
+    8.times { PWN::AI::Agent::Metrics.record_judge(name: 'shell', score: 0.9, confidence: 0.35, source: :heuristic) }
+    8.times { PWN::AI::Agent::Metrics.record_judge(name: 'shell', score: 0.2, confidence: 0.85, source: :llm_orm) }
+    rate = PWN::AI::Agent::Metrics.judge_rate(name: 'shell')
+    # unweighted mean would be 0.55; ORM-weighted mean is closer to 0.2
+    expect(rate).to be < 0.45
+    expect(rate).to be > 0.2
+  end
 end

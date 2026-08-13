@@ -233,4 +233,79 @@ describe PWN::AI::Agent::Reward do
     expect(bad[:score]).to be < good[:score]
     expect(bad[:missing]).not_to be_empty
   end
+  it 'judge_sample_weight ranks llm_orm above heuristic overlap' do
+    expect(described_class.judge_sample_weight(source: :llm_orm)).to eq 1.0
+    expect(described_class.judge_sample_weight(source: :heuristic)).to be < 0.5
+    expect(described_class.judge_sample_weight(source: :error)).to be < described_class.judge_sample_weight(source: :heuristic)
+  end
+
+  it 'llm_judge prefers cheap engine chat over heuristic overlap' do
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(Dir.mktmpdir, 's.json'))
+    allow(described_class).to receive(:reflect_available?).and_return(true)
+    allow(described_class).to receive(:reflect_on_ready?).and_return(false)
+    allow(described_class).to receive(:engine_chat_cheap).and_return(
+      '{"score":0.82,"verdict":"solved","rationale":"final matches request","key_step":1}'
+    )
+    v = described_class.judge(
+      request: 'print kernel release',
+      final: 'completely unrelated marketing blurb',
+      trace: ['{"success":true,"result":{"exit":0}}'],
+      commit: false
+    )
+    expect(v[:source].to_s).to eq 'llm_orm'
+    expect(v[:score]).to be_within(0.01).of(0.82)
+    expect(v[:confidence]).to be >= 0.8
+    expect(v[:rationale].to_s).not_to match(/heuristic overlap/)
+  end
+
+  it 'sentinel window_means weights llm_orm above heuristic overlap' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(tmp, 's.json'))
+    20.times { described_class.send(:record_sentinel, proxy: true, judge: 0.9, source: :heuristic) }
+    20.times { described_class.send(:record_sentinel, proxy: true, judge: 0.2, source: :llm_orm) }
+    means = described_class.send(:window_means, window: described_class.send(:load_sentinel)[:window])
+    # equal counts: unweighted mean would be 0.55; ORM-weighted mean is closer to 0.2
+    expect(means[:judge]).to be < 0.45
+    expect(means[:judge]).to be > 0.2
+  end
+  it 'parse_llm_judge reads fenced JSON and Grok chat hashes' do
+    fenced = described_class.send(
+      :parse_llm_judge,
+      resp: "```json\n{\"score\":0.71,\"verdict\":\"partial\",\"rationale\":\"usable but open plan\",\"key_step\":2}\n```"
+    )
+    expect(fenced[:source].to_s).to eq 'llm_orm'
+    expect(fenced[:score]).to be_within(0.01).of(0.71)
+
+    hashed = described_class.send(
+      :parse_llm_judge,
+      resp: { choices: [{ role: 'system', content: 'sys' }, { role: 'assistant', content: '{"score":0.66,"verdict":"partial","rationale":"ok","key_step":1}' }] }
+    )
+    expect(hashed[:score]).to be_within(0.01).of(0.66)
+  end
+
+  it 'evidence_prior beats token-overlap on truncated finals' do
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(Dir.mktmpdir, 's.json'))
+    allow(described_class).to receive(:reflect_available?).and_return(false)
+    v = described_class.judge(
+      request: 'Briefly describe the strengths and weaknesses of the pwn-ai RL loop',
+      final: 'The loop is a live tabular overlay, not deep RL. Strengths. It treats each turn as one MDP step. Weaknesses. The tables are cold and',
+      trace: ['{"success":true,"result":{"exit":0}}'],
+      commit: false
+    )
+    expect(v[:source].to_s).to eq 'heuristic'
+    expect(v[:rationale].to_s).to match(/heuristic/)
+    expect(v[:score]).to be < 0.6
+  end
+
+  it 'recalibrated distrust never full-haircuts a normal gap' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(tmp, 's.json'))
+    File.write(File.join(tmp, 's.json'), JSON.generate(window: [], proxy_distrust: 0.0))
+    factor = described_class.set_proxy_distrust(gap: 0.30, proxy: 1.0, judge: 0.70)
+    expect(factor).to be <= 0.85
+    expect(factor).to be >= 0.2
+    expect(described_class.proxy_distrust).to be <= 0.85
+    described_class.set_proxy_distrust(gap: 0.60, proxy: 1.0, judge: 0.30)
+    expect(described_class.proxy_distrust).to eq 0.85
+  end
 end

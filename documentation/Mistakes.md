@@ -38,9 +38,12 @@ Loop.run --(same sig, count≥3)----> guard_repeated_failure  (uses PERSISTENT c
 Loop.run --(failure w/ known fix)-> inline correction_hint  ("seen 5×, sig=..., KNOWN FIX: ..."
                                                              → self-corrects NEXT iteration)
 Loop.run --(user says "wrong")----> check_user_correction   (flip last outcome + record)
+Loop.run --(start of turn)--------> extinguish_parked!      (close inbox scars that already have a known recipe)
 PromptBuilder <-------------------- Mistakes.to_context     (KNOWN MISTAKES + KNOWN FIXES)
 model --(tool call)---------------> mistakes_record / mistakes_resolve
 ```
+
+Repeating shell failures with a known recipe (`command is required`, missing path, not-found junk, syntax, raw-socket deny) are resolved in place instead of parked as "needs human". Only scars the loop cannot close stay in the operator inbox.
 
 ## Five ingest paths - nothing slips through
 

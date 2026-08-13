@@ -2,6 +2,7 @@
 
 require 'stringio'
 require 'pwn/ai/agent/registry'
+require 'pwn/ai/agent/tool_guard'
 
 # Evaluate Ruby with the full PWN:: namespace loaded. Lifted from the ruby
 # branch of the legacy :pwn_ai_hook (repl.rb). This is the agent's bridge
@@ -27,8 +28,33 @@ PWN::AI::Agent::Registry.register(
   },
   max_chars: 32_000,
   handler: lambda { |args|
+    args = PWN::AI::Agent::ToolGuard.coerce_args(args: args, required: %w[code])
+    if args[:__schema_error]
+      return {
+        stdout: '',
+        error: 'invalid_payload',
+        hint: args[:__schema_hint]
+      }
+    end
+
     code = args[:code].to_s
-    raise ArgumentError, 'code is required' if code.strip.empty?
+    if code.strip.empty? || PWN::AI::Agent::ToolGuard.placeholder?(text: code)
+      return {
+        stdout: '',
+        error: 'invalid_payload',
+        hint: 'code is required (string). Do not send ..., {...}, {…}, or empty. Example: pwn_eval(code="1 + 1").'
+      }
+    end
+
+    if PWN::AI::Agent::ToolGuard.recon_text?(text: code) &&
+       !PWN::AI::Agent::ToolGuard.recon_authorized?
+      blocked = PWN::AI::Agent::ToolGuard.recon_blocked(text: code)
+      return {
+        stdout: '',
+        error: blocked[:error],
+        hint: blocked[:hint]
+      }
+    end
 
     old_stdout = $stdout
     buf = StringIO.new

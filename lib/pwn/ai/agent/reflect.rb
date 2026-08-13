@@ -64,6 +64,8 @@ module PWN
           raise 'ERROR: request must be provided' if request.nil?
 
           system_role_content = opts[:system_role_content]
+          timeout = opts[:timeout]
+          temp = opts[:temp]
 
           spinner = opts[:spinner] || false
 
@@ -93,7 +95,9 @@ module PWN
                   engine: engine,
                   request: request.chomp,
                   system_role_content: system_role_content,
-                  spinner: spinner
+                  spinner: spinner,
+                  timeout: timeout,
+                  temp: temp
                 )
               end
             ensure
@@ -120,11 +124,15 @@ module PWN
           mod = Object.const_get(mod_name)
           raise "ERROR: #{mod_name} does not implement .chat" unless mod.respond_to?(:chat)
 
-          mod.chat(
+          chat_opts = {
             request: opts[:request],
             system_role_content: opts[:system_role_content],
             spinner: opts[:spinner]
-          )
+          }
+          chat_opts[:timeout] = opts[:timeout] unless opts[:timeout].nil?
+          chat_opts[:temp] = opts[:temp] unless opts[:temp].nil?
+          chat_opts[:model] = opts[:model] unless opts[:model].to_s.empty?
+          mod.chat(chat_opts)
         end
 
         # Temporarily override PWN::Env[:ai][:active] so engine_chat routes to

@@ -16,6 +16,8 @@ Every byte PWN remembers between processes lives here.
 | **`preferences.jsonl`** | **`PWN::AI::Agent::Reward`** | JSON-per-line `{prompt,rejected,chosen,source}` | `rm` | **DPO/KTO/ORPO preference-pair ledger - user_correction · mistakes_resolve · counterfactual · critic · curriculum** |
 | **`mistakes.json`** | **`PWN::AI::Agent::Mistakes`** | **JSON `{sig → entry}`** | **`mistakes_reset`** | **failure fingerprints · cross-session count · fix · `[REPEATING]` · `[REGRESSED]`** |
 | `metrics.json` | `PWN::AI::Agent::Metrics` | JSON | `metrics_reset` | per-tool calls · success · avg_duration · last_error · **per-engine** sub-buckets · calibration |
+| **`policy.json`** | **`PWN::AI::Agent::Policy`** | JSON `{q,h,visits,returns}` | `PWN::AI::Agent::Policy.reset` | Live Q table + REINFORCE logits. Advisory rank only. |
+| **`policy_traj.jsonl`** | **`PWN::AI::Agent::Policy`** | JSON-per-line episodes | `PWN::AI::Agent::Policy.reset` | MDP trajectories `(s,a,r,s')` from each Loop turn |
 | `reward_sentinel.json` | `PWN::AI::Agent::Reward` | JSON | `rm` | proxy vs judge vs user-correction gap history |
 | `extrospection.json` | `PWN::AI::Agent::Extrospection` | JSON | `extro_reset` | host/net/toolchain/repo/env/**rf**/**web**/osint/serial/telecomm/packet/vision/voice snapshot + previous baseline + observations[] |
 | `extrospection/web/*.png` | `Extrospection` | PNG | `rm -rf` | headless-browser screenshots from `probe_web` / `extro_watch` (opt-in) |
@@ -76,6 +78,7 @@ extro_reset(confirm: true)     # host snapshot + observations
 mistakes_reset(confirm: true)  # failure fingerprints (host-specific errors)
 learning_reset(confirm: true)  # task outcomes (optional)
 metrics_reset(confirm: true)   # tool telemetry (optional)
+PWN::AI::Agent::Policy.reset   # live Q table + trajectory log (optional)
 ```
 
 [← Home](Home.md) · [Configuration](Configuration.md) · [Installation](Installation.md)
@@ -90,7 +93,7 @@ protected operator preferences:
 | `memory_lean` | expired `session_*` keys and overlong values (`VALUE_MAX_CHARS`) |
 | `sessions_lean` | stub/aged transcripts not pinned by gold outcomes or open mistakes |
 | `mistakes_lean` | compact fields; age out resolved-once signatures whose fix already lives in Memory |
-| `learning_gc_stores` | coordinated lean pass across memory, learning, mistakes, and sessions |
+| `learning_gc_stores` | coordinated lean pass across memory, learning, mistakes, sessions, and Policy trajectories |
 
 All four support `dry_run: true` (plan only). Protected `operator_pref_*`,
 `process_sop_*`, and `mistake_fix_*` memory keys are never removed by lean.

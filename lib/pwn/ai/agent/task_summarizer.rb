@@ -297,6 +297,22 @@ module PWN
         # ------------------------------------------------------------------
         KIND_LABELS = %i[statement question autonomous_goal].freeze
 
+        # Review / opinion asks are questions unless the user also asks to implement.
+        OPINION_REVIEW_RX = /
+          \b(?:
+            suggest\s+(?:areas?|ways?|ideas?)|
+            areas?\s+for\s+improvement|
+            what\s+(?:do\s+you\s+think|would\s+you\s+(?:change|improve))|
+            your\s+(?:take|opinion|assessment|review)\b|
+            briefly\s+describe|
+            review\s+(?:the|this|our)
+          )
+        /ix
+
+        IMPLEMENT_RX = /
+          \b(?:implement|fix\s+all|apply|patch|land|ship)\b
+        /ix
+
         STATEMENT_RX = /
           \A\s*(
             (?:fyi|note|noted|heads\s*up|for\s+the\s+record|just\s+so\s+you\s+know)\b |
@@ -373,25 +389,26 @@ module PWN
         /ix
 
         KIND_SYSTEM = <<~SYS
-          You classify ONE user request for the pwn-ai agent.
-          Return ONLY one token from this set:
-            statement
-            question
-            autonomous_goal
+                    You classify ONE user request for the pwn-ai agent.
+                    Return ONLY one token from this set:
+                      statement
+                      question
+                      autonomous_goal
 
-          Definitions:
-          - statement: FYI, observation, ack, or greeting. No work requested. No answer needed beyond a brief note.
-          - question: asks for knowledge, explanation, syntax, or prior-turn recall that can be answered without the agent performing multi-step host/code work. Do NOT plan tools.
-          - autonomous_goal: the agent must DO something — implement/fix/scan/run commands, or answer a fact that requires a live local lookup (hostname, cwd, whoami, listening ports, etc.).
+                    Definitions:
+                    - statement: FYI, observation, ack, or greeting. No work requested. No answer needed beyond a brief note.
+                    - question: asks for knowledge, explanation, syntax, or prior-turn recall that can be answered without the agent performing multi-step host/code work. Do NOT plan tools.
+                    - autonomous_goal: the agent must DO something — implement/fix/scan/run commands, or answer a fact that requires a live local lookup (hostname, cwd, whoami, listening ports, etc.).
 
-          Rules:
-          - "can you fix/implement/scan...?" is autonomous_goal even with a trailing ?
-          - "how to ..." / "what flags does X use" without "do it here" is question
-          - "what is my hostname?" / "what is my ip?" is autonomous_goal (needs tools)
+                    Rules:
+                    - "can you fix/implement/scan...?" is autonomous_goal even with a trailing ?
+                    - "how to ..." / "what flags does X use" without "do it here" is question
+                    - "what is my hostname?" / "what is my ip?" is autonomous_goal (needs tools)
           - "FYI the build is green" is statement
+          - "suggest areas for improvement" / "what do you think" / review-opinion asks are question unless the user also says implement/fix/apply
           - Prefer autonomous_goal when unsure whether live action is required
 
-          Output: a single label token. No punctuation, no JSON, no prose.
+                    Output: a single label token. No punctuation, no JSON, no prose.
         SYS
 
         # LLM request-kind classifier is ON by default (same knob family as plan LLM).
@@ -448,6 +465,9 @@ module PWN
           end
           return :autonomous_goal if enumerated.length >= MIN_PLAN_TASKS
 
+          # Review / opinion / "suggest areas" stay questions unless implement.
+          return :question if req.match?(OPINION_REVIEW_RX) && !req.match?(IMPLEMENT_RX)
+
           # Strong agent-do / host-evidence before LLM (stable + offline).
           return :autonomous_goal if req.match?(AUTONOMOUS_GOAL_RX)
           return :autonomous_goal if req.match?(NEEDS_LOCAL_EVIDENCE_RX)
@@ -468,6 +488,7 @@ module PWN
           req = opts[:request].to_s
           return :statement if req.strip.empty?
 
+          return :question if req.match?(OPINION_REVIEW_RX) && !req.match?(IMPLEMENT_RX)
           return :autonomous_goal if req.match?(AUTONOMOUS_GOAL_RX)
           return :autonomous_goal if req.match?(NEEDS_LOCAL_EVIDENCE_RX)
           return :question if req.match?(QUESTION_RX)
