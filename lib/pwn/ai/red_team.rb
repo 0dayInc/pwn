@@ -18,7 +18,6 @@ module PWN
       autoload :ExcessiveAgency, 'pwn/ai/red_team/excessive_agency'
       autoload :InsecureOutputHandling, 'pwn/ai/red_team/insecure_output_handling'
       autoload :Jailbreak, 'pwn/ai/red_team/jailbreak'
-      autoload :ModelDenialOfService, 'pwn/ai/red_team/model_denial_of_service'
       autoload :Overreliance, 'pwn/ai/red_team/overreliance'
       autoload :PayloadSplitting, 'pwn/ai/red_team/payload_splitting'
       autoload :PromptInjection, 'pwn/ai/red_team/prompt_injection'

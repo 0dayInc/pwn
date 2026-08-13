@@ -12,6 +12,7 @@ module PWN
     autoload :CoinbasePro, 'pwn/www/coinbase_pro.rb'
     autoload :Duckduckgo, 'pwn/www/duckduckgo'
     autoload :Facebook, 'pwn/www/facebook'
+    autoload :GitHub, 'pwn/www/github'
     autoload :Google, 'pwn/www/google'
     autoload :HackerOne, 'pwn/www/hacker_one'
     autoload :Linkedin, 'pwn/www/linkedin'

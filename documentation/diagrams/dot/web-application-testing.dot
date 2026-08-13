@@ -17,7 +17,7 @@ digraph "PWN_Web" {
     color="#047857"; bgcolor="#022c22";
     TB     [label="TransparentBrowser\nheadless · watir · devtools", fillcolor="#6ee7b7"];
     Spider [label="Plugins::Spider\nURI buster",                     fillcolor="#6ee7b7"];
-    WWW    [label="PWN::WWW::*\n21 site drivers",                    fillcolor="#6ee7b7"];
+    WWW    [label="PWN::WWW::*\n22 site drivers",                    fillcolor="#6ee7b7"];
   }
   subgraph cluster_proxy {
     label="Intercept + Scan"; fontcolor="#fde68a"; style=rounded;

@@ -45,7 +45,7 @@ call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 
 ## L3 - Capability namespaces (`lib/pwn/*`)
 
-`Plugins` (66) · `SAST` (48) · `WWW` (21) · `AWS` (90) · `SDR` · `Blockchain` ·
+`Plugins` (66) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
 `Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
 callable the same way from the REPL, from `pwn_eval`, or from a driver.

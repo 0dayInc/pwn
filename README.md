@@ -34,7 +34,7 @@ Red teamers, pentesters, and vulnerability researchers get one place to script
 and automate instead of gluing together a pile of separate CLIs.
 
 **In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
-service wrappers · 21 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
+service wrappers · 22 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
 6 LLM engines · 13 agent toolsets · 85 LLM-callable tools.
 
 Full page: [What is PWN](documentation/What-is-PWN.md)
@@ -139,7 +139,7 @@ The complete wiki lives in this repo at **[`documentation/Home.md`](documentatio
 | [What is PWN](documentation/What-is-PWN.md) | [`pwn` REPL](documentation/pwn-REPL.md) | [AI / LLM Integration](documentation/AI-Integration.md) | [Plugins (66)](documentation/Plugins.md) |
 | [Why PWN](documentation/Why-PWN.md) | [`pwn-ai` Agent](documentation/pwn-ai-Agent.md) | [Agent Tool Registry](documentation/Agent-Tool-Registry.md) | [SAST (48)](documentation/SAST.md) |
 | [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (53)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
-| [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (21)](documentation/WWW.md) |
+| [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (22)](documentation/WWW.md) |
 | [General Usage](documentation/General-PWN-Usage.md) | | [Reinforcement Learning](documentation/Reinforcement-Learning.md) | [SDR / Radio](documentation/SDR.md) |
 | [Configuration](documentation/Configuration.md) | | [Extrospection](documentation/Extrospection.md) | [Hardware](documentation/Hardware.md) |
 | [`~/.pwn/` Persistence](documentation/Persistence.md) | | [Swarm (multi-agent)](documentation/Swarm.md) | [Reports](documentation/Reporting.md) |
