@@ -2,7 +2,7 @@
 
 > **PWN** (/pōn/) - an open-source offensive-security automation framework and
 > continuous-security-integration platform written in Ruby.
-> 66 plugins · 48 SAST rules · 90 AWS wrappers · 21 WWW drivers · 53 CLI
+> 66 plugins · 48 SAST rules · 90 AWS wrappers · 22 WWW drivers · 53 CLI
 > drivers · 6 LLM engines · a self-improving multi-agent AI · one REPL.
 
 **Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
@@ -57,7 +57,7 @@
 | &nbsp;&nbsp;↳ [Fuzzing](Fuzzing.md) | `Fuzz` · `Sock` · `Packet` |
 | &nbsp;&nbsp;↳ [Hardware](Hardware.md) | Serial · BusPirate · MSR206 · Android · BareSIP |
 | [SAST (48 rules)](SAST.md) | Static analysis + test-case engine |
-| [WWW (21 drivers)](WWW.md) | Browser automations for real sites |
+| [WWW (22 drivers)](WWW.md) | Browser automations for real sites |
 | [AWS (90 services)](AWS.md) | Cloud-security enumeration |
 | [SDR](SDR.md) | GQRX · FlipperZero · RFIDler · SonMicro · **Decoder::* (20 protocols + Base/DSP)** · FFI-accelerated DSP |
 | [Blockchain](Blockchain.md) | BTC · ETH helpers |

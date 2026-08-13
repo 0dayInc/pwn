@@ -49,7 +49,7 @@ digraph "PWN_Overall_Architecture" {
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
     Plugins [label="Plugins\n66 modules",     fillcolor="#6ee7b7"];
     SAST    [label="SAST\n48 rules",          fillcolor="#6ee7b7"];
-    WWW     [label="WWW\n21 site drivers",    fillcolor="#6ee7b7"];
+    WWW     [label="WWW\n22 site drivers",    fillcolor="#6ee7b7"];
     AWS     [label="AWS\n90 services",        fillcolor="#6ee7b7"];
     SDR     [label="SDR\nGQRX · Flipper · RFID\nDecoder::* (20+Base/DSP)", fillcolor="#6ee7b7"];
     Chain   [label="Blockchain\nBTC · ETH",   fillcolor="#6ee7b7"];

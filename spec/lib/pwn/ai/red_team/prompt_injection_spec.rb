@@ -22,4 +22,10 @@ describe PWN::AI::RedTeam::PromptInjection do
     help_response = PWN::AI::RedTeam::PromptInjection
     expect(help_response).to respond_to :help
   end
+  it 'defines strategies instead of a static attack_payloads list' do
+    src = File.read(described_class.method(:scan).source_location.first)
+    expect(src).to include('strategies = [')
+    expect(src).not_to match(/attack_payloads\s*=\s*\[/)
+    expect(src).to include('payload_count')
+  end
 end

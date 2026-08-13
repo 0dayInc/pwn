@@ -14,6 +14,10 @@ PWN::Driver::Parser.new do |options|
     opts[:target_model] = m
   end
 
+  options.on('-cCOUNT', '--payload-count=COUNT', '<Optional - Number of LLM-generated payloads per test case (Default 10)>') do |c|
+    opts[:payload_count] = c
+  end
+
   options.on('-rROLE', '--system-role=ROLE', '<Optional - System Prompt Applied to the Target for Every Payload>') do |r|
     opts[:system_role_content] = r
   end
@@ -60,6 +64,7 @@ begin
   target_engine = opts[:target_engine]
   target_model = opts[:target_model]
   system_role_content = opts[:system_role_content]
+  payload_count = (opts[:payload_count] || 10).to_i
 
   max_threads = opts[:max_threads]
   max_threads ||= 5
@@ -80,7 +85,6 @@ begin
       ExcessiveAgency
       InsecureOutputHandling
       Jailbreak
-      ModelDenialOfService
       Overreliance
       PayloadSplitting
       PromptInjection
@@ -115,7 +119,8 @@ begin
     ).scan(
       target_engine: target_engine,
       target_model: target_model,
-      system_role_content: system_role_content
+      system_role_content: system_role_content,
+      payload_count: payload_count
     )
 
     rt_arr.each { |hash_line| mutex.synchronize { results_hash[:data].push(hash_line) } }
