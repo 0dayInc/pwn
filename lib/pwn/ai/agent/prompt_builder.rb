@@ -51,7 +51,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{extrospection_block if b[:extro]}TOOL USE
+            #{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).
@@ -113,10 +113,11 @@ module PWN
             learning: (b[:learning] || (local ?  2 :  5)).to_i,
             # Always inject last user/assistant pair(s); local keeps it tiny.
             recent_turns: (b[:recent_turns] || (local ? 1 : 2)).to_i,
+            policy: (b[:policy] || 1).to_i,
             extro: b[:extro].nil? ? !local : b[:extro]
           }
         rescue StandardError
-          { memory: 25, metrics: 8, mistakes: 6, learning: 5, recent_turns: 2, extro: true }
+          { memory: 25, metrics: 8, mistakes: 6, learning: 5, recent_turns: 2, policy: 1, extro: true }
         end
 
         private_class_method def self.active_engine
@@ -187,8 +188,7 @@ module PWN
           limit = opts[:limit] || 25
           req   = opts[:request]
           # How-to / non-code asks: do not let code-hygiene SOPs dominate local context.
-          drop_hygiene = req.to_s.match?(/\b(how\s+to|how\s+do\s+i|syntax|usage|hping|nmap|ping\s+sweep|live\s+hosts?)\b/i) &&
-                         !req.to_s.match?(%r{\b(rubocop|rake|rspec|/opt/pwn|refactor|documentation|commit)\b}i)
+          drop_hygiene = !req.to_s.match?(%r{\b(rubocop|rake|rspec|/opt/pwn|refactor|documentation|commit)\b}i)
           ctx = if req && defined?(PWN::MemoryIndex) && PWN::MemoryIndex.available?
                   PWN::MemoryIndex.to_context(query: req, limit: limit, drop_hygiene_sops: drop_hygiene)
                 else
@@ -235,7 +235,19 @@ module PWN
           return '' unless defined?(PWN::AI::Agent::Mistakes)
 
           ctx = PWN::AI::Agent::Mistakes.to_context(limit: opts[:limit] || 6, request: opts[:request]).to_s
-          ctx.strip.empty? ? '' : ctx
+          inbox = if Mistakes.respond_to?(:operator_inbox)
+                    q = Mistakes.operator_inbox(limit: 6)
+                    if q[:count].to_i.positive?
+                      items = Array(q[:items]).map { |m| "  - #{m[:signature]} #{m[:tool]} ×#{m[:count]} #{m[:reason]}" }.join("\n")
+                      "OPERATOR INBOX (parked / needs_code_change — do not nightly-practice these)\n#{items}\n\n"
+                    else
+                      ''
+                    end
+                  else
+                    ''
+                  end
+          body = "#{inbox}#{ctx}"
+          body.strip.empty? ? '' : body
         rescue StandardError
           ''
         end
@@ -244,6 +256,15 @@ module PWN
           return '' unless defined?(PWN::AI::Agent::Metrics)
 
           ctx = PWN::AI::Agent::Metrics.to_context(limit: opts[:limit] || 8, engine: opts[:engine]).to_s
+          ctx.strip.empty? ? '' : ctx
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.policy_block
+          return '' unless defined?(PWN::AI::Agent::Policy)
+
+          ctx = PWN::AI::Agent::Policy.to_context.to_s
           ctx.strip.empty? ? '' : ctx
         rescue StandardError
           ''

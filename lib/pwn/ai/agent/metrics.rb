@@ -182,7 +182,8 @@ module PWN
               mix_line = ''
             end
           end
-          "#{warn_line}#{mix_line}TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
+          health = health_line
+          "#{warn_line}#{mix_line}#{health}TOOL EFFECTIVENESS (#{scope}, adapt tool choice accordingly)\n#{lines.join("\n")}\n\n"
         end
 
         # P4 helper — Registry.rank calls this so β·advantage is scaled down
@@ -328,11 +329,14 @@ module PWN
 
           score = opts[:score].to_f.clamp(0.0, 1.0)
           conf  = opts.key?(:confidence) ? opts[:confidence].to_f.clamp(0.0, 1.0) : 0.7
+          src   = opts[:source].to_s
+          src   = 'heuristic' if src.empty?
           m = load
           m[:tools] ||= {}
           t = m[:tools][name.to_sym] ||= blank_bucket
           t[:judge_window] = (Array(t[:judge_window]) + [score]).last(40)
           t[:judge_conf_window] = (Array(t[:judge_conf_window]) + [conf]).last(40)
+          t[:judge_src_window] = (Array(t[:judge_src_window]) + [src]).last(40)
           t[:judge_sum] = t[:judge_window].sum.to_f
           t[:judge_n] = t[:judge_window].length
           save(metrics: m)
@@ -355,6 +359,8 @@ module PWN
         end
 
         # Mean judge score for a tool (nil when no ORM samples yet).
+        # When per-sample sources exist, LLM ORM outweighs heuristic overlap
+        # so the proxy haircut tracks the outcome model.
         public_class_method def self.judge_rate(opts = {})
           t = (load[:tools] || {})[opts[:name].to_s.to_sym]
           return nil unless t
@@ -362,6 +368,17 @@ module PWN
           win = Array(t[:judge_window])
           return nil if win.empty?
 
+          src = Array(t[:judge_src_window])
+          if src.length == win.length && defined?(Reward) && Reward.respond_to?(:judge_sample_weight)
+            num = 0.0
+            den = 0.0
+            win.each_with_index do |score, i|
+              wt = Reward.judge_sample_weight(source: src[i]).to_f
+              num += score.to_f * wt
+              den += wt
+            end
+            return (num / den).round(3) if den.positive?
+          end
           (win.sum.to_f / win.length).round(3)
         rescue StandardError
           nil
@@ -444,9 +461,21 @@ module PWN
         # cal = PWN::AI::Agent::Metrics.calibration(engine: :ollama)
 
         public_class_method def self.calibration(opts = {})
-          eng = (opts[:engine] || :global).to_s.to_sym
-          c = (load[:calibration] || {})[eng]
-          return { n: 0, brier: nil } unless c && c[:n].to_i.positive?
+          store = load[:calibration] || {}
+          buckets = if opts.key?(:engine) && !opts[:engine].to_s.empty?
+                      [store[opts[:engine].to_s.to_sym]].compact
+                    else
+                      store.values
+                    end
+          c = buckets.each_with_object({ n: 0, brier_sum: 0.0, p_sum: 0.0, a_sum: 0.0 }) do |b, acc|
+            next unless b.is_a?(Hash)
+
+            acc[:n] += b[:n].to_i
+            acc[:brier_sum] += b[:brier_sum].to_f
+            acc[:p_sum] += b[:p_sum].to_f
+            acc[:a_sum] += b[:a_sum].to_f
+          end
+          return { n: 0, brier: nil } unless c[:n].positive?
 
           n = c[:n].to_f
           { n: c[:n], brier: (c[:brier_sum] / n).round(4), mean_predicted: (c[:p_sum] / n).round(3), mean_actual: (c[:a_sum] / n).round(3), overconfidence: ((c[:p_sum] - c[:a_sum]) / n).round(3) }
@@ -454,6 +483,25 @@ module PWN
 
         # Supported Method Parameters::
         # PWN::AI::Agent::Metrics.reset
+
+        public_class_method def self.health_line
+          gap = nil
+          if defined?(Reward) && Reward.respond_to?(:sentinel)
+            s = Reward.sentinel
+            gap = s[:gap_proxy_judge] if s.is_a?(Hash)
+          end
+          trend = if defined?(Curriculum) && Curriculum.respond_to?(:repeating_trend)
+                    Curriculum.repeating_trend
+                  else
+                    {}
+                  end
+          traj = (Reward.generator_mix[:trajectory_fraction] if defined?(Reward) && Reward.respond_to?(:generator_mix))
+          parked = (Mistakes.operator_inbox(limit: 50)[:count] if defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox))
+          "HEALTH judge-proxy-gap=#{gap || '-'} repeating=#{trend[:status] || '-'} " \
+            "w1-traj=#{traj || '-'} parked-needs-human=#{parked || '-'}\n"
+        rescue StandardError
+          ''
+        end
 
         public_class_method def self.reset
           FileUtils.rm_f(METRICS_FILE)

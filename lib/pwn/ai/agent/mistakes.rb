@@ -309,11 +309,141 @@ module PWN
           rows  = load.values
           rows  = rows.reject { |m| m[:resolved] } if only
           # 2.5 — practice/curriculum skip engineer-only / parked fingerprints
-          rows = rows.reject { |m| m[:parked] || m[:needs_code_change] || m[:tool].to_s == 'reward_signal' } if opts[:practiceable_only]
+          rows = rows.reject { |m| m[:parked] || m[:needs_code_change] || m[:needs_human] || m[:tool].to_s == 'reward_signal' } if opts[:practiceable_only]
           rows.sort_by { |m| [-m[:count].to_i, m[:last_seen].to_s] }.first(limit)
         end
 
         # 2.5 — park unfixable sigs so nightly practice skips them
+        # Recoverable repeating failures get a structured fix instead of another
+        # fingerprint. Called from Loop after record so the loop extinguishes
+        # pain (placeholder / enoent / recon) rather than only logging it.
+        SHAPE_FIXES = {
+          'invalid_payload' => {
+            strategy: 'payload_schema',
+            tool: 'shell',
+            fix: 'Send a real command string. Never ..., {...}, {…}, or value=. Example: shell(command="uname -r"). Prefer pwn_eval(code: "...") for Ruby.',
+            args_template: { command: 'uname -r' }
+          },
+          'handler_error' => {
+            strategy: 'payload_schema',
+            tool: 'shell',
+            fix: 'command is required. Use shell(command="...") not {value:...}. Example: shell(command="uname -r").',
+            args_template: { command: 'uname -r' }
+          },
+          'enoent' => {
+            strategy: 'probe_then_run',
+            tool: 'shell',
+            fix: 'Path missing. ls/test -e the parent first, then run. Do not retry the same missing path.',
+            args_template: { command: 'test -e "$PWD" && ls' }
+          },
+          'exit127' => {
+            strategy: 'payload_schema',
+            tool: 'shell',
+            fix: '{...}/{…} is not a command. Emit a concrete POSIX command, or call command -v first.',
+            args_template: { command: 'command -v uname && uname -r' }
+          },
+          'exit126' => {
+            strategy: 'auth_gate',
+            tool: 'shell',
+            fix: 'Unauthorized recon blocked. Do not retry the sweep. Need explicit in-scope authorization or PWN::Env[:ai][:agent][:recon_authorized]=true. Offer command syntax instead.',
+            args_template: nil
+          },
+          'eacces' => {
+            strategy: 'payload_schema',
+            tool: 'pwn_eval',
+            fix: 'Raw sockets need CAP_NET_RAW. Do not retry open_sockraw. Use pwn_eval or a non-raw tool, or drop the live sweep.',
+            args_template: { code: 'puts :no_raw_socket' }
+          },
+          'syntax' => {
+            strategy: 'shell_backslash_sanitize_v2',
+            tool: 'shell',
+            fix: 'Sanitize shell cmds: join continuations, strip trailing backslash, refuse stray escapes. Prefer pwn_eval/heredoc.',
+            args_template: { command: 'uname -r' }
+          },
+          'nonzero_exit' => {
+            strategy: 'probe_then_run',
+            tool: 'shell',
+            fix: 'Path missing or command failed. ls/test -e the parent first. Do not retry the same missing path.',
+            args_template: { command: 'test -e "$PWD" && ls' }
+          }
+        }.freeze
+
+        public_class_method def self.extinguish!(opts = {})
+          sig = opts[:signature].to_s
+          return nil if sig.empty?
+
+          store = load
+          key = sig.to_sym
+          m = store[key]
+          return nil unless m
+
+          shape = (opts[:shape] || m[:shape]).to_s
+          recipe = SHAPE_FIXES[shape]
+          count = m[:count].to_i
+          force = opts[:force] ? true : false
+          hay = "#{m[:error]} #{m[:snippet]} #{m[:tool]}".downcase
+          recipe = nil if shape == 'handler_error' && !hay.match?(/command is required|argumenterror/)
+          recipe = nil if shape == 'exit127' && !hay.match?(/not found|\{\.\.\.\}|\{…\}/)
+          recipe = nil if shape == 'exit126' && !hay.match?(/unauthorized_recon|recon_blocked/)
+          return m unless recipe && (force || count >= REPEAT_THRESHOLD) && !m[:resolved]
+
+          structured = {
+            strategy: recipe[:strategy],
+            tool: recipe[:tool] || m[:tool],
+            args_template: recipe[:args_template],
+            winning_trace: "STRATEGY: #{recipe[:strategy]}\nWINNING_TRACE:\n#{recipe[:tool]} → #{recipe[:args_template].inspect}\n#{recipe[:fix]}"
+          }
+          resolve(
+            signature: sig,
+            fix: recipe[:fix],
+            structured: structured,
+            clear_needs_code_change: true
+          )
+        rescue StandardError => e
+          warn "[pwn-ai/mistakes] extinguish! swallowed: #{e.class}: #{e.message}"
+          nil
+        end
+
+        # Auto-resolve parked items that already have a known extinguish recipe
+        # so the operator inbox does not keep scars the loop can close itself.
+        public_class_method def self.extinguish_parked!(opts = {})
+          limit = (opts[:limit] || 20).to_i
+          dry = opts[:dry_run] ? true : false
+          rows = load.values.select do |m|
+            !m[:resolved] && (m[:parked] || m[:needs_human] || m[:needs_code_change])
+          end
+          acted = []
+          rows.first(limit).each do |m|
+            shape = m[:shape].to_s
+            shape = infer_shape_from_row(row: m) if shape.empty? || !SHAPE_FIXES.key?(shape)
+            recipe = SHAPE_FIXES[shape.to_s]
+            next unless recipe
+
+            out = dry ? { resolved: true } : extinguish!(signature: m[:signature], shape: shape, force: true)
+            next unless out.is_a?(Hash) && out[:resolved]
+
+            acted << { signature: m[:signature], shape: shape, tool: m[:tool] }
+          end
+          { dry_run: dry, extinguished: acted.length, items: acted }
+        rescue StandardError => e
+          { error: "#{e.class}: #{e.message}" }
+        end
+
+        private_class_method def self.infer_shape_from_row(opts = {})
+          m = opts[:row] || {}
+          hay = "#{m[:error]} #{m[:snippet]} #{m[:shape]}".downcase
+          return 'handler_error' if hay.match?(/command is required|argumenterror/)
+          return 'exit127' if hay.match?(/not found|\{\.\.\.\}|\{…\}/)
+          return 'exit126' if hay.match?(/unauthorized_recon|recon_blocked/)
+          return 'enoent' if hay.match?(/no such file|enoent/)
+          return 'eacces' if hay.match?(/permission denied|eacces|operation not permitted/)
+          return 'syntax' if hay.match?(/syntax error|unterminated/)
+          return 'nonzero_exit' if hay.match?(/nonzero|exit.?[1-9]/)
+          return 'invalid_payload' if hay.match?(/invalid_payload|command is required/)
+
+          m[:shape].to_s
+        end
+
         public_class_method def self.park(opts = {})
           sig = opts[:signature].to_s
           raise 'ERROR: signature is required' if sig.empty?
@@ -324,10 +454,36 @@ module PWN
 
           store[key][:parked] = true
           store[key][:needs_code_change] = true
+          store[key][:needs_human] = true
           store[key][:park_reason] = opts[:reason].to_s[0, 300]
           store[key][:parked_at] = Time.now.utc.iso8601
           save(store: store)
           store[key]
+        end
+
+        # Operator inbox: parked / needs_code_change / needs_human scars that
+        # nightly practice must not replay. Promote these to a short human queue.
+        public_class_method def self.operator_inbox(opts = {})
+          limit = (opts[:limit] || 12).to_i
+          rows = load.values.select do |m|
+            !m[:resolved] && (m[:parked] || m[:needs_code_change] || m[:needs_human])
+          end
+          rows = rows.sort_by { |m| [-m[:count].to_i, m[:last_seen].to_s] }.first(limit)
+          {
+            count: rows.length,
+            items: rows.map do |m|
+              {
+                signature: m[:signature],
+                tool: m[:tool],
+                error: m[:error].to_s[0, 160],
+                count: m[:count],
+                reason: (m[:park_reason] || 'needs_code_change').to_s[0, 200],
+                parked: m[:parked] ? true : false,
+                needs_code_change: m[:needs_code_change] ? true : false,
+                needs_human: m[:needs_human] ? true : false
+              }
+            end
+          }
         end
 
         # Supported Method Parameters::
@@ -674,6 +830,7 @@ module PWN
               PWN::AI::Agent::Mistakes.correction?(request: "no that's wrong")
               PWN::AI::Agent::Mistakes.check_user_correction(request: req, session_id: sid)
               PWN::AI::Agent::Mistakes.signature(tool: 'shell', error: err)
+              PWN::AI::Agent::Mistakes.operator_inbox(limit: 12)
               PWN::AI::Agent::Mistakes.reset
 
               #{self}.authors

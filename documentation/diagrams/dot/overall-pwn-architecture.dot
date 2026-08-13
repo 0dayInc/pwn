@@ -37,9 +37,9 @@ digraph "PWN_Overall_Architecture" {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Loop     [label="Loop\nTaskSummarizer briefs\nplan_first → dispatch\n→ observe → escalate\nbudget-pressure caps",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n12 toolsets · 82 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
+    Registry [label="Registry\n13 toolsets · 85 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
-    Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
+    Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMEMORY · SKILLS · POLICY\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
   }
   {rank=same; Loop; Registry; Swarm; Prompt}
 
@@ -74,8 +74,9 @@ digraph "PWN_Overall_Architecture" {
     CronF    [label="cron/jobs.yml",      shape=cylinder, fillcolor="#fcd34d"];
     Finetune [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
     Prefs    [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
+    PolicyF  [label="policy.json\npolicy_traj.jsonl", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Memory; MemIdx; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF; Finetune; Prefs}
+  {rank=same; Memory; MemIdx; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF; Finetune; Prefs; PolicyF}
 
   /* ── L0 → L1 ── */
   User -> REPL   [color="#38bdf8"];

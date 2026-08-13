@@ -45,6 +45,8 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
     stub_const('PWN::AI::Agent::Curriculum::CURRICULUM_DIR', File.join(@tmp, 'curriculum'))
     stub_const('PWN::AI::Agent::Curriculum::MODELS_FILE',    File.join(@tmp, 'curriculum', 'models.json'))
     stub_const('PWN::AI::Agent::Curriculum::KPI_FILE',       File.join(@tmp, 'curriculum_kpi.jsonl'))
+    stub_const('PWN::AI::Agent::Policy::POLICY_FILE',        File.join(@tmp, 'policy.json')) if defined?(PWN::AI::Agent::Policy)
+    stub_const('PWN::AI::Agent::Policy::TRAJECTORY_FILE',    File.join(@tmp, 'policy_traj.jsonl')) if defined?(PWN::AI::Agent::Policy)
     stub_const('PWN::Sessions::SESSIONS_DIR',                File.join(@tmp, 'sessions'))
     stub_const('PWN::Memory::MEMORY_FILE',                   File.join(@tmp, 'memory.json'))
     stub_const('PWN::MemoryIndex::INDEX_FILE',               File.join(@tmp, 'memory.idx')) if defined?(PWN::MemoryIndex)
@@ -1071,16 +1073,17 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
     it 'exemplars_for drops low-score success rows' do
       learning.note_outcome(task: 'p20 high judge shell uname', success: true, score: 0.95,
                             details: 'ok', session_id: 'sess-p20-hi', tags: %w[rspec p20])
-      learning.note_outcome(task: 'p20 low judge shell uname', success: true, score: 0.2,
-                            details: 'proxy lie', session_id: 'sess-p20-lo', tags: %w[rspec p20])
-      # compress_exemplar needs real sessions — just ensure filter does not raise
-      # and low score alone is excluded from pool scoring path
+      # P29 — note_outcome refuses success:true + score<0.6, so a proxy-lie
+      # cannot enter the success pool. Persist a rewritten fail, then also
+      # unit-check the exemplars_for score filter on an in-memory leftover.
+      rewritten = learning.note_outcome(task: 'p20 low judge shell uname', success: true, score: 0.2,
+                                        details: 'proxy lie', session_id: 'sess-p20-lo', tags: %w[rspec p20])
+      expect(rewritten[:success]).to be false
       pool = learning.outcomes(limit: 50, success: true)
-      low = pool.select { |r| r[:score].to_f < 0.6 && r[:task].to_s.include?('p20 low') }
-      expect(low).not_to be_empty
-      # unit-check the filter predicate used in exemplars_for
-      kept = pool.reject { |r| r.key?(:score) && r[:score].to_f < 0.6 }
-      expect(kept.any? { |r| r[:task].to_s.include?('p20 low') }).to be false
+      expect(pool.any? { |r| r[:task].to_s.include?('p20 low') }).to be false
+      leftover = pool + [{ task: 'p20 low leftover', success: true, score: 0.2 }]
+      kept = leftover.reject { |r| r.key?(:score) && r[:score].to_f < 0.6 }
+      expect(kept.any? { |r| r[:task].to_s.include?('p20 low leftover') }).to be false
       expect(kept.any? { |r| r[:task].to_s.include?('p20 high') }).to be true
     end
   end
@@ -1534,6 +1537,29 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(src).to match(/AUTONOMY/)
       expect(src).to match(/Do NOT stop to/)
       expect(src).to match(/Multi-step goals must be finished in one Loop\.run/)
+    end
+  end
+
+  describe 'R5 · Policy (live MDP + Q / REINFORCE)' do
+    let(:policy) { PWN::AI::Agent::Policy }
+
+    it 'records (s,a,r,s\') steps and updates Q toward a judge-scored terminal' do
+      @agent_cfg[:policy] = true
+      policy.reset
+      policy.begin_episode(session_id: 'r5', request: 'run uname', kind: :autonomous_goal, engine: :ollama)
+      policy.observe_step(action: 'shell', ok: true, session_id: 'r5')
+      policy.observe_step(action: 'shell', ok: true, session_id: 'r5')
+      report = policy.finish(session_id: 'r5', score: 0.9, verdict: :solved)
+      expect(report[:steps]).to eq 2
+      expect(report[:td_updates]).to be >= 1
+      expect(policy.trajectories(limit: 1).first[:steps].length).to eq 2
+      expect(policy.stats[:n_updates]).to be >= 2
+    end
+
+    it 'Q-advantage is zero until visits accumulate, so rank stays keyword-first' do
+      @agent_cfg[:policy] = true
+      policy.reset
+      expect(policy.advantage(state: 'goal|t1|a0|f0|ollama', action: 'shell')).to eq 0.0
     end
   end
 end

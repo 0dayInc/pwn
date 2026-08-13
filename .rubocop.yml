@@ -9,7 +9,7 @@ Lint/UselessRescue:
 Metrics/AbcSize:
   Max: 720
 Metrics/BlockLength:
-  Max: 292
+  Max: 320
 Metrics/BlockNesting:
   Max: 6
 Metrics/ClassLength:

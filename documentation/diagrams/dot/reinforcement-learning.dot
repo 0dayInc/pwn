@@ -19,13 +19,14 @@ digraph "PWN_Reinforcement_Learning" {
   subgraph cluster_reward {
     label="Tier 1 · Reward  (PWN::AI::Agent::Reward)"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    R1 [label="judge (outcome)\nscore · verdict · rationale", fillcolor="#c4b5fd", penwidth=2];
+    R1 [label="judge (cheap LLM ORM)\nscore · verdict · source\nevidence-prior fallback", fillcolor="#c4b5fd", penwidth=2];
     R2 [label="prm (process)\nper-step +1/0/-1\n→ Registry.rank", fillcolor="#c4b5fd"];
     R3 [label="sentinel (ring N=40)\nproxy != judge != (1-corr)\nwarm + proxy distrust", fillcolor="#c4b5fd"];
     R4 [label="semantic_ok\ngrep exit 1 != failure", fillcolor="#c4b5fd"];
+    R5 [label="Policy (live MDP)\nplan · complete · usable\nwarm Q + episode budget", fillcolor="#c4b5fd", penwidth=2];
     E3 [label="verify_as_reward\nextro_verify caps/floors judge", fillcolor="#c4b5fd"];
   }
-  {rank=same; R1; R2; R3; R4; E3}
+  {rank=same; R1; R2; R3; R4; R5; E3}
 
   /* Tier 4 — Curriculum / self-play */
   subgraph cluster_curr {
@@ -55,22 +56,26 @@ digraph "PWN_Reinforcement_Learning" {
     color="#a16207"; bgcolor="#422006";
     Fmis [label="mistakes.json", shape=cylinder, fillcolor="#fcd34d"];
     Fses [label="sessions/*.jsonl\n(step_reward)", shape=cylinder, fillcolor="#fcd34d"];
+    Fpol [label="policy.json +\npolicy_traj.jsonl", shape=cylinder, fillcolor="#fcd34d"];
     Fprf [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
     Fcur [label="curriculum/", shape=cylinder, fillcolor="#fcd34d"];
     Fftn [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
     Frws [label="reward_sentinel.json", shape=cylinder, fillcolor="#fcd34d"];
   }
-  {rank=same; Fmis; Fses; Fprf; Fcur; Fftn; Frws}
+  {rank=same; Fmis; Fses; Fpol; Fprf; Fcur; Fftn; Frws}
 
   Ollama [label="ollama create pwn-vN+1\n(local LoRA adapter)", fillcolor="#7dd3fc"];
 
   /* edges */
   Req  -> Loop [color="#38bdf8", penwidth=2];
   Loop -> R4   [label="Dispatch", color="#a78bfa"];
+  Loop -> R5   [label="(s,a,r,s')", color="#38bdf8", penwidth=2];
   Loop -> R1   [label="final", color="#a78bfa", penwidth=2];
   Loop -> R2   [label="session", color="#a78bfa"];
   Loop -> R3   [color="#a78bfa"];
   R1   -> E3   [label="ground", style=dashed, color="#fbbf24"];
+  R1   -> R5   [label="terminal", color="#a78bfa"];
+  R5   -> Fpol [color="#f59e0b"];
   Loop -> S4   [label="plan_first", color="#34d399"];
   Loop -> S3   [label="final", color="#34d399"];
   Loop -> S2   [label="[REPEATING]", color="#fb7185"];

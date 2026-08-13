@@ -41,6 +41,8 @@ RSpec.shared_context 'pwn tmp sandbox' do
       'PWN::AI::Agent::Reward::SENTINEL_FILE' => 'sentinel.json',
       'PWN::AI::Agent::Reward::DPO_DIR' => 'finetune',
       'PWN::AI::Agent::Curriculum::CURRICULUM_DIR' => 'curriculum',
+      'PWN::AI::Agent::Policy::POLICY_FILE' => 'policy.json',
+      'PWN::AI::Agent::Policy::TRAJECTORY_FILE' => 'policy_traj.jsonl',
       'PWN::AI::Agent::Extrospection::EXTRO_FILE' => 'extrospection.json',
       'PWN::AI::Agent::Swarm::AGENTS_FILE' => 'agents.yml',
       'PWN::AI::Agent::Swarm::SWARM_ROOT' => 'swarm'

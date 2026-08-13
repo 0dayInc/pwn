@@ -44,10 +44,11 @@ module PWN
       # the browser verdict onto the reward scalar. Hallucination becomes a
       # measurable −reward, not just a warning.
       #
-      # Everything degrades gracefully: when module_reflection is off (no
-      # LLM judge available) .judge falls back to a calibrated heuristic
-      # over .semantic_ok + .verify_as_reward + Mistakes correction rate,
-      # which is STILL strictly better than the old regex.
+      # .judge prefers a cheap LLM ORM (direct engine .chat, short timeout,
+      # no Reflect / module_reflection gate). Reflect.on is used only when
+      # the operator enabled module_reflection (teacher engine). Heuristic
+      # token-overlap is LAST RESORT so proxy_distrust haircuts blend toward
+      # a real outcome signal, not bag-of-words overlap.
       module Reward
         PREFERENCES_FILE = File.join(Dir.home, '.pwn', 'preferences.jsonl')
         SENTINEL_FILE    = File.join(Dir.home, '.pwn', 'reward_sentinel.json')
@@ -80,15 +81,20 @@ module PWN
 
         JUDGE_SYSTEM = <<~SYS
           You are the pwn-ai Outcome Reward Model. Given a USER REQUEST, the
-          agent's FINAL ANSWER, and a compressed TOOL TRACE, emit ONE line of
-          strict JSON:
+          agent's FINAL ANSWER, a compressed TOOL TRACE, and optional PLAN
+          COVERAGE, emit ONE line of strict JSON:
             {"score": <0.0-1.0>, "verdict": "solved|partial|wrong|refused",
              "rationale": "<≤140 chars>", "key_step": <int|-1>}
-          score=1.0 only when the final DEMONSTRABLY satisfies the request
-          (evidence in trace). score=0.5 for correct-direction-but-incomplete.
-          score=0.0 for hallucinated / off-goal / refused. key_step is the
-          1-indexed trace line most responsible for the outcome (credit
-          assignment), or -1 if none. Output JSON ONLY.
+          Grade the HUMAN RESULT, not handler success:
+            1.0 = final is usable and complete (every asked point answered with
+                  evidence from the trace or a checkable claim).
+            0.7 = mostly complete, one missing detail, still usable.
+            0.5 = correct direction but incomplete / truncated / plan open.
+            0.2 = tools ran but the final does not answer the ask.
+            0.0 = hallucinated, off-goal, empty, polite non-answer, or refused.
+          Ignore {"success":true} as evidence of done. Prefer last tool steps.
+          key_step is the 1-indexed shown-trace line most responsible, or -1.
+          Output JSON ONLY. No markdown fences.
         SYS
 
         PRM_SYSTEM = <<~SYS
@@ -118,8 +124,12 @@ module PWN
           trace   = load_trace(session_id: opts[:session_id]) if trace.empty? && opts[:session_id]
           commit  = opts.key?(:commit) ? opts[:commit] : true
 
-          v = llm_judge(request: request, final: final, trace: trace)
-          v ||= heuristic_judge(request: request, final: final, trace: trace)
+          v = llm_judge(request: request, final: final, trace: trace, plan: opts[:plan])
+          v ||= heuristic_judge(request: request, final: final, trace: trace, plan: opts[:plan])
+          # Cheap ORM is the intended source. Heuristic overlap is fallback
+          # only — callers (sentinel / Learning.stats / Metrics.effective_rate)
+          # weight :llm_orm samples above :heuristic so the haircut tracks
+          # the outcome model, not token overlap.
 
           # P1 — local/heuristic calibration: thin judges must not be treated
           # as ground truth when proxy_distrust is already high. Two levers:
@@ -168,9 +178,17 @@ module PWN
 
           v[:success] = v[:score] >= 0.6
           v[:engine] = eng
+          # W3 — write Brier on every judged turn so overconfidence can
+          # throttle max_iters/critic even when plan_first never fired.
+          if commit
+            pred = opts[:predicted]
+            pred = Thread.current[:pwn_plan_predicted] if pred.nil?
+            pred = v[:confidence] if pred.nil?
+            Curriculum.calibrate(predicted: pred, actual: v[:score], engine: eng) if defined?(Curriculum) && Curriculum.respond_to?(:calibrate)
+          end
           # P1 — sentinel stores confidence so distrust math can haircut
           # heuristic-heavy windows differently from LLM ORM windows.
-          record_sentinel(proxy: opts[:proxy_ok], judge: v[:score], confidence: v[:confidence]) if commit
+          record_sentinel(proxy: opts[:proxy_ok], judge: v[:score], confidence: v[:confidence], source: v[:source]) if commit
           v
         rescue StandardError => e
           { score: 0.5, verdict: :unknown, rationale: "judge error: #{e.class}", success: !final.strip.empty?, error: e.message, confidence: 0.2, source: :error }
@@ -367,7 +385,12 @@ module PWN
             age = Time.now.utc - Time.parse(s[:distrust_at].to_s)
             return 0.0 if age > 7 * 86_400
           end
-          d.clamp(0.0, 1.0)
+          d = d.clamp(0.0, 1.0)
+          # Recalibrated cap: leftover 1.0 from the old mapping must not fully
+          # haircut raw success unless the live gap is still extreme.
+          meta = s[:distrust_meta] || {}
+          gap = (meta[:gap] || meta['gap']).to_f
+          [d, 0.85].min
         rescue StandardError
           0.0
         end
@@ -382,8 +405,9 @@ module PWN
             pf = proxy.to_f
             return s[:proxy_distrust].to_f if pf < 0.0 || pf > 1.0
           end
-          # map gap 0.15→0.4, 0.30→0.8, ≥0.40→1.0
-          factor = ((((gap - SENTINEL_GAP) / SENTINEL_GAP) * 0.4) + 0.4).clamp(0.3, 1.0)
+          # Recalibrated: do NOT full-haircut raw success. 0.15→0.25, 0.30→0.50,
+          # 0.45→0.70, hard cap 0.85 unless the gap is extreme (≥0.55 → 0.95).
+          factor = ((((gap - SENTINEL_GAP) / SENTINEL_GAP) * 0.5) + 0.25).clamp(0.2, 0.85)
           s[:proxy_distrust] = factor
           s[:distrust_at] = Time.now.utc.iso8601
           s[:distrust_meta] = { proxy: opts[:proxy], judge: opts[:judge], gap: gap }
@@ -506,7 +530,13 @@ module PWN
             shape = recoverable_shape(exit_code: exit_code, stderr: stderr, err: err || raw[0, 200])
           end
 
-          semantic = ok && (exit_code.nil? || exit_code.zero? || benign)
+          if raw.include?('invalid_payload') || err.to_s.include?('invalid_payload')
+            semantic = false
+            shape = :invalid_payload
+            err ||= 'invalid_payload'
+          else
+            semantic = ok && (exit_code.nil? || exit_code.zero? || benign)
+          end
           err ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless semantic
           { ok: ok, semantic_ok: semantic, exit: exit_code, err: err, benign: benign, shape: shape }
         end
@@ -640,6 +670,11 @@ module PWN
           unless bypass_quota
             quota = write_source_quota(source: source)
             return quota.merge(skipped: :source_quota) if quota[:over_cap]
+
+            # P0 — also refuse sources the live mix already asked to suppress
+            # (critic 40% vs 15% target) so write-time, not only export, rebalances.
+            mix = generator_mix
+            return quota.merge(skipped: :source_quota, over_cap: true, reason: "mix_suppress:#{source}") if Array(mix[:suppress]).include?(source) && mix[:n].to_i >= 10
           end
 
           entry = {
@@ -667,8 +702,9 @@ module PWN
           n = recent.count { |r| r[:source].to_s == source }
           share = n.to_f / recent.length
           target = TARGET_SOURCE_MIX[source]
+          target_cap = target ? [WRITE_SOURCE_CAP, target + 0.05].min : WRITE_SOURCE_CAP
           {
-            over_cap: share > WRITE_SOURCE_CAP,
+            over_cap: share > target_cap,
             share: share.round(3),
             n: n,
             window: recent.length,
@@ -992,22 +1028,223 @@ module PWN
         # privates
         # ----------------------------------------------------------------
 
+        # Cheap LLM ORM path. Reflect.on is gated by module_reflection (PII /
+        # teacher engine). Reward still needs a judge when that is off, so we
+        # call the active engine .chat directly with a short timeout. Fail
+        # fast to heuristic_judge rather than a 900s Reflect hang.
+        CHEAP_ORM_TIMEOUT = 12
+        CHEAP_ORM_TEMP    = 0.1
+        CHEAP_ORM_TRACE_N = 12
+        ORM_SAMPLE_WEIGHT = 1.0
+        HEURISTIC_SAMPLE_WEIGHT = 0.25
+        ERROR_SAMPLE_WEIGHT = 0.15
+        ENGINE_CHAT_MODS = {
+          openai: 'PWN::AI::OpenAI',
+          grok: 'PWN::AI::Grok',
+          ollama: 'PWN::AI::Ollama',
+          openwebui: 'PWN::AI::OpenWebUI',
+          anthropic: 'PWN::AI::Anthropic',
+          gemini: 'PWN::AI::Gemini'
+        }.freeze
+
+        # Weight a judge sample for sentinel / Learning haircuts.
+        # LLM ORM counts as a full outcome; heuristic overlap is a cheap
+        # prior so it cannot dominate proxy_distrust when real ORM exists.
+        public_class_method def self.judge_sample_weight(opts = {})
+          case opts[:source].to_s
+          when 'llm_orm' then ORM_SAMPLE_WEIGHT
+          when 'error' then ERROR_SAMPLE_WEIGHT
+          else HEURISTIC_SAMPLE_WEIGHT
+          end
+        end
+
         private_class_method def self.llm_judge(opts = {})
           return nil unless reflect_available?
 
-          trace = opts[:trace].each_with_index.map { |s, i| "#{i + 1}. #{s.to_s.gsub(/\s+/, ' ')[0, 300]}" }.join("\n")
-          req = "USER REQUEST:\n#{opts[:request][0, 1_000]}\n\nFINAL ANSWER:\n#{opts[:final][0, 2_000]}\n\nTOOL TRACE (#{opts[:trace].length} steps):\n#{trace}"
-          resp = Reflect.on(request: req, system_role_content: JUDGE_SYSTEM, suppress_pii_warning: true).to_s
-          j = JSON.parse(resp[/\{.*\}/m], symbolize_names: true)
+          steps = Array(opts[:trace])
+          # Prefer the LAST tools — early inspect steps hide whether the
+          # human got a usable result. Keep the first step for context.
+          shown = compact_trace_tail(steps: steps, keep: CHEAP_ORM_TRACE_N)
+          trace = shown.each_with_index.map { |s, i| "#{i + 1}. #{s.to_s.gsub(/\s+/, ' ')[0, 220]}" }.join("\n")
+          plan = ''
+          if respond_to?(:plan_coverage)
+            cov = plan_coverage(
+              plan: opts[:plan],
+              final: opts[:final],
+              request: opts[:request],
+              trace: steps
+            )
+            plan = "\nPLAN COVERAGE: #{cov[:covered]}/#{cov[:total]} (#{cov[:tag]}) missing=#{Array(cov[:missing]).first(3).join(' | ')}" if cov && cov[:total].to_i.positive?
+          end
+          req = "USER REQUEST:\n#{opts[:request].to_s[0, 700]}\n\nFINAL ANSWER:\n#{opts[:final].to_s[0, 1_600]}\n\nTOOL TRACE (#{steps.length} steps, showing #{shown.length}):\n#{trace}#{plan}"
+          resp = cheap_orm_chat(request: req, system_role_content: JUDGE_SYSTEM)
+          parsed = parse_llm_judge(resp: resp)
+          return nil if parsed.nil?
+
+          # Soft-blend a stronger-than-overlap evidence prior so a noisy
+          # cheap ORM cannot peg 0.0/1.0 against an obviously incomplete
+          # or obviously complete final.
+          ev = evidence_prior(request: opts[:request], final: opts[:final], trace: steps, plan: opts[:plan])
+          if ev && ev[:confidence].to_f >= 0.5
+            raw = parsed[:score].to_f
+            # Sanity bounds only: do not always blend (would fight a good ORM).
+            if raw >= 0.85 && ev[:score].to_f <= 0.25
+              parsed[:score] = [raw, 0.45].min
+              parsed[:rationale] = "#{parsed[:rationale]} | ev_cap=#{ev[:score]}"
+            elsif raw <= 0.15 && ev[:score].to_f >= 0.65
+              parsed[:score] = [raw, 0.45].max
+              parsed[:rationale] = "#{parsed[:rationale]} | ev_floor=#{ev[:score]}"
+            end
+          end
+          parsed
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.parse_llm_judge(opts = {})
+          raw = opts[:resp]
+          resp = raw.is_a?(Hash) ? extract_chat_text(resp: raw) : raw.to_s
+          return nil if resp.strip.empty?
+
+          cleaned = resp.dup
+          cleaned = cleaned.sub(/\A\s*```(?:json)?\s*/i, '')
+          cleaned = cleaned.sub(/\s*```\s*\z/, '')
+          blob = cleaned[/\{\s*"score"\s*:.*\}/m] || cleaned[/\{.*\}/m]
+          return nil if blob.to_s.strip.empty?
+
+          j = JSON.parse(blob, symbolize_names: true)
+          return nil if j.nil? || !j.key?(:score)
+
+          begin
+            score = Float(j[:score])
+          rescue StandardError
+            return nil
+          end
+          score = score.clamp(0.0, 1.0)
+          verdict = j[:verdict].to_s.to_sym
+          verdict = if %i[solved partial wrong refused].include?(verdict)
+                      verdict
+                    elsif score >= 0.6
+                      :solved
+                    elsif score >= 0.3
+                      :partial
+                    else
+                      :wrong
+                    end
           {
-            score: j[:score].to_f.clamp(0.0, 1.0),
-            verdict: j[:verdict].to_s.to_sym,
+            score: score,
+            verdict: verdict,
             rationale: j[:rationale].to_s[0, 200],
             key_step: j[:key_step].to_i,
             source: :llm_orm
           }
         rescue StandardError
           nil
+        end
+
+        # Prefer Reflect.on (teacher engine) when module_reflection is on;
+        # otherwise a bounded engine .chat. Never Loop.run.
+        private_class_method def self.cheap_orm_chat(opts = {})
+          req = opts[:request].to_s
+          return nil if req.strip.empty?
+
+          if reflect_on_ready?
+            begin
+              raw = Reflect.on(
+                request: req,
+                system_role_content: opts[:system_role_content],
+                suppress_pii_warning: true,
+                spinner: false,
+                model: judge_model,
+                timeout: cheap_orm_timeout,
+                temp: CHEAP_ORM_TEMP
+              )
+              text = extract_chat_text(resp: raw)
+              return text unless text.strip.empty?
+            rescue StandardError
+              nil
+            end
+          end
+
+          engine_chat_cheap(request: req, system_role_content: opts[:system_role_content])
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.engine_chat_cheap(opts = {})
+          return nil unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          eng = PWN::Env.dig(:ai, :active).to_s.downcase.to_sym
+          eng = :ollama unless ENGINE_CHAT_MODS.key?(eng)
+          mod_name = ENGINE_CHAT_MODS[eng]
+          return nil if mod_name.to_s.empty?
+
+          mod = begin
+            Object.const_get(mod_name)
+          rescue NameError
+            nil
+          end
+          return nil unless mod && mod.respond_to?(:chat)
+
+          chat_opts = {
+            request: opts[:request],
+            system_role_content: opts[:system_role_content],
+            spinner: false,
+            timeout: cheap_orm_timeout,
+            temp: CHEAP_ORM_TEMP
+          }
+          model = judge_model
+          chat_opts[:model] = model unless model.to_s.empty?
+          extract_chat_text(resp: mod.chat(chat_opts))
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.cheap_orm_timeout
+          n = agent_flag(key: :reward_llm_timeout, default: CHEAP_ORM_TIMEOUT).to_i
+          n = CHEAP_ORM_TIMEOUT if n < 2
+          n = 30 if n > 30
+          n
+        rescue StandardError
+          CHEAP_ORM_TIMEOUT
+        end
+
+        private_class_method def self.judge_model
+          return nil unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          m = PWN::Env.dig(:ai, :agent, :reward_model)
+          m = PWN::Env.dig(:ai, :reflect_model) if m.to_s.empty?
+          m.to_s.empty? ? nil : m.to_s
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.reflect_on_ready?
+          return false unless defined?(Reflect)
+          return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+          return false unless PWN::Env.dig(:ai, :module_reflection)
+
+          Thread.current[:pwn_reflect_depth].to_i.zero?
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.extract_chat_text(opts = {})
+          resp = opts[:resp]
+          case resp
+          when nil then ''
+          when String then resp
+          when Hash
+            (
+              resp[:content] || resp['content'] ||
+              resp.dig(:choices, -1, :content) || resp.dig(:choices, -1, :text) ||
+              resp.dig(:choices, -1, :message, :content) ||
+              resp.dig('choices', -1, 'content') || resp.dig('choices', -1, 'text') ||
+              resp[:reply] || resp['reply'] || resp[:final] || resp['final']
+            ).to_s
+          else
+            resp.to_s
+          end
         end
 
         private_class_method def self.llm_prm(opts = {})
@@ -1029,7 +1266,7 @@ module PWN
                 'R4 tags: [R4:ok]=tool succeeded, [R4:benign_nonzero]=informational ' \
                 "non-zero (grep/diff/find miss — score 0 not -1), [R4:fail]=real failure.\n\n" \
                 "STEPS:\n#{steps}"
-          resp = Reflect.on(request: req, system_role_content: PRM_SYSTEM, suppress_pii_warning: true).to_s
+          resp = cheap_orm_chat(request: req, system_role_content: PRM_SYSTEM).to_s
           resp.scan(/-?1|0/).map(&:to_i).first(opts[:trace].length)
         rescue StandardError
           nil
@@ -1038,7 +1275,7 @@ module PWN
         private_class_method def self.heuristic_judge(opts = {})
           final   = opts[:final].to_s
           request = opts[:request].to_s
-          trace   = opts[:trace]
+          trace   = Array(opts[:trace])
           # 1.4 — empty / polite / failure-language finals cannot score high
           # just because tools mostly returned handler-ok.
           return { score: 0.0, verdict: :wrong, rationale: 'empty final', key_step: -1, source: :heuristic } if final.strip.empty?
@@ -1047,31 +1284,26 @@ module PWN
           polite = final.match?(/\A\s*(sure|happy to help|of course|i can help|how can i|let me know)\b/i) && final.length < 120
           return { score: 0.1, verdict: :partial, rationale: 'polite non-answer', key_step: -1, source: :heuristic } if polite && trace.empty?
 
-          bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
-          ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
-          score = ratio.clamp(0.1, 0.9)
-
-          # require claim ↔ request token overlap (stops "non-empty + ok tools"
-          # from looking solved when the final never addressed the ask)
+          ev = evidence_prior(request: request, final: final, trace: trace, plan: opts[:plan])
+          score = ev ? ev[:score].to_f : 0.35
+          # Overlap is a small on-topic gate, not the score. The evidence
+          # prior (completeness, plan cover, concrete claims, trace echo)
+          # is the fallback ORM.
           req_toks = request.downcase.scan(/[a-z0-9_]{3,}/).uniq
           fin_toks = final.downcase.scan(/[a-z0-9_]{3,}/).uniq
           overlap  = req_toks.empty? ? 1.0 : (req_toks & fin_toks).length.to_f / req_toks.length
-          score   *= (0.4 + (0.6 * overlap))
-          score    = [score, 0.45].min if overlap < 0.15 && req_toks.length >= 3
+          score = [score, 0.35].min if overlap < 0.08 && req_toks.length >= 4 && score > 0.35
 
-          # trace evidence: if tools ran, prefer finals that echo something from them
-          if trace.any?
-            blob = trace.join(' ')[0, 2_000].downcase
-            echoed = fin_toks.count { |t| t.length >= 4 && blob.include?(t) }
-            score *= 0.7 if echoed.zero? && final.length > 40
-          end
-
+          bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
+          ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
+          score = ((score * 0.85) + (ratio * 0.15)).round(3)
           score = score.round(2).clamp(0.0, 0.9)
           verdict = if score >= 0.6 then :solved
                     elsif score >= 0.3 then :partial
                     else :wrong
                     end
-          { score: score, verdict: verdict, rationale: "heuristic overlap=#{overlap.round(2)} ratio=#{ratio.round(2)}", key_step: -1, source: :heuristic }
+          rationale = "heuristic evidence=#{ev ? ev[:score] : '-'} overlap=#{overlap.round(2)} ratio=#{ratio.round(2)}"
+          { score: score, verdict: verdict, rationale: rationale, key_step: -1, source: :heuristic }
         end
 
         private_class_method def self.heuristic_prm(opts = {})
@@ -1082,6 +1314,67 @@ module PWN
             else -1
             end
           end
+        end
+
+        # Last-N (+ first) trace so the ORM sees the work that finished the ask.
+        private_class_method def self.compact_trace_tail(opts = {})
+          steps = Array(opts[:steps])
+          keep = (opts[:keep] || CHEAP_ORM_TRACE_N).to_i
+          return steps if steps.length <= keep
+
+          head = [steps.first]
+          tail = steps.last([keep - 1, 1].max)
+          (head + tail).uniq
+        end
+
+        # Stronger-than-overlap prior: completeness, concrete claims, plan
+        # coverage, failure language. Used as cheap ORM blend + heuristic fallback.
+        private_class_method def self.evidence_prior(opts = {})
+          final = opts[:final].to_s
+          request = opts[:request].to_s
+          trace = Array(opts[:trace])
+          return { score: 0.0, confidence: 0.9 } if final.strip.empty?
+          return { score: 0.05, confidence: 0.85 } if defined?(Learning) && Learning.const_defined?(:FAILURE_FINAL_RX) && final.match?(Learning::FAILURE_FINAL_RX)
+
+          polite = final.match?(/\A\s*(sure|happy to help|of course|i can help|how can i|let me know)\b/i) && final.length < 120
+          return { score: 0.1, confidence: 0.8 } if polite && trace.empty?
+
+          score = 0.32
+          score += 0.12 if final.length >= 160
+          score += 0.10 if final.length >= 400
+          concrete = final.match?(%r{\b\d+\.\d+\.\d+\.\d+(?:/\d+)?\b}) ||
+                     final.match?(/\b\d+\s+hosts?\b/i) ||
+                     final.match?(/\b(?:fixed|resolved|verified|pass(?:ed)?|complete)\b/i)
+          short_complete = final.length.between?(12, 200) && concrete
+          score -= 0.22 if final.length < 80 && !short_complete && !concrete
+          score += 0.28 if short_complete || concrete
+          # Truncation / mid-sentence cut is not a usable human result.
+          truncated = final.length > 80 && final.match?(/[a-z,;:]$/i) && !final.match?(/[.!?]["')\]]*\s*\z/)
+          score -= 0.28 if truncated
+          score += 0.08 if final.match?(/\b\d+(?:\.\d+)?\b/)
+          score += 0.08 if final.match?(%r{\b(?:/~|/[a-z0-9._-]+)+}i)
+          score += 0.10 if final.match?(/\b(fixed|resolved|verified|rspec|rubocop|pass|complete)\b/i)
+          if trace.any?
+            sem_ok = trace.count { |t| semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
+            score += 0.08 if sem_ok.positive?
+            score -= 0.12 if sem_ok.zero?
+            blob = trace.join(' ')[0, 2_000].downcase
+            echoed = final.downcase.scan(/[a-z0-9_]{4,}/).uniq.count { |t| blob.include?(t) }
+            score += 0.08 if echoed >= 2
+            score -= 0.10 if echoed.zero? && final.length > 40
+          end
+          req_toks = request.downcase.scan(/[a-z0-9_]{4,}/).uniq
+          fin_toks = final.downcase.scan(/[a-z0-9_]{4,}/).uniq
+          unless req_toks.empty?
+            ov = (req_toks & fin_toks).length.to_f / req_toks.length
+            score += 0.08 if ov >= 0.25
+            score -= 0.12 if ov < 0.08 && req_toks.length >= 4
+          end
+          cov = plan_coverage(plan: opts[:plan], final: final, request: request, trace: trace) if respond_to?(:plan_coverage)
+          score = ((score * 0.55) + (cov[:score].to_f * 0.45)) if cov && cov[:total].to_i.positive?
+          { score: score.round(3).clamp(0.0, 0.9), confidence: 0.62 }
+        rescue StandardError
+          nil
         end
 
         private_class_method def self.load_trace(opts = {})
@@ -1146,6 +1439,7 @@ module PWN
           entry = { judge: judge, at: Time.now.utc.iso8601 }
           # P1 — optional per-sample confidence (heuristic < LLM ORM)
           entry[:confidence] = opts[:confidence].to_f.clamp(0.0, 1.0) unless opts[:confidence].nil?
+          entry[:source] = opts[:source].to_s unless opts[:source].to_s.empty?
           # 1.3 — only roll proxy into the window when the caller actually
           # supplied a R4-aligned proxy_ok. Pre-ORM boolean noise no longer
           # dilutes gap_proxy_judge. Proxy is ALWAYS 0.0 or 1.0 when present.
@@ -1220,6 +1514,8 @@ module PWN
 
             h = { judge: e[:judge].to_f.clamp(0.0, 1.0) }
             h[:at] = e[:at] if e[:at]
+            h[:source] = e[:source].to_s unless e[:source].to_s.empty?
+            h[:confidence] = e[:confidence].to_f.clamp(0.0, 1.0) unless e[:confidence].nil?
             unless e[:proxy].nil?
               pv = e[:proxy]
               pv = 1.0 if pv == true || pv.to_s == 'true'
@@ -1271,7 +1567,19 @@ module PWN
           w = Array(opts.is_a?(Hash) && opts.key?(:window) ? opts[:window] : opts)
           return { proxy: nil, judge: 0.0 } if w.empty?
 
-          judge = w.sum { |e| e[:judge].to_f } / w.length
+          # Blend toward LLM ORM. Once a handful of real ORM samples exist,
+          # heuristic overlap is a tiny prior so proxy-judge gap tracks the
+          # outcome model, not bag-of-words.
+          orm_n = w.count { |e| e[:source].to_s == 'llm_orm' }
+          j_num = 0.0
+          j_den = 0.0
+          w.each do |e|
+            wt = judge_sample_weight(source: e[:source])
+            wt *= 0.25 if orm_n >= 4 && e[:source].to_s != 'llm_orm'
+            j_num += e[:judge].to_f * wt
+            j_den += wt
+          end
+          judge = j_den.positive? ? (j_num / j_den) : 0.0
           proxied = w.reject { |e| e[:proxy].nil? }
           proxy = if proxied.empty?
                     nil
@@ -1345,10 +1653,12 @@ module PWN
         end
 
         # ORM/PRM teacher availability.
-        # module_reflection gates Reflect lesson writing; reward models need a
-        # teacher even when that is off. For remote engines default ON so grok
-        # answers are not graded by a shell-exit heuristic. Local ollama stays
-        # heuristic unless module_reflection or agent.reward_llm is true.
+        # module_reflection gates Reflect lesson writing (PII / teacher
+        # engine). Reward models still need a teacher when that is off:
+        # cheap_orm_chat talks to the active engine directly. Remote engines
+        # default ON so grok answers are not graded by token overlap. Local
+        # ollama stays heuristic unless module_reflection or agent.reward_llm
+        # is true (cost).
         private_class_method def self.reflect_available?
           return false unless defined?(Reflect) && defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
@@ -1405,6 +1715,8 @@ module PWN
               Config (PWN::Env[:ai][:agent]):
                 :verify_as_reward   - Boolean/nil, ground finals via extro_verify (nil=auto)
                 :reward_llm         - Boolean/nil, force ORM/PRM LLM teacher (nil=on for remote engines)
+                :reward_model       - optional cheaper model id for ORM/PRM (nil=active engine default)
+                :reward_llm_timeout - seconds for cheap ORM chat (default 12, clamp 2..30)
 
               #{self}.authors
           USAGE

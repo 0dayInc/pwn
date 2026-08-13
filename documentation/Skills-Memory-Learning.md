@@ -1,4 +1,4 @@
-# Memory · Skills · Learning · Mistakes · Metrics - Introspection
+# Memory · Skills · Learning · Mistakes · Metrics · Policy - Introspection
 
 The **inward-facing** half of the pwn-ai feedback loop: how the agent measures
 its own performance, turns wins into permanent capability, and - critically -
@@ -6,12 +6,13 @@ its own performance, turns wins into permanent capability, and - critically -
 
 ![Memory / Skills detail](diagrams/memory-skills-detailed.svg)
 
-## The five stores
+## The six stores
 
 | Store | File | Write tool | Read tool | Injected as |
 |---|---|---|---|---|
 | **Memory** | `memory.json` (+ `memory.idx`) | `memory_remember` | `memory_recall` · `PWN::MemoryIndex.recall_semantic` | `MEMORY` block - durable facts / prefs / lessons / env. **Relevance-ranked** for the current request via a local embedding index when `ai.ollama.embed_model` is available; falls back to newest-first otherwise. |
 | **Skills** | `skills/<name>/SKILL.md` | `skill_create` · `skill_migrate_legacy` · `learning_distill_skill` | `skill_list` · `skill_view` | `SKILLS` list - reusable procedures + `references:` (CWE/CVE/ATT&CK/NIST/URL) |
+| **Policy** | `policy.json` + `policy_traj.jsonl` | Loop `begin_episode` / `observe_step` / `finish` | `policy_stats` · `policy_evaluate` · `policy_recommend` | `POLICY` block - live tabular Q / REINFORCE. Advisory rank only. Disable with `ai.agent.policy: false`. |
 | **Learning** | `learning.jsonl` | `learning_note_outcome` · `learning_reflect` | `learning_outcomes` · `learning_stats` · `Learning.exemplars_for` | `LEARNING` block - recent outcomes + success_rate. Prior *successful* traces are also spliced in as **few-shot exemplars** for local models. |
 | **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks - do-NOT-repeat + do-THIS-instead |
 | **Metrics** | `metrics.json` | *automatic* (every Dispatch) | `metrics_summary` | `TOOL EFFECTIVENESS` block - steer tool choice. **Segmented per engine** (`engine=...`) so a local model's telemetry never blends with a frontier model's. |
@@ -33,6 +34,7 @@ wiping durable facts, preferences, and lessons. Clearing is still available via
      abstract lessons for a small model.
 3. (local model) Loop.plan_first forces a numbered tool plan BEFORE dispatch.
 4. Dispatch runs a tool              → Metrics.record(tool, ok?, ms, engine:)
+   ↳ Policy.observe_step              → hygiene reward (semantic_ok) into the live MDP episode
    ↳ tool FAILED?                    → Mistakes.record(tool, error)  (count++, cross-session)
    ↳ same sig ≥3×?                   → guard_repeated_failure + inline correction_hint
    ↳ (local) ≥ ESCALATE_AFTER_FAILS  → Swarm.ask(escalation_persona) → 3-line frontier hint
@@ -40,6 +42,7 @@ wiping durable facts, preferences, and lessons. Clearing is still available via
    ↳ extro_verify → :refuted         → Mistakes.record(tool:'assumption', ...)  # proactive
    ↳ extro_verify → :confirmed       → observe(:intel, ttl:30d)
 6. Final answer produced             → Learning.auto_introspect(session_id)
+   ↳ Reward.judge (cheap LLM ORM)    → Policy.finish (terminal reward; Q + REINFORCE update)
    ↳ (local) fact_check_local_final  → auto extro_verify every CVE/version claim in the answer
    ↳ if auto_extrospect enabled      → Extrospection.auto_extrospect  # AUTO_SECTIONS only
 7. Reflect.on(engine: reflect_engine)→ Memory.remember(lesson_xxxx, ...)   # teacher-student: a
@@ -51,7 +54,7 @@ wiping durable facts, preferences, and lessons. Clearing is still available via
      model via Curriculum.train_and_gate (resolved margin + mean judge + smoke) - the ONLY step that
      changes weights, not just the scaffold. Without a trainer this stays export-ready.
 11. Next launch: PromptBuilder injects the budgeted blocks → the model already knows:
-     MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · EXTROSPECTION
+     MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS · POLICY · EXTROSPECTION · RECENT TURNS
 ```
 
 `extro_correlate` is the **join** - it tells the agent whether a failure was
@@ -190,6 +193,7 @@ when deciding which side of the loop to exercise.
 | "Reflect on this session / extract lessons" | `learning_reflect` / `sessions_current` |
 | "Don't do that again / that was wrong / resolve..." | `mistakes_record` / `mistakes_resolve` / `mistakes_list` |
 | "Which tools are unhealthy / avg duration" | `metrics_summary` |
+| "What did the live policy learn / suggest a tool" | `policy_stats` / `policy_evaluate` / `policy_recommend` |
 | "What did we run in session X / active session" | `sessions_view` / `sessions_current` |
 | "Disable reflection while we fuzz" | `learning_auto_introspect_toggle` |
 
@@ -203,8 +207,28 @@ and which procedures to promote permanently.
 [Sessions](Sessions.md) · [Persistence](Persistence.md)
 
 
+## Live Policy (advisory Q / REINFORCE)
+
+When `ai.agent.policy` is on (the default), every Loop turn is one learning
+episode:
+
+1. `begin_episode` opens before the first tool rank.
+2. `observe_step` writes a hygiene reward after each tool (`semantic_ok`).
+3. `finish` (from `Learning.auto_introspect`, or Loop if introspect is skipped)
+   adds the `Reward.judge` terminal score and updates Q and REINFORCE.
+
+State is a short key: request kind, a hash of the active English task, last
+action, fail count bin, and engine. Files:
+
+- `~/.pwn/policy.json` - Q table, REINFORCE logits, visit counts, recent returns
+- `~/.pwn/policy_traj.jsonl` - episode log
+
+Tools `policy_stats`, `policy_evaluate`, and `policy_recommend` are read-only. Reset is Ruby-only (`PWN::AI::Agent::Policy.reset`) so a tool call cannot wipe the table. `Registry.rank` may add a small Q-advantage after a pair has been visited at least twice. Planning still owns the task list.
+
+Turn it off with `ai.agent.policy: false` in `~/.pwn/pwn.yaml`.
+
 ## Task briefs vs learning
 
-`TaskSummarizer` is **UX**, not a persistence layer. Plan/`about_to` lines are ephemeral TUI briefs (deduped by `last_brief_fp`). Durable learning still flows through Learning · Mistakes · Reward · sessions only. See [pwn-ai Agent § Task summaries](pwn-ai-Agent.md#task-summaries-long-autonomous-turns).
+`TaskSummarizer` is **UX**, not a persistence layer. Plan/`about_to` lines are ephemeral TUI briefs (deduped by `last_brief_fp`). Durable learning still flows through Learning · Mistakes · Reward · Policy · sessions. See [pwn-ai Agent § Task summaries](pwn-ai-Agent.md#task-summaries-long-autonomous-turns).
 
 [← Home](Home.md)

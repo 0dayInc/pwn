@@ -95,14 +95,18 @@ describe PWN::AI::Agent::Learning do
 
     PWN::AI::Agent::Learning.reset
 
-    # Critic-capped solved-at-0.3 pattern (pre-P29 poison)
-    PWN::AI::Agent::Learning.note_outcome(
+    # Critic-capped solved-at-0.3 pattern must not persist as solved.
+    poisoned = PWN::AI::Agent::Learning.note_outcome(
       task: "REQUEST:\nwhats the bottom line?\n\nANSWER:\nfake bottom line",
       success: false,
       score: 0.3,
       details: 'solved(0.3) heuristic overlap=0.75 ratio=1.0 | fake bottom line',
       tags: %w[auto loop solved plan_cover_high]
     )
+    expect(Array(poisoned[:tags])).to include('partial')
+    expect(Array(poisoned[:tags])).not_to include('solved')
+    expect(poisoned[:details]).to match(/\Apartial\(0\.30?\)/)
+    expect(poisoned[:success]).to be false
     PWN::AI::Agent::Learning.note_outcome(
       task: 'real bare goal that failed',
       success: false,
@@ -118,7 +122,18 @@ describe PWN::AI::Agent::Learning do
       tags: %w[auto loop solved]
     )
 
-    # reconcile should flip solved→partial on the 0.3 row
+    # Legacy disk poison (bypass note_outcome) still gets repaired.
+    File.open(PWN::AI::Agent::Learning::LEARNING_FILE, 'a') do |f|
+      f.puts(JSON.generate(
+               id: 'legacy029',
+               task: 'legacy critic poison',
+               success: false,
+               score: 0.3,
+               details: 'solved(0.3) leftover from pre-write-align',
+               tags: %w[auto loop solved],
+               timestamp: Time.now.utc.iso8601
+             ))
+    end
     rep = PWN::AI::Agent::Learning.reconcile_verdict_tags!
     expect(rep[:repaired]).to be >= 1
 
@@ -147,6 +162,78 @@ describe PWN::AI::Agent::Learning do
     expect(PWN::AI::Agent::Learning.send(:verdict_for_score, score: 0.59)).to eq(:partial)
     expect(PWN::AI::Agent::Learning.send(:verdict_for_score, score: 0.3)).to eq(:partial)
     expect(PWN::AI::Agent::Learning.send(:verdict_for_score, score: 0.29)).to eq(:wrong)
+  end
+
+  it 'note_outcome rewrites solved-at-fail so inconsistent LEARNING rows cannot be stored' do
+    tmp = Dir.mktmpdir
+    path = File.join(tmp, 'learning.jsonl')
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', path)
+    PWN::AI::Agent::Learning.reset
+    e = PWN::AI::Agent::Learning.note_outcome(
+      task: 'goal done?',
+      success: true,
+      score: 0.3,
+      details: 'solved(0.3) critic floor left stale verdict',
+      tags: %w[auto loop solved]
+    )
+    expect(e[:success]).to be false
+    expect(Array(e[:tags])).to include('partial')
+    expect(Array(e[:tags])).not_to include('solved')
+    expect(e[:details]).to match(/\Apartial\(0\.30?\)/)
+    disk = JSON.parse(File.read(path).lines.last, symbolize_names: true)
+    expect(disk[:success]).to be false
+    expect(Array(disk[:tags])).to include('partial')
+    expect(Array(disk[:tags])).not_to include('solved')
+    soft = PWN::AI::Agent::Learning.note_outcome(
+      task: 'her relabel',
+      success: 'soft',
+      score: 0.7,
+      details: 'HER',
+      tags: %w[hindsight her]
+    )
+    expect(soft[:success]).to eq('soft')
+    expect(Array(soft[:tags])).to include('solved')
+  ensure
+    FileUtils.rm_rf(tmp) if defined?(tmp) && tmp
+  end
+
+  it 'discounts raw success_rate when proxy_distrust is high' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(tmp, 'learning.jsonl'))
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(tmp, 'memory.json'))
+    PWN::AI::Agent::Learning.reset
+    8.times do |i|
+      PWN::AI::Agent::Learning.note_outcome(
+        task: "proxy win #{i}",
+        success: true,
+        score: 0.8,
+        details: 'solved(0.80) handler-ok proxy',
+        tags: %w[auto loop]
+      )
+    end
+    2.times do |i|
+      PWN::AI::Agent::Learning.note_outcome(
+        task: "real fail #{i}",
+        success: false,
+        score: 0.2,
+        details: 'wrong(0.20) missed',
+        tags: %w[auto loop]
+      )
+    end
+    allow(PWN::AI::Agent::Reward).to receive(:proxy_distrust).and_return(1.0)
+    allow(PWN::AI::Agent::Reward).to receive(:sentinel).and_return(nil)
+    # Simulate a lying proxy vs weaker judge mean by stubbing discount inputs
+    # through a second corpus whose judge_mean sits below the boolean rate.
+    stats = PWN::AI::Agent::Learning.stats
+    expect(stats[:success_rate]).to eq(0.8)
+    expect(stats[:judge_mean]).to be_within(0.02).of(0.68)
+    expect(stats[:adjusted_success_rate]).to be < stats[:success_rate]
+    expect(stats[:adjusted_success_rate]).to be_within(0.05).of(stats[:judge_mean])
+    ctx = PWN::AI::Agent::Learning.to_context(limit: 5)
+    expect(ctx).to match(/success_rate=\d+\.\d+% adj/)
+    expect(ctx).not_to match(/success_rate=80\.0% over/)
+  ensure
+    FileUtils.rm_rf(tmp) if defined?(tmp) && tmp
   end
 
   it 'note_outcome enforces OUTCOME_DETAILS_MAX' do
@@ -222,5 +309,34 @@ describe PWN::AI::Agent::Learning do
     expect(res[:remaining]).to eq(mem.size)
   ensure
     FileUtils.rm_rf(tmp) if tmp
+  end
+  it 'weighted_judge_mean prefers llm_orm rows over heuristic overlap' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(tmp, 'learning.jsonl'))
+    stub_const('PWN::Memory::MEMORY_FILE', File.join(tmp, 'memory.json'))
+    PWN::AI::Agent::Learning.reset
+    8.times do |i|
+      PWN::AI::Agent::Learning.note_outcome(
+        task: "overlap #{i}", success: true, score: 0.9,
+        details: 'solved(0.90) heuristic overlap', tags: %w[auto],
+        judge_source: :heuristic
+      )
+    end
+    8.times do |i|
+      PWN::AI::Agent::Learning.note_outcome(
+        task: "orm #{i}", success: false, score: 0.2,
+        details: 'wrong(0.20) missed the ask', tags: %w[auto],
+        judge_source: :llm_orm
+      )
+    end
+    allow(PWN::AI::Agent::Reward).to receive(:proxy_distrust).and_return(1.0)
+    allow(PWN::AI::Agent::Reward).to receive(:sentinel).and_return(nil)
+    stats = PWN::AI::Agent::Learning.stats
+    # unweighted mean = 0.55; ORM-weighted mean closer to 0.2
+    expect(stats[:judge_mean]).to be < 0.45
+    expect(stats[:judge_mean]).to be > 0.2
+    expect(stats[:adjusted_success_rate]).to be_within(0.05).of(stats[:judge_mean])
+  ensure
+    FileUtils.rm_rf(tmp) if defined?(tmp) && tmp
   end
 end

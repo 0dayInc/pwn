@@ -21,6 +21,7 @@ digraph "PWN_Persistence" {
   prf  [label="preferences.jsonl\nDPO/KTO/ORPO pairs\nuser_correction · resolve · counterfactual"];
   mis  [label="mistakes.json\nfailure fingerprints · fixes\n[REPEATING] · [REGRESSED]"];
   met  [label="metrics.json\nper-tool · per-engine telemetry\ncalibration"];
+  pol  [label="policy.json + policy_traj.jsonl\nlive Q / REINFORCE · MDP log"];
   rws  [label="reward_sentinel.json\nproxy vs judge vs correction gap"];
   ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/\nrf/web/osint/serial/telecomm/\npacket/vision/voice) + prev + obs[]"];
   eart [label="extrospection/{web,packet,voice}/*\nscreenshots · pcaps · wav/txt"];
@@ -34,7 +35,7 @@ digraph "PWN_Persistence" {
   hist [label="~/.pwn_history\nREPL history"];
 
   Root->cfg;  Root->schm; Root->mem;  Root->midx; Root->skl;  Root->lrn;
-  Root->prf;  Root->mis;  Root->met;  Root->rws;  Root->ext;  Root->eart;
+  Root->prf;  Root->mis;  Root->met;  Root->pol;  Root->rws;  Root->ext;  Root->eart;
   Root->ses;  Root->crn;  Root->agt;  Root->swm;  Root->cur;  Root->ftn;
   Root->bkp;  Root->hist;
 }

@@ -99,16 +99,34 @@ module PWN
                     end
           raise 'ERROR: task is required' if task.strip.empty?
 
+          tags = Array(opts[:tags]).map(&:to_s)
+          details = opts[:details].to_s[0, OUTCOME_DETAILS_MAX]
+          # Refuse solved-at-fail (and the reverse): when a score is present,
+          # tags / details / boolean success must match verdict_for_score.
+          # Soft HER stays soft so C3 positives are not flipped to true/false.
+          if opts.key?(:score)
+            score = opts[:score].to_f
+            want = verdict_for_score(score: score).to_s
+            tags = (tags - %w[solved partial wrong unknown]) << want
+            details = details.sub(
+              /\A(solved|partial|wrong|unknown)\(\d+(?:\.\d+)?\)/i,
+              "#{want}(#{format('%.2f', score)})"
+            )
+            success = (score >= 0.6) if [true, false].include?(success)
+          end
+
           entry = {
             id: Digest::SHA256.hexdigest("#{task}-#{Time.now.to_f}")[0, 12],
             task: task,
             success: success,
-            details: opts[:details].to_s[0, OUTCOME_DETAILS_MAX],
+            details: details,
             session_id: opts[:session_id],
-            tags: Array(opts[:tags]).map(&:to_s),
+            tags: tags,
             timestamp: Time.now.utc.iso8601
           }
           entry[:score] = opts[:score].to_f if opts.key?(:score)
+          src = opts[:judge_source].to_s
+          entry[:judge_source] = src unless src.empty?
           FileUtils.mkdir_p(File.dirname(LEARNING_FILE))
           File.open(LEARNING_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
           maybe_prune_outcomes!
@@ -153,17 +171,22 @@ module PWN
           rows   = outcomes(limit: 10_000)
           total  = rows.length
           ok     = rows.count { |r| r[:success] == true }
-          jsum   = rows.sum { |r| r[:score] ? r[:score].to_f : { true => 1.0, false => 0.0 }[r[:success]] }
           skills = defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) ? PWN::Skills.keys.length : 0
           mem    = defined?(PWN::Memory) ? PWN::Memory.load.keys.length : 0
+          raw    = total.positive? ? (ok.to_f / total).round(3) : 0.0
+          jmean  = total.positive? ? weighted_judge_mean(rows: rows) : nil
+          distrust = 0.0
+          distrust = Reward.proxy_distrust.to_f.clamp(0.0, 1.0) if defined?(Reward) && Reward.respond_to?(:proxy_distrust)
           {
             total_outcomes: total,
             successes: ok,
             failures: total - ok,
-            success_rate: total.positive? ? (ok.to_f / total).round(3) : 0.0,
+            success_rate: raw,
+            adjusted_success_rate: discount_success_rate(proxy: raw, judge: jmean, distrust: distrust),
+            proxy_distrust: distrust,
             skills_known: skills,
             memory_entries: mem,
-            judge_mean: total.positive? ? (jsum / total).round(3) : nil,
+            judge_mean: jmean,
             reward_sentinel: (Reward.sentinel if defined?(Reward)),
             calibration: (Metrics.calibration if defined?(Metrics) && Metrics.respond_to?(:calibration)),
             preference_pairs: (Reward.preferences(limit: 100_000).length if defined?(Reward)),
@@ -209,7 +232,10 @@ module PWN
           end
           s   = stats
           jm  = s[:judge_mean]
-          hdr = "RECENT OUTCOMES (success_rate=#{(s[:success_rate] * 100).round(1)}%#{" judge_mean=#{jm}" if jm} over #{s[:total_outcomes]} attempts)"
+          d   = s[:proxy_distrust].to_f
+          rate = d > 0.05 ? s[:adjusted_success_rate] : s[:success_rate]
+          tag  = d > 0.05 ? ' adj' : ''
+          hdr = "RECENT OUTCOMES (success_rate=#{(rate.to_f * 100).round(1)}%#{tag}#{" judge_mean=#{jm}" if jm} over #{s[:total_outcomes]} attempts)"
           out = "#{hdr}\n#{rows.map(&fmt).join("\n")}\n"
           out += "RECENT FAILURES (learn from these — do not repeat)\n#{fails.map(&fmt).join("\n")}\n" unless fails.empty?
           "#{out}\n"
@@ -504,7 +530,7 @@ module PWN
 
           # R1 judge — always attempt (heuristic is cheap; LLM gated inside)
           stages_run << :judge
-          v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok) if defined?(Reward)
+          v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok, predicted: opts[:predicted], plan: opts[:plan]) if defined?(Reward)
           v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
           v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw
           # P29 — critic floor used to leave stale verdict=:solved at score=0.3,
@@ -568,11 +594,24 @@ module PWN
             score: v[:score],
             details: "#{v[:verdict]}(#{v[:score].to_f.round(2)}) #{v[:rationale]} | #{opts[:final].to_s[0, 200]}",
             session_id: session_id,
-            tags: outcome_tags
+            tags: outcome_tags,
+            judge_source: v[:source]
           )
 
           stages_run << :fold_judge
           fold_judge_into_metrics(session_id: session_id, score: v[:score], confidence: v[:confidence])
+          # R5 — close the live MDP episode with the ORM terminal reward.
+          if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:finish)
+            stages_run << :policy
+            Policy.finish(
+              session_id: session_id,
+              score: v[:score],
+              verdict: v[:verdict],
+              proxy_ok: ok,
+              final: opts[:final],
+              ts_state: opts[:ts_state]
+            )
+          end
 
           # R2 PRM — skip under hard cap (expensive LLM); keep under soft if heuristic path
           if over_hard.call
@@ -590,13 +629,10 @@ module PWN
             stages_skipped << :hindsight unless ok
           end
 
-          # W3 calibrate — cheap; always when predicted available
+          # W3 calibrate — cheap; always write so Metrics.calibration is never empty.
           predicted = opts[:predicted]
           predicted = recover_predicted_from_session(session_id: session_id) if predicted.nil?
-          if !predicted.nil? && defined?(Curriculum)
-            stages_run << :calibrate
-            Curriculum.calibrate(predicted: predicted, actual: v[:score], engine: PWN::Env.dig(:ai, :active))
-          end
+          stages_run << :calibrate if defined?(Curriculum)
 
           # reflect on success — skip soft/hard (LLM + memory writes)
           # M4.1 — also reflect when the request/final is a process SOP
@@ -789,6 +825,7 @@ module PWN
           sid = opts[:session_id]
           score = opts[:score]
           conf = opts[:confidence]
+          src = opts[:source]
           return if sid.to_s.empty? || score.nil?
           return unless defined?(PWN::Sessions)
 
@@ -797,7 +834,7 @@ module PWN
                                .map { |e| e[:content].to_s[/\A([a-z0-9_]+)\s*→/i, 1] }
                                .compact
                                .uniq
-          names.each { |n| Metrics.record_judge(name: n, score: score, confidence: conf) }
+          names.each { |n| Metrics.record_judge(name: n, score: score, confidence: conf, source: src) }
         rescue StandardError
           nil
         end
@@ -876,6 +913,50 @@ module PWN
         rescue StandardError => e
           warn "[pwn-ai/learning] promote_process_lesson swallowed: #{e.class}: #{e.message}"
           nil
+        end
+
+        # Weighted mean of stored outcome scores. LLM ORM rows outweigh
+        # heuristic-overlap rows so the LIVE haircut is an outcome signal.
+        private_class_method def self.weighted_judge_mean(opts = {})
+          rows = Array(opts[:rows])
+          return nil if rows.empty?
+
+          have_src = rows.any? { |r| !r[:judge_source].to_s.empty? }
+          if have_src && defined?(Reward) && Reward.respond_to?(:judge_sample_weight)
+            num = 0.0
+            den = 0.0
+            rows.each do |r|
+              score = r[:score] ? r[:score].to_f : { true => 1.0, false => 0.0 }[r[:success]]
+              next if score.nil?
+
+              wt = Reward.judge_sample_weight(source: r[:judge_source]).to_f
+              num += score * wt
+              den += wt
+            end
+            return den.positive? ? (num / den).round(3) : nil
+          end
+
+          jsum = rows.sum { |r| r[:score] ? r[:score].to_f : { true => 1.0, false => 0.0 }[r[:success]] }
+          (jsum / rows.length).round(3)
+        rescue StandardError
+          nil
+        end
+
+        # When R3 proxy_distrust or the judge–proxy gap is high, do not treat
+        # boolean win-rate as the live reward. Blend toward judge_mean (or
+        # shrink toward 0.5 when no judge samples exist).
+        private_class_method def self.discount_success_rate(opts = {})
+          proxy = opts[:proxy].to_f
+          distrust = opts[:distrust].to_f.clamp(0.0, 1.0)
+          return proxy.round(3) if distrust <= 0.05
+
+          judge = opts[:judge]
+          blended = if judge.nil?
+                      proxy - ((proxy - 0.5) * distrust)
+                    else
+                      (proxy * (1.0 - distrust)) + (judge.to_f * distrust)
+                    end
+          blended.clamp(0.0, 1.0).round(3)
         end
 
         # P29 — map score → verdict with the same thresholds as Reward.judge.
@@ -1454,6 +1535,11 @@ module PWN
                            else
                              { skipped: true }
                            end
+          res[:policy] = if defined?(PWN::AI::Agent::Policy) && Policy.respond_to?(:lean!)
+                           Policy.lean!(dry_run: dry)
+                         else
+                           { skipped: true }
+                         end
           res[:sessions] = if defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:lean!)
                              sess_opts = { dry_run: dry }
                              sid = opts[:current_session_id].to_s
