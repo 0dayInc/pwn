@@ -566,7 +566,9 @@ module PWN
               request: user,
               system_role_content: system,
               suppress_pii_warning: true,
-              spinner: false
+              spinner: false,
+              timeout: sidecar_timeout,
+              quiet: true
             )
             text = reflect_text(resp: resp)
             return text unless text.to_s.strip.empty?
@@ -846,7 +848,9 @@ module PWN
               request: user,
               system_role_content: system,
               suppress_pii_warning: true,
-              spinner: false
+              spinner: false,
+              timeout: sidecar_timeout,
+              quiet: true
             )
             text = reflect_text(resp: resp)
             return text unless text.to_s.strip.empty?
@@ -896,7 +900,9 @@ module PWN
           r = mod.chat(
             request: opts[:request],
             system_role_content: opts[:system_role_content],
-            spinner: false
+            spinner: false,
+            timeout: sidecar_timeout,
+            quiet: true
           )
           reflect_text(resp: r)
         rescue StandardError => e
@@ -909,6 +915,17 @@ module PWN
           ENGINE_MODS.key?(eng) ? eng : :ollama
         rescue StandardError
           :ollama
+        end
+
+        # Kind / plan classification is a sidecar hop. Bound it so a hung
+        # model cannot stall the user's real answer, and stay quiet on timeout.
+        private_class_method def self.sidecar_timeout
+          n = (PWN::Env.dig(:ai, :agent, :sidecar_llm_timeout) if defined?(PWN::Env)).to_i
+          n = 20 if n < 5
+          n = 60 if n > 60
+          n
+        rescue StandardError
+          20
         end
 
         # Parse JSON array, fenced JSON, or numbered/bulleted plain text.

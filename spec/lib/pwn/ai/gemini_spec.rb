@@ -12,4 +12,8 @@ describe PWN::AI::Gemini do
     help_response = PWN::AI::Gemini
     expect(help_response).to respond_to :help
   end
+
+  it 'exposes get_plan_usage for the PS1 subscription suffix' do
+    expect(described_class).to respond_to(:get_plan_usage)
+  end
 end

@@ -51,9 +51,11 @@ begin
     # ------------------------------------------------------------------
     if opts[:setup] == true
       r = PWN::Setup.check
+      PWN::Setup.ensure_cron(restart: false)
       exit(r[:ok] ? 0 : 1)
     else
       PWN::Setup.deps(profile: opts[:setup])
+      PWN::Setup.ensure_cron(restart: false)
     end
   elsif opts[:ai]
     # ------------------------------------------------------------------

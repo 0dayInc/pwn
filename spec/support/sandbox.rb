@@ -33,6 +33,8 @@ RSpec.shared_context 'pwn tmp sandbox' do
       'PWN::Memory::MEMORY_FILE' => 'memory.json',
       'PWN::Cron::CRON_DIR' => 'cron',
       'PWN::Cron::JOBS_FILE' => File.join('cron', 'jobs.yml'),
+      'PWN::Cron::PID_FILE' => File.join('cron', 'worker.pid'),
+      'PWN::Cron::WORKER_LOG' => File.join('cron', 'worker.log'),
       'PWN::AI::Agent::Learning::LEARNING_FILE' => 'learning.jsonl',
       'PWN::AI::Agent::Learning::FINETUNE_DIR' => 'finetune',
       'PWN::AI::Agent::Metrics::METRICS_FILE' => 'metrics.json',
@@ -70,12 +72,14 @@ RSpec.shared_context 'pwn tmp sandbox' do
       allow(PWN::AI::Agent::Extrospection).to receive(:drift).and_return(changed: [], added: [], removed: [])
     end
 
+    ENV['PWN_CRON_DIR'] = File.join(@tmp, 'cron')
     Thread.current[:pwn_pending_pref] = nil
     Thread.current[:pwn_curriculum]   = nil
     Thread.current[:pwn_swarm_depth]  = nil
   end
 
   after do
+    ENV.delete('PWN_CRON_DIR')
     PWN::Env[:ai] = @env_prev
     Thread.current[:pwn_pending_pref] = nil
     Thread.current[:pwn_curriculum]   = nil

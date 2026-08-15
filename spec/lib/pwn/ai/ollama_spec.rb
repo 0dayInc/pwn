@@ -66,6 +66,27 @@ describe PWN::AI::Ollama do
     expect(captured_chat[:stream]).to be true
   end
 
+  it 'posts #chat to native api/chat instead of the OpenAI-compat v1 shim' do
+    engine = {
+      model: 'test',
+      num_ctx: 2048,
+      keep_alive: '1m',
+      temp: 0.1,
+      system_role_content: 'sys'
+    }
+    allow(PWN::Env).to receive(:[]).and_call_original
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ ollama: engine, active: 'ollama' })
+
+    captured = nil
+    allow(described_class).to receive(:ollama_rest_call) do |**kwargs|
+      captured = kwargs
+      '{"message":{"role":"assistant","content":"hi"},"done":true}'
+    end
+    described_class.chat(request: 'hello', model: 'test')
+    expect(captured[:rest_call]).to eq('api/chat')
+    expect(captured[:rest_call]).not_to include('v1/')
+  end
+
   it 'assembles native /api/chat NDJSON stream into a single message' do
     body = [
       { model: 'm', message: { role: 'assistant', content: 'Hel' }, done: false }.to_json,
@@ -298,5 +319,14 @@ describe PWN::AI::Ollama do
     args = asst.dig(:tool_calls, 0, :function, :arguments)
     expect(args).to be_a(Hash)
     expect(args[:command] || args['command']).to eq('id')
+  end
+
+  it 'exposes get_plan_usage for the PS1 subscription suffix' do
+    expect(described_class).to respond_to(:get_plan_usage)
+  end
+  it 'marks local plan usage as unlimited so the PS1 shows infinity' do
+    usage = described_class.get_plan_usage
+    expect(usage[:available]).to be false
+    expect(usage[:unlimited]).to be true
   end
 end

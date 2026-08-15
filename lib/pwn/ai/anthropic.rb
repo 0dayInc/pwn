@@ -362,7 +362,7 @@ module PWN
                        real_config_value?(value: oauth[:bearer_token]) ||
                        real_config_value?(value: oauth[:refresh_token])
 
-        if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key]))
+        if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key])) && !opts[:non_interactive]
           token = obtain_oauth_bearer_token(oauth)
           using_oauth = true
         end
@@ -372,9 +372,15 @@ module PWN
           using_oauth = false
         end
 
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Anthropic API Key (or run PWN::AI::Anthropic.obtain_oauth_bearer_token for Claude Pro/Max OAuth)'
-        )
+        if token.nil?
+          return nil if opts[:non_interactive]
+
+          token = PWN::Plugins::AuthenticationHelper.mask_password(
+            prompt: 'Anthropic API Key (or run PWN::AI::Anthropic.obtain_oauth_bearer_token for Claude Pro/Max OAuth)'
+          )
+        end
+
+        return nil if token.nil?
 
         http_method = if opts[:http_method].nil?
                         :get
@@ -486,6 +492,122 @@ module PWN
         JSON.parse(models, symbolize_names: true)[:data]
       rescue StandardError => e
         raise e
+      end
+
+      # Supported Method Parameters::
+      # usage = PWN::AI::Anthropic.get_plan_usage(
+      #   timeout: 'optional - seconds (default 8)'
+      # )
+      #
+      # Admin Usage API (organizations/usage_report/messages) yields tokens
+      # used; organizations/rate_limits yields the configured ceiling so the
+      # PS1 can show a percent. Individual accounts without an Admin key
+      # return {available:false}. Never prompts for credentials.
+      public_class_method def self.get_plan_usage(opts = {})
+        timeout = opts[:timeout] || 8
+        return { available: false, engine: :anthropic } unless plan_usage_credentials?
+
+        now = Time.now.utc
+        start_of_month = Time.utc(now.year, now.month, 1)
+        report = parse_plan_usage_json(
+          raw: anthropic_rest_call(
+            rest_call: 'organizations/usage_report/messages',
+            params: {
+              starting_at: start_of_month.strftime('%Y-%m-%dT00:00:00Z'),
+              ending_at: now.strftime('%Y-%m-%dT%H:%M:%SZ'),
+              bucket_width: '1d'
+            },
+            timeout: timeout,
+            spinner: false,
+            non_interactive: true
+          )
+        )
+        used_tokens = sum_usage_tokens(report: report)
+
+        limits = parse_plan_usage_json(
+          raw: anthropic_rest_call(
+            rest_call: 'organizations/rate_limits',
+            timeout: timeout,
+            spinner: false,
+            non_interactive: true
+          )
+        )
+        limit_tokens = first_rate_limit(limits: limits)
+
+        normalized = PWN::AI.normalize_plan_usage(
+          used: used_tokens,
+          limit: limit_tokens,
+          source: 'organizations/usage_report',
+          engine: :anthropic
+        )
+        return normalized if normalized[:available]
+
+        { available: false, engine: :anthropic }
+      rescue StandardError
+        { available: false, engine: :anthropic }
+      end
+
+      private_class_method def self.plan_usage_credentials?
+        engine = PWN::Env.dig(:ai, :anthropic) || {}
+        oauth = engine[:oauth].is_a?(Hash) ? engine[:oauth] : {}
+        real_config_value?(value: engine[:key]) ||
+          real_config_value?(value: oauth[:bearer_token]) ||
+          real_config_value?(value: oauth[:refresh_token])
+      end
+
+      private_class_method def self.parse_plan_usage_json(opts = {})
+        raw = opts[:raw]
+        return nil if raw.nil?
+
+        parsed = JSON.parse(raw.to_s, symbolize_names: true)
+        parsed.is_a?(Hash) ? parsed : nil
+      rescue JSON::ParserError, TypeError
+        nil
+      end
+
+      private_class_method def self.sum_usage_tokens(opts = {})
+        report = opts[:report]
+        return nil unless report.is_a?(Hash)
+
+        buckets = report[:data] || report[:usage] || []
+        total = 0
+        Array(buckets).each do |bucket|
+          next unless bucket.is_a?(Hash)
+
+          results = bucket[:results] || bucket[:usage] || [bucket]
+          Array(results).each do |row|
+            next unless row.is_a?(Hash)
+
+            %i[
+              uncached_input_tokens
+              input_tokens
+              cache_read_input_tokens
+              cache_creation_input_tokens
+              output_tokens
+            ].each { |k| total += row[k].to_i }
+          end
+        end
+        total.positive? ? total : nil
+      end
+
+      private_class_method def self.first_rate_limit(opts = {})
+        limits = opts[:limits]
+        return nil unless limits.is_a?(Hash)
+
+        Array(limits[:data]).each do |group|
+          next unless group.is_a?(Hash)
+
+          Array(group[:limits]).each do |lim|
+            next unless lim.is_a?(Hash)
+
+            type = lim[:type].to_s
+            next unless type.match?(/tokens_per|input_tokens|output_tokens/)
+
+            v = lim[:value].to_f
+            return v if v.positive?
+          end
+        end
+        nil
       end
 
       # ----------------------------------------------------------------------
@@ -831,6 +953,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
+
+          usage = #{self}.get_plan_usage
 
           # One-time Claude Pro/Max OAuth enrollment (PKCE paste flow):
           bearer = #{self}.obtain_oauth_bearer_token

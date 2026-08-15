@@ -374,6 +374,16 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # usage = PWN::AI::Ollama.get_plan_usage
+      #
+      # Local Ollama has no subscription / plan-usage endpoint. Always
+      # unavailable so the PS1 shows the infinity glyph.
+      public_class_method def self.get_plan_usage(opts = {})
+        _unused = opts
+        { available: false, engine: :ollama, unlimited: true }
+      end
+
       # Coerce OpenAI-wire message history into Ollama-native shapes before
       # POST /api/chat (or Open WebUI /ollama/api/chat):
       # - function.arguments must be a Hash/Array object, not a JSON string
@@ -554,8 +564,10 @@ module PWN
         temp = opts[:temp].to_f ||= engine[:temp].to_f
         temp = 1 if temp.zero?
 
-        # OpenAI-compat shim on the ollama server (no api-key needed).
-        rest_call = 'v1/chat/completions'
+        # Native Ollama chat. Stock ollama serve and many reverse proxies
+        # expose /api/chat, not the OpenAI-compat shim /v1/chat/completions
+        # (that path 404s when the shim is disabled or not mounted).
+        rest_call = 'api/chat'
 
         response_history = opts[:response_history]
 
@@ -573,11 +585,20 @@ module PWN
 
         response_history ||= { choices: [system_role] }
 
+        num_ctx     = (engine[:num_ctx] || 32_768).to_i
+        num_predict = (engine[:num_predict] || 4_096).to_i
+        keep_alive  = engine[:keep_alive] || '30m'
+
         http_body = {
           model: model,
           messages: [system_role],
-          temperature: temp,
-          stream: true
+          stream: true,
+          keep_alive: keep_alive,
+          options: {
+            num_ctx: num_ctx,
+            num_predict: num_predict,
+            temperature: temp
+          }
         }
 
         if response_history[:choices].length > 1
@@ -600,7 +621,9 @@ module PWN
         )
 
         json_resp = JSON.parse(response, symbolize_names: true)
-        assistant_resp = json_resp[:choices].first[:message]
+        assistant_resp = json_resp[:message] || json_resp.dig(:choices, 0, :message)
+        raise "ERROR: Ollama chat response missing message/choices: #{json_resp.inspect[0, 400]}" if assistant_resp.nil?
+
         json_resp[:choices] = http_body[:messages]
         json_resp[:choices].push(assistant_resp)
 
@@ -632,6 +655,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
+
+          usage = #{self}.get_plan_usage
 
           response = #{self}.chat(
             request: 'required - message to Ollama',

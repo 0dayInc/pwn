@@ -166,9 +166,12 @@ RSpec.describe 'documentation/Installation.md' do
     it 'check() report shape drives the documented exit code' do
       r = PWN::Setup.check(io: StringIO.new)
       expect([true, false]).to include(r[:ok])
-      # bin/pwn_setup: `exit 1 unless r[:ok]` — assert that line still exists
-      expect(read_utf8.call(File.join(repo_root, 'bin/pwn_setup')))
-        .to match(/exit 1 unless r\[:ok\]/)
+      # bin/pwn_setup: doctor failure is recorded then the process exits
+      # with that status after ensure_cron has started the scheduler.
+      body = read_utf8.call(File.join(repo_root, 'bin/pwn_setup'))
+      expect(body).to match(/status = 1 unless r\[:ok\]/)
+      expect(body).to include('PWN::Setup.ensure_cron')
+      expect(body).to match(/exit status/)
     end
 
     it 'list_profiles returns PROFILES.keys' do

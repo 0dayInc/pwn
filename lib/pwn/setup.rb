@@ -751,6 +751,74 @@ module PWN
       end
     end
 
+    # Supported Method Parameters::
+    # PWN::Setup.ensure_cron(
+    #   restart: 'optional - replace a live worker (default false = reuse)',
+    #   dry_run: 'optional - do not spawn (default false)',
+    #   interval: 'optional - worker poll seconds (default PWN::Cron::DEFAULT_INTERVAL)',
+    #   io:      'optional - IO to write the status line to (default $stdout)'
+    # )
+    #
+    # Seed default pwn-ai jobs (idempotent) and start the background
+    # scheduler that actually ticks last_run. `pwn setup` calls this
+    # after every action except --list-profiles / --terminal / --dry-run
+    # so YAML-only jobs fire without a system crontab entry.
+    public_class_method def self.ensure_cron(opts = {})
+      io      = opts[:io] || $stdout
+      dry_run = opts[:dry_run] ? true : false
+      restart = opts.fetch(:restart, false)
+      interval = opts[:interval]
+
+      unless defined?(PWN::Cron)
+        io.puts "#{'cron worker'.ljust(26)} #{MISS}   (PWN::Cron not loaded)"
+        return { ok: false, reason: :no_cron }
+      end
+
+      if dry_run
+        st = PWN::Cron.worker_status
+        io.puts "#{'cron worker'.ljust(26)} #{st[:running] ? OK : MISS}   (dry-run, pid=#{st[:pid] || 'none'})"
+        return { ok: true, dry_run: true, worker: st }
+      end
+
+      seeded = begin
+        PWN::Cron.install_defaults
+      rescue StandardError => e
+        io.puts "#{'cron defaults'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
+        []
+      end
+
+      worker = PWN::Cron.ensure_worker(
+        restart: restart,
+        interval: interval
+      )
+      st = PWN::Cron.worker_status
+      label = if worker[:already_running]
+                'already running'
+              elsif worker[:started] && st[:running]
+                'started'
+              else
+                'FAILED'
+              end
+      mark = st[:running] ? OK : MISS
+      io.puts "#{'cron worker'.ljust(26)} #{mark}   #{label} pid=#{st[:pid] || worker[:pid] || 'none'}"
+
+      crontab = begin
+        PWN::Cron.install_worker_crontab
+      rescue StandardError
+        nil
+      end
+
+      {
+        ok: st[:running] ? true : false,
+        seeded: seeded,
+        worker: worker.merge(st),
+        crontab: crontab
+      }
+    rescue StandardError => e
+      io.puts "#{'cron worker'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
+      { ok: false, error: "#{e.class}: #{e.message}" }
+    end
+
     # Author(s):: 0day Inc. <support@0dayinc.com>
 
     public_class_method def self.authors
@@ -803,6 +871,8 @@ module PWN
         pwn setup --dry-run --profile net
         pwn setup --migrate                  # verify + upgrade ~/.pwn schema
         pwn setup --migrate --fix            # also autofix incompatible files
+        # Every non-dry-run `pwn setup` also seeds default jobs and starts
+        # (or reuses) the background PWN::Cron worker.
 
         #{self}.authors
       "

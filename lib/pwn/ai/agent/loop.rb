@@ -1063,6 +1063,16 @@ module PWN
         # 3.2 — local models cannot afford auto_introspect (judge+prm+critic+
         # sentinel+extro) on every success. Default :failure_only when local.
         private_class_method def self.should_auto_introspect?(opts = {})
+          kind = (opts[:kind] || Thread.current[:pwn_request_kind]).to_s.to_sym
+          intent = (opts[:intent] || Thread.current[:pwn_request_intent]).to_s.to_sym
+          fails = opts[:turn_fails].is_a?(Hash) ? opts[:turn_fails].values.sum : 0
+          # Cheap answers already returned user-visible text. The post-answer
+          # critic + 12s ORM printed ERROR: Timed out reading data from server
+          # after greetings / takes / questions.
+          return false if %i[greeting howto recall].include?(intent)
+          return false if kind == :statement
+          return false if kind == :question && fails.zero?
+
           return true unless opts[:local]
 
           policy = agent_flag(key: :local_introspect, default: :failure_only).to_s.to_sym

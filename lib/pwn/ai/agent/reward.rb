@@ -1157,11 +1157,20 @@ module PWN
                 spinner: false,
                 model: judge_model,
                 timeout: cheap_orm_timeout,
-                temp: CHEAP_ORM_TEMP
+                temp: CHEAP_ORM_TEMP,
+                quiet: true
               )
               text = extract_chat_text(resp: raw)
               return text unless text.strip.empty?
-            rescue StandardError
+
+              # Quiet ReadTimeout now returns nil instead of raising. That
+              # empty response already spent the cheap-ORM budget — do not
+              # immediately fire engine_chat_cheap (second 12s stall).
+              return nil
+            rescue StandardError => e
+              # A 12s ReadTimeout already spent the cheap-ORM budget.
+              return nil if timeout_error?(err: e)
+
               nil
             end
           end
@@ -1191,13 +1200,28 @@ module PWN
             system_role_content: opts[:system_role_content],
             spinner: false,
             timeout: cheap_orm_timeout,
-            temp: CHEAP_ORM_TEMP
+            temp: CHEAP_ORM_TEMP,
+            quiet: true
           }
           model = judge_model
           chat_opts[:model] = model unless model.to_s.empty?
           extract_chat_text(resp: mod.chat(chat_opts))
         rescue StandardError
           nil
+        end
+
+        private_class_method def self.timeout_error?(opts = {})
+          err = opts[:err]
+          return false if err.nil?
+
+          klass = err.class
+          name = klass.name.to_s
+          return true if name.include?('Timeout') || name.include?('ReadTimeout') || name.include?('OpenTimeout')
+          return true if err.message.to_s.match?(/timed out reading|read timeout|open timeout/i)
+
+          false
+        rescue StandardError
+          false
         end
 
         private_class_method def self.cheap_orm_timeout
