@@ -31,4 +31,11 @@ describe PWN::AI::Grok do
     expect(timeout_rescue).not_to match(/puts "ERROR:/)
     expect(timeout_rescue).to match(/opts\[:quiet\]/)
   end
+
+  it 'chat_with_tools honors PromptCache when prompt_cache is on' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to include('PromptCache.openai_messages')
+    expect(src).to include('x-grok-conv-id')
+    expect(src).to include('enabled?(engine: :grok)')
+  end
 end

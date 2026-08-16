@@ -410,6 +410,8 @@ module PWN
           content_type: 'application/json; charset=UTF-8',
           authorization: "Bearer #{token}"
         }
+        extra_headers = opts[:headers] || opts[:extra_headers]
+        headers.merge!(extra_headers) if extra_headers.is_a?(Hash) && !extra_headers.empty?
 
         http_body = opts[:http_body]
         http_body ||= {}
@@ -693,6 +695,20 @@ module PWN
         temp = opts[:temp].to_f
         temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
 
+        conv_id = nil
+        if defined?(PWN::AI::Agent::PromptCache) &&
+           PWN::AI::Agent::PromptCache.enabled?(engine: :grok)
+          sys = Array(messages).find do |m|
+            next false unless m.is_a?(Hash)
+
+            %w[system developer].include?((m[:role] || m['role']).to_s)
+          end
+          conv_id = PWN::AI::Agent::PromptCache.cache_key(
+            text: sys ? (sys[:content] || sys['content']).to_s : ''
+          )
+          messages = PWN::AI::Agent::PromptCache.openai_messages(messages: messages)
+        end
+
         http_body = {
           model: model,
           messages: messages,
@@ -708,7 +724,8 @@ module PWN
           http_body: http_body,
           timeout: opts[:timeout],
           spinner: opts[:spinner],
-          quiet: opts[:quiet]
+          quiet: opts[:quiet],
+          headers: (conv_id ? { 'x-grok-conv-id' => conv_id } : nil)
         )
         return nil if response.nil?
 

@@ -50,4 +50,12 @@ describe PWN::AI::Anthropic do
   it 'exposes get_plan_usage for the PS1 subscription suffix' do
     expect(described_class).to respond_to(:get_plan_usage)
   end
+
+  describe 'Hermes prompt-cache breakpoint' do
+    it 'chat_with_tools source emits PromptCache.anthropic_system_blocks' do
+      src = File.read(described_class.method(:chat_with_tools).source_location.first)
+      expect(src).to include('PromptCache.anthropic_system_blocks')
+      expect(src).to include('PromptCache.enabled?')
+    end
+  end
 end

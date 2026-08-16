@@ -474,6 +474,12 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  it 'Loop.run marks the Hermes user-path so TurnFinalizer can defer' do
+    src = File.read(described_class.method(:run).source_location.first)
+    expect(src).to match(/TurnFinalizer\.enter_user_path!/)
+    expect(src).to match(/TurnFinalizer\.leave_user_path!/)
+  end
+
   it 'should_auto_introspect skips cheap greeting/question/statement answers' do
     src = File.read(described_class.method(:run).source_location.first)
     expect(src).to include('return false if %i[greeting howto recall].include?(intent)')

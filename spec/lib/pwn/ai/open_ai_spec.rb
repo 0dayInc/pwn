@@ -50,4 +50,11 @@ describe PWN::AI::OpenAI do
     timeout_rescue = src[/rescue RestClient::Exceptions::Timeout.*?rescue RestClient::ExceptionWithResponse/m]
     expect(timeout_rescue).not_to match(/puts "ERROR:/)
   end
+
+  it 'chat_with_tools honors PromptCache when prompt_cache is on' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to include('PromptCache.openai_messages')
+    expect(src).to include('prompt_cache_key')
+    expect(src).to include('enabled?(engine: :openai)')
+  end
 end

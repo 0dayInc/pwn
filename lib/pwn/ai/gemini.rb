@@ -179,7 +179,15 @@ module PWN
             maxOutputTokens: opts[:max_tokens] || 8192
           }
         }
-        http_body[:systemInstruction] = { parts: [{ text: system_str }] } if system_str && !system_str.empty?
+        if system_str && !system_str.empty?
+          if defined?(PWN::AI::Agent::PromptCache) &&
+             PWN::AI::Agent::PromptCache.enabled?(engine: :gemini)
+            inst = PWN::AI::Agent::PromptCache.gemini_system_instruction(text: system_str)
+            http_body[:systemInstruction] = inst if inst
+          else
+            http_body[:systemInstruction] = { parts: [{ text: system_str }] }
+          end
+        end
 
         if opts[:tools] && !opts[:tools].empty?
           http_body[:tools] = [{

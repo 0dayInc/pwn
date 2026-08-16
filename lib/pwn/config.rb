@@ -166,6 +166,13 @@ module PWN
             # end-of-turn auto_introspect policy for local: :always | :failure_only | :every_n (with introspect_every_n)
             local_introspect: :failure_only,
             introspect_every_n: 3,
+            # Hermes split: run Learning.auto_introspect on a daemon thread after
+            # Loop.run has already decided the user-visible reply (default ON).
+            defer_introspect: true,
+            # Hermes-style prompt-cache breakpoints. Anthropic uses cache_control
+            # system blocks; OpenAI uses prompt_cache_key; Grok uses x-grok-conv-id;
+            # Gemini splits systemInstruction parts for implicit prefix hits.
+            prompt_cache: true,
             # S2/S3/S4 — nil = auto (ON for remote engines, OFF for ollama cost)
             critic: nil,
             counterfactual: nil,

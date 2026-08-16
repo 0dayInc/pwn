@@ -1875,6 +1875,7 @@ module PWN
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
+          TurnFinalizer.enter_user_path! if defined?(TurnFinalizer)
           # Live coalesced "what am I doing" lines for the TUI (not a model tool).
           ts_state = (TaskSummarizer.fresh(request: request) if defined?(TaskSummarizer) && TaskSummarizer.enabled? && Thread.current[:pwn_reflect_depth].to_i.zero?)
           engine = active_engine
@@ -2307,6 +2308,8 @@ module PWN
           maybe_finish_policy(session_id: session_id, proxy_ok: false, ts_state: ts_state)
           task_summary_flush!(state: ts_state, on_tool: on_tool)
           final_msg
+        ensure
+          TurnFinalizer.leave_user_path! if defined?(TurnFinalizer)
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

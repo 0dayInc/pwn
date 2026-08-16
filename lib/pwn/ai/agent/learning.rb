@@ -460,6 +460,11 @@ module PWN
           return unless session_id
           return unless auto_introspect_enabled?
 
+          # Hermes split: Loop.run is on the stack → defer critic/judge/PRM/HER
+          # onto a daemon thread so the user already has the reply. Specs,
+          # cron, and tools pass through (inline:true or no user-path depth).
+          return TurnFinalizer.defer(opts.merge(inline: true)) if defined?(TurnFinalizer) && !opts[:inline] && TurnFinalizer.should_defer?
+
           t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           stages_run = []
           stages_skipped = []

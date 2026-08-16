@@ -683,10 +683,25 @@ module PWN
         model = opts[:model] ||= engine[:model]
 
         reasoning = reasoning_model?(model: model)
+        messages = remap_system_to_developer(messages: messages) if reasoning
+        cache_key = nil
+        if defined?(PWN::AI::Agent::PromptCache) &&
+           PWN::AI::Agent::PromptCache.enabled?(engine: :openai)
+          sys = Array(messages).find do |m|
+            next false unless m.is_a?(Hash)
+
+            %w[system developer].include?((m[:role] || m['role']).to_s)
+          end
+          cache_key = PWN::AI::Agent::PromptCache.cache_key(
+            text: sys ? (sys[:content] || sys['content']).to_s : ''
+          )
+          messages = PWN::AI::Agent::PromptCache.openai_messages(messages: messages)
+        end
         http_body = {
           model: model,
-          messages: reasoning ? remap_system_to_developer(messages: messages) : messages
+          messages: messages
         }
+        http_body[:prompt_cache_key] = cache_key if cache_key
         unless reasoning
           temp = opts[:temp].to_f
           temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?

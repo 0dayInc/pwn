@@ -657,7 +657,17 @@ module PWN
           temperature: temp,
           messages: anth_messages
         }
-        http_body[:system] = system_str if system_str && !system_str.empty?
+        if system_str && !system_str.empty?
+          # Hermes-style cache breakpoint on the static system prefix + SKILLS
+          # index. Dynamic MEMORY/LEARNING stay in a second uncached block.
+          if defined?(PWN::AI::Agent::PromptCache) &&
+             PWN::AI::Agent::PromptCache.enabled?(engine: :anthropic)
+            blocks = PWN::AI::Agent::PromptCache.anthropic_system_blocks(text: system_str)
+            http_body[:system] = blocks unless blocks.empty?
+          else
+            http_body[:system] = system_str
+          end
+        end
 
         if opts[:tools] && !opts[:tools].empty?
           http_body[:tools] = opts[:tools].map do |t|

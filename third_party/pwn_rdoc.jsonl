@@ -418,6 +418,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.action_bucket Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.action_bucket`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.active_task_text Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.active_task_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.advantage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.advantage`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.attach_episode! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.attach_episode!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.begin_episode Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.begin_episode`: Supported Method Parameters\n\nep = PWN::AI::Agent::Policy.begin_episode(\n\nsession_id: 'optional - PWN::Sessions id',\nrequest: 'optional - user request',\nkind: 'optional - request kind',\nintent: 'optional - Loop.request_intent',\nengine: 'optional - active engine',\nts_state: 'optional - TaskSummarizer state hash'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.blank_table Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.blank_table`: "}]}
@@ -426,6 +427,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.completeness_bin Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.completeness_bin`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.current_episode Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.current_episode`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.current_state Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.current_state`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.detach_episode! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.detach_episode!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.discounted_return Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.discounted_return`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.enabled? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Policy.episode_budget_met? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Policy.episode_budget_met?`: "}]}
@@ -478,6 +480,20 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.pwn_version Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.pwn_version`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.recent_turns_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.recent_turns_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.skills_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.skills_block`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.active_engine Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.active_engine`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.agent_flag`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.anthropic_system_blocks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.anthropic_system_blocks`: Supported Method Parameters\n\nblocks = PWN::AI::Agent::PromptCache.anthropic_system_blocks(text: system_prompt)\n\n→ [ {type:‘text’, text: static, cache_control:{type:‘ephemeral’}},\n\n{type:'text', text: dynamic} ]  (empty blocks omitted)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.cache_key Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.cache_key`: Supported Method Parameters\n\nkey = PWN::AI::Agent::PromptCache.cache_key(text: system_prompt) key = PWN::AI::Agent::PromptCache.cache_key(key: ‘explicit-override’)\n\nStable OpenAI prompt_cache_key / xAI x-grok-conv-id. Hashes the static prefix so MEMORY / LEARNING churn does not rotate the key.\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.cache_marks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.cache_marks`: Supported Method Parameters\n\nn = PWN::AI::Agent::PromptCache.cache_marks(blocks: […])\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.enabled? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.enabled?`: Supported Method Parameters\n\nok = PWN::AI::Agent::PromptCache.enabled?(engine: :anthropic)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.extract_skills Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.extract_skills`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.first_dynamic_index Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.first_dynamic_index`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.gemini_system_instruction Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.gemini_system_instruction`: Supported Method Parameters\n\ninst = PWN::AI::Agent::PromptCache.gemini_system_instruction(text: system_prompt)\n\n→ { parts: [{text: static}, {text: dynamic}] }  (empty omitted)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.openai_messages Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.openai_messages`: Supported Method Parameters\n\nmessages = PWN::AI::Agent::PromptCache.openai_messages(messages: […])\n\nSplit the first system/developer message into a stable static prefix and a turn-local dynamic tail so OpenAI / xAI implicit prefix matching can hit across turns. Does NOT emit Anthropic cache_control.\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.split_system Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.split_system`: Supported Method Parameters\n\nparts = PWN::AI::Agent::PromptCache.split_system(text: system_prompt)\n\n→ { static: String, dynamic: String, skills: String }\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptCache.supports Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptCache.supports`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reflect.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reflect.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reflect.engine_chat Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reflect.engine_chat`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reflect.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reflect.help`: "}]}
@@ -652,6 +668,18 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TransparentBrowser.analyze Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TransparentBrowser.analyze`: Supported Method Parameters\n\nai_analysis = PWN::AI::Agent::TransparentBrowser.analyze(\n\nrequest: 'required - current step in the JavaScript debugging session to analyze',\nsource_to_review: 'required - the block of JavaScript code in which the current step resides'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TransparentBrowser.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TransparentBrowser.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TransparentBrowser.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TransparentBrowser.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.agent_flag`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.defer Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.defer`: Supported Method Parameters\n\nresult = PWN::AI::Agent::TurnFinalizer.defer(\n\nsession_id: 'required - PWN::Sessions id',\nrequest: 'optional - original user request',\nfinal: 'optional - user-visible final answer',\npredicted: 'optional - W3 predicted score',\nplan: 'optional - tangible-task plan',\nts_state: 'optional - TaskSummarizer state'\n\n)\n\nSnapshots the live Policy episode onto this thread, clears it so Loop.maybe_finish_policy is a no-op, and runs Learning.auto_introspect on a daemon thread with the episode re-attached.\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.enter_user_path! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.enter_user_path!`: Supported Method Parameters\n\nPWN::AI::Agent::TurnFinalizer.enter_user_path!\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.finalize Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.finalize`: Supported Method Parameters\n\nresult = PWN::AI::Agent::TurnFinalizer.finalize(\n\nsession_id:, request:, final:, predicted:, plan:, ts_state:,\nshould: true|false\n\n)\n\nSingle entry used when a caller wants the Hermes split without going through Learning.auto_introspect‘s gate.\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.join_all! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.join_all!`: Supported Method Parameters\n\nn = PWN::AI::Agent::TurnFinalizer.join_all!(timeout: 15)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.leave_user_path! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.leave_user_path!`: Supported Method Parameters\n\nPWN::AI::Agent::TurnFinalizer.leave_user_path!\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.pending Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.pending`: Supported Method Parameters\n\nn = PWN::AI::Agent::TurnFinalizer.pending\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.should_defer? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.should_defer?`: Supported Method Parameters\n\nok = PWN::AI::Agent::TurnFinalizer.should_defer?\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.track Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.track`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TurnFinalizer.user_path? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TurnFinalizer.user_path?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::VulnGen.analyze Usage"},{"role":"assistant","content":"`PWN::AI::Agent::VulnGen.analyze`: Supported Method Parameters\n\nai_analysis = PWN::AI::Agent::VulnGen.analyze(\n\nrequest: 'required - high level description of vulnerability discovered (e.g. \"Discovered a SQLi vulnerability in /login\"',\nmarkup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :jira)',\noutput_path: 'optional - path to save the generated markdown report'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::VulnGen.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::VulnGen.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::VulnGen.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::VulnGen.help`: "}]}
@@ -1283,45 +1311,108 @@
 {"messages":[{"role":"user","content":"PWN::Config.refresh_env Usage"},{"role":"assistant","content":"`PWN::Config.refresh_env`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.sanitize_skill_name Usage"},{"role":"assistant","content":"`PWN::Config.sanitize_skill_name`: Supported Method Parameters\n\nname = PWN::Config.sanitize_skill_name(name: ‘My Cool Skill!’)\n\nCoerce to an agentskills.io-valid identifier:\n\ndowncase → non [a-z0-9] → '-' → squeeze '-' → strip edge '-' → cap 64.\n\nRaises ArgumentError when the result is empty.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.write_skill Usage"},{"role":"assistant","content":"`PWN::Config.write_skill`: Supported Method Parameters\n\nout = PWN::Config.write_skill(\n\nname:        'required - free-form; sanitised to [a-z0-9-]',\ncontent:     'required - markdown body (WITHOUT frontmatter)',\ndescription: 'optional - 1..1024 chars; derived from body when omitted',\nreferences:  'optional - Array of URLs / CWE / CVE / ATT&CK / NIST ids',\nlicense:     'optional - SPDX id or free text',\nmetadata:    'optional - Hash of arbitrary metadata',\nallowed_tools:   'optional - Array of toolset names',\npwn_skills_path: 'optional - override skills root'\n\n)\n\nThe single agentskills.io-conformant writer used by skill_create, learning_distill_skill and migrate_legacy_skills. Always writes <root>/<name>/SKILL.md with required name+description frontmatter.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.apply_native? Usage"},{"role":"assistant","content":"`PWN::Cron.apply_native?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.authors Usage"},{"role":"assistant","content":"`PWN::Cron.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.clear_pid Usage"},{"role":"assistant","content":"`PWN::Cron.clear_pid`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.create Usage"},{"role":"assistant","content":"`PWN::Cron.create`: Supported Method Parameters\n\njob = PWN::Cron.create(\n\nname: 'optional',\nschedule: 'required e.g. \"0 * * * *\" or \"30m\" or \"every 2h\"',\nprompt: 'optional - pwn-ai prompt to run',\nruby: 'optional - ruby snippet to eval',\nscript: 'optional - path to external script',\ndelivery: 'log|stdout (default log)',\nenabled: true\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.cron_atom? Usage"},{"role":"assistant","content":"`PWN::Cron.cron_atom?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.cron_dir Usage"},{"role":"assistant","content":"`PWN::Cron.cron_dir`: Supported Method Parameters\n\ndir = PWN::Cron.cron_dir\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.cron_enabled? Usage"},{"role":"assistant","content":"`PWN::Cron.cron_enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.cron_field? Usage"},{"role":"assistant","content":"`PWN::Cron.cron_field?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.cron_match? Usage"},{"role":"assistant","content":"`PWN::Cron.cron_match?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.cron_to_calendar Usage"},{"role":"assistant","content":"`PWN::Cron.cron_to_calendar`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.crontab_available? Usage"},{"role":"assistant","content":"`PWN::Cron.crontab_available?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.crontab_read Usage"},{"role":"assistant","content":"`PWN::Cron.crontab_read`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.crontab_write Usage"},{"role":"assistant","content":"`PWN::Cron.crontab_write`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.disable Usage"},{"role":"assistant","content":"`PWN::Cron.disable`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.due? Usage"},{"role":"assistant","content":"`PWN::Cron.due?`: Supported Method Parameters\n\nPWN::Cron.due?(\n\nschedule: 'required - 5-field cron or relative (\"30m\", \"every 2h\")',\nlast_run: 'optional - Time / iso8601 / nil',\nnow:      'optional - Time (default Time.now)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.due_jobs Usage"},{"role":"assistant","content":"`PWN::Cron.due_jobs`: Supported Method Parameters\n\nPWN::Cron.due_jobs(now: Time)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.enable Usage"},{"role":"assistant","content":"`PWN::Cron.enable`: Supported Method Parameters\n\nPWN::Cron.enable/disable(id:)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.enable_linger Usage"},{"role":"assistant","content":"`PWN::Cron.enable_linger`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.ensure_worker Usage"},{"role":"assistant","content":"`PWN::Cron.ensure_worker`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.help Usage"},{"role":"assistant","content":"`PWN::Cron.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.install_crontab_entry Usage"},{"role":"assistant","content":"`PWN::Cron.install_crontab_entry`: "}]}
-{"messages":[{"role":"user","content":"PWN::Cron.install_defaults Usage"},{"role":"assistant","content":"`PWN::Cron.install_defaults`: Supported Method Parameters\n\nPWN::Cron.install_defaults\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_crontab_job Usage"},{"role":"assistant","content":"`PWN::Cron.install_crontab_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_crontab_worker Usage"},{"role":"assistant","content":"`PWN::Cron.install_crontab_worker`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_defaults Usage"},{"role":"assistant","content":"`PWN::Cron.install_defaults`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_launchd_job Usage"},{"role":"assistant","content":"`PWN::Cron.install_launchd_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_launchd_worker Usage"},{"role":"assistant","content":"`PWN::Cron.install_launchd_worker`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_native_job Usage"},{"role":"assistant","content":"`PWN::Cron.install_native_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_scheduler Usage"},{"role":"assistant","content":"`PWN::Cron.install_scheduler`: Supported Method Parameters\n\nPWN::Cron.install_scheduler(\n\nenabled: true,\nbackend: optional force,\napply:   optional (default true unless PWN_CRON_DIR is set),\nsync_jobs: true\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_schtasks_job Usage"},{"role":"assistant","content":"`PWN::Cron.install_schtasks_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_schtasks_worker Usage"},{"role":"assistant","content":"`PWN::Cron.install_schtasks_worker`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_systemd_user_job Usage"},{"role":"assistant","content":"`PWN::Cron.install_systemd_user_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.install_systemd_user_worker Usage"},{"role":"assistant","content":"`PWN::Cron.install_systemd_user_worker`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.install_worker_crontab Usage"},{"role":"assistant","content":"`PWN::Cron.install_worker_crontab`: Supported Method Parameters\n\nPWN::Cron.install_worker_crontab\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.jobs_file Usage"},{"role":"assistant","content":"`PWN::Cron.jobs_file`: Supported Method Parameters\n\nPWN::Cron.jobs_file / PWN::Cron.pid_file / PWN::Cron.worker_log\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.launchctl_load Usage"},{"role":"assistant","content":"`PWN::Cron.launchctl_load`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.launchctl_unload Usage"},{"role":"assistant","content":"`PWN::Cron.launchctl_unload`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.launchd_calendar_interval Usage"},{"role":"assistant","content":"`PWN::Cron.launchd_calendar_interval`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.launchd_job_label Usage"},{"role":"assistant","content":"`PWN::Cron.launchd_job_label`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.launchd_plist Usage"},{"role":"assistant","content":"`PWN::Cron.launchd_plist`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.list Usage"},{"role":"assistant","content":"`PWN::Cron.list`: Supported Method Parameters\n\njobs = PWN::Cron.list\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.load_jobs Usage"},{"role":"assistant","content":"`PWN::Cron.load_jobs`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.native_unit_dir Usage"},{"role":"assistant","content":"`PWN::Cron.native_unit_dir`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.os_type Usage"},{"role":"assistant","content":"`PWN::Cron.os_type`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.parse_time Usage"},{"role":"assistant","content":"`PWN::Cron.parse_time`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.persist_scheduler_config Usage"},{"role":"assistant","content":"`PWN::Cron.persist_scheduler_config`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.pid_file Usage"},{"role":"assistant","content":"`PWN::Cron.pid_file`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.process_alive? Usage"},{"role":"assistant","content":"`PWN::Cron.process_alive?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.read_pid Usage"},{"role":"assistant","content":"`PWN::Cron.read_pid`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.relative_seconds Usage"},{"role":"assistant","content":"`PWN::Cron.relative_seconds`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.remove Usage"},{"role":"assistant","content":"`PWN::Cron.remove`: Supported Method Parameters\n\nPWN::Cron.remove(id:)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.remove_native_job Usage"},{"role":"assistant","content":"`PWN::Cron.remove_native_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.rm_unit_file Usage"},{"role":"assistant","content":"`PWN::Cron.rm_unit_file`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.ruby_eval_argv Usage"},{"role":"assistant","content":"`PWN::Cron.ruby_eval_argv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.ruby_eval_shell Usage"},{"role":"assistant","content":"`PWN::Cron.ruby_eval_shell`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.ruby_lib_dir Usage"},{"role":"assistant","content":"`PWN::Cron.ruby_lib_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.run Usage"},{"role":"assistant","content":"`PWN::Cron.run`: Supported Method Parameters\n\nPWN::Cron.run(id: ‘required or name’) Executes the job (for pwn-ai prompt it will use current active AI engine via PWN::AI::* but without full REPL hook unless in pwn-ai).\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.run_argv Usage"},{"role":"assistant","content":"`PWN::Cron.run_argv`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.run_due Usage"},{"role":"assistant","content":"`PWN::Cron.run_due`: Supported Method Parameters\n\nPWN::Cron.run_due(now: Time, jobs: optional Hash)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.save_jobs Usage"},{"role":"assistant","content":"`PWN::Cron.save_jobs`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.scheduler_backend Usage"},{"role":"assistant","content":"`PWN::Cron.scheduler_backend`: Supported Method Parameters\n\nPWN::Cron.scheduler_backend(os: optional, backend: optional force)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.scheduler_config Usage"},{"role":"assistant","content":"`PWN::Cron.scheduler_config`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.scheduler_file Usage"},{"role":"assistant","content":"`PWN::Cron.scheduler_file`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.scheduler_status Usage"},{"role":"assistant","content":"`PWN::Cron.scheduler_status`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.schtasks_available? Usage"},{"role":"assistant","content":"`PWN::Cron.schtasks_available?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.schtasks_job_name Usage"},{"role":"assistant","content":"`PWN::Cron.schtasks_job_name`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.schtasks_spec Usage"},{"role":"assistant","content":"`PWN::Cron.schtasks_spec`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.start_worker Usage"},{"role":"assistant","content":"`PWN::Cron.start_worker`: Supported Method Parameters\n\nPWN::Cron.start_worker(\n\ninterval: 60,\nforeground: false,\nrestart: true\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Cron.stop_worker Usage"},{"role":"assistant","content":"`PWN::Cron.stop_worker`: Supported Method Parameters\n\nPWN::Cron.stop_worker\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.strip_pwn_crontab Usage"},{"role":"assistant","content":"`PWN::Cron.strip_pwn_crontab`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.sync_native_jobs Usage"},{"role":"assistant","content":"`PWN::Cron.sync_native_jobs`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.sync_one_job Usage"},{"role":"assistant","content":"`PWN::Cron.sync_one_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.sync_scheduler Usage"},{"role":"assistant","content":"`PWN::Cron.sync_scheduler`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.systemd_job_service Usage"},{"role":"assistant","content":"`PWN::Cron.systemd_job_service`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.systemd_job_timer Usage"},{"role":"assistant","content":"`PWN::Cron.systemd_job_timer`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.systemd_on_calendar Usage"},{"role":"assistant","content":"`PWN::Cron.systemd_on_calendar`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.systemd_user Usage"},{"role":"assistant","content":"`PWN::Cron.systemd_user`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.systemd_user_available? Usage"},{"role":"assistant","content":"`PWN::Cron.systemd_user_available?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.tick Usage"},{"role":"assistant","content":"`PWN::Cron.tick`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.toggle Usage"},{"role":"assistant","content":"`PWN::Cron.toggle`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.trap_shutdown! Usage"},{"role":"assistant","content":"`PWN::Cron.trap_shutdown!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_crontab Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_crontab`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_crontab_job Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_crontab_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_launchd Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_launchd`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_launchd_job Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_launchd_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_scheduler Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_scheduler`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_schtasks Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_schtasks`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_schtasks_job Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_schtasks_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_systemd_user Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_systemd_user`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.uninstall_systemd_user_job Usage"},{"role":"assistant","content":"`PWN::Cron.uninstall_systemd_user_job`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.unit_file_path Usage"},{"role":"assistant","content":"`PWN::Cron.unit_file_path`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.which_bin Usage"},{"role":"assistant","content":"`PWN::Cron.which_bin`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.windows? Usage"},{"role":"assistant","content":"`PWN::Cron.windows?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.windows_taskkill Usage"},{"role":"assistant","content":"`PWN::Cron.windows_taskkill`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_log Usage"},{"role":"assistant","content":"`PWN::Cron.worker_log`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_loop Usage"},{"role":"assistant","content":"`PWN::Cron.worker_loop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_ruby_cmd Usage"},{"role":"assistant","content":"`PWN::Cron.worker_ruby_cmd`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_spawn_snippet Usage"},{"role":"assistant","content":"`PWN::Cron.worker_spawn_snippet`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.worker_status Usage"},{"role":"assistant","content":"`PWN::Cron.worker_status`: Supported Method Parameters\n\nPWN::Cron.worker_status\n"}]}
+{"messages":[{"role":"user","content":"PWN::Cron.write_native_preview Usage"},{"role":"assistant","content":"`PWN::Cron.write_native_preview`: "}]}
 {"messages":[{"role":"user","content":"PWN::Cron.write_pid Usage"},{"role":"assistant","content":"`PWN::Cron.write_pid`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.write_unit_file Usage"},{"role":"assistant","content":"`PWN::Cron.write_unit_file`: "}]}
+{"messages":[{"role":"user","content":"PWN::Cron.xml_escape Usage"},{"role":"assistant","content":"`PWN::Cron.xml_escape`: "}]}
 {"messages":[{"role":"user","content":"PWN::Driver.authors Usage"},{"role":"assistant","content":"`PWN::Driver.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Driver.help Usage"},{"role":"assistant","content":"`PWN::Driver.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Driver::Parser.new Usage"},{"role":"assistant","content":"`PWN::Driver::Parser.new`: "}]}
