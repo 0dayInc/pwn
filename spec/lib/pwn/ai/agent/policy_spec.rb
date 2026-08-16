@@ -162,4 +162,26 @@ describe PWN::AI::Agent::Policy do
     described_class.reset
     FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
   end
+
+  describe 'Hermes episode handoff' do
+    it 'detach_episode! snapshots and clears current_episode' do
+      tmp = Dir.mktmpdir
+      stub_const('PWN::AI::Agent::Policy::POLICY_FILE', File.join(tmp, 'policy.json'))
+      stub_const('PWN::AI::Agent::Policy::TRAJECTORY_FILE', File.join(tmp, 'policy_traj.jsonl'))
+      described_class.reset
+      allow(described_class).to receive(:enabled?).and_return(true)
+      PWN::Env[:ai] ||= {}
+      PWN::Env[:ai][:agent] ||= {}
+      PWN::Env[:ai][:agent][:policy] = true
+      described_class.begin_episode(session_id: 'detach1', request: 'uname', kind: :question, engine: :grok)
+      expect(described_class.current_episode).to be_a(Hash)
+      ep = described_class.detach_episode!
+      expect(ep[:session_id]).to eq('detach1')
+      expect(described_class.current_episode).to be_nil
+      described_class.attach_episode!(episode: ep)
+      expect(described_class.current_episode[:session_id]).to eq('detach1')
+    ensure
+      described_class.attach_episode!(episode: nil)
+    end
+  end
 end

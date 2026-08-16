@@ -97,7 +97,8 @@ module PWN
                   system_role_content: system_role_content,
                   spinner: spinner,
                   timeout: timeout,
-                  temp: temp
+                  temp: temp,
+                  quiet: opts[:quiet]
                 )
               end
             ensure
@@ -132,6 +133,7 @@ module PWN
           chat_opts[:timeout] = opts[:timeout] unless opts[:timeout].nil?
           chat_opts[:temp] = opts[:temp] unless opts[:temp].nil?
           chat_opts[:model] = opts[:model] unless opts[:model].to_s.empty?
+          chat_opts[:quiet] = opts[:quiet] unless opts[:quiet].nil?
           mod.chat(chat_opts)
         end
 

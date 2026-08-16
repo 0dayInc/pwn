@@ -434,6 +434,21 @@ module PWN
           Thread.current[EP_KEY]
         end
 
+        # Hermes split: snapshot + clear the live episode so Loop.maybe_finish_policy
+        # is a no-op on the user-visible path while TurnFinalizer re-attaches it
+        # on the background review thread.
+
+        public_class_method def self.detach_episode!
+          ep = Thread.current[EP_KEY]
+          Thread.current[EP_KEY] = nil
+          ep
+        end
+
+        public_class_method def self.attach_episode!(opts = {})
+          Thread.current[EP_KEY] = opts[:episode]
+          opts[:episode]
+        end
+
         # ----------------------------------------------------------------
         # Persistence / eval
         # ----------------------------------------------------------------

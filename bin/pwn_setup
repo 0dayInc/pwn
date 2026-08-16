@@ -54,11 +54,27 @@ pwn_driver = PWN::Driver::Parser.new do |options|
              '<Optional - Print the commands that would run, do not execute>') do |o|
     opts[:dry_run] = o
   end
+
+  options.on('--[no-]cron',
+             '<Optional - Enable (default) or disable OS-native persistence of pwn-ai cron jobs>') do |o|
+    opts[:cron] = o
+  end
 end
 pwn_driver.auto_opts_help = false
 pwn_driver.parse!
 
 begin
+  status = 0
+  # Seed default jobs + start/reuse the in-process scheduler so last_run
+  # actually advances. Do this BEFORE the doctor so `pwn setup` reports
+  # the worker as running. Skip list/terminal (no host scheduler needed)
+  # and dry-run (must not spawn).
+  unless opts[:list] || opts[:terminal] || opts[:dry_run]
+    cron_opts = { restart: false, dry_run: false }
+    cron_opts[:enabled] = opts[:cron] unless opts[:cron].nil?
+    PWN::Setup.ensure_cron(**cron_opts)
+  end
+
   if opts[:list]
     PWN::Setup.list_profiles
   elsif opts[:migrate]
@@ -66,7 +82,7 @@ begin
       fix: opts[:fix] || opts[:yes],
       dry_run: opts[:dry_run]
     )
-    exit 1 unless r && r[:after] && r[:after][:incompatible].empty?
+    status = 1 unless r && r[:after] && r[:after][:incompatible].empty?
   elsif opts[:terminal]
     PWN::Setup.terminal(
       yes: opts[:yes],
@@ -83,8 +99,18 @@ begin
     # `pwn setup --check`               → same
     # `pwn setup --check --profile net` → gate ONLY on the :net profile
     r = PWN::Setup.check(profile: opts[:profile])
-    exit 1 unless r[:ok]
+    status = 1 unless r[:ok]
   end
+
+  # Seed default jobs + start/reuse the in-process scheduler so
+  # last_run actually advances. Skip list/terminal (no host scheduler
+  # needed) and dry-run (must not spawn).
+  unless opts[:list] || opts[:terminal] || opts[:dry_run]
+    cron_opts = { restart: false, dry_run: false }
+    cron_opts[:enabled] = opts[:cron] unless opts[:cron].nil?
+    PWN::Setup.ensure_cron(**cron_opts)
+  end
+  exit status
 rescue Interrupt
   puts "\naborted."
   exit 130

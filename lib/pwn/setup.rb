@@ -751,6 +751,100 @@ module PWN
       end
     end
 
+    # Supported Method Parameters::
+    # PWN::Setup.ensure_cron(
+    #   restart: 'optional - replace a live worker (default false = reuse)',
+    #   dry_run: 'optional - do not spawn (default false)',
+    #   interval: 'optional - worker poll seconds (default PWN::Cron::DEFAULT_INTERVAL)',
+    #   io:      'optional - IO to write the status line to (default $stdout)'
+    # )
+    #
+    # Seed default pwn-ai jobs (idempotent) and start the background
+    # scheduler that actually ticks last_run. `pwn setup` calls this
+    # after every action except --list-profiles / --terminal / --dry-run
+    # so YAML-only jobs fire without a system crontab entry.
+    public_class_method def self.ensure_cron(opts = {})
+      io      = opts[:io] || $stdout
+      dry_run = opts[:dry_run] ? true : false
+      restart = opts.fetch(:restart, false)
+      interval = opts[:interval]
+      enabled = if opts.key?(:enabled)
+                  opts[:enabled] ? true : false
+                elsif defined?(PWN::Cron)
+                  PWN::Cron.cron_enabled?
+                else
+                  true
+                end
+
+      unless defined?(PWN::Cron)
+        io.puts "#{'cron worker'.ljust(26)} #{MISS}   (PWN::Cron not loaded)"
+        return { ok: false, reason: :no_cron }
+      end
+
+      if dry_run
+        st = PWN::Cron.scheduler_status(apply: false)
+        io.puts "#{'cron worker'.ljust(26)} #{st.dig(:worker, :running) ? OK : MISS}   (dry-run, backend=#{st[:backend]}, enabled=#{enabled})"
+        return { ok: true, dry_run: true, worker: st[:worker], backend: st[:backend], enabled: enabled }
+      end
+
+      unless enabled
+        native = begin
+          PWN::Cron.uninstall_scheduler(apply: opts.fetch(:apply, PWN::Cron.apply_native?))
+        rescue StandardError => e
+          io.puts "#{'cron scheduler'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
+          { ok: false, error: "#{e.class}: #{e.message}" }
+        end
+        io.puts "#{'cron scheduler'.ljust(26)} #{OK}   disabled (#{native[:backend] || 'none'})"
+        return { ok: true, enabled: false, native: native, seeded: [] }
+      end
+
+      seeded = begin
+        PWN::Cron.install_defaults
+      rescue StandardError => e
+        io.puts "#{'cron defaults'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
+        []
+      end
+
+      worker = PWN::Cron.ensure_worker(
+        restart: restart,
+        interval: interval
+      )
+      st = PWN::Cron.worker_status
+      label = if worker[:already_running]
+                'already running'
+              elsif worker[:started] && st[:running]
+                'started'
+              else
+                'FAILED'
+              end
+      mark = st[:running] ? OK : MISS
+      io.puts "#{'cron worker'.ljust(26)} #{mark}   #{label} pid=#{st[:pid] || worker[:pid] || 'none'}"
+
+      native = begin
+        PWN::Cron.install_scheduler(
+          enabled: true,
+          apply: opts.fetch(:apply, PWN::Cron.apply_native?)
+        )
+      rescue StandardError => e
+        io.puts "#{'cron scheduler'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
+        { ok: false, error: "#{e.class}: #{e.message}" }
+      end
+      backend = native.is_a?(Hash) ? native[:backend] : nil
+      io.puts "#{'cron scheduler'.ljust(26)} #{native[:ok] == false ? MISS : OK}   backend=#{backend || 'none'}"
+
+      {
+        ok: st[:running] ? true : false,
+        seeded: seeded,
+        worker: worker.merge(st),
+        backend: backend,
+        native: native,
+        enabled: true
+      }
+    rescue StandardError => e
+      io.puts "#{'cron worker'.ljust(26)} #{MISS}   #{e.class}: #{e.message}"
+      { ok: false, error: "#{e.class}: #{e.message}" }
+    end
+
     # Author(s):: 0day Inc. <support@0dayinc.com>
 
     public_class_method def self.authors
@@ -803,6 +897,10 @@ module PWN
         pwn setup --dry-run --profile net
         pwn setup --migrate                  # verify + upgrade ~/.pwn schema
         pwn setup --migrate --fix            # also autofix incompatible files
+        # Every non-dry-run `pwn setup` also seeds default jobs and starts
+        # (or reuses) the background PWN::Cron worker, then persists it
+        # via the OS-native scheduler (systemd --user / launchd / schtasks / crontab).
+        # `pwn setup --no-cron` disables that persistence; `--cron` re-enables it.
 
         #{self}.authors
       "

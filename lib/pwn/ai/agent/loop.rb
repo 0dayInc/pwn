@@ -1063,6 +1063,16 @@ module PWN
         # 3.2 — local models cannot afford auto_introspect (judge+prm+critic+
         # sentinel+extro) on every success. Default :failure_only when local.
         private_class_method def self.should_auto_introspect?(opts = {})
+          kind = (opts[:kind] || Thread.current[:pwn_request_kind]).to_s.to_sym
+          intent = (opts[:intent] || Thread.current[:pwn_request_intent]).to_s.to_sym
+          fails = opts[:turn_fails].is_a?(Hash) ? opts[:turn_fails].values.sum : 0
+          # Cheap answers already returned user-visible text. The post-answer
+          # critic + 12s ORM printed ERROR: Timed out reading data from server
+          # after greetings / takes / questions.
+          return false if %i[greeting howto recall].include?(intent)
+          return false if kind == :statement
+          return false if kind == :question && fails.zero?
+
           return true unless opts[:local]
 
           policy = agent_flag(key: :local_introspect, default: :failure_only).to_s.to_sym
@@ -1865,6 +1875,7 @@ module PWN
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
+          TurnFinalizer.enter_user_path! if defined?(TurnFinalizer)
           # Live coalesced "what am I doing" lines for the TUI (not a model tool).
           ts_state = (TaskSummarizer.fresh(request: request) if defined?(TaskSummarizer) && TaskSummarizer.enabled? && Thread.current[:pwn_reflect_depth].to_i.zero?)
           engine = active_engine
@@ -2297,6 +2308,8 @@ module PWN
           maybe_finish_policy(session_id: session_id, proxy_ok: false, ts_state: ts_state)
           task_summary_flush!(state: ts_state, on_tool: on_tool)
           final_msg
+        ensure
+          TurnFinalizer.leave_user_path! if defined?(TurnFinalizer)
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

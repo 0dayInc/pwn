@@ -41,6 +41,9 @@ module PWN
 
           # Heredoc (not a "..." literal): an unescaped "..." inside a
           # double-quoted string is parsed as Range (begin..."...end).
+          # Skills sit in the STATIC prefix (Hermes index) so prompt-cache
+          # breakpoints can pin the persona + SKILLS list; MEMORY/LEARNING
+          # remain in the dynamic tail.
           <<~PROMPT
             #{base}
 
@@ -51,7 +54,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}TOOL USE
+            #{skills_block}#{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).

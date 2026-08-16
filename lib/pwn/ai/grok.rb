@@ -382,7 +382,7 @@ module PWN
                        real_config_value?(value: oauth[:bearer_token]) ||
                        real_config_value?(value: oauth[:refresh_token])
 
-        if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key]))
+        if token.nil? && (oauth_opt_in || !real_config_value?(value: engine[:key])) && !opts[:non_interactive]
           # Singular device-flow enrollment. Result is written back into the
           # live oauth hash so subsequent grok_rest_call invocations inside the
           # same pwn / pwn-ai process reuse it silently.
@@ -391,9 +391,15 @@ module PWN
 
         token = engine[:key] if token.nil? && real_config_value?(value: engine[:key])
 
-        token ||= PWN::Plugins::AuthenticationHelper.mask_password(
-          prompt: 'Grok API Key (or run PWN::AI::Grok.obtain_oauth_bearer_token for SuperGrok OAuth)'
-        )
+        if token.nil?
+          return nil if opts[:non_interactive]
+
+          token = PWN::Plugins::AuthenticationHelper.mask_password(
+            prompt: 'Grok API Key (or run PWN::AI::Grok.obtain_oauth_bearer_token for SuperGrok OAuth)'
+          )
+        end
+
+        return nil if token.nil?
 
         http_method = opts[:http_method].nil? ? :get : opts[:http_method].to_s.scrub.to_sym
 
@@ -404,6 +410,8 @@ module PWN
           content_type: 'application/json; charset=UTF-8',
           authorization: "Bearer #{token}"
         }
+        extra_headers = opts[:headers] || opts[:extra_headers]
+        headers.merge!(extra_headers) if extra_headers.is_a?(Hash) && !extra_headers.empty?
 
         http_body = opts[:http_body]
         http_body ||= {}
@@ -468,15 +476,24 @@ module PWN
 
           retry
         end
+      rescue RestClient::Exceptions::Timeout => e
+        # Sidecar hops (judge / kind / plan) pass quiet:true and a short
+        # timeout. Do not print ERROR: Timed out reading data from server:
+        # — ReadTimeout is ExceptionWithResponse with a nil body.
+        warn "[pwn-ai/grok] #{e.class}: #{e.message} (#{http_method.to_s.upcase} #{rest_call} timeout=#{timeout}s)" unless opts[:quiet]
+        nil
       rescue RestClient::ExceptionWithResponse => e
-        puts "ERROR: #{e.message}: #{e.response}"
+        puts "ERROR: #{e.message}: #{e.response}" unless opts[:quiet]
+        "#{e.message}: #{e.response}" if opts[:quiet]
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
-          "#{e.message}: #{e.response}"
+          nil
         else
-          raise e
+          raise e unless opts[:quiet]
+
         end
+        "#{e.message}: #{e.response}"
       ensure
         spin.stop if spinner
       end
@@ -490,6 +507,162 @@ module PWN
         JSON.parse(models, symbolize_names: true)[:data]
       rescue StandardError => e
         raise e
+      end
+
+      # Supported Method Parameters::
+      # usage = PWN::AI::Grok.get_plan_usage(
+      #   timeout: 'optional - seconds (default 8)'
+      # )
+      #
+      # Subscription / team usage for the PS1 percent suffix.
+      # GET /v1/api-key yields team_id; then billing preview /
+      # spending-limits / prepaid balance compute used vs limit.
+      # GET /v1/me is also tried (OAuth personal-team payload).
+      public_class_method def self.get_plan_usage(opts = {})
+        timeout = opts[:timeout] || 8
+        return { available: false, engine: :grok } unless plan_usage_credentials?
+
+        me = parse_plan_usage_json(
+          raw: grok_rest_call(rest_call: 'me', timeout: timeout, spinner: false, quiet: true, non_interactive: true)
+        )
+        if me.is_a?(Hash)
+          used = first_numeric(src: me, keys: %i[used usage spend spent used_usd usage_usd])
+          limit = first_numeric(src: me, keys: %i[limit quota allowance hard_limit spending_limit])
+          normalized = PWN::AI.normalize_plan_usage(
+            used: used,
+            limit: limit,
+            source: 'me',
+            engine: :grok
+          )
+          return normalized if normalized[:available]
+        end
+
+        key_info = parse_plan_usage_json(
+          raw: grok_rest_call(rest_call: 'api-key', timeout: timeout, spinner: false, quiet: true, non_interactive: true)
+        )
+        team_id = key_info.is_a?(Hash) ? key_info[:team_id] : nil
+        team_id ||= me.is_a?(Hash) ? (me[:team_id] || me.dig(:team, :id)) : nil
+
+        if team_id.to_s.strip != ''
+          preview = parse_plan_usage_json(
+            raw: grok_rest_call(
+              rest_call: "billing/teams/#{team_id}/postpaid/invoice/preview",
+              timeout: timeout,
+              spinner: false,
+              quiet: true,
+              non_interactive: true
+            )
+          )
+          limits = parse_plan_usage_json(
+            raw: grok_rest_call(
+              rest_call: "billing/teams/#{team_id}/postpaid/spending-limits",
+              timeout: timeout,
+              spinner: false,
+              quiet: true,
+              non_interactive: true
+            )
+          )
+          balance = parse_plan_usage_json(
+            raw: grok_rest_call(
+              rest_call: "billing/teams/#{team_id}/prepaid/balance",
+              timeout: timeout,
+              spinner: false,
+              quiet: true,
+              non_interactive: true
+            )
+          )
+
+          used = nil
+          limit = nil
+          if preview.is_a?(Hash)
+            core = preview[:coreInvoice] || preview[:core_invoice] || {}
+            used_cents = cents_val(src: core, key: :prepaidCreditsUsed) ||
+                         cents_val(src: core, key: :prepaid_credits_used) ||
+                         core[:amountAfterVat] ||
+                         core[:amount_after_vat]
+            prepaid_cents = cents_val(src: core, key: :prepaidCredits) ||
+                            cents_val(src: core, key: :prepaid_credits)
+            spend_limit_cents = preview[:effectiveSpendingLimit] || preview[:effective_spending_limit]
+            used = to_f_or_nil(value: used_cents)
+            limit = to_f_or_nil(value: spend_limit_cents)
+            limit = to_f_or_nil(value: prepaid_cents).abs if (limit.nil? || limit <= 0) && prepaid_cents
+          end
+          used = to_f_or_nil(value: cents_val(src: balance, key: :total)).to_f.abs if (used.nil? || used <= 0) && balance.is_a?(Hash)
+          if (limit.nil? || limit <= 0) && limits.is_a?(Hash)
+            sl = limits[:spendingLimits] || limits[:spending_limits] || {}
+            limit = to_f_or_nil(value: cents_val(src: sl, key: :effectiveSl)) ||
+                    to_f_or_nil(value: cents_val(src: sl, key: :effectiveHardSl)) ||
+                    to_f_or_nil(value: cents_val(src: sl, key: :softSl))
+          end
+
+          normalized = PWN::AI.normalize_plan_usage(
+            used: used,
+            limit: limit,
+            source: 'billing/teams',
+            engine: :grok
+          )
+          return normalized if normalized[:available]
+        end
+
+        { available: false, engine: :grok }
+      rescue StandardError
+        { available: false, engine: :grok }
+      end
+
+      private_class_method def self.plan_usage_credentials?
+        engine = PWN::Env.dig(:ai, :grok) || {}
+        oauth = engine[:oauth].is_a?(Hash) ? engine[:oauth] : {}
+        real_config_value?(value: engine[:key]) ||
+          real_config_value?(value: oauth[:bearer_token]) ||
+          real_config_value?(value: oauth[:refresh_token])
+      end
+
+      private_class_method def self.parse_plan_usage_json(opts = {})
+        raw = opts[:raw]
+        return nil if raw.nil?
+
+        parsed = JSON.parse(raw.to_s, symbolize_names: true)
+        parsed.is_a?(Hash) ? parsed : nil
+      rescue JSON::ParserError, TypeError
+        nil
+      end
+
+      private_class_method def self.cents_val(opts = {})
+        src = opts[:src]
+        key = opts[:key]
+        return nil unless src.is_a?(Hash)
+
+        v = src[key]
+        return v[:val] if v.is_a?(Hash) && v.key?(:val)
+        return v['val'] if v.is_a?(Hash) && v.key?('val')
+
+        v
+      end
+
+      private_class_method def self.to_f_or_nil(opts = {})
+        val = opts.is_a?(Hash) && opts.key?(:value) ? opts[:value] : opts
+        return nil if val.nil?
+        return val.to_f if val.respond_to?(:to_f)
+
+        nil
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.first_numeric(opts = {})
+        src = opts[:src]
+        keys = Array(opts[:keys])
+        return nil unless src.is_a?(Hash)
+
+        keys.each do |k|
+          v = src[k]
+          next if v.nil?
+          next if v.is_a?(Hash)
+
+          f = v.to_f
+          return f if f.positive? || v.to_s.strip.match?(/\A-?\d/)
+        end
+        nil
       end
 
       # Supported Method Parameters::
@@ -522,6 +695,20 @@ module PWN
         temp = opts[:temp].to_f
         temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
 
+        conv_id = nil
+        if defined?(PWN::AI::Agent::PromptCache) &&
+           PWN::AI::Agent::PromptCache.enabled?(engine: :grok)
+          sys = Array(messages).find do |m|
+            next false unless m.is_a?(Hash)
+
+            %w[system developer].include?((m[:role] || m['role']).to_s)
+          end
+          conv_id = PWN::AI::Agent::PromptCache.cache_key(
+            text: sys ? (sys[:content] || sys['content']).to_s : ''
+          )
+          messages = PWN::AI::Agent::PromptCache.openai_messages(messages: messages)
+        end
+
         http_body = {
           model: model,
           messages: messages,
@@ -536,7 +723,9 @@ module PWN
           rest_call: 'chat/completions',
           http_body: http_body,
           timeout: opts[:timeout],
-          spinner: opts[:spinner]
+          spinner: opts[:spinner],
+          quiet: opts[:quiet],
+          headers: (conv_id ? { 'x-grok-conv-id' => conv_id } : nil)
         )
         return nil if response.nil?
 
@@ -616,8 +805,10 @@ module PWN
           rest_call: rest_call,
           http_body: http_body,
           timeout: timeout,
-          spinner: spinner
+          spinner: spinner,
+          quiet: opts[:quiet]
         )
+        return nil if response.nil? || response.to_s.strip.empty?
 
         json_resp = JSON.parse(response, symbolize_names: true)
         assistant_resp = json_resp[:choices].first[:message]
@@ -654,6 +845,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
+
+          usage = #{self}.get_plan_usage
 
           response = #{self}.chat(
             request: 'required - message to Grok',

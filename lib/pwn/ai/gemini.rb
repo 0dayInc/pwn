@@ -118,6 +118,19 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # usage = PWN::AI::Gemini.get_plan_usage(
+      #   timeout: 'optional - seconds (default 8)'
+      # )
+      #
+      # Gemini Generative Language has no subscription-usage endpoint that
+      # returns used-vs-limit for an API key. Cached-miss / unavailable so
+      # the PS1 shows ∞ unless the operator later injects used/limit.
+      public_class_method def self.get_plan_usage(opts = {})
+        _timeout = opts[:timeout] || 8
+        { available: false, engine: :gemini }
+      end
+
       # ----------------------------------------------------------------------
       # Native tool-calling adapter for PWN::AI::Agent::Loop.
       #
@@ -166,7 +179,15 @@ module PWN
             maxOutputTokens: opts[:max_tokens] || 8192
           }
         }
-        http_body[:systemInstruction] = { parts: [{ text: system_str }] } if system_str && !system_str.empty?
+        if system_str && !system_str.empty?
+          if defined?(PWN::AI::Agent::PromptCache) &&
+             PWN::AI::Agent::PromptCache.enabled?(engine: :gemini)
+            inst = PWN::AI::Agent::PromptCache.gemini_system_instruction(text: system_str)
+            http_body[:systemInstruction] = inst if inst
+          else
+            http_body[:systemInstruction] = { parts: [{ text: system_str }] }
+          end
+        end
 
         if opts[:tools] && !opts[:tools].empty?
           http_body[:tools] = [{
@@ -431,6 +452,8 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
+
+          usage = #{self}.get_plan_usage
 
           response = #{self}.chat(
             request: 'required - message to Gemini',

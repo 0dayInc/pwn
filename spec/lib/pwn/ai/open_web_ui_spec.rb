@@ -299,4 +299,13 @@ describe PWN::AI::OpenWebUI do
     expect(args).to be_a(Hash)
     expect(args[:command] || args['command']).to eq('id')
   end
+
+  it 'exposes get_plan_usage for the PS1 subscription suffix' do
+    expect(described_class).to respond_to(:get_plan_usage)
+  end
+  it 'marks local plan usage as unlimited so the PS1 shows infinity' do
+    usage = described_class.get_plan_usage
+    expect(usage[:available]).to be false
+    expect(usage[:unlimited]).to be true
+  end
 end

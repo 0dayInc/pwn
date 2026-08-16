@@ -25,4 +25,78 @@ describe PWN::Setup do
     expect(pm).to be_a(Hash)
     expect(pm).to have_key(:key)
   end
+
+  it 'exposes ensure_cron to start the scheduler from pwn setup' do
+    expect(PWN::Setup).to respond_to(:ensure_cron)
+  end
+
+  it 'ensure_cron seeds defaults and starts (or reuses) the worker' do
+    tmp = Dir.mktmpdir('pwn-setup-cron-')
+    stub_const('PWN::Cron::CRON_DIR', tmp)
+    stub_const('PWN::Cron::JOBS_FILE', File.join(tmp, 'jobs.yml'))
+    stub_const('PWN::Cron::PID_FILE', File.join(tmp, 'worker.pid'))
+    stub_const('PWN::Cron::WORKER_LOG', File.join(tmp, 'worker.log'))
+    ENV['PWN_CRON_DIR'] = tmp
+    allow(PWN::Cron).to receive(:install_worker_crontab).and_return('stubbed')
+    io = StringIO.new
+    first = PWN::Setup.ensure_cron(restart: false, io: io)
+    expect(first[:ok]).to be true
+    expect(first[:worker][:running]).to be true
+    pid = first[:worker][:pid]
+    expect(pid).to be_a(Integer)
+    second = PWN::Setup.ensure_cron(restart: false, io: StringIO.new)
+    expect(second[:ok]).to be true
+    expect(second[:worker][:pid] || second[:worker][:already_running]).to be_truthy
+    # reuse: same pid still alive
+    expect(second[:worker][:pid]).to eq(pid)
+  ensure
+    begin
+      PWN::Cron.stop_worker
+    rescue StandardError
+      nil
+    end
+    ENV.delete('PWN_CRON_DIR')
+    FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
+  end
+
+  it 'ensure_cron dry_run does not spawn' do
+    io = StringIO.new
+    allow(PWN::Cron).to receive(:worker_status).and_return(
+      running: false, pid: nil, pid_file: '/tmp/x', log: '/tmp/y'
+    )
+    res = PWN::Setup.ensure_cron(dry_run: true, io: io)
+    expect(res[:dry_run]).to be true
+    expect(res[:ok]).to be true
+  end
+  it 'ensure_cron enabled:false uninstalls the OS scheduler without spawning' do
+    tmp = Dir.mktmpdir('pwn-setup-nocron-')
+    stub_const('PWN::Cron::CRON_DIR', tmp)
+    stub_const('PWN::Cron::JOBS_FILE', File.join(tmp, 'jobs.yml'))
+    stub_const('PWN::Cron::PID_FILE', File.join(tmp, 'worker.pid'))
+    stub_const('PWN::Cron::WORKER_LOG', File.join(tmp, 'worker.log'))
+    ENV['PWN_CRON_DIR'] = tmp
+    io = StringIO.new
+    res = PWN::Setup.ensure_cron(enabled: false, apply: false, io: io)
+    expect(res[:enabled]).to be false
+    expect(res[:ok]).to be true
+    expect(PWN::Cron.cron_enabled?).to be false
+    again = PWN::Setup.ensure_cron(enabled: true, apply: false, io: StringIO.new, restart: false)
+    expect(again[:enabled]).to be true
+    expect(PWN::Cron.cron_enabled?).to be true
+    expect(%i[systemd_user crontab launchd schtasks worker]).to include(again[:backend])
+  ensure
+    begin
+      PWN::Cron.stop_worker
+    rescue StandardError
+      nil
+    end
+    ENV.delete('PWN_CRON_DIR')
+    FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
+  end
+
+  it 'bin/pwn_setup exposes --[no-]cron' do
+    body = File.read(File.expand_path('../../../bin/pwn_setup', __dir__))
+    expect(body).to include('--[no-]cron')
+    expect(body).to include('cron_opts[:enabled] = opts[:cron]')
+  end
 end

@@ -12,4 +12,14 @@ describe PWN::AI::Gemini do
     help_response = PWN::AI::Gemini
     expect(help_response).to respond_to :help
   end
+
+  it 'exposes get_plan_usage for the PS1 subscription suffix' do
+    expect(described_class).to respond_to(:get_plan_usage)
+  end
+
+  it 'chat_with_tools honors PromptCache when prompt_cache is on' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to include('PromptCache.gemini_system_instruction')
+    expect(src).to include('enabled?(engine: :gemini)')
+  end
 end

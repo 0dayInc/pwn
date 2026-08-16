@@ -63,4 +63,17 @@ describe PWN::AI::Agent::PromptBuilder do
       FileUtils.rm_rf(mem_tmp) if mem_tmp
     end
   end
+
+  describe 'Hermes skill-index prefix' do
+    it 'emits SKILLS before MEMORY so prompt-cache can pin the index' do
+      src = File.read(described_class.method(:build).source_location.first)
+      skills_needle = ['#', '{skills_block}'].join
+      memory_needle = ['#', '{memory_block'].join
+      skills_at = src.index(skills_needle)
+      memory_at = src.index(memory_needle)
+      expect(skills_at).not_to be_nil
+      expect(memory_at).not_to be_nil
+      expect(skills_at).to be < memory_at
+    end
+  end
 end

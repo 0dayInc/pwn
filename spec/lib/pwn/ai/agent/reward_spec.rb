@@ -308,4 +308,10 @@ describe PWN::AI::Agent::Reward do
     described_class.set_proxy_distrust(gap: 0.60, proxy: 1.0, judge: 0.30)
     expect(described_class.proxy_distrust).to eq 0.85
   end
+
+  it 'cheap_orm_chat does not retry engine_chat_cheap after a timeout' do
+    src = File.read(File.join(__dir__, '../../../../../lib/pwn/ai/agent/reward.rb'))
+    expect(src).to include('return nil if timeout_error?(err: e)')
+    expect(src).to include('quiet: true')
+  end
 end

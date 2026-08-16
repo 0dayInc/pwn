@@ -337,10 +337,11 @@ module PWN
             max_context = PWN::Env[:ai][engine][:max_prompt_length].to_i
             current_context_length = "#{PWN::Plugins::REPL.compact_context_tokens(tokens: used_tokens)}:" \
                                      "#{PWN::Plugins::REPL.compact_context_tokens(tokens: max_context)}"
+            plan_usage_glyph = PWN::AI.plan_usage_glyph(engine: engine)
 
             pname = "pwn.ai:#{engine}"
-            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}" if model
-            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}.SPEAK" if pi.config.pwn_ai_speak
+            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}/#{plan_usage_glyph}" if model
+            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}/#{plan_usage_glyph}.SPEAK" if pi.config.pwn_ai_speak
             pi.config.prompt_name = pname
 
             name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
