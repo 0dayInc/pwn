@@ -237,7 +237,7 @@ module PWN
       {
         name: 'curriculum_offline_judge',
         schedule: '30 3 * * *',
-        ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24, limit: 40) if defined?(PWN::AI::Agent::Curriculum)',
+        ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24) if defined?(PWN::AI::Agent::Curriculum)',
         aliases: %w[offline_judge_nightly]
       },
       {

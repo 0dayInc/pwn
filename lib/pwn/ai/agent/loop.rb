@@ -1013,7 +1013,7 @@ module PWN
                 cwt_opts[:tool_choice] = has_tool_result && !still_acting ? 'auto' : 'required'
               end
             end
-            response = mod.chat_with_tools(**cwt_opts)
+            response = mod.chat_with_tools(cwt_opts)
             publish_usage(response: response, engine: engine)
             normalize_llm(response: response)
           else
@@ -1404,9 +1404,46 @@ module PWN
         private_class_method def self.answer_statement(opts = {})
           request = opts[:request].to_s
           session_id = opts[:session_id]
-          txt = <<~ACK.strip
-            Noted. No multi-step task breakdown for a general statement — ready when you have a question or a goal to accomplish.
-          ACK
+          system_role_content = opts[:system_role_content].to_s
+          engine = active_engine
+          mod_name = ENGINE_MODS[engine]
+          raise "ERROR: Unsupported AI engine for agent loop: #{engine}" unless mod_name
+
+          mod = Object.const_get(mod_name)
+          q_sys = <<~SYS
+            #{system_role_content}
+
+            INTENT: STATEMENT (this turn only)
+              The user is making a statement — not an autonomous multi-step goal.
+              Respond concisely in plain US English. Do NOT call tools unless a
+              single factual lookup is strictly required and already present in
+              context. Do NOT plan multi-step work. Do NOT invent task traces,
+              planner monologue, rubocop, rake, or live recon.
+          SYS
+
+          txt =
+            if mod.respond_to?(:chat)
+              r = mod.chat(
+                request: request,
+                system_role_content: q_sys,
+                spinner: true
+              )
+              if r.is_a?(Hash)
+                (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
+              else
+                r.to_s
+              end
+            else
+              messages = [
+                { role: 'system', content: q_sys },
+                { role: 'user', content: request }
+              ]
+              msg = call_engine(messages: messages, tools: nil)
+              msg.is_a?(Hash) ? msg[:content].to_s : msg.to_s
+            end
+
+          txt = txt.to_s.strip
+          txt = 'I do not have enough context to respond to your statement.' if txt.empty?
 
           append_session(session_id: session_id, role: 'user', content: request)
           append_session(session_id: session_id, role: 'assistant', content: txt)
@@ -1415,7 +1452,7 @@ module PWN
               session_id: session_id,
               request: request,
               final: txt,
-              predicted: 0.9,
+              predicted: 0.85,
               plan: [],
               ts_state: nil
             )
