@@ -2,7 +2,6 @@
 
 require 'json'
 require 'rest-client'
-require 'tty-spinner'
 require 'uri'
 require 'base64'
 
@@ -424,10 +423,7 @@ module PWN
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
-        if spinner
-          spin = TTY::Spinner.new(format: :dots)
-          spin.auto_spin
-        end
+        spin = PWN::Plugins::TTYSpinner.start if spinner
 
         retry_count = 0
         begin
@@ -495,7 +491,7 @@ module PWN
         end
         "#{e.message}: #{e.response}"
       ensure
-        spin.stop if spinner
+        PWN::Plugins::TTYSpinner.stop(spin: spin)
       end
 
       # Supported Method Parameters::
@@ -695,6 +691,9 @@ module PWN
         temp = opts[:temp].to_f
         temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
 
+        spinner = opts[:spinner]
+        timeout = opts[:timeout]
+
         conv_id = nil
         if defined?(PWN::AI::Agent::PromptCache) &&
            PWN::AI::Agent::PromptCache.enabled?(engine: :grok)
@@ -722,8 +721,8 @@ module PWN
           http_method: :post,
           rest_call: 'chat/completions',
           http_body: http_body,
-          timeout: opts[:timeout],
-          spinner: opts[:spinner],
+          timeout: timeout,
+          spinner: spinner,
           quiet: opts[:quiet],
           headers: (conv_id ? { 'x-grok-conv-id' => conv_id } : nil)
         )

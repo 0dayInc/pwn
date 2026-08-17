@@ -38,4 +38,11 @@ describe PWN::AI::Grok do
     expect(src).to include('x-grok-conv-id')
     expect(src).to include('enabled?(engine: :grok)')
   end
+
+  it 'grok_rest_call stops the spinner via TTYSpinner (joins worker after response)' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to include('PWN::Plugins::TTYSpinner.start')
+    expect(src).to include('PWN::Plugins::TTYSpinner.stop(spin: spin)')
+    expect(src).not_to match(/spin\.stop if spinner/)
+  end
 end

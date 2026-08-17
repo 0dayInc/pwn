@@ -59,18 +59,40 @@ pool to:
 CORE_TOOLS  = shell · pwn_eval · memory_remember · memory_recall
               mistakes_record · mistakes_resolve · learning_note_outcome
             + top-K keyword-ranked matches for THIS request
-              (ties break on Metrics per-engine success_rate → the router
-               itself is a learned component)
+              (ties break on Metrics per-engine success_rate, then
+               ai.agent.tool_preference)
 ```
 
 ```ruby
 PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 10)
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
-PWN::AI::Agent::Registry.toolsets                              # → the 13 names above
-PWN::AI::Agent::Registry.all.count                             # → 85
+PWN::AI::Agent::Registry.preference_order                     # Env / DEFAULT_PREFERENCE
+PWN::AI::Agent::Registry.toolsets                              # -> the 13 names above
+PWN::AI::Agent::Registry.all.count                             # -> 85
 ```
 
-Frontier engines leave `tool_router` off and receive the full set.
+Frontier engines leave `tool_router` off (unless you set it) and receive the
+full set. Local engines (`ollama` / `openwebui`) default `tool_router` to on.
+
+## Tool preference (`ai.agent.tool_preference`)
+
+When keyword fit and other rank scores tie, the registry prefers this
+default order:
+
+```text
+memory_recall · sessions_view · pwn_eval · shell
+mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember
+```
+
+Set `ai.agent.tool_preference` in `~/.pwn/pwn.yaml`, or pass `order:` /
+`preference:` into `Registry.definitions`, `.rank`, or `.apply_preference`.
+An explicit empty list turns preference off (no Env / default fallback).
+
+Keyword fit stays the primary signal. Preference is a smaller bonus plus a
+stable sort after the router slims the pool, so `memory_recall` wins a
+tie against `shell` without hiding a better keyword match.
+
+`Policy` uses the same list when it suggests a next action in the prompt.
 
 ## Adding a tool
 

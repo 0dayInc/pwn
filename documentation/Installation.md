@@ -5,7 +5,7 @@ a plugin whose native extension or OS binary is missing costs nothing until
 you actually touch that constant. That means the install is **two steps**:
 
 ```bash
-gem install pwn      # 1. get the gem (pure-Ruby core always works)
+gem install --verbose pwn      # 1. get the gem (pure-Ruby core always works)
 pwn setup            # 2. doctor + provision this host's capabilities
 ```
 
@@ -24,7 +24,7 @@ Tested on **Kali / Debian / Ubuntu**, **Fedora**, **Arch**, and **macOS**
 ## Quick install (recommended)
 
 ```bash
-gem install pwn
+gem install --verbose pwn
 pwn setup                      # read-only doctor: what's usable, what's missing
 pwn setup --profile full --yes # install everything for every PWN:: namespace
 pwn                            # launch the REPL
@@ -82,6 +82,8 @@ External toolchain                              used by
   skills/        drift  1 legacy flat file(s)   PWN::Config     → run --migrate --fix
   ...
 
+cron worker                 ok   systemd --user pid=...
+
 31 / 36 capabilities usable · 5 degraded
 
 Run `pwn setup --deps` to install missing OS headers/tools, or
@@ -103,7 +105,7 @@ pwn setup --list-profiles
 1. Resolve the profile → set of native gems + external binaries.
 2. Map those to OS packages for **your** package manager (data lives in
    `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN` - versioned with the gem, so
-   `gem install pwn`, git checkout, Docker, Packer and Vagrant all read the
+   `gem install --verbose pwn`, git checkout, Docker, Packer and Vagrant all read the
    same table).
 3. Show the exact commands, prompt (unless `--yes`), run them, then
    `gem pristine` / `gem install` any native extension that still fails to
@@ -187,9 +189,12 @@ predates the running gem (`PWN::Migrate.needed?`).
 
 Schema `v1` also seeds `PWN::Cron.install_defaults` - the nightly
 `curriculum_practice` and weekly `curriculum_train` self-improvement jobs
-(see [Reinforcement Learning](Reinforcement-Learning.md)). Live Policy
-files (`policy.json`, `policy_traj.jsonl`) are created on first agent turn
-when `ai.agent.policy` is on.
+(see [Reinforcement Learning](Reinforcement-Learning.md)). `pwn setup`
+also starts the background cron worker and persists it via the OS scheduler
+(systemd --user / launchd / schtasks / crontab) so those YAML jobs run
+without a per-job crontab line. Live Policy files (`policy.json`,
+`policy_traj.jsonl`) are created on first agent turn when `ai.agent.policy`
+is on.
 
 From a checkout:
 
@@ -221,7 +226,7 @@ lists have been consolidated into `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN`.
 
 ```dockerfile
 FROM kalilinux/kali-rolling
-RUN gem install pwn && pwn setup --profile full --yes
+RUN gem install --verbose pwn && pwn setup --profile full --yes
 ```
 
 ```yaml

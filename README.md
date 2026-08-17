@@ -97,7 +97,7 @@ small and easy to swap:
 
 On every turn the AI layer runs a **feedback loop**. It checks inward
 (Metrics, Learning, **Mistakes**, and **Policy**: what failed last time, and
-which tool the live Q / REINFORCE table currently prefers) and outward
+which tool the live Q / REINFORCE table plus `tool_preference` currently prefers) and outward
 (Snapshot, Drift, Intel, RF, and **Web**: did the host or network change?).
 Live checks use browser-backed **`extro_verify`** / **`extro_watch`** and RF
 **`extro_rf_tune`**. `extro_correlate` joins those views so the agent can tell
@@ -162,7 +162,7 @@ PWN is a **single gem** with a built-in post-install doctor/provisioner -
 `PWN::` capability needs. Tested on Kali/Debian/Ubuntu, Fedora, Arch, macOS.
 
 ```
-$ gem install pwn
+$ gem install --verbose pwn
 $ pwn setup                        # read-only doctor: which capabilities are usable?
 $ pwn setup --profile full --yes   # provision everything (or: web | net | sdr | vision | ...)
 $ pwn

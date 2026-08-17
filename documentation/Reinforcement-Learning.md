@@ -30,7 +30,7 @@ improvement does not wait on weights.
                                            |
                     Learning.consolidate (M1 merge, M3 importance-evict)
                     MemoryIndex.recall_semantic (M2 similarity x recency x importance)
-                    Registry.rank (C1 keyword + UCB + Q-advantage)
+                    Registry.rank (C1 keyword + UCB + Q-advantage + tool_preference)
                     Policy (R5 live Q / REINFORCE on a judge-scored MDP)
                     Learning.exemplars_for (C2 prioritized replay, C4 minimal trace)
                                            |
@@ -53,7 +53,7 @@ This is the live numeric controller. It does not replace planning.
 | Terminal reward | `Reward.judge` score (skipped when the cheap proxy is untrusted and there is no judge) |
 | Updates | Q-learning (`alpha=0.15`, `gamma=0.85`) and REINFORCE (`alpha=0.05`). Stored trajectories replay twice on warmup so a short table is not empty advice. |
 | Budget | Eight finished episodes (live or warmup-credited) unlock greedy suggestions. Until then the prompt omits them. |
-| Steer | Q-advantage in `Registry.rank` once the episode budget is met; keyword fit and CORE_TOOLS still come first |
+| Steer | Q-advantage in `Registry.rank` once the episode budget is met; keyword fit and CORE_TOOLS still come first. Suggested actions follow `Registry.preference_order` (`ai.agent.tool_preference`). |
 | Files | `~/.pwn/policy.json`, `~/.pwn/policy_traj.jsonl` |
 | Tools | `policy_stats` · `policy_evaluate` · `policy_recommend` (inspect only) |
 | Off switch | `ai.agent.policy: false` |
@@ -122,10 +122,9 @@ dominate, the loop marks the budget path hot and tightens the live turn:
 Practice prioritizes those scars with short-horizon "finish the task" prompts.
 Raising `ai.agent.max_iters` or resolving the scar returns normal runway.
 
-## Design-priority STATUS (post P14-P25)
+## Design-priority STATUS
 
-This table is the flag authority. Stop minting new P-numbers for chores already
-covered. Track these outcomes instead of hunting comments in the source.
+This table is the live control list. Track the outcomes, not source comments.
 
 | Pri | ID | Control | Module(s) | Success criterion |
 |-----|----|---------|-----------|-------------------|
@@ -167,7 +166,10 @@ covered. Track these outcomes instead of hunting comments in the source.
     :reward_llm_timeout: 12  # cheap ORM chat timeout seconds (clamped 2..30)
     :local_introspect: :failure_only   # ollama cost rule; remote always introspects
     :introspect_every_n: 3
-    :max_iters: 25           # hard cap; budget pressure may lower effective value
+    :max_iters: 75           # hard cap; budget pressure may lower effective value
+    :defer_introspect: true  # post-answer Learning after the user-visible reply
+    :prompt_cache: true      # engine-native prefix cache (not ollama / openwebui)
+    :tool_preference: [memory_recall, sessions_view, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember]
 ```
 
 ## Cron self-improvement
@@ -183,6 +185,8 @@ PWN::Cron.install_defaults
 
 `install_defaults` treats the legacy name `offline_judge_nightly` as an alias of
 `curriculum_offline_judge` and will not double-seed the same slot.
+`pwn setup` also starts the background cron worker so these YAML jobs fire
+without a per-job crontab line.
 
 ## Tools exposed to the model
 

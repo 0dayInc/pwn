@@ -14,7 +14,7 @@ agent code never cares which model is behind it.
 | `anthropic` | `PWN::AI::Anthropic` | `key:` | tool-use native |
 | `grok` | `PWN::AI::Grok` | `key:` **or** `oauth: true` | OAuth = RFC-8628 device-code flow using xAI's public Grok-CLI client id (no secret) - see skill `xai_grok_oauth_device_flow` |
 | `gemini` | `PWN::AI::Gemini` | `key:` | function-calling native |
-| `ollama` | `PWN::AI::Ollama` | none | local - native `/api/chat` (`num_ctx`, `keep_alive`, low-temp + `format:'json'` on tool turns) and `/api/embed` for `PWN::MemoryIndex` |
+| `ollama` | `PWN::AI::Ollama` | none (stock) | Direct Ollama server (default `http://127.0.0.1:11434`). Native `/api/chat` (`num_ctx`, `num_predict`, `keep_alive`, low `tool_temp`) and `/api/embed` for `PWN::MemoryIndex`. No prefix-cache field. |
 | `openwebui` | `PWN::AI::OpenWebUI` | `key:` (JWT / API token) + `base_uri:` | Open WebUI gateway - OpenAI-compatible `/api/v1/chat/completions` plus proxied Ollama `/ollama/api/*` (including embed) |
 
 > PWN is **model-agnostic**. `ai.<engine>.model` is passed straight through to
@@ -46,13 +46,14 @@ The harness adapts to the *class* of engine, not the model name:
 |---|---|---|
 | **PromptBuilder.budget** | full MEMORY / METRICS / MISTAKES / LEARNING / EXTRO blocks | tightened via `ai.ollama.prompt_budget` (extro off by default) |
 | **MEMORY ranking** | relevance-ranked when a local Ollama `embed_model` is reachable, else newest-first | relevance-ranked via `PWN::MemoryIndex` (`~/.pwn/memory.idx`) |
-| **Tool schemas shipped** | all toolsets | `CORE_TOOLS` + top-K keyword matches when `ai.agent.tool_router` is on |
+| **Tool schemas shipped** | all toolsets | `CORE_TOOLS` + top-K keyword matches when `ai.agent.tool_router` is on (default on). Ties also honor `tool_preference`. |
 | **Pre-pass** | none | `plan_first` numbered tool plan before first dispatch |
 | **Intent route** | always | `request_intent` + LLM/heuristic `request_kind` (statement \| question \| autonomous_goal). Short-circuits how-to/questions (text only), greetings/statements (fixed ack), pure recall, and unauthorized recon on all engines; host-evidence Qs (hostname/cwd/whoami) and only true autonomous goals get multi-step TaskSummarizer plans. Critical for ollama/openwebui |
 | **Few-shot** | none | `Learning.exemplars_for(request)` splices a prior successful trace |
 | **Dispatch parsing** | strict | tolerant - Levenshtein tool-name repair + JSON5-ish arg cleanup, each repair fingerprinted into `Mistakes` |
-| **Post-answer** | `auto_introspect` | `auto_introspect` **+** `fact_check_local_final` (auto `extro_verify` on CVE/version-shaped claims) |
+| **Post-answer** | `auto_introspect` (deferred by default) | `auto_introspect` **+** `fact_check_local_final` (auto `extro_verify` on CVE/version-shaped claims). Deferred after the reply; specs/cron stay inline. |
 | **Metrics bucket** | `metrics.json[:tools][name][:engines][:<engine>]` | same - the `TOOL EFFECTIVENESS` block is per-engine so local telemetry never blends with frontier |
+| **Prefix cache** | Anthropic `cache_control` · OpenAI `prompt_cache_key` · Grok `x-grok-conv-id` · Gemini `systemInstruction` split (`ai.agent.prompt_cache`, default on) | none - Ollama / Open WebUI have no prefix-cache request field |
 
 ## Teacher-student reflection
 

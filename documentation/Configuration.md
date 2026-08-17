@@ -8,8 +8,10 @@ frozen constant **`PWN::Env`** (a redacted copy is available as
 The file is **AES-encrypted at rest** by `PWN::Plugins::Vault`. Its key/IV
 live in a sibling **`~/.pwn/pwn.yaml.decryptor`** file (or in
 `PWN_DECRYPTOR_KEY` / `PWN_DECRYPTOR_IV` env vars). Never edit `pwn.yaml`
-by hand - use the **`pwn-vault`** REPL command, which decrypts → opens
-`$EDITOR` → re-encrypts → reloads `PWN::Env`.
+by hand - use the **`pwn-vault`** REPL command, which decrypts, opens
+`$EDITOR`, re-encrypts, and reloads `PWN::Env`. If `PWN::Config` rejects the
+edited file, the editor reopens until the vault loads cleanly, so you do not
+leave the REPL stuck on a decrypt / re-edit / encrypt loop.
 
 If `~/.pwn/pwn.yaml` does not exist on first run, `PWN::Config.default_env`
 writes a fully-commented template with every key below (values set to
@@ -32,7 +34,7 @@ generates the decryptor.
 # ~/.pwn/pwn.yaml  (shown DECRYPTED - file is AES-encrypted on disk)
 
 ai:
-  active: grok                     # Which engine backs `pwn-ai`. One of: openai | anthropic | grok | gemini | ollama.
+  active: grok                     # Which engine backs `pwn-ai`. One of: openai | anthropic | grok | gemini | ollama | openwebui.
   module_reflection: false         # Master gate for LLM self-analysis (SAST triage, Burp enrichment, Learning.llm_reflect).
 
   grok:
@@ -78,14 +80,17 @@ ai:
     max_prompt_length: 1000000               # Soft input-context ceiling (chars) - Gemini supports very large contexts.
 
   ollama:
-    base_uri: https://ollama.local           # REQUIRED for ollama - Open WebUI / ollama-serve base URL (no vendor default).
-    key: eyJ...                                # Open WebUI JWT (Settings → Account → API Key). Prompted if blank.
+    base_uri: http://127.0.0.1:11434         # Direct Ollama server. Optional; this is the stock default. No vendor key.
+    key: ~                                   # Only if a reverse-proxy sits in front of Ollama. Stock ollama needs none.
     model: <local-model-tag>                 # Local model tag exactly as `ollama list` shows it.
-    embed_model: <embed-model-tag>           # Embedding model for PWN::MemoryIndex (relevance-ranked MEMORY). Must be pulled locally.
+    embed_model: nomic-embed-text            # Embedding model for PWN::MemoryIndex (relevance-ranked MEMORY). Must be pulled locally.
     system_role_content: 'You are an ethically hacking Ollama agent.'   # Base system prompt for this engine.
     temp: 1.0                                # Sampling temperature (used on the FINAL text-only turn - tool-bearing turns are pinned low for deterministic routing).
+    tool_temp: 0.1                           # Lower temperature on tool-bearing turns for stable routing.
     num_ctx: 32768                           # Context window passed to /api/chat options.num_ctx. Ollama's default (2048) is too small for the pwn-ai system prompt.
+    num_predict: 4096                        # Decode-length cap so a thinking model cannot stream forever.
     keep_alive: 30m                          # How long ollama keeps the model resident between iterations (avoids reload latency mid-turn).
+    result_max: 4000                         # Tool-result cap for local models (frontier keeps Result::DEFAULT_MAX).
     prompt_budget:                           # Per-block caps applied by PromptBuilder.budget so a small model spends attention on the request, not the harness.
       memory: 6                              # Max MEMORY entries injected (relevance-ranked via PWN::MemoryIndex when available).
       metrics: 3                             # Max TOOL EFFECTIVENESS rows.
@@ -94,11 +99,26 @@ ai:
       extro: false                           # Gate the (heaviest) EXTROSPECTION block entirely for local models.
     max_prompt_length: 32000                 # Soft input-context ceiling (chars) - tune per local model's real context window.
 
+  openwebui:
+    base_uri: https://openwebui.local        # REQUIRED - Open WebUI gateway (separate provider from ollama).
+    key: eyJ...                                # REQUIRED - Open WebUI JWT (Settings -> Account -> API Key).
+    model: <model-id-or-tag>                 # Model id / tag Open WebUI exposes.
+    embed_model: nomic-embed-text            # Used when a direct ollama embed_model is unset.
+    system_role_content: 'You are an ethically hacking Open WebUI agent.'
+    temp: 1.0
+    tool_temp: 0.1
+    num_ctx: 32768
+    num_predict: 4096
+    keep_alive: 30m
+    result_max: 4000
+    prompt_budget: { memory: 6, metrics: 3, mistakes: 3, learning: 2, extro: false }
+    max_prompt_length: 32000
+
   reflect_engine: ~                # Teacher-student reflection: EXECUTE on ai.active, but write durable lessons via THIS engine (nil = same as active). Lets a local model act while a frontier model authors the Memory :lesson entries it reads back.
 
   agent:
     native_tools: true             # Use provider-native tool_calls / function-calling. false → legacy text-parsed tool protocol.
-    max_iters: 25                  # Hard cap on tool-call rounds per user turn before a forced final answer.
+    max_iters: 75                  # Hard cap on tool-call rounds per user turn. Local engines tighten under budget pressure.
     task_summary: true             # Executive task briefs via TaskSummarizer (plan + about_to). false disables.
     task_summary_every: 5          # When task_summary_verbose: emit Progress every N completed tools.
     task_summary_interval_s: 8.0   # When verbose: also emit when this many seconds elapsed.
@@ -107,12 +127,24 @@ ai:
     request_kind_llm: ~            # LLM request_kind classifier (statement|question|autonomous_goal). nil = follow task_summary_llm.
     max_depth: 3                   # Recursion guard: how many levels deep agent_ask/agent_debate sub-agents may spawn sub-agents.
     auto_introspect: true          # Run Learning.auto_introspect (outcome logging + lesson mining) after every final answer.
-    auto_extrospect: false         # Optional ambient baseline (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools (intel/verify/watch/rf_tune/observe) stay on-demand.
+    auto_extrospect: true          # Ambient baseline after every final answer (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools stay on-demand.
+    defer_introspect: true         # Run auto_introspect on a background thread AFTER the user-visible reply (default on). Specs/cron stay inline.
+    prompt_cache: true             # Engine-native prefix cache. Anthropic cache_control, OpenAI prompt_cache_key, Grok x-grok-conv-id, Gemini systemInstruction split. Ollama / Open WebUI have none.
     recon_authorized: false        # Allow live subnet sweeps / raw-socket discovery tools this session
-    shell_bash: false              # true → run shell via bash -lc (PIPESTATUS, [[ ]], process substitution). Default is /bin/sh.
-    plan_first: ~                  # Plan-then-act pre-pass: force the model to externalize a numbered tool plan BEFORE its first dispatch. nil = auto (true when ai.active == ollama).
-    tool_router: false             # Dynamic tool-set slimming: ship only Registry::CORE_TOOLS + top-K keyword-relevant schemas per turn (helps small models route correctly).
-    escalation_persona: ~          # Swarm persona name to ask for a 3-line corrective hint once a local model burns ≥ Loop::ESCALATE_AFTER_FAILS in-turn failures. nil = disabled.
+    shell_bash: false              # true -> run shell via bash -lc. Default is /bin/sh.
+    plan_first: ~                  # Plan-then-act pre-pass. nil = auto (true when ai.active is ollama or openwebui).
+    tool_router: ~                 # Dynamic tool-set slimming. nil = auto (true for ollama / openwebui).
+    tool_preference:               # Operator-tunable tool order. Rank bonus + Policy suggested-action list.
+      - memory_recall
+      - sessions_view
+      - pwn_eval
+      - shell
+      - mistakes_record
+      - mistakes_resolve
+      - learning_note_outcome
+      - memory_remember
+    escalation_persona: escalator  # Swarm persona for a 3-line corrective hint after enough in-turn failures. nil = disabled.
+    local_introspect: failure_only # End-of-turn auto_introspect policy for local engines: always | failure_only | every_n.
     policy: true                   # Live tabular Q / REINFORCE. Advisory only; never replaces TaskSummarizer / plan_first. false disables.
     toolsets: ~                    # Allow-list of toolsets exposed to the agent. nil = all. Valid: cron, curriculum, extrospection, learning, memory, metrics, policy, pwn, reward, sessions, skills, swarm, terminal.
     extrospection:
@@ -221,7 +253,7 @@ targets:                           # Optional - engagement-scope URLs/hosts. Mer
 
 ```ruby
 PWN::Env[:ai][:active]                          # => :grok
-PWN::Env.dig(:ai, :agent, :max_iters)           # => 25
+PWN::Env.dig(:ai, :agent, :max_iters)           # => 75
 PWN::EnvRedacted[:ai][:grok][:key]              # => ">>> REDACTED >>> ..."
 
 # Edit + re-encrypt + reload without leaving the REPL:
@@ -239,10 +271,10 @@ PWN::Config.refresh_env
 
 | Key path | Type | Default | Consumed by | Purpose |
 |---|---|---|---|---|
-| `ai.active` | String | `grok` | `PWN::Config.refresh_env`, `PWN::AI::Agent::Loop`, `PWN::Plugins::REPL`, `PWN::Cron` | Which AI engine backs `pwn-ai`. One of `openai` · `anthropic` · `grok` · `gemini` · `ollama`. |
+| `ai.active` | String | `grok` | `PWN::Config.refresh_env`, `PWN::AI::Agent::Loop`, `PWN::Plugins::REPL`, `PWN::Cron` | Which AI engine backs `pwn-ai`. One of `openai` · `anthropic` · `grok` · `gemini` · `ollama` · `openwebui`. |
 | `ai.module_reflection` | Boolean | `false` | `PWN::AI::Agent::Reflect`, `PWN::SAST::*`, `PWN::Plugins::BurpSuite` | Master gate for LLM-driven self-analysis (SAST triage, Burp finding enrichment, `Learning.llm_reflect`). |
-| `ai.<engine>.base_uri` | String | provider default | `PWN::AI::<Engine>.rest_call` | Override the API base URL (self-hosted proxy, private endpoint, Azure/VPC gateway). **Required** for `ollama`. |
-| `ai.<engine>.key` | String | - | `PWN::AI::<Engine>` | API key / bearer token. If blank AND no OAuth is configured, PWN prompts interactively at load. |
+| `ai.<engine>.base_uri` | String | provider default | `PWN::AI::<Engine>.rest_call` | Override the API base URL (self-hosted proxy, private endpoint, Azure/VPC gateway). Optional for stock `ollama` (`http://127.0.0.1:11434`). **Required** for `openwebui`. |
+| `ai.<engine>.key` | String | - | `PWN::AI::<Engine>` | API key / bearer token. Stock `ollama` needs none. `openwebui` requires a JWT. If blank AND no OAuth is configured on a key-backed engine, PWN prompts interactively at load. |
 | `ai.<engine>.model` | String | provider default | `PWN::AI::<Engine>.chat` / `.chat_tool_loop` | Model id sent on every request. Use whatever id the provider / `ollama list` currently exposes - PWN never hard-codes a specific model. |
 | `ai.<engine>.system_role_content` | String | ethical-hacker persona | `PWN::AI::Agent::PromptBuilder`, `PWN::Plugins::REPL` | Base system prompt prepended to MEMORY / SKILLS / LEARNING / EXTROSPECTION blocks. |
 | `ai.<engine>.temp` | Float | `1.0` | `PWN::AI::<Engine>.chat` | Sampling temperature. |
@@ -252,6 +284,10 @@ PWN::Config.refresh_env
 | `ai.ollama.embed_model` | String | provider default | `PWN::MemoryIndex` | Local embedding model tag used to build `~/.pwn/memory.idx` for **relevance-ranked** MEMORY injection. Falls back to substring recall when unset / unreachable. |
 | `ai.ollama.num_ctx` | Integer | `32768` | `PWN::AI::Ollama.chat_with_tools` | Context window sent as `options.num_ctx` on the native `/api/chat` call. Ollama's own default (2048) truncates the pwn-ai system prompt. |
 | `ai.ollama.keep_alive` | String | `30m` | `PWN::AI::Ollama.chat_with_tools` | How long the model stays resident in ollama between iterations of a single turn. |
+| `ai.ollama.num_predict` | Integer | `4096` | `PWN::AI::Ollama.chat_with_tools` | Decode-length cap so a thinking model cannot stream forever. |
+| `ai.ollama.tool_temp` | Float | `0.1` | `PWN::AI::Ollama.chat_with_tools` | Sampling temperature on tool-bearing turns (final text-only turn uses `temp`). |
+| `ai.ollama.result_max` | Integer | `4000` | `PWN::AI::Agent::Result` | Tool-result cap for local models. |
+| `ai.openwebui.*` | (same shape as `ollama`) | JWT + `base_uri` required | `PWN::AI::OpenWebUI` | Separate provider from `ollama`. OpenAI-compatible `/api/v1/chat/completions` plus proxied `/ollama/api/*` (including embed). |
 | `ai.ollama.prompt_budget` | Hash | `{memory:6, metrics:3, mistakes:3, learning:2, extro:false}` | `PWN::AI::Agent::PromptBuilder.budget` | Per-block caps on injected context so a small local model spends its attention on the request, not the harness. Any engine may set this. |
 | `ai.reflect_engine` | Symbol \| `nil` | `nil` (= `ai.active`) | `PWN::AI::Agent::Reflect.on`, `Learning.reflect` | **Teacher-student** override: run the task on `ai.active`, but generate durable lessons via *this* engine. Lets a local model execute while a frontier model writes the Memory it reads back. |
 | `ai.grok.oauth.refresh_token` | String | - | `PWN::AI::Grok.resolve_auth` | Durable OAuth refresh token (from `PWN::AI::Grok.obtain_oauth_bearer_token` device flow). Enables silent re-auth without an API key. |
@@ -267,7 +303,7 @@ PWN::Config.refresh_env
 | Key path | Type | Default | Consumed by | Purpose |
 |---|---|---|---|---|
 | `ai.agent.native_tools` | Boolean | `true` | `PWN::Plugins::REPL` (`pwn-ai` cmd) | Use provider-native `tool_calls` / function-calling. `false` falls back to the legacy text-parsed tool protocol. |
-| `ai.agent.max_iters` | Integer | `25` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn before a forced final answer. When budget-exhaustion pressure is high, the effective cap is tightened (stricter on local/ollama than remote) so long multi-step goals keep a usable runway without thrashing. |
+| `ai.agent.max_iters` | Integer | `75` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn before a forced final answer. When recent turns keep hitting the ceiling, the effective cap is tightened (stricter on local engines than remote) so long multi-step goals keep a usable runway without thrashing. |
 | `ai.agent.task_summary` | Boolean | `true` | `PWN::AI::Agent::TaskSummarizer`, `Loop` | Master switch for executive task briefs (`emit_plan!` / `about_to`). |
 | `ai.agent.task_summary_every` | Integer | `5` | `TaskSummarizer.every_n` | Verbose progress cadence (tools). |
 | `ai.agent.task_summary_interval_s` | Float | `8.0` | `TaskSummarizer.interval_s` | Verbose progress cadence (seconds). |
@@ -276,22 +312,26 @@ PWN::Config.refresh_env
 | `ai.agent.request_kind_llm` | Boolean \| `nil` | `nil` (follow `task_summary_llm`) | `TaskSummarizer.llm_kind_enabled?` / `request_kind` | LLM classifier for `statement` \| `question` \| `autonomous_goal`. Cheap intents and host-evidence heuristics still win first; `false` is heuristic-only. |
 | `ai.agent.max_depth` | Integer | `3` | `PWN::AI::Agent::Swarm` | Recursion guard for `agent_ask` / `agent_debate` sub-agents spawning sub-agents. |
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
-| `ai.agent.auto_extrospect` | Boolean | `false` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Optional ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Prefer on-demand sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`). Toggle live via `extro_auto_toggle`. |
+| `ai.agent.auto_extrospect` | Boolean | `true` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`) stay on-demand. Toggle live via `extro_auto_toggle`. |
 | `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `curriculum`, `extrospection`, `learning`, `memory`, `metrics`, `policy`, `pwn`, `reward`, `sessions`, `skills`, `swarm`, `terminal`. |
 | `ai.agent.recon_authorized` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.recon_authorized?` / `Loop.recon_authorized?` | When true (or the user request contains in-scope / engagement language), live host-discovery tools may run. Default refuses unauthorized sweeps. |
 | `ai.agent.shell_bash` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.shell_bash?` | When true, `shell` runs via `bash -lc` so bash-only syntax is allowed. Default is POSIX `/bin/sh` and bashisms are rejected with a rewrite hint. |
-| `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active == ollama`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
-| `ai.agent.tool_router` | Boolean | `false` | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate so the router itself is a learned component. |
-| `ai.agent.escalation_persona` | String \| `nil` | `nil` | `PWN::AI::Agent::Loop.escalate` → `Swarm.ask` | Circuit-breaker: once a local model accumulates ≥ `Loop::ESCALATE_AFTER_FAILS` in-turn failures, ask this Swarm persona for a 3-line corrective hint (injected as a synthetic tool result). The local model still authors the final answer so Learning/Metrics stay attributed. |
-| `ai.agent.critic` | Boolean | `false` | `PWN::AI::Agent::Curriculum.critic` | Tool-armed constitutional self-critic reviews (and may `shell`/`extro_verify`) every final answer before it is returned. |
-| `ai.agent.red_team_plan` | Boolean | `false` | `PWN::AI::Agent::Curriculum.red_team_plan` | Adversarial review of the `plan_first` numbered plan, grounded in Metrics/Mistakes/`extro_drift` telemetry, before the first dispatch. |
-| `ai.agent.counterfactual` | Boolean | `false` | `PWN::AI::Agent::Curriculum.counterfactual` | On `[REPEATING]`, fork an alt-persona branch, judge both, and record the `(loser, winner)` DPO preference pair. |
+| `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active` is `ollama` or `openwebui`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
+| `ai.agent.tool_router` | Boolean \| `nil` | `nil` (auto: `true` for `ollama` / `openwebui`) | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate, then `ai.agent.tool_preference`. |
+| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `sessions_view`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Operator-tunable tool order. Keyword fit stays primary; this list is a rank bonus and the default action list Policy quotes in the prompt. Explicit empty list disables preference. |
+| `ai.agent.defer_introspect` | Boolean | `true` | `PWN::AI::Agent::TurnFinalizer` | Run `Learning.auto_introspect` on a background thread after the user-visible reply. Specs and cron stay inline. |
+| `ai.agent.prompt_cache` | Boolean | `true` | `PWN::AI::Agent::PromptCache` | Engine-native prefix cache. Anthropic uses `cache_control`; OpenAI uses `prompt_cache_key`; Grok uses `x-grok-conv-id`; Gemini splits `systemInstruction`. Ollama and Open WebUI have no native prefix-cache field. |
+| `ai.agent.local_introspect` | Symbol | `failure_only` | `PWN::AI::Agent::Learning.auto_introspect` | End-of-turn introspect policy for local engines: `always` · `failure_only` · `every_n` (with `introspect_every_n`). |
+| `ai.agent.escalation_persona` | String \| `nil` | `escalator` | `PWN::AI::Agent::Loop.escalate` -> `Swarm.ask` | Circuit-breaker: once a local model accumulates enough in-turn failures, ask this Swarm persona for a 3-line corrective hint (injected as a synthetic tool result). The local model still authors the final answer so Learning/Metrics stay attributed. |
+| `ai.agent.critic` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Curriculum.critic` | Tool-armed constitutional self-critic reviews (and may `shell`/`extro_verify`) every final answer before it is returned. |
+| `ai.agent.red_team_plan` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Curriculum.red_team_plan` | Adversarial review of the `plan_first` numbered plan, grounded in Metrics/Mistakes/`extro_drift` telemetry, before the first dispatch. |
+| `ai.agent.counterfactual` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Curriculum.counterfactual` | On `[REPEATING]`, fork an alt-persona branch, judge both, and record the `(loser, winner)` DPO preference pair. |
 | `ai.agent.hindsight` | Boolean | `true` | `PWN::AI::Agent::Curriculum.hindsight` | Hindsight Experience Replay - relabel a failed trajectory as `success:true` for whatever it *did* accomplish. Free positive samples from failures. |
 | `ai.agent.policy` | Boolean | `true` | `PWN::AI::Agent::Policy` | Live tabular Q-learning + REINFORCE. Records `(s,a,r,s')` per tool step, trains on `Reward.judge` at episode end, and adds a small Q-advantage term to `Registry.rank`. Advisory only: never replaces TaskSummarizer or plan_first. |
 | `ai.agent.reward_llm` | Boolean \| `nil` | `nil` (auto: on for remote, off for ollama) | `PWN::AI::Agent::Reward.judge` / `.prm` | Use a cheap LLM teacher for outcome/process judges even when `module_reflection` is false. Local ollama stays heuristic unless this is `true`. |
 | `ai.agent.reward_model` | String \| `nil` | `nil` | `Reward.judge` / `.prm` | Optional cheaper model id for the ORM/PRM chat. Falls back to `ai.reflect_model`, then the active engine default. |
 | `ai.agent.reward_llm_timeout` | Integer | `12` | `Reward.judge` / `.prm` | Seconds for the cheap ORM chat (clamped 2..30). Fail fast to the overlap heuristic rather than a 900s hang. |
-| `ai.agent.verify_as_reward` | Boolean | `false` | `PWN::AI::Agent::Reward.verify_as_reward` | Ground the LLM judge score by browser-verifying any checkable claim in the final via `extro_verify`; verdict caps/floors `Reward.judge`. |
+| `ai.agent.verify_as_reward` | Boolean \| `nil` | `nil` (auto: ~10% local / always frontier when a claim matches) | `PWN::AI::Agent::Reward.verify_as_reward` | Ground the LLM judge score by browser-verifying any checkable claim in the final via `extro_verify`; verdict caps/floors `Reward.judge`. |
 | `ai.agent.extrospection.web.anchors` | Array\<String\> | `DEFAULT_WEB_ANCHORS` | `PWN::AI::Agent::Extrospection.probe_web` | URLs the headless browser fingerprints on `extro_snapshot(sections:[:web])`. Alias: `web_anchors`. |
 | `ai.agent.extrospection.web.proxy` | String | - | `Extrospection.probe_web` / `.verify` / `.watch` | Upstream proxy for `PWN::Plugins::TransparentBrowser` (e.g. `tor`, `http://127.0.0.1:8080`). |
 | `ai.agent.extrospection.web.max_anchors` | Integer | `8` | `Extrospection.probe_web` | Cap on anchors rendered per snapshot. |

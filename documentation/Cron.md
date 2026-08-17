@@ -1,8 +1,18 @@
 # Cron - Scheduled Autonomous Jobs
 
 `PWN::Cron` (`lib/pwn/cron.rb`) stores job definitions in
-`~/.pwn/cron/jobs.yml` and can install a matching system-`crontab` line that
-invokes `PWN::Cron.run(<id>)` on schedule.
+`~/.pwn/cron/jobs.yml`. `pwn setup` starts (or reuses) a background cron
+worker and installs an OS-native keep-alive so YAML jobs fire on schedule
+without a per-job crontab line:
+
+- Linux: `systemd --user` (Restart=always), else `crontab @reboot`
+- macOS: `launchd`
+- Windows: `schtasks`
+- otherwise: `crontab @reboot` when `crontab(1)` exists
+
+You can still pass `install_crontab: true` on `cron_create` to add a
+per-job system line. `PWN::Cron.install_worker_crontab` is idempotent and
+does not remove existing per-job lines.
 
 ![Cron scheduling](diagrams/cron-scheduling.svg)
 

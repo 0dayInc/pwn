@@ -43,7 +43,7 @@ Run any with `--help` for its flags.
 
 ## `pwn_setup` - post-install doctor / provisioner / state migrator
 
-The one driver that isn't a plugin wrapper. It grows a bare `gem install pwn`
+The one driver that isn't a plugin wrapper. It grows a bare `gem install --verbose pwn`
 into a fully-armed host by installing OS headers / external tools for whatever
 capability profile you ask for, **and** verifies/repairs every persisted
 `~/.pwn` state file after an upgrade. Also reachable as `pwn setup` and
