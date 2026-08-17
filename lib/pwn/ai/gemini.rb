@@ -2,7 +2,6 @@
 
 require 'json'
 require 'rest-client'
-require 'tty-spinner'
 require 'securerandom'
 
 module PWN
@@ -55,10 +54,7 @@ module PWN
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
-        if spinner
-          spin = TTY::Spinner.new(format: :dots)
-          spin.auto_spin
-        end
+        spin = PWN::Plugins::TTYSpinner.start if spinner
 
         retry_count = 0
         begin
@@ -103,7 +99,7 @@ module PWN
             raise e
           end
         ensure
-          spin.stop if spinner
+          PWN::Plugins::TTYSpinner.stop(spin: spin)
         end
       end
 

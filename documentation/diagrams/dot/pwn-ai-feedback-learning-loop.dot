@@ -90,7 +90,7 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
   /* L1 → L2 */
   Dispatch -> Metrics  [label="record(engine:)", color="#34d399"];
   Dispatch -> Policy   [label="observe_step", color="#34d399"];
-  Result   -> Learning [label="auto_introspect", color="#34d399"];
+  Result   -> Learning [label="auto_introspect\n(deferred after reply)", color="#34d399"];
   Result   -> Policy   [label="finish (judge)", color="#34d399"];
   Dispatch -> Mistakes [label="on failure\nrecord()", color="#fb7185", penwidth=2];
   User     -> Mistakes [label="\"that's wrong\"\ncheck_user_correction", color="#fb7185",

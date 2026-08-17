@@ -43,6 +43,12 @@ module PWN
         CORE_TOOLS = %w[shell pwn_eval memory_remember memory_recall
                         mistakes_record mistakes_resolve learning_note_outcome].freeze
 
+        # Operator-tunable tool order. Prefer these names when keyword-fit
+        # (or other rank features) tie. Overridable via opts[:order],
+        # opts[:preference], or PWN::Env[:ai][:agent][:tool_preference].
+        # Explicit nil/empty order disables preference (no Env/DEFAULT fallback).
+        DEFAULT_PREFERENCE = %w[memory_recall sessions_view pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
+
         @entries = {}
         @discovered = false
 
@@ -100,7 +106,9 @@ module PWN
         # tools = PWN::AI::Agent::Registry.definitions(
         #   enabled: 'optional - Array of toolset names to include; nil = all whose check passes',
         #   relevance: 'optional - user request; when set AND :tool_router is enabled, slim to CORE + top-K keyword matches',
-        #   top_k: 'optional - keyword-ranked tools to keep beyond CORE (default 10)'
+        #   top_k: 'optional - keyword-ranked tools to keep beyond CORE (default 10)',
+        #   order: 'optional - preference list forwarded only when this key is present',
+        #   preference: 'optional - alias of :order; same key-present rule'
         # )
 
         public_class_method def self.definitions(opts = {})
@@ -108,19 +116,84 @@ module PWN
           enabled = enabled.map(&:to_s) if enabled
           pool = @entries.values.select { |e| (enabled.nil? || enabled.include?(e.toolset)) && safe_check(entry: e) }
 
+          pref_fwd = {}
+          pref_fwd[:order] = opts[:order] if opts.key?(:order)
+          pref_fwd[:preference] = opts[:preference] if opts.key?(:preference)
+
           if opts[:relevance] && router_enabled?
-            keep  = rank(query: opts[:relevance], entries: pool).first(opts[:top_k] || 10).map(&:name)
+            keep = rank({ query: opts[:relevance], entries: pool }.merge(pref_fwd)).first(opts[:top_k] || 10).map(&:name)
             names = (CORE_TOOLS + keep).uniq
             pool  = pool.select { |e| names.include?(e.name) }
           end
 
+          pool = apply_preference({ items: pool }.merge(pref_fwd))
           pool.map { |e| { type: 'function', function: e.schema } }
+        end
+
+        # Supported Method Parameters::
+        # order = PWN::AI::Agent::Registry.preference_order(
+        #   order: 'optional - Array of tool names; explicit nil/[] disables',
+        #   preference: 'optional - alias of :order. Explicit key disables Env/DEFAULT fallback'
+        # )
+
+        public_class_method def self.preference_order(opts = {})
+          explicit = opts.key?(:order) || opts.key?(:preference)
+          if explicit
+            raw = opts.key?(:preference) ? opts[:preference] : opts[:order]
+            return [] if raw.nil? || (raw.respond_to?(:empty?) && raw.empty?)
+
+            return Array(raw).map(&:to_s).reject(&:empty?)
+          end
+
+          raw = nil
+          raw = PWN::Env.dig(:ai, :agent, :tool_preference) if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+          raw = DEFAULT_PREFERENCE if raw.nil? || (raw.respond_to?(:empty?) && raw.empty?)
+          Array(raw).map(&:to_s).reject(&:empty?)
+        rescue StandardError
+          DEFAULT_PREFERENCE.dup
+        end
+
+        # Supported Method Parameters::
+        # sorted = PWN::AI::Agent::Registry.apply_preference(
+        #   items: 'required - Array of Entry objects or OpenAI tool hashes',
+        #   order: 'optional - forwarded to preference_order only when the key is set',
+        #   preference: 'optional - alias of :order; same key-present rule'
+        # )
+        #
+        # Stable sort: preferred names first, original index as the tie-break
+        # so equal-preference items keep their incoming order.
+        # Empty preference (explicit [] / nil) leaves items unsorted.
+
+        public_class_method def self.apply_preference(opts = {})
+          items = Array(opts[:items] || opts[:entries])
+          po = {}
+          po[:preference] = opts[:preference] if opts.key?(:preference)
+          po[:order] = opts[:order] if opts.key?(:order)
+          order = preference_order(po)
+          return items if order.empty?
+
+          index = {}
+          order.each_with_index { |name, i| index[name.to_s] = i }
+          fallback = order.length
+          items.sort_by.with_index do |item, orig|
+            name = if item.respond_to?(:name)
+                     item.name.to_s
+                   elsif item.is_a?(Hash)
+                     (item.dig(:function, :name) ||
+                      item.dig('function', 'name') ||
+                      item[:name] || item['name']).to_s
+                   else
+                     item.to_s
+                   end
+            [index.fetch(name, fallback), orig]
+          end
         end
 
         # Supported Method Parameters::
         # ranked = PWN::AI::Agent::Registry.rank(
         #   query: 'required - user request text',
-        #   entries: 'optional - Entry pool to rank (default .all)'
+        #   entries: 'optional - Entry pool to rank (default .all)',
+        #   order: 'optional - preference list forwarded to preference_order'
         # )
         #
         # C1 advantage-weighted router: score = α·keyword_sim + β·(tool
@@ -136,11 +209,23 @@ module PWN
 
           tokens = query.scan(/[a-z0-9_]{3,}/).uniq
           # C1 — advantage-weighted router:
-          #   score = α·keyword_sim + β·advantage + γ·UCB(tool) + δ·prm_advantage + ε·Q_adv
+          #   score = alpha*keyword_sim + beta*advantage + gamma*UCB(tool)
+          #         + delta*prm_advantage + eps_q*Q_adv + zeta*pref_score
           # UCB gives untried / low-N tools an exploration bonus so a single
           # early failure (before its dep was installed) does not blacklist
           # it forever; advantage prefers tools that outperform the fleet.
+          # zeta * pref_score (zeta=0.35) boosts Env/opts tool preference;
+          # alpha stays 1.0 so keyword fit remains the primary signal.
+          # zeta is 0 when preference is empty so ties are not pref-boosted.
           alpha = 1.0
+          po = {}
+          po[:preference] = opts[:preference] if opts.key?(:preference)
+          po[:order] = opts[:order] if opts.key?(:order)
+          pref_order = preference_order(po)
+          zeta = pref_order.empty? ? 0.0 : 0.35
+          pref_index = {}
+          pref_order.each_with_index { |n, i| pref_index[n.to_s] = i }
+          pref_n = [pref_order.length, 1].max
           # P4 — haircut advantage weight when reward proxy is hacked
           trust = defined?(Metrics) && Metrics.respond_to?(:proxy_trust) ? Metrics.proxy_trust : 1.0
           beta  = 0.3 * trust
@@ -187,10 +272,14 @@ module PWN
                     else
                       0.0
                     end
-            [e, sim, (alpha * sim) + (beta * adv) + (gamma * ucb) + (delta * prm) + (eps_q * qadv)]
+            pidx = pref_index[e.name]
+            pref = pidx.nil? ? 0.0 : ((pref_n - pidx).to_f / pref_n)
+            total = (alpha * sim) + (beta * adv) + (gamma * ucb) + (delta * prm) + (eps_q * qadv) + (zeta * pref)
+            [e, sim, total]
           end
+          # Equal keyword-fit (and equal total): preferred name first.
           scored.reject { |_, sim, _| sim.zero? }
-                .sort_by { |_, _, s| -s }
+                .sort_by { |e, _, s| [-s, pref_index.fetch(e.name, pref_n), e.name] }
                 .map(&:first)
         end
 

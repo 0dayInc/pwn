@@ -3,7 +3,6 @@
 require 'base64'
 require 'json'
 require 'rest-client'
-require 'tty-spinner'
 require 'date'
 
 module PWN
@@ -54,10 +53,7 @@ module PWN
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
-        if spinner
-          spin = TTY::Spinner.new(format: :dots)
-          spin.auto_spin
-        end
+        spin = PWN::Plugins::TTYSpinner.start if spinner
 
         retries = 0
         case http_method.to_s.scrub.downcase.to_sym
@@ -109,7 +105,7 @@ module PWN
       rescue StandardError => e
         raise e
       ensure
-        spin.stop if spinner
+        PWN::Plugins::TTYSpinner.stop(spin: spin)
       end
 
       private_class_method def self.btc_rpc_call(opts = {})

@@ -2,7 +2,6 @@
 
 require 'json'
 require 'rest-client'
-require 'tty-spinner'
 
 module PWN
   module Blockchain
@@ -41,10 +40,7 @@ module PWN
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
-        if spinner
-          spin = TTY::Spinner.new(format: :dots)
-          spin.auto_spin
-        end
+        spin = PWN::Plugins::TTYSpinner.start if spinner
 
         retries = 0
         case http_method
@@ -96,7 +92,7 @@ module PWN
       rescue StandardError => e
         raise e
       ensure
-        spin.stop if spinner
+        PWN::Plugins::TTYSpinner.stop(spin: spin)
       end
 
       # Supported Method Parameters::

@@ -160,6 +160,7 @@ module PWN
             # LLM tangible-task decomposition for autonomous goals (default on).
             task_summary_llm: nil,
             tool_router: nil, # nil = auto (true when :active is local :ollama/:openwebui) — cuts ~11k→~3k schema tokens
+            tool_preference: %w[memory_recall sessions_view pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember],
             escalation_persona: 'escalator', # Swarm persona for frontier corrective hints when a local model is stuck
             # sample E3 verify_as_reward: true|false|nil(auto: ~10% local / always frontier when CLAIM_RX hits)
             verify_as_reward: nil,
@@ -568,9 +569,9 @@ module PWN
       PWN::Cron.install_defaults if defined?(PWN::Cron) && PWN::Cron.respond_to?(:install_defaults)
 
       # Fill missing ai.agent / ai.ollama knobs from code defaults so older
-      # vault files pick up Ollama/RL fixes (tool_router nil-auto, local
-      # introspect policy, history compaction, result_max, escalation
-      # default) without requiring a full pwn-vault rewrite. Explicit
+      # vault files pick up Ollama/RL fixes (tool_router nil-auto, tool_preference
+      # memory_recall-first, local introspect policy, history compaction, result_max,
+      # escalation default) without requiring a full pwn-vault rewrite. Explicit
       # vault values always win — deep_merge only supplies ABSENT keys.
       merge_ai_defaults!(env: env)
 

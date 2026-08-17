@@ -63,6 +63,7 @@ module PWN
     autoload :ThreadPool, 'pwn/plugins/thread_pool'
     autoload :Tor, 'pwn/plugins/tor'
     autoload :TransparentBrowser, 'pwn/plugins/transparent_browser'
+    autoload :TTYSpinner, 'pwn/plugins/tty_spinner'
     autoload :TwitterAPI, 'pwn/plugins/twitter_api'
     autoload :URIScheme, 'pwn/plugins/uri_scheme'
     autoload :Vault, 'pwn/plugins/vault'

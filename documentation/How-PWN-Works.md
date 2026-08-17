@@ -29,7 +29,7 @@ hardware).
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
 | **`TaskSummarizer`** | Executive UX: LLM/heuristic `request_kind` gates plans (only autonomous goals, including host-evidence Qs) - English tasks primary - `emit_plan!` · `about_to` as `task k/n` + via tools · Loop `plan_context` injection · clearer `plan_idx` advance |
-| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **85 tools** |
+| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **85 tools** · `tool_preference` order (default memory_recall-first) |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / **POLICY** / EXTROSPECTION / RECENT TURNS |
 | `Metrics` · `Learning` · `Reflect` · **`Policy`** | **introspection** - how well am I doing? (Policy is live Q / REINFORCE, advisory rank only) |

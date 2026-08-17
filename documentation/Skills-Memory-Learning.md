@@ -41,7 +41,7 @@ wiping durable facts, preferences, and lessons. Clearing is still available via
 5. Agent senses the world (opt)      → extro_verify / watch / rf_tune / osint / serial / telecomm / packet / vision / voice / intel / observe
    ↳ extro_verify → :refuted         → Mistakes.record(tool:'assumption', ...)  # proactive
    ↳ extro_verify → :confirmed       → observe(:intel, ttl:30d)
-6. Final answer produced             → Learning.auto_introspect(session_id)
+6. Final answer produced             -> Learning.auto_introspect(session_id)  (deferred after reply by default)
    ↳ Reward.judge (cheap LLM ORM)    → Policy.finish (terminal reward; Q + REINFORCE update)
    ↳ (local) fact_check_local_final  → auto extro_verify every CVE/version claim in the answer
    ↳ if auto_extrospect enabled      → Extrospection.auto_extrospect  # AUTO_SECTIONS only

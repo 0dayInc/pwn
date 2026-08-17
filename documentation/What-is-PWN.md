@@ -47,7 +47,7 @@ with a **tool-calling AI agent** on top that can run the same methods.
   tool-calling agent, optionally on a *different* LLM engine) that debate,
   broadcast, and share an append-only bus - no IRC daemon, no external service.
 - **Self-healing state.** `PWN::Setup` (doctor/provisioner) + `PWN::Migrate`
-  (schema-stamped `~/.pwn` verifier/auto-migrator) make `gem install pwn` →
+  (schema-stamped `~/.pwn` verifier/auto-migrator) make `gem install --verbose pwn` →
   `pwn setup` the full install and upgrade path on every supported OS.
 
 ![Overall Architecture](diagrams/overall-pwn-architecture.svg)

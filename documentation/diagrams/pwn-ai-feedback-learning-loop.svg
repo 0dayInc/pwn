@@ -249,10 +249,10 @@
 <!-- Dispatch&#45;&gt;Curric -->
 <g id="edge67" class="edge">
 <title>Dispatch&#45;&gt;Curric</title>
-<path fill="none" stroke="#fb7185" stroke-width="1.3" stroke-dasharray="5,2" d="M982.7,-511.69C962.61,-506.86 940.53,-502.04 920,-498.62 887.88,-493.28 650.15,-494.73 628.25,-470.62 621.97,-463.72 621.66,-456.24 628.25,-449.62 638.21,-439.62 2647.56,-445.93 2661,-441.62 2703.86,-427.9 2744.93,-396.11 2771.77,-371.93"/>
+<path fill="none" stroke="#fb7185" stroke-width="1.3" stroke-dasharray="5,2" d="M982.71,-511.61C962.63,-506.78 940.54,-501.98 920,-498.62 885.68,-493.02 631.72,-496.29 608.25,-470.62 601.95,-463.74 601.66,-456.24 608.25,-449.62 618.31,-439.53 2647.42,-445.97 2661,-441.62 2703.86,-427.9 2744.93,-396.11 2771.77,-371.93"/>
 <polygon fill="#fb7185" stroke="#fb7185" stroke-width="1.3" points="2773.51,-374.14 2777.51,-366.66 2769.72,-370.01 2773.51,-374.14"/>
-<text xml:space="preserve" text-anchor="middle" x="657.12" y="-462.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">counterfactual</text>
-<text xml:space="preserve" text-anchor="middle" x="657.12" y="-451.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">[REPEATING]</text>
+<text xml:space="preserve" text-anchor="middle" x="637.12" y="-462.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">counterfactual</text>
+<text xml:space="preserve" text-anchor="middle" x="637.12" y="-451.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">[REPEATING]</text>
 </g>
 <!-- Policy -->
 <g id="node17" class="node">
@@ -273,9 +273,9 @@
 <!-- Dispatch&#45;&gt;Snapshot -->
 <g id="edge17" class="edge">
 <title>Dispatch&#45;&gt;Snapshot</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M982.79,-511.11C962.71,-506.26 940.6,-501.58 920,-498.62 859.87,-489.99 415.84,-514.67 374,-470.62 367.57,-463.86 367.47,-456.29 374,-449.62 388.54,-434.77 728.61,-449.09 748,-441.62 781.43,-428.75 811.74,-401.68 832.99,-378.87"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="834.93,-380.9 838.24,-373.1 830.79,-377.13 834.93,-380.9"/>
-<text xml:space="preserve" text-anchor="middle" x="386" y="-456.82" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">probe</text>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M982.79,-511.08C962.71,-506.24 940.6,-501.57 920,-498.62 857.67,-489.73 397.41,-516.24 354,-470.62 347.57,-463.86 347.47,-456.29 354,-449.62 369.32,-433.99 727.57,-449.48 748,-441.62 781.44,-428.77 811.75,-401.69 832.99,-378.88"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="834.94,-380.91 838.24,-373.11 830.79,-377.15 834.94,-380.91"/>
+<text xml:space="preserve" text-anchor="middle" x="366" y="-456.82" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">probe</text>
 </g>
 <!-- Dispatch&#45;&gt;Observe -->
 <g id="edge23" class="edge">
@@ -354,9 +354,10 @@
 <!-- Result&#45;&gt;Learning -->
 <g id="edge13" class="edge">
 <title>Result&#45;&gt;Learning</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M1436.68,-515.8C1417.86,-509.35 1394.52,-502.34 1373,-498.62 1336.18,-492.27 726.87,-497.59 701,-470.62 694.54,-463.89 694.43,-456.25 701,-449.62 711.32,-439.22 1742.38,-447.04 1756,-441.62 1787.86,-428.95 1815.93,-402.05 1835.46,-379.27"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="1837.52,-381.18 1840.49,-373.24 1833.22,-377.59 1837.52,-381.18"/>
-<text xml:space="preserve" text-anchor="middle" x="732.5" y="-456.82" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">auto_introspect</text>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M1436.68,-515.78C1417.86,-509.34 1394.53,-502.33 1373,-498.62 1335.07,-492.1 707.41,-498.39 680.75,-470.62 674.29,-463.89 674.17,-456.25 680.75,-449.62 691.27,-439.03 1742.12,-447.14 1756,-441.62 1787.86,-428.96 1815.93,-402.06 1835.47,-379.27"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="1837.52,-381.18 1840.5,-373.24 1833.22,-377.59 1837.52,-381.18"/>
+<text xml:space="preserve" text-anchor="middle" x="722.38" y="-462.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">auto_introspect</text>
+<text xml:space="preserve" text-anchor="middle" x="722.38" y="-451.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(deferred after reply)</text>
 </g>
 <!-- Reward -->
 <g id="node15" class="node">
@@ -391,10 +392,10 @@
 <!-- Result&#45;&gt;Observe -->
 <g id="edge18" class="edge">
 <title>Result&#45;&gt;Observe</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M1436.69,-515.69C1417.88,-509.22 1394.55,-502.22 1373,-498.62 1322.16,-490.15 481.64,-507.61 445.75,-470.62 439.25,-463.93 439.2,-456.27 445.75,-449.62 456.17,-439.05 966.53,-447.86 980,-441.62 1013.37,-426.19 1039.16,-391.33 1053.96,-367.02"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="1056.27,-368.61 1057.91,-360.3 1051.44,-365.78 1056.27,-368.61"/>
-<text xml:space="preserve" text-anchor="middle" x="496.38" y="-462.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">auto_extrospect</text>
-<text xml:space="preserve" text-anchor="middle" x="496.38" y="-451.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(AUTO_SECTIONS only)</text>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M1436.69,-515.68C1417.89,-509.21 1394.55,-502.21 1373,-498.62 1321.07,-489.99 462.42,-508.4 425.75,-470.62 419.25,-463.93 419.2,-456.27 425.75,-449.62 436.56,-438.66 966.02,-448.09 980,-441.62 1013.37,-426.2 1039.16,-391.34 1053.96,-367.03"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="1056.27,-368.62 1057.91,-360.3 1051.44,-365.78 1056.27,-368.62"/>
+<text xml:space="preserve" text-anchor="middle" x="476.38" y="-462.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">auto_extrospect</text>
+<text xml:space="preserve" text-anchor="middle" x="476.38" y="-451.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(AUTO_SECTIONS only)</text>
 </g>
 <!-- Result&#45;&gt;Verify -->
 <g id="edge49" class="edge">

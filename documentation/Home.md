@@ -17,7 +17,7 @@
 | [What is PWN](What-is-PWN.md) | One-paragraph elevator pitch |
 | [Why PWN](Why-PWN.md) | Design philosophy - why another framework |
 | [How PWN Works](How-PWN-Works.md) | The five layers, with the architecture diagram |
-| [Installation](Installation.md) | `gem install pwn` → `pwn setup` doctor/provisioner · capability profiles · `--migrate` state doctor |
+| [Installation](Installation.md) | `gem install --verbose pwn` → `pwn setup` doctor/provisioner · capability profiles · `--migrate` state doctor |
 | [General Usage](General-PWN-Usage.md) | Day-one cheat sheet |
 | [Configuration](Configuration.md) | `~/.pwn/pwn.yaml` (encrypted) - engines, keys, agent options · `pwn-vault` |
 | **[All Data-Flow Diagrams](Diagrams.md)** | **29 SVGs** in one scrollable page |

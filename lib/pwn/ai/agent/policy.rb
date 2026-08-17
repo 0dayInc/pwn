@@ -572,16 +572,22 @@ module PWN
           end
 
           ev = evaluate(limit: opts[:limit] || 40)
+          fallback = %w[memory_recall sessions_view pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember]
+          pref = begin
+            PWN::AI::Agent::Registry.preference_order
+          rescue StandardError
+            []
+          end
+          actions = pref.empty? ? fallback : pref
           rec = begin
-            recs = recommend(actions: %w[shell pwn_eval memory_recall sessions_view], epsilon: 0.0)
-            recs[:action]
+            recommend(actions: actions, epsilon: 0.0)[:action]
           rescue StandardError
             nil
           end
           lines << 'POLICY (R5 tabular Q / REINFORCE — advisory only, does not replace planning)'
           lines << "  episodes=#{s[:n_episodes]} states=#{s[:n_states]} pairs=#{s[:n_pairs]} updates=#{s[:n_updates]}"
           lines << "  mean_return=#{s[:mean_return] || '-'} mean|TD|=#{s[:mean_abs_td] || '-'} greedy_match=#{ev[:greedy_match] || '-'}"
-          lines << "  current_state=#{current_state || '(none)'} suggest=#{rec || '-'}"
+          lines << "  current_state=#{current_state || '(none)'} suggest=#{rec || '-'} tool_preference=#{actions.join(',')}"
           "#{lines.join("\n")}\n"
         rescue StandardError
           ''

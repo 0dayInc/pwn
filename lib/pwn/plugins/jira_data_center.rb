@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'tty-spinner'
 
 module PWN
   module Plugins
@@ -47,8 +46,7 @@ module PWN
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
 
-        spinner = TTY::Spinner.new
-        spinner.auto_spin
+        spinner = PWN::Plugins::TTYSpinner.start
 
         max_request_attempts = 3
         tot_request_attempts ||= 1
@@ -127,7 +125,7 @@ module PWN
       rescue StandardError => e
         raise e
       ensure
-        spinner.stop unless spinner.nil?
+        PWN::Plugins::TTYSpinner.stop(spin: spinner)
       end
 
       # Supported Method Parameters::

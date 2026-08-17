@@ -38,9 +38,10 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
  chosen)` DPO preference pair** in `~/.pwn/preferences.jsonl`.
 3. **Registry** hands Loop the tool schemas - the full set for frontier
  engines, or `CORE_TOOLS` + top-K keyword-relevant when
- `ai.agent.tool_router` is on. Rank can include a Q-advantage term from
- `Policy` after a pair has been visited at least twice. Planning still owns
- the task list. *(local)* `Learning.exemplars_for` splices a compressed
+ `ai.agent.tool_router` is on (default on for `ollama` / `openwebui`). Rank
+ can include a Q-advantage term from `Policy` after a pair has been visited
+ at least twice, plus `ai.agent.tool_preference` as a smaller tie-break.
+ Planning still owns the task list. *(local)* `Learning.exemplars_for` splices a compressed
  prior-success trace as few-shot; *(local)* `plan_first` forces a numbered
  tool plan before the first dispatch (optionally red-teamed by
  `Curriculum.red_team_plan`).
@@ -80,8 +81,10 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
  outside world; a `:refuted` verify is itself recorded as a Mistakes
  `assumption` fingerprint.
 7. Results are appended to the message list; go to 5.
-8. When the reply has *no* tool_calls it's the **final answer** →
- `Learning.auto_introspect` fires (if enabled): *(local)*
+8. When the reply has *no* tool_calls it's the **final answer**. With
+ `defer_introspect` on (default), the user-visible reply returns first and
+ `Learning.auto_introspect` runs on a background thread. Specs and cron stay
+ inline. Then *(local)*
  `fact_check_local_final` auto-`extro_verify`s every CVE / version-shaped
  claim in the answer; **`Reward.judge`** scores (request, final) with a cheap LLM ORM →
  `{score, verdict, rationale, source}` (heuristic overlap only if the engine is unavailable); **`Policy.finish`** applies that judge score as
@@ -162,7 +165,7 @@ task_summary_interval_s: 8.0    # or every N seconds (verbose)
 task_summary_verbose: false     # mid-flight Progress: lines
 task_summary_llm: true          # LLM task decompose for autonomous goals (default on)
 request_kind_llm: null          # null = follow task_summary_llm; false = heuristic-only
-max_iters: 25                   # budget pressure may lower the effective cap (stricter on local engines)
+max_iters: 75                   # budget pressure may lower the effective cap (stricter on local engines)
 ```
 
 
@@ -176,8 +179,9 @@ max_iters: 25                   # budget pressure may lower the effective cap (s
   summary turn.
 - Run `mistakes_list` before retrying something that failed last session -
   the fix may already be recorded.
-- `ai.agent.tool_router: true` + `ai.agent.plan_first: true` when running on
-  a local model - that cuts mis-routing a lot.
+- Leave `ai.agent.tool_router` and `ai.agent.plan_first` on auto when running
+  a local model - that cuts mis-routing a lot. Tune `ai.agent.tool_preference`
+  if you want recall / sessions ahead of `shell` on ties.
 - Set `ai.reflect_engine:` to a frontier provider so lessons written to
   `~/.pwn/memory.json` stay high-signal even when the executing engine is
   local.
@@ -201,7 +205,10 @@ max_iters: 25                   # budget pressure may lower the effective cap (s
 | `reward_model` | `nil` | optional cheaper model id for `Reward.judge` / `.prm` (nil = active engine default) |
 | `reward_llm_timeout` | `12` | seconds for the cheap ORM chat (clamped 2..30) |
 | `verify_as_reward` | `nil` (auto) | browser-grounded claim sample policy |
-| `local_introspect` | `:failure_only` | ollama end-of-turn introspect policy |
+| `local_introspect` | `:failure_only` | ollama / openwebui end-of-turn introspect policy |
+| `tool_preference` | memory_recall-first list | Rank bonus + Policy suggested-action order |
+| `defer_introspect` | `true` | Post-answer Learning on a background thread |
+| `prompt_cache` | `true` | Engine-native prefix cache (not Ollama / Open WebUI) |
 
 Full detail: [Reinforcement Learning](Reinforcement-Learning.md).
 
