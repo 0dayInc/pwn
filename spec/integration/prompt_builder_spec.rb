@@ -29,14 +29,14 @@ RSpec.describe 'PWN::AI::Agent::PromptBuilder', :aggregate_failures do
     PWN::Env[:ai] = { active: :anthropic, module_reflection: false, agent: @agent_cfg }
   end
 
-  it 'mid-turn autonomous prompt keeps request + CORE_TOOLS + known-fix, not the full harness' do
+  it 'mid-turn prompt injects MEMORY + RECENT TURNS + known-fix, not the parked harness' do
     prompt = builder.build(session_id: 'sess_abc', request: 'Write hello into /tmp/x and verify it')
-    ['ENVIRONMENT', 'KNOWN MISTAKES', 'TOOL USE'].each do |hdr|
+    ['ENVIRONMENT', 'MEMORY', 'SKILLS', 'LEARNING', 'KNOWN MISTAKES', 'TOOL USE'].each do |hdr|
       expect(prompt).to include(hdr), "missing section: #{hdr}"
     end
     expect(prompt).to include('session_id : sess_abc')
     expect(prompt).to include(PWN::VERSION)
-    ['MEMORY', 'SKILLS', 'LEARNING', 'TOOL EFFECTIVENESS', 'EXTROSPECTION', 'POLICY'].each do |hdr|
+    ['TOOL EFFECTIVENESS', 'EXTROSPECTION', 'POLICY'].each do |hdr|
       expect(prompt).not_to include(hdr), "mid-turn prompt still injects #{hdr}"
     end
   end

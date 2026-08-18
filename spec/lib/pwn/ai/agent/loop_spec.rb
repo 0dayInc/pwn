@@ -15,7 +15,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     expect(help_response).to respond_to :help
   end
 
-  describe 'RL-adjacent loop contracts' do
+  describe 'RL-adjacent loop contracts' do # rubocop:disable Metrics/BlockLength
     it 'exhaust path still calls task_summary_flush! and auto_introspect' do
       src = File.read(described_class.method(:run).source_location.first)
       # budget exhausted terminal path
@@ -316,6 +316,44 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(described_class.needs_host_work?(request: 'Write hello into /tmp/x.txt')).to eq true
     end
 
+    it 'does not treat https URLs as file paths; browser collect asks complete on URL evidence' do
+      req = <<~REQ.gsub(/\s+/, ' ').strip
+        Navigate to https://0dayinc.com using TransparentBrowser.open(browser_type: :chrome, devtools: true)
+        find all the blog posts ever made, and return a list of URLs.
+        Once complete close the browser via TransparentBrowser.close
+      REQ
+      expect(req.scan(described_class::HOST_PATH_RX)).to eq([])
+      expect(described_class.needs_host_work?(request: req)).to eq true
+      expect(described_class.world_knowledge?(request: req)).to eq false
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: [{ role: 'assistant', content: 'opening chrome', tool_calls: [] }],
+          last_iter: false
+        )
+      ).to eq true
+      collected = [
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'pwn_eval', arguments: '{"code":"browser.goto"}' } }]
+        },
+        {
+          role: 'tool',
+          name: 'pwn_eval',
+          content: '{"success":true,"result":["https://0dayinc.com/blog/one","https://0dayinc.com/blog/two"]}'
+        }
+      ]
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: collected,
+          last_iter: false
+        )
+      ).to eq false
+    end
+
     it 'last-iter strips tools only on the true last slot; leftover English tasks do not force required' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/text_only_iters = 1/)
@@ -503,6 +541,30 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       )
       expect(out).to include('THIS WAS MY LAST REQUEST. THIS IS A TEST OF MEMORY RECALL.')
       expect(out).to match(/you just said/i)
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
+    end
+
+    it 'answer_recall looks up the previous session file for last-session asks' do
+      sess_tmp = Dir.mktmpdir('pwn-sess-last')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      old = PWN::Sessions.create(id: '20200101_000000_oldone', title: 'old')
+      PWN::Sessions.append(session_id: old[:id], role: 'user', content: 'SHIP MARKER LAST SESSION')
+      PWN::Sessions.append(session_id: old[:id], role: 'assistant', content: 'ack old')
+      cur = PWN::Sessions.create(id: '20260101_000000_curone', title: 'current')
+      PWN::Sessions.append(session_id: cur[:id], role: 'user', content: 'what did I just say?')
+      PWN::Sessions.append(session_id: cur[:id], role: 'assistant', content: "You just said:\n\nwhat did I just say?")
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      req = 'what did I just say in the last session?'
+      expect(described_class.request_intent(request: req)).to eq(:recall)
+      out = described_class.send(
+        :answer_recall,
+        request: req,
+        session_id: cur[:id],
+        system_role_content: 'test'
+      )
+      expect(out).to include('SHIP MARKER LAST SESSION')
+      expect(out).not_to match(/You just said:\s*\n\s*what did I just say\?/i)
     ensure
       FileUtils.rm_rf(sess_tmp) if sess_tmp
     end

@@ -28,6 +28,11 @@ describe 'PWN::AI::Agent::Tools sessions' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'sessions_current')).not_to be_nil
   end
 
+  it 'registers the session_recall tool' do
+    PWN::AI::Agent::Registry.discover(force: true)
+    expect(PWN::AI::Agent::Registry.lookup(name: 'session_recall')).not_to be_nil
+  end
+
   it 'exposes the sessions toolset in the registry' do
     PWN::AI::Agent::Registry.discover(force: true)
     expect(PWN::AI::Agent::Registry.toolsets).to include('sessions')

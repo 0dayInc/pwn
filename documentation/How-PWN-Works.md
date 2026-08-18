@@ -29,7 +29,7 @@ hardware).
 |---|---|
 | `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
 | **`TaskSummarizer`** | Executive UX: every request gets an English task compass (`emit_plan!` · `about_to` as `task k/n`) — no statement/question/goal type |
-| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **85 tools** · `CORE_TOOLS` default pool · kind-aware `tool_preference` |
+| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **87 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell`) |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / **POLICY** / EXTROSPECTION / RECENT TURNS |
 | `Metrics` · `Learning` · `Reflect` · **`Policy`** | **introspection** - how well am I doing? (Policy is live Q / REINFORCE, advisory rank only) |

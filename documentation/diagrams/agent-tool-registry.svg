@@ -29,7 +29,7 @@
 <text xml:space="preserve" text-anchor="middle" x="105.12" y="-521.82" font-family="sans-Serif" font-size="12.00" fill="#0f172a">JSON&#45;Schema function defs</text>
 <text xml:space="preserve" text-anchor="middle" x="105.12" y="-507.57" font-family="sans-Serif" font-size="12.00" fill="#0f172a">rank(query) · CORE_TOOLS</text>
 <text xml:space="preserve" text-anchor="middle" x="105.12" y="-493.32" font-family="sans-Serif" font-size="12.00" fill="#0f172a">tool_router → CORE + top&#45;K</text>
-<text xml:space="preserve" text-anchor="middle" x="105.12" y="-479.07" font-family="sans-Serif" font-size="12.00" fill="#0f172a">tool_preference (memory_recall first)</text>
+<text xml:space="preserve" text-anchor="middle" x="105.12" y="-479.07" font-family="sans-Serif" font-size="12.00" fill="#0f172a">tool_preference (pwn_eval then shell)</text>
 </g>
 <!-- terminal -->
 <g id="node2" class="node">

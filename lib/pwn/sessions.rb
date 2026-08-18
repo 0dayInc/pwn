@@ -119,6 +119,86 @@ module PWN
       File.readlines(path).map { |l| JSON.parse(l, symbolize_names: true) }
     end
 
+    # Newest session that is not exclude_session_id (the prior pwn-ai run).
+    #
+    # Supported Method Parameters::
+    #   id = PWN::Sessions.previous_id(
+    #     exclude_session_id: 'optional - current session to skip'
+    #   )
+    public_class_method def self.previous_id(opts = {})
+      exclude = opts[:exclude_session_id].to_s
+      rows = list.sort_by { |s| [s[:mtime].to_s, s[:id].to_s] }.reverse
+      hit = rows.find { |s| s[:id].to_s != exclude }
+      hit && hit[:id].to_s
+    rescue StandardError
+      nil
+    end
+
+    # Search prior session transcripts for query terms. Current session is
+    # excluded by default — that tail is already in RECENT TURNS.
+    #
+    # Supported Method Parameters::
+    #   hits = PWN::Sessions.recall(
+    #     query: 'optional - substring / tokens to match',
+    #     exclude_session_id: 'optional - skip this id (current session)',
+    #     include_current: 'optional - Boolean include excluded id (default false)',
+    #     limit: 'optional - max hits (default 12)',
+    #     max_files: 'optional - newest files to scan (default 40)',
+    #     truncate: 'optional - chars per hit (default 280)'
+    #   )
+    public_class_method def self.recall(opts = {})
+      query = opts[:query].to_s.downcase
+      tokens = query.split(/\W+/).reject { |t| t.length < 3 }
+      limit = (opts[:limit] || 12).to_i
+      limit = 12 if limit <= 0
+      max_files = (opts[:max_files] || 40).to_i
+      max_files = 40 if max_files <= 0
+      trunc = (opts[:truncate] || 280).to_i
+      trunc = 280 if trunc <= 0
+      exclude = opts[:exclude_session_id].to_s
+      include_current = opts[:include_current] == true
+
+      hits = []
+      list.sort_by { |s| s[:mtime].to_s }.reverse.first(max_files).each do |sess|
+        sid = sess[:id].to_s
+        next if !include_current && !exclude.empty? && sid == exclude
+
+        load(session_id: sid).each do |row|
+          next unless row.is_a?(Hash)
+          next unless %w[user assistant].include?(row[:role].to_s)
+
+          body = row[:content].to_s
+          next if body.strip.empty?
+
+          score = recall_score(body: body.downcase, query: query, tokens: tokens)
+          next if score <= 0
+
+          hits << {
+            session_id: sid,
+            role: row[:role].to_s,
+            timestamp: row[:timestamp],
+            content: body.length > trunc ? "#{body[0, trunc]}…[truncated]" : body,
+            score: score
+          }
+        end
+      end
+      hits.sort_by { |h| [-h[:score].to_f, h[:timestamp].to_s] }.first(limit)
+    rescue StandardError
+      []
+    end
+
+    private_class_method def self.recall_score(opts = {})
+      body = opts[:body].to_s
+      query = opts[:query].to_s
+      tokens = Array(opts[:tokens])
+      return 1 if query.empty?
+
+      score = 0
+      score += 5 if !query.empty? && body.include?(query)
+      tokens.each { |tok| score += 1 if body.include?(tok) }
+      score
+    end
+
     # Supported Method Parameters::
     #   history_for_ai = PWN::Sessions.to_response_history(session_id:)
     #   (converts transcript to the response_history format used by PWN::AI::* .chat)
@@ -417,6 +497,8 @@ module PWN
           PWN::Sessions.append(session_id: sess[:id], role: 'user', content: 'Run NmapIt...')
           transcript = PWN::Sessions.load(session_id: sess[:id])
           hist = PWN::Sessions.to_response_history(session_id: sess[:id])
+          PWN::Sessions.recall(query: 'hping3', exclude_session_id: sess[:id])
+          PWN::Sessions.previous_id(exclude_session_id: sess[:id])
           PWN::Sessions.list
           PWN::Sessions.stats
           PWN::Sessions.delete(session_id: sess[:id], force: true)

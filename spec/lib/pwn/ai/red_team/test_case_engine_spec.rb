@@ -59,8 +59,13 @@ describe PWN::AI::RedTeam::TestCaseEngine do
       described_class.define_singleton_method(:judge) { |_opts| 'EPSS 5%' }
     end
 
+    before do
+      described_class.class_variable_set(:@@logger, Logger.new(File::NULL))
+    end
+
     after do
       load File.expand_path('../../../../../lib/pwn/ai/red_team/test_case_engine.rb', __dir__)
+      described_class.class_variable_set(:@@logger, Logger.new(File::NULL))
     end
 
     it 'generates payload_count LLM payloads from strategies' do
@@ -83,6 +88,21 @@ describe PWN::AI::RedTeam::TestCaseEngine do
       expect(result.map { |r| r[:payload_no_and_contents].first[:payload] }).to eq(
         %w[generated-payload-1 generated-payload-2 generated-payload-3]
       )
+    end
+
+    it 'does not print [INFO] completion banners to $stdout' do
+      apply_env_stub
+      apply_engine_stub({})
+      expect do
+        described_class.execute(
+          strategies: strategies,
+          payload_count: 1,
+          security_references: refs,
+          target_engine: :grok,
+          attacker_engine: :grok,
+          max_adaptive_rounds: 0
+        )
+      end.to output('').to_stdout
     end
 
     it 'defaults to ten generated payloads when payload_count is omitted' do

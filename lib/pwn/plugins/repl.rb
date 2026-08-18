@@ -3,6 +3,7 @@
 require 'curses'
 require 'pry'
 require 'reline'
+require 'tty-cursor'
 require 'tty-prompt'
 require 'unicode/display_width'
 require 'yaml'
@@ -240,6 +241,7 @@ module PWN
         end
 
         def readline(prompt)
+          PWN::Plugins::REPL.ready_tty!
           # Ask the terminal to encode Shift+Enter distinctly from Enter for
           # the duration of this read. Without this, most emulators send 0x0D
           # for both and SHIFT_ENTER_SEQS can never match. Reset in `ensure`.
@@ -278,6 +280,40 @@ module PWN
         def winsize
           [TTY::Screen.rows || 24, TTY::Screen.columns || 80]
         end
+      end
+
+      # Restore the TTY after a spinner / agent turn so Pry/Reline prints
+      # the next PS1 immediately. hide_cursor + a background worker leave
+      # the cursor hidden on $stdout (Reline's stream) even after
+      # TTY::Spinner#stop writes show-cursor to $stderr. Reline then
+      # waits for a key without redrawing the prompt.
+      public_class_method def self.ready_tty!(opts = {})
+        return nil if opts[:skip]
+
+        out = opts[:io] || $stdout
+        return nil unless out.respond_to?(:write)
+
+        out.write("\e[0m#{TTY::Cursor.show}") if defined?(TTY::Cursor)
+        out.write("\e[0m\e[?25h") unless defined?(TTY::Cursor)
+        out.flush if out.respond_to?(:flush)
+        reset_reline_editor
+        nil
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.reset_reline_editor(opts = {})
+        return unless opts.is_a?(Hash)
+        return unless defined?(Reline)
+        return unless Reline.respond_to?(:core)
+
+        editor = Reline.core.instance_variable_get(:@line_editor)
+        return unless editor
+
+        editor.instance_variable_set(:@finished, false) if editor.instance_variable_defined?(:@finished)
+        nil
+      rescue StandardError
+        nil
       end
 
       # Compact token-count formatter for the pwn.ai PS1 (e.g. 0, 843, 12K, 250K, 1M).
@@ -1182,6 +1218,7 @@ module PWN
                 puts "\n\001\e[32m\002#{final}\001\e[0m\002\n\n"
                 pp PWN::Sessions.load(session_id: sess_id) if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
                 request.replace('nil')
+                PWN::Plugins::REPL.ready_tty!
                 next
               rescue StandardError => e
                 warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}\n#{e.backtrace}); " \

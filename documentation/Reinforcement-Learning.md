@@ -169,7 +169,7 @@ This table is the live control list. Track the outcomes, not source comments.
     :max_iters: 75           # hard cap; budget pressure may lower effective value
     :defer_introspect: true  # post-answer Learning after the user-visible reply
     :prompt_cache: true      # engine-native prefix cache (not ollama / openwebui)
-    :tool_preference: [memory_recall, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember]
+    :tool_preference: [memory_recall, session_recall, skills_recall, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember]
 ```
 
 ## Cron self-improvement

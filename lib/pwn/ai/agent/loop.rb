@@ -321,9 +321,15 @@ module PWN
         LOOKUP_REQUEST_RX = /
           \b(what\s+is\s+my|hostname|uname|cwd|whoami|status|version|how\s+many)\b
         /ix
-        HOST_PATH_RX = %r{(?:/|\./)[\w./-]+\.\w+}
+        # Real filesystem paths only — not https://host.tld (that was matching //host.tld).
+        HOST_PATH_RX = %r{(?:(?<![.:/])/(?!/)|\./)[\w./-]+\.\w+}
+        BROWSER_REQUEST_RX = /
+          TransparentBrowser|browser_obj|\bdevtools\b|
+          \b(navigate|dump_links|headless_?chrome|watir)\b
+        /ix
+        BROWSER_EVIDENCE_RX = %r{https?://|dump_links|TransparentBrowser|\.close\b|browser_obj}i
 
-        # True only when the ask needs a live host/file effect. World-knowledge
+        # True only when the ask needs a live host/file/browser effect. World-knowledge
         # questions ("what color is a cherry") do not.
         public_class_method def self.needs_host_work?(opts = {})
           request = opts[:request].to_s
@@ -331,6 +337,7 @@ module PWN
           return true if request.match?(ACT_REQUEST_RX)
           return true if request.match?(LOOKUP_REQUEST_RX)
           return true if request.match?(HOST_PATH_RX)
+          return true if request.match?(BROWSER_REQUEST_RX)
 
           false
         rescue StandardError
@@ -377,10 +384,16 @@ module PWN
 
           return false if request.match?(LOOKUP_REQUEST_RX) && tools.any? && blob.length >= 20
           return true if tools.empty?
-          return false if blob.match?(MUTATION_EVIDENCE_RX)
-          return false if request_path_evidenced?(request: request, blob: blob)
 
-          true
+          if request.match?(ACT_REQUEST_RX) || request.match?(HOST_PATH_RX)
+            return false if blob.match?(MUTATION_EVIDENCE_RX)
+            return false if request_path_evidenced?(request: request, blob: blob)
+
+            return true
+          end
+          return false if request.match?(BROWSER_REQUEST_RX) && blob.match?(BROWSER_EVIDENCE_RX)
+
+          blob.length < 20
         rescue StandardError
           false
         end
@@ -1326,6 +1339,7 @@ module PWN
             last\s+thing\s+(?:i|you)\s+said
           )\b
         /ix
+        LAST_SESSION_RX = /\b(?:in|from|of)\s+(?:the\s+)?(?:last|previous|prior)\s+session\b|\blast\s+session\b/i
 
         # Pure greeting / light smalltalk — never full :act tool loop.
         # Anchored short forms only so "hi, please scan X" stays :act/:recon_act.
@@ -1386,6 +1400,14 @@ module PWN
           # general work ("remember what we decided about nmap and implement it"
           # stays :act because it pairs memory with a doing verb outside the cue).
           if req.match?(VAGUE_MEMORY_RX) && !req.match?(HOWTO_RX) && !req.match?(LIVE_RECON_RX)
+            doing = req.match?(
+              /\b(implement|fix|patch|refactor|run|execute|scan|write|edit|
+                  change|deploy|install|build|compile|commit|push)\b/ix
+            )
+            return :recall unless doing
+          end
+
+          if req.match?(LAST_SESSION_RX) && !req.match?(HOWTO_RX) && !req.match?(LIVE_RECON_RX)
             doing = req.match?(
               /\b(implement|fix|patch|refactor|run|execute|scan|write|edit|
                   change|deploy|install|build|compile|commit|push)\b/ix
@@ -1715,6 +1737,18 @@ module PWN
           session_id = opts[:session_id]
           system_role_content = opts[:system_role_content].to_s
           target = recall_target(request: request)
+          last_session = request.match?(LAST_SESSION_RX)
+          if last_session && defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:previous_id)
+            prev = PWN::Sessions.previous_id(exclude_session_id: session_id)
+            if prev.to_s.empty?
+              txt = 'I do not have a previous session transcript yet.'
+              append_session(session_id: opts[:session_id], role: 'user', content: request)
+              append_session(session_id: opts[:session_id], role: 'assistant', content: txt)
+              return txt
+            end
+
+            session_id = prev
+          end
 
           prior_user = nil
           prior_asst = nil
@@ -1757,7 +1791,7 @@ module PWN
               # User-target / fallback: skip meta intermediate recall asks so
               # "what did I just say?" after a nested chain still surfaces the
               # original utterance when appropriate; default stays newest.
-              skip_meta = target == :assistant
+              skip_meta = target == :assistant || last_session
               prior_user = PWN::Memory.prior_user_message(
                 session_id: session_id,
                 max_chars: 4_000,

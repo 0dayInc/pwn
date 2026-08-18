@@ -133,8 +133,10 @@ ai:
     shell_bash: false              # true -> run shell via bash -lc. Default is /bin/sh.
     plan_first: ~                  # Plan-then-act pre-pass. nil = auto (true when ai.active is ollama or openwebui).
     tool_router: ~                 # Dynamic tool-set slimming. nil = auto (true for ollama / openwebui).
-    tool_preference:               # Operator-tunable tool order. Rank bonus + Policy suggested-action list.
+    tool_preference:               # Same order as CORE_TOOLS. Current session is injected; then memory_recall, session_recall, skills_recall, pwn_eval, shell.
       - memory_recall
+      - session_recall
+      - skills_recall
       - pwn_eval
       - shell
       - mistakes_record
@@ -315,7 +317,7 @@ PWN::Config.refresh_env
 | `ai.agent.shell_bash` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.shell_bash?` | When true, `shell` runs via `bash -lc` so bash-only syntax is allowed. Default is POSIX `/bin/sh` and bashisms are rejected with a rewrite hint. |
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active` is `ollama` or `openwebui`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean \| `nil` | `nil` (auto: `true` for `ollama` / `openwebui`) | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate, then `ai.agent.tool_preference`. |
-| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Operator-tunable tool order. Keyword fit stays primary; act/recon kinds lead with `shell`/`pwn_eval`. Explicit empty list disables preference. |
+| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Same order as `CORE_TOOLS`. Current session is injected; then `memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`. Explicit empty list disables preference. |
 | `ai.agent.defer_introspect` | Boolean | `true` | `PWN::AI::Agent::TurnFinalizer` | Run `Learning.auto_introspect` on a background thread after the user-visible reply. Specs and cron stay inline. |
 | `ai.agent.prompt_cache` | Boolean | `true` | `PWN::AI::Agent::PromptCache` | Engine-native prefix cache. Anthropic uses `cache_control`; OpenAI uses `prompt_cache_key`; Grok uses `x-grok-conv-id`; Gemini splits `systemInstruction`. Ollama and Open WebUI have no native prefix-cache field. |
 | `ai.agent.local_introspect` | Symbol | `failure_only` | `PWN::AI::Agent::Learning.auto_introspect` | End-of-turn introspect policy for local engines: `always` · `failure_only` · `every_n` (with `introspect_every_n`). |

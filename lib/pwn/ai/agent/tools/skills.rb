@@ -23,6 +23,62 @@ require 'pwn/ai/agent/registry'
 # PWN::SAST::*.security_references convention.
 
 PWN::AI::Agent::Registry.register(
+  name: 'skills_recall',
+  toolset: 'skills',
+  schema: {
+    name: 'skills_recall',
+    description: 'Search installed pwn-ai skills (name, description, body, ' \
+                 'references) for how to do similar work. Call before ' \
+                 'pwn_eval / shell when a reusable procedure may exist. ' \
+                 'The SKILLS index is already in the prompt — this loads ' \
+                 'matching full methods.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Keywords to match against skill name / description / body.' },
+        limit: { type: 'integer', default: 6, description: 'Max hits (highest score first).' }
+      },
+      required: []
+    }
+  },
+  check: -> { true },
+  handler: lambda { |args|
+    return [] unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash)
+
+    query = args[:query].to_s.downcase
+    tokens = query.split(/\W+/).reject { |t| t.length < 3 }
+    limit = (args[:limit] || 6).to_i
+    limit = 6 if limit <= 0
+    trunc = 400
+    hits = []
+    PWN::Skills.each do |name, meta|
+      next unless meta.is_a?(Hash)
+
+      blob = [
+        name.to_s,
+        meta[:description],
+        meta[:content],
+        Array(meta[:references]).join(' ')
+      ].join("\n").downcase
+      score = 0
+      score += 5 if !query.empty? && blob.include?(query)
+      tokens.each { |tok| score += 1 if blob.include?(tok) }
+      score = 1 if query.empty?
+      next if score <= 0
+
+      body = meta[:content].to_s
+      hits << {
+        name: name.to_s,
+        description: meta[:description].to_s,
+        score: score,
+        snippet: body.length > trunc ? "#{body[0, trunc]}…[truncated]" : body
+      }
+    end
+    hits.sort_by { |h| -h[:score].to_i }.first(limit)
+  }
+)
+
+PWN::AI::Agent::Registry.register(
   name: 'skill_list',
   toolset: 'skills',
   schema: {

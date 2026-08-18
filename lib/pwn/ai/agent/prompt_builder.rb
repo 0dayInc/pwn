@@ -63,16 +63,14 @@ module PWN
 
           # Heredoc (not a "..." literal): an unescaped "..." inside a
           # double-quoted string is parsed as Range (begin..."...end).
-          # Skills sit in the STATIC prefix (Hermes index) so prompt-cache
-          # breakpoints can pin the persona + SKILLS list; MEMORY/LEARNING
-          # remain in the dynamic tail. Mid-turn lean: request + CORE_TOOLS +
-          # known-fix. Expand MEMORY/SKILLS/LEARNING/METRICS/POLICY/EXTRO
-          # only when the turn is stuck or the operator asked for the full harness.
+          # Mid-turn: current session + memory + skills + learning + known-fix,
+          # then tools (memory_recall / session_recall / skills_recall / pwn_eval / shell).
+          # Expand METRICS/POLICY/EXTRO when stuck or expand_harness.
           expand = opts[:expand_harness] == true || opts[:stuck] == true
           harness = if expand
-                      "#{skills_block}#{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}"
+                      "#{skills_block}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{memory_block(limit: b[:memory], request: request)}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}"
                     else
-                      "#{recent_turns_block(session_id: session_id, request: request, limit: [b[:recent_turns].to_i, 1].max)}#{mistakes_block(limit: b[:mistakes], request: request)}"
+                      "#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{memory_block(limit: b[:memory], request: request)}#{skills_block}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}"
                     end
           <<~PROMPT
             #{base}
@@ -92,8 +90,11 @@ module PWN
             "I will run…", "one more thing…") — that is treated as an incomplete
             reply. Emit a real tool_call instead, or a complete final answer
             with evidence. A reply with no tool_calls is your FINAL answer to the user.
-              Prefer `pwn_eval` for anything in the PWN:: namespace and `shell`
-              for OS commands. Save durable facts with `memory_remember`.
+              Prefer this order: use RECENT TURNS (current session already in
+              context), then `memory_recall`, then `session_recall`, then
+              `skills_recall`, then `pwn_eval` for PWN:: work, then `shell` for OS
+              commands. Save durable facts with `memory_remember`.
+              TransparentBrowser: open once, reuse browser_obj, close once.
 
             AUTONOMY
               Multi-step goals must be finished in one Loop.run. Keep calling
@@ -140,13 +141,13 @@ module PWN
             metrics: (b[:metrics] || (local ? 3 : 8)).to_i,
             mistakes: (b[:mistakes] || (local ?  3 :  6)).to_i,
             learning: (b[:learning] || (local ?  2 :  5)).to_i,
-            # Always inject last user/assistant pair(s); local keeps it tiny.
-            recent_turns: (b[:recent_turns] || (local ? 1 : 2)).to_i,
+            # Always inject prior user/assistant pairs from this session.
+            recent_turns: (b[:recent_turns] || (local ? 3 : 6)).to_i,
             policy: (b[:policy] || 1).to_i,
             extro: b[:extro].nil? ? !local : b[:extro]
           }
         rescue StandardError
-          { memory: 25, metrics: 8, mistakes: 6, learning: 5, recent_turns: 2, policy: 1, extro: true }
+          { memory: 25, metrics: 8, mistakes: 6, learning: 5, recent_turns: 6, policy: 1, extro: true }
         end
 
         private_class_method def self.active_engine

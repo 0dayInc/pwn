@@ -40,17 +40,14 @@ module PWN
           keyword_init: true
         )
 
-        CORE_TOOLS = %w[shell pwn_eval memory_remember memory_recall
-                        mistakes_record mistakes_resolve learning_note_outcome].freeze
+        CORE_TOOLS = %w[memory_recall session_recall skills_recall pwn_eval shell
+                        mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
 
-        # Operator-tunable tool order. Prefer these names when keyword-fit
-        # (or other rank features) tie. Overridable via opts[:order],
+        # Schema order = CORE_TOOLS. Current session is injected (RECENT TURNS).
+        # Then memory / prior sessions / skills, then pwn_eval before shell.
         # opts[:preference], or PWN::Env[:ai][:agent][:tool_preference].
         # Explicit nil/empty order disables preference (no Env/DEFAULT fallback).
-        # Recall-first fallback; kind-aware preference_order leads act/recon
-        # with shell / pwn_eval. Names stay inside CORE_TOOLS.
-        DEFAULT_PREFERENCE = %w[memory_recall pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
-        ACT_PREFERENCE = %w[shell pwn_eval memory_recall mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
+        DEFAULT_PREFERENCE = CORE_TOOLS
 
         @entries = {}
         @discovered = false
@@ -156,7 +153,7 @@ module PWN
           raw = PWN::Env.dig(:ai, :agent, :tool_preference) if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
           return Array(raw).map(&:to_s).reject(&:empty?) unless raw.nil? || (raw.respond_to?(:empty?) && raw.empty?)
 
-          ACT_PREFERENCE.dup
+          DEFAULT_PREFERENCE.dup
         rescue StandardError
           DEFAULT_PREFERENCE.dup
         end

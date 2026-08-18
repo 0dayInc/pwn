@@ -10,6 +10,10 @@ describe 'PWN::AI::Agent::Tools skills' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'skill_list')).not_to be_nil
   end
 
+  it 'registers the skills_recall tool' do
+    expect(PWN::AI::Agent::Registry.lookup(name: 'skills_recall')).not_to be_nil
+  end
+
   it 'registers the skill_migrate_legacy tool' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'skill_migrate_legacy')).not_to be_nil
   end
@@ -32,6 +36,18 @@ describe 'PWN::AI::Agent::Tools skills' do
     let(:delete) { PWN::AI::Agent::Registry.lookup(name: 'skill_delete')[:handler] }
     let(:list)   { PWN::AI::Agent::Registry.lookup(name: 'skill_list')[:handler] }
     let(:view)   { PWN::AI::Agent::Registry.lookup(name: 'skill_view')[:handler] }
+    let(:recall) { PWN::AI::Agent::Registry.lookup(name: 'skills_recall')[:handler] }
+
+    it 'skills_recall ranks matching skills by query and skips non-matches' do
+      create.call(name: 'browser-dump', description: 'Dump links via TransparentBrowser.', content: "open once, dump_links, close once\n")
+      create.call(name: 'unrelated', description: 'Something else entirely.', content: "no overlap here\n")
+      hits = recall.call(query: 'TransparentBrowser dump_links', limit: 8)
+      expect(hits).to be_an(Array)
+      expect(hits).not_to be_empty
+      names = hits.map { |h| h[:name].to_s }
+      expect(names).to include('browser-dump')
+      expect(names).not_to include('unrelated')
+    end
 
     it 'skill_create writes <name>/SKILL.md with required name+description frontmatter' do
       out = create.call(name: 'Recon Quick_Scan', description: 'Fast host triage.', content: "# Recon\nnmap -T4 -F {t}\n", references: ['T1046'])

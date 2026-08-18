@@ -197,7 +197,7 @@ max_iters: 75                   # budget pressure may lower the effective cap (s
 | `reward_llm_timeout` | `12` | seconds for the cheap ORM chat (clamped 2..30) |
 | `verify_as_reward` | `nil` (auto) | browser-grounded claim sample policy |
 | `local_introspect` | `:failure_only` | ollama / openwebui end-of-turn introspect policy |
-| `tool_preference` | CORE_TOOLS list (act leads with shell) | Rank bonus + Policy suggested-action order |
+| `tool_preference` | same list as CORE_TOOLS (`memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`) | Rank bonus + Policy suggested-action order |
 | `defer_introspect` | `true` | Post-answer Learning on a background thread |
 | `prompt_cache` | `true` | Engine-native prefix cache (not Ollama / Open WebUI) |
 

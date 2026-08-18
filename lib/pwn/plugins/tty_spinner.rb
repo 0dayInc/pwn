@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'tty-spinner'
+require 'tty-cursor'
 
 module PWN
   module Plugins
@@ -10,10 +11,7 @@ module PWN
     # worker but does NOT join it. The worker is typically mid-sleep
     # on its interval, so it stays alive long enough to write another
     # frame (cursor col 1 + glyph) over the HTTP response that the
-    # caller is about to print. Creating the spinner with clear:false
-    # (the gem default) also reprints the last glyph + newline on
-    # stop, so the spinner appears to keep running whenever a
-    # response is provided.
+    # caller is about to print.
     #
     # #start uses clear:true + hide_cursor and owns the worker
     # (spin.start + Thread.new { spin.spin until spin.done? }).
@@ -37,7 +35,18 @@ module PWN
         }
         args[:output] = opts[:output] unless opts[:output].nil?
 
-        TTY::Spinner.new(**args)
+        spin = TTY::Spinner.new(**args)
+        spin.start
+        interval = 1.0 / [spin.interval.to_f, 1.0].max
+        worker = Thread.new do
+          Thread.current.report_on_exception = false
+          until spin.done?
+            spin.spin
+            sleep(interval)
+          end
+        end
+        spin.define_singleton_method(:pwn_worker_thread) { worker }
+        spin
       end
 
       # Supported Method Parameters::
@@ -49,7 +58,47 @@ module PWN
         spin = opts.is_a?(Hash) ? opts[:spin] : opts
         return if spin.nil?
 
-        spin.stop if spin.respond_to?(:stop)
+        worker = spin.respond_to?(:pwn_worker_thread) ? spin.pwn_worker_thread : nil
+        begin
+          spin.stop if spin.respond_to?(:stop)
+        rescue StandardError
+          spin.kill if spin.respond_to?(:kill)
+        end
+        join_thread(thread: worker)
+        join_spinner(spin: spin)
+        begin
+          spin.clear_line if spin.respond_to?(:clear_line)
+          show = defined?(TTY::Cursor) ? TTY::Cursor.show : "\e[?25h"
+          out = spin.output if spin.respond_to?(:output)
+          out.print(show) if out.respond_to?(:print)
+          $stdout.write(show) if $stdout.respond_to?(:write)
+          $stdout.flush if $stdout.respond_to?(:flush)
+        rescue StandardError
+          nil
+        end
+        nil
+      end
+
+      private_class_method def self.join_thread(opts = {})
+        thread = opts[:thread]
+        return unless thread.is_a?(Thread)
+        return unless thread.alive?
+
+        unless thread.join(JOIN_SECS)
+          thread.kill
+          thread.join(JOIN_SECS)
+        end
+      rescue StandardError
+        thread.kill if thread.respond_to?(:kill)
+      end
+
+      private_class_method def self.join_spinner(opts = {})
+        spin = opts[:spin]
+        return unless spin.respond_to?(:join)
+
+        spin.join(JOIN_SECS)
+      rescue TTY::Spinner::NotSpinningError, StandardError
+        nil
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
