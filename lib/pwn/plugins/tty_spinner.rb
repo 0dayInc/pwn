@@ -15,8 +15,11 @@ module PWN
     # stop, so the spinner appears to keep running whenever a
     # response is provided.
     #
-    # #start uses clear:true + hide_cursor. #stop joins the worker
-    # (bounded) so the glyph is gone before the response is written.
+    # #start uses clear:true + hide_cursor and owns the worker
+    # (spin.start + Thread.new { spin.spin until spin.done? }).
+    # #stop captures that thread, calls spin.stop, force-halts on
+    # error, kills if still alive, joins (re-kill on timeout), then
+    # clear_line + cursor show after the worker is dead.
     module TTYSpinner
       JOIN_SECS = 0.5
 
@@ -34,9 +37,7 @@ module PWN
         }
         args[:output] = opts[:output] unless opts[:output].nil?
 
-        spin = TTY::Spinner.new(**args)
-        spin.auto_spin
-        spin
+        TTY::Spinner.new(**args)
       end
 
       # Supported Method Parameters::
@@ -48,12 +49,7 @@ module PWN
         spin = opts.is_a?(Hash) ? opts[:spin] : opts
         return if spin.nil?
 
-        thread = spin.instance_variable_get(:@thread)
-        spin.stop unless spin.respond_to?(:done?) && spin.done?
-        thread.join(JOIN_SECS) if thread.respond_to?(:join)
-        spin
-      rescue StandardError
-        spin
+        spin.stop if spin.respond_to?(:stop)
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
