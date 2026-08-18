@@ -170,4 +170,18 @@ describe PWN::AI::Agent::Mistakes do
     expect(out[:extinguished]).to be >= 1
     expect(described_class.find(signature: m[:signature])[:resolved]).to be true
   end
+
+  it 'to_context downranks budget-exhaustion scars on unrelated requests' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    described_class.reset if described_class.respond_to?(:reset)
+    described_class.record(
+      tool: 'agent_loop',
+      error: '[pwn-ai] iteration budget exhausted',
+      shape: 'budget_exhausted'
+    )
+    described_class.record(tool: 'shell', error: 'nmpa: command not found unique-host')
+    ctx = described_class.to_context(request: 'what is my hostname?', limit: 2)
+    expect(ctx).to include('shell')
+    expect(ctx).not_to match(/iteration budget exhausted/)
+  end
 end

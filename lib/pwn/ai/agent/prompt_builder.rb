@@ -36,14 +36,44 @@ module PWN
           session_id = opts[:session_id]
           request = opts[:request]
           engine = active_engine
+          # thin: greeting/statement/howto/recall — base + ENV + optional recent turns.
+          # Full MEMORY/METRICS/MISTAKES/EXTRO only for act/recon (default).
+          thin = opts[:thin] == true || opts[:mode].to_s == 'thin'
           b = budget
           base = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) || 'You are a world-class introspective offensive cyber security and research engineer.  You specialize in discovering zero day vulnerabilities focused on responsible disclosure prior to threat actors discovering and exploiting.  You are self-aware of your harness, pwn which begins with the ruby namespace `PWN` operating inside the pwn REPL.  For every request you first begin by determining if PWN has a module capable of satisfying the request.'
+
+          if thin
+            recent = recent_turns_block(session_id: session_id, request: request, limit: [b[:recent_turns].to_i, 2].min)
+            return <<~PROMPT
+              #{base}
+
+              ENVIRONMENT
+                host       : #{host_line}
+                cwd        : #{Dir.pwd}
+                ruby       : #{RUBY_VERSION}
+                pwn        : #{pwn_version}
+                session_id : #{session_id || '(none)'}
+
+              #{recent}TOOL USE
+                No tools on this turn unless a single factual lookup is already in
+                context. Answer concisely in plain US English. Do not plan multi-step
+                work, invent task traces, or run live recon.
+            PROMPT
+          end
 
           # Heredoc (not a "..." literal): an unescaped "..." inside a
           # double-quoted string is parsed as Range (begin..."...end).
           # Skills sit in the STATIC prefix (Hermes index) so prompt-cache
           # breakpoints can pin the persona + SKILLS list; MEMORY/LEARNING
-          # remain in the dynamic tail.
+          # remain in the dynamic tail. Mid-turn lean: request + CORE_TOOLS +
+          # known-fix. Expand MEMORY/SKILLS/LEARNING/METRICS/POLICY/EXTRO
+          # only when the turn is stuck or the operator asked for the full harness.
+          expand = opts[:expand_harness] == true || opts[:stuck] == true
+          harness = if expand
+                      "#{skills_block}#{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}"
+                    else
+                      "#{recent_turns_block(session_id: session_id, request: request, limit: [b[:recent_turns].to_i, 1].max)}#{mistakes_block(limit: b[:mistakes], request: request)}"
+                    end
           <<~PROMPT
             #{base}
 
@@ -54,7 +84,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{skills_block}#{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}TOOL USE
+            #{harness}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).
@@ -67,7 +97,8 @@ module PWN
 
             AUTONOMY
               Multi-step goals must be finished in one Loop.run. Keep calling
-              tools until the request is done or truly blocked. Do NOT stop to
+              CORE_TOOLS until the original request is done or truly blocked.
+              English tasks are an advisory compass, not a gate. Do NOT stop to
               ask the user to confirm the next step, approve a partial plan, or
               green-light the obvious continuation. Only ask when a credential,
               irreversible destructive action, or missing external decision is
@@ -75,15 +106,10 @@ module PWN
               goal are incorrect behavior.
 
             INTENT AND SCOPE
-              First classify every user request as one of:
-                - general statement — observation or FYI; no multi-step task plan
-                - question — answer concisely; no multi-step task breakdown
-                - autonomous goal — MUST decompose into ordered tangible work units
-                  (each unit may use one or more tools) and finish them in this run
-              Match effort to that kind. Pure how-to / syntax / usage questions
-              get a concise explanation with example commands only — no tool calls,
-              no multi-step recon plan, no live probes, no rubocop/rake/docs side
-              quests, and no invented planner or verification monologue.
+              Every user request is an autonomous goal. Finish it in this run
+              with CORE_TOOLS. English tasks are an advisory compass only.
+              Pure how-to / syntax / usage questions get a concise explanation
+              with example commands only — no invented planner monologue.
               Pure prior-turn recall ("what did I just say?") is answered from the
               RECENT TURNS block or one memory_recall — never a multi-tool plan.
               Pure greetings / light smalltalk short-circuit to a fixed ack — never

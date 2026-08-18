@@ -7,22 +7,12 @@ module PWN
     module Agent
       # High-level executive brief of the work the agent is about to do.
       #
-      # Request kind (statement | question | autonomous_goal) gates planning:
-      #   - general statements and questions -> NO multi-step task breakdown
-      #   - autonomous goals -> MUST decompose into ordered tangible work units
-      #     (each unit may use one or more tools)
-      #
-      # English tangible tasks are PRIMARY (not tool jargon):
-      #   1. plan(request:) — on user submit, break the goal into an ordered
-      #      list of plain-English tasks via the active LLM (each task is a
-      #      coherent unit that may require many tool calls). ONLY autonomous goals (not bare statements/questions).
-      #      Works for any — no static per-domain task lists.
-      #   2. about_to(tools:) — per tool-batch brief led by the active
-      #      "task k/n: <english>" item (same vocabulary as emit_plan!).
-      #      Tool counts/intents are a secondary "via …" suffix only.
-      #   3. active_task_prompt / plan_context — injected into Loop messages
-      #      so generated tasks steer tool choice, not only the TUI.
-      #   4. record! emits an advancement brief when plan_idx moves forward.
+      # Every pwn-ai request is a goal. There is no statement/question/goal
+      # request type. English tangible tasks are an advisory compass:
+      #   1. plan(request:) — break the goal into ordered plain-English tasks
+      #   2. about_to(tools:) — per tool-batch brief led by "task k/n"
+      #   3. active_task_prompt — injected into Loop as a compass only
+      #   4. record! emits an advancement brief when plan_idx moves
       #
       # Never dumps raw commands or tool results into the task row — those
       # stay on the per-tool lines the REPL already prints.
@@ -51,10 +41,8 @@ module PWN
         }.freeze
 
         PLAN_SYSTEM = <<~SYS
-          You are the pwn-ai Task Planner for AUTONOMOUS GOALS only.
-          The caller already classified this request as work the agent must
-          accomplish (not a bare statement or a question). Break it into an
-          ordered list of tangible work units. Rules:
+          You are the pwn-ai Task Planner.
+          Break the user request into an ordered list of tangible work units. Rules:
           - 2..12 tasks. Each task is one coherent unit of work (may need many tools).
           - Plain US English. Imperative mood. No tool names, paths, or shell commands.
           - Cover discovery/recon, the core work, verification, and the requested
@@ -113,10 +101,11 @@ module PWN
         #   request: 'optional - original user goal string'
         # )
         public_class_method def self.fresh(opts = {})
-          req = opts[:request].to_s
+          req = canonical_request(request: opts[:request])
+          req = opts[:request].to_s if req.empty?
           {
             request: req,
-            request_kind: opts[:request_kind] || request_kind(request: req),
+            original_request: req,
             events: [],
             since_emit: 0,
             last_emit_at: Time.now,
@@ -140,7 +129,8 @@ module PWN
             focus_injected_idx: nil,
             last_advanced_from: nil,
             last_advance_brief: nil,
-            tools_on_task: 0
+            tools_on_task: 0,
+            evidence_blob: ''
           }
         end
 
@@ -276,322 +266,10 @@ module PWN
           line
         end
 
-        # ------------------------------------------------------------------
-        # Top-level request kind (statement | question | autonomous_goal).
-        # General statements and questions must NOT be multi-step planned.
-        # Autonomous goals MUST decompose into ordered tangible work units.
-        #
-        # Classification priority:
-        #   1. Injected kind / llm_kind (tests)
-        #   2. Cheap deterministic intent (greeting/howto/recall/recon)
-        #   3. LLM classify when request_kind_llm/task_summary_llm is on
-        #   4. Regex / structure heuristics (offline fallback)
-        #
-        # Supported Method Parameters::
-        # kind = PWN::AI::Agent::TaskSummarizer.request_kind(
-        #   request: 'required - user text',
-        #   kind: 'optional - precomputed symbol',
-        #   llm_kind: 'optional - injected LLM label (tests)',
-        #   heuristic_only: 'optional - skip LLM (Boolean)'
-        # )
-        # ------------------------------------------------------------------
-        KIND_LABELS = %i[statement question autonomous_goal].freeze
-
-        # Review / opinion asks are questions unless the user also asks to implement.
-        OPINION_REVIEW_RX = /
-          \b(?:
-            suggest\s+(?:areas?|ways?|ideas?)|
-            areas?\s+for\s+improvement|
-            what\s+(?:do\s+you\s+think|would\s+you\s+(?:change|improve))|
-            your\s+(?:take|opinion|assessment|review)\b|
-            briefly\s+describe|
-            review\s+(?:the|this|our)
-          )
-        /ix
-
-        IMPLEMENT_RX = /
-          \b(?:implement|fix\s+all|apply|patch|land|ship)\b
-        /ix
-
-        STATEMENT_RX = /
-          \A\s*(
-            (?:fyi|note|noted|heads\s*up|for\s+the\s+record|just\s+so\s+you\s+know)\b |
-            (?:i\s+(?:think|believe|notice|see|observed)|looks\s+like)\b |
-            (?:the|this|that)\s+(?:\w+\s+){0,6}(?:is|are|was|were|seems|looks)\b
-          )
-        /ix
-
-        # Interrogative openers / trailing ? / how-to phrases.
-        # Also match mid-line "what/why/..." after a short preface
-        # ("excellent - what is my hostname?").
-        # Do NOT treat bare "Do three things..." as a question (imperative goal).
-        QUESTION_RX = /
-          \A\s*(?:
-            (?:what|why|when|where|who|whom|whose|which|how)\b
-            |
-            (?:is|are|was|were|do|does|did|can|could|would|should|may|might|will)\s+
-            (?:i|you|we|they|he|she|it|this|that|there|the|a|an|my|your|our|any|
-               anyone|someone|everyone|something|anything|everything)\b
-          )
-          |
-          (?:\A|\.\s+|[-–—:]\s+|\b)(?:what|why|when|where|who|whom|whose|which|how)\b
-          |
-          \?\s*\z
-          |
-          \b(?:how\s+to|how\s+do\s+i|how\s+can\s+i|explain\s+how|usage\s+of|syntax\s+for)\b
-        /ix
-
-        # Strong "agent, do this" signals — avoid bare nouns like "build"/"scan"
-        # inside ordinary prose ("the build is green", "ping scan flags").
-        AUTONOMOUS_GOAL_RX = /
-          \b(?:
-            (?:please\s+)(?:\w+\s+){0,4}(?:implement|fix|patch|refactor|rewrite|migrate|
-              deploy|install|compile|commit|push|create|remove|delete|update|change|edit|
-              write|run|execute|scan|probe|enumerate|discover|find|locate|audit|harden|
-              resolve|debug|diagnose|investigate|optimize|configure|enable|disable|
-              start|stop|restart|ship|finish|complete|make|ensure|verify)
-            |
-            (?:can|could|would)\s+you\s+(?:please\s+)?(?:\w+\s+){0,3}(?:do|run|fix|
-              implement|scan|find|make|update|change|write|patch|refactor|add|remove|
-              create|locate|resolve|debug|ship|finish)
-            |
-            \bi\s+need\s+you\s+to\b |
-            \byour\s+job\s+is\s+to\b |
-            \bgo\s+ahead\b |
-            \bdo\s+it\b |
-            \bship\s+it\b |
-            \bmake\s+it\s+so\b |
-            \bmake\s+sure\b |
-            # Imperative at start of request (common operator style)
-            \A\s*(?:implement|fix|patch|refactor|rewrite|migrate|deploy|install|
-              compile|commit|push|create|add|remove|delete|update|change|edit|write|
-              run|execute|scan|probe|enumerate|discover|find|locate|audit|harden|
-              resolve|debug|diagnose|investigate|optimize|configure|enable|disable|
-              start|stop|restart|ship|finish|complete|break|decompose|ensure|verify|
-              please)\b
-          )
-        /ix
-
-        # Interrogatives that need a live local lookup (hostname, cwd, whoami…).
-        # These are autonomous_goal so Loop uses tools — not text-only Q&A.
-        NEEDS_LOCAL_EVIDENCE_RX = /
-          \b(?:what(?:'?s|\s+is)|show|print|tell\s+me|get|echo|display|check)\b
-          .{0,80}\b(?:
-            (?:my\s+)?host\s*name|
-            (?:my\s+)?(?:ip|ipv4|ipv6)(?:\s+address)?|
-            (?:my\s+)?(?:cwd|pwd|working\s+directory|present\s+working\s+directory)|
-            whoami|(?:my\s+)?user(?:name)?|(?:logged[- ]?in\s+)?user|
-            (?:my\s+)?kernel|uname\b|
-            uptime|disk\s+usage|free\s+space|memory\s+usage|
-            listening\s+ports?|default\s+route|gateway|
-            (?:this\s+)?(?:machine|host|box|system)\s+(?:name|hostname)
-          )\b
-        /ix
-
-        KIND_SYSTEM = <<~SYS
-                    You classify ONE user request for the pwn-ai agent.
-                    Return ONLY one token from this set:
-                      statement
-                      question
-                      autonomous_goal
-
-                    Definitions:
-                    - statement: FYI, observation, ack, or greeting. No work requested. No answer needed beyond a brief note.
-                    - question: asks for knowledge, explanation, syntax, or prior-turn recall that can be answered without the agent performing multi-step host/code work. Do NOT plan tools.
-                    - autonomous_goal: the agent must DO something — implement/fix/scan/run commands, or answer a fact that requires a live local lookup (hostname, cwd, whoami, listening ports, etc.).
-
-                    Rules:
-                    - "can you fix/implement/scan...?" is autonomous_goal even with a trailing ?
-                    - "how to ..." / "what flags does X use" without "do it here" is question
-                    - "what is my hostname?" / "what is my ip?" is autonomous_goal (needs tools)
-          - "FYI the build is green" is statement
-          - "suggest areas for improvement" / "what do you think" / review-opinion asks are question unless the user also says implement/fix/apply
-          - Prefer autonomous_goal when unsure whether live action is required
-
-                    Output: a single label token. No punctuation, no JSON, no prose.
-        SYS
-
-        # LLM request-kind classifier is ON by default (same knob family as plan LLM).
-        # PWN::Env[:ai][:agent][:request_kind_llm] = false disables it (tests/airgap).
-        # When unset, follows :task_summary_llm (false in unit specs).
-        public_class_method def self.llm_kind_enabled?
-          v = PWN::Env.dig(:ai, :agent, :request_kind_llm)
-          return !!v unless v.nil?
-
-          llm_plan_enabled?
-        rescue StandardError
-          true
-        end
-
-        public_class_method def self.request_kind(opts = {})
-          req = opts[:request].to_s
-          return :statement if req.strip.empty?
-
-          # Injected precompute (tests / Loop hand-off).
-          if opts.key?(:kind) && !opts[:kind].nil?
-            parsed = parse_kind_label(raw: opts[:kind])
-            return parsed if parsed
-          end
-          if opts.key?(:llm_kind)
-            parsed = parse_kind_label(raw: opts[:llm_kind])
-            return parsed if parsed
-          end
-
-          # Cheap deterministic intent (greeting/howto/recall/recon) — single
-          # source with Loop.request_intent; avoids LLM on pure short-circuits.
-          intent = nil
-          if defined?(PWN::AI::Agent::Loop) && PWN::AI::Agent::Loop.respond_to?(:request_intent)
-            begin
-              intent = PWN::AI::Agent::Loop.request_intent(request: req)
-              case intent
-              when :greeting, :empty
-                return :statement
-              when :howto, :recall
-                return :question
-              when :recon_act
-                return :autonomous_goal
-              end
-              # :act falls through — may still be statement/question/goal
-            rescue StandardError
-              # offline / load-order safe
-            end
-          end
-
-          # Numbered operator checklist is always an autonomous goal.
-          enumerated = begin
-            extract_enumerated_steps(goal: req)
-          rescue StandardError
-            []
-          end
-          return :autonomous_goal if enumerated.length >= MIN_PLAN_TASKS
-
-          # Review / opinion / "suggest areas" stay questions unless implement.
-          return :question if req.match?(OPINION_REVIEW_RX) && !req.match?(IMPLEMENT_RX)
-
-          # Strong agent-do / host-evidence before LLM (stable + offline).
-          return :autonomous_goal if req.match?(AUTONOMOUS_GOAL_RX)
-          return :autonomous_goal if req.match?(NEEDS_LOCAL_EVIDENCE_RX)
-
-          # LLM classify ambiguous residual (prefer over brittle regex defaults).
-          if !opts[:heuristic_only] && llm_kind_enabled?
-            llm_k = llm_classify_kind(request: req)
-            return llm_k if llm_k
-          end
-          # Explicit heuristic_only or LLM miss → offline rules.
-          heuristic_request_kind(request: req, intent: intent)
-        rescue StandardError
-          :autonomous_goal
-        end
-
-        # Offline / fallback classifier (regex + length heuristics).
-        public_class_method def self.heuristic_request_kind(opts = {})
-          req = opts[:request].to_s
-          return :statement if req.strip.empty?
-
-          return :question if req.match?(OPINION_REVIEW_RX) && !req.match?(IMPLEMENT_RX)
-          return :autonomous_goal if req.match?(AUTONOMOUS_GOAL_RX)
-          return :autonomous_goal if req.match?(NEEDS_LOCAL_EVIDENCE_RX)
-          return :question if req.match?(QUESTION_RX)
-          return :statement if req.match?(STATEMENT_RX)
-
-          stripped = req.gsub(/\s+/, ' ').strip
-          # Short bare remarks are statements unless they look like work or Qs.
-          if stripped.length < 48 && !stripped.match?(/\b(please|need|want|should|must)\b/i)
-            return :question if stripped.include?('?')
-
-            return :statement
-          end
-
-          :autonomous_goal
-        rescue StandardError
-          :autonomous_goal
-        end
-
-        # Normalize LLM / caller labels → kind symbol or nil.
-        public_class_method def self.parse_kind_label(opts = {})
-          raw = opts[:raw]
-          return nil if raw.nil?
-
-          s = raw.to_s.strip.downcase
-          return nil if s.empty?
-
-          # Prefer exact kind tokens anywhere in the response ("Label: question").
-          tokens = s.gsub(/[^a-z_]/, ' ').split
-          aliases = {
-            'statement' => :statement, 'statements' => :statement,
-            'fyi' => :statement, 'observation' => :statement,
-            'ack' => :statement, 'greeting' => :statement,
-            'question' => :question, 'questions' => :question,
-            'query' => :question, 'howto' => :question,
-            'how_to' => :question, 'recall' => :question,
-            'autonomous_goal' => :autonomous_goal, 'goal' => :autonomous_goal,
-            'task' => :autonomous_goal, 'act' => :autonomous_goal,
-            'action' => :autonomous_goal, 'work' => :autonomous_goal,
-            'do' => :autonomous_goal
-          }
-          tokens.each do |t|
-            return aliases[t] if aliases.key?(t)
-          end
-
-          joined = tokens.join('_')
-          return aliases[joined] if aliases.key?(joined)
-
-          sym = s.to_sym
-          KIND_LABELS.include?(sym) ? sym : nil
-        rescue StandardError
-          nil
-        end
-
-        # LLM classify path — Reflect/engine chat, no tools. Returns kind or nil.
-        public_class_method def self.llm_classify_kind(opts = {})
-          return nil unless llm_kind_enabled?
-
-          req = opts[:request].to_s
-          return :statement if req.strip.empty?
-
-          raw = chat_for_kind(request: req)
-          parse_kind_label(raw: raw)
-        rescue StandardError => e
-          warn "[pwn-ai/task_summarizer] llm_classify_kind swallowed: #{e.class}: #{e.message}"
-          nil
-        end
-
-        # Public so specs can stub the LLM boundary (mirrors chat_for_plan).
-        public_class_method def self.chat_for_kind(opts = {})
-          req = opts[:request].to_s
-          system = KIND_SYSTEM
-          user = "USER REQUEST:\n#{req}\n\nLabel:"
-          if reflect_available?
-            resp = Reflect.on(
-              request: user,
-              system_role_content: system,
-              suppress_pii_warning: true,
-              spinner: false,
-              timeout: sidecar_timeout,
-              quiet: true
-            )
-            text = reflect_text(resp: resp)
-            return text unless text.to_s.strip.empty?
-          end
-
-          engine_chat(request: user, system_role_content: system)
-        rescue StandardError => e
-          warn "[pwn-ai/task_summarizer] chat_for_kind swallowed: #{e.class}: #{e.message}"
-          ''
-        end
-
-        # True only for autonomous goals — statements/questions skip multi-step plans.
-        #
-        # Supported Method Parameters::
-        # yes = PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?(
-        #   request: 'optional - user text',
-        #   kind: 'optional - precomputed request_kind'
-        # )
+        # Every request gets a task compass. There is no request type.
         public_class_method def self.needs_task_breakdown?(opts = {})
-          kind = opts[:kind]
-          kind = request_kind(request: opts[:request]) if kind.nil?
-          kind.to_sym == :autonomous_goal
-        rescue StandardError
+          return true if opts.is_a?(Hash)
+
           true
         end
 
@@ -613,26 +291,21 @@ module PWN
         # )
         # ------------------------------------------------------------------
         public_class_method def self.plan(opts = {})
-          goal = opts[:request].to_s.gsub(/\s+/, ' ').strip
+          raw = opts[:request].to_s
+          raw = (opts[:state][:original_request] || opts[:state][:request]).to_s if raw.strip.empty? && opts[:state].is_a?(Hash)
+          goal = canonical_request(request: raw)
+          goal = raw.gsub(/\s+/, ' ').strip if goal.empty?
           return [] if goal.empty?
 
-          kind = opts[:request_kind]
-          kind = (opts[:state][:request_kind] if opts[:state].is_a?(Hash)) if kind.nil?
-          kind = request_kind(request: goal) if kind.nil?
-          kind = kind.to_sym
-
-          # Statements and questions: never multi-step task breakdown.
-          # (Injected :tasks still honored for tests.)
-          unless needs_task_breakdown?(kind: kind) || opts.key?(:tasks) || opts.key?(:llm_tasks)
-            tasks = []
-            source = :"no_breakdown_#{kind}"
+          if defined?(PWN::AI::Agent::Loop) &&
+             PWN::AI::Agent::Loop.respond_to?(:world_knowledge?) &&
+             !opts.key?(:tasks) && !opts.key?(:llm_tasks) &&
+             PWN::AI::Agent::Loop.world_knowledge?(request: goal)
             if opts[:state].is_a?(Hash)
-              opts[:state][:plan] = tasks
-              opts[:state][:request] = goal if opts[:state][:request].to_s.empty?
-              opts[:state][:request_kind] = kind
-              opts[:state][:plan_source] = source
+              opts[:state][:plan] = []
+              opts[:state][:plan_source] = :no_host_work
             end
-            return tasks
+            return []
           end
 
           source = nil
@@ -651,7 +324,7 @@ module PWN
             tasks = llm_decompose(goal: goal, llm_tasks: opts[:llm_tasks], has_llm_tasks: opts.key?(:llm_tasks))
             source = tasks.any? ? :llm : nil
             if tasks.length < MIN_PLAN_TASKS
-              tasks = fallback_decompose(goal: goal, request_kind: kind)
+              tasks = fallback_decompose(goal: goal)
               source = :fallback
             end
           end
@@ -659,24 +332,15 @@ module PWN
           tasks = normalize_task_list(tasks: tasks, goal: goal)
           if opts[:state].is_a?(Hash)
             opts[:state][:plan] = tasks
+            opts[:state][:original_request] = goal if opts[:state][:original_request].to_s.empty?
             opts[:state][:request] = goal if opts[:state][:request].to_s.empty?
-            opts[:state][:request_kind] = kind
             opts[:state][:plan_source] = source
           end
           tasks
         rescue StandardError
           goal = opts[:request].to_s.gsub(/\s+/, ' ').strip
-          kind = begin
-            request_kind(request: goal)
-          rescue StandardError
-            :autonomous_goal
-          end
-          if goal.empty? || !needs_task_breakdown?(kind: kind)
-            if opts[:state].is_a?(Hash)
-              opts[:state][:plan] = []
-              opts[:state][:request_kind] = kind
-              opts[:state][:plan_source] = :"no_breakdown_#{kind}"
-            end
+          if goal.empty?
+            opts[:state][:plan] = [] if opts[:state].is_a?(Hash)
             []
           else
             normalize_task_list(tasks: ["Carry out: #{goal}"], goal: goal)
@@ -709,8 +373,12 @@ module PWN
             list = ['Explain the requested tool usage with concrete examples', 'Present the answer clearly'] if list.empty?
             return list.first(MAX_PLAN_TASKS)
           end
-          # Ensure a verify/close step when the model omitted one (act/recon only).
-          list << 'Verify the result and report completion' unless list.last.to_s.match?(/verif|test|confirm|rubocop|rake|accept|done|close|summar|json|yaml|table|present|format|convert|report completion|report results/i)
+          # Close with a present/report step — never a test-runner verify.
+          # Appending "Verify the result…" used to classify as :verify and
+          # block Loop.run until rspec/rubocop printed 0 failures.
+          list << 'Present the result and report completion' unless list.last.to_s.match?(
+            /verif|test|confirm|rubocop|rake|accept|done|close|summar|json|yaml|table|present|format|convert|report completion|report results/i
+          )
           list.first(MAX_PLAN_TASKS)
         end
 
@@ -725,27 +393,10 @@ module PWN
         public_class_method def self.format_plan(opts = {})
           list = Array(opts[:tasks]).map(&:to_s).reject(&:empty?)
           goal = opts[:request].to_s.gsub(/\s+/, ' ').strip
-          kind = opts[:request_kind]
-          kind = request_kind(request: goal) if kind.nil? && !goal.empty?
-          kind = kind.to_s.empty? ? nil : kind.to_sym
-
-          # Statements / questions: no multi-step breakdown banner.
-          if list.empty?
-            return '' if goal.empty?
-
-            case kind
-            when :statement
-              return "Request type: statement — no multi-step task breakdown\nNote: #{goal}"
-            when :question
-              return "Request type: question — no multi-step task breakdown\nQuestion: #{goal}"
-            else
-              return ''
-            end
-          end
+          return '' if list.empty?
 
           n = list.length
           lines = []
-          lines << 'Request type: autonomous_goal' if kind == :autonomous_goal || kind.nil?
           lines << "Goal: #{goal}" unless goal.empty?
           lines << "Tangible tasks (#{n}) — each task may leverage one or more tools to complete its objective(s):"
           list.each_with_index do |t, i|
@@ -763,14 +414,14 @@ module PWN
           return nil unless state.is_a?(Hash)
           return state[:plan_text] if state[:plan_emitted] && !state[:plan_text].nil?
 
-          request = state[:request].to_s
+          request = state[:original_request].to_s
+          request = state[:request].to_s if request.empty?
           request = opts[:request].to_s if request.empty?
-          kind = state[:request_kind] || opts[:request_kind] || request_kind(request: request)
-          state[:request_kind] = kind.to_sym
+          request = canonical_request(request: request)
+          request = opts[:request].to_s.gsub(/\s+/, ' ').strip if request.empty?
           tasks = state[:plan]
-          # Decompose only when needed (autonomous goals, or empty plan not yet decided).
-          tasks = plan(request: request, state: state, request_kind: kind) if tasks.nil? || Array(tasks).empty?
-          text = format_plan(tasks: tasks, request: request, request_kind: kind)
+          tasks = plan(request: request, state: state) if tasks.nil? || Array(tasks).empty?
+          text = format_plan(tasks: tasks, request: request)
           state[:plan] = Array(tasks)
           state[:plan_text] = text
           state[:plan_emitted] = true
@@ -809,7 +460,7 @@ module PWN
             inline = goal.split(/(?=(?:^|\s)\d+\.\s+)/).map(&:strip).reject(&:empty?)
             chunks = inline.map { |c| c.sub(/\A\d+\.\s+/, '') }.reject(&:empty?) if inline.length >= MIN_PLAN_TASKS
           end
-          chunks
+          reject_scaffold_tasks(tasks: chunks)
         rescue StandardError
           []
         end
@@ -989,25 +640,24 @@ module PWN
         #   goal: 'required - user goal string'
         # )
         public_class_method def self.fallback_decompose(opts = {})
-          goal_text = opts[:goal].to_s
+          goal_text = canonical_request(request: opts[:goal])
+          goal_text = opts[:goal].to_s if goal_text.empty?
           goal_lc = goal_text.downcase
           tasks = []
 
-          # Statements / questions never get a synthetic multi-step fallback.
-          kind = opts[:request_kind] || request_kind(request: goal_text)
-          return [] unless needs_task_breakdown?(kind: kind)
-
           # If the operator already spelled improvement bullets, surface them.
           bullets = goal_text.scan(/(?:^|\s)(?:\d+\.|[-*])\s*([^.;]+)/).flatten.map(&:strip)
+          bullets = reject_scaffold_tasks(tasks: bullets)
           if bullets.length >= MIN_PLAN_TASKS
             bullets.first(8).each { |b| tasks << b.sub(/\Athe\s+/i, '').sub(/\.\s*\z/, '') }
             return tasks
           end
 
           if howto_goal?(goal: goal_text)
-            # how-to is a question kind; needs_task_breakdown? should already
-            # have returned []. Keep belt-and-suspenders empty list.
-            return []
+            return [
+              'Explain the requested tool usage with concrete examples',
+              'Present the answer clearly'
+            ]
           end
 
           tasks << "Understand the request: #{truncate_goal(goal: goal_text)}"
@@ -1095,13 +745,8 @@ module PWN
 
           tools = normalize_tools(tools: opts[:tools], name: opts[:name], args: opts[:args])
           names = tools.map { |t| t[:name] }
-          # Ensure plan exists only for autonomous goals (statements/questions
-          # deliberately keep an empty plan — no multi-step breakdown).
-          if state.is_a?(Hash) && Array(state[:plan]).empty? && !request.to_s.strip.empty?
-            kind = state[:request_kind] || request_kind(request: request)
-            state[:request_kind] ||= kind
-            plan(request: request, state: state, request_kind: kind) if needs_task_breakdown?(kind: kind)
-          end
+          # Ensure a plan exists so about_to can name the active task.
+          plan(request: request, state: state) if state.is_a?(Hash) && Array(state[:plan]).empty? && !request.to_s.strip.empty?
 
           caps = capabilities_for(names: names)
           counts = tool_counts_phrase(names: names)
@@ -1203,6 +848,8 @@ module PWN
           return nil if plan.empty?
 
           idx = active_plan_index(state: state)
+          left = unfinished_tasks(state: state, messages: opts[:messages])
+          idx = left.first[:idx] if left.any? && left.none? { |task| task[:idx] == idx }
           item = plan[idx].to_s
           return nil if item.empty?
 
@@ -1215,6 +862,49 @@ module PWN
           }
         rescue StandardError
           nil
+        end
+
+        # Remaining English work units that lack tool-result evidence.
+        # Discover/map items need some tool evidence; implement/fix needs a
+        # mutation signal; verify needs a spec/lint pass. Tool-count success
+        # JSON is not enough — that was the premature-final / skipped-task bug.
+        #
+        # Supported Method Parameters::
+        # left = PWN::AI::Agent::TaskSummarizer.unfinished_tasks(
+        #   state: 'required - fresh() hash',
+        #   messages: 'optional - Loop message array for extra coverage'
+        # )
+        # => [{ idx:, item:, label: }, ...]
+        public_class_method def self.unfinished_tasks(opts = {})
+          state = opts[:state]
+          return [] unless state.is_a?(Hash)
+
+          plan = Array(state[:plan]).map { |t| t.to_s.strip }
+          return [] if plan.length < 2
+
+          blob = coverage_blob(state: state, messages: opts[:messages])
+          n = plan.length
+          plan.each_with_index.filter_map do |item, i|
+            next if item.empty? || item_covered?(item: item, blob: blob)
+
+            { idx: i, item: item, label: "task #{i + 1}/#{n}: #{item}" }
+          end
+        rescue StandardError
+          []
+        end
+
+        # True while a multi-step English plan still has uncovered work.
+        # Loop uses this to refuse a text-only final.
+        #
+        # Supported Method Parameters::
+        # open = PWN::AI::Agent::TaskSummarizer.plan_open?(
+        #   state: 'required - fresh() hash',
+        #   messages: 'optional - Loop message array'
+        # )
+        public_class_method def self.plan_open?(opts = {})
+          unfinished_tasks(opts).any?
+        rescue StandardError
+          false
         end
 
         # Short block for engine messages: full plan + focus on active English task.
@@ -1234,9 +924,11 @@ module PWN
           info = active_task(state: state)
           n = plan.length
           lines = []
-          lines << '[pwn-ai/tasks] English tangible tasks are the SOLE driver of which tools execute next.'
-          lines << 'Work the ACTIVE task to completion (many tools ok), then advance.'
-          lines << 'Do not skip ahead. Do not pick tools from the original request alone or from any PLAN: tool-call scaffold.'
+          lines << '[pwn-ai/tasks] English tangible tasks are an advisory compass — the original request is the completion signal.'
+          lines << 'Prefer CORE_TOOLS (shell, pwn_eval, memory, mistakes, learning) until that request is done or blocked.'
+          lines << 'The task list is a breakdown, not a gate. Do not skip useful work; do not grind a covered item.'
+          req_line = immutable_request_line(opts)
+          lines << req_line if req_line
           lines << 'Original goal stays in context; the English tasks below are the work breakdown.'
           lines << "Active: #{info[:label]}" if info
           lines << "Tangible tasks (#{n}):"
@@ -1285,8 +977,9 @@ module PWN
         public_class_method def self.active_task_prompt(opts = {})
           state = opts[:state]
           return nil unless state.is_a?(Hash)
+          return nil unless plan_open?(state: state, messages: opts[:messages])
 
-          info = active_task(state: state)
+          info = active_task(state: state, messages: opts[:messages])
           return nil unless info
 
           force = !opts[:force].nil?
@@ -1296,7 +989,7 @@ module PWN
           state[:focus_injected_idx] = info[:idx]
           # First injection after plan: full plan_context. Later: compact focus.
           if prev.nil? || force
-            plan_context(state: state)
+            plan_context(state: state, request: opts[:request])
           else
             done_bit =
               if state[:last_advanced_from]
@@ -1306,12 +999,84 @@ module PWN
               else
                 ''
               end
-            "#{done_bit}[pwn-ai/tasks] Now focus on #{info[:label]}. " \
-              'English tangible tasks solely drive tool choice — call only tools needed for THIS task; ' \
-              'ignore PLAN: tool scaffolds and do not skip remaining tasks.'
+            focus = "#{done_bit}[pwn-ai/tasks] Compass: #{info[:label]}. " \
+                    'Finish the original request with CORE_TOOLS; this task list is advisory.'
+            req_line = immutable_request_line(opts)
+            req_line ? "#{focus} #{req_line}" : focus
           end
         rescue StandardError
           nil
+        end
+
+        # Pull the operator's original ask out of curriculum / critic / GOAL+PLAN
+        # wrappers so planning and model-facing prompts never treat a PLAN:
+        # tool-call scaffold as the user request.
+        #
+        # Supported Method Parameters::
+        # text = PWN::AI::Agent::TaskSummarizer.canonical_request(
+        #   request: 'required - raw user or wrapper string'
+        # )
+        public_class_method def self.canonical_request(opts = {})
+          text = opts[:request].to_s
+          return '' if text.strip.empty?
+
+          body = text.sub(/\A\s*REQUEST:\s*/i, '')
+          if (m = body.match(/\AGOAL:\s*(.+?)(?=(?:\n\s*|\s+)(?:PLAN|ANSWER|FLAW|PATCH)\s*:|\z)/mi))
+            extracted = squeeze_request_ws(text: m[1])
+            return extracted unless extracted.empty?
+          end
+          if (idx = body =~ /\n\s*PLAN\s*:\s*(?:\n|\z)/i)
+            head = squeeze_request_ws(text: body[0...idx])
+            return head unless head.empty?
+          end
+          if (m = body.match(/\A(.+?)\s+PLAN\s*:\s*\d+[.):]/i))
+            head = squeeze_request_ws(text: m[1])
+            return head unless head.empty?
+          end
+
+          squeeze_request_ws(text: body)
+        rescue StandardError
+          opts[:request].to_s.gsub(/\s+/, ' ').strip
+        end
+
+        private_class_method def self.squeeze_request_ws(opts = {})
+          opts[:text].to_s.gsub(/\s+/, ' ').strip
+        end
+
+        private_class_method def self.plan_scaffold_item?(opts = {})
+          s = opts[:item].to_s.gsub(/\s+/, ' ').strip
+          return true if s.empty?
+          return true if s.match?(/\A(?:GOAL|PLAN|REQUEST|ANSWER|FLAW|PATCH)\s*:/i)
+          return true if s.match?(/\A\w+\s+command\s*=/i)
+
+          false
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.reject_scaffold_tasks(opts = {})
+          Array(opts[:tasks]).map { |t| t.to_s.gsub(/\s+/, ' ').strip }.reject(&:empty?).reject do |item|
+            plan_scaffold_item?(item: item) || tool_jargon_task?(item: item)
+          end
+        rescue StandardError
+          []
+        end
+
+        # Resolve the original user request for model-facing task prompts.
+        # Prefer an explicit opts[:request] override, else the pinned
+        # state[:original_request], else state[:request]. Wrappers are stripped.
+        private_class_method def self.immutable_request_line(opts = {})
+          state = opts[:state]
+          request = opts[:request].to_s.strip
+          request = canonical_request(request: request) unless request.empty?
+          if request.empty? && state.is_a?(Hash)
+            request = state[:original_request].to_s.strip
+            request = state[:request].to_s.strip if request.empty?
+            request = canonical_request(request: request) unless request.empty?
+          end
+          return nil if request.empty?
+
+          "Original request (immutable): #{request}"
         end
 
         private_class_method def self.active_plan_index(opts = {})
@@ -1481,7 +1246,9 @@ module PWN
         end
 
         # Advance or hold plan_idx from an R2 step batch.
-        # +1 streak matching the active task's tool intent -> advance once.
+        # Advance ONLY when the current English task has completion evidence
+        # (mutate/verify) or the batch clearly hands off to the NEXT task's
+        # phase. A +1 search streak is telemetry — never task completion.
         # Any -1 or mistake fingerprint on the batch -> do not advance.
         #
         # Supported Method Parameters::
@@ -1490,6 +1257,7 @@ module PWN
         #   rewards: 'required - Array of -1|0|1 (batch order)',
         #   intents: 'optional - Array of intent verb strings for the batch',
         #   names: 'optional - tool names in the batch',
+        #   result: 'optional - latest tool result string',
         #   mistake: 'optional - truthy when a mistake fingerprint hit this batch'
         # )
         public_class_method def self.apply_prm_advancement!(opts = {})
@@ -1513,86 +1281,208 @@ module PWN
           end
 
           pos = rewards.count(&:positive?)
-          neu = rewards.count(&:zero?)
-          # Require a clear +1 presence (not all-neutral).
           if pos.zero?
             state[:prm_pos_streak] = 0
             state[:last_prm_signal] = :hold_neutral
             return idx
           end
 
-          item = plan[idx].to_s.downcase
+          # Streak is telemetry only — never an advance trigger.
+          state[:prm_pos_streak] = state[:prm_pos_streak].to_i + pos
+
+          item = plan[idx].to_s
           intents = Array(opts[:intents]).map { |iv| iv.to_s.downcase }.reject(&:empty?)
           names = Array(opts[:names]).map(&:to_s)
+          intent_s = (intents + names).join(' ')
 
-          # When intents given, require at least one matches the active task language.
-          matched =
-            if intents.empty? && names.empty?
-              true
-            else
-              intent_s = (intents + names).join(' ')
-              task_intent_match?(item: item, intent: intent_s)
-            end
-
-          unless matched
-            state[:last_prm_signal] = :hold_intent_mismatch
-            return idx
+          if task_complete_enough?(
+            item: item,
+            result: opts[:result],
+            names: names,
+            intents: intents,
+            state: state
+          )
+            return bump_plan!(state: state, idx: idx, signal: :advance_complete)
           end
 
-          streak = state[:prm_pos_streak].to_i + pos
-          state[:prm_pos_streak] = streak
-          # Advance after a streak of >=2 positive steps (or a single full +1 batch of size>=2).
-          should = streak >= 2 || (pos >= 2 && neu.zero?)
-          if should
-            state[:last_advanced_from] = idx
-            state[:plan_idx] = idx + 1
-            state[:prm_pos_streak] = 0
-            state[:tools_on_task] = 0
-            state[:last_prm_signal] = :advance
-            return idx + 1
-          end
+          nxt = plan[idx + 1].to_s
+          return bump_plan!(state: state, idx: idx, signal: :advance_handoff) if handoff_to_next?(state: state, item: item, next_item: nxt, intent: intent_s)
 
-          state[:last_prm_signal] = :streak
+          state[:last_prm_signal] = :hold_open
           idx
         rescue StandardError
           opts[:state].is_a?(Hash) ? opts[:state][:plan_idx].to_i : 0
         end
 
-        # Does this intent string look like progress on the plan item?
+        MUTATION_DONE_RX = /
+          patched|wrote\s|file\.write|fileutils|sed\s+-i|binwrite|
+          syntax\sok|changed\s+\d+\s+lines
+        /ix
+        VERIFY_DONE_RX = /
+          0\s+offenses|0\s+failures|examples?,\s*0|
+          all\s+examples?\s+passed|\d+\s+runs?,\s*0\s+failures
+        /ix
+        # Ran the verifier — green or red. "4 offenses" still completes the
+        # verify English task; remaining defects belong to implement/fix.
+        VERIFY_RAN_RX = /
+          \d+\s+offenses?|\d+\s+failures|examples?,\s*\d+|
+          finished\s+in\s+\d|\d+\s+runs?,\s*\d+\s+failures
+        /ix
+        HANDOFF_MIN_TOOLS = 2
+        DISCOVER_MIN_TOOLS = 3
+
+        private_class_method def self.task_phase(opts = {})
+          s = opts[:item].to_s.downcase
+          # Strict test/lint verify first — stems must not sit inside \b...\b
+          # ("\bverif\b" never matches "verify"; that was the stuck-plan bug).
+          return :verify if s.match?(
+            /\b(rspec|rubocop|rake|lint|end-to-end)\b|run spec|run test|confirm the final/
+          )
+          return :present if s.match?(/\bpresent\b|\breport completion\b|\breport results\b/)
+          # Soft "verify the result and report" is a closer, not a test runner.
+          return :present if s.match?(/\bverif\w*\b/) && !s.match?(/\b(rspec|rubocop|rake|lint|spec|test)\b/)
+          return :mutate if s.match?(
+            /\b(implement\w*|fix|patch\w*|chang\w*|improv\w*|write|apply|wire|refactor\w*)\b/
+          )
+          return :discover if s.match?(
+            /\b(locat\w*|find|read|inspect|recon\w*|understand|decompos\w*|map|identif\w*|gather|discover|enumerat\w*|scan|probe|determin\w*|root cause|where and why|track)\b/
+          )
+
+          :generic
+        rescue StandardError
+          :generic
+        end
+
+        private_class_method def self.intent_phase(opts = {})
+          s = opts[:intent].to_s.downcase
+          return :verify if s.match?(/test|rubocop|rake|rspec|offenses|failures/)
+          return :mutate if s.match?(/edit|mutate|write|patch|sed\s+-i|file.write|refactor/)
+          return :discover if s.match?(/search|read|recon|extro|sessions|memory|find|list|scan|inspect|locat/)
+
+          :generic
+        rescue StandardError
+          :generic
+        end
+
+        # Exclusive phase match. A search tool must not "match" an implement
+        # task, and "plans" in an English item must not count as discovery.
+        # :present closers accept any non-empty intent (the work already ran).
         private_class_method def self.task_intent_match?(opts = {})
           item = opts[:item].to_s.downcase
           intent = opts[:intent].to_s.downcase
-          return true if item.empty? || intent.empty?
+          return false if item.empty? || intent.empty?
 
-          # Shared keyword stems between plan language and intent/tool verbs.
-          stems = item.scan(/[a-z]{4,}/)
-          return true if stems.empty?
+          phase = task_phase(item: item)
+          return true if phase == :present
 
-          hit = stems.any? { |s| intent.include?(s[0, [s.length, 6].min]) }
-          return true if hit
+          ip = intent_phase(intent: intent)
+          return false if ip == :generic && phase != :generic
 
-          # Coarse phase pairs (discovery vs mutate vs verify) - generic, not domain scripts.
-          discovery = /locat|find|read|inspect|recon|understand|decompos|plan|determin|identif|gather|discover|list|enumerat|scan|probe/
-          mutate    = /implement|fix|patch|chang|improv|edit|mutate|write|apply|wire|carry out|core work/
-          verify    = /verif|test|rubocop|rake|spec|lint|confirm|accept|present|report|json|format/
-          runish    = /run|script|eval|shell|pwn_eval|search|read|edit|test|mutate/
-
-          return true if item.match?(discovery) && intent.match?(/search|read|recon|extro|sessions|memory|find|list|scan|#{runish.source}/)
-          return true if item.match?(mutate) && intent.match?(/edit|mutate|eval|write|patch|#{runish.source}/)
-          return true if item.match?(verify) && intent.match?(/test|eval|run|rubocop|rake|#{runish.source}/)
-
-          # Soft default: positive PRM with no hard mismatch still counts when
-          # the item is generic ("carry out the core work").
-          item.match?(/carry out|core work|advance|perform|complete|finish|do the/)
+          phase == ip || phase == :generic
         rescue StandardError
-          true
+          false
         end
 
-        # Nudge plan_idx forward when intents shift or enough tools have landed.
+        private_class_method def self.coverage_blob(opts = {})
+          state = opts[:state]
+          parts = []
+          parts << state[:evidence_blob].to_s if state.is_a?(Hash)
+          Array(opts[:messages]).each do |msg|
+            next unless msg.is_a?(Hash)
+
+            role = msg[:role].to_s
+            if role == 'tool'
+              parts << msg[:name].to_s
+              parts << msg[:content].to_s[0, 2_000]
+            elsif role == 'assistant'
+              Array(msg[:tool_calls]).each do |tc|
+                parts << tc.dig(:function, :name).to_s
+                parts << tc.dig(:function, :arguments).to_s[0, 1_000]
+              end
+            end
+          end
+          parts.join("\n").downcase
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.item_covered?(opts = {})
+          item = opts[:item].to_s
+          blob = opts[:blob].to_s.downcase
+          phase = task_phase(item: item)
+          case phase
+          when :mutate
+            blob.match?(MUTATION_DONE_RX)
+          when :verify
+            blob.match?(VERIFY_DONE_RX) || blob.match?(VERIFY_RAN_RX)
+          else
+            # discover / present / generic: some real tool evidence, not empty / tiny JSON
+            blob.strip.length >= 40
+          end
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.task_complete_enough?(opts = {})
+          phase = task_phase(item: opts[:item])
+          blob = [
+            opts[:result],
+            Array(opts[:names]).join(' '),
+            Array(opts[:intents]).join(' ')
+          ]
+          blob << opts[:state][:evidence_blob] if opts[:state].is_a?(Hash)
+          joined = blob.join(' ')
+
+          case phase
+          when :mutate, :verify
+            item_covered?(item: opts[:item], blob: joined)
+          when :discover, :generic, :present
+            on_task = opts[:state].is_a?(Hash) ? opts[:state][:tools_on_task].to_i : 0
+            return false if on_task < DISCOVER_MIN_TOOLS
+            return false unless item_covered?(item: opts[:item], blob: joined)
+
+            intent_s = (Array(opts[:intents]) + Array(opts[:names])).join(' ')
+            task_intent_match?(item: opts[:item], intent: intent_s) || phase == :present
+          else
+            false
+          end
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.handoff_to_next?(opts = {})
+          nxt = opts[:next_item].to_s
+          return false if nxt.strip.empty?
+
+          on_task = opts[:state].is_a?(Hash) ? opts[:state][:tools_on_task].to_i : 0
+          return false if on_task < HANDOFF_MIN_TOOLS
+
+          cur_p = task_phase(item: opts[:item])
+          nxt_p = task_phase(item: nxt)
+          return false if nxt_p == :generic
+          return false if cur_p == nxt_p
+          return false unless task_intent_match?(item: nxt, intent: opts[:intent]) || nxt_p == :present
+
+          true
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.bump_plan!(opts = {})
+          state = opts[:state]
+          idx = opts[:idx].to_i
+          state[:last_advanced_from] = idx
+          state[:plan_idx] = idx + 1
+          state[:prm_pos_streak] = 0
+          state[:tools_on_task] = 0
+          state[:last_prm_signal] = opts[:signal] || :advance
+          idx + 1
+        end
+
+        # Nudge plan_idx forward only on a real next-task phase handoff.
+        # Never advance because "enough tools landed" — that skipped English work.
         private_class_method def self.maybe_advance_plan!(opts = {})
           state = opts[:state]
-          names = opts[:names]
-          intent = opts[:intent].to_s
           return unless state.is_a?(Hash)
 
           plan = Array(state[:plan])
@@ -1601,37 +1491,16 @@ module PWN
           idx = state[:plan_idx].to_i
           return if idx >= plan.length - 1
 
-          # Clearer advancement: require either a clear phase_shift AFTER the
-          # active task has had some tool work, or a solid tools_on_task quota
-          # with intent that still matches the active English task (completed).
-          on_task = state[:tools_on_task].to_i
-          item = plan[idx].to_s.downcase
-          name_s = Array(names).join(' ')
-          matched = task_intent_match?(item: item, intent: "#{intent} #{name_s}")
-          phase_shift = false
-          if intent != ''
-            # Intent-driven advance (generic phase language - not domain scripts).
-            phase_shift =
-              (item.match?(/locat|find|read|inspect|recon|understand|decompos|plan|determin|identif|gather|discover/) &&
-                intent.match?(/edit|mutate|test|vcs|run|script|eval/)) ||
-              (item.match?(/implement|fix|patch|chang|improv|display|wire|carry out|core work|probe|scan|enumerat/) &&
-                intent.match?(/test|rubocop|rake|eval|mutate/)) ||
-              (item.match?(/aggregat|collect|combin/) &&
-                intent.match?(/eval|mutate|script|run/)) ||
-              (item.match?(/json|yaml|table|format|convert|present|report|verif/) &&
-                intent.match?(/eval|mutate|script|test|run/)) ||
-              (name_s.match?(/extro_/) && item.match?(/code|source|implement|rubocop/)) ||
-              (name_s.match?(/memory_|sessions_/) && item.match?(/scan|probe|discover|recon/))
-          end
-          # Advance when phase clearly moves after >=1 tool on this task, OR
-          # after >=3 successful-ish tools still on this task (completion quota).
-          should = (phase_shift && on_task >= 2) || (on_task >= 3 && matched)
-          if should
-            state[:last_advanced_from] = idx
-            state[:plan_idx] = idx + 1
-            state[:tools_on_task] = 0
-            state[:last_prm_signal] = :advance_phase if state[:last_prm_signal] != :advance
-          end
+          names = Array(opts[:names])
+          intent_s = "#{opts[:intent]} #{names.join(' ')}"
+          return unless handoff_to_next?(
+            state: state,
+            item: plan[idx].to_s,
+            next_item: plan[idx + 1].to_s,
+            intent: intent_s
+          )
+
+          bump_plan!(state: state, idx: idx, signal: :advance_phase)
         rescue StandardError
           nil
         end
@@ -1741,6 +1610,9 @@ module PWN
           state[:since_emit] += 1
           state[:tools_on_task] = state[:tools_on_task].to_i + 1
           state[:emitted_for_batch] = false
+          chunk = "#{name} #{preview} #{rs.to_s[0, 800]}"
+          state[:evidence_blob] = "#{state[:evidence_blob]} #{chunk}"
+          state[:evidence_blob] = state[:evidence_blob][-16_000..] if state[:evidence_blob].to_s.length > 20_000
           intent = intent_phrase(tools: [{ name: name.to_s, args: args }])
           # Live R2-local signal from tool outcome (executive idx only).
           # Full ORM/PRM credit stays in Reward during auto_introspect.
@@ -1756,10 +1628,13 @@ module PWN
             rewards: [local_r],
             intents: [intent],
             names: [name.to_s],
+            result: rs,
             mistake: mistake_hit
           )
           # Heuristic phase-shift remains as a backstop when PRM streak has not fired.
-          if state[:last_prm_signal] != :advance
+          if state[:last_prm_signal].to_s.start_with?('advance')
+            # already moved this record
+          else
             maybe_advance_plan!(
               state: state,
               names: [name.to_s],
@@ -1853,11 +1728,7 @@ module PWN
           puts <<~USAGE
             USAGE:
               state = PWN::AI::Agent::TaskSummarizer.fresh(request: 'ship task briefs to execs')
-              # On user submit — autonomous goals only: LLM breaks into tangible tasks:
-              kind = PWN::AI::Agent::TaskSummarizer.request_kind(request: state[:request])
-              # => :statement | :question | :autonomous_goal
               plan = PWN::AI::Agent::TaskSummarizer.plan(request: state[:request], state: state)
-              # statements/questions => []; autonomous goals => ordered work units
               text = PWN::AI::Agent::TaskSummarizer.emit_plan!(state: state)
               # → "Goal: ...\nTangible tasks (N) — each may use many tools:\n  task 1/N: ...\n  task 2/N: ..."
               # UI: on_tool.call('task', text, '')  # full text, no truncation

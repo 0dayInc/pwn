@@ -51,6 +51,8 @@ describe PWN::AI::Agent::TaskSummarizer do
     expect(described_class).to respond_to :active_task_prompt
     expect(described_class).to respond_to :relevance_query
     expect(described_class).to respond_to :tool_jargon_task?
+    expect(described_class).to respond_to :plan_open?
+    expect(described_class).to respond_to :unfinished_tasks
   end
 
   it 'format_plan method should exist' do
@@ -330,7 +332,7 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(state[:plan_source]).to eq :llm
     end
 
-    it 'about_to advances through task k/n without restating the full goal every batch' do
+    it 'about_to keeps task k/n without restating the full goal every batch' do
       expect(described_class).to receive(:chat_for_plan).with(request: subnet_req).and_return(llm_subnet_json)
       state = described_class.fresh(request: subnet_req)
       plan_text = described_class.emit_plan!(state: state)
@@ -346,13 +348,15 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(first).to match(/via |shell/i)
       expect(first).not_to include(subnet_req)
 
-      # Simulate tools completing so plan_idx can advance
+      # Search-only tools must NOT consume the English plan. A later batch
+      # with a different tool still restates task k/n, never the full goal.
       3.times do |i|
         described_class.record!(state: state, name: 'shell', args: "probe #{i}", result: '{success:true}')
       end
+      expect(state[:plan_idx]).to eq 0
 
       second = described_class.about_to(
-        tools: [{ name: 'shell', args: { 'command' => 'nmap -sn 192.168.1.0/24' } }],
+        tools: [{ name: 'pwn_eval', args: { 'code' => '1+1' } }],
         state: state
       )
       expect(second).to be_a(String)
@@ -360,17 +364,13 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(second).not_to include(subnet_req)
     end
 
-    it 'how-to questions get no multi-step task breakdown' do
+    it 'how-to questions still get a task compass — there is no request type' do
       allow(PWN::Env).to receive(:dig).and_call_original
       allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)
       req = 'how to do a ping sweep of a subnet using hping3?'
-      expect(described_class.request_kind(request: req)).to eq(:question)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(false)
-      tasks = described_class.plan(request: req)
-      expect(tasks).to eq([])
-      banner = described_class.format_plan(tasks: tasks, request: req)
-      expect(banner).to match(/Request type: question/i)
-      expect(banner).not_to match(/Tangible tasks \(\d+\)/)
+      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
+      expect(described_class).not_to respond_to :request_kind
+      expect(described_class.plan(request: 'what color is a cherry')).to eq([])
     end
 
     it 'falls back generically when LLM is disabled (no static domain scripts)' do
@@ -462,23 +462,26 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(info[:item]).to include('locate')
 
       ctx = described_class.plan_context(state: state)
-      expect(ctx).to include('English tangible tasks are the SOLE driver')
+      expect(ctx).to include('advisory compass')
+      expect(ctx).not_to include('SOLE driver')
       expect(ctx).to include('▶ task 1/3:')
       expect(ctx).to include('task 2/3:')
+      expect(ctx).to include("Original request (immutable): #{goal}")
 
       first = described_class.active_task_prompt(state: state, force: true)
       expect(first).to include('Active:')
       expect(first).to include('task 1/3:')
+      expect(first).to include("Original request (immutable): #{goal}")
       # second call same idx → nil (no spam)
       expect(described_class.active_task_prompt(state: state)).to be_nil
 
       state[:plan_idx] = 1
       nxt = described_class.active_task_prompt(state: state)
-      expect(nxt).to match(%r{focus on task 2/3:}i)
+      expect(nxt).to match(%r{Compass: task 2/3:}i)
+      expect(nxt).to include("Original request (immutable): #{goal}")
     end
 
-    it 'record! emits advancement brief when plan_idx moves' do
-      # Drive PRM streak on locate task with search intents
+    it 'record! does not treat two successful searches as finishing the whole plan' do
       line = nil
       2.times do
         line = described_class.record!(
@@ -488,7 +491,70 @@ describe PWN::AI::Agent::TaskSummarizer do
           result: '{"success":true,"result":{"stdout":"hit","exit":0}}'
         )
       end
-      expect(state[:plan_idx]).to be >= 1
+      expect(state[:plan_idx]).to be < (state[:plan].length - 1)
+      expect(described_class.plan_open?(state: state)).to eq true
+      leftover = described_class.unfinished_tasks(state: state).map { |t| t[:idx] }
+      expect(leftover).to include(2)
+    end
+
+    it 'two ls/find calls do not skip to the last English task' do
+      described_class.active_task_prompt(state: state, force: true)
+      briefs = [
+        'ls /opt/pwn/lib/pwn/ai/agent',
+        'find /opt/pwn/lib -name task_summarizer.rb'
+      ].map do |cmd|
+        described_class.record!(
+          state: state,
+          name: 'shell',
+          args: { 'command' => cmd },
+          result: '{"success":true,"result":{"stdout":"task_summarizer.rb","exit":0}}'
+        )
+      end
+
+      expect(state[:plan_idx]).to be < (state[:plan].length - 1)
+      expect(briefs.join).not_to match(/Completed task/i)
+
+      info = described_class.active_task(state: state)
+      leftover = described_class.unfinished_tasks(state: state).map { |t| t[:idx] }
+      expect(described_class.plan_open?(state: state)).to eq true
+      expect(leftover).to include(2)
+      # Covered locate must not keep focus on task 1 while later work is open.
+      expect(info[:idx]).to eq(leftover.min)
+      expect(info[:idx]).not_to eq(state[:plan].length - 1)
+    end
+
+    it 'active_task_prompt stays quiet once every English task is covered' do
+      st = described_class.fresh(request: 'what is my hostname?')
+      st[:plan] = [
+        'Determine the local hostname',
+        'Present the result and report completion'
+      ]
+      st[:plan_idx] = 0
+      st[:plan_emitted] = true
+      described_class.record!(
+        state: st,
+        name: 'shell',
+        args: { 'command' => 'hostname' },
+        result: '{"success":true,"result":{"stdout":"kali-box","exit":0}}'
+      )
+      expect(described_class.plan_open?(state: st)).to eq false
+      expect(described_class.active_task_prompt(state: st, force: true)).to be_nil
+    end
+
+    it 'record! emits advancement brief only on real handoff to the next English task' do
+      described_class.record!(
+        state: state,
+        name: 'shell',
+        args: { 'command' => 'rg TaskSummarizer lib' },
+        result: '{"success":true,"result":{"stdout":"lib/pwn/ai/agent/task_summarizer.rb","exit":0}}'
+      )
+      line = described_class.record!(
+        state: state,
+        name: 'shell',
+        args: { 'command' => 'sed -i s/truncation/fixed/ lib/pwn/ai/agent/task_summarizer.rb' },
+        result: '{"success":true,"result":{"stdout":"patched task_summarizer.rb","exit":0}}'
+      )
+      expect(state[:plan_idx]).to eq 1
       expect(line).to be_a(String)
       expect(line).to match(%r{Advanced past task 1/3}i)
       expect(line).to match(%r{now task 2/3:}i)
@@ -574,8 +640,7 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(q).to include('run rspec to verify')
     end
 
-    it 'apply_prm_advancement! advances on +1 intent-matched streak and holds on -1' do
-      # first +1 alone is only a streak, not yet advance
+    it 'apply_prm_advancement! holds on +1 search streak and on -1; advances on next-task handoff' do
       described_class.apply_prm_advancement!(
         state: state,
         rewards: [1],
@@ -583,7 +648,7 @@ describe PWN::AI::Agent::TaskSummarizer do
         names: ['shell']
       )
       expect(state[:plan_idx]).to eq 0
-      expect(%i[streak advance]).to include(state[:last_prm_signal])
+      expect(state[:last_prm_signal].to_s).to match(/hold|streak/)
 
       described_class.apply_prm_advancement!(
         state: state,
@@ -591,8 +656,19 @@ describe PWN::AI::Agent::TaskSummarizer do
         intents: %w[search read],
         names: ['shell']
       )
+      # Two successful searches must NOT complete "locate the source".
+      expect(state[:plan_idx]).to eq 0
+
+      state[:tools_on_task] = 2
+      described_class.apply_prm_advancement!(
+        state: state,
+        rewards: [1],
+        intents: ['edit'],
+        names: ['shell'],
+        result: 'patched task_summarizer.rb'
+      )
       expect(state[:plan_idx]).to eq 1
-      expect(state[:last_prm_signal]).to eq :advance
+      expect(state[:last_prm_signal].to_s).to match(/advance/)
 
       hold_idx = state[:plan_idx]
       described_class.apply_prm_advancement!(
@@ -643,105 +719,260 @@ describe PWN::AI::Agent::TaskSummarizer do
     end
   end
 
-  describe 'request_kind: statement | question | autonomous_goal' do
+  describe 'task compass (no request type)' do
     before do
       allow(PWN::Env).to receive(:dig).and_call_original
       allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)
-      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :request_kind_llm).and_return(false)
     end
 
-    it 'exposes request_kind and needs_task_breakdown?' do
-      expect(described_class).to respond_to :request_kind
+    it 'has no request_kind classifier' do
+      expect(described_class).not_to respond_to :request_kind
+      expect(described_class).not_to respond_to :heuristic_request_kind
+      expect(described_class).not_to respond_to :parse_kind_label
+      expect(described_class).not_to respond_to :chat_for_kind
       expect(described_class).to respond_to :needs_task_breakdown?
-      expect(described_class).to respond_to :llm_kind_enabled?
-      expect(described_class).to respond_to :heuristic_request_kind
-      expect(described_class).to respond_to :llm_classify_kind
-      expect(described_class).to respond_to :chat_for_kind
-      expect(described_class).to respond_to :parse_kind_label
+      expect(described_class.needs_task_breakdown?(request: 'anything')).to eq(true)
     end
 
-    it 'classifies general statements without multi-step plans' do
-      req = 'FYI the staging build is green.'
-      expect(described_class.request_kind(request: req)).to eq(:statement)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(false)
-      st = described_class.fresh(request: req)
-      expect(st[:request_kind]).to eq(:statement)
-      expect(described_class.plan(request: req, state: st)).to eq([])
-      expect(st[:plan_source].to_s).to match(/no_breakdown/)
-      text = described_class.emit_plan!(state: st)
-      expect(text.to_s).to match(/Request type: statement/i)
-      expect(text.to_s).not_to match(%r{task 1/\d+:})
-    end
-
-    it 'classifies questions without multi-step plans' do
-      req = 'what is the default GQRX remote-control port?'
-      expect(described_class.request_kind(request: req)).to eq(:question)
-      expect(described_class.needs_task_breakdown?(kind: :question)).to eq(false)
-      expect(described_class.plan(request: req)).to eq([])
-    end
-
-    it 'classifies host-evidence questions as autonomous goals' do
-      req = 'what is my hostname?'
-      expect(described_class.request_kind(request: req)).to eq(:autonomous_goal)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
-      expect(described_class.request_kind(request: 'excellent - what is my hostname?')).to eq(:autonomous_goal)
-    end
-
-    it 'classifies autonomous goals and decomposes into ordered work units' do
+    it 'fresh state has no request_kind and format_plan has no Request type line' do
       req = 'refactor the authentication middleware and add unit tests'
-      expect(described_class.request_kind(request: req)).to eq(:autonomous_goal)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
+      st = described_class.fresh(request: req)
+      expect(st).not_to have_key(:request_kind)
       steps = [
         'locate the authentication middleware source',
         'refactor the middleware for clarity and safety',
         'add unit tests covering the new behavior',
         'run the test suite and report completion'
       ]
-      st = described_class.fresh(request: req)
       tasks = described_class.plan(request: req, state: st, tasks: steps)
       expect(tasks.length).to be >= 3
-      expect(st[:request_kind]).to eq(:autonomous_goal)
-      text = described_class.format_plan(tasks: tasks, request: req, request_kind: :autonomous_goal)
-      expect(text).to match(/Request type: autonomous_goal/)
+      text = described_class.format_plan(tasks: tasks, request: req)
+      expect(text).not_to match(/Request type/)
       expect(text).to match(/Tangible tasks/)
       expect(text).to match(%r{task 1/\d+:})
-      # each work unit may use many tools — banner still says so
-      expect(text).to match(/one or more tools/i)
     end
 
-    it 'treats polite agent-do questions as autonomous goals' do
-      req = 'can you fix the truncation bug in TaskSummarizer?'
-      expect(described_class.request_kind(request: req)).to eq(:autonomous_goal)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
+    it 'plan_open? stays true until mutate and verify English tasks have evidence' do
+      st = described_class.fresh(request: 'locate, fix, verify')
+      st[:plan] = [
+        'locate the TaskSummarizer source',
+        'fix the truncation bug',
+        'run rspec to verify'
+      ]
+      st[:plan_idx] = 0
+      expect(described_class.plan_open?(state: st)).to eq true
+
+      described_class.record!(
+        state: st,
+        name: 'shell',
+        args: { 'command' => 'rg TaskSummarizer lib' },
+        result: '{"success":true,"result":{"stdout":"lib/pwn/ai/agent/task_summarizer.rb","exit":0}}'
+      )
+      expect(described_class.plan_open?(state: st)).to eq true
+      expect(described_class.unfinished_tasks(state: st).map { |t| t[:idx] }).to include(1, 2)
+
+      described_class.record!(
+        state: st,
+        name: 'shell',
+        args: { 'command' => 'sed -i s/bug/fix/ lib/pwn/ai/agent/task_summarizer.rb' },
+        result: '{"success":true,"result":{"stdout":"patched task_summarizer.rb","exit":0}}'
+      )
+      open_idx = described_class.unfinished_tasks(state: st).map { |t| t[:idx] }
+      expect(open_idx).to include(2)
+      expect(open_idx).not_to include(1)
+      expect(described_class.plan_open?(state: st)).to eq true
+
+      described_class.record!(
+        state: st,
+        name: 'shell',
+        args: { 'command' => 'bundle exec rspec spec/lib/pwn/ai/agent/task_summarizer_spec.rb' },
+        result: '{"success":true,"result":{"stdout":"12 examples, 0 failures","exit":0}}'
+      )
+      expect(described_class.plan_open?(state: st)).to eq false
+      expect(described_class.unfinished_tasks(state: st)).to eq([])
     end
 
-    it 'honors injected llm_kind and parse_kind_label' do
-      expect(described_class.parse_kind_label(raw: 'STATEMENT')).to eq(:statement)
-      expect(described_class.parse_kind_label(raw: 'question')).to eq(:question)
-      expect(described_class.parse_kind_label(raw: 'autonomous_goal')).to eq(:autonomous_goal)
-      expect(described_class.parse_kind_label(raw: 'Label: goal')).to eq(:autonomous_goal)
-      expect(
-        described_class.request_kind(request: 'ambiguous residual text here', llm_kind: 'question')
-      ).to eq(:question)
+    it 'task_phase classifies English stems (locate/verify/change), not only exact \b-words' do
+      expect(described_class.send(:task_phase, item: 'locate the TaskSummarizer source')).to eq(:discover)
+      expect(described_class.send(:task_phase, item: 'identify where tasks are skipped')).to eq(:discover)
+      expect(described_class.send(:task_phase, item: 'Determine the local hostname')).to eq(:discover)
+      expect(described_class.send(:task_phase, item: 'change the advancement logic')).to eq(:mutate)
+      expect(described_class.send(:task_phase, item: 'improve completion handling')).to eq(:mutate)
+      expect(described_class.send(:task_phase, item: 'Refactor Loop.run')).to eq(:mutate)
+      expect(described_class.send(:task_phase, item: 'Verify the result and report completion')).to eq(:present)
+      expect(described_class.send(:task_phase, item: 'Present the result and report completion')).to eq(:present)
+      expect(described_class.send(:task_phase, item: 'Verify full task completion end-to-end')).to eq(:verify)
+      expect(described_class.send(:task_phase, item: 'run rspec to verify')).to eq(:verify)
     end
 
-    it 'uses chat_for_kind when request_kind_llm is enabled' do
-      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :request_kind_llm).and_return(true)
-      allow(described_class).to receive(:chat_for_kind).and_return('statement')
-      # Strong goal regex still wins before LLM for known agent-do.
-      expect(described_class.request_kind(request: 'implement the feature')).to eq(:autonomous_goal)
-      # Ambiguous residual goes to LLM.
-      expect(described_class.request_kind(request: 'the purple widgets arrived yesterday afternoon')).to eq(:statement)
-      expect(described_class).to have_received(:chat_for_kind).at_least(:once)
+    it 'host-evidence plans close after a live lookup (forced closer is not a test-runner verify)' do
+      st = described_class.fresh(request: 'what is my hostname?')
+      closer = described_class.send(
+        :normalize_task_list,
+        tasks: ['Determine the local hostname'],
+        goal: 'what is my hostname?'
+      )
+      expect(closer.join(' ')).not_to match(/\brspec\b|\brubocop\b/)
+      expect(described_class.send(:task_phase, item: closer.last)).not_to eq(:verify)
+      st[:plan] = closer
+      st[:plan_idx] = 0
+      described_class.record!(
+        state: st,
+        name: 'shell',
+        args: { 'command' => 'hostname' },
+        result: '{"success":true,"result":{"stdout":"kali-box","exit":0}}'
+      )
+      expect(described_class.plan_open?(state: st)).to eq false
+      expect(described_class.unfinished_tasks(state: st)).to eq([])
     end
 
-    it 'about_to does not invent a multi-step plan for questions' do
+    it 'three on-task discover tools advance one English task and do not jump to the last' do
+      st = described_class.fresh(request: 'map then fix then verify')
+      st[:plan] = [
+        'locate the TaskSummarizer source',
+        'identify where planned tasks are skipped',
+        'Implement the completion fix',
+        'Verify full task completion end-to-end'
+      ]
+      st[:plan_idx] = 0
+      3.times do |i|
+        described_class.record!(
+          state: st,
+          name: 'shell',
+          args: { 'command' => "rg TaskSummarizer lib #{i}" },
+          result: '{"success":true,"result":{"stdout":"lib/pwn/ai/agent/task_summarizer.rb","exit":0}}'
+        )
+      end
+      expect(st[:plan_idx]).to eq 1
+      expect(st[:plan_idx]).to be < (st[:plan].length - 1)
+      expect(described_class.plan_open?(state: st)).to eq true
+    end
+
+    it 'a verify task is covered after the verifier ran, even with remaining offenses' do
+      st = described_class.fresh(request: 'run rubocop')
+      st[:plan] = [
+        'Refactor Loop.run',
+        'run rubocop to verify'
+      ]
+      st[:plan_idx] = 1
+      described_class.record!(
+        state: st,
+        name: 'shell',
+        args: { 'command' => 'bundle exec rubocop lib/pwn/ai/agent/loop.rb' },
+        result: '{"success":true,"result":{"stdout":"4 offenses detected","exit":1}}'
+      )
+      leftover = described_class.unfinished_tasks(state: st).map { |t| t[:idx] }
+      expect(leftover).not_to include(1)
+    end
+
+    it 'five successful ls/find shells never skip a 5-step mapping plan to the last task' do
+      st = described_class.fresh(request: 'map then fix autonomous_goal completion')
+      st[:plan] = [
+        'Map how autonomous_goal plans, tracks, and completes work units',
+        'Identify where and why planned tasks are skipped',
+        'Determine the root cause of premature finalized responses',
+        'Implement fixes so every planned task is finished',
+        'Verify full task completion end-to-end'
+      ]
+      st[:plan_idx] = 0
+      st[:plan_emitted] = true
+      5.times do |i|
+        described_class.record!(
+          state: st,
+          name: 'shell',
+          args: { 'command' => "ls /opt/pwn && find lib -name '*#{i}*'" },
+          result: '{"success":true,"result":{"stdout":"/opt/pwn","exit":0}}'
+        )
+      end
+      expect(st[:plan_idx]).to be < (st[:plan].length - 1)
+      expect(described_class.plan_open?(state: st)).to eq true
+      unfinished = described_class.unfinished_tasks(state: st).map { |t| t[:item] }
+      expect(unfinished.join(' ')).to match(/Implement|Verify/i)
+    end
+
+    it 'about_to plans a question-shaped request with no request type' do
       req = 'what flags does nmap use for a ping scan?'
       st = described_class.fresh(request: req)
-      line = described_class.about_to(tools: [{ name: 'shell', args: { 'command' => 'man nmap' } }], state: st)
-      # May brief tools, but plan stays empty
-      expect(Array(st[:plan])).to eq([])
-      expect(st[:request_kind]).to eq(:question)
+      described_class.about_to(tools: [{ name: 'shell', args: { 'command' => 'man nmap' } }], state: st)
+      expect(st).not_to have_key(:request_kind)
+    end
+  end
+
+  describe 'original request visibility and PLAN: wrapper resistance' do
+    let(:original) do
+      'Fix TaskSummarizer so that it has visibility of the original request made by the user so tasks are relevant to the original request.'
+    end
+    let(:wrapped) do
+      <<~REQ
+        REQUEST:
+        GOAL: #{original}
+
+        PLAN:
+        1. shell command="rg -n --glob '!{vendor,tmp,pkg,.git,coverage}/**' -e 'TaskSummarizer|task_summarizer' /opt/pwn/lib /opt/pwn/spec /opt/pwn/bin"
+        2. shell command="sed -n '1,260p' /opt/pwn/lib/pwn/ai/agent/task_summarizer.rb"
+        3. shell command="rg -n -e original_request /opt/pwn/lib/pwn/ai"
+      REQ
+    end
+
+    it 'canonical_request strips GOAL/PLAN wrappers down to the operator ask' do
+      expect(described_class.canonical_request(request: wrapped)).to eq(original)
+      expect(described_class.canonical_request(request: original)).to eq(original)
+      collapsed = "GOAL: #{original} PLAN: 1. shell command=\"rg TaskSummarizer\" 2. shell command=\"sed -n 1,20p file\""
+      expect(described_class.canonical_request(request: collapsed)).to eq(original)
+    end
+
+    it 'fresh pins original_request to the canonical ask, not the PLAN: scaffold' do
+      st = described_class.fresh(request: wrapped)
+      expect(st[:original_request]).to eq(original)
+      expect(st[:request]).to eq(original)
+      expect(st[:request]).not_to match(/shell command=/i)
+    end
+
+    it 'plan does not treat PLAN: tool-call enumerations as English tasks' do
+      allow(described_class).to receive(:chat_for_plan).and_return(
+        [
+          'Locate the TaskSummarizer component and how it builds tasks',
+          'Identify where the original user request is available in the call chain',
+          'Update TaskSummarizer so it receives and uses the original user request',
+          'Verify generated tasks stay relevant to that original request'
+        ].to_json
+      )
+      st = described_class.fresh(request: wrapped)
+      tasks = described_class.plan(request: wrapped, state: st)
+      expect(st[:plan_source]).not_to eq(:enumerated)
+      expect(tasks.join(' ')).not_to match(/shell command=/i)
+      expect(tasks.join(' ').downcase).to match(/original/)
+      expect(st[:original_request]).to eq(original)
+    end
+
+    it 'plan_context and compact focus restate the original request' do
+      st = described_class.fresh(request: wrapped)
+      st[:plan] = [
+        'Locate the TaskSummarizer component',
+        'Identify request visibility in the call chain',
+        'Update TaskSummarizer to use the original request'
+      ]
+      st[:plan_idx] = 0
+      st[:plan_emitted] = true
+
+      ctx = described_class.plan_context(state: st)
+      expect(ctx).to include("Original request (immutable): #{original}")
+      expect(ctx).not_to include('shell command=')
+
+      first = described_class.active_task_prompt(state: st, force: true)
+      expect(first).to include("Original request (immutable): #{original}")
+
+      st[:plan_idx] = 1
+      nxt = described_class.active_task_prompt(state: st)
+      expect(nxt).to include("Original request (immutable): #{original}")
+    end
+
+    it 'still honors genuine English numbered steps from the user' do
+      req = 'Do three things. 1. locate the file 2. patch the truncation 3. add plan on submit'
+      tasks = described_class.plan(request: req)
+      expect(tasks.length).to be >= 3
+      expect(tasks[0].downcase).to include('locate')
+      expect(tasks[1].downcase).to match(/patch|truncat/)
     end
   end
 end
