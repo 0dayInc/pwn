@@ -54,6 +54,44 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src.scan('inject_task_focus!').length).to be >= 3
     end
 
+    it 'does not keep injecting English focus after the plan is covered' do
+      src = File.read(described_class.method(:inject_task_focus!).source_location.first)
+      focus = src[/private_class_method def self\.inject_task_focus!.*?private_class_method def self\.\w+/m]
+      focus ||= src
+      expect(focus).to match(/plan_open\?/)
+    end
+
+    it 'does not tell an open English plan to stop after 3 tools just because budget is hot' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/budget_exhaustion_hot\?/)
+      expect(src).to match(/plan_open\?/)
+      # local ≤3-tool abort is only for a closed/short plan, not mid-goal.
+      expect(src).to match(/english_open|plan_open\?/)
+    end
+
+    it 'parks stale extra budget scars even while the host is hot' do
+      tmp = Dir.mktmpdir
+      stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+      PWN::AI::Agent::Mistakes.reset if PWN::AI::Agent::Mistakes.respond_to?(:reset)
+      a = PWN::AI::Agent::Mistakes.record(
+        tool: 'agent_loop',
+        error: '[pwn-ai] iteration budget exhausted A',
+        shape: 'budget_exhausted'
+      )
+      b = PWN::AI::Agent::Mistakes.record(
+        tool: 'agent_loop',
+        error: '[pwn-ai] iteration budget exhausted B',
+        shape: 'budget_exhausted'
+      )
+      described_class.send(:maybe_park_budget_scars!)
+      parked_n = [a, b].count do |m|
+        PWN::AI::Agent::Mistakes.find(signature: m[:signature])[:parked]
+      end
+      expect(parked_n).to be >= 1
+    ensure
+      FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
+    end
+
     it 're-ranks Registry tools from English tangible tasks after plan (sole driver)' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/TaskSummarizer\.relevance_query/)
@@ -82,7 +120,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
       last_plan = { plan: %w[identify implement verify], plan_idx: 2 }
       msgs_mut = msgs + [
-        { role: 'tool', content: '{"success":true,"result":{"stdout":"0 offenses detected"}}' }
+        { role: 'tool', content: '{"success":true,"result":{"stdout":"patched loop.rb\n0 offenses detected"}}' }
       ]
       r_mut = loop_mod.send(
         :evidence_enough_to_finalize?,
@@ -98,10 +136,117 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       )
       expect(r_bare).to be false
 
+      # plan_idx on last item is not enough if mutate/verify English tasks lack evidence
+      r_idx_only = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: msgs, turn_fails: {}, i: 5, max_iters: 40,
+        request: 'fix p17', plan_steps: 3, ts_state: last_plan
+      )
+      expect(r_idx_only).to be false
+
       # call site must pass ts_state
       src = File.read(loop_mod.method(:run).source_location.first)
       expect(src).to match(/evidence_enough_to_finalize\?\([\s\S]*?ts_state: ts_state/)
-      expect(src).to match(/English-task gate/)
+      expect(src).to match(/original request|request is the completion/i)
+    end
+
+    it 'P17 does not inject finalize while implement/verify English tasks remain open' do
+      loop_mod = described_class
+      ls_find = [
+        { role: 'user', content: 'map then implement then verify' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"ls: loop.rb","exit":0}}' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"find: task_summarizer.rb","exit":0}}' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"resolved file listing","exit":0}}' }
+      ]
+      mid = {
+        plan: [
+          'Map how tasks complete',
+          'Implement the completion fix',
+          'Verify full task completion end-to-end'
+        ],
+        plan_idx: 0
+      }
+
+      r_active = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: ls_find, turn_fails: {}, i: 4, max_iters: 40,
+        request: 'map then implement then verify', plan_steps: 3, ts_state: mid
+      )
+      expect(r_active).to be false
+
+      jumped = mid.merge(plan_idx: 2)
+      r_jumped = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: ls_find, turn_fails: {}, i: 4, max_iters: 40,
+        request: 'map then implement then verify', plan_steps: 3, ts_state: jumped
+      )
+      expect(r_jumped).to be false
+      expect(
+        PWN::AI::Agent::TaskSummarizer.plan_open?(state: jumped, messages: ls_find)
+      ).to eq true
+      left = PWN::AI::Agent::TaskSummarizer.unfinished_tasks(state: jumped, messages: ls_find)
+      expect(left.map { |t| t[:item] }.join(' ')).to match(/Implement|Verify/i)
+
+      src = File.read(loop_mod.method(:run).source_location.first)
+      expect(src).to match(/Write the complete final answer now/)
+      expect(src).to match(/evidence_enough_to_finalize\?/)
+      expect(src).to match(/Do NOT call more tools/)
+    end
+
+    it 'P17 can early-final when English tasks are covered even if plan_idx is still 0' do
+      loop_mod = described_class
+      done = {
+        plan: [
+          'Determine the local hostname',
+          'Present the result and report completion'
+        ],
+        plan_idx: 0
+      }
+      msgs = [
+        { role: 'user', content: 'what is my hostname?' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' }
+      ]
+      expect(
+        PWN::AI::Agent::TaskSummarizer.plan_open?(state: done, messages: msgs)
+      ).to eq false
+      r = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: msgs, turn_fails: {}, i: 4, max_iters: 40,
+        request: 'what is my hostname?', plan_steps: 2, ts_state: done
+      )
+      expect(r).to be true
+    end
+
+    it 'P17 can early-final a finished request even while advisory English tasks remain' do
+      loop_mod = described_class
+      leftover_plan = {
+        plan: [
+          'Determine the local hostname',
+          'run rspec to verify'
+        ],
+        plan_idx: 0
+      }
+      msgs = [
+        { role: 'user', content: 'what is my hostname?' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' }
+      ]
+      expect(
+        PWN::AI::Agent::TaskSummarizer.plan_open?(state: leftover_plan, messages: msgs)
+      ).to eq true
+      r = loop_mod.send(
+        :evidence_enough_to_finalize?,
+        messages: msgs, turn_fails: {}, i: 4, max_iters: 40,
+        request: 'what is my hostname?', plan_steps: 2, ts_state: leftover_plan
+      )
+      expect(r).to be true
+    end
+
+    it 'open_plan_blocks_final? does not govern completion — the original request does' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/original request is the completion signal/i)
+      expect(src).not_to match(/if open_plan_blocks_final\?/)
     end
 
     it 'does not put TaskSummarizer into Reward credit paths' do
@@ -472,6 +617,13 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       )
       expect(wire[0].dig(:tool_calls, 0, :function, :arguments)).to eq(command: 'uname')
     end
+  end
+
+  it 'Loop.run finishes the original request; English tasks are advisory only' do
+    src = File.read(described_class.method(:run).source_location.first)
+    expect(src).to match(/original request is the completion signal/i)
+    expect(src).not_to match(/do NOT finalize/i)
+    expect(src).not_to match(/if open_plan_blocks_final\?/)
   end
 
   it 'Loop.run marks the Hermes user-path so TurnFinalizer can defer' do

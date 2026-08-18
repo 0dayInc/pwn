@@ -80,7 +80,11 @@ describe PWN::AI::Agent::Policy do
       kind: :autonomous_goal,
       request: 'fix the reward judge',
       engine: :grok,
-      ts_state: { plan: %w[inspect tighten verify], plan_idx: 2 },
+      ts_state: {
+        plan: %w[inspect tighten verify],
+        plan_idx: 2,
+        evidence_blob: 'inspected reward.rb patched judge 12 examples, 0 failures'
+      },
       final: 'The cheap ORM now grades the last tools and usable result.',
       score: 0.82
     )
@@ -89,6 +93,53 @@ describe PWN::AI::Agent::Policy do
     expect(done_s).to include('|ph')
     expect(done_s).to include('uy|')
     expect(open_s).not_to eq(done_s)
+  end
+
+  it 'quality bin is not high while English tasks remain even if plan_idx is last' do
+    last_but_open = described_class.state(
+      kind: :autonomous_goal,
+      request: 'fix the reward judge',
+      engine: :grok,
+      ts_state: { plan: %w[inspect tighten verify], plan_idx: 2 }
+    )
+    expect(last_but_open).to include('|p')
+    expect(last_but_open).not_to include('|ph')
+  end
+
+  it 'observe_step credits English-task progress above bare tool-ok hygiene' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Policy::POLICY_FILE', File.join(tmp, 'policy.json'))
+    stub_const('PWN::AI::Agent::Policy::TRAJECTORY_FILE', File.join(tmp, 'policy_traj.jsonl'))
+    described_class.reset
+    allow(described_class).to receive(:enabled?).and_return(true)
+    PWN::Env[:ai] ||= {}
+    PWN::Env[:ai][:agent] ||= {}
+    PWN::Env[:ai][:agent][:policy] = true
+
+    ts = {
+      plan: ['locate the source', 'fix the truncation bug', 'run rspec to verify'],
+      plan_idx: 0,
+      evidence_blob: ''
+    }
+    described_class.begin_episode(
+      session_id: 'en_credit',
+      request: 'locate then fix',
+      kind: :autonomous_goal,
+      engine: :grok,
+      ts_state: ts
+    )
+    grind = described_class.observe_step(
+      action: 'shell', ok: true, session_id: 'en_credit', ts_state: ts
+    )
+    ts[:plan_idx] = 1
+    ts[:evidence_blob] = 'rg hit locate the source lib/task_summarizer.rb patched later'
+    advance = described_class.observe_step(
+      action: 'shell', ok: true, session_id: 'en_credit', ts_state: ts
+    )
+    expect(advance[:reward].to_f).to be > grind[:reward].to_f
+  ensure
+    described_class.reset
+    FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
   end
 
   it 'warmup! meets the episode budget so greedy suggestions appear' do

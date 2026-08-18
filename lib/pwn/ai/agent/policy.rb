@@ -36,6 +36,9 @@ module PWN
         EPSILON    = 0.08
         STEP_OK    = 0.05
         STEP_FAIL  = -0.20
+        STEP_TASK  = 0.12
+        STEP_CLOSED = 0.20
+        STEP_GRIND = -0.08
         MAX_TRAJ   = 2_000
         GOLD_MIN   = 0.6
         VISITS_MIN = 2
@@ -147,6 +150,8 @@ module PWN
             started_at: Time.now.utc.iso8601,
             state: s0,
             last_action: 'start',
+            plan_idx: ts_idx(ts_state: opts[:ts_state]),
+            plan_open: ts_open?(ts_state: opts[:ts_state]),
             fails: 0,
             steps: []
           }
@@ -197,6 +202,9 @@ module PWN
                    else
                      ok ? STEP_OK : STEP_FAIL
                    end
+          reward = (reward + english_step_bonus(ep: ep, ts_state: opts[:ts_state], ok: ok, action: action)).round(4)
+          ep[:plan_idx] = ts_idx(ts_state: opts[:ts_state])
+          ep[:plan_open] = ts_open?(ts_state: opts[:ts_state])
           s = ep[:state]
           task = active_task_text(ts_state: opts[:ts_state], request: ep[:request])
           s2 = state(
@@ -724,6 +732,36 @@ module PWN
           opts[:request].to_s
         end
 
+        private_class_method def self.ts_idx(opts = {})
+          ts = opts[:ts_state]
+          ts.is_a?(Hash) ? ts[:plan_idx].to_i : 0
+        end
+
+        private_class_method def self.ts_open?(opts = {})
+          ts = opts[:ts_state]
+          return true unless ts.is_a?(Hash)
+          return true unless defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:plan_open?)
+
+          TaskSummarizer.plan_open?(state: ts)
+        rescue StandardError
+          true
+        end
+
+        private_class_method def self.english_step_bonus(opts = {})
+          ep = opts[:ep]
+          return 0.0 unless ep.is_a?(Hash)
+
+          bonus = 0.0
+          new_idx = ts_idx(ts_state: opts[:ts_state])
+          new_open = ts_open?(ts_state: opts[:ts_state])
+          bonus += STEP_TASK if !ep[:plan_idx].nil? && new_idx > ep[:plan_idx].to_i
+          bonus += STEP_CLOSED if ep[:plan_open] && new_open == false
+          bonus += STEP_GRIND if new_open == false && opts[:ok] && opts[:action].to_s != 'final'
+          bonus
+        rescue StandardError
+          0.0
+        end
+
         private_class_method def self.terminal_reward(opts = {})
           return ((2.0 * opts[:score].to_f) - 1.0).clamp(-1.0, 1.0) unless opts[:score].nil?
 
@@ -800,9 +838,20 @@ module PWN
           plan = Array(ts[:plan]).map { |t| t.to_s.strip }.reject(&:empty?)
           return 'n' if plan.empty?
 
-          idx = ts[:plan_idx].to_i.clamp(0, plan.length)
-          frac = idx.to_f / plan.length
-          return 'h' if frac >= 0.75 || idx >= (plan.length - 1)
+          open = if defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:plan_open?)
+                   TaskSummarizer.plan_open?(state: ts)
+                 else
+                   true
+                 end
+          return 'h' unless open
+
+          left = if defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:unfinished_tasks)
+                   Array(TaskSummarizer.unfinished_tasks(state: ts)).length
+                 else
+                   plan.length
+                 end
+          done = plan.length - left
+          frac = done.to_f / plan.length
           return 'm' if frac >= 0.3
 
           'l'

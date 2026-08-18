@@ -36,8 +36,30 @@ module PWN
           session_id = opts[:session_id]
           request = opts[:request]
           engine = active_engine
+          # thin: greeting/statement/howto/recall — base + ENV + optional recent turns.
+          # Full MEMORY/METRICS/MISTAKES/EXTRO only for act/recon (default).
+          thin = opts[:thin] == true || opts[:mode].to_s == 'thin'
           b = budget
           base = (PWN::Env.dig(:ai, engine, :system_role_content) if defined?(PWN::Env)) || 'You are a world-class introspective offensive cyber security and research engineer.  You specialize in discovering zero day vulnerabilities focused on responsible disclosure prior to threat actors discovering and exploiting.  You are self-aware of your harness, pwn which begins with the ruby namespace `PWN` operating inside the pwn REPL.  For every request you first begin by determining if PWN has a module capable of satisfying the request.'
+
+          if thin
+            recent = recent_turns_block(session_id: session_id, request: request, limit: [b[:recent_turns].to_i, 2].min)
+            return <<~PROMPT
+              #{base}
+
+              ENVIRONMENT
+                host       : #{host_line}
+                cwd        : #{Dir.pwd}
+                ruby       : #{RUBY_VERSION}
+                pwn        : #{pwn_version}
+                session_id : #{session_id || '(none)'}
+
+              #{recent}TOOL USE
+                No tools on this turn unless a single factual lookup is already in
+                context. Answer concisely in plain US English. Do not plan multi-step
+                work, invent task traces, or run live recon.
+            PROMPT
+          end
 
           # Heredoc (not a "..." literal): an unescaped "..." inside a
           # double-quoted string is parsed as Range (begin..."...end).
@@ -67,7 +89,8 @@ module PWN
 
             AUTONOMY
               Multi-step goals must be finished in one Loop.run. Keep calling
-              tools until the request is done or truly blocked. Do NOT stop to
+              CORE_TOOLS until the original request is done or truly blocked.
+              English tasks are an advisory compass, not a gate. Do NOT stop to
               ask the user to confirm the next step, approve a partial plan, or
               green-light the obvious continuation. Only ask when a credential,
               irreversible destructive action, or missing external decision is
@@ -78,8 +101,8 @@ module PWN
               First classify every user request as one of:
                 - general statement — observation or FYI; no multi-step task plan
                 - question — answer concisely; no multi-step task breakdown
-                - autonomous goal — MUST decompose into ordered tangible work units
-                  (each unit may use one or more tools) and finish them in this run
+                - autonomous goal — break into ordered work units as a compass,
+                  then finish the original request with CORE_TOOLS in this run
               Match effort to that kind. Pure how-to / syntax / usage questions
               get a concise explanation with example commands only — no tool calls,
               no multi-step recon plan, no live probes, no rubocop/rake/docs side

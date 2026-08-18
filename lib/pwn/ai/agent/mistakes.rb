@@ -500,6 +500,7 @@ module PWN
           limit   = opts[:limit] || 6
           request = opts[:request].to_s
           open_rows = top(limit: limit * 3, unresolved_only: true)
+          open_rows = open_rows.reject { |m| budget_scar?(mistake: m) } unless request.match?(/budget|iterat|exhaust|\bagent.?loop\b/i)
           # 2.6 — request-conditioned rank (sim × recency × count), same idea
           # as exemplars_for. Stops injecting loudest scar (reward_signal ×13)
           # on every unrelated turn.
@@ -534,6 +535,21 @@ module PWN
           "#{out}\n"
         end
 
+        private_class_method def self.budget_scar?(opts = {})
+          m = opts[:mistake] || opts[:m] || opts
+          return false unless m.is_a?(Hash)
+
+          shape = m[:shape].to_s
+          err = m[:error].to_s.downcase
+          tool = m[:tool].to_s
+          return true if %w[budget_exhausted budget_thrash].include?(shape)
+          return true if err.include?('budget exhausted') || err.include?('iteration budget') || err.include?('budget thrash')
+
+          %w[agent_loop assistant_answer].include?(tool) && err.include?('budget')
+        rescue StandardError
+          false
+        end
+
         private_class_method def self.rank_for_request(opts = {})
           rows = Array(opts[:rows])
           limit = opts[:limit] || 6
@@ -553,6 +569,7 @@ module PWN
             # downrank reward_signal / parked unless the request is about rewards
             penalty = 1.0
             penalty *= 0.05 if m[:tool].to_s == 'reward_signal' && !req.match?(/reward|judge|sentinel|proxy/)
+            penalty *= 0.05 if budget_scar?(mistake: m) && !req.match?(/budget|iterat|exhaust|loop/)
             penalty *= 0.3 if m[:parked] || m[:needs_code_change]
             score = ((sim * 2.0) + (decay * 0.5) + (Math.log2(m[:count].to_i + 1) * 0.3)) * penalty
             # always allow some mass for top-count scars when sim=0 but keep penalty

@@ -315,13 +315,13 @@ module PWN
           return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
           v = PWN::Env.dig(:ai, :agent, :tool_router)
-          # nil = auto: on for ollama (largest single local-model win — ~11k→~3k
-          # schema tokens/turn); off for frontier unless explicitly enabled.
-          return v ? true : false unless v.nil?
+          # nil = auto ON for every engine: ~85 tools / ~50KB schemas bloat every
+          # turn (esp. Grok). Opt out with tool_router: false.
+          return !!v unless v.nil?
 
-          %i[ollama openwebui].include?(PWN::Env.dig(:ai, :active).to_s.downcase.to_sym)
+          true
         rescue StandardError
-          false
+          true
         end
 
         private_class_method def self.metrics_rates
