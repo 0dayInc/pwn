@@ -123,8 +123,7 @@ ai:
     task_summary_every: 5          # When task_summary_verbose: emit Progress every N completed tools.
     task_summary_interval_s: 8.0   # When verbose: also emit when this many seconds elapsed.
     task_summary_verbose: false    # Mid-flight Progress/Finished lines (default: only plan + about_to).
-    task_summary_llm: true         # LLM tangible-task decompose for autonomous goals (default on). false = offline fallback.
-    request_kind_llm: ~            # LLM request_kind classifier (statement|question|autonomous_goal). nil = follow task_summary_llm.
+    task_summary_llm: true         # LLM tangible-task decompose (default on). false = offline fallback.
     max_depth: 3                   # Recursion guard: how many levels deep agent_ask/agent_debate sub-agents may spawn sub-agents.
     auto_introspect: true          # Run Learning.auto_introspect (outcome logging + lesson mining) after every final answer.
     auto_extrospect: true          # Ambient baseline after every final answer (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools stay on-demand.
@@ -136,7 +135,6 @@ ai:
     tool_router: ~                 # Dynamic tool-set slimming. nil = auto (true for ollama / openwebui).
     tool_preference:               # Operator-tunable tool order. Rank bonus + Policy suggested-action list.
       - memory_recall
-      - sessions_view
       - pwn_eval
       - shell
       - mistakes_record
@@ -308,8 +306,7 @@ PWN::Config.refresh_env
 | `ai.agent.task_summary_every` | Integer | `5` | `TaskSummarizer.every_n` | Verbose progress cadence (tools). |
 | `ai.agent.task_summary_interval_s` | Float | `8.0` | `TaskSummarizer.interval_s` | Verbose progress cadence (seconds). |
 | `ai.agent.task_summary_verbose` | Boolean | `false` | `TaskSummarizer.verbose?` | Emit mid-flight `Progress:` / `Finished:` lines; default keeps only plan + about_to. |
-| `ai.agent.task_summary_llm` | Boolean \| `nil` | `nil` (on) | `TaskSummarizer.llm_plan_enabled?` | LLM tangible-task decomposition for autonomous goals. `false` forces offline generic fallback (tests / air-gap). |
-| `ai.agent.request_kind_llm` | Boolean \| `nil` | `nil` (follow `task_summary_llm`) | `TaskSummarizer.llm_kind_enabled?` / `request_kind` | LLM classifier for `statement` \| `question` \| `autonomous_goal`. Cheap intents and host-evidence heuristics still win first; `false` is heuristic-only. |
+| `ai.agent.task_summary_llm` | Boolean \| `nil` | `nil` (on) | `TaskSummarizer.llm_plan_enabled?` | LLM tangible-task decomposition. `false` forces offline generic fallback (tests / air-gap). |
 | `ai.agent.max_depth` | Integer | `3` | `PWN::AI::Agent::Swarm` | Recursion guard for `agent_ask` / `agent_debate` sub-agents spawning sub-agents. |
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `true` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`) stay on-demand. Toggle live via `extro_auto_toggle`. |
@@ -318,7 +315,7 @@ PWN::Config.refresh_env
 | `ai.agent.shell_bash` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.shell_bash?` | When true, `shell` runs via `bash -lc` so bash-only syntax is allowed. Default is POSIX `/bin/sh` and bashisms are rejected with a rewrite hint. |
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active` is `ollama` or `openwebui`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean \| `nil` | `nil` (auto: `true` for `ollama` / `openwebui`) | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate, then `ai.agent.tool_preference`. |
-| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `sessions_view`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Operator-tunable tool order. Keyword fit stays primary; this list is a rank bonus and the default action list Policy quotes in the prompt. Explicit empty list disables preference. |
+| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Operator-tunable tool order. Keyword fit stays primary; act/recon kinds lead with `shell`/`pwn_eval`. Explicit empty list disables preference. |
 | `ai.agent.defer_introspect` | Boolean | `true` | `PWN::AI::Agent::TurnFinalizer` | Run `Learning.auto_introspect` on a background thread after the user-visible reply. Specs and cron stay inline. |
 | `ai.agent.prompt_cache` | Boolean | `true` | `PWN::AI::Agent::PromptCache` | Engine-native prefix cache. Anthropic uses `cache_control`; OpenAI uses `prompt_cache_key`; Grok uses `x-grok-conv-id`; Gemini splits `systemInstruction`. Ollama and Open WebUI have no native prefix-cache field. |
 | `ai.agent.local_introspect` | Symbol | `failure_only` | `PWN::AI::Agent::Learning.auto_introspect` | End-of-turn introspect policy for local engines: `always` · `failure_only` · `every_n` (with `introspect_every_n`). |

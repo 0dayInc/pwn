@@ -65,7 +65,15 @@ module PWN
           # double-quoted string is parsed as Range (begin..."...end).
           # Skills sit in the STATIC prefix (Hermes index) so prompt-cache
           # breakpoints can pin the persona + SKILLS list; MEMORY/LEARNING
-          # remain in the dynamic tail.
+          # remain in the dynamic tail. Mid-turn lean: request + CORE_TOOLS +
+          # known-fix. Expand MEMORY/SKILLS/LEARNING/METRICS/POLICY/EXTRO
+          # only when the turn is stuck or the operator asked for the full harness.
+          expand = opts[:expand_harness] == true || opts[:stuck] == true
+          harness = if expand
+                      "#{skills_block}#{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}"
+                    else
+                      "#{recent_turns_block(session_id: session_id, request: request, limit: [b[:recent_turns].to_i, 1].max)}#{mistakes_block(limit: b[:mistakes], request: request)}"
+                    end
           <<~PROMPT
             #{base}
 
@@ -76,7 +84,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{skills_block}#{memory_block(limit: b[:memory], request: request)}#{recent_turns_block(session_id: session_id, request: request, limit: b[:recent_turns])}#{learning_block(limit: b[:learning])}#{mistakes_block(limit: b[:mistakes], request: request)}#{metrics_block(limit: b[:metrics], engine: engine)}#{policy_block if b[:policy].to_i.positive?}#{extrospection_block if b[:extro]}TOOL USE
+            #{harness}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).
@@ -98,15 +106,10 @@ module PWN
               goal are incorrect behavior.
 
             INTENT AND SCOPE
-              First classify every user request as one of:
-                - general statement — observation or FYI; no multi-step task plan
-                - question — answer concisely; no multi-step task breakdown
-                - autonomous goal — break into ordered work units as a compass,
-                  then finish the original request with CORE_TOOLS in this run
-              Match effort to that kind. Pure how-to / syntax / usage questions
-              get a concise explanation with example commands only — no tool calls,
-              no multi-step recon plan, no live probes, no rubocop/rake/docs side
-              quests, and no invented planner or verification monologue.
+              Every user request is an autonomous goal. Finish it in this run
+              with CORE_TOOLS. English tasks are an advisory compass only.
+              Pure how-to / syntax / usage questions get a concise explanation
+              with example commands only — no invented planner monologue.
               Pure prior-turn recall ("what did I just say?") is answered from the
               RECENT TURNS block or one memory_recall — never a multi-tool plan.
               Pure greetings / light smalltalk short-circuit to a fixed ack — never

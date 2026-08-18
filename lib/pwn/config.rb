@@ -160,7 +160,7 @@ module PWN
             # LLM tangible-task decomposition for autonomous goals (default on).
             task_summary_llm: nil,
             tool_router: nil, # nil = auto (true when :active is local :ollama/:openwebui) — cuts ~11k→~3k schema tokens
-            tool_preference: %w[memory_recall sessions_view pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember],
+            tool_preference: %w[memory_recall pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember],
             escalation_persona: 'escalator', # Swarm persona for frontier corrective hints when a local model is stuck
             # sample E3 verify_as_reward: true|false|nil(auto: ~10% local / always frontier when CLAIM_RX hits)
             verify_as_reward: nil,

@@ -47,7 +47,10 @@ module PWN
         # (or other rank features) tie. Overridable via opts[:order],
         # opts[:preference], or PWN::Env[:ai][:agent][:tool_preference].
         # Explicit nil/empty order disables preference (no Env/DEFAULT fallback).
-        DEFAULT_PREFERENCE = %w[memory_recall sessions_view pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
+        # Recall-first fallback; kind-aware preference_order leads act/recon
+        # with shell / pwn_eval. Names stay inside CORE_TOOLS.
+        DEFAULT_PREFERENCE = %w[memory_recall pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
+        ACT_PREFERENCE = %w[shell pwn_eval memory_recall mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
 
         @entries = {}
         @discovered = false
@@ -119,8 +122,12 @@ module PWN
           pref_fwd = {}
           pref_fwd[:order] = opts[:order] if opts.key?(:order)
           pref_fwd[:preference] = opts[:preference] if opts.key?(:preference)
+          pref_fwd[:kind] = opts[:kind] if opts.key?(:kind)
+          pref_fwd[:intent] = opts[:intent] if opts.key?(:intent)
 
-          if opts[:relevance] && router_enabled?
+          if opts[:core_only]
+            pool = pool.select { |e| CORE_TOOLS.include?(e.name) }
+          elsif opts[:relevance] && router_enabled?
             keep = rank({ query: opts[:relevance], entries: pool }.merge(pref_fwd)).first(opts[:top_k] || 10).map(&:name)
             names = (CORE_TOOLS + keep).uniq
             pool  = pool.select { |e| names.include?(e.name) }
@@ -147,8 +154,9 @@ module PWN
 
           raw = nil
           raw = PWN::Env.dig(:ai, :agent, :tool_preference) if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
-          raw = DEFAULT_PREFERENCE if raw.nil? || (raw.respond_to?(:empty?) && raw.empty?)
-          Array(raw).map(&:to_s).reject(&:empty?)
+          return Array(raw).map(&:to_s).reject(&:empty?) unless raw.nil? || (raw.respond_to?(:empty?) && raw.empty?)
+
+          ACT_PREFERENCE.dup
         rescue StandardError
           DEFAULT_PREFERENCE.dup
         end

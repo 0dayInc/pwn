@@ -107,12 +107,11 @@ describe 'P0 signal hygiene (handler + inbox + policy-cold + calibrate)' do
     expect(one[:n]).to eq(1)
   end
 
-  it 'classifies review/opinion asks as questions' do
+  it 'treats review/opinion asks as goals with no request type' do
     allow(PWN::Env).to receive(:dig).and_call_original
-    allow(PWN::Env).to receive(:dig).with(:ai, :agent, :request_kind_llm).and_return(false)
     allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)
-    expect(PWN::AI::Agent::TaskSummarizer.request_kind(request: 'suggest areas for improvement')).to eq(:question)
-    expect(PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?(request: 'suggest areas for improvement')).to eq(false)
-    expect(PWN::AI::Agent::TaskSummarizer.request_kind(request: 'fix all the issues you just described')).to eq(:autonomous_goal)
+    expect(PWN::AI::Agent::TaskSummarizer).not_to respond_to(:request_kind)
+    expect(PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?(request: 'suggest areas for improvement')).to eq(true)
+    expect(PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?(request: 'fix all the issues you just described')).to eq(true)
   end
 end

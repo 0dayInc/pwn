@@ -80,7 +80,7 @@ When keyword fit and other rank scores tie, the registry prefers this
 default order:
 
 ```text
-memory_recall · sessions_view · pwn_eval · shell
+memory_recall · pwn_eval · shell
 mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember
 ```
 

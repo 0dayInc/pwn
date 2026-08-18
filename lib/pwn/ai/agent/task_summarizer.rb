@@ -7,22 +7,12 @@ module PWN
     module Agent
       # High-level executive brief of the work the agent is about to do.
       #
-      # Request kind (statement | question | autonomous_goal) gates planning:
-      #   - general statements and questions -> NO multi-step task breakdown
-      #   - autonomous goals -> MUST decompose into ordered tangible work units
-      #     (each unit may use one or more tools)
-      #
-      # English tangible tasks are PRIMARY (not tool jargon):
-      #   1. plan(request:) — on user submit, break the goal into an ordered
-      #      list of plain-English tasks via the active LLM (each task is a
-      #      coherent unit that may require many tool calls). ONLY autonomous goals (not bare statements/questions).
-      #      Works for any — no static per-domain task lists.
-      #   2. about_to(tools:) — per tool-batch brief led by the active
-      #      "task k/n: <english>" item (same vocabulary as emit_plan!).
-      #      Tool counts/intents are a secondary "via …" suffix only.
-      #   3. active_task_prompt / plan_context — injected into Loop messages
-      #      so generated tasks steer tool choice, not only the TUI.
-      #   4. record! emits an advancement brief when plan_idx moves forward.
+      # Every pwn-ai request is a goal. There is no statement/question/goal
+      # request type. English tangible tasks are an advisory compass:
+      #   1. plan(request:) — break the goal into ordered plain-English tasks
+      #   2. about_to(tools:) — per tool-batch brief led by "task k/n"
+      #   3. active_task_prompt — injected into Loop as a compass only
+      #   4. record! emits an advancement brief when plan_idx moves
       #
       # Never dumps raw commands or tool results into the task row — those
       # stay on the per-tool lines the REPL already prints.
@@ -51,10 +41,8 @@ module PWN
         }.freeze
 
         PLAN_SYSTEM = <<~SYS
-          You are the pwn-ai Task Planner for AUTONOMOUS GOALS only.
-          The caller already classified this request as work the agent must
-          accomplish (not a bare statement or a question). Break it into an
-          ordered list of tangible work units. Rules:
+          You are the pwn-ai Task Planner.
+          Break the user request into an ordered list of tangible work units. Rules:
           - 2..12 tasks. Each task is one coherent unit of work (may need many tools).
           - Plain US English. Imperative mood. No tool names, paths, or shell commands.
           - Cover discovery/recon, the core work, verification, and the requested
@@ -118,7 +106,6 @@ module PWN
           {
             request: req,
             original_request: req,
-            request_kind: opts[:request_kind] || request_kind(request: req),
             events: [],
             since_emit: 0,
             last_emit_at: Time.now,
@@ -279,335 +266,10 @@ module PWN
           line
         end
 
-        # ------------------------------------------------------------------
-        # Top-level request kind (statement | question | autonomous_goal).
-        # General statements and questions must NOT be multi-step planned.
-        # Autonomous goals MUST decompose into ordered tangible work units.
-        #
-        # Classification priority:
-        #   1. Injected kind / llm_kind (tests)
-        #   2. Cheap deterministic intent (greeting/howto/recall/recon)
-        #   3. LLM classify when request_kind_llm/task_summary_llm is on
-        #   4. Regex / structure heuristics (offline fallback)
-        #
-        # Supported Method Parameters::
-        # kind = PWN::AI::Agent::TaskSummarizer.request_kind(
-        #   request: 'required - user text',
-        #   kind: 'optional - precomputed symbol',
-        #   llm_kind: 'optional - injected LLM label (tests)',
-        #   heuristic_only: 'optional - skip LLM (Boolean)'
-        # )
-        # ------------------------------------------------------------------
-        KIND_LABELS = %i[statement question autonomous_goal].freeze
-
-        # Review / opinion asks are questions unless the user also asks to implement.
-        OPINION_REVIEW_RX = /
-          \b(?:
-            suggest\s+(?:areas?|ways?|ideas?)|
-            areas?\s+for\s+improvement|
-            what\s+(?:do\s+you\s+think|would\s+you\s+(?:change|improve))|
-            your\s+(?:take|opinion|assessment|review)\b|
-            briefly\s+describe|
-            review\s+(?:the|this|our)
-          )
-        /ix
-
-        IMPLEMENT_RX = /
-          \b(?:implement|fix\s+all|apply|patch|land|ship)\b
-        /ix
-
-        STATEMENT_RX = /
-      \A\s*(
-        (?:fyi|btw|note|noted|heads\s*up|for\s+the\s+record|just\s+so\s+you\s+know|
-           update|status|reminder|ps)\b |
-        (?:i\s+(?:think|believe|notice|see|observed|found|heard)|looks\s+like|
-           seems\s+like|it\s+seems|it\s+looks)\b |
-        (?:the|this|that)\s+(?:\w+\s+){0,8}(?:is|are|was|were|seems|looks|remains|
-           stays|passed|failed|arrived|landed|shipped|merged)\b |
-        (?:\w+\s+){1,10}(?:is|are|was|were|seems|looks)\s+(?:green|red|done|ready|
-           fine|ok|okay|broken|fixed|up|down|live|quiet)\b
-      )
-    /ix
-
-        # Interrogative openers / trailing ? / how-to phrases.
-        # Also match mid-line "what/why/..." after a short preface
-        # ("excellent - what is my hostname?").
-        # Do NOT treat bare "Do three things..." as a question (imperative goal).
-        QUESTION_RX = /
-          \A\s*(?:
-            (?:what|why|when|where|who|whom|whose|which|how)\b
-            |
-            (?:is|are|was|were|do|does|did|can|could|would|should|may|might|will)\s+
-            (?:i|you|we|they|he|she|it|this|that|there|the|a|an|my|your|our|any|
-               anyone|someone|everyone|something|anything|everything)\b
-          )
-          |
-          (?:\A|\.\s+|[-–—:]\s+|\b)(?:what|why|when|where|who|whom|whose|which|how)\b
-          |
-          \?\s*\z
-          |
-          \b(?:how\s+to|how\s+do\s+i|how\s+can\s+i|explain\s+how|usage\s+of|syntax\s+for)\b
-        /ix
-
-        # Strong "agent, do this" signals — avoid bare nouns like "build"/"scan"
-        # inside ordinary prose ("the build is green", "ping scan flags").
-        AUTONOMOUS_GOAL_RX = /
-          \b(?:
-            (?:please\s+)(?:\w+\s+){0,4}(?:implement|fix|patch|refactor|rewrite|migrate|
-              deploy|install|compile|commit|push|create|remove|delete|update|change|edit|
-              write|run|execute|scan|probe|enumerate|discover|find|locate|audit|harden|
-              resolve|debug|diagnose|investigate|optimize|configure|enable|disable|
-              start|stop|restart|ship|finish|complete|make|ensure|verify)
-            |
-            (?:can|could|would)\s+you\s+(?:please\s+)?(?:\w+\s+){0,3}(?:do|run|fix|
-              implement|scan|find|make|update|change|write|patch|refactor|add|remove|
-              create|locate|resolve|debug|ship|finish)
-            |
-            \bi\s+need\s+you\s+to\b |
-            \byour\s+job\s+is\s+to\b |
-            \bgo\s+ahead\b |
-            \bdo\s+it\b |
-            \bship\s+it\b |
-            \bmake\s+it\s+so\b |
-            \bmake\s+sure\b |
-            # Imperative at start of request (common operator style)
-            \A\s*(?:implement|fix|patch|refactor|rewrite|migrate|deploy|install|
-              compile|commit|push|create|add|remove|delete|update|change|edit|write|
-              run|execute|scan|probe|enumerate|discover|find|locate|audit|harden|
-              resolve|debug|diagnose|investigate|optimize|configure|enable|disable|
-              start|stop|restart|ship|finish|complete|break|decompose|ensure|verify|
-              please)\b
-          )
-        /ix
-
-        # Interrogatives that need a live local lookup (hostname, cwd, whoami…).
-        # These are autonomous_goal so Loop uses tools — not text-only Q&A.
-        NEEDS_LOCAL_EVIDENCE_RX = /
-          \b(?:what(?:'?s|\s+is)|show|print|tell\s+me|get|echo|display|check)\b
-          .{0,80}\b(?:
-            (?:my\s+)?host\s*name|
-            (?:my\s+)?(?:ip|ipv4|ipv6)(?:\s+address)?|
-            (?:my\s+)?(?:cwd|pwd|working\s+directory|present\s+working\s+directory)|
-            whoami|(?:my\s+)?user(?:name)?|(?:logged[- ]?in\s+)?user|
-            (?:my\s+)?kernel|uname\b|
-            uptime|disk\s+usage|free\s+space|memory\s+usage|
-            listening\s+ports?|default\s+route|gateway|
-            (?:this\s+)?(?:machine|host|box|system)\s+(?:name|hostname)
-          )\b
-        /ix
-
-        KIND_SYSTEM = <<~SYS
-                    You classify ONE user request for the pwn-ai agent.
-                    Return ONLY one token from this set:
-                      statement
-                      question
-                      autonomous_goal
-
-                    Definitions:
-                    - statement: FYI, observation, ack, or greeting. No work requested. No answer needed beyond a brief note.
-                    - question: asks for knowledge, explanation, syntax, or prior-turn recall that can be answered without the agent performing multi-step host/code work. Do NOT plan tools.
-                    - autonomous_goal: the agent must DO something — implement/fix/scan/run commands, or answer a fact that requires a live local lookup (hostname, cwd, whoami, listening ports, etc.).
-
-                    Rules:
-                    - "can you fix/implement/scan...?" is autonomous_goal even with a trailing ?
-                    - "how to ..." / "what flags does X use" without "do it here" is question
-                    - "what is my hostname?" / "what is my ip?" is autonomous_goal (needs tools)
-          - "FYI the build is green" is statement
-          - "suggest areas for improvement" / "what do you think" / review-opinion asks are question unless the user also says implement/fix/apply
-          - Prefer autonomous_goal when unsure whether live action is required
-
-                    Output: a single label token. No punctuation, no JSON, no prose.
-        SYS
-
-        # LLM request-kind classifier is ON by default (same knob family as plan LLM).
-        # PWN::Env[:ai][:agent][:request_kind_llm] = false disables it (tests/airgap).
-        # When unset, follows :task_summary_llm (false in unit specs).
-        public_class_method def self.llm_kind_enabled?
-          v = PWN::Env.dig(:ai, :agent, :request_kind_llm)
-          return !!v unless v.nil?
-
-          llm_plan_enabled?
-        rescue StandardError
-          true
-        end
-
-        public_class_method def self.request_kind(opts = {})
-          req = canonical_request(request: opts[:request])
-          req = opts[:request].to_s if req.empty?
-          return :statement if req.strip.empty?
-
-          # Injected precompute (tests / Loop hand-off).
-          if opts.key?(:kind) && !opts[:kind].nil?
-            parsed = parse_kind_label(raw: opts[:kind])
-            return parsed if parsed
-          end
-          if opts.key?(:llm_kind)
-            parsed = parse_kind_label(raw: opts[:llm_kind])
-            return parsed if parsed
-          end
-
-          # Cheap deterministic intent (greeting/howto/recall/recon) — single
-          # source with Loop.request_intent; avoids LLM on pure short-circuits.
-          intent = nil
-          if defined?(PWN::AI::Agent::Loop) && PWN::AI::Agent::Loop.respond_to?(:request_intent)
-            begin
-              intent = PWN::AI::Agent::Loop.request_intent(request: req)
-              case intent
-              when :greeting, :empty
-                return :statement
-              when :howto, :recall
-                return :question
-              when :recon_act
-                return :autonomous_goal
-              end
-              # :act falls through — may still be statement/question/goal
-            rescue StandardError
-              # offline / load-order safe
-            end
-          end
-
-          # Numbered operator checklist is always an autonomous goal.
-          enumerated = begin
-            extract_enumerated_steps(goal: req)
-          rescue StandardError
-            []
-          end
-          strong_goal = enumerated.length >= MIN_PLAN_TASKS ||
-                        req.match?(AUTONOMOUS_GOAL_RX) ||
-                        req.match?(NEEDS_LOCAL_EVIDENCE_RX)
-          return :autonomous_goal if strong_goal
-
-          # Review / opinion / "suggest areas" stay questions unless implement.
-          return :question if req.match?(OPINION_REVIEW_RX) && !req.match?(IMPLEMENT_RX)
-
-          # Default to offline heuristic first (cheap, stable).
-          h = heuristic_request_kind(request: req, intent: intent)
-
-          # LLM kind sidecar ONLY on ambiguous residual within sidecar_timeout:
-          # heuristic fell through to autonomous_goal without a strong goal RX.
-          ambiguous = h == :autonomous_goal && !strong_goal
-          if ambiguous && !opts[:heuristic_only] && llm_kind_enabled?
-            llm_k = llm_classify_kind(request: req)
-            return llm_k if llm_k
-          end
-
-          h
-        rescue StandardError
-          :autonomous_goal
-        end
-
-        # Offline / fallback classifier (regex + length heuristics).
-
-        public_class_method def self.heuristic_request_kind(opts = {})
-          req = opts[:request].to_s
-          return :statement if req.strip.empty?
-
-          return :question if req.match?(OPINION_REVIEW_RX) && !req.match?(IMPLEMENT_RX)
-          return :autonomous_goal if req.match?(AUTONOMOUS_GOAL_RX)
-          return :autonomous_goal if req.match?(NEEDS_LOCAL_EVIDENCE_RX)
-          return :question if req.match?(QUESTION_RX)
-          return :statement if req.match?(STATEMENT_RX)
-
-          stripped = req.gsub(/\s+/, ' ').strip
-          # Short bare remarks are statements unless they look like work or Qs.
-          if stripped.length < 80 && !stripped.match?(/\b(please|need|want|should|must|implement|fix|patch|run|scan)\b/i)
-            return :question if stripped.include?('?')
-
-            # Declarative past/present without agent-do verbs -> statement
-            return :statement if stripped.match?(/\b(is|are|was|were|seems|looks|arrived|passed|failed|done|ready|green)\b/i)
-            return :statement if stripped.length < 48
-          end
-
-          :autonomous_goal
-        rescue StandardError
-          :autonomous_goal
-        end
-
-        # Normalize LLM / caller labels → kind symbol or nil.
-        public_class_method def self.parse_kind_label(opts = {})
-          raw = opts[:raw]
-          return nil if raw.nil?
-
-          s = raw.to_s.strip.downcase
-          return nil if s.empty?
-
-          # Prefer exact kind tokens anywhere in the response ("Label: question").
-          tokens = s.gsub(/[^a-z_]/, ' ').split
-          aliases = {
-            'statement' => :statement, 'statements' => :statement,
-            'fyi' => :statement, 'observation' => :statement,
-            'ack' => :statement, 'greeting' => :statement,
-            'question' => :question, 'questions' => :question,
-            'query' => :question, 'howto' => :question,
-            'how_to' => :question, 'recall' => :question,
-            'autonomous_goal' => :autonomous_goal, 'goal' => :autonomous_goal,
-            'task' => :autonomous_goal, 'act' => :autonomous_goal,
-            'action' => :autonomous_goal, 'work' => :autonomous_goal,
-            'do' => :autonomous_goal
-          }
-          tokens.each do |t|
-            return aliases[t] if aliases.key?(t)
-          end
-
-          joined = tokens.join('_')
-          return aliases[joined] if aliases.key?(joined)
-
-          sym = s.to_sym
-          KIND_LABELS.include?(sym) ? sym : nil
-        rescue StandardError
-          nil
-        end
-
-        # LLM classify path — Reflect/engine chat, no tools. Returns kind or nil.
-        public_class_method def self.llm_classify_kind(opts = {})
-          return nil unless llm_kind_enabled?
-
-          req = opts[:request].to_s
-          return :statement if req.strip.empty?
-
-          raw = chat_for_kind(request: req)
-          parse_kind_label(raw: raw)
-        rescue StandardError => e
-          warn "[pwn-ai/task_summarizer] llm_classify_kind swallowed: #{e.class}: #{e.message}"
-          nil
-        end
-
-        # Public so specs can stub the LLM boundary (mirrors chat_for_plan).
-        public_class_method def self.chat_for_kind(opts = {})
-          req = opts[:request].to_s
-          system = KIND_SYSTEM
-          user = "USER REQUEST:\n#{req}\n\nLabel:"
-          if reflect_available?
-            resp = Reflect.on(
-              request: user,
-              system_role_content: system,
-              suppress_pii_warning: true,
-              spinner: false,
-              timeout: sidecar_timeout,
-              quiet: true
-            )
-            text = reflect_text(resp: resp)
-            return text unless text.to_s.strip.empty?
-          end
-
-          engine_chat(request: user, system_role_content: system)
-        rescue StandardError => e
-          warn "[pwn-ai/task_summarizer] chat_for_kind swallowed: #{e.class}: #{e.message}"
-          ''
-        end
-
-        # True only for autonomous goals — statements/questions skip multi-step plans.
-        #
-        # Supported Method Parameters::
-        # yes = PWN::AI::Agent::TaskSummarizer.needs_task_breakdown?(
-        #   request: 'optional - user text',
-        #   kind: 'optional - precomputed request_kind'
-        # )
+        # Every request gets a task compass. There is no request type.
         public_class_method def self.needs_task_breakdown?(opts = {})
-          kind = opts[:kind]
-          kind = request_kind(request: opts[:request]) if kind.nil?
-          kind.to_sym == :autonomous_goal
-        rescue StandardError
+          return true if opts.is_a?(Hash)
+
           true
         end
 
@@ -635,24 +297,15 @@ module PWN
           goal = raw.gsub(/\s+/, ' ').strip if goal.empty?
           return [] if goal.empty?
 
-          kind = opts[:request_kind]
-          kind = (opts[:state][:request_kind] if opts[:state].is_a?(Hash)) if kind.nil?
-          kind = request_kind(request: goal) if kind.nil?
-          kind = kind.to_sym
-
-          # Statements and questions: never multi-step task breakdown.
-          # (Injected :tasks still honored for tests.)
-          unless needs_task_breakdown?(kind: kind) || opts.key?(:tasks) || opts.key?(:llm_tasks)
-            tasks = []
-            source = :"no_breakdown_#{kind}"
+          if defined?(PWN::AI::Agent::Loop) &&
+             PWN::AI::Agent::Loop.respond_to?(:world_knowledge?) &&
+             !opts.key?(:tasks) && !opts.key?(:llm_tasks) &&
+             PWN::AI::Agent::Loop.world_knowledge?(request: goal)
             if opts[:state].is_a?(Hash)
-              opts[:state][:plan] = tasks
-              opts[:state][:original_request] = goal if opts[:state][:original_request].to_s.empty?
-              opts[:state][:request] = goal if opts[:state][:request].to_s.empty?
-              opts[:state][:request_kind] = kind
-              opts[:state][:plan_source] = source
+              opts[:state][:plan] = []
+              opts[:state][:plan_source] = :no_host_work
             end
-            return tasks
+            return []
           end
 
           source = nil
@@ -671,7 +324,7 @@ module PWN
             tasks = llm_decompose(goal: goal, llm_tasks: opts[:llm_tasks], has_llm_tasks: opts.key?(:llm_tasks))
             source = tasks.any? ? :llm : nil
             if tasks.length < MIN_PLAN_TASKS
-              tasks = fallback_decompose(goal: goal, request_kind: kind)
+              tasks = fallback_decompose(goal: goal)
               source = :fallback
             end
           end
@@ -681,23 +334,13 @@ module PWN
             opts[:state][:plan] = tasks
             opts[:state][:original_request] = goal if opts[:state][:original_request].to_s.empty?
             opts[:state][:request] = goal if opts[:state][:request].to_s.empty?
-            opts[:state][:request_kind] = kind
             opts[:state][:plan_source] = source
           end
           tasks
         rescue StandardError
           goal = opts[:request].to_s.gsub(/\s+/, ' ').strip
-          kind = begin
-            request_kind(request: goal)
-          rescue StandardError
-            :autonomous_goal
-          end
-          if goal.empty? || !needs_task_breakdown?(kind: kind)
-            if opts[:state].is_a?(Hash)
-              opts[:state][:plan] = []
-              opts[:state][:request_kind] = kind
-              opts[:state][:plan_source] = :"no_breakdown_#{kind}"
-            end
+          if goal.empty?
+            opts[:state][:plan] = [] if opts[:state].is_a?(Hash)
             []
           else
             normalize_task_list(tasks: ["Carry out: #{goal}"], goal: goal)
@@ -750,27 +393,10 @@ module PWN
         public_class_method def self.format_plan(opts = {})
           list = Array(opts[:tasks]).map(&:to_s).reject(&:empty?)
           goal = opts[:request].to_s.gsub(/\s+/, ' ').strip
-          kind = opts[:request_kind]
-          kind = request_kind(request: goal) if kind.nil? && !goal.empty?
-          kind = kind.to_s.empty? ? nil : kind.to_sym
-
-          # Statements / questions: no multi-step breakdown banner.
-          if list.empty?
-            return '' if goal.empty?
-
-            case kind
-            when :statement
-              return "Request type: statement — no multi-step task breakdown\nNote: #{goal}"
-            when :question
-              return "Request type: question — no multi-step task breakdown\nQuestion: #{goal}"
-            else
-              return ''
-            end
-          end
+          return '' if list.empty?
 
           n = list.length
           lines = []
-          lines << 'Request type: autonomous_goal' if kind == :autonomous_goal || kind.nil?
           lines << "Goal: #{goal}" unless goal.empty?
           lines << "Tangible tasks (#{n}) — each task may leverage one or more tools to complete its objective(s):"
           list.each_with_index do |t, i|
@@ -793,12 +419,9 @@ module PWN
           request = opts[:request].to_s if request.empty?
           request = canonical_request(request: request)
           request = opts[:request].to_s.gsub(/\s+/, ' ').strip if request.empty?
-          kind = state[:request_kind] || opts[:request_kind] || request_kind(request: request)
-          state[:request_kind] = kind.to_sym
           tasks = state[:plan]
-          # Decompose only when needed (autonomous goals, or empty plan not yet decided).
-          tasks = plan(request: request, state: state, request_kind: kind) if tasks.nil? || Array(tasks).empty?
-          text = format_plan(tasks: tasks, request: request, request_kind: kind)
+          tasks = plan(request: request, state: state) if tasks.nil? || Array(tasks).empty?
+          text = format_plan(tasks: tasks, request: request)
           state[:plan] = Array(tasks)
           state[:plan_text] = text
           state[:plan_emitted] = true
@@ -1022,10 +645,6 @@ module PWN
           goal_lc = goal_text.downcase
           tasks = []
 
-          # Statements / questions never get a synthetic multi-step fallback.
-          kind = opts[:request_kind] || request_kind(request: goal_text)
-          return [] unless needs_task_breakdown?(kind: kind)
-
           # If the operator already spelled improvement bullets, surface them.
           bullets = goal_text.scan(/(?:^|\s)(?:\d+\.|[-*])\s*([^.;]+)/).flatten.map(&:strip)
           bullets = reject_scaffold_tasks(tasks: bullets)
@@ -1035,9 +654,10 @@ module PWN
           end
 
           if howto_goal?(goal: goal_text)
-            # how-to is a question kind; needs_task_breakdown? should already
-            # have returned []. Keep belt-and-suspenders empty list.
-            return []
+            return [
+              'Explain the requested tool usage with concrete examples',
+              'Present the answer clearly'
+            ]
           end
 
           tasks << "Understand the request: #{truncate_goal(goal: goal_text)}"
@@ -1125,13 +745,8 @@ module PWN
 
           tools = normalize_tools(tools: opts[:tools], name: opts[:name], args: opts[:args])
           names = tools.map { |t| t[:name] }
-          # Ensure plan exists only for autonomous goals (statements/questions
-          # deliberately keep an empty plan — no multi-step breakdown).
-          if state.is_a?(Hash) && Array(state[:plan]).empty? && !request.to_s.strip.empty?
-            kind = state[:request_kind] || request_kind(request: request)
-            state[:request_kind] ||= kind
-            plan(request: request, state: state, request_kind: kind) if needs_task_breakdown?(kind: kind)
-          end
+          # Ensure a plan exists so about_to can name the active task.
+          plan(request: request, state: state) if state.is_a?(Hash) && Array(state[:plan]).empty? && !request.to_s.strip.empty?
 
           caps = capabilities_for(names: names)
           counts = tool_counts_phrase(names: names)
@@ -2113,11 +1728,7 @@ module PWN
           puts <<~USAGE
             USAGE:
               state = PWN::AI::Agent::TaskSummarizer.fresh(request: 'ship task briefs to execs')
-              # On user submit — autonomous goals only: LLM breaks into tangible tasks:
-              kind = PWN::AI::Agent::TaskSummarizer.request_kind(request: state[:request])
-              # => :statement | :question | :autonomous_goal
               plan = PWN::AI::Agent::TaskSummarizer.plan(request: state[:request], state: state)
-              # statements/questions => []; autonomous goals => ordered work units
               text = PWN::AI::Agent::TaskSummarizer.emit_plan!(state: state)
               # → "Goal: ...\nTangible tasks (N) — each may use many tools:\n  task 1/N: ...\n  task 2/N: ..."
               # UI: on_tool.call('task', text, '')  # full text, no truncation

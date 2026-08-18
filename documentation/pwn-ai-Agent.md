@@ -126,19 +126,11 @@ full `Loop.run` under a persona overlay) that share a JSONL bus. See
 ## Task summaries (long autonomous turns)
 
 `PWN::AI::Agent::TaskSummarizer` keeps the TUI readable during multi-step work.
-First it classifies the request with `request_kind` (LLM when enabled, else
-heuristics / `request_intent`):
-
-| Kind | Example | Task breakdown |
-|---|---|---|
-| `statement` | "FYI the build is green." | None - brief ack only |
-| `question` | "what is the default GQRX port?" / "how to ...?" | None - concise answer only |
-| `autonomous_goal` | "refactor Loop.run and run rubocop" / "what is my hostname?" | **Required** ordered work units (each may use one or more tools) |
+There is no request type. Every request gets an English task compass.
 
 | Surface | When | Content |
 |---|---|---|
-| `request_kind` | User submit | `statement` \| `question` \| `autonomous_goal` |
-| `emit_plan!` | Autonomous goals only | **Full** goal + ordered plain-English tangible tasks (each may need many tools) |
+| `emit_plan!` | User submit | **Full** goal + ordered plain-English tangible tasks (each may need many tools) |
 | `about_to` | Before each tool batch | **Primary:** `task k/n: <english>` - **secondary:** `via shell×2 (search)` (not raw argv) |
 | `plan_context` / `active_task_prompt` | Into Loop messages | Same English tasks steer tool choice (not TUI-only) |
 | `record!` | After each tool | Advances `plan_idx`; emits English advancement brief when the index moves; verbose progress only if `task_summary_verbose` |
@@ -163,8 +155,7 @@ task_summary: true              # master switch (default on)
 task_summary_every: 5           # verbose progress every N tools
 task_summary_interval_s: 8.0    # or every N seconds (verbose)
 task_summary_verbose: false     # mid-flight Progress: lines
-task_summary_llm: true          # LLM task decompose for autonomous goals (default on)
-request_kind_llm: null          # null = follow task_summary_llm; false = heuristic-only
+task_summary_llm: true          # LLM task decompose (default on)
 max_iters: 75                   # budget pressure may lower the effective cap (stricter on local engines)
 ```
 
@@ -206,7 +197,7 @@ max_iters: 75                   # budget pressure may lower the effective cap (s
 | `reward_llm_timeout` | `12` | seconds for the cheap ORM chat (clamped 2..30) |
 | `verify_as_reward` | `nil` (auto) | browser-grounded claim sample policy |
 | `local_introspect` | `:failure_only` | ollama / openwebui end-of-turn introspect policy |
-| `tool_preference` | memory_recall-first list | Rank bonus + Policy suggested-action order |
+| `tool_preference` | CORE_TOOLS list (act leads with shell) | Rank bonus + Policy suggested-action order |
 | `defer_introspect` | `true` | Post-answer Learning on a background thread |
 | `prompt_cache` | `true` | Engine-native prefix cache (not Ollama / Open WebUI) |
 
@@ -219,28 +210,18 @@ Full detail: [Reinforcement Learning](Reinforcement-Learning.md).
 
 [← Home](Home.md)
 
-## Intent routing (kind + fine-grained intent)
+## Intent routing
 
-Every user turn is classified on two layers:
+There is no request type. Greeting / howto / recall still use `request_intent`
+for cheap short-circuits. Everything else is a goal: TaskSummarizer compass + CORE_TOOLS.
 
-1. **`request_kind`** - `statement` | `question` | `autonomous_goal` (TaskSummarizer is the
-   single source of truth; `Loop.request_kind` delegates). Classification order:
-   injected label (tests) → cheap `request_intent` short-circuits (greeting/howto/recall/recon) →
-   strong agent-do / host-evidence heuristics → **LLM classify** via `chat_for_kind`
-   (when `ai.agent.request_kind_llm` is on / follows `task_summary_llm`) → offline
-   `heuristic_request_kind`. Only autonomous goals receive a multi-step tangible-task plan.
-2. **`request_intent`** - fine-grained route for cheap short-circuits and recon guard.
-
-| Intent | Kind | Example | Behavior |
-|--------|------|---------|----------|
-| How-to | question | "how to do a ping sweep of a subnet using hping3?" | Short explanation with example commands only. No tools and no multi-step plan. |
-| Question | question | "what is the default GQRX remote-control port?" | Concise answer. No multi-step task breakdown. |
-| Host evidence | autonomous_goal | "what is my hostname?" / "excellent - what is my hostname?" | Needs a live local lookup (hostname, cwd, whoami, IP, ...). Treated as a goal so tools run; not text-only Q&A. |
-| Greeting | statement | "Howdy, it's cloudy." / "hi" | Fixed short ack that the system is ready. No tools, no LLM, and no weather echo such as "noted, cloudy out there." |
-| Statement | statement | "FYI the build is green." | Brief note. No multi-step task plan. |
-| Recall | question | "what did I just say?" / "how did you respond?" | Cheap prior-turn answer from the session transcript. No plan_first and no multi-tool archaeology. |
-| Live recon | autonomous_goal | "using hping3 what live hosts can you find in this subnet?" | Needs clear in-scope / authorized engagement wording, or set `ai.agent.recon_authorized=true`. Otherwise the agent refuses and points you at the how-to form. |
-| Act | autonomous_goal | "refactor Loop.run and run rubocop" | Normal multi-step agent work: decompose into ordered work units, each may use one or more tools. |
+| Intent | Example | Behavior |
+|--------|---------|----------|
+| How-to | "how to do a ping sweep of a subnet using hping3?" | Short explanation with example commands only. No tools. |
+| Greeting | "Howdy, it's cloudy." / "hi" | Fixed short ack. No tools, no LLM, no weather echo. |
+| Recall | "what did I just say?" / "how did you respond?" | Cheap prior-turn answer from the session transcript. |
+| Live recon | "using hping3 what live hosts can you find in this subnet?" | Needs in-scope / authorized wording, or `ai.agent.recon_authorized=true`. |
+| Goal | "refactor Loop.run and run rubocop" / "what color is a cherry" | Task compass + CORE_TOOLS. There is no statement/question type. |
 
 The `shell` tool also blocks hping3 / nmap-style sweep commands when recon is
 not authorized. On how-to asks, memory SOPs about repo rubocop/rake hygiene are

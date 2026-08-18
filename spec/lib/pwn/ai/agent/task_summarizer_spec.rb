@@ -364,17 +364,13 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(second).not_to include(subnet_req)
     end
 
-    it 'how-to questions get no multi-step task breakdown' do
+    it 'how-to questions still get a task compass — there is no request type' do
       allow(PWN::Env).to receive(:dig).and_call_original
       allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)
       req = 'how to do a ping sweep of a subnet using hping3?'
-      expect(described_class.request_kind(request: req)).to eq(:question)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(false)
-      tasks = described_class.plan(request: req)
-      expect(tasks).to eq([])
-      banner = described_class.format_plan(tasks: tasks, request: req)
-      expect(banner).to match(/Request type: question/i)
-      expect(banner).not_to match(/Tangible tasks \(\d+\)/)
+      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
+      expect(described_class).not_to respond_to :request_kind
+      expect(described_class.plan(request: 'what color is a cherry')).to eq([])
     end
 
     it 'falls back generically when LLM is disabled (no static domain scripts)' do
@@ -723,96 +719,37 @@ describe PWN::AI::Agent::TaskSummarizer do
     end
   end
 
-  describe 'request_kind: statement | question | autonomous_goal' do
+  describe 'task compass (no request type)' do
     before do
       allow(PWN::Env).to receive(:dig).and_call_original
       allow(PWN::Env).to receive(:dig).with(:ai, :agent, :task_summary_llm).and_return(false)
-      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :request_kind_llm).and_return(false)
     end
 
-    it 'exposes request_kind and needs_task_breakdown?' do
-      expect(described_class).to respond_to :request_kind
+    it 'has no request_kind classifier' do
+      expect(described_class).not_to respond_to :request_kind
+      expect(described_class).not_to respond_to :heuristic_request_kind
+      expect(described_class).not_to respond_to :parse_kind_label
+      expect(described_class).not_to respond_to :chat_for_kind
       expect(described_class).to respond_to :needs_task_breakdown?
-      expect(described_class).to respond_to :llm_kind_enabled?
-      expect(described_class).to respond_to :heuristic_request_kind
-      expect(described_class).to respond_to :llm_classify_kind
-      expect(described_class).to respond_to :chat_for_kind
-      expect(described_class).to respond_to :parse_kind_label
+      expect(described_class.needs_task_breakdown?(request: 'anything')).to eq(true)
     end
 
-    it 'classifies general statements without multi-step plans' do
-      req = 'FYI the staging build is green.'
-      expect(described_class.request_kind(request: req)).to eq(:statement)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(false)
-      st = described_class.fresh(request: req)
-      expect(st[:request_kind]).to eq(:statement)
-      expect(described_class.plan(request: req, state: st)).to eq([])
-      expect(st[:plan_source].to_s).to match(/no_breakdown/)
-      text = described_class.emit_plan!(state: st)
-      expect(text.to_s).to match(/Request type: statement/i)
-      expect(text.to_s).not_to match(%r{task 1/\d+:})
-    end
-
-    it 'classifies questions without multi-step plans' do
-      req = 'what is the default GQRX remote-control port?'
-      expect(described_class.request_kind(request: req)).to eq(:question)
-      expect(described_class.needs_task_breakdown?(kind: :question)).to eq(false)
-      expect(described_class.plan(request: req)).to eq([])
-    end
-
-    it 'classifies host-evidence questions as autonomous goals' do
-      req = 'what is my hostname?'
-      expect(described_class.request_kind(request: req)).to eq(:autonomous_goal)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
-      expect(described_class.request_kind(request: 'excellent - what is my hostname?')).to eq(:autonomous_goal)
-    end
-
-    it 'classifies autonomous goals and decomposes into ordered work units' do
+    it 'fresh state has no request_kind and format_plan has no Request type line' do
       req = 'refactor the authentication middleware and add unit tests'
-      expect(described_class.request_kind(request: req)).to eq(:autonomous_goal)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
+      st = described_class.fresh(request: req)
+      expect(st).not_to have_key(:request_kind)
       steps = [
         'locate the authentication middleware source',
         'refactor the middleware for clarity and safety',
         'add unit tests covering the new behavior',
         'run the test suite and report completion'
       ]
-      st = described_class.fresh(request: req)
       tasks = described_class.plan(request: req, state: st, tasks: steps)
       expect(tasks.length).to be >= 3
-      expect(st[:request_kind]).to eq(:autonomous_goal)
-      text = described_class.format_plan(tasks: tasks, request: req, request_kind: :autonomous_goal)
-      expect(text).to match(/Request type: autonomous_goal/)
+      text = described_class.format_plan(tasks: tasks, request: req)
+      expect(text).not_to match(/Request type/)
       expect(text).to match(/Tangible tasks/)
       expect(text).to match(%r{task 1/\d+:})
-      # each work unit may use many tools — banner still says so
-      expect(text).to match(/one or more tools/i)
-    end
-
-    it 'treats polite agent-do questions as autonomous goals' do
-      req = 'can you fix the truncation bug in TaskSummarizer?'
-      expect(described_class.request_kind(request: req)).to eq(:autonomous_goal)
-      expect(described_class.needs_task_breakdown?(request: req)).to eq(true)
-    end
-
-    it 'honors injected llm_kind and parse_kind_label' do
-      expect(described_class.parse_kind_label(raw: 'STATEMENT')).to eq(:statement)
-      expect(described_class.parse_kind_label(raw: 'question')).to eq(:question)
-      expect(described_class.parse_kind_label(raw: 'autonomous_goal')).to eq(:autonomous_goal)
-      expect(described_class.parse_kind_label(raw: 'Label: goal')).to eq(:autonomous_goal)
-      expect(
-        described_class.request_kind(request: 'ambiguous residual text here', llm_kind: 'question')
-      ).to eq(:question)
-    end
-
-    it 'uses chat_for_kind when request_kind_llm is enabled' do
-      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :request_kind_llm).and_return(true)
-      allow(described_class).to receive(:chat_for_kind).and_return('statement')
-      # Strong goal regex still wins before LLM for known agent-do.
-      expect(described_class.request_kind(request: 'implement the feature')).to eq(:autonomous_goal)
-      # Ambiguous residual goes to LLM.
-      expect(described_class.request_kind(request: 'additional coordination among remaining workstreams continues throughout the rest of the quarter overall')).to eq(:statement)
-      expect(described_class).to have_received(:chat_for_kind).at_least(:once)
     end
 
     it 'plan_open? stays true until mutate and verify English tasks have evidence' do
@@ -953,13 +890,11 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(unfinished.join(' ')).to match(/Implement|Verify/i)
     end
 
-    it 'about_to does not invent a multi-step plan for questions' do
+    it 'about_to plans a question-shaped request with no request type' do
       req = 'what flags does nmap use for a ping scan?'
       st = described_class.fresh(request: req)
-      line = described_class.about_to(tools: [{ name: 'shell', args: { 'command' => 'man nmap' } }], state: st)
-      # May brief tools, but plan stays empty
-      expect(Array(st[:plan])).to eq([])
-      expect(st[:request_kind]).to eq(:question)
+      described_class.about_to(tools: [{ name: 'shell', args: { 'command' => 'man nmap' } }], state: st)
+      expect(st).not_to have_key(:request_kind)
     end
   end
 

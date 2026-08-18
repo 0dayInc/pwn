@@ -249,6 +249,88 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).not_to match(/if open_plan_blocks_final\?/)
     end
 
+    it 'request_unsatisfied? uses request-shaped evidence, not just mutation regex' do
+      ls_only = [
+        { role: 'user', content: 'write complete into /tmp/x.txt and verify it' },
+        {
+          role: 'assistant',
+          tool_calls: [
+            { function: { name: 'shell', arguments: '{"command":"ls /tmp"}' } }
+          ]
+        },
+        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"x","exit":0}}' }
+      ]
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: 'Write complete into /tmp/x.txt and verify it reads complete',
+          messages: ls_only,
+          last_iter: false
+        )
+      ).to eq true
+      # Path-shaped write without the old printf/sed regex still satisfies the request.
+      written = ls_only + [
+        {
+          role: 'assistant',
+          tool_calls: [
+            { function: { name: 'shell', arguments: '{"command":"python3 -c \\"open(\'/tmp/x.txt\',\'w\').write(\'complete\')\\""}' } }
+          ]
+        },
+        {
+          role: 'tool',
+          name: 'shell',
+          content: '{"success":true,"result":{"stdout":"","stderr":"","exit":0}}'
+        }
+      ]
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: 'Write complete into /tmp/x.txt and verify it reads complete',
+          messages: written,
+          last_iter: false
+        )
+      ).to eq false
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: 'what is my hostname?',
+          messages: [
+            { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali","exit":0}}' }
+          ],
+          last_iter: false
+        )
+      ).to eq false
+    end
+
+    it 'does not bounce world-knowledge asks that need no host work' do
+      expect(described_class.needs_host_work?(request: 'what color is a cherry')).to eq false
+      expect(described_class.world_knowledge?(request: 'what color is a cherry')).to eq true
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: 'what color is a cherry',
+          messages: [{ role: 'assistant', content: 'Red.', tool_calls: [] }],
+          last_iter: false
+        )
+      ).to eq false
+      expect(described_class.needs_host_work?(request: 'Write hello into /tmp/x.txt')).to eq true
+    end
+
+    it 'last-iter strips tools only on the true last slot; leftover English tasks do not force required' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/text_only_iters = 1/)
+      expect(src).not_to match(/english_open && hot/)
+      expect(src).to match(/has_tool_result \|\| !need_tools \? 'auto' : 'required'/)
+      expect(src).not_to match(/still_acting/)
+    end
+
+    it 'Loop.run default tool pool is CORE_TOOLS, not the full registry' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/fetch\(:core_only,\s*true\)/)
+      expect(src).to match(/core_only:/)
+      expect(src).to match(/CORE_TOOLS/)
+    end
+
     it 'does not put TaskSummarizer into Reward credit paths' do
       # Loop may call TaskSummarizer executive APIs, not Reward.judge from TaskSummarizer
       ts = File.read(PWN::AI::Agent::TaskSummarizer.method(:plan).source_location.first)
@@ -265,9 +347,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/tool_calls_from_text/)
       expect(src).to match(/_text_tool_coerced/)
       expect(src).to match(/tool_choice/)
-      # stay required while monologue / unfinished; only auto when settled
-      expect(src).to match(/still_acting/)
-      expect(src).to match(/has_tool_result && !still_acting/)
+      # After the first tool result, auto. English leftovers do not keep required.
+      expect(src).to match(/has_tool_result \|\| !need_tools \? 'auto' : 'required'/)
       # normalize_llm must promote text tool forms
       expect(src).to match(/normalize_llm[\s\S]*tool_calls_from_text/m)
       expect(src).to match(/MONOLOGUE_TOOL_INTENT_RX/)
@@ -299,26 +380,16 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(described_class.request_intent(request: 'refactor Loop.run and run rubocop')).to eq(:act)
     end
 
-    it 'request_kind maps statement | question | autonomous_goal' do
-      expect(described_class).to respond_to :request_kind
-      expect(described_class.request_kind(request: 'FYI the build is green.')).to eq(:statement)
-      expect(described_class.request_kind(request: 'how to do a ping sweep with hping3?')).to eq(:question)
-      expect(described_class.request_kind(request: 'what did I just say?')).to eq(:question)
-      expect(described_class.request_kind(request: 'hi')).to eq(:statement)
-      expect(described_class.request_kind(request: 'refactor Loop.run and run rubocop')).to eq(:autonomous_goal)
-      expect(described_class.request_kind(request: 'using hping3 what live hosts can you find in this subnet?')).to eq(:autonomous_goal)
-      # Live host-fact Qs need tools — not text-only question path.
-      expect(described_class.request_kind(request: 'what is my hostname?')).to eq(:autonomous_goal)
-      expect(described_class.request_kind(request: 'excellent - what is my hostname?')).to eq(:autonomous_goal)
+    it 'does not classify request types — Loop has no request_kind' do
+      expect(described_class).not_to respond_to :request_kind
     end
 
-    it 'run short-circuits statement/question but not host-evidence goals' do
+    it 'run does not short-circuit statement/question — they take the full tool loop' do
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).to match(/kind\.to_sym == :statement/)
-      expect(src).to match(/kind\.to_sym == :question/)
-      expect(src).to match(/needs_breakdown/)
-      expect(src).to match(/answer_statement/)
-      expect(src).to match(/answer_question/)
+      expect(src).not_to match(/kind\.to_sym == :statement/)
+      expect(src).not_to match(/kind\.to_sym == :question/)
+      expect(src).not_to match(/Request type/)
+      expect(src).to match(/Every request gets a task compass/)
     end
 
     it 'classifies pure prior-turn recall and vague memory cues as :recall' do
@@ -359,13 +430,10 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     it 'run short-circuits how-to without plan_first or tools' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/request_intent/)
-      expect(src).to match(/request_kind/)
+      expect(src).not_to match(/request_kind/)
       expect(src).to match(/answer_howto/)
-      expect(src).to match(/answer_statement/)
-      expect(src).to match(/answer_question/)
       expect(src).to match(/intent == :howto/)
       expect(src).to match(/skip_plan/)
-      expect(src).to match(/needs_breakdown/)
     end
 
     it 'answer_howto does not register shell tool use in source path' do
@@ -380,8 +448,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/answer_recall/)
       expect(src).to match(/intent == :recall.*?return answer_recall/m)
       expect(src).to match(/skip_plan/)
-      expect(src).to match(/request_kind/)
-      expect(src).to match(/needs_breakdown|autonomous_goal|statement|question/)
+      expect(src).not_to match(/request_kind/)
     end
 
     it 'run short-circuits greetings via answer_greeting before plan_first' do
@@ -390,8 +457,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/answer_greeting/)
       expect(src).to match(/intent == :greeting.*?return answer_greeting/m)
       expect(src).to match(/skip_plan/)
-      expect(src).to match(/request_kind/)
-      expect(src).to match(/needs_breakdown|autonomous_goal|statement|question/)
+      expect(src).not_to match(/request_kind/)
     end
 
     it 'answer_greeting returns fixed ack without weather echo or tools' do
@@ -632,10 +698,10 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     expect(src).to match(/TurnFinalizer\.leave_user_path!/)
   end
 
-  it 'should_auto_introspect skips cheap greeting/question/statement answers' do
+  it 'should_auto_introspect skips cheap greeting/howto/recall answers' do
     src = File.read(described_class.method(:run).source_location.first)
     expect(src).to include('return false if %i[greeting howto recall].include?(intent)')
-    expect(src).to include('return false if kind == :statement')
-    expect(src).to include('return false if kind == :question && fails.zero?')
+    expect(src).not_to include('return false if kind == :statement')
+    expect(src).not_to include('return false if kind == :question && fails.zero?')
   end
 end # rubocop:enable Metrics/BlockLength
