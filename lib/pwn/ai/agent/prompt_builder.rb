@@ -117,6 +117,9 @@ module PWN
               RECENT TURNS block or one memory_recall — never a multi-tool plan.
               Pure greetings / light smalltalk short-circuit to a fixed ack — never
               echo weather or invent social filler ("noted, cloudy out there").
+              World-knowledge questions (what color is X) may be answered as a
+              text final with no tools. Tools stay available; do not invent a
+              host-work plan for them.
               Do not treat process_sop_* or operator_pref_* memory about code
               hygiene as the current user goal unless they asked to change code.
           PROMPT

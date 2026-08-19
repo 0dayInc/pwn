@@ -18,8 +18,8 @@ describe PWN::AI::Grok do
     expect(src).to match(/openai_wire_messages/)
   end
 
-  it 'exposes get_plan_usage for the PS1 subscription suffix' do
-    expect(described_class).to respond_to(:get_plan_usage)
+  it 'does not expose get_plan_usage' do
+    expect(described_class).not_to respond_to(:get_plan_usage)
   end
 
   it 'grok_rest_call swallows ReadTimeout quietly without ERROR: print' do

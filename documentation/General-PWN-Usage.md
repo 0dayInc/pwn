@@ -45,7 +45,7 @@ history                             # what you've typed → copy into a driver
 | `pwn-ai-sessions` | List / view / delete transcripts |
 | `pwn-ai-cron` | List / run scheduled jobs |
 | `pwn-ai-delegate` | Hand a task to a Swarm persona |
-| `toggle-pwn-ai-debug` | Show/hide raw tool_calls JSON |
+| `toggle-pwn-ai-debug` | Stream pwn-ai module progress to the TUI and `/tmp/pwn-ai-DEBUG-TIMESTAMP.log` |
 | `toggle-pwn-ai-speaks` | TTS every final answer on/off |
 | `welcome-banner` | Redraw a random `PWN::Banner` |
 | `toggle-pager` | Pry pager on/off |

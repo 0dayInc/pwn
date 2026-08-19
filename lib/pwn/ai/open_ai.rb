@@ -545,114 +545,6 @@ module PWN
       end
 
       # Supported Method Parameters::
-      # usage = PWN::AI::OpenAI.get_plan_usage(
-      #   timeout: 'optional - seconds (default 8)'
-      # )
-      #
-      # Subscription / billing usage for the PS1 percent suffix.
-      # Tries (1) dashboard billing hard-limit vs month-to-date spend,
-      # then (2) Admin organization costs. Returns {available:false}
-      # when neither yields used+limit (never prompts for credentials).
-      public_class_method def self.get_plan_usage(opts = {})
-        timeout = opts[:timeout] || 8
-        return { available: false, engine: :openai } unless plan_usage_credentials?
-
-        now = Time.now.utc
-        start_of_month = Time.utc(now.year, now.month, 1)
-
-        sub = parse_plan_usage_json(
-          raw: open_ai_rest_call(
-            rest_call: 'dashboard/billing/subscription',
-            timeout: timeout,
-            spinner: false,
-            quiet: true,
-            non_interactive: true
-          )
-        )
-        usage = parse_plan_usage_json(
-          raw: open_ai_rest_call(
-            rest_call: 'dashboard/billing/usage',
-            params: {
-              start_date: start_of_month.strftime('%Y-%m-%d'),
-              end_date: now.strftime('%Y-%m-%d')
-            },
-            timeout: timeout,
-            spinner: false,
-            quiet: true,
-            non_interactive: true
-          )
-        )
-
-        if sub.is_a?(Hash) && usage.is_a?(Hash)
-          limit_usd = (
-            sub[:hard_limit_usd] ||
-            sub[:system_hard_limit_usd] ||
-            sub[:soft_limit_usd] ||
-            sub[:system_soft_limit_usd]
-          ).to_f
-          used_usd = usage[:total_usage].to_f / 100.0
-          normalized = PWN::AI.normalize_plan_usage(
-            used: used_usd,
-            limit: limit_usd,
-            source: 'dashboard/billing',
-            engine: :openai
-          )
-          return normalized if normalized[:available]
-        end
-
-        costs = parse_plan_usage_json(
-          raw: open_ai_rest_call(
-            rest_call: 'organization/costs',
-            params: { start_time: start_of_month.to_i },
-            timeout: timeout,
-            spinner: false,
-            quiet: true,
-            non_interactive: true
-          )
-        )
-        if costs.is_a?(Hash)
-          spent = Array(costs[:data]).sum do |row|
-            amt = row.is_a?(Hash) ? (row[:amount] || row[:results] || {}) : {}
-            if amt.is_a?(Hash)
-              (amt[:value] || amt[:amount] || 0).to_f
-            else
-              amt.to_f
-            end
-          end
-          limit_usd = sub.is_a?(Hash) ? (sub[:hard_limit_usd] || sub[:system_hard_limit_usd]).to_f : 0.0
-          normalized = PWN::AI.normalize_plan_usage(
-            used: spent,
-            limit: limit_usd,
-            source: 'organization/costs',
-            engine: :openai
-          )
-          return normalized if normalized[:available]
-        end
-
-        { available: false, engine: :openai }
-      rescue StandardError
-        { available: false, engine: :openai }
-      end
-
-      private_class_method def self.plan_usage_credentials?
-        engine = PWN::Env.dig(:ai, :openai) || {}
-        oauth = engine[:oauth].is_a?(Hash) ? engine[:oauth] : {}
-        real_config_value?(value: engine[:key]) ||
-          real_config_value?(value: oauth[:bearer_token]) ||
-          real_config_value?(value: oauth[:refresh_token])
-      end
-
-      private_class_method def self.parse_plan_usage_json(opts = {})
-        raw = opts[:raw]
-        return nil if raw.nil?
-
-        parsed = JSON.parse(raw.to_s, symbolize_names: true)
-        parsed.is_a?(Hash) ? parsed : nil
-      rescue JSON::ParserError, TypeError
-        nil
-      end
-
-      # Supported Method Parameters::
       # response = PWN::AI::OpenAI.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
@@ -1286,8 +1178,6 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
-
-          usage = #{self}.get_plan_usage
 
           # One-time ChatGPT/Codex OAuth enrollment (device-code flow):
           bearer = #{self}.obtain_oauth_bearer_token

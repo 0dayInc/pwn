@@ -375,11 +375,10 @@ module PWN
             max_context = PWN::Env[:ai][engine][:max_prompt_length].to_i
             current_context_length = "#{PWN::Plugins::REPL.compact_context_tokens(tokens: used_tokens)}:" \
                                      "#{PWN::Plugins::REPL.compact_context_tokens(tokens: max_context)}"
-            plan_usage_glyph = PWN::AI.plan_usage_glyph(engine: engine)
 
             pname = "pwn.ai:#{engine}"
-            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}/#{plan_usage_glyph}" if model
-            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}/#{plan_usage_glyph}.SPEAK" if pi.config.pwn_ai_speak
+            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}" if model
+            pname = "pwn.ai:#{engine}/#{model}/#{current_context_length}.SPEAK" if pi.config.pwn_ai_speak
             pi.config.prompt_name = pname
 
             name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
@@ -1045,11 +1044,23 @@ module PWN
         end
 
         Pry::Commands.create_command 'toggle-pwn-ai-debug' do
-          description 'Display the response_history object while using pwn.ai'
+          description 'Stream pwn-ai module progress to the TUI and /tmp/pwn-ai-DEBUG-TIMESTAMP.log'
 
           def process
             pi = pry_instance
-            pi.config.pwn_ai_debug ? pi.config.pwn_ai_debug = false : pi.config.pwn_ai_debug = true
+            if pi.config.pwn_ai_debug
+              path = PWN::Plugins::Log.stop_debug
+              pi.config.pwn_ai_debug = false
+              if path
+                output.puts "pwn-ai debug OFF (was #{path})"
+              else
+                output.puts 'pwn-ai debug OFF'
+              end
+            else
+              path = PWN::Plugins::Log.start_debug(tee: output)
+              pi.config.pwn_ai_debug = true
+              output.puts "pwn-ai debug ON → #{path}"
+            end
           end
         end
 
@@ -1071,7 +1082,7 @@ module PWN
             pi.config.pwn_asm = false if pi.config.pwn_asm
             pi.config.pwn_ai = false if pi.config.pwn_ai
             pi.config.pwn_ai_agent = false if pi.config.pwn_ai_agent
-            pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
+            # pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
             # pi.config.pwn_ai_original_input ||= Pry.config.input.clone
@@ -1215,10 +1226,19 @@ module PWN
                   request: orig_request,
                   session_id: sess_id,
                   enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
-                  on_tool: on_tool
+                  on_tool: on_tool,
+                  debug: pi.config.pwn_ai_debug,
+                  debug_tee: $stdout
                 )
+                $stdout.flush
                 puts "\n\001\e[32m\002#{final}\001\e[0m\002\n\n"
-                pp PWN::Sessions.load(session_id: sess_id) if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
+                $stdout.flush
+                if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
+                  PWN::Plugins::Log.progress(
+                    msg: "session=#{sess_id}",
+                    which_self: PWN::Sessions
+                  )
+                end
                 request.replace('nil')
                 next
               rescue StandardError => e

@@ -413,16 +413,6 @@ module PWN
         raise e
       end
 
-      # Supported Method Parameters::
-      # usage = PWN::AI::OpenWebUI.get_plan_usage
-      #
-      # Open WebUI is a local gateway with no subscription / plan-usage
-      # endpoint. Always unavailable so the PS1 shows the infinity glyph.
-      public_class_method def self.get_plan_usage(opts = {})
-        _unused = opts
-        { available: false, engine: :openwebui, unlimited: true }
-      end
-
       # Coerce OpenAI-wire message history into Ollama-native shapes before
       # POST /api/chat (or Open WebUI /ollama/api/chat):
       # - function.arguments must be a Hash/Array object, not a JSON string
@@ -692,8 +682,6 @@ module PWN
       public_class_method def self.help
         puts "USAGE:
           models = #{self}.get_models
-
-          usage = #{self}.get_plan_usage
 
           response = #{self}.chat(
             request: 'required - message to Open WebUI',

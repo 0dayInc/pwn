@@ -633,12 +633,42 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(described_class).not_to respond_to :request_kind
     end
 
-    it 'run does not short-circuit statement/question — they take the full tool loop' do
+    it 'does not invent a request type for world-knowledge; the full loop still accepts a text final' do
+      expect(described_class.world_knowledge?(request: 'what color is a passion fruit?')).to eq true
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).not_to match(/kind\.to_sym == :statement/)
-      expect(src).not_to match(/kind\.to_sym == :question/)
-      expect(src).not_to match(/Request type/)
-      expect(src).to match(/Every request gets a task compass/)
+      expect(src).not_to match(/request_kind/)
+      expect(src).not_to match(/world_knowledge\?.*?return answer_question/m)
+      expect(src).to match(/world_knowledge\?/)
+    end
+
+    it 'full tool loop accepts a text final for world-knowledge with no host-work tools' do
+      expect(described_class.world_knowledge?(request: 'what color is a passion fruit?')).to eq true
+      expect(described_class.send(:request_need, request: 'what color is a passion fruit?')).to eq :none
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: 'what color is a passion fruit?',
+          messages: [{ role: 'assistant', content: 'Purple when ripe.', tool_calls: [] }]
+        )
+      ).to eq false
+      sess_tmp = Dir.mktmpdir('pwn-sess-fruit')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'fruit_spec'
+      PWN::Sessions.create(id: sid, title: 'fruit')
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      allow(described_class).to receive(:plan_first).and_raise('plan_first must not run on world-knowledge')
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false) if defined?(PWN::AI::Agent::TaskSummarizer)
+      allow(described_class).to receive(:call_engine).and_return(
+        { role: 'assistant', content: 'Purple when ripe.', tool_calls: [] }
+      )
+      out = described_class.run(
+        request: 'what color is a passion fruit?',
+        session_id: sid,
+        system_role_content: 'test system'
+      )
+      expect(out).to include('Purple when ripe.')
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
     end
 
     it 'classifies pure prior-turn recall and vague memory cues as :recall' do
@@ -978,5 +1008,13 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     expect(src).to include('return false if %i[greeting howto recall].include?(intent)')
     expect(src).not_to include('return false if kind == :statement')
     expect(src).not_to include('return false if kind == :question && fails.zero?')
+  end
+
+  it 'streams request-processing progress through PWN::Plugins::Log when debug is on' do
+    src = File.read(described_class.method(:run).source_location.first)
+    expect(src).to match(/PWN::Plugins::Log\.start_debug/)
+    expect(src).to match(/PWN::Plugins::Log\.progress/)
+    expect(src).to match(/quiet_debug_tui!/)
+    expect(described_class).to respond_to(:debug_on?)
   end
 end # rubocop:enable Metrics/BlockLength
