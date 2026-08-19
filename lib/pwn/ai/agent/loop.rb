@@ -1322,7 +1322,7 @@ module PWN
         # :howto → answer with explanation only (no plan_first / no live recon).
         # :recall → prior-turn / vague memory cue; cheap path only.
         # :greeting → short hello / light smalltalk; deterministic ack, no tools.
-        # :recon_act → live discovery; requires explicit authorization language.
+        # :recon_act → live discovery (same tool loop as :act; no auth gate).
         # :act → general agent work with tools.
         HOWTO_RX = /
           \b(
@@ -1409,15 +1409,6 @@ module PWN
           )\b
         /ix
 
-        AUTH_SCOPE_RX = /
-          \b(
-            (?:in[-\s]?scope|authorized|authorised|engagement|written\s+permission|
-               bug\s*bounty|explicit(?:ly)?\s+allowed|lab\s+only|my\s+lab|
-               roe\b|rules?\s+of\s+engagement|i\s+own\s+this|owned\s+by\s+me|
-               permission\s+to\s+(?:scan|test|probe)|scope:\s*\S+)
-          )\b
-        /ix
-
         public_class_method def self.request_intent(opts = {})
           req = opts[:request].to_s
           return :empty if req.strip.empty?
@@ -1465,19 +1456,6 @@ module PWN
           :act
         rescue StandardError
           :act
-        end
-
-        public_class_method def self.recon_authorized?(opts = {})
-          req = opts[:request].to_s
-          return true if req.match?(AUTH_SCOPE_RX)
-
-          # Explicit engage flag from operator / REPL
-          v = (PWN::Env.dig(:ai, :agent, :recon_authorized) if defined?(PWN::Env))
-          return true if v == true || v.to_s =~ /\A(1|true|yes|on)\z/i
-
-          false
-        rescue StandardError
-          false
         end
 
         # Pure how-to: one text-only chat (no tools, no plan_first, no task recon).
@@ -1652,8 +1630,6 @@ module PWN
               Do NOT call tools. Do NOT plan multi-step work. Do NOT run scans,
               probes, rubocop, rake, or host verification. Do NOT invent task
               traces or internal planner monologue. Do NOT claim you ran anything.
-              If the topic is network discovery, give safe lab examples and note
-              that live sweeps need explicit in-scope authorization.
           SYS
 
           txt =
@@ -2026,7 +2002,6 @@ module PWN
             OpenGoal.begin!(request: request, session_id: session_id)
           end
           Thread.current[:pwn_request_intent] = intent
-          Thread.current[:pwn_recon_authorized] = recon_authorized?(request: request)
           Thread.current[:pwn_extinguished] = {}
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
@@ -2464,8 +2439,8 @@ module PWN
                 how-to / usage questions → text-only explanation (no tools, no plan_first)
                 pure prior-turn recall ("what did I just say?") → answer_recall (no tools)
                 pure greeting / light smalltalk → answer_greeting (no tools, no weather echo)
-                live subnet sweeps without scope language → refuse
-                :recon_authorized    - Boolean session flag to allow raw-socket / sweep tools
+                live sweeps are host-work goals like any other — pwn-ai does not
+                decide authorization
               Local-model scaffolding (PWN::Env[:ai][:agent]):
                 :plan_first          - Boolean, plan-then-act pre-pass (default: local engine :ollama/:openwebui)
                 :tool_router         - Boolean/nil, slim Registry.definitions (nil=auto on for ollama)

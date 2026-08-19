@@ -309,6 +309,7 @@ module PWN
 
       Pry.config.refresh_pwn_env = false if defined?(Pry)
       env[:pwn_skills_path] = pwn_skills_path
+      PWN::Config.install_default_skills(pwn_skills_path: pwn_skills_path)
       PWN::Config.load_skills(pwn_skills_path: pwn_skills_path)
 
       # pwn-ai agent: memory/sessions/cron paths
@@ -559,7 +560,10 @@ module PWN
 
       # Make pwn-ai aware of the skills folder in pwn_env parent (before freeze)
       env[:pwn_skills_path] = pwn_skills_path if defined?(pwn_skills_path)
-      PWN::Config.load_skills(pwn_skills_path: pwn_skills_path) if defined?(pwn_skills_path)
+      if defined?(pwn_skills_path)
+        PWN::Config.install_default_skills(pwn_skills_path: pwn_skills_path)
+        PWN::Config.load_skills(pwn_skills_path: pwn_skills_path)
+      end
 
       # pwn-ai agent: memory, sessions, cron paths (before freeze)
       env[:pwn_memory_path] = PWN::Memory::MEMORY_FILE if defined?(PWN::Memory)
@@ -802,6 +806,60 @@ module PWN
       { migrated: migrated.length, details: migrated }
     end
 
+    DEFAULT_SKILLS_DIR = File.expand_path('../../etc/default_skills', __dir__)
+    DEFAULT_SKILL_NAMES = %w[
+      vulnerability-research-fundamentals
+      deep-exploitation
+      bug-bounty-hunting
+      sast-code-scans
+      reverse-engineering-binaries
+      penetration-testing
+      web-application-penetration-testing
+      red-teaming
+      hardware-and-firmware-testing
+      social-engineering
+      osint
+    ].freeze
+
+    public_class_method def self.default_skill_names(opts = {})
+      return DEFAULT_SKILL_NAMES.dup if opts.is_a?(Hash)
+
+      DEFAULT_SKILL_NAMES.dup
+    end
+
+    public_class_method def self.default_skills_dir(opts = {})
+      return DEFAULT_SKILLS_DIR if opts.is_a?(Hash)
+
+      DEFAULT_SKILLS_DIR
+    end
+
+    # Seed bundled skills into ~/.pwn/skills (or pwn_skills_path:).
+    # Missing names are copied from etc/default_skills. Existing SKILL.md
+    # files are left alone so operator edits survive upgrades.
+    public_class_method def self.install_default_skills(opts = {})
+      root = opts[:pwn_skills_path] || pwn_skills_path
+      src_root = opts[:source] || default_skills_dir
+      return [] if root.to_s.empty? || !Dir.exist?(src_root.to_s)
+
+      FileUtils.mkdir_p(root)
+      seeded = []
+      default_skill_names.each do |name|
+        dest = File.join(root, name, SKILL_ENTRY)
+        next if File.file?(dest)
+
+        src = File.join(src_root, name, SKILL_ENTRY)
+        next unless File.file?(src)
+
+        FileUtils.mkdir_p(File.dirname(dest))
+        FileUtils.cp(src, dest)
+        seeded << { name: name, path: dest }
+      end
+      seeded
+    rescue StandardError => e
+      warn "[PWN::Config] install_default_skills failed: #{e.class}: #{e.message}"
+      []
+    end
+
     # Supported Method Parameters::
     # skills = PWN::Config.load_skills(
     #   pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'
@@ -954,6 +1012,9 @@ module PWN
         #{self}.load_skills(pwn_skills_path: 'optional')
 
         #{self}.migrate_legacy_skills(pwn_skills_path: 'optional', delete_legacy: true)
+
+        #{self}.install_default_skills(pwn_skills_path: 'optional')
+        #{self}.default_skill_names
 
         #{self}.refresh_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',

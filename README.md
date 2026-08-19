@@ -182,6 +182,12 @@ $ pwn setup --profile net --dry-run
 Also available as `pwn_setup` (standalone driver) and `pwn --setup[=PROFILE]`.
 The doctor exits non-zero when capabilities are degraded, so CI can gate on it.
 
+First launch seeds bundled operator skills into `~/.pwn/skills/` from
+`etc/default_skills/` when those names are missing (vulnerability research,
+pentest, red team, SAST, RE, hardware, social engineering, and related).
+Existing `SKILL.md` files are never overwritten.
+
+
 <!--[![Installing the pwn Security Automation Framework](https://raw.githubusercontent.com/0dayInc/pwn/master/documentation/pwn_install.png)](https://youtu.be/G7iLUY4FzsI)-->
 
 Full page: [Installation](documentation/Installation.md) ·

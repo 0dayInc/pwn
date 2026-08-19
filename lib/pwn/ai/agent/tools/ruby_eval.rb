@@ -46,16 +46,6 @@ PWN::AI::Agent::Registry.register(
       }
     end
 
-    if PWN::AI::Agent::ToolGuard.recon_text?(text: code) &&
-       !PWN::AI::Agent::ToolGuard.recon_authorized?
-      blocked = PWN::AI::Agent::ToolGuard.recon_blocked(text: code)
-      return {
-        stdout: '',
-        error: blocked[:error],
-        hint: blocked[:hint]
-      }
-    end
-
     old_stdout = $stdout
     buf = StringIO.new
     $stdout = buf

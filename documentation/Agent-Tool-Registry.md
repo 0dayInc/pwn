@@ -34,9 +34,7 @@ those without the full learning surface.
 `shell` and `pwn_eval` share `PWN::AI::Agent::ToolGuard`
 (`lib/pwn/ai/agent/tool_guard.rb`) before they run. The guard remaps common
 wrong keys, rejects ellipsis placeholders, refuses bash-only syntax unless
-`ai.agent.shell_bash` is true (default runner is `/bin/sh`), and blocks live
-host-discovery unless the request is in-scope or `ai.agent.recon_authorized`
-is true.
+`ai.agent.shell_bash` is true (default runner is `/bin/sh`).
 
 The `policy` toolset is inspect-only. `policy_stats`, `policy_evaluate`, and
 `policy_recommend` read the live Q / REINFORCE table. Reset is Ruby-only, so a

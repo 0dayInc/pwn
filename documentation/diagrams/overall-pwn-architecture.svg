@@ -18,8 +18,8 @@
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_entry</title>
-<path fill="#0c4a6e" stroke="#0369a1" stroke-width="2" d="M359,-476.62C359,-476.62 881,-476.62 881,-476.62 887,-476.62 893,-482.62 893,-488.62 893,-488.62 893,-550.12 893,-550.12 893,-556.12 887,-562.12 881,-562.12 881,-562.12 359,-562.12 359,-562.12 353,-562.12 347,-556.12 347,-550.12 347,-550.12 347,-488.62 347,-488.62 347,-482.62 353,-476.62 359,-476.62"/>
-<text xml:space="preserve" text-anchor="middle" x="620" y="-537.23" font-family="sans-Serif" font-size="22.00" fill="#7dd3fc">Entry Points &#160;(bin/)</text>
+<path fill="#0c4a6e" stroke="#0369a1" stroke-width="2" d="M359,-476.62C359,-476.62 933,-476.62 933,-476.62 939,-476.62 945,-482.62 945,-488.62 945,-488.62 945,-550.12 945,-550.12 945,-556.12 939,-562.12 933,-562.12 933,-562.12 359,-562.12 359,-562.12 353,-562.12 347,-556.12 347,-550.12 347,-550.12 347,-488.62 347,-488.62 347,-482.62 353,-476.62 359,-476.62"/>
+<text xml:space="preserve" text-anchor="middle" x="646" y="-537.23" font-family="sans-Serif" font-size="22.00" fill="#7dd3fc">Entry Points &#160;(bin/)</text>
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_agent</title>
@@ -92,16 +92,16 @@
 <!-- Cronb -->
 <g id="node8" class="node">
 <title>Cronb</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M872.88,-520.62C872.88,-520.62 805.12,-520.62 805.12,-520.62 799.12,-520.62 793.12,-514.62 793.12,-508.62 793.12,-508.62 793.12,-496.62 793.12,-496.62 793.12,-490.62 799.12,-484.62 805.12,-484.62 805.12,-484.62 872.88,-484.62 872.88,-484.62 878.88,-484.62 884.88,-490.62 884.88,-496.62 884.88,-496.62 884.88,-508.62 884.88,-508.62 884.88,-514.62 878.88,-520.62 872.88,-520.62"/>
-<text xml:space="preserve" text-anchor="middle" x="839" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">⏱ &#160;PWN::Cron</text>
-<text xml:space="preserve" text-anchor="middle" x="839" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Scheduled jobs</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M924.75,-520.62C924.75,-520.62 805.25,-520.62 805.25,-520.62 799.25,-520.62 793.25,-514.62 793.25,-508.62 793.25,-508.62 793.25,-496.62 793.25,-496.62 793.25,-490.62 799.25,-484.62 805.25,-484.62 805.25,-484.62 924.75,-484.62 924.75,-484.62 930.75,-484.62 936.75,-490.62 936.75,-496.62 936.75,-496.62 936.75,-508.62 936.75,-508.62 936.75,-514.62 930.75,-520.62 924.75,-520.62"/>
+<text xml:space="preserve" text-anchor="middle" x="865" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">⏱ &#160;PWN::Cron</text>
+<text xml:space="preserve" text-anchor="middle" x="865" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Jobs + background worker</text>
 </g>
 <!-- CI&#45;&gt;Cronb -->
 <g id="edge4" class="edge">
 <title>CI&#45;&gt;Cronb</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M729.33,-628.43C751.35,-603.37 792.06,-557.05 817.2,-528.43"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="819.07,-530.55 822.25,-522.69 814.86,-526.85 819.07,-530.55"/>
-<text xml:space="preserve" text-anchor="middle" x="795.62" y="-572.08" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">crontab</text>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M732.52,-628.43C759.35,-603.16 809.13,-556.26 839.44,-527.7"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="841,-530.08 844.9,-522.56 837.16,-526.01 841,-530.08"/>
+<text xml:space="preserve" text-anchor="middle" x="809.4" y="-572.08" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">crontab</text>
 </g>
 <!-- LLM -->
 <g id="node3" class="node">
@@ -174,7 +174,7 @@
 <!-- CLI&#45;&gt;Plugins -->
 <g id="edge18" class="edge">
 <title>CLI&#45;&gt;Plugins</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M750.98,-484.02C758.25,-481.32 765.79,-478.73 773,-476.62 870.43,-448.16 897.12,-450.19 997,-432.12 1007.86,-430.16 1038.85,-432.53 1046,-424.12 1081.98,-381.79 1083.86,-339.78 1046,-299.12 1018.06,-269.13 346.65,-264.99 310,-246.62 292.78,-238 278.65,-221.52 268.89,-207.34"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M750.97,-483.98C758.24,-481.28 765.78,-478.71 773,-476.62 891.7,-442.34 967.31,-519.39 1046,-424.12 1081.38,-381.29 1083.86,-339.78 1046,-299.12 1018.06,-269.13 346.65,-264.99 310,-246.62 292.78,-238 278.65,-221.52 268.89,-207.34"/>
 <polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="271.45,-206.15 264.73,-200.99 266.77,-209.21 271.45,-206.15"/>
 </g>
 <!-- Prompt -->
@@ -190,9 +190,9 @@
 <!-- Loop&#45;&gt;LLM -->
 <g id="edge29" class="edge">
 <title>Loop&#45;&gt;LLM</title>
-<path fill="none" stroke="#c4b5fd" stroke-width="2" d="M408.22,-383.26C428.04,-398.63 452.81,-414.95 478,-424.12 515.73,-437.87 528.09,-427.7 568,-432.12 642.64,-440.4 853.52,-420.13 903,-476.62 935.41,-513.62 919.64,-574.27 904.71,-612.03"/>
-<polygon fill="#c4b5fd" stroke="#c4b5fd" stroke-width="2" points="902.2,-610.78 901.73,-619.24 907.37,-612.93 902.2,-610.78"/>
-<text xml:space="preserve" text-anchor="middle" x="946.73" y="-499.32" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">tool&#45;use API</text>
+<path fill="none" stroke="#c4b5fd" stroke-width="2" d="M408.22,-383.26C428.04,-398.63 452.81,-414.95 478,-424.12 515.73,-437.87 528.05,-428.05 568,-432.12 654.12,-440.9 897.39,-412.01 955,-476.62 990.42,-516.35 950.47,-577.24 919.12,-614.13"/>
+<polygon fill="#c4b5fd" stroke="#c4b5fd" stroke-width="2" points="917.33,-611.92 914.18,-619.79 921.55,-615.6 917.33,-611.92"/>
+<text xml:space="preserve" text-anchor="middle" x="993.61" y="-499.32" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">tool&#45;use API</text>
 </g>
 <!-- Loop&#45;&gt;Plugins -->
 <g id="edge10" class="edge">
@@ -400,9 +400,9 @@
 <!-- Reports&#45;&gt;User -->
 <g id="edge32" class="edge">
 <title>Reports&#45;&gt;User</title>
-<path fill="none" stroke="#38bdf8" stroke-width="2" d="M1134.52,-199.46C1143.96,-213.15 1158.13,-232.17 1173,-246.62 1177.34,-250.84 1180.28,-249.86 1184,-254.62 1230.64,-314.32 1238.74,-357.87 1202,-424.12 1074.31,-654.41 895.95,-548.78 641,-614.62 630.5,-617.34 619.48,-620.86 608.99,-624.55"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="608.12,-621.89 601.56,-627.25 610.03,-627.15 608.12,-621.89"/>
-<text xml:space="preserve" text-anchor="middle" x="1212.2" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">findings</text>
+<path fill="none" stroke="#38bdf8" stroke-width="2" d="M1134.52,-199.46C1143.96,-213.15 1158.13,-232.17 1173,-246.62 1177.34,-250.84 1180.28,-249.86 1184,-254.62 1230.64,-314.32 1234.96,-355.91 1202,-424.12 1087.43,-661.21 896.54,-551.12 641,-614.62 630.25,-617.3 618.97,-620.87 608.28,-624.64"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="607.64,-621.89 601.08,-627.25 609.56,-627.15 607.64,-621.89"/>
+<text xml:space="preserve" text-anchor="middle" x="1212.78" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">findings</text>
 </g>
 <!-- CronF -->
 <g id="node30" class="node">

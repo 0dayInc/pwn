@@ -622,7 +622,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
   end
 
-  describe 'intent routing (ollama/openwebui how-to + recon guard)' do
+  describe 'intent routing (how-to + greeting + recall)' do
     it 'classifies pure how-to vs live recon vs act' do
       expect(described_class.request_intent(request: 'how to do a ping sweep of a subnet using hping3?')).to eq(:howto)
       expect(described_class.request_intent(request: 'using hping3 what live hosts can you find in this subnet?')).to eq(:recon_act)
@@ -668,12 +668,14 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(described_class.request_intent(request: 'how to do a ping sweep with hping3?')).to eq(:howto)
     end
 
-    it 'recon_authorized? requires scope language or env flag' do
-      expect(described_class.recon_authorized?(request: 'find live hosts on this subnet')).to eq(false)
-      expect(described_class.recon_authorized?(request: 'authorized engagement: find live hosts on this lab subnet')).to eq(true)
-      allow(PWN::Env).to receive(:dig).and_call_original
-      allow(PWN::Env).to receive(:dig).with(:ai, :agent, :recon_authorized).and_return(true)
-      expect(described_class.recon_authorized?(request: 'find live hosts')).to eq(true)
+    it 'does not refuse sweeps for missing scope language' do
+      expect(described_class).not_to respond_to(:recon_authorized?)
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to match(/AUTH_SCOPE_RX/)
+      expect(src).not_to match(/need scope language/)
+      expect(src).not_to match(/refuse the live scan/)
+      expect(src).not_to match(/pwn_recon_authorized/)
+      expect(src).not_to match(/in-scope authorization/)
     end
 
     it 'run short-circuits how-to without plan_first or tools' do

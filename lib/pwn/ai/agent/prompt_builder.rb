@@ -119,10 +119,6 @@ module PWN
               echo weather or invent social filler ("noted, cloudy out there").
               Do not treat process_sop_* or operator_pref_* memory about code
               hygiene as the current user goal unless they asked to change code.
-              Live subnet sweeps, raw-socket discovery (hping3/nmap -sn mass
-              probes, etc.) require explicit in-scope / authorized engagement
-              language from the user. Without it, refuse the live scan and offer
-              the command syntax instead.
           PROMPT
         end
 

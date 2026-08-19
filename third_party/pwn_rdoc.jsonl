@@ -353,7 +353,6 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.plan_first Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.plan_first`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.publish_usage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.publish_usage`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.recall_target Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.recall_target`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.recon_authorized? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.recon_authorized?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.record_metrics Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.record_metrics`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.request_intent Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.request_intent`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.request_need Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.request_need`: "}]}
@@ -692,9 +691,6 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.invalid_payload Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.invalid_payload`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.placeholder? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.placeholder?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.present? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.present?`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.recon_authorized? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.recon_authorized?`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.recon_blocked Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.recon_blocked`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.recon_text? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.recon_text?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_bash? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_bash?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_name Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_name`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TransparentBrowser.analyze Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TransparentBrowser.analyze`: Supported Method Parameters\n\nai_analysis = PWN::AI::Agent::TransparentBrowser.analyze(\n\nrequest: 'required - current step in the JavaScript debugging session to analyze',\nsource_to_review: 'required - the block of JavaScript code in which the current step resides'\n\n)\n"}]}
@@ -1326,9 +1322,12 @@
 {"messages":[{"role":"user","content":"PWN::Config.authors Usage"},{"role":"assistant","content":"`PWN::Config.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.deep_fill! Usage"},{"role":"assistant","content":"`PWN::Config.deep_fill!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_env Usage"},{"role":"assistant","content":"`PWN::Config.default_env`: Supported Method Parameters\n\nenv = PWN::Config.default_env(\n\npwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Config.default_skill_names Usage"},{"role":"assistant","content":"`PWN::Config.default_skill_names`: "}]}
+{"messages":[{"role":"user","content":"PWN::Config.default_skills_dir Usage"},{"role":"assistant","content":"`PWN::Config.default_skills_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.env_template Usage"},{"role":"assistant","content":"`PWN::Config.env_template`: Supported Method Parameters\n\ntmpl = PWN::Config.env_template\n\nThe canonical current-release ~/.pwn/pwn.yaml shape as a pure Hash (no I/O, no vault write, no puts).  Single source of truth used by:\n\n* PWN::Config.default_env      — seed a fresh ~/.pwn/pwn.yaml\n* PWN::Migrate.vault_drift     — diff a user vault against this release\n* PWN::Migrate.backfill_vault  — deep-merge missing keys UNDER the\n  user values on `pwn setup --migrate --fix`\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.help Usage"},{"role":"assistant","content":"`PWN::Config.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.init_driver_options Usage"},{"role":"assistant","content":"`PWN::Config.init_driver_options`: Supported Method Parameters\n\nenv = PWN::Config.init_driver_options\n"}]}
+{"messages":[{"role":"user","content":"PWN::Config.install_default_skills Usage"},{"role":"assistant","content":"`PWN::Config.install_default_skills`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.load_memory Usage"},{"role":"assistant","content":"`PWN::Config.load_memory`: Supported Method Parameters\n\nPWN::Config.load_memory\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.load_skills Usage"},{"role":"assistant","content":"`PWN::Config.load_skills`: Supported Method Parameters\n\nskills = PWN::Config.load_skills(\n\npwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'\n\n)\n\nLoads skills into the PWN::Skills constant. Two on-disk shapes are accepted so upgrades are seamless:\n\nagentskills.io  →  <root>/<name>/SKILL.md      (preferred; written by write_skill)\nlegacy flat     →  <root>/<name>.{md,txt,rb,skill,yml,yaml}\n\nEach entry: { type:, format:, path:, dir:, content:, description:,\n\nreferences:, frontmatter:, loaded:?, error:? }\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.merge_ai_defaults! Usage"},{"role":"assistant","content":"`PWN::Config.merge_ai_defaults!`: "}]}

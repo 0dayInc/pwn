@@ -129,7 +129,6 @@ ai:
     auto_extrospect: true          # Ambient baseline after every final answer (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools stay on-demand.
     defer_introspect: true         # Run auto_introspect on a background thread AFTER the user-visible reply (default on). Specs/cron stay inline.
     prompt_cache: true             # Engine-native prefix cache. Anthropic cache_control, OpenAI prompt_cache_key, Grok x-grok-conv-id, Gemini systemInstruction split. Ollama / Open WebUI have none.
-    recon_authorized: false        # Allow live subnet sweeps / raw-socket discovery tools this session
     shell_bash: false              # true -> run shell via bash -lc. Default is /bin/sh.
     plan_first: ~                  # Plan-then-act pre-pass. nil = auto (true when ai.active is ollama or openwebui).
     tool_router: ~                 # Dynamic tool-set slimming. nil = auto (true for ollama / openwebui).
@@ -313,7 +312,6 @@ PWN::Config.refresh_env
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `true` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`) stay on-demand. Toggle live via `extro_auto_toggle`. |
 | `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `curriculum`, `extrospection`, `learning`, `memory`, `metrics`, `policy`, `pwn`, `reward`, `sessions`, `skills`, `swarm`, `terminal`. |
-| `ai.agent.recon_authorized` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.recon_authorized?` / `Loop.recon_authorized?` | When true (or the user request contains in-scope / engagement language), live host-discovery tools may run. Default refuses unauthorized sweeps. |
 | `ai.agent.shell_bash` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.shell_bash?` | When true, `shell` runs via `bash -lc` so bash-only syntax is allowed. Default is POSIX `/bin/sh` and bashisms are rejected with a rewrite hint. |
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active` is `ollama` or `openwebui`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean \| `nil` | `nil` (auto: `true` for `ollama` / `openwebui`) | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate, then `ai.agent.tool_preference`. |

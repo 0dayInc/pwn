@@ -82,7 +82,7 @@
 <path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M418.38,-1210.75C418.38,-1213.78 379.83,-1216.25 332.38,-1216.25 284.92,-1216.25 246.38,-1213.78 246.38,-1210.75 246.38,-1210.75 246.38,-1161.25 246.38,-1161.25 246.38,-1158.22 284.92,-1155.75 332.38,-1155.75 379.83,-1155.75 418.38,-1158.22 418.38,-1161.25 418.38,-1161.25 418.38,-1210.75 418.38,-1210.75"/>
 <path fill="none" stroke="#334155" stroke-width="1.3" d="M418.38,-1210.75C418.38,-1207.72 379.83,-1205.25 332.38,-1205.25 284.92,-1205.25 246.38,-1207.72 246.38,-1210.75"/>
 <text xml:space="preserve" text-anchor="middle" x="332.38" y="-1194.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">skills/&lt;name&gt;/SKILL.md</text>
-<text xml:space="preserve" text-anchor="middle" x="332.38" y="-1182.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">agentskills.io spec</text>
+<text xml:space="preserve" text-anchor="middle" x="332.38" y="-1182.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">agentskills.io + default_skills seed</text>
 <text xml:space="preserve" text-anchor="middle" x="332.38" y="-1170.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">name+description frontmatter + refs</text>
 </g>
 <!-- Root&#45;&gt;skl -->

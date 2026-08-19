@@ -25,7 +25,7 @@ digraph "PWN_SessionsCron" {
     label="Later / Elsewhere"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
     Reflect [label="learning_reflect\n(session_id)",   fillcolor="#c4b5fd"];
-    Fire    [label="crontab → PWN::Cron.run",           fillcolor="#c4b5fd"];
+    Fire    [label="worker / crontab\n→ PWN::Cron.run", fillcolor="#c4b5fd"];
     Resume  [label="agent_debate\n(swarm_id: ...)",     fillcolor="#c4b5fd"];
   }
   {rank=same; Reflect; Fire; Resume}

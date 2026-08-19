@@ -138,7 +138,7 @@ list, then install equivalents by hand.
 
 **Cause:** older dual-emit paths or `about_to` restating the full goal every batch.
 
-**Current behavior (v0.5.683+):**
+**Current behavior (v0.5.684+):**
 
 1. `Loop.task_summary_about_to!` is the only about_to entry.
 2. `TaskSummarizer.about_to` builds distinct lines with `tool_counts_phrase` + `intent_phrase`.

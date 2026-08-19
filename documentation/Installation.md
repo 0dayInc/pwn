@@ -246,8 +246,24 @@ pwn setup --profile ${PWN_PROFILE:-full} --yes
 ## First-run configuration
 
 The first `pwn` launch creates `~/.pwn/` and an **encrypted**
-`~/.pwn/pwn.yaml` template. Add at least one LLM engine key with the
-`pwn-vault` REPL command to enable `pwn-ai` - see
+`~/.pwn/pwn.yaml` template. It also seeds bundled skills into
+`~/.pwn/skills/` when those names are missing:
+
+- `vulnerability-research-fundamentals`
+- `deep-exploitation`
+- `bug-bounty-hunting`
+- `sast-code-scans`
+- `reverse-engineering-binaries`
+- `penetration-testing`
+- `web-application-penetration-testing`
+- `red-teaming`
+- `hardware-and-firmware-testing`
+- `social-engineering`
+- `osint`
+
+Source lives in the gem at `etc/default_skills/`. `PWN::Config.install_default_skills`
+is idempotent and never overwrites an edited `SKILL.md`. Add at least one
+LLM engine key with the `pwn-vault` REPL command to enable `pwn-ai` - see
 [Configuration](Configuration.md). `pwn setup` will report the AI-engine
 row as `MISSING` until a key is set.
 

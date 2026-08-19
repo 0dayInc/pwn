@@ -37,13 +37,13 @@
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama · Open WebUI |
 | [Agent Tool Registry](Agent-Tool-Registry.md) | 13 toolsets · **87** LLM-callable tools |
-| [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - the self-improvement loop |
+| [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - self-improvement loop + 10 bundled skills on first launch |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum` + `Policy`** - outcome/process judges · preference ledger · self-play practice · live Q / REINFORCE (advisory) · export-ready LoRA gate |
 | [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · **osint** · serial · telecomm · packet · vision · voice · correlate |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
-| [Session Workflow](Session-Workflow.md) | Keywords: `continue` / last session / write-then-read / recon scope |
+| [Session Workflow](Session-Workflow.md) | Keywords: `continue` / last session / write-then-read |
 | [Cron](Cron.md) | Scheduled jobs. Hygiene seeds on; curriculum practice/judge/train ship off |
 
 ## 🧩 Capability Namespaces  (`lib/pwn/*`)

@@ -21,7 +21,7 @@ hardware).
 | `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
 | `pwn setup` | `lib/pwn/setup.rb` · `bin/pwn_setup` | Post-install doctor + capability provisioner + `--migrate` state doctor (also `pwn --setup[=PROFILE]`) |
 | `bin/pwn_*` + `pwn` | 54 files | Thin OptionParser wrappers plus the `pwn` REPL / one-shot agent |
-| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs. Fresh install seeds hygiene on (`learning_consolidate_nightly`, `pwn_stores_lean_nightly`) and curriculum practice/judge/train off |
+| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs + background worker (`pwn setup`). Fresh install seeds hygiene on (`learning_consolidate_nightly`, `pwn_stores_lean_nightly`) and curriculum practice/judge/train off |
 
 ## L2 - AI agent core (`lib/pwn/ai/agent/`)
 
@@ -46,7 +46,7 @@ call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 ## L3 - Capability namespaces (`lib/pwn/*`)
 
 `Plugins` (67) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
-`Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. Each is
+`Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. First launch also seeds bundled skills from `etc/default_skills/`. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
 callable the same way from the REPL, from `pwn_eval`, or from a driver.
 

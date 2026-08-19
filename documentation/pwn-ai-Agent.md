@@ -61,8 +61,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
  [Registry](Agent-Tool-Registry.md). **ToolGuard** runs first on `shell` and
  `pwn_eval`: it maps common wrong keys (`value`/`cmd`) onto the schema, drops
  placeholder payloads (`...`, `{...}`), refuses bash-only syntax unless
- `ai.agent.shell_bash` is on, and blocks live sweeps unless the request is
- in-scope or `ai.agent.recon_authorized` is true. **Metrics** records
+ `ai.agent.shell_bash` is on. **Metrics** records
  `duration/success/engine` (via `Reward.semantic_ok` - `grep` exit 1 ≠
  failure); **Policy.observe_step** records the hygiene reward for that tool. Dispatch is *tolerant* - Levenshtein-repairs near-miss tool names
  and cleans up almost-JSON args, fingerprinting every repair into
@@ -110,7 +109,7 @@ The two that matter most:
 | Tool | Reach |
 |---|---|
 | `pwn_eval` | **Any** Ruby in-process - the whole `PWN::` namespace, `require`, monkey-patch, everything |
-| `shell` | **Any** OS command on the host. Runs through `PWN::AI::Agent::ToolGuard` first (placeholder, schema, bash-only syntax, unauthorized recon). |
+| `shell` | **Any** OS command on the host. Runs through `PWN::AI::Agent::ToolGuard` first (placeholder, schema, bash-only syntax). |
 
 Everything else (memory, skills, learning, **mistakes**, **reward**,
 **curriculum**, **policy**, extrospection, cron, swarm, sessions, metrics) is a
@@ -220,11 +219,9 @@ for cheap short-circuits. Everything else is a goal: TaskSummarizer compass + CO
 | How-to | "how to do a ping sweep of a subnet using hping3?" | Short explanation with example commands only. No tools. |
 | Greeting | "Howdy, it's cloudy." / "hi" | Fixed short ack. No tools, no LLM, no weather echo. |
 | Recall | "what did I just say?" / "how did you respond?" | Cheap prior-turn answer from the session transcript. |
-| Live recon | "using hping3 what live hosts can you find in this subnet?" | Needs in-scope / authorized wording, or `ai.agent.recon_authorized=true`. |
-| Goal | "refactor Loop.run and run rubocop" / "what color is a cherry" | Task compass + CORE_TOOLS. There is no statement/question type. |
+| Goal | "refactor Loop.run" / "find live hosts on this subnet" / "what color is a cherry" | Task compass + CORE_TOOLS. There is no statement/question type. |
 
-The `shell` tool also blocks hping3 / nmap-style sweep commands when recon is
-not authorized. On how-to asks, memory SOPs about repo rubocop/rake hygiene are
+On how-to asks, memory SOPs about repo rubocop/rake hygiene are
 kept out of the prompt so the model does not pivot into unrelated verification.
 
 Keyword routing, unfinished-goal resume (`continue` / `resume`), and

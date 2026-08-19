@@ -29,7 +29,7 @@ digraph "PWN_MemorySkills" {
     color="#a16207"; bgcolor="#422006";
     Fmem [label="memory.json\nfact · pref · lesson · env", shape=cylinder, fillcolor="#fcd34d"];
     Fidx [label="memory.idx\nembedding index\n(sha → vec)", shape=cylinder, fillcolor="#fcd34d"];
-    Fskl [label="skills/<n>/SKILL.md\nYAML front-matter refs",       shape=cylinder, fillcolor="#fcd34d"];
+    Fskl [label="skills/<n>/SKILL.md\nYAML front-matter + refs\n(+ etc/default_skills seed)", shape=cylinder, fillcolor="#fcd34d"];
     Flrn [label="learning.jsonl\noutcome log",               shape=cylinder, fillcolor="#fcd34d"];
     Fses [label="sessions/*.jsonl\ntranscripts (+ lean)",      shape=cylinder, fillcolor="#fcd34d"];
     Fmis [label="mistakes.json\nsig → count · fix · regressed", shape=cylinder, fillcolor="#fcd34d"];

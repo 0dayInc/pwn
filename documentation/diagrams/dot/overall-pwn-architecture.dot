@@ -28,7 +28,7 @@ digraph "PWN_Overall_Architecture" {
     REPL  [label="🐚  pwn REPL\nPry + PWN:: preload",       fillcolor="#7dd3fc"];
     PwnAI [label="✨  pwn-ai\nAgent TUI · pwn --ai",         fillcolor="#7dd3fc"];
     CLI   [label="📜  bin/pwn_*\n54 executables",            fillcolor="#7dd3fc"];
-    Cronb [label="⏱  PWN::Cron\nScheduled jobs",            fillcolor="#7dd3fc"];
+    Cronb [label="⏱  PWN::Cron\nJobs + background worker", fillcolor="#7dd3fc"];
   }
   {rank=same; REPL; PwnAI; CLI; Cronb}
 

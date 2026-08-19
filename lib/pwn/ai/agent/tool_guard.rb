@@ -5,8 +5,7 @@ module PWN
     module Agent
       # Shared pre-dispatch guards for the two high-volume runtime tools
       # (shell / pwn_eval). Rejects placeholder payloads, aliases wrong
-      # schema keys, shares the recon authorization gate, and names the
-      # shell that will actually run the command.
+      # schema keys, and names the shell that will actually run the command.
       module ToolGuard
         ALIASES = {
           'command' => %w[value cmd input],
@@ -29,17 +28,6 @@ module PWN
           |&>
         /x
 
-        RECON_RX = %r{
-          (?:^|[;&|\s])(?:sudo\s+)?hping3?(?:\s|$).*(?:-1|--icmp|--flood|/[0-9]{1,2}|seq\s+|for\s+)
-          |(?:^|[;&|\s])(?:sudo\s+)?nmap\b[^\n]*(?:-sn|-sP|-PE|-PP|-PM)[^\n]*(?:/[0-9]{1,2}|\d+\.\d+\.\d+\.\d+)
-          |(?:^|[;&|\s])(?:sudo\s+)?masscan\b
-          |(?:^|[;&|\s])(?:sudo\s+)?nping\b
-          |(?:^|[;&|\s])(?:sudo\s+)?fping\b[^\n]*/
-          |for\s+\w+\s+in\s+\$?\(?seq[^)]*\)?[^;]*;\s*do\s[^;]*(?:hping|ping\s+-c|nmap)
-          |PWN::Plugins::NmapIt
-          |\bNmapIt\.(?:scan|new|help)
-        }ix
-
         public_class_method def self.present?(opts = {})
           value = opts.is_a?(Hash) ? opts[:value] : opts
           !value.nil? && !value.to_s.strip.empty?
@@ -53,23 +41,6 @@ module PWN
 
         public_class_method def self.bashism?(opts = {})
           BASHISM_RX.match?(opts[:text].to_s)
-        rescue StandardError
-          false
-        end
-
-        public_class_method def self.recon_text?(opts = {})
-          RECON_RX.match?(opts[:text].to_s)
-        rescue StandardError
-          false
-        end
-
-        public_class_method def self.recon_authorized?(opts = {})
-          return true if Thread.current[:pwn_recon_authorized] == true
-          return true if defined?(Loop) && Loop.respond_to?(:recon_authorized?) &&
-                         Loop.recon_authorized?(request: opts[:request].to_s)
-
-          v = (PWN::Env.dig(:ai, :agent, :recon_authorized) if defined?(PWN::Env))
-          v == true || v.to_s.match?(/\A(1|true|yes|on)\z/i)
         rescue StandardError
           false
         end
@@ -123,21 +94,6 @@ module PWN
           }
         end
 
-        public_class_method def self.recon_blocked(opts = {})
-          refused = opts[:text].to_s[0, 200]
-          msg = '[pwn-ai/guard] blocked unauthorized recon/sweep. ' \
-                'Need explicit in-scope authorization on the user request or ' \
-                'PWN::Env[:ai][:agent][:recon_authorized]=true. ' \
-                "Refused: #{refused}"
-          {
-            stdout: '',
-            stderr: msg,
-            exit: 126,
-            error: 'unauthorized_recon_blocked',
-            hint: msg
-          }
-        end
-
         public_class_method def self.authors
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
@@ -146,7 +102,6 @@ module PWN
           puts <<~USAGE
             USAGE:
               PWN::AI::Agent::ToolGuard.placeholder?(text: '...')
-              PWN::AI::Agent::ToolGuard.recon_authorized?
               PWN::AI::Agent::ToolGuard.coerce_args(args: { value: 'id' }, required: %w[command])
               #{self}.authors
           USAGE
