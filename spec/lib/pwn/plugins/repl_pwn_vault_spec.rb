@@ -132,3 +132,34 @@ describe 'pwn-vault Config RuntimeError retry' do
     end
   end
 end
+
+describe 'toggle-pwn-ai-debug' do
+  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:block) do
+    start = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-debug'")
+    stop = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-speaks'")
+    repl_src[start...stop]
+  end
+
+  it 'starts and stops PWN::Plugins::Log debug session on the TUI toggle' do
+    expect(block).to include('PWN::Plugins::Log.start_debug')
+    expect(block).to include('PWN::Plugins::Log.stop_debug')
+    expect(block).to include('pwn-ai-DEBUG')
+  end
+end
+
+describe 'pwn-ai debug final answer placement' do
+  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:hook) do
+    start = repl_src.index('Pry.config.hooks.add_hook(:after_read, :pwn_ai_hook)')
+    repl_src[start..]
+  end
+
+  it 'prints the green final after Loop.run and does not pp the session after it' do
+    expect(hook).to match(/Loop\.run\(/)
+    expect(hook).to match(/\\e\[32m\\002#\{final\}/)
+    native = hook[hook.index('final = PWN::AI::Agent::Loop.run')..hook.index("request.replace('nil')")]
+    expect(native).not_to match(/pp PWN::Sessions\.load/)
+    expect(native).to match(/\$stdout\.flush/)
+  end
+end

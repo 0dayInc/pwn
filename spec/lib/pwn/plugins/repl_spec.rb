@@ -13,10 +13,11 @@ describe PWN::Plugins::REPL do
     expect(help_response).to respond_to :help
   end
 
-  it 'appends plan usage after the token budget in the pwn.ai PS1' do
+  it 'does not append plan usage to the pwn.ai PS1' do
     src = File.read(described_class.method(:refresh_ps1_proc).source_location.first)
-    expect(src).to include('PWN::AI.plan_usage_glyph(engine: engine)')
-    expect(src).to include("\#{current_context_length}/\#{plan_usage_glyph}")
+    expect(src).not_to include('plan_usage_glyph')
+    expect(src).not_to include('PWN::AI.plan_usage')
+    expect(src).to include('current_context_length')
   end
 
   it 'formats compact token counts for the PS1 budget' do

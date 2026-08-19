@@ -47,8 +47,8 @@ describe PWN::AI::Anthropic do
     end
   end
 
-  it 'exposes get_plan_usage for the PS1 subscription suffix' do
-    expect(described_class).to respond_to(:get_plan_usage)
+  it 'does not expose get_plan_usage' do
+    expect(described_class).not_to respond_to(:get_plan_usage)
   end
 
   describe 'Hermes prompt-cache breakpoint' do

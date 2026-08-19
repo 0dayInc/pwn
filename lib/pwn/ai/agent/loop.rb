@@ -62,6 +62,49 @@ module PWN
           unsatisfied incomplete_final empty_final evidence_final
         ].freeze
 
+        public_class_method def self.debug_on?(opts = {})
+          return true if opts[:debug]
+          return true if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.debug_enabled?
+
+          pry_on = defined?(Pry) && Pry.respond_to?(:config) &&
+                   Pry.config.respond_to?(:pwn_ai_debug) && Pry.config.pwn_ai_debug
+          return true if pry_on
+
+          false
+        end
+
+        private_class_method def self.debug_progress(opts = {})
+          return false unless debug_on?(opts)
+          return false unless defined?(PWN::Plugins::Log)
+
+          PWN::Plugins::Log.progress(
+            msg: opts[:msg],
+            which_self: opts[:which_self] || self
+          )
+        end
+
+        private_class_method def self.start_debug_session(opts = {})
+          return unless debug_on?(opts)
+          return unless defined?(PWN::Plugins::Log)
+          return if PWN::Plugins::Log.debug_enabled?
+
+          PWN::Plugins::Log.start_debug(tee: opts[:debug_tee] || $stdout)
+        end
+
+        private_class_method def self.quiet_debug_tui!(opts = {})
+          return unless debug_on?(opts)
+          return unless defined?(PWN::Plugins::Log)
+
+          PWN::Plugins::Log.quiet_tui!(reason: opts[:reason])
+        end
+
+        private_class_method def self.loud_debug_tui!(opts = {})
+          return unless debug_on?(opts)
+          return unless defined?(PWN::Plugins::Log)
+
+          PWN::Plugins::Log.loud_tui!(reason: opts[:reason])
+        end
+
         private_class_method def self.dispatch_fail_n(opts = {})
           fails = opts[:turn_fails] || {}
           fails.sum do |key, count|
@@ -343,6 +386,7 @@ module PWN
           return false if request.match?(LOOKUP_REQUEST_RX)
           return false if request.match?(HOST_PATH_RX)
           return false if request.match?(BROWSER_REQUEST_RX)
+          return false if request.match?(HOWTO_RX)
           return false if request.match?(%r{\b(this\s+(?:host|machine|box|system|subnet|file|repo)|/opt/|implement|scan|hosts?)\b}i)
 
           request.match?(/\A(?:what|why|who|when|where|which|how)\b/i)
@@ -1095,6 +1139,9 @@ module PWN
         private_class_method def self.call_engine(opts = {})
           messages = opts[:messages]
           tools = opts[:tools]
+          debug_progress(
+            msg: "call_engine tools=#{tools.nil? ? 'none' : Array(tools).length} msgs=#{Array(messages).length}"
+          )
 
           engine = active_engine
           mod_name = ENGINE_MODS[engine]
@@ -1569,6 +1616,8 @@ module PWN
           txt = txt.to_s.strip
           txt = 'I do not have enough context to answer that yet.' if txt.empty?
 
+          debug_progress(msg: "final accepted chars=#{txt.length}")
+          quiet_debug_tui!(reason: 'question')
           append_session(session_id: session_id, role: 'user', content: request)
           append_session(session_id: session_id, role: 'assistant', content: txt)
           if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
@@ -1583,6 +1632,7 @@ module PWN
           end
           txt
         rescue StandardError => e
+          quiet_debug_tui!(reason: 'question_error')
           warn "[pwn-ai/loop] answer_question swallowed: #{e.class}: #{e.message}"
           "Could not answer the question (#{e.class}: #{e.message})."
         end
@@ -1983,6 +2033,9 @@ module PWN
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
+          start_debug_session(opts)
+          loud_debug_tui!(debug: opts[:debug])
+          debug_progress(msg: "Loop.run start request=#{request[0, 240]}", debug: opts[:debug])
           TurnFinalizer.enter_user_path! if defined?(TurnFinalizer)
           engine = active_engine
           local  = local_engine?(engine: engine)
@@ -2003,21 +2056,22 @@ module PWN
           end
           Thread.current[:pwn_request_intent] = intent
           Thread.current[:pwn_extinguished] = {}
+          debug_progress(msg: "intent=#{intent} engine=#{engine}", debug: opts[:debug])
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
           cheap = opts[:force_tools] != true && %i[greeting howto recall].include?(intent)
 
-          # Greeting / light smalltalk: deterministic ack - no weather echo, no tools,
-          # no PromptBuilder, no Registry.
           if intent == :greeting && opts[:force_tools] != true
+            debug_progress(msg: 'path=greeting', debug: opts[:debug])
+            quiet_debug_tui!(debug: opts[:debug], reason: 'greeting')
             return answer_greeting(
               request: request,
               session_id: session_id
             )
           end
 
-          # Thin system prompt only for remaining cheap paths (howto/recall/statement/question).
+          # Thin system prompt only for remaining cheap paths (howto/recall).
           if cheap
             system_role_content = opts[:system_role_content]
             if system_role_content.nil? || system_role_content.to_s.empty?
@@ -2028,16 +2082,18 @@ module PWN
               )
               opts[:system_role_content] = system_role_content
             end
-            # How-to: never enter plan_first / task recon / tool thrash.
             if intent == :howto
+              debug_progress(msg: 'path=howto', debug: opts[:debug])
+              quiet_debug_tui!(debug: opts[:debug], reason: 'howto')
               return answer_howto(
                 request: request,
                 session_id: session_id,
                 system_role_content: system_role_content
               )
             end
-            # Pure prior-turn / vague memory recall: one cheap path, no plan_first.
             if intent == :recall
+              debug_progress(msg: 'path=recall', debug: opts[:debug])
+              quiet_debug_tui!(debug: opts[:debug], reason: 'recall')
               return answer_recall(
                 request: request,
                 session_id: session_id,
@@ -2088,8 +2144,10 @@ module PWN
           messages << { role: 'user', content: request }
           append_session(session_id: session_id, role: 'user', content: request)
 
-          # Every request gets a task compass.
-          task_summary_plan!(state: ts_state, request: request, on_tool: on_tool) if defined?(TaskSummarizer)
+          trivia = world_knowledge?(request: request)
+          # Every host-work request gets a task compass. Trivia does not —
+          # inventing English tasks there keeps the model from emitting a final.
+          task_summary_plan!(state: ts_state, request: request, on_tool: on_tool) if defined?(TaskSummarizer) && !trivia
           # Re-bind tools from English plan so task list is the sole driver of
           # tool exposure/ranking (Registry keyword router + CORE).
           if ts_state.is_a?(Hash) && defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:relevance_query)
@@ -2103,14 +2161,13 @@ module PWN
               )
             end
           end
-          # English-task-as-primary: inject tangible tasks only for autonomous goals.
-          inject_task_focus!(messages: messages, state: ts_state, force: true, request: request)
+          # English-task-as-primary: inject tangible tasks only for host work.
+          inject_task_focus!(messages: messages, state: ts_state, force: true, request: request) unless trivia
           predicted = nil
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
-          # Skip plan_first only for remaining cheap intents.
-          skip_plan = %i[howto recall greeting].include?(intent)
+          skip_plan = %i[howto recall greeting].include?(intent) || trivia
           if !skip_plan && (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
             predicted = plan_first(messages: messages, request: request, ts_state: ts_state)
             # P22 — prefer explicit return; fall back to thread stash
@@ -2129,7 +2186,7 @@ module PWN
                 )
               end
             end
-            inject_task_focus!(messages: messages, state: ts_state, force: true, request: request)
+            inject_task_focus!(messages: messages, state: ts_state, force: true, request: request) unless trivia
           end
           if budget_exhaustion_hot?
             english_open = defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:plan_open?) &&
@@ -2166,7 +2223,7 @@ module PWN
             compact_history!(messages: messages) if local
             # English-task-as-primary: when plan_idx advanced, tell the model
             # which plain-English task is active before the next tool batch.
-            inject_task_focus!(messages: messages, state: ts_state, request: request)
+            inject_task_focus!(messages: messages, state: ts_state, request: request) unless trivia
 
             # P17 — on the final iteration, strip tools and demand a plain-text
             # answer. Without this the model happily emits one more tool_calls
@@ -2224,6 +2281,7 @@ module PWN
             msg = call_engine(messages: messages, tools: last_iter ? nil : tools, ts_state: ts_state)
             if msg.nil?
               task_summary_flush!(state: ts_state, on_tool: on_tool)
+              quiet_debug_tui!(reason: 'engine_empty')
               return '[pwn-ai] engine returned no message'
             end
 
@@ -2293,6 +2351,8 @@ module PWN
                 }
                 next
               end
+              debug_progress(msg: "final accepted chars=#{text.to_s.length}")
+              quiet_debug_tui!(reason: 'final')
               append_session(session_id: session_id, role: 'assistant', content: text)
               Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               maybe_finish_policy(session_id: session_id, proxy_ok: true, ts_state: ts_state)
@@ -2329,6 +2389,7 @@ module PWN
               else
                 raw = Dispatch.call(tool_call: tc)
               end
+              debug_progress(msg: "dispatch #{name} ok_len=#{raw.to_s.length}")
               tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)
               result  = Result.condition(content: raw, entry: entry)
 
@@ -2385,6 +2446,8 @@ module PWN
           # failure (previously we only Mistakes.record'd and returned a bare
           # string — no session row, no judge, no hindsight).
           final_msg = '[pwn-ai] iteration budget exhausted'
+          debug_progress(msg: 'final budget_exhausted')
+          quiet_debug_tui!(reason: 'budget_exhausted')
           if defined?(Mistakes)
             Mistakes.record(
               tool: 'agent_loop',

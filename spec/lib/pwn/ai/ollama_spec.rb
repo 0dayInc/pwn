@@ -321,12 +321,7 @@ describe PWN::AI::Ollama do
     expect(args[:command] || args['command']).to eq('id')
   end
 
-  it 'exposes get_plan_usage for the PS1 subscription suffix' do
-    expect(described_class).to respond_to(:get_plan_usage)
-  end
-  it 'marks local plan usage as unlimited so the PS1 shows infinity' do
-    usage = described_class.get_plan_usage
-    expect(usage[:available]).to be false
-    expect(usage[:unlimited]).to be true
+  it 'does not expose get_plan_usage' do
+    expect(described_class).not_to respond_to(:get_plan_usage)
   end
 end
