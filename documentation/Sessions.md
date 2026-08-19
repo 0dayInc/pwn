@@ -38,7 +38,8 @@ appended as JSON-per-line to `~/.pwn/sessions/<id>.jsonl`.
 {"role":"tool","ts":"...","name":"shell","content":"...","step_reward":1}
 ```
 
-**See also:** [Skills, Memory & Learning](Skills-Memory-Learning.md) ·
+**See also:** [Session Workflow](Session-Workflow.md) ·
+[Skills, Memory & Learning](Skills-Memory-Learning.md) ·
 [Swarm](Swarm.md) · [Persistence](Persistence.md)
 
 [← Home](Home.md)

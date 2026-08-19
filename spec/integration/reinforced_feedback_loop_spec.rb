@@ -1471,15 +1471,11 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   end
 
   describe 'P0 · Budget exhaust deepen (last-iter / no-CF-hot / exhaust Learning)' do
-    it 'tightens budget-hot max_iters: 24 local (ollama/openwebui) / 75 remote (long-goal runway)' do
+    it 'does not shrink max_iters for budget-hot; last-iter still skips CF when hot' do
       src = File.read(loop_mod.method(:run).source_location.first)
-      # max_iters is private_class_method — read surrounding source
-      # P17 long-autonomy: local stays 24; remote keeps multi-step runway 75.
-      # always-24-for-ALL starved long-lived goals after the hot text-only tail.
       expect(src).to match(/budget_exhaustion_hot\?/)
-      expect(src).to match(/hot_cap = local_engine\? \? 24 : 75/)
-      expect(src).to match(/n = \[n, hot_cap\]\.min/)
-      expect(src).not_to match(/n = \[n, 24\]\.min/)
+      expect(src).not_to match(/hot_cap = local_engine\? \? 24 : 75/)
+      expect(src).not_to match(/n = \[n, hot_cap\]\.min/)
     end
 
     it 'forces tools=nil on last iter and skips counterfactual when budget-hot' do
@@ -1503,8 +1499,8 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
 
     it 'STATUS table lists Budget exhaust deepen' do
       doc = File.read(File.expand_path('../../documentation/Reinforcement-Learning.md', __dir__))
-      expect(doc).to match(/Budget exhaust deepen/)
-      expect(doc).to match(/Last-iter force-final/)
+      expect(doc).to match(/Budget exhaust/)
+      expect(doc).to match(/do not shrink max_iters/)
     end
   end
 
@@ -1515,8 +1511,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(src).to match(/remote_cap = 120/)
       expect(src).to match(/local_cap\s*=\s*24/)
       expect(src).to match(/local_engine\?\(engine: eng\) \? local_cap : remote_cap/)
-      # P17 budget-hot: 24 ollama / 75 remote (not always-24)
-      expect(src).to match(/hot_cap = local_engine\? \? 24 : 75/)
+      expect(src).not_to match(/hot_cap = local_engine\? \? 24 : 75/)
     end
 
     it 'defines incomplete_final? and continues on mid-goal handoff' do

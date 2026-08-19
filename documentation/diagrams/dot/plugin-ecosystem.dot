@@ -1,6 +1,6 @@
 digraph "PWN_Plugins" {
   graph [
-    label=<<B>PWN::Plugins - 66 Modules by Category</B>>,
+    label=<<B>PWN::Plugins - 67 Modules by Category</B>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.25, ranksep=1.5,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -36,7 +36,7 @@ digraph "PWN_Plugins" {
   h  [label="Serial · BusPirate\nMSR206 · Android · BareSIP"];
   c  [label="Jenkins · Git · vSphere\nDefectDojo · BlackDuck"];
   m  [label="MailAgent · SlackClient\nIRC · RabbitMQ · TwitterAPI · Voice"];
-  u  [label="FileFu · ThreadPool · Log\nChar · XXD · DetectOS\nScannableCodes · CreditCard\nSSN · EIN · VIN · Pony · PS"];
+  u  [label="FileFu · ThreadPool · Log\nChar · XXD · DetectOS\nScannableCodes · CreditCard\nSSN · EIN · VIN · Pony · PS\nTTYSpinner"];
 
   Root->Web; Root->Net; Root->Xpl; Root->Osint; Root->Data;
   Root->Auth; Root->HW; Root->CI; Root->Comm; Root->Util;

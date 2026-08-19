@@ -40,4 +40,18 @@ describe PWN::Plugins::TTYSpinner do
     expect(src).to match(/Cursor\.show/)
     expect(src).to match(/\$stdout/)
   end
+
+  it 'halt_all! stops every live worker even when stop was skipped' do
+    expect(described_class).to respond_to :halt_all!
+    io = StringIO.new
+    spin = described_class.start(output: io, format: :dots)
+    worker = spin.pwn_worker_thread
+    expect(worker.alive?).to eq true
+    described_class.halt_all!
+    expect(worker.alive?).to eq false
+    expect(spin.done?).to eq true
+    after = io.string.dup
+    sleep 0.2
+    expect(io.string).to eq(after)
+  end
 end

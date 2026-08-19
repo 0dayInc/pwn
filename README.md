@@ -33,9 +33,9 @@ can run those same methods for you.
 Red teamers, pentesters, and vulnerability researchers get one place to script
 and automate instead of gluing together a pile of separate CLIs.
 
-**In numbers:** 66 `PWN::Plugins` · 48 `PWN::SAST` rules · 90 `PWN::AWS`
-service wrappers · 22 `PWN::WWW` site drivers · 53 `bin/pwn_*` CLI drivers ·
-6 LLM engines · 13 agent toolsets · 85 LLM-callable tools.
+**In numbers:** 67 `PWN::Plugins` · 48 `PWN::SAST` modules · 90 `PWN::AWS`
+service wrappers · 22 `PWN::WWW` site drivers · 54 executables (`pwn` + 53 `bin/pwn_*`) ·
+6 LLM engines · 13 agent toolsets · 87 LLM-callable tools.
 
 Full page: [What is PWN](documentation/What-is-PWN.md)
 
@@ -119,11 +119,12 @@ message bus:
 ![Swarm Multi-Agent](documentation/diagrams/swarm-multi-agent.svg)
 
 Long-running turns also show **executive task briefs** (not raw commands) via
-`TaskSummarizer`. Every request is first classified as a **general statement**,
-a **question**, or an **autonomous goal**. Only autonomous goals get a multi-step
-breakdown on submit (`emit_plan!`); statements and questions stay single-turn.
-Per-batch `about_to` lines use `tool_counts_phrase` + `intent_phrase` with
-`last_brief_fp` duplicate suppression. When recent turns keep hitting the iteration ceiling, the Loop tightens the remaining runway (lower `max_iters` on local engines, text-only tail, no counterfactual fork) so the agent still finishes instead of thrashing.
+`TaskSummarizer`. There is no request type. Every request gets an English
+task compass (`emit_plan!` on submit, `about_to` as `task k/n` before each
+tool batch). Duplicate briefs are suppressed. Budget-hot turns skip extra
+counterfactual forks and only strip tools on the last iteration when the
+original request is already satisfied. Yesterday's scars do not lower this
+request's `max_iters` (default 777).
 
 Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·
 [All data-flow diagrams](documentation/Diagrams.md)
@@ -136,9 +137,9 @@ The complete wiki lives in this repo at **[`documentation/Home.md`](documentatio
 
 | Start Here | Entry Points | AI Subsystem | Capabilities |
 |---|---|---|---|
-| [What is PWN](documentation/What-is-PWN.md) | [`pwn` REPL](documentation/pwn-REPL.md) | [AI / LLM Integration](documentation/AI-Integration.md) | [Plugins (66)](documentation/Plugins.md) |
+| [What is PWN](documentation/What-is-PWN.md) | [`pwn` REPL](documentation/pwn-REPL.md) | [AI / LLM Integration](documentation/AI-Integration.md) | [Plugins (67)](documentation/Plugins.md) |
 | [Why PWN](documentation/Why-PWN.md) | [`pwn-ai` Agent](documentation/pwn-ai-Agent.md) | [Agent Tool Registry](documentation/Agent-Tool-Registry.md) | [SAST (48)](documentation/SAST.md) |
-| [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (53)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
+| [How PWN Works](documentation/How-PWN-Works.md) | [CLI Drivers (54)](documentation/CLI-Drivers.md) | [Memory · Skills · Learning](documentation/Skills-Memory-Learning.md) | [AWS (90)](documentation/AWS.md) |
 | [Installation](documentation/Installation.md) | [Build a Driver](documentation/Drivers.md) | [Mistakes (neg-feedback)](documentation/Mistakes.md) | [WWW (22)](documentation/WWW.md) |
 | [General Usage](documentation/General-PWN-Usage.md) | | [Reinforcement Learning](documentation/Reinforcement-Learning.md) | [SDR / Radio](documentation/SDR.md) |
 | [Configuration](documentation/Configuration.md) | | [Extrospection](documentation/Extrospection.md) | [Hardware](documentation/Hardware.md) |

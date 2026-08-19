@@ -223,27 +223,40 @@ module PWN
     # Re-running is a no-op if jobs with these names already exist.
     # These are seeded to jobs.yml only — pass install_crontab: true to
     # PWN::Cron.create yourself if you also want a system crontab entry.
+    # Hygiene jobs are enabled. Curriculum self-play / judge / LoRA are
+    # seeded disabled: practice runs Loop.run (real tools) overnight;
+    # offline_judge spends API tokens; train needs a GPU trainer.
     DEFAULT_JOBS = [
       {
         name: 'curriculum_practice_nightly',
         schedule: '0 3 * * *',
-        ruby: 'PWN::AI::Agent::Curriculum.practice(limit: 3) if defined?(PWN::AI::Agent::Curriculum)'
+        ruby: 'PWN::AI::Agent::Curriculum.practice(limit: 3) if defined?(PWN::AI::Agent::Curriculum)',
+        enabled: false
       },
       {
         name: 'curriculum_train_weekly',
         schedule: '0 4 * * 0',
-        ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true) if defined?(PWN::AI::Agent::Curriculum)'
+        ruby: 'PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true) if defined?(PWN::AI::Agent::Curriculum)',
+        enabled: false
       },
       {
         name: 'curriculum_offline_judge',
         schedule: '30 3 * * *',
         ruby: 'PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24) if defined?(PWN::AI::Agent::Curriculum)',
-        aliases: %w[offline_judge_nightly]
+        aliases: %w[offline_judge_nightly],
+        enabled: false
       },
       {
         name: 'learning_consolidate_nightly',
         schedule: '0 5 * * *',
-        ruby: 'PWN::AI::Agent::Learning.consolidate if defined?(PWN::AI::Agent::Learning)'
+        ruby: 'PWN::AI::Agent::Learning.consolidate if defined?(PWN::AI::Agent::Learning)',
+        enabled: true
+      },
+      {
+        name: 'pwn_stores_lean_nightly',
+        schedule: '15 5 * * *',
+        ruby: 'PWN::AI::Agent::Learning.gc_stores! if defined?(PWN::AI::Agent::Learning)',
+        enabled: true
       }
     ].freeze
 
@@ -262,7 +275,7 @@ module PWN
           schedule: spec[:schedule],
           ruby: spec[:ruby],
           delivery: 'log',
-          enabled: true
+          enabled: spec.fetch(:enabled, true)
         )
         names << spec[:name].to_s
       end

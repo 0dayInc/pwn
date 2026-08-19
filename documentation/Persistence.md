@@ -24,7 +24,8 @@ Every byte PWN remembers between processes lives here.
 | `extrospection/packet/*.pcap` | `Extrospection` | pcap | `rm -rf` | bounded captures from `extro_packet(action: :capture)` |
 | `extrospection/voice/*` | `Extrospection` | wav / txt | `rm -rf` | TTS/STT artifacts from `extro_voice` |
 | `sessions/*.jsonl` | `PWN::Sessions` | JSON-per-line | `sessions_delete` | full transcript per pwn-ai run (with per-step `step_reward` from `Reward.prm`) |
-| `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | scheduled prompt/ruby/script jobs (**seeded** with `curriculum_practice_nightly` + `curriculum_train_weekly`) |
+| `open_goal.json` | `PWN::AI::Agent::OpenGoal` | JSON | delete the file | unfinished host-work request so `continue` / `resume` picks it up |
+| `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | scheduled jobs. Fresh install seeds hygiene (`learning_consolidate_nightly` + `pwn_stores_lean_nightly` **on**) and curriculum practice/judge/train **off** |
 | `cron/log/*.log` | `PWN::Cron` | text | rm | last_run output |
 | `agents.yml` | `PWN::AI::Agent::Swarm` | YAML | edit / `agent_spawn` | persona registry |
 | `swarm/<id>/bus.jsonl` | `Swarm` | JSON-per-line | rm -rf | append-only multi-agent chat |

@@ -33,4 +33,21 @@ describe PWN::Plugins::REPL do
     reader = File.read(described_class.const_get(:PWNMultiLineInput).instance_method(:readline).source_location.first)
     expect(reader).to match(/ready_tty!/)
   end
+
+  it 'ready_tty! halts leftover spinner workers so PS1 can redraw without Enter' do
+    src = File.read(described_class.method(:ready_tty!).source_location.first)
+    expect(src).to match(/halt_all!/)
+    expect(described_class.method(:add_hooks).source_location).not_to be_nil
+    hook = File.read(described_class.method(:add_hooks).source_location.first)
+    expect(hook).to match(/ensure/)
+    expect(hook).to match(/ready_tty!/)
+    io = StringIO.new
+    spin = PWN::Plugins::TTYSpinner.start(output: io, format: :dots)
+    worker = spin.pwn_worker_thread
+    expect(worker).to be_a(Thread)
+    expect(worker.alive?).to eq true
+    described_class.ready_tty!(io: io)
+    expect(worker.alive?).to eq false
+    expect(spin.done?).to eq true
+  end
 end

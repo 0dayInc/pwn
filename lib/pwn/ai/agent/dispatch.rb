@@ -47,7 +47,7 @@ module PWN
           required = Array(entry.schema&.dig(:parameters, :required))
           args = ToolGuard.coerce_args(args: args, required: required) if defined?(ToolGuard)
           result = entry.handler.call(args)
-          JSON.generate(success: true, result: result)
+          JSON.generate(success: true, result: result, effect: effect(name: entry.name, args: args))
         rescue StandardError => e
           JSON.generate(
             success: false,
@@ -281,6 +281,56 @@ module PWN
           []
         end
 
+        # Effect of a tool call from NAME + ARGV only — never stdout.
+        # :write mutate, :browse navigate, :recall store lookup, :read/:eval observe.
+        WRITE_ARGV_RX = /
+          \bsed\s+-i\b|\bruby\s+-i\b|\btee\b|
+          (?:\s|\A)>{1,2}\s+\S|
+          File\.(?:write|open|binwrite)|IO\.write|
+          \bopen\s*\([^)]*['"]w|
+          \b(?:cp|mv|rm|mkdir|touch|chmod|chown)\b|
+          \bgit\s+(?:add|commit|rm)
+        /ix
+        BROWSE_ARGV_RX = /
+          TransparentBrowser|browser_obj|\.goto\b|dump_links|
+          watir|headless_?chrome|\bdevtools\b
+        /ix
+        RECALL_TOOLS = %w[
+          memory_recall session_recall skills_recall sessions_view
+          sessions_list sessions_current
+        ].freeze
+        STORE_TOOLS = %w[
+          memory_remember mistakes_record mistakes_resolve
+          learning_note_outcome skill_create skill_add_reference
+        ].freeze
+
+        public_class_method def self.effect(opts = {})
+          name = opts[:name].to_s
+          return :read if name.empty?
+          return :recall if RECALL_TOOLS.include?(name)
+          return :store if STORE_TOOLS.include?(name)
+
+          blob = argv_blob(args: opts[:args])
+          return :browse if blob.match?(BROWSE_ARGV_RX)
+          return :write if blob.match?(WRITE_ARGV_RX)
+          return :eval if name == 'pwn_eval'
+
+          :read
+        rescue StandardError
+          :read
+        end
+
+        private_class_method def self.argv_blob(opts = {})
+          args = opts[:args]
+          args = JSON.parse(args, symbolize_names: true) if args.is_a?(String) && args.strip.start_with?('{')
+          case args
+          when Hash then args.values.join(' ')
+          else args.to_s
+          end
+        rescue StandardError
+          opts[:args].to_s
+        end
+
         private_class_method def self.symbolize(opts = {})
           hash = opts[:hash] ||= {}
           hash.each_with_object({}) { |(k, v), m| m[k.to_sym] = v }
@@ -306,6 +356,7 @@ module PWN
               )
 
               PWN::AI::Agent::Dispatch.repair_name(name: 'run_shell')  # => 'shell'
+              PWN::AI::Agent::Dispatch.effect(name: 'shell', args: { command: 'ls' })
               PWN::AI::Agent::Dispatch.tool_calls_from_text(text: 'shell(command="id")')
 
               #{self}.authors

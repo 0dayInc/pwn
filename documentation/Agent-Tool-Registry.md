@@ -6,7 +6,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ![Tool registry](diagrams/agent-tool-registry.svg)
 
-## Toolsets to tools  (13 toolsets · 85 tools)
+## Toolsets to tools  (13 toolsets · 87 tools)
 
 | Toolset | Tools | Backed by |
 |---|---|---|
@@ -69,7 +69,7 @@ PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
 PWN::AI::Agent::Registry.preference_order                     # Env / DEFAULT_PREFERENCE
 PWN::AI::Agent::Registry.toolsets                              # -> the 13 names above
-PWN::AI::Agent::Registry.all.count                             # -> 85
+PWN::AI::Agent::Registry.all.count                             # -> 87
 ```
 
 Frontier engines leave `tool_router` off (unless you set it) and receive the

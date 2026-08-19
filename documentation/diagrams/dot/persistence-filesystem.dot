@@ -26,7 +26,7 @@ digraph "PWN_Persistence" {
   ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/\nrf/web/osint/serial/telecomm/\npacket/vision/voice) + prev + obs[]"];
   eart [label="extrospection/{web,packet,voice}/*\nscreenshots · pcaps · wav/txt"];
   ses  [label="sessions/*.jsonl\ntranscripts (+ step_reward)"];
-  crn  [label="cron/jobs.yml + log/\nseeded: curriculum_practice_nightly\ncurriculum_train_weekly"];
+  crn  [label="cron/jobs.yml + log/\nhygiene ON: consolidate + lean\ncurriculum practice/judge/train OFF"];
   agt  [label="agents.yml\npersona registry"];
   swm  [label="swarm/<id>/bus.jsonl\nmulti-agent chat"];
   cur  [label="curriculum/ + curriculum_kpi.jsonl\nself-play · A/B eval · KPI trend"];

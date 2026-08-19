@@ -99,7 +99,9 @@ module PWN
             AUTONOMY
               Multi-step goals must be finished in one Loop.run. Keep calling
               CORE_TOOLS until the original request is done or truly blocked.
-              English tasks are an advisory compass, not a gate. Do NOT stop to
+              After a write, read the artefact back before claiming done.
+              A listing or a plan is not completion. English tasks are an
+              advisory compass, not a gate. Do NOT stop to
               ask the user to confirm the next step, approve a partial plan, or
               green-light the obvious continuation. Only ask when a credential,
               irreversible destructive action, or missing external decision is

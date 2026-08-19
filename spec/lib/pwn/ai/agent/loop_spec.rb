@@ -16,6 +16,12 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
   end
 
   describe 'RL-adjacent loop contracts' do # rubocop:disable Metrics/BlockLength
+    it 'does not start a TTY spinner on engine calls (leftover spin overwrites PS1)' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to match(/spinner:\s*true/)
+      expect(src).to match(/spinner:\s*false/)
+    end
+
     it 'exhaust path still calls task_summary_flush! and auto_introspect' do
       src = File.read(described_class.method(:run).source_location.first)
       # budget exhausted terminal path
@@ -120,7 +126,24 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
       last_plan = { plan: %w[identify implement verify], plan_idx: 2 }
       msgs_mut = msgs + [
-        { role: 'tool', content: '{"success":true,"result":{"stdout":"patched loop.rb\n0 offenses detected"}}' }
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'shell', arguments: '{"command":"sed -i s/x/y/ loop.rb"}' } }]
+        },
+        {
+          role: 'tool',
+          name: 'shell',
+          content: '{"success":true,"effect":"write","result":{"stdout":"patched loop.rb","exit":0}}'
+        },
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'shell', arguments: '{"command":"ruby -c loop.rb"}' } }]
+        },
+        {
+          role: 'tool',
+          name: 'shell',
+          content: '{"success":true,"effect":"read","result":{"stdout":"Syntax OK","exit":0}}'
+        }
       ]
       r_mut = loop_mod.send(
         :evidence_enough_to_finalize?,
@@ -188,9 +211,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(left.map { |t| t[:item] }.join(' ')).to match(/Implement|Verify/i)
 
       src = File.read(loop_mod.method(:run).source_location.first)
-      expect(src).to match(/Write the complete final answer now/)
-      expect(src).to match(/evidence_enough_to_finalize\?/)
-      expect(src).to match(/Do NOT call more tools/)
+      expect(src).not_to match(/Do NOT call more tools/)
+      expect(src).to match(/may_finalize\?/)
     end
 
     it 'P17 can early-final when English tasks are covered even if plan_idx is still 0' do
@@ -204,8 +226,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       }
       msgs = [
         { role: 'user', content: 'what is my hostname?' },
-        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' },
-        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' }
+        { role: 'tool', name: 'shell', content: '{"success":true,"effect":"read","result":{"stdout":"kali-box","exit":0}}' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"effect":"read","result":{"stdout":"kali-box","exit":0}}' }
       ]
       expect(
         PWN::AI::Agent::TaskSummarizer.plan_open?(state: done, messages: msgs)
@@ -229,8 +251,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       }
       msgs = [
         { role: 'user', content: 'what is my hostname?' },
-        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' },
-        { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali-box","exit":0}}' }
+        { role: 'tool', name: 'shell', content: '{"success":true,"effect":"read","result":{"stdout":"kali-box","exit":0}}' },
+        { role: 'tool', name: 'shell', content: '{"success":true,"effect":"read","result":{"stdout":"kali-box","exit":0}}' }
       ]
       expect(
         PWN::AI::Agent::TaskSummarizer.plan_open?(state: leftover_plan, messages: msgs)
@@ -289,13 +311,34 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
           messages: written,
           last_iter: false
         )
+      ).to eq true
+      verified = written + [
+        {
+          role: 'assistant',
+          tool_calls: [
+            { function: { name: 'shell', arguments: '{"command":"cat /tmp/x.txt"}' } }
+          ]
+        },
+        {
+          role: 'tool',
+          name: 'shell',
+          content: '{"success":true,"effect":"read","result":{"stdout":"complete","exit":0}}'
+        }
+      ]
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: 'Write complete into /tmp/x.txt and verify it reads complete',
+          messages: verified,
+          last_iter: false
+        )
       ).to eq false
       expect(
         described_class.send(
           :request_unsatisfied?,
           request: 'what is my hostname?',
           messages: [
-            { role: 'tool', name: 'shell', content: '{"success":true,"result":{"stdout":"kali","exit":0}}' }
+            { role: 'tool', name: 'shell', content: '{"success":true,"effect":"read","result":{"stdout":"kali","exit":0}}' }
           ],
           last_iter: false
         )
@@ -314,6 +357,155 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         )
       ).to eq false
       expect(described_class.needs_host_work?(request: 'Write hello into /tmp/x.txt')).to eq true
+    end
+
+    it 'does not treat rspec/rubocop green as a finished write/docs ask' do
+      req = 'Update all markdown files to reflect operational changes and rebuild diagrams'
+      verified = [
+        { role: 'user', content: req },
+        { role: 'tool', name: 'shell', content: '4 files inspected, no offenses detected' },
+        { role: 'tool', name: 'shell', content: "Finished in 0.60 seconds\n12 examples, 0 failures\n" }
+      ]
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: verified,
+          last_iter: false
+        )
+      ).to eq true
+      expect(
+        described_class.send(
+          :evidence_enough_to_finalize?,
+          request: req,
+          messages: verified,
+          turn_fails: {},
+          i: 5,
+          max_iters: 75,
+          plan_steps: 5
+        )
+      ).to eq false
+      leftover = <<~TXT
+        File writes were not applied in this turn because the run was forced
+        to a final answer before those writes. Resume from the table above.
+      TXT
+      expect(described_class.send(:incomplete_final?, text: leftover, last_iter: false)).to eq true
+    end
+
+    it 'does not treat a README HTML listing as a finished docs regen' do
+      req = 'regenerate documentation and update README.md'
+      listing = <<~HTML
+        <p align="center">
+          <img src="documentation/pwn.gif">
+        </p>
+      HTML
+      rant = 'Documentation pass is inventoried. File writes and diagram rebuilds were not applied in this turn. I will do that next time.'
+      msgs = [
+        { role: 'tool', name: 'shell', content: listing },
+        { role: 'assistant', content: rant }
+      ]
+      expect(described_class.needs_host_work?(request: req)).to eq true
+      expect(described_class.needs_host_work?(request: 'regenerate documentation')).to eq true
+      expect(
+        described_class.send(:request_unsatisfied?, request: req, messages: msgs)
+      ).to eq true
+      expect(described_class.send(:incomplete_final?, text: rant, last_iter: false)).to eq true
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/Dispatch\.effect|tool_effects/)
+      expect(src).not_to match(/blob\.match\?\(MUTATION_EVIDENCE_RX\)/)
+    end
+
+    it 'keeps tools on last_iter for any unfinished host-work request' do
+      req = 'Update all markdown files and rebuild diagrams'
+      verified = [
+        { role: 'tool', name: 'shell', content: "12 examples, 0 failures\n" }
+      ]
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: verified,
+          last_iter: true
+        )
+      ).to eq true
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/still_open = request_unsatisfied\?/)
+      expect(src).to match(/last_iter = want_last && !still_open/)
+    end
+
+    it 'never accepts a text final while the original host-work request is unsatisfied' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to match(/turn_fails\['unsatisfied'\]\.to_i < 4/)
+      expect(src).to match(/Keep calling CORE_TOOLS/)
+      req = 'Update all markdown files and rebuild diagrams'
+      wrap = [{ role: 'assistant', content: 'Remaining block. Forced to a final.' }]
+      expect(
+        described_class.send(:request_unsatisfied?, request: req, messages: wrap, last_iter: false)
+      ).to eq true
+      expect(
+        described_class.send(
+          :evidence_enough_to_finalize?,
+          request: req,
+          messages: wrap + [
+            { role: 'tool', name: 'shell', content: "12 examples, 0 failures\n" },
+            { role: 'tool', name: 'shell', content: "12 examples, 0 failures\n" },
+            { role: 'tool', name: 'shell', content: "12 examples, 0 failures\n" }
+          ],
+          turn_fails: {},
+          i: 5,
+          max_iters: 75,
+          plan_steps: 5
+        )
+      ).to eq false
+    end
+
+    it 'does not shrink max_iters because prior budget scars are hot' do
+      src = File.read(described_class.method(:max_iters).source_location.first)
+      expect(src).not_to match(/hot_cap = local_engine\? \? 24 : 75/)
+      expect(src).not_to match(/n = \[n, hot_cap\]\.min/)
+    end
+
+    it 'does not treat memory_remember as a finished docs write' do
+      req = 'Update all markdown files and rebuild diagrams'
+      msgs = [
+        { role: 'tool', name: 'memory_remember', content: '{"success":true,"effect":"store","result":{"saved":true}}' },
+        { role: 'tool', name: 'learning_note_outcome', content: '{"success":true,"effect":"store"}' }
+      ]
+      expect(
+        described_class.send(:request_unsatisfied?, request: req, messages: msgs)
+      ).to eq true
+    end
+
+    it 'never aborts an open host-work request with the budget thrash canned string' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to match(/fail_n\s*=\s*turn_fails\.values\.sum/)
+      expect(src).to match(/BOUNCE_FAIL_KEYS|dispatch_fail_n/)
+      expect(src).not_to match(/return msg\n.*budget thrash/m)
+    end
+
+    it 'never accepts a text final while a long host-work request is still open' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to match(/incomplete_final\?.*< 4/)
+      expect(src).not_to match(/Do NOT call more tools/)
+      expect(src).to match(/may_finalize\?/)
+      req = 'test the in-scope authorized bug bounty program end to end'
+      listing = [
+        { role: 'tool', name: 'shell', content: '{"success":true,"effect":"read","result":{"stdout":"ls"}}' }
+      ]
+      expect(described_class.send(:request_need, request: req)).to eq :any
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: listing)).to eq true
+      expect(
+        described_class.send(
+          :may_finalize?,
+          request: req,
+          messages: listing,
+          text: 'I will do the rest next time.',
+          last_iter: true
+        )
+      ).to eq false
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/OpenGoal/)
+      expect(src).to match(/write_verified\?/)
     end
 
     it 'does not treat https URLs as file paths; browser collect asks complete on URL evidence' do
@@ -400,11 +592,30 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         Wait, let's try one more thing: check if any way exists a host using hping3.
       TXT
       expect(described_class.send(:incomplete_final?, text: sample, last_iter: false)).to eq(true)
-      expect(described_class.send(:incomplete_final?, text: sample, last_iter: true)).to eq(false)
+      expect(described_class.send(:incomplete_final?, text: sample, last_iter: true)).to eq(true)
       expect(
         described_class.send(
           :incomplete_final?,
           text: 'Live hosts: 10.3.3.1 via sudo hping3 -1 -c 1 on 10.3.3.0/27.',
+          last_iter: false
+        )
+      ).to eq(false)
+    end
+
+    it 'flags heading-only remaining-block stubs as incomplete, even on last_iter' do
+      [
+        '# Remaining block',
+        "# Remaining block\n",
+        "```\n# Remaining block\n```",
+        'Remaining block'
+      ].each do |sample|
+        expect(described_class.send(:incomplete_final?, text: sample, last_iter: false)).to eq(true), sample.inspect
+        expect(described_class.send(:incomplete_final?, text: sample, last_iter: true)).to eq(true), sample.inspect
+      end
+      expect(
+        described_class.send(
+          :incomplete_final?,
+          text: 'A ripe cherry is typically red.',
           last_iter: false
         )
       ).to eq(false)

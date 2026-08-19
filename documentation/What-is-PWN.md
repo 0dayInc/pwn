@@ -12,15 +12,15 @@ with a **tool-calling AI agent** on top that can run the same methods.
 
 | Namespace | Count | What it is |
 |---|---|---|
-| `PWN::Plugins::*` | **66** | Wrappers for external and native tooling (Burp, Nmap, Metasploit, Shodan, browsers, serial, ...) |
+| `PWN::Plugins::*` | **67** | Wrappers for external and native tooling (Burp, Nmap, Metasploit, Shodan, browsers, serial, ...) |
 | `PWN::SAST::*` | **48** | Static-analysis rules across C/Java/Go/Python/Ruby/Scala/PHP/TS |
 | `PWN::AWS::*` | **90** | One module per AWS service for cloud enumeration |
 | `PWN::WWW::*` | **22** | Site-specific browser automations (HackerOne, BugCrowd, GitHub, Google, LinkedIn, ...) |
 | `PWN::SDR::*` | **6** (+ **20** protocol decoders + Base/DSP) | GQRX, FlipperZero, RFIDler, SonMicro, band tables, `Decoder::{ADSB,POCSAG,RDS,LoRa,...}` |
 | `PWN::FFI::*` | **8** | Native DSP/RF backends: Volk · Liquid · FFTW · RTLSdr · HackRF · AdalmPluto · SoapySDR · Stdio |
 | `PWN::AI::*` | **6** engines | OpenAI, Anthropic, Grok (OAuth device-flow), Gemini, Ollama, Open WebUI |
-| `bin/pwn_*` | **53** | Headless CLI drivers for CI/CD |
-| Agent toolsets | **13** · **85 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · policy · extrospection · cron · swarm · reward · curriculum |
+| `bin/pwn_*` + `pwn` | **54** | Headless CLI executables for CI/CD |
+| Agent toolsets | **13** · **87 tools** | terminal · pwn · memory · skills · sessions · learning · metrics · policy · extrospection · cron · swarm · reward · curriculum |
 
 ## Three ways to use it
 

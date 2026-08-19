@@ -1,6 +1,6 @@
 # `PWN::SAST` - Static Application Security Testing
 
-48 language-aware rule modules + a `TestCaseEngine` + a `Factory` loader.
+48 modules in `PWN::SAST`: 45 language-aware scan rules plus `Factory`, `TestCaseEngine`, and `Version`.
 Source: `lib/pwn/sast/*.rb`. CLI: `bin/pwn_sast`.
 
 ![SAST pipeline](diagrams/code-scanning-sast.svg)

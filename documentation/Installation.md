@@ -293,7 +293,7 @@ Vagrant, CI) picks it up automatically.
 ```ruby
 pwn[CURRENT_VERSION]:001 >>> PWN::Setup.check[:ok]          # => true
 pwn[CURRENT_VERSION]:002 >>> PWN::Migrate.needed?           # => false
-pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 66
+pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 67
 pwn[CURRENT_VERSION]:004 >>> PWN::SAST.constants.count      # => 48
 pwn[CURRENT_VERSION]:005 >>> pwn-ai                         # launches agent TUI
 ```

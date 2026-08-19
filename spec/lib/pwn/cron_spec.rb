@@ -178,7 +178,12 @@ describe PWN::Cron do
       ].each do |m|
         expect(PWN::Cron).to respond_to(m)
       end
-      expect(PWN::Cron::DEFAULT_JOBS.length).to eq(4)
+      expect(PWN::Cron::DEFAULT_JOBS.length).to eq(5)
+      names = PWN::Cron::DEFAULT_JOBS.map { |j| j[:name] }
+      expect(names).to include('pwn_stores_lean_nightly')
+      expect(names).to include('learning_consolidate_nightly')
+      enabled = PWN::Cron::DEFAULT_JOBS.reject { |j| j[:enabled] == false }.map { |j| j[:name] }
+      expect(enabled).to contain_exactly('pwn_stores_lean_nightly', 'learning_consolidate_nightly')
     end
 
     it 'picks a native backend per OS without consulting live daemons' do
@@ -198,7 +203,8 @@ describe PWN::Cron do
         '0 3 * * *' => { kind: :daily, minute: 0, hour: 3 },
         '0 4 * * 0' => { kind: :weekly, minute: 0, hour: 4, wday: 0 },
         '30 3 * * *' => { kind: :daily, minute: 30, hour: 3 },
-        '0 5 * * *' => { kind: :daily, minute: 0, hour: 5 }
+        '0 5 * * *' => { kind: :daily, minute: 0, hour: 5 },
+        '15 5 * * *' => { kind: :daily, minute: 15, hour: 5 }
       }
       PWN::Cron::DEFAULT_JOBS.each do |spec|
         cal = PWN::Cron.cron_to_calendar(schedule: spec[:schedule])
@@ -248,6 +254,8 @@ describe PWN::Cron do
       unit = File.read(File.join(@tmp, 'native', PWN::Cron::SYSTEMD_WORKER_UNIT))
       expect(unit).to include('Restart=always')
       PWN::Cron.list.each_value do |job|
+        next unless job[:enabled]
+
         tmr = File.join(@tmp, 'native', "pwn-cron-j#{job[:id]}.timer")
         expect(File).to exist(tmr)
         oncal = PWN::Cron.systemd_on_calendar(schedule: job[:schedule])
@@ -263,6 +271,8 @@ describe PWN::Cron do
       expect(worker).to include('@reboot')
       expect(worker).to include('PWN::Cron.ensure_worker')
       PWN::Cron.list.each_value do |job|
+        next unless job[:enabled]
+
         preview = File.read(File.join(@tmp, 'native', "job-#{job[:id]}.crontab"))
         expect(preview).to include(job[:schedule])
         expect(preview).to include(job[:id])
@@ -271,10 +281,10 @@ describe PWN::Cron do
 
     it 'schtasks backend previews ONLOGON worker plus DAILY/WEEKLY specs' do
       PWN::Cron.install_defaults
+      weekly = PWN::Cron.create(name: 'weekly-on', schedule: '0 4 * * 0', ruby: '1', enabled: true)
       res = PWN::Cron.install_scheduler(backend: :schtasks, apply: false)
       expect(res[:ok]).to be true
       expect(File.read(File.join(@tmp, 'native', 'worker.schtasks.txt'))).to include('ONLOGON')
-      weekly = PWN::Cron.list.values.find { |j| j[:name] == 'curriculum_train_weekly' }
       txt = File.read(File.join(@tmp, 'native', "job-#{weekly[:id]}.schtasks.txt"))
       expect(txt).to include('WEEKLY')
       expect(txt).to include('SUN')

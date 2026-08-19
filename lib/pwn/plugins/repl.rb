@@ -290,11 +290,13 @@ module PWN
       public_class_method def self.ready_tty!(opts = {})
         return nil if opts[:skip]
 
+        PWN::Plugins::TTYSpinner.halt_all! if defined?(PWN::Plugins::TTYSpinner)
         out = opts[:io] || $stdout
         return nil unless out.respond_to?(:write)
 
-        out.write("\e[0m#{TTY::Cursor.show}") if defined?(TTY::Cursor)
-        out.write("\e[0m\e[?25h") unless defined?(TTY::Cursor)
+        show = defined?(TTY::Cursor) ? TTY::Cursor.show : "\e[?25h"
+        out.write("\e[0m#{show}")
+        $stderr.write("\e[0m#{show}") if $stderr.respond_to?(:write) && $stderr != out
         out.flush if out.respond_to?(:flush)
         reset_reline_editor
         nil
@@ -1218,11 +1220,12 @@ module PWN
                 puts "\n\001\e[32m\002#{final}\001\e[0m\002\n\n"
                 pp PWN::Sessions.load(session_id: sess_id) if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
                 request.replace('nil')
-                PWN::Plugins::REPL.ready_tty!
                 next
               rescue StandardError => e
                 warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}\n#{e.backtrace}); " \
                      'falling back to legacy regex-ReAct.'
+              ensure
+                PWN::Plugins::REPL.ready_tty!
               end
             end
 
@@ -1322,7 +1325,7 @@ module PWN
                 request: curr_req,
                 response_history: response_history,
                 speak_answer: speak_answer,
-                spinner: true
+                spinner: false
               }
               chat_opts[:system_role_content] = system_role if system_role
 
@@ -1445,6 +1448,8 @@ module PWN
               # One final direct call (no full re-loop to avoid complexity)
               # (The main loop already handled most cases; this is a safety net)
             end
+            request.replace('nil') if request.respond_to?(:replace)
+            PWN::Plugins::REPL.ready_tty!
           end
         end
 

@@ -2,8 +2,8 @@
 
 > **PWN** (/pōn/) - an open-source offensive-security automation framework and
 > continuous-security-integration platform written in Ruby.
-> 66 plugins · 48 SAST rules · 90 AWS wrappers · 22 WWW drivers · 53 CLI
-> drivers · 6 LLM engines · a self-improving multi-agent AI · one REPL.
+> 67 plugins · 48 SAST modules · 90 AWS wrappers · 22 WWW drivers · 54 CLI
+> executables · 6 LLM engines · a self-improving multi-agent AI · one REPL.
 
 **Repo root:** `/opt/pwn` · **This wiki:** `/opt/pwn/documentation/` ·
 **Rebuild diagrams:** `documentation/diagrams/build.sh`
@@ -28,7 +28,7 @@
 |---|---|
 | [The `pwn` REPL](pwn-REPL.md) | Pry shell with the whole `PWN::` namespace pre-loaded |
 | [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot · **TaskSummarizer** briefs · iteration budget guard |
-| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 53 `pwn_*` + `pwn` headless executables for CI/CD |
+| [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 54 headless executables (`pwn` + 53 `pwn_*`) for CI/CD |
 | [Drivers (build your own)](Drivers.md) | Turn a REPL session into a shipped binary |
 
 ## 🤖 AI Subsystem  (`PWN::AI`)
@@ -36,20 +36,21 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama · Open WebUI |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 13 toolsets · **85** LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 13 toolsets · **87** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - the self-improvement loop |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum` + `Policy`** - outcome/process judges · preference ledger · self-play practice · live Q / REINFORCE (advisory) · export-ready LoRA gate |
 | [Extrospection](Extrospection.md) | World-awareness - snapshot · drift · intel · **watch** · **verify** · **rf_tune** · **osint** · serial · telecomm · packet · vision · voice · correlate |
 | [Swarm (Multi-Agent)](Swarm.md) | Personas · ask · debate · broadcast · shared bus |
 | [Sessions](Sessions.md) | Transcript persistence + reflection |
-| [Cron](Cron.md) | Scheduled autonomous jobs (nightly self-play + weekly weight-loop seeded by default) |
+| [Session Workflow](Session-Workflow.md) | Keywords: `continue` / last session / write-then-read / recon scope |
+| [Cron](Cron.md) | Scheduled jobs. Hygiene seeds on; curriculum practice/judge/train ship off |
 
 ## 🧩 Capability Namespaces  (`lib/pwn/*`)
 
 | | |
 |---|---|
-| [Plugins (66)](Plugins.md) | Every `PWN::Plugins::*` module by category |
+| [Plugins (67)](Plugins.md) | Every `PWN::Plugins::*` module by category |
 | &nbsp;&nbsp;↳ [BurpSuite](BurpSuite.md) ⭐ | Preferred web proxy / scanner |
 | &nbsp;&nbsp;↳ [TransparentBrowser](Transparent-Browser.md) | Headless / visible browser automation |
 | &nbsp;&nbsp;↳ [NmapIt](NmapIt.md) | Network discovery |

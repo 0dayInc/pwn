@@ -102,7 +102,7 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ## What the agent can call
 
-13 toolsets · **85 tools** - full table at
+13 toolsets · **87 tools** - full table at
 [Agent Tool Registry](Agent-Tool-Registry.md).
 
 The two that matter most:
@@ -144,7 +144,7 @@ There is no request type. Every request gets an English task compass.
 - Advancement needs a PRM +1 streak or a clear phase shift after tools on the active task (not a blind every-3-tools hop).
 - REPL contract: `on_tool.call('task', full_summary_text, '')` - result empty, no truncation.
 
-**Long-run pressure:** when recent turns keep hitting the iteration ceiling, the agent tightens the rest of the turn: lower `max_iters` (stricter on local engines than remote), a text-only finish, and no extra counterfactual forks. Task state and Learning still flush on the way out so the run ends with a real answer instead of thrashing.
+**Long-run pressure:** budget-hot turns skip extra counterfactual forks. The last iteration strips tools only when the original request is already satisfied. Scars and overconfidence do not lower this request's `max_iters` (default 777). Task state and Learning still flush on the exhaust path.
 
 ![TaskSummarizer](diagrams/task-summarizer.svg)
 
@@ -156,7 +156,7 @@ task_summary_every: 5           # verbose progress every N tools
 task_summary_interval_s: 8.0    # or every N seconds (verbose)
 task_summary_verbose: false     # mid-flight Progress: lines
 task_summary_llm: true          # LLM task decompose (default on)
-max_iters: 75                   # budget pressure may lower the effective cap (stricter on local engines)
+max_iters: 777                  # scars / overconf do not lower this request
 ```
 
 
@@ -197,7 +197,7 @@ max_iters: 75                   # budget pressure may lower the effective cap (s
 | `reward_llm_timeout` | `12` | seconds for the cheap ORM chat (clamped 2..30) |
 | `verify_as_reward` | `nil` (auto) | browser-grounded claim sample policy |
 | `local_introspect` | `:failure_only` | ollama / openwebui end-of-turn introspect policy |
-| `tool_preference` | same list as CORE_TOOLS (`memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`) | Rank bonus + Policy suggested-action order |
+| `tool_preference` | same list as CORE_TOOLS (`memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember`) | Rank bonus + Policy suggested-action order |
 | `defer_introspect` | `true` | Post-answer Learning on a background thread |
 | `prompt_cache` | `true` | Engine-native prefix cache (not Ollama / Open WebUI) |
 
@@ -226,4 +226,9 @@ for cheap short-circuits. Everything else is a goal: TaskSummarizer compass + CO
 The `shell` tool also blocks hping3 / nmap-style sweep commands when recon is
 not authorized. On how-to asks, memory SOPs about repo rubocop/rake hygiene are
 kept out of the prompt so the model does not pivot into unrelated verification.
+
+Keyword routing, unfinished-goal resume (`continue` / `resume`), and
+write-then-read completion: [Session Workflow](Session-Workflow.md).
+
+[← Home](Home.md)
 
