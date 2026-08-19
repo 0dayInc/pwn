@@ -65,4 +65,41 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
     end
     expect(PWN::Setup::PROFILES).to include(:core, :full)
   end
+
+  it 'install_default_skills seeds the bundled offensive skills and does not overwrite edits' do
+    Dir.mktmpdir('pwn_default_skills') do |dir|
+      expect(PWN::Config).to respond_to(:install_default_skills)
+      expect(PWN::Config).to respond_to(:default_skill_names)
+      names = PWN::Config.default_skill_names
+      expect(names).to eq %w[
+        vulnerability-research-fundamentals
+        deep-exploitation
+        bug-bounty-hunting
+        sast-code-scans
+        reverse-engineering-binaries
+        penetration-testing
+        web-application-penetration-testing
+        red-teaming
+        hardware-and-firmware-testing
+        social-engineering
+        osint
+      ]
+      seeded = PWN::Config.install_default_skills(pwn_skills_path: dir)
+      expect(seeded.map { |r| r[:name] }).to eq names
+      names.each do |name|
+        path = File.join(dir, name, 'SKILL.md')
+        expect(File.file?(path)).to eq(true), path
+        body = File.read(path)
+        expect(body).to start_with("---\n")
+        expect(body).to include("name: #{name}")
+        expect(body).not_to match(/hermes/i)
+        expect(body).to match(/## Methodolog/i)
+      end
+      marker = File.join(dir, 'bug-bounty-hunting', 'SKILL.md')
+      File.write(marker, "# user edited\n")
+      again = PWN::Config.install_default_skills(pwn_skills_path: dir)
+      expect(again).to eq([])
+      expect(File.read(marker)).to eq("# user edited\n")
+    end
+  end
 end

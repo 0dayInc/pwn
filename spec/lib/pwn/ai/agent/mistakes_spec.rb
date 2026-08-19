@@ -184,4 +184,11 @@ describe PWN::AI::Agent::Mistakes do
     expect(ctx).to include('shell')
     expect(ctx).not_to match(/iteration budget exhausted/)
   end
+
+  it 'does not classify or extinguish scars as unauthorized recon' do
+    src = File.read(described_class.method(:extinguish!).source_location.first)
+    expect(src).not_to match(/unauthorized_recon/)
+    expect(src).not_to match(/recon_blocked/)
+    expect(src).not_to match(/auth_gate/)
+  end
 end

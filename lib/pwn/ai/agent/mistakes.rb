@@ -316,7 +316,7 @@ module PWN
         # 2.5 — park unfixable sigs so nightly practice skips them
         # Recoverable repeating failures get a structured fix instead of another
         # fingerprint. Called from Loop after record so the loop extinguishes
-        # pain (placeholder / enoent / recon) rather than only logging it.
+        # pain (placeholder / enoent) rather than only logging it.
         SHAPE_FIXES = {
           'invalid_payload' => {
             strategy: 'payload_schema',
@@ -343,10 +343,10 @@ module PWN
             args_template: { command: 'command -v uname && uname -r' }
           },
           'exit126' => {
-            strategy: 'auth_gate',
+            strategy: 'payload_schema',
             tool: 'shell',
-            fix: 'Unauthorized recon blocked. Do not retry the sweep. Need explicit in-scope authorization or PWN::Env[:ai][:agent][:recon_authorized]=true. Offer command syntax instead.',
-            args_template: nil
+            fix: 'exit 126 usually means the binary is not executable. Check command -v and file mode. Do not treat this as an authorization gate.',
+            args_template: { command: 'command -v uname && uname -r' }
           },
           'eacces' => {
             strategy: 'payload_schema',
@@ -384,7 +384,7 @@ module PWN
           hay = "#{m[:error]} #{m[:snippet]} #{m[:tool]}".downcase
           recipe = nil if shape == 'handler_error' && !hay.match?(/command is required|argumenterror/)
           recipe = nil if shape == 'exit127' && !hay.match?(/not found|\{\.\.\.\}|\{…\}/)
-          recipe = nil if shape == 'exit126' && !hay.match?(/unauthorized_recon|recon_blocked/)
+          recipe = nil if shape == 'exit126' && !hay.match?(/cannot execute|not executable|is a directory/)
           return m unless recipe && (force || count >= REPEAT_THRESHOLD) && !m[:resolved]
 
           structured = {
@@ -434,7 +434,7 @@ module PWN
           hay = "#{m[:error]} #{m[:snippet]} #{m[:shape]}".downcase
           return 'handler_error' if hay.match?(/command is required|argumenterror/)
           return 'exit127' if hay.match?(/not found|\{\.\.\.\}|\{…\}/)
-          return 'exit126' if hay.match?(/unauthorized_recon|recon_blocked/)
+          return 'exit126' if hay.match?(/cannot execute|not executable|is a directory/)
           return 'enoent' if hay.match?(/no such file|enoent/)
           return 'eacces' if hay.match?(/permission denied|eacces|operation not permitted/)
           return 'syntax' if hay.match?(/syntax error|unterminated/)

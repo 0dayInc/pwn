@@ -1,4 +1,4 @@
-# `PWN::Plugins` - All 66 Modules
+# `PWN::Plugins` - All 67 Modules
 
 Every plugin is a plain Ruby module of `public_class_method def self.x(opts = {})`
 methods with self-documenting `.help`. Source: `lib/pwn/plugins/*.rb`.
@@ -93,7 +93,7 @@ show-source PWN::Plugins::Fuzz.generate
 
 ### Utility
 `FileFu` · `ThreadPool` · `Log` · `PWNLogger` · `Char` · `XXD` · `DetectOS` ·
-`CreditCard` · `SSN` · `EIN` · `VIN` · `PS` · `MonkeyPatch` · `REPL`
+`CreditCard` · `SSN` · `EIN` · `VIN` · `PS` · `MonkeyPatch` · `REPL` · `TTYSpinner`
 
 ## Full alphabetical list
 
@@ -104,6 +104,6 @@ HackerOne Hunter IPInfo IRC Jenkins JiraDataCenter JSONPathify Log MailAgent
 Metasploit MonkeyPatch MSR206 NessusCloud NexposeVulnScan NmapIt OAuth2 OCR
 OpenAPI OpenVAS Packet PDFParse Pony PS PWNLogger RabbitMQ REPL ScannableCodes
 Serial Shodan SlackClient Sock Spider SSN ThreadPool Tor TransparentBrowser
-TwitterAPI URIScheme Vault VIN Voice Vsphere XXD Zaproxy`
+TTYSpinner TwitterAPI URIScheme Vault VIN Voice Vsphere XXD Zaproxy`
 
 [← Home](Home.md) · [Diagrams](Diagrams.md)

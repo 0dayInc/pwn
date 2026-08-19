@@ -103,6 +103,26 @@ them in-place to the spec-conformant `<name>/SKILL.md` layout with
 back-filled `name`/`description` front-matter. `skill_create` always writes
 the new format.
 
+A fresh install (first `pwn` launch or `pwn setup --migrate`) copies these
+bundled skills into `~/.pwn/skills/` when the name is missing:
+
+| Skill | For |
+|---|---|
+| `vulnerability-research-fundamentals` | First-pass research methodology with PWN plugins |
+| `deep-exploitation` | Crash / primitive to reliable PoC |
+| `bug-bounty-hunting` | Program scope, Burp, authz replay, report |
+| `sast-code-scans` | `PWN::SAST::Factory` / `pwn_sast` + reports |
+| `reverse-engineering-binaries` | checksec, disasm, `PWN::Plugins::Assembly` |
+| `penetration-testing` | PTES / NIST / OSSTMM / ISSAF engagement loop |
+| `web-application-penetration-testing` | OWASP WSTG / ASVS / API Top 10 |
+| `red-teaming` | MITRE ATT&CK, TIBER-EU, Kill Chain |
+| `hardware-and-firmware-testing` | OWASP FSTM / ISTG, serial, firmware |
+| `social-engineering` | OSSTMM human channel, ATT&CK phishing |
+| `osint` | `extro_osint` kinds, feeds, keys, pivots |
+
+Source: `etc/default_skills/` in the gem. Edits in `~/.pwn/skills` are never
+overwritten.
+
 ## Housekeeping
 
 | Tool | When |

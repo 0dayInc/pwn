@@ -38,3 +38,9 @@ RSpec.configure do |config|
     $stderr = original_stderr
   end
 end
+
+# Logger.new($stdout) captures the IO at class load — the same stream RSpec
+# uses for progress dots. Reassigning $stdout in before(:each) does not
+# retarget that logger. Point the red-team engine at /dev/null so execute
+# banners cannot leak into rake.
+PWN::AI::RedTeam::TestCaseEngine.class_variable_set(:@@logger, Logger.new(File::NULL)) if defined?(PWN::AI::RedTeam::TestCaseEngine)

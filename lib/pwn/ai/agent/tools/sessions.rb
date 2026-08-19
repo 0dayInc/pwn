@@ -3,6 +3,38 @@
 require 'pwn/ai/agent/registry'
 require 'pwn/sessions'
 
+PWN::AI::Agent::Registry.register(
+  name: 'session_recall',
+  toolset: 'sessions',
+  schema: {
+    name: 'session_recall',
+    description: 'Search previous pwn-ai session transcripts (~/.pwn/sessions) ' \
+                 'for how a similar request was solved. Current session is ' \
+                 'already in RECENT TURNS — this is for older sessions. ' \
+                 'Call before pwn_eval / shell when prior method matters.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Keywords to match in prior user/assistant turns.' },
+        limit: { type: 'integer', default: 12, description: 'Max hits (newest / highest score first).' },
+        include_current: { type: 'boolean', default: false, description: 'Also search the active session.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::Sessions) },
+  handler: lambda { |args|
+    exclude = ''
+    exclude = PWN::Memory.current_session_id if defined?(PWN::Memory) && PWN::Memory.respond_to?(:current_session_id)
+    PWN::Sessions.recall(
+      query: args[:query],
+      limit: args[:limit] || 12,
+      exclude_session_id: exclude,
+      include_current: args[:include_current] == true
+    )
+  }
+)
+
 # Thin wrappers around PWN::Sessions so the model can DISCOVER and INSPECT
 # the JSONL transcripts that learning_reflect / learning_distill_skill
 # consume. Without these the model has to blindly `shell("ls ~/.pwn/sessions")`

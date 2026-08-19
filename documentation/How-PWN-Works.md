@@ -20,16 +20,16 @@ hardware).
 | `pwn-ai` | `lib/pwn/ai/agent/loop.rb` | Agent TUI inside the REPL |
 | `pwn --ai PROMPT` | `bin/pwn` | Headless one-shot agent (CI-friendly) |
 | `pwn setup` | `lib/pwn/setup.rb` · `bin/pwn_setup` | Post-install doctor + capability provisioner + `--migrate` state doctor (also `pwn --setup[=PROFILE]`) |
-| `bin/pwn_*` | 53 files | Thin OptionParser wrappers over one plugin each |
-| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs → any of the above (nightly self-play + weekly weight-loop seeded by default) |
+| `bin/pwn_*` + `pwn` | 54 files | Thin OptionParser wrappers plus the `pwn` REPL / one-shot agent |
+| `PWN::Cron` | `lib/pwn/cron.rb` | Scheduled jobs + background worker (`pwn setup`). Fresh install seeds hygiene on (`learning_consolidate_nightly`, `pwn_stores_lean_nightly`) and curriculum practice/judge/train off |
 
 ## L2 - AI agent core (`lib/pwn/ai/agent/`)
 
 | Module | Role |
 |---|---|
-| `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer; tightens runway when recent turns exhausted the budget |
-| **`TaskSummarizer`** | Executive UX: every request gets an English task compass (`emit_plan!` · `about_to` as `task k/n`) — no statement/question/goal type |
-| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **85 tools** · `CORE_TOOLS` default pool · kind-aware `tool_preference` |
+| `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer. Scars do not lower `max_iters` (default 777). Last-iter strips tools only when the original request is already satisfied |
+| **`TaskSummarizer`** | Executive UX: every request gets an English task compass (`emit_plan!` · `about_to` as `task k/n`) - no statement/question/goal type |
+| `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **87 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell` · `mistakes_record` · `mistakes_resolve` · `learning_note_outcome` · `memory_remember`) |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |
 | `PromptBuilder` | inject MEMORY / SKILLS / LEARNING / **KNOWN MISTAKES + FIXES** / METRICS / **POLICY** / EXTROSPECTION / RECENT TURNS |
 | `Metrics` · `Learning` · `Reflect` · **`Policy`** | **introspection** - how well am I doing? (Policy is live Q / REINFORCE, advisory rank only) |
@@ -45,8 +45,8 @@ call, and [Reinforcement Learning](Reinforcement-Learning.md) for how
 
 ## L3 - Capability namespaces (`lib/pwn/*`)
 
-`Plugins` (66) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
-`Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. Each is
+`Plugins` (67) · `SAST` (48) · `WWW` (22) · `AWS` (90) · `SDR` · `Blockchain` ·
+`Bounty` · `Reports` · `FFI` · `Banner` · **`Setup`** · **`Migrate`**. First launch also seeds bundled skills from `etc/default_skills/`. Each is
 a plain module of `public_class_method def self.x(opts = {})` methods -
 callable the same way from the REPL, from `pwn_eval`, or from a driver.
 
@@ -75,9 +75,9 @@ Q / REINFORCE when the judge scores the turn, and **the prompt blocks**
 (MEMORY · SKILLS · LEARNING · KNOWN MISTAKES/FIXES · TOOL EFFECTIVENESS ·
 POLICY · EXTROSPECTION · RECENT TURNS) are re-injected into the next system
 prompt.
-Nightly cron practices the top unresolved Mistakes; weekly cron builds a
-LoRA and only promotes it if it beats the previous adapter on that same
-mistake set:
+Nightly hygiene cron trims `~/.pwn` stores. Curriculum practice, offline
+judge, and weekly LoRA train ship seeded but disabled; turn them on with
+`cron_enable` when you want that loop:
 
 ![Self-improvement loop](diagrams/pwn-ai-feedback-learning-loop.svg)
 

@@ -11,7 +11,7 @@ Every byte PWN remembers between processes lives here.
 | **`.schema`** | **`PWN::Migrate`** | JSON `{schema:,pwn_version:,at:}` | `pwn setup --migrate` | **schema stamp - drives the one-line drift warning on launch** |
 | `memory.json` | `PWN::Memory` | JSON array | `memory_clear` | facts · prefs · lessons · env - injected into every prompt |
 | `memory.idx` | `PWN::MemoryIndex` | JSON `{key → {sha,vec}}` | `PWN::MemoryIndex.reset` | local embedding index over `memory.json` - powers **relevance-ranked** MEMORY injection (incremental; only re-embeds changed entries) |
-| `skills/<name>/SKILL.md` | `PWN::Config.load_skills` | **[agentskills.io](https://agentskills.io) spec** - `name`+`description` YAML front-matter | `skill_delete` | reusable procedures + `metadata.references:` (CWE/CVE/ATT&CK/NIST). Legacy flat `skills/*.md` auto-migrated by `skill_migrate_legacy` / `pwn setup --migrate --fix`. |
+| `skills/<name>/SKILL.md` | `PWN::Config.load_skills` | **[agentskills.io](https://agentskills.io) spec** - `name`+`description` YAML front-matter | `skill_delete` | reusable procedures + `metadata.references:`. Fresh install seeds bundled skills from `etc/default_skills/` via `PWN::Config.install_default_skills` (never overwrites an existing file). Legacy flat `skills/*.md` auto-migrated by `skill_migrate_legacy` / `pwn setup --migrate --fix`. |
 | `learning.jsonl` | `PWN::AI::Agent::Learning` | JSON-per-line | `learning_reset` | task outcome log → success_rate |
 | **`preferences.jsonl`** | **`PWN::AI::Agent::Reward`** | JSON-per-line `{prompt,rejected,chosen,source}` | `rm` | **DPO/KTO/ORPO preference-pair ledger - user_correction · mistakes_resolve · counterfactual · critic · curriculum** |
 | **`mistakes.json`** | **`PWN::AI::Agent::Mistakes`** | **JSON `{sig → entry}`** | **`mistakes_reset`** | **failure fingerprints · cross-session count · fix · `[REPEATING]` · `[REGRESSED]`** |
@@ -24,7 +24,8 @@ Every byte PWN remembers between processes lives here.
 | `extrospection/packet/*.pcap` | `Extrospection` | pcap | `rm -rf` | bounded captures from `extro_packet(action: :capture)` |
 | `extrospection/voice/*` | `Extrospection` | wav / txt | `rm -rf` | TTS/STT artifacts from `extro_voice` |
 | `sessions/*.jsonl` | `PWN::Sessions` | JSON-per-line | `sessions_delete` | full transcript per pwn-ai run (with per-step `step_reward` from `Reward.prm`) |
-| `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | scheduled prompt/ruby/script jobs (**seeded** with `curriculum_practice_nightly` + `curriculum_train_weekly`) |
+| `open_goal.json` | `PWN::AI::Agent::OpenGoal` | JSON | delete the file | unfinished host-work request so `continue` / `resume` picks it up |
+| `cron/jobs.yml` | `PWN::Cron` | YAML | `cron_remove` | scheduled jobs. Fresh install seeds hygiene (`learning_consolidate_nightly` + `pwn_stores_lean_nightly` **on**) and curriculum practice/judge/train **off** |
 | `cron/log/*.log` | `PWN::Cron` | text | rm | last_run output |
 | `agents.yml` | `PWN::AI::Agent::Swarm` | YAML | edit / `agent_spawn` | persona registry |
 | `swarm/<id>/bus.jsonl` | `Swarm` | JSON-per-line | rm -rf | append-only multi-agent chat |

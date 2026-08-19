@@ -9,34 +9,33 @@ without a REPL or an LLM.
 ## Full list
 
 ```text
-pwn                                pwn_mail_agent
-pwn_android_war_dialer             pwn_msf_postgres_login
-pwn_autoinc_version                pwn_nessus_cloud_scan_crud
-pwn_aws_describe_resources         pwn_nessus_cloud_vulnscan
-pwn_bdba_groups                    pwn_nexpose
-pwn_bdba_scan                      pwn_nmap_discover_tcp_udp
-pwn_burp_suite_pro_active_rest_api_scan   pwn_openvas_vulnscan
-pwn_burp_suite_pro_active_scan     pwn_pastebin_sample_filter
-pwn_char_base64_encoding           pwn_phone
-pwn_char_dec_encoding              pwn_rdoc_to_jsonl
-pwn_char_hex_escaped_encoding      pwn_sast
-pwn_char_html_entity_encoding      pwn_serial_check_voicemail
-pwn_char_unicode_escaped_encoding  pwn_serial_msr206
-pwn_char_url_encoding              pwn_serial_qualcomm_commands
-pwn_crt_sh                         pwn_serial_son_micro_sm132_rfid
-pwn_defectdojo_engagement_create   pwn_setup
-pwn_defectdojo_importscan          pwn_shodan_graphql_introspection
-pwn_defectdojo_reimportscan        pwn_shodan_search
-pwn_diff_csv_files_w_column_exclude  pwn_simple_http_server
-pwn_domain_reversewhois            pwn_web_cache_deception
-pwn_fuzz_net_app_proto             pwn_www_checkip
-pwn_gqrx_scanner                   pwn_www_uri_buster
-pwn_jenkins_create_job             pwn_xss_dom_vectors
-pwn_jenkins_create_view            pwn_zaproxy_active_rest_api_scan
-pwn_jenkins_install_plugin         pwn_zaproxy_active_scan
-pwn_jenkins_thinBackup_aws_s3
-pwn_jenkins_update_plugins
-pwn_jenkins_useradd
+pwn                                pwn_jenkins_update_plugins
+pwn_ai_red_team                    pwn_jenkins_useradd
+pwn_android_war_dialer             pwn_mail_agent
+pwn_autoinc_version                pwn_msf_postgres_login
+pwn_aws_describe_resources         pwn_nessus_cloud_scan_crud
+pwn_bdba_groups                    pwn_nessus_cloud_vulnscan
+pwn_bdba_scan                      pwn_nexpose
+pwn_burp_suite_pro_active_rest_api_scan pwn_nmap_discover_tcp_udp
+pwn_burp_suite_pro_active_scan     pwn_openvas_vulnscan
+pwn_char_base64_encoding           pwn_pastebin_sample_filter
+pwn_char_dec_encoding              pwn_phone
+pwn_char_hex_escaped_encoding      pwn_rdoc_to_jsonl
+pwn_char_html_entity_encoding      pwn_sast
+pwn_char_unicode_escaped_encoding  pwn_serial_check_voicemail
+pwn_char_url_encoding              pwn_serial_msr206
+pwn_crt_sh                         pwn_serial_qualcomm_commands
+pwn_defectdojo_engagement_create   pwn_serial_son_micro_sm132_rfid
+pwn_defectdojo_importscan          pwn_setup
+pwn_defectdojo_reimportscan        pwn_shodan_graphql_introspection
+pwn_diff_csv_files_w_column_exclude pwn_shodan_search
+pwn_domain_reversewhois            pwn_simple_http_server
+pwn_fuzz_net_app_proto             pwn_web_cache_deception
+pwn_gqrx_scanner                   pwn_www_checkip
+pwn_jenkins_create_job             pwn_www_uri_buster
+pwn_jenkins_create_view            pwn_xss_dom_vectors
+pwn_jenkins_install_plugin         pwn_zaproxy_active_rest_api_scan
+pwn_jenkins_thinBackup_aws_s3      pwn_zaproxy_active_scan
 ```
 
 Run any with `--help` for its flags.

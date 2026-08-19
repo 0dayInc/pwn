@@ -210,6 +210,7 @@ module PWN
           { migrated: 0 }
         end
         io.puts "    · migrate_legacy_skills → #{r[:migrated]} converted" if r[:migrated].to_i.positive?
+        PWN::Config.install_default_skills if defined?(PWN::Config)
         PWN::Cron.install_defaults if defined?(PWN::Cron)
       }
     }.freeze
@@ -512,6 +513,7 @@ module PWN
         strip_bad_jsonl!(rel: f[:rel])
       when :skills
         PWN::Config.migrate_legacy_skills
+        PWN::Config.install_default_skills if PWN::Config.respond_to?(:install_default_skills)
       when :seed
         FileUtils.mkdir_p(File.join(PWN_ROOT, f[:rel])) if f[:kind] == :dir
         PWN::Cron.install_defaults if f[:rel].start_with?('cron/') && defined?(PWN::Cron)

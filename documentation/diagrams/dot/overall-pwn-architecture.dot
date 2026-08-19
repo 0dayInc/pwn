@@ -27,8 +27,8 @@ digraph "PWN_Overall_Architecture" {
     style=rounded; color="#0369a1"; bgcolor="#0c4a6e"; penwidth=2;
     REPL  [label="🐚  pwn REPL\nPry + PWN:: preload",       fillcolor="#7dd3fc"];
     PwnAI [label="✨  pwn-ai\nAgent TUI · pwn --ai",         fillcolor="#7dd3fc"];
-    CLI   [label="📜  bin/pwn_*\n53 CLI drivers",            fillcolor="#7dd3fc"];
-    Cronb [label="⏱  PWN::Cron\nScheduled jobs",            fillcolor="#7dd3fc"];
+    CLI   [label="📜  bin/pwn_*\n54 executables",            fillcolor="#7dd3fc"];
+    Cronb [label="⏱  PWN::Cron\nJobs + background worker", fillcolor="#7dd3fc"];
   }
   {rank=same; REPL; PwnAI; CLI; Cronb}
 
@@ -36,8 +36,8 @@ digraph "PWN_Overall_Architecture" {
   subgraph cluster_agent {
     label="PWN::AI::Agent"; fontcolor="#ddd6fe";
     style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Loop     [label="Loop\nTaskSummarizer briefs\nplan_first → dispatch\n→ observe → escalate\nbudget-pressure caps",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n13 toolsets · 85 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
+    Loop     [label="Loop\nTaskSummarizer briefs\nplan → dispatch → observe\nmax_iters 777 (scars do not shrink)\nlast-iter tools only if done",      fillcolor="#c4b5fd"];
+    Registry [label="Registry\n13 toolsets · 87 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
     Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
     Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMEMORY · SKILLS · POLICY\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
   }
@@ -47,7 +47,7 @@ digraph "PWN_Overall_Architecture" {
   subgraph cluster_caps {
     label="Capability Namespaces  (lib/pwn/*)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    Plugins [label="Plugins\n66 modules",     fillcolor="#6ee7b7"];
+    Plugins [label="Plugins\n67 modules",     fillcolor="#6ee7b7"];
     SAST    [label="SAST\n48 rules",          fillcolor="#6ee7b7"];
     WWW     [label="WWW\n22 site drivers",    fillcolor="#6ee7b7"];
     AWS     [label="AWS\n90 services",        fillcolor="#6ee7b7"];

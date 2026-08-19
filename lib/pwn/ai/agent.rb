@@ -35,6 +35,7 @@ module PWN
       autoload :Policy, 'pwn/ai/agent/policy'
       autoload :ToolGuard, 'pwn/ai/agent/tool_guard'
       autoload :TurnFinalizer, 'pwn/ai/agent/turn_finalizer'
+      autoload :OpenGoal, 'pwn/ai/agent/open_goal'
       autoload :PromptCache, 'pwn/ai/agent/prompt_cache'
 
       # Display a List of Every PWN::AI Module

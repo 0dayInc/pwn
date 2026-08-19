@@ -16,7 +16,7 @@ digraph "PWN_Persistence" {
   schm [label=".schema\n{schema:, pwn_version:, at:}\ndrives launch drift warning"];
   mem  [label="memory.json\nfacts · prefs · lessons · env"];
   midx [label="memory.idx\nlocal embedding index\n(relevance-ranked MEMORY)"];
-  skl  [label="skills/<name>/SKILL.md\nagentskills.io spec\nname+description frontmatter + refs"];
+  skl  [label="skills/<name>/SKILL.md\nagentskills.io + default_skills seed\nname+description frontmatter + refs"];
   lrn  [label="learning.jsonl\ntask outcomes"];
   prf  [label="preferences.jsonl\nDPO/KTO/ORPO pairs\nuser_correction · resolve · counterfactual"];
   mis  [label="mistakes.json\nfailure fingerprints · fixes\n[REPEATING] · [REGRESSED]"];
@@ -26,7 +26,7 @@ digraph "PWN_Persistence" {
   ext  [label="extrospection.json\nsnapshot (host/net/tc/repo/env/\nrf/web/osint/serial/telecomm/\npacket/vision/voice) + prev + obs[]"];
   eart [label="extrospection/{web,packet,voice}/*\nscreenshots · pcaps · wav/txt"];
   ses  [label="sessions/*.jsonl\ntranscripts (+ step_reward)"];
-  crn  [label="cron/jobs.yml + log/\nseeded: curriculum_practice_nightly\ncurriculum_train_weekly"];
+  crn  [label="cron/jobs.yml + log/\nhygiene ON: consolidate + lean\ncurriculum practice/judge/train OFF"];
   agt  [label="agents.yml\npersona registry"];
   swm  [label="swarm/<id>/bus.jsonl\nmulti-agent chat"];
   cur  [label="curriculum/ + curriculum_kpi.jsonl\nself-play · A/B eval · KPI trend"];

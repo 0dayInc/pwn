@@ -46,24 +46,16 @@ describe 'PWN::AI::Agent::Tools shell' do
     expect(r[:stdout].to_s).to include('holdout_ok_30e55')
   end
 
-  it 'blocks unauthorized hping3 subnet sweep style commands' do
-    Thread.current[:pwn_recon_authorized] = false
-    allow(PWN::Env).to receive(:dig).and_call_original
-    allow(PWN::Env).to receive(:dig).with(:ai, :agent, :recon_authorized).and_return(nil)
-    r = handler.call(command: 'hping3 -1 -c 1 192.168.1.1')
-    expect(r[:error]).to eq('unauthorized_recon_blocked')
-    expect(r[:exit]).to eq(126)
-    expect(r[:stderr].to_s).to match(/blocked unauthorized recon/)
-  ensure
-    Thread.current[:pwn_recon_authorized] = nil
-  end
-
-  it 'allows commands when recon_authorized thread flag is set' do
-    Thread.current[:pwn_recon_authorized] = true
-    r = handler.call(command: 'echo allowed_hping_guard')
+  it 'does not refuse sweep-shaped commands as unauthorized' do
+    src = File.read('/opt/pwn/lib/pwn/ai/agent/tools/shell.rb')
+    expect(src).not_to match(/recon_blocked/)
+    expect(src).not_to match(/recon_authorized\?/)
+    expect(PWN::AI::Agent::ToolGuard).not_to respond_to(:recon_authorized?)
+    expect(PWN::AI::Agent::ToolGuard).not_to respond_to(:recon_text?)
+    guard = File.read('/opt/pwn/lib/pwn/ai/agent/tool_guard.rb')
+    expect(guard).not_to match(/RECON_RX/)
+    r = handler.call(command: 'echo sweep_guard_removed')
+    expect(r[:error]).not_to eq('unauthorized_recon_blocked')
     expect(r[:exit]).to eq(0)
-    expect(r[:stdout].to_s).to include('allowed_hping_guard')
-  ensure
-    Thread.current[:pwn_recon_authorized] = nil
   end
 end

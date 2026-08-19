@@ -63,12 +63,6 @@ PWN::AI::Agent::Registry.register(
       )
     end
 
-    # Guard: raw-socket / subnet discovery without explicit engagement auth.
-    if PWN::AI::Agent::ToolGuard.recon_text?(text: cmd) &&
-       !PWN::AI::Agent::ToolGuard.recon_authorized?
-      return PWN::AI::Agent::ToolGuard.recon_blocked(text: cmd)
-    end
-
     stdout = +''
     stderr = +''
     exitstatus = nil

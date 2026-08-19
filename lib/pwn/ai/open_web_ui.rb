@@ -87,7 +87,6 @@ module PWN
         rest_client = browser_obj[:browser]::Request
 
         spin = PWN::Plugins::TTYSpinner.start if spinner
-        spin.auto_spin if spinner
 
         retry_count = 0
         begin

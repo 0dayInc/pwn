@@ -13,18 +13,18 @@
 <text xml:space="preserve" text-anchor="start" x="770" y="-726.18" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">Overall Architecture · lib/pwn/*</text>
 <g id="clust1" class="cluster">
 <title>cluster_actors</title>
-<path fill="#1e293b" stroke="#334155" stroke-dasharray="5,2" d="M491,-614.62C491,-614.62 1116,-614.62 1116,-614.62 1122,-614.62 1128,-620.62 1128,-626.62 1128,-626.62 1128,-700.62 1128,-700.62 1128,-706.62 1122,-712.62 1116,-712.62 1116,-712.62 491,-712.62 491,-712.62 485,-712.62 479,-706.62 479,-700.62 479,-700.62 479,-626.62 479,-626.62 479,-620.62 485,-614.62 491,-614.62"/>
-<text xml:space="preserve" text-anchor="middle" x="803.5" y="-687.73" font-family="sans-Serif" font-size="22.00" fill="#94a3b8">Actors</text>
+<path fill="#1e293b" stroke="#334155" stroke-dasharray="5,2" d="M495,-614.62C495,-614.62 1120,-614.62 1120,-614.62 1126,-614.62 1132,-620.62 1132,-626.62 1132,-626.62 1132,-700.62 1132,-700.62 1132,-706.62 1126,-712.62 1120,-712.62 1120,-712.62 495,-712.62 495,-712.62 489,-712.62 483,-706.62 483,-700.62 483,-700.62 483,-626.62 483,-626.62 483,-620.62 489,-614.62 495,-614.62"/>
+<text xml:space="preserve" text-anchor="middle" x="807.5" y="-687.73" font-family="sans-Serif" font-size="22.00" fill="#94a3b8">Actors</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_entry</title>
-<path fill="#0c4a6e" stroke="#0369a1" stroke-width="2" d="M357,-476.62C357,-476.62 875,-476.62 875,-476.62 881,-476.62 887,-482.62 887,-488.62 887,-488.62 887,-550.12 887,-550.12 887,-556.12 881,-562.12 875,-562.12 875,-562.12 357,-562.12 357,-562.12 351,-562.12 345,-556.12 345,-550.12 345,-550.12 345,-488.62 345,-488.62 345,-482.62 351,-476.62 357,-476.62"/>
-<text xml:space="preserve" text-anchor="middle" x="616" y="-537.23" font-family="sans-Serif" font-size="22.00" fill="#7dd3fc">Entry Points &#160;(bin/)</text>
+<path fill="#0c4a6e" stroke="#0369a1" stroke-width="2" d="M359,-476.62C359,-476.62 933,-476.62 933,-476.62 939,-476.62 945,-482.62 945,-488.62 945,-488.62 945,-550.12 945,-550.12 945,-556.12 939,-562.12 933,-562.12 933,-562.12 359,-562.12 359,-562.12 353,-562.12 347,-556.12 347,-550.12 347,-550.12 347,-488.62 347,-488.62 347,-482.62 353,-476.62 359,-476.62"/>
+<text xml:space="preserve" text-anchor="middle" x="646" y="-537.23" font-family="sans-Serif" font-size="22.00" fill="#7dd3fc">Entry Points &#160;(bin/)</text>
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_agent</title>
-<path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M334,-299.12C334,-299.12 1022,-299.12 1022,-299.12 1028,-299.12 1034,-305.12 1034,-311.12 1034,-311.12 1034,-412.12 1034,-412.12 1034,-418.12 1028,-424.12 1022,-424.12 1022,-424.12 334,-424.12 334,-424.12 328,-424.12 322,-418.12 322,-412.12 322,-412.12 322,-311.12 322,-311.12 322,-305.12 328,-299.12 334,-299.12"/>
-<text xml:space="preserve" text-anchor="middle" x="678" y="-399.23" font-family="sans-Serif" font-size="22.00" fill="#ddd6fe">PWN::AI::Agent</text>
+<path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M278,-299.12C278,-299.12 1024,-299.12 1024,-299.12 1030,-299.12 1036,-305.12 1036,-311.12 1036,-311.12 1036,-412.12 1036,-412.12 1036,-418.12 1030,-424.12 1024,-424.12 1024,-424.12 278,-424.12 278,-424.12 272,-424.12 266,-418.12 266,-412.12 266,-412.12 266,-311.12 266,-311.12 266,-305.12 272,-299.12 278,-299.12"/>
+<text xml:space="preserve" text-anchor="middle" x="651" y="-399.23" font-family="sans-Serif" font-size="22.00" fill="#ddd6fe">PWN::AI::Agent</text>
 </g>
 <g id="clust7" class="cluster">
 <title>cluster_caps</title>
@@ -39,129 +39,129 @@
 <!-- User -->
 <g id="node1" class="node">
 <title>User</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M605,-664.88C605,-664.88 499,-664.88 499,-664.88 493,-664.88 487,-658.88 487,-652.88 487,-652.88 487,-640.88 487,-640.88 487,-634.88 493,-628.88 499,-628.88 499,-628.88 605,-628.88 605,-628.88 611,-628.88 617,-634.88 617,-640.88 617,-640.88 617,-652.88 617,-652.88 617,-658.88 611,-664.88 605,-664.88"/>
-<text xml:space="preserve" text-anchor="middle" x="552" y="-649.92" font-family="sans-Serif" font-size="11.00" fill="#0f172a">👤 &#160;Researcher</text>
-<text xml:space="preserve" text-anchor="middle" x="552" y="-636.42" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Red Team · Bug Hunter</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M609,-664.88C609,-664.88 503,-664.88 503,-664.88 497,-664.88 491,-658.88 491,-652.88 491,-652.88 491,-640.88 491,-640.88 491,-634.88 497,-628.88 503,-628.88 503,-628.88 609,-628.88 609,-628.88 615,-628.88 621,-634.88 621,-640.88 621,-640.88 621,-652.88 621,-652.88 621,-658.88 615,-664.88 609,-664.88"/>
+<text xml:space="preserve" text-anchor="middle" x="556" y="-649.92" font-family="sans-Serif" font-size="11.00" fill="#0f172a">👤 &#160;Researcher</text>
+<text xml:space="preserve" text-anchor="middle" x="556" y="-636.42" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Red Team · Bug Hunter</text>
 </g>
 <!-- REPL -->
 <g id="node5" class="node">
 <title>REPL</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M457.25,-520.62C457.25,-520.62 364.75,-520.62 364.75,-520.62 358.75,-520.62 352.75,-514.62 352.75,-508.62 352.75,-508.62 352.75,-496.62 352.75,-496.62 352.75,-490.62 358.75,-484.62 364.75,-484.62 364.75,-484.62 457.25,-484.62 457.25,-484.62 463.25,-484.62 469.25,-490.62 469.25,-496.62 469.25,-496.62 469.25,-508.62 469.25,-508.62 469.25,-514.62 463.25,-520.62 457.25,-520.62"/>
-<text xml:space="preserve" text-anchor="middle" x="411" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🐚 &#160;pwn REPL</text>
-<text xml:space="preserve" text-anchor="middle" x="411" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Pry + PWN:: preload</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M459.25,-520.62C459.25,-520.62 366.75,-520.62 366.75,-520.62 360.75,-520.62 354.75,-514.62 354.75,-508.62 354.75,-508.62 354.75,-496.62 354.75,-496.62 354.75,-490.62 360.75,-484.62 366.75,-484.62 366.75,-484.62 459.25,-484.62 459.25,-484.62 465.25,-484.62 471.25,-490.62 471.25,-496.62 471.25,-496.62 471.25,-508.62 471.25,-508.62 471.25,-514.62 465.25,-520.62 459.25,-520.62"/>
+<text xml:space="preserve" text-anchor="middle" x="413" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🐚 &#160;pwn REPL</text>
+<text xml:space="preserve" text-anchor="middle" x="413" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Pry + PWN:: preload</text>
 </g>
 <!-- User&#45;&gt;REPL -->
 <g id="edge1" class="edge">
 <title>User&#45;&gt;REPL</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M534.71,-628.43C509.76,-603.26 463.56,-556.65 435.23,-528.07"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="437.44,-526.32 429.82,-522.61 433.46,-530.26 437.44,-526.32"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M538.47,-628.43C513.16,-603.26 466.31,-556.65 437.57,-528.07"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="439.72,-526.25 432.07,-522.6 435.77,-530.23 439.72,-526.25"/>
 </g>
 <!-- PwnAI -->
 <g id="node6" class="node">
 <title>PwnAI</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M610.75,-520.62C610.75,-520.62 521.25,-520.62 521.25,-520.62 515.25,-520.62 509.25,-514.62 509.25,-508.62 509.25,-508.62 509.25,-496.62 509.25,-496.62 509.25,-490.62 515.25,-484.62 521.25,-484.62 521.25,-484.62 610.75,-484.62 610.75,-484.62 616.75,-484.62 622.75,-490.62 622.75,-496.62 622.75,-496.62 622.75,-508.62 622.75,-508.62 622.75,-514.62 616.75,-520.62 610.75,-520.62"/>
-<text xml:space="preserve" text-anchor="middle" x="566" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">✨ &#160;pwn&#45;ai</text>
-<text xml:space="preserve" text-anchor="middle" x="566" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Agent TUI · pwn &#45;&#45;ai</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M612.75,-520.62C612.75,-520.62 523.25,-520.62 523.25,-520.62 517.25,-520.62 511.25,-514.62 511.25,-508.62 511.25,-508.62 511.25,-496.62 511.25,-496.62 511.25,-490.62 517.25,-484.62 523.25,-484.62 523.25,-484.62 612.75,-484.62 612.75,-484.62 618.75,-484.62 624.75,-490.62 624.75,-496.62 624.75,-496.62 624.75,-508.62 624.75,-508.62 624.75,-514.62 618.75,-520.62 612.75,-520.62"/>
+<text xml:space="preserve" text-anchor="middle" x="568" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">✨ &#160;pwn&#45;ai</text>
+<text xml:space="preserve" text-anchor="middle" x="568" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Agent TUI · pwn &#45;&#45;ai</text>
 </g>
 <!-- User&#45;&gt;PwnAI -->
 <g id="edge2" class="edge">
 <title>User&#45;&gt;PwnAI</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M553.72,-628.43C556.11,-604.12 560.47,-559.79 563.3,-531.03"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="566.08,-531.4 564.08,-523.17 560.51,-530.86 566.08,-531.4"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M557.47,-628.43C559.52,-604.12 563.26,-559.79 565.69,-531.03"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="568.47,-531.38 566.35,-523.17 562.89,-530.91 568.47,-531.38"/>
 </g>
 <!-- CI -->
 <g id="node2" class="node">
 <title>CI</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M751,-664.88C751,-664.88 669,-664.88 669,-664.88 663,-664.88 657,-658.88 657,-652.88 657,-652.88 657,-640.88 657,-640.88 657,-634.88 663,-628.88 669,-628.88 669,-628.88 751,-628.88 751,-628.88 757,-628.88 763,-634.88 763,-640.88 763,-640.88 763,-652.88 763,-652.88 763,-658.88 757,-664.88 751,-664.88"/>
-<text xml:space="preserve" text-anchor="middle" x="710" y="-649.92" font-family="sans-Serif" font-size="11.00" fill="#0f172a">⚙️ &#160;CI / CD</text>
-<text xml:space="preserve" text-anchor="middle" x="710" y="-636.42" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Headless pipelines</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M755,-664.88C755,-664.88 673,-664.88 673,-664.88 667,-664.88 661,-658.88 661,-652.88 661,-652.88 661,-640.88 661,-640.88 661,-634.88 667,-628.88 673,-628.88 673,-628.88 755,-628.88 755,-628.88 761,-628.88 767,-634.88 767,-640.88 767,-640.88 767,-652.88 767,-652.88 767,-658.88 761,-664.88 755,-664.88"/>
+<text xml:space="preserve" text-anchor="middle" x="714" y="-649.92" font-family="sans-Serif" font-size="11.00" fill="#0f172a">⚙️ &#160;CI / CD</text>
+<text xml:space="preserve" text-anchor="middle" x="714" y="-636.42" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Headless pipelines</text>
 </g>
 <!-- CLI -->
 <g id="node7" class="node">
 <title>CLI</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M734.75,-520.62C734.75,-520.62 675.25,-520.62 675.25,-520.62 669.25,-520.62 663.25,-514.62 663.25,-508.62 663.25,-508.62 663.25,-496.62 663.25,-496.62 663.25,-490.62 669.25,-484.62 675.25,-484.62 675.25,-484.62 734.75,-484.62 734.75,-484.62 740.75,-484.62 746.75,-490.62 746.75,-496.62 746.75,-496.62 746.75,-508.62 746.75,-508.62 746.75,-514.62 740.75,-520.62 734.75,-520.62"/>
-<text xml:space="preserve" text-anchor="middle" x="705" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">📜 &#160;bin/pwn_*</text>
-<text xml:space="preserve" text-anchor="middle" x="705" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">53 CLI drivers</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M741,-520.62C741,-520.62 677,-520.62 677,-520.62 671,-520.62 665,-514.62 665,-508.62 665,-508.62 665,-496.62 665,-496.62 665,-490.62 671,-484.62 677,-484.62 677,-484.62 741,-484.62 741,-484.62 747,-484.62 753,-490.62 753,-496.62 753,-496.62 753,-508.62 753,-508.62 753,-514.62 747,-520.62 741,-520.62"/>
+<text xml:space="preserve" text-anchor="middle" x="709" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">📜 &#160;bin/pwn_*</text>
+<text xml:space="preserve" text-anchor="middle" x="709" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">54 executables</text>
 </g>
 <!-- CI&#45;&gt;CLI -->
 <g id="edge3" class="edge">
 <title>CI&#45;&gt;CLI</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M709.39,-628.43C708.53,-604.12 706.97,-559.79 705.96,-531.03"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="708.77,-531.07 705.69,-523.18 703.17,-531.27 708.77,-531.07"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M713.39,-628.43C712.53,-604.12 710.97,-559.79 709.96,-531.03"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="712.77,-531.07 709.69,-523.18 707.17,-531.27 712.77,-531.07"/>
 </g>
 <!-- Cronb -->
 <g id="node8" class="node">
 <title>Cronb</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M866.88,-520.62C866.88,-520.62 799.12,-520.62 799.12,-520.62 793.12,-520.62 787.12,-514.62 787.12,-508.62 787.12,-508.62 787.12,-496.62 787.12,-496.62 787.12,-490.62 793.12,-484.62 799.12,-484.62 799.12,-484.62 866.88,-484.62 866.88,-484.62 872.88,-484.62 878.88,-490.62 878.88,-496.62 878.88,-496.62 878.88,-508.62 878.88,-508.62 878.88,-514.62 872.88,-520.62 866.88,-520.62"/>
-<text xml:space="preserve" text-anchor="middle" x="833" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">⏱ &#160;PWN::Cron</text>
-<text xml:space="preserve" text-anchor="middle" x="833" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Scheduled jobs</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.4" d="M924.75,-520.62C924.75,-520.62 805.25,-520.62 805.25,-520.62 799.25,-520.62 793.25,-514.62 793.25,-508.62 793.25,-508.62 793.25,-496.62 793.25,-496.62 793.25,-490.62 799.25,-484.62 805.25,-484.62 805.25,-484.62 924.75,-484.62 924.75,-484.62 930.75,-484.62 936.75,-490.62 936.75,-496.62 936.75,-496.62 936.75,-508.62 936.75,-508.62 936.75,-514.62 930.75,-520.62 924.75,-520.62"/>
+<text xml:space="preserve" text-anchor="middle" x="865" y="-505.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">⏱ &#160;PWN::Cron</text>
+<text xml:space="preserve" text-anchor="middle" x="865" y="-492.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Jobs + background worker</text>
 </g>
 <!-- CI&#45;&gt;Cronb -->
 <g id="edge4" class="edge">
 <title>CI&#45;&gt;Cronb</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M725.08,-628.43C746.75,-603.37 786.81,-557.05 811.55,-528.43"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="813.39,-530.58 816.51,-522.7 809.16,-526.92 813.39,-530.58"/>
-<text xml:space="preserve" text-anchor="middle" x="790.56" y="-572.08" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">crontab</text>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M732.52,-628.43C759.35,-603.16 809.13,-556.26 839.44,-527.7"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="841,-530.08 844.9,-522.56 837.16,-526.01 841,-530.08"/>
+<text xml:space="preserve" text-anchor="middle" x="809.4" y="-572.08" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">crontab</text>
 </g>
 <!-- LLM -->
 <g id="node3" class="node">
 <title>LLM</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M955.25,-671.12C955.25,-671.12 814.75,-671.12 814.75,-671.12 808.75,-671.12 802.75,-665.12 802.75,-659.12 802.75,-659.12 802.75,-634.62 802.75,-634.62 802.75,-628.62 808.75,-622.62 814.75,-622.62 814.75,-622.62 955.25,-622.62 955.25,-622.62 961.25,-622.62 967.25,-628.62 967.25,-634.62 967.25,-634.62 967.25,-659.12 967.25,-659.12 967.25,-665.12 961.25,-671.12 955.25,-671.12"/>
-<text xml:space="preserve" text-anchor="middle" x="885" y="-656.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🤖 &#160;LLM Providers</text>
-<text xml:space="preserve" text-anchor="middle" x="885" y="-643.17" font-family="sans-Serif" font-size="11.00" fill="#0f172a">OpenAI · Anthropic · Grok</text>
-<text xml:space="preserve" text-anchor="middle" x="885" y="-629.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Gemini · Ollama · Open WebUI</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M959.25,-671.12C959.25,-671.12 818.75,-671.12 818.75,-671.12 812.75,-671.12 806.75,-665.12 806.75,-659.12 806.75,-659.12 806.75,-634.62 806.75,-634.62 806.75,-628.62 812.75,-622.62 818.75,-622.62 818.75,-622.62 959.25,-622.62 959.25,-622.62 965.25,-622.62 971.25,-628.62 971.25,-634.62 971.25,-634.62 971.25,-659.12 971.25,-659.12 971.25,-665.12 965.25,-671.12 959.25,-671.12"/>
+<text xml:space="preserve" text-anchor="middle" x="889" y="-656.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🤖 &#160;LLM Providers</text>
+<text xml:space="preserve" text-anchor="middle" x="889" y="-643.17" font-family="sans-Serif" font-size="11.00" fill="#0f172a">OpenAI · Anthropic · Grok</text>
+<text xml:space="preserve" text-anchor="middle" x="889" y="-629.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Gemini · Ollama · Open WebUI</text>
 </g>
 <!-- Target -->
 <g id="node4" class="node">
 <title>Target</title>
-<path fill="#fda4af" stroke="#334155" stroke-width="1.4" d="M1108.38,-671.12C1108.38,-671.12 1019.62,-671.12 1019.62,-671.12 1013.62,-671.12 1007.62,-665.12 1007.62,-659.12 1007.62,-659.12 1007.62,-634.62 1007.62,-634.62 1007.62,-628.62 1013.62,-622.62 1019.62,-622.62 1019.62,-622.62 1108.38,-622.62 1108.38,-622.62 1114.38,-622.62 1120.38,-628.62 1120.38,-634.62 1120.38,-634.62 1120.38,-659.12 1120.38,-659.12 1120.38,-665.12 1114.38,-671.12 1108.38,-671.12"/>
-<text xml:space="preserve" text-anchor="middle" x="1064" y="-656.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🎯 &#160;Attack Surface</text>
-<text xml:space="preserve" text-anchor="middle" x="1064" y="-643.17" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Hosts · Web · Cloud</text>
-<text xml:space="preserve" text-anchor="middle" x="1064" y="-629.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Radio · Hardware</text>
+<path fill="#fda4af" stroke="#334155" stroke-width="1.4" d="M1112.38,-671.12C1112.38,-671.12 1023.62,-671.12 1023.62,-671.12 1017.62,-671.12 1011.62,-665.12 1011.62,-659.12 1011.62,-659.12 1011.62,-634.62 1011.62,-634.62 1011.62,-628.62 1017.62,-622.62 1023.62,-622.62 1023.62,-622.62 1112.38,-622.62 1112.38,-622.62 1118.38,-622.62 1124.38,-628.62 1124.38,-634.62 1124.38,-634.62 1124.38,-659.12 1124.38,-659.12 1124.38,-665.12 1118.38,-671.12 1112.38,-671.12"/>
+<text xml:space="preserve" text-anchor="middle" x="1068" y="-656.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">🎯 &#160;Attack Surface</text>
+<text xml:space="preserve" text-anchor="middle" x="1068" y="-643.17" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Hosts · Web · Cloud</text>
+<text xml:space="preserve" text-anchor="middle" x="1068" y="-629.67" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Radio · Hardware</text>
 </g>
 <!-- Loop -->
 <g id="node9" class="node">
 <title>Loop</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M443.75,-382.62C443.75,-382.62 342.25,-382.62 342.25,-382.62 336.25,-382.62 330.25,-376.62 330.25,-370.62 330.25,-370.62 330.25,-319.12 330.25,-319.12 330.25,-313.12 336.25,-307.12 342.25,-307.12 342.25,-307.12 443.75,-307.12 443.75,-307.12 449.75,-307.12 455.75,-313.12 455.75,-319.12 455.75,-319.12 455.75,-370.62 455.75,-370.62 455.75,-376.62 449.75,-382.62 443.75,-382.62"/>
-<text xml:space="preserve" text-anchor="middle" x="393" y="-368.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Loop</text>
-<text xml:space="preserve" text-anchor="middle" x="393" y="-354.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">TaskSummarizer briefs</text>
-<text xml:space="preserve" text-anchor="middle" x="393" y="-341.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">plan_first → dispatch</text>
-<text xml:space="preserve" text-anchor="middle" x="393" y="-327.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">→ observe → escalate</text>
-<text xml:space="preserve" text-anchor="middle" x="393" y="-314.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">budget&#45;pressure caps</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M446,-382.62C446,-382.62 286,-382.62 286,-382.62 280,-382.62 274,-376.62 274,-370.62 274,-370.62 274,-319.12 274,-319.12 274,-313.12 280,-307.12 286,-307.12 286,-307.12 446,-307.12 446,-307.12 452,-307.12 458,-313.12 458,-319.12 458,-319.12 458,-370.62 458,-370.62 458,-376.62 452,-382.62 446,-382.62"/>
+<text xml:space="preserve" text-anchor="middle" x="366" y="-368.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Loop</text>
+<text xml:space="preserve" text-anchor="middle" x="366" y="-354.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">TaskSummarizer briefs</text>
+<text xml:space="preserve" text-anchor="middle" x="366" y="-341.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">plan → dispatch → observe</text>
+<text xml:space="preserve" text-anchor="middle" x="366" y="-327.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">max_iters 777 (scars do not shrink)</text>
+<text xml:space="preserve" text-anchor="middle" x="366" y="-314.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">last&#45;iter tools only if done</text>
 </g>
 <!-- REPL&#45;&gt;Loop -->
 <g id="edge5" class="edge">
 <title>REPL&#45;&gt;Loop</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M408.97,-484.06C406.43,-462.09 401.99,-423.63 398.43,-392.85"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="401.24,-392.74 397.54,-385.12 395.67,-393.38 401.24,-392.74"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M407.7,-484.06C401.04,-462 389.36,-423.3 380.06,-392.45"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="382.81,-391.89 377.82,-385.04 377.45,-393.51 382.81,-391.89"/>
 </g>
 <!-- PwnAI&#45;&gt;Loop -->
 <g id="edge6" class="edge">
 <title>PwnAI&#45;&gt;Loop</title>
-<path fill="none" stroke="#a78bfa" stroke-width="2" d="M540.02,-484.06C524,-472.84 503.34,-457.62 486.25,-442.62 468.17,-426.75 449.52,-407.97 433.7,-391.2"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="2" points="435.75,-389.29 428.24,-385.36 431.66,-393.11 435.75,-389.29"/>
-<text xml:space="preserve" text-anchor="middle" x="521.12" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">natural language</text>
+<path fill="none" stroke="#a78bfa" stroke-width="2" d="M543.77,-484.01C527.88,-472.39 506.71,-456.76 488.25,-442.62 466.05,-425.64 441.87,-406.61 420.92,-389.96"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="2" points="422.82,-387.89 414.82,-385.1 419.34,-392.28 422.82,-387.89"/>
+<text xml:space="preserve" text-anchor="middle" x="523.12" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">natural language</text>
 </g>
 <!-- Registry -->
 <g id="node10" class="node">
 <title>Registry</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M623.88,-369.12C623.88,-369.12 508.12,-369.12 508.12,-369.12 502.12,-369.12 496.12,-363.12 496.12,-357.12 496.12,-357.12 496.12,-332.62 496.12,-332.62 496.12,-326.62 502.12,-320.62 508.12,-320.62 508.12,-320.62 623.88,-320.62 623.88,-320.62 629.88,-320.62 635.88,-326.62 635.88,-332.62 635.88,-332.62 635.88,-357.12 635.88,-357.12 635.88,-363.12 629.88,-369.12 623.88,-369.12"/>
-<text xml:space="preserve" text-anchor="middle" x="566" y="-354.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Registry</text>
-<text xml:space="preserve" text-anchor="middle" x="566" y="-341.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">13 toolsets · 85 tools</text>
-<text xml:space="preserve" text-anchor="middle" x="566" y="-327.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">tool_router (CORE+topK)</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M625.88,-369.12C625.88,-369.12 510.12,-369.12 510.12,-369.12 504.12,-369.12 498.12,-363.12 498.12,-357.12 498.12,-357.12 498.12,-332.62 498.12,-332.62 498.12,-326.62 504.12,-320.62 510.12,-320.62 510.12,-320.62 625.88,-320.62 625.88,-320.62 631.88,-320.62 637.88,-326.62 637.88,-332.62 637.88,-332.62 637.88,-357.12 637.88,-357.12 637.88,-363.12 631.88,-369.12 625.88,-369.12"/>
+<text xml:space="preserve" text-anchor="middle" x="568" y="-354.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Registry</text>
+<text xml:space="preserve" text-anchor="middle" x="568" y="-341.18" font-family="sans-Serif" font-size="11.00" fill="#0f172a">13 toolsets · 87 tools</text>
+<text xml:space="preserve" text-anchor="middle" x="568" y="-327.68" font-family="sans-Serif" font-size="11.00" fill="#0f172a">tool_router (CORE+topK)</text>
 </g>
 <!-- PwnAI&#45;&gt;Registry -->
 <g id="edge7" class="edge">
 <title>PwnAI&#45;&gt;Registry</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M566,-484.06C566,-458.79 566,-411.69 566,-379.58"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="568.8,-379.69 566,-371.69 563.2,-379.69 568.8,-379.69"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M568,-484.06C568,-458.79 568,-411.69 568,-379.58"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="570.8,-379.69 568,-371.69 565.2,-379.69 570.8,-379.69"/>
 </g>
 <!-- Swarm -->
 <g id="node11" class="node">
 <title>Swarm</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M792.25,-362.88C792.25,-362.88 687.75,-362.88 687.75,-362.88 681.75,-362.88 675.75,-356.88 675.75,-350.88 675.75,-350.88 675.75,-338.88 675.75,-338.88 675.75,-332.88 681.75,-326.88 687.75,-326.88 687.75,-326.88 792.25,-326.88 792.25,-326.88 798.25,-326.88 804.25,-332.88 804.25,-338.88 804.25,-338.88 804.25,-350.88 804.25,-350.88 804.25,-356.88 798.25,-362.88 792.25,-362.88"/>
-<text xml:space="preserve" text-anchor="middle" x="740" y="-347.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Swarm</text>
-<text xml:space="preserve" text-anchor="middle" x="740" y="-334.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">personas · debate · bus</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M794.25,-362.88C794.25,-362.88 689.75,-362.88 689.75,-362.88 683.75,-362.88 677.75,-356.88 677.75,-350.88 677.75,-350.88 677.75,-338.88 677.75,-338.88 677.75,-332.88 683.75,-326.88 689.75,-326.88 689.75,-326.88 794.25,-326.88 794.25,-326.88 800.25,-326.88 806.25,-332.88 806.25,-338.88 806.25,-338.88 806.25,-350.88 806.25,-350.88 806.25,-356.88 800.25,-362.88 794.25,-362.88"/>
+<text xml:space="preserve" text-anchor="middle" x="742" y="-347.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Swarm</text>
+<text xml:space="preserve" text-anchor="middle" x="742" y="-334.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">personas · debate · bus</text>
 </g>
 <!-- CLI&#45;&gt;Swarm -->
 <!-- Plugins -->
@@ -169,37 +169,37 @@
 <title>Plugins</title>
 <path fill="#6ee7b7" stroke="#334155" stroke-width="1.4" d="M277.75,-198.88C277.75,-198.88 230.25,-198.88 230.25,-198.88 224.25,-198.88 218.25,-192.88 218.25,-186.88 218.25,-186.88 218.25,-174.88 218.25,-174.88 218.25,-168.88 224.25,-162.88 230.25,-162.88 230.25,-162.88 277.75,-162.88 277.75,-162.88 283.75,-162.88 289.75,-168.88 289.75,-174.88 289.75,-174.88 289.75,-186.88 289.75,-186.88 289.75,-192.88 283.75,-198.88 277.75,-198.88"/>
 <text xml:space="preserve" text-anchor="middle" x="254" y="-183.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">Plugins</text>
-<text xml:space="preserve" text-anchor="middle" x="254" y="-170.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">66 modules</text>
+<text xml:space="preserve" text-anchor="middle" x="254" y="-170.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">67 modules</text>
 </g>
 <!-- CLI&#45;&gt;Plugins -->
 <g id="edge18" class="edge">
 <title>CLI&#45;&gt;Plugins</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M745.64,-483.98C752.68,-481.29 759.99,-478.71 767,-476.62 864.27,-447.63 891.01,-449.59 991,-432.12 1002.73,-430.08 1036.23,-433.15 1044,-424.12 1080.23,-382.01 1081.86,-339.79 1044,-299.12 1030.07,-284.16 328.27,-255.78 310,-246.62 292.78,-238 278.65,-221.52 268.89,-207.34"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M750.97,-483.98C758.24,-481.28 765.78,-478.71 773,-476.62 891.7,-442.34 967.31,-519.39 1046,-424.12 1081.38,-381.29 1083.86,-339.78 1046,-299.12 1018.06,-269.13 346.65,-264.99 310,-246.62 292.78,-238 278.65,-221.52 268.89,-207.34"/>
 <polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="271.45,-206.15 264.73,-200.99 266.77,-209.21 271.45,-206.15"/>
 </g>
 <!-- Prompt -->
 <g id="node12" class="node">
 <title>Prompt</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M1013.88,-375.88C1013.88,-375.88 856.12,-375.88 856.12,-375.88 850.12,-375.88 844.12,-369.88 844.12,-363.88 844.12,-363.88 844.12,-325.88 844.12,-325.88 844.12,-319.88 850.12,-313.88 856.12,-313.88 856.12,-313.88 1013.88,-313.88 1013.88,-313.88 1019.88,-313.88 1025.88,-319.88 1025.88,-325.88 1025.88,-325.88 1025.88,-363.88 1025.88,-363.88 1025.88,-369.88 1019.88,-375.88 1013.88,-375.88"/>
-<text xml:space="preserve" text-anchor="middle" x="935" y="-361.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">PromptBuilder</text>
-<text xml:space="preserve" text-anchor="middle" x="935" y="-347.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">engine&#45;budgeted blocks</text>
-<text xml:space="preserve" text-anchor="middle" x="935" y="-334.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">MEMORY · SKILLS · POLICY</text>
-<text xml:space="preserve" text-anchor="middle" x="935" y="-320.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">MemoryIndex → relevance&#45;ranked</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.4" d="M1015.88,-375.88C1015.88,-375.88 858.12,-375.88 858.12,-375.88 852.12,-375.88 846.12,-369.88 846.12,-363.88 846.12,-363.88 846.12,-325.88 846.12,-325.88 846.12,-319.88 852.12,-313.88 858.12,-313.88 858.12,-313.88 1015.88,-313.88 1015.88,-313.88 1021.88,-313.88 1027.88,-319.88 1027.88,-325.88 1027.88,-325.88 1027.88,-363.88 1027.88,-363.88 1027.88,-369.88 1021.88,-375.88 1015.88,-375.88"/>
+<text xml:space="preserve" text-anchor="middle" x="937" y="-361.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">PromptBuilder</text>
+<text xml:space="preserve" text-anchor="middle" x="937" y="-347.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">engine&#45;budgeted blocks</text>
+<text xml:space="preserve" text-anchor="middle" x="937" y="-334.43" font-family="sans-Serif" font-size="11.00" fill="#0f172a">MEMORY · SKILLS · POLICY</text>
+<text xml:space="preserve" text-anchor="middle" x="937" y="-320.93" font-family="sans-Serif" font-size="11.00" fill="#0f172a">MemoryIndex → relevance&#45;ranked</text>
 </g>
 <!-- Cronb&#45;&gt;Prompt -->
 <!-- Loop&#45;&gt;LLM -->
 <g id="edge29" class="edge">
 <title>Loop&#45;&gt;LLM</title>
-<path fill="none" stroke="#c4b5fd" stroke-width="2" d="M422.65,-383.26C437.02,-398.63 455.59,-414.95 476,-424.12 494.31,-432.35 546.05,-429.9 566,-432.12 639.76,-440.36 848.14,-420.76 897,-476.62 929.35,-513.61 914.44,-574.26 900.13,-612.03"/>
-<polygon fill="#c4b5fd" stroke="#c4b5fd" stroke-width="2" points="897.63,-610.76 897.27,-619.23 902.83,-612.83 897.63,-610.76"/>
-<text xml:space="preserve" text-anchor="middle" x="941.08" y="-499.32" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">tool&#45;use API</text>
+<path fill="none" stroke="#c4b5fd" stroke-width="2" d="M408.22,-383.26C428.04,-398.63 452.81,-414.95 478,-424.12 515.73,-437.87 528.05,-428.05 568,-432.12 654.12,-440.9 897.39,-412.01 955,-476.62 990.42,-516.35 950.47,-577.24 919.12,-614.13"/>
+<polygon fill="#c4b5fd" stroke="#c4b5fd" stroke-width="2" points="917.33,-611.92 914.18,-619.79 921.55,-615.6 917.33,-611.92"/>
+<text xml:space="preserve" text-anchor="middle" x="993.61" y="-499.32" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">tool&#45;use API</text>
 </g>
 <!-- Loop&#45;&gt;Plugins -->
 <g id="edge10" class="edge">
 <title>Loop&#45;&gt;Plugins</title>
-<path fill="none" stroke="#34d399" stroke-width="2" d="M360.35,-306.73C348.89,-293.63 335.95,-278.76 324.25,-265.12 307.78,-245.94 289.36,-224.09 275.51,-207.59"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="2" points="277.95,-206.14 270.66,-201.81 273.66,-209.74 277.95,-206.14"/>
-<text xml:space="preserve" text-anchor="middle" x="344.12" y="-256.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">pwn_eval</text>
+<path fill="none" stroke="#34d399" stroke-width="2" d="M340.06,-306.65C330.94,-293.53 320.63,-278.68 311.25,-265.12 298.16,-246.19 283.44,-224.79 272.21,-208.43"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="2" points="274.58,-206.94 267.75,-201.93 269.97,-210.11 274.58,-206.94"/>
+<text xml:space="preserve" text-anchor="middle" x="331.12" y="-256.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">pwn_eval</text>
 </g>
 <!-- SAST -->
 <g id="node14" class="node">
@@ -211,8 +211,8 @@
 <!-- Loop&#45;&gt;SAST -->
 <g id="edge11" class="edge">
 <title>Loop&#45;&gt;SAST</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M384.74,-306.71C378.11,-276.89 368.97,-235.73 363.02,-208.96"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="365.8,-208.58 361.33,-201.38 360.34,-209.8 365.8,-208.58"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M363.94,-306.71C362.29,-277.02 360.01,-236.09 358.52,-209.31"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="361.33,-209.25 358.09,-201.42 355.73,-209.57 361.33,-209.25"/>
 </g>
 <!-- WWW -->
 <g id="node15" class="node">
@@ -224,8 +224,8 @@
 <!-- Registry&#45;&gt;WWW -->
 <g id="edge12" class="edge">
 <title>Registry&#45;&gt;WWW</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M551.24,-319.97C532.67,-289.88 500.9,-238.41 481.83,-207.52"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="484.43,-206.4 477.85,-201.06 479.66,-209.34 484.43,-206.4"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M552.95,-319.97C534.01,-289.88 501.6,-238.41 482.15,-207.52"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="484.71,-206.33 478.08,-201.05 479.97,-209.32 484.71,-206.33"/>
 </g>
 <!-- AWS -->
 <g id="node16" class="node">
@@ -237,8 +237,8 @@
 <!-- Registry&#45;&gt;AWS -->
 <g id="edge13" class="edge">
 <title>Registry&#45;&gt;AWS</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M568.36,-319.97C571.28,-290.4 576.24,-240.16 579.31,-209.12"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="582.08,-209.58 580.08,-201.35 576.5,-209.03 582.08,-209.58"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M570.07,-319.97C572.62,-290.4 576.96,-240.16 579.65,-209.12"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="582.42,-209.56 580.32,-201.35 576.84,-209.08 582.42,-209.56"/>
 </g>
 <!-- SDR -->
 <g id="node17" class="node">
@@ -251,8 +251,8 @@
 <!-- Swarm&#45;&gt;SDR -->
 <g id="edge14" class="edge">
 <title>Swarm&#45;&gt;SDR</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M739.02,-326.23C737.55,-299.77 734.75,-249.34 732.88,-215.65"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="735.68,-215.58 732.44,-207.75 730.09,-215.89 735.68,-215.58"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M740.8,-326.23C739.01,-299.77 735.58,-249.34 733.29,-215.65"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="736.09,-215.54 732.76,-207.74 730.51,-215.92 736.09,-215.54"/>
 </g>
 <!-- Chain -->
 <g id="node18" class="node">
@@ -264,8 +264,8 @@
 <!-- Swarm&#45;&gt;Chain -->
 <g id="edge15" class="edge">
 <title>Swarm&#45;&gt;Chain</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M755.43,-326.37C772.52,-306.95 800.85,-274.65 825,-246.62 836.21,-233.61 848.61,-219.03 858.79,-207.01"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="860.83,-208.94 863.86,-201.02 856.55,-205.32 860.83,-208.94"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M757.01,-326.32C773.64,-306.85 801.26,-274.51 825,-246.62 836.14,-233.54 848.53,-218.96 858.72,-206.95"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="860.76,-208.88 863.8,-200.97 856.49,-205.26 860.76,-208.88"/>
 </g>
 <!-- Bounty -->
 <g id="node19" class="node">
@@ -293,16 +293,16 @@
 <!-- Prompt&#45;&gt;Memory -->
 <g id="edge31" class="edge">
 <title>Prompt&#45;&gt;Memory</title>
-<path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M1035.99,-331.47C1089.18,-319.24 1150.06,-294.92 1183,-246.62 1207.54,-210.64 1213.17,-180.04 1183,-148.62 1141.83,-105.76 167.89,-130.69 114,-105.62 92.66,-95.7 75.53,-74.13 65.34,-58.65"/>
-<polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="1.3" points="1035.64,-328.68 1028.42,-333.13 1036.83,-334.15 1035.64,-328.68"/>
-<text xml:space="preserve" text-anchor="middle" x="1214.45" y="-177.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">inject</text>
+<path fill="none" stroke="#fbbf24" stroke-width="1.3" stroke-dasharray="5,2" d="M1038.12,-331.03C1090.67,-318.66 1150.55,-294.35 1183,-246.62 1207.49,-210.61 1213.17,-180.04 1183,-148.62 1141.83,-105.76 167.89,-130.69 114,-105.62 92.66,-95.7 75.53,-74.13 65.34,-58.65"/>
+<polygon fill="#fbbf24" stroke="#fbbf24" stroke-width="1.3" points="1037.51,-328.3 1030.32,-332.78 1038.73,-333.76 1037.51,-328.3"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.43" y="-177.57" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">inject</text>
 </g>
 <!-- Plugins&#45;&gt;Target -->
 <g id="edge30" class="edge">
 <title>Plugins&#45;&gt;Target</title>
-<path fill="none" stroke="#fb7185" stroke-width="2" d="M263.58,-199.5C273.09,-215.01 289.24,-236.64 310,-246.62 330.74,-256.6 494.02,-253.29 517,-254.62 580.64,-258.33 1045.71,-252.33 1089,-299.12 1169.51,-386.14 1111.76,-543.76 1080.52,-612.41"/>
-<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="1078.05,-611.08 1077.21,-619.51 1083.13,-613.44 1078.05,-611.08"/>
-<text xml:space="preserve" text-anchor="middle" x="1141.46" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">attack</text>
+<path fill="none" stroke="#fb7185" stroke-width="2" d="M263.58,-199.49C273.09,-215.01 289.24,-236.63 310,-246.62 330.34,-256.41 490.47,-253.31 513,-254.62 577.3,-258.37 1047.24,-251.86 1091,-299.12 1171.51,-386.08 1114.94,-543.72 1084.24,-612.4"/>
+<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="1081.78,-611.06 1081,-619.5 1086.87,-613.38 1081.78,-611.06"/>
+<text xml:space="preserve" text-anchor="middle" x="1143.95" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">attack</text>
 </g>
 <!-- Plugins&#45;&gt;Memory -->
 <g id="edge19" class="edge">
@@ -400,9 +400,9 @@
 <!-- Reports&#45;&gt;User -->
 <g id="edge32" class="edge">
 <title>Reports&#45;&gt;User</title>
-<path fill="none" stroke="#38bdf8" stroke-width="2" d="M1135.12,-199.35C1144.77,-212.8 1158.95,-231.57 1173,-246.62 1176.65,-250.54 1178.92,-250.25 1182,-254.62 1225.66,-316.53 1236.94,-357.98 1200,-424.12 1071.2,-654.76 892.75,-548.51 637,-614.62 626.5,-617.34 615.48,-620.86 604.99,-624.56"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="604.12,-621.89 597.56,-627.26 606.04,-627.16 604.12,-621.89"/>
-<text xml:space="preserve" text-anchor="middle" x="1210.15" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">findings</text>
+<path fill="none" stroke="#38bdf8" stroke-width="2" d="M1134.52,-199.46C1143.96,-213.15 1158.13,-232.17 1173,-246.62 1177.34,-250.84 1180.28,-249.86 1184,-254.62 1230.64,-314.32 1234.96,-355.91 1202,-424.12 1087.43,-661.21 896.54,-551.12 641,-614.62 630.25,-617.3 618.97,-620.87 608.28,-624.64"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="607.64,-621.89 601.08,-627.25 609.56,-627.15 607.64,-621.89"/>
+<text xml:space="preserve" text-anchor="middle" x="1212.78" y="-434.07" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">findings</text>
 </g>
 <!-- CronF -->
 <g id="node30" class="node">

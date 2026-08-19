@@ -18,13 +18,13 @@
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_files</title>
-<path fill="#422006" stroke="#a16207" d="M149,-306.5C149,-306.5 1705,-306.5 1705,-306.5 1711,-306.5 1717,-312.5 1717,-318.5 1717,-318.5 1717,-433.5 1717,-433.5 1717,-439.5 1711,-445.5 1705,-445.5 1705,-445.5 149,-445.5 149,-445.5 143,-445.5 137,-439.5 137,-433.5 137,-433.5 137,-318.5 137,-318.5 137,-312.5 143,-306.5 149,-306.5"/>
-<text xml:space="preserve" text-anchor="middle" x="927" y="-422.5" font-family="sans-Serif" font-size="20.00" fill="#fde68a">~/.pwn/</text>
+<path fill="#422006" stroke="#a16207" d="M135,-306.5C135,-306.5 1705,-306.5 1705,-306.5 1711,-306.5 1717,-312.5 1717,-318.5 1717,-318.5 1717,-433.5 1717,-433.5 1717,-439.5 1711,-445.5 1705,-445.5 1705,-445.5 135,-445.5 135,-445.5 129,-445.5 123,-439.5 123,-433.5 123,-433.5 123,-318.5 123,-318.5 123,-312.5 129,-306.5 135,-306.5"/>
+<text xml:space="preserve" text-anchor="middle" x="920" y="-422.5" font-family="sans-Serif" font-size="20.00" fill="#fde68a">~/.pwn/</text>
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_read</title>
-<path fill="#2e1065" stroke="#6d28d9" d="M384,-149C384,-149 1400,-149 1400,-149 1406,-149 1412,-155 1412,-161 1412,-161 1412,-259.5 1412,-259.5 1412,-265.5 1406,-271.5 1400,-271.5 1400,-271.5 384,-271.5 384,-271.5 378,-271.5 372,-265.5 372,-259.5 372,-259.5 372,-161 372,-161 372,-155 378,-149 384,-149"/>
-<text xml:space="preserve" text-anchor="middle" x="892" y="-248.5" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Read&#45;Side / Injection</text>
+<path fill="#2e1065" stroke="#6d28d9" d="M386,-149C386,-149 1402,-149 1402,-149 1408,-149 1414,-155 1414,-161 1414,-161 1414,-259.5 1414,-259.5 1414,-265.5 1408,-271.5 1402,-271.5 1402,-271.5 386,-271.5 386,-271.5 380,-271.5 374,-265.5 374,-259.5 374,-259.5 374,-161 374,-161 374,-155 380,-149 386,-149"/>
+<text xml:space="preserve" text-anchor="middle" x="894" y="-248.5" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Read&#45;Side / Injection</text>
 </g>
 <!-- Rem -->
 <g id="node1" class="node">
@@ -74,16 +74,17 @@
 <!-- Fskl -->
 <g id="node11" class="node">
 <title>Fskl</title>
-<path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M258.75,-362.75C258.75,-364.96 233.31,-366.75 202,-366.75 170.69,-366.75 145.25,-364.96 145.25,-362.75 145.25,-362.75 145.25,-326.75 145.25,-326.75 145.25,-324.54 170.69,-322.75 202,-322.75 233.31,-322.75 258.75,-324.54 258.75,-326.75 258.75,-326.75 258.75,-362.75 258.75,-362.75"/>
-<path fill="none" stroke="#334155" stroke-width="1.3" d="M258.75,-362.75C258.75,-360.54 233.31,-358.75 202,-358.75 170.69,-358.75 145.25,-360.54 145.25,-362.75"/>
-<text xml:space="preserve" text-anchor="middle" x="202" y="-347.25" font-family="sans-Serif" font-size="10.00" fill="#0f172a">skills/&lt;n&gt;/SKILL.md</text>
-<text xml:space="preserve" text-anchor="middle" x="202" y="-335.25" font-family="sans-Serif" font-size="10.00" fill="#0f172a">YAML front&#45;matter refs</text>
+<path fill="#fcd34d" stroke="#334155" stroke-width="1.3" d="M259.25,-369.5C259.25,-372.53 230.45,-375 195,-375 159.55,-375 130.75,-372.53 130.75,-369.5 130.75,-369.5 130.75,-320 130.75,-320 130.75,-316.97 159.55,-314.5 195,-314.5 230.45,-314.5 259.25,-316.97 259.25,-320 259.25,-320 259.25,-369.5 259.25,-369.5"/>
+<path fill="none" stroke="#334155" stroke-width="1.3" d="M259.25,-369.5C259.25,-366.47 230.45,-364 195,-364 159.55,-364 130.75,-366.47 130.75,-369.5"/>
+<text xml:space="preserve" text-anchor="middle" x="195" y="-353.25" font-family="sans-Serif" font-size="10.00" fill="#0f172a">skills/&lt;n&gt;/SKILL.md</text>
+<text xml:space="preserve" text-anchor="middle" x="195" y="-341.25" font-family="sans-Serif" font-size="10.00" fill="#0f172a">YAML front&#45;matter + refs</text>
+<text xml:space="preserve" text-anchor="middle" x="195" y="-329.25" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(+ etc/default_skills seed)</text>
 </g>
 <!-- Skc&#45;&gt;Fskl -->
 <g id="edge2" class="edge">
 <title>Skc&#45;&gt;Fskl</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M79.04,-511.88C102.44,-480.27 151.77,-413.61 180.33,-375.03"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="182.41,-376.92 184.92,-368.83 177.91,-373.59 182.41,-376.92"/>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M78.37,-511.88C99.03,-482.45 141.02,-422.64 168.57,-383.39"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="170.79,-385.11 173.09,-376.96 166.2,-381.9 170.79,-385.11"/>
 </g>
 <!-- Note -->
 <g id="node3" class="node">
@@ -116,8 +117,8 @@
 <!-- Dist&#45;&gt;Fskl -->
 <g id="edge4" class="edge">
 <title>Dist&#45;&gt;Fskl</title>
-<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M188.25,-511.89C179.41,-501.86 169.65,-488.52 165,-474.5 153.88,-440.98 168.97,-401.93 183.09,-375.7"/>
-<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="185.35,-377.39 186.83,-369.04 180.47,-374.64 185.35,-377.39"/>
+<path fill="none" stroke="#f59e0b" stroke-width="1.3" d="M188.25,-511.89C179.41,-501.86 169.65,-488.52 165,-474.5 155.19,-444.91 164.23,-410.48 174.88,-384.67"/>
+<polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="1.3" points="177.43,-385.83 178.06,-377.38 172.3,-383.59 177.43,-385.83"/>
 </g>
 <!-- Fses -->
 <g id="node13" class="node">
@@ -249,28 +250,28 @@
 <!-- Rec -->
 <g id="node19" class="node">
 <title>Rec</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M1237.88,-197C1237.88,-197 1182.12,-197 1182.12,-197 1176.12,-197 1170.12,-191 1170.12,-185 1170.12,-185 1170.12,-173 1170.12,-173 1170.12,-167 1176.12,-161 1182.12,-161 1182.12,-161 1237.88,-161 1237.88,-161 1243.88,-161 1249.88,-167 1249.88,-173 1249.88,-173 1249.88,-185 1249.88,-185 1249.88,-191 1243.88,-197 1237.88,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="1210" y="-175.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">memory_recall</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M1239.88,-197C1239.88,-197 1184.12,-197 1184.12,-197 1178.12,-197 1172.12,-191 1172.12,-185 1172.12,-185 1172.12,-173 1172.12,-173 1172.12,-167 1178.12,-161 1184.12,-161 1184.12,-161 1239.88,-161 1239.88,-161 1245.88,-161 1251.88,-167 1251.88,-173 1251.88,-173 1251.88,-185 1251.88,-185 1251.88,-191 1245.88,-197 1239.88,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="1212" y="-175.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">memory_recall</text>
 </g>
 <!-- Fmem&#45;&gt;Rec -->
 <g id="edge8" class="edge">
 <title>Fmem&#45;&gt;Rec</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M1273.46,-322.34C1260.16,-292.52 1236.08,-238.5 1221.71,-206.28"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1224.38,-205.38 1218.56,-199.21 1219.26,-207.66 1224.38,-205.38"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M1273.72,-322.34C1260.79,-292.52 1237.37,-238.5 1223.39,-206.28"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1226.08,-205.44 1220.33,-199.22 1220.95,-207.67 1226.08,-205.44"/>
 </g>
 <!-- Midx -->
 <g id="node20" class="node">
 <title>Midx</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="2" d="M1118.12,-201C1118.12,-201 1057.88,-201 1057.88,-201 1051.88,-201 1045.88,-195 1045.88,-189 1045.88,-189 1045.88,-169 1045.88,-169 1045.88,-163 1051.88,-157 1057.88,-157 1057.88,-157 1118.12,-157 1118.12,-157 1124.12,-157 1130.12,-163 1130.12,-169 1130.12,-169 1130.12,-189 1130.12,-189 1130.12,-195 1124.12,-201 1118.12,-201"/>
-<text xml:space="preserve" text-anchor="middle" x="1088" y="-187.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">MemoryIndex</text>
-<text xml:space="preserve" text-anchor="middle" x="1088" y="-175.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">recall_semantic</text>
-<text xml:space="preserve" text-anchor="middle" x="1088" y="-163.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(cosine top&#45;K)</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="2" d="M1120.12,-201C1120.12,-201 1059.88,-201 1059.88,-201 1053.88,-201 1047.88,-195 1047.88,-189 1047.88,-189 1047.88,-169 1047.88,-169 1047.88,-163 1053.88,-157 1059.88,-157 1059.88,-157 1120.12,-157 1120.12,-157 1126.12,-157 1132.12,-163 1132.12,-169 1132.12,-169 1132.12,-189 1132.12,-189 1132.12,-195 1126.12,-201 1120.12,-201"/>
+<text xml:space="preserve" text-anchor="middle" x="1090" y="-187.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">MemoryIndex</text>
+<text xml:space="preserve" text-anchor="middle" x="1090" y="-175.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">recall_semantic</text>
+<text xml:space="preserve" text-anchor="middle" x="1090" y="-163.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(cosine top&#45;K)</text>
 </g>
 <!-- Fmem&#45;&gt;Midx -->
 <g id="edge23" class="edge">
 <title>Fmem&#45;&gt;Midx</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" stroke-dasharray="5,2" d="M1239.32,-322.83C1206.32,-306.52 1164.36,-284.52 1150,-271.5 1130.85,-254.14 1114.69,-229.73 1103.68,-210.48"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1106.13,-209.13 1099.79,-203.49 1101.23,-211.85 1106.13,-209.13"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" stroke-dasharray="5,2" d="M1239.98,-322.77C1207.48,-306.43 1166.15,-284.41 1152,-271.5 1132.91,-254.08 1116.75,-229.67 1105.71,-210.44"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1108.17,-209.09 1101.83,-203.46 1103.27,-211.81 1108.17,-209.09"/>
 </g>
 <!-- ReVal -->
 <g id="node28" class="node">
@@ -290,65 +291,65 @@
 <!-- Fidx&#45;&gt;Midx -->
 <g id="edge22" class="edge">
 <title>Fidx&#45;&gt;Midx</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M1128.95,-314.1C1120.05,-284.95 1106.52,-240.65 1097.48,-211.03"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1100.18,-210.31 1095.17,-203.48 1094.83,-211.95 1100.18,-210.31"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M1129.31,-314.1C1120.76,-284.95 1107.78,-240.65 1099.1,-211.03"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1101.82,-210.37 1096.88,-203.49 1096.45,-211.95 1101.82,-210.37"/>
 </g>
 <!-- Skv -->
 <g id="node21" class="node">
 <title>Skv</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M448.25,-197C448.25,-197 391.75,-197 391.75,-197 385.75,-197 379.75,-191 379.75,-185 379.75,-185 379.75,-173 379.75,-173 379.75,-167 385.75,-161 391.75,-161 391.75,-161 448.25,-161 448.25,-161 454.25,-161 460.25,-167 460.25,-173 460.25,-173 460.25,-185 460.25,-185 460.25,-191 454.25,-197 448.25,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="420" y="-175.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">skill_list · view</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M450.25,-197C450.25,-197 393.75,-197 393.75,-197 387.75,-197 381.75,-191 381.75,-185 381.75,-185 381.75,-173 381.75,-173 381.75,-167 387.75,-161 393.75,-161 393.75,-161 450.25,-161 450.25,-161 456.25,-161 462.25,-167 462.25,-173 462.25,-173 462.25,-185 462.25,-185 462.25,-191 456.25,-197 450.25,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="422" y="-175.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">skill_list · view</text>
 </g>
 <!-- Fskl&#45;&gt;Skv -->
 <g id="edge9" class="edge">
 <title>Fskl&#45;&gt;Skv</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M230.5,-322.34C271.48,-291.56 346.78,-235 389.07,-203.23"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="390.53,-205.64 395.25,-198.59 387.17,-201.16 390.53,-205.64"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M235.58,-314.47C279.73,-282.63 349.39,-232.38 389.89,-203.16"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="391.38,-205.54 396.23,-198.59 388.1,-201 391.38,-205.54"/>
 </g>
 <!-- Out -->
 <g id="node22" class="node">
 <title>Out</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M873.88,-197C873.88,-197 800.12,-197 800.12,-197 794.12,-197 788.12,-191 788.12,-185 788.12,-185 788.12,-173 788.12,-173 788.12,-167 794.12,-161 800.12,-161 800.12,-161 873.88,-161 873.88,-161 879.88,-161 885.88,-167 885.88,-173 885.88,-173 885.88,-185 885.88,-185 885.88,-191 879.88,-197 873.88,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="837" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">learning_outcomes</text>
-<text xml:space="preserve" text-anchor="middle" x="837" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">learning_stats</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M875.88,-197C875.88,-197 802.12,-197 802.12,-197 796.12,-197 790.12,-191 790.12,-185 790.12,-185 790.12,-173 790.12,-173 790.12,-167 796.12,-161 802.12,-161 802.12,-161 875.88,-161 875.88,-161 881.88,-161 887.88,-167 887.88,-173 887.88,-173 887.88,-185 887.88,-185 887.88,-191 881.88,-197 875.88,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="839" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">learning_outcomes</text>
+<text xml:space="preserve" text-anchor="middle" x="839" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">learning_stats</text>
 </g>
 <!-- Flrn&#45;&gt;Out -->
 <g id="edge10" class="edge">
 <title>Flrn&#45;&gt;Out</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M678.51,-323.24C687.01,-317.68 696.3,-311.75 705,-306.5 732.42,-289.95 743.83,-292.52 768,-271.5 789.84,-252.51 809.14,-225.55 821.73,-205.82"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="823.97,-207.52 825.83,-199.25 819.22,-204.56 823.97,-207.52"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M678.17,-323.35C686.74,-317.74 696.16,-311.76 705,-306.5 733.2,-289.73 745.1,-292.87 770,-271.5 791.96,-252.65 811.25,-225.68 823.8,-205.9"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="826.05,-207.59 827.88,-199.31 821.29,-204.64 826.05,-207.59"/>
 </g>
 <!-- Exem -->
 <g id="node25" class="node">
 <title>Exem</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M735.62,-197C735.62,-197 642.38,-197 642.38,-197 636.38,-197 630.38,-191 630.38,-185 630.38,-185 630.38,-173 630.38,-173 630.38,-167 636.38,-161 642.38,-161 642.38,-161 735.62,-161 735.62,-161 741.62,-161 747.62,-167 747.62,-173 747.62,-173 747.62,-185 747.62,-185 747.62,-191 741.62,-197 735.62,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="689" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Learning.exemplars_for</text>
-<text xml:space="preserve" text-anchor="middle" x="689" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(few&#45;shot trace)</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M737.62,-197C737.62,-197 644.38,-197 644.38,-197 638.38,-197 632.38,-191 632.38,-185 632.38,-185 632.38,-173 632.38,-173 632.38,-167 638.38,-161 644.38,-161 644.38,-161 737.62,-161 737.62,-161 743.62,-161 749.62,-167 749.62,-173 749.62,-173 749.62,-185 749.62,-185 749.62,-191 743.62,-197 737.62,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="691" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Learning.exemplars_for</text>
+<text xml:space="preserve" text-anchor="middle" x="691" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">(few&#45;shot trace)</text>
 </g>
 <!-- Flrn&#45;&gt;Exem -->
 <g id="edge24" class="edge">
 <title>Flrn&#45;&gt;Exem</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M653.36,-322.34C660.8,-292.65 674.24,-238.97 682.32,-206.69"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="684.94,-207.76 684.16,-199.32 679.5,-206.4 684.94,-207.76"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M653.62,-322.34C661.42,-292.65 675.52,-238.97 683.99,-206.69"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="686.6,-207.76 685.93,-199.32 681.19,-206.34 686.6,-207.76"/>
 </g>
 <!-- Sesv -->
 <g id="node23" class="node">
 <title>Sesv</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M578.12,-197C578.12,-197 511.88,-197 511.88,-197 505.88,-197 499.88,-191 499.88,-185 499.88,-185 499.88,-173 499.88,-173 499.88,-167 505.88,-161 511.88,-161 511.88,-161 578.12,-161 578.12,-161 584.12,-161 590.12,-167 590.12,-173 590.12,-173 590.12,-185 590.12,-185 590.12,-191 584.12,-197 578.12,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="545" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">sessions_view</text>
-<text xml:space="preserve" text-anchor="middle" x="545" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">sessions_current</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M580.12,-197C580.12,-197 513.88,-197 513.88,-197 507.88,-197 501.88,-191 501.88,-185 501.88,-185 501.88,-173 501.88,-173 501.88,-167 507.88,-161 513.88,-161 513.88,-161 580.12,-161 580.12,-161 586.12,-161 592.12,-167 592.12,-173 592.12,-173 592.12,-185 592.12,-185 592.12,-191 586.12,-197 580.12,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="547" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">sessions_view</text>
+<text xml:space="preserve" text-anchor="middle" x="547" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">sessions_current</text>
 </g>
 <!-- Fses&#45;&gt;Sesv -->
 <g id="edge11" class="edge">
 <title>Fses&#45;&gt;Sesv</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M386.12,-323.15C424.39,-302.43 478,-273.28 480,-271.5 501.09,-252.75 519.12,-225.93 530.8,-206.17"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="533.16,-207.68 534.73,-199.35 528.31,-204.89 533.16,-207.68"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M386.32,-323.05C396.3,-317.66 407.05,-311.86 417,-306.5 445.88,-290.93 457.41,-293.22 482,-271.5 503.28,-252.71 521.39,-225.67 533.05,-205.86"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="535.41,-207.36 536.96,-199.03 530.55,-204.58 535.41,-207.36"/>
 </g>
 <!-- Fses&#45;&gt;Exem -->
 <g id="edge25" class="edge">
 <title>Fses&#45;&gt;Exem</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" stroke-dasharray="5,2" d="M381.77,-322.77C392.68,-316.75 405.05,-310.69 417,-306.5 499.27,-277.66 534.3,-314.74 610,-271.5 637.55,-255.76 660.11,-226.71 673.97,-205.55"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="676.22,-207.22 678.14,-198.97 671.49,-204.23 676.22,-207.22"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" stroke-dasharray="5,2" d="M381.76,-322.76C392.67,-316.74 405.05,-310.68 417,-306.5 500.12,-277.44 535.5,-315.1 612,-271.5 639.56,-255.79 662.12,-226.73 675.97,-205.56"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="678.23,-207.23 680.14,-198.98 673.5,-204.24 678.23,-207.23"/>
 </g>
 <!-- Teach -->
 <g id="node29" class="node">
@@ -368,15 +369,15 @@
 <!-- Mlst -->
 <g id="node24" class="node">
 <title>Mlst</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M993.88,-197C993.88,-197 938.12,-197 938.12,-197 932.12,-197 926.12,-191 926.12,-185 926.12,-185 926.12,-173 926.12,-173 926.12,-167 932.12,-161 938.12,-161 938.12,-161 993.88,-161 993.88,-161 999.88,-161 1005.88,-167 1005.88,-173 1005.88,-173 1005.88,-185 1005.88,-185 1005.88,-191 999.88,-197 993.88,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="966" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">mistakes_list</text>
-<text xml:space="preserve" text-anchor="middle" x="966" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">correction_hint</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M995.88,-197C995.88,-197 940.12,-197 940.12,-197 934.12,-197 928.12,-191 928.12,-185 928.12,-185 928.12,-173 928.12,-173 928.12,-167 934.12,-161 940.12,-161 940.12,-161 995.88,-161 995.88,-161 1001.88,-161 1007.88,-167 1007.88,-173 1007.88,-173 1007.88,-185 1007.88,-185 1007.88,-191 1001.88,-197 995.88,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="968" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">mistakes_list</text>
+<text xml:space="preserve" text-anchor="middle" x="968" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">correction_hint</text>
 </g>
 <!-- Fmis&#45;&gt;Mlst -->
 <g id="edge12" class="edge">
 <title>Fmis&#45;&gt;Mlst</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M980.78,-322.34C977.71,-292.77 972.17,-239.43 968.81,-207.11"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="971.62,-207.04 968.01,-199.37 966.05,-207.62 971.62,-207.04"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M981.04,-322.34C978.33,-292.77 973.44,-239.43 970.48,-207.11"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="973.29,-207.08 969.77,-199.37 967.72,-207.59 973.29,-207.08"/>
 </g>
 <!-- Fext -->
 <g id="node15" class="node">
@@ -396,80 +397,80 @@
 <!-- PolR -->
 <g id="node26" class="node">
 <title>PolR</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M1392.12,-197C1392.12,-197 1301.88,-197 1301.88,-197 1295.88,-197 1289.88,-191 1289.88,-185 1289.88,-185 1289.88,-173 1289.88,-173 1289.88,-167 1295.88,-161 1301.88,-161 1301.88,-161 1392.12,-161 1392.12,-161 1398.12,-161 1404.12,-167 1404.12,-173 1404.12,-173 1404.12,-185 1404.12,-185 1404.12,-191 1398.12,-197 1392.12,-197"/>
-<text xml:space="preserve" text-anchor="middle" x="1347" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">policy_stats · evaluate</text>
-<text xml:space="preserve" text-anchor="middle" x="1347" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">policy_recommend</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M1394.12,-197C1394.12,-197 1303.88,-197 1303.88,-197 1297.88,-197 1291.88,-191 1291.88,-185 1291.88,-185 1291.88,-173 1291.88,-173 1291.88,-167 1297.88,-161 1303.88,-161 1303.88,-161 1394.12,-161 1394.12,-161 1400.12,-161 1406.12,-167 1406.12,-173 1406.12,-173 1406.12,-185 1406.12,-185 1406.12,-191 1400.12,-197 1394.12,-197"/>
+<text xml:space="preserve" text-anchor="middle" x="1349" y="-181.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">policy_stats · evaluate</text>
+<text xml:space="preserve" text-anchor="middle" x="1349" y="-169.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">policy_recommend</text>
 </g>
 <!-- Fpol&#45;&gt;PolR -->
 <g id="edge34" class="edge">
 <title>Fpol&#45;&gt;PolR</title>
-<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M1449.57,-322.34C1427.9,-292.26 1388.49,-237.57 1365.34,-205.45"/>
-<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1367.65,-203.86 1360.7,-199.01 1363.1,-207.14 1367.65,-203.86"/>
+<path fill="none" stroke="#a78bfa" stroke-width="1.3" d="M1449.84,-322.34C1428.53,-292.26 1389.79,-237.57 1367.03,-205.45"/>
+<polygon fill="#a78bfa" stroke="#a78bfa" stroke-width="1.3" points="1369.38,-203.93 1362.47,-199.02 1364.81,-207.16 1369.38,-203.93"/>
 </g>
 <!-- Prompt -->
 <g id="node27" class="node">
 <title>Prompt</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="2" d="M995,-68C995,-68 799,-68 799,-68 793,-68 787,-62 787,-56 787,-56 787,-12 787,-12 787,-6 793,0 799,0 799,0 995,0 995,0 1001,0 1007,-6 1007,-12 1007,-12 1007,-56 1007,-56 1007,-62 1001,-68 995,-68"/>
-<text xml:space="preserve" text-anchor="middle" x="897" y="-54.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PromptBuilder.build(request:)</text>
-<text xml:space="preserve" text-anchor="middle" x="897" y="-42.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">engine&#45;aware .budget</text>
-<text xml:space="preserve" text-anchor="middle" x="897" y="-30.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">MEMORY (relevance&#45;ranked) + SKILLS</text>
-<text xml:space="preserve" text-anchor="middle" x="897" y="-18.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">+ LEARNING + KNOWN MISTAKES/FIXES</text>
-<text xml:space="preserve" text-anchor="middle" x="897" y="-6.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">+ METRICS (per&#45;engine) + POLICY + EXTRO</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="2" d="M997,-68C997,-68 801,-68 801,-68 795,-68 789,-62 789,-56 789,-56 789,-12 789,-12 789,-6 795,0 801,0 801,0 997,0 997,0 1003,0 1009,-6 1009,-12 1009,-12 1009,-56 1009,-56 1009,-62 1003,-68 997,-68"/>
+<text xml:space="preserve" text-anchor="middle" x="899" y="-54.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">PromptBuilder.build(request:)</text>
+<text xml:space="preserve" text-anchor="middle" x="899" y="-42.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">engine&#45;aware .budget</text>
+<text xml:space="preserve" text-anchor="middle" x="899" y="-30.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">MEMORY (relevance&#45;ranked) + SKILLS</text>
+<text xml:space="preserve" text-anchor="middle" x="899" y="-18.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">+ LEARNING + KNOWN MISTAKES/FIXES</text>
+<text xml:space="preserve" text-anchor="middle" x="899" y="-6.5" font-family="sans-Serif" font-size="10.00" fill="#0f172a">+ METRICS (per&#45;engine) + POLICY + EXTRO</text>
 </g>
 <!-- Rec&#45;&gt;Prompt -->
 <g id="edge13" class="edge">
 <title>Rec&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M1191.07,-160.4C1171.91,-143.39 1140.8,-117.93 1110,-102 1081.09,-87.05 1048.23,-74.7 1017.12,-64.85"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="1018.32,-62.29 1009.85,-62.59 1016.66,-67.64 1018.32,-62.29"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M1193.07,-160.4C1173.91,-143.39 1142.8,-117.93 1112,-102 1083.09,-87.05 1050.23,-74.7 1019.12,-64.85"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="1020.32,-62.29 1011.85,-62.59 1018.66,-67.64 1020.32,-62.29"/>
 </g>
 <!-- Midx&#45;&gt;Prompt -->
 <g id="edge26" class="edge">
 <title>Midx&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="2" d="M1067.41,-156.02C1051.88,-140.07 1029.63,-118.49 1008,-102 995.49,-92.46 981.54,-83.14 967.87,-74.63"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="969.34,-72.24 961.05,-70.45 966.41,-77.02 969.34,-72.24"/>
-<text xml:space="preserve" text-anchor="middle" x="1065.8" y="-114.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">MEMORY block</text>
-<text xml:space="preserve" text-anchor="middle" x="1065.8" y="-103.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(top&#45;K by cosine)</text>
+<path fill="none" stroke="#38bdf8" stroke-width="2" d="M1069.41,-156.02C1053.88,-140.07 1031.63,-118.49 1010,-102 997.49,-92.46 983.54,-83.14 969.87,-74.63"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="971.34,-72.24 963.05,-70.45 968.41,-77.02 971.34,-72.24"/>
+<text xml:space="preserve" text-anchor="middle" x="1067.8" y="-114.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">MEMORY block</text>
+<text xml:space="preserve" text-anchor="middle" x="1067.8" y="-103.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(top&#45;K by cosine)</text>
 </g>
 <!-- Skv&#45;&gt;Prompt -->
 <g id="edge14" class="edge">
 <title>Skv&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M453.48,-160.48C462,-156.4 471.22,-152.29 480,-149 577.79,-112.36 692.46,-81.87 776.78,-61.67"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="777.34,-64.41 784.47,-59.84 776.04,-58.97 777.34,-64.41"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M455.48,-160.48C464,-156.4 473.22,-152.29 482,-149 579.79,-112.36 694.46,-81.87 778.78,-61.67"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="779.34,-64.41 786.47,-59.84 778.04,-58.97 779.34,-64.41"/>
 </g>
 <!-- Out&#45;&gt;Prompt -->
 <g id="edge15" class="edge">
 <title>Out&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M844.36,-160.47C852.93,-140.03 867.41,-105.53 879.01,-77.87"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="881.55,-79.06 882.06,-70.6 876.39,-76.9 881.55,-79.06"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M846.36,-160.47C854.93,-140.03 869.41,-105.53 881.01,-77.87"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="883.55,-79.06 884.06,-70.6 878.39,-76.9 883.55,-79.06"/>
 </g>
 <!-- Sesv&#45;&gt;Prompt -->
 <g id="edge16" class="edge">
 <title>Sesv&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M583.72,-160.41C592.34,-156.58 601.46,-152.6 610,-149 672.71,-122.57 743.79,-94.32 799.53,-72.56"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="800.42,-75.22 806.86,-69.7 798.38,-70 800.42,-75.22"/>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M585.72,-160.41C594.34,-156.58 603.46,-152.6 612,-149 674.71,-122.57 745.79,-94.32 801.53,-72.56"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="802.42,-75.22 808.86,-69.7 800.38,-70 802.42,-75.22"/>
 </g>
 <!-- Mlst&#45;&gt;Prompt -->
 <g id="edge17" class="edge">
 <title>Mlst&#45;&gt;Prompt</title>
-<path fill="none" stroke="#fb7185" stroke-width="2" d="M957.54,-160.47C947.76,-140.21 931.32,-106.13 918.04,-78.6"/>
-<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="920.62,-77.5 914.62,-71.51 915.57,-79.94 920.62,-77.5"/>
-<text xml:space="preserve" text-anchor="middle" x="967.68" y="-109.2" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">do NOT repeat</text>
+<path fill="none" stroke="#fb7185" stroke-width="2" d="M959.54,-160.47C949.76,-140.21 933.32,-106.13 920.04,-78.6"/>
+<polygon fill="#fb7185" stroke="#fb7185" stroke-width="2" points="922.62,-77.5 916.62,-71.51 917.57,-79.94 922.62,-77.5"/>
+<text xml:space="preserve" text-anchor="middle" x="969.68" y="-109.2" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">do NOT repeat</text>
 </g>
 <!-- Exem&#45;&gt;Prompt -->
 <g id="edge27" class="edge">
 <title>Exem&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M712.4,-160.43C733.4,-144.78 765.2,-121.43 793.5,-102 806.92,-92.78 821.51,-83.13 835.38,-74.11"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="836.61,-76.65 841.8,-69.95 833.56,-71.95 836.61,-76.65"/>
-<text xml:space="preserve" text-anchor="middle" x="822.75" y="-114.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">few&#45;shot msgs</text>
-<text xml:space="preserve" text-anchor="middle" x="822.75" y="-103.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(local only)</text>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M714.4,-160.43C735.4,-144.78 767.2,-121.43 795.5,-102 808.92,-92.78 823.51,-83.13 837.38,-74.11"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="838.61,-76.65 843.8,-69.95 835.56,-71.95 838.61,-76.65"/>
+<text xml:space="preserve" text-anchor="middle" x="824.75" y="-114.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">few&#45;shot msgs</text>
+<text xml:space="preserve" text-anchor="middle" x="824.75" y="-103.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">(local only)</text>
 </g>
 <!-- PolR&#45;&gt;Prompt -->
 <g id="edge35" class="edge">
 <title>PolR&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M1307.52,-160.48C1269.46,-144.01 1210.01,-119.35 1157,-102 1112.01,-87.27 1061.81,-73.69 1017.6,-62.66"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="1018.32,-59.95 1009.88,-60.74 1016.97,-65.38 1018.32,-59.95"/>
-<text xml:space="preserve" text-anchor="middle" x="1243.75" y="-114.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">POLICY block</text>
-<text xml:space="preserve" text-anchor="middle" x="1243.75" y="-103.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">advisory only</text>
+<path fill="none" stroke="#38bdf8" stroke-width="1.3" d="M1309.52,-160.48C1271.46,-144.01 1212.01,-119.35 1159,-102 1114.01,-87.27 1063.81,-73.69 1019.6,-62.66"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="1.3" points="1020.32,-59.95 1011.88,-60.74 1018.97,-65.38 1020.32,-59.95"/>
+<text xml:space="preserve" text-anchor="middle" x="1245.75" y="-114.45" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">POLICY block</text>
+<text xml:space="preserve" text-anchor="middle" x="1245.75" y="-103.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">advisory only</text>
 </g>
 <!-- ReVal&#45;&gt;Fmem -->
 <g id="edge28" class="edge">

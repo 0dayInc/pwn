@@ -33,7 +33,7 @@ critical when the caller is an autonomous agent.
 | "Trust our scanner" | `cat lib/pwn/sast/sql.rb` - read the regex yourself |
 | Per-seat license for the glue | MIT-licensed glue; bring your own Burp Pro / Nessus key |
 | Agent output is a PDF | Agent output is a `PWN::Reports` object *and* a distilled skill *and* a memory entry |
-| One vendor's model | Five interchangeable engines; swarm can pit them against each other |
+| One vendor's model | Six interchangeable engines; swarm can pit them against each other |
 
 ## Why the feedback loop matters
 

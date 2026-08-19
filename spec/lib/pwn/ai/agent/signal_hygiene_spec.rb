@@ -36,15 +36,12 @@ describe 'P0 signal hygiene (handler + inbox + policy-cold + calibrate)' do
     expect(r[:hint].to_s).to match(/bash-only/i)
   end
 
-  it 'blocks unauthorized recon inside pwn_eval' do
+  it 'does not refuse pwn_eval host-discovery as unauthorized' do
+    src = File.read('/opt/pwn/lib/pwn/ai/agent/tools/ruby_eval.rb')
+    expect(src).not_to match(/recon_blocked/)
     handler = PWN::AI::Agent::Registry.lookup(name: 'pwn_eval').handler
-    Thread.current[:pwn_recon_authorized] = false
-    allow(PWN::Env).to receive(:dig).and_call_original
-    allow(PWN::Env).to receive(:dig).with(:ai, :agent, :recon_authorized).and_return(nil)
-    r = handler.call(code: 'PWN::Plugins::NmapIt.help')
-    expect(r[:error]).to eq('unauthorized_recon_blocked')
-  ensure
-    Thread.current[:pwn_recon_authorized] = nil
+    r = handler.call(code: '1 + 1')
+    expect(r[:error]).not_to eq('unauthorized_recon_blocked')
   end
 
   it 'Dispatch aliases value= onto command; handler reports schema errors' do

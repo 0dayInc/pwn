@@ -62,7 +62,8 @@ RSpec.describe 'PWN persistence stores — write → reload → delete round-tri
         'curriculum_practice_nightly',
         'curriculum_train_weekly',
         'curriculum_offline_judge',
-        'learning_consolidate_nightly'
+        'learning_consolidate_nightly',
+        'pwn_stores_lean_nightly'
       )
       expect(PWN::Cron.install_defaults).to eq([]) # idempotent
     end

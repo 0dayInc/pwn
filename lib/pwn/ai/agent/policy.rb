@@ -580,10 +580,9 @@ module PWN
           end
 
           ev = evaluate(limit: opts[:limit] || 40)
-          fallback = %w[shell pwn_eval memory_recall mistakes_record mistakes_resolve learning_note_outcome memory_remember]
+          fallback = PWN::AI::Agent::Registry::DEFAULT_PREFERENCE
           pref = begin
-            intent = Thread.current[:pwn_request_intent]
-            PWN::AI::Agent::Registry.preference_order(intent: intent)
+            PWN::AI::Agent::Registry.preference_order
           rescue StandardError
             []
           end

@@ -6,15 +6,15 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ![Tool registry](diagrams/agent-tool-registry.svg)
 
-## Toolsets to tools  (13 toolsets · 85 tools)
+## Toolsets to tools  (13 toolsets · 87 tools)
 
 | Toolset | Tools | Backed by |
 |---|---|---|
 | `terminal` | `shell` | `Open3.capture3` on the host, after `PWN::AI::Agent::ToolGuard` |
 | `pwn` | `pwn_eval` | `TOPLEVEL_BINDING.eval` in the live REPL process, after `ToolGuard` |
 | `memory` | `memory_remember` · `memory_recall` · `memory_forget` · `memory_clear` · **`memory_lean`** | `PWN::Memory` → `~/.pwn/memory.json` |
-| `skills` | `skill_list` · `skill_view` · `skill_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
-| `sessions` | `sessions_list` · `sessions_view` · `sessions_current` · `sessions_delete` · `sessions_stats` · **`sessions_lean`** | `PWN::Sessions` → `~/.pwn/sessions/` |
+| `skills` | **`skills_recall`** · `skill_list` · `skill_view` · `skill_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
+| `sessions` | **`session_recall`** · `sessions_list` · `sessions_view` · `sessions_current` · `sessions_delete` · `sessions_stats` · **`sessions_lean`** | `PWN::Sessions` → `~/.pwn/sessions/` |
 | `learning` | `learning_note_outcome` · `learning_reflect` · `learning_distill_skill` · `learning_stats` · `learning_outcomes` · `learning_consolidate` · `learning_reset` · `learning_auto_introspect_toggle` · **`learning_gc_stores`** · **`learning_purge_noise`** · **`mistakes_list`** · **`mistakes_record`** · **`mistakes_resolve`** · **`mistakes_reset`** · **`mistakes_lean`** · **`reward_judge`** · **`reward_prm`** · **`reward_sentinel`** · **`reward_preferences`** · **`reward_export_dpo`** · **`reward_warm_sentinel`** · **`reward_scrub_preferences`** · **`reward_preference_balance`** · **`curriculum_practice`** · **`curriculum_train`** · **`curriculum_hindsight`** · **`curriculum_offline_judge`** · **`curriculum_preference_balance`** | `PWN::AI::Agent::Learning` + `Mistakes` + `Reward` + `Curriculum` → `~/.pwn/learning.jsonl` + `~/.pwn/mistakes.json` + `~/.pwn/preferences.jsonl` + `~/.pwn/curriculum/` + `~/.pwn/finetune/` |
 | `reward` | **`reward_generator_mix`** | `PWN::AI::Agent::Reward.generator_mix` → online preference source-mix controller (`preferences.jsonl`) |
 | `curriculum` | **`curriculum_practice_kpi`** | `PWN::AI::Agent::Curriculum.practice_kpi` → `~/.pwn/curriculum_kpi.jsonl` |
@@ -34,9 +34,7 @@ those without the full learning surface.
 `shell` and `pwn_eval` share `PWN::AI::Agent::ToolGuard`
 (`lib/pwn/ai/agent/tool_guard.rb`) before they run. The guard remaps common
 wrong keys, rejects ellipsis placeholders, refuses bash-only syntax unless
-`ai.agent.shell_bash` is true (default runner is `/bin/sh`), and blocks live
-host-discovery unless the request is in-scope or `ai.agent.recon_authorized`
-is true.
+`ai.agent.shell_bash` is true (default runner is `/bin/sh`).
 
 The `policy` toolset is inspect-only. `policy_stats`, `policy_evaluate`, and
 `policy_recommend` read the live Q / REINFORCE table. Reset is Ruby-only, so a
@@ -56,8 +54,9 @@ user request through as `relevance:`, `Registry.definitions` shrinks the
 pool to:
 
 ```text
-CORE_TOOLS  = shell · pwn_eval · memory_remember · memory_recall
-              mistakes_record · mistakes_resolve · learning_note_outcome
+CORE_TOOLS / DEFAULT_PREFERENCE (same list):
+memory_recall · session_recall · skills_recall · pwn_eval · shell
+mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember
             + top-K keyword-ranked matches for THIS request
               (ties break on Metrics per-engine success_rate, then
                ai.agent.tool_preference)
@@ -68,7 +67,7 @@ PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
 PWN::AI::Agent::Registry.preference_order                     # Env / DEFAULT_PREFERENCE
 PWN::AI::Agent::Registry.toolsets                              # -> the 13 names above
-PWN::AI::Agent::Registry.all.count                             # -> 85
+PWN::AI::Agent::Registry.all.count                             # -> 87
 ```
 
 Frontier engines leave `tool_router` off (unless you set it) and receive the
@@ -80,7 +79,7 @@ When keyword fit and other rank scores tie, the registry prefers this
 default order:
 
 ```text
-memory_recall · pwn_eval · shell
+memory_recall · session_recall · skills_recall · pwn_eval · shell
 mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember
 ```
 
@@ -88,9 +87,12 @@ Set `ai.agent.tool_preference` in `~/.pwn/pwn.yaml`, or pass `order:` /
 `preference:` into `Registry.definitions`, `.rank`, or `.apply_preference`.
 An explicit empty list turns preference off (no Env / default fallback).
 
+Learned facts and this session are injected (MEMORY / RECENT TURNS), not
+first tools. Preference then lists `pwn_eval` before `shell`. `sessions_view`
+is not a CORE tool. There is no separate ACT_PREFERENCE.
+
 Keyword fit stays the primary signal. Preference is a smaller bonus plus a
-stable sort after the router slims the pool, so `memory_recall` wins a
-tie against `shell` without hiding a better keyword match.
+stable sort after the router slims the pool.
 
 `Policy` uses the same list when it suggests a next action in the prompt.
 

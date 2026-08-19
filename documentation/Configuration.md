@@ -118,7 +118,7 @@ ai:
 
   agent:
     native_tools: true             # Use provider-native tool_calls / function-calling. false → legacy text-parsed tool protocol.
-    max_iters: 75                  # Hard cap on tool-call rounds per user turn. Local engines tighten under budget pressure.
+    max_iters: 777                 # Hard cap on tool-call rounds per user turn. Scars do not lower it.
     task_summary: true             # Executive task briefs via TaskSummarizer (plan + about_to). false disables.
     task_summary_every: 5          # When task_summary_verbose: emit Progress every N completed tools.
     task_summary_interval_s: 8.0   # When verbose: also emit when this many seconds elapsed.
@@ -129,12 +129,13 @@ ai:
     auto_extrospect: true          # Ambient baseline after every final answer (host/repo/env ONLY - never launches burpsuite/zaproxy/msf/gqrx). Sense tools stay on-demand.
     defer_introspect: true         # Run auto_introspect on a background thread AFTER the user-visible reply (default on). Specs/cron stay inline.
     prompt_cache: true             # Engine-native prefix cache. Anthropic cache_control, OpenAI prompt_cache_key, Grok x-grok-conv-id, Gemini systemInstruction split. Ollama / Open WebUI have none.
-    recon_authorized: false        # Allow live subnet sweeps / raw-socket discovery tools this session
     shell_bash: false              # true -> run shell via bash -lc. Default is /bin/sh.
     plan_first: ~                  # Plan-then-act pre-pass. nil = auto (true when ai.active is ollama or openwebui).
     tool_router: ~                 # Dynamic tool-set slimming. nil = auto (true for ollama / openwebui).
-    tool_preference:               # Operator-tunable tool order. Rank bonus + Policy suggested-action list.
+    tool_preference:               # Same order as CORE_TOOLS: memory_recall, session_recall, skills_recall, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember. Current session is injected separately.
       - memory_recall
+      - session_recall
+      - skills_recall
       - pwn_eval
       - shell
       - mistakes_record
@@ -251,7 +252,7 @@ targets:                           # Optional - engagement-scope URLs/hosts. Mer
 
 ```ruby
 PWN::Env[:ai][:active]                          # => :grok
-PWN::Env.dig(:ai, :agent, :max_iters)           # => 75
+PWN::Env.dig(:ai, :agent, :max_iters)           # => 777
 PWN::EnvRedacted[:ai][:grok][:key]              # => ">>> REDACTED >>> ..."
 
 # Edit + re-encrypt + reload without leaving the REPL:
@@ -301,7 +302,7 @@ PWN::Config.refresh_env
 | Key path | Type | Default | Consumed by | Purpose |
 |---|---|---|---|---|
 | `ai.agent.native_tools` | Boolean | `true` | `PWN::Plugins::REPL` (`pwn-ai` cmd) | Use provider-native `tool_calls` / function-calling. `false` falls back to the legacy text-parsed tool protocol. |
-| `ai.agent.max_iters` | Integer | `75` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn before a forced final answer. When recent turns keep hitting the ceiling, the effective cap is tightened (stricter on local engines than remote) so long multi-step goals keep a usable runway without thrashing. |
+| `ai.agent.max_iters` | Integer | `777` | `PWN::AI::Agent::Loop.run`, `PWN::AI::Agent::Swarm` | Hard cap on tool-call rounds per user turn. Budget-hot scars and overconfidence do not lower this request's runway. |
 | `ai.agent.task_summary` | Boolean | `true` | `PWN::AI::Agent::TaskSummarizer`, `Loop` | Master switch for executive task briefs (`emit_plan!` / `about_to`). |
 | `ai.agent.task_summary_every` | Integer | `5` | `TaskSummarizer.every_n` | Verbose progress cadence (tools). |
 | `ai.agent.task_summary_interval_s` | Float | `8.0` | `TaskSummarizer.interval_s` | Verbose progress cadence (seconds). |
@@ -311,11 +312,10 @@ PWN::Config.refresh_env
 | `ai.agent.auto_introspect` | Boolean | `true` | `PWN::AI::Agent::Learning.auto_introspect` | Run outcome logging + lesson mining after every final answer. Toggle live via `learning_auto_introspect_toggle`. |
 | `ai.agent.auto_extrospect` | Boolean | `true` | `PWN::AI::Agent::Extrospection.auto_extrospect` | Ambient baseline after every final answer (`AUTO_SECTIONS` = host/repo/env only; never spawns GUI/JVM tools). Sense tools (`intel`/`verify`/`watch`/`rf_tune`/`observe`) stay on-demand. Toggle live via `extro_auto_toggle`. |
 | `ai.agent.toolsets` | Array\<String\> \| `nil` | `nil` (all) | `bin/pwn`, `PWN::Plugins::REPL`, `PWN::AI::Agent::Registry` | Allow-list of toolsets exposed to the agent. Valid: `cron`, `curriculum`, `extrospection`, `learning`, `memory`, `metrics`, `policy`, `pwn`, `reward`, `sessions`, `skills`, `swarm`, `terminal`. |
-| `ai.agent.recon_authorized` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.recon_authorized?` / `Loop.recon_authorized?` | When true (or the user request contains in-scope / engagement language), live host-discovery tools may run. Default refuses unauthorized sweeps. |
 | `ai.agent.shell_bash` | Boolean | `false` | `PWN::AI::Agent::ToolGuard.shell_bash?` | When true, `shell` runs via `bash -lc` so bash-only syntax is allowed. Default is POSIX `/bin/sh` and bashisms are rejected with a rewrite hint. |
 | `ai.agent.plan_first` | Boolean \| `nil` | `nil` (auto: `true` when `ai.active` is `ollama` or `openwebui`) | `PWN::AI::Agent::Loop.plan_first` | Plan-then-act pre-pass: the model must emit a numbered tool plan (as an assistant message) *before* it may dispatch anything. Cheap chain-of-thought scaffolding for local models. |
 | `ai.agent.tool_router` | Boolean \| `nil` | `nil` (auto: `true` for `ollama` / `openwebui`) | `PWN::AI::Agent::Registry.definitions` | Dynamic tool-set slimming: expose only `Registry::CORE_TOOLS` + the top-K keyword-relevant schemas for *this* request. Ties break on historical `Metrics` success rate, then `ai.agent.tool_preference`. |
-| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Operator-tunable tool order. Keyword fit stays primary; act/recon kinds lead with `shell`/`pwn_eval`. Explicit empty list disables preference. |
+| `ai.agent.tool_preference` | Array\<String\> | `memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember` | `PWN::AI::Agent::Registry.preference_order` / `.rank` / `.apply_preference`, `Policy` | Same order as `CORE_TOOLS`. Current session is injected as RECENT TURNS. Explicit empty list disables preference. |
 | `ai.agent.defer_introspect` | Boolean | `true` | `PWN::AI::Agent::TurnFinalizer` | Run `Learning.auto_introspect` on a background thread after the user-visible reply. Specs and cron stay inline. |
 | `ai.agent.prompt_cache` | Boolean | `true` | `PWN::AI::Agent::PromptCache` | Engine-native prefix cache. Anthropic uses `cache_control`; OpenAI uses `prompt_cache_key`; Grok uses `x-grok-conv-id`; Gemini splits `systemInstruction`. Ollama and Open WebUI have no native prefix-cache field. |
 | `ai.agent.local_introspect` | Symbol | `failure_only` | `PWN::AI::Agent::Learning.auto_introspect` | End-of-turn introspect policy for local engines: `always` · `failure_only` · `every_n` (with `introspect_every_n`). |

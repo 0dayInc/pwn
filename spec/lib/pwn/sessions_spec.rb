@@ -61,4 +61,33 @@ describe PWN::Sessions do
   ensure
     FileUtils.rm_rf(tmp) if tmp
   end
+
+  it 'recall searches prior session transcripts and skips the current session' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::Sessions::SESSIONS_DIR', tmp)
+    old = PWN::Sessions.create(id: '20200101_000000_oldone', title: 'old')
+    PWN::Sessions.append(session_id: old[:id], role: 'user', content: 'use hping3 for a ping sweep')
+    PWN::Sessions.append(session_id: old[:id], role: 'assistant', content: 'Prefer pwn_eval then shell for that')
+    cur = PWN::Sessions.create(id: '20260101_000000_curone', title: 'current')
+    PWN::Sessions.append(session_id: cur[:id], role: 'user', content: 'unrelated current chatter')
+    hits = PWN::Sessions.recall(query: 'hping3', exclude_session_id: cur[:id], limit: 8)
+    expect(hits).to be_an(Array)
+    expect(hits).not_to be_empty
+    expect(hits.all? { |h| h[:session_id] != cur[:id] }).to eq true
+    expect(hits.any? { |h| h[:content].to_s.include?('hping3') }).to eq true
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
+
+  it 'previous_id returns the newest session that is not the current one' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::Sessions::SESSIONS_DIR', tmp)
+    old = PWN::Sessions.create(id: '20200101_000000_oldses', title: 'old')
+    PWN::Sessions.append(session_id: old[:id], role: 'user', content: 'SHIP MARKER LAST SESSION')
+    cur = PWN::Sessions.create(id: '20260101_000000_curses', title: 'current')
+    PWN::Sessions.append(session_id: cur[:id], role: 'user', content: 'what did I just say?')
+    expect(PWN::Sessions.previous_id(exclude_session_id: cur[:id])).to eq(old[:id])
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
 end

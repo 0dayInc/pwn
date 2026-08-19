@@ -58,10 +58,19 @@ module PWN
       module Loop
         DEFAULT_MAX_ITERS    = 777
         ESCALATE_AFTER_FAILS = 4
-        # P17 — when empty_final / known thrash shapes dominate, stop before
-        # burning the full ollama cap so the corpus is not pure terminal failure.
-        BUDGET_HARD_STOP_FAILS = 8
-        BUDGET_EMPTY_FINAL_STOP = 3
+        BOUNCE_FAIL_KEYS = %w[
+          unsatisfied incomplete_final empty_final evidence_final
+        ].freeze
+
+        private_class_method def self.dispatch_fail_n(opts = {})
+          fails = opts[:turn_fails] || {}
+          fails.sum do |key, count|
+            next 0 if BOUNCE_FAIL_KEYS.include?(key.to_s)
+            next 0 if key.to_s.start_with?('cf:')
+
+            count.to_i
+          end
+        end
 
         ENGINE_MODS = {
           openai: 'PWN::AI::OpenAI',
@@ -82,7 +91,7 @@ module PWN
           r = mod.chat(
             request: user[:content],
             system_role_content: sys&.[](:content),
-            spinner: true
+            spinner: false
           )
 
           txt = r.is_a?(Hash) ? (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text)).to_s : r.to_s
@@ -239,11 +248,12 @@ module PWN
           iter = opts[:i].to_i
           max_i = opts[:max_iters].to_i
           request = opts[:request].to_s
+          return false if request_unsatisfied?(request: request, messages: messages)
           return false if max_i <= 0 || iter < 2
           return false if turn_fails['empty_final'].to_i.positive?
           return false if turn_fails['incomplete_final'].to_i > 1
 
-          fail_n = turn_fails.values.sum
+          fail_n = dispatch_fail_n(turn_fails: turn_fails)
           return false if fail_n >= 3
 
           tools_ok = messages.select { |msg| msg[:role].to_s == 'tool' }
@@ -261,16 +271,7 @@ module PWN
           deep_enough = tools_ok.size >= 3 || (short_plan && tools_ok.size >= plan_steps)
           return false unless deep_enough
 
-          recent_txt = last2.map { |msg| msg[:content].to_s[0, 500] }.join(' ')
-          mutation_done = recent_txt.match?(
-            /syntax ok|wrote |patched|File\.write|ruby -c|0 offenses|examples?,\s*0 failures/i
-          )
-          return true if mutation_done
-          return true if request_path_evidenced?(request: request, blob: recent_txt)
-          return true if short_plan && tools_ok.size >= plan_steps && fail_n.zero? &&
-                         request.match?(/\b(what|who|when|where|which|how many|status|list|show|print|uname|cwd|version|hostname)\b/i)
-
-          false
+          true
         rescue StandardError
           false
         end
@@ -312,38 +313,36 @@ module PWN
 
         ACT_REQUEST_RX = /
           \b(write|create|implement|fix|patch|replace|refactor|overwrite|
-             add (?:a |the )?|update|install|delete|remove|rename)\b
+             add (?:a |the )?|update|install|delete|remove|rename|
+             regenerate|rebuild|document)
+          \b
         /ix
-        MUTATION_EVIDENCE_RX = /
-          printf\s|tee\s|sed\s+-i|ruby\s+-i|>\s|>>\s|file\.write|binwrite|
-          patched|wrote\s|syntax\sok|0\s+offenses|examples?,\s*0\s+failures
+        FORCED_WRAP_RX = /
+          forced\s+to\s+a\s+final|were\s+not\s+written|not\s+written\s+to\s+disk|
+          resume\s+from\s+the\s+table|remaining\s+block|
+          were\s+not\s+applied|not\s+applied\s+in\s+this\s+turn|
+          (?:do\s+that\s+)?next\s+time
         /ix
         LOOKUP_REQUEST_RX = /
           \b(what\s+is\s+my|hostname|uname|cwd|whoami|status|version|how\s+many)\b
         /ix
-        HOST_PATH_RX = %r{(?:/|\./)[\w./-]+\.\w+}
+        # Real filesystem paths only — not https://host.tld (that was matching //host.tld).
+        HOST_PATH_RX = %r{(?:(?<![.:/])/(?!/)|\./)[\w./-]+\.\w+}
+        BROWSER_REQUEST_RX = /
+          TransparentBrowser|browser_obj|\bdevtools\b|
+          \b(navigate|dump_links|headless_?chrome|watir)\b
+        /ix
 
-        # True only when the ask needs a live host/file effect. World-knowledge
+        # True only when the ask needs a live host/file/browser effect. World-knowledge
         # questions ("what color is a cherry") do not.
-        public_class_method def self.needs_host_work?(opts = {})
-          request = opts[:request].to_s
-          return false if request.strip.empty?
-          return true if request.match?(ACT_REQUEST_RX)
-          return true if request.match?(LOOKUP_REQUEST_RX)
-          return true if request.match?(HOST_PATH_RX)
-
-          false
-        rescue StandardError
-          false
-        end
-
-        # Short world-knowledge asks (no host/file work). Skip the planner LLM
-        # and do not bounce a text-only answer.
         public_class_method def self.world_knowledge?(opts = {})
           request = opts[:request].to_s.strip
           return false if request.empty?
-          return false if needs_host_work?(request: request)
           return false if request.length > 120
+          return false if request.match?(ACT_REQUEST_RX)
+          return false if request.match?(LOOKUP_REQUEST_RX)
+          return false if request.match?(HOST_PATH_RX)
+          return false if request.match?(BROWSER_REQUEST_RX)
           return false if request.match?(%r{\b(this\s+(?:host|machine|box|system|subnet|file|repo)|/opt/|implement|scan|hosts?)\b}i)
 
           request.match?(/\A(?:what|why|who|when|where|which|how)\b/i)
@@ -351,58 +350,111 @@ module PWN
           false
         end
 
-        # True when a text-only reply cannot yet be the original request.
-        # Distinct from English-task leftovers (advisory) and polite handoffs.
-        # Never bounce world-knowledge / no-host-work asks.
-        private_class_method def self.request_unsatisfied?(opts = {})
-          return false if opts[:last_iter]
-          return false if world_knowledge?(request: opts[:request])
-          return false unless needs_host_work?(request: opts[:request])
-
+        public_class_method def self.needs_host_work?(opts = {})
           request = opts[:request].to_s
-          messages = Array(opts[:messages])
-          tools = messages.select { |msg| msg.is_a?(Hash) && msg[:role].to_s == 'tool' }
-          blob = +''
-          tools.each do |msg|
-            blob << msg[:name].to_s << ' ' << msg[:content].to_s << "\n"
-          end
-          messages.each do |msg|
-            next unless msg.is_a?(Hash) && msg[:role].to_s == 'assistant'
-
-            Array(msg[:tool_calls]).each do |tc|
-              blob << tc.dig(:function, :name).to_s << ' '
-              blob << tc.dig(:function, :arguments).to_s << "\n"
-            end
-          end
-
-          return false if request.match?(LOOKUP_REQUEST_RX) && tools.any? && blob.length >= 20
-          return true if tools.empty?
-          return false if blob.match?(MUTATION_EVIDENCE_RX)
-          return false if request_path_evidenced?(request: request, blob: blob)
+          return false if request.strip.empty?
+          return false if world_knowledge?(request: request)
 
           true
         rescue StandardError
           false
         end
 
-        private_class_method def self.request_path_evidenced?(opts = {})
+        private_class_method def self.request_need(opts = {})
           request = opts[:request].to_s
-          blob = opts[:blob].to_s
-          paths = request.scan(%r{(?:/|\./)[\w./-]+\.\w+})
-          return false if paths.empty?
+          return :none if world_knowledge?(request: request)
+          return :read if request.match?(LOOKUP_REQUEST_RX)
+          return :browse if request.match?(BROWSER_REQUEST_RX)
+          return :write if request.match?(ACT_REQUEST_RX) || request.match?(HOST_PATH_RX)
 
-          paths.any? do |path|
-            blob.include?(path) && blob.match?(
-              /open\(|File\.(?:write|open|binwrite)|write\(|puts\s|print\s|>\s|>>\s|tee\s|sed\s+-i|ruby\s+-i|patched|wrote/i
-            )
+          :any
+        end
+
+        private_class_method def self.tool_effects(opts = {})
+          effects = []
+          Array(opts[:messages]).each do |msg|
+            next unless msg.is_a?(Hash)
+
+            if msg[:role].to_s == 'tool'
+              stamped = stamped_effect(content: msg[:content])
+              effects << stamped if stamped
+            end
+            next unless msg[:role].to_s == 'assistant'
+            next unless defined?(Dispatch) && Dispatch.respond_to?(:effect)
+
+            Array(msg[:tool_calls]).each do |tc|
+              effects << Dispatch.effect(
+                name: tc.dig(:function, :name),
+                args: tc.dig(:function, :arguments)
+              )
+            end
           end
+          effects
+        rescue StandardError
+          []
+        end
+
+        private_class_method def self.stamped_effect(opts = {})
+          raw = opts[:content].to_s
+          return if raw.empty?
+
+          parsed = JSON.parse(raw, symbolize_names: true)
+          return unless parsed.is_a?(Hash) && parsed[:effect]
+
+          parsed[:effect].to_s.to_sym
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.request_unsatisfied?(opts = {})
+          request = opts[:request].to_s
+          need = request_need(request: request)
+          return false if need == :none
+          return false unless needs_host_work?(request: request)
+
+          effects = tool_effects(messages: opts[:messages])
+          live = effects.reject { |fx| %i[recall store].include?(fx) }
+          return true if live.empty?
+          return true if need == :write && !write_verified?(effects: effects)
+          return true if need == :browse && !effects.include?(:browse)
+          return true if need == :any && !effects.intersect?(%i[write browse eval])
+
+          false
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.write_verified?(opts = {})
+          effects = Array(opts[:effects])
+          idx = effects.index(:write)
+          return false if idx.nil?
+
+          tail = effects[(idx + 1)..] || []
+          tail.intersect?(%i[read eval])
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.may_finalize?(opts = {})
+          return false if incomplete_final?(text: opts[:text], last_iter: false)
+          return false if request_unsatisfied?(
+            request: opts[:request],
+            messages: opts[:messages],
+            last_iter: false
+          )
+
+          true
+        rescue StandardError
+          false
         end
 
         private_class_method def self.incomplete_final?(opts = {})
           text = opts[:text].to_s
           return false if text.strip.empty?
-          # Hard last-iter forces a real final; do not bounce that forever.
-          return false if opts[:last_iter]
+          # Heading-only leftovers ("# Remaining block") are never a real
+          # answer — bounce even on the last iter so Loop keeps working.
+          return true if stub_outline?(text: text)
+          return true if text.match?(FORCED_WRAP_RX) && text.length < 8_000
           return true if text.match?(INCOMPLETE_FINAL_RX)
           # Short status-only dumps with a trailing question are handoffs.
           return true if text.include?('?') && text.length < 900 &&
@@ -429,29 +481,23 @@ module PWN
           false
         end
 
+        private_class_method def self.stub_outline?(opts = {})
+          body = opts[:text].to_s.gsub(/```[a-z]*\s*/i, '').gsub('```', '').strip
+          return false if body.empty?
+          return true if body.match?(/\A#+\s*remaining\b/i)
+          return true if body.match?(/\Aremaining\s+block\s*\z/i)
+
+          lines = body.lines.map(&:strip).reject(&:empty?)
+          lines.any? && lines.all? { |ln| ln.match?(/\A#+\s+\S/) } && body.length < 160
+        rescue StandardError
+          false
+        end
+
         private_class_method def self.max_iters
           v = (PWN::Env.dig(:ai, :agent, :max_iters) if defined?(PWN::Env))
-          n = v.to_i.positive? ? v.to_i : DEFAULT_MAX_ITERS
-          # 0.3 — frontier leakage: live max_iters=80 burns local models.
-          # Cap ollama at 25 unless the operator set an explicit lower value.
-          n = 75 if local_engine? && n > 75
-          # P7 — W3 controller: when this engine is badly overconfident,
-          # shrink the tool budget so thrash can't compound on bad plans.
-          cal = calibration_state
-          n = [n, cal[:max_iters_cap]].min if cal[:overconfident]
-          # P17 — when agent_loop budget_exhaustion dominates open mistakes,
-          # shrink thrash WITHOUT collapsing long multi-step autonomy.
-          # Local (ollama) stays harsh (8). Remote engines keep a multi-step
-          # runway (25): the always-8-for-ALL policy starved long-lived goals
-          # (only ~5 tool rounds after the hot text-only tail) while scars were
-          # still open. incomplete_final? + evidence_enough_to_finalize? still
-          # refuse polite handoffs and finish early when evidence is enough.
-          # CF / red_team forks stay suppressed while hot.
-          if budget_exhaustion_hot?
-            hot_cap = local_engine? ? 24 : 75
-            n = [n, hot_cap].min
-          end
-          n
+          return v.to_i if v.to_i.positive?
+
+          DEFAULT_MAX_ITERS
         rescue StandardError
           DEFAULT_MAX_ITERS
         end
@@ -1069,7 +1115,7 @@ module PWN
             cwt_opts = {
               messages: wire_msgs,
               tools: tools,
-              spinner: true
+              spinner: false
             }
             # Ollama + abliterated / weak chat-templates often ignore tools: and
             # answer in prose (or print shell(...) as text). Force native
@@ -1276,7 +1322,7 @@ module PWN
         # :howto → answer with explanation only (no plan_first / no live recon).
         # :recall → prior-turn / vague memory cue; cheap path only.
         # :greeting → short hello / light smalltalk; deterministic ack, no tools.
-        # :recon_act → live discovery; requires explicit authorization language.
+        # :recon_act → live discovery (same tool loop as :act; no auth gate).
         # :act → general agent work with tools.
         HOWTO_RX = /
           \b(
@@ -1326,6 +1372,7 @@ module PWN
             last\s+thing\s+(?:i|you)\s+said
           )\b
         /ix
+        LAST_SESSION_RX = /\b(?:in|from|of)\s+(?:the\s+)?(?:last|previous|prior)\s+session\b|\blast\s+session\b/i
 
         # Pure greeting / light smalltalk — never full :act tool loop.
         # Anchored short forms only so "hi, please scan X" stays :act/:recon_act.
@@ -1362,15 +1409,6 @@ module PWN
           )\b
         /ix
 
-        AUTH_SCOPE_RX = /
-          \b(
-            (?:in[-\s]?scope|authorized|authorised|engagement|written\s+permission|
-               bug\s*bounty|explicit(?:ly)?\s+allowed|lab\s+only|my\s+lab|
-               roe\b|rules?\s+of\s+engagement|i\s+own\s+this|owned\s+by\s+me|
-               permission\s+to\s+(?:scan|test|probe)|scope:\s*\S+)
-          )\b
-        /ix
-
         public_class_method def self.request_intent(opts = {})
           req = opts[:request].to_s
           return :empty if req.strip.empty?
@@ -1386,6 +1424,14 @@ module PWN
           # general work ("remember what we decided about nmap and implement it"
           # stays :act because it pairs memory with a doing verb outside the cue).
           if req.match?(VAGUE_MEMORY_RX) && !req.match?(HOWTO_RX) && !req.match?(LIVE_RECON_RX)
+            doing = req.match?(
+              /\b(implement|fix|patch|refactor|run|execute|scan|write|edit|
+                  change|deploy|install|build|compile|commit|push)\b/ix
+            )
+            return :recall unless doing
+          end
+
+          if req.match?(LAST_SESSION_RX) && !req.match?(HOWTO_RX) && !req.match?(LIVE_RECON_RX)
             doing = req.match?(
               /\b(implement|fix|patch|refactor|run|execute|scan|write|edit|
                   change|deploy|install|build|compile|commit|push)\b/ix
@@ -1410,19 +1456,6 @@ module PWN
           :act
         rescue StandardError
           :act
-        end
-
-        public_class_method def self.recon_authorized?(opts = {})
-          req = opts[:request].to_s
-          return true if req.match?(AUTH_SCOPE_RX)
-
-          # Explicit engage flag from operator / REPL
-          v = (PWN::Env.dig(:ai, :agent, :recon_authorized) if defined?(PWN::Env))
-          return true if v == true || v.to_s =~ /\A(1|true|yes|on)\z/i
-
-          false
-        rescue StandardError
-          false
         end
 
         # Pure how-to: one text-only chat (no tools, no plan_first, no task recon).
@@ -1454,7 +1487,7 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: q_sys,
-                spinner: true
+                spinner: false
               )
               if r.is_a?(Hash)
                 (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
@@ -1517,7 +1550,7 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: q_sys,
-                spinner: true
+                spinner: false
               )
               if r.is_a?(Hash)
                 (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
@@ -1597,8 +1630,6 @@ module PWN
               Do NOT call tools. Do NOT plan multi-step work. Do NOT run scans,
               probes, rubocop, rake, or host verification. Do NOT invent task
               traces or internal planner monologue. Do NOT claim you ran anything.
-              If the topic is network discovery, give safe lab examples and note
-              that live sweeps need explicit in-scope authorization.
           SYS
 
           txt =
@@ -1606,7 +1637,7 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: howto_sys,
-                spinner: true
+                spinner: false
               )
               if r.is_a?(Hash)
                 (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
@@ -1715,6 +1746,18 @@ module PWN
           session_id = opts[:session_id]
           system_role_content = opts[:system_role_content].to_s
           target = recall_target(request: request)
+          last_session = request.match?(LAST_SESSION_RX)
+          if last_session && defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:previous_id)
+            prev = PWN::Sessions.previous_id(exclude_session_id: session_id)
+            if prev.to_s.empty?
+              txt = 'I do not have a previous session transcript yet.'
+              append_session(session_id: opts[:session_id], role: 'user', content: request)
+              append_session(session_id: opts[:session_id], role: 'assistant', content: txt)
+              return txt
+            end
+
+            session_id = prev
+          end
 
           prior_user = nil
           prior_asst = nil
@@ -1757,7 +1800,7 @@ module PWN
               # User-target / fallback: skip meta intermediate recall asks so
               # "what did I just say?" after a nested chain still surfaces the
               # original utterance when appropriate; default stays newest.
-              skip_meta = target == :assistant
+              skip_meta = target == :assistant || last_session
               prior_user = PWN::Memory.prior_user_message(
                 session_id: session_id,
                 max_chars: 4_000,
@@ -1890,7 +1933,7 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: recall_sys,
-                spinner: true
+                spinner: false
               )
               if r.is_a?(Hash)
                 (r.dig(:choices, -1, :content) || r.dig(:choices, -1, :text) || r[:content]).to_s
@@ -1947,8 +1990,18 @@ module PWN
           # Cheap intent/kind FIRST - before PromptBuilder / Registry / TaskSummarizer
           # so greetings, FYIs, how-tos, recall, and simple Qs never pay the fat path.
           intent = request_intent(request: request)
+          if defined?(OpenGoal) && OpenGoal.resume?(request: request)
+            prior = OpenGoal.current
+            if prior && !prior[:request].to_s.strip.empty?
+              request = prior[:request].to_s
+              opts[:request] = request
+              intent = request_intent(request: request)
+            end
+          elsif defined?(OpenGoal) && needs_host_work?(request: request) &&
+                !%i[greeting howto recall].include?(intent)
+            OpenGoal.begin!(request: request, session_id: session_id)
+          end
           Thread.current[:pwn_request_intent] = intent
-          Thread.current[:pwn_recon_authorized] = recon_authorized?(request: request)
           Thread.current[:pwn_extinguished] = {}
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
@@ -2149,16 +2202,22 @@ module PWN
             # Last-iter strips tools only on the true last slot. English
             # leftovers and budget-hot must not steal runway from a live goal.
             text_only_iters = 1
-            last_iter = (i >= max_iters - text_only_iters)
+            want_last = (i >= max_iters - text_only_iters)
+            still_open = request_unsatisfied?(
+              request: request,
+              messages: messages,
+              last_iter: false
+            )
+            last_iter = want_last && !still_open
             if last_iter
               tag = i >= max_iters - 1 ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
               messages << {
                 role: 'user',
                 content: "[pwn-ai/p17] #{tag} — do NOT call any more tools. " \
-                         'Write the best complete answer you can from evidence already in this ' \
-                         'transcript. If the goal is unfinished, report exactly what is done, ' \
-                         'what is blocked, and the concrete remaining work — do NOT ask the ' \
-                         'user to confirm the next step.'
+                         'Write the complete answer from evidence already in this ' \
+                         'transcript. If unfinished, say BLOCKED with evidence — not a ' \
+                         'markdown outline or "# Remaining block". Do NOT ask the user ' \
+                         'to confirm the next step.'
               }
             end
 
@@ -2206,7 +2265,7 @@ module PWN
 
             if calls.empty?
               # P28 — refuse polite mid-goal handoffs so multi-step tasks stay autonomous.
-              if incomplete_final?(text: text, last_iter: last_iter) && turn_fails['incomplete_final'].to_i < 4
+              if incomplete_final?(text: text, last_iter: false)
                 turn_fails['incomplete_final'] += 1
                 warn "[pwn-ai/loop] incomplete final on iter=#{i}; continuing autonomously"
                 messages << {
@@ -2219,11 +2278,11 @@ module PWN
                 }
                 next
               end
-              if request_unsatisfied?(
+              unless may_finalize?(
                 request: request,
                 messages: messages,
-                last_iter: last_iter
-              ) && turn_fails['unsatisfied'].to_i < 4
+                text: text
+              )
                 turn_fails['unsatisfied'] += 1
                 warn "[pwn-ai/loop] original request not evidenced on iter=#{i}; continuing"
                 messages << {
@@ -2238,6 +2297,7 @@ module PWN
               Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               maybe_finish_policy(session_id: session_id, proxy_ok: true, ts_state: ts_state)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
+              OpenGoal.clear! if defined?(OpenGoal)
               return text
             end
 
@@ -2308,55 +2368,10 @@ module PWN
               )
             end
 
-            # P17 — evidence-enough early final (finish-under-N). When tools already
-            # answered the ask, inject a synthesis nudge once and let the next
-            # non-incomplete text final win — do not burn remaining iters to exhaust.
-            if !last_iter && evidence_enough_to_finalize?(
-              messages: messages,
-              turn_fails: turn_fails,
-              i: i,
-              max_iters: max_iters,
-              request: request,
-              plan_steps: plan_steps,
-              ts_state: ts_state
-            ) && turn_fails['evidence_final'].to_i < 1
-              turn_fails['evidence_final'] += 1
-              messages << {
-                role: 'user',
-                content: '[pwn-ai/p17] Evidence from the last tool results is enough to answer. ' \
-                         'Do NOT call more tools. Write the complete final answer now from that ' \
-                         'evidence. If anything remains blocked, state exactly what and stop.'
-              }
-            end
+            # Do not inject "stop calling tools". Long goals keep CORE_TOOLS
+            # until may_finalize? — the original request is the only signal.
 
-            # P17 — hard stop: empty-final thrash or cumulative fails past cap.
-            # Prefer a short apologetic final over another 10 useless tool dumps
-            # that poison ORM/PRM/DPO with terminal failures.
-            empty_n = turn_fails['empty_final'].to_i
-            fail_n  = turn_fails.values.sum
-            if empty_n >= BUDGET_EMPTY_FINAL_STOP || fail_n >= BUDGET_HARD_STOP_FAILS
-              msg = if empty_n >= BUDGET_EMPTY_FINAL_STOP
-                      '[pwn-ai] stopped: repeated empty finals (budget thrash guard)'
-                    else
-                      '[pwn-ai] stopped: too many in-turn failures (budget thrash guard)'
-                    end
-              if defined?(Mistakes)
-                Mistakes.record(
-                  tool: 'agent_loop',
-                  error: "budget thrash guard fired empty=#{empty_n} fails=#{fail_n} iter=#{i}",
-                  session_id: session_id,
-                  source: :loop,
-                  shape: :budget_thrash
-                )
-              end
-              append_session(session_id: session_id, role: 'assistant', content: msg)
-              Learning.auto_introspect(session_id: session_id, request: request, final: msg, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
-              maybe_finish_policy(session_id: session_id, proxy_ok: false, ts_state: ts_state)
-              task_summary_flush!(state: ts_state, on_tool: on_tool)
-              return msg
-            end
-
-            next unless local && !escalated && turn_fails.values.sum >= ESCALATE_AFTER_FAILS
+            next unless local && !escalated && dispatch_fail_n(turn_fails: turn_fails) >= ESCALATE_AFTER_FAILS
 
             hint = escalate(request: request, turn_fails: turn_fails, session_id: session_id)
             if hint
@@ -2424,8 +2439,8 @@ module PWN
                 how-to / usage questions → text-only explanation (no tools, no plan_first)
                 pure prior-turn recall ("what did I just say?") → answer_recall (no tools)
                 pure greeting / light smalltalk → answer_greeting (no tools, no weather echo)
-                live subnet sweeps without scope language → refuse
-                :recon_authorized    - Boolean session flag to allow raw-socket / sweep tools
+                live sweeps are host-work goals like any other — pwn-ai does not
+                decide authorization
               Local-model scaffolding (PWN::Env[:ai][:agent]):
                 :plan_first          - Boolean, plan-then-act pre-pass (default: local engine :ollama/:openwebui)
                 :tool_router         - Boolean/nil, slim Registry.definitions (nil=auto on for ollama)
@@ -2437,10 +2452,9 @@ module PWN
                 :policy              - R5 live tabular Q / REINFORCE (Boolean, default true; advisory only)
                 :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
 
-              P28 autonomy: incomplete-final detector refuses mid-goal handoffs;
-              W3 overconf max_iters_cap is 120 on remote engines (8 on ollama).
-              P17 budget-hot caps max_iters to 24 on ollama and 75 on remote engines
-              so long multi-step goals keep a usable runway while thrash is cooled.
+              P28 autonomy: incomplete-final detector refuses mid-goal handoffs.
+              max_iters is Env or DEFAULT_MAX_ITERS (#{DEFAULT_MAX_ITERS});
+              budget-hot / overconf do not shrink this request's runway.
 
               #{self}.authors
           USAGE

@@ -64,11 +64,15 @@ describe PWN::AI::Agent::PromptBuilder do
     end
   end
 
-  describe 'mid-turn lean prompt' do
-    it 'does not inject MEMORY/SKILLS/LEARNING/POLICY/EXTRO on a live goal' do
+  describe 'mid-turn prompt' do
+    it 'injects current session + MEMORY + SKILLS + LEARNING + known-fix before tools' do
       src = File.read(described_class.method(:build).source_location.first)
+      expect(src).to match(/recent_turns_block/)
+      expect(src).to match(/memory_block/)
+      expect(src).to match(/skills_block/)
+      expect(src).to match(/learning_block/)
       expect(src).to match(/KNOWN MISTAKES|mistakes_block/)
-      expect(src).to match(/stuck|expand_harness|lean/)
+      expect(src).to match(/skills_recall/)
     end
   end
 end

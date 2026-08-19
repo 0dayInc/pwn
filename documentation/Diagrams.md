@@ -23,7 +23,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/persistence-filesystem.dot) · doc: [Persistence](Persistence.md)
 ![persistence-filesystem](diagrams/persistence-filesystem.svg)
 
-### Plugin Ecosystem (66 modules)
+### Plugin Ecosystem (67 modules)
 [source](diagrams/dot/plugin-ecosystem.dot) · doc: [Plugins](Plugins.md)
 ![plugin-ecosystem](diagrams/plugin-ecosystem.svg)
 
@@ -68,7 +68,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/ai-integration-tool-calling.dot) · doc: [AI Integration](AI-Integration.md)
 ![ai-integration-tool-calling](diagrams/ai-integration-tool-calling.svg)
 
-### Agent Tool Registry (13 toolsets · 85 tools)
+### Agent Tool Registry (13 toolsets · 87 tools)
 [source](diagrams/dot/agent-tool-registry.dot) · doc: [Agent Tool Registry](Agent-Tool-Registry.md)
 ![agent-tool-registry](diagrams/agent-tool-registry.svg)
 

@@ -3,6 +3,7 @@
 require 'curses'
 require 'pry'
 require 'reline'
+require 'tty-cursor'
 require 'tty-prompt'
 require 'unicode/display_width'
 require 'yaml'
@@ -240,6 +241,7 @@ module PWN
         end
 
         def readline(prompt)
+          PWN::Plugins::REPL.ready_tty!
           # Ask the terminal to encode Shift+Enter distinctly from Enter for
           # the duration of this read. Without this, most emulators send 0x0D
           # for both and SHIFT_ENTER_SEQS can never match. Reset in `ensure`.
@@ -278,6 +280,42 @@ module PWN
         def winsize
           [TTY::Screen.rows || 24, TTY::Screen.columns || 80]
         end
+      end
+
+      # Restore the TTY after a spinner / agent turn so Pry/Reline prints
+      # the next PS1 immediately. hide_cursor + a background worker leave
+      # the cursor hidden on $stdout (Reline's stream) even after
+      # TTY::Spinner#stop writes show-cursor to $stderr. Reline then
+      # waits for a key without redrawing the prompt.
+      public_class_method def self.ready_tty!(opts = {})
+        return nil if opts[:skip]
+
+        PWN::Plugins::TTYSpinner.halt_all! if defined?(PWN::Plugins::TTYSpinner)
+        out = opts[:io] || $stdout
+        return nil unless out.respond_to?(:write)
+
+        show = defined?(TTY::Cursor) ? TTY::Cursor.show : "\e[?25h"
+        out.write("\e[0m#{show}")
+        $stderr.write("\e[0m#{show}") if $stderr.respond_to?(:write) && $stderr != out
+        out.flush if out.respond_to?(:flush)
+        reset_reline_editor
+        nil
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.reset_reline_editor(opts = {})
+        return unless opts.is_a?(Hash)
+        return unless defined?(Reline)
+        return unless Reline.respond_to?(:core)
+
+        editor = Reline.core.instance_variable_get(:@line_editor)
+        return unless editor
+
+        editor.instance_variable_set(:@finished, false) if editor.instance_variable_defined?(:@finished)
+        nil
+      rescue StandardError
+        nil
       end
 
       # Compact token-count formatter for the pwn.ai PS1 (e.g. 0, 843, 12K, 250K, 1M).
@@ -1186,6 +1224,8 @@ module PWN
               rescue StandardError => e
                 warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}\n#{e.backtrace}); " \
                      'falling back to legacy regex-ReAct.'
+              ensure
+                PWN::Plugins::REPL.ready_tty!
               end
             end
 
@@ -1285,7 +1325,7 @@ module PWN
                 request: curr_req,
                 response_history: response_history,
                 speak_answer: speak_answer,
-                spinner: true
+                spinner: false
               }
               chat_opts[:system_role_content] = system_role if system_role
 
@@ -1408,6 +1448,8 @@ module PWN
               # One final direct call (no full re-loop to avoid complexity)
               # (The main loop already handled most cases; this is a safety net)
             end
+            request.replace('nil') if request.respond_to?(:replace)
+            PWN::Plugins::REPL.ready_tty!
           end
         end
 
