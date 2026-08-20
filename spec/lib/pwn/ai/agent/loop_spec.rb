@@ -420,6 +420,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/tool #\{name\} start/)
       expect(src).to match(/rescue Interrupt/)
       expect(src).to match(/note_interrupt!/)
+      expect(src).to match(/pwn_log_progress/)
       expect(src).to match(/note_exception!/)
       expect(src).to match(/rescue StandardError/)
       expect(src).to include("debug_progress(msg: 'engine returned no message')")

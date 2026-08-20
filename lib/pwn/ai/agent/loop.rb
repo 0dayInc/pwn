@@ -2603,6 +2603,7 @@ module PWN
             escalated = true
           end
         rescue Interrupt
+          Thread.current[:pwn_log_progress] = false
           if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:note_interrupt!)
             PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C', which_self: self)
           else

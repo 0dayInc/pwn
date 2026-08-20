@@ -126,6 +126,22 @@ describe PWN::Plugins::Log do
       expect(body).to include('CTRL+C')
     end
 
+    it 'still timestamps Interrupt when progress reentrancy is stuck mid-write' do
+      path = PWN::Plugins::Log.start_debug(
+        tee: StringIO.new,
+        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-int-stuck.log"
+      )
+      Thread.current[:pwn_log_progress] = true
+      ok = PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C')
+      expect(ok).to eq true
+      body = File.read(path)
+      expect(body).to include('Interrupt')
+      expect(body).to include('CTRL+C')
+      expect(body).to match(/at=|→ pwn-ai → Interrupt/)
+    ensure
+      Thread.current[:pwn_log_progress] = false
+    end
+
     it 'timestamps an exception and backtrace into the open request log' do
       expect(PWN::Plugins::Log).to respond_to(:note_exception!)
       path = PWN::Plugins::Log.start_debug(

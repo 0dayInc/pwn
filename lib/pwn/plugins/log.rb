@@ -318,10 +318,31 @@ module PWN
 
         where = opts[:where].to_s
         where = 'CTRL+C' if where.empty?
-        progress(
-          msg: "Interrupt #{where}",
-          which_self: opts[:which_self] || self
-        )
+        # CTRL+C can land mid-progress (HTTP spinner tee, tool row mirror).
+        # Clear the reentrancy latch so the Interrupt stamp always lands in the
+        # open RN file before the ensure footer / process unwind.
+        Thread.current[:pwn_log_progress] = false
+        at = Time.now
+        local_ts = at.strftime('%Y-%m-%d %H:%M:%S.%L%z')
+        msg = "Interrupt #{where} at=#{at.utc.iso8601(3)}"
+        which = opts[:which_self] || self
+        # Prefer the normal DEBUG stamp path; fall back to a direct file write
+        # if progress is still unavailable for any reason.
+        ok = progress(msg: msg, which_self: which)
+        unless ok
+          begin
+            who = which.is_a?(Module) ? (which.name || which.to_s) : which.to_s
+            line = "[DEBUG #{local_ts}] #{who} #{msg}".strip
+            @debug_file&.puts(line)
+            @debug_file&.flush
+            ok = true
+          rescue StandardError
+            ok = false
+          end
+        end
+        # Also clone the operator-facing TUI shape into the RN file.
+        mirror_tui!(msg: "[ #{local_ts} → pwn-ai → Interrupt ] #{where}")
+        ok
       end
 
       public_class_method def self.note_exception!(opts = {})

@@ -1272,6 +1272,7 @@ module PWN
                 request.replace('nil')
                 next
               rescue Interrupt
+                Thread.current[:pwn_log_progress] = false
                 PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C', which_self: PWN::Plugins::REPL) if pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
                 raise
               rescue StandardError => e
