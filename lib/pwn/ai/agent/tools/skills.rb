@@ -30,8 +30,9 @@ PWN::AI::Agent::Registry.register(
     description: 'Search installed pwn-ai skills (name, description, body, ' \
                  'references) for how to do similar work. Call before ' \
                  'pwn_eval / shell when a reusable procedure may exist. ' \
-                 'The SKILLS index is already in the prompt — this loads ' \
-                 'matching full methods.',
+                 'Empty query returns the bundled pwn-ai catalog only — not ' \
+                 'a mixed ~/.pwn/skills dump. A keyword query searches the ' \
+                 'live index.',
     parameters: {
       type: 'object',
       properties: {
@@ -50,6 +51,30 @@ PWN::AI::Agent::Registry.register(
     limit = (args[:limit] || 6).to_i
     limit = 6 if limit <= 0
     trunc = 400
+    catalog_names = if defined?(PWN::Config) && PWN::Config.respond_to?(:default_skill_names)
+                      Array(PWN::Config.default_skill_names)
+                    else
+                      []
+                    end
+    if query.empty? && tokens.empty?
+      catalog = []
+      other = 0
+      PWN::Skills.each do |name, meta|
+        next unless meta.is_a?(Hash)
+
+        key = name.to_s
+        unless catalog_names.include?(key)
+          other += 1
+          next
+        end
+
+        catalog << {
+          name: key,
+          description: meta[:description].to_s
+        }
+      end
+      return { catalog: catalog, other_installed: other }
+    end
     hits = []
     PWN::Skills.each do |name, meta|
       next unless meta.is_a?(Hash)
@@ -75,6 +100,42 @@ PWN::AI::Agent::Registry.register(
       }
     end
     hits.sort_by { |h| -h[:score].to_i }.first(limit)
+  }
+)
+
+PWN::AI::Agent::Registry.register(
+  name: 'skills_update',
+  toolset: 'skills',
+  schema: {
+    name: 'skills_update',
+    description: 'Fold RL feedback (resolved mistakes, structured fixes, ' \
+                 'or an explicit lesson) into an existing skill SOP. Does ' \
+                 'not create skills and does not write loop-law. Call after ' \
+                 'mistakes_resolve / learning_note_outcome when a durable ' \
+                 'procedure should change. Omitting name ranks installed ' \
+                 'skills from query/request.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Existing skill to update. Ranked from query when omitted.' },
+        query: { type: 'string', description: 'Keywords to pick the skill when name is omitted.' },
+        lesson: { type: 'string', description: 'Optional explicit note to append under ## RL feedback.' },
+        signature: { type: 'string', description: 'Optional Mistakes signature to fold.' },
+        dry_run: { type: 'boolean', description: 'When true, do not write the skill file.' }
+      },
+      required: []
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Learning) && PWN::AI::Agent::Learning.respond_to?(:update_skill) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Learning.update_skill(
+      name: args[:name],
+      query: args[:query],
+      lesson: args[:lesson],
+      signature: args[:signature],
+      request: args[:query],
+      dry_run: args[:dry_run]
+    )
   }
 )
 

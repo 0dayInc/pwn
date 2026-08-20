@@ -48,7 +48,7 @@ module PWN
     # Supported Method Parameters::
     #   session = PWN::Sessions.create(
     #     title: 'optional - human title',
-    #     source: 'optional - e.g. pwn-ai-repl',
+    #     source: 'optional - e.g. pwn-ai',
     #     id: 'optional - fixed session id (tests / replay); default timestamp_hex'
     #   )
     public_class_method def self.create(opts = {})
@@ -218,6 +218,54 @@ module PWN
         usage: {},
         choices: choices
       }
+    end
+
+    # Current-session conversation for the next LLM call. User + assistant
+    # only (no tool/observation). Always on — not gated by recall wording.
+    # Tail-window by max_chars so a long JSONL cannot blow the context.
+    #
+    #   msgs = PWN::Sessions.to_llm_messages(
+    #     session_id: 'required',
+    #     max_chars: 'optional - keep newest turns under this (default 48_000)',
+    #     skip_request: 'optional - drop a trailing user line equal to this'
+    #   )
+    public_class_method def self.to_llm_messages(opts = {})
+      sid = opts[:session_id]
+      return [] if sid.to_s.empty?
+
+      max_chars = opts[:max_chars].to_i
+      max_chars = 48_000 if max_chars <= 0
+      skip = opts[:skip_request].to_s
+      rows = load(session_id: sid).select do |row|
+        next false unless row.is_a?(Hash)
+
+        role = row[:role].to_s
+        next false unless %w[user assistant].include?(role)
+
+        body = row[:content].to_s
+        next false if body.strip.empty?
+
+        true
+      end
+      if !skip.empty? && rows.last && rows.last[:role].to_s == 'user' && rows.last[:content].to_s == skip
+        rows = rows[0...-1]
+      elsif !skip.empty?
+        rows = rows.reject { |row| row[:role].to_s == 'user' && row[:content].to_s == skip }
+      end
+
+      picked = []
+      used = 0
+      rows.reverse_each do |row|
+        body = row[:content].to_s
+        n = body.length
+        break if picked.any? && (used + n) > max_chars
+
+        picked.unshift(role: row[:role].to_s, content: body)
+        used += n
+      end
+      picked
+    rescue StandardError
+      []
     end
 
     # Supported Method Parameters::
@@ -497,6 +545,7 @@ module PWN
           PWN::Sessions.append(session_id: sess[:id], role: 'user', content: 'Run NmapIt...')
           transcript = PWN::Sessions.load(session_id: sess[:id])
           hist = PWN::Sessions.to_response_history(session_id: sess[:id])
+          msgs = PWN::Sessions.to_llm_messages(session_id: sess[:id])
           PWN::Sessions.recall(query: 'hping3', exclude_session_id: sess[:id])
           PWN::Sessions.previous_id(exclude_session_id: sess[:id])
           PWN::Sessions.list

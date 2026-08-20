@@ -301,7 +301,7 @@ module PWN
         ].freeze
         STORE_TOOLS = %w[
           memory_remember mistakes_record mistakes_resolve
-          learning_note_outcome skill_create skill_add_reference
+          learning_note_outcome skill_create skill_add_reference skills_update
         ].freeze
 
         public_class_method def self.effect(opts = {})

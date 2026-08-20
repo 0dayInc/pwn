@@ -41,7 +41,8 @@ module PWN
         )
 
         CORE_TOOLS = %w[memory_recall session_recall skills_recall pwn_eval shell
-                        mistakes_record mistakes_resolve learning_note_outcome memory_remember].freeze
+                        mistakes_record mistakes_resolve learning_note_outcome
+                        memory_remember skills_update].freeze
 
         # Schema order = CORE_TOOLS. Current session is injected (RECENT TURNS).
         # Then memory / prior sessions / skills, then pwn_eval before shell.

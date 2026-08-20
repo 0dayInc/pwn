@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'json'
+require 'tmpdir'
 
 describe 'PWN::AI::Agent::Tools ruby_eval' do
   before(:all) do
@@ -27,6 +28,29 @@ describe 'PWN::AI::Agent::Tools ruby_eval' do
     result = entry.handler.call(code: '1 + 1')
     expect(result[:error]).to be_nil
     expect(result[:value]).to eq('2')
+  end
+
+  it 'keeps locals across pwn_eval calls so a browser_obj can be reused' do
+    entry = PWN::AI::Agent::Registry.lookup(name: 'pwn_eval')
+    first = entry.handler.call(code: 'pwn_eval_persist_probe = 41')
+    expect(first[:error]).to be_nil
+    second = entry.handler.call(code: 'pwn_eval_persist_probe + 1')
+    expect(second[:error]).to be_nil
+    expect(second[:value]).to eq('42')
+  end
+
+  it 'enforces a timeout on pwn_eval and reports timeout after Ns' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+    entry = PWN::AI::Agent::Registry.lookup(name: 'pwn_eval')
+    schema = entry.schema
+    expect(schema.dig(:parameters, :properties, :timeout)).not_to be_nil
+    t0 = Time.now
+    result = entry.handler.call(code: 'sleep 3', timeout: 1)
+    expect(Time.now - t0).to be < 2.5
+    expect(result[:error].to_s).to match(/timeout after 1s/)
+    expect(result[:hint].to_s).to match(/reconstruct|generated differently|improperly/i)
+    expect(result[:scenario].to_s).to eq('construction')
   end
 
   it 'Dispatch.call JSON-wraps syntax errors instead of raising' do

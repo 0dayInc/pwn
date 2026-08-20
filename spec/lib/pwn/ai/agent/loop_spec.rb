@@ -16,22 +16,21 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
   end
 
   describe 'RL-adjacent loop contracts' do # rubocop:disable Metrics/BlockLength
-    it 'does not start a TTY spinner on engine calls (leftover spin overwrites PS1)' do
+    it 'spins on engine HTTP wait and still dispatches on_tool (debug must not hide the TUI)' do
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).not_to match(/spinner:\s*true/)
-      expect(src).to match(/spinner:\s*false/)
+      expect(src).to match(/spinner:\s*true/)
+      expect(src).to match(/on_tool&?\.call/)
+      expect(src).not_to match(/on_tool\s*=\s*nil/)
     end
 
-    it 'exhaust path still calls task_summary_flush! and auto_introspect' do
+    it 'does not treat a round cap as a finished answer' do
       src = File.read(described_class.method(:run).source_location.first)
-      # budget exhausted terminal path
-      expect(src).to match(/iteration budget exhausted/)
-      # after the exhausted final_msg, both flush and auto_introspect must appear
-      exhaust = src[/final_msg = '\[pwn-ai\] iteration budget exhausted'.*/m]
-      expect(exhaust).to match(/Learning\.auto_introspect/)
-      expect(exhaust).to match(/task_summary_flush!/)
-      # flush before return of final_msg
-      expect(exhaust).to match(/task_summary_flush!.*final_msg/m)
+      expect(src).not_to match(/iteration budget exhausted/)
+      expect(src).not_to match(/final budget_exhausted/)
+      expect(src).not_to match(/shape: :budget_exhausted/)
+      expect(src).not_to match(/max_iters\.times/)
+      expect(src).to match(/may_finalize\?/)
+      expect(src).to match(/loop do/)
     end
 
     it 'plan_first unifies ts_state plan after red_team (P2)' do
@@ -359,6 +358,128 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(described_class.needs_host_work?(request: 'Write hello into /tmp/x.txt')).to eq true
     end
 
+    it 'skips the implement compass on a browse/navigate request' do
+      req = 'Navigate to https://0dayinc.com using TransparentBrowser.open and list blog URLs'
+      expect(described_class.send(:request_need, request: req)).to eq :browse
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/skip_compass = .*browse/)
+    end
+
+    it 'does not bounce a text-only turn for missing tool evidence' do
+      req = 'Navigate to https://0dayinc.com using TransparentBrowser.open and list blog URLs'
+      expect(described_class.needs_host_work?(request: req)).to eq true
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: [{ role: 'assistant', content: 'SOUND — step 1 is the likely fail.', tool_calls: [] }]
+        )
+      ).to eq true
+      Thread.current[:pwn_loop_no_tools] = true
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: [{ role: 'assistant', content: 'SOUND — step 1 is the likely fail.', tool_calls: [] }]
+        )
+      ).to eq false
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/pwn_loop_no_tools/)
+      expect(src).to match(/skip_compass = .*no_tools/)
+    ensure
+      Thread.current[:pwn_loop_no_tools] = nil
+    end
+
+    it 'does not start post-answer review from a nested or tool-less Loop.run' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/!nested && !no_tools && should_auto_introspect\?/)
+      expect(
+        described_class.send(
+          :should_auto_introspect?,
+          local: false,
+          turn_fails: {},
+          iter: 1
+        )
+      ).to eq true
+      Thread.current[:pwn_loop_no_tools] = true
+      expect(
+        described_class.send(
+          :should_auto_introspect?,
+          local: false,
+          turn_fails: {},
+          iter: 1
+        )
+      ).to eq false
+    ensure
+      Thread.current[:pwn_loop_no_tools] = nil
+    end
+
+    it 'writes full tool request/result to the debug log and timestamps Interrupt' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/debug_tool_io!/)
+      expect(src).to match(/tool #\{name\} start/)
+      expect(src).to match(/rescue Interrupt/)
+      expect(src).to match(/note_interrupt!/)
+      expect(src).to match(/pwn_log_progress/)
+      expect(src).to match(/note_exception!/)
+      expect(src).to match(/rescue StandardError/)
+      expect(src).to include("debug_progress(msg: 'engine returned no message')")
+      expect(src).not_to match(/dispatch #\{name\} ok_len=/)
+    end
+
+    it 'records a reconstruct-first timeout mistake instead of treating success:true as ok' do
+      tmp = Dir.mktmpdir
+      stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+      raw = JSON.generate(
+        success: true,
+        result: { stdout: '', error: 'timeout after 20s', hint: 'x', scenario: 'construction' }
+      )
+      tele = described_class.send(
+        :record_metrics,
+        name: 'pwn_eval',
+        started: Time.now,
+        raw: raw,
+        args: '{"code":"sleep 3"}'
+      )
+      expect(tele[:ok]).to eq false
+      expect(tele[:mistake]).to be_a(Hash)
+      expect(tele[:mistake][:error].to_s).to match(/reconstruct/)
+      expect(tele[:mistake][:shape].to_s).to eq('timeout')
+    end
+
+    it 'treats a skills-catalog ask as recall, not trivia or host-work' do
+      req = 'what skills are available?'
+      expect(described_class.catalog_lookup?(request: req)).to eq true
+      expect(described_class.world_knowledge?(request: req)).to eq false
+      expect(described_class.needs_host_work?(request: req)).to eq false
+      expect(described_class.send(:request_need, request: req)).to eq :read
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: [{ role: 'assistant', content: '103 skills…', tool_calls: [] }]
+        )
+      ).to eq true
+      expect(
+        described_class.send(
+          :request_unsatisfied?,
+          request: req,
+          messages: [
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                { function: { name: 'skills_recall', arguments: '{}' } }
+              ]
+            }
+          ]
+        )
+      ).to eq false
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/skip_plan.*catalog/)
+      expect(src).to match(/force_plan && cal_state\[:cal\] && !skip_plan/)
+    end
+
     it 'does not treat rspec/rubocop green as a finished write/docs ask' do
       req = 'Update all markdown files to reflect operational changes and rebuild diagrams'
       verified = [
@@ -415,7 +536,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).not_to match(/blob\.match\?\(MUTATION_EVIDENCE_RX\)/)
     end
 
-    it 'keeps tools on last_iter for any unfinished host-work request' do
+    it 'keeps tools for any unfinished host-work request — no last-iter strip' do
       req = 'Update all markdown files and rebuild diagrams'
       verified = [
         { role: 'tool', name: 'shell', content: "12 examples, 0 failures\n" }
@@ -429,8 +550,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         )
       ).to eq true
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).to match(/still_open = request_unsatisfied\?/)
-      expect(src).to match(/last_iter = want_last && !still_open/)
+      expect(src).not_to match(/last_iter = want_last && !still_open/)
+      expect(src).to match(/call_engine\(messages: messages, tools: tools/)
     end
 
     it 'never accepts a text final while the original host-work request is unsatisfied' do
@@ -546,9 +667,9 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       ).to eq false
     end
 
-    it 'last-iter strips tools only on the true last slot; leftover English tasks do not force required' do
+    it 'does not strip tools on a last slot; leftover English tasks do not force required' do
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).to match(/text_only_iters = 1/)
+      expect(src).not_to match(/text_only_iters = 1/)
       expect(src).not_to match(/english_open && hot/)
       expect(src).to match(/has_tool_result \|\| !need_tools \? 'auto' : 'required'/)
       expect(src).not_to match(/still_acting/)
@@ -671,6 +792,37 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       FileUtils.rm_rf(sess_tmp) if sess_tmp
     end
 
+    it 'sends this session conversation as LLM messages without a recall-cue regex' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/to_llm_messages|session_chat_history/)
+      expect(src).not_to match(/VAGUE_MEMORY_RX.*?to_llm_messages/m)
+      sess_tmp = Dir.mktmpdir('pwn-sess-hist')
+      stub_const('PWN::Sessions::SESSIONS_DIR', sess_tmp)
+      sid = 'hist_run_spec'
+      PWN::Sessions.create(id: sid, title: 'hist-run')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'where is OpenGoal implemented?')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'lib/pwn/ai/agent/open_goal.rb')
+      seen = []
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      allow(described_class).to receive(:plan_first).and_return(nil)
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false) if defined?(PWN::AI::Agent::TaskSummarizer)
+      allow(described_class).to receive(:call_engine) do |opts|
+        seen = Array(opts[:messages])
+        { role: 'assistant', content: 'in loop.rb Loop.run', tool_calls: [] }
+      end
+      out = described_class.run(
+        request: 'where is this logic implemented in /opt/pwn when using pwn-ai',
+        session_id: sid,
+        system_role_content: 'test system'
+      )
+      expect(out).to include('in loop.rb Loop.run')
+      expect(seen.map { |m| m[:content].to_s }).to include('where is OpenGoal implemented?')
+      expect(seen.map { |m| m[:content].to_s }).to include('lib/pwn/ai/agent/open_goal.rb')
+      expect(seen.map { |m| m[:content].to_s }).to include('where is this logic implemented in /opt/pwn when using pwn-ai')
+    ensure
+      FileUtils.rm_rf(sess_tmp) if sess_tmp
+    end
+
     it 'classifies pure prior-turn recall and vague memory cues as :recall' do
       expect(described_class.request_intent(request: 'what did I just say?')).to eq(:recall)
       expect(described_class.request_intent(request: 'What did I just say')).to eq(:recall)
@@ -720,14 +872,14 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     it 'answer_howto does not register shell tool use in source path' do
       src = File.read(described_class.method(:run).source_location.first)
       # how-to return happens before task_summary_plan!
-      expect(src).to match(/if intent == :howto.*?return answer_howto/m)
+      expect(src).to match(/if intent == :howto.*?txt = answer_howto/m)
     end
 
     it 'run short-circuits pure recall via answer_recall before plan_first' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/RECALL_RX/)
       expect(src).to match(/answer_recall/)
-      expect(src).to match(/intent == :recall.*?return answer_recall/m)
+      expect(src).to match(/intent == :recall.*?txt = answer_recall/m)
       expect(src).to match(/skip_plan/)
       expect(src).not_to match(/request_kind/)
     end
@@ -736,7 +888,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/GREETING_RX/)
       expect(src).to match(/answer_greeting/)
-      expect(src).to match(/intent == :greeting.*?return answer_greeting/m)
+      expect(src).to match(/intent == :greeting.*?txt = answer_greeting/m)
       expect(src).to match(/skip_plan/)
       expect(src).not_to match(/request_kind/)
     end
@@ -1013,6 +1165,14 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
   it 'streams request-processing progress through PWN::Plugins::Log when debug is on' do
     src = File.read(described_class.method(:run).source_location.first)
     expect(src).to match(/PWN::Plugins::Log\.start_debug/)
+    expect(src).to match(/next_request_log!/)
+    expect(src).to match(/finish_request_log!/)
+    expect(src).to match(/skip_roll|user_path\?/)
+    expect(src).to match(/bounce /)
+    expect(src).to match(/plan_first=/)
+    expect(src).to match(/final text/)
+    expect(src).to match(/debug_tools_line|tools=.*\[/)
+    expect(src).to match(/debug_msgs_line|msgs=.*\[/)
     expect(src).to match(/PWN::Plugins::Log\.progress/)
     expect(src).to match(/quiet_debug_tui!/)
     expect(described_class).to respond_to(:debug_on?)

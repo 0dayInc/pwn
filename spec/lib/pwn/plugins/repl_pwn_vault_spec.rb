@@ -12,7 +12,7 @@ describe 'pwn-vault Config RuntimeError retry' do
   let(:vault_src) { File.read(PWN::Plugins::Vault.method(:edit).source_location.first) }
   let(:block) do
     start = repl_src.index("Pry::Commands.create_command 'pwn-vault'")
-    stop = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-debug'")
+    stop = repl_src.index("Pry::Commands.create_command 'toggle-debug'")
     repl_src[start...stop]
   end
 
@@ -133,10 +133,10 @@ describe 'pwn-vault Config RuntimeError retry' do
   end
 end
 
-describe 'toggle-pwn-ai-debug' do
+describe 'toggle-debug' do
   let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
   let(:block) do
-    start = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-debug'")
+    start = repl_src.index("Pry::Commands.create_command 'toggle-debug'")
     stop = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-speaks'")
     repl_src[start...stop]
   end
@@ -145,6 +145,7 @@ describe 'toggle-pwn-ai-debug' do
     expect(block).to include('PWN::Plugins::Log.start_debug')
     expect(block).to include('PWN::Plugins::Log.stop_debug')
     expect(block).to include('pwn-ai-DEBUG')
+    expect(block).to include('-R')
   end
 end
 
@@ -157,9 +158,18 @@ describe 'pwn-ai debug final answer placement' do
 
   it 'prints the green final after Loop.run and does not pp the session after it' do
     expect(hook).to match(/Loop\.run\(/)
-    expect(hook).to match(/\\e\[32m\\002#\{final\}/)
+    expect(hook).to match(/\\e\[32m#\{final\}/)
+    expect(hook).not_to include('[0, 280]')
+    expect(hook).not_to include('[0, 700]')
     native = hook[hook.index('final = PWN::AI::Agent::Loop.run')..hook.index("request.replace('nil')")]
+    expect(native).not_to include('\001')
     expect(native).not_to match(/pp PWN::Sessions\.load/)
     expect(native).to match(/\$stdout\.flush/)
+  end
+
+  it 'mirrors TUI task/tool/result rows into the debug RN log' do
+    expect(hook).to include('mirror_tui!')
+    expect(hook).to include('→ pwn-ai →')
+    expect(hook).to include('→ result')
   end
 end

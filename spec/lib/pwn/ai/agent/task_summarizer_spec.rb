@@ -104,6 +104,42 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(line).not_to match(/about to run shell:/i)
     end
 
+    it 'does not label a TransparentBrowser navigate as apply code/host changes' do
+      line = described_class.about_to(
+        tools: [
+          {
+            name: 'pwn_eval',
+            args: {
+              'code' => "$browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :chrome); $browser.goto('https://example.com')"
+            }
+          }
+        ],
+        state: state,
+        request: 'Navigate to https://example.com and list blog URLs'
+      )
+      expect(line).to be_a(String)
+      expect(line).not_to match(%r{apply code/host changes}i)
+      expect(line).to match(/navigate|collect|browse|page/i)
+    end
+
+    it 'advances off a Navigate task after one successful browse eval' do
+      st = described_class.fresh(request: 'Navigate to https://example.com and list posts')
+      st[:plan] = [
+        'Understand the request',
+        'Navigate to the example.com website',
+        'Collect every blog post URL',
+        'Close the browser'
+      ]
+      st[:plan_idx] = 1
+      described_class.record!(
+        state: st,
+        name: 'pwn_eval',
+        args: { 'code' => "browser.goto('https://example.com')" },
+        result: '{"success":true,"result":{"value":"{url: \\"https://example.com/\\"}"},"effect":"browse"}'
+      )
+      expect(st[:plan_idx]).to be > 1
+    end
+
     it 'keeps single-tool legacy about_to(name:, args:) as a high-level brief' do
       line = described_class.about_to(
         name: 'shell',

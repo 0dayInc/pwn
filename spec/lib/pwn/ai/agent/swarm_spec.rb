@@ -31,4 +31,10 @@ describe PWN::AI::Agent::Swarm do
   ensure
     Thread.current[:pwn_swarm_depth] = nil
   end
+
+  it 'text_only / empty toolsets strip tools so a reviewer cannot open browsers' do
+    src = File.read(described_class.method(:ask).source_location.first)
+    expect(src).to match(/text_only/)
+    expect(src).to match(/core_only:\s*empty_tools/)
+  end
 end

@@ -21,12 +21,17 @@ PWN::AI::Agent::Registry.register(
     name: 'shell',
     description: 'Execute a shell command on the local pwn host and return ' \
                  'stdout/stderr/exit code. Use for OS-level work: nmap, curl, ' \
-                 'ls, git, file inspection, anything not in the PWN:: namespace.',
+                 'ls, git, file inspection, anything not in the PWN:: namespace. ' \
+                 'Pass timeout as a conservative integer seconds estimate given ' \
+                 'HOST LOAD (loadavg, ncpu, mem). Omit for a host-derived default (clamped).',
     parameters: {
       type: 'object',
       properties: {
         command: { type: 'string', description: 'The exact shell command to run.' },
-        timeout: { type: 'integer', description: 'Seconds before the command is killed.', default: 120 }
+        timeout: {
+          type: 'integer',
+          description: 'Conservative seconds this command should take given HOST LOAD. Omit for host-derived default. Clamped 1..180.'
+        }
       },
       required: %w[command]
     }
@@ -47,7 +52,7 @@ PWN::AI::Agent::Registry.register(
                         .gsub(/\\\r?\n/, ' ')
                         .gsub(/\\+\s*\z/, '')
                         .strip
-    timeout = (args[:timeout] || 120).to_i
+    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :shell)
     if cmd.empty? || PWN::AI::Agent::ToolGuard.placeholder?(text: cmd)
       return PWN::AI::Agent::ToolGuard.invalid_payload(
         hint: 'command is required (string). Do not send ..., {...}, {…}, or empty. ' \
@@ -158,7 +163,15 @@ PWN::AI::Agent::Registry.register(
       end
     end
 
-    return { stdout: stdout, stderr: stderr, exit: nil, error: "timeout after #{timeout}s", shell: PWN::AI::Agent::ToolGuard.shell_name } if timed_out
+    if timed_out
+      return PWN::AI::Agent::ToolGuard.timeout_result(
+        tool: 'shell',
+        payload: cmd,
+        stdout: stdout,
+        stderr: stderr,
+        timeout: timeout
+      )
+    end
 
     { stdout: stdout, stderr: stderr, exit: exitstatus, shell: PWN::AI::Agent::ToolGuard.shell_name }
   }

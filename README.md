@@ -121,10 +121,9 @@ message bus:
 Long-running turns also show **executive task briefs** (not raw commands) via
 `TaskSummarizer`. There is no request type. Every request gets an English
 task compass (`emit_plan!` on submit, `about_to` as `task k/n` before each
-tool batch). Duplicate briefs are suppressed. Budget-hot turns skip extra
-counterfactual forks and only strip tools on the last iteration when the
-original request is already satisfied. Yesterday's scars do not lower this
-request's `max_iters` (default 777).
+tool batch). Duplicate briefs are suppressed. Loop.run does not abort
+on a round cap — CORE_TOOLS stay until `may_finalize?`. Yesterday's
+scars do not end this request.
 
 Full pages: [How PWN Works](documentation/How-PWN-Works.md) ·
 [All data-flow diagrams](documentation/Diagrams.md)

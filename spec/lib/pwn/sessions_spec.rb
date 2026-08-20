@@ -90,4 +90,28 @@ describe PWN::Sessions do
   ensure
     FileUtils.rm_rf(tmp) if tmp
   end
+
+  it 'to_llm_messages returns this session user/assistant turns for the next LLM call' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::Sessions::SESSIONS_DIR', tmp)
+    sid = 'llm_hist_sess'
+    PWN::Sessions.create(id: sid, title: 'hist')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'where is OpenGoal?')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'in open_goal.rb')
+    PWN::Sessions.append(session_id: sid, role: 'tool', content: 'ignore me')
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'and Loop.run?')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'in loop.rb around resume?')
+    msgs = PWN::Sessions.to_llm_messages(session_id: sid)
+    expect(msgs.map { |m| m[:role] }).to eq(%w[user assistant user assistant])
+    expect(msgs.map { |m| m[:content] }).to include('where is OpenGoal?', 'in open_goal.rb', 'and Loop.run?', 'in loop.rb around resume?')
+    expect(msgs.none? { |m| m[:content].to_s.include?('ignore me') }).to eq true
+    skip_last = PWN::Sessions.to_llm_messages(session_id: sid, skip_request: 'and Loop.run?')
+    expect(skip_last.last[:content]).to eq('in loop.rb around resume?')
+    expect(skip_last.none? { |m| m[:content] == 'and Loop.run?' && m[:role] == 'user' }).to eq true
+    tiny = PWN::Sessions.to_llm_messages(session_id: sid, max_chars: 40)
+    expect(tiny.last[:content]).to include('loop.rb')
+    expect(tiny.map { |m| m[:content].to_s.length }.sum).to be <= 80
+  ensure
+    FileUtils.rm_rf(tmp) if tmp
+  end
 end

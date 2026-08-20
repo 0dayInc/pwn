@@ -64,3 +64,5 @@ packer/*.box
 third_party/burpsuite-pro.jar
 third_party/open_ai_pwn.jsonl
 ubuntu-*-cloudimg-console.log
+
+vendor/

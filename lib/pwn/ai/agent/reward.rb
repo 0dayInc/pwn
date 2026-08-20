@@ -534,11 +534,20 @@ module PWN
             semantic = false
             shape = :invalid_payload
             err ||= 'invalid_payload'
+          elsif timeout_result?(err: err, raw: raw)
+            semantic = false
+            shape = :timeout
+            err ||= raw[/timeout after \d+s/i] || 'timeout'
           else
             semantic = ok && (exit_code.nil? || exit_code.zero? || benign)
           end
           err ||= raw[/"stderr":"([^"]{4,300})"/, 1] unless semantic
           { ok: ok, semantic_ok: semantic, exit: exit_code, err: err, benign: benign, shape: shape }
+        end
+
+        private_class_method def self.timeout_result?(opts = {})
+          blob = "#{opts[:err]} #{opts[:raw]}"
+          blob.match?(/timeout after \d+s/i) || blob.match?(/"error"\s*:\s*"timeout/i)
         end
 
         # 2.2 — coarse recoverable shape beside the fingerprint. Paths are

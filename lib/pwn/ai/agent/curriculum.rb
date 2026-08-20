@@ -527,7 +527,7 @@ module PWN
           ensure_persona(name: RED_TEAM_NAME, role: 'You are pwn-ai\'s adversarial plan reviewer. Given a numbered tool plan and telemetry from THIS host (tool success rates, known mistakes, environment drift), identify the ONE step most likely to fail and say why in ≤2 lines. Cite the metric/mistake/drift. If the plan is sound reply: SOUND.')
           telemetry = build_telemetry
           reply = with_curriculum_guard do
-            ask_persona(name: RED_TEAM_NAME, request: "GOAL: #{opts[:request].to_s[0, 300]}\n\nPLAN:\n#{opts[:plan].to_s[0, 1_200]}\n\nHOST TELEMETRY:\n#{telemetry}")
+            ask_persona(name: RED_TEAM_NAME, request: "GOAL: #{opts[:request].to_s[0, 300]}\n\nPLAN:\n#{opts[:plan].to_s[0, 1_200]}\n\nHOST TELEMETRY:\n#{telemetry}", text_only: true)
           end
           return nil if reply.to_s.strip.upcase.start_with?('SOUND') || reply.to_s.strip.empty?
 
@@ -1086,7 +1086,7 @@ module PWN
         private_class_method def self.ask_persona(opts = {})
           return nil unless defined?(Swarm)
 
-          r = Swarm.ask(name: opts[:name], request: opts[:request])
+          r = Swarm.ask(name: opts[:name], request: opts[:request], text_only: opts[:text_only])
           r.is_a?(Hash) ? r[:reply].to_s : r.to_s
         rescue StandardError
           nil

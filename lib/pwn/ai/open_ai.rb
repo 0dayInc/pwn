@@ -451,8 +451,8 @@ module PWN
         http_body = opts[:http_body]
         http_body ||= {}
 
-        timeout = opts[:timeout]
-        timeout ||= 900
+        timeout = PWN::AI::HttpRetry.timeout_s(opts)
+        max_attempts = PWN::AI::HttpRetry.max_attempts(opts)
 
         spinner = opts[:spinner] || false
 
@@ -502,21 +502,34 @@ module PWN
           end
           response
         rescue RestClient::TooManyRequests => e
-          duration = 0
-          if e.response
-            retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
-            duration = retry_after.to_i
-          end
-          sleep(duration + rand(0.3..5.0))
           retry_count += 1
-
+          if retry_count >= max_attempts
+            unless opts[:quiet]
+              PWN::AI::HttpRetry.report_event(
+                label: 'openai', which_self: self, quiet: opts[:quiet],
+                http_method: http_method, rest_call: rest_call,
+                extra: '429 retries exhausted', error: e
+              )
+            end
+            return "#{e.message}: #{e.response}"
+          end
+          sleep(PWN::AI::HttpRetry.retry_after_s(response: e.response, retry_count: retry_count) + rand(0.3..5.0))
           retry
+        rescue RestClient::Exceptions::Timeout => e
+          # Sidecar hops pass quiet:true. Never print
+          # ERROR: Timed out reading data from server:
+          retry_count += 1
+          unless opts[:quiet]
+            PWN::AI::HttpRetry.report_event(
+              label: 'openai', which_self: self, quiet: opts[:quiet],
+              http_method: http_method, rest_call: rest_call,
+              extra: "timeout=#{timeout}s attempt=#{retry_count}/#{max_attempts}", error: e
+            )
+          end
+          retry if retry_count < max_attempts
+
+          nil
         end
-      rescue RestClient::Exceptions::Timeout => e
-        # Sidecar hops pass quiet:true. Never print
-        # ERROR: Timed out reading data from server:
-        warn "[pwn-ai/openai] #{e.class}: #{e.message} (#{http_method.to_s.upcase} #{rest_call} timeout=#{timeout}s)" unless opts[:quiet]
-        nil
       rescue RestClient::ExceptionWithResponse => e
         puts "ERROR: #{e.message}: #{e.response}" unless opts[:quiet]
         "#{e.message}: #{e.response}" if opts[:quiet]

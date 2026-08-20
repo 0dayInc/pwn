@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tmpdir'
 
 describe PWN::AI::Agent::ToolGuard do
   it 'should display information for authors' do
@@ -56,6 +57,51 @@ describe PWN::AI::Agent::ToolGuard do
       expect(out[:exit]).to eq(2)
       expect(out[:error]).to eq('invalid_payload')
       expect(out[:stderr]).to include('missing required command')
+    end
+  end
+
+  describe '.host_load / .deadline_s' do
+    it 'reports load1, ncpu, and mem_avail_mb' do
+      snap = described_class.host_load
+      expect(snap[:ncpu].to_i).to be >= 1
+      expect(snap[:load1]).to be_a(Numeric)
+      expect(snap[:mem_avail_mb].to_i).to be >= 0
+    end
+
+    it 'clamps an explicit timeout and derives a default when omitted' do
+      expect(described_class.deadline_s(timeout: 1, kind: :eval)).to eq(1)
+      expect(described_class.deadline_s(timeout: 9_999, kind: :eval)).to eq(90)
+      expect(described_class.deadline_s(timeout: 9_999, kind: :shell)).to eq(180)
+      omitted = described_class.deadline_s(kind: :eval)
+      expect(omitted).to be_between(8, 90)
+    end
+  end
+
+  describe '.timeout_lesson' do
+    it 'prefers reconstruct-the-payload before raising timeout' do
+      tmp = Dir.mktmpdir
+      stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+      first = described_class.timeout_lesson(tool: 'pwn_eval', payload: 'sleep 3', timeout: 1)
+      expect(first[:scenario]).to eq(:construction)
+      expect(first[:hint]).to match(/reconstruct|generated differently|improperly/i)
+      expect(first[:hint]).to match(/do not first raise timeout/i)
+      expect(first[:error]).to match(/reconstruct/)
+    end
+
+    it 'switches to deadline-too-short only after a prior timeout mistake' do
+      tmp = Dir.mktmpdir
+      stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+      PWN::AI::Agent::Mistakes.record(
+        tool: 'shell',
+        error: 'shell timeout: reconstruct payload to same goal before raising timeout',
+        args: 'sleep 3',
+        source: :tool,
+        shape: :timeout
+      )
+      second = described_class.timeout_lesson(tool: 'shell', payload: 'sleep 3', timeout: 1)
+      expect(second[:scenario]).to eq(:deadline)
+      expect(second[:hint]).to match(/timeout was too short|deadline too short|raise a conservative/i)
+      expect(second[:error]).to match(/too short/)
     end
   end
 end

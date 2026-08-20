@@ -46,8 +46,8 @@ module PWN
         http_body = opts[:http_body]
         http_body ||= {}
 
-        timeout = opts[:timeout]
-        timeout ||= 900
+        timeout = PWN::AI::HttpRetry.timeout_s(opts)
+        max_attempts = PWN::AI::HttpRetry.max_attempts(opts)
 
         spinner = opts[:spinner] || false
 
@@ -84,11 +84,31 @@ module PWN
 
           response.body
         rescue RestClient::TooManyRequests => e
-          retry_after = e.response.headers[:retry_after]&.to_i || (0.5 * (retry_count + 1))
-          sleep(retry_after + rand(0.3..5.0))
           retry_count += 1
-
+          if retry_count >= max_attempts
+            unless opts[:quiet]
+              PWN::AI::HttpRetry.report_event(
+                label: 'gemini', which_self: self, quiet: opts[:quiet],
+                http_method: http_method, rest_call: rest_call,
+                extra: '429 retries exhausted', error: e
+              )
+            end
+            raise "Gemini API Error: #{e.message}: #{e.response}"
+          end
+          sleep(PWN::AI::HttpRetry.retry_after_s(response: e.response, retry_count: retry_count) + rand(0.3..5.0))
           retry
+        rescue RestClient::Exceptions::Timeout => e
+          retry_count += 1
+          unless opts[:quiet]
+            PWN::AI::HttpRetry.report_event(
+              label: 'gemini', which_self: self, quiet: opts[:quiet],
+              http_method: http_method, rest_call: rest_call,
+              extra: "timeout=#{timeout}s attempt=#{retry_count}/#{max_attempts}", error: e
+            )
+          end
+          retry if retry_count < max_attempts
+
+          raise "Gemini API Error: #{e.class}: #{e.message}"
         rescue RestClient::ExceptionWithResponse => e
           raise "Gemini API Error: #{e.message}: #{e.response}"
         rescue StandardError => e
