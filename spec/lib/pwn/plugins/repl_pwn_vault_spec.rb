@@ -161,7 +161,9 @@ describe 'pwn-ai debug final answer placement' do
     expect(hook).to match(/\\e\[32m#\{final\}/)
     expect(hook).not_to include('[0, 280]')
     expect(hook).not_to include('[0, 700]')
-    native = hook[hook.index('final = PWN::AI::Agent::Loop.run')..hook.index("request.replace('nil')")]
+    native_start = hook.index('final = PWN::AI::Agent::Loop.run')
+    native_stop = hook.index("request.replace('nil')", native_start)
+    native = hook[native_start..native_stop]
     expect(native).not_to include('\001')
     expect(native).not_to match(/pp PWN::Sessions\.load/)
     expect(native).to match(/\$stdout\.flush/)

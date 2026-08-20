@@ -83,6 +83,9 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
         hardware-and-firmware-testing
         social-engineering
         osint
+        cwe
+        capec
+        att&ck
       ]
       seeded = PWN::Config.install_default_skills(pwn_skills_path: dir)
       expect(seeded.map { |r| r[:name] }).to eq names
@@ -91,7 +94,7 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
         expect(File.file?(path)).to eq(true), path
         body = File.read(path)
         expect(body).to start_with("---\n")
-        expect(body).to include("name: #{name}")
+        expect(body).to match(/name:\s*"?#{Regexp.escape(name)}"?/)
         expect(body).not_to match(/hermes/i)
         expect(body).to match(/## Methodolog/i)
       end
@@ -100,6 +103,21 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
       again = PWN::Config.install_default_skills(pwn_skills_path: dir)
       expect(again).to eq([])
       expect(File.read(marker)).to eq("# user edited\n")
+      cwe_ref = File.join(dir, 'cwe', 'references', 'CWE-79.md')
+      expect(File.file?(cwe_ref)).to eq(true), cwe_ref
+      expect(File.read(cwe_ref)).to include('CWE-79')
+      expect(File.read(cwe_ref)).to match(/Exhaustive test/i)
+      expect(File.read(cwe_ref)).not_to match(/hermes/i)
+      capec_ref = File.join(dir, 'capec', 'references', 'CAPEC-66.md')
+      expect(File.file?(capec_ref)).to eq(true), capec_ref
+      expect(File.read(capec_ref)).to include('CAPEC-66')
+      expect(File.read(capec_ref)).to match(/Exhaustive test/i)
+      expect(File.read(capec_ref)).not_to match(/hermes/i)
+      att_ref = File.join(dir, 'att&ck', 'references', 'T1059.001.md')
+      expect(File.file?(att_ref)).to eq(true), att_ref
+      expect(File.read(att_ref)).to include('T1059.001')
+      expect(File.read(att_ref)).to match(/Exhaustive test/i)
+      expect(File.read(att_ref)).not_to match(/hermes/i)
     end
   end
 end
