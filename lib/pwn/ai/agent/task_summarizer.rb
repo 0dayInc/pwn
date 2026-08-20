@@ -206,7 +206,8 @@ module PWN
                 end
               when 'pwn_eval'
                 case sample
-                when /\b(write|file\.|fileutils|open\(|binwrite|puts )\b/ then 'mutate-ruby'
+                when /transparentbrowser|\.goto\b|browser_obj|dump_links|headless/ then 'browse'
+                when /\b(write|file\.|fileutils|binwrite)\b/ then 'mutate-ruby'
                 when /\b(load |require |const_get|method_list|instance_methods)\b/ then 'introspect-ruby'
                 else 'eval-ruby'
                 end
@@ -695,6 +696,17 @@ module PWN
           opts[:goal].to_s.gsub(/\s+/, ' ').strip
         end
 
+        private_class_method def self.browse_shaped?(opts = {})
+          Array(opts[:tools]).any? do |tool|
+            next unless tool.is_a?(Hash)
+
+            blob = "#{tool[:name]} #{tool[:args]}"
+            blob.match?(/transparentbrowser|\.goto\b|browser_obj|dump_links|headless/i)
+          end
+        rescue StandardError
+          false
+        end
+
         # Infer a plain-English "why" from the tool mix.
         # When a plan is active the goal is already on the plan line — keep why short
         # so each about_to batch stays distinct and is not a near-duplicate of the plan.
@@ -702,7 +714,9 @@ module PWN
           names = opts[:names]
           caps = capabilities_for(names: names)
           focus =
-            if caps.any? { |c| c.include?('shell') || c.include?('Ruby') }
+            if browse_shaped?(tools: opts[:tools])
+              'navigate and collect from the live page'
+            elsif caps.any? { |c| c.include?('shell') || c.include?('Ruby') }
               'gather evidence and apply code/host changes'
             elsif caps.any? { |c| c.include?('extro') || c.include?('verify') }
               'fact-check external state before acting'
@@ -796,6 +810,7 @@ module PWN
           why = why_bit(
             request: request,
             names: names,
+            tools: tools,
             with_goal: plan_bit.empty? && !plan_emitted
           )
 
@@ -1345,7 +1360,7 @@ module PWN
             /\b(implement\w*|fix|patch\w*|chang\w*|improv\w*|write|apply|wire|refactor\w*)\b/
           )
           return :discover if s.match?(
-            /\b(locat\w*|find|read|inspect|recon\w*|understand|decompos\w*|map|identif\w*|gather|discover|enumerat\w*|scan|probe|determin\w*|root cause|where and why|track)\b/
+            /\b(locat\w*|find|read|inspect|recon\w*|understand|decompos\w*|map|identif\w*|gather|discover|enumerat\w*|scan|probe|determin\w*|root cause|where and why|track|navigat\w*|browse|goto)\b/
           )
 
           :generic
@@ -1357,7 +1372,7 @@ module PWN
           s = opts[:intent].to_s.downcase
           return :verify if s.match?(/test|rubocop|rake|rspec|offenses|failures/)
           return :mutate if s.match?(/edit|mutate|write|patch|sed\s+-i|file.write|refactor/)
-          return :discover if s.match?(/search|read|recon|extro|sessions|memory|find|list|scan|inspect|locat/)
+          return :discover if s.match?(/search|read|recon|extro|sessions|memory|find|list|scan|inspect|locat|browse|goto|navigat/)
 
           :generic
         rescue StandardError
@@ -1437,12 +1452,14 @@ module PWN
           when :mutate, :verify
             item_covered?(item: opts[:item], blob: joined)
           when :discover, :generic, :present
+            browse_hit = joined.match?(/effect["\s:=]+browse|transparentbrowser|\.goto\b|\bbrowse\b/i)
+            min_tools = browse_hit ? 1 : DISCOVER_MIN_TOOLS
             on_task = opts[:state].is_a?(Hash) ? opts[:state][:tools_on_task].to_i : 0
-            return false if on_task < DISCOVER_MIN_TOOLS
+            return false if on_task < min_tools
             return false unless item_covered?(item: opts[:item], blob: joined)
 
             intent_s = (Array(opts[:intents]) + Array(opts[:names])).join(' ')
-            task_intent_match?(item: opts[:item], intent: intent_s) || phase == :present
+            task_intent_match?(item: opts[:item], intent: intent_s) || phase == :present || browse_hit
           else
             false
           end

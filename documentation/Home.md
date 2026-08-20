@@ -27,7 +27,7 @@
 | | |
 |---|---|
 | [The `pwn` REPL](pwn-REPL.md) | Pry shell with the whole `PWN::` namespace pre-loaded |
-| [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot · **TaskSummarizer** briefs · iteration budget guard |
+| [`pwn-ai` Autonomous Agent](pwn-ai-Agent.md) | Natural-language TUI + `pwn --ai PROMPT` one-shot · **TaskSummarizer** briefs · CORE_TOOLS until `may_finalize?` |
 | [CLI Drivers `bin/pwn_*`](CLI-Drivers.md) | 54 headless executables (`pwn` + 53 `pwn_*`) for CI/CD |
 | [Drivers (build your own)](Drivers.md) | Turn a REPL session into a shipped binary |
 

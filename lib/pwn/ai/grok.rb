@@ -341,7 +341,7 @@ module PWN
       #   rest_call: 'required rest call to make per the schema',
       #   params: 'optional params passed in the URI or HTTP Headers',
       #   http_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',
-      #   timeout: 'optional timeout in seconds (defaults to 900)',
+      #   timeout: 'optional timeout in seconds (defaults to 180; 5 attempts)',
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
       private_class_method def self.grok_rest_call(opts = {})
@@ -415,8 +415,8 @@ module PWN
         http_body = opts[:http_body]
         http_body ||= {}
 
-        timeout = opts[:timeout]
-        timeout ||= 900
+        timeout = PWN::AI::HttpRetry.timeout_s(opts)
+        max_attempts = PWN::AI::HttpRetry.max_attempts(opts)
 
         spinner = opts[:spinner] || false
 
@@ -466,18 +466,35 @@ module PWN
 
           response
         rescue RestClient::TooManyRequests => e
-          retry_after = e.response.headers[:retry_after]&.to_i ||= (0.5 * (retry_count + 1))
-          sleep(retry_after + rand(0.3..5.0))
           retry_count += 1
-
+          if retry_count >= max_attempts
+            unless opts[:quiet]
+              PWN::AI::HttpRetry.report_event(
+                label: 'grok', which_self: self, quiet: opts[:quiet],
+                http_method: http_method, rest_call: rest_call,
+                extra: '429 retries exhausted', error: e
+              )
+            end
+            return "#{e.message}: #{e.response}"
+          end
+          sleep(PWN::AI::HttpRetry.retry_after_s(response: e.response, retry_count: retry_count) + rand(0.3..5.0))
           retry
+        rescue RestClient::Exceptions::Timeout => e
+          # Sidecar hops (judge / kind / plan) pass quiet:true and a short
+          # timeout. Do not print ERROR: Timed out reading data from server:
+          # — ReadTimeout is ExceptionWithResponse with a nil body.
+          retry_count += 1
+          unless opts[:quiet]
+            PWN::AI::HttpRetry.report_event(
+              label: 'grok', which_self: self, quiet: opts[:quiet],
+              http_method: http_method, rest_call: rest_call,
+              extra: "timeout=#{timeout}s attempt=#{retry_count}/#{max_attempts}", error: e
+            )
+          end
+          retry if retry_count < max_attempts
+
+          nil
         end
-      rescue RestClient::Exceptions::Timeout => e
-        # Sidecar hops (judge / kind / plan) pass quiet:true and a short
-        # timeout. Do not print ERROR: Timed out reading data from server:
-        # — ReadTimeout is ExceptionWithResponse with a nil body.
-        warn "[pwn-ai/grok] #{e.class}: #{e.message} (#{http_method.to_s.upcase} #{rest_call} timeout=#{timeout}s)" unless opts[:quiet]
-        nil
       rescue RestClient::ExceptionWithResponse => e
         puts "ERROR: #{e.message}: #{e.response}" unless opts[:quiet]
         "#{e.message}: #{e.response}" if opts[:quiet]
@@ -512,7 +529,7 @@ module PWN
       #   tool_choice: 'optional - "auto" | "none" | "required" | {type:"function", function:{name:..}}',
       #   model: 'optional - overrides PWN::Env[:ai][:grok][:model]',
       #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:grok][:temp] || 1)',
-      #   timeout: 'optional - seconds (default 900)',
+      #   timeout: 'optional - seconds (default 180)',
       #   spinner: 'optional - display spinner (default false)'
       # )
       #

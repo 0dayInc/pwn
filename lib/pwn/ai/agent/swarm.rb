@@ -186,12 +186,14 @@ module PWN
           sys        = build_persona_prompt(name: name, persona: persona,
                                             swarm_id: sid, session_id: session_id)
 
+          empty_tools = opts[:text_only] == true || Array(persona[:toolsets]).empty?
           Thread.current[:pwn_swarm_depth] = depth + 1
           reply = with_persona_env(persona: persona) do
             Loop.run(
               request: opts[:request].to_s,
               session_id: session_id,
-              enabled_toolsets: persona[:toolsets],
+              enabled_toolsets: empty_tools ? [] : persona[:toolsets],
+              core_only: empty_tools ? false : true,
               system_role_content: sys,
               on_tool: opts[:on_tool]
             )

@@ -143,7 +143,7 @@ There is no request type. Every request gets an English task compass.
 - Advancement needs a PRM +1 streak or a clear phase shift after tools on the active task (not a blind every-3-tools hop).
 - REPL contract: `on_tool.call('task', full_summary_text, '')` - result empty, no truncation.
 
-**Long-run pressure:** budget-hot turns skip extra counterfactual forks. The last iteration strips tools only when the original request is already satisfied. Scars and overconfidence do not lower this request's `max_iters` (default 777). Task state and Learning still flush on the exhaust path.
+**Long-run pressure:** Loop.run does not abort on a round cap. Keep CORE_TOOLS until `may_finalize?`. Budget-hot turns skip extra counterfactual forks. Ctrl-C stops the turn.
 
 ![TaskSummarizer](diagrams/task-summarizer.svg)
 
@@ -163,7 +163,6 @@ max_iters: 777                  # scars / overconf do not lower this request
 
 - SHIFT+ENTER = newline, ENTER = submit.
 - `back` / `exit` returns to the plain REPL.
-- Set `ai.agent.max_iters` in `~/.pwn/pwn.yaml` if long tasks get truncated.
 - Disable `auto_introspect` during noisy fuzz loops
   (`learning_auto_introspect_toggle(enabled: false)`), re-enable for the
   summary turn.
@@ -196,7 +195,7 @@ max_iters: 777                  # scars / overconf do not lower this request
 | `reward_llm_timeout` | `12` | seconds for the cheap ORM chat (clamped 2..30) |
 | `verify_as_reward` | `nil` (auto) | browser-grounded claim sample policy |
 | `local_introspect` | `:failure_only` | ollama / openwebui end-of-turn introspect policy |
-| `tool_preference` | same list as CORE_TOOLS (`memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember`) | Rank bonus + Policy suggested-action order |
+| `tool_preference` | same list as CORE_TOOLS (`memory_recall`, `session_recall`, `skills_recall`, `pwn_eval`, `shell`, `mistakes_record`, `mistakes_resolve`, `learning_note_outcome`, `memory_remember`, `skills_update`) | Rank bonus + Policy suggested-action order |
 | `defer_introspect` | `true` | Post-answer Learning on a background thread |
 | `prompt_cache` | `true` | Engine-native prefix cache (not Ollama / Open WebUI) |
 

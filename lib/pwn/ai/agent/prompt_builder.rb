@@ -93,8 +93,17 @@ module PWN
               Prefer this order: use RECENT TURNS (current session already in
               context), then `memory_recall`, then `session_recall`, then
               `skills_recall`, then `pwn_eval` for PWN:: work, then `shell` for OS
-              commands. Save durable facts with `memory_remember`.
+              commands. Save durable facts with `memory_remember`. After a
+              resolved mistake or a durable procedure change, `skills_update`
+              folds that RL note into the matching skill.
               TransparentBrowser: open once, reuse browser_obj, close once.
+
+            HOST LOAD
+              #{host_load_block}
+              On pwn_eval/shell timeout: reconstruct the ruby/command for the
+              same goal first. Do not first raise timeout. Only if construction
+              is sound, raise a conservative HOST LOAD timeout (clamped).
+              Record a mistake either way.
 
             AUTONOMY
               Multi-step goals must be finished in one Loop.run. Keep calling
@@ -120,6 +129,9 @@ module PWN
               World-knowledge questions (what color is X) may be answered as a
               text final with no tools. Tools stay available; do not invent a
               host-work plan for them.
+              Which skills are installed: call `skills_recall` with no query
+              (bundled catalog). Do not recite a mixed on-disk dump as the
+              catalog. Extra files under ~/.pwn/skills are not the catalog.
               Do not treat process_sop_* or operator_pref_* memory about code
               hygiene as the current user goal unless they asked to change code.
           PROMPT
@@ -165,6 +177,21 @@ module PWN
           RUBY_PLATFORM
         end
 
+        private_class_method def self.host_load_block
+          snap = if defined?(ToolGuard) && ToolGuard.respond_to?(:host_load)
+                   ToolGuard.host_load
+                 else
+                   { ncpu: 1, load1: 0.0, mem_avail_mb: 0 }
+                 end
+          eval_s = ToolGuard.deadline_s(kind: :eval) if defined?(ToolGuard)
+          shell_s = ToolGuard.deadline_s(kind: :shell) if defined?(ToolGuard)
+          load_line = "load1=#{snap[:load1]} ncpu=#{snap[:ncpu]} mem_avail_mb=#{snap[:mem_avail_mb]}"
+          "#{load_line} pwn_eval/shell timeout = conservative seconds for this host " \
+            "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped)."
+        rescue StandardError
+          'load unknown — pass a conservative timeout on pwn_eval/shell anyway.'
+        end
+
         private_class_method def self.pwn_version
           defined?(PWN::VERSION) ? PWN::VERSION : '?'
         end
@@ -178,25 +205,7 @@ module PWN
           sid = opts[:session_id]
           pairs = (opts[:limit] || 2).to_i
           pairs = 1 if pairs <= 0
-          # On pure-recall / vague cues, prefer a slightly richer window if budget allows.
-          req = opts[:request].to_s
-          if req.match?(
-            /
-              \b(
-                what\s+did\s+i\s+(just\s+)?say|
-                what\s+was\s+my\s+last|
-                how\s+did\s+you\s+respond|
-                what\s+did\s+you\s+(just\s+)?(?:say|answer|reply)|
-                what\s+(?:was|is)\s+your\s+(?:last|previous)|
-                remind\s+me\s+what|
-                previous\s+(request|message|turn)|
-                last\s+(thing|request|message)\s+i
-              )\b
-            /ix
-          )
-            pairs = [pairs, 2].max
-          end
-          dialog = PWN::Memory.recent_dialog(session_id: sid, pairs: pairs, max_chars: 1_200)
+          dialog = PWN::Memory.recent_dialog(session_id: sid, pairs: pairs, max_chars: 8_000)
           return '' if dialog.nil? || dialog.empty?
 
           lines = dialog.map do |t|
@@ -237,18 +246,27 @@ module PWN
         private_class_method def self.skills_block
           return '' unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash) && !PWN::Skills.empty?
 
-          lines = PWN::Skills.map do |name, meta|
-            desc = meta[:description].to_s.strip
-            if desc.empty?
-              # legacy / stubbed entry without a parsed description — fall back
-              desc = meta[:content].to_s.lines.reject { |l| l.strip.empty? || l.start_with?('---') }.first.to_s.strip
+          catalog_names = if defined?(PWN::Config) && PWN::Config.respond_to?(:default_skill_names)
+                            Array(PWN::Config.default_skill_names)
+                          else
+                            []
+                          end
+          extra = 0
+          lines = []
+          PWN::Skills.each do |name, meta|
+            key = name.to_s
+            unless catalog_names.include?(key)
+              extra += 1
+              next
             end
+
+            desc = meta.is_a?(Hash) ? meta[:description].to_s.strip : ''
+            desc = meta[:content].to_s.lines.reject { |l| l.strip.empty? || l.start_with?('---') }.first.to_s.strip if desc.empty? && meta.is_a?(Hash)
             desc = desc[0, 100]
-            rc = Array(meta[:references]).length
-            ref_tag = rc.positive? ? " [#{rc} refs]" : ''
-            "  - #{name}: #{desc}#{ref_tag}"
+            lines << "  - #{key}: #{desc}"
           end
-          "SKILLS (call skill_view to read full body)\n#{lines.join("\n")}\n\n"
+          extra_line = extra.positive? ? "  (#{extra} additional files under ~/.pwn/skills — call skills_recall to search; they are not this catalog)\n" : ''
+          "SKILLS CATALOG (bundled pwn-ai; call skills_recall with no query to list)\n#{lines.join("\n")}\n#{extra_line}\n"
         rescue StandardError
           ''
         end

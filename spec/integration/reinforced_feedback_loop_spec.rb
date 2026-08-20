@@ -423,6 +423,8 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
 
       hint = curriculum.red_team_plan(request: 'goal', plan: "1. shell nmap\n2. shell msfconsole")
       expect(hint).to start_with('[pwn-ai/red_team]')
+      src = File.read(curriculum.method(:red_team_plan).source_location.first)
+      expect(src).to match(/text_only:\s*true/)
     end
   end
 
@@ -1478,23 +1480,19 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(src).not_to match(/n = \[n, hot_cap\]\.min/)
     end
 
-    it 'forces tools=nil on last iter and skips counterfactual when budget-hot' do
+    it 'never strips tools because a round cap is about to fire' do
       src = File.read(loop_mod.method(:run).source_location.first)
-      expect(src).to match(/FINAL ITERATION/)
-      expect(src).to match(/last_iter \? nil : tools/)
-      # CF gate requires !budget_exhaustion_hot?
+      expect(src).not_to match(/FINAL ITERATION/)
+      expect(src).not_to match(/last_iter \? nil : tools/)
       expect(src).to match(/!budget_exhaustion_hot\?/)
       expect(src).to match(/Curriculum\.counterfactual/)
     end
 
-    it 'exhaust path appends session + auto_introspect (not bare string only)' do
+    it 'does not return a budget-exhausted canned final' do
       src = File.read(loop_mod.method(:run).source_location.first)
-      idx = src.index('shape: :budget_exhausted')
-      expect(idx).not_to be_nil
-      tail = src[idx, 800]
-      expect(tail).to match(/append_session/)
-      expect(tail).to match(/auto_introspect/)
-      expect(tail).to match(/final_msg/)
+      expect(src).not_to match(/shape: :budget_exhausted/)
+      expect(src).not_to match(/iteration budget exhausted/)
+      expect(src).to match(/may_finalize\?/)
     end
 
     it 'STATUS table lists Budget exhaust deepen' do

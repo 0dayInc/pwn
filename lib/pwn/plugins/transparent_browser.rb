@@ -41,6 +41,17 @@ module PWN
         raise e
       end
 
+      private_class_method def self.apply_driver_timeouts!(opts = {})
+        browser = opts[:browser_obj].is_a?(Hash) ? opts[:browser_obj][:browser] : nil
+        return unless browser.respond_to?(:driver)
+
+        timeouts = browser.driver.manage.timeouts
+        timeouts.page_load = 45
+        timeouts.script = 30
+      rescue StandardError
+        nil
+      end
+
       # Supported Method Parameters::
       # browser_obj1 = PWN::Plugins::TransparentBrowser.open(
       #   browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
@@ -66,8 +77,10 @@ module PWN
         devtools = opts[:devtools] ||= false
         devtools = true if devtools_supported.include?(browser_type) && devtools
 
-        # Let's crank up the default timeout from 30 seconds to 15 min for slow sites
-        Watir.default_timeout = 900
+        # Element waits (Watir) vs navigation (Selenium page_load) are
+        # separate. 900s element waits made Wix browser.links.map hang for
+        # hours. Keep navigation bounded too.
+        Watir.default_timeout = 15 unless %i[rest websocket].include?(browser_type)
 
         args = []
         # args.push('--start-maximized')
@@ -365,6 +378,7 @@ module PWN
           browser_obj[:devtools] = browser_obj[:browser].driver.bidi if firefox_types.include?(browser_type)
         end
 
+        apply_driver_timeouts!(browser_obj: browser_obj)
         browser_obj
       rescue StandardError => e
         puts e.backtrace

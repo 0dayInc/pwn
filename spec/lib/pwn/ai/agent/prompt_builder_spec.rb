@@ -73,6 +73,9 @@ describe PWN::AI::Agent::PromptBuilder do
       expect(src).to match(/learning_block/)
       expect(src).to match(/KNOWN MISTAKES|mistakes_block/)
       expect(src).to match(/skills_recall/)
+      expect(src).to match(/default_skill_names|SKILLS CATALOG/)
+      expect(src).to match(/HOST LOAD/)
+      expect(src).to match(/host_load|deadline_s/)
     end
   end
 end

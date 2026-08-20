@@ -13,6 +13,9 @@ module PWN
         authors help to_s inspect class object_id hash eql? == equal? !
         method public_send send __send__ instance_eval class_eval
         public_class_method private_class_method
+        debug_on? debug_progress start_debug_session quiet_debug_tui!
+        loud_debug_tui! budget_scar? effective_count safe_check
+        rank_for_request usable_preference? cause_crumb
       ].freeze
       TRACE_SKIP_PREFIXES = %w[
         PWN::Plugins::Log
@@ -107,6 +110,7 @@ module PWN
 
           if msg.instance_of?(Interrupt)
             logger.level = Logger::WARN
+            note_interrupt!(where: 'CTRL+C', which_self: which_self) if debug_enabled?
             if driver_name == 'pwn'
               log_event += ' => CTRL+C Detected.'
             else
@@ -124,6 +128,7 @@ module PWN
 
         logger.add(logger.level, log_event, which_self)
       rescue Interrupt
+        note_interrupt!(where: 'CTRL+C', which_self: self) if debug_enabled?
         puts "\n#{self}.#{__method__} => Goodbye."
       rescue StandardError => e
         raise e
@@ -141,31 +146,67 @@ module PWN
         @debug_path
       end
 
-      # Open /tmp/pwn-ai-DEBUG-TIMESTAMP.log, tee the same lines to the TUI
-      # (opts[:tee]), and TracePoint PWN modules that process a pwn-ai request.
-      DEBUG_LOG_MAX = 1_024_000
-
+      # Open a debug session. Request traces go to
+      # /tmp/pwn-ai-DEBUG-<session_id>-RN.log via next_request_log!.
+      # opts[:path] is a test override that writes to one file.
       public_class_method def self.start_debug(opts = {})
-        return @debug_path if debug_enabled? && opts.is_a?(Hash)
+        if debug_enabled? && opts[:path].to_s.empty?
+          @debug_tee = opts[:tee] if opts.key?(:tee)
+          sid = sanitize_debug_session_id(session_id: opts[:session_id])
+          @debug_session_id = sid unless sid.empty?
+          return @debug_path
+        end
 
-        ts = Time.now.strftime('%Y%m%d-%H%M%S')
+        stop_trace! if @debug_tp
         path = opts[:path].to_s
-        path = "/tmp/pwn-ai-DEBUG-#{ts}.1.log" if path.empty?
-        stem, idx = debug_path_parts(path: path)
-        path = "#{stem}.#{idx}.log"
-        FileUtils.mkdir_p(File.dirname(path))
-        io = File.open(path, 'a')
-        io.sync = true
-        @debug_file = io
-        @debug_path = path
-        @debug_stem = stem
-        @debug_index = idx
         @debug_tee = opts[:tee]
         @debug_tui_quiet = false
         @debug_enabled = true
-        start_trace!(prefixes: opts[:prefixes]) unless opts[:trace] == false
-        progress(msg: "debug session start path=#{path}", which_self: self)
+        @debug_session_id = sanitize_debug_session_id(session_id: opts[:session_id])
+        @debug_req_n = 0
+        @debug_request_open = false
+        if path.empty?
+          close_debug_file!
+          @debug_path = nil
+        else
+          open_debug_file!(path: path)
+        end
+        start_trace!(prefixes: opts[:prefixes]) if opts[:trace] == true
+        progress(msg: 'debug session start', which_self: self) if @debug_file
+        @debug_path
+      end
+
+      public_class_method def self.next_request_log!(opts = {})
+        return unless debug_enabled?
+        return @debug_path if @debug_request_open && opts[:force] != true
+
+        sid = sanitize_debug_session_id(session_id: opts[:session_id])
+        sid = @debug_session_id if sid.empty?
+        sid = 'nosession' if sid.empty?
+        @debug_session_id = sid
+        n = next_debug_request_n(session_id: sid)
+        path = "/tmp/pwn-ai-DEBUG-#{sid}-R#{n}.log"
+        open_debug_file!(path: path)
+        @debug_req_n = n
+        @debug_request_open = true
+        progress(msg: "request log R#{n} path=#{path}", which_self: self)
         path
+      end
+
+      public_class_method def self.finish_request_log!(opts = {})
+        return unless debug_enabled?
+        return unless @debug_request_open || opts[:force] == true
+
+        bits = [
+          "footer iter=#{opts[:iter].to_i}",
+          "tools_called=#{opts[:tools_called].to_i}",
+          "engine_s=#{opts[:engine_s].to_f.round(3)}",
+          "final_chars=#{opts[:final_chars].to_i}"
+        ]
+        bits << "nested=#{opts[:nested]}" unless opts[:nested].to_s.empty?
+        progress(msg: bits.join(' '), which_self: self)
+        @debug_request_open = false
+        @debug_path
       end
 
       public_class_method def self.stop_debug(opts = {})
@@ -175,37 +216,49 @@ module PWN
           progress(msg: tail, which_self: self)
         end
         stop_trace!
-        begin
-          @debug_file&.close unless @debug_file.nil? || @debug_file.closed?
-        rescue StandardError
-          nil
-        end
         path = @debug_path
-        @debug_file = nil
+        close_debug_file!
         @debug_path = nil
-        @debug_stem = nil
-        @debug_index = nil
+        @debug_session_id = nil
+        @debug_req_n = nil
+        @debug_request_open = false
         @debug_tee = nil
         @debug_tui_quiet = false
         @debug_enabled = false
         path
       end
 
-      private_class_method def self.debug_path_parts(opts = {})
-        path = opts[:path].to_s
-        return [Regexp.last_match(1), Regexp.last_match(2).to_i] if path =~ /\A(.+)\.(\d+)\.log\z/
-
-        [path.sub(/\.log\z/, ''), 1]
+      private_class_method def self.sanitize_debug_session_id(opts = {})
+        opts[:session_id].to_s.gsub(/[^A-Za-z0-9._-]/, '_')[0, 80]
       end
 
-      private_class_method def self.roll_debug_log!(opts = {})
-        return if opts[:skip]
-        return if @debug_file.nil? || @debug_file.closed?
-        return if @debug_file.size < DEBUG_LOG_MAX
+      private_class_method def self.next_debug_request_n(opts = {})
+        sid = sanitize_debug_session_id(session_id: opts[:session_id])
+        max_n = 0
+        Dir.glob("/tmp/pwn-ai-DEBUG-#{sid}-R*.log").each do |p|
+          n = p[/-R(\d+)\.log\z/, 1].to_i
+          max_n = n if n > max_n
+        end
+        max_n + 1
+      end
 
-        @debug_file.close
-        @debug_index = @debug_index.to_i + 1
-        path = "#{@debug_stem}.#{@debug_index}.log"
+      private_class_method def self.close_debug_file!(opts = {})
+        return if opts[:skip]
+
+        begin
+          @debug_file&.close unless @debug_file.nil? || @debug_file.closed?
+        rescue StandardError
+          nil
+        end
+        @debug_file = nil
+      end
+
+      private_class_method def self.open_debug_file!(opts = {})
+        path = opts[:path].to_s
+        return if path.empty?
+
+        close_debug_file!
+        FileUtils.mkdir_p(File.dirname(path))
         io = File.open(path, 'a')
         io.sync = true
         @debug_file = io
@@ -233,11 +286,15 @@ module PWN
         Thread.current[:pwn_log_progress] = true
         msg = sanitize_debug_text(text: opts[:msg].to_s)
         which = opts[:which_self] || self
-        line = format_progress(msg: msg, which_self: which)
+        line = format_progress(
+          msg: msg,
+          which_self: which,
+          keep_newlines: opts[:keep_newlines],
+          cap: opts[:cap]
+        )
         begin
           @debug_file&.puts(line)
           @debug_file&.flush
-          roll_debug_log!
         rescue StandardError
           nil
         end
@@ -245,6 +302,8 @@ module PWN
         if !@debug_tui_quiet && tee.respond_to?(:puts)
           begin
             tee.puts(color_progress(line: line))
+            tee.flush if tee.respond_to?(:flush)
+            $stdout.flush if $stdout.respond_to?(:flush)
           rescue StandardError
             nil
           end
@@ -254,8 +313,67 @@ module PWN
         Thread.current[:pwn_log_progress] = false
       end
 
+      public_class_method def self.note_interrupt!(opts = {})
+        return false unless debug_enabled?
+
+        where = opts[:where].to_s
+        where = 'CTRL+C' if where.empty?
+        progress(
+          msg: "Interrupt #{where}",
+          which_self: opts[:which_self] || self
+        )
+      end
+
+      public_class_method def self.note_exception!(opts = {})
+        return false unless debug_enabled?
+
+        err = opts[:error]
+        return false unless err.respond_to?(:message)
+
+        where = opts[:where].to_s
+        where = 'Loop.run' if where.empty?
+        bt = Array(err.backtrace).join("\n")
+        progress(
+          msg: "exception #{where} #{err.class}: #{err.message}\n#{bt}",
+          which_self: opts[:which_self] || self,
+          keep_newlines: true,
+          cap: 0
+        )
+      end
+
+      # Clone operator-visible TUI rows into the open RN request log (no ANSI).
+      # Used for [ ts → pwn-ai → tool ] / → result / task briefs so the file
+      # matches what the operator saw without needing a TracePoint dump.
+      public_class_method def self.mirror_tui!(opts = {})
+        return unless debug_enabled?
+        return unless opts.is_a?(Hash)
+
+        text = opts[:msg].to_s
+        text = text.gsub(/\e\[[0-9;]*m/, '')
+        text = sanitize_debug_text(text: text)
+        return if text.strip.empty?
+
+        begin
+          io = @debug_file
+          return if io.nil? || (io.respond_to?(:closed?) && io.closed?)
+
+          io.write(text.end_with?("\n") ? text : "#{text}\n")
+          io.flush
+        rescue StandardError
+          return
+        end
+        text
+      end
+
       private_class_method def self.format_progress(opts = {})
-        msg = opts[:msg].to_s.tr("\n", ' ')[0, 4_000]
+        cap = if opts.key?(:cap)
+                opts[:cap].to_i
+              else
+                4_000
+              end
+        msg = opts[:msg].to_s
+        msg = msg.tr("\n", ' ') unless opts[:keep_newlines]
+        msg = msg[0, cap] if cap.positive? && msg.length > cap
         which = opts[:which_self]
         who = if which.is_a?(Module)
                 (which.name || which.to_s).to_s
@@ -271,7 +389,7 @@ module PWN
 
       private_class_method def self.color_progress(opts = {})
         line = opts[:line].to_s
-        "\001\e[35m\002#{line}\001\e[0m\002"
+        "\e[35m#{line}\e[0m"
       end
 
       private_class_method def self.trace_module_name(opts = {})
@@ -414,10 +532,13 @@ module PWN
 
           path = #{self}.start_debug(
             tee: $stdout,
-            path: 'optional - defaults to /tmp/pwn-ai-DEBUG-TIMESTAMP.log'
+            session_id: 'optional - pwn-ai session id'
           )
+          #{self}.next_request_log!(session_id: 'optional')
           #{self}.progress(msg: 'stage', which_self: self)
+          #{self}.finish_request_log!(iter: 1, tools_called: 0, engine_s: 0.2, final_chars: 12)
           #{self}.stop_debug
+          # start_debug(trace: true) enables per-call TracePoint (opt-in)
         "
       end
     end

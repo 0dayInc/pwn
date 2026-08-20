@@ -408,6 +408,65 @@ module PWN
           out.merge(saved: true)
         end
 
+        # Fold RL artefacts (mistakes / structured_fix / an explicit lesson)
+        # into an existing skill. Does not create skills (use distill_skill /
+        # skill_create). Does not write loop-law. Dedupes by mistake signature.
+        public_class_method def self.update_skill(opts = {})
+          dry = opts[:dry_run] ? true : false
+          lesson = opts[:lesson].to_s.strip
+          notes = rl_skill_notes(
+            signature: opts[:signature],
+            request: opts[:request] || opts[:query],
+            lesson: lesson
+          )
+          return { updated: false, reason: 'no rl notes' } if notes.empty?
+
+          target = locate_skill_for_update(
+            name: opts[:name],
+            query: opts[:query] || opts[:request] || notes.map { |n| n[:text] }.join(' ')
+          )
+          return { updated: false, reason: 'no matching skill', notes: notes } unless target
+
+          body = skill_body_without_frontmatter(meta: target[:meta])
+          added = []
+          notes.each do |note|
+            next if body.include?(note[:id])
+
+            added << note
+          end
+          return { updated: false, name: target[:name], reason: 'already folded', notes: notes } if added.empty?
+
+          block = added.map { |n| "- [#{n[:id]}] #{n[:text]}" }.join("\n")
+          body = if body.match?(/^\#{1,3}\s*RL feedback\s*$/i)
+                   "#{body.rstrip}\n#{block}\n"
+                 else
+                   "#{body.rstrip}\n\n## RL feedback\n#{block}\n"
+                 end
+          return { updated: false, dry_run: true, name: target[:name], added: added.map { |n| n[:text] } } if dry
+
+          root = skills_dir
+          out = PWN::Config.write_skill(
+            name: target[:name],
+            description: target[:meta][:description],
+            content: body,
+            references: target[:meta][:references],
+            license: (target[:meta][:frontmatter] || {})['license'],
+            allowed_tools: target[:meta][:allowed_tools],
+            metadata: (target[:meta][:frontmatter] || {})['metadata'],
+            pwn_skills_path: root
+          )
+          PWN::Config.load_skills(pwn_skills_path: root) if PWN::Config.respond_to?(:load_skills)
+          note_outcome(
+            task: "skills_update:#{target[:name]}",
+            success: true,
+            details: "Folded #{added.length} RL note(s)",
+            tags: %w[skill rl]
+          )
+          out.merge(updated: true, added: added.map { |n| n[:id] })
+        rescue StandardError => e
+          { updated: false, error: "#{e.class}: #{e.message}" }
+        end
+
         # Supported Method Parameters::
         # report = PWN::AI::Agent::Learning.reflect(
         #   session_id: 'required - PWN::Sessions id to analyse',
@@ -490,28 +549,14 @@ module PWN
 
           proxy_ok = infer_success(session_id: session_id, final: opts[:final])
 
-          # S3 critic — BEFORE reward so verdict is evidence.
-          # P24/P0 — budget_hot or soft-cap → text_only or skip.
-          force_critic = begin
-            eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env))
-            cal = defined?(Metrics) ? Metrics.calibration(engine: eng) : { n: 0 }
-            cal[:n].to_i >= 8 && (cal[:brier].to_f > 0.35 || cal[:overconfidence].to_f > 0.25)
-          rescue StandardError
-            false
-          end
-          # P0 — when W1 mix urgently needs :critic pairs, prefer running critic
-          need_critic_mix = begin
-            mix = defined?(Reward) && Reward.respond_to?(:generator_mix) ? Reward.generator_mix : {}
-            Array(mix[:urgent]).include?('critic')
-          rescue StandardError
-            false
-          end
-
           crit = { verdict: :pass, source: :skipped }
-          # Single skip path (Lint/DuplicateBranch): hard-budget OR no Curriculum.
-          if !defined?(Curriculum) || (over_hard.call && !need_critic_mix)
+          # Live-turn critic is always text-only. A tool-armed persona is
+          # another Loop.run of the same goal (opens more browsers, never
+          # returns the operator answer). Cron/practice still call
+          # Curriculum.critic without text_only.
+          if !defined?(Curriculum) || over_hard.call
             stages_skipped << :critic
-          elsif budget_hot || (over_soft.call && !force_critic && !need_critic_mix)
+          else
             stages_run << :critic_text_only
             crit = Curriculum.critic(
               request: opts[:request],
@@ -519,18 +564,6 @@ module PWN
               session_id: session_id,
               text_only: true
             )
-          elsif force_critic
-            stages_run << :critic_forced
-            prev = (PWN::Env[:ai][:agent][:critic] if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash))
-            begin
-              PWN::Env[:ai][:agent][:critic] = true if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
-              crit = Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
-            ensure
-              PWN::Env[:ai][:agent][:critic] = prev if defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
-            end
-          else
-            stages_run << :critic
-            crit = Curriculum.critic(request: opts[:request], final: opts[:final], session_id: session_id)
           end
 
           # R1 judge — always attempt (heuristic is cheap; LLM gated inside)
@@ -1095,6 +1128,91 @@ module PWN
           (bad.to_f / tool.length) < 0.5
         rescue StandardError
           !final.strip.empty?
+        end
+
+        private_class_method def self.rl_skill_notes(opts = {})
+          notes = []
+          day = Time.now.utc.strftime('%Y-%m-%d')
+          lesson = opts[:lesson].to_s.strip
+          notes << { id: "lesson:#{Digest::SHA256.hexdigest(lesson)[0, 8]}", text: "[#{day}] #{lesson[0, 400]}" } unless lesson.empty?
+          return notes unless defined?(Mistakes)
+
+          rows = []
+          if opts[:signature].to_s.strip.empty?
+            rows = Mistakes.top(limit: 8, unresolved_only: false)
+          else
+            hit = Mistakes.find(signature: opts[:signature].to_s)
+            rows = hit ? [hit] : []
+          end
+          req = opts[:request].to_s.downcase
+          rows.each do |mistake|
+            next unless mistake.is_a?(Hash)
+
+            err = mistake[:error].to_s.downcase
+            next if (err.include?('budget') || err.include?('iteration')) && !req.match?(/budget|iterat|exhaust/)
+
+            fix = mistake[:fix].to_s
+            sf = mistake[:structured_fix]
+            trace = sf.is_a?(Hash) ? sf[:winning_trace].to_s : ''
+            next if fix.empty? && trace.empty?
+
+            sig = mistake[:signature].to_s
+            next if sig.empty?
+
+            bit = "[#{day}] [#{sig}] #{mistake[:tool]}: #{mistake[:error].to_s[0, 120]}"
+            bit = "#{bit} — FIX: #{fix[0, 160]}" unless fix.empty?
+            bit = "#{bit} trace: #{trace[0, 160]}" unless trace.empty?
+            notes << { id: sig, text: bit }
+          end
+          notes.uniq { |n| n[:id] }.first(6)
+        rescue StandardError
+          notes
+        end
+
+        private_class_method def self.locate_skill_for_update(opts = {})
+          return nil unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash)
+
+          if opts[:name].to_s.strip.empty?
+            query = opts[:query].to_s.downcase
+            tokens = query.scan(/[a-z0-9_-]{3,}/).uniq
+            return nil if tokens.empty?
+
+            scored = PWN::Skills.map do |name, meta|
+              next unless meta.is_a?(Hash)
+
+              hay = "#{name} #{meta[:description]} #{meta[:content]}".downcase
+              score = tokens.count { |tok| hay.include?(tok) }
+              [name.to_s, meta, score]
+            end.compact
+            best = scored.max_by { |_, _, score| score }
+            return nil unless best && best[2] >= 2
+
+            return { name: best[0], meta: best[1] }
+          end
+
+          key = opts[:name].to_s
+          meta = PWN::Skills[key.to_sym] || PWN::Skills[key]
+          if meta.nil? && defined?(PWN::Config)
+            meta = PWN::Skills[PWN::Config.sanitize_skill_name(name: key).to_sym]
+            key = PWN::Config.sanitize_skill_name(name: key) if meta
+          end
+          return nil unless meta.is_a?(Hash)
+
+          { name: key.to_s, meta: meta }
+        rescue StandardError
+          nil
+        end
+
+        private_class_method def self.skill_body_without_frontmatter(opts = {})
+          meta = opts[:meta] || {}
+          raw = meta[:content].to_s
+          return raw unless defined?(PWN::Config) && PWN::Config.respond_to?(:parse_skill_frontmatter)
+
+          parsed = PWN::Config.parse_skill_frontmatter(content: raw)
+          body = parsed[:body].to_s
+          body.empty? ? raw : body
+        rescue StandardError
+          opts.dig(:meta, :content).to_s
         end
 
         private_class_method def self.skills_dir

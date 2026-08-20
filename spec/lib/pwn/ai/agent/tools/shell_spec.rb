@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tmpdir'
 
 describe 'PWN::AI::Agent::Tools shell' do
   before(:all) do
@@ -57,5 +58,14 @@ describe 'PWN::AI::Agent::Tools shell' do
     r = handler.call(command: 'echo sweep_guard_removed')
     expect(r[:error]).not_to eq('unauthorized_recon_blocked')
     expect(r[:exit]).to eq(0)
+  end
+
+  it 'on timeout prefers reconstruct-the-command before raising timeout' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+    r = handler.call(command: 'sleep 3', timeout: 1)
+    expect(r[:error].to_s).to match(/timeout after 1s/)
+    expect(r[:hint].to_s).to match(/reconstruct|generated differently|improperly/i)
+    expect(r[:scenario].to_s).to eq('construction')
   end
 end

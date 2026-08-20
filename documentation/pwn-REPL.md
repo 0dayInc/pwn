@@ -27,7 +27,7 @@ commands.
 | `pwn-ai-cron` | `PWN::Cron` | List/run/toggle scheduled jobs |
 | `pwn-ai-delegate` | `Agent::Swarm` | Send one request to a persona |
 | `pwn-irc` | *(deprecated)* | Prints a pointer to `Agent::Swarm` - the IRC daemon transport is gone |
-| `toggle-pwn-ai-debug` | `Agent::Loop` / `Plugins::Log` | Stream every pwn-ai module step to the TUI and `/tmp/pwn-ai-DEBUG-TIMESTAMP.log` |
+| `toggle-debug` | `Agent::Loop` / `Plugins::Log` | Stage log per operator request to `/tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log`. Set `ai.agent.debug_trace` for per-call TracePoint |
 | `toggle-pwn-ai-speaks` | `Plugins::Voice` | TTS every final answer on/off |
 | `welcome-banner` | `PWN::Banner` | Redraw a random banner |
 | `toggle-pager` | Pry | Page long output on/off |

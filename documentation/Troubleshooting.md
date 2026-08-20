@@ -149,6 +149,6 @@ If you still see doubles, confirm you are on a build with `lib/pwn/ai/agent/task
 
 ## Agent stops early / "iteration budget exhausted"
 
-When unresolved budget-exhaustion mistakes dominate, the Loop does **not** shrink `max_iters` (default 777). It only trims side work: skip extra counterfactual forks, and strip tools on the last iteration only if the original request is already satisfied. Check `mistakes_list`, resolve fixed signatures, or raise `ai.agent.max_iters` if a long task still hits the cap. Exhaust paths still run Learning and the task-summary flush.
+When unresolved budget-exhaustion mistakes dominate, the Loop does **not** abort the request. There is no `[pwn-ai] iteration budget exhausted` final. Loop keeps CORE_TOOLS until `may_finalize?`. Ctrl-C stops the turn. OpenGoal stays until a real final so `continue` reloads the same request. Old budget scars do not end this request.
 
 [← Home](Home.md)

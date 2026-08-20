@@ -471,15 +471,14 @@ module PWN
             PWN::Config.load_memory
             mem_count = (PWN.const_defined?(:Memory) ? PWN::Memory.load.keys.length : 0)
             sess = begin
-              PWN::Sessions.create(title: "pwn-ai #{Time.now.strftime('%Y-%m-%d %H:%M')}", source: 'pwn-ai-repl')
+              PWN::Sessions.create(title: "pwn-ai #{Time.now.strftime('%Y-%m-%d %H:%M')}", source: 'pwn-ai')
             rescue StandardError
               nil
             end
             pi.config.pwn_ai_session_id = sess[:id] if sess
             cron_count = (PWN.const_defined?(:Cron) ? PWN::Cron.list.keys.length : 0)
 
-            puts "\
-[*] pwn-ai agent TUI activated (PWN REPL driver w/ memory, sessions, delegation, cron)."
+            puts '[*] pwn-ai agent TUI activated (PWN REPL driver w/ memory, sessions, delegation, cron).'
             puts "[*] Memory facts: #{mem_count} | Session: #{pi.config.pwn_ai_session_id} | Cron jobs: #{cron_count} | Skills: #{skills_count}"
             puts '[*] Instruct the AI agent to carry out a task, e.g.:'
             puts "    'Use NmapIt to port scan target.com then use TransparentBrowser to spider and SAST::TestCaseEngine to analyze code if cloned. Generate report with PWN::Reports.'"
@@ -488,6 +487,8 @@ module PWN
             puts "[*] Type 'back' to exit pwn-ai mode."
             puts '[*] MULTILINE in pwn-ai: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits to the AI.'
             puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
+            tag = pi.config.pwn_ai_session_id.to_s.empty? ? '<SESSION_ID>' : pi.config.pwn_ai_session_id
+            puts "\n\n\npwn-ai debug ON → /tmp/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log"
           end
         end
 
@@ -1043,8 +1044,8 @@ module PWN
           end
         end
 
-        Pry::Commands.create_command 'toggle-pwn-ai-debug' do
-          description 'Stream pwn-ai module progress to the TUI and /tmp/pwn-ai-DEBUG-TIMESTAMP.log'
+        Pry::Commands.create_command 'toggle-debug' do
+          description 'Stream pwn-ai stage log to the TUI and /tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log (trace: Env ai.agent.debug_trace)'
 
           def process
             pi = pry_instance
@@ -1057,9 +1058,10 @@ module PWN
                 output.puts 'pwn-ai debug OFF'
               end
             else
-              path = PWN::Plugins::Log.start_debug(tee: output)
+              sid = pi.config.pwn_ai_session_id
+              PWN::Plugins::Log.start_debug(tee: output, session_id: sid)
               pi.config.pwn_ai_debug = true
-              output.puts "pwn-ai debug ON → #{path}"
+              output.puts 'pwn-ai debug ON.'
             end
           end
         end
@@ -1205,22 +1207,49 @@ module PWN
                 # belong only to the subsequent per-tool lines (one-to-many).
                 on_tool = lambda do |name, args, result|
                   # Task summaries are shown in their entirety (multi-line OK).
-                  # Per-tool arg previews stay capped so the TUI stays readable.
+                  # Tool request + result are shown in full (no char cap).
+                  # Raw ANSI only — PS1 SOH/STX on live stdout swallows later rows.
+                  # When debug is on, the same plain text is mirrored into the
+                  # open /tmp pwn-ai-DEBUG-…-RN.log for human troubleshooting.
+                  mirror = lambda do |plain|
+                    next unless pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
+
+                    PWN::Plugins::Log.mirror_tui!(msg: plain)
+                  end
                   if name.to_s == 'task'
                     body = args.is_a?(String) ? args.to_s : args.inspect
                     timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-                    print "\001\e[33m\002[ #{timestamp} → pwn-ai → task ]\001\e[0m\002\s"
-                    body.to_s.each_line { |ln| puts "\001\e[32m\002  #{ln.rstrip}\001\e[0m\002" }
-                    # Never pair a result row with a task brief
+                    header = "[ #{timestamp} → pwn-ai → task ]"
+                    print "\e[33m#{header}\e[0m "
+                    body_out = +''
+                    body.to_s.each_line do |ln|
+                      puts "\e[32m  #{ln.rstrip}\e[0m"
+                      body_out << "  #{ln.rstrip}\n"
+                    end
+                    mirror.call("#{header}\n#{body_out}")
                     next
                   end
 
-                  arg_preview = args.is_a?(String) ? args[0, 280] : args.inspect[0, 280]
+                  argv = args.is_a?(String) ? args.to_s : args.inspect
                   timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-                  puts "\001\e[33m\002[ #{timestamp} → pwn-ai → #{name} ]\001\e[0m\002 #{arg_preview}"
+                  header = "[ #{timestamp} → pwn-ai → #{name} ]"
+                  puts "\e[33m#{header}\e[0m"
+                  argv_out = +''
+                  argv.to_s.each_line do |ln|
+                    puts "\e[33m  #{ln.rstrip}\e[0m"
+                    argv_out << "  #{ln.rstrip}\n"
+                  end
 
                   timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-                  puts "\001\e[36m\002#{timestamp} → result → #{result.to_s[0, 700]}\001\e[0m\002\n"
+                  res_header = "#{timestamp} → result"
+                  puts "\e[36m#{res_header}\e[0m"
+                  res_out = +''
+                  result.to_s.each_line do |ln|
+                    puts "\e[36m  #{ln.rstrip}\e[0m"
+                    res_out << "  #{ln.rstrip}\n"
+                  end
+                  puts
+                  mirror.call("#{header}\n#{argv_out}#{res_header}\n#{res_out}\n")
                 end
                 final = PWN::AI::Agent::Loop.run(
                   request: orig_request,
@@ -1231,8 +1260,9 @@ module PWN
                   debug_tee: $stdout
                 )
                 $stdout.flush
-                puts "\n\001\e[32m\002#{final}\001\e[0m\002\n\n"
+                puts "\n\e[32m#{final}\e[0m\n\n"
                 $stdout.flush
+                PWN::Plugins::Log.mirror_tui!(msg: "\n#{final}\n\n") if pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
                 if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
                   PWN::Plugins::Log.progress(
                     msg: "session=#{sess_id}",
@@ -1241,7 +1271,11 @@ module PWN
                 end
                 request.replace('nil')
                 next
+              rescue Interrupt
+                PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C', which_self: PWN::Plugins::REPL) if pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
+                raise
               rescue StandardError => e
+                PWN::Plugins::Log.note_exception!(error: e, where: 'native agent loop', which_self: PWN::Plugins::REPL) if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:note_exception!)
                 warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}\n#{e.backtrace}); " \
                      'falling back to legacy regex-ReAct.'
               ensure

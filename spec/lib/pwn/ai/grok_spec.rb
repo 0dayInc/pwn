@@ -45,4 +45,26 @@ describe PWN::AI::Grok do
     expect(src).to include('PWN::Plugins::TTYSpinner.stop(spin: spin)')
     expect(src).not_to match(/spin\.stop if spinner/)
   end
+
+  it 'does not nil+ on 429 without Retry-After and does not retry 429 forever' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).not_to match(/headers\[:retry_after\]&.to_i\s*\|\|=/)
+    expect(src).to match(/HttpRetry\.retry_after_s|headers\[:retry_after\]\.to_i/)
+    expect(src).to match(/HttpRetry\.max_attempts|max_attempts/)
+  end
+
+  it 'defaults chat REST timeout to 180s and retries ReadTimeout up to 5 times' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to match(/HttpRetry|timeout \|\|= 180/)
+    expect(src).not_to match(/timeout \|\|= 900/)
+    expect(src).to match(/HttpRetry\.max_attempts|max_attempts/)
+    inner = src[/retry_count = 0.*?rescue RestClient::Exceptions::Timeout/m]
+    expect(inner).to include('TooManyRequests')
+    expect(inner).to include('Exceptions::Timeout')
+  end
+
+  it 'tees grok timeout/429 warnings into the debug request log' do
+    src = File.read(described_class.method(:chat_with_tools).source_location.first)
+    expect(src).to match(/HttpRetry\.report_event|Log\.progress/)
+  end
 end

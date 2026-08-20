@@ -50,7 +50,7 @@ Repeating shell failures with a known recipe (`command is required`, missing pat
 | Source | Trigger | What is recorded |
 |---|---|---|
 | `:tool` | any tool dispatch returns `success:false` / raises | *automatic* - `Loop.record_metrics` |
-| `:loop` | iteration budget exhausted with no final answer | *automatic* - `Loop.run` epilogue |
+| `:loop` | (legacy) iteration budget exhausted — Loop.run no longer emits this | *historical* |
 | `:user_correction` | next user message matches `CORRECTION_RX` (*"no that's wrong"*, *"still broken"*, *"try again"*, ...) | `check_user_correction` - also flips the previous `Learning` outcome to `success:false` |
 | `:model` | the model itself calls `mistakes_record` | wrong assumption, wrong file, hallucinated API - failures that are **not** dispatch errors |
 | **`:model` (proactive)** | **`extro_verify(claim:)` returns `:refuted`** | **`Mistakes.record(tool:'assumption', error:'REFUTED ...: <claim>')` - the browser caught the model being wrong about the world *before* a human did** |

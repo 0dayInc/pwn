@@ -115,13 +115,11 @@ When unresolved `agent_loop` / `assistant_answer` budget-exhaustion fingerprints
 dominate, the loop marks the budget path hot and tightens *side work* only:
 
 - skip counterfactual / red-team forks that would spend more tool rounds
-- last-iter strips tools only when the original request is already satisfied
-- still flush TaskSummarizer state and Learning on the exhaust path
-- end-of-turn critic runs text-only under the same pressure
+- **do not abort** with `[pwn-ai] iteration budget exhausted`
 - **do not shrink `max_iters`** - yesterday's scars must not abort this request
 
 Practice prioritizes those scars with short-horizon "finish the task" prompts.
-Raising `ai.agent.max_iters` still sets the hard ceiling.
+`Loop.run` has no hard ceiling — CORE_TOOLS stay until `may_finalize?`.
 
 ## Design-priority STATUS
 
@@ -141,7 +139,7 @@ This is the live control list. Track the outcomes, not source comments.
 | ops | Nightly diet close | `offline_judge` then scrub + mix + KPI so raw resolve prose does not survive the night |
 | ops | Shape backfill (`Reward.infer_shape`) | Legacy shapeless rows become `winning_trace` / `revised_answer` when the content warrants |
 | ops | Mix in prompt | `Metrics.to_context` emits `MIX:` when preference sources are unhealthy |
-| must | Budget exhaust | Last-iter force-final only when the original request is already satisfied; skip extra forks when the budget path is hot; **do not shrink max_iters**; still flush the session + introspect |
+| must | Budget exhaust | Loop.run does **not** abort on a round cap or emit `[pwn-ai] iteration budget exhausted`. Keep CORE_TOOLS until `may_finalize?`. Skip extra CF forks when old budget scars are hot; **do not shrink max_iters** |
 
 ## Intro and extro join
 
@@ -171,7 +169,7 @@ This is the live control list. Track the outcomes, not source comments.
     :max_iters: 777          # hard cap for this request; scars do not lower it
     :defer_introspect: true  # post-answer Learning after the user-visible reply
     :prompt_cache: true      # engine-native prefix cache (not ollama / openwebui)
-    :tool_preference: [memory_recall, session_recall, skills_recall, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember]
+    :tool_preference: [memory_recall, session_recall, skills_recall, pwn_eval, shell, mistakes_record, mistakes_resolve, learning_note_outcome, memory_remember, skills_update]
 ```
 
 ## Cron self-improvement

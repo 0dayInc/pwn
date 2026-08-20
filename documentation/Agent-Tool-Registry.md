@@ -56,7 +56,7 @@ pool to:
 ```text
 CORE_TOOLS / DEFAULT_PREFERENCE (same list):
 memory_recall · session_recall · skills_recall · pwn_eval · shell
-mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember
+mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember · skills_update
             + top-K keyword-ranked matches for THIS request
               (ties break on Metrics per-engine success_rate, then
                ai.agent.tool_preference)
@@ -80,7 +80,7 @@ default order:
 
 ```text
 memory_recall · session_recall · skills_recall · pwn_eval · shell
-mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember
+mistakes_record · mistakes_resolve · learning_note_outcome · memory_remember · skills_update
 ```
 
 Set `ai.agent.tool_preference` in `~/.pwn/pwn.yaml`, or pass `order:` /

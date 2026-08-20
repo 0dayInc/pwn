@@ -68,6 +68,19 @@ describe PWN::AI::Agent::Reward do
     expect(r[:benign]).to be false
   end
 
+  it 'treats handler timeout after Ns as not semantic_ok even when success is true' do
+    raw = '{"success":true,"result":{"stdout":"","error":"timeout after 20s","exit":null}}'
+    r = described_class.semantic_ok(name: 'pwn_eval', raw: raw)
+    expect(r[:semantic_ok]).to be false
+    expect(r[:shape]).to eq(:timeout)
+    r2 = described_class.semantic_ok(
+      name: 'shell',
+      raw: '{"success":true,"result":{"stdout":"","stderr":"","exit":null,"error":"timeout after 30s"}}'
+    )
+    expect(r2[:semantic_ok]).to be false
+    expect(r2[:shape]).to eq(:timeout)
+  end
+
   it 'recoverable_shape classifies common failure classes (2.2)' do
     expect(described_class.recoverable_shape(exit_code: 127, err: 'nmap: command not found')).to eq :exit127
     expect(described_class.recoverable_shape(err: 'No such file or directory')).to eq :enoent

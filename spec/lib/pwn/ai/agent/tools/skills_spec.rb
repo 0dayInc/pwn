@@ -14,6 +14,10 @@ describe 'PWN::AI::Agent::Tools skills' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'skills_recall')).not_to be_nil
   end
 
+  it 'registers the skills_update tool' do
+    expect(PWN::AI::Agent::Registry.lookup(name: 'skills_update')).not_to be_nil
+  end
+
   it 'registers the skill_migrate_legacy tool' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'skill_migrate_legacy')).not_to be_nil
   end
@@ -37,6 +41,7 @@ describe 'PWN::AI::Agent::Tools skills' do
     let(:list)   { PWN::AI::Agent::Registry.lookup(name: 'skill_list')[:handler] }
     let(:view)   { PWN::AI::Agent::Registry.lookup(name: 'skill_view')[:handler] }
     let(:recall) { PWN::AI::Agent::Registry.lookup(name: 'skills_recall')[:handler] }
+    let(:update) { PWN::AI::Agent::Registry.lookup(name: 'skills_update')[:handler] }
 
     it 'skills_recall ranks matching skills by query and skips non-matches' do
       create.call(name: 'browser-dump', description: 'Dump links via TransparentBrowser.', content: "open once, dump_links, close once\n")
@@ -47,6 +52,30 @@ describe 'PWN::AI::Agent::Tools skills' do
       names = hits.map { |h| h[:name].to_s }
       expect(names).to include('browser-dump')
       expect(names).not_to include('unrelated')
+    end
+
+    it 'skills_recall with no query returns the bundled catalog, not a mixed dump' do
+      create.call(name: 'osint', description: 'Drive extro_osint.', content: "osint body\n")
+      create.call(name: 'third-party-dump', description: 'Not the pwn-ai catalog.', content: "dump\n")
+      hits = recall.call(query: '', limit: 50)
+      expect(hits).to be_a(Hash)
+      names = Array(hits[:catalog]).map { |h| h[:name].to_s }
+      expect(names).to include('osint')
+      expect(names).not_to include('third-party-dump')
+      expect(hits[:other_installed].to_i).to be >= 1
+    end
+
+    it 'skills_update folds an RL lesson into an existing skill without creating one' do
+      create.call(name: 'osint', description: 'Drive extro_osint.', content: "# OSINT\nCollect from public sources.\n")
+      out = update.call(name: 'osint', lesson: 'Prefer sitemap.xml over infinite scroll for Wix blogs.')
+      expect(out[:updated]).to eq true
+      body = File.read(out[:path])
+      expect(body).to include('## RL feedback')
+      expect(body).to include('Prefer sitemap.xml over infinite scroll')
+      expect(body).to include('Collect from public sources')
+      again = update.call(name: 'osint', lesson: 'Prefer sitemap.xml over infinite scroll for Wix blogs.')
+      expect(again[:updated]).to eq false
+      expect(again[:reason]).to eq('already folded')
     end
 
     it 'skill_create writes <name>/SKILL.md with required name+description frontmatter' do

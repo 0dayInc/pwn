@@ -77,18 +77,109 @@ module PWN
           return false unless debug_on?(opts)
           return false unless defined?(PWN::Plugins::Log)
 
-          PWN::Plugins::Log.progress(
+          payload = {
             msg: opts[:msg],
-            which_self: opts[:which_self] || self
+            which_self: opts[:which_self] || self,
+            keep_newlines: opts[:keep_newlines]
+          }
+          payload[:cap] = opts[:cap] if opts.key?(:cap)
+          payload[:tee] = opts[:tee] if opts.key?(:tee)
+          PWN::Plugins::Log.progress(payload)
+        end
+
+        private_class_method def self.debug_tools_line(opts = {})
+          tools = opts[:tools]
+          return 'tools=none' if tools.nil?
+
+          names = Array(tools).filter_map do |tool|
+            next unless tool.is_a?(Hash)
+
+            tool.dig(:function, :name) ||
+              tool.dig('function', 'name') ||
+              tool[:name] ||
+              tool['name']
+          end.map(&:to_s).reject(&:empty?)
+          "tools=#{names.length}[#{names.join(',')}]"
+        end
+
+        private_class_method def self.debug_msgs_line(opts = {})
+          bits = Array(opts[:messages]).map do |msg|
+            role = (msg[:role] || msg['role'] || '?').to_s
+            len = (msg[:content] || msg['content']).to_s.length
+            "#{role}:#{len}"
+          end
+          "msgs=#{bits.length}[#{bits.join(',')}]"
+        end
+
+        private_class_method def self.debug_snippet(opts = {})
+          text = opts[:text].to_s.tr("\n", ' ').strip
+          max = opts[:max].to_i
+          max = 400 unless max.positive?
+          text.length > max ? "#{text[0, max]}…" : text
+        end
+
+        private_class_method def self.debug_final_text!(opts = {})
+          return unless debug_on?(opts)
+
+          debug_progress(
+            msg: "final text:\n#{opts[:text]}",
+            keep_newlines: true,
+            cap: 65_536,
+            debug: opts[:debug]
+          )
+        end
+
+        private_class_method def self.debug_tool_io!(opts = {})
+          return unless debug_on?(opts)
+
+          name = opts[:name].to_s
+          argv = opts[:args].is_a?(String) ? opts[:args].to_s : opts[:args].inspect
+          result = opts[:result].to_s
+          debug_progress(
+            msg: "tool #{name} request:\n#{argv}\nresult:\n#{result}",
+            keep_newlines: true,
+            cap: 0,
+            tee: nil,
+            debug: opts[:debug]
           )
         end
 
         private_class_method def self.start_debug_session(opts = {})
           return unless debug_on?(opts)
           return unless defined?(PWN::Plugins::Log)
-          return if PWN::Plugins::Log.debug_enabled?
 
-          PWN::Plugins::Log.start_debug(tee: opts[:debug_tee] || $stdout)
+          if defined?(TurnFinalizer) && TurnFinalizer.user_path?
+            debug_progress(msg: 'nested Loop.run skip_roll', debug: opts[:debug])
+            return
+          end
+
+          unless PWN::Plugins::Log.debug_enabled?
+            want_trace = opts[:trace] == true
+            begin
+              want_trace ||= PWN::Env.dig(:ai, :agent, :debug_trace) == true
+            rescue StandardError
+              nil
+            end
+            PWN::Plugins::Log.start_debug(
+              tee: opts[:debug_tee] || $stdout,
+              session_id: opts[:session_id],
+              trace: want_trace
+            )
+          end
+          PWN::Plugins::Log.next_request_log!(session_id: opts[:session_id])
+        end
+
+        private_class_method def self.finish_debug_request!(opts = {})
+          return unless debug_on?(opts)
+          return unless defined?(PWN::Plugins::Log)
+
+          PWN::Plugins::Log.finish_request_log!(
+            iter: opts[:iter],
+            tools_called: opts[:tools_called],
+            engine_s: opts[:engine_s],
+            final_chars: opts[:final_chars],
+            nested: opts[:nested]
+          )
         end
 
         private_class_method def self.quiet_debug_tui!(opts = {})
@@ -369,6 +460,10 @@ module PWN
         LOOKUP_REQUEST_RX = /
           \b(what\s+is\s+my|hostname|uname|cwd|whoami|status|version|how\s+many)\b
         /ix
+        SKILLS_CATALOG_RX = /
+          \bskills?\b.{0,40}\b(available|installed|loaded|catalog|list)\b |
+          \b(what|which|list)\b.{0,40}\bskills?\b
+        /ix
         # Real filesystem paths only — not https://host.tld (that was matching //host.tld).
         HOST_PATH_RX = %r{(?:(?<![.:/])/(?!/)|\./)[\w./-]+\.\w+}
         BROWSER_REQUEST_RX = /
@@ -378,10 +473,23 @@ module PWN
 
         # True only when the ask needs a live host/file/browser effect. World-knowledge
         # questions ("what color is a cherry") do not.
+        public_class_method def self.catalog_lookup?(opts = {})
+          request = opts[:request].to_s.strip
+          return false if request.empty?
+          return false if request.length > 120
+          return false if request.match?(ACT_REQUEST_RX)
+          return false if request.match?(HOWTO_RX)
+
+          request.match?(SKILLS_CATALOG_RX)
+        rescue StandardError
+          false
+        end
+
         public_class_method def self.world_knowledge?(opts = {})
           request = opts[:request].to_s.strip
           return false if request.empty?
           return false if request.length > 120
+          return false if catalog_lookup?(request: request)
           return false if request.match?(ACT_REQUEST_RX)
           return false if request.match?(LOOKUP_REQUEST_RX)
           return false if request.match?(HOST_PATH_RX)
@@ -398,6 +506,7 @@ module PWN
           request = opts[:request].to_s
           return false if request.strip.empty?
           return false if world_knowledge?(request: request)
+          return false if catalog_lookup?(request: request)
 
           true
         rescue StandardError
@@ -407,6 +516,7 @@ module PWN
         private_class_method def self.request_need(opts = {})
           request = opts[:request].to_s
           return :none if world_knowledge?(request: request)
+          return :read if catalog_lookup?(request: request)
           return :read if request.match?(LOOKUP_REQUEST_RX)
           return :browse if request.match?(BROWSER_REQUEST_RX)
           return :write if request.match?(ACT_REQUEST_RX) || request.match?(HOST_PATH_RX)
@@ -454,9 +564,12 @@ module PWN
           request = opts[:request].to_s
           need = request_need(request: request)
           return false if need == :none
-          return false unless needs_host_work?(request: request)
+          return false if Thread.current[:pwn_loop_no_tools]
 
           effects = tool_effects(messages: opts[:messages])
+          return !effects.intersect?(%i[read recall eval]) if need == :read && catalog_lookup?(request: request)
+          return false unless needs_host_work?(request: request)
+
           live = effects.reject { |fx| %i[recall store].include?(fx) }
           return true if live.empty?
           return true if need == :write && !write_verified?(effects: effects)
@@ -658,11 +771,19 @@ module PWN
           end
           m = nil
           if !sem[:semantic_ok] && defined?(Mistakes) && sem[:shape].to_s != 'invalid_payload' && !raw.include?('extinguished_repeat')
-            # E1 — automatic blame attribution: if this tool just tripped a
-            # CUSUM changepoint AND extro drift is present, tag the mistake
-            # cause: :env_drift so it does NOT count toward [REPEATING].
             cause = attribute_cause(name: name)
-            m = Mistakes.record(tool: name, error: sem[:err] || raw[0, 300], args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause, shape: sem[:shape])
+            err = sem[:err] || raw[0, 300]
+            shape = sem[:shape]
+            if sem[:shape].to_s == 'timeout' && defined?(ToolGuard) && ToolGuard.respond_to?(:timeout_lesson)
+              lesson = ToolGuard.timeout_lesson(
+                tool: name,
+                payload: opts[:args].to_s,
+                timeout: err.to_s[/timeout after (\d+)/, 1].to_i
+              )
+              err = lesson[:error] if lesson[:error].to_s.strip.length.positive?
+              shape = :timeout
+            end
+            m = Mistakes.record(tool: name, error: err, args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause, shape: shape)
             m = Mistakes.extinguish!(signature: m[:signature], args: opts[:args], shape: sem[:shape]) || m if m && defined?(Mistakes) && Mistakes.respond_to?(:extinguish!)
           end
           { ok: sem[:semantic_ok], err: sem[:err], mistake: m, benign: sem[:benign] }
@@ -1140,7 +1261,7 @@ module PWN
           messages = opts[:messages]
           tools = opts[:tools]
           debug_progress(
-            msg: "call_engine tools=#{tools.nil? ? 'none' : Array(tools).length} msgs=#{Array(messages).length}"
+            msg: "call_engine #{debug_tools_line(tools: tools)} #{debug_msgs_line(messages: messages)}"
           )
 
           engine = active_engine
@@ -1162,7 +1283,7 @@ module PWN
             cwt_opts = {
               messages: wire_msgs,
               tools: tools,
-              spinner: false
+              spinner: true
             }
             # Ollama + abliterated / weak chat-templates often ignore tools: and
             # answer in prose (or print shell(...) as text). Force native
@@ -1197,6 +1318,40 @@ module PWN
         # Keep: system, original user, PLAN assistant (if any), last K tool
         # pairs (assistant+tool), and the most recent assistant. Stale tool
         # bodies are truncated to history_tool_max_chars.
+        private_class_method def self.session_chat_history(opts = {})
+          return [] unless defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:to_llm_messages)
+
+          cap = opts[:max_chars].to_i
+          if cap <= 0
+            cap = local_engine? ? 8_000 : 48_000
+            begin
+              n = PWN::Env.dig(:ai, active_engine, :max_prompt_length).to_i
+              cap = [cap, (n / 4)].min if n.positive?
+            rescue StandardError
+              nil
+            end
+          end
+          PWN::Sessions.to_llm_messages(
+            session_id: opts[:session_id],
+            max_chars: cap,
+            skip_request: opts[:skip_request]
+          )
+        rescue StandardError
+          []
+        end
+
+        private_class_method def self.chat_response_history(opts = {})
+          hist = session_chat_history(
+            session_id: opts[:session_id],
+            skip_request: opts[:skip_request] || opts[:request]
+          )
+          return if hist.empty?
+
+          {
+            choices: [{ role: 'system', content: opts[:system_role_content].to_s }] + hist
+          }
+        end
+
         private_class_method def self.compact_history!(opts = {})
           messages = opts[:messages]
           return messages unless messages.is_a?(Array) && messages.length > 12
@@ -1206,17 +1361,21 @@ module PWN
 
           head = []
           rest = messages.dup
-          # always keep leading system + first user + optional PLAN
-          while rest.any? && %w[system user].include?(rest.first[:role].to_s)
+          # Keep system + this-session user/assistant conversation. Only
+          # compact this-run tool dumps after that.
+          head << rest.shift while rest.any? && rest.first[:role].to_s == 'system'
+          while rest.any?
+            msg = rest.first
+            role = msg[:role].to_s
+            break if role == 'tool'
+            break if role == 'assistant' && Array(msg[:tool_calls]).any?
+
             head << rest.shift
-            break if head.any? { |m| m[:role].to_s == 'user' }
           end
           head << rest.shift if rest.any? && rest.first[:role].to_s == 'assistant' && rest.first[:content].to_s.start_with?('PLAN:')
 
-          # find indices of tool messages in rest; keep only last keep_pairs tool groups
           tool_idxs = rest.each_index.select { |i| rest[i][:role].to_s == 'tool' }
           drop_before = tool_idxs.length > keep_pairs ? tool_idxs[-keep_pairs] : 0
-          # include the assistant tool_call message immediately before first kept tool
           start = drop_before
           start -= 1 if start.positive? && rest[start - 1] && rest[start - 1][:role].to_s == 'assistant'
           kept = rest[start..] || []
@@ -1238,6 +1397,12 @@ module PWN
           intent = (opts[:intent] || Thread.current[:pwn_request_intent]).to_s.to_sym
           # Cheap answers already returned user-visible text.
           return false if %i[greeting howto recall].include?(intent)
+
+          # Advisor / nested Loop.run (red-team, critic) must not start
+          # another tool-armed review of the same goal.
+          return false if Thread.current[:pwn_loop_no_tools]
+          return false if defined?(TurnFinalizer) && TurnFinalizer.user_path? &&
+                          Thread.current[:pwn_turn_finalizer_depth].to_i > 1
 
           return true unless opts[:local]
 
@@ -1534,6 +1699,11 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: q_sys,
+                response_history: chat_response_history(
+                  session_id: session_id,
+                  request: request,
+                  system_role_content: q_sys
+                ),
                 spinner: false
               )
               if r.is_a?(Hash)
@@ -1597,6 +1767,11 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: q_sys,
+                response_history: chat_response_history(
+                  session_id: session_id,
+                  request: request,
+                  system_role_content: q_sys
+                ),
                 spinner: false
               )
               if r.is_a?(Hash)
@@ -1618,6 +1793,7 @@ module PWN
 
           debug_progress(msg: "final accepted chars=#{txt.length}")
           quiet_debug_tui!(reason: 'question')
+          debug_final_text!(text: txt)
           append_session(session_id: session_id, role: 'user', content: request)
           append_session(session_id: session_id, role: 'assistant', content: txt)
           if defined?(Learning) && should_auto_introspect?(local: local_engine?, turn_fails: {}, iter: 0)
@@ -1687,6 +1863,11 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: howto_sys,
+                response_history: chat_response_history(
+                  session_id: session_id,
+                  request: request,
+                  system_role_content: howto_sys
+                ),
                 spinner: false
               )
               if r.is_a?(Hash)
@@ -1697,9 +1878,10 @@ module PWN
             else
               # chat_with_tools without tools
               messages = [
-                { role: 'system', content: howto_sys },
-                { role: 'user', content: request }
+                { role: 'system', content: howto_sys }
               ]
+              messages.concat(session_chat_history(session_id: session_id, skip_request: request))
+              messages << { role: 'user', content: request }
               msg = call_engine(messages: messages, tools: nil)
               msg.is_a?(Hash) ? msg[:content].to_s : msg.to_s
             end
@@ -1983,6 +2165,11 @@ module PWN
               r = mod.chat(
                 request: request,
                 system_role_content: recall_sys,
+                response_history: chat_response_history(
+                  session_id: session_id,
+                  request: request,
+                  system_role_content: recall_sys
+                ),
                 spinner: false
               )
               if r.is_a?(Hash)
@@ -2033,9 +2220,14 @@ module PWN
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
+          i = 0
+          tools_called = 0
+          engine_s = 0.0
+          final_chars = 0
           start_debug_session(opts)
           loud_debug_tui!(debug: opts[:debug])
           debug_progress(msg: "Loop.run start request=#{request[0, 240]}", debug: opts[:debug])
+          nested = defined?(TurnFinalizer) && TurnFinalizer.user_path?
           TurnFinalizer.enter_user_path! if defined?(TurnFinalizer)
           engine = active_engine
           local  = local_engine?(engine: engine)
@@ -2050,7 +2242,7 @@ module PWN
               opts[:request] = request
               intent = request_intent(request: request)
             end
-          elsif defined?(OpenGoal) && needs_host_work?(request: request) &&
+          elsif !nested && defined?(OpenGoal) && needs_host_work?(request: request) &&
                 !%i[greeting howto recall].include?(intent)
             OpenGoal.begin!(request: request, session_id: session_id)
           end
@@ -2065,10 +2257,13 @@ module PWN
           if intent == :greeting && opts[:force_tools] != true
             debug_progress(msg: 'path=greeting', debug: opts[:debug])
             quiet_debug_tui!(debug: opts[:debug], reason: 'greeting')
-            return answer_greeting(
+            txt = answer_greeting(
               request: request,
               session_id: session_id
             )
+            final_chars = txt.to_s.length
+            debug_final_text!(text: txt, debug: opts[:debug])
+            return txt
           end
 
           # Thin system prompt only for remaining cheap paths (howto/recall).
@@ -2085,20 +2280,26 @@ module PWN
             if intent == :howto
               debug_progress(msg: 'path=howto', debug: opts[:debug])
               quiet_debug_tui!(debug: opts[:debug], reason: 'howto')
-              return answer_howto(
+              txt = answer_howto(
                 request: request,
                 session_id: session_id,
                 system_role_content: system_role_content
               )
+              final_chars = txt.to_s.length
+              debug_final_text!(text: txt, debug: opts[:debug])
+              return txt
             end
             if intent == :recall
               debug_progress(msg: 'path=recall', debug: opts[:debug])
               quiet_debug_tui!(debug: opts[:debug], reason: 'recall')
-              return answer_recall(
+              txt = answer_recall(
                 request: request,
                 session_id: session_id,
                 system_role_content: system_role_content
               )
+              final_chars = txt.to_s.length
+              debug_final_text!(text: txt, debug: opts[:debug])
+              return txt
             end
           end
 
@@ -2139,15 +2340,24 @@ module PWN
             core_only: core_only,
             intent: intent
           )
+          no_tools = Array(tools).empty?
+          Thread.current[:pwn_loop_no_tools] = no_tools
           messages = [{ role: 'system', content: system_role_content }]
           messages.concat(Learning.exemplars_for(request: request)) if local && defined?(Learning) && Learning.respond_to?(:exemplars_for)
+          messages.concat(
+            session_chat_history(session_id: session_id, skip_request: request)
+          )
           messages << { role: 'user', content: request }
           append_session(session_id: session_id, role: 'user', content: request)
 
           trivia = world_knowledge?(request: request)
-          # Every host-work request gets a task compass. Trivia does not —
-          # inventing English tasks there keeps the model from emitting a final.
-          task_summary_plan!(state: ts_state, request: request, on_tool: on_tool) if defined?(TaskSummarizer) && !trivia
+          catalog = catalog_lookup?(request: request)
+          browse = request_need(request: request) == :browse
+          skip_compass = trivia || catalog || no_tools || browse
+          # Trivia / catalog / browse do not get an implement-shaped
+          # English compass. Inventing "apply code/host changes" there
+          # keeps the model on a Navigate task after the page already loaded.
+          task_summary_plan!(state: ts_state, request: request, on_tool: on_tool) if defined?(TaskSummarizer) && !skip_compass
           # Re-bind tools from English plan so task list is the sole driver of
           # tool exposure/ranking (Registry keyword router + CORE).
           if ts_state.is_a?(Hash) && defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:relevance_query)
@@ -2162,14 +2372,16 @@ module PWN
             end
           end
           # English-task-as-primary: inject tangible tasks only for host work.
-          inject_task_focus!(messages: messages, state: ts_state, force: true, request: request) unless trivia
+          inject_task_focus!(messages: messages, state: ts_state, force: true, request: request) unless skip_compass
           predicted = nil
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
-          skip_plan = %i[howto recall greeting].include?(intent) || trivia
+          skip_plan = %i[howto recall greeting].include?(intent) || trivia || catalog || no_tools || browse
+          did_plan = false
           if !skip_plan && (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
             predicted = plan_first(messages: messages, request: request, ts_state: ts_state)
+            did_plan = true
             # P22 — prefer explicit return; fall back to thread stash
             predicted = Thread.current[:pwn_plan_predicted] if predicted.nil?
             # unify_plan! may have rewritten English tasks — force refresh focus.
@@ -2186,25 +2398,10 @@ module PWN
                 )
               end
             end
-            inject_task_focus!(messages: messages, state: ts_state, force: true, request: request) unless trivia
+            inject_task_focus!(messages: messages, state: ts_state, force: true, request: request) unless skip_compass
           end
-          if budget_exhaustion_hot?
-            english_open = defined?(TaskSummarizer) && TaskSummarizer.respond_to?(:plan_open?) &&
-                           TaskSummarizer.plan_open?(state: ts_state, messages: messages)
-            hot_hint = if local_engine? && !english_open
-                         '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. ' \
-                           'Prefer the SHORTEST plan that finishes the ask (≤3 tool calls). ' \
-                           'Emit a final answer as soon as you have evidence — do not explore.'
-                       else
-                         '[pwn-ai/p17] Budget-exhaustion is the top open failure on this host. ' \
-                           'Prefer the shortest plan that FULLY finishes the ask — no polite ' \
-                           'handoffs, no exploration side-quests. Emit a final answer as soon ' \
-                           'as you have evidence; keep going with tools until the goal is done ' \
-                           'or truly blocked.'
-                       end
-            messages << { role: 'user', content: hot_hint }
-          end
-          if force_plan && cal_state[:cal]
+          debug_progress(msg: "plan_first=#{did_plan} trivia=#{trivia} catalog=#{catalog} browse=#{browse}")
+          if force_plan && cal_state[:cal] && !skip_plan
             messages << {
               role: 'user',
               content: "[pwn-ai/w3] engine=#{active_engine} is overconfident " \
@@ -2218,71 +2415,27 @@ module PWN
           maybe_park_budget_scars!
           maybe_extinguish_parked!
 
-          max_iters.times do |i|
+          i = 0
+          loop do
+            i += 1
             # 3.1 — compact history on local so tool dumps don't fill num_ctx
             compact_history!(messages: messages) if local
             # English-task-as-primary: when plan_idx advanced, tell the model
             # which plain-English task is active before the next tool batch.
-            inject_task_focus!(messages: messages, state: ts_state, request: request) unless trivia
+            inject_task_focus!(messages: messages, state: ts_state, request: request) unless skip_compass
 
-            # P17 — on the final iteration, strip tools and demand a plain-text
-            # answer. Without this the model happily emits one more tool_calls
-            # batch, burns the last slot, and lands on budget_exhausted with
-            # nothing the user (or ORM) can use.
-            # P17 deepen — when budget_hot, force text-only on the LAST TWO
-            # iters so a final tool_calls batch cannot burn the terminal slot.
-            # P17 deepen³ — under hot, force text-only on last THREE of the
-            # 8-iter cap so a late tool binge cannot burn every salvage slot.
-            # P17 structural: default hot text-only tail stays 3 (do NOT deepen to 4/6).
-            # Plan-faithful headroom — short plan executing cleanly → delay strip to
-            # last 1–2 so multi-step goals are not predestined to exhaust under cap 8.
-            hot = budget_exhaustion_hot?
-            plan_steps = begin
-              predicted_plan = predicted || Thread.current[:pwn_plan_predicted]
-              if predicted_plan.is_a?(Hash)
-                Array(predicted_plan[:steps] || predicted_plan[:tools] || predicted_plan[:plan]).size
-              elsif predicted_plan.is_a?(Array)
-                predicted_plan.size
-              else
-                predicted_plan.to_s.scan(/\b(?:shell|pwn_eval|memory_|mistakes_|skill_|extro_|learning_|sessions_)\w*/).size
-              end
-            rescue StandardError
-              0
-            end
-            # Plan-faithful: delay the text-only strip when a plan is executing
-            # cleanly. Remote hot allows longer plans (runway 25); local hot
-            # still favors short plans under the 8-iter cap.
-            plan_step_limit = local_engine? ? 3 : 12
-            plan_faithful = hot && plan_steps.positive? && plan_steps <= plan_step_limit &&
-                            turn_fails['empty_final'].to_i.zero? &&
-                            turn_fails.values.sum < 2
-            # Last-iter strips tools only on the true last slot. English
-            # leftovers and budget-hot must not steal runway from a live goal.
-            text_only_iters = 1
-            want_last = (i >= max_iters - text_only_iters)
-            still_open = request_unsatisfied?(
-              request: request,
-              messages: messages,
-              last_iter: false
-            )
-            last_iter = want_last && !still_open
-            if last_iter
-              tag = i >= max_iters - 1 ? 'FINAL ITERATION' : 'PENULTIMATE — wrap up'
-              messages << {
-                role: 'user',
-                content: "[pwn-ai/p17] #{tag} — do NOT call any more tools. " \
-                         'Write the complete answer from evidence already in this ' \
-                         'transcript. If unfinished, say BLOCKED with evidence — not a ' \
-                         'markdown outline or "# Remaining block". Do NOT ask the user ' \
-                         'to confirm the next step.'
-              }
-            end
-
-            msg = call_engine(messages: messages, tools: last_iter ? nil : tools, ts_state: ts_state)
+            t0 = Time.now
+            msg = call_engine(messages: messages, tools: tools, ts_state: ts_state)
+            engine_s += (Time.now - t0)
+            PWN::Plugins::TTYSpinner.halt_all! if defined?(PWN::Plugins::TTYSpinner)
             if msg.nil?
               task_summary_flush!(state: ts_state, on_tool: on_tool)
+              debug_progress(msg: 'engine returned no message')
               quiet_debug_tui!(reason: 'engine_empty')
-              return '[pwn-ai] engine returned no message'
+              txt = '[pwn-ai] engine returned no message'
+              debug_final_text!(text: txt)
+              final_chars = txt.length
+              return txt
             end
 
             calls = Array(msg[:tool_calls])
@@ -2290,7 +2443,7 @@ module PWN
 
             # Belt-and-suspenders: plain-text shell(...) / tool forms from local
             # models under weak TEMPLATE {{ .Prompt }} become real tool_calls.
-            if calls.empty? && !text.strip.empty? && !last_iter &&
+            if calls.empty? && !text.strip.empty? &&
                defined?(Dispatch) && Dispatch.respond_to?(:tool_calls_from_text)
               coerced = Dispatch.tool_calls_from_text(text: text)
               if coerced.any?
@@ -2316,6 +2469,7 @@ module PWN
                          'Do not reply with an empty message.'
               }
               turn_fails['empty_final'] += 1
+              debug_progress(msg: "bounce empty_final snippet=#{debug_snippet(text: text)}")
               next
             end
 
@@ -2326,6 +2480,7 @@ module PWN
               if incomplete_final?(text: text, last_iter: false)
                 turn_fails['incomplete_final'] += 1
                 warn "[pwn-ai/loop] incomplete final on iter=#{i}; continuing autonomously"
+                debug_progress(msg: "bounce incomplete_final snippet=#{debug_snippet(text: text)}")
                 messages << {
                   role: 'user',
                   content: '[pwn-ai/p28] That reply was incomplete (handoff or narrated next step). ' \
@@ -2343,6 +2498,7 @@ module PWN
               )
                 turn_fails['unsatisfied'] += 1
                 warn "[pwn-ai/loop] original request not evidenced on iter=#{i}; continuing"
+                debug_progress(msg: "bounce unsatisfied snippet=#{debug_snippet(text: text)}")
                 messages << {
                   role: 'user',
                   content: '[pwn-ai] The original request is not evidenced yet. ' \
@@ -2353,11 +2509,13 @@ module PWN
               end
               debug_progress(msg: "final accepted chars=#{text.to_s.length}")
               quiet_debug_tui!(reason: 'final')
+              debug_final_text!(text: text)
+              final_chars = text.to_s.length
               append_session(session_id: session_id, role: 'assistant', content: text)
-              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && !nested && !no_tools && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               maybe_finish_policy(session_id: session_id, proxy_ok: true, ts_state: ts_state)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
-              OpenGoal.clear! if defined?(OpenGoal)
+              OpenGoal.clear! if defined?(OpenGoal) && !nested
               return text
             end
 
@@ -2380,6 +2538,8 @@ module PWN
               args    = tc.dig(:function, :arguments)
               entry   = Registry.lookup(name: name)
               started = Time.now
+              argv_s = args.is_a?(String) ? args.to_s : args.inspect
+              debug_progress(msg: "tool #{name} start:\n#{argv_s}", keep_newlines: true, cap: 0, tee: nil)
               if Thread.current[:pwn_extinguished].is_a?(Hash) && Thread.current[:pwn_extinguished][name]
                 raw = JSON.generate(
                   success: false,
@@ -2389,7 +2549,7 @@ module PWN
               else
                 raw = Dispatch.call(tool_call: tc)
               end
-              debug_progress(msg: "dispatch #{name} ok_len=#{raw.to_s.length}")
+              tools_called += 1
               tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)
               result  = Result.condition(content: raw, entry: entry)
 
@@ -2414,6 +2574,7 @@ module PWN
               end
 
               on_tool&.call(name, args, result)
+              debug_tool_io!(name: name, args: args, result: result)
               task_summary_record!(state: ts_state, name: name, args: args, result: result, on_tool: on_tool)
 
               messages << {
@@ -2441,28 +2602,28 @@ module PWN
             end
             escalated = true
           end
-
-          # P17 — exhaust path must still feed Learning so ORM/PRM/HER see the
-          # failure (previously we only Mistakes.record'd and returned a bare
-          # string — no session row, no judge, no hindsight).
-          final_msg = '[pwn-ai] iteration budget exhausted'
-          debug_progress(msg: 'final budget_exhausted')
-          quiet_debug_tui!(reason: 'budget_exhausted')
-          if defined?(Mistakes)
-            Mistakes.record(
-              tool: 'agent_loop',
-              error: 'iteration budget exhausted without a final answer',
-              session_id: session_id,
-              source: :loop,
-              shape: :budget_exhausted
-            )
+        rescue Interrupt
+          if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:note_interrupt!)
+            PWN::Plugins::Log.note_interrupt!(where: 'CTRL+C', which_self: self)
+          else
+            debug_progress(msg: 'Interrupt CTRL+C')
           end
-          append_session(session_id: session_id, role: 'assistant', content: final_msg)
-          Learning.auto_introspect(session_id: session_id, request: request, final: final_msg, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: max_iters)
-          maybe_finish_policy(session_id: session_id, proxy_ok: false, ts_state: ts_state)
-          task_summary_flush!(state: ts_state, on_tool: on_tool)
-          final_msg
+          raise
+        rescue StandardError => e
+          if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:note_exception!)
+            PWN::Plugins::Log.note_exception!(error: e, where: 'Loop.run', which_self: self)
+          else
+            debug_progress(msg: "exception Loop.run #{e.class}: #{e.message}\n#{Array(e.backtrace).join("\n")}", keep_newlines: true, cap: 0)
+          end
+          raise
         ensure
+          Thread.current[:pwn_loop_no_tools] = nil
+          finish_debug_request!(
+            iter: i,
+            tools_called: tools_called,
+            engine_s: engine_s,
+            final_chars: final_chars
+          )
           TurnFinalizer.leave_user_path! if defined?(TurnFinalizer)
         end
 
@@ -2496,7 +2657,7 @@ module PWN
               #   task_summary_verbose: false
 
               Supported engines: #{ENGINE_MODS.keys.join(', ')}
-              Set PWN::Env[:ai][:active] to choose; PWN::Env[:ai][:agent][:max_iters] to bound.
+              Set PWN::Env[:ai][:active] to choose.
 
               Intent routing (all engines; critical for ollama/openwebui):
                 how-to / usage questions → text-only explanation (no tools, no plan_first)
@@ -2516,8 +2677,8 @@ module PWN
                 :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
 
               P28 autonomy: incomplete-final detector refuses mid-goal handoffs.
-              max_iters is Env or DEFAULT_MAX_ITERS (#{DEFAULT_MAX_ITERS});
-              budget-hot / overconf do not shrink this request's runway.
+              Loop.run keeps CORE_TOOLS until may_finalize? — there is no
+              iteration-budget abort.
 
               #{self}.authors
           USAGE

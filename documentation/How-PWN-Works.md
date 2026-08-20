@@ -27,7 +27,7 @@ hardware).
 
 | Module | Role |
 |---|---|
-| `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until final answer. Scars do not lower `max_iters` (default 777). Last-iter strips tools only when the original request is already satisfied |
+| `Loop` | plan → **TaskSummarizer** briefs → dispatch tool_calls → observe → repeat until `may_finalize?`. No iteration-budget abort |
 | **`TaskSummarizer`** | Executive UX: every request gets an English task compass (`emit_plan!` · `about_to` as `task k/n`) - no statement/question/goal type |
 | `Registry` | JSON-Schema function definitions grouped into 13 **toolsets** · **87 tools** · `CORE_TOOLS` = `DEFAULT_PREFERENCE` (`memory_recall` · `session_recall` · `skills_recall` · `pwn_eval` · `shell` · `mistakes_record` · `mistakes_resolve` · `learning_note_outcome` · `memory_remember`) |
 | `Dispatch` / `Result` | execute a tool, capture stdout/value/error/duration |

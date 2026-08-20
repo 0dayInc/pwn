@@ -16,7 +16,7 @@ describe PWN::AI::Agent::Registry do
   it 'CORE_TOOLS is recall-then-act including skills_recall before pwn_eval' do
     expect(described_class.const_defined?(:ACT_PREFERENCE)).to eq false
     expect(described_class::CORE_TOOLS).to eq(
-      %w[memory_recall session_recall skills_recall pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember]
+      %w[memory_recall session_recall skills_recall pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember skills_update]
     )
     expect(described_class::DEFAULT_PREFERENCE).to eq(described_class::CORE_TOOLS)
     expect(described_class::DEFAULT_PREFERENCE).not_to include('sessions_view')
