@@ -1,0 +1,34 @@
+# CWE-10: DEPRECATED: ASP.NET Environment Issues
+
+- Type: Category
+- Status/Type field: Deprecated
+- Catalog: [CWE-10](https://cwe.mitre.org/data/definitions/10.html)
+- CWE list: 4.20
+
+## What this ID is
+
+This category has been deprecated. It added unnecessary depth and complexity to its associated views.
+
+## Exhaustive test law
+
+Do **not** file "CWE-10" as a vulnerability. Walk every member. For each member ID, open `references/CWE-<id>.md` and run that procedure. Exhaustion = every member tested or ruled out with evidence.
+
+If a member is Deprecated, still map it to its replacement and test the replacement.
+
+## Members to test
+
+- (none listed in CWE catalog)
+
+## Procedure
+
+1. Copy the member list into the engagement notes.
+2. For each member, load `references/CWE-<id>.md`.
+3. Run that file's procedure against the target.
+4. Tick the member off only when its Verification checklist is done.
+5. Summarize coverage: tested / N/A / blocked, with evidence paths.
+
+## Verification
+
+- [ ] Member list captured
+- [ ] Every member has a result (tested, N/A, or blocked)
+- [ ] No finding uses CWE-10 as the only ID when a member ID applies

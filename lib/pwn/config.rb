@@ -819,6 +819,9 @@ module PWN
       hardware-and-firmware-testing
       social-engineering
       osint
+      cwe
+      capec
+      att&ck
     ].freeze
 
     public_class_method def self.default_skill_names(opts = {})
@@ -845,14 +848,30 @@ module PWN
       seeded = []
       default_skill_names.each do |name|
         dest = File.join(root, name, SKILL_ENTRY)
-        next if File.file?(dest)
-
         src = File.join(src_root, name, SKILL_ENTRY)
         next unless File.file?(src)
 
-        FileUtils.mkdir_p(File.dirname(dest))
-        FileUtils.cp(src, dest)
-        seeded << { name: name, path: dest }
+        unless File.file?(dest)
+          FileUtils.mkdir_p(File.dirname(dest))
+          FileUtils.cp(src, dest)
+          seeded << { name: name, path: dest }
+        end
+
+        # Copy missing reference files (never overwrite operator edits).
+        ref_src = File.join(src_root, name, 'references')
+        next unless Dir.exist?(ref_src)
+
+        ref_dest = File.join(root, name, 'references')
+        FileUtils.mkdir_p(ref_dest)
+        Dir.children(ref_src).each do |base|
+          from = File.join(ref_src, base)
+          next unless File.file?(from)
+
+          to = File.join(ref_dest, base)
+          next if File.file?(to)
+
+          FileUtils.cp(from, to)
+        end
       end
       seeded
     rescue StandardError => e

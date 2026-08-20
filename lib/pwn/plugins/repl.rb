@@ -457,6 +457,7 @@ module PWN
 
             # Switch to custom multi-line input for pwn-ai (SHIFT+ENTER newline, ENTER submit)
             pi.config.input = PWNMultiLineInput.new(pi)
+            PWN::Plugins::REPL.install_pwn_ai_completer!(pry: pi)
 
             # Load and make aware of skills folder (scaled in PWN::Config per user pwn_env_path parent)
             skills_path = begin
@@ -486,6 +487,7 @@ module PWN
             puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) + memory/sessions/cron to expand autonomous capabilities."
             puts "[*] Type 'back' to exit pwn-ai mode."
             puts '[*] MULTILINE in pwn-ai: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits to the AI.'
+            puts '[*] TAB menus: leading `/` = commands (/cron /skills /sessions …); `/` later = host paths; otherwise Ruby completion (same as the pwn REPL).'
             puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
             tag = pi.config.pwn_ai_session_id.to_s.empty? ? '<SESSION_ID>' : pi.config.pwn_ai_session_id
             puts "\n\n\npwn-ai debug ON → /tmp/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log"
@@ -1087,6 +1089,7 @@ module PWN
             # pi.config.pwn_ai_debug = false if pi.config.pwn_ai_debug
             pi.config.pwn_ai_speak = false if pi.config.pwn_ai_speak
             pi.config.completer = Pry::InputCompleter
+            PWN::Plugins::REPL.restore_pwn_ai_completer!
             # pi.config.pwn_ai_original_input ||= Pry.config.input.clone
             if pi.config.pwn_ai_original_input
               pi.config.input = pi.config.pwn_ai_original_input
@@ -1182,6 +1185,10 @@ module PWN
         Pry.config.hooks.add_hook(:after_read, :pwn_ai_hook) do |request, pi|
           if pi.config.pwn_ai && !request.chomp.empty?
             orig_request = pi.input.line_buffer.to_s
+            if PWN::Plugins::REPL.pwn_ai_dispatch_slash!(request: orig_request, pry: pi)
+              request.replace('nil')
+              next
+            end
 
             # ----------------------------------------------------------------
             # NATIVE TOOL-CALLING AGENT LOOP (default path)
@@ -1549,6 +1556,271 @@ module PWN
         raise e
       end
 
+      PWN_AI_SLASH_COMMANDS = %w[
+        /back /cron /debug /delegate /help /memory /sessions /skills
+      ].freeze
+
+      PWN_AI_SLASH_SUBCOMMANDS = {
+        '/cron' => %w[list create run remove],
+        '/debug' => [],
+        '/delegate' => [],
+        '/help' => [],
+        '/memory' => %w[list recall remember forget clear],
+        '/sessions' => %w[list resume delete stats],
+        '/skills' => %w[list recall]
+      }.freeze
+
+      # Supported Method Parameters::
+      # kind = PWN::Plugins::REPL.pwn_ai_complete_kind(line: 'optional - current input buffer')
+      #
+      # 1. first char is '/' → :command (pwn-ai slash menu)
+      # 2. '/' anywhere else → :path (host-native file nav)
+      # 3. else → :ruby (same Pry::InputCompleter menu as the pwn REPL)
+      public_class_method def self.pwn_ai_complete_kind(opts = {})
+        line = opts[:line].to_s
+        return :command if line.start_with?('/')
+        return :path if line.include?('/') || line.include?('~')
+
+        :ruby
+      end
+
+      # Supported Method Parameters::
+      # hits = PWN::Plugins::REPL.pwn_ai_complete(
+      #   target: 'required - token Reline is completing',
+      #   line: 'optional - full line buffer',
+      #   pry: 'optional - Pry instance for Ruby completion'
+      # )
+      public_class_method def self.pwn_ai_complete(opts = {})
+        target = opts[:target].to_s
+        line = opts[:line].to_s
+        line = target if line.empty?
+        kind = pwn_ai_complete_kind(line: line)
+        case kind
+        when :command
+          pwn_ai_complete_command(target: target, line: line)
+        when :path
+          pwn_ai_complete_path(target: target, line: line)
+        else
+          pwn_ai_complete_ruby(target: target, pry: opts[:pry])
+        end
+      end
+
+      public_class_method def self.pwn_ai_complete_command(opts = {})
+        line = opts[:line].to_s
+        target = opts[:target].to_s
+        tokens = line.split(/\s+/, -1)
+        tokens = [''] if tokens.empty?
+        if tokens.length <= 1
+          prefix = tokens.first.to_s
+          prefix = '/' if prefix.empty?
+          return PWN_AI_SLASH_COMMANDS.select { |c| c.start_with?(prefix) }
+        end
+
+        cmd = tokens.first
+        sub_prefix = tokens.last.to_s
+        subs = Array(PWN_AI_SLASH_SUBCOMMANDS[cmd])
+        hits = subs.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
+        hits = [target] if hits.empty? && !target.empty?
+        hits
+      end
+
+      public_class_method def self.pwn_ai_complete_path(opts = {})
+        target = opts[:target].to_s
+        line = opts[:line].to_s
+        token = line.split(/\s+/, -1).last.to_s
+        token = target if token.empty?
+        return [] if token.empty?
+
+        home = Dir.home
+        glob_src = token.sub(%r{\A~(?=/|\z)}, home)
+        pattern = token.end_with?('/') ? File.join(glob_src, '*') : "#{glob_src}*"
+        Dir.glob(pattern).filter_map do |path|
+          shown = if token.start_with?('~/') || token == '~'
+                    path.sub(/\A#{Regexp.escape(home)}/, '~')
+                  else
+                    path
+                  end
+          shown = "#{shown}/" if File.directory?(path)
+          shown
+        end
+      rescue StandardError
+        []
+      end
+
+      public_class_method def self.pwn_ai_complete_ruby(opts = {})
+        target = opts[:target].to_s
+        pry = opts[:pry] || Thread.current[:pwn_ai_completer_pry]
+        return [] unless defined?(Pry::InputCompleter)
+
+        return Array(pry.complete(target)) if pry.respond_to?(:complete)
+
+        Array(Pry::InputCompleter.new(pry || Pry.new(quiet: true)).call(target))
+      rescue StandardError
+        []
+      end
+
+      # Install Reline dropdown for pwn-ai (commands / paths / Ruby).
+      public_class_method def self.install_pwn_ai_completer!(opts = {})
+        return unless defined?(Reline)
+
+        Thread.current[:pwn_ai_completer_pry] = opts[:pry]
+        @pwn_ai_prev_completion_proc = Reline.completion_proc
+        if Reline.respond_to?(:completer_word_break_characters)
+          @pwn_ai_prev_word_break = Reline.completer_word_break_characters
+          # Keep '/' inside the token so /cron and /opt/pwn complete as paths/cmds.
+          Reline.completer_word_break_characters = Reline.completer_word_break_characters.to_s.delete('/')
+        end
+        Reline.autocompletion = true
+        Reline.completion_proc = proc do |target|
+          line = Reline.respond_to?(:line_buffer) ? Reline.line_buffer.to_s : target.to_s
+          pwn_ai_complete(
+            target: target,
+            line: line,
+            pry: Thread.current[:pwn_ai_completer_pry]
+          )
+        end
+        Reline.completion_proc
+      end
+
+      public_class_method def self.restore_pwn_ai_completer!(opts = {})
+        return unless defined?(Reline)
+
+        Thread.current[:pwn_ai_completer_pry] = nil
+        Reline.completion_proc = @pwn_ai_prev_completion_proc if @pwn_ai_prev_completion_proc
+        Reline.completer_word_break_characters = @pwn_ai_prev_word_break if @pwn_ai_prev_word_break && Reline.respond_to?(:completer_word_break_characters=)
+        enable_autocomplete(enabled: opts.fetch(:enabled, true))
+        Reline.completion_proc
+      end
+
+      # Run a leading-slash pwn-ai command locally. Returns true when handled
+      # (caller should not send the line to Loop.run).
+      public_class_method def self.pwn_ai_dispatch_slash!(opts = {})
+        request = opts[:request].to_s
+        return false unless pwn_ai_complete_kind(line: request) == :command
+
+        tokens = request.strip.split(/\s+/)
+        cmd = tokens[0].to_s
+        return false unless PWN_AI_SLASH_COMMANDS.include?(cmd)
+
+        args = tokens[1..]
+        pi = opts[:pry]
+        case cmd
+        when '/help'
+          puts 'pwn-ai commands:'
+          PWN_AI_SLASH_COMMANDS.each do |c|
+            subs = Array(PWN_AI_SLASH_SUBCOMMANDS[c])
+            puts(subs.empty? ? "  #{c}" : "  #{c} #{subs.join('|')}")
+          end
+          puts '  TAB: /… command menu · slash later in the line: path nav · else Ruby completion'
+        when '/back'
+          if pi.respond_to?(:eval)
+            pi.eval('back')
+          else
+            puts "[*] Type 'back' to leave pwn-ai."
+          end
+        when '/debug'
+          if pi.respond_to?(:eval)
+            pi.eval('toggle-debug')
+          else
+            puts '[*] toggle-debug'
+          end
+        when '/cron'
+          pwn_ai_run_cron(args: args)
+        when '/sessions'
+          pwn_ai_run_sessions(args: args)
+        when '/memory'
+          pwn_ai_run_memory(args: args)
+        when '/skills'
+          pwn_ai_run_skills(args: args)
+        when '/delegate'
+          puts "[*] Delegating: #{args.join(' ')}"
+          puts '    Use agent_list / agent_debate from pwn-ai, or pwn-ai-delegate in the pwn REPL.'
+        end
+        true
+      rescue StandardError => e
+        warn "[pwn-ai] #{cmd}: #{e.class}: #{e.message}"
+        true
+      end
+
+      public_class_method def self.pwn_ai_run_cron(opts = {})
+        args = Array(opts[:args])
+        sub = args[0] || 'list'
+        case sub
+        when 'list'
+          puts PWN::Cron.list.inspect
+        when 'create'
+          job = PWN::Cron.create(schedule: args[1], prompt: args[2..].join(' '))
+          puts "Created #{job}"
+        when 'run'
+          puts PWN::Cron.run(id: args[1])
+        when 'remove'
+          PWN::Cron.remove(id: args[1])
+          puts 'Removed'
+        else
+          puts PWN::Cron.help
+        end
+      end
+
+      public_class_method def self.pwn_ai_run_sessions(opts = {})
+        args = Array(opts[:args])
+        sub = args[0] || 'list'
+        case sub
+        when 'list'
+          puts PWN::Sessions.list.inspect
+        when 'resume'
+          sid = args[1]
+          hist = PWN::Sessions.to_response_history(session_id: sid)
+          puts "Loaded session #{sid} with #{hist[:choices].size} entries"
+        when 'delete'
+          PWN::Sessions.delete(session_id: args[1], force: true)
+          puts "Deleted #{args[1]}"
+        when 'stats'
+          puts PWN::Sessions.stats
+        else
+          puts PWN::Sessions.help
+        end
+      end
+
+      public_class_method def self.pwn_ai_run_memory(opts = {})
+        args = Array(opts[:args])
+        sub = args[0] || 'list'
+        case sub
+        when 'list', 'recall'
+          puts PWN::Memory.recall(query: args[1]).inspect
+        when 'remember'
+          PWN::Memory.remember(key: args[1], value: args[2..].join(' '))
+          puts "Remembered #{args[1]}"
+        when 'forget'
+          PWN::Memory.forget(key: args[1])
+          puts "Forgot #{args[1]}"
+        when 'clear'
+          PWN::Memory.clear(force: true)
+          puts 'Memory cleared'
+        else
+          puts PWN::Memory.help
+        end
+      end
+
+      public_class_method def self.pwn_ai_run_skills(opts = {})
+        args = Array(opts[:args])
+        sub = args[0] || 'list'
+        names = if PWN.const_defined?(:Skills)
+                  PWN::Skills.keys.map(&:to_s)
+                else
+                  []
+                end
+        case sub
+        when 'list'
+          puts names.sort
+        when 'recall'
+          q = args[1].to_s
+          hits = names.select { |n| n.include?(q) }
+          puts(hits.empty? ? names.sort : hits.sort)
+        else
+          puts 'Usage: /skills [list|recall <query>]'
+        end
+      end
+
       # Supported Method Parameters::
       # PWN::Plugins::REPL.enable_autocomplete(
       #   enabled: 'optional - Boolean (default true). false reverts to single-line cycling.'
@@ -1567,10 +1839,10 @@ module PWN
       #
       # Navigate with ↑/↓ or TAB, accept with → or ENTER, dismiss with ESC.
       #
-      # Scope: this drives the MAIN pwn REPL (Ruby).  pwn-ai / pwn-asm
-      # swap to PWNMultiLineInput, which bypasses Pry's Reline path on purpose
-      # (natural-language / opcode input — Ruby completion isn't useful
-      # there); SHIFT+ENTER multi-line continues to work in those modes.
+      # Scope: this drives the MAIN pwn REPL (Ruby).  pwn-ai swaps
+      # PWNMultiLineInput onto Reline.readmultiline and installs
+      # install_pwn_ai_completer! so TAB is command / path / Ruby menus.
+      # pwn-asm keeps opcode input without those menus.
 
       public_class_method def self.enable_autocomplete(opts = {})
         enabled = opts.fetch(:enabled, true)

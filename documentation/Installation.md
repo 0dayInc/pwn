@@ -260,6 +260,9 @@ The first `pwn` launch creates `~/.pwn/` and an **encrypted**
 - `hardware-and-firmware-testing`
 - `social-engineering`
 - `osint`
+- `cwe`
+- `capec`
+- `att&ck`
 
 Source lives in the gem at `etc/default_skills/`. `PWN::Config.install_default_skills`
 is idempotent and never overwrites an edited `SKILL.md`. Add at least one

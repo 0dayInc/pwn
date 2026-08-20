@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Bare `rake` often loads the Ruby-shipped rake before this file runs.
+# Re-exec under Bundler unless we are already inside bundle exec.
+exec('bundle', 'exec', 'rake', *ARGV) unless ENV['BUNDLE_BIN_PATH'] || ENV['RUBYOPT'].to_s.include?('bundler/setup')
+
+require 'bundler/setup'
 require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
 require 'rdoc/task'

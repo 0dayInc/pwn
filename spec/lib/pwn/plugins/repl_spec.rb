@@ -51,4 +51,55 @@ describe PWN::Plugins::REPL do
     expect(worker.alive?).to eq false
     expect(spin.done?).to eq true
   end
+
+  describe 'pwn-ai completion menus' do
+    it 'classifies leading slash as command, other slash as path, else ruby' do
+      expect(described_class).to respond_to(:pwn_ai_complete_kind)
+      expect(described_class.pwn_ai_complete_kind(line: '/cron')).to eq(:command)
+      expect(described_class.pwn_ai_complete_kind(line: '/skills rec')).to eq(:command)
+      expect(described_class.pwn_ai_complete_kind(line: 'open /opt/pwn')).to eq(:path)
+      expect(described_class.pwn_ai_complete_kind(line: '~/src/foo')).to eq(:path)
+      expect(described_class.pwn_ai_complete_kind(line: 'PWN::Plugins::Nmap')).to eq(:ruby)
+      expect(described_class.pwn_ai_complete_kind(line: '')).to eq(:ruby)
+    end
+
+    it 'completes slash commands including cron/skills/sessions' do
+      hits = described_class.pwn_ai_complete(target: '/sk', line: '/sk')
+      expect(hits).to include('/skills')
+      hits = described_class.pwn_ai_complete(target: '/', line: '/')
+      %w[/cron /skills /sessions /memory /debug /back /help].each do |cmd|
+        expect(hits).to include(cmd)
+      end
+      hits = described_class.pwn_ai_complete(target: 'li', line: '/cron li')
+      expect(hits).to include('list')
+    end
+
+    it 'completes host-native paths when slash is not the first character' do
+      Dir.mktmpdir('pwn-ai-path') do |dir|
+        FileUtils.mkdir_p(File.join(dir, 'alpha'))
+        File.write(File.join(dir, 'alpha', 'readme.md'), 'x')
+        File.write(File.join(dir, 'bravo.txt'), 'y')
+        prefix = File.join(dir, 'a')
+        hits = described_class.pwn_ai_complete(
+          target: prefix,
+          line: "read #{prefix}"
+        )
+        expect(hits.any? { |h| h.end_with?('/alpha/') || h.end_with?('/alpha') }).to eq true
+      end
+    end
+
+    it 'installs the completer from pwn-ai and restores Pry Ruby completion on back' do
+      src = File.read(described_class.method(:add_commands).source_location.first)
+      expect(src).to match(/install_pwn_ai_completer!/)
+      expect(src).to match(/restore_pwn_ai_completer!/)
+      expect(src).to include("Pry::Commands.create_command 'pwn-ai'")
+      expect(src).to include("Pry::Commands.create_command 'back'")
+    end
+
+    it 'dispatches matching leading-slash commands locally instead of Loop.run' do
+      hook = File.read(described_class.method(:add_hooks).source_location.first)
+      expect(hook).to match(/pwn_ai_dispatch_slash!/)
+      expect(described_class).to respond_to(:pwn_ai_dispatch_slash!)
+    end
+  end
 end

@@ -1,7 +1,11 @@
-AllCops: 
+AllCops:
   UseCache: false
   SuggestExtensions: false
   NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'etc/default_skills/**/*'
+    - 'rdoc/**/*'
 Layout/LineLength:
   Max: 1620
 Lint/UselessRescue:

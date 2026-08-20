@@ -119,6 +119,9 @@ bundled skills into `~/.pwn/skills/` when the name is missing:
 | `hardware-and-firmware-testing` | OWASP FSTM / ISTG, serial, firmware |
 | `social-engineering` | OSSTMM human channel, ATT&CK phishing |
 | `osint` | `extro_osint` kinds, feeds, keys, pivots |
+| `cwe` | Exhaustive test procedure per CWE ID (`references/CWE-<id>.md`) |
+| `capec` | Exhaustive attack-pattern procedure per CAPEC ID (`references/CAPEC-<id>.md`) |
+| `att&ck` | Exhaustive test procedure per ATT&CK technique (`references/T1059.001.md`) |
 
 Source: `etc/default_skills/` in the gem. Edits in `~/.pwn/skills` are never
 overwritten.
