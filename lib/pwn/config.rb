@@ -208,6 +208,18 @@ module PWN
             }
           },
           hunter: { api_key: 'hunter.how API Key' },
+          google_workspace: {
+            oauth: {
+              client_id: 'required - Google Cloud OAuth 2.0 client id (Desktop app)',
+              client_secret: 'required - Google Cloud OAuth 2.0 client secret',
+              refresh_token: 'optional - durable Google refresh token (enables silent re-auth)',
+              bearer_token: 'optional - Google access token (short-lived; auto-refreshed)',
+              expires_at: 'optional - unix epoch seconds when bearer_token expires',
+              redirect_uri: 'optional - defaults to http://127.0.0.1:1/',
+              scope: 'optional - override space-delimited Google scopes',
+              services: 'optional - email,calendar,drive,docs,sheets or all'
+            }
+          },
           jira_data_center: {
             base_uri: 'Jira Server Base API URI (e.g. https://jira.company.com/rest/api/latest)',
             token: 'Jira Server API Token'
@@ -837,7 +849,8 @@ module PWN
     end
 
     # Seed bundled skills into ~/.pwn/skills (or pwn_skills_path:).
-    # Missing names are copied from etc/default_skills. Existing SKILL.md
+    # Missing names are copied from etc/default_skills (or a one-level
+    # category subdir such as productivity/<name>). Existing SKILL.md
     # files are left alone so operator edits survive upgrades.
     public_class_method def self.install_default_skills(opts = {})
       root = opts[:pwn_skills_path] || pwn_skills_path
@@ -847,8 +860,9 @@ module PWN
       FileUtils.mkdir_p(root)
       seeded = []
       default_skill_names.each do |name|
+        src_dir = default_skill_src_dir(source: src_root, name: name)
         dest = File.join(root, name, SKILL_ENTRY)
-        src = File.join(src_root, name, SKILL_ENTRY)
+        src = File.join(src_dir, SKILL_ENTRY)
         next unless File.file?(src)
 
         unless File.file?(dest)
@@ -858,7 +872,7 @@ module PWN
         end
 
         # Copy missing reference files (never overwrite operator edits).
-        ref_src = File.join(src_root, name, 'references')
+        ref_src = File.join(src_dir, 'references')
         next unless Dir.exist?(ref_src)
 
         ref_dest = File.join(root, name, 'references')
@@ -873,10 +887,28 @@ module PWN
           FileUtils.cp(from, to)
         end
       end
+      if defined?(PWN::ModuleSkills) && PWN::ModuleSkills.respond_to?(:install)
+        PWN::ModuleSkills.install(
+          pwn_skills_path: root,
+          source: File.join(src_root, 'pwn')
+        )
+      end
       seeded
     rescue StandardError => e
       warn "[PWN::Config] install_default_skills failed: #{e.class}: #{e.message}"
       []
+    end
+
+    private_class_method def self.default_skill_src_dir(opts = {})
+      src_root = opts[:source].to_s
+      name = opts[:name].to_s
+      direct = File.join(src_root, name)
+      return direct if File.file?(File.join(direct, SKILL_ENTRY))
+
+      nested = Dir.glob(File.join(src_root, '*', name, SKILL_ENTRY)).min
+      return File.dirname(nested) if nested
+
+      direct
     end
 
     # Supported Method Parameters::
@@ -964,6 +996,30 @@ module PWN
         else
           skills[key] = base.merge(type: :instruction)
         end
+      end
+
+      # ── generated module skills: ~/.pwn/skills/pwn/**/SKILL.md ──────
+      Dir.glob(File.join(pwn_skills_path, 'pwn', '**', 'SKILL.md')).each do |skill_file|
+        next if skill_file.include?('/references/')
+
+        rel = skill_file.delete_prefix("#{pwn_skills_path}/").sub(%r{/SKILL\.md\z}, '')
+        key = rel.to_sym
+        next if skills.key?(key)
+
+        content = File.read(skill_file)
+        parsed = parse_skill_frontmatter(content: content)
+        desc = (parsed[:frontmatter]['description'] || parsed[:frontmatter][:description]).to_s.strip
+        desc = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
+        skills[key] = {
+          type: :instruction,
+          format: :module,
+          path: skill_file,
+          dir: File.dirname(skill_file),
+          content: content,
+          description: desc,
+          frontmatter: parsed[:frontmatter],
+          references: parse_skill_references(content: content)
+        }
       end
 
       PWN.send(:remove_const, :Skills) if PWN.const_defined?(:Skills)

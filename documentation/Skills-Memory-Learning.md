@@ -123,8 +123,9 @@ bundled skills into `~/.pwn/skills/` when the name is missing:
 | `capec` | Exhaustive attack-pattern procedure per CAPEC ID (`references/CAPEC-<id>.md`) |
 | `att&ck` | Exhaustive test procedure per ATT&CK technique (`references/T1059.001.md`) |
 
-Source: `etc/default_skills/` in the gem. Edits in `~/.pwn/skills` are never
-overwritten.
+Source: `etc/default_skills/` in the gem. SOP edits in `~/.pwn/skills/<name>/SKILL.md`
+are never overwritten. Generated `~/.pwn/skills/pwn/**/SKILL.md` module skills
+are updated on migrate when `lib/pwn` changes.
 
 ## Housekeeping
 

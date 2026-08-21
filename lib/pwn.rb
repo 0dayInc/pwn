@@ -20,6 +20,7 @@ module PWN
   autoload :Memory, 'pwn/memory'
   autoload :MemoryIndex, 'pwn/memory_index'
   autoload :Migrate, 'pwn/migrate'
+  autoload :ModuleSkills, 'pwn/module_skills'
   autoload :Sessions, 'pwn/sessions'
   autoload :Setup, 'pwn/setup'
   autoload :Driver, 'pwn/driver'

@@ -1335,6 +1335,7 @@
 {"messages":[{"role":"user","content":"PWN::Config.deep_fill! Usage"},{"role":"assistant","content":"`PWN::Config.deep_fill!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_env Usage"},{"role":"assistant","content":"`PWN::Config.default_env`: Supported Method Parameters\n\nenv = PWN::Config.default_env(\n\npwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_skill_names Usage"},{"role":"assistant","content":"`PWN::Config.default_skill_names`: "}]}
+{"messages":[{"role":"user","content":"PWN::Config.default_skill_src_dir Usage"},{"role":"assistant","content":"`PWN::Config.default_skill_src_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_skills_dir Usage"},{"role":"assistant","content":"`PWN::Config.default_skills_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.env_template Usage"},{"role":"assistant","content":"`PWN::Config.env_template`: Supported Method Parameters\n\ntmpl = PWN::Config.env_template\n\nThe canonical current-release ~/.pwn/pwn.yaml shape as a pure Hash (no I/O, no vault write, no puts).  Single source of truth used by:\n\n* PWN::Config.default_env      — seed a fresh ~/.pwn/pwn.yaml\n* PWN::Migrate.vault_drift     — diff a user vault against this release\n* PWN::Migrate.backfill_vault  — deep-merge missing keys UNDER the\n  user values on `pwn setup --migrate --fix`\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.help Usage"},{"role":"assistant","content":"`PWN::Config.help`: "}]}
@@ -1602,6 +1603,25 @@
 {"messages":[{"role":"user","content":"PWN::Migrate.strip_bad_jsonl! Usage"},{"role":"assistant","content":"`PWN::Migrate.strip_bad_jsonl!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.vault_drift Usage"},{"role":"assistant","content":"`PWN::Migrate.vault_drift`: Supported Method Parameters\n\ndrift = PWN::Migrate.vault_drift(\n\nkey: 'optional - vault key', iv: 'optional - vault iv'\n\n)\n\nDeep-diff the user’s decrypted pwn.yaml against the current PWN::Config.env_template.  → { missing: [dotted.paths], user: {…} } Returns nil when the decryptor is unavailable (never prompts).\n"}]}
 {"messages":[{"role":"user","content":"PWN::Migrate.verify_one Usage"},{"role":"assistant","content":"`PWN::Migrate.verify_one`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.authors Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.camel Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.camel`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.enumerate Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.enumerate`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.example_call Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.example_call`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.extract_references Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.extract_references`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.fallback_record Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.fallback_record`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.help Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.install Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.install`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.parse_file Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.parse_file`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.preserved_skill? Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.preserved_skill?`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.prune_orphans Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.prune_orphans`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.refresh! Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.refresh!`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.relpath Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.relpath`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.render Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.render`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.sanitize_text Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.sanitize_text`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.sensitive_url? Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.sensitive_url?`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.skill_abs Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.skill_abs`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.snake Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.snake`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.write_references Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.write_references`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins.authors Usage"},{"role":"assistant","content":"`PWN::Plugins.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins.help Usage"},{"role":"assistant","content":"`PWN::Plugins.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Android.adb_net_connect Usage"},{"role":"assistant","content":"`PWN::Plugins::Android.adb_net_connect`: Supported Method Parameters\n\nPWN::Plugins::Android.adb_net_connect(\n\nadb_path: 'required - path to adb binary',\ntarget: 'required - target host or IP to connect',\nport: 'optional - defaults to tcp 5555'\n\n)\n"}]}
@@ -1823,6 +1843,55 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Github.resolve_username Usage"},{"role":"assistant","content":"`PWN::Plugins::Github.resolve_username`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Github.workflow_run_jobs Usage"},{"role":"assistant","content":"`PWN::Plugins::Github.workflow_run_jobs`: Supported Method Parameters\n\njobs = PWN::Plugins::Github.workflow_run_jobs(\n\nowner: 'required - repo owner (default PWN::Env[:plugins][:github][:username])',\nrepo: 'required - repo name',\nrun_id: 'required - workflow run id'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Github.workflow_runs Usage"},{"role":"assistant","content":"`PWN::Plugins::Github.workflow_runs`: Supported Method Parameters\n\nruns = PWN::Plugins::Github.workflow_runs(\n\nowner: 'required - repo owner (default PWN::Env[:plugins][:github][:username])',\nrepo: 'required - repo name',\nworkflow: 'optional - workflow file name or id (e.g. install-matrix.yml). Omit for all runs.',\nparams: 'optional - {branch:, status:, per_page:, page:}'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.api Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.api`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.authenticated? Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.authenticated?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.bearer_token Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.bearer_token`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.cal_when Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.cal_when`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.calendar_create Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.calendar_create`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.calendar_delete Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.calendar_delete`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.calendar_event_body Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.calendar_event_body`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.calendar_list Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.calendar_list`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.calendar_update Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.calendar_update`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.cfg Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.cfg`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.docs_append Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.docs_append`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.docs_create Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.docs_create`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.docs_get Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.docs_get`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_create_folder Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_create_folder`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_delete Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_delete`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_download Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_download`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_get Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_get`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_mime Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_mime`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_multipart_upload Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_multipart_upload`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_search Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_search`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_share Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_share`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.drive_upload Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.drive_upload`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.exchange_oauth_code Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.exchange_oauth_code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_body Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_body`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_get Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_get`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_labels Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_labels`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_modify Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_modify`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_reply Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_reply`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_rfc822 Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_rfc822`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_search Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_search`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_send Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_send`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.help Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.load_pending Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.load_pending`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.obtain_oauth_auth_url Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.obtain_oauth_auth_url`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.parse_oauth_code Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.parse_oauth_code`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.persist_oauth_to_vault Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.persist_oauth_to_vault`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.pkce_pair Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.pkce_pair`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.real_config_value? Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.real_config_value?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.refresh_oauth_bearer_token Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.refresh_oauth_bearer_token`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.revoke Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.revoke`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.save_pending! Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.save_pending!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.scopes Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.scopes`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.sheets_append Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.sheets_append`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.sheets_create Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.sheets_create`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.sheets_get Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.sheets_get`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.sheets_update Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.sheets_update`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.sheets_write Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.sheets_write`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.sync_oauth_into_env Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.sync_oauth_into_env`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::HackerOne.api Usage"},{"role":"assistant","content":"`PWN::Plugins::HackerOne.api`: Supported Method Parameters\n\nresponse = PWN::Plugins::HackerOne.api(\n\npath: 'required - path relative to /v1/hackers (e.g. \"me/reports\")',\nmethod: 'optional - :get|:post|:put|:patch|:delete (default :get)',\nparams: 'optional - query params Hash',\nbody: 'optional - request body Hash/Array/String',\nusername: 'optional',\napi_key: 'optional',\nh1_obj: 'optional - session from #login (supplies username/api_key)',\nraw: 'optional - return raw response (default false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::HackerOne.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::HackerOne.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::HackerOne.create_report Usage"},{"role":"assistant","content":"`PWN::Plugins::HackerOne.create_report`: Supported Method Parameters\n\nreport = PWN::Plugins::HackerOne.create_report(\n\nteam_handle: 'required - program handle',\ntitle: 'required - report title',\nvulnerability_information: 'required - detailed description',\nimpact: 'optional - impact text',\nseverity_rating: 'optional - none|low|medium|high|critical',\nweakness_id: 'optional - weakness id integer',\nstructured_scope_id: 'optional - structured scope id',\nbody: 'optional - full JSON:API body Hash (overrides attribute kwargs)',\nusername: 'optional', api_key: 'optional', h1_obj: 'optional'\n\n)\n"}]}

@@ -1,0 +1,29 @@
+# PWN::Plugins::BurpSuite source links
+
+- https://github.com/0dayinc/pwn_burp
+- http://[redacted]
+- http://[redacted]/scope/[redacted]
+- http://[redacted]/scope
+- http://[redacted]/spider
+- http://[redacted]/spider/[redacted]
+- http://[redacted]/proxy/intercept/enable
+- http://[redacted]/proxy/intercept/disable
+- http://[redacted]/proxy/listeners
+- http://[redacted]/proxy/listeners/[redacted]
+- http://[redacted]/proxy/history?limit=[redacted]&offset=[redacted]&highlight=[redacted]
+- http://[redacted]/proxy/history/[redacted]?limit=[redacted]&offset=[redacted]&highlight=[redacted]
+- http://[redacted]/proxy/history/[redacted]
+- http://[redacted]/websocket/history?limit=[redacted]&offset=[redacted]&highlight=[redacted]
+- http://[redacted]/websocket/history/[redacted]
+- http://[redacted]/sitemap?limit=[redacted]&offset=[redacted]&highlight=[redacted]
+- http://[redacted]/sitemap/[redacted]?limit=[redacted]&offset=[redacted]&highlight=[redacted]
+- http://[redacted]/sitemap
+- http://localhost
+- http://[redacted]/scan/active
+- http://[redacted]/scan/active/[redacted]
+- http://[redacted]/scanissues
+- http://[redacted]/repeater
+- http://[redacted]/repeater/[redacted]
+- http://[redacted]/repeater/[redacted]/send
+- http://[redacted]/scanreport/[redacted]/[redacted]
+- http://[redacted]/shutdown
