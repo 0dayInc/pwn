@@ -65,15 +65,6 @@ pwn_driver.parse!
 
 begin
   status = 0
-  # Seed default jobs + start/reuse the in-process scheduler so last_run
-  # actually advances. Do this BEFORE the doctor so `pwn setup` reports
-  # the worker as running. Skip list/terminal (no host scheduler needed)
-  # and dry-run (must not spawn).
-  unless opts[:list] || opts[:terminal] || opts[:dry_run]
-    cron_opts = { restart: false, dry_run: false }
-    cron_opts[:enabled] = opts[:cron] unless opts[:cron].nil?
-    PWN::Setup.ensure_cron(**cron_opts)
-  end
 
   if opts[:list]
     PWN::Setup.list_profiles
@@ -95,20 +86,19 @@ begin
       dry_run: opts[:dry_run]
     )
   else
-    # `pwn setup`                       → doctor gate on EVERYTHING
-    # `pwn setup --check`               → same
-    # `pwn setup --check --profile net` → gate ONLY on the :net profile
     r = PWN::Setup.check(profile: opts[:profile])
     status = 1 unless r[:ok]
   end
 
-  # Seed default jobs + start/reuse the in-process scheduler so
-  # last_run actually advances. Skip list/terminal (no host scheduler
-  # needed) and dry-run (must not spawn).
+  # One scheduler pass only. Skip list/terminal/dry-run. Skip migrate when a
+  # worker is already live so `pwn setup --migrate` cannot spawn a second.
   unless opts[:list] || opts[:terminal] || opts[:dry_run]
-    cron_opts = { restart: false, dry_run: false }
-    cron_opts[:enabled] = opts[:cron] unless opts[:cron].nil?
-    PWN::Setup.ensure_cron(**cron_opts)
+    running = defined?(PWN::Cron) && PWN::Cron.worker_status[:running]
+    unless opts[:migrate] && running
+      cron_opts = { restart: false, dry_run: false }
+      cron_opts[:enabled] = opts[:cron] unless opts[:cron].nil?
+      PWN::Setup.ensure_cron(**cron_opts)
+    end
   end
   exit status
 rescue Interrupt

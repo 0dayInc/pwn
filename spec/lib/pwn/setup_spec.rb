@@ -98,5 +98,7 @@ describe PWN::Setup do
     body = File.read(File.expand_path('../../../bin/pwn_setup', __dir__))
     expect(body).to include('--[no-]cron')
     expect(body).to include('cron_opts[:enabled] = opts[:cron]')
+    expect(body.scan('PWN::Setup.ensure_cron').length).to eq(1)
+    expect(body).to include('opts[:migrate] && running')
   end
 end

@@ -805,6 +805,18 @@ module PWN
         []
       end
 
+      live = PWN::Cron.worker_status
+      if live[:running] && !restart
+        io.puts "#{'cron worker'.ljust(26)} #{OK}   already running pid=#{live[:pid]}"
+        return {
+          ok: true,
+          seeded: seeded,
+          worker: live.merge(already_running: true),
+          skipped_spawn: true,
+          enabled: true
+        }
+      end
+
       worker = PWN::Cron.ensure_worker(
         restart: restart,
         interval: interval

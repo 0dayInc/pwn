@@ -142,6 +142,35 @@ describe PWN::Plugins::Log do
       Thread.current[:pwn_log_progress] = false
     end
 
+    it 'tees stderr Thread IOError dumps into the open request log' do
+      path = PWN::Plugins::Log.start_debug(
+        tee: StringIO.new,
+        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-ioerr.log"
+      )
+      $stderr.write("#<Thread:0xabc open3.rb:664 run> terminated with exception (report_on_exception is true):\n")
+      $stderr.write("IOError stream closed in another thread\n")
+      $stderr.flush
+      body = File.read(path)
+      expect(body).to include('terminated with exception')
+      expect(body).to include('report_on_exception is true')
+      expect(body).to include('IOError stream closed in another thread')
+    end
+
+    it 'does not copy spinner frames from stderr into the request log' do
+      path = PWN::Plugins::Log.start_debug(
+        tee: StringIO.new,
+        path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-spin.log"
+      )
+      $stderr.write("\r\e[1G⠴")
+      $stderr.write("\r⠋")
+      $stderr.write("IOError stream closed in another thread\n")
+      $stderr.flush
+      body = File.read(path)
+      expect(body).not_to include('⠴')
+      expect(body).not_to include('⠋')
+      expect(body).to include('IOError stream closed in another thread')
+    end
+
     it 'timestamps an exception and backtrace into the open request log' do
       expect(PWN::Plugins::Log).to respond_to(:note_exception!)
       path = PWN::Plugins::Log.start_debug(

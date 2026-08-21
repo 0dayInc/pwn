@@ -11,6 +11,7 @@ File.open(alias_file, 'w') do |f|
   f.puts "alias file='file --keep-going --raw'"
   f.puts "alias grep='grep --color=auto'"
   f.puts "alias kpid='kill -15'"
+  f.puts "alias less='batcat'"
   f.puts "alias ls='ls --color=auto'"
   f.puts "alias phantomjs='export QT_QPA_PLATFORM=offscreen; phantomjs'"
   f.puts "alias prep='ps -ef | grep'"

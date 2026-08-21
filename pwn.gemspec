@@ -33,7 +33,7 @@ Gem::Specification.new do |spec|
   end
 
   spec_tests = spec.files.grep(%r{^spec/})
-  pwn_modules = spec.files.grep(%r{^lib/})
+  pwn_modules = spec.files.grep(%r{^lib/.*\.rb$})
 
   missing_rspec = false
   pwn_modules.each do |mod_path|
@@ -49,6 +49,19 @@ Gem::Specification.new do |spec|
   end
 
   raise if missing_rspec
+
+  missing_skill = false
+  pwn_modules.each do |mod_path|
+    rel = mod_path.sub(%r{^lib/}, '').sub(/\.rb\z/, '')
+    skill_path_for_mod = "etc/default_skills/#{rel}/SKILL.md"
+    next if File.file?(File.expand_path(skill_path_for_mod, __dir__))
+
+    missing_skill = true
+    error_msg = "ERROR: No Skill: #{skill_path_for_mod} for PWN Module: #{mod_path}"
+    puts "\001\e[1m\002\001\e[31m\002#{error_msg}\001\e[0m\002"
+  end
+
+  raise if missing_skill
 
   spec.require_paths = ['lib']
 

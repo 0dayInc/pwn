@@ -28,6 +28,7 @@ module PWN
     autoload :Fuzz, 'pwn/plugins/fuzz'
     autoload :Git, 'pwn/plugins/git'
     autoload :Github, 'pwn/plugins/github'
+    autoload :GoogleWorkspace, 'pwn/plugins/google_workspace'
     autoload :HackerOne, 'pwn/plugins/hacker_one'
     autoload :Hunter, 'pwn/plugins/hunter'
     autoload :IPInfo, 'pwn/plugins/ip_info'

@@ -118,6 +118,15 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
       expect(File.read(att_ref)).to include('T1059.001')
       expect(File.read(att_ref)).to match(/Exhaustive test/i)
       expect(File.read(att_ref)).not_to match(/hermes/i)
+      gw = File.join(dir, 'pwn', 'plugins', 'google_workspace', 'SKILL.md')
+      expect(File.file?(gw)).to eq(true), gw
+      expect(File.read(gw)).to include('PWN::Plugins::GoogleWorkspace')
+      expect(File.read(gw)).to include('gmail_search')
+      expect(File.read(gw)).not_to match(/hermes/i)
+      expect(File).not_to exist(File.join(dir, 'productivity', 'google-workspace', 'SKILL.md'))
+      expect(File).not_to exist(File.join(dir, 'google-workspace', 'SKILL.md'))
+      gw_ref = File.join(dir, 'pwn', 'plugins', 'google_workspace', 'references', 'gmail-search-syntax.md')
+      expect(File.file?(gw_ref)).to eq(true), gw_ref
     end
   end
 end

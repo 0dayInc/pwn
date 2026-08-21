@@ -1,0 +1,32 @@
+# PWN::AI::Agent::Extrospection source links
+
+- https://services.nvd.nist.gov/rest/json/cves/2.0
+- https://www.exploit-db.com/
+- https://raw.githubusercontent.com/0dayinc/pwn/master/lib/pwn/version.rb
+- https://github.com/public-api-lists/public-api-lists
+- https://nvd.nist.gov/vuln/detail/[redacted]
+- https://www.cve.org/CVERecord?id=[redacted]].each
+- https://rubygems.org/gems/[redacted]
+- https://pypi.org/project/[redacted]/
+- https://github.com/search?q=[redacted]
+- https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=[redacted]
+- https://cve.circl.lu/api/search/[redacted]
+- https://api.bgpview.io/asn/[redacted]
+- https://api.bgpview.io/search?query_term=[redacted]
+- https://www.whitepages.com/phone/[redacted]
+- https://www.fastpeoplesearch.com/[redacted]
+- https://device.report/fcc/[redacted]
+- https://www.fcc.gov/oet/ea/fccid
+- https://patents.google.com/?q=[redacted]
+- https://archive.org/wayback/available?url=[redacted]/[redacted]+device_name:\
+- https://api.fda.gov/device/510k.json?search=[redacted]&limit=[redacted]
+- https://api.fda.gov/drug/label.json?search=openfda.brand_name:[redacted]&limit=[redacted]
+- https://api.fda.gov/device/enforcement.json?search=product_description:[redacted]&limit=[redacted]
+- https://nominatim.openstreetmap.org/search?q=[redacted]&limit=[redacted]
+- https://www.federalregister.gov/api/v1/documents.json?conditions%5Bterm%5D=[redacted]&lng=[redacted]
+- https://data.police.uk/api/forces
+- https://data.police.uk/api/forces/[redacted]
+- https://data.police.uk/api/crime-last-updated
+- https://callook.info/[redacted]
+- https://api.microlink.io?url=[redacted]:[redacted]#{cmd.start_with?(
+- https://target/api/version
