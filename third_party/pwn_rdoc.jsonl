@@ -1908,6 +1908,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::JiraDataCenter.update_issue Usage"},{"role":"assistant","content":"`PWN::Plugins::JiraDataCenter.update_issue`: Supported Method Parameters\n\nissue_resp = PWN::Plugins::JiraDataCenter.update_issue(\n\nfields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',\nattachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])',\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.append Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.append`: Supported Method Parameters\n\nPWN::Log.create( )\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.capture_stderr! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.capture_stderr!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.close_debug_file! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.close_debug_file!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.color_progress Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.color_progress`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.debug_enabled? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.debug_enabled?`: "}]}
@@ -1918,6 +1919,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.format_trace_call Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.format_trace_call`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.inspect_debug Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.inspect_debug`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.install_stderr_tee! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.install_stderr_tee!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.loud_tui! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.loud_tui!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.mirror_tui! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.mirror_tui!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.next_debug_request_n Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.next_debug_request_n`: "}]}
@@ -1927,9 +1929,12 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.open_debug_file! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.open_debug_file!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.progress Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.progress`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.quiet_tui! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.quiet_tui!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.raw_stderr Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.raw_stderr`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.remove_stderr_tee! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.remove_stderr_tee!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.sanitize_debug_session_id Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.sanitize_debug_session_id`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.sanitize_debug_text Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.sanitize_debug_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.secret_key? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.secret_key?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.spinner_frame? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.spinner_frame?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.start_debug Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.start_debug`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.start_trace! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.start_trace!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.stop_debug Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.stop_debug`: "}]}
@@ -1937,6 +1942,21 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.trace_arguments Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.trace_arguments`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.trace_module_name Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.trace_module_name`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.traceable? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.traceable?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.new Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.<< Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.<<`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.close Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.closed? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.closed?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.fileno Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.fileno`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.flush Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.flush`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.method_missing Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.method_missing`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.print Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.print`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.puts Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.puts`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.respond_to_missing? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.respond_to_missing?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.sync Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.sync`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.sync= Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.sync=`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.to_io Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.to_io`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.tty? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.tty?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.write Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.write`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::MSR206.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::MSR206.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::MSR206.backup_card Usage"},{"role":"assistant","content":"`PWN::Plugins::MSR206.backup_card`: Supported Method Parameters\n\nPWN::Plugins::MSR206.backup_card(\n\nmsr206_obj: 'required - msr206_obj returned from #connect method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::MSR206.binary Usage"},{"role":"assistant","content":"`PWN::Plugins::MSR206.binary`: Supported Method Parameters\n\nparsed_cmd_resp_arr = binary(\n\nraw_byte_arr: 'required - raw_byte_arr produced in #parse_responses'\n\n)\n"}]}

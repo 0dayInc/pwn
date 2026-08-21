@@ -172,6 +172,7 @@ module PWN
           open_debug_file!(path: path)
         end
         start_trace!(prefixes: opts[:prefixes]) if opts[:trace] == true
+        install_stderr_tee!
         progress(msg: 'debug session start', which_self: self) if @debug_file
         @debug_path
       end
@@ -225,7 +226,150 @@ module PWN
         @debug_tee = nil
         @debug_tui_quiet = false
         @debug_enabled = false
+        remove_stderr_tee!
         path
+      end
+
+      # Ruby Thread.report_on_exception dumps IOError to $stderr. Clone that
+      # (and any other stderr from pwn-ai) into the open RN request log.
+      class DebugStderrTee
+        def initialize(opts = {})
+          @orig = opts[:orig] || $stderr
+        end
+
+        def write(*args)
+          data = args.join
+          begin
+            @orig.write(data) if @orig.respond_to?(:write)
+          rescue StandardError
+            nil
+          end
+          PWN::Plugins::Log.capture_stderr!(text: data)
+          data.bytesize
+        end
+
+        def <<(obj)
+          write(obj.to_s)
+          self
+        end
+
+        def puts(*args)
+          if args.empty?
+            write("\n")
+          else
+            args.each { |a| write("#{a}\n") }
+          end
+          nil
+        end
+
+        def print(*args)
+          write(args.join)
+          nil
+        end
+
+        def flush
+          @orig.flush if @orig.respond_to?(:flush)
+          self
+        end
+
+        def tty?
+          @orig.respond_to?(:tty?) && @orig.tty?
+        end
+
+        def fileno
+          @orig.fileno if @orig.respond_to?(:fileno)
+        end
+
+        def close
+          nil
+        end
+
+        def closed?
+          false
+        end
+
+        def sync
+          @orig.respond_to?(:sync) ? @orig.sync : true
+        end
+
+        def sync=(val)
+          @orig.sync = val if @orig.respond_to?(:sync=)
+          val
+        end
+
+        def to_io
+          @orig.respond_to?(:to_io) ? @orig.to_io : @orig
+        end
+
+        def respond_to_missing?(mid, include_all = false)
+          @orig.respond_to?(mid, include_all)
+        end
+
+        def method_missing(mid, ...)
+          @orig.public_send(mid, ...)
+        end
+      end
+
+      public_class_method def self.capture_stderr!(opts = {})
+        return unless debug_enabled?
+        return if Thread.current[:pwn_log_stderr]
+
+        text = opts[:text].to_s
+        return if text.empty?
+        return if spinner_frame?(text: text)
+
+        Thread.current[:pwn_log_stderr] = true
+        begin
+          io = @debug_file
+          return if io.nil? || (io.respond_to?(:closed?) && io.closed?)
+
+          clean = sanitize_debug_text(text: text.gsub(/\e\[[0-9;]*m/, ''))
+          return if clean.strip.empty?
+          return if spinner_frame?(text: clean)
+
+          io.write(clean.end_with?("\n") ? clean : "#{clean}\n")
+          io.flush
+        rescue StandardError
+          nil
+        ensure
+          Thread.current[:pwn_log_stderr] = false
+        end
+        clean
+      end
+
+      # Spinner frames stay on the TTY; never persist them in the RN log.
+      public_class_method def self.spinner_frame?(opts = {})
+        raw = opts[:text].to_s
+        return false if raw.empty?
+
+        stripped = raw.gsub(/\e\[[0-9;?]*[A-Za-z]/, '').delete("\r").delete("\b")
+        stripped = stripped.gsub(/[\u2800-\u28FF]/, '')
+        stripped.strip.empty?
+      end
+
+      public_class_method def self.raw_stderr(opts = {})
+        return @debug_stderr_orig if opts.is_a?(Hash) && @debug_stderr_orig
+
+        $stderr
+      end
+
+      private_class_method def self.install_stderr_tee!(opts = {})
+        return if opts[:skip]
+        return if defined?(@debug_stderr_tee) && @debug_stderr_tee && $stderr.equal?(@debug_stderr_tee)
+
+        @debug_stderr_orig = $stderr
+        @debug_stderr_tee = DebugStderrTee.new(orig: $stderr)
+        $stderr = @debug_stderr_tee
+        @debug_stderr_tee
+      end
+
+      private_class_method def self.remove_stderr_tee!(opts = {})
+        return if opts[:skip]
+        return unless @debug_stderr_tee
+
+        $stderr = @debug_stderr_orig if $stderr.equal?(@debug_stderr_tee)
+        @debug_stderr_tee = nil
+        @debug_stderr_orig = nil
       end
 
       private_class_method def self.sanitize_debug_session_id(opts = {})

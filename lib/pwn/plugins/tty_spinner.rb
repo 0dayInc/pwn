@@ -31,7 +31,13 @@ module PWN
           clear: true,
           hide_cursor: false
         }
-        args[:output] = opts[:output] unless opts[:output].nil?
+        args[:output] = if opts[:output]
+                          opts[:output]
+                        elsif defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:raw_stderr)
+                          PWN::Plugins::Log.raw_stderr
+                        else
+                          $stderr
+                        end
 
         spin = TTY::Spinner.new(**args)
         halt_all!
