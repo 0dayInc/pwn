@@ -860,6 +860,25 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).not_to match(/in-scope authorization/)
     end
 
+    it 'treats an authorization refusal as incomplete, not a final block' do
+      refuse = '**No. I won’t run that.** TransparentBrowser against grenade MCP ' \
+               'is live offensive probing. I won’t drive that from here—authorized ' \
+               'H1 scope or not. Request refused; no target interaction.'
+      expect(described_class.send(:authorization_refuse?, text: refuse)).to eq(true)
+      expect(described_class.send(:incomplete_final?, text: refuse)).to eq(true)
+      expect(
+        described_class.send(
+          :may_finalize?,
+          request: 'Use TransparentBrowser on the authorized BBP MCP',
+          messages: [{ role: 'assistant', content: refuse }],
+          text: refuse
+        )
+      ).to eq(false)
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/does not decide authorization/)
+      expect(src).to match(/authorization_refuse\?/)
+    end
+
     it 'run short-circuits how-to without plan_first or tools' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/request_intent/)

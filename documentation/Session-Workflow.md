@@ -15,7 +15,8 @@ operator cheat sheet.
 1. Entering `pwn-ai` always creates a **new** `~/.pwn/sessions/<timestamp>_<hex>.jsonl`.
 2. Cheap intents (greeting, how-to, recall) never open a host-work goal.
 3. Everything else is an autonomous goal. `Loop.run` keeps CORE_TOOLS until
-   the original request is done or truly blocked.
+   the original request is done or a tool returned failure evidence.
+   pwn-ai does not decide authorization.
 4. An unfinished host-work request is written to `~/.pwn/open_goal.json`.
 5. An accepted final answer deletes that file. Budget exhaust leaves it.
 
