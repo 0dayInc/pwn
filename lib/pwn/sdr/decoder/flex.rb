@@ -41,7 +41,7 @@ module PWN
 
         # Streaming FLEX demodulator fed by Base.run_native / Base.run_iq.
         # Per-sample PLL symbol clock, 4-level slicer, full state machine.
-        # rubocop:disable Metrics/ClassLength
+        # rubocop:disable-next Metrics/ClassLength
         class Demod
           def initialize(rate: 48_000)
             @rate     = rate.to_f
@@ -222,7 +222,6 @@ module PWN
             end
           end
         end
-        # rubocop:enable Metrics/ClassLength
 
         # Supported Method Parameters::
         # code, polarity = PWN::SDR::Decoder::Flex.sync_check(buf: Integer)

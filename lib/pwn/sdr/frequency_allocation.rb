@@ -488,11 +488,11 @@ module PWN
 
               # UHF paging bands (hospital, on-site, restaurant/coaster pagers, some public safety)
               # UHF low — occasional private systems
-              { start_freq: '400.000.000',  target_freq: '430.000.000' },
+              { start_freq: '400.000.000', target_freq: '430.000.000' },
               # UHF high — very common for local POCSAG (incl. 450–470 & 467.xxx for on-site)
-              { start_freq: '440.000.000',  target_freq: '470.000.000' },
+              { start_freq: '440.000.000', target_freq: '470.000.000' },
               # Classic UHF paging allocation (454/459 MHz pairs — many reallocated)
-              { start_freq: '454.000.000',  target_freq: '460.000.000' },
+              { start_freq: '454.000.000', target_freq: '460.000.000' },
 
               # 900 MHz exclusive paging band (mostly FLEX, but some legacy POCSAG remains)
               # Primary nationwide commercial paging band
@@ -523,11 +523,11 @@ module PWN
 
               # UHF paging bands (hospital, on-site, restaurant/coaster pagers, some public safety)
               # UHF low — occasional private systems
-              { start_freq: '400.000.000',  target_freq: '430.000.000' },
+              { start_freq: '400.000.000', target_freq: '430.000.000' },
               # UHF high — very common for local POCSAG (incl. 450–470 & 467.xxx for on-site)
-              { start_freq: '440.000.000',  target_freq: '470.000.000' },
+              { start_freq: '440.000.000', target_freq: '470.000.000' },
               # Classic UHF paging allocation (454/459 MHz pairs — many reallocated)
-              { start_freq: '454.000.000',  target_freq: '460.000.000' }
+              { start_freq: '454.000.000', target_freq: '460.000.000' }
             ],
             demodulator_mode: :FM,
             bandwidth: '12.500',

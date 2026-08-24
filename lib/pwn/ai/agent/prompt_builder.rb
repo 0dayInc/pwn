@@ -152,8 +152,8 @@ module PWN
           {
             memory: (b[:memory] || (local ? 6 : 25)).to_i,
             metrics: (b[:metrics] || (local ? 3 : 8)).to_i,
-            mistakes: (b[:mistakes] || (local ?  3 :  6)).to_i,
-            learning: (b[:learning] || (local ?  2 :  5)).to_i,
+            mistakes: (b[:mistakes] || (local ? 3 : 6)).to_i,
+            learning: (b[:learning] || (local ? 2 : 5)).to_i,
             # Always inject prior user/assistant pairs from this session.
             recent_turns: (b[:recent_turns] || (local ? 3 : 6)).to_i,
             policy: (b[:policy] || 1).to_i,
