@@ -76,6 +76,7 @@ describe PWN::AI::Agent::PromptBuilder do
       expect(src).to match(/default_skill_names|SKILLS CATALOG/)
       expect(src).to match(/HOST LOAD/)
       expect(src).to match(/host_load|deadline_s/)
+      expect(src).to match(/does not decide authorization/)
     end
   end
 end
