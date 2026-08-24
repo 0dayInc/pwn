@@ -215,7 +215,7 @@ module PWN
               refresh_token: 'optional - durable Google refresh token (enables silent re-auth)',
               bearer_token: 'optional - Google access token (short-lived; auto-refreshed)',
               expires_at: 'optional - unix epoch seconds when bearer_token expires',
-              redirect_uri: 'optional - defaults to http://127.0.0.1:1/',
+              redirect_uri: 'optional - loopback listener (default http://127.0.0.1:ephemeral/)',
               scope: 'optional - override space-delimited Google scopes',
               services: 'optional - email,calendar,drive,docs,sheets or all'
             }

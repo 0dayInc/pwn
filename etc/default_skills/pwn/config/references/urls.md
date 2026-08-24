@@ -12,5 +12,5 @@
 - https://platform.claude.com/v1/oauth/token
 - https://platform.claude.com/oauth/code/callback
 - https://generativelanguage.googleapis.com/v1beta
-- http://127.0.0.1:1/
+- http://127.0.0.1:ephemeral/
 - https://jira.company.com/rest/api/latest

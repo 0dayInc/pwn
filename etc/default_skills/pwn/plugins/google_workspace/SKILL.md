@@ -59,7 +59,6 @@ Enable in Google Cloud: Gmail, Calendar, Drive, Docs, Sheets APIs.
 gw = PWN::Plugins::GoogleWorkspace
 gw.authenticated?
 gw.obtain_oauth_auth_url(services: 'all')
-gw.exchange_oauth_code(code: 'http://127.0.0.1:1/?code=...')
 gw.gmail_search(query: 'is:unread', max: 10)
 ```
 
@@ -70,9 +69,13 @@ then `pwn_eval`.
 
 1. Store the Desktop OAuth client fields in the oauth hash (pwn-vault).
 2. `obtain_oauth_auth_url(services: 'email,calendar')` — or `all`.
-3. Browser fail on `http://127.0.0.1:1/` is expected. Paste the redirect.
-4. `exchange_oauth_code(code: pasted)`. Tokens persist via pwn-vault.
+3. Authorize the printed URL. A loopback listener captures the redirect.
+4. Access and refresh tokens are written immediately into
+   `PWN::Env[:plugins][:google_workspace][:oauth]` and encrypted
+   `~/.pwn/pwn.yaml` (same persist path as `PWN::AI::Grok`).
 5. Later calls refresh automatically. `revoke` clears tokens.
+
+`exchange_oauth_code` remains a paste fallback (`wait: false` then paste).
 
 ## Quick reference
 
@@ -133,7 +136,7 @@ gw.sheets_append(id: 'SHEET_ID', range: 'Sheet1!A:C', values: [['a', 'b', 'c']])
 
 ## Pitfalls
 
-- Browser fail on `http://127.0.0.1:1/` is the paste step.
+- Browser fail is not required. `obtain_oauth_auth_url` waits and persists.
 - Placeholder vault strings are not credentials.
 - A brief request is not a send.
 
