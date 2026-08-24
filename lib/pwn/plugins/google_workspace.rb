@@ -7,6 +7,8 @@ require 'fileutils'
 require 'json'
 require 'rest-client'
 require 'securerandom'
+require 'socket'
+require 'timeout'
 require 'time'
 require 'tmpdir'
 require 'uri'
@@ -21,9 +23,10 @@ module PWN
     # Credentials live in PWN::Env[:plugins][:google_workspace][:oauth]
     # (seeded by PWN::Config / pwn-vault). Desktop-app client_id +
     # client_secret come from Google Cloud Console. After
-    # obtain_oauth_auth_url + exchange_oauth_code, refresh_token is
-    # persisted into the encrypted ~/.pwn/pwn.yaml when a decryptor is
-    # present.
+    # obtain_oauth_auth_url. When wait is true (default), a loopback
+    # listener captures the redirect as soon as the operator authorizes
+    # the URL; refresh/bearer are written into PWN::Env and the encrypted
+    # ~/.pwn/pwn.yaml the same way PWN::AI::Grok persists OAuth tokens.
     module GoogleWorkspace
       AUTH_URI = 'https://accounts.google.com/o/oauth2/v2/auth'
       TOKEN_URI = 'https://oauth2.googleapis.com/token'
@@ -128,9 +131,17 @@ module PWN
         client_id = c[:client_id]
         raise 'client_id is required (Google Cloud Desktop OAuth client)' unless real_config_value?(value: client_id)
 
+        wait = opts.key?(:wait) ? opts[:wait] : true
+        timeout_s = (opts[:timeout] || 300).to_i
         redirect = real_config_value?(value: c[:redirect_uri]) ? c[:redirect_uri] : REDIRECT_URI
         wanted = scopes(opts.merge(services: c[:services], scope: c[:scope]))
         raise 'no Google scopes selected' if wanted.empty?
+
+        server = nil
+        if wait && !opts[:probe].respond_to?(:call)
+          server = open_oauth_listener(redirect_uri: redirect)
+          redirect = listener_redirect(server: server, fallback: redirect)
+        end
 
         pkce = pkce_pair
         save_pending!(verifier: pkce[:verifier], redirect_uri: redirect, client_id: client_id)
@@ -147,7 +158,96 @@ module PWN
           code_challenge_method: 'S256'
         }
         url = "#{AUTH_URI}?#{URI.encode_www_form(params)}"
-        { auth_url: url, scope: wanted, redirect_uri: redirect }
+        return { auth_url: url, scope: wanted, redirect_uri: redirect } unless wait
+
+        puts "\n[*] Google Workspace OAuth — authorize this URL, then tokens persist automatically:"
+        puts "            #{url}"
+        puts "    Waiting for authorization on #{redirect} (timeout #{timeout_s}s)..."
+        code = await_oauth_redirect(
+          redirect_uri: redirect,
+          timeout: timeout_s,
+          probe: opts[:probe],
+          server: server
+        )
+        exchange_oauth_code(
+          opts.merge(
+            code: code,
+            redirect_uri: redirect,
+            code_verifier: pkce[:verifier],
+            client_id: client_id,
+            client_secret: c[:client_secret]
+          )
+        )
+      ensure
+        begin
+          server&.close
+        rescue StandardError
+          nil
+        end
+      end
+
+      private_class_method def self.open_oauth_listener(opts = {})
+        redirect = opts[:redirect_uri].to_s
+        uri = URI.parse(redirect.empty? ? REDIRECT_URI : redirect)
+        host = uri.host.to_s
+        host = '127.0.0.1' if host.empty?
+        port = uri.port.to_i
+        port = 0 if port <= 1
+        TCPServer.new(host, port)
+      end
+
+      private_class_method def self.listener_redirect(opts = {})
+        server = opts[:server]
+        fallback = opts[:fallback].to_s
+        return fallback unless server
+
+        addr = server.addr
+        host = addr[3].to_s
+        host = '127.0.0.1' if host.empty? || host == '0.0.0.0'
+        "http://#{host}:#{addr[1]}/"
+      end
+
+      private_class_method def self.await_oauth_redirect(opts = {})
+        redirect = opts[:redirect_uri].to_s
+        timeout_s = (opts[:timeout] || 300).to_i
+        probe = opts[:probe]
+        return probe.call(redirect) if probe.respond_to?(:call)
+
+        server = opts[:server]
+        owned = false
+        unless server
+          server = open_oauth_listener(redirect_uri: redirect)
+          owned = true
+        end
+        code = nil
+        Timeout.timeout(timeout_s) do
+          client = server.accept
+          request_line = client.gets.to_s
+          loop do
+            line = client.gets
+            break if line.nil? || line.strip.empty?
+          end
+          path = request_line.split[1].to_s
+          path = '/' if path.empty?
+          uri = URI.parse(path.start_with?('http') ? path : "http://127.0.0.1#{path}")
+          code = URI.decode_www_form(uri.query.to_s).to_h['code'].to_s
+          body = "PWN Google Workspace authorized. You can close this tab.\n"
+          client.print "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: #{body.bytesize}\r\nConnection: close\r\n\r\n#{body}"
+          client.close
+        end
+        raise 'Google OAuth redirect contained no code' if code.to_s.empty?
+
+        code
+      rescue Timeout::Error
+        raise 'Google OAuth timed out waiting for authorization'
+      ensure
+        if owned
+          begin
+            server&.close
+          rescue StandardError
+            nil
+          end
+        end
       end
 
       public_class_method def self.exchange_oauth_code(opts = {})
@@ -239,7 +339,7 @@ module PWN
         exp = c[:expires_at].to_i
         stale = !real_config_value?(value: token) || (exp.positive? && Time.now.to_i >= (exp - 120))
         return refresh_oauth_bearer_token(opts.merge(refresh_token: c[:refresh_token])) if stale && real_config_value?(value: c[:refresh_token])
-        raise 'not authenticated — run obtain_oauth_auth_url then exchange_oauth_code' unless real_config_value?(value: token)
+        raise 'not authenticated — run obtain_oauth_auth_url (tokens persist on authorize)' unless real_config_value?(value: token)
 
         token
       end
@@ -779,8 +879,10 @@ module PWN
         puts <<~USAGE
           USAGE:
             # OAuth (Desktop client from Google Cloud Console)
+            # authorize the printed URL; refresh/bearer persist to Env + pwn.yaml
             #{self}.obtain_oauth_auth_url(services: 'email,calendar')
-            #{self}.exchange_oauth_code(code: 'http://127.0.0.1:1/?code=...')
+            #{self}.obtain_oauth_auth_url(wait: false)  # URL only; no listener
+            #{self}.exchange_oauth_code(code: 'optional paste fallback')
             #{self}.authenticated?
             #{self}.revoke
 

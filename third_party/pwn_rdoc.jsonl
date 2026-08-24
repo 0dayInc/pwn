@@ -1846,6 +1846,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.api Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.api`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.authenticated? Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.authenticated?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.await_oauth_redirect Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.await_oauth_redirect`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.bearer_token Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.bearer_token`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.cal_when Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.cal_when`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.calendar_create Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.calendar_create`: "}]}
@@ -1876,8 +1877,10 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_search Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_search`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.gmail_send Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.gmail_send`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.help Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.listener_redirect Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.listener_redirect`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.load_pending Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.load_pending`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.obtain_oauth_auth_url Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.obtain_oauth_auth_url`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.open_oauth_listener Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.open_oauth_listener`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.parse_oauth_code Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.parse_oauth_code`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.persist_oauth_to_vault Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.persist_oauth_to_vault`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GoogleWorkspace.pkce_pair Usage"},{"role":"assistant","content":"`PWN::Plugins::GoogleWorkspace.pkce_pair`: "}]}

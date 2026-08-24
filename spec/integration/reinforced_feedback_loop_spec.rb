@@ -17,7 +17,7 @@ require 'fileutils'
 #  regression pinpoints exactly which requirement broke.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# rubocop:disable Metrics/BlockLength
+# rubocop:disable-next Metrics/BlockLength
 RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
   let(:reward)     { PWN::AI::Agent::Reward     }
   let(:curriculum) { PWN::AI::Agent::Curriculum }
@@ -266,8 +266,8 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       skip 'PWN::MemoryIndex unavailable' unless defined?(PWN::MemoryIndex)
       now = Time.now.utc.iso8601
       mem = {
-        a: { value: 'use nmap -sV for service detection',   category: 'lesson', timestamp: now, importance: 0.5 },
-        b: { value: 'prefer nmap -sV to detect services',   category: 'lesson', timestamp: now, importance: 0.5 },
+        a: { value: 'use nmap -sV for service detection', category: 'lesson', timestamp: now, importance: 0.5 },
+        b: { value: 'prefer nmap -sV to detect services', category: 'lesson', timestamp: now, importance: 0.5 },
         c: { value: 'nmap -sV is best for service versions', category: 'lesson', timestamp: now, importance: 0.5 },
         d: { value: 'unrelated: rotate api keys quarterly',  category: 'lesson', timestamp: now, importance: 0.5 }
       }
@@ -1556,4 +1556,3 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
     end
   end
 end
-# rubocop:enable Metrics/BlockLength
