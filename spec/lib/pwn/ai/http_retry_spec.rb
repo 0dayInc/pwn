@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'stringio'
+require 'rest-client'
 
 describe PWN::AI::HttpRetry do
   it 'defaults timeout to 180 and max_attempts to 5' do
@@ -12,6 +13,12 @@ describe PWN::AI::HttpRetry do
     expect(described_class.max_attempts(quiet: true)).to eq(1)
     expect(described_class.max_attempts(timeout: 12)).to eq(1)
     expect(described_class.max_attempts(max_attempts: 3)).to eq(3)
+  end
+
+  it 'treats gateway 504 and stream absolute timeouts as retryable' do
+    expect(described_class.retryable?(error: 'ERROR: Ollama HTTP 504 for api/chat: Gateway Time-out')).to eq(true)
+    expect(described_class.retryable?(error: 'ERROR: Ollama stream absolute timeout after 20s for api/chat')).to eq(true)
+    expect(described_class.retryable?(error: '400 Bad Request')).to eq(false)
   end
 
   it 'tees emit lines into the open debug request log' do
@@ -50,6 +57,7 @@ describe PWN::AI::HttpRetry do
       expect(src).not_to match(/timeout \|\|= 900/)
       expect(src).to match(/Exceptions::Timeout/)
       expect(src).to match(/HttpRetry\.report_event/)
+      expect(src).to match(/retryable\?|HTTP 50/) if name == 'PWN::AI::Ollama'
     end
   end
 end

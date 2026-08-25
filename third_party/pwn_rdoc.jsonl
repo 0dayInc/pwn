@@ -339,6 +339,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.degrade_text_only Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.degrade_text_only`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.dispatch_fail_n Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.dispatch_fail_n`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.emit_task_summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.emit_task_summary`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.engine_transient? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.engine_transient?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.escalate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.escalate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.evidence_enough_to_finalize? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.evidence_enough_to_finalize?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.expose_current_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.expose_current_session`: "}]}
@@ -793,6 +794,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::HttpRetry.max_attempts Usage"},{"role":"assistant","content":"`PWN::AI::HttpRetry.max_attempts`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::HttpRetry.report_event Usage"},{"role":"assistant","content":"`PWN::AI::HttpRetry.report_event`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::HttpRetry.retry_after_s Usage"},{"role":"assistant","content":"`PWN::AI::HttpRetry.retry_after_s`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::HttpRetry.retryable? Usage"},{"role":"assistant","content":"`PWN::AI::HttpRetry.retryable?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::HttpRetry.timeout_s Usage"},{"role":"assistant","content":"`PWN::AI::HttpRetry.timeout_s`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Ollama.assemble_native_chat_stream Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.assemble_native_chat_stream`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Ollama.assemble_ollama_stream Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.assemble_ollama_stream`: "}]}

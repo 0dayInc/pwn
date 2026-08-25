@@ -27,6 +27,15 @@ module PWN
         DEFAULT_MAX_ATTEMPTS
       end
 
+      public_class_method def self.retryable?(opts = {})
+        err = opts[:error]
+        msg = err.respond_to?(:message) ? err.message.to_s : err.to_s
+        msg = opts[:message].to_s if msg.empty?
+        msg.match?(/HTTP 50[234]|Gateway Time-out|stream absolute timeout|ReadTimeout|Net::ReadTimeout|Timed out reading/i)
+      rescue StandardError
+        false
+      end
+
       public_class_method def self.retry_after_s(opts = {})
         retry_count = [opts[:retry_count].to_i, 1].max
         retry_after = 0

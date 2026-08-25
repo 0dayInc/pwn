@@ -198,6 +198,21 @@ module PWN
           retry if retry_count < max_attempts
 
           nil
+        rescue StandardError => e
+          if PWN::AI::HttpRetry.retryable?(error: e) && retry_count + 1 < max_attempts
+            retry_count += 1
+            unless opts[:quiet]
+              PWN::AI::HttpRetry.report_event(
+                label: 'ollama', which_self: self, quiet: opts[:quiet],
+                http_method: http_method, rest_call: rest_call,
+                extra: "retryable attempt=#{retry_count}/#{max_attempts}",
+                error: e
+              )
+            end
+            sleep(PWN::AI::HttpRetry.retry_after_s(retry_count: retry_count) + rand(0.3..2.0))
+            retry
+          end
+          raise e
         end
       rescue RestClient::ExceptionWithResponse => e
         body = begin

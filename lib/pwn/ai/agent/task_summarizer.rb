@@ -573,8 +573,8 @@ module PWN
         # model cannot stall the user's real answer, and stay quiet on timeout.
         private_class_method def self.sidecar_timeout
           n = (PWN::Env.dig(:ai, :agent, :sidecar_llm_timeout) if defined?(PWN::Env)).to_i
-          n = 20 if n < 5
-          n = 60 if n > 60
+          n = 180 if n < 30
+          n = 180 if n > 180
           n
         rescue StandardError
           20
