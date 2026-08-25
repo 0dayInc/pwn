@@ -1284,8 +1284,9 @@ module PWN
                 raise
               rescue StandardError => e
                 PWN::Plugins::Log.note_exception!(error: e, where: 'native agent loop', which_self: PWN::Plugins::REPL) if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:note_exception!)
-                warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message}\n#{e.backtrace}); " \
-                     'falling back to legacy regex-ReAct.'
+                warn "[pwn-ai] native agent loop failed (#{e.class}: #{e.message.to_s.split("\n").first})"
+                request.replace('nil')
+                next
               ensure
                 PWN::Plugins::REPL.ready_tty!
               end

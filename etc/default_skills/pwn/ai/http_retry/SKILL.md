@@ -35,6 +35,7 @@ PWN::AI::HttpRetry.timeout_s(opts)
 
 - `timeout_s`
 - `max_attempts`
+- `retryable`
 - `retry_after_s`
 - `report_event`
 - `authors`

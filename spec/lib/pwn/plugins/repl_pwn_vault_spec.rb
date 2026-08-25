@@ -174,4 +174,14 @@ describe 'pwn-ai debug final answer placement' do
     expect(hook).to include('→ pwn-ai →')
     expect(hook).to include('→ result')
   end
+
+  it 'does not fall through to regex-ReAct after a native Loop.run error' do
+    native_start = hook.index('final = PWN::AI::Agent::Loop.run')
+    rescue_at = hook.index('rescue StandardError', native_start)
+    expect(rescue_at).not_to be_nil
+    chunk = hook[rescue_at, 900]
+    expect(chunk).to match(/request\.replace\('nil'\)/)
+    expect(chunk).to match(/\bnext\b/)
+    expect(chunk).not_to include('legacy regex-ReAct')
+  end
 end

@@ -424,7 +424,14 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/note_exception!/)
       expect(src).to match(/rescue StandardError/)
       expect(src).to include("debug_progress(msg: 'engine returned no message')")
+      expect(src).to match(/engine_transient|retryable\?/)
       expect(src).not_to match(/dispatch #\{name\} ok_len=/)
+    end
+
+    it 'keeps Loop.run going after a transient engine 504' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/engine_transient\?|HttpRetry\.retryable\?/)
+      expect(src).to match(/engine hop failed|engine_blip/)
     end
 
     it 'records a timeout increment mistake instead of treating success:true as ok' do

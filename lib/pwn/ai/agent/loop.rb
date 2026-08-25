@@ -851,6 +851,17 @@ module PWN
           opts[:session_id].to_s
         end
 
+        private_class_method def self.engine_transient?(opts = {})
+          err = opts[:error]
+          return false unless err
+
+          return PWN::AI::HttpRetry.retryable?(error: err) if defined?(PWN::AI::HttpRetry) && PWN::AI::HttpRetry.respond_to?(:retryable?)
+
+          err.message.to_s.match?(/HTTP 50[234]|Gateway Time-out|stream absolute timeout/i)
+        rescue StandardError
+          false
+        end
+
         # E1 — did the environment change under this tool? If Metrics CUSUM
         # tripped for it in the last hour AND Extrospection.drift shows a
         # toolchain/net/repo change, blame the WORLD not the AGENT.
@@ -2473,6 +2484,7 @@ module PWN
 
           turn_fails = Hash.new(0)
           escalated  = false
+          engine_blips = 0
           maybe_park_budget_scars!
           maybe_extinguish_parked!
 
@@ -2486,7 +2498,27 @@ module PWN
             inject_task_focus!(messages: messages, state: ts_state, request: request) unless skip_compass
 
             t0 = Time.now
-            msg = call_engine(messages: messages, tools: tools, ts_state: ts_state)
+            begin
+              msg = call_engine(messages: messages, tools: tools, ts_state: ts_state)
+            rescue StandardError => e
+              if engine_transient?(error: e)
+                engine_blips += 1
+                debug_progress(msg: "engine hop failed #{e.class}: #{e.message.to_s[0, 240]} blip=#{engine_blips}")
+                if engine_blips >= 5
+                  txt = "[pwn-ai] engine hop failed after #{engine_blips} tries: #{e.message.to_s[0, 240]}"
+                  debug_final_text!(text: txt)
+                  final_chars = txt.length
+                  return txt
+                end
+                messages << {
+                  role: 'user',
+                  content: '[pwn-ai] engine hop failed (transient). Keep calling CORE_TOOLS. ' \
+                           "Do not stop. (#{e.message.to_s[0, 180]})"
+                }
+                next
+              end
+              raise
+            end
             engine_s += (Time.now - t0)
             PWN::Plugins::TTYSpinner.halt_all! if defined?(PWN::Plugins::TTYSpinner)
             if msg.nil?
