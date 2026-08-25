@@ -822,7 +822,8 @@ module PWN
               lesson = ToolGuard.timeout_lesson(
                 tool: name,
                 payload: opts[:args].to_s,
-                timeout: err.to_s[/timeout after (\d+)/, 1].to_i
+                timeout: err.to_s[/timeout after (\d+)/, 1].to_i,
+                task: timeout_task(opts)
               )
               err = lesson[:error] if lesson[:error].to_s.strip.length.positive?
               shape = :timeout
@@ -833,6 +834,21 @@ module PWN
           { ok: sem[:semantic_ok], err: sem[:err], mistake: m, benign: sem[:benign] }
         rescue StandardError
           { ok: true, err: nil, mistake: nil }
+        end
+
+        private_class_method def self.timeout_task(opts = {})
+          st = opts[:ts_state]
+          if st.respond_to?(:[])
+            idx = st[:plan_idx] || st['plan_idx']
+            return "task-#{idx}" unless idx.nil?
+          end
+          if st.respond_to?(:plan_idx)
+            idx = st.plan_idx
+            return "task-#{idx}" unless idx.nil?
+          end
+          opts[:session_id].to_s
+        rescue StandardError
+          opts[:session_id].to_s
         end
 
         # E1 — did the environment change under this tool? If Metrics CUSUM
@@ -2271,6 +2287,7 @@ module PWN
           start_debug_session(opts)
           loud_debug_tui!(debug: opts[:debug])
           debug_progress(msg: "Loop.run start request=#{request[0, 240]}", debug: opts[:debug])
+          ToolGuard.reset_timeout_budget! if defined?(ToolGuard) && ToolGuard.respond_to?(:reset_timeout_budget!)
           nested = defined?(TurnFinalizer) && TurnFinalizer.user_path?
           TurnFinalizer.enter_user_path! if defined?(TurnFinalizer)
           engine = active_engine

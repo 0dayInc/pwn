@@ -14,17 +14,51 @@ module PWN
       #   nmap.connect_scan = true
       #   nmap.service_scan = true
       #   nmap.verbose = true
-      #   nmap.ports = [1..1024,1337]
+      #   nmap.ports = [1..1024, 1337]
       #   nmap.targets = '127.0.0.1'
-      #   nmap.xml = '/tmp/nmap_port_scan_res.xml'
+      #   nmap.xml = '/tmp/nmap_port_scan_res.xml' # alias of output_xml
       # end
+      #
+      # PWN::Plugins::NmapIt.port_scan(
+      #   targets: '127.0.0.1',
+      #   ports: '1-65535',
+      #   connect_scan: true,
+      #   service_scan: true,
+      #   script: 'vuln,safe',
+      #   xml: '/tmp/nmap_port_scan_res.xml'
+      # )
 
-      public_class_method def self.port_scan
+      public_class_method def self.port_scan(opts = {})
         Nmap::Command.sudo do |nmap|
-          yield(nmap)
+          apply_port_scan_opts(nmap: nmap, opts: opts)
+          yield(nmap_compat(nmap: nmap)) if block_given?
         end
       rescue StandardError => e
         raise e
+      end
+
+      private_class_method def self.apply_port_scan_opts(opts = {})
+        nmap = opts[:nmap]
+        args = opts[:opts]
+        return nmap unless args.is_a?(Hash)
+
+        nmap.targets = args[:targets] || args[:target] if args[:targets] || args[:target]
+        nmap.ports = args[:ports] if args.key?(:ports)
+        xml = args[:xml] || args[:output_xml]
+        nmap.output_xml = xml if xml
+        nmap.connect_scan = args[:connect_scan] if args.key?(:connect_scan)
+        nmap.service_scan = args[:service_scan] || args[:service_detection] if args.key?(:service_scan) || args.key?(:service_detection)
+        nmap.verbose = args[:verbose] if args.key?(:verbose)
+        scripts = args[:script] || args[:scripts] || args[:vuln_scripts]
+        nmap.script = scripts if scripts
+        nmap
+      end
+
+      private_class_method def self.nmap_compat(opts = {})
+        nmap = opts[:nmap]
+        nmap.define_singleton_method(:xml=) { |path| self.output_xml = path }
+        nmap.define_singleton_method(:xml) { output_xml }
+        nmap
       end
 
       # Supported Method Parameters::
@@ -102,6 +136,15 @@ module PWN
             nmap.targets = '127.0.0.1'
             nmap.xml = '/tmp/nmap_port_scan_res.xml'
           end
+
+          #{self}.port_scan(
+            targets: '127.0.0.1',
+            ports: '1-65535',
+            connect_scan: true,
+            service_scan: true,
+            script: 'vuln,safe',
+            xml: '/tmp/nmap_port_scan_res.xml'
+          )
 
           #{self}.parse_xml_results(:xml_file => 'required - path to nmap xml results') do |xml|
             xml.each_host do |host|

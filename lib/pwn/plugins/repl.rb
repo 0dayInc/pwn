@@ -1557,7 +1557,7 @@ module PWN
       end
 
       PWN_AI_SLASH_COMMANDS = %w[
-        /back /cron /debug /delegate /help /memory /sessions /skills
+        /back /cron /debug /delegate /help /memory /model /sessions /skills
       ].freeze
 
       PWN_AI_SLASH_SUBCOMMANDS = {
@@ -1566,6 +1566,7 @@ module PWN
         '/delegate' => [],
         '/help' => [],
         '/memory' => %w[list recall remember forget clear],
+        '/model' => %w[list],
         '/sessions' => %w[list resume delete stats],
         '/skills' => %w[list recall]
       }.freeze
@@ -1618,6 +1619,20 @@ module PWN
 
         cmd = tokens.first
         sub_prefix = tokens.last.to_s
+        if cmd == '/model'
+          engines = pwn_ai_engines
+          if tokens.length == 2
+            pool = (%w[list] + engines)
+            return pool.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
+          end
+          return %w[llms].select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) } if tokens.length == 3 && tokens[1] == 'list'
+
+          if tokens.length >= 3
+            current = pwn_ai_engine_model(engine: tokens[1]).to_s
+            hits = [current].reject(&:empty?).select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
+            return hits unless hits.empty?
+          end
+        end
         subs = Array(PWN_AI_SLASH_SUBCOMMANDS[cmd])
         hits = subs.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
         hits = [target] if hits.empty? && !target.empty?
@@ -1735,11 +1750,178 @@ module PWN
         when '/delegate'
           puts "[*] Delegating: #{args.join(' ')}"
           puts '    Use agent_list / agent_debate from pwn-ai, or pwn-ai-delegate in the pwn REPL.'
+        when '/model'
+          pwn_ai_run_model(args: args)
         end
         true
       rescue StandardError => e
         warn "[pwn-ai] #{cmd}: #{e.class}: #{e.message}"
         true
+      end
+
+      public_class_method def self.pwn_ai_engines(opts = {})
+        return [] unless opts.is_a?(Hash)
+
+        tmpl = {}
+        tmpl = PWN::Config.env_template[:ai] if defined?(PWN::Config) && PWN::Config.respond_to?(:env_template)
+        keys = tmpl.select { |_k, v| v.is_a?(Hash) && v.key?(:model) }.keys.map(&:to_s)
+        if defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env[:ai].is_a?(Hash)
+          PWN::Env[:ai].each do |k, v|
+            next unless v.is_a?(Hash)
+            next if %i[agent driver_opts].include?(k.to_sym)
+
+            keys << k.to_s if v.key?(:model) || v.key?(:key) || v.key?(:base_uri)
+          end
+        end
+        keys.uniq.sort
+      end
+
+      public_class_method def self.pwn_ai_provider_class(opts = {})
+        engine = opts[:engine].to_s.downcase
+        map = {
+          'anthropic' => 'Anthropic',
+          'gemini' => 'Gemini',
+          'grok' => 'Grok',
+          'ollama' => 'Ollama',
+          'openai' => 'OpenAI',
+          'openwebui' => 'OpenWebUI'
+        }
+        name = map[engine]
+        return nil if name.nil? || !defined?(PWN::AI) || !PWN::AI.const_defined?(name)
+
+        PWN::AI.const_get(name)
+      end
+
+      public_class_method def self.pwn_ai_model_ids(opts = {})
+        raw = opts[:models]
+        rows = case raw
+               when Array then raw
+               when Hash then raw[:data] || raw[:models] || raw['data'] || raw['models'] || []
+               else []
+               end
+        Array(rows).filter_map do |row|
+          if row.is_a?(Hash)
+            row[:id] || row['id'] || row[:name] || row['name'] || row[:model] || row['model']
+          else
+            row.to_s
+          end
+        end.map(&:to_s).reject(&:empty?).uniq
+      end
+
+      public_class_method def self.pwn_ai_list_llms(opts = {})
+        engine = opts[:engine].to_s
+        engine = PWN::Env.dig(:ai, :active).to_s if engine.empty? && defined?(PWN::Env)
+        raise 'no active engine — /model <engine> first' if engine.empty?
+
+        klass = pwn_ai_provider_class(engine: engine)
+        raise "#{engine} has no PWN::AI provider with get_models" unless klass.respond_to?(:get_models)
+
+        ids = pwn_ai_model_ids(models: klass.get_models)
+        puts "[*] #{engine} llms (#{ids.length})"
+        ids.each { |id| puts id }
+        ids
+      end
+
+      public_class_method def self.pwn_ai_engine_model(opts = {})
+        engine = opts[:engine].to_s.downcase.to_sym
+        return '' if engine.empty?
+        return '' unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+        PWN::Env.dig(:ai, engine, :model).to_s
+      end
+
+      public_class_method def self.pwn_ai_run_model(opts = {})
+        args = Array(opts[:args]).map(&:to_s)
+        engines = pwn_ai_engines
+        current = defined?(PWN::Env) && PWN::Env.is_a?(Hash) ? PWN::Env.dig(:ai, :active).to_s : ''
+        current_model = pwn_ai_engine_model(engine: current)
+        sub = args[0].to_s
+        if sub.empty? || %w[show status].include?(sub)
+          msg = "active=#{current.empty? ? '(none)' : current} model=#{current_model.empty? ? '(unset)' : current_model}"
+          puts "[*] #{msg}"
+          return msg
+        end
+        if %w[list help].include?(sub)
+          return pwn_ai_list_llms(engine: current) if args[1].to_s == 'llms'
+
+          puts 'pwn-ai /model — switch provider and model in this session'
+          puts "  current: #{current} #{current_model}"
+          puts '  usage: /model [list] | /model list llms | /model <engine> [model] | /model <model>'
+          engines.each do |eng|
+            mark = eng == current ? '*' : ' '
+            puts "  #{mark} #{eng}  #{pwn_ai_engine_model(engine: eng)}"
+          end
+          return engines
+        end
+
+        engine = nil
+        model = nil
+        if engines.include?(sub)
+          engine = sub
+          model = args[1..].join(' ')
+          model = nil if model.strip.empty?
+        else
+          engine = current
+          model = args.join(' ')
+        end
+        raise "no active engine — /model <engine> first (#{engines.join(', ')})" if engine.to_s.empty?
+        raise "unknown engine #{engine.inspect} — try: #{engines.join(', ')}" unless engines.include?(engine.to_s)
+
+        PWN::Env[:ai] ||= {}
+        PWN::Env[:ai][engine.to_sym] ||= {}
+        PWN::Env[:ai][:active] = engine.to_s
+        PWN::Env[:ai][engine.to_sym][:model] = model unless model.to_s.strip.empty?
+        persisted = persist_ai_selection(engine: engine, model: PWN::Env[:ai][engine.to_sym][:model])
+        shown = PWN::Env[:ai][engine.to_sym][:model]
+        msg = "active=#{engine} model=#{shown.to_s.empty? ? '(unset)' : shown}"
+        msg = "#{msg} (session only)" unless persisted
+        puts "[*] #{msg}"
+        msg
+      end
+
+      public_class_method def self.persist_ai_selection(opts = {})
+        engine = opts[:engine].to_s
+        model = opts[:model]
+        return false if engine.empty?
+
+        env_path = nil
+        dec_path = nil
+        if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+          env_path = PWN::Env.dig(:driver_opts, :pwn_env_path)
+          dec_path = PWN::Env.dig(:driver_opts, :pwn_dec_path)
+        end
+        env_path = env_path.to_s.strip
+        env_path = File.join(Dir.home, '.pwn', 'pwn.yaml') if env_path.empty?
+        dec_path = dec_path.to_s.strip
+        dec_path = "#{env_path}.decryptor" if dec_path.empty?
+        return false unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
+
+        decryptor = YAML.load_file(dec_path, symbolize_names: true)
+        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
+        iv = decryptor.is_a?(Hash) ? decryptor[:iv] : nil
+        return false if key.to_s.strip.empty? || iv.to_s.strip.empty?
+
+        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
+        begin
+          cfg = YAML.load_file(env_path, symbolize_names: true)
+          cfg = {} unless cfg.is_a?(Hash)
+          cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
+          cfg[:ai][:active] = engine
+          unless model.to_s.strip.empty?
+            slot = engine.to_sym
+            cfg[:ai][slot] = {} unless cfg[:ai][slot].is_a?(Hash)
+            cfg[:ai][slot][:model] = model
+          end
+          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
+          File.write(env_path, yaml_env)
+          File.chmod(0o600, env_path)
+        ensure
+          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
+        end
+        true
+      rescue StandardError => e
+        warn "[pwn-ai] /model persist skipped: #{e.class}: #{e.message}"
+        false
       end
 
       public_class_method def self.pwn_ai_run_cron(opts = {})

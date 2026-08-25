@@ -46,6 +46,13 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `install_pwn_ai_completer`
 - `restore_pwn_ai_completer`
 - `pwn_ai_dispatch_slash`
+- `pwn_ai_engines`
+- `pwn_ai_provider_class`
+- `pwn_ai_model_ids`
+- `pwn_ai_list_llms`
+- `pwn_ai_engine_model`
+- `pwn_ai_run_model`
+- `persist_ai_selection`
 - `pwn_ai_run_cron`
 - `pwn_ai_run_sessions`
 - `pwn_ai_run_memory`

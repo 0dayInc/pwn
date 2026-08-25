@@ -427,12 +427,13 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).not_to match(/dispatch #\{name\} ok_len=/)
     end
 
-    it 'records a reconstruct-first timeout mistake instead of treating success:true as ok' do
+    it 'records a timeout increment mistake instead of treating success:true as ok' do
       tmp = Dir.mktmpdir
       stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
+      PWN::AI::Agent::ToolGuard.reset_timeout_budget! if PWN::AI::Agent::ToolGuard.respond_to?(:reset_timeout_budget!)
       raw = JSON.generate(
         success: true,
-        result: { stdout: '', error: 'timeout after 20s', hint: 'x', scenario: 'construction' }
+        result: { stdout: '', error: 'timeout after 20s', hint: 'x', scenario: 'deadline' }
       )
       tele = described_class.send(
         :record_metrics,
@@ -443,7 +444,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       )
       expect(tele[:ok]).to eq false
       expect(tele[:mistake]).to be_a(Hash)
-      expect(tele[:mistake][:error].to_s).to match(/reconstruct/)
+      expect(tele[:mistake][:error].to_s).to match(/timeout \+= 180|too short/i)
       expect(tele[:mistake][:shape].to_s).to eq('timeout')
     end
 

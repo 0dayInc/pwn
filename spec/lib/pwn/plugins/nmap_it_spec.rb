@@ -12,4 +12,11 @@ describe PWN::Plugins::NmapIt do
     help_response = PWN::Plugins::NmapIt
     expect(help_response).to respond_to :help
   end
+
+  it 'port_scan accepts opts = {} and aliases xml to output_xml' do
+    expect(described_class.method(:port_scan).parameters).to include(%i[opt opts])
+    src = File.read(described_class.method(:port_scan).source_location.first)
+    expect(src).to include('opts[')
+    expect(src).to include('output_xml')
+  end
 end
