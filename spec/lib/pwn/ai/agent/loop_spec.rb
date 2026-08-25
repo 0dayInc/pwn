@@ -461,6 +461,70 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(hop).to match(/compact_history!/)
     end
 
+    it 'keeps distinct tool results instead of six copies of the same empty cut' do
+      msgs = [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'goal' },
+        { role: 'assistant', content: '', tool_calls: [{ id: 'good' }] },
+        { role: 'tool', tool_call_id: 'good', name: 'shell', content: 'inet 10.3.3.20/27 brd 10.3.3.31 eth0' }
+      ]
+      8.times do |n|
+        msgs << { role: 'assistant', content: '', tool_calls: [{ id: "c#{n}" }] }
+        msgs << { role: 'tool', tool_call_id: "c#{n}", name: 'shell', content: "\n" }
+      end
+      out = described_class.send(:compact_history!, messages: msgs)
+      tool_bodies = out.select { |m| m[:role].to_s == 'tool' }.map { |m| m[:content].to_s }
+      expect(tool_bodies).to include('inet 10.3.3.20/27 brd 10.3.3.31 eth0')
+      expect(tool_bodies.count { |c| c.strip.empty? }).to be <= 1
+    end
+
+    it 'keeps an assistant with two tool_calls glued to both tool results' do
+      msgs = [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'goal' },
+        {
+          role: 'assistant', content: '',
+          tool_calls: [{ id: 'toolu_a' }, { id: 'toolu_b' }]
+        },
+        { role: 'tool', tool_call_id: 'toolu_a', name: 'memory_recall', content: 'prior findings' },
+        { role: 'tool', tool_call_id: 'toolu_b', name: 'skills_recall', content: 'cwe skill' }
+      ]
+      8.times do |n|
+        msgs << { role: 'assistant', content: '', tool_calls: [{ id: "c#{n}" }] }
+        msgs << { role: 'tool', tool_call_id: "c#{n}", name: 'shell', content: "out#{n}" }
+      end
+      out = described_class.send(:compact_history!, messages: msgs)
+      ids = out.select { |m| m[:role].to_s == 'tool' }.map { |m| m[:tool_call_id].to_s }
+      ids.each do |tid|
+        prev = nil
+        out.each do |m|
+          break if m[:role].to_s == 'tool' && m[:tool_call_id].to_s == tid
+
+          prev = m if m[:role].to_s == 'assistant'
+        end
+        call_ids = Array(prev && prev[:tool_calls]).map { |tc| (tc[:id] || tc['id']).to_s }
+        expect(call_ids).to include(tid)
+      end
+    end
+
+    it 'drops orphan tool results that have no matching tool_use' do
+      msgs = [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'goal' },
+        { role: 'tool', tool_call_id: 'toolu_orphan', name: 'shell', content: 'stray' },
+        { role: 'assistant', content: '', tool_calls: [{ id: 'toolu_ok' }] },
+        { role: 'tool', tool_call_id: 'toolu_ok', name: 'shell', content: 'ok' }
+      ]
+      out = described_class.send(:repair_tool_history!, messages: msgs)
+      expect(out.map { |m| m[:tool_call_id] }).not_to include('toolu_orphan')
+    end
+
+    it 'extinguishes a repeated identical payload by signature, not the whole tool' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/no_progress|same_payload|payload_sig/)
+      expect(src).not_to match(/pwn_extinguished\[opts\[:name\]\.to_s\] = true/)
+    end
+
     it 'records a timeout increment mistake instead of treating success:true as ok' do
       tmp = Dir.mktmpdir
       stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))

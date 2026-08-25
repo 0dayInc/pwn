@@ -855,9 +855,10 @@ module PWN
           err = opts[:error]
           return false unless err
 
-          return PWN::AI::HttpRetry.retryable?(error: err) if defined?(PWN::AI::HttpRetry) && PWN::AI::HttpRetry.respond_to?(:retryable?)
+          return true if defined?(PWN::AI::HttpRetry) && PWN::AI::HttpRetry.respond_to?(:retryable?) &&
+                         PWN::AI::HttpRetry.retryable?(error: err)
 
-          err.message.to_s.match?(/HTTP 50[234]|Gateway Time-out|stream absolute timeout/i)
+          err.message.to_s.match?(/HTTP 50[234]|Gateway Time-out|stream absolute timeout|tool_use_id|tool_result/i)
         rescue StandardError
           false
         end
@@ -905,6 +906,29 @@ module PWN
           nil
         end
 
+        private_class_method def self.payload_sig(opts = {})
+          Digest::SHA256.hexdigest("#{opts[:name]}|#{opts[:args]}")[0, 16]
+        rescue StandardError
+          "nosig-#{opts[:name]}"
+        end
+
+        private_class_method def self.note_same_payload!(opts = {})
+          sig = payload_sig(opts)
+          counts = Thread.current[:pwn_same_payload] ||= Hash.new(0)
+          counts[sig] += 1
+          counts[sig]
+        end
+
+        private_class_method def self.no_progress_result(opts = {})
+          name = opts[:name].to_s
+          sig = payload_sig(opts)
+          JSON.generate(
+            success: false,
+            error: "no_progress: identical #{name} payload repeated (#{sig}). Change the command.",
+            result: { stdout: '', stderr: "no_progress: #{name}", exit: 2 }
+          )
+        end
+
         # Repeat circuit-breaker. `count` is max(per-turn, persistent) so a
         # signature that already failed in a PREVIOUS session trips the guard
         # on its FIRST recurrence here — the agent does not get to burn the
@@ -922,7 +946,7 @@ module PWN
             Mistakes.extinguish!(signature: sig, args: opts[:args], shape: opts[:shape], force: true) if sig
           end
           Thread.current[:pwn_extinguished] ||= {}
-          Thread.current[:pwn_extinguished][opts[:name].to_s] = true
+          Thread.current[:pwn_extinguished][payload_sig(name: opts[:name], args: opts[:args])] = true
 
           guard = "[pwn-ai/mistakes] EXTINGUISHED / REPEATED FAILURE — this #{opts[:name]} failure signature has " \
                   "occurred #{count}× (across sessions). DO NOT retry it verbatim. Apply the " \
@@ -1447,20 +1471,69 @@ module PWN
           end
           head << rest.shift if rest.any? && rest.first[:role].to_s == 'assistant' && rest.first[:content].to_s.start_with?('PLAN:')
 
-          tool_idxs = rest.each_index.select { |i| rest[i][:role].to_s == 'tool' }
-          drop_before = tool_idxs.length > keep_pairs ? tool_idxs[-keep_pairs] : 0
-          start = drop_before
-          start -= 1 if start.positive? && rest[start - 1] && rest[start - 1][:role].to_s == 'assistant'
-          kept = rest[start..] || []
+          pairs = []
+          idx = 0
+          while idx < rest.length
+            if rest[idx][:role].to_s == 'assistant'
+              group = [rest[idx]]
+              idx += 1
+              while idx < rest.length && rest[idx][:role].to_s == 'tool'
+                group << rest[idx]
+                idx += 1
+              end
+              pairs << group
+            elsif rest[idx][:role].to_s == 'tool'
+              # Orphan tool_result with no preceding tool_use — drop it.
+              idx += 1
+            else
+              pairs << [rest[idx]]
+              idx += 1
+            end
+          end
+          collapsed = []
+          pairs.each do |pair|
+            tool = pair.find { |m| m[:role].to_s == 'tool' }
+            prev = collapsed.last&.find { |m| m[:role].to_s == 'tool' }
+            next if tool && prev && tool[:content].to_s.strip == prev[:content].to_s.strip
+
+            collapsed << pair
+          end
+          kept = collapsed.last(keep_pairs).flatten
           kept.each do |m|
             next unless m[:role].to_s == 'tool' && m[:content].to_s.length > max_chars
 
             m[:content] = "#{m[:content].to_s[0, max_chars]}…[compacted]"
           end
           messages.replace(head + kept)
+          repair_tool_history!(messages: messages)
           messages
         rescue StandardError => e
           warn "[pwn-ai/loop] compact_history swallowed: #{e.class}: #{e.message}"
+          opts[:messages]
+        end
+
+        private_class_method def self.repair_tool_history!(opts = {})
+          messages = opts[:messages]
+          return messages unless messages.is_a?(Array)
+
+          open_ids = []
+          kept = []
+          messages.each do |msg|
+            role = msg[:role].to_s
+            case role
+            when 'assistant'
+              open_ids = Array(msg[:tool_calls] || msg['tool_calls']).map { |tc| (tc[:id] || tc['id']).to_s }
+            when 'tool'
+              tid = (msg[:tool_call_id] || msg['tool_call_id']).to_s
+              next if tid.empty? || !open_ids.include?(tid)
+            when 'user'
+              open_ids = []
+            end
+            kept << msg
+          end
+          messages.replace(kept)
+          messages
+        rescue StandardError
           opts[:messages]
         end
 
@@ -2322,6 +2395,7 @@ module PWN
           end
           Thread.current[:pwn_request_intent] = intent
           Thread.current[:pwn_extinguished] = {}
+          Thread.current[:pwn_same_payload] = Hash.new(0)
           debug_progress(msg: "intent=#{intent} engine=#{engine}", debug: opts[:debug])
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
@@ -2502,6 +2576,7 @@ module PWN
 
             t0 = Time.now
             begin
+              repair_tool_history!(messages: messages)
               msg = call_engine(messages: messages, tools: tools, ts_state: ts_state)
             rescue StandardError => e
               if engine_transient?(error: e)
@@ -2634,14 +2709,17 @@ module PWN
               started = Time.now
               argv_s = args.is_a?(String) ? args.to_s : args.inspect
               debug_progress(msg: "tool #{name} start:\n#{argv_s}", keep_newlines: true, cap: 0, tee: nil)
-              if Thread.current[:pwn_extinguished].is_a?(Hash) && Thread.current[:pwn_extinguished][name]
-                raw = JSON.generate(
-                  success: false,
-                  error: "extinguished_repeat: #{name} already failed this signature this turn — change args or tool",
-                  result: { stdout: '', stderr: "extinguished_repeat: #{name}", exit: 2 }
-                )
+              sig = payload_sig(name: name, args: args)
+              if Thread.current[:pwn_extinguished].is_a?(Hash) && Thread.current[:pwn_extinguished][sig]
+                raw = no_progress_result(name: name, args: args)
               else
                 raw = Dispatch.call(tool_call: tc)
+                same_n = note_same_payload!(name: name, args: args)
+                if same_n >= 3
+                  Thread.current[:pwn_extinguished] ||= {}
+                  Thread.current[:pwn_extinguished][sig] = true
+                  raw = no_progress_result(name: name, args: args)
+                end
               end
               tools_called += 1
               tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)

@@ -1,158 +1,158 @@
-9ed39d8 fix(gem): re-launch to successfully publish pwn gem with MFA/OTP code fed via clarify + process submit per updated pwn_sdlc (fix 401 from previous re-launches; version 0.5.598 local)
-5c6238e fix(gem): re-launch to successfully publish with MFA/OTP code fed via clarify + process submit per updated pwn_sdlc (fix 401 from previous re-launches; version 0.5.597 local)
-fae4112 fix(gem): re-launch to successfully publish with MFA/OTP code fed via clarify + process submit per updated pwn_sdlc (fix 401 from previous re-launches; version 0.5.596 local)
-dea2987 fix(gem): re-launch again to successfully publish with MFA/OTP code fed via clarify + process submit per updated pwn_sdlc (fix 401 from previous re-launches)
-7191a91 fix(gem): re-launch to successfully publish pwn gem with MFA/OTP code fed via clarify + process submit per updated pwn_sdlc (fix 401 from previous tests)
-b3588ca fix(gem): re-launch to successfully publish pwn gem with MFA/OTP handling per updated pwn_sdlc (fix 401 from previous test)
-fbcd5fe test(mfa): exercise rubygems MFA/OTP prompt handling during gem push per updated pwn_sdlc
-ab7c2e1 Merge pull request #947 from support-0dayInc/master
-cdcd118 fix(ai): resolve empty response from PWN::AI::Anthropic by fixing error handling in anthropic_rest_call and adding response checks
-d4b0843 Merge pull request #946 from support-0dayInc/master
-132f55a fix(repl): robust SHIFT+ENTER multiline for pwn-ai (oneshot Reline bindings + always-true confirm, removed plain-enter override + /opt/pwn capture ref, debug scripts /tmp only per rule)
-df1bcfa fix(repl): pwn-ai SHIFT+ENTER now works with text on the line (persistent add_key_binding + save/restore + expanded seqs + string fallback); add bin/capture_shift_enter.rb + instructions in code; rubocop 0 on 658 files; full git_commit.sh completion
-f3c1088 fix(repl): pwn-ai SHIFT+ENTER now works with text on the line (persistent add_key_binding + save/restore key_bindings instead of oneshot; allows multiple newlines in multi-line LLM prompt); tmux advice; rubocop 0; full git_commit.sh completion
-ae0a81a fix(repl): pwn-ai multiline now strictly SHIFT+ENTER only (byte arrays, no .bytes, cleaned seqs); add tmux/terminator extended-keys advice in code + banner; always-true confirm on readmultiline; full git_commit.sh completion
-c005375 Merge pull request #944 from ninp0/master
-67e33a4 git_commit.sh and build_gem.sh - implement upstream sync & code merge into developer forks so everyone is using the latest
-213ea70 git_commit.sh and build_gem.sh - implement upstream sync & code merge into developer forks so everyone is using the latest
-b0d976c git_commit.sh and build_gem.sh - implement upstream sync & code merge into developer forks so everyone is using the latest
-b92f728 Merge pull request #943 from support-0dayInc/master
-c1ff9e9 chore(rdoc): add rdoc >=6.0 to Gemfile + safe RDoc::Task require in Rakefile for Ruby 4.0+; full git_commit.sh completion
-6ab3fbb chore(gemspec): remove rdoc pin (bundled with Ruby); cleanup stray file; full git_commit.sh completion
-f13b5c3 chore(gemspec): remove rdoc pin (bundled with Ruby, was causing rake rdoc LoadError in upgrade_pwn.sh); full git_commit.sh completion
-ee20f7f chore(gemspec/bundle): fix rdoc empty pin + robust ^ anchored parser (skip comments) + align rubocop to meshtastic 0.0.163 reqs; pwn_autoinc_version pure load shim (bypass for uninstalled pwn gem); 0 rubocop offenses; full ./git_commit.sh to completion (background+notify, dynamic rvm use .)
-dc4edba chore(gemspec/bundle): fix rdoc empty pin + robust ^ anchored parser (skip comments) + align rubocop to meshtastic 0.0.163 reqs; pwn_autoinc_version pure load shim (bypass for uninstalled pwn gem); 0 rubocop offenses; full ./git_commit.sh to completion (background+notify, dynamic rvm use .)
-34bb907 chore: full completion run of ./git_commit.sh (shim fixed pwn_autoinc_version, dynamic rvm use ., no kill)
-b472d7a chore: increase timeout values (hermes config + tool defaults) to allow full ./git_commit.sh runs without clamping (terminal 7200s, process wait, foreground max 7200s, child etc). Use background + notify_on_complete for long gem upgrade steps.
-2da3021 fix(repl): pwn-ai multiline now strictly SHIFT+ENTER only (byte arrays for bindings, removed all alternative mentions from comments and code); 0 offenses
-feb0bfd fix(repl): pwn-ai multiline now strictly SHIFT+ENTER only (byte arrays for bindings, removed all alternative mentions from comments and code); 0 offenses
-00afb5f Merge pull request #942 from ninp0/master
-3805a4d build_gem.sh - #bugfixes
-96cb92c build_gem.sh - #bugfixes
-bbdfa27 Gemfile - bump to latest gem versions
-31d96b7 Merge pull request #941 from ninp0/master
-780cf29 Merge fixes
-b3eb44e Merge pull request #940 from support-0dayInc/master
-1b03a34 feat(ai): support xAI SuperGrok OAuth in PWN::AI::Grok + PWN::Config (access_token in encrypted vault alongside key); fix pwn-ai multiline (more SHIFT+ENTER seqs for terminals + Ctrl+J/Alt+Enter fallback); add rspec; 0 RuboCop offenses
-9405352 Merge fixes
-459ebec Merge branch 'master' of ssh://github.com/ninp0/pwn
-2480d6d Merge pull request #939 from support-0dayInc/master
-c1eed04 feat(repl): support multi-line manual/prompt submissions for pwn-ai (SHIFT+ENTER = newline, ENTER = submit; multi-line paste compatible via Reline)
-e44c38b Gemfile - bump rdoc to 7.0.4
-9c68eb6 fix(cli): support pwn --version + align Gemfile pins for meshtastic/yard/rubocop compat to enable clean gem install (0.5.568)
-3aa705a Merge branch '0dayInc:master' into master
-ce9ee36 feat(ai): add Hermes-equivalent memory, sessions, agents(delegation), cron to pwn-ai agent + PWN::Memory/Sessions/Cron + integration in REPL hook/Config + Pry commands + specs. RuboCop 0.
-35b12e0 Merge pull request #938 from support-0dayInc/master
-479b3cf fix(repl): remove 'Hermes-equivalent' string from pwn-ai banner (and command description + spec for consistency)
-1b61587 fix(ai): pwn-ai now reliably executes CLI commands (e.g. what does `id` return?) and PWN modules when the agent is instructed; stricter system prompts + backtick intent pre-processing + robust regex block extraction + Open3 capture + observation feedback loop in the REPL hook. Updated pwn-ai banner with concrete examples.
-8f8791c feat(ai): pwn-ai command as Hermes-equivalent agent TUI (task instruction + PWN/CLI tool exec); scale PWN::Config w/ skills folder in pwn_env_path parent (pwn-ai aware for autonomy)
-0b765c6 Merge pull request #937 from support-0dayInc/master
-579c75a feat(ai): add PWN::AI::Anthropic module supporting Anthropic as AI provider (Claude models, get_models + chat with history)
-745309a Merge pull request #936 from ninp0/master
-2ba84a7 PWN::AI::Agent::VulnGen module - restore proper system_role_content for prompt context
-961c0b7 Merge pull request #935 from support-0dayInc/master
-ff60b0d Prepare LifecycleAuthzReplay for PR
-9bb4a18 Fix lifecycle authz replay build validation
-5d0bde8 Add LifecycleAuthzReplay evidence bundle core with coverage tracking
-d12ee56 Merge pull request #933 from support-0dayInc/master
-7e4635c Address PR review feedback for VulnGen
-5c78cfb Fix VulnGen exception handling
-9f74e14 Refine VulnGen report structure and add template
-6b31c5b Merge pull request #932 from ninp0/master
-cf8de20 Gemfile - bump gem versions
-8ef7695 Gemfile - bump gem versions
-0184d29 Merge pull request #931 from ninp0/master
-0612fec PWN::Plugins::BurpSuite module - filter by highlight color within #get_proxy_history #get_websocket_history #get_sitemap methods
-7bfe448 PWN::Plugins::BurpSuite module - filter by highlight color within #get_proxy_history #get_websocket_history #get_sitemap methods
-dd25c04 Merge pull request #930 from ninp0/master
-db3ceab PWN::Plugins::BurpSuite module - reduce default sleep between history requests for AI introspection threads (faster AI analysis on most recent HTTP request / response pairs)
-0e37747 Merge pull request #929 from ninp0/master
-899335e PWN::Plugins::BurpSuite module - change default limit for AI introspection threads from 10 to 3 for faster AI analysis on most recent HTTP request / response pairs
-ab7b971 Merge pull request #928 from ninp0/master
-962585f .rubocop.yml - Bump max method lines for PWN::Plugins::BurpSuite module
-4928402 PWN::Plugins::BurpSuite module - slight tweaks to ensure  AI analysis occurs on most recent HTTP request / response pairs prior to moving onto older ones
-067ae4b Merge pull request #927 from ninp0/master
-7270921 PWN::Plugins::BurpSuite module - change default limit for AI introspection threads from 200 to 10 for faster AI analysis on most recent HTTP request / response pairs
-76f09a3 Merge pull request #926 from ninp0/master
-4c51b0f PWN::Plugins::BurpSuite module - performance enhancements for AI introspection threads
-cac02bf Merge pull request #925 from ninp0/master
-41f1c86 PWN::Plugins::BurpSuite module - add backtrace logs to /tmp if introspection threads fail.
-5b0977b PWN::Plugins::BurpSuite module - add backtrace logs to /tmp if introspection threads fail.
-c3d3e6d Merge pull request #924 from ninp0/master
-6c97dec PWN::AI::Agent::* modules - update help methods to show how to use PWN::AI::Agent::*.analyze methods.  Also incorporate numerous markdown types for PWN::AI::Agent::VulnGen module.
-567680a PWN::AI::Agent::* modules - update help methods to show how to use PWN::AI::Agent::*.analyze methods.  Also incorporate numerous markdown types for PWN::AI::Agent::VulnGen module.
-c430ceb Merge pull request #923 from ninp0/master
-d135fa8 Gemfile - re-readd rdoc gem and align versioning to bundled rdoc in ruby version declared in .ruby-version.  Also ensure lowest supported ruby version that bundles rdoc (i.e. ruby-4.0.0) is enforced within pwn.gemspec
-7a6f7b2 Merge pull request #922 from ninp0/master
-ae3d6a3 Gemfile - re-remove rdoc gem :-/
-32dc270 Gemfile - re-add rdoc gem :-/
-af7a772 Merge pull request #921 from ninp0/master
-35e4ab1 Rakefile - change require "rdoc/task" to just "rdoc"
-073cf29 Merge pull request #920 from ninp0/master
-29c2a03 PWN::AI::Agent::VulnGen module - Initial creation && more #bugfixes for rSpec written for PWN::AI::Agent module
-b576db8 PWN::AI::Agent::VulnGen module - Initial creation && more #bugfixes for rSpec written for PWN::AI::Agent module
-3b6b2fc More #bugfixes for PWN::AI::Agent namespace
-ad17b71 Merge pull request #919 from ninp0/master
-0457547 More #bugfixes for PWN::AI::Agent namespace
-de0a762 RSpec #bugfixes for PWN::AI::Agent namespace
-1427ccf Decouple agentic AI analysis from PWN modules (i.e. Create a specific PWN::AI::Agent namespace for all PWN modules that leverage PWN::AI::Introspection.reflect_on for autonomous analysis.
-fdb6d08 PWN::Plugins::BurpSuite module - migrate PWN::AI::Introspection logic into first agentic AI module, PWN::AI::Agent::BurpSuite
-49e1284 Merge pull request #918 from ninp0/master
-4790390 rubocop --auto-gen-config
-9dd31af Gemfile - Comment out rdoc as ruby-4.0.1 now bundles rdoc
-232ca54 Gemfile - nump versions
-2971dda Gemfile - nump versions
-d806b2f Merge pull request #917 from ninp0/master
-3a735e2 Rspec - add flex_spec.rb
-22b802e PWN::Plugins::BurpSuite module - when PWN::Env[:ai][:introspection] is true, only perform AI Introspection (i.e. Agentic Analysis) on targets in scope.  This includes sitemap, proxy history, and websocket history introspection threads
-b2980b5 PWN::SDR::Decoder::POCSAG module - rubocop #bugfixes
-56e5010 PWN::SDR modules - update FrequencyAllocation to support multiple ranges, enhance measure_signal_strength to dynamically calculate max_attempts based upon precision value passed, and initial implementation of a POCSAG decoder
-54b51ab Merge pull request #916 from ninp0/master
-4a25368 Gemfile - bump to latest versions
-3d2861a Merge pull request #915 from ninp0/master
-5a3a506 .ruby-version - Bump to 4.0.0 #MerryChristmas
-cb249ee Merge pull request #914 from ninp0/master
-1b28011 PWN::SDR::GQRX - scan log name bugfix when keep_looping = true
-a233e14 PWN::SDR::GQRX - provide a brief intermission between scan loops
-fcfe78e pwn_gqrx_scanner driver - arbitrary bugfixes and implement --keep-looping feature #bugfix
-b1b18c0 pwn_gqrx_scanner driver - arbitrary bugfixes and implement --keep-looping feature #bugfix
-7242109 Merge pull request #913 from ninp0/master
-48089fa pwn_gqrx_scanner driver - arbitrary bugfixes and implement --keep-looping feature
-dfaadfd PWN::SDR::GQRX - #bugfix in logging incorrect demodulator_mode
-33478f3 Merge pull request #912 from ninp0/master
-8ae84d4 PWN::SDR::Decoder::RDS module - fill up line as much as possible prior to truncation
-1725dfa PWN::SDR::Decoder::RDS module - newline/radio text longer than terminal width #bugfix
-9e846e2 PWN::SDR::Decoder::RDS module - faster display / newline #bugfix
-9502cd6 PWN::SDR::GQRX module - faster measure_signal_strength w/o sacrificing accuracy and finalize PWN::SDR::Decoder::RDS module
-3a4aed5 Merge pull request #911 from ninp0/master
-3b111be PWN::SDR::GQRX module - migrate RDS decoding to PWN::SDR::Decoder::RDS module #bugfixes
-bef0875 Merge pull request #910 from ninp0/master
-12eef9e PWN::SDR::GQRX module - move RDS decoding to PWN::SDR::Decoder namespace and move String / Integer monkey patches for cast signals into PWN::SDR module instead
-365d999 PWN::SDR::GQRX module - drastically improved measure_signal_strength, increasing speed and accuracy
-da96d10 Merge pull request #909 from ninp0/master
-dff5304 PWN::SDR::GQRX module - drastically improved measure_signal_strength, increasing speed and accuracy
-3b6eb8a Merge pull request #908 from ninp0/master
-c191aab PWN::SDR::GQRX module - signal logging #bugfix
-f850b6d Merge pull request #907 from ninp0/master
-dc914e3 PWN::SDR::GQRX module - drastically improved edge detection, RDS decoding on WFM, better signal strength measurement, and reduced complexity
-29db14b Merge pull request #906 from ninp0/master
-c5c47bb Generisize wrapper scripts used for building / resintalling gemset / etc
-5d4d4d0 PWN::SDR modules - cleanup / enhancements
-a8c4272 Merge pull request #905 from ninp0/master
-c46fc97 Work out dep snaffu
-de8590f Gemfile - pull in latest versions (address CVE in meshtastic gem)
-cdced0f PWN::SDR::GQRX module - Bandwidth overlap #enhancements / #bugfixes
-72c3c44 Merge pull request #904 from ninp0/master
-6bf1401 PWN::Plugins::GQRX module - move to new PWN::SDR namespace, w/ complete overhaul.  Move profiles into PWN::SDR::FrequencyAllocationModule, move anyy SDR related modules to the PWN::SDR namespace (e.g. FlipperZero, etc).  Implement edge detection in PWN::SDR::GQRX, smoothing signals discovered for better accuracy, speed up scans, etc.
-41deb49 Merge pull request #903 from ninp0/master
-f31464d PWN::Plugins::BurpSuite module - smarter delays within introspection threads depending on type
-d96576c Merge pull request #902 from ninp0/master
-b0ab5ad PWN::Plugins::BurpSuite module - split introspection thread into separate ones to increase throughput
-cfa0c66 Merge pull request #901 from ninp0/master
-cc14d6c PWN::Plugins::BurpSuite module - implement WebSocket history AI instrospection
-121b30d Merge pull request #900 from ninp0/master
-0f3de48 PWN::Plugins::BurpSuite module - sync sitemap and proxy notes to rely upon first generated to speed up AI introspection and iliminate redundancy #slight_tweak
-5321ea9 Merge pull request #899 from ninp0/master
-3d25845 .rubocop.yml - Tweak to support PWN::Plugins:BurpSuite module
-43db0e4 Merge pull request #898 from ninp0/master
-e20f47d PWN::Plugins::BurpSuite module - sync sitemap and proxy notes to rely upon first generated to speed up AI introspection and iliminate redundant introspection
+27c8b2b5 Merge pull request #1009 from ninp0/master
+3af915b9 `pwn-ai` - deal with ReadTimeout when dealing w/ large payloads
+a06f59d6 Merge pull request #1008 from ninp0/master
+3a87fdd5 `pwn-ai` - deal with HTTP 502, 503, 504 responses from LLM provider
+7fde94c2 Merge pull request #1007 from ninp0/master
+7a11fabd `pwn-ai` - Create timeout bounds for `shell` and `pwn_eval` tools ranging from 30-10_800 seconds incrementing 180 seconds until command completes or timeout after 3hrs is triggered steering a different approach.  Also added `/model` command suite (with command completion) to quickly list / switch providers/model in an active `pwn-ai` session that persist cross-session
+74890a72 Merge pull request #1006 from ninp0/master
+05609003 PWN::AI::RedTeam namespace - extend modules to include attack methods described in OWASP Top 10 for LLM Applications 2025 / 2026 && AI Red Teaming Solutions Taxonomy
+12c51f86 Merge pull request #1005 from ninp0/master
+9a9511a5 Better Google Workspace authZ within `pwn-ai` #rubocop_fixes
+3563cf03 Better Google Workspace authZ within `pwn-ai`
+88fa6bd0 Better Google Workspace authZ within `pwn-ai`
+7aeeb7c1 Merge pull request #1004 from ninp0/master
+31d74e1d Add default skills for the entire PWN namespace
+b13d6392 pwn-ai - toggle-debug tmp file output bugfixes
+341b0063 Merge pull request #1003 from ninp0/master
+0422844d pwn-ai - begin implementing command menu, add path completion, and default cwe, capec, and ATT&CK skills
+2bb98aa8 pwn-ai - begin implementing command menu, add path completion, and default cwe, capec, and ATT&CK skills
+b891eec4 Merge pull request #1002 from ninp0/master
+6f20948b .ruby-version - Bump to 4.0.6 && implement `toggle-debug` in pwn REPL to gernerate `pwn-ai` logs for troubleshooting unexpected behavior
+2a1026a9 .ruby-version - Bump to 4.0.6 && implement `toggle-debug` in pwn REPL to gernerate `pwn-ai` logs for troubleshooting unexpected behavior
+bee1d16e Merge pull request #1001 from ninp0/master
+d9bc8906 `pwn-ai` - implement verbose logging to /tmp and STDOUT when `toggle-pwn-ai-debug` == true
+21433603 Merge pull request #1000 from ninp0/master
+ed4f4963 `pwn setup --migrate` - include default set of skills that live in /opt/pwn/etc/default_skills
+fed5a3be PWN::AI::Agent::Registry module - implement tool priority order preferences (including broader list of tools), `spin.stop` object #bugfix in `pwn-ai`, and documentation updates
+c99edf8b PWN::AI::Agent::Registry module - implement tool priority order preferences (including broader list of tools), `spin.stop` object #bugfix in `pwn-ai`, and documentation updates
+b5cb837b Merge pull request #999 from ninp0/master
+3e26dfdb pwn-ai - eliminate request types and consolidate into the same logic (i.e. question vs statement vs autonomous_goal simply become autonomous_goal)
+c8b19465 pwn-ai #bugfixes / #enhancements related to autonomous_goal completion
+67d30408 Merge pull request #998 from ninp0/master
+c83b239e More `spin.stop` object #bugfixes in `pwn-ai` and enhancement when submitting a statement.
+ba022c5c Merge pull request #997 from ninp0/master
+16c21652 PWN::AI::Agent::Registry module - implement tool priority order preferences, `spin.stop` object #bugfix in `pwn-ai`, and documentation updates
+2fd461a7 Merge pull request #996 from ninp0/master
+212ac1be spinner bugfixes
+270223c2 Merge pull request #995 from ninp0/master
+64cc08fa pwn setup - Implement cron worker line entry to ensure pwn-ai cron jobs are executed on the schedule in which they're defined #bugfixesd
+f63e9e58 pwn setup - Implement cron worker line entry to ensure pwn-ai cron jobs are executed on the schedule in which they're defined
+79d9ed03 Merge pull request #994 from ninp0/master
+206c6211 Added PWN::WWW::GitHub module and removed PWN::AI::RedTeam::ModelDenialOfService module - too expensive / exhausts tokens too quickly.
+20fc78c4 Merge pull request #993 from ninp0/master
+f8359e61 RL feedback loop enhancements
+2c4d7df0 Merge pull request #992 from ninp0/master
+ee44dc6d Faster memory recall for current session and distinguish between users statements, questions, and autonomous goal requests where the latter requires a task breakdown.
+8ff5835b Merge pull request #991 from ninp0/master
+f62af554 When using pwn-vault command within the pwn REPL driver, do not allow the editor to leave until PWN::Config confirms a valid config...this prevents cumbersome decrypt/re-edit/encrypt pwn.yaml tasks to get back into the pwn REPL.
+c96b74ea Merge pull request #990 from ninp0/master
+de9505b6 Decouple ollama and openwebui by creating each as their own provider, memory recall enhancements, more resislient request parsing when using ollama or openwebui
+ad53a14e Merge pull request #989 from ninp0/master
+55b0183a README.md - update Groks take on `pwn-ai`.
+908f6ab9 Merge pull request #988 from ninp0/master
+2f3a0ea8 PWN::AI::Grok, PWN::AI::Anthropic, and PWN::AI::OpenAI - persist oauth bearer tokens to pwn.yaml when refresh token are used to refresh AuthZ
+e881ca80 Merge pull request #987 from ninp0/master
+ff56c555 ~/.pwn - keep files lean in RL feedback loopy
+9df6e56e pwn-ai - t retrieve context in current session morr quickly
+210f41ee Merge pull request #986 from ninp0/master
+7d5488a7 Merge remote-tracking branch 'upstream/master'
+af2a13eb pwn-ai - task summarizer to convey task objectives for long running autonomous tasks which drives tools to complete each task until originally submitted user request is complete #round2.
+716fa2a8 Merge pull request #985 from ninp0/master
+b03457ac pwn-ai - task summarizer to convey task objectives for long running autonomous tasks which drives tools to complete each task until originally submitted user request is complete.
+9722b8e5 Merge pull request #984 from ninp0/master
+5854f34a pwn-ai - task summarizer to convey task objectives for long running autonomous tasks, iteration exhaustion, and memory recall / learning outcome #bugfixes
+85f6b6d7 Merge pull request #983 from ninp0/master
+066088e5 pwn-ai - Implement a task summarizer to convey task objectives for long running autonomous tasks
+0efb7de9 Merge pull request #982 from ninp0/master
+989c3cea more autonomous fixes
+d44703ac Merge pull request #981 from ninp0/master
+2dfd5762 PWN::AI::Agent::Tools::Shell module - long-running shell timeouts should no longer spam IOError errors to STDOUT
+c0440049 Merge pull request #980 from ninp0/master
+27ade080 Reinforced learning feedback loop enhancements - better support for long autonomous tasks #round2
+9701e708 Merge pull request #979 from ninp0/master
+52c76428 Reinforced learning feedback loop enhancements - better support for long autonomous tasks
+be84dd69 Merge pull request #978 from ninp0/master
+6311b03e #rubocop_fix
+c758c22b PWN::Plugins::HackerOne module - cast to hacker api #bump_gem_version_compatibility
+8b0aaf79 PWN::Plugins::HackerOne module - cast to hacker api
+712962e1 Merge pull request #977 from ninp0/master
+6ecd9f29 doocumentation updates
+13d8d16f Merge pull request #976 from ninp0/master
+6333e3e4 Reinforced learning feedback loop enhancements && documentation updates
+690654ec Merge pull request #975 from ninp0/master
+0a644588 Reinforced learning feedback loop enhancements && documentation updates
+a23567b7 Merge remote-tracking branch 'upstream/master'
+4330a39a Reinforced learning residual: P26 version-claim widen + pwn_eval EvalWithLocation + style
+1ddd9df5 Reinforced learning residual: deepen P17 budget_hot + P26 claim filter + pwn_eval self-heal
+85534396 Reinforced learning feedback loop: close P0/P1/P2/P17 weakness set
+f3f86bdb Merge pull request #974 from ninp0/master
+fd964ed4 Reinforced learning feedback loop enhancements && documentation updates
+6533fc41 Merge pull request #973 from ninp0/master
+33235063 Reinforced learning feedback loop enhancements && add oAuth support for PWN::AI::OpenAI && PWN::AI::Anthropic
+97fcfc90 Merge pull request #972 from ninp0/master
+3e66ada6 Reinforced learning feedback loop enhancements, convert ollama provider to stream for faster response times, and refresh documentation to reflect latest features
+ebb9c280 Reinforced learning feedback loop enhancements and convert ollama provider to stream for faster response times
+4e7ef952 Merge pull request #971 from ninp0/master
+c8286237 Github install-matrix - arbiitrary fixes.
+29ca2745 Merge pull request #970 from ninp0/master
+516af396 pwn_ai_red_team Driver - Initial commit to enable targeted LLM penetration testing (e.g. Jail Breaking, Prompt Injection, etc.)
+02a33526 Merge pull request #969 from ninp0/master
+cd97809f Github install-matrix - arbiitrary fixes.
+04d271d5 Merge pull request #968 from ninp0/master
+b9111aef More ~/.pwn resilience checking following upgrades
+310df119 Merge pull request #967 from ninp0/master
+d041088e Work towards getting install-matrix workflow operable
+1f089d04 Merge pull request #966 from ninp0/master
+ffee333f Ensure pwn-ai skills conform to https://agentskills.io/specification
+bf484647 Ensure pwn-ai skills conform to https://agentskills.io/specification
+97b444c0 Merge pull request #965 from ninp0/master
+6a000929 More reinforcement learning feedback loop enhancements
+5ace30cb Merge pull request #964 from ninp0/master
+d72fe894 Documentation / DFD updates to reflect proper configs / SDR decoder fixes #rake_fixes
+de3f5557 Documentation / DFD updates to reflect proper configs / SDR decoder fixes
+2b279191 Merge pull request #963 from ninp0/master
+f988e881 Learning FeedBack Loop - enhancements to support smaller LLMs, refined easier installation, and updates to documentation / DFDs
+677fcdc1 Learning FeedBack Loop - enhancements to support smaller, local models
+a9cc3625 Merge pull request #962 from ninp0/master
+0cf0c7de README.md - prefer PWN gif over static png
+5904e90d Extrospection tweaks to support things like, what song is playing on a specific FM station, what planes are flying over me, what are strongest RF signals around me, tell me the weather in Tokyo, has the bug bounty page been updated, any known exploits in Apache in 2026, what devices are connected to this laptop, etc.
+690c7c1a fix(gqrx): restore regular-scan edge detection + sane squelch for fm_radio
+d94f1243 chore: clear rubocop/rake; extrospection limbs + GQRX scanner polish
+90a41a68 Extrospection tweaks to support things like, what song is playing on a specific FM station, what planes are flying over me, what are strongest RF signals around me, tell me the weather in Tokyo, has the bug bounty page been updated, any known exploits in Apache in 2026, what devices are connected to this laptop, etc.
+1949b9e5 Merge pull request #961 from ninp0/master
+79278f1d Gemfile - pull in latest gem versions, documentation/Configuration.md - exhaustively document pwn.yaml && rename some key/value pairs for clarity.
+5ceb5f6d Merge pull request #960 from ninp0/master
+611da4ac More documentation updates and native ruby SDR decoders
+6831b63f More documentation updates, enhanced "learning from mistakes", and added a few SDR decoders
+d65364a5 More documentation updates, enhanced "learning from mistakes", and added a few SDR decoders
+68160bc2 Merge pull request #959 from ninp0/master
+fe461f73 More documentation tweaks
+55392d25 Merge pull request #958 from ninp0/master
+c85981c9 Cron bugfixes.  PWN::AI - feedback loop improvements / extrospection to mirror introspection.  Also overhaul README.md , implement more documentation, and DFDs easier to understand, implement `pwn --ai` option within pwn REPL driver, remove deprecated pwn-irc command in favor of PWN::AI::Agent::Tools::Swarm module, etc.
+afaad9bc Cron bugfixes.  PWN::AI - feedback loop improvements / extrospection to mirror introspection.  Also overhaul README.md , implement more documentation, and make DFDs easier to evaluate.
+7d580052 PWN::AI:Grok module - implement oauth.  PWN::AI - feedback loop improvements.  Also overhaul README.md , implement more documenration, and DFDs.
+f37a4f9b PWN::AI:Grok module - implement oauth.  PWN::AI - feedback loop improvements.  Also overhaul README.md , implement more documenration, and DFDs.
+00a4ea0c Merge pull request #957 from ninp0/master
+c477a034 Remove backup file
+ee35abbe Merge pull request #956 from ninp0/master
+5119246d Numerous #bugfixes / stability fixes for pwn-ai
+0bdcb3b2 Merge pull request #955 from support-0dayInc/master
+b9093859 fix(ai): PWN::AI::Grok.obtain_oauth_bearer_token now reliable for singular long-lived enrollment; guard for secret+Basic auth+error handling+public method; clear user steps for one-time pwn-vault persist (GPG signed for 0dayinc/pwn merge)
+ae6a4902 fix(ai): correct PWN::AI::Grok oauth trigger to pass hash arg + guard per pwn_sdlc reference; remove debug puts
+3314cedd Merge pull request #954 from ninp0/master
+b12a2745 Gemfile - bump meshtastic version
+0eb50ed7 pwn-ai REPL command - minor bugfixes / optimizations
+ec7cfdee Merge pull request #953 from support-0dayInc/master
+1cf42886 feat(ai): PWN::AI::Grok calls authorize endpoint (URL construction + code exchange) only when oauth configured for bearer_token (xAI SuperGrok); full pwn_sdlc pipeline
+83abdf0d Merge remote-tracking branch 'upstream/master'
+53b2b752 Merge pull request #952 from ninp0/master
+c6e12194 PWN::Plugins::REPL module - bugfixes in pwn-asm / pwn-ai commands within PWN prototyping REPL. (#951)
+77436d17 PWN::Plugins::REPL module - bugfixes in pwn-asm / pwn-ai commands within PWN prototyping REPL.
+04659d7e Merge remote-tracking branch 'upstream/master'
+cbad0e52 pwn: feat(pwn-ai): implement pwn-ai command in pwn REPL driver as an agentic AI harness (GPG signed for 0dayinc/pwn merge) (#950)
+09213be5 feat(pwn-ai): implement pwn-ai command in pwn REPL driver as an agentic AI harness (GPG signed for 0dayinc/pwn merge requirement)
+d950414f Implement pwn-ai command in pwn REPL driver as an agentic AI harness.
+94d4bb3e Merge pull request #949 from support-0dayInc/master
+6a169ab4 Finalize pwn gem visibility outside /opt/pwn (ruby-4.0.5@pwn gemset), MFA/OTP prompt handling for rvmsudo gem push $latest_gem in git_commit.sh, pwn-ai REPL driver anthropic (and other) provider response visibility in TUI + system_role_content override bug fix (full pwn_sdlc pipeline)
+d3497740 Merge remote-tracking branch 'upstream/master'
+e6be6df5 Finalize pwn gem visibility outside /opt/pwn (ruby-4.0.5@pwn gemset), MFA/OTP prompt handling for rvmsudo gem push  in git_commit.sh, pwn-ai REPL driver anthropic (and other) provider response visibility in TUI + system_role_content override bug fix (full pwn_sdlc pipeline)
