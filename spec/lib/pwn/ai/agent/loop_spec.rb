@@ -434,6 +434,33 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/engine hop failed|engine_blip/)
     end
 
+    it 'compacts tool history for every engine, not only local' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/compact_history!\(messages: messages\)/)
+      expect(src).not_to match(/compact_history!\(messages: messages\) if local/)
+    end
+
+    it 'shrinks tool bodies when history is fat' do
+      msgs = [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'goal' }
+      ]
+      8.times do |n|
+        msgs << { role: 'assistant', content: '', tool_calls: [{ id: "c#{n}" }] }
+        msgs << { role: 'tool', tool_call_id: "c#{n}", name: 'shell', content: ('x' * 4_000) }
+      end
+      out = described_class.send(:compact_history!, messages: msgs)
+      tool_bodies = out.select { |m| m[:role].to_s == 'tool' }
+      expect(tool_bodies.length).to be <= 6
+      expect(tool_bodies.map { |m| m[:content].to_s.length }.max).to be <= 2_100
+    end
+
+    it 'compacts again after a transient engine hop before retrying' do
+      src = File.read(described_class.method(:run).source_location.first)
+      hop = src[/if engine_transient\?.*?raise/m]
+      expect(hop).to match(/compact_history!/)
+    end
+
     it 'records a timeout increment mistake instead of treating success:true as ok' do
       tmp = Dir.mktmpdir
       stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))

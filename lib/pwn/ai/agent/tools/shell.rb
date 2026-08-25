@@ -65,7 +65,7 @@ PWN::AI::Agent::Registry.register(
 
     if PWN::AI::Agent::ToolGuard.bashism?(text: cmd) && !PWN::AI::Agent::ToolGuard.shell_bash?
       return PWN::AI::Agent::ToolGuard.invalid_payload(
-        hint: 'Command uses bash-only syntax (PIPESTATUS, [[ ]], process substitution, ' \
+        hint: 'Command uses bash-only syntax (PIPESTATUS, $RANDOM, [[ ]], process substitution, ' \
               'source, &>). This handler runs /bin/sh (dash) unless ' \
               'PWN::Env[:ai][:agent][:shell_bash]=true. Rewrite as POSIX or opt in to bash.'
       )

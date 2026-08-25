@@ -24,6 +24,7 @@ module PWN
         # Conservative bash-only constructs. POSIX `$(())` is allowed.
         BASHISM_RX = /
           \bPIPESTATUS\b
+          |\$\{?RANDOM\}?\b
           |\[\[(?:\s|\z)
           |(?:^|[\s;|&])source\s+\S
           |<\([^)]
