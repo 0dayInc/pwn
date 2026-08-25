@@ -1427,8 +1427,10 @@ module PWN
           messages = opts[:messages]
           return messages unless messages.is_a?(Array) && messages.length > 12
 
-          keep_pairs = (agent_flag(key: :history_keep_tool_pairs, default: 6) || 6).to_i
-          max_chars  = (agent_flag(key: :history_tool_max_chars, default: 2_000) || 2_000).to_i
+          keep_pairs = opts[:keep_pairs]
+          keep_pairs = (agent_flag(key: :history_keep_tool_pairs, default: 6) || 6).to_i if keep_pairs.nil?
+          max_chars = opts[:max_chars]
+          max_chars = (agent_flag(key: :history_tool_max_chars, default: 2_000) || 2_000).to_i if max_chars.nil?
 
           head = []
           rest = messages.dup
@@ -2491,8 +2493,9 @@ module PWN
           i = 0
           loop do
             i += 1
-            # 3.1 — compact history on local so tool dumps don't fill num_ctx
-            compact_history!(messages: messages) if local
+            # 3.1 — compact fat tool dumps so remote ReadTimeout hops do not
+            # retry the same 70-message payload (R1 201215 Anthropic 180s×5).
+            compact_history!(messages: messages)
             # English-task-as-primary: when plan_idx advanced, tell the model
             # which plain-English task is active before the next tool batch.
             inject_task_focus!(messages: messages, state: ts_state, request: request) unless skip_compass
@@ -2510,6 +2513,7 @@ module PWN
                   final_chars = txt.length
                   return txt
                 end
+                compact_history!(messages: messages, keep_pairs: 3, max_chars: 800)
                 messages << {
                   role: 'user',
                   content: '[pwn-ai] engine hop failed (transient). Keep calling CORE_TOOLS. ' \

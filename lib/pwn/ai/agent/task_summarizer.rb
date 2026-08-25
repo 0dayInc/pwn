@@ -661,6 +661,17 @@ module PWN
             ]
           end
 
+          artifact = goal_text[%r{(?:/(?:tmp|var|home|opt|usr)/\S+\.(?:pdf|html|md|json|txt|csv)|~/\S+\.(?:pdf|html|md|json|txt|csv))}i]
+          if artifact && goal_lc.match?(/\b(analy[sz]e|test|scan|report|generat|store|write|export)\b/)
+            tasks << 'Carry out the requested analysis using the named skills and live evidence'
+            tasks << "Write the requested report to #{artifact}"
+            if goal_lc.match?(/\b(json|ya?ml|table|csv|tsv)\b/)
+              fmt = goal_lc[/\b(json|ya?ml|table|csv|tsv)\b/]
+              tasks << "Present the results in #{fmt} format"
+            end
+            return tasks
+          end
+
           tasks << "Understand the request: #{truncate_goal(goal: goal_text)}"
           tasks << "Carry out the core work for: #{truncate_goal(goal: goal_text)}"
 

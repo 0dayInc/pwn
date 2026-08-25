@@ -36,6 +36,14 @@ describe 'P0 signal hygiene (handler + inbox + policy-cold + calibrate)' do
     expect(r[:hint].to_s).to match(/bash-only/i)
   end
 
+  it 'rejects $RANDOM under /bin/sh so the model rewrites instead of getting USER=' do
+    expect(PWN::AI::Agent::ToolGuard.bashism?(text: 'U="p4tester$RANDOM"; echo $U')).to eq(true)
+    handler = PWN::AI::Agent::Registry.lookup(name: 'shell').handler
+    r = handler.call(command: 'U="p4tester$RANDOM"; echo $U')
+    expect(r[:error]).to eq('invalid_payload')
+    expect(r[:hint].to_s).to match(/RANDOM|bash-only|POSIX/i)
+  end
+
   it 'does not refuse pwn_eval host-discovery as unauthorized' do
     src = File.read('/opt/pwn/lib/pwn/ai/agent/tools/ruby_eval.rb')
     expect(src).not_to match(/recon_blocked/)

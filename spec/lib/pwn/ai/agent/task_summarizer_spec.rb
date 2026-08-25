@@ -425,6 +425,16 @@ describe PWN::AI::Agent::TaskSummarizer do
       )
     end
 
+    it 'splits analyze-plus-artifact goals instead of pasting the full request twice' do
+      goal = 'Exhaustively analyze the running application for vulnerabilities. ' \
+             'Once complete, generate a complete PDF report and store in /tmp/container_pentest-p4.pdf'
+      tasks = described_class.fallback_decompose(goal: goal)
+      expect(tasks.length).to be >= 2
+      expect(tasks.join("\n")).to include('/tmp/container_pentest-p4.pdf')
+      expect(tasks.grep(/Understand the request:/).length).to eq(0)
+      expect(tasks.grep(/Carry out the core work for:/).length).to eq(0)
+    end
+
     it 'accepts injected :tasks / :llm_tasks without network I/O' do
       custom = ['step alpha', 'step beta', 'verify completion']
       tasks = described_class.plan(request: 'anything at all', tasks: custom)
