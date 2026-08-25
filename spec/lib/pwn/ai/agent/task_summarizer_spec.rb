@@ -894,6 +894,57 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(described_class.plan_open?(state: st)).to eq true
     end
 
+    it 'does not complete a subnet scan on leftover identify text or Nmap/scan word salad' do
+      st = described_class.fresh(request: 'what hosts are alive on this subnet?')
+      st[:plan] = [
+        'Identify the local network address and mask',
+        'Scan the identified subnet for active or reachable hosts',
+        'Present the list of discovered live host IP addresses'
+      ]
+      st[:plan_idx] = 0
+      3.times do |i|
+        described_class.record!(
+          state: st,
+          name: 'shell',
+          args: { 'command' => "ip -4 addr #{i}" },
+          result: '{"success":true,"result":{"stdout":"inet 10.3.3.20/27 brd 10.3.3.31 eth0","exit":0}}'
+        )
+      end
+      expect(st[:plan_idx]).to eq 1
+      3.times do
+        described_class.record!(
+          state: st,
+          name: 'shell',
+          args: { 'command' => 'nmap -sn 10.3.3.20/27 | grep Nmap | cut -d " " -f 2' },
+          result: '{"success":true,"result":{"stdout":"Nmap\\nscan\\nscan\\nscan\\nscan","exit":0}}'
+        )
+      end
+      expect(st[:plan_idx]).to eq 1
+    end
+
+    it 'does not finish an analysis task on recall plus one recon shell' do
+      st = described_class.fresh(request: 'exhaustively analyze the running app then write a PDF')
+      st[:plan] = [
+        'Carry out the requested analysis using the named skills and live evidence',
+        'Write the requested report to /tmp/container_pentest-p4.pdf'
+      ]
+      st[:plan_idx] = 0
+      described_class.record!(
+        state: st, name: 'memory_recall', args: { 'query' => 'securebank' },
+        result: '{"success":true,"result":{"x":{"value":"old findings list that is easily over 40 characters long"}}}'
+      )
+      described_class.record!(
+        state: st, name: 'skills_recall', args: { 'query' => 'cwe' },
+        result: '{"success":true,"result":[{"name":"cwe","snippet":"more than forty characters of skill text here"}]}'
+      )
+      described_class.record!(
+        state: st, name: 'shell',
+        args: { 'command' => 'docker ps; curl -s http://127.0.0.1:5000/ | head' },
+        result: '{"success":true,"result":{"stdout":"permission denied docker.sock\\nHTTP/1.1 200 OK Kestrel","exit":0}}'
+      )
+      expect(st[:plan_idx]).to eq 0
+    end
+
     it 'a verify task is covered after the verifier ran, even with remaining offenses' do
       st = described_class.fresh(request: 'run rubocop')
       st[:plan] = [

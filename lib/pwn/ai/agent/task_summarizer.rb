@@ -130,7 +130,8 @@ module PWN
             last_advanced_from: nil,
             last_advance_brief: nil,
             tools_on_task: 0,
-            evidence_blob: ''
+            evidence_blob: '',
+            task_evidence: {}
           }
         end
 
@@ -911,7 +912,9 @@ module PWN
           blob = coverage_blob(state: state, messages: opts[:messages])
           n = plan.length
           plan.each_with_index.filter_map do |item, i|
-            next if item.empty? || item_covered?(item: item, blob: blob)
+            slice = state[:task_evidence].is_a?(Hash) ? state[:task_evidence][i].to_s : ''
+            use = host_shaped_task?(item: item) && !slice.empty? ? slice : blob
+            next if item.empty? || item_covered?(item: item, blob: use)
 
             { idx: i, item: item, label: "task #{i + 1}/#{n}: #{item}" }
           end
@@ -1371,7 +1374,7 @@ module PWN
             /\b(implement\w*|fix|patch\w*|chang\w*|improv\w*|write|apply|wire|refactor\w*)\b/
           )
           return :discover if s.match?(
-            /\b(locat\w*|find|read|inspect|recon\w*|understand|decompos\w*|map|identif\w*|gather|discover|enumerat\w*|scan|probe|determin\w*|root cause|where and why|track|navigat\w*|browse|goto)\b/
+            /\b(locat\w*|find|read|inspect|recon\w*|understand|decompos\w*|map|identif\w*|gather|discover|enumerat\w*|scan|probe|determin\w*|analy[sz]e|analysis|root cause|where and why|track|navigat\w*|browse|goto)\b/
           )
 
           :generic
@@ -1432,6 +1435,19 @@ module PWN
           ''
         end
 
+        HOST_TASK_RX = /
+          \b(?:hosts|subnet|address|mask|cidr|alive|reachab\w*|ipv4|ipv6|live\s+host)
+        /ix
+        HOST_IP_RX = %r{
+          \b(?!127\.)(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?\b
+        }x
+
+        private_class_method def self.host_shaped_task?(opts = {})
+          opts[:item].to_s.match?(HOST_TASK_RX)
+        rescue StandardError
+          false
+        end
+
         private_class_method def self.item_covered?(opts = {})
           item = opts[:item].to_s
           blob = opts[:blob].to_s.downcase
@@ -1442,6 +1458,8 @@ module PWN
           when :verify
             blob.match?(VERIFY_DONE_RX) || blob.match?(VERIFY_RAN_RX)
           else
+            return blob.match?(HOST_IP_RX) if host_shaped_task?(item: item)
+
             # discover / present / generic: some real tool evidence, not empty / tiny JSON
             blob.strip.length >= 40
           end
@@ -1467,10 +1485,15 @@ module PWN
             min_tools = browse_hit ? 1 : DISCOVER_MIN_TOOLS
             on_task = opts[:state].is_a?(Hash) ? opts[:state][:tools_on_task].to_i : 0
             return false if on_task < min_tools
+
+            host_ok = host_shaped_task?(item: opts[:item]) && HOST_IP_RX.match?(opts[:result].to_s)
+            return host_ok if host_shaped_task?(item: opts[:item])
             return false unless item_covered?(item: opts[:item], blob: joined)
 
+            return true if host_ok || phase == :present || browse_hit
+
             intent_s = (Array(opts[:intents]) + Array(opts[:names])).join(' ')
-            task_intent_match?(item: opts[:item], intent: intent_s) || phase == :present || browse_hit
+            task_intent_match?(item: opts[:item], intent: intent_s)
           else
             false
           end
@@ -1489,6 +1512,12 @@ module PWN
           nxt_p = task_phase(item: nxt)
           return false if nxt_p == :generic
           return false if cur_p == nxt_p
+
+          if host_shaped_task?(item: opts[:item])
+            idx = opts[:state][:plan_idx].to_i
+            ev = opts[:state][:task_evidence].is_a?(Hash) ? opts[:state][:task_evidence][idx].to_s : ''
+            return false unless HOST_IP_RX.match?(ev)
+          end
           return false unless task_intent_match?(item: nxt, intent: opts[:intent]) || nxt_p == :present
 
           true
@@ -1636,11 +1665,14 @@ module PWN
           state[:counts][name.to_s] += 1
           state[:total] += 1
           state[:since_emit] += 1
-          state[:tools_on_task] = state[:tools_on_task].to_i + 1
+          state[:tools_on_task] = state[:tools_on_task].to_i + 1 unless name.to_s.match?(/^(memory|session|skills)_recall$/)
           state[:emitted_for_batch] = false
           chunk = "#{name} #{preview} #{rs.to_s[0, 800]}"
           state[:evidence_blob] = "#{state[:evidence_blob]} #{chunk}"
           state[:evidence_blob] = state[:evidence_blob][-16_000..] if state[:evidence_blob].to_s.length > 20_000
+          te = (state[:task_evidence] ||= {})
+          idx = state[:plan_idx].to_i
+          te[idx] = "#{te[idx]} #{chunk}"
           intent = intent_phrase(tools: [{ name: name.to_s, args: args }])
           # Live R2-local signal from tool outcome (executive idx only).
           # Full ORM/PRM credit stays in Reward during auto_introspect.
