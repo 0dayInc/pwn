@@ -100,9 +100,10 @@ module PWN
 
             HOST LOAD
               #{host_load_block}
-              On pwn_eval/shell timeout: reconstruct the ruby/command for the
-              same goal first. Do not first raise timeout. Only if construction
-              is sound, raise a conservative HOST LOAD timeout (clamped).
+              On pwn_eval/shell timeout: keep the same ruby/command and retry
+              with timeout += 180 until it finishes or the 3-hour budget is
+              gone. Only then rewrite the payload for the same goal (max 10
+              mutations per task). Any payload.
               Record a mistake either way.
 
             AUTONOMY

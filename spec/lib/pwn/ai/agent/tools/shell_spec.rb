@@ -60,12 +60,12 @@ describe 'PWN::AI::Agent::Tools shell' do
     expect(r[:exit]).to eq(0)
   end
 
-  it 'on timeout prefers reconstruct-the-command before raising timeout' do
+  it 'on timeout keeps the same command and increments timeout' do
     tmp = Dir.mktmpdir
     stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
     r = handler.call(command: 'sleep 3', timeout: 1)
     expect(r[:error].to_s).to match(/timeout after 1s/)
-    expect(r[:hint].to_s).to match(/reconstruct|generated differently|improperly/i)
-    expect(r[:scenario].to_s).to eq('construction')
+    expect(r[:hint].to_s).to match(/timeout \+= 180|next_timeout|same .*payload/i)
+    expect(r[:scenario].to_s).to eq('deadline')
   end
 end

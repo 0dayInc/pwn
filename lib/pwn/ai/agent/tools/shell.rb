@@ -23,14 +23,17 @@ PWN::AI::Agent::Registry.register(
                  'stdout/stderr/exit code. Use for OS-level work: nmap, curl, ' \
                  'ls, git, file inspection, anything not in the PWN:: namespace. ' \
                  'Pass timeout as a conservative integer seconds estimate given ' \
-                 'HOST LOAD (loadavg, ncpu, mem). Omit for a host-derived default (clamped).',
+                 'HOST LOAD (loadavg, ncpu, mem). Omit for a host-derived default. ' \
+                 'Explicit timeout is honored up to 10800s (3 hours) for any payload. On ' \
+                 'timeout, keep the same payload and retry with timeout += 180 ' \
+                 'until the 3-hour budget is gone; then rewrite (max 10 mutations/task).',
     parameters: {
       type: 'object',
       properties: {
         command: { type: 'string', description: 'The exact shell command to run.' },
         timeout: {
           type: 'integer',
-          description: 'Conservative seconds this command should take given HOST LOAD. Omit for host-derived default. Clamped 1..180.'
+          description: 'Conservative seconds this command should take given HOST LOAD. Omit for a host-derived default. Explicit values honored 1..10800 (3 hours). On timeout keep the same payload and timeout += 180; rewrite only after the 3-hour budget (max 10 mutations/task).'
         }
       },
       required: %w[command]
@@ -52,7 +55,7 @@ PWN::AI::Agent::Registry.register(
                         .gsub(/\\\r?\n/, ' ')
                         .gsub(/\\+\s*\z/, '')
                         .strip
-    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :shell)
+    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :shell, payload: cmd)
     if cmd.empty? || PWN::AI::Agent::ToolGuard.placeholder?(text: cmd)
       return PWN::AI::Agent::ToolGuard.invalid_payload(
         hint: 'command is required (string). Do not send ..., {...}, {…}, or empty. ' \

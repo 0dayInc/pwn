@@ -24,7 +24,10 @@ PWN::AI::Agent::Registry.register(
                  'browser. Do not open a second browser. Close once with ' \
                  'Close once with TransparentBrowser.close(browser_obj: browser_obj). ' \
                  'Pass timeout as a conservative integer seconds estimate given HOST ' \
-                 'LOAD (loadavg, ncpu, mem). Omit for a host-derived default (clamped). ' \
+                 'LOAD (loadavg, ncpu, mem). Omit for a host-derived default. ' \
+                 'Explicit timeout is honored up to 10800s (3 hours) for any payload. On ' \
+                 'timeout, keep the same payload and retry with timeout += 180 ' \
+                 'until the 3-hour budget is gone; then rewrite (max 10 mutations/task). ' \
                  'Returns captured stdout plus the inspected value of the last expression.',
     parameters: {
       type: 'object',
@@ -32,7 +35,7 @@ PWN::AI::Agent::Registry.register(
         code: { type: 'string', description: 'Ruby source to evaluate.' },
         timeout: {
           type: 'integer',
-          description: 'Conservative seconds this eval should take given HOST LOAD. Omit for host-derived default. Clamped 1..90.'
+          description: 'Conservative seconds this eval should take given HOST LOAD. Omit for a host-derived default. Explicit values honored 1..10800 (3 hours). On timeout keep the same payload and timeout += 180; rewrite only after the 3-hour budget (max 10 mutations/task).'
         }
       },
       required: %w[code]
@@ -61,7 +64,7 @@ PWN::AI::Agent::Registry.register(
     old_stdout = $stdout
     buf = StringIO.new
     $stdout = buf
-    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :eval)
+    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :eval, payload: code)
     begin
       # rubocop:disable Security/Eval
       # INTENTIONAL: this IS the pwn-ai → PWN bridge
@@ -89,17 +92,12 @@ PWN::AI::Agent::Registry.register(
       # rubocop:enable Security/Eval
       { stdout: buf.string, value: val.inspect, timeout: timeout }
     rescue Timeout::Error
-      lesson = PWN::AI::Agent::ToolGuard.timeout_lesson(
+      PWN::AI::Agent::ToolGuard.timeout_result(
         tool: 'pwn_eval',
         payload: code,
-        timeout: timeout
+        timeout: timeout,
+        stdout: buf.string
       )
-      {
-        stdout: buf.string,
-        error: "timeout after #{timeout}s",
-        scenario: lesson[:scenario],
-        hint: lesson[:hint]
-      }
     rescue ScriptError, StandardError => e
       {
         stdout: buf.string,

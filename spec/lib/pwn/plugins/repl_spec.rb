@@ -67,11 +67,15 @@ describe PWN::Plugins::REPL do
       hits = described_class.pwn_ai_complete(target: '/sk', line: '/sk')
       expect(hits).to include('/skills')
       hits = described_class.pwn_ai_complete(target: '/', line: '/')
-      %w[/cron /skills /sessions /memory /debug /back /help].each do |cmd|
+      %w[/cron /skills /sessions /memory /debug /back /help /model].each do |cmd|
         expect(hits).to include(cmd)
       end
       hits = described_class.pwn_ai_complete(target: 'li', line: '/cron li')
       expect(hits).to include('list')
+      hits = described_class.pwn_ai_complete(target: 'li', line: '/model li')
+      expect(hits).to include('list')
+      hits = described_class.pwn_ai_complete(target: 'll', line: '/model list ll')
+      expect(hits).to include('llms')
     end
 
     it 'completes host-native paths when slash is not the first character' do
@@ -100,6 +104,38 @@ describe PWN::Plugins::REPL do
       hook = File.read(described_class.method(:add_hooks).source_location.first)
       expect(hook).to match(/pwn_ai_dispatch_slash!/)
       expect(described_class).to respond_to(:pwn_ai_dispatch_slash!)
+    end
+
+    it 'switches the live engine and model via /model without Loop.run' do
+      expect(described_class).to respond_to(:pwn_ai_run_model)
+      PWN::Env[:ai] ||= {}
+      PWN::Env[:ai][:grok] ||= {}
+      prev_active = PWN::Env[:ai][:active]
+      prev_model = PWN::Env[:ai][:grok][:model]
+      allow(described_class).to receive(:persist_ai_selection).and_return(false)
+      out = described_class.pwn_ai_run_model(args: %w[grok pwn-ai-test-model])
+      expect(PWN::Env[:ai][:active].to_s).to eq('grok')
+      expect(PWN::Env[:ai][:grok][:model]).to eq('pwn-ai-test-model')
+      expect(out.to_s).to match(/grok/i)
+    ensure
+      if PWN::Env.is_a?(Hash) && PWN::Env[:ai].is_a?(Hash)
+        PWN::Env[:ai][:active] = prev_active if defined?(prev_active)
+        PWN::Env[:ai][:grok][:model] = prev_model if defined?(prev_model) && PWN::Env[:ai][:grok].is_a?(Hash)
+      end
+    end
+
+    it 'lists llm ids from the active provider via /model list llms' do
+      expect(described_class).to respond_to(:pwn_ai_list_llms)
+      PWN::Env[:ai] ||= {}
+      prev_active = PWN::Env[:ai][:active]
+      PWN::Env[:ai][:active] = 'grok'
+      allow(PWN::AI::Grok).to receive(:get_models).and_return(
+        [{ id: 'grok-test-a' }, { id: 'grok-test-b' }]
+      )
+      ids = described_class.pwn_ai_run_model(args: %w[list llms])
+      expect(ids).to eq(%w[grok-test-a grok-test-b])
+    ensure
+      PWN::Env[:ai][:active] = prev_active if PWN::Env.is_a?(Hash) && PWN::Env[:ai].is_a?(Hash)
     end
   end
 end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'digest'
+
 module PWN
   module AI
     module Agent
@@ -115,80 +117,174 @@ module PWN
           { ncpu: 1, load1: 0.0, mem_avail_mb: 0 }
         end
 
+        TIMEOUT_STEP_S = 180
+        TIMEOUT_MAX_S = 10_800
+        MUTATION_MAX = 10
+
         # Conservative wall-clock seconds for shell / pwn_eval.
-        # Explicit model estimate is honored then clamped. Omit → host-derived
-        # default from loadavg / ncpu / MemAvailable (loaded hosts get a bit
-        # more time, still capped).
+        # Explicit timeout is honored for any payload (1..TIMEOUT_MAX_S).
+        # Omit → host-derived default from loadavg / ncpu / MemAvailable.
+        # No tool-name sniffing: a 65k scan and `ls` use the same math.
         public_class_method def self.deadline_s(opts = {})
           kind = opts[:kind].to_s.to_sym
-          max = kind == :shell ? 180 : 90
           asked = opts[:timeout] || opts[:timeout_s]
           asked_i = asked.to_i
-          if asked_i.positive?
-            lo = 1
-            hi = max
-            return asked_i.clamp(lo, hi)
-          end
+          return asked_i.clamp(1, TIMEOUT_MAX_S) if asked_i.positive?
 
           snap = host_load
           ncpu = [snap[:ncpu].to_i, 1].max
           load1 = snap[:load1].to_f
           mem = snap[:mem_avail_mb].to_i
+          default_max = kind == :shell ? 180 : 90
           base = kind == :shell ? 30 : 20
           base += 15 if load1 > ncpu
           base += 10 if load1 > (ncpu * 1.5)
           base += 10 if mem.positive? && mem < 512
-          base.clamp(8, max)
+          base.clamp(8, default_max)
         end
 
-        # Two-scenario timeout policy (loop-law, not a skill):
-        # 1. First timeout → reconstruct the ruby/command for the same goal.
-        #    Do not first raise timeout.
-        # 2. A later timeout of the same tool → deadline was too short; raise
-        #    a conservative HOST LOAD timeout (still clamped).
+        public_class_method def self.reset_timeout_budget(opts = {})
+          return :noop unless opts.is_a?(Hash)
+
+          @timeout_spent = {}
+          @timeout_mutations = {}
+          @timeout_mutated = {}
+          :reset
+        end
+
+        public_class_method def self.reset_timeout_budget!
+          reset_timeout_budget
+        end
+
+        public_class_method def self.mutation_count(opts = {})
+          return 0 unless opts.is_a?(Hash)
+
+          timeout_mutations[task_key(opts)].to_i
+        end
+
+        public_class_method def self.payload_spent(opts = {})
+          return 0 unless opts.is_a?(Hash)
+
+          timeout_spent[payload_key(opts)].to_i
+        end
+
+        public_class_method def self.note_timeout!(opts = {})
+          return 0 unless opts.is_a?(Hash)
+
+          timeout = opts[:timeout].to_i
+          timeout = 1 if timeout < 1
+          key = payload_key(opts)
+          timeout_spent[key] = timeout_spent[key].to_i + timeout
+          if budget_exhausted?(opts.merge(spent: timeout_spent[key])) && !timeout_mutated[key]
+            timeout_mutated[key] = true
+            tkey = task_key(opts)
+            timeout_mutations[tkey] = timeout_mutations[tkey].to_i + 1
+          end
+          timeout_spent[key]
+        end
+
+        public_class_method def self.next_timeout(opts = {})
+          base = opts[:timeout].to_i
+          base = 1 if base < 1
+          spent = opts.key?(:spent) ? opts[:spent].to_i : payload_spent(opts)
+          remaining = TIMEOUT_MAX_S - spent
+          remaining = 0 if remaining.negative?
+          [base + TIMEOUT_STEP_S, remaining, TIMEOUT_MAX_S].min
+        end
+
+        # Timeout policy (loop-law, not a skill):
+        # 1. Same payload: timeout += 180 until the 3-hour budget is gone.
+        # 2. At the 3-hour cap: rewrite ruby/command for the same goal
+        #    (one mutation). Max MUTATION_MAX mutations per task.
+        # 3. After MUTATION_MAX mutations: stop (exhausted).
         public_class_method def self.timeout_lesson(opts = {})
           return { scenario: :construction, error: '', hint: '' } unless opts.is_a?(Hash)
 
           tool = opts[:tool].to_s
           timeout = opts[:timeout].to_i
-          prior = timeout_prior_count(tool: tool)
-          if prior.positive?
-            {
-              scenario: :deadline,
-              error: "#{tool} timeout: deadline too short; raise conservative HOST LOAD timeout",
-              hint: "Scenario 2: the #{tool} payload already timed out once. " \
-                    "This timeout (#{timeout}s) was too short. Raise a conservative " \
-                    'timeout from HOST LOAD (clamped). Record this so it does not recur. ' \
-                    'Do not retry the identical payload at the same deadline.'
-            }
+          spent = payload_spent(opts)
+          spent_after = spent >= timeout && timeout.positive? ? spent : spent + [timeout, 1].max
+          nxt = next_timeout(timeout: timeout, spent: spent_after)
+          mutations = mutation_count(opts)
+          if budget_exhausted?(opts.merge(timeout: timeout, spent: spent_after))
+            if mutations >= MUTATION_MAX
+              {
+                scenario: :exhausted,
+                error: "#{tool} timeout: #{MUTATION_MAX} mutations exhausted for this task",
+                hint: "This task hit the mutation cap (#{MUTATION_MAX} rewrites after " \
+                      '3-hour budgets). Do not retry the same payload. Report what ' \
+                      'was tried and what remains blocked.'
+              }
+            else
+              {
+                scenario: :construction,
+                error: "#{tool} timeout: 3-hour budget exhausted; reconstruct payload to same goal",
+                hint: "The #{tool} payload used its 3-hour budget. Generate different " \
+                      'ruby/command for the same goal. Mutation ' \
+                      "#{[mutations, 1].max}/#{MUTATION_MAX}."
+              }
+            end
           else
             {
-              scenario: :construction,
-              error: "#{tool} timeout: reconstruct payload to same goal before raising timeout",
-              hint: "Scenario 1 (try first): the #{tool} ruby/command was constructed " \
-                    'improperly. Generate it differently to achieve the same goal. ' \
-                    'Do not first raise timeout. Record this so it does not recur.'
+              scenario: :deadline,
+              error: "#{tool} timeout: deadline too short; retry with timeout += 180",
+              hint: "Keep the same #{tool} payload. This timeout (#{timeout}s) was too " \
+                    "short. Retry with timeout += 180 (next_timeout=#{nxt})."
             }
           end
         end
 
         public_class_method def self.timeout_result(opts = {})
-          return { stdout: '', stderr: '', exit: nil, error: 'timeout', scenario: :construction, hint: '', shell: shell_name } unless opts.is_a?(Hash)
+          return { stdout: '', stderr: '', exit: nil, error: 'timeout', scenario: :deadline, hint: '', next_timeout: TIMEOUT_STEP_S, shell: shell_name } unless opts.is_a?(Hash)
 
+          timeout = opts[:timeout].to_i
+          note_timeout!(opts)
           lesson = timeout_lesson(
             tool: opts[:tool],
             payload: opts[:payload],
-            timeout: opts[:timeout]
+            timeout: timeout,
+            task: opts[:task]
           )
           {
             stdout: opts[:stdout].to_s,
             stderr: opts[:stderr].to_s,
             exit: nil,
-            error: "timeout after #{opts[:timeout].to_i}s",
+            error: "timeout after #{timeout}s",
             scenario: lesson[:scenario],
             hint: lesson[:hint],
+            next_timeout: next_timeout(timeout: timeout, spent: payload_spent(opts)),
+            mutations: mutation_count(opts),
             shell: opts[:shell] || shell_name
           }
+        end
+
+        private_class_method def self.timeout_spent
+          @timeout_spent ||= {}
+        end
+
+        private_class_method def self.timeout_mutations
+          @timeout_mutations ||= {}
+        end
+
+        private_class_method def self.timeout_mutated
+          @timeout_mutated ||= {}
+        end
+
+        private_class_method def self.task_key(opts = {})
+          t = opts[:task]
+          t = opts[:session_id] if t.to_s.strip.empty?
+          t.to_s.strip.empty? ? 'default' : t.to_s
+        end
+
+        private_class_method def self.payload_key(opts = {})
+          payload = opts[:payload].to_s
+          "#{task_key(opts)}:#{Digest::SHA256.hexdigest(payload)}"
+        end
+
+        private_class_method def self.budget_exhausted?(opts = {})
+          spent = opts[:spent]
+          spent = payload_spent(opts) if spent.nil?
+          opts[:timeout].to_i >= TIMEOUT_MAX_S || spent.to_i >= TIMEOUT_MAX_S
         end
 
         public_class_method def self.timeout_prior_count(opts = {})

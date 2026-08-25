@@ -42,6 +42,11 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `invalid_payload`
 - `host_load`
 - `deadline_s`
+- `reset_timeout_budget`
+- `mutation_count`
+- `payload_spent`
+- `note_timeout`
+- `next_timeout`
 - `timeout_lesson`
 - `timeout_result`
 - `timeout_prior_count`

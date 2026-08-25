@@ -49,8 +49,8 @@ describe 'PWN::AI::Agent::Tools ruby_eval' do
     result = entry.handler.call(code: 'sleep 3', timeout: 1)
     expect(Time.now - t0).to be < 2.5
     expect(result[:error].to_s).to match(/timeout after 1s/)
-    expect(result[:hint].to_s).to match(/reconstruct|generated differently|improperly/i)
-    expect(result[:scenario].to_s).to eq('construction')
+    expect(result[:hint].to_s).to match(/timeout \+= 180|next_timeout|same .*payload/i)
+    expect(result[:scenario].to_s).to eq('deadline')
   end
 
   it 'Dispatch.call JSON-wraps syntax errors instead of raising' do
