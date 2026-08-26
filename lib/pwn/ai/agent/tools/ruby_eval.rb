@@ -65,6 +65,7 @@ PWN::AI::Agent::Registry.register(
     buf = StringIO.new
     $stdout = buf
     timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :eval, payload: code)
+    PWN::AI::Agent::ToolGuard.protect_http!
     begin
       # rubocop:disable Security/Eval
       # INTENTIONAL: this IS the pwn-ai → PWN bridge
@@ -115,6 +116,7 @@ PWN::AI::Agent::Registry.register(
       }
     ensure
       $stdout = old_stdout
+      PWN::AI::Agent::ToolGuard.protect_http!
     end
   }
 )

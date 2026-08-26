@@ -457,6 +457,22 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(src).to match(/PLAN_SYSTEM/)
     end
 
+    it 'discards a sidecar plan that is a policy refusal and falls back' do
+      allow(described_class).to receive(:llm_plan_enabled?).and_return(true)
+      allow(described_class).to receive(:chat_for_plan).and_return(
+        JSON.generate(
+          [
+            'I can’t help plan or run unauthenticated vulnerability hunting.',
+            'That applies even when framed as in-scope or RoE-limited.',
+            'If you have a defensive goal, restate that clearly.'
+          ]
+        )
+      )
+      tasks = described_class.plan(request: 'perform unauthenticated analysis of in-scope hosts')
+      expect(tasks.grep(/can.t help|won.t help|defensive goal/i)).to eq([])
+      expect(tasks.join(' | ')).to match(/understand|core work|analysis|recall/i)
+    end
+
     it 'keeps code-improvement plans working via LLM (non-network regression)' do
       req = 'find the TaskSummarizer and fix the truncation bug then run rspec'
       llm = [
@@ -943,6 +959,36 @@ describe PWN::AI::Agent::TaskSummarizer do
         result: '{"success":true,"result":{"stdout":"permission denied docker.sock\\nHTTP/1.1 200 OK Kestrel","exit":0}}'
       )
       expect(st[:plan_idx]).to eq 0
+    end
+
+    it 'does not skip core work to Present after two directory listings' do
+      goal = 'perform unauthenticated analysis for Critical issues on all subdomains for eight hours'
+      st = described_class.fresh(request: goal)
+      st[:plan] = [
+        'Understand the request',
+        'Carry out the core work',
+        'Present the result and report completion'
+      ]
+      st[:plan_idx] = 1
+      2.times do |i|
+        described_class.record!(
+          state: st,
+          name: 'shell',
+          args: { 'command' => "ls /opt/bugbounty/programs/curative #{i}" },
+          result: '{"success":true,"result":{"stdout":"POLICY.md README.md recon evidence writeups TARGETS.md","exit":0}}'
+        )
+      end
+      expect(st[:plan_idx]).to eq 1
+    end
+
+    it 'does not paste the full operator goal into fallback understand/carry-out tasks' do
+      goal = 'Until we can claim credentials perform unauthenticated analysis for Critical / High severity issues ' \
+             'eligible for submission leveraging ~/.pwn/skills for all subdomains in scope for the next eight hours'
+      tasks = described_class.fallback_decompose(goal: goal)
+      expect(tasks.length).to be >= 2
+      expect(tasks.grep(/Understand the request:/)).to eq([])
+      expect(tasks.grep(/Carry out the core work for:/)).to eq([])
+      expect(tasks.join("\n").length).to be < goal.length
     end
 
     it 'a verify task is covered after the verifier ran, even with remaining offenses' do

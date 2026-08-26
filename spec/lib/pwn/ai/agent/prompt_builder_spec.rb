@@ -77,6 +77,9 @@ describe PWN::AI::Agent::PromptBuilder do
       expect(src).to match(/HOST LOAD/)
       expect(src).to match(/host_load|deadline_s/)
       expect(src).to match(/does not decide authorization/)
+      expect(src).to match(/proof of concept|PoC/i)
+      expect(src).to match(/attack chain/i)
+      expect(src).to match(/severity/i)
     end
   end
 end
