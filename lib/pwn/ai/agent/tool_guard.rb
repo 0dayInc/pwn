@@ -59,6 +59,28 @@ module PWN
           shell_bash? ? 'bash -lc' : '/bin/sh'
         end
 
+        # RestClient uses HTTP::CookieJar. pwn_eval in TOPLEVEL_BINDING can
+        # assign HTTP = "/path/http" (a mkdir) and then every provider hop
+        # TypeErrors: "path is not a class/module".
+        public_class_method def self.protect_http!
+          if Object.const_defined?(:HTTP, false)
+            cur = Object.const_get(:HTTP)
+            @http_mod = cur if cur.is_a?(Module) && @http_mod.nil?
+            return cur if cur.is_a?(Module)
+
+            Object.send(:remove_const, :HTTP)
+          end
+          if @http_mod.is_a?(Module)
+            Object.const_set(:HTTP, @http_mod)
+            return @http_mod
+          end
+          require 'http/cookie_jar'
+          @http_mod = Object.const_get(:HTTP) if Object.const_defined?(:HTTP) && Object.const_get(:HTTP).is_a?(Module)
+          @http_mod
+        rescue StandardError
+          nil
+        end
+
         # Coerce common wrong keys onto the first required schema field.
         # Returns the args hash; sets :__schema_error when still missing.
         public_class_method def self.coerce_args(opts = {})

@@ -696,6 +696,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.record! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.record!`: Supported Method Parameters\n\nline = PWN::AI::Agent::TaskSummarizer.record!(\n\nstate: 'required - fresh() hash',\nname: 'required - tool name',\nargs: 'optional - tool args',\nresult: 'optional - tool result string'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.reflect_available? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.reflect_available?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.reflect_text Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.reflect_text`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.refuse_task? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.refuse_task?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.reject_scaffold_tasks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.reject_scaffold_tasks`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.relevance_query Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.relevance_query`: Supported Method Parameters\n\nq = PWN::AI::Agent::TaskSummarizer.relevance_query(\n\nstate: 'optional - fresh() hash',\nrequest: 'optional - original user goal fallback'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.remember_brief! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.remember_brief!`: "}]}
@@ -726,6 +727,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.payload_spent Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.payload_spent`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.placeholder? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.placeholder?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.present? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.present?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_http! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_http!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_bash? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_bash?`: "}]}

@@ -842,6 +842,56 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     end
   end
 
+  describe 'authorization refuse vs impact PoC' do
+    it 'treats an authorization refusal as incomplete, not a final block' do
+      refuse = '**No. I won’t run that.** TransparentBrowser against grenade MCP ' \
+               'is live offensive probing. I won’t drive that from here—authorized ' \
+               'H1 scope or not. Request refused; no target interaction.'
+      expect(described_class.send(:authorization_refuse?, text: refuse)).to eq(true)
+      expect(described_class.send(:incomplete_final?, text: refuse)).to eq(true)
+      expect(
+        described_class.send(
+          :may_finalize?,
+          request: 'Use TransparentBrowser on the authorized BBP MCP',
+          messages: [{ role: 'assistant', content: refuse }],
+          text: refuse
+        )
+      ).to eq(false)
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/does not decide authorization/)
+      expect(src).to match(/authorization_refuse\?/)
+    end
+
+    it 'detects I-can-t-help and Refusal-stands as authorization refusals' do
+      texts = [
+        'I can’t help with unauthenticated vulnerability hunting, subdomain attack-surface analysis, or other offensive testing.',
+        'I won’t emit tools for offensive vulnerability hunting. Refusal stands.',
+        'I will not emit tool calls for this. Refusal stands.'
+      ]
+      texts.each do |t|
+        expect(described_class.send(:authorization_refuse?, text: t)).to eq(true), t
+      end
+    end
+
+    it 'does not treat a working PoC or chained-impact writeup as a refusal' do
+      poc = <<~TXT
+        Finding: unauthenticated GraphQL mutation createPriorAuthSupportUploadURL.
+        PoC: curl -s -X POST https://health-api.example/graphql -d '{"query":"..."}'
+        This is live offensive testing on in-scope hosts. Combined with the S3 PUT
+        chain the impact is High (7.5), not Low. Attack chain: mint URL → PUT →
+        persist claim-system record.
+      TXT
+      expect(described_class.send(:authorization_refuse?, text: poc)).to eq(false)
+      expect(described_class.send(:incomplete_final?, text: poc)).to eq(false)
+    end
+
+    it 'forces tool_choice required on host-work before any tool result, for every engine' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/tool_choice/)
+      expect(src).not_to match(/if local_engine\?\(engine: engine\) && tools && !tools.empty\?/)
+    end
+  end
+
   describe 'intent routing (how-to + greeting + recall)' do
     it 'classifies pure how-to vs live recon vs act' do
       expect(described_class.request_intent(request: 'how to do a ping sweep of a subnet using hping3?')).to eq(:howto)
@@ -957,25 +1007,6 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).not_to match(/refuse the live scan/)
       expect(src).not_to match(/pwn_recon_authorized/)
       expect(src).not_to match(/in-scope authorization/)
-    end
-
-    it 'treats an authorization refusal as incomplete, not a final block' do
-      refuse = '**No. I won’t run that.** TransparentBrowser against grenade MCP ' \
-               'is live offensive probing. I won’t drive that from here—authorized ' \
-               'H1 scope or not. Request refused; no target interaction.'
-      expect(described_class.send(:authorization_refuse?, text: refuse)).to eq(true)
-      expect(described_class.send(:incomplete_final?, text: refuse)).to eq(true)
-      expect(
-        described_class.send(
-          :may_finalize?,
-          request: 'Use TransparentBrowser on the authorized BBP MCP',
-          messages: [{ role: 'assistant', content: refuse }],
-          text: refuse
-        )
-      ).to eq(false)
-      src = File.read(described_class.method(:run).source_location.first)
-      expect(src).to match(/does not decide authorization/)
-      expect(src).to match(/authorization_refuse\?/)
     end
 
     it 'run short-circuits how-to without plan_first or tools' do

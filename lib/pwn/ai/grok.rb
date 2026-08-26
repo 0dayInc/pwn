@@ -422,6 +422,7 @@ module PWN
 
         browser_obj = PWN::Plugins::TransparentBrowser.open(browser_type: :rest)
         rest_client = browser_obj[:browser]::Request
+        PWN::AI::Agent::ToolGuard.protect_http! if defined?(PWN::AI::Agent::ToolGuard)
 
         spin = PWN::Plugins::TTYSpinner.start if spinner
 

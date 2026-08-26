@@ -39,6 +39,15 @@ describe 'PWN::AI::Agent::Tools ruby_eval' do
     expect(second[:value]).to eq('42')
   end
 
+  it 'restores HTTP if the payload assigns a path to the HTTP constant' do
+    entry = PWN::AI::Agent::Registry.lookup(name: 'pwn_eval')
+    path = File.join(Dir.mktmpdir, 'http')
+    result = entry.handler.call(code: "HTTP = #{path.inspect}")
+    expect(result[:error]).to be_nil
+    expect(HTTP).to be_a(Module)
+    expect { HTTP::CookieJar }.not_to raise_error
+  end
+
   it 'enforces a timeout on pwn_eval and reports timeout after Ns' do
     tmp = Dir.mktmpdir
     stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
