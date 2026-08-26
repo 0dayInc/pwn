@@ -338,6 +338,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.default_interactive_toolsets Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.default_interactive_toolsets`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.degrade_text_only Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.degrade_text_only`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.dispatch_fail_n Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.dispatch_fail_n`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.duration_unsatisfied? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.duration_unsatisfied?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.emit_task_summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.emit_task_summary`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.engine_transient? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.engine_transient?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.escalate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.escalate`: "}]}
@@ -700,6 +701,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.reject_scaffold_tasks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.reject_scaffold_tasks`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.relevance_query Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.relevance_query`: Supported Method Parameters\n\nq = PWN::AI::Agent::TaskSummarizer.relevance_query(\n\nstate: 'optional - fresh() hash',\nrequest: 'optional - original user goal fallback'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.remember_brief! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.remember_brief!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.request_clause_tasks Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.request_clause_tasks`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.sidecar_timeout Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.sidecar_timeout`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.squeeze_request_ws Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.squeeze_request_ws`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.task_complete_enough? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.task_complete_enough?`: "}]}

@@ -51,27 +51,28 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       end
     end
 
-    it 'injects English task focus into model messages (task-as-primary)' do
+    it 'does not inject English task focus as a competing user goal' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/inject_task_focus!/)
-      expect(src).to match(/active_task_prompt/)
-      # inject after emit_plan and inside the iteration loop
-      expect(src.scan('inject_task_focus!').length).to be >= 3
+      req = 'using hping3 what live hosts can you find in this subnet?'
+      focus = File.read(described_class.method(:inject_task_focus!).source_location.first)
+      expect(focus).to match(/original request is the only/)
+      st = { plan: ['Carry out the core work'], plan_idx: 0, original_request: req }
+      msgs = [{ role: 'user', content: req }]
+      out = described_class.send(:inject_task_focus!, state: st, messages: msgs, request: req, force: true)
+      expect(out).to eq nil
+      expect(msgs.length).to eq 1
     end
 
     it 'does not keep injecting English focus after the plan is covered' do
       src = File.read(described_class.method(:inject_task_focus!).source_location.first)
-      focus = src[/private_class_method def self\.inject_task_focus!.*?private_class_method def self\.\w+/m]
-      focus ||= src
-      expect(focus).to match(/plan_open\?/)
+      expect(src).to match(/original request is the only/)
     end
 
     it 'does not tell an open English plan to stop after 3 tools just because budget is hot' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/budget_exhaustion_hot\?/)
-      expect(src).to match(/plan_open\?/)
-      # local ≤3-tool abort is only for a closed/short plan, not mid-goal.
-      expect(src).to match(/english_open|plan_open\?/)
+      expect(src).to match(/original request is the completion signal/i)
     end
 
     it 'parks stale extra budget scars even while the host is hot' do
@@ -97,12 +98,15 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
     end
 
-    it 're-ranks Registry tools from English tangible tasks after plan (sole driver)' do
+    it 'ranks Registry tools from the original request, not the English plan' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/TaskSummarizer\.relevance_query/)
-      expect(src).to match(/relevance_query\(state: ts_state/)
-      # Must rebind tools after task_summary_plan! (not only from bare request)
-      expect(src).to match(/task_summary_plan!.*relevance_query|relevance_query.*inject_task_focus!/m)
+      q = PWN::AI::Agent::TaskSummarizer.relevance_query(
+        state: { plan: ['Carry out the core work', 'Present the result'], request: 'inventory sockets' },
+        request: 'inventory sockets'
+      )
+      expect(q).to eq 'inventory sockets'
+      expect(q).not_to match(/core work/i)
     end
 
     it 'P17 evidence_enough does not early-final on bare success while plan open' do
@@ -883,6 +887,27 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       TXT
       expect(described_class.send(:authorization_refuse?, text: poc)).to eq(false)
       expect(described_class.send(:incomplete_final?, text: poc)).to eq(false)
+    end
+
+    it 'keeps an N-hour host-work request unsatisfied until that duration elapses' do
+      req = 'perform unauthenticated analysis for Critical issues for the next eight hours. Eight hours non-stop is a requirement.'
+      recap = 'Alternative executed via pwn_eval. Probed unauth GraphQL mutations; wrote graphql/alt.json. Notable: createPriorAuthSupportUploadURL still reachable.'
+      msgs = [
+        { role: 'user', content: req },
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'pwn_eval', arguments: '{"code":"1"}' } }]
+        },
+        { role: 'tool', name: 'pwn_eval', content: '{"success":true,"result":{"value":"1"},"effect":"eval"}' },
+        { role: 'assistant', content: recap }
+      ]
+      Thread.current[:pwn_loop_t0] = Time.now
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      expect(described_class.send(:may_finalize?, request: req, messages: msgs, text: recap)).to eq(false)
+      Thread.current[:pwn_loop_t0] = Time.now - (9 * 3600)
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(false)
+    ensure
+      Thread.current[:pwn_loop_t0] = nil
     end
 
     it 'forces tool_choice required on host-work before any tool result, for every engine' do

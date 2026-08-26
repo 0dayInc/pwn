@@ -172,6 +172,7 @@ module PWN
         private_class_method def self.finish_debug_request!(opts = {})
           return unless debug_on?(opts)
           return unless defined?(PWN::Plugins::Log)
+          return if opts[:nested]
 
           PWN::Plugins::Log.finish_request_log!(
             iter: opts[:iter],
@@ -572,6 +573,7 @@ module PWN
 
           live = effects.reject { |fx| %i[recall store].include?(fx) }
           return true if live.empty?
+          return true if duration_unsatisfied?(request: request)
           return true if need == :write && !write_verified?(effects: effects)
           return true if need == :browse && !effects.include?(:browse)
           return true if need == :any && !effects.intersect?(%i[write browse eval])
@@ -588,6 +590,32 @@ module PWN
 
           tail = effects[(idx + 1)..] || []
           tail.intersect?(%i[read eval])
+        rescue StandardError
+          false
+        end
+
+        HOUR_WORDS = {
+          'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5,
+          'six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10,
+          'eleven' => 11, 'twelve' => 12, 'thirteen' => 13, 'fourteen' => 14,
+          'fifteen' => 15, 'sixteen' => 16, 'seventeen' => 17, 'eighteen' => 18,
+          'nineteen' => 19, 'twenty' => 20, 'twenty-four' => 24
+        }.freeze
+
+        private_class_method def self.duration_unsatisfied?(opts = {})
+          req = opts[:request].to_s
+          hours = nil
+          if (m = req.match(/\b(\d+)\s*(?:hours?|hrs?)\b/i))
+            hours = m[1].to_i
+          elsif (m = req.match(/\b(twenty-four|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:hours?|hrs?)\b/i))
+            hours = HOUR_WORDS[m[1].downcase]
+          end
+          return false if hours.to_i <= 0
+
+          t0 = Thread.current[:pwn_loop_t0]
+          return false unless t0
+
+          (Time.now - t0) < (hours * 3600)
         rescue StandardError
           false
         end
@@ -1589,23 +1617,13 @@ module PWN
         # Uses TaskSummarizer.active_task_prompt (full plan_context on first
         # force, compact focus thereafter). No-ops when already injected.
         private_class_method def self.inject_task_focus!(opts = {})
-          state = opts[:state]
-          messages = opts[:messages]
-          return nil unless state.is_a?(Hash) && messages.is_a?(Array)
-          return nil unless defined?(TaskSummarizer) && TaskSummarizer.enabled?
-          return nil if respond_to?(:needs_host_work?) && !needs_host_work?(request: opts[:request] || state[:original_request] || state[:request])
-          return nil unless TaskSummarizer.plan_open?(state: state, messages: messages)
+          # Original request is the only model-facing goal. TaskSummarizer
+          # remains TUI (emit_plan / about_to). Do not append a compass
+          # user message that can replace the operator ask.
+          return nil if opts.is_a?(Hash)
 
-          req = opts[:request]
-          req = state[:original_request] || state[:request] if req.to_s.strip.empty? && state.is_a?(Hash)
-          text =
-            (TaskSummarizer.active_task_prompt(state: state, force: opts[:force], request: req) if TaskSummarizer.respond_to?(:active_task_prompt))
-          return nil if text.to_s.strip.empty?
-
-          messages << { role: 'user', content: text }
-          text
-        rescue StandardError => e
-          warn "[pwn-ai/loop] inject_task_focus! swallowed: #{e.class}: #{e.message}"
+          nil
+        rescue StandardError
           nil
         end
 
@@ -2396,6 +2414,7 @@ module PWN
           Thread.current[:pwn_request_intent] = intent
           Thread.current[:pwn_extinguished] = {}
           Thread.current[:pwn_same_payload] = Hash.new(0)
+          Thread.current[:pwn_loop_t0] = Time.now unless nested
           debug_progress(msg: "intent=#{intent} engine=#{engine}", debug: opts[:debug])
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
@@ -2795,7 +2814,8 @@ module PWN
             iter: i,
             tools_called: tools_called,
             engine_s: engine_s,
-            final_chars: final_chars
+            final_chars: final_chars,
+            nested: nested
           )
           TurnFinalizer.leave_user_path! if defined?(TurnFinalizer)
         end

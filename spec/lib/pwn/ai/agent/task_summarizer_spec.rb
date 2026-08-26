@@ -416,10 +416,11 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(described_class).not_to receive(:chat_for_plan)
       tasks = described_class.plan(request: subnet_req)
       expect(tasks).to be_a(Array)
-      expect(tasks.length).to be >= 2
+      expect(tasks.length).to be >= 1
       joined = tasks.join(' | ').downcase
-      # Generic fallback — understand + core work + present JSON — NOT ARP/ICMP canned list.
-      expect(joined).to match(/json|present|core work|understand|carry out/)
+      expect(joined).to match(/subnet|host|json/)
+      expect(tasks).not_to include('Understand the request')
+      expect(tasks).not_to include('Carry out the core work')
       expect(described_class.heuristic_decompose(goal: subnet_req)).to eq(
         described_class.fallback_decompose(goal: subnet_req)
       )
@@ -695,11 +696,10 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(described_class.tool_jargon_task?(item: 'fix the truncation bug')).to eq false
     end
 
-    it 'relevance_query prefers active English task + plan over bare request' do
+    it 'relevance_query is the original request, not the English plan' do
       q = described_class.relevance_query(state: state, request: state[:request])
-      expect(q).to include('locate the TaskSummarizer source')
-      expect(q).to include('fix the truncation bug')
-      expect(q).to include('run rspec to verify')
+      expect(q).to eq state[:request].to_s.gsub(/\s+/, ' ').strip
+      expect(q).not_to include('Carry out the core work')
     end
 
     it 'apply_prm_advancement! holds on +1 search streak and on -1; advances on next-task handoff' do
@@ -981,14 +981,53 @@ describe PWN::AI::Agent::TaskSummarizer do
       expect(st[:plan_idx]).to eq 1
     end
 
+    it 'does not complete Carry out the core work on three directory listings' do
+      st = described_class.fresh(request: 'perform unauthenticated analysis for eight hours')
+      st[:plan] = [
+        'Understand the request',
+        'Carry out the core work',
+        'Present the result and report completion'
+      ]
+      st[:plan_idx] = 1
+      3.times do |i|
+        described_class.record!(
+          state: st,
+          name: 'shell',
+          args: { 'command' => "cat /opt/bugbounty/programs/curative/POLICY.md #{i}" },
+          result: '{"success":true,"result":{"stdout":"Curative Inc. looks forward to working with the security community to find security vulnerabilities. POLICY.md body easily over forty characters.","exit":0}}'
+        )
+      end
+      expect(st[:plan_idx]).to eq 1
+    end
+
     it 'does not paste the full operator goal into fallback understand/carry-out tasks' do
       goal = 'Until we can claim credentials perform unauthenticated analysis for Critical / High severity issues ' \
              'eligible for submission leveraging ~/.pwn/skills for all subdomains in scope for the next eight hours'
       tasks = described_class.fallback_decompose(goal: goal)
-      expect(tasks.length).to be >= 2
+      expect(tasks.length).to be >= 1
       expect(tasks.grep(/Understand the request:/)).to eq([])
       expect(tasks.grep(/Carry out the core work for:/)).to eq([])
-      expect(tasks.join("\n").length).to be < goal.length
+      expect(tasks).not_to include('Understand the request')
+      expect(tasks).not_to include('Carry out the core work')
+      joined = tasks.join("\n")
+      expect(joined).to match(/unauth/i)
+      expect(joined).to match(/critical|high/i)
+      expect(joined).to match(/eight hours|requested duration/i)
+      expect(joined).to match(/PoC|severity|attack chain/i)
+    end
+
+    it 'keeps distinctive tokens from unrelated unique goals instead of a stub plan' do
+      [
+        'Inventory every listening TCP socket on this host and print pid user and port',
+        'Name every Ruby constant under PWN::AI::Agent and print them as a JSON array'
+      ].each do |goal|
+        tasks = described_class.fallback_decompose(goal: goal)
+        expect(tasks).not_to include('Understand the request')
+        expect(tasks).not_to include('Carry out the core work')
+        joined = tasks.join(' ')
+        tokens = goal.scan(%r{[A-Za-z0-9_./-]{5,}}).uniq
+        expect(tokens.count { |tok| joined.downcase.include?(tok.downcase) }).to be >= 2
+      end
     end
 
     it 'a verify task is covered after the verifier ran, even with remaining offenses' do

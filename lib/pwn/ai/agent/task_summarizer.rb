@@ -328,6 +328,7 @@ module PWN
             source = :injected
           else
             tasks = llm_decompose(goal: goal, llm_tasks: opts[:llm_tasks], has_llm_tasks: opts.key?(:llm_tasks))
+            tasks = reject_scaffold_tasks(tasks: tasks)
             source = tasks.any? ? :llm : nil
             if tasks.length < MIN_PLAN_TASKS
               tasks = fallback_decompose(goal: goal)
@@ -677,19 +678,9 @@ module PWN
             return tasks
           end
 
-          tasks << 'Understand the request'
-          tasks << 'Carry out the core work'
-
-          if goal_lc.match?(/\b(json|ya?ml|table|csv|tsv)\b/)
-            fmt = goal_lc[/\b(json|ya?ml|table|csv|tsv)\b/]
-            tasks << "Present the results in #{fmt} format"
-          elsif goal_lc.match?(/\b(display|show|print|output|format|present|report|export)\b/)
-            tasks << 'Present the final results in the requested format'
-          end
-
-          # Only when the user actually asked about tests/lint — not bare "verify".
-          tasks << 'Run specs, rubocop, and/or rake to verify' if goal_lc.match?(/\b(test|spec|rubocop|rake|lint)\b/) &&
-                                                                  goal_lc.match?(%r{\b(/opt/pwn|code|patch|refactor|commit)\b})
+          shaped = request_clause_tasks(goal: goal_text)
+          return shaped if shaped.length >= MIN_PLAN_TASKS
+          return [goal_text] unless goal_text.strip.empty?
 
           tasks
         rescue StandardError
@@ -704,6 +695,20 @@ module PWN
         # )
         public_class_method def self.heuristic_decompose(opts = {})
           fallback_decompose(goal: opts[:goal])
+        end
+
+        private_class_method def self.request_clause_tasks(opts = {})
+          goal = opts[:goal].to_s.gsub(/\s+/, ' ').strip
+          return [] if goal.empty?
+
+          parts = goal.split(/(?<=[.!?])\s+|(?<=;)\s+|\s+(?:ensuring|then|and then)\s+/i)
+          parts = parts.map { |p| p.gsub(/\s+/, ' ').strip.sub(/\A(?:so|and|then)\s+/i, '') }
+          parts = reject_scaffold_tasks(tasks: parts).reject { |p| p.length < 24 }
+          return parts.first(8) if parts.length >= MIN_PLAN_TASKS
+
+          [goal]
+        rescue StandardError
+          []
         end
 
         private_class_method def self.truncate_goal(opts = {})
@@ -987,14 +992,7 @@ module PWN
           state = opts[:state]
           request = opts[:request].to_s
           request = state[:request].to_s if request.empty? && state.is_a?(Hash)
-          parts = []
-          if state.is_a?(Hash)
-            info = active_task(state: state)
-            parts << info[:item] if info && !info[:item].to_s.empty?
-            Array(state[:plan]).each { |t| parts << t.to_s }
-          end
-          parts << request unless request.empty?
-          parts.map { |p| p.to_s.gsub(/\s+/, ' ').strip }.reject(&:empty?).uniq.join(' ')
+          request.gsub(/\s+/, ' ').strip
         rescue StandardError
           opts[:request].to_s
         end
@@ -1081,6 +1079,8 @@ module PWN
           return true if s.empty?
           return true if s.match?(/\A(?:GOAL|PLAN|REQUEST|ANSWER|FLAW|PATCH)\s*:/i)
           return true if s.match?(/\A\w+\s+command\s*=/i)
+          return true if s.match?(/\Aunderstand the request\z/i)
+          return true if s.match?(/\Acarry out the core work(?:\s+for:.*)?\z/i)
 
           false
         rescue StandardError
@@ -1393,7 +1393,7 @@ module PWN
           # Soft "verify the result and report" is a closer, not a test runner.
           return :present if s.match?(/\bverif\w*\b/) && !s.match?(/\b(rspec|rubocop|rake|lint|spec|test)\b/)
           return :mutate if s.match?(
-            /\b(implement\w*|fix|patch\w*|chang\w*|improv\w*|write|apply|wire|refactor\w*)\b/
+            /\b(implement\w*|fix|patch\w*|chang\w*|improv\w*|write|apply|wire|refactor\w*|core work|requested duration|eligible issues)\b/
           )
           return :discover if s.match?(
             /\b(locat\w*|find|read|inspect|recon\w*|understand|decompos\w*|map|identif\w*|gather|discover|enumerat\w*|scan|probe|determin\w*|analy[sz]e|analysis|root cause|where and why|track|navigat\w*|browse|goto)\b/
