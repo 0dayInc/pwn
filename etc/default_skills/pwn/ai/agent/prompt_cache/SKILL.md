@@ -43,6 +43,7 @@ PWN::AI::Agent::PromptCache.enabled(opts)
 - `supports`
 - `authors`
 - `help`
+- `enabled?`
 
 ## Source
 

@@ -45,7 +45,8 @@ history                             # what you've typed → copy into a driver
 | `pwn-ai-sessions` | List / view / delete transcripts |
 | `pwn-ai-cron` | List / run scheduled jobs |
 | `pwn-ai-delegate` | Hand a task to a Swarm persona |
-| `toggle-debug` | Stage log per request to `/tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log` (`ai.agent.debug_trace` for TracePoint) |
+| `toggle-debug` | Stage log per request to `/tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log` |
+| `toggle-trace` | Same as `toggle-debug` plus TracePoint; ENTER after each loop step. Pry.config, not Env. Off turns both off. |
 | `toggle-pwn-ai-speaks` | TTS every final answer on/off |
 | `welcome-banner` | Redraw a random `PWN::Banner` |
 | `toggle-pager` | Pry pager on/off |

@@ -391,6 +391,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.task_summary_record! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.task_summary_record!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.timeout_task Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.timeout_task`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.tool_effects Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.tool_effects`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wait_trace_step! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wait_trace_step!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.world_knowledge? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.world_knowledge?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.write_verified? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.write_verified?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.advantage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.advantage`: Supported Method Parameters\n\na = PWN::AI::Agent::Metrics.advantage(name: ‘shell’)\n\nC1 — tool.success_rate − global_rate over the rolling window.\n"}]}
@@ -1395,19 +1396,22 @@
 {"messages":[{"role":"user","content":"PWN::Bounty::LifecycleAuthzReplay.write_runbook Usage"},{"role":"assistant","content":"`PWN::Bounty::LifecycleAuthzReplay.write_runbook`: "}]}
 {"messages":[{"role":"user","content":"PWN::Bounty::LifecycleAuthzReplay.write_yaml Usage"},{"role":"assistant","content":"`PWN::Bounty::LifecycleAuthzReplay.write_yaml`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.authors Usage"},{"role":"assistant","content":"`PWN::Config.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Config.copy_missing_references Usage"},{"role":"assistant","content":"`PWN::Config.copy_missing_references`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.deep_fill! Usage"},{"role":"assistant","content":"`PWN::Config.deep_fill!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_env Usage"},{"role":"assistant","content":"`PWN::Config.default_env`: Supported Method Parameters\n\nenv = PWN::Config.default_env(\n\npwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_skill_names Usage"},{"role":"assistant","content":"`PWN::Config.default_skill_names`: "}]}
-{"messages":[{"role":"user","content":"PWN::Config.default_skill_src_dir Usage"},{"role":"assistant","content":"`PWN::Config.default_skill_src_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.default_skills_dir Usage"},{"role":"assistant","content":"`PWN::Config.default_skills_dir`: "}]}
+{"messages":[{"role":"user","content":"PWN::Config.each_skill_md Usage"},{"role":"assistant","content":"`PWN::Config.each_skill_md`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.env_template Usage"},{"role":"assistant","content":"`PWN::Config.env_template`: Supported Method Parameters\n\ntmpl = PWN::Config.env_template\n\nThe canonical current-release ~/.pwn/pwn.yaml shape as a pure Hash (no I/O, no vault write, no puts).  Single source of truth used by:\n\n* PWN::Config.default_env      — seed a fresh ~/.pwn/pwn.yaml\n* PWN::Migrate.vault_drift     — diff a user vault against this release\n* PWN::Migrate.backfill_vault  — deep-merge missing keys UNDER the\n  user values on `pwn setup --migrate --fix`\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.help Usage"},{"role":"assistant","content":"`PWN::Config.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Config.ingest_skill_md Usage"},{"role":"assistant","content":"`PWN::Config.ingest_skill_md`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.init_driver_options Usage"},{"role":"assistant","content":"`PWN::Config.init_driver_options`: Supported Method Parameters\n\nenv = PWN::Config.init_driver_options\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.install_default_skills Usage"},{"role":"assistant","content":"`PWN::Config.install_default_skills`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.load_memory Usage"},{"role":"assistant","content":"`PWN::Config.load_memory`: Supported Method Parameters\n\nPWN::Config.load_memory\n"}]}
-{"messages":[{"role":"user","content":"PWN::Config.load_skills Usage"},{"role":"assistant","content":"`PWN::Config.load_skills`: Supported Method Parameters\n\nskills = PWN::Config.load_skills(\n\npwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'\n\n)\n\nLoads skills into the PWN::Skills constant. Two on-disk shapes are accepted so upgrades are seamless:\n\nagentskills.io  →  <root>/<name>/SKILL.md      (preferred; written by write_skill)\nlegacy flat     →  <root>/<name>.{md,txt,rb,skill,yml,yaml}\n\nEach entry: { type:, format:, path:, dir:, content:, description:,\n\nreferences:, frontmatter:, loaded:?, error:? }\n"}]}
+{"messages":[{"role":"user","content":"PWN::Config.load_skills Usage"},{"role":"assistant","content":"`PWN::Config.load_skills`: Supported Method Parameters\n\nskills = PWN::Config.load_skills(\n\npwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills'\n\n)\n\nLoads skills into the PWN::Skills constant. Two on-disk shapes are accepted so upgrades are seamless:\n\nagentskills.io  →  <root>/**/SKILL.md          (recursive; written by write_skill)\nmodule skills   →  <root>/pwn/**/SKILL.md\nlegacy flat     →  <root>/<name>.{md,txt,rb,skill,yml,yaml}\n\nEach entry: { type:, format:, path:, dir:, content:, description:,\n\nreferences:, frontmatter:, loaded:?, error:? }\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.merge_ai_defaults! Usage"},{"role":"assistant","content":"`PWN::Config.merge_ai_defaults!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.migrate_legacy_skills Usage"},{"role":"assistant","content":"`PWN::Config.migrate_legacy_skills`: Supported Method Parameters\n\nreport = PWN::Config.migrate_legacy_skills(\n\npwn_skills_path: 'optional - override skills root',\ndelete_legacy:   'optional - remove flat file after migration (default true)'\n\n)\n\nOne-shot converter: every flat ~/.pwn/skills/*.md (etc.) becomes a spec-conformant <name>/SKILL.md with backfilled frontmatter. Idempotent.\n"}]}
+{"messages":[{"role":"user","content":"PWN::Config.module_skill_rel? Usage"},{"role":"assistant","content":"`PWN::Config.module_skill_rel?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Config.parse_skill_frontmatter Usage"},{"role":"assistant","content":"`PWN::Config.parse_skill_frontmatter`: Supported Method Parameters\n\nfm = PWN::Config.parse_skill_frontmatter(content: ‘…’)\n\n→ { frontmatter: Hash(String keys), body: String } Missing / malformed frontmatter returns { frontmatter: {}, body: content }.\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.parse_skill_references Usage"},{"role":"assistant","content":"`PWN::Config.parse_skill_references`: Supported Method Parameters\n\nrefs = PWN::Config.parse_skill_references(content: ‘…’)\n\nExtracts an Array of reference strings (URLs, CWE/CVE/ATT&CK ids, etc.) from a skill body. Supports three sources, merged & uniq’d:\n\n1) frontmatter `references:` (legacy pwn)\n2) frontmatter `metadata: { references: [...] }` (spec-conformant slot)\n3) markdown `## References` bullet section\n"}]}
 {"messages":[{"role":"user","content":"PWN::Config.pwn_cron_path Usage"},{"role":"assistant","content":"`PWN::Config.pwn_cron_path`: Supported Method Parameters\n\npath = PWN::Config.pwn_cron_path\n"}]}
@@ -1668,12 +1672,15 @@
 {"messages":[{"role":"user","content":"PWN::Migrate.verify_one Usage"},{"role":"assistant","content":"`PWN::Migrate.verify_one`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.authors Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.camel Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.camel`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.drift Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.drift`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.enrich_live_methods! Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.enrich_live_methods!`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.enumerate Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.enumerate`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.example_call Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.example_call`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.extract_references Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.extract_references`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.fallback_record Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.fallback_record`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.help Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.install Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.install`: "}]}
+{"messages":[{"role":"user","content":"PWN::ModuleSkills.live_class_methods Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.live_class_methods`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.parse_file Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.parse_file`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.preserved_skill? Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.preserved_skill?`: "}]}
 {"messages":[{"role":"user","content":"PWN::ModuleSkills.prune_orphans Usage"},{"role":"assistant","content":"`PWN::ModuleSkills.prune_orphans`: "}]}
@@ -2042,6 +2049,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::JiraDataCenter.rest_call Usage"},{"role":"assistant","content":"`PWN::Plugins::JiraDataCenter.rest_call`: Supported Method Parameters\n\nrest_call(\n\ntoken: 'required - personal access token',\nhttp_method: 'optional HTTP method (defaults to GET)',\nrest_call: 'required rest call to make per the schema',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::JiraDataCenter.update_issue Usage"},{"role":"assistant","content":"`PWN::Plugins::JiraDataCenter.update_issue`: Supported Method Parameters\n\nissue_resp = PWN::Plugins::JiraDataCenter.update_issue(\n\nfields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',\nattachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])',\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.append Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.append`: Supported Method Parameters\n\nPWN::Log.create( )\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.apply_trace! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.apply_trace!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.capture_stderr! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.capture_stderr!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.close_debug_file! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.close_debug_file!`: "}]}
@@ -2061,8 +2069,10 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.next_request_log! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.next_request_log!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.note_exception! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.note_exception!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.note_interrupt! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.note_interrupt!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.opaque_secret? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.opaque_secret?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.open_debug_file! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.open_debug_file!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.progress Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.progress`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.prompt_trace_enter! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.prompt_trace_enter!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.quiet_tui! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.quiet_tui!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.raw_stderr Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.raw_stderr`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.remove_stderr_tee! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.remove_stderr_tee!`: "}]}
@@ -2075,8 +2085,10 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.stop_debug Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.stop_debug`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.stop_trace! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.stop_trace!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.trace_arguments Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.trace_arguments`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.trace_enabled? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.trace_enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.trace_module_name Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.trace_module_name`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.traceable? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.traceable?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.wait_trace_step! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.wait_trace_step!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.new Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.<< Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.<<`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log::DebugStderrTee.close Usage"},{"role":"assistant","content":"`PWN::Plugins::Log::DebugStderrTee.close`: "}]}

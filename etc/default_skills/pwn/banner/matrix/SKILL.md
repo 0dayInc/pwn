@@ -37,6 +37,7 @@ PWN::Banner::Matrix.get(opts)
 - `you`
 - `authors`
 - `help`
+- `you?`
 
 ## Source
 

@@ -43,6 +43,10 @@ PWN::AI::Agent::Loop.debug_on(opts)
 - `run`
 - `authors`
 - `help`
+- `catalog_lookup?`
+- `debug_on?`
+- `needs_host_work?`
+- `world_knowledge?`
 
 ## References
 

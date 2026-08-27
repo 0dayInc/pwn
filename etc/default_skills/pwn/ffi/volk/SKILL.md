@@ -42,6 +42,23 @@ PWN::FFI::Volk.available(opts)
 - `dot_prod`
 - `authors`
 - `help`
+- `available?`
+- `load_error`
+- `volk_16i_s32f_convert_32f`
+- `volk_16i_s32f_convert_32f=`
+- `volk_32f_accumulator_s32f`
+- `volk_32f_accumulator_s32f=`
+- `volk_32f_s32f_multiply_32f`
+- `volk_32f_s32f_multiply_32f=`
+- `volk_32f_sqrt_32f`
+- `volk_32f_sqrt_32f=`
+- `volk_32f_x2_dot_prod_32f`
+- `volk_32f_x2_dot_prod_32f=`
+- `volk_32fc_magnitude_squared_32f`
+- `volk_32fc_magnitude_squared_32f=`
+- `volk_free`
+- `volk_get_alignment`
+- `volk_malloc`
 
 ## Source
 

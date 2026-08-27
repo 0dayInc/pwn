@@ -41,6 +41,7 @@ PWN::MemoryIndex.available(opts)
 - `reset`
 - `authors`
 - `help`
+- `available?`
 
 ## References
 

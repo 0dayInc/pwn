@@ -61,6 +61,10 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `start`
 - `authors`
 - `help`
+- `install_pwn_ai_completer!`
+- `pwn_ai_dispatch_slash!`
+- `ready_tty!`
+- `restore_pwn_ai_completer!`
 
 ## Source
 

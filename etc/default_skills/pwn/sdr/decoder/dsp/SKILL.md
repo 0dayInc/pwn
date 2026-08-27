@@ -70,6 +70,9 @@ PWN::SDR::Decoder::DSP.unpack_s16le(opts)
 - `cmul`
 - `authors`
 - `help`
+- `even_parity_ok?`
+- `native`
+- `native=`
 
 ## Source
 

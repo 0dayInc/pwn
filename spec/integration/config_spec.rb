@@ -88,7 +88,7 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
         att&ck
       ]
       seeded = PWN::Config.install_default_skills(pwn_skills_path: dir)
-      expect(seeded.map { |r| r[:name] }).to eq names
+      expect(seeded.map { |r| r[:name] }).to match_array(names)
       names.each do |name|
         path = File.join(dir, name, 'SKILL.md')
         expect(File.file?(path)).to eq(true), path
@@ -127,6 +127,34 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
       expect(File).not_to exist(File.join(dir, 'google-workspace', 'SKILL.md'))
       gw_ref = File.join(dir, 'pwn', 'plugins', 'google_workspace', 'references', 'gmail-search-syntax.md')
       expect(File.file?(gw_ref)).to eq(true), gw_ref
+    end
+  end
+
+  it 'installs every SKILL.md under default_skills recursively and load_skills indexes nested dirs' do
+    Dir.mktmpdir('pwn_nested_skills') do |dir|
+      src = File.join(dir, 'src')
+      dest = File.join(dir, 'skills')
+      nested = File.join(src, 'research', 'nested-probe')
+      FileUtils.mkdir_p(File.join(nested, 'references', 'deep'))
+      File.write(
+        File.join(nested, 'SKILL.md'),
+        "---\nname: nested-probe\ndescription: nested probe desc\n---\n# Nested\n"
+      )
+      File.write(File.join(nested, 'references', 'deep', 'note.md'), "# note\n")
+      FileUtils.mkdir_p(File.join(nested, 'scripts'))
+      File.write(File.join(nested, 'scripts', 'skip.rb'), "# helper\n")
+      seeded = PWN::Config.install_default_skills(pwn_skills_path: dest, source: src)
+      expect(seeded.map { |r| r[:name] }).to include('research/nested-probe')
+      expect(File.file?(File.join(dest, 'research', 'nested-probe', 'SKILL.md'))).to eq(true)
+      expect(File.file?(File.join(dest, 'research', 'nested-probe', 'references', 'deep', 'note.md'))).to eq(true)
+      expect(File).not_to exist(File.join(dest, 'research', 'nested-probe', 'scripts', 'skip.rb'))
+      prev = defined?(PWN::Skills) ? PWN::Skills : nil
+      skills = PWN::Config.load_skills(pwn_skills_path: dest)
+      expect(skills.keys.map(&:to_s)).to include('research/nested-probe')
+      expect(skills[:'research/nested-probe'][:description]).to eq('nested probe desc')
+    ensure
+      PWN.send(:remove_const, :Skills) if PWN.const_defined?(:Skills)
+      PWN.const_set(:Skills, prev.freeze) if prev
     end
   end
 end

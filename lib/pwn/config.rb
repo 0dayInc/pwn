@@ -849,9 +849,11 @@ module PWN
     end
 
     # Seed bundled skills into ~/.pwn/skills (or pwn_skills_path:).
-    # Missing names are copied from etc/default_skills (or a one-level
-    # category subdir such as productivity/<name>). Existing SKILL.md
-    # files are left alone so operator edits survive upgrades.
+    # Every SKILL.md under etc/default_skills is copied, preserving
+    # relative path. SOP SKILL.md files are left alone so operator
+    # edits survive upgrades. Generated module skills under pwn/ are
+    # overwritten by ModuleSkills.install. scripts/ are never copied
+    # from the gem templates.
     public_class_method def self.install_default_skills(opts = {})
       root = opts[:pwn_skills_path] || pwn_skills_path
       src_root = opts[:source] || default_skills_dir
@@ -859,33 +861,17 @@ module PWN
 
       FileUtils.mkdir_p(root)
       seeded = []
-      default_skill_names.each do |name|
-        src_dir = default_skill_src_dir(source: src_root, name: name)
-        dest = File.join(root, name, SKILL_ENTRY)
-        src = File.join(src_dir, SKILL_ENTRY)
-        next unless File.file?(src)
+      each_skill_md(root: src_root) do |src, rel_dir|
+        next if module_skill_rel?(rel: rel_dir)
 
+        dest_dir = File.join(root, rel_dir)
+        dest = File.join(dest_dir, SKILL_ENTRY)
         unless File.file?(dest)
-          FileUtils.mkdir_p(File.dirname(dest))
+          FileUtils.mkdir_p(dest_dir)
           FileUtils.cp(src, dest)
-          seeded << { name: name, path: dest }
+          seeded << { name: rel_dir, path: dest }
         end
-
-        # Copy missing reference files (never overwrite operator edits).
-        ref_src = File.join(src_dir, 'references')
-        next unless Dir.exist?(ref_src)
-
-        ref_dest = File.join(root, name, 'references')
-        FileUtils.mkdir_p(ref_dest)
-        Dir.children(ref_src).each do |base|
-          from = File.join(ref_src, base)
-          next unless File.file?(from)
-
-          to = File.join(ref_dest, base)
-          next if File.file?(to)
-
-          FileUtils.cp(from, to)
-        end
+        copy_missing_references(source_dir: File.dirname(src), dest_dir: dest_dir)
       end
       if defined?(PWN::ModuleSkills) && PWN::ModuleSkills.respond_to?(:install)
         PWN::ModuleSkills.install(
@@ -899,16 +885,82 @@ module PWN
       []
     end
 
-    private_class_method def self.default_skill_src_dir(opts = {})
-      src_root = opts[:source].to_s
-      name = opts[:name].to_s
-      direct = File.join(src_root, name)
-      return direct if File.file?(File.join(direct, SKILL_ENTRY))
+    private_class_method def self.each_skill_md(opts = {})
+      root = opts[:root].to_s.chomp('/')
+      return if root.empty? || !Dir.exist?(root)
 
-      nested = Dir.glob(File.join(src_root, '*', name, SKILL_ENTRY)).min
-      return File.dirname(nested) if nested
+      Dir.glob(File.join(root, '**', SKILL_ENTRY)).each do |path|
+        next unless File.file?(path)
+        next if path.include?('/references/')
+        next if path.include?('/scripts/')
 
-      direct
+        rel_dir = File.dirname(path).delete_prefix("#{root}/")
+        next if rel_dir.empty? || rel_dir == '.'
+
+        yield path, rel_dir
+      end
+    end
+
+    private_class_method def self.module_skill_rel?(opts = {})
+      rel = opts[:rel].to_s
+      rel == 'pwn' || rel.start_with?('pwn/')
+    end
+
+    private_class_method def self.copy_missing_references(opts = {})
+      ref_src = File.join(opts[:source_dir].to_s, 'references')
+      return unless Dir.exist?(ref_src)
+
+      ref_dest = File.join(opts[:dest_dir].to_s, 'references')
+      Dir.glob(File.join(ref_src, '**', '*')).each do |from|
+        next unless File.file?(from)
+
+        rel = from.delete_prefix("#{ref_src}/")
+        to = File.join(ref_dest, rel)
+        next if File.file?(to)
+
+        FileUtils.mkdir_p(File.dirname(to))
+        FileUtils.cp(from, to)
+      end
+    end
+
+    private_class_method def self.ingest_skill_md(opts = {})
+      skills = opts[:skills]
+      entry = opts[:entry].to_s
+      rel_dir = opts[:rel_dir].to_s
+      return skills unless skills.is_a?(Hash)
+      return skills if entry.empty? || rel_dir.empty?
+
+      key = rel_dir.to_sym
+      return skills if skills.key?(key)
+
+      dir = File.dirname(entry)
+      content = File.read(entry)
+      parsed = parse_skill_frontmatter(content: content)
+      fm = parsed[:frontmatter]
+      desc = (fm['description'] || fm[:description]).to_s.strip
+      desc = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
+      scripts = Dir.glob(File.join(dir, 'scripts', '*.rb'))
+      fmt = module_skill_rel?(rel: rel_dir) ? :module : :agentskills
+      meta = {
+        type: scripts.any? ? :ruby : :instruction,
+        format: fmt,
+        path: entry,
+        dir: dir,
+        content: content,
+        description: desc,
+        frontmatter: fm,
+        references: parse_skill_references(content: content),
+        allowed_tools: Array(fm['allowed-tools'] || fm[:'allowed-tools'] || fm['allowed_tools'])
+      }
+      scripts.each do |rb|
+        require rb
+      rescue StandardError => e
+        meta[:loaded] = false
+        meta[:error] = e.message
+      end
+      meta[:loaded] = true unless meta.key?(:loaded) || scripts.empty?
+      skills[key] = meta
+      skills
     end
 
     # Supported Method Parameters::
@@ -919,7 +971,8 @@ module PWN
     # Loads skills into the PWN::Skills constant. Two on-disk shapes are
     # accepted so upgrades are seamless:
     #
-    #   agentskills.io  →  <root>/<name>/SKILL.md      (preferred; written by write_skill)
+    #   agentskills.io  →  <root>/**/SKILL.md          (recursive; written by write_skill)
+    #   module skills   →  <root>/pwn/**/SKILL.md
     #   legacy flat     →  <root>/<name>.{md,txt,rb,skill,yml,yaml}
     #
     # Each entry: { type:, format:, path:, dir:, content:, description:,
@@ -931,38 +984,8 @@ module PWN
       skills = {}
       return skills unless pwn_skills_path && Dir.exist?(pwn_skills_path.to_s)
 
-      # ── agentskills.io directory layout ───────────────────────────────
-      Dir.glob(File.join(pwn_skills_path, '*', SKILL_ENTRY)).each do |entry|
-        dir     = File.dirname(entry)
-        key     = File.basename(dir).to_sym
-        content = File.read(entry)
-        parsed  = parse_skill_frontmatter(content: content)
-        fm      = parsed[:frontmatter]
-        desc    = (fm['description'] || fm[:description]).to_s.strip
-        desc    = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
-        scripts = Dir.glob(File.join(dir, 'scripts', '*.rb'))
-
-        meta = {
-          type: scripts.any? ? :ruby : :instruction,
-          format: :agentskills,
-          path: entry,
-          dir: dir,
-          content: content,
-          description: desc,
-          frontmatter: fm,
-          references: parse_skill_references(content: content),
-          allowed_tools: Array(fm['allowed-tools'] || fm[:'allowed-tools'] || fm['allowed_tools'])
-        }
-
-        scripts.each do |rb|
-          require rb
-        rescue StandardError => e
-          meta[:loaded] = false
-          meta[:error]  = e.message
-        end
-        meta[:loaded] = true unless meta.key?(:loaded) || scripts.empty?
-
-        skills[key] = meta
+      each_skill_md(root: pwn_skills_path) do |entry, rel_dir|
+        ingest_skill_md(skills: skills, entry: entry, rel_dir: rel_dir)
       end
 
       # ── legacy flat files (backward-compat shim) ──────────────────────
@@ -996,30 +1019,6 @@ module PWN
         else
           skills[key] = base.merge(type: :instruction)
         end
-      end
-
-      # ── generated module skills: ~/.pwn/skills/pwn/**/SKILL.md ──────
-      Dir.glob(File.join(pwn_skills_path, 'pwn', '**', 'SKILL.md')).each do |skill_file|
-        next if skill_file.include?('/references/')
-
-        rel = skill_file.delete_prefix("#{pwn_skills_path}/").sub(%r{/SKILL\.md\z}, '')
-        key = rel.to_sym
-        next if skills.key?(key)
-
-        content = File.read(skill_file)
-        parsed = parse_skill_frontmatter(content: content)
-        desc = (parsed[:frontmatter]['description'] || parsed[:frontmatter][:description]).to_s.strip
-        desc = parsed[:body].to_s.lines.first.to_s.strip.sub(/^#+\s*/, '')[0, 200] if desc.empty?
-        skills[key] = {
-          type: :instruction,
-          format: :module,
-          path: skill_file,
-          dir: File.dirname(skill_file),
-          content: content,
-          description: desc,
-          frontmatter: parsed[:frontmatter],
-          references: parse_skill_references(content: content)
-        }
       end
 
       PWN.send(:remove_const, :Skills) if PWN.const_defined?(:Skills)

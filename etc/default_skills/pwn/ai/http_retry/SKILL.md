@@ -40,6 +40,7 @@ PWN::AI::HttpRetry.timeout_s(opts)
 - `report_event`
 - `authors`
 - `help`
+- `retryable?`
 
 ## Source
 

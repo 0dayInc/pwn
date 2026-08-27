@@ -55,6 +55,10 @@ PWN::Memory.load(opts)
 - `lean`
 - `authors`
 - `help`
+- `lean!`
+- `meta_recall_assistant?`
+- `meta_recall_user?`
+- `protected_entry?`
 
 ## Source
 

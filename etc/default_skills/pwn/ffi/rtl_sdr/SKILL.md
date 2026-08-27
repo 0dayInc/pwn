@@ -42,6 +42,24 @@ PWN::FFI::RTLSdr.available(opts)
 - `tuner_gains`
 - `authors`
 - `help`
+- `available?`
+- `load_error`
+- `rtlsdr_close`
+- `rtlsdr_get_center_freq`
+- `rtlsdr_get_device_count`
+- `rtlsdr_get_device_name`
+- `rtlsdr_get_device_usb_strings`
+- `rtlsdr_get_sample_rate`
+- `rtlsdr_get_tuner_gains`
+- `rtlsdr_open`
+- `rtlsdr_read_sync`
+- `rtlsdr_reset_buffer`
+- `rtlsdr_set_agc_mode`
+- `rtlsdr_set_center_freq`
+- `rtlsdr_set_freq_correction`
+- `rtlsdr_set_sample_rate`
+- `rtlsdr_set_tuner_gain`
+- `rtlsdr_set_tuner_gain_mode`
 
 ## Source
 

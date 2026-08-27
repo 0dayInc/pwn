@@ -43,6 +43,11 @@ PWN::AI::Agent::TurnFinalizer.enter_user_path(opts)
 - `pending`
 - `authors`
 - `help`
+- `enter_user_path!`
+- `join_all!`
+- `leave_user_path!`
+- `should_defer?`
+- `user_path?`
 
 ## Source
 

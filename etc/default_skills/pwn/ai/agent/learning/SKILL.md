@@ -53,6 +53,10 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 - `purge_noise`
 - `authors`
 - `help`
+- `gc_stores!`
+- `lean!`
+- `prune_outcomes!`
+- `reconcile_verdict_tags!`
 
 ## Source
 

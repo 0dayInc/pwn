@@ -58,6 +58,7 @@ PWN::AI::Agent::Reward.judge(opts)
 - `judge_sample_weight`
 - `authors`
 - `help`
+- `usable_preference?`
 
 ## Source
 

@@ -36,6 +36,10 @@ PWN::FFI::Stdio.available(opts)
 - `available`
 - `authors`
 - `help`
+- `available?`
+- `printf`
+- `puts`
+- `scanf`
 
 ## Source
 

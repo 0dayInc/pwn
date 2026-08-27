@@ -42,4 +42,4 @@ else
   cd $pwn_root && ./upgrade_ruby.sh $new_ruby_version $old_ruby_version
 fi
 
-cd $pwn_root && bundle fund | grep -A 1 pwn
+cd $pwn_root && pwn setup --migrate && bundle fund | grep -A 1 pwn

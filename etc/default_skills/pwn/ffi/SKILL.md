@@ -37,6 +37,7 @@ PWN::FFI.available(opts)
 - `backends`
 - `authors`
 - `help`
+- `available?`
 
 ## References
 

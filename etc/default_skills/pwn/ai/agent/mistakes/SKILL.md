@@ -54,6 +54,10 @@ PWN::AI::Agent::Mistakes.load(opts)
 - `effective_count`
 - `authors`
 - `help`
+- `correction?`
+- `extinguish!`
+- `extinguish_parked!`
+- `lean!`
 
 ## Source
 

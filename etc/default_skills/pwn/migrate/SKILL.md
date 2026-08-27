@@ -43,6 +43,7 @@ PWN::Migrate.installed_schema(opts)
 - `env_template`
 - `authors`
 - `help`
+- `needed?`
 
 ## Source
 

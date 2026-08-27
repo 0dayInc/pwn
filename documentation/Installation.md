@@ -265,12 +265,14 @@ The first `pwn` launch creates `~/.pwn/` and an **encrypted**
 - `att&ck`
 
 Source lives in the gem at `etc/default_skills/`. `PWN::Config.install_default_skills`
-is idempotent and never overwrites an edited SOP `SKILL.md`. Generated
-module skills under `etc/default_skills/pwn/` (one `<module>/SKILL.md` per
+walks every `SKILL.md` recursively (idempotent SOP copies; never overwrites an
+edited SOP `SKILL.md`). Generated module skills under `etc/default_skills/pwn/`
 `PWN::` module, plus `references/` when the source has CWE/NIST/URLs) are
 copied to `~/.pwn/skills/pwn/` and **are** overwritten on
 `pwn setup --migrate` / first launch so they stay in sync with `lib/pwn`.
-`bundle exec rake` rewrites the gem tree via `PWN::ModuleSkills.refresh!`. Add at least one
+`bundle exec rake` runs `:module_skills` (`PWN::ModuleSkills.refresh!`)
+before spec so `etc/default_skills/pwn` matches live `PWN::` class methods.
+`pwn setup --migrate` and `pwn-ai` start copy that tree to `~/.pwn/skills/pwn`. Add at least one
 LLM engine key with the `pwn-vault` REPL command to enable `pwn-ai` - see
 [Configuration](Configuration.md). `pwn setup` will report the AI-engine
 row as `MISSING` until a key is set.

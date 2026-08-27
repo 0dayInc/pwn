@@ -48,6 +48,7 @@ PWN::Sessions.sessions_dir(opts)
 - `protected_session_ids`
 - `authors`
 - `help`
+- `lean!`
 
 ## Source
 

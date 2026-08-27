@@ -63,6 +63,17 @@ PWN::AI::Agent::Policy.state(opts)
 - `help`
 - `warmup`
 - `maybe_warmup`
+- `attach_episode!`
+- `cold?`
+- `detach_episode!`
+- `enabled?`
+- `episode_budget_met?`
+- `lean!`
+- `maybe_warmup!`
+- `update_pg!`
+- `update_q!`
+- `warm?`
+- `warmup!`
 
 ## Source
 
