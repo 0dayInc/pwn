@@ -45,6 +45,28 @@ PWN::FFI::HackRF.available(opts)
 - `capture`
 - `authors`
 - `help`
+- `available?`
+- `hackrf_board_id_name`
+- `hackrf_board_id_read`
+- `hackrf_close`
+- `hackrf_error_name`
+- `hackrf_exit`
+- `hackrf_init`
+- `hackrf_is_streaming`
+- `hackrf_library_release`
+- `hackrf_library_version`
+- `hackrf_open`
+- `hackrf_open_by_serial`
+- `hackrf_set_amp_enable`
+- `hackrf_set_baseband_filter_bandwidth`
+- `hackrf_set_freq`
+- `hackrf_set_lna_gain`
+- `hackrf_set_sample_rate`
+- `hackrf_set_vga_gain`
+- `hackrf_start_rx`
+- `hackrf_stop_rx`
+- `hackrf_version_string_read`
+- `load_error`
 
 ## Source
 

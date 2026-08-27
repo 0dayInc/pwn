@@ -384,7 +384,10 @@ module PWN
             name = "\001\e[1m\002\001\e[33m\002#{pi.config.prompt_name}\001\e[0m\002"
             dchars = "\001\e[32m\002>>>\001\e[33m\002"
             dchars = "\001\e[33m\002***\001\e[33m\002" if mode == :splat
-            if pi.config.pwn_ai_debug
+            if pi.config.pwn_ai_trace
+              dchars = "\001\e[31m\002(TRACE) >>>\001\e[33m\002"
+              dchars = "\001\e[31m\002(TRACE) ***\001\e[33m\002" if mode == :splat
+            elsif pi.config.pwn_ai_debug
               dchars = "\001\e[32m\002(DEBUG) >>>\001\e[33m\002"
               dchars = "\001\e[33m\002(DEBUG) ***\001\e[33m\002" if mode == :splat
             end
@@ -465,6 +468,7 @@ module PWN
             rescue StandardError
               "#{Dir.home}/.pwn/skills"
             end
+            PWN::ModuleSkills.install(pwn_skills_path: skills_path) if defined?(PWN::ModuleSkills) && PWN::ModuleSkills.respond_to?(:install)
             PWN::Config.load_skills(pwn_skills_path: skills_path)
             skills_count = (PWN.const_defined?(:Skills) ? PWN::Skills.keys.length : 0)
 
@@ -1047,13 +1051,14 @@ module PWN
         end
 
         Pry::Commands.create_command 'toggle-debug' do
-          description 'Stream pwn-ai stage log to the TUI and /tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log (trace: Env ai.agent.debug_trace)'
+          description 'Stream pwn-ai stage log to the TUI and /tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log'
 
           def process
             pi = pry_instance
             if pi.config.pwn_ai_debug
               path = PWN::Plugins::Log.stop_debug
               pi.config.pwn_ai_debug = false
+              pi.config.pwn_ai_trace = false
               if path
                 output.puts "pwn-ai debug OFF (was #{path})"
               else
@@ -1064,6 +1069,26 @@ module PWN
               PWN::Plugins::Log.start_debug(tee: output, session_id: sid)
               pi.config.pwn_ai_debug = true
               output.puts 'pwn-ai debug ON.'
+            end
+          end
+        end
+
+        Pry::Commands.create_command 'toggle-trace' do
+          description 'toggle-debug plus TracePoint; ENTER after each Loop step. Stored on Pry.config like toggle-debug, not Env.'
+
+          def process
+            pi = pry_instance
+            if pi.config.pwn_ai_trace
+              PWN::Plugins::Log.stop_debug
+              pi.config.pwn_ai_debug = false
+              pi.config.pwn_ai_trace = false
+              output.puts 'pwn-ai trace OFF (debug OFF)'
+            else
+              sid = pi.config.pwn_ai_session_id
+              PWN::Plugins::Log.start_debug(tee: output, session_id: sid, trace: true)
+              pi.config.pwn_ai_debug = true
+              pi.config.pwn_ai_trace = true
+              output.puts 'pwn-ai trace ON (debug ON, TracePoint, ENTER each loop step)'
             end
           end
         end
@@ -1558,12 +1583,13 @@ module PWN
       end
 
       PWN_AI_SLASH_COMMANDS = %w[
-        /back /cron /debug /delegate /help /memory /model /sessions /skills
+        /back /cron /debug /delegate /help /memory /model /sessions /skills /trace
       ].freeze
 
       PWN_AI_SLASH_SUBCOMMANDS = {
         '/cron' => %w[list create run remove],
         '/debug' => [],
+        '/trace' => [],
         '/delegate' => [],
         '/help' => [],
         '/memory' => %w[list recall remember forget clear],
@@ -1739,6 +1765,12 @@ module PWN
             pi.eval('toggle-debug')
           else
             puts '[*] toggle-debug'
+          end
+        when '/trace'
+          if pi.respond_to?(:eval)
+            pi.eval('toggle-trace')
+          else
+            puts '[*] toggle-trace'
           end
         when '/cron'
           pwn_ai_run_cron(args: args)

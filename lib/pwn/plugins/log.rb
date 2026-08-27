@@ -23,12 +23,8 @@ module PWN
         PWN::Banner
       ].freeze
       DEFAULT_TRACE_PREFIXES = %w[
-        PWN::AI
-        PWN::Memory
-        PWN::Sessions
-        PWN::Config
-        PWN::Cron
-        PWN::Plugins
+        PWN::AI::Agent::Loop
+        PWN::AI::Agent::Dispatch
       ].freeze
       SECRET_KEY_RX = /password|passwd|secret|token|api[_-]?key|authorization|bearer|cookie|session[_-]?id|private[_-]?key|decryptor|credential|ssh[_-]?key|client[_-]?secret|refresh[_-]?token|access[_-]?token|id[_-]?token|vault|csrf/i
       SECRET_VALUE_RX = %r{
@@ -150,10 +146,13 @@ module PWN
       # /tmp/pwn-ai-DEBUG-<session_id>-RN.log via next_request_log!.
       # opts[:path] is a test override that writes to one file.
       public_class_method def self.start_debug(opts = {})
+        want_trace = opts[:trace] == true
         if debug_enabled? && opts[:path].to_s.empty?
           @debug_tee = opts[:tee] if opts.key?(:tee)
           sid = sanitize_debug_session_id(session_id: opts[:session_id])
           @debug_session_id = sid unless sid.empty?
+          @debug_step_io = opts[:step_io] if opts.key?(:step_io)
+          apply_trace!(trace: want_trace, prefixes: opts[:prefixes]) if want_trace
           return @debug_path
         end
 
@@ -165,16 +164,21 @@ module PWN
         @debug_session_id = sanitize_debug_session_id(session_id: opts[:session_id])
         @debug_req_n = 0
         @debug_request_open = false
+        @debug_step_io = opts[:step_io]
         if path.empty?
           close_debug_file!
           @debug_path = nil
         else
           open_debug_file!(path: path)
         end
-        start_trace!(prefixes: opts[:prefixes]) if opts[:trace] == true
+        apply_trace!(trace: want_trace, prefixes: opts[:prefixes])
         install_stderr_tee!
         progress(msg: 'debug session start', which_self: self) if @debug_file
         @debug_path
+      end
+
+      public_class_method def self.trace_enabled?
+        @debug_trace == true
       end
 
       public_class_method def self.next_request_log!(opts = {})
@@ -226,6 +230,8 @@ module PWN
         @debug_tee = nil
         @debug_tui_quiet = false
         @debug_enabled = false
+        @debug_step = false
+        @debug_step_io = nil
         remove_stderr_tee!
         path
       end
@@ -574,6 +580,16 @@ module PWN
         opts[:key].to_s.match?(SECRET_KEY_RX)
       end
 
+      private_class_method def self.opaque_secret?(opts = {})
+        return false unless opts[:key].to_s == 'value'
+
+        val = opts[:value]
+        return false unless val.is_a?(String)
+        return false if val.length < 24
+
+        val.match?(%r{\A[A-Za-z0-9\-_/=+.]+\z})
+      end
+
       private_class_method def self.sanitize_debug_text(opts = {})
         text = opts[:text].to_s
         text = text.gsub(SECRET_VALUE_RX, '[REDACTED]')
@@ -584,6 +600,7 @@ module PWN
         val = opts[:value]
         key = opts[:key]
         return '[REDACTED]' if secret_key?(key: key)
+        return '[REDACTED]' if opaque_secret?(key: key, value: val)
         return format_debug_hash(hash: val) if val.is_a?(Hash)
         return '[REDACTED]' if val.is_a?(String) && val.match?(SECRET_VALUE_RX)
 
@@ -667,6 +684,7 @@ module PWN
           nil
         end
         @debug_tp.enable
+        @debug_trace = true
         @debug_tp
       end
 
@@ -675,6 +693,50 @@ module PWN
 
         @debug_tp&.disable
         @debug_tp = nil
+        @debug_trace = false
+        @debug_step = false
+      end
+
+      public_class_method def self.wait_trace_step!(opts = {})
+        return unless debug_enabled?
+        return unless @debug_step
+        return if opts[:nested]
+
+        io = @debug_step_io || $stdin
+        return unless io.respond_to?(:gets)
+        return if io.equal?($stdin) && !$stdin.tty?
+
+        label = opts[:label].to_s
+        label = 'loop' if label.empty?
+        progress(msg: "trace step #{label} — Press ENTER to Continue...", which_self: self, tee: nil)
+        prompt_trace_enter!
+        io.gets
+        true
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.prompt_trace_enter!(opts = {})
+        return if opts[:skip]
+
+        tee = @debug_tee
+        return unless tee.respond_to?(:puts)
+
+        tee.print("\e[31mPress ENTER to Continue...\e[0m")
+        tee.flush if tee.respond_to?(:flush)
+        $stdout.flush if $stdout.respond_to?(:flush)
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.apply_trace!(opts = {})
+        if opts[:trace]
+          @debug_step = true
+          start_trace!(prefixes: opts[:prefixes])
+          @debug_trace = true
+        else
+          @debug_step = false
+        end
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -703,7 +765,8 @@ module PWN
           #{self}.progress(msg: 'stage', which_self: self)
           #{self}.finish_request_log!(iter: 1, tools_called: 0, engine_s: 0.2, final_chars: 12)
           #{self}.stop_debug
-          # start_debug(trace: true) enables per-call TracePoint (opt-in)
+          # start_debug(trace: true) enables TracePoint + ENTER after each Loop step
+          # (toggle-trace). Stored on Pry.config.pwn_ai_trace, not Env.
         "
       end
     end

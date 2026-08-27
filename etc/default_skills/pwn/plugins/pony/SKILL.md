@@ -50,6 +50,8 @@ PWN::Plugins::Pony.options(opts)
 - `sendmail_binary`
 - `authors`
 - `help`
+- `options=`
+- `override_options=`
 
 ## Source
 

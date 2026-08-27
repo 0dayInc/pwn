@@ -42,6 +42,7 @@ PWN::Plugins::Vault.refresh_encryption_secrets(opts)
 - `file_encrypted`
 - `authors`
 - `help`
+- `file_encrypted?`
 
 ## Source
 

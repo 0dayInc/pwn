@@ -22,7 +22,7 @@ module PWN
 
         found.concat(parse_file(path: path, lib_root: lib))
       end
-      found.uniq { |h| h[:source] }
+      found.uniq { |h| h[:source] }.each { |rec| enrich_live_methods!(rec: rec) }
     end
 
     public_class_method def self.relpath(opts = {})
@@ -130,6 +130,48 @@ module PWN
       end
       removed = prune_orphans(root: File.join(dest, 'pwn'), keep: keep)
       { modules: mods.length, written: written, removed: removed, dest: dest }
+    end
+
+    public_class_method def self.drift(opts = {})
+      dest = opts[:dest].to_s
+      dest = File.expand_path('../../etc/default_skills', __dir__) if dest.empty?
+      dest = File.dirname(dest) if File.basename(dest) == 'pwn'
+      lib = opts[:lib_root].to_s
+      lib = File.expand_path('..', LIB_ROOT) if lib.empty?
+      mods = enumerate(lib_root: lib)
+      missing = []
+      stale = []
+      keep = {}
+      mods.each do |rec|
+        path = skill_abs(dest: dest, module: rec)
+        dir = File.dirname(path)
+        keep[path] = true
+        if preserved_skill?(path: path)
+          Dir.glob(File.join(dir, 'references', '*.md')).each { |p| keep[p] = true }
+          next
+        end
+
+        if File.file?(path)
+          stale << path if File.read(path) != render(module: rec)
+        else
+          missing << path
+        end
+        Array(rec[:references]).each do |ref|
+          keep[File.join(dir, 'references', ref[:file])] = true
+        end
+      end
+      orphans = []
+      root = File.join(dest, 'pwn')
+      if Dir.exist?(root)
+        Dir.glob(File.join(root, '**', '*')).each do |path|
+          next unless File.file?(path)
+          next if File.basename(path).start_with?('.')
+          next if keep[path]
+
+          orphans << path
+        end
+      end
+      { missing: missing, stale: stale, orphans: orphans, modules: mods.length }
     end
 
     public_class_method def self.install(opts = {})
@@ -333,6 +375,33 @@ module PWN
                  .downcase
     end
 
+    private_class_method def self.enrich_live_methods!(opts = {})
+      rec = opts[:rec]
+      return rec unless rec.is_a?(Hash)
+
+      parsed = Array(rec[:methods]).map(&:to_s)
+      extra = live_class_methods(const: rec[:const]) - parsed
+      rec[:methods] = parsed + extra.sort
+      rec
+    end
+
+    private_class_method def self.live_class_methods(opts = {})
+      const = opts[:const].to_s
+      return [] if const.empty?
+
+      mod = const.split('::').inject(Object) do |cur, part|
+        return [] unless cur.is_a?(Module)
+        return [] unless cur.const_defined?(part)
+
+        cur.const_get(part)
+      end
+      return [] unless mod.is_a?(Module)
+
+      mod.singleton_methods(false).map(&:to_s)
+    rescue StandardError
+      []
+    end
+
     private_class_method def self.example_call(opts = {})
       const = opts[:const]
       methods = Array(opts[:methods]) - %w[help authors]
@@ -370,6 +439,7 @@ module PWN
         USAGE:
           #{self}.enumerate
           #{self}.refresh!
+          #{self}.drift
           #{self}.install(pwn_skills_path: '~/.pwn/skills')
           #{self}.authors
       USAGE

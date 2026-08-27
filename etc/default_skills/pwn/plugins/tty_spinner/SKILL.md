@@ -38,6 +38,7 @@ PWN::Plugins::TTYSpinner.start(opts)
 - `halt_all`
 - `authors`
 - `help`
+- `halt_all!`
 
 ## Source
 

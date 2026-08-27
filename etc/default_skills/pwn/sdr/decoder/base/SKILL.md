@@ -43,6 +43,7 @@ PWN::SDR::Decoder::Base.run_native(opts)
 - `run_iq`
 - `authors`
 - `help`
+- `match_line?`
 
 ## Source
 

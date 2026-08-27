@@ -247,15 +247,17 @@ describe PWN::Plugins::Log do
       expect(body).not_to match(/PWN::AI::Agent::OpenGoal\.current/)
     end
 
-    it 'traces PWN module calls into the same debug log when trace: true' do
+    it 'traces Loop/Dispatch calls and not the rest of PWN::AI when trace: true' do
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
         path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-#{Time.now.to_i}.log",
         trace: true
       )
+      PWN::AI::Agent::Dispatch.effect(name: 'skills_recall', args: {})
       PWN::AI::Agent::OpenGoal.current if defined?(PWN::AI::Agent::OpenGoal)
       body = File.read(path)
-      expect(body).to match(/PWN::AI::Agent::OpenGoal/)
+      expect(body).to match(/PWN::AI::Agent::Dispatch/)
+      expect(body).not_to match(/PWN::AI::Agent::OpenGoal/)
     end
 
     it 'does not raise when a traced module #name is a Symbol' do
@@ -268,13 +270,13 @@ describe PWN::Plugins::Log do
           :ok
         end
       end
-      stub_const('PWN::AI::Agent::SymNameProbe', probe)
+      stub_const('PWN::AI::Agent::Loop::SymNameProbe', probe)
       PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
         path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-sym.log",
         trace: true
       )
-      expect { PWN::AI::Agent::SymNameProbe.ping }.not_to raise_error
+      expect { PWN::AI::Agent::Loop::SymNameProbe.ping }.not_to raise_error
     end
 
     it 'logs the complete traced call including parameters' do
@@ -283,19 +285,19 @@ describe PWN::Plugins::Log do
           opts[:msg]
         end
       end
-      stub_const('PWN::AI::Agent::ArgProbe', probe)
+      stub_const('PWN::AI::Agent::Dispatch::ArgProbe', probe)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
         path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-args.log",
         trace: true
       )
-      PWN::AI::Agent::ArgProbe.echo(
+      PWN::AI::Agent::Dispatch::ArgProbe.echo(
         msg: 'hello-browser',
         url: 'https://example.test/open',
         password: 's3cret-token'
       )
       body = File.read(path)
-      expect(body).to include('PWN::AI::Agent::ArgProbe.echo')
+      expect(body).to include('PWN::AI::Agent::Dispatch::ArgProbe.echo')
       expect(body).to include('hello-browser')
       expect(body).to include('https://example.test/open')
       expect(body).not_to include('s3cret-token')
@@ -308,13 +310,13 @@ describe PWN::Plugins::Log do
           opts[:msg]
         end
       end
-      stub_const('PWN::AI::Agent::ArgProbe', probe)
+      stub_const('PWN::AI::Agent::Dispatch::ArgProbe', probe)
       path = PWN::Plugins::Log.start_debug(
         tee: StringIO.new,
         path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-redact.log",
         trace: true
       )
-      PWN::AI::Agent::ArgProbe.echo(
+      PWN::AI::Agent::Dispatch::ArgProbe.echo(
         header: 'Bearer eyJhbGciOiJIUzI1NiJ9.aaa.bbb',
         blob: "-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----",
         note: 'xai-abcdefghijklmnopqrstuvwxyz0123456789ABCD'
@@ -330,5 +332,82 @@ describe PWN::Plugins::Log do
       expect(body).not_to include('sk-live-SUPERSECRET999')
       expect(body).to match(/\[REDACTED\]/)
     end
+  end
+end
+
+describe 'PWN::Plugins::Log toggle-trace step' do
+  after do
+    PWN::Plugins::Log.stop_debug if PWN::Plugins::Log.respond_to?(:stop_debug)
+  end
+
+  it 'pairs TracePoint with ENTER-step when start_debug(trace: true)' do
+    io = StringIO.new("\n")
+    path = PWN::Plugins::Log.start_debug(
+      tee: StringIO.new,
+      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-step.log",
+      trace: true,
+      step_io: io
+    )
+    expect(PWN::Plugins::Log.debug_enabled?).to eq(true)
+    expect(PWN::Plugins::Log.trace_enabled?).to eq(true)
+    expect(PWN::Plugins::Log).to respond_to(:wait_trace_step!)
+    PWN::Plugins::Log.wait_trace_step!(label: 'engine')
+    expect(io.pos).to be > 0
+    body = File.read(path)
+    expect(body).to match(/trace step/)
+    expect(body).to match(/Press ENTER to Continue\.\.\./i)
+  end
+
+  it 'prints "Press ENTER to Continue..." in red on its own TUI line' do
+    io = StringIO.new("\n")
+    tee = StringIO.new
+    PWN::Plugins::Log.start_debug(
+      tee: tee,
+      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-enter-color.log",
+      trace: true,
+      step_io: io
+    )
+    PWN::Plugins::Log.wait_trace_step!(label: 'engine')
+    expect(tee.string.lines.map(&:chomp)).to include("\e[31mPress ENTER to Continue...\e[0m")
+  end
+
+  it 'redacts real_config_value? opaque tokens' do
+    probe = Module.new do
+      def self.real_config_value?(opts = {})
+        opts[:value]
+      end
+    end
+    stub_const('PWN::AI::Agent::Dispatch::CfgProbe', probe)
+    path = PWN::Plugins::Log.start_debug(
+      tee: StringIO.new,
+      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-oauth.log",
+      trace: true
+    )
+    token = 'bnQe3hs8ZSP2KkHj3LSnwzIeDvDv0fmbTQEzsUx4XXW5g22D4Uu6hva_MYossX-GedInWt_dwTgGzpMxoKQECQ'
+    PWN::AI::Agent::Dispatch::CfgProbe.real_config_value?(value: token)
+    body = File.read(path)
+    expect(body).not_to include(token)
+    expect(body).to match(/\[REDACTED\]/)
+  end
+
+  it 'does not wait for ENTER when trace is off or nested' do
+    io = StringIO.new("\n")
+    PWN::Plugins::Log.start_debug(
+      tee: StringIO.new,
+      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-nostep.log",
+      step_io: io
+    )
+    expect(PWN::Plugins::Log.trace_enabled?).to eq(false)
+    PWN::Plugins::Log.wait_trace_step!(label: 'engine')
+    expect(io.pos).to eq(0)
+    PWN::Plugins::Log.stop_debug
+    PWN::Plugins::Log.start_debug(
+      tee: StringIO.new,
+      path: "/tmp/pwn-ai-DEBUG-#{Process.pid}-nested.log",
+      trace: true,
+      step_io: io
+    )
+    PWN::Plugins::Log.wait_trace_step!(label: 'engine', nested: true)
+    expect(io.pos).to eq(0)
   end
 end

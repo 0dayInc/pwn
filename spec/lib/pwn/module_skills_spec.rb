@@ -53,6 +53,18 @@ describe PWN::ModuleSkills do
       expect(File.read(path)).to include(rec[:const])
       expect(File.read(path)).not_to match(/hermes/i)
     end
+    drift = described_class.drift
+    expect(drift[:missing]).to eq([])
+    expect(drift[:stale]).to eq([])
+    expect(drift[:orphans]).to eq([])
+  end
+
+  it 'exposes drift so rake/spec can refuse a stale gem skill tree' do
+    expect(described_class).to respond_to(:drift)
+    rake = File.read(File.expand_path('../../../Rakefile', __dir__))
+    expect(rake).to match(/module_skills/)
+    expect(rake).to match(/ModuleSkills\.refresh!/)
+    expect(rake).to match(/Task\[:spec\]\.enhance|task spec: :module_skills/)
   end
 
   it 'install overwrites existing generated module skills' do

@@ -40,6 +40,16 @@ PWN::FFI::FFTW.available(opts)
 - `cfft`
 - `authors`
 - `help`
+- `available?`
+- `fftwf_cleanup`
+- `fftwf_destroy_plan`
+- `fftwf_execute`
+- `fftwf_free`
+- `fftwf_malloc`
+- `fftwf_plan_dft_1d`
+- `fftwf_plan_dft_c2r_1d`
+- `fftwf_plan_dft_r2c_1d`
+- `load_error`
 
 ## Source
 

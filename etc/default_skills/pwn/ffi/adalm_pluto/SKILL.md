@@ -46,6 +46,8 @@ PWN::FFI::AdalmPluto::Ad9361.available(opts)
 - `capture`
 - `authors`
 - `help`
+- `ad9361_set_bb_rate`
+- `load_error`
 
 ## Source
 

@@ -85,7 +85,7 @@ module PWN
       rescue RestClient::Forbidden, RestClient::Unauthorized => e
         @@logger.error("GitHub #{e.class}: #{e.response&.body}")
         raise e
-      rescue RestClient::BadRequest, RestClient::NotFound, StandardError => e
+      rescue StandardError => e
         raise e
       end
 

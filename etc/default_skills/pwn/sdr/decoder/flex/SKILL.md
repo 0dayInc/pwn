@@ -45,6 +45,7 @@ PWN::SDR::Decoder::Flex.sync_check(opts)
 - `decode`
 - `authors`
 - `help`
+- `even_parity?`
 
 ## Source
 

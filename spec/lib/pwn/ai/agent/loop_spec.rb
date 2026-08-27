@@ -1011,6 +1011,16 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
           request: 'remember what I said about nmap and implement the scanner fix'
         )
       ).to eq(:act)
+      expect(
+        described_class.request_intent(
+          request: 'are all the skills in ~/.pwn/skills loaded into memory when `pwn-ai` is executed?'
+        )
+      ).not_to eq(:recall)
+      expect(
+        described_class.request_intent(
+          request: 'what does the `pwn/www/youtube` allow me to do?'
+        )
+      ).not_to eq(:recall)
     end
 
     it 'classifies pure greetings and light weather smalltalk as :greeting' do
@@ -1349,6 +1359,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     expect(src).to match(/debug_msgs_line|msgs=.*\[/)
     expect(src).to match(/PWN::Plugins::Log\.progress/)
     expect(src).to match(/quiet_debug_tui!/)
+    expect(src).to match(/wait_trace_step!/)
+    expect(src).not_to match(/ai.*agent.*debug_trace/)
     expect(described_class).to respond_to(:debug_on?)
   end
 end # rubocop:enable Metrics/BlockLength

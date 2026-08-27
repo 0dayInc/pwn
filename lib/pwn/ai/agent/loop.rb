@@ -144,6 +144,15 @@ module PWN
           )
         end
 
+        private_class_method def self.wait_trace_step!(opts = {})
+          return unless defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:wait_trace_step!)
+
+          PWN::Plugins::Log.wait_trace_step!(
+            label: opts[:label],
+            nested: opts[:nested]
+          )
+        end
+
         private_class_method def self.start_debug_session(opts = {})
           return unless debug_on?(opts)
           return unless defined?(PWN::Plugins::Log)
@@ -153,13 +162,14 @@ module PWN
             return
           end
 
-          unless PWN::Plugins::Log.debug_enabled?
-            want_trace = opts[:trace] == true
-            begin
-              want_trace ||= PWN::Env.dig(:ai, :agent, :debug_trace) == true
-            rescue StandardError
-              nil
-            end
+          want_trace = opts[:trace] == true
+          begin
+            want_trace ||= defined?(Pry) && Pry.config.respond_to?(:pwn_ai_trace) && Pry.config.pwn_ai_trace
+          rescue StandardError
+            nil
+          end
+          want_trace ||= PWN::Plugins::Log.trace_enabled? if PWN::Plugins::Log.respond_to?(:trace_enabled?)
+          if !PWN::Plugins::Log.debug_enabled? || want_trace
             PWN::Plugins::Log.start_debug(
               tee: opts[:debug_tee] || $stdout,
               session_id: opts[:session_id],
@@ -1746,7 +1756,12 @@ module PWN
             what\s+did\s+you\s+(?:just\s+)?(?:say|answer|reply|respond)|
             what\s+(?:was|is)\s+your\s+(?:last|previous|prior)\s+(?:answer|response|reply)|
             (?:without\s+looking\s+up).{0,40}(?:session|discussing|talking)|
-            (?:from\s+)?(?:memory|context|earlier|previously|prior\s+turn)|
+            from\s+(?:(?:your|my|the)\s+)?(?:memory|context)|
+            in\s+your\s+memory|
+            (?:your|my)\s+memory\s+(?:of|about)|
+            earlier\s+in\s+(?:this\s+)?(?:session|chat|conversation|turn)|
+            previously\s+in\s+(?:this\s+)?(?:session|chat|conversation)|
+            prior\s+turn|
             (?:do\s+you\s+)?remember\s+what\s+(?:i|you)|
             recall\s+(?:what|my|your|the\s+last)|
             last\s+thing\s+(?:i|you)\s+said
@@ -2623,6 +2638,7 @@ module PWN
             end
             engine_s += (Time.now - t0)
             PWN::Plugins::TTYSpinner.halt_all! if defined?(PWN::Plugins::TTYSpinner)
+            wait_trace_step!(label: 'engine', nested: nested)
             if msg.nil?
               task_summary_flush!(state: ts_state, on_tool: on_tool)
               debug_progress(msg: 'engine returned no message')
@@ -2770,6 +2786,7 @@ module PWN
 
               on_tool&.call(name, args, result)
               debug_tool_io!(name: name, args: args, result: result)
+              wait_trace_step!(label: "tool #{name}", nested: nested)
               task_summary_record!(state: ts_state, name: name, args: args, result: result, on_tool: on_tool)
 
               messages << {

@@ -37,6 +37,7 @@ PWN::Plugins::Log.append(opts)
 - `debug_enabled`
 - `debug_log_path`
 - `start_debug`
+- `trace_enabled`
 - `next_request_log`
 - `finish_request_log`
 - `stop_debug`
@@ -51,8 +52,23 @@ PWN::Plugins::Log.append(opts)
 - `mirror_tui`
 - `start_trace`
 - `stop_trace`
+- `wait_trace_step`
 - `authors`
 - `help`
+- `capture_stderr!`
+- `debug_enabled?`
+- `finish_request_log!`
+- `loud_tui!`
+- `mirror_tui!`
+- `next_request_log!`
+- `note_exception!`
+- `note_interrupt!`
+- `quiet_tui!`
+- `spinner_frame?`
+- `start_trace!`
+- `stop_trace!`
+- `trace_enabled?`
+- `wait_trace_step!`
 
 ## Source
 

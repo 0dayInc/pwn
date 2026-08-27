@@ -37,9 +37,11 @@ PWN::ModuleSkills.enumerate(opts)
 - `relpath`
 - `render`
 - `refresh`
+- `drift`
 - `install`
 - `authors`
 - `help`
+- `refresh!`
 
 ## References
 

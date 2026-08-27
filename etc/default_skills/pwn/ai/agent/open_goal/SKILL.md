@@ -40,6 +40,9 @@ PWN::AI::Agent::OpenGoal.goal_file(opts)
 - `resume`
 - `authors`
 - `help`
+- `begin!`
+- `clear!`
+- `resume?`
 
 ## Source
 

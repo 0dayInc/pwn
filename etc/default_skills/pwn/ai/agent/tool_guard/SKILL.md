@@ -54,6 +54,14 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `timeout_prior_count`
 - `authors`
 - `help`
+- `bashism?`
+- `note_timeout!`
+- `placeholder?`
+- `present?`
+- `protect_core_constants!`
+- `protect_http!`
+- `reset_timeout_budget!`
+- `shell_bash?`
 
 ## Source
 

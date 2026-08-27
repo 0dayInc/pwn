@@ -64,6 +64,18 @@ PWN::AI::Agent::TaskSummarizer.enabled(opts)
 - `flush`
 - `authors`
 - `help`
+- `apply_prm_advancement!`
+- `emit!`
+- `emit_plan!`
+- `enabled?`
+- `flush!`
+- `llm_plan_enabled?`
+- `needs_task_breakdown?`
+- `plan_open?`
+- `record!`
+- `tool_jargon_task?`
+- `unify_plan!`
+- `verbose?`
 
 ## Source
 

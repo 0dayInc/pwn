@@ -42,6 +42,7 @@ PWN::SDR::Decoder::ADSB.crc24(opts)
 - `parse_line`
 - `authors`
 - `help`
+- `crc_ok?`
 
 ## Source
 

@@ -136,7 +136,7 @@ module PWN
         return unless spin.respond_to?(:join)
 
         spin.join(JOIN_SECS)
-      rescue TTY::Spinner::NotSpinningError, StandardError
+      rescue StandardError
         nil
       end
 

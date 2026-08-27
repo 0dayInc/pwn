@@ -100,6 +100,13 @@ PWN::Cron.cron_dir(opts)
 - `uninstall_schtasks_job`
 - `authors`
 - `help`
+- `apply_native?`
+- `cron_enabled?`
+- `crontab_available?`
+- `due?`
+- `schtasks_available?`
+- `systemd_user_available?`
+- `windows?`
 
 ## References
 

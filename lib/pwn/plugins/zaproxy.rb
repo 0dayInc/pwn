@@ -143,7 +143,7 @@ module PWN
         end
 
         zap_obj
-      rescue Selenium::WebDriver::Error::SessionNotCreatedError, StandardError, SystemExit, Interrupt => e
+      rescue StandardError, SystemExit, Interrupt => e
         stop(zap_obj: zap_obj) unless zap_obj.nil?
         raise e
       end

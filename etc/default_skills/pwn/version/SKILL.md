@@ -33,7 +33,7 @@ PWN.help(opts)
 
 ## Public methods
 
-- _(no public class methods parsed)_
+- `help`
 
 ## Source
 

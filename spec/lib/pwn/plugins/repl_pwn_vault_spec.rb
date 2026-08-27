@@ -137,7 +137,8 @@ describe 'toggle-debug' do
   let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
   let(:block) do
     start = repl_src.index("Pry::Commands.create_command 'toggle-debug'")
-    stop = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-speaks'")
+    stop = repl_src.index("Pry::Commands.create_command 'toggle-trace'")
+    stop ||= repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-speaks'")
     repl_src[start...stop]
   end
 
@@ -146,6 +147,41 @@ describe 'toggle-debug' do
     expect(block).to include('PWN::Plugins::Log.stop_debug')
     expect(block).to include('pwn-ai-DEBUG')
     expect(block).to include('-R')
+  end
+
+  it 'does not persist toggle-debug in PWN::Env' do
+    expect(block).not_to include('PWN::Env')
+    expect(block).to include('pwn_ai_debug')
+  end
+end
+
+describe 'toggle-trace' do
+  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:block) do
+    start = repl_src.index("Pry::Commands.create_command 'toggle-trace'")
+    stop = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-speaks'")
+    repl_src[start...stop]
+  end
+
+  it 'exists as a Pry command next to toggle-debug' do
+    expect(repl_src).to include("Pry::Commands.create_command 'toggle-trace'")
+    expect(block).to include('pwn_ai_trace')
+    expect(block).to include('pwn_ai_debug')
+  end
+
+  it 'turns debug and TracePoint on together and off together' do
+    expect(block).to include('start_debug')
+    expect(block).to include('trace: true')
+    expect(block).to include('stop_debug')
+    expect(block).to match(/pwn_ai_debug = true/)
+    expect(block).to match(/pwn_ai_trace = true/)
+    expect(block).to match(/pwn_ai_debug = false/)
+    expect(block).to match(/pwn_ai_trace = false/)
+  end
+
+  it 'does not store toggle-trace in PWN::Env' do
+    expect(block).not_to include('PWN::Env')
+    expect(block).not_to include('debug_trace')
   end
 end
 

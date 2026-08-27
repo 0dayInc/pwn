@@ -20,6 +20,15 @@ describe PWN::Plugins::REPL do
     expect(src).to include('current_context_length')
   end
 
+  it 'paints (TRACE) in red on the PS1 when toggle-trace is on, not green (DEBUG)' do
+    src = File.read(described_class.method(:refresh_ps1_proc).source_location.first)
+    expect(src).to include('pwn_ai_trace')
+    expect(src).to include('(TRACE)')
+    expect(src).to match(/\\e\[31m.*\(TRACE\)/)
+    expect(src).to match(/pwn_ai_trace.*\(TRACE\)/m)
+    expect(src).to match(/pwn_ai_debug.*\(DEBUG\)/m)
+  end
+
   it 'formats compact token counts for the PS1 budget' do
     expect(described_class.compact_context_tokens(tokens: 0)).to eq('0')
     expect(described_class.compact_context_tokens(tokens: 26_000)).to eq('26K')
@@ -33,6 +42,12 @@ describe PWN::Plugins::REPL do
     expect(hook).to match(/request\.replace\('nil'\)/)
     reader = File.read(described_class.const_get(:PWNMultiLineInput).instance_method(:readline).source_location.first)
     expect(reader).to match(/ready_tty!/)
+  end
+
+  it 'reinstalls generated module skills into ~/.pwn/skills before load_skills on pwn-ai start' do
+    src = File.read(described_class.method(:add_commands).source_location.first)
+    expect(src).to match(/ModuleSkills\.install/)
+    expect(src).to match(/ModuleSkills\.install.*load_skills|install_default_skills.*load_skills/m)
   end
 
   it 'ready_tty! halts leftover spinner workers so PS1 can redraw without Enter' do
@@ -67,7 +82,7 @@ describe PWN::Plugins::REPL do
       hits = described_class.pwn_ai_complete(target: '/sk', line: '/sk')
       expect(hits).to include('/skills')
       hits = described_class.pwn_ai_complete(target: '/', line: '/')
-      %w[/cron /skills /sessions /memory /debug /back /help /model].each do |cmd|
+      %w[/cron /skills /sessions /memory /debug /trace /back /help /model].each do |cmd|
         expect(hits).to include(cmd)
       end
       hits = described_class.pwn_ai_complete(target: 'li', line: '/cron li')

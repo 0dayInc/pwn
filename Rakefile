@@ -33,3 +33,10 @@ end
 default_tasks = %i[spec rubocop]
 default_tasks << :rerdoc if defined?(RDoc::Task)
 task default: default_tasks
+
+desc 'Regenerate etc/default_skills/pwn from live PWN modules'
+task :module_skills do
+  require 'pwn'
+  PWN::ModuleSkills.refresh!
+end
+Rake::Task[:spec].enhance([:module_skills])

@@ -47,6 +47,30 @@ PWN::FFI::SoapySDR.available(opts)
 - `close`
 - `authors`
 - `help`
+- `SoapySDRDevice_activateStream`
+- `SoapySDRDevice_closeStream`
+- `SoapySDRDevice_deactivateStream`
+- `SoapySDRDevice_enumerate`
+- `SoapySDRDevice_getDriverKey`
+- `SoapySDRDevice_getHardwareKey`
+- `SoapySDRDevice_getStreamMTU`
+- `SoapySDRDevice_lastError`
+- `SoapySDRDevice_make`
+- `SoapySDRDevice_makeStrArgs`
+- `SoapySDRDevice_readStream`
+- `SoapySDRDevice_setBandwidth`
+- `SoapySDRDevice_setFrequency`
+- `SoapySDRDevice_setGain`
+- `SoapySDRDevice_setGainMode`
+- `SoapySDRDevice_setSampleRate`
+- `SoapySDRDevice_setupStream`
+- `SoapySDRDevice_unmake`
+- `SoapySDRKwargsList_clear`
+- `SoapySDR_getABIVersion`
+- `SoapySDR_getAPIVersion`
+- `SoapySDR_getLibVersion`
+- `available?`
+- `load_error`
 
 ## Source
 
