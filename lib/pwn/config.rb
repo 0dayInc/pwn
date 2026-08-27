@@ -819,27 +819,12 @@ module PWN
     end
 
     DEFAULT_SKILLS_DIR = File.expand_path('../../etc/default_skills', __dir__)
-    DEFAULT_SKILL_NAMES = %w[
-      vulnerability-research-fundamentals
-      deep-exploitation
-      bug-bounty-hunting
-      sast-code-scans
-      reverse-engineering-binaries
-      penetration-testing
-      web-application-penetration-testing
-      red-teaming
-      hardware-and-firmware-testing
-      social-engineering
-      osint
-      cwe
-      capec
-      att&ck
-    ].freeze
 
     public_class_method def self.default_skill_names(opts = {})
-      return DEFAULT_SKILL_NAMES.dup if opts.is_a?(Hash)
-
-      DEFAULT_SKILL_NAMES.dup
+      root = opts[:source] || opts[:root] || default_skills_dir
+      names = []
+      each_skill_md(root: root) { |_path, rel_dir| names << rel_dir }
+      names.sort
     end
 
     public_class_method def self.default_skills_dir(opts = {})
