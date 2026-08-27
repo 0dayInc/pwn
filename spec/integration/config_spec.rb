@@ -71,7 +71,7 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
       expect(PWN::Config).to respond_to(:install_default_skills)
       expect(PWN::Config).to respond_to(:default_skill_names)
       names = PWN::Config.default_skill_names
-      expect(names).to eq %w[
+      sops = %w[
         vulnerability-research-fundamentals
         deep-exploitation
         bug-bounty-hunting
@@ -87,9 +87,16 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
         capec
         att&ck
       ]
+      expect(names).to include(*sops)
+      expect(names).to include('pwn/www/youtube')
+      expect(names).to include('pwn/plugins/google_workspace')
+      expect(names.none? { |n| n.include?('/references/') }).to eq(true)
+      expect(names).to eq(names.sort)
+      expect(names.length).to be > sops.length
+      sop_seeded = names.reject { |n| n == 'pwn' || n.start_with?('pwn/') }
       seeded = PWN::Config.install_default_skills(pwn_skills_path: dir)
-      expect(seeded.map { |r| r[:name] }).to match_array(names)
-      names.each do |name|
+      expect(seeded.map { |r| r[:name] }).to match_array(sop_seeded)
+      sops.each do |name|
         path = File.join(dir, name, 'SKILL.md')
         expect(File.file?(path)).to eq(true), path
         body = File.read(path)
@@ -155,6 +162,20 @@ RSpec.describe 'PWN::Config / etc/*.EXAMPLE hygiene', :aggregate_failures do
     ensure
       PWN.send(:remove_const, :Skills) if PWN.const_defined?(:Skills)
       PWN.const_set(:Skills, prev.freeze) if prev
+    end
+  end
+
+  it 'default_skill_names recursively lists SKILL.md dirs under the default_skills tree' do
+    Dir.mktmpdir('pwn_skill_names') do |dir|
+      FileUtils.mkdir_p(File.join(dir, 'research', 'nested-probe'))
+      File.write(File.join(dir, 'research', 'nested-probe', 'SKILL.md'), "# nested\n")
+      FileUtils.mkdir_p(File.join(dir, 'osint'))
+      File.write(File.join(dir, 'osint', 'SKILL.md'), "# osint\n")
+      FileUtils.mkdir_p(File.join(dir, 'osint', 'references'))
+      File.write(File.join(dir, 'osint', 'references', 'note.md'), "# note\n")
+      FileUtils.mkdir_p(File.join(dir, 'empty-dir'))
+      names = PWN::Config.default_skill_names(source: dir)
+      expect(names).to eq(%w[osint research/nested-probe])
     end
   end
 end
