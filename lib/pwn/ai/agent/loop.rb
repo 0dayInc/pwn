@@ -584,6 +584,10 @@ module PWN
           live = effects.reject { |fx| %i[recall store].include?(fx) }
           return true if live.empty?
           return true if duration_unsatisfied?(request: request)
+          return true if declared_contract_unsatisfied?(
+            request: request,
+            messages: opts[:messages]
+          )
           return true if need == :write && !write_verified?(effects: effects)
           return true if need == :browse && !effects.include?(:browse)
           return true if need == :any && !effects.intersect?(%i[write browse eval])
@@ -613,21 +617,155 @@ module PWN
         }.freeze
 
         private_class_method def self.duration_unsatisfied?(opts = {})
-          req = opts[:request].to_s
-          hours = nil
-          if (m = req.match(/\b(\d+)\s*(?:hours?|hrs?)\b/i))
-            hours = m[1].to_i
-          elsif (m = req.match(/\b(twenty-four|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:hours?|hrs?)\b/i))
-            hours = HOUR_WORDS[m[1].downcase]
+          secs = declared_min_seconds(request: opts[:request])
+          if secs <= 0
+            req = opts[:request].to_s
+            hours = nil
+            if (m = req.match(/\b(\d+)\s*(?:hours?|hrs?)\b/i))
+              hours = m[1].to_i
+            elsif (m = req.match(/\b(twenty-four|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:hours?|hrs?)\b/i))
+              hours = HOUR_WORDS[m[1].downcase]
+            end
+            secs = hours.to_i * 3600
           end
-          return false if hours.to_i <= 0
+          return false if secs <= 0
 
           t0 = Thread.current[:pwn_loop_t0]
           return false unless t0
 
-          (Time.now - t0) < (hours * 3600)
+          (Time.now - t0) < secs
         rescue StandardError
           false
+        end
+
+        EMPTY_CONTRACT = {
+          paths: [],
+          min_seconds: 0,
+          skills: [],
+          proofs: [],
+          hosts: []
+        }.freeze
+
+        private_class_method def self.declared_min_seconds(opts = {})
+          declared_contract(request: opts[:request])[:min_seconds].to_i
+        end
+
+        private_class_method def self.declared_contract_unsatisfied?(opts = {})
+          contract = declared_contract(request: opts[:request])
+          files = Array(contract[:paths]) + Array(contract[:proofs])
+          return true if files.any? { |path| deliverable_missing?(path: path) }
+          return true if declared_skills_missing?(skills: contract[:skills])
+          return true if declared_hosts_missing?(hosts: contract[:hosts], messages: opts[:messages])
+
+          false
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.declared_skills_missing?(opts = {})
+          names = Array(opts[:skills]).map(&:to_s).reject(&:empty?)
+          return false if names.empty?
+          return true unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash)
+
+          have = PWN::Skills.keys.map(&:to_s)
+          names.any? { |name| !have.include?(name) }
+        end
+
+        private_class_method def self.declared_hosts_missing?(opts = {})
+          hosts = Array(opts[:hosts]).map(&:to_s).reject(&:empty?)
+          return false if hosts.empty?
+
+          blob = Array(opts[:messages]).select { |msg| msg.is_a?(Hash) && msg[:role].to_s == 'tool' }
+                                       .map { |msg| msg[:content].to_s }
+                                       .join("\n")
+                                       .downcase
+          hosts.any? { |host| !blob.include?(host.to_s.downcase) }
+        end
+
+        private_class_method def self.declared_deliverables(opts = {})
+          Array(declared_contract(request: opts[:request])[:paths])
+        end
+
+        private_class_method def self.declared_contract(opts = {})
+          cached = Thread.current[:pwn_loop_deliverables]
+          return normalize_contract(raw: cached) if cached.is_a?(Array) || cached.is_a?(Hash)
+          return EMPTY_CONTRACT.dup unless Thread.current[:pwn_loop_active]
+
+          contract = infer_deliverables(request: opts[:request])
+          Thread.current[:pwn_loop_deliverables] = contract
+          contract
+        end
+
+        private_class_method def self.normalize_contract(opts = {})
+          raw = opts[:raw]
+          return EMPTY_CONTRACT.merge(paths: raw.map(&:to_s).select { |p| p.start_with?('/') }) if raw.is_a?(Array)
+          return EMPTY_CONTRACT.dup unless raw.is_a?(Hash)
+
+          hours = raw[:hours] || raw['hours']
+          secs = (raw[:min_seconds] || raw['min_seconds']).to_i
+          secs = hours.to_i * 3600 if secs <= 0 && hours.to_i.positive?
+          {
+            paths: abs_paths(rows: raw[:paths] || raw['paths']),
+            min_seconds: secs,
+            skills: Array(raw[:skills] || raw['skills']).map(&:to_s).reject(&:empty?).uniq,
+            proofs: abs_paths(rows: raw[:proofs] || raw['proofs']),
+            hosts: Array(raw[:hosts] || raw['hosts']).map(&:to_s).reject(&:empty?).uniq
+          }
+        end
+
+        private_class_method def self.abs_paths(opts = {})
+          Array(opts[:rows]).map(&:to_s).select { |path| path.start_with?('/') }.uniq
+        end
+
+        private_class_method def self.infer_deliverables(opts = {})
+          request = opts[:request].to_s
+          return EMPTY_CONTRACT.dup if request.strip.empty?
+
+          reply = call_engine(
+            messages: [
+              {
+                role: 'system',
+                content: 'Reply with JSON only. No markdown. No tools.'
+              },
+              {
+                role: 'user',
+                content: "Operator request:\n#{request}\n\n" \
+                         'When that request is complete, what must be true on this host? ' \
+                         'JSON only: {"paths":["/abs/file"],"min_seconds":0,"skills":["name"],' \
+                         '"proofs":["/abs/poc"],"hosts":["ip-or-hostname"]}. ' \
+                         'Use [] or 0 when a field is not required. Do not invent work. Paths must be absolute.'
+              }
+            ],
+            tools: nil
+          )
+          text = reply.is_a?(Hash) ? (reply[:content] || reply['content']).to_s : reply.to_s
+          parse_contract(text: text)
+        rescue StandardError
+          EMPTY_CONTRACT.dup
+        end
+
+        private_class_method def self.parse_contract(opts = {})
+          text = opts[:text].to_s
+          json = nil
+          begin
+            json = JSON.parse(text, symbolize_names: true)
+          rescue JSON::ParserError
+            start = text.index('{')
+            stop = text.rindex('}')
+            return EMPTY_CONTRACT.dup unless start && stop && stop > start
+
+            json = JSON.parse(text[start..stop], symbolize_names: true)
+          end
+          normalize_contract(raw: json)
+        rescue StandardError
+          EMPTY_CONTRACT.dup
+        end
+
+        private_class_method def self.deliverable_missing?(opts = {})
+          path = opts[:path].to_s
+          path.empty? || !File.file?(path) || File.size(path) <= 0
+        rescue StandardError
+          true
         end
 
         private_class_method def self.may_finalize?(opts = {})
@@ -2434,6 +2572,10 @@ module PWN
           Thread.current[:pwn_extinguished] = {}
           Thread.current[:pwn_same_payload] = Hash.new(0)
           Thread.current[:pwn_loop_t0] = Time.now unless nested
+          unless nested
+            Thread.current[:pwn_loop_active] = true
+            Thread.current[:pwn_loop_deliverables] = nil
+          end
           debug_progress(msg: "intent=#{intent} engine=#{engine}", debug: opts[:debug])
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
@@ -2672,12 +2814,20 @@ module PWN
             # commit that as the answer; drop the empty assistant turn,
             # inject a one-shot nudge, and keep iterating.
             if calls.empty? && text.strip.empty?
+              unsat = request_unsatisfied?(request: request, messages: messages)
               warn "[pwn-ai/loop] empty final from #{engine} on iter=#{i}; nudging" if local
+              empty_nudge = if unsat
+                              'Your previous reply was empty (no tool_calls and no content). ' \
+                                'The original request is not evidenced yet. Emit NATIVE tool_calls NOW. ' \
+                                'Do not write a final answer until that request is done or a tool returned failure evidence.'
+                            else
+                              'Your previous reply was empty (no tool_calls and no content). ' \
+                                'Either call a tool now, or write the final answer for the user as plain text. ' \
+                                'Do not reply with an empty message.'
+                            end
               messages << {
                 role: 'user',
-                content: 'Your previous reply was empty (no tool_calls and no content). ' \
-                         'Either call a tool now, or write the final answer for the user as plain text. ' \
-                         'Do not reply with an empty message.'
+                content: empty_nudge
               }
               turn_fails['empty_final'] += 1
               debug_progress(msg: "bounce empty_final snippet=#{debug_snippet(text: text)}")
@@ -2830,6 +2980,10 @@ module PWN
           end
           raise
         ensure
+          unless nested
+            Thread.current[:pwn_loop_active] = nil
+            Thread.current[:pwn_loop_deliverables] = nil
+          end
           Thread.current[:pwn_loop_no_tools] = nil
           finish_debug_request!(
             iter: i,

@@ -309,6 +309,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.update_skill Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.update_skill`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.verdict_for_score Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.verdict_for_score`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.weighted_judge_mean Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.weighted_judge_mean`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.abs_paths Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.abs_paths`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.active_engine Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.active_engine`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.agent_flag`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.answer_greeting Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.answer_greeting`: "}]}
@@ -335,8 +336,15 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.debug_snippet Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.debug_snippet`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.debug_tool_io! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.debug_tool_io!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.debug_tools_line Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.debug_tools_line`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_contract Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_contract`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_contract_unsatisfied? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_contract_unsatisfied?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_deliverables Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_deliverables`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_hosts_missing? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_hosts_missing?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_min_seconds Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_min_seconds`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_skills_missing? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_skills_missing?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.default_interactive_toolsets Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.default_interactive_toolsets`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.degrade_text_only Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.degrade_text_only`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.deliverable_missing? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.deliverable_missing?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.dispatch_fail_n Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.dispatch_fail_n`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.duration_unsatisfied? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.duration_unsatisfied?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.emit_task_summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.emit_task_summary`: "}]}
@@ -349,6 +357,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.guard_repeated_failure Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.guard_repeated_failure`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.incomplete_final? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.incomplete_final?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.infer_deliverables Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.infer_deliverables`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.inject_task_focus! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.inject_task_focus!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.local_engine? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.local_engine?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.loud_debug_tui! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.loud_debug_tui!`: "}]}
@@ -361,12 +370,14 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.mistake_ts Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.mistake_ts`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.needs_host_work? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.needs_host_work?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.no_progress_result Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.no_progress_result`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.normalize_contract Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.normalize_contract`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.normalize_llm Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.normalize_llm`: Supported Method Parameters\n\nmsg = PWN::AI::Agent::Loop.normalize_llm(\n\nresponse: 'required - chat_with_tools response Hash from any provider'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.note_same_payload! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.note_same_payload!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.ollama_wire_messages Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.ollama_wire_messages`: Supported Method Parameters\n\nwire = PWN::AI::Agent::Loop.ollama_wire_messages(\n\nmessages: 'required - in-memory OpenAI-ish messages (may have String args)'\n\n)\n\nReturns a deep-copied array safe for Ollama / Open WebUI ollama/api/chat:\n\nparses JSON-string function.arguments into Hash/Array objects\n\ncoerces nil assistant content to ” when tool_calls present (Open WebUI GenerateChatCompletionForm rejects content:null alone)\n\ndrops _native_content / _text_tool_coerced / thinking private keys\n\nstringifies Hash/Array message content (tool results) to JSON text\n\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.ollama_wire_tool_call Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.ollama_wire_tool_call`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.openai_wire_messages Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.openai_wire_messages`: Supported Method Parameters\n\nwire = PWN::AI::Agent::Loop.openai_wire_messages(\n\nmessages: 'required - in-memory OpenAI-ish messages (may have Hash args / internal keys)'\n\n)\n\nReturns a deep-copied array safe for OpenAI / xAI chat.completions:\n\ndrops _native_content / _text_tool_coerced / thinking private keys\n\nstringifies function.arguments maps\n\ncoerces Hash/non-string content to JSON/string (nil kept for assistant tool turns)\n\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.openai_wire_tool_call Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.openai_wire_tool_call`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.parse_contract Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.parse_contract`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.parse_tool_arguments Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.parse_tool_arguments`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.payload_sig Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.payload_sig`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.plan_first Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.plan_first`: "}]}

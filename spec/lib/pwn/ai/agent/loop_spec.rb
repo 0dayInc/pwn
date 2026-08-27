@@ -910,6 +910,113 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       Thread.current[:pwn_loop_t0] = nil
     end
 
+    it 'keeps LLM-declared deliverable paths unsatisfied until those files exist' do
+      path = "/tmp/pwn-deliv-#{Process.pid}.bin"
+      FileUtils.rm_f(path)
+      Thread.current[:pwn_loop_deliverables] = [path]
+      req = 'Exhaustively analyze the docker app. 100% coverage. Store the PDF in /tmp/container_pentest-p4-PWN-122B.pdf'
+      recap = 'Good! Let me continue the penetration test with more aggressive testing now.'
+      msgs = [
+        { role: 'user', content: req },
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'pwn_eval', arguments: '{"code":"File.write(\"/tmp/pentest_report.json\",\"x\")"}' } }]
+        },
+        {
+          role: 'tool',
+          name: 'pwn_eval',
+          content: '{"success":true,"result":{"stdout":"Report saved to /tmp/pentest_report.json"},"effect":"write"}'
+        },
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'shell', arguments: '{"command":"curl -s http://127.0.0.1:5000/auth/login"}' } }]
+        },
+        {
+          role: 'tool',
+          name: 'shell',
+          content: '{"success":true,"result":{"stdout":"<form>"},"effect":"read"}'
+        },
+        { role: 'assistant', content: recap }
+      ]
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      expect(described_class.send(:may_finalize?, request: req, messages: msgs, text: recap)).to eq(false)
+      File.write(path, 'any bytes')
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(false)
+    ensure
+      FileUtils.rm_f(path)
+      Thread.current[:pwn_loop_deliverables] = nil
+    end
+
+    it 'parses a full acceptance contract from one engine JSON hop' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to match(/NAMED_PATH_RX/)
+      expect(src).not_to include('%PDF')
+      expect(src).to match(/infer_deliverables|pwn_loop_deliverables/)
+      payload = {
+        paths: ['/tmp/out.json'],
+        min_seconds: 28_800,
+        skills: ['penetration-testing'],
+        proofs: ['/tmp/poc.sh'],
+        hosts: ['127.0.0.1']
+      }
+      allow(described_class).to receive(:call_engine).and_return(payload.to_json)
+      Thread.current[:pwn_loop_active] = true
+      Thread.current[:pwn_loop_deliverables] = nil
+      paths = described_class.send(:declared_deliverables, request: 'write a report somewhere')
+      expect(paths).to eq(['/tmp/out.json'])
+      contract = described_class.send(:declared_contract, request: 'write a report somewhere')
+      expect(contract[:min_seconds]).to eq(28_800)
+      expect(contract[:skills]).to eq(['penetration-testing'])
+      expect(contract[:proofs]).to eq(['/tmp/poc.sh'])
+      expect(contract[:hosts]).to eq(['127.0.0.1'])
+      expect(described_class).to have_received(:call_engine).once
+    ensure
+      Thread.current[:pwn_loop_active] = nil
+      Thread.current[:pwn_loop_deliverables] = nil
+    end
+
+    it 'verifies LLM-declared duration, skills, proofs, and hosts in the world' do
+      proof = "/tmp/pwn-proof-#{Process.pid}.txt"
+      FileUtils.rm_f(proof)
+      req = 'black-box test 127.0.0.1 using penetration-testing'
+      recap = 'done'
+      msgs = [
+        { role: 'user', content: req },
+        {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'pwn_eval', arguments: '{"code":"1"}' } }]
+        },
+        {
+          role: 'tool',
+          name: 'pwn_eval',
+          content: '{"success":true,"result":{"value":"1","stdout":"scanned 10.0.0.1"},"effect":"eval"}'
+        },
+        { role: 'assistant', content: recap }
+      ]
+      Thread.current[:pwn_loop_t0] = Time.now
+      Thread.current[:pwn_loop_deliverables] = {
+        paths: [],
+        min_seconds: 60,
+        skills: ['no-such-bundled-skill'],
+        proofs: [proof],
+        hosts: ['127.0.0.1']
+      }
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      Thread.current[:pwn_loop_deliverables][:min_seconds] = 0
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      Thread.current[:pwn_loop_deliverables][:skills] = []
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      File.write(proof, 'poc')
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      msgs[2][:content] = '{"success":true,"result":{"value":"1","stdout":"open 127.0.0.1:5000"},"effect":"eval"}'
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(false)
+      expect(described_class.send(:may_finalize?, request: req, messages: msgs, text: recap)).to eq(true)
+    ensure
+      FileUtils.rm_f(proof)
+      Thread.current[:pwn_loop_t0] = nil
+      Thread.current[:pwn_loop_deliverables] = nil
+    end
+
     it 'forces tool_choice required on host-work before any tool result, for every engine' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/tool_choice/)
