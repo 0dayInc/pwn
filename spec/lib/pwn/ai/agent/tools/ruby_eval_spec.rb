@@ -48,6 +48,19 @@ describe 'PWN::AI::Agent::Tools ruby_eval' do
     expect { HTTP::CookieJar }.not_to raise_error
   end
 
+  it 'restores Digest if the payload assigns Digest so later payload_sig still hashes' do
+    entry = PWN::AI::Agent::Registry.lookup(name: 'pwn_eval')
+    result = entry.handler.call(code: 'Digest = "(self.we"')
+    expect(result[:error]).to be_nil
+    expect(Digest).to be_a(Module)
+    expect(Digest::SHA256.hexdigest('x')).to be_a(String)
+    a = PWN::AI::Agent::Loop.send(:payload_sig, name: 'pwn_eval', args: '{"code":"1"}')
+    b = PWN::AI::Agent::Loop.send(:payload_sig, name: 'pwn_eval', args: '{"code":"2"}')
+    expect(a).not_to eq(b)
+    expect(a).not_to match(/nosig-/)
+    expect(b).not_to match(/nosig-/)
+  end
+
   it 'enforces a timeout on pwn_eval and reports timeout after Ns' do
     tmp = Dir.mktmpdir
     stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(tmp, 'mistakes.json'))
