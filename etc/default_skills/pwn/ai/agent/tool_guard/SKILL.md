@@ -39,6 +39,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `shell_bash`
 - `shell_name`
 - `protect_http`
+- `protect_core_constants`
 - `coerce_args`
 - `invalid_payload`
 - `host_load`

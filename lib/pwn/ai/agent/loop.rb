@@ -934,10 +934,14 @@ module PWN
           nil
         end
 
+        PAYLOAD_SHA256 = Digest::SHA256
+
         private_class_method def self.payload_sig(opts = {})
-          Digest::SHA256.hexdigest("#{opts[:name]}|#{opts[:args]}")[0, 16]
+          blob = "#{opts[:name]}|#{opts[:args]}"
+          PAYLOAD_SHA256.hexdigest(blob)[0, 16]
         rescue StandardError
-          "nosig-#{opts[:name]}"
+          key = "#{opts[:name]}|#{opts[:args]}"
+          "#{opts[:name]}-#{key.hash.abs.to_s(16)[0, 12]}"
         end
 
         private_class_method def self.note_same_payload!(opts = {})

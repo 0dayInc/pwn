@@ -60,23 +60,34 @@ module PWN
         end
 
         # RestClient uses HTTP::CookieJar. pwn_eval in TOPLEVEL_BINDING can
-        # assign HTTP = "/path/http" (a mkdir) and then every provider hop
-        # TypeErrors: "path is not a class/module".
-        public_class_method def self.protect_http!
-          if Object.const_defined?(:HTTP, false)
-            cur = Object.const_get(:HTTP)
-            @http_mod = cur if cur.is_a?(Module) && @http_mod.nil?
-            return cur if cur.is_a?(Module)
+        # assign HTTP = "/path/http" or Digest = "(self.we" and then every
+        # provider hop / payload_sig TypeErrors.
+        CORE_CONSTS = %i[HTTP Digest JSON URI Timeout].freeze
 
-            Object.send(:remove_const, :HTTP)
+        public_class_method def self.protect_http!
+          protect_core_constants!
+        end
+
+        public_class_method def self.protect_core_constants!
+          @core_mods ||= {}
+          CORE_CONSTS.each do |name|
+            if Object.const_defined?(name, false)
+              cur = Object.const_get(name, false)
+              @core_mods[name] = cur if cur.is_a?(Module) && @core_mods[name].nil?
+              next if cur.is_a?(Module)
+
+              Object.send(:remove_const, name)
+            end
+            next unless @core_mods[name].is_a?(Module)
+            next if Object.const_defined?(name, false) && Object.const_get(name, false).equal?(@core_mods[name])
+
+            Object.const_set(name, @core_mods[name])
           end
-          if @http_mod.is_a?(Module)
-            Object.const_set(:HTTP, @http_mod)
-            return @http_mod
+          unless Object.const_defined?(:HTTP, false) && Object.const_get(:HTTP, false).is_a?(Module)
+            require 'http/cookie_jar'
+            @core_mods[:HTTP] = Object.const_get(:HTTP) if Object.const_defined?(:HTTP) && Object.const_get(:HTTP).is_a?(Module)
           end
-          require 'http/cookie_jar'
-          @http_mod = Object.const_get(:HTTP) if Object.const_defined?(:HTTP) && Object.const_get(:HTTP).is_a?(Module)
-          @http_mod
+          @core_mods
         rescue StandardError
           nil
         end
