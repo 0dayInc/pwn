@@ -12,7 +12,7 @@ metadata:
 
 # PWN::AI::Agent::Policy
 
-PWN::AI::Agent::Policy is the LIVE tabular RL controller that pwn-ai did not have before R5. Everything else in the harness is retrieval-plus-policy: scores are written to disk and re-injected as prose, or exported later for optional LoRA. This module is the missing MDP: state s — discretized (kind, task, plan, completeness, usable, last, fail) action a — tool name, or "final" reward r — step: semantic_ok hygiene; terminal: Reward.judge next s' — state after the tool result Each Loop turn is one episode. Transitions land in ~/.pwn/policy_traj.jsonl. Q(s,a) and REINFORCE logits H(s,a) are updated from those tuples and persisted in ~/.pwn/policy.json. The learned Q values are an ADVISORY term in Registry.rank. They never replace TaskSummarizer planning, plan_first, or CORE_TOOLS. Disable with PWN::Env[:ai][:agent][:policy] = false.
+PWN::AI::Agent::Policy is the LIVE tabular RL controller that pwn-ai did not have before R5. Everything else in the harness is retrieval-plus-policy: scores are written to disk and re-injected as prose, or exported later for optional LoRA. This module is the missing MDP: state s — discretized (kind, task, plan, completeness, usable, last, fail) action a — tool name, or "final" reward r — step: 0 (spam cost −0.01 after 8 tools); terminal: judge × confidence next s' — state after the tool result Each Loop turn is one episode. Transitions land in ~/.pwn/policy_traj.jsonl. Q(s,a) and REINFORCE logits H(s,a) are updated from those tuples and persisted in ~/.pwn/policy.json. The learned Q values are an ADVISORY term in Registry.rank. They never replace TaskSummarizer planning, plan_first, or CORE_TOOLS. Disable with PWN::Env[:ai][:agent][:policy] = false.
 
 ## When to use
 

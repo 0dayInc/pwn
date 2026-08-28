@@ -484,7 +484,69 @@ module PWN
         # Supported Method Parameters::
         # PWN::AI::Agent::Metrics.reset
 
+        public_class_method def self.calibration_green?(opts = {})
+          cal = calibration(engine: opts[:engine])
+          return false if cal[:n].to_i < 8
+          return false if cal[:overconfidence].nil?
+
+          cal[:overconfidence].to_f <= 0.08
+        rescue StandardError
+          false
+        end
+
+        public_class_method def self.scale_prediction(opts = {})
+          p = opts[:predicted].to_f.clamp(0.0, 1.0)
+          cal = calibration(engine: opts[:engine])
+          return p.round(3) if cal[:n].to_i < 8 || cal[:overconfidence].nil?
+
+          oc = cal[:overconfidence].to_f
+          return p.round(3) if oc <= 0.02
+
+          temp = (1.0 + (4.0 * oc.clamp(0.0, 1.0))).clamp(1.0, 8.0)
+          q = p.clamp(1.0e-6, 1.0 - 1.0e-6)
+          logit = Math.log(q / (1.0 - q))
+          scaled = 1.0 / (1.0 + Math.exp(-(logit / temp)))
+          scaled.round(3)
+        rescue StandardError
+          opts[:predicted].to_f.clamp(0.0, 1.0)
+        end
+
+        public_class_method def self.scoreboard(opts = {})
+          rows = summary(limit: 50)
+          tool_ok = if rows.empty?
+                      nil
+                    else
+                      w = rows.sum { |r| r[:calls].to_f }
+                      w.positive? ? (rows.sum { |r| r[:success_rate].to_f * r[:calls].to_i } / w).round(3) : nil
+                    end
+          task_ok = nil
+          if defined?(Learning) && Learning.respond_to?(:outcomes)
+            rec = Learning.outcomes(limit: 200)
+            if rec.any?
+              hits = rec.count { |r| r[:success] == true || r[:score].to_f >= 0.6 }
+              task_ok = (hits.to_f / rec.length).round(3)
+            end
+          end
+          cal = calibration(engine: opts[:engine])
+          judge_ok = cal[:mean_actual]
+          if judge_ok.nil? && defined?(Reward) && Reward.respond_to?(:sentinel)
+            s = Reward.sentinel
+            judge_ok = s[:judge] if s.is_a?(Hash)
+          end
+          {
+            tool_ok: tool_ok,
+            task_ok: task_ok,
+            judge_ok: judge_ok,
+            mean_predicted: cal[:mean_predicted],
+            overconfidence: cal[:overconfidence],
+            n: cal[:n].to_i
+          }
+        rescue StandardError
+          { tool_ok: nil, task_ok: nil, judge_ok: nil, n: 0 }
+        end
+
         public_class_method def self.health_line
+          board = scoreboard
           gap = nil
           if defined?(Reward) && Reward.respond_to?(:sentinel)
             s = Reward.sentinel
@@ -497,7 +559,9 @@ module PWN
                   end
           traj = (Reward.generator_mix[:trajectory_fraction] if defined?(Reward) && Reward.respond_to?(:generator_mix))
           parked = (Mistakes.operator_inbox(limit: 50)[:count] if defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox))
-          "HEALTH judge-proxy-gap=#{gap || '-'} repeating=#{trend[:status] || '-'} " \
+          "HEALTH tool_ok=#{board[:tool_ok] || '-'} task_ok=#{board[:task_ok] || '-'} " \
+            "judge_ok=#{board[:judge_ok] || '-'} pred=#{board[:mean_predicted] || '-'} " \
+            "judge-proxy-gap=#{gap || '-'} repeating=#{trend[:status] || '-'} " \
             "w1-traj=#{traj || '-'} parked-needs-human=#{parked || '-'}\n"
         rescue StandardError
           ''
@@ -601,6 +665,9 @@ module PWN
               PWN::AI::Agent::Metrics.changepoints(within_secs: 3600)    # E1 CUSUM regime changes
               PWN::AI::Agent::Metrics.record_calibration(predicted: 0.8, actual: 1.0, brier: 0.04, engine: :ollama)
               PWN::AI::Agent::Metrics.calibration(engine: :ollama)       # W3 Brier / overconfidence
+              PWN::AI::Agent::Metrics.scale_prediction(predicted: 0.87) # temperature-scale before Policy/UI
+              PWN::AI::Agent::Metrics.scoreboard                        # tool_ok vs task_ok vs judge_ok
+              PWN::AI::Agent::Metrics.health_line
               PWN::AI::Agent::Metrics.reset
               PWN::AI::Agent::Metrics.load
               PWN::AI::Agent::Metrics.save(metrics: hash)

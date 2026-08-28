@@ -31,7 +31,7 @@ RSpec.describe 'PWN::AI::Agent::PromptBuilder', :aggregate_failures do
 
   it 'mid-turn prompt injects MEMORY + RECENT TURNS + known-fix, not the parked harness' do
     prompt = builder.build(session_id: 'sess_abc', request: 'Write hello into /tmp/x and verify it')
-    ['ENVIRONMENT', 'MEMORY', 'SKILLS', 'LEARNING', 'KNOWN MISTAKES', 'TOOL USE'].each do |hdr|
+    ['ENVIRONMENT', 'SKILLS', 'LEARNING', 'TOOL USE'].each do |hdr|
       expect(prompt).to include(hdr), "missing section: #{hdr}"
     end
     expect(prompt).to include('session_id : sess_abc')

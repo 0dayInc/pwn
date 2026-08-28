@@ -324,7 +324,9 @@ module PWN
             scrub = Reward.scrub_preferences(dry_run: false) if Reward.respond_to?(:scrub_preferences)
             mix = Reward.generator_mix if Reward.respond_to?(:generator_mix)
           end
-          kpi = practice_kpi(results: []) if commit && respond_to?(:practice_kpi)
+          rec = { reclassified: 0 }
+          rec = reclassify_backlog if commit && respond_to?(:reclassify_backlog)
+          kpi = practice_kpi(results: [], reclassified_n: rec[:reclassified]) if commit && respond_to?(:practice_kpi)
           out = {
             scored: scored.length, mean: mean, since_hours: since_h,
             results: scored.first(10), sentinel_warm: warm,
@@ -579,7 +581,14 @@ module PWN
         # even on a box without GPU.
 
         public_class_method def self.train_and_gate(opts = {})
-          dry_run = opts.key?(:dry_run) ? opts[:dry_run] : true
+          dry_run = if opts.key?(:dry_run)
+                      opts[:dry_run]
+                    else
+                      mix = defined?(Reward) && Reward.respond_to?(:generator_mix) ? Reward.generator_mix : {}
+                      healthy = mix.is_a?(Hash) && mix[:healthy] == true
+                      cal_ok = defined?(Metrics) && Metrics.respond_to?(:calibration_green?) && Metrics.calibration_green?
+                      !(healthy && cal_ok)
+                    end
           FileUtils.mkdir_p(CURRICULUM_DIR)
           sft = defined?(Learning) ? Learning.export_finetune(format: :sharegpt) : nil
           dpo = defined?(Reward) ? Reward.export_dpo : nil
@@ -659,6 +668,40 @@ module PWN
 
         KPI_FILE = File.join(Dir.home, '.pwn', 'curriculum_kpi.jsonl')
 
+        public_class_method def self.reclassify_backlog(opts = {})
+          rows = defined?(Mistakes) ? Mistakes.top(limit: opts[:limit] || 80, unresolved_only: true) : []
+          inbox = if defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox)
+                    Array(Mistakes.operator_inbox(limit: 80)[:items] || Mistakes.operator_inbox(limit: 80)[:rows])
+                  else
+                    []
+                  end
+          counts = { fixable_by_agent: 0, needs_code_change: 0, wontfix_obsolete: 0, reclassified: 0 }
+          now = Time.now.utc
+          (rows + inbox).uniq { |m| m[:signature] }.each do |m|
+            next unless m.is_a?(Hash)
+
+            err = m[:error].to_s
+            age_d = begin
+              (now - Time.parse(m[:last_seen].to_s)) / 86_400.0
+            rescue StandardError
+              0.0
+            end
+            obsolete = err.match?(/PATH=|utf-8|invalid byte|generator/i) || (age_d > 7 && m[:count].to_i <= 1)
+            if obsolete || (m[:parked] && age_d > 7)
+              Mistakes.park(signature: m[:signature], reason: 'wontfix_obsolete') if defined?(Mistakes) && Mistakes.respond_to?(:park)
+              counts[:wontfix_obsolete] += 1
+              counts[:reclassified] += 1
+            elsif m[:needs_code_change]
+              counts[:needs_code_change] += 1
+            else
+              counts[:fixable_by_agent] += 1
+            end
+          end
+          counts
+        rescue StandardError => e
+          { error: "#{e.class}: #{e.message}" }
+        end
+
         public_class_method def self.practice_kpi(opts = {})
           results = Array(opts[:results])
           top = defined?(Mistakes) ? Mistakes.top(limit: 50, unresolved_only: true) : []
@@ -677,11 +720,12 @@ module PWN
             budget_repeating_n: budgetish,
             practiced: results.length,
             resolved_tonight: results.count { |r| r[:resolved] },
-            mean_holdout: if results.empty?
-                            nil
-                          else
-                            (results.sum { |r| r[:mean_score].to_f } / results.length).round(3)
-                          end
+            reclassified_n: (opts[:reclassified_n] || 0).to_i,
+            mean_holdout: begin
+              hold = results.map { |r| r[:mean_score] || r[:score] }.compact
+              hold = Learning.outcomes(limit: 20).filter_map { |o| o[:score] } if hold.empty? && defined?(Learning)
+              hold.empty? ? 0.0 : (hold.sum(&:to_f) / hold.length).round(3)
+            end
           }
           begin
             FileUtils.mkdir_p(File.dirname(KPI_FILE))

@@ -49,8 +49,8 @@ This is the live numeric controller. It does not replace planning.
 |---|---|
 | State | request kind, task family, plan quality, answer completeness, usable-result, last action, fail bin, and engine |
 | Action | tool name, or `final` |
-| Step reward | `Reward.semantic_ok` hygiene (`+0.05` / `-0.20`) |
-| Terminal reward | `Reward.judge` score (skipped when the cheap proxy is untrusted and there is no judge) |
+| Step reward | 0; −0.01 per tool after 8 |
+| Terminal reward | `Reward.judge` × confidence (sole large R). `plan_coverage` is a tag, not the score. |
 | Updates | Q-learning (`alpha=0.15`, `gamma=0.85`) and REINFORCE (`alpha=0.05`). Stored trajectories replay twice on warmup so a short table is not empty advice. |
 | Budget | Eight finished episodes (live or warmup-credited) unlock greedy suggestions. Until then the prompt omits them. |
 | Steer | Q-advantage in `Registry.rank` once the episode budget is met; keyword fit and CORE_TOOLS still come first. Suggested actions follow `Registry.preference_order` (`ai.agent.tool_preference`). |

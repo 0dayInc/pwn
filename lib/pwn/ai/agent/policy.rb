@@ -16,7 +16,7 @@ module PWN
       #
       #   state  s  — discretized (kind, task, plan, completeness, usable, last, fail)
       #   action a  — tool name, or "final"
-      #   reward r  — step: semantic_ok hygiene; terminal: Reward.judge
+      #   reward r  — step: 0 (spam cost −0.01 after 8 tools); terminal: judge × confidence
       #   next   s' — state after the tool result
       #
       # Each Loop turn is one episode. Transitions land in
@@ -34,11 +34,13 @@ module PWN
         ALPHA_PG   = 0.05
         GAMMA      = 0.85
         EPSILON    = 0.08
-        STEP_OK    = 0.05
-        STEP_FAIL  = -0.20
-        STEP_TASK  = 0.12
-        STEP_CLOSED = 0.20
-        STEP_GRIND = -0.08
+        STEP_OK    = 0.0
+        STEP_FAIL  = 0.0
+        STEP_TASK  = 0.0
+        STEP_CLOSED = 0.0
+        STEP_GRIND = 0.0
+        STEP_COST  = -0.01
+        STEP_COST_AFTER = 8
         MAX_TRAJ   = 2_000
         GOLD_MIN   = 0.6
         VISITS_MIN = 2
@@ -195,14 +197,8 @@ module PWN
 
           ok = opts[:ok] ? true : false
           ep[:fails] = ep[:fails].to_i + 1 unless ok
-          distrust = 0.0
-          distrust = Reward.proxy_distrust.to_f if defined?(Reward) && Reward.respond_to?(:proxy_distrust)
-          reward = if distrust >= 0.85
-                     0.0
-                   else
-                     ok ? STEP_OK : STEP_FAIL
-                   end
-          reward = (reward + english_step_bonus(ep: ep, ts_state: opts[:ts_state], ok: ok, action: action)).round(4)
+          reward = 0.0
+          reward = STEP_COST if ep[:steps].length >= STEP_COST_AFTER
           ep[:plan_idx] = ts_idx(ts_state: opts[:ts_state])
           ep[:plan_open] = ts_open?(ts_state: opts[:ts_state])
           s = ep[:state]
@@ -262,7 +258,11 @@ module PWN
               score: opts[:score]
             )
           end
-          terminal = terminal_reward(score: opts[:score], proxy_ok: opts[:proxy_ok])
+          terminal = terminal_reward(
+            score: opts[:score],
+            proxy_ok: opts[:proxy_ok],
+            confidence: opts[:confidence]
+          )
           if ep[:steps].empty?
             ep[:steps] << {
               state: ep[:state],
@@ -422,7 +422,13 @@ module PWN
           return { action: nil, reason: :empty } if actions.empty?
 
           s = opts[:state] || current_state || 'unknown'
-          eps = opts.key?(:epsilon) ? opts[:epsilon].to_f : EPSILON
+          eps = if opts.key?(:epsilon)
+                  opts[:epsilon].to_f
+                else
+                  oc = 0.0
+                  oc = Metrics.calibration[:overconfidence].to_f if defined?(Metrics) && Metrics.respond_to?(:calibration)
+                  (EPSILON + [oc, 0.0].max).clamp(EPSILON, 0.45)
+                end
           return { action: actions.sample, reason: :explore, state: s, epsilon: eps } if rand < eps
 
           tab = load
@@ -635,16 +641,23 @@ module PWN
         end
 
         public_class_method def self.enabled?
-          return true unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+          return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
           v = begin
             PWN::Env.dig(:ai, :agent, :policy)
           rescue StandardError
             nil
           end
-          v.nil? || !!v
-        rescue StandardError
+          return false if v == false
+
+          if defined?(Metrics) && Metrics.respond_to?(:calibration)
+            cal = Metrics.calibration
+            return false if cal[:n].to_i >= 8 && !Metrics.calibration_green?
+          end
+
           true
+        rescue StandardError
+          false
         end
 
         public_class_method def self.authors
@@ -709,6 +722,9 @@ module PWN
         private_class_method def self.action_bucket(opts = {})
           name = opts[:name].to_s
           return 0 if name.empty? || name == 'start'
+          return 1 if %w[shell pwn_eval].include?(name)
+          return 2 if %w[memory_recall session_recall skills_recall].include?(name)
+          return 3 if name == 'final' || name.include?('report')
 
           Digest::SHA256.hexdigest(name)[0, 8].to_i(16) % ACTION_MOD
         end
@@ -748,19 +764,8 @@ module PWN
         end
 
         private_class_method def self.english_step_bonus(opts = {})
-          ep = opts[:ep]
-          return 0.0 unless ep.is_a?(Hash)
+          return 0.0 unless opts.is_a?(Hash)
 
-          bonus = 0.0
-          met = contract_fields_met(request: ep[:request].to_s)
-          prev = ep[:contract_met].to_i
-          if met > prev
-            bonus += STEP_TASK
-            ep[:contract_met] = met
-          end
-          bonus += STEP_GRIND if met.positive? && opts[:ok] && opts[:action].to_s != 'final'
-          bonus
-        rescue StandardError
           0.0
         end
 
@@ -781,14 +786,20 @@ module PWN
         end
 
         private_class_method def self.terminal_reward(opts = {})
-          return ((2.0 * opts[:score].to_f) - 1.0).clamp(-1.0, 1.0) unless opts[:score].nil?
+          conf = opts[:confidence]
+          conf = 1.0 if conf.nil? || conf.to_f <= 0.0
+          conf = conf.to_f.clamp(0.0, 1.0)
+          unless opts[:score].nil?
+            base = ((2.0 * opts[:score].to_f) - 1.0).clamp(-1.0, 1.0)
+            return (base * conf).round(4)
+          end
 
           distrust = 0.0
           distrust = Reward.proxy_distrust.to_f if defined?(Reward) && Reward.respond_to?(:proxy_distrust)
-          # Do not train a 1.0/−1.0 terminal on the lying handler-ok proxy.
           return 0.0 if distrust >= 0.85
+          return 0.0 if opts[:proxy_ok] || !opts[:proxy_ok]
 
-          opts[:proxy_ok] ? 0.25 : -0.25
+          0.0
         rescue StandardError
           0.0
         end

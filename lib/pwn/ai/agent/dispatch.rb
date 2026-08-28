@@ -46,6 +46,13 @@ module PWN
           args = parse_args(raw: raw, entry: entry)
           required = Array(entry.schema&.dig(:parameters, :required))
           args = ToolGuard.coerce_args(args: args, required: required) if defined?(ToolGuard)
+          if defined?(ToolGuard) && ToolGuard.respond_to?(:refuse_copied_persist?) &&
+             ToolGuard.refuse_copied_persist?(name: entry.name, args: args)
+            return JSON.generate(
+              success: false,
+              error: 'refused: memory_remember/skills_update text copied from last tool output'
+            )
+          end
           result = entry.handler.call(args)
           JSON.generate(success: true, result: result, effect: effect(name: entry.name, args: args))
         rescue StandardError => e

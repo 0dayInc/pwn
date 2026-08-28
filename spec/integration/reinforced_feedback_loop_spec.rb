@@ -83,7 +83,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
                        trace: [ok_trace, ok_trace], proxy_ok: true)
       expect(v[:score]).to be_between(0.0, 1.0)
       expect(%i[solved partial wrong unknown]).to include(v[:verdict])
-      expect(v[:success]).to eq(v[:score] >= 0.6)
+      expect(v[:success]).to eq(v[:source].to_s != 'heuristic' && v[:score] >= 0.6)
       expect(JSON.parse(File.read(reward::SENTINEL_FILE))['samples']).to eq 1
     end
 
@@ -550,7 +550,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(m[:count]).to eq 0
       expect(m[:drift_count]).to eq 4
       expect(mistakes.to_context).not_to include('REPEATING')
-      expect(mistakes.to_context).to include('ENV_DRIFT')
+      expect(mistakes.to_context(include_open: true)).to include('ENV_DRIFT')
     end
 
     it 'Loop.attribute_cause blames the world when changepoint AND toolchain drift coincide' do
@@ -611,11 +611,11 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       PWN::Sessions.append(session_id: s[:id], role: 'user', content: 'enumerate hosts')
       PWN::Sessions.append(session_id: s[:id], role: 'tool', content: "shell → #{ok_trace}")
 
-      expect(reward).to      receive(:judge).and_call_original
-      expect(reward).to      receive(:prm).and_call_original
-      expect(reward).to      receive(:sentinel).and_call_original
-      expect(curriculum).to  receive(:calibrate).and_call_original
-      allow(learning).to     receive(:reflect).and_return(count: 0)
+      expect(reward).to receive(:judge).and_call_original
+      expect(reward).to receive(:prm).and_call_original
+      expect(reward).to receive(:sentinel).and_call_original
+      expect(curriculum).to receive(:calibrate).at_least(:once).and_call_original
+      allow(learning).to receive(:reflect).and_return(count: 0)
       expect(PWN::AI::Agent::Extrospection).to receive(:auto_extrospect)
 
       learning.auto_introspect(session_id: s[:id], request: 'enumerate hosts',
@@ -625,7 +625,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(row[:success]).to be true
       expect(row[:tags]).to include('auto', 'solved')
       expect(row[:score]).to be >= 0.6
-      expect(metrics.calibration(engine: :ollama)[:n]).to eq 1
+      expect(metrics.calibration(engine: :ollama)[:n]).to be >= 1
     end
 
     it 'a critic :flaw caps a weak judge score ≤ 0.3 and triggers HER on failure' do

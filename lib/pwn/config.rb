@@ -163,7 +163,7 @@ module PWN
             tool_preference: %w[memory_recall session_recall skills_recall pwn_eval shell mistakes_record mistakes_resolve learning_note_outcome memory_remember skills_update],
             escalation_persona: 'escalator', # Swarm persona for frontier corrective hints when a local model is stuck
             # sample E3 verify_as_reward: true|false|nil(auto: ~10% local / always frontier when CLAIM_RX hits)
-            verify_as_reward: nil,
+            verify_as_reward: true,
             # end-of-turn auto_introspect policy for local: :always | :failure_only | :every_n (with introspect_every_n)
             local_introspect: :failure_only,
             introspect_every_n: 3,
@@ -175,13 +175,13 @@ module PWN
             # Gemini splits systemInstruction parts for implicit prefix hits.
             prompt_cache: true,
             # S2/S3/S4 — nil = auto (ON for remote engines, OFF for ollama cost)
-            critic: nil,
-            counterfactual: nil,
-            red_team_plan: nil,
+            critic: true,
+            counterfactual: true,
+            red_team_plan: true,
             hindsight: true,
             # nil = auto: ORM/PRM use LLM teacher on remote engines even when
             # module_reflection is false (keeps local heuristic-only)
-            reward_llm: nil,
+            reward_llm: true,
             # optional cheaper model id for Reward.judge / .prm (nil = engine default)
             reward_model: nil,
             # cheap ORM chat timeout seconds (clamped 2..30)
@@ -192,7 +192,8 @@ module PWN
             # R5 — live tabular Q / REINFORCE. nil/true = on; false = off.
             # Advisory only: never replaces TaskSummarizer / plan_first.
             policy: true,
-            toolsets: nil
+            toolsets: nil,
+            operator_account: nil
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
             # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
           }
