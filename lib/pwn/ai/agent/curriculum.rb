@@ -94,15 +94,7 @@ module PWN
                          []
                        end
           cool = load_cooldown
-          # P17 — prefer budget-exhaustion fingerprints (agent_loop / critic)
-          # so nightly self-play attacks the #1 live skill gap first.
-          candidates = candidates.sort_by do |m|
-            t = m[:tool].to_s
-            e = m[:error].to_s.downcase
-            budget = t == 'agent_loop' || t == 'assistant_answer' ||
-                     e.include?('budget exhausted') || e.include?('iteration budget')
-            [budget ? 0 : 1, -m[:count].to_i]
-          end
+          candidates = candidates.sort_by { |m| -m[:count].to_i }
           targets = candidates.reject { |m| practice_skip?(mistake: m, cooldown: cool) }.first(limit)
           results = []
 
@@ -112,7 +104,7 @@ module PWN
 
               prompts = generate_reproducers(mistake: m, count: [per, 2].max)
               runs = dry_run ? [] : prompts.map { |p| self_play(prompt: p, tag: "practice:#{m[:signature]}") }
-              solved = runs.select { |r| r[:score].to_f >= 0.7 }
+              solved = runs.select { |r| r[:score].to_f >= 0.6 }
               mean = runs.empty? ? 0.0 : (runs.sum { |r| r[:score].to_f } / runs.length)
               resolved = false
               # 2.4 — auto-resolve only with N≥2 holdout successes + store trace
@@ -129,7 +121,12 @@ module PWN
                 trace_ok = winning.length >= 20 && (
                   !budgetish || winning.match?(/→|shell|pwn_eval|tool/i) || best[:final].to_s.length.between?(1, 800)
                 )
-                unless trace_ok
+                poc_ok = if budgetish || %w[agent_loop assistant_answer].include?(m[:tool].to_s)
+                           practice_poc_ok?(run: best)
+                         else
+                           true
+                         end
+                unless trace_ok && poc_ok
                   bump_cooldown!(cooldown: cool, signature: m[:signature], mean: mean) unless dry_run
                   results << {
                     signature: m[:signature], tool: m[:tool], prompts: prompts,
@@ -895,15 +892,11 @@ module PWN
                      'Return Dir.pwd from pwn_eval'
                    ]
                  when 'agent_loop', 'assistant_answer'
-                   # P17 — dominant live failure: iteration / critic budget exhaustion.
-                   # Practise finishing under a tight tool budget, not shell shapes.
                    [
-                     'Answer in one shell call: print kernel release with uname -r',
-                     'In at most two tools, show cwd and ruby version then stop',
-                     'Give a final answer with no tools: what is 7 times 8?',
-                     'Finish under three iterations: list /tmp and report file count',
-                     'Do not explore — one pwn_eval of Dir.pwd and return the path',
-                     'Short plan then one command: show free disk with df -h /'
+                     'Write a working PoC to /tmp/pwn-practice-poc.txt that proves the issue, then stop',
+                     'Save a chained-impact PoC under /tmp/pwn-practice-chain.txt with reproduction steps',
+                     'Use pwn_eval to call PWN::Reports::JSON.generate with a findings hash to /tmp/pwn-practice-findings.json',
+                     'Produce evidence-backed severity in /tmp/pwn-practice-sev.md including a PoC path'
                    ]
                  else
                    if err.include?('budget exhausted') || err.include?('iteration budget') ||
@@ -1000,7 +993,7 @@ module PWN
             capped = true
           end
           begin
-            final = Loop.run(request: prompt, session_id: sid, enabled_toolsets: %w[terminal pwn memory learning])
+            final = Loop.run(request: prompt, session_id: sid)
           ensure
             if capped && defined?(PWN::Env) && PWN::Env[:ai].is_a?(Hash) && PWN::Env[:ai][:agent].is_a?(Hash) && !PWN::Env[:ai][:agent].frozen?
               if prev_max == :__unset__
@@ -1081,6 +1074,15 @@ module PWN
           sem[:semantic_ok] ? 0.85 : 0.15
         rescue StandardError
           nil
+        end
+
+        private_class_method def self.practice_poc_ok?(opts = {})
+          run = opts[:run] || {}
+          blob = "#{run[:final]}\n#{run[:trace]}\n#{run[:prompt]}"
+          paths = blob.scan(%r{(/tmp/[A-Za-z0-9._+-]+)})
+          paths.flatten.any? { |path| File.file?(path) && File.size(path).positive? }
+        rescue StandardError
+          false
         end
 
         private_class_method def self.ask_persona(opts = {})

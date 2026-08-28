@@ -26,7 +26,7 @@ module PWN
         report_name = opts[:report_name] ||= File.basename(Dir.pwd)
         File.write(
           "#{dir_path}/#{report_name}.json",
-          JSON.pretty_generate(results_hash)
+          ::JSON.pretty_generate(results_hash)
         )
 
         column_names = [

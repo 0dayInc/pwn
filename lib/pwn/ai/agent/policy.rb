@@ -752,14 +752,32 @@ module PWN
           return 0.0 unless ep.is_a?(Hash)
 
           bonus = 0.0
-          new_idx = ts_idx(ts_state: opts[:ts_state])
-          new_open = ts_open?(ts_state: opts[:ts_state])
-          bonus += STEP_TASK if !ep[:plan_idx].nil? && new_idx > ep[:plan_idx].to_i
-          bonus += STEP_CLOSED if ep[:plan_open] && new_open == false
-          bonus += STEP_GRIND if new_open == false && opts[:ok] && opts[:action].to_s != 'final'
+          met = contract_fields_met(request: ep[:request].to_s)
+          prev = ep[:contract_met].to_i
+          if met > prev
+            bonus += STEP_TASK
+            ep[:contract_met] = met
+          end
+          bonus += STEP_GRIND if met.positive? && opts[:ok] && opts[:action].to_s != 'final'
           bonus
         rescue StandardError
           0.0
+        end
+
+        private_class_method def self.contract_fields_met(opts = {})
+          raw = Thread.current[:pwn_loop_deliverables]
+          return 0 unless raw.is_a?(Hash) || opts.key?(:request)
+          return 0 unless raw.is_a?(Hash)
+
+          n = 0
+          n += 1 if raw[:min_seconds].to_i.positive? || raw['min_seconds'].to_i.positive?
+          files = Array(raw[:paths] || raw['paths']) + Array(raw[:proofs] || raw['proofs'])
+          n += files.count { |path| File.file?(path.to_s) && File.size(path.to_s).positive? }
+          n += Array(raw[:hosts] || raw['hosts']).length
+          n += Array(raw[:techniques] || raw['techniques']).length
+          n
+        rescue StandardError
+          0
         end
 
         private_class_method def self.terminal_reward(opts = {})

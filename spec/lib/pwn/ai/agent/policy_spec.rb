@@ -131,13 +131,23 @@ describe PWN::AI::Agent::Policy do
     grind = described_class.observe_step(
       action: 'shell', ok: true, session_id: 'en_credit', ts_state: ts
     )
-    ts[:plan_idx] = 1
-    ts[:evidence_blob] = 'rg hit locate the source lib/task_summarizer.rb patched later'
+    poc = "/tmp/pwn-policy-#{Process.pid}.poc"
+    File.write(poc, 'poc')
+    Thread.current[:pwn_loop_deliverables] = {
+      paths: [],
+      min_seconds: 0,
+      skills: [],
+      proofs: [poc],
+      hosts: [],
+      techniques: []
+    }
     advance = described_class.observe_step(
       action: 'shell', ok: true, session_id: 'en_credit', ts_state: ts
     )
     expect(advance[:reward].to_f).to be > grind[:reward].to_f
   ensure
+    FileUtils.rm_f(poc) if defined?(poc)
+    Thread.current[:pwn_loop_deliverables] = nil
     described_class.reset
     FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
   end

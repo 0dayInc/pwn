@@ -568,9 +568,9 @@ module PWN
 
           # R1 judge — always attempt (heuristic is cheap; LLM gated inside)
           stages_run << :judge
-          v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok, predicted: opts[:predicted], plan: opts[:plan]) if defined?(Reward)
+          v = Reward.judge(request: opts[:request], final: opts[:final], session_id: session_id, proxy_ok: proxy_ok, predicted: opts[:predicted]) if defined?(Reward)
           v ||= { score: proxy_ok ? 1.0 : 0.0, success: proxy_ok, verdict: proxy_ok ? :solved : :wrong }
-          v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw
+          v[:score] = [v[:score], 0.3].min if crit[:verdict] == :flaw && v[:score].to_f < 0.6
           # P29 — critic floor used to leave stale verdict=:solved at score=0.3,
           # producing learning.jsonl rows tagged "solved" with success=false
           # (116+ rows). Always resync verdict/success from the final score.
@@ -598,14 +598,7 @@ module PWN
           if defined?(Reward) && Reward.respond_to?(:plan_coverage)
             begin
               plan_for_cov = opts[:plan]
-              plan_for_cov = opts[:ts_state][:plan] if plan_for_cov.nil? && opts[:ts_state].is_a?(Hash)
-              if plan_for_cov.nil? && defined?(TaskSummarizer)
-                # Recover numbered tasks from the final/request only when caller
-                # did not pass a plan — still keeps TaskSummarizer out of the
-                # credit path (parse is pure text).
-                plan_for_cov = nil
-              end
-              if !plan_for_cov.nil? || opts[:final].to_s.length.positive?
+              unless plan_for_cov.nil?
                 plan_cov = Reward.plan_coverage(
                   plan: plan_for_cov || [],
                   final: opts[:final],

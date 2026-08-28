@@ -27,7 +27,7 @@ module PWN
         # JSON object Completion
         File.open("#{dir_path}/#{report_name}.json", "w:#{char_encoding}") do |f|
           f.print(
-            JSON.pretty_generate(results_hash).force_encoding(char_encoding)
+            ::JSON.pretty_generate(results_hash).force_encoding(char_encoding)
           )
         end
 

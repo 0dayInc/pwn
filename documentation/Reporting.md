@@ -9,6 +9,7 @@
 
 | Module | Consumes | Emits |
 |---|---|---|
+| `Reports::PDF` / `HTML` / `Markdown` / `XML` / `CSV` / `JSON` | findings Hash | `.pdf` / `.html` / `.md` / `.xml` / `.csv` / `.json` |
 | `Reports::SAST` | `PWN::SAST::Factory` output | HTML (with `HTMLHeader`/`HTMLFooter`) + JSON |
 | `Reports::Fuzz` | `PWN::Plugins::Fuzz` crash log | HTML + JSON |
 | `Reports::URIBuster` | `pwn_www_uri_buster` output | HTML |

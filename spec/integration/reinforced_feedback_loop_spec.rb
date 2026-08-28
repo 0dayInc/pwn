@@ -628,11 +628,11 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(metrics.calibration(engine: :ollama)[:n]).to eq 1
     end
 
-    it 'a critic :flaw caps the recorded score ≤ 0.3 and triggers HER on failure' do
+    it 'a critic :flaw caps a weak judge score ≤ 0.3 and triggers HER on failure' do
       @agent_cfg[:auto_introspect] = true
       @agent_cfg[:critic]          = true
       allow(curriculum).to receive(:critic).and_return(verdict: :flaw, flaw: 'wrong CVE')
-      allow(reward).to receive(:judge).and_return(score: 0.9, verdict: :solved, rationale: '', success: true)
+      allow(reward).to receive(:judge).and_return(score: 0.45, verdict: :partial, rationale: '', success: false)
       allow(reward).to receive(:sentinel).and_return(status: :insufficient)
       expect(curriculum).to receive(:hindsight)
 
@@ -641,6 +641,21 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       row = learning.outcomes.first
       expect(row[:success]).to be false
       expect(row[:score]).to be <= 0.3
+    end
+
+    it 'does not let critic :flaw floor a high-evidence judge score' do
+      @agent_cfg[:auto_introspect] = true
+      @agent_cfg[:critic]          = true
+      allow(curriculum).to receive(:critic).and_return(verdict: :flaw, flaw: 'plan_cover_low')
+      allow(reward).to receive(:judge).and_return(score: 0.87, verdict: :solved, rationale: 'evidence=0.87', success: true)
+      allow(reward).to receive(:sentinel).and_return(status: :insufficient)
+      allow(curriculum).to receive(:hindsight)
+
+      s = PWN::Sessions.create(title: 'e2e_critic_keep')
+      learning.auto_introspect(session_id: s[:id], request: 'x', final: 'path-backed complete answer')
+      row = learning.outcomes.first
+      expect(row[:success]).to be true
+      expect(row[:score]).to be >= 0.6
     end
   end
 
@@ -1009,7 +1024,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       )
       expect(prompts.length).to eq 4
       blob = prompts.join(' ').downcase
-      expect(blob).to match(/one shell|at most two|no tools|three iterations|uname|cwd/)
+      expect(blob).to match(/poc|findings|severity|reports::json/i)
     end
 
     it 'practice sorts budget fingerprints ahead of shell noise' do
@@ -1167,7 +1182,7 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
         mistake: { tool: 'agent_loop', error: 'iteration budget exhausted' },
         count: 3
       )
-      expect(prompts.join(' ')).to match(/one shell|at most two|no tools|three iterations/i)
+      expect(prompts.join(' ')).to match(/PoC|findings|severity|Reports::JSON/i)
     end
 
     it 'practice refuses resolve when holdouts ok but trace weak on budget target' do
