@@ -45,6 +45,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.preference_balance Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.preference_balance`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.preference_diet_gate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.preference_diet_gate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.python_site_package_roots Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.python_site_package_roots`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.reclassify_backlog Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.reclassify_backlog`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.red_team_plan Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.red_team_plan`: Supported Method Parameters\n\nhint = PWN::AI::Agent::Curriculum.red_team_plan(\n\nrequest: 'required - user goal',\nplan: 'required - numbered plan text from plan_first'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.reflect_available? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.reflect_available?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Curriculum.repeating_trend Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Curriculum.repeating_trend`: "}]}
@@ -379,6 +380,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.ollama_wire_tool_call Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.ollama_wire_tool_call`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.openai_wire_messages Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.openai_wire_messages`: Supported Method Parameters\n\nwire = PWN::AI::Agent::Loop.openai_wire_messages(\n\nmessages: 'required - in-memory OpenAI-ish messages (may have Hash args / internal keys)'\n\n)\n\nReturns a deep-copied array safe for OpenAI / xAI chat.completions:\n\ndrops _native_content / _text_tool_coerced / thinking private keys\n\nstringifies function.arguments maps\n\ncoerces Hash/non-string content to JSON/string (nil kept for assistant tool turns)\n\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.openai_wire_tool_call Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.openai_wire_tool_call`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.operator_bound_refusal Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.operator_bound_refusal`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.parse_contract Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.parse_contract`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.parse_tool_arguments Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.parse_tool_arguments`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.payload_sig Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.payload_sig`: "}]}
@@ -408,6 +410,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.tool_effects Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.tool_effects`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wait_trace_step! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wait_trace_step!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.world_knowledge? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.world_knowledge?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wrap_untrusted_tool Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wrap_untrusted_tool`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.write_verified? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.write_verified?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.advantage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.advantage`: Supported Method Parameters\n\na = PWN::AI::Agent::Metrics.advantage(name: ‘shell’)\n\nC1 — tool.success_rate − global_rate over the rolling window.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -415,11 +418,12 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.blank_bucket Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.blank_bucket`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.bump Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.bump`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.calibration Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.calibration`: Supported Method Parameters\n\ncal = PWN::AI::Agent::Metrics.calibration(engine: :ollama)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.calibration_green? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.calibration_green?`: Supported Method Parameters\n\nPWN::AI::Agent::Metrics.reset\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.changepoints Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.changepoints`: Supported Method Parameters\n\ncps = PWN::AI::Agent::Metrics.changepoints\n\nE1 — tools whose CUSUM tripped (success_rate regime change). The caller (Mistakes.record / Curriculum) triggers extro_snapshot + correlate on these so a Mistake caused by env drift is tagged cause: :env_drift and does NOT count toward [REPEATING].\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.decay Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.decay`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.effective_rate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.effective_rate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.gamma_sample Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.gamma_sample`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.health_line Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.health_line`: Supported Method Parameters\n\nPWN::AI::Agent::Metrics.reset\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.health_line Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.health_line`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.judge_confidence Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.judge_confidence`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.judge_rate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.judge_rate`: "}]}
@@ -433,6 +437,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.record_step_reward Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.record_step_reward`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.reset Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.reset`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.save Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.save`: Supported Method Parameters\n\nPWN::AI::Agent::Metrics.save(\n\nmetrics: 'required - Hash returned by .load / mutated in place'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.scale_prediction Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.scale_prediction`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.scoreboard Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.scoreboard`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.summary`: Supported Method Parameters\n\nrows = PWN::AI::Agent::Metrics.summary(\n\nlimit: 'optional - cap number of tools returned (default 25)',\nengine: 'optional - only that engine\\'s sub-bucket (falls back to global when absent)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.thompson Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.thompson`: Supported Method Parameters\n\np = PWN::AI::Agent::Metrics.thompson(name: ‘shell’)\n\nC1 — Thompson sample from Beta(ok+1, fail+1). Naturally balances exploit/explore; used by Registry.rank as the tie-breaker.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.to_context Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.to_context`: Supported Method Parameters\n\nctx = PWN::AI::Agent::Metrics.to_context(\n\nlimit: 'optional - cap number of tools included (default 8)',\nengine: 'optional - restrict to one engine\\'s telemetry'\n\n)\n"}]}
@@ -536,6 +542,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.host_line Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.host_line`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.host_load_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.host_load_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.learning_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.learning_block`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.memory_asked? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.memory_asked?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.memory_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.memory_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.metrics_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.metrics_block`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::PromptBuilder.mistakes_block Usage"},{"role":"assistant","content":"`PWN::AI::Agent::PromptBuilder.mistakes_block`: "}]}
@@ -617,6 +624,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.preference_balance Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.preference_balance`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.preferences Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.preferences`: Supported Method Parameters\n\nrows = PWN::AI::Agent::Reward.preferences(limit: 500, source: nil)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.prm Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.prm`: Supported Method Parameters\n\nsteps = PWN::AI::Agent::Reward.prm(\n\nrequest: 'required - user goal',\nsession_id: 'optional - session to score in place',\ntrace: 'optional - Array of {name:, args:, result:} or Strings'\n\n)\n\nReturns [{idx:, step:, reward: -1|0|1}, …] and, when session_id is given, rewrites each tool line in the transcript with a ‘[step_reward=N]` prefix so exemplars_for / distill_skill can keep only reward>0 steps (C4 minimal sufficient trace).\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.promote_to_success? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.promote_to_success?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.proxy_distrust Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.proxy_distrust`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.record_preference Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.record_preference`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.record_sentinel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.record_sentinel`: "}]}
@@ -748,6 +756,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.present? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.present?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_core_constants! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_core_constants!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_http! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_http!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.refuse_copied_persist? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.refuse_copied_persist?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_bash? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_bash?`: "}]}

@@ -333,6 +333,25 @@ module PWN
           0
         end
 
+        public_class_method def self.refuse_copied_persist?(opts = {})
+          name = opts[:name].to_s
+          return false unless %w[memory_remember skills_update].include?(name)
+
+          args = opts[:args]
+          args = {} unless args.is_a?(Hash)
+          text = [args[:value], args['value'], args[:lesson], args['lesson']].compact.join("\n")
+          last = Thread.current[:pwn_last_tool_body].to_s
+          return false if last.length < 80 || text.strip.length < 40
+
+          a = text.downcase.scan(/[a-z0-9]{4,}/).uniq
+          b = last.downcase.scan(/[a-z0-9]{4,}/)
+          return false if a.empty? || b.empty?
+
+          ((a & b).length.to_f / a.length) >= 0.6
+        rescue StandardError
+          false
+        end
+
         public_class_method def self.authors
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end

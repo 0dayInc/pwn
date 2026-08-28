@@ -25,8 +25,9 @@ describe PWN::AI::Agent::Mistakes do
     expect(a[:signature]).to eq b[:signature]
     top = PWN::AI::Agent::Mistakes.top
     expect(top.first[:count]).to eq 2
-    expect(PWN::AI::Agent::Mistakes.to_context).to include('shell')
+    expect(PWN::AI::Agent::Mistakes.to_context).not_to include('nmpa')
     PWN::AI::Agent::Mistakes.resolve(signature: a[:signature], fix: 'use `nmap`, not `nmpa`')
+    expect(PWN::AI::Agent::Mistakes.to_context).to include('shell')
     expect(PWN::AI::Agent::Mistakes.top(unresolved_only: true)).to be_empty
     # recurrence re-opens
     PWN::AI::Agent::Mistakes.record(tool: 'shell', error: 'nmpa: command not found')
@@ -181,8 +182,10 @@ describe PWN::AI::Agent::Mistakes do
     )
     described_class.record(tool: 'shell', error: 'nmpa: command not found unique-host')
     ctx = described_class.to_context(request: 'what is my hostname?', limit: 2)
-    expect(ctx).to include('shell')
     expect(ctx).not_to match(/iteration budget exhausted/)
+    ctx_full = described_class.to_context(request: 'what is my hostname?', include_open: true, limit: 2)
+    expect(ctx_full).to include('shell')
+    expect(ctx_full).not_to match(/iteration budget exhausted/)
   end
 
   it 'does not classify or extinguish scars as unauthorized recon' do

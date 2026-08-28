@@ -52,10 +52,14 @@ PWN::AI::Agent::Metrics.load(opts)
 - `changepoints`
 - `record_calibration`
 - `calibration`
+- `calibration_green`
+- `scale_prediction`
+- `scoreboard`
 - `health_line`
 - `reset`
 - `authors`
 - `help`
+- `calibration_green?`
 
 ## Source
 

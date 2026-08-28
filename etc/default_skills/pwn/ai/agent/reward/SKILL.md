@@ -34,6 +34,7 @@ PWN::AI::Agent::Reward.judge(opts)
 ## Public methods
 
 - `judge`
+- `promote_to_success`
 - `prm`
 - `plan_coverage`
 - `sentinel`
@@ -58,6 +59,7 @@ PWN::AI::Agent::Reward.judge(opts)
 - `judge_sample_weight`
 - `authors`
 - `help`
+- `promote_to_success?`
 - `usable_preference?`
 
 ## Source

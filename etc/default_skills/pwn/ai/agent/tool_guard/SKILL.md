@@ -52,6 +52,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `timeout_lesson`
 - `timeout_result`
 - `timeout_prior_count`
+- `refuse_copied_persist`
 - `authors`
 - `help`
 - `bashism?`
@@ -60,6 +61,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `present?`
 - `protect_core_constants!`
 - `protect_http!`
+- `refuse_copied_persist?`
 - `reset_timeout_budget!`
 - `shell_bash?`
 

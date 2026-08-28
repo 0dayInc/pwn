@@ -504,7 +504,12 @@ module PWN
           # 2.6 — request-conditioned rank (sim × recency × count), same idea
           # as exemplars_for. Stops injecting loudest scar (reward_signal ×13)
           # on every unrelated turn.
-          open = rank_for_request(rows: open_rows, request: request, limit: limit)
+          include_open = opts[:include_open] == true || opts[:full] == true || request.match?(/mistake|known error|repeat/i)
+          open = if include_open
+                   rank_for_request(rows: open_rows, request: request, limit: limit)
+                 else
+                   []
+                 end
           closed = load.values.select { |m| m[:resolved] && m[:fix] }
           closed = rank_for_request(rows: closed, request: request, limit: limit)
           return '' if open.empty? && closed.empty?
@@ -779,7 +784,9 @@ module PWN
         # Strip volatile substrings so semantically-identical failures
         # collapse to one signature and their :count actually climbs.
         private_class_method def self.normalize_error(opts = {})
-          e = opts[:error].to_s.strip.downcase
+          e = opts[:error].to_s.strip
+          klass = e[/\b([A-Z][A-Za-z0-9_]+(?:Error|Exception|Interrupt))\b/, 1].to_s
+          e = e.downcase
           e = e.gsub(/0x[0-9a-f]{4,}/, '0xADDR')
           e = e.gsub(%r{(/[\w.@+-]+)+/?}, '/PATH')
           e = e.gsub(/:\d+:in\b/, ':LINE:in')
@@ -790,7 +797,8 @@ module PWN
           e = e.gsub(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/, 'UUID')
           e = e.gsub(/\bpid\s*\d+\b/, 'pid N')
           e = e.gsub(/\b\d{4,}\b/, 'N')
-          e.gsub(/\s+/, ' ')[0, 300]
+          body = e.gsub(/\s+/, ' ')[0, 180]
+          klass.empty? ? body : "#{klass.downcase}|#{body}"
         end
 
         # Age-weighted count for [REPEATING] threshold — a ×8 signature from

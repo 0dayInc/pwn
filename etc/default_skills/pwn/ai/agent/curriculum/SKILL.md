@@ -41,6 +41,7 @@ PWN::AI::Agent::Curriculum.practice(opts)
 - `red_team_plan`
 - `hindsight`
 - `train_and_gate`
+- `reclassify_backlog`
 - `practice_kpi`
 - `repeating_trend`
 - `calibrate`

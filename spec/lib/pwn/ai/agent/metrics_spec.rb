@@ -34,4 +34,19 @@ describe PWN::AI::Agent::Metrics do
     expect(rate).to be < 0.45
     expect(rate).to be > 0.2
   end
+
+  it 'temperature-scales overconfident predictions toward realised actual' do
+    stub_const('PWN::AI::Agent::Metrics::METRICS_FILE', File.join(Dir.mktmpdir, 'metrics.json'))
+    described_class.reset
+    12.times { described_class.record_calibration(predicted: 0.87, actual: 0.49, brier: 0.1444, engine: :grok) }
+    scaled = described_class.scale_prediction(predicted: 0.87, engine: :grok)
+    expect(scaled).to be < 0.87
+    expect(scaled).to be > 0.35
+    board = described_class.scoreboard
+    expect(board).to include(:tool_ok, :task_ok, :judge_ok)
+    line = described_class.health_line
+    expect(line).to match(/tool_ok=/)
+    expect(line).to match(/task_ok=/)
+    expect(line).to match(/judge_ok=/)
+  end
 end

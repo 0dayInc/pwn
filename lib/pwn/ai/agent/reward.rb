@@ -177,7 +177,16 @@ module PWN
             v[:confidence] = [v[:confidence].to_f, ground[:confidence].to_f].max if ground[:confidence]
           end
 
-          v[:success] = v[:score] >= 0.6
+          v[:success] = promote_to_success?(
+            orm: v[:source].to_s != 'heuristic' && v[:score].to_f >= 0.6,
+            verify: if ground.nil?
+                      nil
+                    else
+                      ground[:verdict] == :confirmed
+                    end,
+            critic: opts.key?(:critic_pass) ? opts[:critic_pass] : nil
+          )
+          v[:needs_spot_check] = v[:success] && v[:score].to_f >= 0.85 && (rand < 0.05)
           v[:engine] = eng
           # W3 — write Brier on every judged turn so overconfidence can
           # throttle max_iters/critic even when plan_first never fired.
@@ -195,9 +204,16 @@ module PWN
           { score: 0.5, verdict: :unknown, rationale: "judge error: #{e.class}", success: !final.strip.empty?, error: e.message, confidence: 0.2, source: :error }
         end
 
-        # ----------------------------------------------------------------
-        # R2 — Process Reward Model (per-step credit assignment)
-        # ----------------------------------------------------------------
+        public_class_method def self.promote_to_success?(opts = {})
+          flags = []
+          flags << (opts[:orm] ? true : false) unless opts[:orm].nil?
+          flags << (opts[:verify] ? true : false) unless opts[:verify].nil?
+          flags << (opts[:critic] ? true : false) unless opts[:critic].nil?
+          return false if flags.empty?
+          return flags.first if flags.length == 1
+
+          flags.count(true) >= 2
+        end
 
         # Supported Method Parameters::
         # steps = PWN::AI::Agent::Reward.prm(
@@ -1316,11 +1332,14 @@ module PWN
           fin_toks = final.downcase.scan(/[a-z0-9_]{3,}/).uniq
           overlap  = req_toks.empty? ? 1.0 : (req_toks & fin_toks).length.to_f / req_toks.length
           score = [score, 0.35].min if overlap < 0.08 && req_toks.length >= 4 && score > 0.35
-
+          ev_score = ev ? ev[:score].to_f : 0.0
           bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
           ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
           score = ((score * 0.85) + (ratio * 0.15)).round(3)
-          score = score.round(2).clamp(0.0, 0.9)
+          score = [score, 0.45].min if overlap >= 0.4 && ev_score < 0.55
+          score = [score, 0.45].min if ratio <= 0.15
+          score = [score, 0.70].min
+          score = score.round(2).clamp(0.0, 0.70)
           verdict = if score >= 0.6 then :solved
                     elsif score >= 0.3 then :partial
                     else :wrong

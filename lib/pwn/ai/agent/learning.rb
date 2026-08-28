@@ -137,6 +137,14 @@ module PWN
           # survives across sessions. Without this, the agent re-learns
           # "run rubocop after every patch" every turn (empty memory.json).
           promote_process_lesson(entry: entry) if defined?(PWN::Memory)
+          if opts.key?(:score) && defined?(Curriculum) && Curriculum.respond_to?(:calibrate)
+            pred = opts[:predicted]
+            pred = Thread.current[:pwn_plan_predicted] if pred.nil?
+            pred = opts[:confidence] if pred.nil?
+            eng = opts[:engine]
+            eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)) if eng.to_s.empty?
+            Curriculum.calibrate(predicted: pred, actual: opts[:score], engine: eng)
+          end
           entry
         end
 
@@ -637,6 +645,7 @@ module PWN
             Policy.finish(
               session_id: session_id,
               score: v[:score],
+              confidence: v[:confidence],
               verdict: v[:verdict],
               proxy_ok: ok,
               final: opts[:final],
@@ -645,9 +654,9 @@ module PWN
           end
 
           # R2 PRM — skip under hard cap (expensive LLM); keep under soft if heuristic path
-          if over_hard.call
+          if over_hard.call || !defined?(Reward) || v[:score].to_f < 0.6
             stages_skipped << :prm
-          elsif defined?(Reward)
+          else
             stages_run << :prm
             Reward.prm(request: opts[:request], session_id: session_id)
           end
@@ -746,8 +755,14 @@ module PWN
           last[:score]      = 0.0
           lines[-1] = "#{JSON.generate(last)}\n"
           File.write(LEARNING_FILE, lines.join)
-          # W1 — the (rejected_prev_answer, chosen_next_answer) pair is
-          # captured by Mistakes.check_user_correction which has both.
+          if defined?(Reward) && Reward.respond_to?(:record_preference)
+            Reward.record_preference(
+              prompt: last[:task].to_s,
+              rejected: last[:details].to_s,
+              chosen: opts[:reason].to_s,
+              source: :user_correction
+            )
+          end
           { flipped: true, id: last[:id], rejected: last[:details].to_s[0, 2_000] }
         rescue StandardError
           { flipped: false }

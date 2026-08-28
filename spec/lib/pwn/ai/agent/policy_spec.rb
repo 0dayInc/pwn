@@ -144,7 +144,8 @@ describe PWN::AI::Agent::Policy do
     advance = described_class.observe_step(
       action: 'shell', ok: true, session_id: 'en_credit', ts_state: ts
     )
-    expect(advance[:reward].to_f).to be > grind[:reward].to_f
+    expect(advance[:reward].to_f).to eq(0.0)
+    expect(grind[:reward].to_f).to eq(0.0)
   ensure
     FileUtils.rm_f(poc) if defined?(poc)
     Thread.current[:pwn_loop_deliverables] = nil
@@ -224,7 +225,7 @@ describe PWN::AI::Agent::Policy do
     FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
   end
 
-  describe 'Hermes episode handoff' do
+  describe 'episode handoff' do
     it 'detach_episode! snapshots and clears current_episode' do
       tmp = Dir.mktmpdir
       stub_const('PWN::AI::Agent::Policy::POLICY_FILE', File.join(tmp, 'policy.json'))
@@ -243,6 +244,36 @@ describe PWN::AI::Agent::Policy do
       expect(described_class.current_episode[:session_id]).to eq('detach1')
     ensure
       described_class.attach_episode!(episode: nil)
+      described_class.reset
+      FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
     end
+  end
+
+  it 'observe_step does not pay per successful tool call' do
+    tmp = Dir.mktmpdir
+    stub_const('PWN::AI::Agent::Policy::POLICY_FILE', File.join(tmp, 'policy.json'))
+    stub_const('PWN::AI::Agent::Policy::TRAJECTORY_FILE', File.join(tmp, 'policy_traj.jsonl'))
+    described_class.reset
+    allow(described_class).to receive(:enabled?).and_return(true)
+    PWN::Env[:ai] ||= {}
+    PWN::Env[:ai][:agent] ||= {}
+    PWN::Env[:ai][:agent][:policy] = true
+    described_class.begin_episode(session_id: 'p0_step', request: 'scan', kind: :autonomous_goal, engine: :grok)
+    first = described_class.observe_step(action: 'shell', ok: true, session_id: 'p0_step')
+    expect(first[:reward].to_f).to eq(0.0)
+    8.times { described_class.observe_step(action: 'shell', ok: true, session_id: 'p0_step') }
+    extra = described_class.observe_step(action: 'shell', ok: true, session_id: 'p0_step')
+    expect(extra[:reward].to_f).to be_within(0.001).of(-0.01)
+    fin = described_class.finish(session_id: 'p0_step', score: 0.9, confidence: 1.0, verdict: :solved)
+    expect(fin[:score].to_f).to eq(0.9)
+    expect(fin[:return]).not_to be_nil
+  ensure
+    described_class.reset
+    FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
+  end
+
+  it 'terminal reward is judge score scaled by confidence, not step hygiene' do
+    expect(described_class.send(:terminal_reward, score: 1.0, confidence: 0.5)).to be_within(0.01).of(0.5)
+    expect(described_class.send(:terminal_reward, score: 0.0, confidence: 1.0)).to be_within(0.01).of(-1.0)
   end
 end
