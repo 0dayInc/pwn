@@ -86,7 +86,6 @@ module PWN
             request: opts[:request],
             final: opts[:final],
             predicted: opts[:predicted],
-            plan: opts[:plan],
             ts_state: opts[:ts_state],
             inline: true
           }

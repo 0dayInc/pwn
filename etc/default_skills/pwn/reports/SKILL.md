@@ -28,11 +28,13 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::Reports.help
-PWN::Reports.help(opts)
+PWN::Reports.resolve_path(opts)
 ```
 
 ## Public methods
 
+- `resolve_path`
+- `report_payload`
 - `authors`
 - `help`
 
@@ -46,5 +48,5 @@ PWN::Reports.help(opts)
 
 ## Verification
 
-`PWN::Reports.respond_to?(:authors)` after the
+`PWN::Reports.respond_to?(:resolve_path)` after the
 module is loaded. Read the source for parameter names.

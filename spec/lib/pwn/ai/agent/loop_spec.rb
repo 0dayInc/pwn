@@ -40,14 +40,12 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/red_team_plan/)
     end
 
-    it 'auto_introspect receives plan from ts_state on success and exhaust paths' do
+    it 'does not pass TUI plan into auto_introspect' do
       src = File.read(described_class.method(:run).source_location.first)
-      # every auto_introspect in Loop.run should pass plan:
       calls = src.scan(/Learning\.auto_introspect\([^)]*\)/m)
-      # also multi-line form collapsed into one-liners already
       expect(calls.length).to be >= 2
       calls.each do |c|
-        expect(c).to match(/plan:/), "auto_introspect missing plan: #{c[0, 120]}"
+        expect(c).not_to match(/plan:/), "auto_introspect must not take TUI plan: #{c[0, 120]}"
       end
     end
 
@@ -93,7 +91,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       parked_n = [a, b].count do |m|
         PWN::AI::Agent::Mistakes.find(signature: m[:signature])[:parked]
       end
-      expect(parked_n).to be >= 1
+      expect(parked_n).to eq(0)
     ensure
       FileUtils.remove_entry(tmp) if tmp && Dir.exist?(tmp)
     end
@@ -451,12 +449,19 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       ]
       8.times do |n|
         msgs << { role: 'assistant', content: '', tool_calls: [{ id: "c#{n}" }] }
-        msgs << { role: 'tool', tool_call_id: "c#{n}", name: 'shell', content: ('x' * 4_000) }
+        msgs << { role: 'tool', tool_call_id: "c#{n}", name: 'shell', content: ('x' * 4_000) + n.to_s }
       end
       out = described_class.send(:compact_history!, messages: msgs)
       tool_bodies = out.select { |m| m[:role].to_s == 'tool' }
       expect(tool_bodies.length).to be <= 6
-      expect(tool_bodies.map { |m| m[:content].to_s.length }.max).to be <= 2_100
+      last = tool_bodies.last(2)
+      expect(last.map { |m| m[:content].to_s.length }.min).to eq(4_001)
+      older = tool_bodies[0...-2]
+      expect(older).not_to be_empty
+      older.each do |m|
+        expect(m[:content].to_s).to include('[compacted path=')
+        expect(m[:content].to_s.length).to be < 500
+      end
     end
 
     it 'compacts again after a transient engine hop before retrying' do
@@ -523,10 +528,10 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(out.map { |m| m[:tool_call_id] }).not_to include('toolu_orphan')
     end
 
-    it 'extinguishes a repeated identical payload by signature, not the whole tool' do
+    it 'checkpoints a repeated identical payload instead of extinguishing the tool' do
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).to match(/no_progress|same_payload|payload_sig/)
-      expect(src).not_to match(/pwn_extinguished\[opts\[:name\]\.to_s\] = true/)
+      expect(src).to match(/checkpoint_result/)
+      expect(src).not_to match(/pwn_extinguished\[sig\] = true/)
     end
 
     it 'records a timeout increment mistake instead of treating success:true as ok' do
@@ -951,13 +956,15 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).not_to match(/NAMED_PATH_RX/)
       expect(src).not_to include('%PDF')
-      expect(src).to match(/infer_deliverables|pwn_loop_deliverables/)
+      expect(src).to include('PWN::Reports::PDF.generate')
       payload = {
         paths: ['/tmp/out.json'],
         min_seconds: 28_800,
         skills: ['penetration-testing'],
         proofs: ['/tmp/poc.sh'],
-        hosts: ['127.0.0.1']
+        hosts: ['127.0.0.1'],
+        techniques: ['T1059'],
+        issue_work: true
       }
       allow(described_class).to receive(:call_engine).and_return(payload.to_json)
       Thread.current[:pwn_loop_active] = true
@@ -969,10 +976,52 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(contract[:skills]).to eq(['penetration-testing'])
       expect(contract[:proofs]).to eq(['/tmp/poc.sh'])
       expect(contract[:hosts]).to eq(['127.0.0.1'])
+      expect(contract[:techniques]).to eq(['T1059'])
+      expect(contract[:issue_work]).to eq(true)
       expect(described_class).to have_received(:call_engine).once
     ensure
       Thread.current[:pwn_loop_active] = nil
       Thread.current[:pwn_loop_deliverables] = nil
+    end
+
+    it 'keeps issue_work unsatisfied until proofs exist, without Crit/High regex' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).not_to include('Crit/High')
+      Thread.current[:pwn_loop_deliverables] = {
+        paths: [],
+        min_seconds: 0,
+        skills: [],
+        proofs: [],
+        hosts: [],
+        techniques: ['T1059'],
+        issue_work: true
+      }
+      msgs = [{ role: 'tool', content: 'no techniques yet' }]
+      expect(
+        described_class.send(:declared_contract_unsatisfied?, request: 'unique hunt', messages: msgs)
+      ).to eq(true)
+      poc = "/tmp/pwn-issue-#{Process.pid}.poc"
+      File.write(poc, 'working poc')
+      Thread.current[:pwn_loop_deliverables][:proofs] = [poc]
+      msgs = [{ role: 'tool', content: 'used T1059 on host' }]
+      expect(
+        described_class.send(:declared_contract_unsatisfied?, request: 'unique hunt', messages: msgs)
+      ).to eq(false)
+    ensure
+      FileUtils.rm_f(poc) if defined?(poc)
+      Thread.current[:pwn_loop_deliverables] = nil
+    end
+
+    it 'does not append PLAN: onto the model wire from plan_first' do
+      src = File.read(described_class.method(:plan_first).source_location.first)
+      expect(src).not_to include('messages << { role: \'assistant\', content: "PLAN:')
+      expect(src).not_to include('messages << { role: \'user\', content: rt }')
+    end
+
+    it 'nested host hunts keep CORE_TOOLS by clearing enabled_toolsets' do
+      src = File.read(described_class.method(:run).source_location.first)
+      expect(src).to match(/nested && needs_host_work\?/)
+      expect(src).to match(/opts\[:enabled_toolsets\] = nil/)
     end
 
     it 'verifies LLM-declared duration, skills, proofs, and hosts in the world' do

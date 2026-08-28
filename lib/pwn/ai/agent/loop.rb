@@ -3,6 +3,8 @@
 require 'json'
 require 'securerandom'
 require 'digest'
+require 'fileutils'
+require 'tmpdir'
 require 'pwn/ai/agent/mistakes'
 
 module PWN
@@ -324,7 +326,12 @@ module PWN
 
           top = Mistakes.top(limit: 24, unresolved_only: true)
           now = Time.now
-          budget = top.select { |mistake| budget_hit?(mistake: mistake) && !mistake[:parked] }
+          budget = top.select do |mistake|
+            next false if mistake[:parked]
+            next false if %w[agent_loop assistant_answer].include?(mistake[:tool].to_s)
+
+            budget_hit?(mistake: mistake)
+          end
           budget.each do |mistake|
             stamp = mistake_ts(mistake: mistake)
             next if stamp && (now - stamp) <= PARK_COOL_SECS
@@ -643,7 +650,9 @@ module PWN
           min_seconds: 0,
           skills: [],
           proofs: [],
-          hosts: []
+          hosts: [],
+          techniques: [],
+          issue_work: false
         }.freeze
 
         private_class_method def self.declared_min_seconds(opts = {})
@@ -656,6 +665,8 @@ module PWN
           return true if files.any? { |path| deliverable_missing?(path: path) }
           return true if declared_skills_missing?(skills: contract[:skills])
           return true if declared_hosts_missing?(hosts: contract[:hosts], messages: opts[:messages])
+          return true if declared_hosts_missing?(hosts: contract[:techniques], messages: opts[:messages])
+          return true if contract[:issue_work] && Array(contract[:proofs]).empty?
 
           false
         rescue StandardError
@@ -709,7 +720,9 @@ module PWN
             min_seconds: secs,
             skills: Array(raw[:skills] || raw['skills']).map(&:to_s).reject(&:empty?).uniq,
             proofs: abs_paths(rows: raw[:proofs] || raw['proofs']),
-            hosts: Array(raw[:hosts] || raw['hosts']).map(&:to_s).reject(&:empty?).uniq
+            hosts: Array(raw[:hosts] || raw['hosts']).map(&:to_s).reject(&:empty?).uniq,
+            techniques: Array(raw[:techniques] || raw['techniques']).map(&:to_s).reject(&:empty?).uniq,
+            issue_work: raw[:issue_work] == true || raw['issue_work'] == true
           }
         end
 
@@ -732,7 +745,10 @@ module PWN
                 content: "Operator request:\n#{request}\n\n" \
                          'When that request is complete, what must be true on this host? ' \
                          'JSON only: {"paths":["/abs/file"],"min_seconds":0,"skills":["name"],' \
-                         '"proofs":["/abs/poc"],"hosts":["ip-or-hostname"]}. ' \
+                         '"proofs":["/abs/poc"],"hosts":["ip-or-hostname"],' \
+                         '"techniques":["T1059"],"issue_work":false}. ' \
+                         'issue_work=true when the ask needs findings, PoCs, or severity — then proofs must be non-empty absolute paths. ' \
+                         'Write reports with PWN::Reports::PDF.generate / HTML / Markdown / XML / CSV / JSON (path: or dir_path: + report_name:). ' \
                          'Use [] or 0 when a field is not required. Do not invent work. Paths must be absolute.'
               }
             ],
@@ -1100,12 +1116,17 @@ module PWN
         end
 
         private_class_method def self.no_progress_result(opts = {})
+          checkpoint_result(opts)
+        end
+
+        private_class_method def self.checkpoint_result(opts = {})
           name = opts[:name].to_s
           sig = payload_sig(opts)
           JSON.generate(
-            success: false,
-            error: "no_progress: identical #{name} payload repeated (#{sig}). Change the command.",
-            result: { stdout: '', stderr: "no_progress: #{name}", exit: 2 }
+            success: true,
+            checkpoint: true,
+            error: "checkpoint: identical #{name} payload (#{sig}). World unchanged — vary args, target, or tool.",
+            result: { stdout: "checkpoint #{name} #{sig}", stderr: '', exit: 0 }
           )
         end
 
@@ -1167,15 +1188,10 @@ module PWN
           return nil unless plan_msg && !plan_msg[:content].to_s.strip.empty?
 
           plan = plan_msg[:content].to_s.strip
-          messages << { role: 'assistant', content: "PLAN:\n#{plan}" }
-          # S4 — adversarial plan review grounded in THIS host's telemetry.
-          # P17 — never fork red_team when budget fingerprints dominate: it is
-          # another mini agent loop and compounds iteration-budget exhaustion.
+          # TUI-only. Do not put PLAN: or red-team text on the model wire —
+          # original request stays the only user goal.
           rt = nil
-          if defined?(Curriculum) && !hot
-            rt = Curriculum.red_team_plan(request: opts[:request], plan: plan)
-            messages << { role: 'user', content: rt } if rt
-          end
+          rt = Curriculum.red_team_plan(request: opts[:request], plan: plan) if defined?(Curriculum) && !hot
           # P2 — unify TaskSummarizer plan object with surviving outline so the
           # task line and adversarial/plan_first plan are one thing. Index-only;
           # credit stays in Reward. Optional: only when ts_state is live.
@@ -1679,17 +1695,50 @@ module PWN
             collapsed << pair
           end
           kept = collapsed.last(keep_pairs).flatten
-          kept.each do |m|
-            next unless m[:role].to_s == 'tool' && m[:content].to_s.length > max_chars
-
-            m[:content] = "#{m[:content].to_s[0, max_chars]}…[compacted]"
-          end
+          spill_tool_history!(messages: kept, max_chars: max_chars)
           messages.replace(head + kept)
           repair_tool_history!(messages: messages)
           messages
         rescue StandardError => e
           warn "[pwn-ai/loop] compact_history swallowed: #{e.class}: #{e.message}"
           opts[:messages]
+        end
+
+        HISTORY_SPILL_DIR = File.join(Dir.tmpdir, 'pwn-ai-hist')
+        KEEP_FULL_TOOL_TAILS = 2
+
+        private_class_method def self.spill_tool_history!(opts = {})
+          messages = Array(opts[:messages])
+          max_chars = opts[:max_chars].to_i
+          max_chars = 2_000 if max_chars <= 0
+          tools = messages.select { |msg| msg[:role].to_s == 'tool' }
+          spill_n = [tools.length - KEEP_FULL_TOOL_TAILS, 0].max
+          idx = 0
+          messages.each do |msg|
+            next unless msg[:role].to_s == 'tool'
+
+            idx += 1
+            next if idx > spill_n
+
+            body = msg[:content].to_s
+            next if body.length <= max_chars
+            next if body.include?('[compacted path=')
+
+            msg[:content] = spill_tool_body(text: body)
+          end
+          messages
+        end
+
+        private_class_method def self.spill_tool_body(opts = {})
+          text = opts[:text].to_s
+          digest = Digest::SHA256.hexdigest(text)[0, 16]
+          dir = HISTORY_SPILL_DIR
+          FileUtils.mkdir_p(dir)
+          path = File.join(dir, "#{digest}.txt")
+          File.binwrite(path, text) unless File.file?(path)
+          "[compacted path=#{path} sha256=#{digest} bytes=#{text.bytesize}]"
+        rescue StandardError
+          "[compacted bytes=#{opts[:text].to_s.bytesize}]"
         end
 
         private_class_method def self.repair_tool_history!(opts = {})
@@ -2051,9 +2100,7 @@ module PWN
               session_id: session_id,
               request: request,
               final: txt,
-              predicted: 0.85,
-              plan: [],
-              ts_state: nil
+              predicted: 0.85
             )
           end
           txt
@@ -2122,9 +2169,7 @@ module PWN
               session_id: session_id,
               request: request,
               final: txt,
-              predicted: 0.85,
-              plan: [],
-              ts_state: nil
+              predicted: 0.85
             )
           end
           txt
@@ -2148,9 +2193,7 @@ module PWN
               session_id: session_id,
               request: request,
               final: txt,
-              predicted: 0.95,
-              plan: ['Acknowledge greeting without tools or weather echo'],
-              ts_state: nil
+              predicted: 0.95
             )
           end
           txt
@@ -2232,9 +2275,7 @@ module PWN
               session_id: session_id,
               request: request,
               final: txt,
-              predicted: 0.9,
-              plan: ['Explain tool usage without live recon'],
-              ts_state: nil
+              predicted: 0.9
             )
           end
           txt
@@ -2444,9 +2485,7 @@ module PWN
                 session_id: session_id,
                 request: request,
                 final: txt,
-                predicted: 0.95,
-                plan: [plan_label || 'Recall prior turn from session transcript'],
-                ts_state: nil
+                predicted: 0.95
               )
             end
             return txt
@@ -2517,9 +2556,7 @@ module PWN
               session_id: session_id,
               request: request,
               final: txt,
-              predicted: 0.85,
-              plan: ['Recall prior turn (empty session fallback)'],
-              ts_state: nil
+              predicted: 0.85
             )
           end
           txt
@@ -2662,6 +2699,10 @@ module PWN
           # CORE_TOOLS is the default action space. Extra schemas are
           # opt-in via enabled_toolsets + core_only: false.
           core_only = opts.fetch(:core_only, true)
+          if nested && needs_host_work?(request: request)
+            opts[:enabled_toolsets] = nil
+            core_only = true
+          end
           tools = Registry.definitions(
             enabled: opts[:enabled_toolsets],
             relevance: request,
@@ -2870,7 +2911,7 @@ module PWN
               debug_final_text!(text: text)
               final_chars = text.to_s.length
               append_session(session_id: session_id, role: 'assistant', content: text)
-              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, plan: ts_state && ts_state[:plan], ts_state: ts_state) if defined?(Learning) && !nested && !no_tools && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
+              Learning.auto_introspect(session_id: session_id, request: request, final: text, predicted: predicted, ts_state: ts_state) if defined?(Learning) && !nested && !no_tools && should_auto_introspect?(local: local, turn_fails: turn_fails, iter: i)
               maybe_finish_policy(session_id: session_id, proxy_ok: true, ts_state: ts_state)
               task_summary_flush!(state: ts_state, on_tool: on_tool)
               OpenGoal.clear! if defined?(OpenGoal) && !nested
@@ -2904,11 +2945,7 @@ module PWN
               else
                 raw = Dispatch.call(tool_call: tc)
                 same_n = note_same_payload!(name: name, args: args)
-                if same_n >= 3
-                  Thread.current[:pwn_extinguished] ||= {}
-                  Thread.current[:pwn_extinguished][sig] = true
-                  raw = no_progress_result(name: name, args: args)
-                end
+                raw = checkpoint_result(name: name, args: args) if same_n >= 3
               end
               tools_called += 1
               tele    = record_metrics(name: name, started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)

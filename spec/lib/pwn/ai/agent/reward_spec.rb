@@ -328,3 +328,75 @@ describe PWN::AI::Agent::Reward do
     expect(src).to include('quiet: true')
   end
 end
+
+describe 'PWN::AI::Agent::Reward vs TUI plan' do
+  it 'does not let a TUI plan_cover_low haircut a high-evidence original-request answer' do
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(Dir.mktmpdir, 's.json'))
+    allow(PWN::AI::Agent::Reward).to receive(:reflect_available?).and_return(false)
+    plan = [
+      'Load and review rules of engagement, submission criteria, and the full in-scope subdomain list',
+      'Inventory applicable unauthenticated testing skills and techniques',
+      'Enumerate and resolve all in-scope subdomains and map reachable services',
+      'Fingerprint stacks, configurations, and exposure on every subdomain',
+      'Run exhaustive unauthenticated analysis across the full attack surface',
+      'Prioritize and deep-dive each promising lead to confirm exploitability',
+      'Develop evidence-backed proof-of-concept demonstrations',
+      'Combine related weaknesses into higher-impact attack chains',
+      'Assign evidence-backed severity and filter to submission-eligible issues',
+      'Use graphical applications where they improve validation',
+      'Compile submission-ready writeups with reproduction steps',
+      'Re-verify each finding still reproduces and present the final set'
+    ]
+    final = <<~TXT
+      Path-backed answer for the original request. Hosts scanned: 10.9.8.7 and 10.9.8.8.
+      Verified complete. Evidence in /tmp/pwn-eval-hosts.json. 12 hosts live. rspec passed.
+    TXT
+    klass = PWN::AI::Agent::Reward
+    v = klass.judge(
+      request: 'what live hosts can you find on this box and write /tmp/pwn-eval-hosts.json',
+      final: final,
+      plan: plan,
+      trace: [
+        '{"success":true,"result":{"stdout":"10.9.8.7 up","exit":0},"effect":"eval"}',
+        '{"success":true,"result":{"stdout":"wrote /tmp/pwn-eval-hosts.json","exit":0},"effect":"write"}'
+      ],
+      commit: false
+    )
+    expect(v[:source].to_s).to eq 'heuristic'
+    expect(v[:score]).to be >= 0.6
+    expect(v[:verdict].to_s).to eq 'solved'
+    args = {
+      request: 'what live hosts can you find on this box and write /tmp/pwn-eval-hosts.json',
+      final: final,
+      trace: [
+        '{"success":true,"result":{"stdout":"10.9.8.7 up","exit":0},"effect":"eval"}',
+        '{"success":true,"result":{"stdout":"wrote /tmp/pwn-eval-hosts.json","exit":0},"effect":"write"}'
+      ]
+    }
+    base = klass.send(:evidence_prior, **args)
+    mixed = klass.send(:evidence_prior, **args, plan: plan)
+    expect(mixed[:score]).to eq(base[:score])
+  end
+
+  it 'always grades the original request even when a stub compass or TUI plan is supplied' do
+    stub_const('PWN::AI::Agent::Reward::SENTINEL_FILE', File.join(Dir.mktmpdir, 's.json'))
+    allow(PWN::AI::Agent::Reward).to receive(:reflect_available?).and_return(false)
+    klass = PWN::AI::Agent::Reward
+    src = File.read(klass.method(:judge).source_location.first)
+    expect(src).not_to include('llm_judge(request: request, final: final, trace: trace, plan: opts[:plan])')
+    expect(src).not_to include('heuristic_judge(request: request, final: final, trace: trace, plan: opts[:plan])')
+    request = 'using hping3 what live hosts can you find in this subnet and write /tmp/x.json'
+    final = 'Live hosts: 10.1.2.3. Verified. Wrote /tmp/x.json. 4 hosts up. rspec passed.'
+    trace = [
+      '{"success":true,"result":{"stdout":"10.1.2.3 up","exit":0},"effect":"eval"}',
+      '{"success":true,"result":{"stdout":"wrote /tmp/x.json","exit":0},"effect":"write"}'
+    ]
+    a = klass.judge(request: request, final: final, trace: trace, commit: false)
+    b = klass.judge(request: request, final: final, trace: trace, plan: ['Carry out the core work'], commit: false)
+    c = klass.judge(request: request, final: final, trace: trace, plan: ['Enumerate subdomains', 'Compile writeups'], commit: false)
+    expect(a[:score]).to eq(b[:score])
+    expect(b[:score]).to eq(c[:score])
+    expect(a[:score]).to be >= 0.6
+    expect(a[:verdict].to_s).to eq('solved')
+  end
+end

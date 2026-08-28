@@ -81,15 +81,16 @@ module PWN
 
         JUDGE_SYSTEM = <<~SYS
           You are the pwn-ai Outcome Reward Model. Given a USER REQUEST, the
-          agent's FINAL ANSWER, a compressed TOOL TRACE, and optional PLAN
-          COVERAGE, emit ONE line of strict JSON:
+          agent's FINAL ANSWER, and a compressed TOOL TRACE, emit ONE line of
+          strict JSON:
             {"score": <0.0-1.0>, "verdict": "solved|partial|wrong|refused",
              "rationale": "<≤140 chars>", "key_step": <int|-1>}
-          Grade the HUMAN RESULT, not handler success:
+          Grade the HUMAN RESULT against the USER REQUEST only — never a TUI
+          plan, stub outline, or competing compass:
             1.0 = final is usable and complete (every asked point answered with
                   evidence from the trace or a checkable claim).
             0.7 = mostly complete, one missing detail, still usable.
-            0.5 = correct direction but incomplete / truncated / plan open.
+            0.5 = correct direction but incomplete / truncated.
             0.2 = tools ran but the final does not answer the ask.
             0.0 = hallucinated, off-goal, empty, polite non-answer, or refused.
           Ignore {"success":true} as evidence of done. Prefer last tool steps.
@@ -124,8 +125,8 @@ module PWN
           trace   = load_trace(session_id: opts[:session_id]) if trace.empty? && opts[:session_id]
           commit  = opts.key?(:commit) ? opts[:commit] : true
 
-          v = llm_judge(request: request, final: final, trace: trace, plan: opts[:plan])
-          v ||= heuristic_judge(request: request, final: final, trace: trace, plan: opts[:plan])
+          v = llm_judge(request: request, final: final, trace: trace)
+          v ||= heuristic_judge(request: request, final: final, trace: trace)
           # Cheap ORM is the intended source. Heuristic overlap is fallback
           # only — callers (sentinel / Learning.stats / Metrics.effective_rate)
           # weight :llm_orm samples above :heuristic so the haircut tracks
@@ -1075,17 +1076,7 @@ module PWN
           # human got a usable result. Keep the first step for context.
           shown = compact_trace_tail(steps: steps, keep: CHEAP_ORM_TRACE_N)
           trace = shown.each_with_index.map { |s, i| "#{i + 1}. #{s.to_s.gsub(/\s+/, ' ')[0, 220]}" }.join("\n")
-          plan = ''
-          if respond_to?(:plan_coverage)
-            cov = plan_coverage(
-              plan: opts[:plan],
-              final: opts[:final],
-              request: opts[:request],
-              trace: steps
-            )
-            plan = "\nPLAN COVERAGE: #{cov[:covered]}/#{cov[:total]} (#{cov[:tag]}) missing=#{Array(cov[:missing]).first(3).join(' | ')}" if cov && cov[:total].to_i.positive?
-          end
-          req = "USER REQUEST:\n#{opts[:request].to_s[0, 700]}\n\nFINAL ANSWER:\n#{opts[:final].to_s[0, 1_600]}\n\nTOOL TRACE (#{steps.length} steps, showing #{shown.length}):\n#{trace}#{plan}"
+          req = "USER REQUEST:\n#{opts[:request].to_s[0, 700]}\n\nFINAL ANSWER:\n#{opts[:final].to_s[0, 1_600]}\n\nTOOL TRACE (#{steps.length} steps, showing #{shown.length}):\n#{trace}"
           resp = cheap_orm_chat(request: req, system_role_content: JUDGE_SYSTEM)
           parsed = parse_llm_judge(resp: resp)
           return nil if parsed.nil?
@@ -1093,7 +1084,7 @@ module PWN
           # Soft-blend a stronger-than-overlap evidence prior so a noisy
           # cheap ORM cannot peg 0.0/1.0 against an obviously incomplete
           # or obviously complete final.
-          ev = evidence_prior(request: opts[:request], final: opts[:final], trace: steps, plan: opts[:plan])
+          ev = evidence_prior(request: opts[:request], final: opts[:final], trace: steps)
           if ev && ev[:confidence].to_f >= 0.5
             raw = parsed[:score].to_f
             # Sanity bounds only: do not always blend (would fight a good ORM).
@@ -1317,11 +1308,10 @@ module PWN
           polite = final.match?(/\A\s*(sure|happy to help|of course|i can help|how can i|let me know)\b/i) && final.length < 120
           return { score: 0.1, verdict: :partial, rationale: 'polite non-answer', key_step: -1, source: :heuristic } if polite && trace.empty?
 
-          ev = evidence_prior(request: request, final: final, trace: trace, plan: opts[:plan])
+          ev = evidence_prior(request: request, final: final, trace: trace)
           score = ev ? ev[:score].to_f : 0.35
           # Overlap is a small on-topic gate, not the score. The evidence
-          # prior (completeness, plan cover, concrete claims, trace echo)
-          # is the fallback ORM.
+          # prior (completeness, concrete claims, trace echo) is the fallback ORM.
           req_toks = request.downcase.scan(/[a-z0-9_]{3,}/).uniq
           fin_toks = final.downcase.scan(/[a-z0-9_]{3,}/).uniq
           overlap  = req_toks.empty? ? 1.0 : (req_toks & fin_toks).length.to_f / req_toks.length
@@ -1403,8 +1393,6 @@ module PWN
             score += 0.08 if ov >= 0.25
             score -= 0.12 if ov < 0.08 && req_toks.length >= 4
           end
-          cov = plan_coverage(plan: opts[:plan], final: final, request: request, trace: trace) if respond_to?(:plan_coverage)
-          score = ((score * 0.55) + (cov[:score].to_f * 0.45)) if cov && cov[:total].to_i.positive?
           { score: score.round(3).clamp(0.0, 0.9), confidence: 0.62 }
         rescue StandardError
           nil
