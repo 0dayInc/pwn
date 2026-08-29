@@ -142,14 +142,21 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          latest_block = #{self}.get_latest_block
-
-          block_details = #{self}.get_block_details(
-            height: 'required - block height number'
+          # Run get latest block and return its result
+          #{self}.get_latest_block(
+            token: 'optional - API token for higher rate limits'
           )
 
+          # Run get block details and return its result
+          #{self}.get_block_details(
+            height: 'required - block height number',
+            token: 'optional - API token for higher rate limits'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

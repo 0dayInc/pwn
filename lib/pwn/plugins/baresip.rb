@@ -682,26 +682,73 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          baresip_obj = #{self}.start(
-            src_num: 'Optional source phone number displayed',
-            baresip_bin: 'Optional path of baresip binary (Defaults to /usr/bin/baresip)',
-            config_root: 'Optional dir of baresip config (Defaults to ~/.baresip)',
-            session_root: 'Optional dir of baresip session (Defaults to Dir.pwd)',
-            screenlog_path: 'Optional path of screenlog file (Defaults to screenlog.txt)',
-            screen_session: 'Optional name of screen session (Defaults baresip)'
+          # Run start and return its result
+          #{self}.start(
+            src_num: 'optional - Optional source phone number displayed',
+            baresip_bin: 'optional - Optional path of baresip binary (Defaults to /usr/bin/baresip)',
+            config_root: 'optional - Optional dir of baresip config (Defaults to ~/.baresip)',
+            session_root: 'optional - Optional dir of baresip session (Defaults to Dir.pwd)',
+            screenlog_path: 'optional - Optional path of screenlog file (Defaults to screenlog.txt)',
+            screen_session: 'optional - Optional name of screen session (Defaults baresip)'
           )
 
-          cmd_resp = #{self}.baresip_exec(
-            baresip_obj: 'Required - baresip obj returned from #start method',
-            cmd: 'Required - command to send to baresip HTTP daemon'
+          # Run baresip exec and return its result
+          #{self}.baresip_exec(
+            baresip_obj: 'required - baresip obj returned from #start method',
+            cmd: 'required - command to send to baresip HTTP daemon'
           )
 
-          stopped_bool = #{self}.stop(
-            screen_session: 'Required - screen session to stop'
+          # Run stop and return its result
+          #{self}.stop(
+            screen_session: 'required - screen session to stop',
+            baresip_obj: 'optional - baresip obj value consumed by #stop'
           )
 
+          # Run parse target file and return its result
+          #{self}.parse_target_file(
+            target_file: 'required - txt file containing phone numbers to dial',
+            randomize: 'optional - randomize list of phone numbers to dial (Defaults to false)'
+          )
+
+          # Run apply src num rules and return its result
+          #{self}.apply_src_num_rules(
+            target_num: 'required - destination number to derive source number',
+            src_num_rules: 'optional - Comma-delimited list of rules for src_num format (i.e. XXXXXXXXXX, self, same_country, same_area, and/or same_prefix [Defaults to random src_num w/ same length as target_num])',
+            config_root: 'optional - config root value consumed by #apply_src_num_rules'
+          )
+
+          # Run dial target in list and return its result
+          #{self}.dial_target_in_list(
+            baresip_bin: 'optional - baresip bin value consumed by #dial_target_in_list',
+            target_num: 'optional - target num value consumed by #dial_target_in_list',
+            config_root: 'optional - config root value consumed by #dial_target_in_list',
+            session_root: 'optional - session root value consumed by #dial_target_in_list',
+            randomize: 'optional - randomize value consumed by #dial_target_in_list',
+            src_num_rules: 'optional - src num rules value consumed by #dial_target_in_list',
+            seconds_to_record: 'optional - seconds to record value consumed by #dial_target_in_list',
+            sox_bin: 'optional - sox bin value consumed by #dial_target_in_list',
+            speech_to_text: 'optional - speech to text value consumed by #dial_target_in_list'
+          )
+
+          # Run recon and return its result
+          #{self}.recon(
+            baresip_bin: 'optional - baresip bin value consumed by #recon',
+            config_root: 'optional - config root value consumed by #recon',
+            session_root: 'optional - session root value consumed by #recon',
+            target_file: 'optional - target file value consumed by #recon',
+            randomize: 'optional - randomize value consumed by #recon',
+            src_num_rules: 'optional - src num rules value consumed by #recon',
+            max_threads: 'optional - max threads value consumed by #recon',
+            seconds_to_record: 'optional - seconds to record value consumed by #recon',
+            sox_bin: 'optional - sox bin value consumed by #recon',
+            speech_to_text: 'optional - speech to text value consumed by #recon',
+            report_name: 'optional - report name value consumed by #recon'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

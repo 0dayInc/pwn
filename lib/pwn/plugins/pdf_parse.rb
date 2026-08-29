@@ -41,12 +41,15 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          pdf_pages_hash = #{self}.read_text(
-            pdf_path: 'required path to pdf file'
+          # Run read text and return its result
+          #{self}.read_text(
+            pdf_path: 'optional - optional path to dir defaults to .'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -1561,188 +1561,143 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj1 = #{self}.open(
+          # Open a session or connection and return a handle.
+          #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:headless|:rest|:websocket (defaults to :chrome)',
-            proxy: 'optional scheme://proxy_host:port || tor (defaults to nil)',
+            proxy: 'optional - scheme://proxy_host:port || tor (defaults to nil)',
             devtools: 'optional - boolean (defaults to false)'
           )
-          browser = browser_obj1[:browser]
-          puts browser.public_methods
 
-          ********************************************************
-          * DevTools Interaction
-          * All DevTools Commands can be found here:
-          * https://chromedevtools.github.io/devtools-protocol/
-          * Examples
-          devtools = browser_obj1[:devtools]
-          puts devtools.public_methods
-          puts devtools.instance_variables
-          puts devtools.instance_variable_get('@session_id')
-
-          websocket = devtools.instance_variable_get('@ws')
-          puts websocket.public_methods
-          puts websocket.instance_variables
-          puts websocket.instance_variable_get('@messages')
-
-          * Tracing
-          devtools.send_cmd('Tracing.start')
-          devtools.send_cmd('Tracing.requestMemoryDump')
-          devtools.send_cmd('Tracing.end')
-          puts devtools.instance_variable_get('@messages')
-
-          * Network
-          devtools.send_cmd('Network.enable')
-          last_ws_resp = devtools.instance_variable_get('@messages').last if devtools.instance_variable_get('@messages').last['method'] == 'Network.webSocketFrameReceived'
-          puts last_ws_resp
-          devtools.send_cmd('Network.disable')
-
-          * Debugging DOM and Sending JavaScript to Console
-          devtools.send_cmd('Runtime.enable')
-          devtools.send_cmd('Console.enable')
-          devtools.send_cmd('DOM.enable')
-          devtools.send_cmd('Page.enable')
-          devtools.send_cmd('Log.enable')
-          devtools.send_cmd('Debugger.enable')
-          devtools.send_cmd('Debugger.pause')
-          step = 1
-          next_step = 60
-          loop do
-            devtools.send_cmd('Console.clearMessages')
-            devtools.send_cmd('Log.clear')
-            console_events = []
-            browser.driver.on_log_event(:console) { |event| console_events.push(event) }
-
-            devtools.send_cmd('Debugger.stepInto')
-            puts \"Step: \#{step}\"
-
-            this_document = devtools.send_cmd('DOM.getDocument')
-            puts \"This #document:\\n\#{this_document}\\n\\n\\n\"
-
-            console_cmd = {
-              expression: 'for(var pop_var in window) { if (window.hasOwnProperty(pop_var) && window[pop_var] != null) console.log(pop_var + \" = \" + window[pop_var]); }'
-            }
-            puts devtools.send_cmd('Runtime.evaluate', **console_cmd)
-
-            print '-' * 180
-            print \"\\n\"
-            console_events.each do |event|
-              puts event.args
-            end
-            puts \"Console Response Length: \#{console_events.length}\"
-            console_events_digest = OpenSSL::Digest::SHA256.hexdigest(
-              console_events.inspect
-            )
-            puts \"Console Events Array SHA256 Digest: \#{console_events_digest}\"
-            print '-' * 180
-            puts \"\\n\\n\\n\"
-
-            print \"Next Step in \"
-            next_step.downto(1) {|n| print \"\#{n} \"; sleep 1 }
-            puts 'READY!'
-            step += 1
-          end
-
-          devtools.send_cmd('Debugger.disable')
-          devtools.send_cmd('Log.disable')
-          devtools.send_cmd('Page.disable')
-          devtools.send_cmd('DOM.disable')
-          devtools.send_cmd('Console.disable')
-          devtools.send_cmd('Runtime.disable')
-          * End of DevTools Examples
-          ********************************************************
-
-          browser_obj1 = #{self}.dump_links(
-            browser_obj: 'required - browser_obj returned from #open method)'
+          # Run dump links and return its result
+          #{self}.dump_links(
+            browser_obj: 'optional - browser object returned from #open'
           )
 
-          browser_obj1 = #{self}.find_elements_by_text(
-            browser_obj: 'required - browser_obj returned from #open method)',
+          # Run find elements by text and return its result
+          #{self}.find_elements_by_text(
+            browser_obj: 'optional - browser object returned from #open',
             text: 'required - text to search for in the DOM'
           )
 
+          # Run type as human and return its result
           #{self}.type_as_human(
             string: 'required - string to type as human',
             rand_sleep_float: 'optional - float timing in between keypress (defaults to 0.09)'
-          ) {|char| browser_obj1.text_field(name: \"search\").send_keys(char) }
+          )
 
-          console_resp = #{self}.console(
-            browser_obj: 'required - browser_obj returned from #open method)',
+          # Run console and return its result
+          #{self}.console(
+            browser_obj: 'optional - browser object returned from #open',
             js: 'required - JavaScript expression to evaluate',
             return_to: 'optional - return to :console or :stdout (defaults to :console)'
           )
 
-          console_resp = #{self}.view_dom_mutations(
-            browser_obj: 'required - browser_obj returned from #open method)',
+          # Run view dom mutations and return its result
+          #{self}.view_dom_mutations(
+            browser_obj: 'required - browser_obj returned from #open method',
             index: 'optional - index of tab to switch to (defaults to active tab)',
-            target: 'optional - target JavaScript node to observe (defaults to document.body)'
+            target: 'optional - target JavaScript node to observe (defaults to document.body)',
+            observe_clobbering: 'optional - boolean to enable DOM Clobbering detection (defaults to true)',
+            observe_redirects: 'optional - boolean to enable Insecure Redirect detection (defaults to true)',
+            observe_resources: 'optional - boolean to enable resource load monitoring (defaults to true)'
           )
 
-          console_resp = #{self}.hide_dom_mutations(
-            browser_obj: 'required - browser_obj returned from #open method)',
+          # Run hide dom mutations and return its result
+          #{self}.hide_dom_mutations(
+            browser_obj: 'optional - browser object returned from #open',
             index: 'optional - index of tab to switch to (defaults to active tab)'
           )
 
+          # Run update about config and return its result
           #{self}.update_about_config(
-            browser_obj: 'required - browser_obj returned from #open method)',
+            browser_obj: 'optional - browser object returned from #open',
             key: 'required - key to update in about:config',
             value: 'required - value to set for key in about:config'
           )
 
-          tabs = #{self}.list_tabs(
+          # Run list tabs and return its result
+          #{self}.list_tabs(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          tab = #{self}.jmp_tab(
+          # Run jmp tab and return its result
+          #{self}.jmp_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
             index: 'optional - index of tab to switch to (defaults to switching to next tab)',
-            keyword: 'optional - keyword in title or url used to switch tabs (defaults to switching to next tab)',
+            keyword: 'optional - keyword in title or url used to switch tabs (defaults to switching to next tab)'
           )
 
-          tab = #{self}.new_tab(
+          # Run new tab and return its result
+          #{self}.new_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
             url: 'optional - URL to open in new tab'
           )
 
-          tab = #{self}.close_tab(
+          # Run close tab and return its result
+          #{self}.close_tab(
             browser_obj: 'required - browser_obj returned from #open method)',
             index: 'optional - index of tab to close (defaults to closing active tab)',
             keyword: 'optional - keyword in title or url used to close tabs (defaults to closing active tab)'
           )
 
-          current_dom = #{self}.dom(
+          # Run dom and return its result
+          #{self}.dom(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
-          page_state = #{self}.get_page_state(
+          # Run get page state and return its result
+          #{self}.get_page_state(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
+          # Run devtools websocket messages and return its result
+          #{self}.devtools_websocket_messages(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          # Run debugger and return its result
           #{self}.debugger(
             browser_obj: 'required - browser_obj returned from #open method)',
             action: 'optional - action to take :enable|:pause|:resume|:disable (Defaults to :enable)'
           )
 
+          # Run get targets and return its result
+          #{self}.get_targets(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          # Run breakpoint locations and return its result
+          #{self}.breakpoint_locations(
+            browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          # Run step and return its result
           #{self}.step(
             browser_obj: 'required - browser_obj returned from #open method)',
             action: 'optional - action to take :into|:out|:over (Defaults to :into)',
             steps: 'optional - number of steps taken (Defaults to 1)'
           )
 
+          # Run toggle devtools and return its result
           #{self}.toggle_devtools(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
+          # Run jmp devtools panel and return its result
           #{self}.jmp_devtools_panel(
             browser_obj: 'required - browser_obj returned from #open method)',
             panel: 'optional - panel to switch to :elements|:inspector|:console|:debugger|:sources|:network'
           )
 
-          browser_obj1 = #{self}.close(
+          # Close a session previously returned by #open.
+          #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

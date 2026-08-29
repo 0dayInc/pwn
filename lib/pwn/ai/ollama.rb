@@ -675,27 +675,36 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          models = #{self}.get_models
+          # Run get models and return its result
+          #{self}.get_models
 
-          response = #{self}.chat(
+          # Run chat with tools and return its result
+          #{self}.chat_with_tools(
+            messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
+            tools: 'optional - OpenAI tools array [{type:function, function:{...}}]',
+            tool_choice: 'optional - auto | none | {type:function, function:{name:..}}',
+            model: 'optional - overrides PWN::Env[:ai][:ollama][:model]',
+            temp: 'optional - temperature (defaults to PWN::Env[:ai][:ollama][:temp] || 1)',
+            timeout: 'optional - seconds (default 900)',
+            spinner: 'optional - display spinner (default false)'
+          )
+
+          # Run chat and return its result
+          #{self}.chat(
             request: 'required - message to Ollama',
             model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:ollama][:model])',
             temp: 'optional - creative response float (defaults to PWN::Env[:ai][:ollama][:temp])',
             system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:ollama][:system_role_content])',
             response_history: 'optional - pass response back in to have a conversation',
-            speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-            timeout: 'optional - timeout in seconds (defaults to 900)',
+            speak_answer: 'optional - optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
+            timeout: 'optional - optional timeout in seconds (defaults to 900)',
             spinner: 'optional - display spinner (defaults to false)'
           )
 
-          response = #{self}.chat_with_tools(
-            messages: 'required - messages array',
-            tools: 'optional - OpenAI tools array',
-            model: 'optional - overrides PWN::Env[:ai][:ollama][:model]'
-          )
-
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

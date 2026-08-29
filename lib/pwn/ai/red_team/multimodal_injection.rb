@@ -71,7 +71,8 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            red_team_arr = #{self}.scan(
+            # Run scan and return its result
+            #{self}.scan(
               target_engine: 'optional - Symbol - AI engine under test (Defaults to PWN::Env[:ai][:active])',
               target_model: 'optional - String - Specific model on the target engine',
               system_role_content: 'optional - String - System prompt applied to the target for every payload',
@@ -82,8 +83,13 @@ module PWN
               stop_on_severity: 'optional - String - Halt on first finding >= this severity (default CRITICAL)'
             )
 
+            # Used primarily to map OWASP LLM Top-10 categories
+            #{self}.security_references
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

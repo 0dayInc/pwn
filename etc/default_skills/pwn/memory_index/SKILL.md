@@ -43,10 +43,6 @@ PWN::MemoryIndex.available(opts)
 - `help`
 - `available?`
 
-## References
-
-- `references/urls.md` — URLs from source
-
 ## Source
 
 `pwn/memory_index.rb`

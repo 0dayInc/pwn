@@ -139,15 +139,24 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q + GQRX-audio native paths, no external binaries):
+          puts "USAGE:
+            # Run decode and return its result
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path',
+              sample_rate: 'optional - sample rate value consumed by #decode'
             )
 
-            #{self}.decode_string(pattern: '.- -...')
+            # Run decode string and return its result
+            #{self}.decode_string(
+              pattern: 'optional - pattern value consumed by #decode_string'
+            )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

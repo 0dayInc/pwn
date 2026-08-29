@@ -236,15 +236,39 @@ module PWN
         end
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
-            #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
-              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture (≥1.92 Msps)'
+          puts "USAGE:
+            # SSS helper: (m0, m1) pair for a given N_ID_1 per TS 36.211 §6.11.2
+            #{self}.sss_indices(
+              nid1: 'optional - nid1 value consumed by #sss_indices'
             )
 
+            # Length-31 m-sequence x^5+x^2+1, cyclic-shifted by `shift`, as ±1
+            #{self}.mseq(
+              shift: 'optional - shift value consumed by #mseq'
+            )
+
+            # Scrambling sequence c0 (x^5+x^3+1) tied to N_ID_2, ±1
+            #{self}.cseq(
+              nid2: 'optional - nid2 value consumed by #cseq'
+            )
+
+            # Run decode and return its result
+            #{self}.decode(
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              sample_rate: 'optional - sample rate value consumed by #decode',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path'
+            )
+
+            # Run parse line and return its result
+            #{self}.parse_line(
+              line: 'optional - line value consumed by #parse_line'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

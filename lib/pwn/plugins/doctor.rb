@@ -1,0 +1,149 @@
+# frozen_string_literal: true
+
+module PWN
+  module Plugins
+    # Plugin/binary/capability preflight. Plugins declare required_bins /
+    # required_caps; HOST summaries list degraded modules without autoloading
+    # the whole plugin tree.
+    module Doctor
+      class MissingBinary < StandardError; end
+      class MissingCapability < StandardError; end
+
+      PLUGIN_DEPS = {
+        'PWN::Plugins::Radare2' => { bins: %w[r2] },
+        'PWN::Plugins::GDB' => { bins: %w[gdb] },
+        'PWN::Plugins::Nuclei' => { bins: %w[nuclei] },
+        'PWN::Plugins::Sqlmap' => { bins: %w[sqlmap] },
+        'PWN::Plugins::Frida' => { bins: %w[frida] },
+        'PWN::Plugins::AFLplusplus' => { bins: %w[afl-fuzz] },
+        'PWN::Plugins::Volatility' => { bins: %w[vol] },
+        'PWN::Plugins::NmapIt' => { bins: %w[nmap] },
+        'PWN::Plugins::Metasploit' => { bins: %w[msfconsole] },
+        'PWN::Plugins::BurpSuite' => { bins: %w[burpsuite] },
+        'PWN::Plugins::Zaproxy' => { bins: %w[zaproxy] },
+        'PWN::Plugins::Packet' => { bins: [], caps: %w[CAP_NET_RAW] }
+      }.freeze
+
+      public_class_method def self.required_bins
+        []
+      end
+
+      public_class_method def self.bin?(opts = {})
+        name = opts[:name].to_s
+        return false if name.empty?
+
+        ENV['PATH'].to_s.split(File::PATH_SEPARATOR).any? do |dir|
+          File.executable?(File.join(dir, name))
+        end
+      end
+
+      public_class_method def self.require_bin!(opts = {})
+        name = opts[:name].to_s
+        return true if bin?(name: name)
+
+        raise MissingBinary, "ERROR: required binary missing: #{name}. Install via pwn setup --profile re (or the plugin profile)."
+      end
+
+      public_class_method def self.cap_net_raw?(opts = {})
+        return true unless File.readable?('/proc/self/status')
+
+        line = File.readlines('/proc/self/status').find { |l| l.start_with?('CapEff:') }
+        return false unless line
+
+        hex = line.split.last.to_s
+        hex.to_i(16).anybits?(1 << 13)
+      rescue StandardError
+        opts[:default] == true
+      end
+
+      public_class_method def self.require_cap_net_raw!(opts = {})
+        return true if cap_net_raw?(opts)
+
+        raise MissingCapability,
+              'ERROR: CAP_NET_RAW is missing. Packet.send cannot inject L2 frames. ' \
+              'Hint: sudo setcap cap_net_raw,cap_net_admin+ep "$(readlink -f "$(command -v ruby)")" ' \
+              'or run as root. Fallback: PWN::Plugins::Sock.connect (no raw).'
+      end
+
+      public_class_method def self.check(opts = {})
+        deps = PLUGIN_DEPS
+        if opts[:names]
+          want = Array(opts[:names]).map(&:to_s)
+          deps = deps.slice(*want)
+        end
+        deps.map do |plugin, dep|
+          bins = Array(dep[:bins])
+          caps = Array(dep[:caps])
+          missing_bins = bins.reject { |b| bin?(name: b) }
+          missing_caps = []
+          missing_caps << 'CAP_NET_RAW' if caps.include?('CAP_NET_RAW') && !cap_net_raw?
+          status = if missing_bins.empty? && missing_caps.empty?
+                     :ok
+                   elsif bins.any? && missing_bins.length == bins.length
+                     :dead
+                   else
+                     :degraded
+                   end
+          { plugin: plugin, status: status, missing_bins: missing_bins, missing_caps: missing_caps }
+        end
+      end
+
+      public_class_method def self.host_summary(opts = {})
+        rows = check(names: opts[:names])
+        cap = (opts[:limit] || 12).to_i
+        dead = rows.select { |r| r[:status] == :dead }
+        degraded = rows.select { |r| r[:status] == :degraded }
+        lines = ["HOST plugins ok=#{rows.count { |r| r[:status] == :ok }} degraded=#{degraded.length} dead=#{dead.length}"]
+        (degraded + dead).first(cap).each do |r|
+          miss = (r[:missing_bins] + r[:missing_caps]).join(',')
+          lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}"
+        end
+        lines.join("\n")
+      end
+
+      public_class_method def self.authors
+        "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+      end
+
+      public_class_method def self.help
+        puts "USAGE:
+          # List host binaries this module expects to be installed.
+          #{self}.required_bins
+
+          # Run bin and return its result
+          #{self}.bin?(
+            name: 'required - binary or identifier name'
+          )
+
+          # Run require bin and return its result
+          #{self}.require_bin!(
+            name: 'required - binary or identifier name'
+          )
+
+          # Run cap net raw and return its result
+          #{self}.cap_net_raw?(
+            default: 'optional - default value consumed by #cap_net_raw?'
+          )
+
+          # Run require cap net raw and return its result
+          #{self}.require_cap_net_raw!
+
+          # Run check and return its result
+          #{self}.check(
+            names: 'optional - Array names value consumed by #check'
+          )
+
+          # Run host summary and return its result
+          #{self}.host_summary(
+            names: 'optional - names value consumed by #host_summary',
+            limit: 'optional - limit value consumed by #host_summary'
+          )
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
+        constants.sort
+      end
+    end
+  end
+end

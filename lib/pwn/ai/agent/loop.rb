@@ -3071,52 +3071,59 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              final = PWN::AI::Agent::Loop.run(
-                request: 'what does `id` return on this host?',
-                session_id: PWN::Sessions.create[:id],
-                enabled_toolsets: %w[terminal pwn memory skills],
-                on_tool: ->(name, args, result) { puts "→ \#{name}: \#{result[0,1_024]}" },
-                system_role_content: 'You are a helpful assistant that can call tools to answer questions.'
-              )
-              # Live task summaries (default ON): BEFORE each tool *collection*,
-              # on_tool('task', high_level_brief, '') — one-to-many with real tools.
-              # Task lines never carry a result payload (no result row in the TUI).
-              # so repl.rb prints name=task with arg_preview=summary. Also coalesce bursts into
-              # via on_tool only: [ ts → pwn-ai → task ] <brief> (no [pwn-ai/task] prefix)
-              # Toggle via PWN::Env[:ai][:agent]:
-              #   task_summary: true|false
-              #   task_summary_every: 5          # emit every N tools
-              #   task_summary_interval_s: 8.0   # or every N seconds
-              #   task_summary_verbose: false
+          puts "USAGE:
+            # Run debug on and return its result
+            #{self}.debug_on?(
+              debug: 'optional - debug value consumed by #debug_on?'
+            )
 
-              Supported engines: #{ENGINE_MODS.keys.join(', ')}
-              Set PWN::Env[:ai][:active] to choose.
+            # True only when the ask needs a live host/file/browser effect. World-knowledge
+            #{self}.catalog_lookup?(
+              request: 'required - request value consumed by #catalog_lookup?'
+            )
 
-              Intent routing (all engines; critical for ollama/openwebui):
-                how-to / usage questions → text-only explanation (no tools, no plan_first)
-                pure prior-turn recall ("what did I just say?") → answer_recall (no tools)
-                pure greeting / light smalltalk → answer_greeting (no tools, no weather echo)
-                live sweeps are host-work goals like any other — pwn-ai does not
-                decide authorization
-              Local-model scaffolding (PWN::Env[:ai][:agent]):
-                :plan_first          - Boolean, plan-then-act pre-pass (default: local engine :ollama/:openwebui)
-                :tool_router         - Boolean/nil, slim Registry.definitions (nil=auto on for ollama)
-                :escalation_persona  - Swarm persona name for frontier corrective hints when stuck
-                :critic              - S3 constitutional critic before every final (Boolean)
-                :red_team_plan       - S4 adversarial plan review after plan_first (Boolean)
-                :counterfactual      - S2 A/B branch on REPEAT_THRESHOLD → DPO pair (Boolean)
-                :hindsight           - C3 HER-relabel failures (Boolean, default true)
-                :policy              - R5 live tabular Q / REINFORCE (Boolean, default true; advisory only)
-                :verify_as_reward    - E3 ground every final via extro_verify (Boolean)
+            # Run world knowledge and return its result
+            #{self}.world_knowledge?(
+              request: 'required - request value consumed by #world_knowledge?'
+            )
 
-              P28 autonomy: incomplete-final detector refuses mid-goal handoffs.
-              Loop.run keeps CORE_TOOLS until may_finalize? — there is no
-              iteration-budget abort.
+            # Run needs host work and return its result
+            #{self}.needs_host_work?(
+              request: 'required - request value consumed by #needs_host_work?'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run ollama wire messages and return its result
+            #{self}.ollama_wire_messages(
+              messages: 'required - in-memory OpenAI-ish messages (may have String args)'
+            )
+
+            # Run openai wire messages and return its result
+            #{self}.openai_wire_messages(
+              messages: 'required - in-memory OpenAI-ish messages (may have Hash args / internal keys)'
+            )
+
+            # Run request intent and return its result
+            #{self}.request_intent(
+              request: 'optional - request value consumed by #request_intent'
+            )
+
+            # Run run and return its result
+            #{self}.run(
+              request: 'required - what the human typed',
+              session_id: 'optional - PWN::Sessions id (transcript is appended to it)',
+              enabled_toolsets: 'optional - subset of Registry.toolsets, or nil for all',
+              on_tool: 'optional - ->(name, args, result) callback for live UI',
+              system_role_content: 'optional - override default system prompt (built from session_id if not provided)',
+              debug: 'optional - debug value consumed by #run',
+              from: 'optional - sender account or address to bind as operator',
+              account: 'optional - operator account id to bind',
+              force_tools: 'optional - force tools value consumed by #run'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

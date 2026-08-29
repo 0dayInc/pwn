@@ -1050,39 +1050,105 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
+        # Run env template and return its result
+        #{self}.env_template
+
+        # Run default env and return its result
         #{self}.default_env(
           pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
         )
 
+        # Run redact sensitive artifacts and return its result
         #{self}.redact_sensitive_artifacts(
           config: 'optional - Hash to redact sensitive artifacts from.  Defaults to PWN::Env'
         )
 
-        #{self}.pwn_skills_path
+        # Run init driver options and return its result
+        #{self}.init_driver_options
 
-        #{self}.sanitize_skill_name(name: '...')
-
-        #{self}.write_skill(
-          name: 'required', content: 'required',
-          description: 'optional', references: 'optional Array',
-          license: 'optional', metadata: 'optional Hash',
-          allowed_tools: 'optional Array', pwn_skills_path: 'optional'
-        )
-
-        #{self}.load_skills(pwn_skills_path: 'optional')
-
-        #{self}.migrate_legacy_skills(pwn_skills_path: 'optional', delete_legacy: true)
-
-        #{self}.install_default_skills(pwn_skills_path: 'optional')
-        #{self}.default_skill_names
-
+        # Run refresh env and return its result
         #{self}.refresh_env(
-          pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml',
-        pwn_dec_path: 'optional - Path to pwn.yaml.decryptor file.  Defaults to ~/.pwn/pwn.yaml.decryptor'
+          pwn_env_path: 'required - pwn env path value consumed by #refresh_env',
+          pwn_dec_path: 'required - pwn dec path value consumed by #refresh_env',
+          key: 'optional - key value consumed by #refresh_env',
+          iv: 'optional - iv value consumed by #refresh_env'
         )
 
+        # Run pwn skills path and return its result
+        #{self}.pwn_skills_path(
+          pwn_env_path: 'optional - Path to pwn.yaml file.  Defaults to ~/.pwn/pwn.yaml'
+        )
+
+        # Run sanitize skill name and return its result
+        #{self}.sanitize_skill_name(
+          name: 'required - binary or identifier name'
+        )
+
+        # Run parse skill frontmatter and return its result
+        #{self}.parse_skill_frontmatter(
+          content: 'optional - content value consumed by #parse_skill_frontmatter'
+        )
+
+        # Run parse skill references and return its result
+        #{self}.parse_skill_references(
+          content: 'optional - content value consumed by #parse_skill_references'
+        )
+
+        # Run write skill and return its result
+        #{self}.write_skill(
+          name: 'required - free-form; sanitised to [a-z0-9-]',
+          content: 'required - markdown body (WITHOUT frontmatter)',
+          description: 'optional - 1..1024 chars; derived from body when omitted',
+          references: 'optional - Array of URLs / CWE / CVE / ATT&CK / NIST ids',
+          license: 'optional - SPDX id or free text',
+          metadata: 'optional - Hash of arbitrary metadata',
+          allowed_tools: 'optional - Array of toolset names',
+          pwn_skills_path: 'optional - override skills root (defaults to pwn_skills_path)'
+        )
+
+        # Run migrate legacy skills and return its result
+        #{self}.migrate_legacy_skills(
+          pwn_skills_path: 'optional - override skills root (defaults to pwn_skills_path)',
+          delete_legacy: 'optional - remove flat file after migration (default true)'
+        )
+
+        # Run default skill names and return its result
+        #{self}.default_skill_names(
+          source: 'optional - source value consumed by #default_skill_names',
+          root: 'optional - root value consumed by #default_skill_names'
+        )
+
+        # Run default skills dir and return its result
+        #{self}.default_skills_dir
+
+        # Seed bundled skills into ~/.pwn/skills (or pwn_skills_path:)
+        #{self}.install_default_skills(
+          pwn_skills_path: 'optional - pwn skills path value consumed by #install_default_skills',
+          source: 'optional - source value consumed by #install_default_skills'
+        )
+
+        # Run load skills and return its result
+        #{self}.load_skills(
+          pwn_skills_path: 'optional - Path to skills folder.  Defaults to ~/.pwn/skills',
+          references: 'optional - frontmatter:, loaded:?, error:? }'
+        )
+
+        # Run pwn memory path and return its result
+        #{self}.pwn_memory_path
+
+        # Run load memory and return its result
+        #{self}.load_memory
+
+        # Run pwn sessions path and return its result
+        #{self}.pwn_sessions_path
+
+        # Run pwn cron path and return its result
+        #{self}.pwn_cron_path
+
+        # Print the AUTHOR(S) string for this module.
         #{self}.authors
       "
+      constants.sort
     end
   end
 end

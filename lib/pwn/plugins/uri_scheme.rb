@@ -318,10 +318,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          uri_scheme_arr = #{self}.list_all_known
+          # Run list all known and return its result
+          #{self}.list_all_known
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

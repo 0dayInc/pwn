@@ -172,10 +172,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run pry and return its result
           #{self}.pry
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

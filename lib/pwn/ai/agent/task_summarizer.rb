@@ -1808,42 +1808,171 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              state = PWN::AI::Agent::TaskSummarizer.fresh(request: 'ship task briefs to execs')
-              plan = PWN::AI::Agent::TaskSummarizer.plan(request: state[:request], state: state)
-              text = PWN::AI::Agent::TaskSummarizer.emit_plan!(state: state)
-              # → "Goal: ...\nTangible tasks (N) — each may use many tools:\n  task 1/N: ...\n  task 2/N: ..."
-              # UI: on_tool.call('task', text, '')  # full text, no truncation
-              # One task brief for a whole tool collection (one-to-many):
-              pre = PWN::AI::Agent::TaskSummarizer.about_to(
-                tools: [{ name: 'shell' }, { name: 'pwn_eval' }],
-                state: state
-              )
-              # → "task k/N: <english> — via shell, pwn_eval (search+eval-ruby)"
-              ctx = PWN::AI::Agent::TaskSummarizer.plan_context(state: state)
-              focus = PWN::AI::Agent::TaskSummarizer.active_task_prompt(state: state)
-              # then real tools print on their own lines; record! stays silent by default
-              PWN::AI::Agent::TaskSummarizer.record!(
-                state: state,
-                name: 'shell',
-                args: 'ls',
-                result: '{success:true}'
-              )
-              line = PWN::AI::Agent::TaskSummarizer.flush!(state: state)  # optional closing brief
-              PWN::AI::Agent::TaskSummarizer.enabled?
-              PWN::AI::Agent::TaskSummarizer.verbose?
-              PWN::AI::Agent::TaskSummarizer.llm_plan_enabled?
-              PWN::AI::Agent::TaskSummarizer.unify_plan!(state: state, outline: plan_text)
-              PWN::AI::Agent::TaskSummarizer.tool_jargon_task?(item: '`shell`')
-              PWN::AI::Agent::TaskSummarizer.relevance_query(state: state, request: state[:request])
-              PWN::AI::Agent::TaskSummarizer.apply_prm_advancement!(state: state, rewards: [1, 1], intents: ['search'])
-              PWN::AI::Agent::TaskSummarizer.parse_outline_tasks(outline: plan_text)
-              PWN::AI::Agent::TaskSummarizer.every_n
-              PWN::AI::Agent::TaskSummarizer.interval_s
+          puts "USAGE:
+            # Run enabled and return its result
+            #{self}.enabled?
 
-              #{self}.authors
-          USAGE
+            # Run verbose and return its result
+            #{self}.verbose?
+
+            # LLM plan generation is on by default. Set
+            #{self}.llm_plan_enabled?
+
+            # Run every n and return its result
+            #{self}.every_n
+
+            # Run interval s and return its result
+            #{self}.interval_s
+
+            # Per-run state (also safe for nested/swarm if callers keep their own hash)
+            #{self}.fresh(
+              request: 'optional - original user goal string'
+            )
+
+            # Every request gets a task compass. There is no request type
+            #{self}.needs_task_breakdown?
+
+            # Request → ordered tangible tasks (each may map to many tools)
+            #{self}.plan(
+              request: 'required - user goal string',
+              state: 'optional - fresh() hash to mutate',
+              tasks: 'optional - Array injected plan array (tests)',
+              llm_tasks: 'optional - injected LLM task array (tests)'
+            )
+
+            # Format the full plan as the task-summary body (shown in entirety)
+            #{self}.format_plan(
+              tasks: 'required - Array of task strings',
+              request: 'optional - goal string'
+            )
+
+            # Run emit plan and return its result
+            #{self}.emit_plan!(
+              state: 'required - state value consumed by #emit_plan!',
+              request: 'required - request value consumed by #emit_plan!'
+            )
+
+            # Prefer Reflect when module_reflection is on (teacher engine / gated)
+            #{self}.chat_for_plan(
+              request: 'required - user goal to decompose'
+            )
+
+            # Parse JSON array, fenced JSON, or numbered/bulleted plain text
+            #{self}.parse_llm_tasks(
+              raw: 'required - raw LLM response text'
+            )
+
+            # Thin offline fallback when the LLM is disabled or unavailable
+            #{self}.fallback_decompose(
+              goal: 'required - user goal string'
+            )
+
+            # Back-compat alias used by older call sites / specs
+            #{self}.heuristic_decompose(
+              goal: 'required - user goal string'
+            )
+
+            # High-level brief for a collection of impending tool calls
+            #{self}.about_to(
+              tools: 'optional - array of {name:, args:} or bare names',
+              name: 'optional - single tool name (legacy one-tool path)',
+              args: 'optional - single tool args (ignored for brief content)',
+              request: 'optional - goal text',
+              state: 'optional - fresh() hash'
+            )
+
+            # Active plain-English plan item (and index/n) for Loop / model steering
+            #{self}.active_task(
+              state: 'required - fresh() hash',
+              messages: 'optional - messages value consumed by #active_task'
+            )
+
+            # Remaining English work units that lack tool-result evidence
+            #{self}.unfinished_tasks(
+              state: 'required - fresh() hash',
+              messages: 'optional - Loop message array for extra coverage'
+            )
+
+            # True while a multi-step English plan still has uncovered work
+            #{self}.plan_open?(
+              state: 'required - fresh() hash',
+              messages: 'optional - Loop message array'
+            )
+
+            # Short block for engine messages: full plan + focus on active English task
+            #{self}.plan_context(
+              state: 'required - fresh() hash'
+            )
+
+            # Build a Registry/tool-router relevance string from English tasks
+            #{self}.relevance_query(
+              state: 'optional - fresh() hash',
+              request: 'optional - original user goal fallback'
+            )
+
+            # Inject / refresh the active-task focus into Loop messages when plan_idx changes
+            #{self}.active_task_prompt(
+              state: 'required - fresh() hash',
+              force: 'optional - Boolean re-emit even if idx unchanged',
+              messages: 'optional - messages value consumed by #active_task_prompt',
+              request: 'optional - request value consumed by #active_task_prompt'
+            )
+
+            # Pull the operators original ask out of curriculum / critic / GOAL+PLAN
+            #{self}.canonical_request(
+              request: 'required - raw user or wrapper string'
+            )
+
+            # True when a candidate plan item is tool jargon (e.g. `shell`,
+            #{self}.tool_jargon_task?(
+              item: 'required - candidate task string'
+            )
+
+            # Parse a plan_first / red_team surviving outline into tangible tasks
+            #{self}.parse_outline_tasks(
+              outline: 'required - free-text plan outline'
+            )
+
+            # After S4 red_team / plan_first: optionally rewrite ts_state[:plan]
+            #{self}.unify_plan!(
+              state: 'required - fresh() hash',
+              outline: 'required - plan_first text and/or red_team hint',
+              source: 'optional - :plan_first|:red_team|:merged (default :merged)'
+            )
+
+            # Advance or hold plan_idx from an R2 step batch
+            #{self}.apply_prm_advancement!(
+              state: 'required - fresh() hash',
+              rewards: 'required - Array of -1|0|1 (batch order)',
+              intents: 'optional - Array of intent verb strings for the batch',
+              names: 'optional - Array tool names in the batch',
+              result: 'optional - latest tool result string',
+              mistake: 'optional - truthy when a mistake fingerprint hit this batch'
+            )
+
+            # Record a completed tool. Does NOT emit task lines with results
+            #{self}.record!(
+              state: 'required - fresh() hash',
+              name: 'required - tool name',
+              args: 'optional - tool args',
+              result: 'optional - tool result string'
+            )
+
+            # Optional progress / done line (verbose or flush). Still plain English;
+            #{self}.emit!(
+              state: 'required - fresh() hash',
+              final: 'optional - Boolean closing brief (default: false)'
+            )
+
+            # Run flush and return its result
+            #{self}.flush!(
+              state: 'required - fresh() hash'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

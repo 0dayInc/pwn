@@ -658,63 +658,72 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          response = #{self}.get_apps(
+          # Run get apps and return its result
+          #{self}.get_apps(
             token: 'required - Bearer token'
           )
 
-          response = PWN::Plugins::BlackDuckBinaryAnalysis.upload_file(
+          # Run get apps by group and return its result
+          #{self}.get_apps_by_group(
+            token: 'required - Bearer token',
+            group_id: 'required - group id value consumed by #get_apps_by_group'
+          )
+
+          # Run upload file and return its result
+          #{self}.upload_file(
             token: 'required - Bearer token',
             file: 'required - path of file to upload',
-            group_id: 'optional - group id',
+            group_id: 'optional - group id value consumed by #upload_file',
             delete_binary: 'optional - delete binary after upload (defaults to false)',
             force_scan: 'optional - force scan (defaults to false)',
-            callback_url: 'optional - callback url',
+            callback_url: 'optional - callback url value consumed by #upload_file',
             scan_infoleak: 'optional - scan infoleak (defaults to true)',
             code_analysis: 'optional - code analysis (defaults to true)',
-            scan_code_familiarity: 'optional - scan code familiarity (defaults to true)',
-            version: 'optional - version',
-            product_id: 'optional - product id'
+            scan_code_familiarity: 'optional - scan code familiarity (defaults to false)',
+            version: 'optional - version value consumed by #upload_file',
+            product_id: 'optional - product id value consumed by #upload_file'
           )
 
-          response = #{self}.get_product(
+          # Run get product and return its result
+          #{self}.get_product(
             token: 'required - Bearer token',
-            product_id: 'required - product id'
+            product_id: 'required - product id value consumed by #get_product'
           )
 
-          response = #{self}.abort_product_scan(
+          # Run abort product scan and return its result
+          #{self}.abort_product_scan(
             token: 'required - Bearer token',
-            product_id: 'required - product id'
+            product_id: 'required - product id value consumed by #abort_product_scan'
           )
 
-          response = #{self}.generate_product_report(
+          # Run generate product report and return its result
+          #{self}.generate_product_report(
             token: 'required - Bearer token',
-            product_id: 'required - product id',
+            product_id: 'required - product id value consumed by #generate_product_report',
             output_path: 'required - path to output file',
             type: 'optional - report type csv_libs||csv_vulns|pdf|spdx (Defaults to csv_vulns)'
           )
 
-          response = #{self}.get_tasks(
+          # Run get tasks and return its result
+          #{self}.get_tasks(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_apps_by_group(
-            token: 'required - Bearer token',
-            group_id: 'required - group id'
-          )
-
-          response = #{self}.get_groups(
+          # Run get groups and return its result
+          #{self}.get_groups(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.create_group(
+          # Run create group and return its result
+          #{self}.create_group(
             token: 'required - Bearer token',
             name: 'required - group name',
             desc: 'optional - group description',
-            parent_id: 'optional - parent_id group id',
+            parent_id: 'optional - parent group id',
             delete_binary: 'optional - delete binary after analysis C|Y|N (Default: C== company default)',
             binary_cleanup_age: 'optional - after how long the binary will be deleted in seconds (Default: 2_592_000 / 30 days)',
             product_cleanup_age: 'optional - after how long the product will be deleted in seconds (Default: 2_592_000 / 30 days)',
-            file_download_enabled: 'optional - allow download of uploaded binaries from group (Default: false),
+            file_download_enabled: 'optional - allow download of uploaded binaries from group (Default: false',
             low_risk_tolerance: 'optional - low risk tolerance nil|true|false (Default: nil == company default)',
             include_historical_vulns: 'optional - include historical vulns nil|true|false (Default: nil == company default)',
             cvss3_fallback: 'optional - cvss3 fallback nil|true|false (Default: nil == company default)',
@@ -725,63 +734,78 @@ module PWN
             scan_code_similarity: 'optional - scan code similarity nil|true|false (Default: nil == company default)'
           )
 
-          response = #{self}.get_group_details(
+          # Run get group details and return its result
+          #{self}.get_group_details(
             token: 'required - Bearer token',
-            group_id: 'required - group id'
+            group_id: 'required - group id value consumed by #get_group_details'
           )
 
-          response = #{self}.get_group_statistics(
+          # Run get group statistics and return its result
+          #{self}.get_group_statistics(
             token: 'required - Bearer token',
-            group_id: 'required - group id'
+            group_id: 'required - group id value consumed by #get_group_statistics'
           )
 
-          response = #{self}.delete_group(
+          # Run delete group and return its result
+          #{self}.delete_group(
             token: 'required - Bearer token',
-            group_id: 'required - group id'
+            group_id: 'required - group id value consumed by #delete_group'
           )
 
-          response = #{self}.get_licenses(
+          # Run get licenses and return its result
+          #{self}.get_licenses(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_component_licenses(
+          # Run get component licenses and return its result
+          #{self}.get_component_licenses(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_tags(
+          # Run get tags and return its result
+          #{self}.get_tags(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_vulnerabilities(
+          # Run get vulnerabilities and return its result
+          #{self}.get_vulnerabilities(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_components(
+          # Run get components and return its result
+          #{self}.get_components(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_vendor_vulns(
+          # Run get vendor vulns and return its result
+          #{self}.get_vendor_vulns(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_audit_trail(
+          # Run get audit trail and return its result
+          #{self}.get_audit_trail(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_status(
+          # Run get status and return its result
+          #{self}.get_status(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_service_info(
+          # Run get service info and return its result
+          #{self}.get_service_info(
             token: 'required - Bearer token'
           )
 
-          response = #{self}.get_service_version(
+          # Run get service version and return its result
+          #{self}.get_service_version(
             token: 'required - Bearer token'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

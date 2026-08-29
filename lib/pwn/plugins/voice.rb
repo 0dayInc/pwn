@@ -119,26 +119,31 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run mutate and return its result
           #{self}.mutate(
             sox_path: 'optional - path to sox application (defaults to /usr/bin/sox)',
             pitch: 'optional - integer to alter voice input (defaults to -300)'
           )
 
-          response = #{self}.speech_to_text(
+          # Run speech to text and return its result
+          #{self}.speech_to_text(
             audio_file_path: 'required - path to audio file',
             whisper_path: 'optional - path to OpenAI whisper application (defaults to /usr/local/bin/whisper)',
             model: 'optional - transcribe model to use (defaults to tiny)',
             output_dir: 'optional - directory to output results (defaults to .)'
           )
 
+          # Run text to speech and return its result
           #{self}.text_to_speech(
             text_path: 'required - path to text file to speak',
             festival_path: 'optional - path to festival (defaults to /usr/bin/festival)',
-            voice: 'optional - voice to use (defaults to cmu_us_slt_arctic_hts)',
+            voice: 'optional - voice to use (defaults to cmu_us_slt_arctic_hts)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

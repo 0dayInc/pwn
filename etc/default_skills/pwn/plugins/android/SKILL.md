@@ -49,6 +49,7 @@ PWN::Plugins::Android.adb_net_connect(opts)
 - `close_app`
 - `invoke_event_listener`
 - `adb_net_disconnect`
+- `apk_pipeline`
 - `authors`
 - `help`
 

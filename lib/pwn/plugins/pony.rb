@@ -276,9 +276,94 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          This module is deprecated.  Please Use PWN::Plugins::MailAgent instead.
+          # Default options can be set so that they dont have to be repeated
+          #{self}.options
+
+          # Method usage N/A
+          #{self}.options
+
+          # Method usage N/A
+          #{self}.override_options
+
+          # Method usage N/A
+          #{self}.override_options
+
+          # Method usage N/A
+          #{self}.subject_prefix(
+            value: 'optional - integer or string to pack/encode'
+          )
+
+          # Method usage N/A
+          #{self}.append_inputs
+
+          # Send an email
+          #{self}.mail(
+            body: 'optional - body value consumed by #mail',
+            subject: 'optional - subject value consumed by #mail',
+            to: 'required - to value consumed by #mail',
+            via: 'optional - via value consumed by #mail',
+            via_options: 'optional - via options value consumed by #mail'
+          )
+
+          # Method usage N/A
+          #{self}.permissable_options
+
+          # Method usage N/A
+          #{self}.default_delivery_method
+
+          # Method usage N/A
+          #{self}.standard_options
+
+          # Method usage N/A
+          #{self}.non_standard_options
+
+          # Method usage N/A
+          #{self}.build_mail(
+            date: 'optional - date value consumed by #build_mail',
+            from: 'optional - sender account or address to bind as operator',
+            via_options: 'optional - via options value consumed by #build_mail',
+            attachments: 'optional - attachments value consumed by #build_mail',
+            html_body: 'optional - html body value consumed by #build_mail (defaults to opts[:attachments])',
+            body: 'optional - body value consumed by #build_mail',
+            via: 'optional - via value consumed by #build_mail',
+            headers: 'optional - headers value consumed by #build_mail',
+            charset: 'optional - charset value consumed by #build_mail',
+            text_part_charset: 'optional - text part charset value consumed by #build_mail',
+            content_type: 'optional - content type value consumed by #build_mail'
+          )
+
+          # Method usage N/A
+          #{self}.build_html_part(
+            html_body: 'optional - html body value consumed by #build_html_part',
+            html_body_part_header: 'optional - html body part header value consumed by #build_html_part'
+          )
+
+          # Method usage N/A
+          #{self}.build_text_part(
+            charset: 'optional - charset value consumed by #build_text_part',
+            body: 'optional - body value consumed by #build_text_part',
+            body_part_header: 'optional - body part header value consumed by #build_text_part'
+          )
+
+          # Method usage N/A
+          #{self}.set_content_type(
+            mail: 'optional - mail value consumed by #set_content_type',
+            user_content_type: 'optional - user content type value consumed by #set_content_type'
+          )
+
+          # Method usage N/A
+          #{self}.add_attachments(
+            mail: 'optional - mail value consumed by #add_attachments',
+            attachments: 'optional - attachments value consumed by #add_attachments'
+          )
+
+          # Method usage N/A
+          #{self}.sendmail_binary
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

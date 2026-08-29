@@ -142,18 +142,21 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          search_results = #{self}.query(
-            api_key: 'required hunter api key',
+          # Run a search using the open session.
+          #{self}.search(
+            api_key: 'required - required hunter api key',
             query: 'required - hunter search query',
             start_time: 'required - start date for the search (format is yyyy-mm-dd)',
             end_time: 'required - end date for the search (format is yyyy-mm-dd)',
             start_page: 'optional - starting page number for pagination (default is 1)',
             page_size: 'optional - number of results per page (default is 10)',
-            fields: 'optional - comma-separated list of fields 'product,transport_protocol,protocol,banner,country,province,city,asn,org,web,updated_at' (default is nil)'
+            fields: 'optional - comma-separated list of fields product,transport_protocol,protocol,banner,country,province,city,asn,org,web,updated_at (default is nil)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -99,29 +99,36 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run connect via screen and return its result
           #{self}.connect_via_screen(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)'
+            block_dev: 'optional - serial block device path (defaults to /dev/ttyACM0)'
           )
 
-          flipper_zero_obj = #{self}.connect(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
-            baud: 'optional (defaults to 9600)',
-            data_bits: 'optional (defaults to 8)',
-            stop_bits: 'optional (defaults to 1)',
-            parity: 'optional - :even||:odd|:none (defaults to :none)'
+          # Run connect and return its result
+          #{self}.connect(
+            block_dev: 'optional - optional serial block device path (defaults to /dev/ttyACM0)',
+            baud: 'optional - optional (defaults to 9600)',
+            data_bits: 'optional - optional (defaults to 8)',
+            stop_bits: 'optional - optional (defaults to 1)',
+            parity: 'optional - :even||:odd|:none (defaults to :none)',
+            flipper_zero_obj: 'optional - flipper zero obj value consumed by #connect'
           )
 
-          response = #{self}.request(
+          # Run request and return its result
+          #{self}.request(
             flipper_zero_obj: 'required - flipper_zero_obj returned from #connect method',
-            payload: 'required - payload to send to the device'
-          );
+            payload: 'optional - payload to send to the device (defaults to help)'
+          )
 
+          # Run disconnect and return its result
           #{self}.disconnect(
             flipper_zero_obj: 'required - flipper_zero_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -127,52 +127,32 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.port_scan do |nmap|
-            puts nmap.public_methods
-            nmap.connect_scan = true
-            nmap.service_scan = true
-            nmap.verbose = true
-            nmap.ports = [1..1024,1337]
-            nmap.targets = '127.0.0.1'
-            nmap.xml = '/tmp/nmap_port_scan_res.xml'
-          end
-
+          # nmap.connect_scan = true
           #{self}.port_scan(
-            targets: '127.0.0.1',
-            ports: '1-65535',
-            connect_scan: true,
-            service_scan: true,
-            script: 'vuln,safe',
-            xml: '/tmp/nmap_port_scan_res.xml'
+            targets: 'optional - hostname, IP, CIDR, or list of targets',
+            ports: 'optional - port, list, or range (e.g. 22,80,443 or 1-1024)',
+            connect_scan: 'optional - connect scan value consumed by #port_scan',
+            service_scan: 'optional - service scan value consumed by #port_scan',
+            script: 'optional - script value consumed by #port_scan',
+            xml: 'optional - /tmp/nmap_port_scan_res.xml'
           )
 
-          #{self}.parse_xml_results(:xml_file => 'required - path to nmap xml results') do |xml|
-            xml.each_host do |host|
-              puts host.ip
+          # xml.each_host do |host|
+          #{self}.parse_xml_results(
+            xml_file: 'optional - xml file value consumed by #parse_xml_results'
+          )
 
-              host.scripts.each do |name,output|
-                output.each_line { |line| puts line }
-              end
-
-              host.each_port do |port|
-                puts port
-
-                port.scripts.each do |name,output|
-                  puts name
-                  output.each_line { |line| puts line }
-                end
-              end
-            end
-          end
-
+          # Run diff xml results and return its result
           #{self}.diff_xml_results(
             xml_a: 'required - path to nmap xml results',
             xml_b: 'required - path to nmap xml results',
             diff: 'required - path to nmap xml results diff'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

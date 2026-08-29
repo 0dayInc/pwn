@@ -58,10 +58,6 @@ PWN::Plugins::TransparentBrowser.open(opts)
 - `authors`
 - `help`
 
-## References
-
-- `references/urls.md` — URLs from source
-
 ## Source
 
 `pwn/plugins/transparent_browser.rb`

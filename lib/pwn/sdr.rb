@@ -44,6 +44,20 @@ module PWN
     end
 
     public_class_method def self.help
+      puts "USAGE:
+        # Run hz to s and return its result
+        #{self}.hz_to_s(
+          freq: 'required - frequency in Hz (Integer or String)'
+        )
+
+        # Run hz to i and return its result
+        #{self}.hz_to_i(
+          freq: 'required - frequency string (e.g. 2.450.000.000)'
+        )
+
+        # Display a List of Every PWN::AI Module
+        #{self}.authors
+      "
       constants.sort
     end
   end

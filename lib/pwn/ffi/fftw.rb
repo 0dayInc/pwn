@@ -178,14 +178,39 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.available?                         # => true/false
-          #{self}.rfft(samples:, n: nil)             # real→complex, [[re,im],…]
-          #{self}.rfft_magnitude(samples:, n: nil)   # |X[k]|
-          #{self}.rfft_power_db(samples:, n:, floor: -120.0)
-          #{self}.cfft(iq:, n: nil, sign: :forward)  # complex FFT
+          # Run available and return its result
+          #{self}.available?
 
+          # Run rfft and return its result
+          #{self}.rfft(
+            samples: 'required - Array<Float> real input (length = n)',
+            n: 'optional - FFT size (default samples.length; zero-pads/truncates)'
+          )
+
+          # Run rfft magnitude and return its result
+          #{self}.rfft_magnitude(
+            samples: 'required - samples value consumed by #rfft_magnitude',
+            n: 'optional - FFT size'
+          )
+
+          # Run rfft power db and return its result
+          #{self}.rfft_power_db(
+            samples: 'required - samples value consumed by #rfft_power_db',
+            n: 'optional - FFT size',
+            floor: 'optional - dB floor for zeros (default -120.0)'
+          )
+
+          # Run cfft and return its result
+          #{self}.cfft(
+            iq: 'required - interleaved Array<Float> I/Q (even length)',
+            n: 'optional - number of complex samples (default iq.length/2)',
+            sign: 'optional - :forward (default) or :backward'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -249,63 +249,76 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          irc_obj = #{self}.connect(
-            host: 'required - host or ip',
-            port: 'required - host port',
-            nick: 'required - nickname',
+          # Run connect and return its result
+          #{self}.connect(
+            host: 'required - host or ip (defaults to 127.0.0.1)',
+            port: 'required - host port (defaults to 6667)',
+            nick: 'required - nick value consumed by #connect',
             real: 'optional - real name (defaults to value of nick)',
             tls: 'optional - boolean connect to host socket using TLS (defaults to false)'
           )
 
-          #{self}.ping(
-            irc_obj: 'required - irc_obj returned from #connect method',
-            message: 'required - message to send'
-          )
-
-          #{self}.pong(
-            irc_obj: 'required - irc_obj returned from #connect method',
-            message: 'required - message to send'
-          )
-
-          #{self}.privmsg(
-            irc_obj: 'required - irc_obj returned from #connect method',
-            chan: 'required - channel to send message',
-            message: 'required - message to send'
-          )
-
+          # Run join and return its result
           #{self}.join(
             irc_obj: 'required - irc_obj returned from #connect method',
-            nick: 'required - nickname',
+            nick: 'required - nick value consumed by #join',
             chan: 'required - channel to join'
           )
 
+          # Run names and return its result
           #{self}.names(
             irc_obj: 'required - irc_obj returned from #connect method',
             chan: 'required - channel to list names'
           )
 
+          # Run privmsg and return its result
+          #{self}.privmsg(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            chan: 'required - channel to send message',
+            message: 'required - message to send',
+            nick: 'optional - nick value consumed by #privmsg'
+          )
+
+          # Run ping and return its result
+          #{self}.ping(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            message: 'required - message to send'
+          )
+
+          # Run pong and return its result
+          #{self}.pong(
+            irc_obj: 'required - irc_obj returned from #connect method',
+            message: 'required - message to send'
+          )
+
+          # Run part and return its result
           #{self}.part(
             irc_obj: 'required - irc_obj returned from #connect method',
             chan: 'required - channel to part',
             message: 'optional - message to send when parting'
           )
 
+          # Run quit and return its result
           #{self}.quit(
             irc_obj: 'required - irc_obj returned from #connect method',
             message: 'optional - message to send when quitting'
           )
 
+          # Run listen and return its result
           #{self}.listen(
             irc_obj: 'required - irc_obj returned from #connect method',
             verbose: 'optional - boolean to enable verbose output (defaults to false)'
           )
 
-          irc_obj = #{self}.disconnect(
+          # Run disconnect and return its result
+          #{self}.disconnect(
             irc_obj: 'required - irc_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

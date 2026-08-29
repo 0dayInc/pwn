@@ -163,10 +163,24 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          spin = #{self}.start
-          #{self}.stop(spin: spin)
+          # Run start and return its result
+          #{self}.start(
+            format: 'optional - TTY::Spinner format (defaults to :dots)',
+            output: 'optional - IO to draw on (defaults to $stderr)'
+          )
+
+          # Run stop and return its result
+          #{self}.stop(
+            spin: 'optional - TTY::Spinner from #start (no-op if nil)'
+          )
+
+          # Run halt all and return its result
           #{self}.halt_all!
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -232,41 +232,51 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          serial_obj = #{self}.connect(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
-            baud: 'optional (defaults to 9600)',
-            data_bits: 'optional (defaults to 8)',
-            stop_bits: 'optional (defaults to 1)',
+          # Run connect and return its result
+          #{self}.connect(
+            block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',
+            baud: 'optional - (defaults to 9600)',
+            data_bits: 'optional - (defaults to 8)',
+            stop_bits: 'optional - (defaults to 1)',
             parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)'
           )
 
-          line_state = #{self}.get_line_state(
-            serial_obj: 'required serial_obj returned from #connect method'
+          # Run get line state and return its result
+          #{self}.get_line_state(
+            serial_obj: 'required - required serial_obj returned from #connect method'
           )
 
-          modem_params = #{self}.get_modem_params(
-            serial_obj: 'required serial_obj returned from #connect method'
+          # Run get modem params and return its result
+          #{self}.get_modem_params(
+            serial_obj: 'required - serial_obj returned from #connect method'
           )
 
+          # Run request and return its result
           #{self}.request(
-            serial_obj: 'required serial_obj returned from #connect method',
-            payload: 'required - array of bytes OR string to write to serial device (e.g. [0x00, 0x41, 0x90, 0x00] OR \"ATDT+15555555\r\n\"'
+            serial_obj: 'required - required serial_obj returned from #connect method',
+            payload: 'required - array of bytes OR string to write to serial device (e.g. [0x00, 0x41, 0x90, 0x00] OR ATDT+15555555\\r\\n'
           )
 
+          # Run response and return its result
           #{self}.response(
-            serial_obj: 'required serial_obj returned from #connect method'
+            serial_obj: 'required - serial_obj returned from #connect method'
           )
 
-          session_data_arr = #{self}.dump_session_data
+          # Run dump session data and return its result
+          #{self}.dump_session_data
 
+          # Run flush session data and return its result
           #{self}.flush_session_data
 
+          # Run disconnect and return its result
           #{self}.disconnect(
-            serial_obj: 'required serial_obj returned from #connect method'
+            serial_obj: 'required - serial_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

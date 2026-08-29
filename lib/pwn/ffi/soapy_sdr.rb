@@ -317,22 +317,72 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run available and return its result
           #{self}.available?
+
+          # Run info and return its result
           #{self}.info
+
+          # Run list devices and return its result
           #{self}.list_devices
-          dev = #{self}.make(args: 'driver=rtlsdr')
-          #{self}.device_keys(device: dev)
-          #{self}.unmake(device: dev)
 
-          h = #{self}.open(args: 'driver=rtlsdr')
-          #{self}.configure(handle: h, freq_hz:, rate_hz: 2_048_000, gain_db: nil)
-          #{self}.start_rx(handle: h)
-          data = #{self}.read_sync(handle: h)   # cs16le interleaved I/Q
-          #{self}.stop_rx(handle: h)
-          #{self}.close(handle: h)
+          # Run make and return its result
+          #{self}.make(
+            args: 'required - args value consumed by #make'
+          )
 
+          # Run unmake and return its result
+          #{self}.unmake(
+            device: 'optional - device value consumed by #unmake'
+          )
+
+          # Run device keys and return its result
+          #{self}.device_keys(
+            device: 'required - device value consumed by #device_keys'
+          )
+
+          # Open a session or connection and return a handle.
+          #{self}.open(
+            args: 'optional - Soapy args string, e.g. driver=rtlsdr',
+            channel: 'optional - RX channel (default 0)'
+          )
+
+          # Run configure and return its result
+          #{self}.configure(
+            handle: 'required - from .open',
+            freq_hz: 'required - center frequency Hz',
+            rate_hz: 'optional - sample rate Hz (default 2_048_000)',
+            gain_db: 'optional - overall gain dB (default AGC on)',
+            bw_hz: 'optional - baseband filter BW Hz'
+          )
+
+          # Sets up + activates a CS16 RX stream. Extends handle in place
+          #{self}.start_rx(
+            handle: 'required - from .open',
+            samples: 'optional - MTU / read block size (default 65536)'
+          )
+
+          # Run read sync and return its result
+          #{self}.read_sync(
+            handle: 'required - from .start_rx',
+            timeout_us: 'optional - microseconds (default 1_000_000)'
+          )
+
+          # Run stop rx and return its result
+          #{self}.stop_rx(
+            handle: 'optional - handle value consumed by #stop_rx'
+          )
+
+          # Close a session previously returned by #open.
+          #{self}.close(
+            handle: 'optional - handle value consumed by #close',
+            device: 'optional - device value consumed by #close'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

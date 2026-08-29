@@ -2131,18 +2131,139 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.refresh_ps1_proc(
-            mode: 'required - :splat or nil'
+          # Restore the TTY after a spinner / agent turn so Pry/Reline prints
+          #{self}.ready_tty!(
+            skip: 'optional - skip value consumed by #ready_tty!',
+            io: 'optional - io value consumed by #ready_tty!'
           )
 
+          # Compact token-count formatter for the pwn.ai PS1 (e.g. 0, 843, 12K, 250K, 1M)
+          #{self}.compact_context_tokens(
+            tokens: 'optional - tokens value consumed by #compact_context_tokens'
+          )
+
+          # Run refresh ps1 proc and return its result
+          #{self}.refresh_ps1_proc(
+            mode: 'optional - mode value consumed by #refresh_ps1_proc'
+          )
+
+          # Run add commands and return its result
           #{self}.add_commands
 
+          # Run add hooks and return its result
           #{self}.add_hooks
 
+          # Run pwn ai complete kind and return its result
+          #{self}.pwn_ai_complete_kind(
+            line: 'optional - line value consumed by #pwn_ai_complete_kind'
+          )
+
+          # Run pwn ai complete and return its result
+          #{self}.pwn_ai_complete(
+            target: 'required - token Reline is completing',
+            line: 'optional - full line buffer',
+            pry: 'optional - Pry instance for Ruby completion'
+          )
+
+          # Run pwn ai complete command and return its result
+          #{self}.pwn_ai_complete_command(
+            line: 'optional - line value consumed by #pwn_ai_complete_command',
+            target: 'required - hostname, IP, or CIDR to scan'
+          )
+
+          # Run pwn ai complete path and return its result
+          #{self}.pwn_ai_complete_path(
+            target: 'required - hostname, IP, or CIDR to scan',
+            line: 'optional - line value consumed by #pwn_ai_complete_path'
+          )
+
+          # Run pwn ai complete ruby and return its result
+          #{self}.pwn_ai_complete_ruby(
+            target: 'optional - hostname, IP, or CIDR to scan',
+            pry: 'optional - pry value consumed by #pwn_ai_complete_ruby (defaults to Thread.current[:pwn_ai_completer_pry])'
+          )
+
+          # Install Reline dropdown for pwn-ai (commands / paths / Ruby)
+          #{self}.install_pwn_ai_completer!(
+            pry: 'optional - pry value consumed by #install_pwn_ai_completer!'
+          )
+
+          # Run restore pwn ai completer and return its result
+          #{self}.restore_pwn_ai_completer!
+
+          # Run a leading-slash pwn-ai command locally. Returns true when handled
+          #{self}.pwn_ai_dispatch_slash!(
+            request: 'optional - request value consumed by #pwn_ai_dispatch_slash!',
+            pry: 'optional - pry value consumed by #pwn_ai_dispatch_slash!'
+          )
+
+          # Run pwn ai engines and return its result
+          #{self}.pwn_ai_engines
+
+          # Run pwn ai provider class and return its result
+          #{self}.pwn_ai_provider_class(
+            engine: 'optional - engine value consumed by #pwn_ai_provider_class'
+          )
+
+          # Run pwn ai model ids and return its result
+          #{self}.pwn_ai_model_ids(
+            models: 'optional - models value consumed by #pwn_ai_model_ids'
+          )
+
+          # Run pwn ai list llms and return its result
+          #{self}.pwn_ai_list_llms(
+            engine: 'required - engine value consumed by #pwn_ai_list_llms'
+          )
+
+          # Run pwn ai engine model and return its result
+          #{self}.pwn_ai_engine_model(
+            engine: 'required - engine value consumed by #pwn_ai_engine_model'
+          )
+
+          # Run pwn ai run model and return its result
+          #{self}.pwn_ai_run_model(
+            args: 'optional - Array args value consumed by #pwn_ai_run_model'
+          )
+
+          # Run persist ai selection and return its result
+          #{self}.persist_ai_selection(
+            engine: 'required - engine value consumed by #persist_ai_selection',
+            model: 'required - model value consumed by #persist_ai_selection'
+          )
+
+          # Run pwn ai run cron and return its result
+          #{self}.pwn_ai_run_cron(
+            args: 'optional - Array args value consumed by #pwn_ai_run_cron'
+          )
+
+          # Run pwn ai run sessions and return its result
+          #{self}.pwn_ai_run_sessions(
+            args: 'optional - Array args value consumed by #pwn_ai_run_sessions'
+          )
+
+          # Run pwn ai run memory and return its result
+          #{self}.pwn_ai_run_memory(
+            args: 'optional - Array args value consumed by #pwn_ai_run_memory'
+          )
+
+          # Run pwn ai run skills and return its result
+          #{self}.pwn_ai_run_skills(
+            args: 'optional - Array args value consumed by #pwn_ai_run_skills'
+          )
+
+          # IRB-style suggest-as-you-type for the pwn REPL
+          #{self}.enable_autocomplete(
+            enabled: 'optional - Boolean (default true). false reverts to single-line cycling.',
+            graph: 'optional - constants (PWN::Plugins::Nm<TAB>), instance methods'
+          )
+
+          # Run start and return its result
           #{self}.start
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

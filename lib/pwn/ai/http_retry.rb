@@ -69,18 +69,46 @@ module PWN
       end
 
       public_class_method def self.help
-        puts <<~USAGE
-          USAGE:
-            PWN::AI::HttpRetry.timeout_s(timeout: nil)         # => 180
-            PWN::AI::HttpRetry.max_attempts(quiet: false)      # => 5
-            PWN::AI::HttpRetry.report_event(
-              label: 'grok',
-              error: e,
-              http_method: :post,
-              rest_call: 'chat/completions'
-            )
-            #{self}.authors
-        USAGE
+        puts "USAGE:
+          # Run timeout s and return its result
+          #{self}.timeout_s(
+            timeout: 'optional - seconds to wait before giving up'
+          )
+
+          # Run max attempts and return its result
+          #{self}.max_attempts(
+            max_attempts: 'optional - max attempts value consumed by #max_attempts',
+            quiet: 'optional - quiet value consumed by #max_attempts',
+            timeout: 'optional - seconds to wait before giving up'
+          )
+
+          # Run retryable and return its result
+          #{self}.retryable?(
+            error: 'optional - error value consumed by #retryable?',
+            message: 'required - message value consumed by #retryable?'
+          )
+
+          # Run retry after s and return its result
+          #{self}.retry_after_s(
+            retry_count: 'optional - retry count value consumed by #retry_after_s',
+            response: 'optional - response value consumed by #retry_after_s'
+          )
+
+          # Tees provider REST events into the open pwn-ai DEBUG RN log and STDERR
+          #{self}.report_event(
+            label: 'required - label value consumed by #report_event',
+            error: 'optional - error value consumed by #report_event',
+            extra: 'optional - extra value consumed by #report_event',
+            http_method: 'optional - http method value consumed by #report_event',
+            rest_call: 'optional - rest call value consumed by #report_event',
+            which_self: 'optional - which self value consumed by #report_event (defaults to self)',
+            quiet: 'optional - quiet value consumed by #report_event'
+          )
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
+        constants.sort
       end
     end
   end

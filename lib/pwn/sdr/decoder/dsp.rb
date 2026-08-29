@@ -1005,47 +1005,237 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (pure-Ruby DSP + optional PWN::FFI acceleration):
-            #{self}.native = true|false   # toggle VOLK/liquid/FFTW backends
-            #{self}.unpack_s16le(data: raw_bytes)              # → Volk
-            #{self}.unpack_cs16le(data: raw_cs16)              # I/Q s16 → f32
-            #{self}.unpack_cu8(data: raw_u8)                  # RTL-SDR u8 I/Q
-            #{self}.mag_sq(iq:) / #{self}.iq_rms_dbfs(iq:)
-            #{self}.fm_demod_iq(iq:, kf: 1.0)                 # → Liquid
-            #{self}.correlate(samples:, template:)
-            #{self}.resample(samples:, src_rate:, dst_rate:)   # → Liquid
-            #{self}.goertzel(samples:, rate:, freq:)
-            #{self}.envelope(samples:, window: 32)
-            #{self}.envelope_signed(samples:, window: 8)
-            #{self}.dc_block(samples:, alpha: 0.995, m: nil)   # → Liquid if m:
-            #{self}.nrz_slice(samples:, rate:, baud:, invert: false)
-            #{self}.fsk_slice(samples:, rate:, baud:, mark_hz:, space_hz:)
-            #{self}.find_sync(bits:, pattern:, width:, max_err: 0, from: 0)
-            #{self}.bits_to_int(bits:)
-            #{self}.even_parity_ok?(word:, width: 32)
-            #{self}.bch_31_21_syndrome(word:)
-            #{self}.baudot_decode(bits:)
-            #{self}.rms_dbfs(samples:)                         # → Volk (≥64)
-#{self}.resample_iq(iq:, src_rate:, dst_rate:)     # → Liquid crcf
-#{self}.mix_iq(iq:, rate:, freq:)                  # → Liquid nco
-#{self}.gfsk_slice(iq:, rate:, baud:, bt: 0.35)    # → Liquid gmskdem
-#{self}.slice_4fsk(samples:, rate:, baud:)         # C4FM/4-GFSK
-#{self}.manchester_decode(bits:, ieee: false)
-#{self}.diff_decode(bits:)
-#{self}.bytes_from_bits(bits:, lsb_first: false)
-#{self}.crc16(bytes:, poly: 0x1021, init: 0xFFFF)
-#{self}.whiten_lfsr(bytes:, poly:, init:, width: 7)
-#{self}.ook_pulses(iq:, rate:, min_us: 20)
-#{self}.cfft_mag(iq:, n:, shift: true)             # → FFTW
-#{self}.cmul(a:, b:, conj_b: false)
-#{self}.zadoff_chu(root:, n: 63)                   # LTE PSS
-#{self}.ca_code(prn: 1..32)                        # GPS L1 C/A
+          puts "USAGE:
+            # Run unpack s16le and return its result
+            #{self}.unpack_s16le(
+              data: 'required - raw String of little-endian signed 16-bit PCM'
+            )
 
-            Constants: MORSE_TABLE, BAUDOT_LTRS, BAUDOT_FIGS
-            Backends:  PWN::FFI.backends  # { Volk: true, Liquid: true, AdalmPluto: true, … }
+            # Run resample and return its result
+            #{self}.resample(
+              samples: 'required - samples value consumed by #resample',
+              src_rate: 'required - input sample rate (Hz)',
+              dst_rate: 'required - output sample rate (Hz)'
+            )
 
+            # Run goertzel and return its result
+            #{self}.goertzel(
+              samples: 'required - samples value consumed by #goertzel',
+              rate: 'required - sample rate (Hz)',
+              freq: 'required - target tone frequency (Hz)'
+            )
+
+            # Run envelope and return its result
+            #{self}.envelope(
+              samples: 'required - samples value consumed by #envelope',
+              window: 'optional - moving-average window in samples (default 32)'
+            )
+
+            # Run dc block and return its result
+            #{self}.dc_block(
+              samples: 'required - samples value consumed by #dc_block',
+              alpha: 'optional - pole (default 0.995)',
+              m: 'optional - m value consumed by #dc_block',
+              as_db: 'optional - as db value consumed by #dc_block (defaults to 60.0)'
+            )
+
+            # Run nrz slice and return its result
+            #{self}.nrz_slice(
+              samples: 'required - Array<Float> (post-FM-discriminator baseband)',
+              rate: 'required - sample rate (Hz)',
+              baud: 'required - symbol rate',
+              invert: 'optional - flip bit polarity (default false)'
+            )
+
+            # Signed moving average (like envelope but keeps sign)
+            #{self}.envelope_signed(
+              samples: 'optional - samples value consumed by #envelope_signed',
+              window: 'optional - window value consumed by #envelope_signed'
+            )
+
+            # Run fsk slice and return its result
+            #{self}.fsk_slice(
+              samples: 'required - samples value consumed by #fsk_slice',
+              rate: 'required - sample rate (Hz)',
+              baud: 'required - symbol rate',
+              mark_hz: 'required - mark tone (bit=1)',
+              space_hz: 'required - space tone (bit=0)'
+            )
+
+            # Run find sync and return its result
+            #{self}.find_sync(
+              bits: 'required - bits value consumed by #find_sync',
+              pattern: 'required - Array<0|1> or Integer (MSB-first)',
+              width: 'optional - bit-width when pattern is Integer',
+              max_err: 'optional - allowed bit errors (default 0)',
+              from: 'optional - start index (default 0)'
+            )
+
+            # Run bits to int and return its result
+            #{self}.bits_to_int(
+              bits: 'optional - bits value consumed by #bits_to_int'
+            )
+
+            # Run even parity ok and return its result
+            #{self}.even_parity_ok?(
+              word: 'optional - word value consumed by #even_parity_ok?',
+              width: 'optional - cyclic de Bruijn sequence width in bytes'
+            )
+
+            # BCH(31,21) syndrome — generator poly 0b11101101001 (0x769)
+            #{self}.bch_31_21_syndrome(
+              word: 'optional - word value consumed by #bch_31_21_syndrome'
+            )
+
+            # Run baudot decode and return its result
+            #{self}.baudot_decode(
+              bits: 'optional - bits value consumed by #baudot_decode'
+            )
+
+            # Run rms dbfs and return its result
+            #{self}.rms_dbfs(
+              samples: 'required - samples value consumed by #rms_dbfs'
+            )
+
+            # ── True-air I/Q primitives (used by Base.run_iq) ─────────────────
+            #{self}.unpack_cs16le(
+              data: 'required - raw String of interleaved little-endian s16 I/Q'
+            )
+
+            # Run unpack cu8 and return its result
+            #{self}.unpack_cu8(
+              data: 'required - raw String of interleaved u8 I/Q (RTL-SDR)'
+            )
+
+            # Run mag sq and return its result
+            #{self}.mag_sq(
+              iq: 'required - interleaved Array<Float> [I0,Q0,I1,Q1,…]'
+            )
+
+            # Run fm demod iq and return its result
+            #{self}.fm_demod_iq(
+              iq: 'required - interleaved Array<Float> [I0,Q0,…]',
+              kf: 'optional - modulation index scale (default 1.0)'
+            )
+
+            # Run iq rms dbfs and return its result
+            #{self}.iq_rms_dbfs(
+              iq: 'required - interleaved Array<Float> [I0,Q0,…]'
+            )
+
+            # Correlate a real template against magnitude-squared energy for
+            #{self}.correlate(
+              samples: 'required - samples value consumed by #correlate',
+              template: 'required - Array<Float> (same units)'
+            )
+
+            # ── True-air I/Q chain (all Decoder::* modules) ──────────────────
+            #{self}.resample_iq(
+              iq: 'required - interleaved [I0,Q0,…] Array<Float>',
+              src_rate: 'required - Hz, dst_rate: required - Hz',
+              dst_rate: 'optional - dst rate value consumed by #resample_iq'
+            )
+
+            # Run mix iq and return its result
+            #{self}.mix_iq(
+              iq: 'required - interleaved I/Q, rate: required - Hz',
+              freq: 'required - offset Hz to shift DOWN by',
+              rate: 'optional - rate value consumed by #mix_iq'
+            )
+
+            # Run gfsk slice and return its result
+            #{self}.gfsk_slice(
+              iq: 'required - interleaved I/Q, rate:, baud:',
+              bt: 'optional - Gaussian BT (default 0.35), invert: false',
+              rate: 'optional - rate value consumed by #gfsk_slice',
+              baud: 'optional - baud value consumed by #gfsk_slice',
+              invert: 'optional - invert value consumed by #gfsk_slice'
+            )
+
+            # Run slice 4fsk and return its result
+            #{self}.slice_4fsk(
+              samples: 'required - real FM-discriminator baseband',
+              rate: 'optional - rate value consumed by #slice_4fsk',
+              baud: 'optional - baud value consumed by #slice_4fsk'
+            )
+
+            # Run manchester decode and return its result
+            #{self}.manchester_decode(
+              bits: 'required - Array<0|1> at 2×data rate',
+              ieee: 'optional - true = 01→1 10→0 (IEEE 802.3), else 10→1 01→0'
+            )
+
+            # Run diff decode and return its result
+            #{self}.diff_decode(
+              bits: 'optional - bits value consumed by #diff_decode'
+            )
+
+            # Run bytes from bits and return its result
+            #{self}.bytes_from_bits(
+              bits: 'optional - Array<0|1>, lsb_first: false',
+              lsb_first: 'optional - lsb first value consumed by #bytes_from_bits'
+            )
+
+            # Run crc16 and return its result
+            #{self}.crc16(
+              bytes: 'optional - Array<Integer>, poly: 0x1021, init: 0xFFFF',
+              refin: 'optional - false, refout: false, xorout: 0x0000',
+              poly: 'optional - poly value consumed by #crc16',
+              init: 'optional - init value consumed by #crc16',
+              refout: 'optional - refout value consumed by #crc16',
+              xorout: 'optional - xorout value consumed by #crc16'
+            )
+
+            # Run whiten lfsr and return its result
+            #{self}.whiten_lfsr(
+              bytes: 'optional - Array<Integer>, poly: Integer, init: Integer, width: 7',
+              poly: 'optional - poly value consumed by #whiten_lfsr',
+              init: 'optional - init value consumed by #whiten_lfsr',
+              width: 'optional - cyclic de Bruijn sequence width in bytes'
+            )
+
+            # Run ook pulses and return its result
+            #{self}.ook_pulses(
+              iq: 'required - interleaved I/Q, rate:',
+              min_us: 'optional - drop shorter pulses (default 20)',
+              rate: 'optional - rate value consumed by #ook_pulses'
+            )
+
+            # Run cfft mag and return its result
+            #{self}.cfft_mag(
+              iq: 'required - interleaved I/Q, n: optional - FFT size',
+              shift: 'optional - fftshift so DC is centred (default true)',
+              n: 'optional - count, width, or size'
+            )
+
+            # Naive O(n²) complex DFT — pure-Ruby fallback for small n
+            #{self}.dft_naive(
+              iq: 'optional - iq value consumed by #dft_naive',
+              n: 'optional - count, width, or size'
+            )
+
+            # Run zadoff chu and return its result
+            #{self}.zadoff_chu(
+              root: 'optional - root value consumed by #zadoff_chu',
+              n: 'optional - count, width, or size'
+            )
+
+            # Run ca code and return its result
+            #{self}.ca_code(
+              prn: 'required - prn value consumed by #ca_code'
+            )
+
+            # Run cmul and return its result
+            #{self}.cmul(
+              a: 'optional - a value consumed by #cmul',
+              b: 'optional - b value consumed by #cmul',
+              conj_b: 'optional - conj b value consumed by #cmul'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

@@ -89,14 +89,17 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            ai_analysis = #{self}.analyze(
-              request: 'required - high level description of vulnerability discovered (e.g. \"Discovered a SQLi vulnerability in /login\"',
+            # Run analyze and return its result
+            #{self}.analyze(
+              request: 'required - high level description of vulnerability discovered (e.g. Discovered a SQLi vulnerability in /login',
               markup_type: 'optional - specify the type of markup to generate :jira|:markdown|:html|:confluence|:xml (default: :jira)',
-              output_path: 'optional - full path to save the generated report as .md (e.g. /home/claw/reports/sqli-finding.md)'
+              output_path: 'optional - path to save the generated markdown report'
             )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

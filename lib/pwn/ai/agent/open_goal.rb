@@ -67,15 +67,31 @@ module PWN
         end
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::OpenGoal.begin!(request: '...', session_id: '...')
-              PWN::AI::Agent::OpenGoal.current
-              PWN::AI::Agent::OpenGoal.resume?(request: 'continue')
-              PWN::AI::Agent::OpenGoal.clear!
+          puts "USAGE:
+            # Run goal file and return its result
+            #{self}.goal_file
 
-              #{self}.authors
-          USAGE
+            # Run current and return its result
+            #{self}.current
+
+            # Run begin and return its result
+            #{self}.begin!(
+              request: 'required - request value consumed by #begin!',
+              session_id: 'optional - session id value consumed by #begin!'
+            )
+
+            # Run clear and return its result
+            #{self}.clear!
+
+            # Run resume and return its result
+            #{self}.resume?(
+              request: 'optional - request value consumed by #resume?'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

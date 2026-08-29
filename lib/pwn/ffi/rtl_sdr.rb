@@ -186,16 +186,46 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run available and return its result
           #{self}.available?
-          #{self}.list_devices
-          dev = #{self}.open(index: 0)
-          #{self}.configure(device: dev, freq_hz:, rate_hz: 2_048_000, gain_db: nil, ppm: 0)
-          #{self}.tuner_gains(device: dev)
-          iq = #{self}.read_sync(device: dev, bytes: 262_144)  # u8 I/Q String
-          #{self}.close(device: dev)
 
+          # Run list devices and return its result
+          #{self}.list_devices
+
+          # Open a session or connection and return a handle.
+          #{self}.open(
+            index: 'optional - index value consumed by #open'
+          )
+
+          # Close a session previously returned by #open.
+          #{self}.close(
+            device: 'optional - device value consumed by #close'
+          )
+
+          # Run configure and return its result
+          #{self}.configure(
+            device: 'required - pointer from .open',
+            freq_hz: 'required - center frequency Hz',
+            rate_hz: 'optional - sample rate (default 2.048e6)',
+            gain_db: 'optional - tenths of dB (e.g. 496 = 49.6 dB). nil = auto',
+            ppm: 'optional - freq correction ppm (default 0)'
+          )
+
+          # Run read sync and return its result
+          #{self}.read_sync(
+            device: 'required - pointer from .open',
+            bytes: 'optional - number of raw bytes to read (default 262144)'
+          )
+
+          # Run tuner gains and return its result
+          #{self}.tuner_gains(
+            device: 'required - device value consumed by #tuner_gains'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
 
       class << self

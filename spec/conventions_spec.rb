@@ -43,6 +43,14 @@ require 'spec_helper'
 #
 #   5. Every leaf module file MUST define `def self.authors`.
 #
+#   6. Every public class method except `help` MUST appear in that
+#      module's `help` method — including `authors`. Directly above each
+#      method, `help` MUST print a brief purpose line (what the method
+#      does). Methods that take `(opts = {})` MUST document each
+#      `opts[:key]` they read as `required` or `optional` plus an
+#      operator-usable description (what to pass, not just the key name)
+#      — same shape as PWN::WWW::Google.help.
+#
 # A "leaf module file" is any file under lib/pwn/**/*.rb that opens at
 # least one `module` block. Pure namespace/index files (autoload-only,
 # no method bodies) are exempt from 4/5 via NAMESPACE_INDEX_FILES.
@@ -126,11 +134,24 @@ module PWNConventions
         line: idx + 1,
         decorator: m[2]&.strip,
         name: m[3],
-        arglist: m[4], # nil = zero-arg endless or paren-less; '' = ()
-        body_excerpt: lines[(idx + 1)..(idx + 60)]&.join.to_s
+        arglist: m[4],
+        body_excerpt: lines[(idx + 1)..(idx + 60)]&.join.to_s,
+        method_body: method_body_excerpt(lines, idx)
       }
     end
     out
+  end
+
+  def method_body_excerpt(lines, idx)
+    indent = lines[idx][/^[ \t]*/]
+    buf = []
+    ((idx + 1)...lines.length).each do |i|
+      break if lines[i].match?(/^#{Regexp.escape(indent)}end\b/)
+
+      buf << lines[i]
+      break if buf.length >= 120
+    end
+    buf.join
   end
 
   # Module-level bare `def name` only. Nested class instance methods and
@@ -196,6 +217,63 @@ module PWNConventions
   ALL_METHODS = MODULE_FILES.flat_map { |f| scan_methods(f) }.freeze
   ALL_BARE_DEFS = MODULE_FILES.flat_map { |f| scan_bare_defs(f) }.freeze
   ALL_MODULE_FUNCTIONS = MODULE_FILES.flat_map { |f| scan_module_function(f) }.freeze
+
+  HELP_SKIP = %w[help].freeze
+
+  def help_text(path)
+    lines = File.readlines(path)
+    idx = lines.find_index { |l| l.match?(/def self\.help\b/) }
+    return '' unless idx
+
+    indent = lines[idx][/^[ \t]*/]
+    buf = []
+    ((idx + 1)...lines.length).each do |i|
+      break if lines[i].match?(/^#{Regexp.escape(indent)}end\b/)
+
+      buf << lines[i]
+    end
+    buf.join
+  end
+
+  def opts_keys(body)
+    body.to_s.scan(/opts\[\s*:([A-Za-z_]\w*)\s*\]/).flatten.uniq
+  end
+
+  def thin_option_desc?(key, desc)
+    rest = desc.to_s.strip.sub(/\A(?:required|optional)\s*-\s*/i, '')
+    return true if rest.empty?
+
+    norm = rest.downcase.gsub(/[^a-z0-9]+/, ' ').strip
+    key_norm = key.to_s.downcase.tr('_', ' ')
+    return true if norm == key_norm
+
+    words = rest.split
+    words.length < 2 && rest.length < 18
+  end
+
+  def purpose_above?(help, name)
+    lines = help.to_s.lines
+    idx = lines.find_index { |l| l.match?(/\#\{self\}\.#{Regexp.escape(name)}(?!\w)/) }
+    return false unless idx
+
+    prev = nil
+    (idx - 1).downto(0) do |i|
+      next if lines[i].strip.empty?
+
+      prev = lines[i]
+      break
+    end
+    return false unless prev
+
+    text = prev.strip.sub(/\A#\s*/, '')
+    return false if text.match?(/\AUSAGE:/i)
+    return false if text.match?(/\.\w+\s*\(/) || text.match?(/\#\{self\}/)
+    return false if text.match?(/\A\w+\s*=\s*PWN::/)
+    return false if text.downcase.gsub(/[^a-z0-9]+/, ' ').strip == name.downcase.tr('_', ' ')
+
+    words = text.split
+    words.length >= 3 || text.length >= 20
+  end
 
   def rel(path)
     path.sub("#{ROOT}/", '')
@@ -265,5 +343,43 @@ describe 'PWN module conventions' do
     end
     msg = missing.map { |f| "  #{c.rel(f)}" }.join("\n")
     expect(missing).to be_empty, "modules missing `def self.authors`:\n#{msg}"
+  end
+
+  # ---------------------------------------------------------------- 6 --
+  it '6) every public class method is documented in help with required/optional options (Google.help shape)' do
+    misses = []
+    c::MODULE_FILES.each do |path|
+      next if c::NAMESPACE_INDEX_FILES.include?(c.rel(path))
+
+      help = c.help_text(path)
+      misses << "#{c.rel(path)}  missing method authors in help" unless help.match?(/\.authors(?!\w)/)
+      pubs = c::ALL_METHODS.select do |m|
+        m[:file] == path &&
+          m[:decorator] == 'public_class_method' &&
+          !c::HELP_SKIP.include?(m[:name])
+      end
+      pubs.each do |meth|
+        name = meth[:name]
+        unless help.match?(/\.#{Regexp.escape(name)}(?!\w)/)
+          misses << "#{c.rel(path)}  missing method #{name} in help"
+          next
+        end
+        misses << "#{c.rel(path)}  #{name}: missing purpose line above the method in help" unless c.purpose_above?(help, name)
+        next unless meth[:arglist]&.strip == 'opts = {}'
+
+        c.opts_keys(meth[:method_body]).each do |key|
+          descs = help.scan(/#{Regexp.escape(key)}:\s*['"]((?:required|optional)\s*-\s*[^'"]+)/i).flatten
+          if descs.empty?
+            misses << "#{c.rel(path)}  #{name} option #{key}: missing required/optional description"
+            next
+          end
+          next unless descs.any? { |d| c.thin_option_desc?(key, d) }
+
+          misses << "#{c.rel(path)}  #{name} option #{key}: description too thin (say what to pass, not just the key name)"
+        end
+      end
+    end
+    extra = misses.length > 80 ? "\n... #{misses.length} total" : ''
+    expect(misses).to be_empty, "#{misses.first(80).join("\n")}#{extra}"
   end
 end

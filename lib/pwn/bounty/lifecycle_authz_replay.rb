@@ -248,33 +248,52 @@ module PWN
       # Display Usage Information
 
       public_class_method def self.help
-        <<~HELP
-          Usage:
-            plan = PWN::Bounty::LifecycleAuthzReplay.load_plan(
-              yaml_path: '/path/to/lifecycle_authz_replay.yaml'
-            )
+        puts "USAGE:
+          # Run load plan and return its result
+          #{self}.load_plan(
+            yaml_path: 'required - /path/to/lifecycle_authz_replay.yaml'
+          )
 
-            run_obj = PWN::Bounty::LifecycleAuthzReplay.start_run(
-              plan: plan,
-              output_dir: '/tmp/evidence-bundles'
-            )
+          # Run start run and return its result
+          #{self}.start_run(
+            yaml_path: 'optional - /path/to/lifecycle_authz_replay.yaml',
+            output_dir: 'required - /tmp/evidence_bundle',
+            plan: 'required - normalized_plan_hash',
+            run_id: 'required - run id value consumed by #start_run'
+          )
 
-            PWN::Bounty::LifecycleAuthzReplay.record_observation(
-              run_obj: run_obj,
-              checkpoint: 'post_change_t0',
-              actor: 'revoked_user',
-              surface: 'repo_settings_page',
-              status: :accessible,
-              request: { method: 'GET', path: '/org/repo/settings' },
-              response: { http_status: 200 },
-              notes: 'Still reachable after remove action',
-              artifact_paths: ['/tmp/screenshot.png']
-            )
+          # Run record observation and return its result
+          #{self}.record_observation(
+            run_obj: 'required - run obj value consumed by #record_observation',
+            checkpoint: 'required - checkpoint value consumed by #record_observation',
+            actor: 'required - actor value consumed by #record_observation',
+            surface: 'required - repo_settings_page',
+            status: 'required - status value consumed by #record_observation',
+            request: 'optional - { method: GET, path: /org/repo/settings }',
+            response: 'optional - { http_status: 200 }',
+            notes: 'optional - Still reachable after collaborator removal',
+            artifact_paths: 'optional - Array [/tmp/screen.png]'
+          )
 
-            summary = PWN::Bounty::LifecycleAuthzReplay.finalize_run(
-              run_obj: run_obj
-            )
-        HELP
+          # Run finalize run and return its result
+          #{self}.finalize_run(
+            run_obj: 'required - run obj value consumed by #finalize_run'
+          )
+
+          # Run normalize plan and return its result
+          #{self}.normalize_plan(
+            plan: 'optional - plan value consumed by #normalize_plan',
+            campaign: 'required - { id: acme-revoke }',
+            actors: 'optional - [owner, revoked_user]',
+            surfaces: 'optional - surfaces value consumed by #normalize_plan',
+            checkpoints: 'required - [pre_change, post_change_t0]',
+            plan_id_hint: 'required - plan id hint value consumed by #normalize_plan'
+          )
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
+        constants.sort
       end
 
       private_class_method def self.find_stale_access_findings(opts = {})

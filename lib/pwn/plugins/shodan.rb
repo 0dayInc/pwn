@@ -538,91 +538,110 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          services_by_ips = #{self}.services_by_ips(
-            api_key: 'required - shodan api key',
+          # Run services by ips and return its result
+          #{self}.services_by_ips(
+            api_key: 'required - required shodan api key',
             target_ips: 'required - comma-delimited list of ip addresses to target'
           )
 
-          query_result_totals = PWN::Plugins::Shodan.query_result_totals(
-            api_key: 'required shodan api key',
+          # Run query result totals and return its result
+          #{self}.query_result_totals(
+            api_key: 'required - required shodan api key',
             query: 'required - shodan search query',
             facets: 'optional - comma-separated list of properties to get summary information'
           )
 
-          search_results = #{self}.search(
-            api_key: 'required shodan api key',
+          # Run a search using the open session.
+          #{self}.search(
+            api_key: 'required - required shodan api key',
             query: 'required - shodan search query',
             facets: 'optional - comma-separated list of properties to get summary information'
           )
 
-          tokens_result = #{self}.tokens(
-            api_key: 'required shodan api key',
-            query: 'required - shodan search query',
+          # Run tokens and return its result
+          #{self}.tokens(
+            api_key: 'required - required shodan api key',
+            query: 'required - shodan search query'
           )
 
-          ports_shodan_crawls = #{self}.ports_shodan_crawls(
-            api_key: 'required shodan api key'
+          # Run ports shodan crawls and return its result
+          #{self}.ports_shodan_crawls(
+            api_key: 'required - required shodan api key'
           )
 
-          protocols = #{self}.list_on_demand_scan_protocols(
-            api_key: 'required shodan api key'
+          # Run list on demand scan protocols and return its result
+          #{self}.list_on_demand_scan_protocols(
+            api_key: 'required - required shodan api key'
           )
 
-          scan_network_response = #{self}.scan_network(
-            api_key: 'required shodan api key',
+          # Run scan network and return its result
+          #{self}.scan_network(
+            api_key: 'required - required shodan api key',
             target_ips: 'required - comma-delimited list of ip addresses to target'
           )
 
-          scan_internet_response = #{self}.scan_internet(
-            api_key: 'required shodan api key',
+          # Run scan internet and return its result
+          #{self}.scan_internet(
+            api_key: 'required - required shodan api key',
             port: 'required - port to scan (see #ports_shodan_crawls for list)',
             protocol: 'required - supported shodan protocol (see #list_on_demand_scan_protocols for list)'
           )
 
-          scan_status_result = #{self}.scan_status(
-            api_key: 'required shodan api key',
-            scan_id: 'required - unique ID returned by #scan_network',
+          # Run scan status and return its result
+          #{self}.scan_status(
+            api_key: 'required - required shodan api key',
+            scan_id: 'required - unique ID returned by #scan_network'
           )
 
-          services_shodan_crawls = #{self}.services_shodan_crawls(
-            api_key: 'required shodan api key'
+          # Run services shodan crawls and return its result
+          #{self}.services_shodan_crawls(
+            api_key: 'required - required shodan api key'
           )
 
-          saved_search_queries_result = #{self}.saved_search_queries(
-            api_key: 'required shodan api key',
+          # Run saved search queries and return its result
+          #{self}.saved_search_queries(
+            api_key: 'required - required shodan api key',
             page: 'optional - page number to iterate over results (each page contains 10 items)',
             sort: 'optional - sort results by available parameters :votes|:timestamp',
             order: 'optional - sort :asc|:desc (ascending or descending)'
           )
 
-          most_popular_tags_result = #{self}.most_popular_tags(
-            api_key: 'required shodan api key',
+          # Run most popular tags and return its result
+          #{self}.most_popular_tags(
+            api_key: 'required - required shodan api key',
             result_count: 'optional - number of results to return (defaults to 10)'
           )
 
-          my_profile = #{self}.my_profile(
-            api_key: 'required shodan api key'
+          # Run my profile and return its result
+          #{self}.my_profile(
+            api_key: 'required - required shodan api key'
           )
 
-          my_pub_ip = #{self}.my_pub_ip(
-            api_key: 'required shodan api key'
+          # Run my pub ip and return its result
+          #{self}.my_pub_ip(
+            api_key: 'required - required shodan api key'
           )
 
-          api_info = #{self}.api_info(
-            api_key: 'required shodan api key'
+          # Run api info and return its result
+          #{self}.api_info(
+            api_key: 'required - required shodan api key'
           )
 
-          honeypot_probability_scores = #{self}.honeypot_probability_scores(
-            api_key: 'required shodan api key',
+          # Run honeypot probability scores and return its result
+          #{self}.honeypot_probability_scores(
+            api_key: 'required - required shodan api key',
             target_ips: 'required - comma-delimited list of ip addresses to target'
           )
 
-          uri_arr = #{self}.get_uris(
+          # Run get uris and return its result
+          #{self}.get_uris(
             search_results: 'required - search_results object returned from #search method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

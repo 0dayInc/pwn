@@ -455,22 +455,76 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run available and return its result
           #{self}.available?
+
+          # Run info and return its result
           #{self}.info
-          #{self}.list_uris
-          ctx = #{self}.open(uri: 'ip:192.168.2.1')   # or nil for default
-          #{self}.device_info(context: ctx)
-          #{self}.configure(context: ctx, freq_hz:, rate_hz: 2_500_000, gain_db: nil)
-          h = #{self}.start_rx(context: ctx, samples: 262_144)
-          iq = #{self}.read_sync(handle: h)            # cs16le interleaved String
-          #{self}.stop_rx(handle: h)
-          #{self}.close(context: ctx)
 
-          # one-shot
-          cap = #{self}.capture(freq_hz: 1090e6, rate_hz: 2_500_000, bytes: 1_048_576)
+          # Run list uris and return its result
+          #{self}.list_uris(
+            backends: 'optional - backends value consumed by #list_uris'
+          )
 
+          # Open a session or connection and return a handle.
+          #{self}.open(
+            uri: 'required - URI or URL string',
+            timeout_ms: 'optional - timeout ms value consumed by #open'
+          )
+
+          # Close a session previously returned by #open.
+          #{self}.close(
+            context: 'optional - context value consumed by #close'
+          )
+
+          # Run device info and return its result
+          #{self}.device_info(
+            context: 'required - context value consumed by #device_info'
+          )
+
+          # Run configure and return its result
+          #{self}.configure(
+            context: 'required - pointer from .open',
+            freq_hz: 'required - RX LO frequency Hz',
+            rate_hz: 'optional - sample rate (default 2_500_000)',
+            bw_hz: 'optional - RF bandwidth (default = rate_hz)',
+            gain_db: 'optional - manual gain dB; nil = slow_attack AGC',
+            gain_mode: 'optional - slow_attack|fast_attack|manual|hybrid'
+          )
+
+          # Run start rx and return its result
+          #{self}.start_rx(
+            context: 'required - pointer from .open',
+            samples: 'optional - samples-per-refill (default 262144)',
+            cyclic: 'optional - cyclic buffer (default false)'
+          )
+
+          # Run read sync and return its result
+          #{self}.read_sync(
+            handle: 'required - handle value consumed by #read_sync'
+          )
+
+          # Run stop rx and return its result
+          #{self}.stop_rx(
+            handle: 'optional - handle value consumed by #stop_rx'
+          )
+
+          # High-level one-shot: open → configure → start_rx → N refills → stop → close
+          #{self}.capture(
+            freq_hz: 'required - freq hz value consumed by #capture',
+            rate_hz: 'optional - rate hz value consumed by #capture',
+            bytes: 'optional - 1_048_576,   # approximate payload size',
+            uri: 'optional - URI or URL string',
+            gain_db: 'optional - gain db value consumed by #capture',
+            timeout_ms: 'optional - timeout ms value consumed by #capture',
+            bw_hz: 'optional - bw hz value consumed by #capture',
+            gain_mode: 'optional - gain mode value consumed by #capture'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
 
       class << self

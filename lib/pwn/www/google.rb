@@ -87,27 +87,33 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj = #{self}.open(
-            browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
+          # Open a Watir browser on google.com and return browser_obj.
+          #{self}.open(
+            browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          browser_obj = #{self}.search(
+          # Type a query into Google Search and return browser_obj.
+          #{self}.search(
             browser_obj: 'required - browser_obj returned from #open method',
             q: 'required - search string'
           )
 
-          browser_obj = #{self}.search_linkedin_for_employees_by_company(
+          # Search Google for LinkedIn employee profiles at a given company.
+          #{self}.search_linkedin_for_employees_by_company(
             browser_obj: 'required - browser_obj returned from #open method',
             company: 'required - company string'
           )
 
-          browser_obj = #{self}.close(
+          # Close the browser_obj returned by #open.
+          #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

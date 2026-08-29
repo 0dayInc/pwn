@@ -199,8 +199,10 @@ module PWN
           eval_s = ToolGuard.deadline_s(kind: :eval) if defined?(ToolGuard)
           shell_s = ToolGuard.deadline_s(kind: :shell) if defined?(ToolGuard)
           load_line = "load1=#{snap[:load1]} ncpu=#{snap[:ncpu]} mem_avail_mb=#{snap[:mem_avail_mb]}"
+          doc = (PWN::Plugins::Doctor.host_summary if defined?(PWN::Plugins::Doctor))
           "#{load_line} pwn_eval/shell timeout = conservative seconds for this host " \
-            "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped)."
+            "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped). " \
+            "#{doc}"
         rescue StandardError
           'load unknown — pass a conservative timeout on pwn_eval/shell anyway.'
         end
@@ -359,16 +361,24 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              system_prompt = PWN::AI::Agent::PromptBuilder.build(session_id: 'abc', request: 'nmap sweep 10/8')
-              PWN::AI::Agent::PromptBuilder.budget   # => {memory:, metrics:, mistakes:, learning:, extro:}
+          puts "USAGE:
+            # Run build and return its result
+            #{self}.build(
+              session_id: 'optional - PWN::Sessions id to embed in the ENV block',
+              request: 'optional - user request; enables relevance-ranked MEMORY when provided',
+              thin: 'optional - thin value consumed by #build',
+              mode: 'optional - mode value consumed by #build',
+              expand_harness: 'optional - expand harness value consumed by #build',
+              stuck: 'optional - stuck value consumed by #build'
+            )
 
-              Override per-engine via:
-                PWN::Env[:ai][:ollama][:prompt_budget] = { memory: 4, extro: false }
+            # Run budget and return its result
+            #{self}.budget
 
-              #{self}.authors
-          USAGE
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

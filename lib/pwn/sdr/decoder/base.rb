@@ -626,38 +626,90 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (100 % ruby-native — no external binaries):
+          puts "USAGE:
+            # Run run native and return its result
             #{self}.run_native(
-              freq_obj: 'required - freq_obj from PWN::SDR::GQRX.init_freq',
-              protocol: 'required - short protocol name',
-              demod:    'required - object with #feed(samples,&emit)',
-              rate:     'optional - UDP sample rate (default 48000)'
+              freq_obj: 'required - freq_obj Hash from PWN::SDR::GQRX.init_freq',
+              protocol: 'required - short name for banner / log filename (defaults to SIGNAL)',
+              demod: 'required - object responding to #feed(samples,&emit)',
+              rate: 'optional - assumed UDP sample rate (default 48000)'
             )
 
-            #{self}.run_iq(
-              freq_obj:    'required - freq_obj Hash',
-              protocol:    'required - short protocol name',
-              demod:       'required - #feed_iq(iq, rate:, &emit) or #feed',
-              sample_rate: 'optional - Hz (default 2_048_000)',
-              source:      'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:soapy|:file',
-              file:        'optional - .cu8/.cs16 capture path',
-              fm_demod:    'optional - FM-demod then #feed (default false)',
-              fallback:    'optional - :detector|:raise|:silent (default :detector)'
-            )
-
+            # Run run detector and return its result
             #{self}.run_detector(
-              freq_obj:  'required - freq_obj from PWN::SDR::GQRX.init_freq',
-              protocol:  'required - short protocol name',
-              note:      'optional - explanation shown to operator',
-              threshold: 'optional - dB above floor for burst (default 8.0)',
-              describe:  'optional - Proc { |burst| Hash } extra fields'
+              freq_obj: 'required - freq_obj Hash from PWN::SDR::GQRX.init_freq',
+              protocol: 'required - short name for banner / log filename (defaults to SIGNAL)',
+              note: 'optional - one-line explanation shown once',
+              threshold: 'optional - dBFS above rolling floor to call a burst (default 8.0)',
+              describe: 'optional - Proc.new { |burst_hash| Hash } extra fields'
             )
 
-            #{self}.resolve_iq_source(freq_obj:, source: :auto, sample_rate:, file:)
-            #{self}.match_line?(line: str, matcher: Regexp|String|Array)
+            # Run match line and return its result
+            #{self}.match_line?(
+              line: 'optional - line value consumed by #match_line?',
+              matcher: 'optional - matcher value consumed by #match_line?'
+            )
 
+            # Run resolve iq source and return its result
+            #{self}.resolve_iq_source(
+              freq_obj: 'required - freq obj value consumed by #resolve_iq_source',
+              source: 'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:soapy|:file',
+              sample_rate: 'optional - desired rate Hz',
+              file: 'optional - path to .cu8/.cs16/.iq capture (defaults to freq_obj[:iq_file])',
+              iq_format: 'optional - iq format value consumed by #resolve_iq_source (defaults to freq_obj[:iq_format])',
+              index: 'optional - index value consumed by #resolve_iq_source',
+              gain_db: 'optional - gain db value consumed by #resolve_iq_source (defaults to freq_obj[:gain_db])',
+              ppm: 'optional - ppm value consumed by #resolve_iq_source',
+              serial: 'optional - serial value consumed by #resolve_iq_source',
+              lna_gain: 'optional - lna gain value consumed by #resolve_iq_source (defaults to 16)',
+              vga_gain: 'optional - vga gain value consumed by #resolve_iq_source (defaults to 20)',
+              amp: 'optional - amp value consumed by #resolve_iq_source',
+              uri: 'optional - URI or URL string',
+              chunk_samples: 'optional - chunk samples value consumed by #resolve_iq_source',
+              soapy_args: 'optional - soapy args value consumed by #resolve_iq_source (defaults to freq_obj[:soapy_args])',
+              channel: 'optional - channel value consumed by #resolve_iq_source (defaults to 0)'
+            )
+
+            # Run read iq chunk and return its result
+            #{self}.read_iq_chunk(
+              source: 'required - source value consumed by #read_iq_chunk',
+              bytes: 'optional - bytes value consumed by #read_iq_chunk'
+            )
+
+            # Run unpack iq and return its result
+            #{self}.unpack_iq(
+              source: 'optional - source value consumed by #unpack_iq',
+              data: 'optional - data value consumed by #unpack_iq'
+            )
+
+            # Run close iq source and return its result
+            #{self}.close_iq_source(
+              source: 'optional - source value consumed by #close_iq_source'
+            )
+
+            # OR #feed(samples, &emit) when fm_demod:true,
+            #{self}.run_iq(
+              freq_obj: 'required - freq_obj Hash',
+              protocol: 'required - short name (defaults to SIGNAL)',
+              demod: 'required - object with #feed_iq(iq, rate:, &emit',
+              sample_rate: 'optional - Hz (default 2_048_000)',
+              source: 'optional - :auto|:rtlsdr|:hackrf|:adalm_pluto|:soapy|:file',
+              file: 'optional - path to capture',
+              fm_demod: 'optional - FM-demod I/Q→audio then #feed (default false)',
+              chunk_bytes: 'optional - bytes per read (default 262144)',
+              fallback: 'optional - :detector|:raise|:silent (default :detector)',
+              note: 'optional - shown once when falling back',
+              describe: 'optional - Proc for detector fallback',
+              gain_db: 'optional - gain db value consumed by #run_iq',
+              uri: 'optional - URI or URL string',
+              index: 'optional - index value consumed by #run_iq',
+              threshold: 'optional - threshold value consumed by #run_iq'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

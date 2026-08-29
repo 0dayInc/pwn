@@ -61,16 +61,19 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q + GQRX-audio native paths, no external binaries):
+          puts "USAGE:
+            # Run decode and return its result
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path',
+              sample_rate: 'optional - sample rate value consumed by #decode'
             )
 
-            NOTE: Runs the native POCSAG (512/1200/2400) and FLEX (1600)
-                  demodulators in parallel on the same GQRX NBFM audio tap.
-
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

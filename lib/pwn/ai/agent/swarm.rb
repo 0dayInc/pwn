@@ -396,42 +396,78 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              # Define personas (or edit #{AGENTS_FILE} directly)
-              PWN::AI::Agent::Swarm.spawn(
-                name: 'red',
-                role: 'Offensive researcher. Propose the most likely exploit path...',
-                toolsets: %w[terminal pwn memory extrospection],
-                engine: :anthropic
-              )
+          puts "USAGE:
+            # Persona registry (~/.pwn/agents.yml)
+            #{self}.personas
 
-              # One-shot: ask a persona (creates a swarm if none given)
-              r = PWN::AI::Agent::Swarm.ask(name: 'red', request: 'Enumerate attack surface for target X')
+            # Run spawn and return its result
+            #{self}.spawn(
+              name: 'required - persona name (snake_case)',
+              role: 'required - system_role_content overlay for this persona',
+              toolsets: 'optional - Array of Registry toolset names',
+              engine: 'optional - :openai / :anthropic / :grok / :gemini / :ollama / :openwebui',
+              max_iters: 'optional - per-turn iteration cap for this persona'
+            )
 
-              # Antagonistic feedback loop
-              d = PWN::AI::Agent::Swarm.debate(
-                names: %w[red blue],
-                topic: 'Is CVE-2026-NNNN exploitable on target X?',
-                rounds: 3
-              )
-              puts d[:transcript].map { |t| "\#{t[:name]}: \#{t[:reply][0,200]}" }
+            # Run retire and return its result
+            #{self}.retire(
+              name: 'optional - binary or identifier name'
+            )
 
-              # Fan-out
-              PWN::AI::Agent::Swarm.broadcast(request: 'Summarise findings so far')
+            # Swarm lifecycle & bus
+            #{self}.create(
+              topic: 'optional - topic value consumed by #create'
+            )
 
-              # Inspect / resume cross-session
-              PWN::AI::Agent::Swarm.list
-              PWN::AI::Agent::Swarm.bus_tail(swarm_id: d[:swarm_id], limit: 50)
+            # Run list and return its result
+            #{self}.list
 
-              Config:
-                PWN::Env[:ai][:agent][:max_depth]  # recursion cap  (default #{DEFAULT_DEPTH})
-                persona[:max_iters]                # per-turn iteration cap (default #{DEFAULT_ITERS})
-                persona[:toolsets]                 # Registry toolset allow-list; omit 'swarm'
-                                                   # to prevent that persona spawning sub-agents.
+            # Run bus append and return its result
+            #{self}.bus_append(
+              swarm_id: 'required - required, from: required, content: required',
+              to: 'optional - optional (default :all)',
+              from: 'optional - sender account or address to bind as operator',
+              content: 'optional - content value consumed by #bus_append'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run bus tail and return its result
+            #{self}.bus_tail(
+              swarm_id: 'optional - swarm id value consumed by #bus_tail',
+              limit: 'optional - limit value consumed by #bus_tail'
+            )
+
+            # Core: run a single persona turn under Loop.run
+            #{self}.ask(
+              name: 'required - persona name from ~/.pwn/agents.yml',
+              request: 'required - what to ask/instruct the persona',
+              swarm_id: 'optional - join an existing swarm (created if omitted)',
+              to: 'optional - addressee recorded on the bus (default :all)',
+              on_tool: 'optional - ->(name, args, result) live-UI callback',
+              from: 'optional - sender account or address to bind as operator (defaults to caller_label)',
+              text_only: 'required - text only value consumed by #ask'
+            )
+
+            # Run debate and return its result
+            #{self}.debate(
+              names: 'required - Array of persona names, order = speaking order',
+              topic: 'required - opening question / claim',
+              rounds: 'optional - full passes over names (default 2)',
+              swarm_id: 'optional - join an existing swarm',
+              on_tool: 'optional - ->(name, args, result) live-UI callback'
+            )
+
+            # Run broadcast and return its result
+            #{self}.broadcast(
+              request: 'required - required, names: optional - default all personas',
+              swarm_id: 'optional - swarm id value consumed by #broadcast',
+              names: 'required - Array names value consumed by #broadcast',
+              on_tool: 'optional - on tool value consumed by #broadcast'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

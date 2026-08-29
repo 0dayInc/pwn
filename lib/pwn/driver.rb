@@ -69,26 +69,10 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        # Load default driver options into PWN::Env
-        opts = PWN::Env[:driver_opts]
-        #{self}::Parser.new.parse(&:on).parse!
-
-        # Add more options by passing a block to the parser
-        opts = PWN::Env[:driver_opts]
-        #{self}::Parser.new do |options|
-          # Boolean option
-          options.on('-b', '--boolean') do |o|
-            opts[:boolean] = o
-          end
-
-          # String option
-          options.on('-sSTRING', '--string=STRING') do |o|
-            opts[:string] = o
-          end
-        end.parse!
-
+        # Print the AUTHOR(S) string for this module.
         #{self}.authors
       "
+      constants.sort
     end
   end
 end

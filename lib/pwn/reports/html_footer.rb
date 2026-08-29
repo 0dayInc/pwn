@@ -148,12 +148,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.generate(
-            column_names: 'Array of Column Names to use in the report table',
-            driver_src_uri: 're
+          # Run generate and return its result
+          #{self}.generate
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

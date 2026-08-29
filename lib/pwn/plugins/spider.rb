@@ -63,15 +63,18 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts %{USAGE:
+        puts "USAGE:
+          # Run crawl and return its result
           #{self}.crawl(
             target_fqdn: 'required - target fqdn to spider',
             results_path: 'required - path to save spider results',
             proxy: 'optional - proxy to spider through e.g. http://127.0.0.1:8080'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
-        }
+        "
+        constants.sort
       end
     end
   end

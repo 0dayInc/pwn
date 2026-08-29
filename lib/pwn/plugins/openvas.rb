@@ -268,46 +268,54 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          task_xml_resp = #{self}.get_task_id(
-            task_name: 'required task name to start',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
+          # Run get task id and return its result
+          #{self}.get_task_id(
+            task_name: 'required - required task name to start',
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)'
           )
 
-          start_task_xml_resp = #{self}.start_task(
-            task_name: 'required task name to start',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
+          # Run start task and return its result
+          #{self}.start_task(
+            task_name: 'required - required task name to start',
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)'
           )
 
-          task_status = #{self}.get_task_status(
-            task_name: 'required task name to start',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
+          # Run get task status and return its result
+          #{self}.get_task_status(
+            task_name: 'required - required task name to start',
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)'
           )
 
-          last_report_id = #{self}.last_report_id(
-            task_name: 'required task name to start',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
+          # Run last report id and return its result
+          #{self}.last_report_id(
+            task_name: 'required - required task name to start',
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)'
           )
 
+          # Run save report and return its result
           #{self}.save_report(
-            report_type: 'required report type (csv|itg|pdf|txt|xml)',
-            report_id: 'required report id to save',
-            report_dir: 'required directory to save report',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)',
-            report_filter: 'optional - results filter (Default: \"apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity\")
+            report_type: 'required - required report type (csv|itg|pdf|txt|xml)',
+            report_id: 'required - required report id to save',
+            report_dir: 'required - required directory to save report',
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)',
+            report_filter: 'optional - results filter (Default: apply_overrides=0 levels=hml rows=1000 min_qod=70 first=1 sort-reverse=severity'
           )
 
-          report_types = #{self}.get_report_types(
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
+          # Run get report types and return its result
+          #{self}.get_report_types(
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

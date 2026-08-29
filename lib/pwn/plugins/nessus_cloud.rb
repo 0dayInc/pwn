@@ -743,55 +743,87 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          nessus_obj = #{self}.login(
+          # Run login and return its result
+          #{self}.login(
             access_key: 'required - API access key (will prompt if blank)',
             secret_key: 'required - API secret key (will prompt if blank)'
           )
 
+          # Run get canned scan templates and return its result
           #{self}.get_canned_scan_templates(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of scan template'
           )
 
+          # Run get policies and return its result
           #{self}.get_policies(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of policy (i.e. user-defined template)'
           )
 
+          # Run get folders and return its result
           #{self}.get_folders(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of folder'
           )
 
+          # Run get scanners and return its result
           #{self}.get_scanners(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of scanner'
           )
 
+          # Run get target networks and return its result
           #{self}.get_target_networks(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of target network'
           )
 
+          # Run get timezones and return its result
           #{self}.get_timezones(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of timezone'
           )
 
+          # Run get target groups and return its result
           #{self}.get_target_groups(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of target group'
           )
 
+          # Run get tag values and return its result
           #{self}.get_tag_values(
             nessus_obj: 'required - nessus_obj returned from #login method',
             name: 'optional - name of tag value'
           )
 
-          #{self}.get_scans(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+          # Run get assets and return its result
+          #{self}.get_assets(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - name of asset'
           )
 
+          # Run add tag to assets and return its result
+          #{self}.add_tag_to_assets(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            targets: 'required - comma-delimited list of targets to tag',
+            tag_uuids: 'required - array of tag UUIDS to tag against targets'
+          )
+
+          # Run get credential types and return its result
+          #{self}.get_credential_types(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            category: 'optional - category of credential type (Defaults to Host)',
+            name: 'optional - name of credential type (Defaults to SSH)'
+          )
+
+          # Run get scans and return its result
+          #{self}.get_scans(
+            nessus_obj: 'required - nessus_obj returned from #login method',
+            name: 'optional - binary or identifier name'
+          )
+
+          # Run create scan and return its result
           #{self}.create_scan(
             nessus_obj: 'required - nessus_obj returned from #login method',
             scan_template_uuid: 'required - the UUID for the Tenable-provided scan template to use.  Run #get_canned_scan_templates for a list of UUIDs',
@@ -800,6 +832,7 @@ module PWN
             plugins: 'optional - plugins object as defined by https://developer.tenable.com/reference/scans-create (Defaults to {})'
           )
 
+          # Run update scan and return its result
           #{self}.update_scan(
             nessus_obj: 'required - nessus_obj returned from #login method',
             scan_id: 'required - the scan id to update.  Run #get_scans for a list',
@@ -809,16 +842,19 @@ module PWN
             plugins: 'optional - plugins object as defined by https://developer.tenable.com/reference/scans-create (Defaults to {})'
           )
 
+          # Run launch scan and return its result
           #{self}.launch_scan(
             nessus_obj: 'required - nessus_obj returned from #login method',
             scan_id: 'required - scan uuid to launch'
           )
 
+          # Run get scan status and return its result
           #{self}.get_scan_status(
             nessus_obj: 'required - nessus_obj returned from #login method',
             scan_id: 'required - scan uuid to retrieve status'
           )
 
+          # Run create tag and return its result
           #{self}.create_tag(
             nessus_obj: 'required - nessus_obj returned from #login method',
             category: 'required - category name to create or use',
@@ -826,21 +862,25 @@ module PWN
             desc: 'optional - tag value description'
           )
 
+          # Run get scan history and return its result
           #{self}.get_scan_history(
-            nessus_obj: 'required - nessus_obj returned from #login method'
+            nessus_obj: 'required - nessus_obj returned from #login method',
             scan_id: 'required - scan uuid to launch'
           )
 
+          # Run export scan results and return its result
           #{self}.export_scan_results(
             nessus_obj: 'required - nessus_obj returned from #login method',
             scan_id: 'required - scan uuid to export',
             path_to_export: 'required - filename to export results',
             history_id: 'optional - defaults to last scan',
-            format: 'optional - :csv|:db|:html|:nessus|:pdf (defaults to :csv')
+            format: 'optional - :csv|:db|:html|:nessus|:pdf (defaults to :csv'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

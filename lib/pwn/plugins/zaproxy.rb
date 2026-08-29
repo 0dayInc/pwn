@@ -749,18 +749,18 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          zap_obj = #{self}.start(
+          # Run start and return its result
+          #{self}.start(
             api_key: 'required - api key for API authorization',
             zap_bin_path: 'optional - path to zap.sh file',
-            headless: 'optional - run zap headless if set to true',
-            proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:<Random 1024-65535>)'
+            headless: 'optional - run zap headless if set to true (defaults to false)',
+            browser_type: 'optional - defaults to :firefox.  See PWN::Plugins::TransparentBrowser.help for a list of types',
+            proxy: 'optional - change local zap proxy listener (defaults to http://127.0.0.1:<Random 1024-65535>)',
+            zap_ip: 'optional - zap ip value consumed by #start',
+            zap_port: 'optional - zap port value consumed by #start'
           )
 
-          #{self}.spider(
-            zap_obj: 'required - zap_obj returned from #open method',
-            target_url: 'required - url to spider'
-          )
-
+          # Run import openapi to sitemap and return its result
           #{self}.import_openapi_to_sitemap(
             zap_obj: 'required - zap_obj returned from #open method',
             openapi_spec: 'required - path to OpenAPI JSON or YAML spec file',
@@ -768,52 +768,62 @@ module PWN
             target_regex: 'optional - url regex to inject additional_http_headers into (e.g. https://test.domain.local.*)'
           )
 
+          # Run get sitemap and return its result
           #{self}.get_sitemap(
             zap_obj: 'required - zap_obj returned from #open method',
             keyword: 'optional - string to search for in the sitemap entries (defaults to nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
+          # Run add to scope and return its result
           #{self}.add_to_scope(
             zap_obj: 'required - zap_obj returned from #open method',
             target_regex: 'required - url regex to add to scope (e.g. https://test.domain.local.*)',
             context_name: 'optional - context name to add target_regex to (defaults to Default Context)'
           )
 
+          # Run requester and return its result
           #{self}.requester(
             zap_obj: 'required - zap_obj returned from #open method',
             har_entry: 'required - har entry (e.g. from #get_sitemap method method)',
-            redirect: 'optional - follow redirects if set to true (defaults to true)'
+            redirect: 'optional - follow redirects if set to true (defaults to false)'
           )
 
-          json_sitemap = #{self}.spider(
-            zap_obj: 'required - zap_obj returned from #open method'
+          # Run spider and return its result
+          #{self}.spider(
+            zap_obj: 'required - zap_obj returned from #open method',
+            target_url: 'required - url to spider'
           )
 
+          # Run inject additional http headers and return its result
           #{self}.inject_additional_http_headers(
             zap_obj: 'required - zap_obj returned from #open method',
             target_regex: 'required - url regex to inject headers into (e.g. https://test.domain.local.*)',
             headers: 'required - hash of additional headers to inject into each request'
           )
 
+          # Run active scan and return its result
           #{self}.active_scan(
-            zap_obj: 'required - zap_obj returned from #open method'
+            zap_obj: 'required - zap_obj returned from #open method',
             target_url: 'required - url to scan',
             exclude_paths: 'optional - array of paths to exclude from scan (default: [])',
             scan_policy: 'optional - scan policy to use (defaults to Default Policy)'
           )
 
-          json_alerts = #{self}.get_alerts(
-            zap_obj: 'required - zap_obj returned from #open method'
+          # Run get alerts and return its result
+          #{self}.get_alerts(
+            zap_obj: 'required - zap_obj returned from #open method',
             target_url: 'required - base url to return alerts'
           )
 
-          report_path = #{self}.generate_scan_report(
+          # Run generate scan report and return its result
+          #{self}.generate_scan_report(
             zap_obj: 'required - zap_obj returned from #open method',
             output_dir: 'required - directory to save report',
             report_type: 'required - <:html|:markdown|:xml>'
           )
 
+          # Run breakpoint and return its result
           #{self}.breakpoint(
             zap_obj: 'required - zap_obj returned from #open method',
             regex_type: 'required - :url, :request_header, :request_body, :response_header or :response_body',
@@ -821,18 +831,22 @@ module PWN
             enabled: 'optional - boolean (defaults to true)'
           )
 
+          # Run tamper and return its result
           #{self}.tamper(
             zap_obj: 'required - zap_obj returned from #open method',
             domain: 'required - FQDN to tamper (e.g. test.domain.local)',
             enabled: 'optional - boolean (defaults to true)'
           )
 
+          # Run stop and return its result
           #{self}.stop(
-            zap_obj: 'required - zap_obj returned from #start method'
+            zap_obj: 'required - zap_obj returned from #open method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -82,25 +82,30 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj = #{self}.open(
-            browser_type: 'optional :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
+          # Open a session or connection and return a handle.
+          #{self}.open(
+            browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          browser_obj = #{self}.open(
-            q: 'required search string'
+          # Run a search using the open session.
+          #{self}.search(
+            browser_obj: 'required - browser_obj returned from #open method',
+            q: 'required - required search string'
           )
 
-          browser_obj = #{self}.onion(
+          # Run onion and return its result
+          #{self}.onion
+
+          # Close a session previously returned by #open.
+          #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
-          browser_obj = #{self}.close(
-            browser_obj: 'required - browser_obj returned from #open method'
-          )
-
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

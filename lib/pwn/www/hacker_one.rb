@@ -590,50 +590,61 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj = #{self}.open(
+          # Open a session or connection and return a handle.
+          #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          programs_arr = #{self}.get_bounty_programs(
+          # Run get bounty programs and return its result
+          #{self}.get_bounty_programs(
             min_payouts_enabled: 'optional - only display programs where payouts are > $0.00 (defaults to false)',
             suppress_progress: 'optional - suppress output (defaults to false)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          scope_details = #{self}.get_scope_details(
+          # Run get scope details and return its result
+          #{self}.get_scope_details(
             program_name: 'required - program name from #get_bounty_programs method',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          hacktivity = #{self}.get_hacktivity(
+          # Run get hacktivity and return its result
+          #{self}.get_hacktivity(
             program_name: 'required - program name from #get_bounty_programs method',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
+          # Run save burp target config file and return its result
           #{self}.save_burp_target_config_file(
             programs_arr: 'required - array of hashes returned from #get_bounty_programs method',
             browser_opts: 'optional - opts supported by PWN::Plugins::TransparentBrowser.open method',
             name: 'optional - name of burp target config file (defaults to ALL)',
-            root_dir: 'optional - directory to save burp target config files (defaults to \"./\"))'
+            root_dir: 'optional - directory to save burp target config files (defaults to ./))',
+            browser_type: 'optional - :firefox, :chrome, :ie, or :headless (defaults to :firefox)'
           )
 
-          browser_obj = #{self}.login(
+          # Run login and return its result
+          #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
-            username: 'required - username',
-            password: 'optional - passwd (will prompt if blank),
+            username: 'required - username value consumed by #login',
+            password: 'optional - passwd (will prompt if blank)'
           )
 
-          browser_obj = #{self}.logout(
+          # Run logout and return its result
+          #{self}.logout(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Close a session previously returned by #open.
           #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

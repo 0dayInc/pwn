@@ -651,29 +651,139 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::Metrics.record(name: 'shell', success: true, duration: 0.42, engine: :ollama)
-              PWN::AI::Agent::Metrics.summary(limit: 10, engine: :ollama)
-              PWN::AI::Agent::Metrics.to_context(limit: 8, engine: :ollama)   # injected by PromptBuilder
-              PWN::AI::Agent::Metrics.ucb(name: 'shell')                 # C1 exploration bonus
-              PWN::AI::Agent::Metrics.thompson(name: 'shell')            # C1 Beta(ok+1,fail+1) sample
-              PWN::AI::Agent::Metrics.advantage(name: 'shell')           # C1 local − global (P20 judge-blended)
-              PWN::AI::Agent::Metrics.record_judge(name: 'shell', score: 0.8) # P20 ORM→metrics
-              PWN::AI::Agent::Metrics.judge_rate(name: 'shell')         # P20 mean ORM
-              PWN::AI::Agent::Metrics.effective_rate(name: 'shell')     # P20 proxy⋈judge
-              PWN::AI::Agent::Metrics.changepoints(within_secs: 3600)    # E1 CUSUM regime changes
-              PWN::AI::Agent::Metrics.record_calibration(predicted: 0.8, actual: 1.0, brier: 0.04, engine: :ollama)
-              PWN::AI::Agent::Metrics.calibration(engine: :ollama)       # W3 Brier / overconfidence
-              PWN::AI::Agent::Metrics.scale_prediction(predicted: 0.87) # temperature-scale before Policy/UI
-              PWN::AI::Agent::Metrics.scoreboard                        # tool_ok vs task_ok vs judge_ok
-              PWN::AI::Agent::Metrics.health_line
-              PWN::AI::Agent::Metrics.reset
-              PWN::AI::Agent::Metrics.load
-              PWN::AI::Agent::Metrics.save(metrics: hash)
+          puts "USAGE:
+            # Run load and return its result
+            #{self}.load
 
-              #{self}.authors
-          USAGE
+            # Run save and return its result
+            #{self}.save(
+              metrics: 'required - Hash returned by .load / mutated in place'
+            )
+
+            # Run record and return its result
+            #{self}.record(
+              name: 'required - tool name that was dispatched',
+              success: 'required - Boolean, did the handler complete without error',
+              duration: 'optional - Float seconds the dispatch took',
+              error: 'optional - String error message when success is false',
+              engine: 'optional - Symbol/String AI engine that chose this tool (segments telemetry)'
+            )
+
+            # Run summary and return its result
+            #{self}.summary(
+              limit: 'optional - cap number of tools returned (default 25)',
+              engine: 'optional - only that engine\\s sub-bucket (falls back to global when absent)'
+            )
+
+            # Run to context and return its result
+            #{self}.to_context(
+              limit: 'optional - cap number of tools included (default 8)',
+              engine: 'optional - restrict to one engine\\s telemetry'
+            )
+
+            # P4 helper — Registry.rank calls this so β·advantage is scaled down
+            #{self}.proxy_trust
+
+            # Run ucb and return its result
+            #{self}.ucb(
+              name: 'optional - binary or identifier name',
+              c: 'optional - c value consumed by #ucb'
+            )
+
+            # Run thompson and return its result
+            #{self}.thompson(
+              name: 'optional - binary or identifier name'
+            )
+
+            # Run advantage and return its result
+            #{self}.advantage(
+              name: 'optional - binary or identifier name'
+            )
+
+            # Run prm advantage and return its result
+            #{self}.prm_advantage(
+              name: 'optional - binary or identifier name'
+            )
+
+            # Run prm n and return its result
+            #{self}.prm_n(
+              name: 'optional - binary or identifier name'
+            )
+
+            # P18 — called by Reward.prm after session annotate so live routing
+            #{self}.record_step_reward(
+              name: 'required - binary or identifier name',
+              reward: 'optional - reward value consumed by #record_step_reward'
+            )
+
+            # P20 — fold ORM judge (0..1) into per-tool telemetry so UCB /
+            #{self}.record_judge(
+              name: 'required - binary or identifier name',
+              score: 'optional - score value consumed by #record_judge',
+              confidence: 'optional - confidence value consumed by #record_judge',
+              source: 'optional - source value consumed by #record_judge'
+            )
+
+            # P1 — mean judge confidence for a tool (nil when no samples)
+            #{self}.judge_confidence(
+              name: 'optional - binary or identifier name'
+            )
+
+            # Mean judge score for a tool (nil when no ORM samples yet)
+            #{self}.judge_rate(
+              name: 'optional - binary or identifier name'
+            )
+
+            # Blended success rate: when proxy_distrust > 0 and judge samples
+            #{self}.effective_rate(
+              name: 'optional - binary or identifier name'
+            )
+
+            # Run changepoints and return its result
+            #{self}.changepoints(
+              cause: 'optional - :env_drift and does NOT count toward [REPEATING].',
+              within_secs: 'optional - within secs value consumed by #changepoints'
+            )
+
+            # W3 — plan_first emits p(success); Loop.run calls this with the
+            #{self}.record_calibration(
+              engine: 'optional - engine value consumed by #record_calibration (defaults to :global))',
+              brier: 'optional - brier value consumed by #record_calibration',
+              predicted: 'optional - predicted value consumed by #record_calibration',
+              actual: 'optional - actual value consumed by #record_calibration'
+            )
+
+            # Run calibration and return its result
+            #{self}.calibration(
+              engine: 'required - engine value consumed by #calibration'
+            )
+
+            # Run calibration green and return its result
+            #{self}.calibration_green?(
+              engine: 'optional - engine value consumed by #calibration_green?'
+            )
+
+            # Run scale prediction and return its result
+            #{self}.scale_prediction(
+              predicted: 'optional - predicted value consumed by #scale_prediction',
+              engine: 'optional - engine value consumed by #scale_prediction'
+            )
+
+            # Run scoreboard and return its result
+            #{self}.scoreboard(
+              engine: 'optional - engine value consumed by #scoreboard'
+            )
+
+            # Run health line and return its result
+            #{self}.health_line
+
+            # Run reset and return its result
+            #{self}.reset
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

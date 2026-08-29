@@ -197,19 +197,50 @@ module PWN
         end
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              parts  = PWN::AI::Agent::PromptCache.split_system(text: system_prompt)
-              blocks = PWN::AI::Agent::PromptCache.anthropic_system_blocks(text: system_prompt)
-              msgs   = PWN::AI::Agent::PromptCache.openai_messages(messages: [...])
-              inst   = PWN::AI::Agent::PromptCache.gemini_system_instruction(text: system_prompt)
-              key    = PWN::AI::Agent::PromptCache.cache_key(text: system_prompt)
-              # Engine chat_with_tools uses the helpers automatically when
-              # PWN::Env[:ai][:agent][:prompt_cache] is truthy (default).
+          puts "USAGE:
+            # Run enabled and return its result
+            #{self}.enabled?(
+              engine: 'optional - engine value consumed by #enabled?'
+            )
 
-              Toggle via PWN::Env[:ai][:agent][:prompt_cache]
-              #{self}.authors
-          USAGE
+            # Run split system and return its result
+            #{self}.split_system(
+              text: 'required - text value consumed by #split_system'
+            )
+
+            # Run anthropic system blocks and return its result
+            #{self}.anthropic_system_blocks(
+              text: 'required - text value consumed by #anthropic_system_blocks'
+            )
+
+            # Run openai messages and return its result
+            #{self}.openai_messages(
+              messages: 'required - Array messages value consumed by #openai_messages'
+            )
+
+            # Run gemini system instruction and return its result
+            #{self}.gemini_system_instruction(
+              text: 'required - text value consumed by #gemini_system_instruction'
+            )
+
+            # Run cache key and return its result
+            #{self}.cache_key(
+              key: 'optional - key value consumed by #cache_key',
+              text: 'optional - text value consumed by #cache_key'
+            )
+
+            # Run cache marks and return its result
+            #{self}.cache_marks(
+              blocks: 'optional - Array blocks value consumed by #cache_marks'
+            )
+
+            # Run supports and return its result
+            #{self}.supports
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
 
         private_class_method def self.first_dynamic_index(opts = {})

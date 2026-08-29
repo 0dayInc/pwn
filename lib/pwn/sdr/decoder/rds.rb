@@ -194,21 +194,27 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            # Non-interactive (agents / automation) — returns a Hash:
-            rds = #{self}.sample(
-              gqrx_sock: sock,          # or freq_obj: from init_freq
-              settle_secs: 8,           # default 8, max 30
-              leave_enabled: false
+            # Run sample and return its result
+            #{self}.sample(
+              gqrx_sock: 'required - required unless freq_obj - TCPSocket from GQRX.connect',
+              freq_obj: 'required - required unless gqrx_sock - Hash from GQRX.init_freq',
+              settle_secs: 'optional - seconds to sample (default 8, max 30)',
+              interval: 'optional - poll interval seconds (default 0.75)',
+              leave_enabled: 'optional - leave RDS decoder ON after sample (default false)',
+              pi: 'required - ps_name:, radiotext:, station:',
+              samples: 'required - Integer, settle_secs: Float',
+              error: 'required - String?   # present when RDS backend is unavailable'
             )
-            # => { pi:, ps_name:, radiotext:, station:, samples:, settle_secs: }
 
-            # Interactive TTY spinner (human REPL via GQRX.init_freq decoder: :rds):
+            # Interactive TTY UX: enables RDS, spins a live status line until the
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq method'
+              freq_obj: 'required - Hash returned from PWN::SDR::GQRX.init_freq'
             )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
 
         # ---- internals -------------------------------------------------------

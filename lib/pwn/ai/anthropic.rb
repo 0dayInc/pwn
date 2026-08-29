@@ -862,25 +862,59 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          models = #{self}.get_models
+          # Run refresh oauth bearer token and return its result
+          #{self}.refresh_oauth_bearer_token(
+            refresh_token: 'required - Anthropic OAuth refresh_token',
+            client_id: 'optional - defaults to Claude Code public client',
+            token_uri: 'optional - defaults to platform.claude.com token endpoint',
+            bearer_token: 'optional - bearer token value consumed by #refresh_oauth_bearer_token',
+            expires_at: 'optional - expires at value consumed by #refresh_oauth_bearer_token'
+          )
 
-          # One-time Claude Pro/Max OAuth enrollment (PKCE paste flow):
-          bearer = #{self}.obtain_oauth_bearer_token
-          # Subsequent runs silently refresh via ai.anthropic.oauth.refresh_token
+          # Run obtain oauth bearer token and return its result
+          #{self}.obtain_oauth_bearer_token(
+            client_id: 'optional - Claude Code public client id',
+            scope: 'optional - space-delimited scopes',
+            redirect_uri: 'optional - must match registered callback',
+            authorize_uri: 'optional - claude.ai authorize endpoint',
+            token_uri: 'optional - platform.claude.com token endpoint',
+            bearer_token: 'optional - bearer token value consumed by #obtain_oauth_bearer_token',
+            refresh_token: 'optional - refresh token value consumed by #obtain_oauth_bearer_token',
+            expires_at: 'optional - expires at value consumed by #obtain_oauth_bearer_token'
+          )
 
-          response = #{self}.chat(
+          # Run get models and return its result
+          #{self}.get_models
+
+          # Native tool-calling adapter for PWN::AI::Agent::Loop
+          #{self}.chat_with_tools(
+            assistant_message: 'optional - <same hash> }',
+            messages: 'required - OpenAI-format messages array (system/user/assistant/tool)',
+            tools: 'optional - OpenAI tools array [{type:function, function:{...}}]',
+            tool_choice: 'optional - auto | none | required | {type:function, function:{name:..}}',
+            model: 'optional - overrides PWN::Env[:ai][:anthropic][:model]',
+            temp: 'optional - temperature (defaults to PWN::Env[:ai][:anthropic][:temp] || 1)',
+            max_tokens: 'optional - defaults to PWN::Env[:ai][:anthropic][:max_tokens] || 128_000',
+            timeout: 'optional - seconds (default 900)',
+            spinner: 'optional - display spinner (default false)'
+          )
+
+          # Run chat and return its result
+          #{self}.chat(
             request: 'required - message to Anthropic',
             model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:anthropic][:model])',
             temp: 'optional - creative response float (defaults to PWN::Env[:ai][:anthropic][:temp])',
             system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:anthropic][:system_role_content])',
             response_history: 'optional - pass response back in to have a conversation',
-            speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-            timeout: 'optional - timeout in seconds (defaults to 900)',
+            speak_answer: 'optional - optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
+            timeout: 'optional - optional timeout in seconds (defaults to 900)',
             spinner: 'optional - display spinner (defaults to false)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -140,15 +140,24 @@ module PWN
         end
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
+          puts "USAGE:
+            # Run decode and return its result
             #{self}.decode(
               freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
-              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture (≥2.048 Msps)'
+              sample_rate: 'optional - sample rate value consumed by #decode',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path'
             )
 
+            # Run parse line and return its result
+            #{self}.parse_line(
+              line: 'optional - line value consumed by #parse_line'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

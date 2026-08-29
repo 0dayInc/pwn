@@ -134,17 +134,21 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          bearer_token = #{self}.app_only_login(
+          # Run app only login and return its result
+          #{self}.app_only_login(
             consumer_key: 'required - consumer key for app-only authentication',
             consumer_secret: 'optional - consumer secret (will prompt if nil)'
           )
 
+          # Run app only logout and return its result
           #{self}.app_only_logout(
-            bearer_token: 'required bearer_token returned from #app_only_login method'
+            bearer_token: 'required - required bearer_token returned from #app_only_login method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

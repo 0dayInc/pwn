@@ -357,12 +357,111 @@ module PWN
         end
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::ToolGuard.placeholder?(text: '...')
-              PWN::AI::Agent::ToolGuard.coerce_args(args: { value: 'id' }, required: %w[command])
-              #{self}.authors
-          USAGE
+          puts "USAGE:
+            # Run present and return its result
+            #{self}.present?(
+              value: 'required - integer or string to pack/encode'
+            )
+
+            # Run placeholder and return its result
+            #{self}.placeholder?(
+              text: 'optional - text value consumed by #placeholder?'
+            )
+
+            # Run bashism and return its result
+            #{self}.bashism?(
+              text: 'optional - text value consumed by #bashism?'
+            )
+
+            # Run shell bash and return its result
+            #{self}.shell_bash?
+
+            # Run shell name and return its result
+            #{self}.shell_name
+
+            # Run protect http and return its result
+            #{self}.protect_http!
+
+            # Run protect core constants and return its result
+            #{self}.protect_core_constants!
+
+            # Coerce common wrong keys onto the first required schema field
+            #{self}.coerce_args(
+              args: 'optional - args value consumed by #coerce_args',
+              required: 'optional - Array required value consumed by #coerce_args'
+            )
+
+            # Run invalid payload and return its result
+            #{self}.invalid_payload(
+              hint: 'optional - hint value consumed by #invalid_payload',
+              shell: 'optional - shell value consumed by #invalid_payload (defaults to shell_name)'
+            )
+
+            # Run host load and return its result
+            #{self}.host_load
+
+            # Conservative wall-clock seconds for shell / pwn_eval
+            #{self}.deadline_s(
+              kind: 'optional - kind value consumed by #deadline_s',
+              timeout: 'optional - seconds to wait before giving up (defaults to opts[:timeout_s])',
+              timeout_s: 'optional - timeout s value consumed by #deadline_s'
+            )
+
+            # Run reset timeout budget and return its result
+            #{self}.reset_timeout_budget
+
+            # Run reset timeout budget and return its result
+            #{self}.reset_timeout_budget!
+
+            # Run mutation count and return its result
+            #{self}.mutation_count
+
+            # Run payload spent and return its result
+            #{self}.payload_spent
+
+            # Run note timeout and return its result
+            #{self}.note_timeout!(
+              timeout: 'optional - seconds to wait before giving up'
+            )
+
+            # Run next timeout and return its result
+            #{self}.next_timeout(
+              timeout: 'optional - seconds to wait before giving up',
+              spent: 'optional - spent value consumed by #next_timeout'
+            )
+
+            # Timeout policy (loop-law, not a skill):
+            #{self}.timeout_lesson(
+              tool: 'required - tool value consumed by #timeout_lesson',
+              timeout: 'required - seconds to wait before giving up'
+            )
+
+            # Run timeout result and return its result
+            #{self}.timeout_result(
+              timeout: 'required - seconds to wait before giving up',
+              tool: 'optional - tool value consumed by #timeout_result',
+              payload: 'optional - payload value consumed by #timeout_result',
+              task: 'optional - task value consumed by #timeout_result',
+              stdout: 'optional - stdout value consumed by #timeout_result',
+              stderr: 'optional - stderr value consumed by #timeout_result',
+              shell: 'required - shell value consumed by #timeout_result (defaults to shell_name)'
+            )
+
+            # Run timeout prior count and return its result
+            #{self}.timeout_prior_count(
+              tool: 'optional - tool value consumed by #timeout_prior_count'
+            )
+
+            # Run refuse copied persist and return its result
+            #{self}.refuse_copied_persist?(
+              name: 'optional - binary or identifier name',
+              args: 'optional - args value consumed by #refuse_copied_persist?'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

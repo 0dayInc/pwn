@@ -130,21 +130,26 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          console_obj = #{self}.connect(
-            yaml_conf: 'optional -  path to userland yaml (defaults to $PWN_ROOT/etc/userland/$PWN_PROVIDER/metasploit/vagrant.yaml)'
+          # Run connect and return its result
+          #{self}.connect(
+            yaml_conf: 'optional - path to userland yaml (defaults to /pwn/etc/userland/PWN_PROVIDEDR/metasploit/vagrant.yaml)'
           )
 
-          console_obj = #{self}.console_exec(
-            console_obj: 'required - msfrpcd_conn object returned from #connect method',
+          # Run console exec and return its result
+          #{self}.console_exec(
+            console_obj: 'required - console_obj object returned from #connect method',
             cmd: 'required - msfconsole command string or array of strings'
           )
 
-          console_obj = #{self}.disconnect(
-            console_obj: 'required - msfrpcd_conn object returned from #connect method'
+          # Run disconnect and return its result
+          #{self}.disconnect(
+            console_obj: 'required - console_obj returned from #console_exec method to terminate'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

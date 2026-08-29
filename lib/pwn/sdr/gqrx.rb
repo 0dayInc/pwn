@@ -3006,142 +3006,201 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts <<~USAGE
-          USAGE:
-            gqrx_sock = #{self}.connect(
-              target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
-              port: 'optional - GQRX target port (defaults to 7356)'
-            )
+        puts "USAGE:
+          # Run a command and return raw text output.
+          #{self}.cmd(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            cmd: 'required - GQRX command to execute',
+            resp_ok: 'optional - Expected response from GQRX to indicate success'
+          )
 
-            gqrx_resp = #{self}.cmd(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method',
-              cmd: 'required - GQRX command to send',
-              resp_ok: 'optional - Expected OK response (defaults to nil / no check)'
-            )
+          # Run connect and return its result
+          #{self}.connect(
+            target: 'optional - hostname, IP, or CIDR to scan',
+            port: 'optional - TCP/UDP port number'
+          )
 
-            freq_obj = #{self}.init_freq(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method',
-              freq: 'required - Frequency to set',
-              precision: 'optional - Frequency step precision (number of digits; defaults to 6)',
-              demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
-              bandwidth: 'optional - Bandwidth (defaults to "200.000")',
-              decoder: 'optional - Decoder key (e.g., :gsm / :rds) to start live decoding',
-              interactive: 'optional - false → decoder.sample Hash (default true = TTY decode)',
-              settle_secs: 'optional - seconds for decoder.sample (RDS default 8)',
-              suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
-              keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)'
-            )
+          # Run init freq and return its result
+          #{self}.init_freq(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            freq: 'required - Frequency to set',
+            demodulator_mode: 'optional - Demodulator mode (defaults to WFM)',
+            bandwidth: 'optional - Bandwidth (defaults to 200.000)',
+            squelch: 'optional - Squelch level to set (Defaults to current value)',
+            decoder: 'optional - Decoder key (e.g., :gsm / :rds) to start live decoding (starts recording if provided)',
+            interactive: 'optional - Boolean; when false AND decoder responds to .sample, call sample (non-interactive Hash) instead of decode (TTY). Defaults to true.',
+            settle_secs: 'optional - Seconds for decoder.sample (e.g. RDS; default 8)',
+            udp_ip: 'optional - UDP IP address for decoder module (defaults to 127.0.0.1)',
+            udp_port: 'optional - UDP port for decoder module (defaults to 7355)',
+            suppress_details: 'optional - Boolean to include extra frequency details in return hash (defaults to false)',
+            keep_alive: 'optional - Boolean to keep GQRX connection alive after method completion (defaults to false)',
+            precision: 'optional - precision value consumed by #init_freq'
+          )
 
-            scan_resp = #{self}.scan_range(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method',
-              ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
-              demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
-              bandwidth: 'optional - Bandwidth in Hz (Defaults to "200.000")',
-              precision: 'optional - Precision (Defaults to 1)',
-              strength_lock: 'optional - Strength lock (defaults to -70.0)',
-              squelch: 'optional - Squelch level (defaults to strength_lock - 3.0)',
-              audio_gain_db: 'optional - Audio gain in dB (defaults to 0.0)',
-              rf_gain: 'optional - RF gain (defaults to 0.0)',
-              intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
-              baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
-              keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)',
-              scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)',
-              location: 'optional - Location string to include in AI analysis (e.g., "New York, NY", 90210, GPS coords, etc.)'
-            )
+          # Run scan range and return its result
+          #{self}.scan_range(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
+            demodulator_mode: 'optional - Demodulator mode (e.g. WFM, AM, FM, USB, LSB, RAW, CW, RTTY / defaults to WFM)',
+            bandwidth: 'optional - Bandwidth in Hz (Defaults to 200.000)',
+            precision: 'optional - Frequency step precision (number of digits; defaults to 1)',
+            strength_lock: 'optional - Strength lock in dBFS (defaults to -70.0)',
+            squelch: 'optional - Squelch level in dBFS (defaults to strength_lock - 3.0)',
+            audio_gain_db: 'optional - Audio gain in dB (defaults to 0.0)',
+            rf_gain: 'optional - RF gain (defaults to 0.0)',
+            intermediate_gain: 'optional - Intermediate gain (defaults to 32.0)',
+            baseband_gain: 'optional - Baseband gain (defaults to 10.0)',
+            keep_looping: 'optional - Boolean to keep scanning indefinitely (defaults to false)',
+            scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>_lN.json)',
+            location: 'optional - Location string to include in AI analysis (e.g., New York, NY, 90210, GPS coords, etc.)',
+            decoder: 'optional - decoder value consumed by #scan_range'
+          )
 
-            snapshot = #{self}.get_spectrum_snapshot(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method',
-              center_freq: 'optional - Center frequency (Hz) for snapshot (defaults to current tuned freq)',
-              sample_rate: 'optional - Instantaneous bandwidth / sample rate in Hz (defaults to 1_000_000)',
-              nfft: 'optional - FFT bin size (defaults to 2048)',
-              avg: 'optional - Number of FFT averages (defaults to 8)',
-              capture_secs: 'optional - Duration of I/Q capture in seconds (defaults to 0.10)',
-              strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)'
-            )
+          # Run analyze scan and return its result
+          #{self}.analyze_scan(
+            scan_resp: 'required - Scan response hash returned from #scan_range method',
+            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+            port: 'optional - GQRX target port (defaults to 7356)'
+          )
 
-            fast_scan_resp = #{self}.fast_scan_range(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method',
-              ranges: 'required - Array of Hash objects with :start_freq and :target_freq keys defining scan ranges',
-              sample_rate: 'optional - Chunk size / visible span in Hz (defaults to 1_000_000)',
-              nfft: 'optional - FFT size (defaults to 2048)',
-              avg: 'optional - Number of averages (defaults to 8)',
-              capture_secs: 'optional - Seconds of capture per chunk (defaults to 0.10)',
-              strength_lock: 'optional - Minimum signal strength in dBFS to report (defaults to -70.0; only meaningful with strength_offset_db calibration)',
-              min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
-              precision: 'optional - Band-plan channel raster; detections snapped to 10**(precision-1) Hz grid (defaults to 5)',
-              min_bw_ratio: 'optional - Reject FFT peaks narrower than min_bw_ratio * plan bandwidth as spurs (defaults to 0.0 = off; half-power carrier BW is often << plan BW)',
-              demodulator_mode: 'optional - Demodulator mode APPLIED to GQRX + attributed to detections (defaults to WFM)',
-              bandwidth: 'optional - Passband bandwidth APPLIED to GQRX + attributed (defaults to "200.000")',
-              squelch: 'optional - Squelch level in dBFS APPLIED to GQRX (defaults to strength_lock - 3.0)',
-              audio_gain_db: 'optional - Audio gain in dB APPLIED to GQRX (defaults to 0.0)',
-              rf_gain: 'optional - RF gain APPLIED to GQRX (defaults to 0.0)',
-              intermediate_gain: 'optional - Intermediate gain APPLIED to GQRX (defaults to 32.0)',
-              baseband_gain: 'optional - Baseband gain APPLIED to GQRX (defaults to 10.0)',
-              decoder: 'optional - Decoder key (e.g. :gsm) to attribute to each detection',
-              location: 'optional - Location string to include in AI analysis',
-              keep_spectrum: 'optional - If true, include full spectrum data in result (can be large, defaults to false)',
-              refine: 'optional - After panoramic FFT, re-walk each detection with traditional edge_detection + find_best_peak scoped around the candidate to lock the exact channel frequency (defaults to true)',
-              strength_offset_db: 'optional - Add this many dB to all power levels (defaults to 0.0)',
-              scan_log: 'optional - Path to save detected signals log (defaults to /tmp/pwn_sdr_gqrx_scan_<start_freq>-<target_freq>_<timestamp>.json)'
-            )
+          # Run analyze log and return its result
+          #{self}.analyze_log(
+            scan_log: 'required - Path to signals log file',
+            target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
+            port: 'optional - GQRX target port (defaults to 7356)'
+          )
 
-            #{self}.analyze_scan(
-              scan_resp: 'required - Scan response object from #scan_range or #fast_scan_range method',
-              target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
-              port: 'optional - GQRX target port (defaults to 7356)'
-            )
+          # Run listen udp and return its result
+          #{self}.listen_udp(
+            udp_ip: 'optional - IP address to bind UDP listener (defaults to 127.0.0.1)',
+            upd_port: 'optional - Port to bind UDP listener (defaults to 7355)',
+            udp_port: 'optional - udp port value consumed by #listen_udp'
+          )
 
-            #{self}.analyze_log(
-              scan_log: 'required - Path to signals log file',
-              target: 'optional - GQRX target IP address (defaults to 127.0.0.1)',
-              port: 'optional - GQRX target port (defaults to 7356)'
-            )
+          # Run disconnect udp and return its result
+          #{self}.disconnect_udp(
+            udp_listener: 'required - UDP socket object returned from #listen_udp method'
+          )
 
-            udp_listener = #{self}.listen_udp(
-              udp_ip: 'optional - IP address to bind UDP listener (defaults to 127.0.0.1)',
-              udp_port: 'optional - Port to bind UDP listener (defaults to 7355)'
-            )
+          # Run record and return its result
+          #{self}.record(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method'
+          )
 
-            #{self}.disconnect_udp(
-              udp_listener: 'required - UDP socket object returned from #listen_udp method'
-            )
+          # Run stop recording and return its result
+          #{self}.stop_recording(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method',
+            iq_raw_file: 'required - iq_raw_file returned from #connect method'
+          )
 
-            iq_raw_file = #{self}.record(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method'
-            )
+          # Run disconnect and return its result
+          #{self}.disconnect(
+            gqrx_sock: 'required - GQRX socket object returned from #connect method'
+          )
 
-            #{self}.stop_recording(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method',
-              iq_raw_file: 'required - iq_raw_file returned from #record method'
-            )
+          # GQRX *device* sample-rate configuration
+          #{self}.config_path(
+            path: 'optional - absolute path to a GQRX .conf (defaults to ~/.config/gqrx/default.conf or recentconfig)'
+          )
 
-            #{self}.read_input_config(
-              path: 'optional - GQRX conf (defaults to ~/.config/gqrx/default.conf)'
-            )
+          # Run read input config and return its result
+          #{self}.read_input_config(
+            path: 'optional - GQRX conf path (defaults to #config_path)'
+          )
 
-            #{self}.device_input_rates(
-              device: 'optional - SoapySDR device args (defaults to conf [input] device=)'
-            )
+          # Run device input rates and return its result
+          #{self}.device_input_rates(
+            device: 'optional - SoapySDR args string (defaults to [input] device= from conf)',
+            path: 'optional - GQRX conf path used when :device omitted'
+          )
 
-            #{self}.set_input_rate(
-              input_rate: 'required - Input rate Hz (rewrites conf [input] sample_rate=)',
-              path: 'optional - GQRX conf path',
-              clamp: 'optional - Snap to nearest device-legal rate (default true)',
-              restart: 'optional - Kill+respawn gqrx so rate takes effect (default false)'
-            )
+          # Run nearest input rate and return its result
+          #{self}.nearest_input_rate(
+            input_rate: 'required - desired input rate Hz',
+            rates: 'optional - Array of legal rates (defaults to #device_input_rates)',
+            sample_rate: 'optional - sample rate value consumed by #nearest_input_rate',
+            device: 'optional - device value consumed by #nearest_input_rate',
+            path: 'optional - filesystem path to read or write'
+          )
 
-            #{self}.apply_band_plan_input_rate(
-              band_plan: 'required - e.g. :fm_radio / :ads_b1090 (reads FrequencyAllocation input_rate)',
-              clamp: 'optional - Snap to device-legal rate (default true)',
-              restart: 'optional - Bounce GQRX after write (default false)'
-            )
+          # Run set input rate and return its result
+          #{self}.set_input_rate(
+            input_rate: 'required - desired GQRX Input rate in Hz (Integer)',
+            path: 'optional - GQRX conf path (defaults to #config_path)',
+            clamp: 'optional - snap to nearest legal device rate (default true)',
+            restart: 'optional - kill+respawn gqrx so the new rate is applied (default false)',
+            gqrx_bin: 'optional - gqrx binary path when restart:true (default `which gqrx`)',
+            sample_rate: 'optional - sample rate value consumed by #set_input_rate'
+          )
 
-            #{self}.disconnect(
-              gqrx_sock: 'required - GQRX socket object returned from #connect method'
-            )
+          # Run apply band plan input rate and return its result
+          #{self}.apply_band_plan_input_rate(
+            band_plan: 'required - key from PWN::SDR::FrequencyAllocation.band_plans (e.g. :fm_radio, :ads_b1090)',
+            path: 'optional - GQRX conf path',
+            clamp: 'optional - snap to device-legal rate (default true)',
+            restart: 'optional - bounce GQRX after write (default false)',
+            input_rate: 'optional - override the band-plan recommended rate',
+            profile: 'optional - profile value consumed by #apply_band_plan_input_rate (defaults to opts[:assume_band_plan])',
+            assume_band_plan: 'optional - assume band plan value consumed by #apply_band_plan_input_rate',
+            sample_rate: 'optional - sample rate value consumed by #apply_band_plan_input_rate',
+            gqrx_bin: 'optional - gqrx bin value consumed by #apply_band_plan_input_rate'
+          )
 
-            #{self}.authors
-        USAGE
+          # Run restart gqrx and return its result
+          #{self}.restart_gqrx(
+            gqrx_bin: 'optional - path to gqrx binary',
+            conf_path: 'optional - pass -c <conf> on relaunch'
+          )
+
+          # Run get spectrum snapshot and return its result
+          #{self}.get_spectrum_snapshot(
+            gqrx_sock: 'required - gqrx sock value consumed by #get_spectrum_snapshot',
+            center_freq: 'optional - center freq value consumed by #get_spectrum_snapshot',
+            sample_rate: 'optional - sample rate value consumed by #get_spectrum_snapshot',
+            nfft: 'required - nfft value consumed by #get_spectrum_snapshot',
+            avg: 'optional - avg value consumed by #get_spectrum_snapshot',
+            capture_secs: 'optional - capture secs value consumed by #get_spectrum_snapshot',
+            strength_offset_db: 'optional - strength offset db value consumed by #get_spectrum_snapshot',
+            channel_bw_hz: 'optional - channel bw hz value consumed by #get_spectrum_snapshot',
+            plan_bw_hz: 'optional - plan bw hz value consumed by #get_spectrum_snapshot',
+            peak_height_db: 'optional - peak height db value consumed by #get_spectrum_snapshot',
+            step_hz: 'optional - step hz value consumed by #get_spectrum_snapshot',
+            peak_prom_db: 'optional - peak prom db value consumed by #get_spectrum_snapshot',
+            raster_hz: 'optional - raster hz value consumed by #get_spectrum_snapshot'
+          )
+
+          # Run fast scan range and return its result
+          #{self}.fast_scan_range(
+            gqrx_sock: 'required - GQRX socket object',
+            ranges: 'required - Array<Hash> of {start_freq:, target_freq: }',
+            sample_rate: 'optional - Set this to GQRX visible input sample rate (the span width)',
+            nfft: 'optional - FFT size',
+            avg: 'optional - avg value consumed by #fast_scan_range',
+            capture_secs: 'optional - capture secs value consumed by #fast_scan_range',
+            strength_lock: 'optional - strength lock value consumed by #fast_scan_range',
+            min_snr_db: 'optional - Minimum SNR in dB above per-chunk noise floor to report (defaults to 12.0)',
+            precision: 'optional - Band-plan channel raster; detections snapped to 10**(precision-1) Hz grid (defaults to 5)',
+            min_bw_ratio: 'optional - Reject FFT peaks narrower than min_bw_ratio * plan bandwidth as spurs (defaults to 0.0 = off; half-power carrier BW is often << plan BW)',
+            demodulator_mode: 'optional - Demodulator mode APPLIED to GQRX + attributed to detections (defaults to WFM)',
+            bandwidth: 'optional - Passband bandwidth APPLIED to GQRX + attributed to detections (defaults to 200.000)',
+            squelch: 'optional - Squelch level APPLIED to GQRX (defaults to strength_lock - 3.0)',
+            audio_gain_db: 'optional - Audio gain in dB APPLIED to GQRX (defaults to 0.0)',
+            rf_gain: 'optional - RF gain APPLIED to GQRX (defaults to 0.0)',
+            intermediate_gain: 'optional - Intermediate gain APPLIED to GQRX (defaults to 32.0)',
+            baseband_gain: 'optional - Baseband gain APPLIED to GQRX (defaults to 10.0)',
+            decoder: 'optional - Decoder key (e.g. :gsm) to attribute to detections',
+            location: 'optional - Location string for AI analysis',
+            keep_spectrum: 'optional - if true return raw spectrum arrays too (large)',
+            refine: 'optional - After panoramic FFT, re-walk each detection with traditional edge_detection + find_best_peak scoped around the candidate to lock the exact channel frequency (defaults to true)',
+            scan_log: 'optional - scan log value consumed by #fast_scan_range',
+            strength_offset_db: 'optional - strength offset db value consumed by #fast_scan_range',
+            ai_analysis: 'optional - ai analysis value consumed by #fast_scan_range'
+          )
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
+        constants.sort
       end
     end
   end

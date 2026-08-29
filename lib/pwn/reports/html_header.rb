@@ -259,12 +259,16 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run generate and return its result
           #{self}.generate(
-            column_names: 'Array of Column Names to use in the report table',
-            driver_src_uri: 're
+            column_names: 'required - array of column names to use in the report table (defaults to [])',
+            driver_src_uri: 'required - pwn driver source code uri'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

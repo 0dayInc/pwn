@@ -95,6 +95,7 @@ module PWN
       #   start_addr: 'required - start address to evaluate',
       #   target_addr: 'required - memory address to set breakpoint'
       # )
+      # Run calc addr offset and return its result
       # ^^^ Instructions for #{self}.calc_addr_offset:
       # This is useful for calculating address offsets of known functions in debuggers
       # to set breakpoints of instructions that are not known at runtime.
@@ -247,75 +248,43 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          hexdump = #{self}.dump(
+          # Run dump and return its result
+          #{self}.dump(
             file: 'required - path to binary file to dump',
             hashed: 'optional - return hexdump as hash instead of string (default: false)'
           )
 
-          hexdump = #{self}.fill_range_w_byte(
+          # Run fill range w byte and return its result
+          #{self}.fill_range_w_byte(
             hexdump: 'required - hexdump returned from #dump method',
             start_addr: 'required - start address to fill with byte',
             end_addr: 'required - end address to fill with byte',
             byte: 'required - byte to fill range with'
           )
 
-          hex_offset = #{self}.calc_addr_offset(
+          # Run calc addr offset and return its result
+          #{self}.calc_addr_offset(
             start_addr: 'required - start address to evaluate',
             target_addr: 'required - memory address to set breakpoint'
           )
 
-          # ^^^ Instructions for #{self}.calc_addr_offset:
-          # This is useful for calculating address offsets of known functions in debuggers
-          # to set breakpoints of instructions that are not known at runtime.
-          # 1. Set a breakpoint at main and record its address - this is the start_addr.
-          #    For example in r2:
-          #    ```
-          #    [0x00001050]> db main
-          #    [0x00001050]> ood
-          #    [0x7fd16122b360]> dc
-          #    INFO: hit breakpoint at: 0x562e8547d139
-          #    [0x562e8547d139]> db
-          #    ```
-          # 2. Populate start_addr w/ address (i.e. '0x562e8547d139') of a known function (i.e. main)
-          # 3. Step down to the instruction where you want to set a breakpoint. Record its address...
-          #    this is the target_addr.
-          #    ```
-          #    [0x562e8547d139]> v
-          #    <step through to the target instruction via F7/F8>
-          #    ```
-          # 4. Get the hex offset value by calling #{self}.calc_addr_offset method
-          # 5. Future breakpoints can be calculated by adding the hex offset to the
-          #    updated start_addr (which changes every time the binary is executed).
-          #    If the offset returned is `0x00000ec2`, a breakpoint for the target
-          #    instruction can be set in r2 via:
-          #    ```
-          #    [0x00001050]> ood
-          #    [0x7f1a45bea360]> db main
-          #    [0x7f1a45bea360]> db (main)+0x00000ec2
-          #    [0x7f1a45bea360]> db
-          #    0x558eebd75139 - 0x558eebd7513a 1 --x sw break enabled valid ...
-          #    0x558eebd75ffb - 0x558eebd75ffc 1 --x sw break enabled valid ...
-          #    [0x7f1a45bea360]> dc
-          #    INFO: hit breakpoint at: 0x55ee0a0e5139
-          #    [0x55ee0a0e5139]> dc
-          #    INFO: hit breakpoint at: 0x5558c3101ffb
-          #    [0x5558c3101ffb]> v
-          #    <step through via F7, F8, F9, etc. to get to desired instruction>
-          #    ```
-
+          # Run reverse hex string and return its result
           #{self}.reverse_hex_string(
-            string: 'required - continuous hex string to reverse (i.e. \"68656c6f\")',
+            string: 'required - continuous hex string to reverse (i.e. 68656c6c6f)',
             file: 'required - path to binary file to dump'
           )
 
+          # Run reverse dump and return its result
           #{self}.reverse_dump(
             hexdump: 'required - hexdump returned from #dump method',
             file: 'required - path to binary file to dump',
             byte_chunks: 'optional - if set, will write n byte chunks of hexdump to multiple files'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

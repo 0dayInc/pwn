@@ -705,21 +705,59 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          models = #{self}.get_models
-
-          response = #{self}.chat(
-            request: 'required - message to Grok',
-            model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:grok][:model])',
-            temp: 'optional - creative response float (defaults to PWN::Env[:ai][:grok][:temp])',
-            system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:grok][:system_role_content])',
-            response_history: 'optional - pass response back in to have a conversation',
-            speak_answer: 'optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
-            timeout: 'optional - timeout in seconds (defaults to 900)'.
-            spinner: 'optional - display spinner (defaults to false)'
+          # Run refresh oauth bearer token and return its result
+          #{self}.refresh_oauth_bearer_token(
+            refresh_token: 'required - xAI OAuth refresh_token',
+            client_id: 'optional - defaults to public Grok-CLI client',
+            token_uri: 'optional - defaults to https://auth.x.ai/oauth2/token',
+            bearer_token: 'optional - bearer token value consumed by #refresh_oauth_bearer_token',
+            expires_at: 'optional - expires at value consumed by #refresh_oauth_bearer_token'
           )
 
+          # Run obtain oauth bearer token and return its result
+          #{self}.obtain_oauth_bearer_token(
+            client_id: 'optional - xAI OAuth Client ID (defaults to public Grok-CLI client)',
+            scope: 'optional - space-delimited scopes (defaults to XAI_OAUTH_SCOPE)',
+            timeout: 'optional - seconds to wait for user consent (default 300)',
+            api: 'optional - access at consent time.',
+            token_uri: 'optional - token uri value consumed by #obtain_oauth_bearer_token',
+            bearer_token: 'optional - bearer token value consumed by #obtain_oauth_bearer_token',
+            refresh_token: 'optional - refresh token value consumed by #obtain_oauth_bearer_token',
+            expires_at: 'optional - expires at value consumed by #obtain_oauth_bearer_token'
+          )
+
+          # Run get models and return its result
+          #{self}.get_models
+
+          # Run chat with tools and return its result
+          #{self}.chat_with_tools(
+            messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
+            tools: 'optional - OpenAI tools array [{type:function, function:{...}}]',
+            tool_choice: 'optional - auto | none | required | {type:function, function:{name:..}}',
+            model: 'optional - overrides PWN::Env[:ai][:grok][:model]',
+            temp: 'optional - temperature (defaults to PWN::Env[:ai][:grok][:temp] || 1)',
+            timeout: 'optional - seconds (default 180)',
+            spinner: 'optional - display spinner (default false)',
+            quiet: 'optional - quiet value consumed by #chat_with_tools'
+          )
+
+          # Run chat and return its result
+          #{self}.chat(
+            request: 'required - message to Grok',
+            model: 'optional - model to use for text generation (defaults to PWN::Env[:ai][:grok][:model])',
+            temp: 'optional - creative response float (deafults to PWN::Env[:ai][:grok][:temp])',
+            system_role_content: 'optional - context to set up the model behavior for conversation (Default: PWN::Env[:ai][:grok][:system_role_content])',
+            response_history: 'optional - pass response back in to have a conversation',
+            speak_answer: 'optional - optional speak answer using PWN::Plugins::Voice.text_to_speech (Default: nil)',
+            timeout: 'optional - optional timeout in seconds (defaults to 900)',
+            spinner: 'optional - display spinner (defaults to false)',
+            quiet: 'optional - quiet value consumed by #chat'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

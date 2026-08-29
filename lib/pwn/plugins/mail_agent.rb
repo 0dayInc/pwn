@@ -242,102 +242,110 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # attachment_name1.doc: attachment file path 1,
           #{self}.office365(
-            from: 'required',
-            to: 'required',
-            cc: 'optional',
-            bcc: 'optional',
-            reply_to: 'optional',
-            subject: 'optional',
-            html_body: 'optional',
-            txt_body: 'optional alternative to :html_body',
-            attachments_hash: {
-              'attachment_name1.doc': 'attachment file path 1',
-              'attachment_name2.xls': 'attachment file path 2'
-            },
-            username: 'required domain\\username',
-            password: 'optional (but will be prompted if not submitted)',
-            debug: true|false
+            from: 'required - sender account or address to bind as operator',
+            to: 'required - to value consumed by #office365',
+            cc: 'optional - cc value consumed by #office365',
+            bcc: 'optional - bcc value consumed by #office365',
+            reply_to: 'optional - reply to value consumed by #office365',
+            subject: 'optional - subject value consumed by #office365',
+            html_body: 'optional - html body value consumed by #office365',
+            txt_body: 'optional - optional alternative to :html_body',
+            attachments_hash: 'optional - attachments hash value consumed by #office365',
+            username: 'required - required username',
+            password: 'optional - optional (but will be prompted if not submitted)',
+            debug: 'optional - debug value consumed by #office365',
+            address: 'optional - address value consumed by #office365',
+            port: 'optional - TCP/UDP port number',
+            tls_auto: 'optional - tls auto value consumed by #office365',
+            authentication: 'optional - authentication value consumed by #office365'
           )
 
+          # attachment_name1.doc: attachment file path 1,
           #{self}.gmail(
-            from: 'required',
-            to: 'required',
-            cc: 'optional',
-            bcc: 'optional',
-            reply_to: 'optional',
-            subject: 'optional',
-            html_body: 'optional',
-            txt_body: 'optional alternative to :html_body',
-            attachments_hash: {
-              'attachment_name1.doc': 'attachment file path 1',
-              'attachment_name2.xls': 'attachment file path 2'
-            },
-            username: 'required',
-            password: 'optional (but will be prompted if not submitted)'
-            debug: true|false
+            from: 'required - sender account or address to bind as operator',
+            to: 'required - to value consumed by #gmail',
+            cc: 'optional - cc value consumed by #gmail',
+            bcc: 'optional - bcc value consumed by #gmail',
+            reply_to: 'optional - reply to value consumed by #gmail',
+            subject: 'optional - subject value consumed by #gmail',
+            html_body: 'optional - html body value consumed by #gmail',
+            txt_body: 'optional - optional alternative to :html_body',
+            attachments_hash: 'optional - attachments hash value consumed by #gmail',
+            username: 'required - username value consumed by #gmail',
+            password: 'optional - optional (but will be prompted if not submitted)',
+            debug: 'optional - debug value consumed by #gmail',
+            address: 'optional - address value consumed by #gmail',
+            port: 'optional - TCP/UDP port number',
+            tls_auto: 'optional - tls auto value consumed by #gmail',
+            authentication: 'optional - authentication value consumed by #gmail'
           )
 
+          # attachment_name1.doc: attachment file path 1,
           #{self}.hotmail_n_live(
-            from: 'required',
-            to: 'required',
-            cc: 'optional',
-            bcc: 'optional',
-            reply_to: 'optional',
-            subject: 'optional',
-            html_body: 'optional',
-            txt_body: 'optional alternative to :html_body',
-            attachments_hash: {
-              'attachment_name1.doc': 'attachment file path 1',
-              'attachment_name2.xls': 'attachment file path 2'
-            },
-            username: 'required',
-            password: 'optional (but will be prompted if not submitted)'
-            debug: true|false
+            from: 'required - sender account or address to bind as operator',
+            to: 'required - to value consumed by #hotmail_n_live',
+            cc: 'optional - cc value consumed by #hotmail_n_live',
+            bcc: 'optional - bcc value consumed by #hotmail_n_live',
+            reply_to: 'optional - reply to value consumed by #hotmail_n_live',
+            subject: 'optional - subject value consumed by #hotmail_n_live',
+            html_body: 'optional - html body value consumed by #hotmail_n_live',
+            txt_body: 'optional - optional alternative to :html_body',
+            attachments_hash: 'optional - attachments hash value consumed by #hotmail_n_live',
+            username: 'required - username value consumed by #hotmail_n_live',
+            password: 'optional - optional (but will be prompted if not submitted)',
+            debug: 'optional - debug value consumed by #hotmail_n_live',
+            address: 'optional - address value consumed by #hotmail_n_live',
+            port: 'optional - TCP/UDP port number',
+            tls_auto: 'optional - tls auto value consumed by #hotmail_n_live',
+            authentication: 'optional - authentication value consumed by #hotmail_n_live'
           )
 
+          # attachment_name1.doc: attachment file path 1,
           #{self}.yahoo(
-            from: 'required',
-            to: 'required',
-            cc: 'optional',
-            bcc: 'optional',
-            reply_to: 'optional',
-            subject: 'optional',
-            html_body: 'optional',
-            txt_body: 'optional alternative to :html_body',
-            attachments_hash: {
-              'attachment_name1.doc': 'attachment file path 1',
-              'attachment_name2.xls': 'attachment file path 2'
-            },
-            username: 'required',
-            password: 'optional (but will be prompted if not submitted)'
-            debug: true|false
+            from: 'required - sender account or address to bind as operator',
+            to: 'required - to value consumed by #yahoo',
+            cc: 'optional - cc value consumed by #yahoo',
+            bcc: 'optional - bcc value consumed by #yahoo',
+            reply_to: 'optional - reply to value consumed by #yahoo',
+            subject: 'optional - subject value consumed by #yahoo',
+            html_body: 'optional - html body value consumed by #yahoo',
+            txt_body: 'optional - optional alternative to :html_body',
+            attachments_hash: 'optional - attachments hash value consumed by #yahoo',
+            username: 'required - username value consumed by #yahoo',
+            password: 'optional - optional (but will be prompted if not submitted)',
+            debug: 'optional - debug value consumed by #yahoo',
+            address: 'optional - address value consumed by #yahoo',
+            port: 'optional - TCP/UDP port number',
+            tls_auto: 'optional - tls auto value consumed by #yahoo',
+            authentication: 'optional - authentication value consumed by #yahoo'
           )
 
+          # attachment_name1.doc: attachment file path 1,
           #{self}.manual(
-            from: 'required',
-            to: 'required',
-            cc: 'optional',
-            bcc: 'optional',
-            reply_to: 'optional',
-            subject: 'optional',
-            html_body: 'optional',
-            txt_body: 'optional alternative to :html_body',
-            attachments_hash: {
-              'attachment_name1.doc': 'attachment file path 1',
-              'attachment_name2.xls': 'attachment file path 2'
-            },
-            address: 'smtp server ip or domain',
-            port: 'smtp port',
-            tls_auto: true|false,
-            authentication: 'optional defaults to :plain - available :login, :plain, or :cram_md5',
-            username: 'optional',
-            password: 'optional',
-            debug: true|false
+            from: 'required - sender account or address to bind as operator',
+            to: 'required - to value consumed by #manual',
+            cc: 'optional - cc value consumed by #manual',
+            bcc: 'optional - bcc value consumed by #manual',
+            reply_to: 'optional - reply to value consumed by #manual',
+            subject: 'optional - subject value consumed by #manual',
+            html_body: 'optional - html body value consumed by #manual',
+            txt_body: 'optional - optional alternative to :html_body',
+            attachments_hash: 'optional - attachments hash value consumed by #manual',
+            address: 'optional - smtp server ip or domain',
+            port: 'optional - smtp port',
+            tls_auto: 'optional - tls auto value consumed by #manual',
+            username: 'optional - username value consumed by #manual',
+            password: 'optional - password value consumed by #manual',
+            debug: 'optional - debug value consumed by #manual',
+            authentication: 'optional - authentication value consumed by #manual'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

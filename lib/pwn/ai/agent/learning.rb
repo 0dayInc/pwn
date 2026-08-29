@@ -1771,31 +1771,148 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::Learning.note_outcome(task: 'nmap sweep 10.0.0.0/24', success: true, details: '12 hosts up')
-              PWN::AI::Agent::Learning.outcomes(limit: 20, success: false)
-              PWN::AI::Agent::Learning.reflect(session_id: sid)              # LLM or heuristic → PWN::Memory
-              PWN::AI::Agent::Learning.auto_introspect(session_id: sid, request: req, final: text)
-              PWN::AI::Agent::Learning.distill_skill(name: 'quick_recon', session_id: sid)
-              PWN::AI::Agent::Learning.exemplars_for(request: 'nmap sweep 10/8')  # few-shot for Loop.run
-              PWN::AI::Agent::Learning.export_finetune(format: :sharegpt)        # -> ~/.pwn/finetune/*.jsonl
-              PWN::AI::Agent::Learning.consolidate(max_entries: 200)         # M1 semantic-merge + M3 importance-evict
-              PWN::AI::Agent::Learning.lean!                                 # memory + learning.jsonl prune
-              PWN::AI::Agent::Learning.gc_stores!                            # full ~/.pwn RL lean (mem/learn/mistakes/sessions)
-              PWN::AI::Agent::Learning.prune_outcomes!                       # learning.jsonl gold-keep cap
-              PWN::AI::Agent::Learning.purge_noise                            # one-shot GC of pre-R1 garbage lessons
-              PWN::AI::Agent::Learning.to_context(limit: 5)                  # injected by PromptBuilder
-              PWN::AI::Agent::Learning.stats
-              PWN::AI::Agent::Learning.reset
+          puts "USAGE:
+            # Run note outcome and return its result
+            #{self}.note_outcome(
+              task: 'required - short description of what was attempted',
+              success: 'required - Boolean, did the attempt achieve its goal',
+              details: 'optional - free-form notes / error / evidence',
+              session_id: 'optional - PWN::Sessions id this outcome belongs to',
+              tags: 'optional - Array of String labels for later retrieval',
+              score: 'optional - score value consumed by #note_outcome',
+              judge_source: 'required - judge source value consumed by #note_outcome',
+              predicted: 'optional - predicted value consumed by #note_outcome',
+              confidence: 'optional - confidence value consumed by #note_outcome',
+              engine: 'optional - engine value consumed by #note_outcome'
+            )
 
-              Enable end-of-run auto-learning with:
-                PWN::Env[:ai][:agent][:auto_introspect] = true
-              # auto_introspect throttles gc_stores! every PRUNE_EVERY_N_APPENDS
-              # outcomes so ~/.pwn stays lean without a manual GC turn.
+            # Run outcomes and return its result
+            #{self}.outcomes(
+              limit: 'optional - max entries returned newest-first (default 50)',
+              success: 'optional - filter by Boolean outcome',
+              tag: 'optional - filter by tag substring'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run stats and return its result
+            #{self}.stats
+
+            # Run to context and return its result
+            #{self}.to_context(
+              limit: 'optional - number of recent outcomes to surface (default 5)'
+            )
+
+            # Run exemplars for and return its result
+            #{self}.exemplars_for(
+              request: 'required - current user request',
+              limit: 'optional - max exemplar traces to return (default 1)',
+              max_msgs: 'optional - cap on messages per exemplar (default 6)'
+            )
+
+            # Run export finetune and return its result
+            #{self}.export_finetune(
+              format: 'optional - format value consumed by #export_finetune (defaults to :sharegpt))',
+              min_tools: 'optional - min tools value consumed by #export_finetune',
+              min_score: 'optional - min score value consumed by #export_finetune',
+              compress: 'optional - compress value consumed by #export_finetune',
+              out: 'optional - out value consumed by #export_finetune'
+            )
+
+            # Run distill skill and return its result
+            #{self}.distill_skill(
+              name: 'required - snake_case name for the new skill',
+              session_id: 'optional - PWN::Sessions id to mine (uses its transcript)',
+              content: 'optional - explicit markdown body; overrides transcript mining',
+              references: 'optional - Array of reference URLs / CWE / CVE / ATT&CK ids',
+              description: 'optional - description value consumed by #distill_skill'
+            )
+
+            # Fold RL artefacts (mistakes / structured_fix / an explicit lesson)
+            #{self}.update_skill(
+              dry_run: 'optional - dry run value consumed by #update_skill',
+              lesson: 'optional - lesson value consumed by #update_skill',
+              signature: 'optional - signature value consumed by #update_skill',
+              request: 'optional - request value consumed by #update_skill (defaults to opts[:query])',
+              query: 'optional - search query string',
+              name: 'required - binary or identifier name'
+            )
+
+            # Run reflect and return its result
+            #{self}.reflect(
+              session_id: 'required - PWN::Sessions id to analyse',
+              dry_run: 'optional - when true, do not write to Memory/Skills (default false)'
+            )
+
+            # Called by Loop.run when PWN::Env[:ai][:agent][:auto_introspect] is
+            #{self}.auto_introspect(
+              session_id: 'required - id of the just-completed session',
+              request: 'optional - original user request (for outcome logging)',
+              final: 'optional - final assistant answer (for outcome logging)',
+              inline: 'optional - inline value consumed by #auto_introspect',
+              predicted: 'optional - predicted value consumed by #auto_introspect',
+              plan: 'optional - plan value consumed by #auto_introspect',
+              ts_state: 'optional - ts state value consumed by #auto_introspect'
+            )
+
+            # Run flip last outcome and return its result
+            #{self}.flip_last_outcome(
+              session_id: 'optional - session id value consumed by #flip_last_outcome',
+              reason: 'optional - reason value consumed by #flip_last_outcome'
+            )
+
+            # Run consolidate and return its result
+            #{self}.consolidate(
+              max_entries: 'optional - hard cap on PWN::Memory size (default MAX_MEMORY_ENTRIES)'
+            )
+
+            # Run reset and return its result
+            #{self}.reset
+
+            # One-shot / on-load repair: rewrite tags+details where verdict label
+            #{self}.reconcile_verdict_tags!(
+              dry_run: 'optional - dry run value consumed by #reconcile_verdict_tags!'
+            )
+
+            # Run prune outcomes and return its result
+            #{self}.prune_outcomes!(
+              dry_run: 'optional - Boolean (default false)',
+              max_rows: 'optional - hard cap (default MAX_OUTCOME_ROWS)',
+              retain_days: 'optional - age floor for low-value drop',
+              recent_days: 'optional - always keep newer than this',
+              details_max: 'optional - details max value consumed by #prune_outcomes!',
+              gold_min_score: 'optional - gold min score value consumed by #prune_outcomes!'
+            )
+
+            # Memory lean + outcome prune
+            #{self}.lean!(
+              dry_run: 'optional - dry run value consumed by #lean!',
+              max_entries: 'optional - max entries value consumed by #lean!',
+              max_rows: 'optional - max rows value consumed by #lean!',
+              retain_days: 'optional - retain days value consumed by #lean!',
+              recent_days: 'optional - recent days value consumed by #lean!',
+              details_max: 'optional - details max value consumed by #lean!',
+              gold_min_score: 'optional - gold min score value consumed by #lean!'
+            )
+
+            # One-shot lean across memory + learning + mistakes + sessions
+            #{self}.gc_stores!(
+              dry_run: 'optional - Boolean (default false)',
+              current_session_id: 'optional - never delete this sessions id',
+              max_entries: 'optional - Memory consolidate cap',
+              max_rows: 'optional - learning.jsonl cap',
+              retain_days: 'optional - outcome / session age floor',
+              recent_days: 'optional - recent days value consumed by #gc_stores!',
+              details_max: 'optional - details max value consumed by #gc_stores!',
+              gold_min_score: 'optional - gold min score value consumed by #gc_stores!',
+              max_files: 'optional - max files value consumed by #gc_stores!'
+            )
+
+            # One-shot GC of the pre-R1 garbage: drops every PWN::Memory entry
+            #{self}.purge_noise
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

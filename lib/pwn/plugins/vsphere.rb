@@ -62,19 +62,23 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          vsphere_obj = #{self}.login(
+          # Run login and return its result
+          #{self}.login(
             host: 'required - vsphere host or ip',
-            username: 'required - username',
+            username: 'required - username value consumed by #login',
             password: 'optional - password (will prompt if nil)',
-            insecure: 'optional - ignore ssl checks (defaults to false)
+            insecure: 'optional - ignore ssl checks (defaults to false'
           )
 
-          vsphere_obj = #{self}.logout(
-            vsphere_obj: 'required vsphere_obj returned from #login method'
+          # Run logout and return its result
+          #{self}.logout(
+            vsphere_obj: 'required - required vsphere_obj returned from #login method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

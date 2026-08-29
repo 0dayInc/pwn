@@ -319,43 +319,51 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          sock_obj = #{self}.connect(
+          # Run connect and return its result
+          #{self}.connect(
             target: 'required - target host or ip',
             port: 'required - target port',
-            protocol: 'optional - :tcp || :udp (defaults to tcp)',
+            protocol: 'optional - :tcp || :udp (defaults to :tcp)',
             tls: 'optional - boolean connect to target socket using TLS (defaults to false)'
           )
 
-          port = #{self}.get_random_unused_port(
+          # Run get random unused port and return its result
+          #{self}.get_random_unused_port(
             server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
             protocol: 'optional - :tcp || :udp (defaults to tcp)'
           )
 
+          # Run check port in use and return its result
           #{self}.check_port_in_use(
-            server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
             port: 'required - target port',
+            server_ip: 'optional - target host or ip to check (Defaults to 127.0.0.1)',
             protocol: 'optional - :tcp || :udp (defaults to tcp)'
           )
 
-          listen_obj = #{self}.listen(
+          # Run listen and return its result
+          #{self}.listen(
             port: 'required - target port',
-            server_ip: 'optional - target host or ip to listen (Defaults to 127.0.0.1')',
+            server_ip: 'optional - target host or ip to listen (Defaults to 127.0.0.1)',
             protocol: 'optional - :tcp || :udp (defaults to tcp)',
             tls: 'optional - boolean listen on TLS-enabled socket (defaults to false)',
             detach: 'optional - boolean to detach listener to background (defaults to false)'
           )
 
-          cert_obj = #{self}.get_tls_cert(
+          # Run get tls cert and return its result
+          #{self}.get_tls_cert(
             target: 'required - target host or ip',
             port: 'optional - target port (defaults to 443)'
           )
 
-          sock_obj = #{self}.disconnect(
+          # Run disconnect and return its result
+          #{self}.disconnect(
             sock_obj: 'required - sock_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

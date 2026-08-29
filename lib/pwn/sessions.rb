@@ -539,22 +539,92 @@ module PWN
 
     # Display Usage for this Module
     public_class_method def self.help
-      puts <<~USAGE
-        USAGE:
-          sess = PWN::Sessions.create(title: 'recon on target.com')
-          PWN::Sessions.append(session_id: sess[:id], role: 'user', content: 'Run NmapIt...')
-          transcript = PWN::Sessions.load(session_id: sess[:id])
-          hist = PWN::Sessions.to_response_history(session_id: sess[:id])
-          msgs = PWN::Sessions.to_llm_messages(session_id: sess[:id])
-          PWN::Sessions.recall(query: 'hping3', exclude_session_id: sess[:id])
-          PWN::Sessions.previous_id(exclude_session_id: sess[:id])
-          PWN::Sessions.list
-          PWN::Sessions.stats
-          PWN::Sessions.delete(session_id: sess[:id], force: true)
-          PWN::Sessions.lean!(dry_run: true)  # pin gold/mistake refs; drop stubs/age
+      puts "USAGE:
+        # Run sessions dir and return its result
+        #{self}.sessions_dir
 
-          #{self}.authors
-      USAGE
+        # Run list and return its result
+        #{self}.list
+
+        # Run create and return its result
+        #{self}.create(
+          title: 'optional - human title',
+          source: 'optional - e.g. pwn-ai (defaults to pwn-ai)',
+          id: 'optional - fixed session id (tests / replay); default timestamp_hex'
+        )
+
+        # Run append and return its result
+        #{self}.append(
+          session_id: 'required - session id value consumed by #append',
+          role: 'optional - user|assistant|system|observation',
+          content: 'optional - the message or obs'
+        )
+
+        # Run load and return its result
+        #{self}.load(
+          session_id: 'optional - session id value consumed by #load'
+        )
+
+        # Newest session that is not exclude_session_id (the prior pwn-ai run)
+        #{self}.previous_id(
+          exclude_session_id: 'optional - current session to skip'
+        )
+
+        # Search prior session transcripts for query terms. Current session is
+        #{self}.recall(
+          query: 'optional - substring / tokens to match',
+          exclude_session_id: 'optional - skip this id (current session)',
+          include_current: 'optional - Boolean include excluded id (default false)',
+          limit: 'optional - max hits (default 12)',
+          max_files: 'optional - newest files to scan (default 40)',
+          truncate: 'optional - chars per hit (default 280)'
+        )
+
+        # Run to response history and return its result
+        #{self}.to_response_history(
+          session_id: 'optional - session id value consumed by #to_response_history'
+        )
+
+        # Current-session conversation for the next LLM call. User + assistant
+        #{self}.to_llm_messages(
+          session_id: 'optional - session id value consumed by #to_llm_messages',
+          max_chars: 'optional - max chars value consumed by #to_llm_messages',
+          skip_request: 'optional - skip request value consumed by #to_llm_messages'
+        )
+
+        # Refuses deletion of pinned sessions (hot/gold/mistake/current) unless force:true
+        #{self}.delete(
+          session_id: 'required - session id value consumed by #delete',
+          force: 'optional - Boolean bypass pin policy (default false)',
+          current_session_id: 'optional - current session id value consumed by #delete'
+        )
+
+        # Run stats and return its result
+        #{self}.stats
+
+        # Run lean and return its result
+        #{self}.lean!(
+          dry_run: 'optional - Boolean (default false)',
+          retain_days: 'optional - drop unreferenced older than this',
+          hot_days: 'optional - always keep newer than this',
+          max_files: 'optional - soft file cap after protections',
+          current_session_id: 'optional - never delete this id',
+          tool_content_max: 'optional - tool content max value consumed by #lean!',
+          assistant_content_max: 'optional - assistant content max value consumed by #lean!'
+        )
+
+        # Build the pin set from learning gold + open mistakes + hot files + current
+        #{self}.protected_session_ids(
+          now: 'optional - now value consumed by #protected_session_ids (defaults to Time.now.utc)',
+          hot_days: 'optional - hot days value consumed by #protected_session_ids',
+          retain_days: 'optional - retain days value consumed by #protected_session_ids',
+          current_session_id: 'optional - current session id value consumed by #protected_session_ids'
+        )
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
+      constants.sort
     end
   end
 end

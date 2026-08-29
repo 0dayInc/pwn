@@ -1518,26 +1518,303 @@ module PWN
 
     # Display Usage for this Module
     public_class_method def self.help
-      puts <<~USAGE
-                USAGE:
-                  PWN::Cron.create(schedule: '0 * * * *', prompt: 'Run daily recon on target.com using NmapIt and report', name: 'daily-recon')
-                  PWN::Cron.list
-                  res = PWN::Cron.run(id: 'abc123')
-                  PWN::Cron.enable(id: 'abc123')
-                  PWN::Cron.disable(id: 'abc123')
-                  PWN::Cron.remove(id: 'abc123')
-                  # OS-native persistence (systemd --user / launchd / schtasks / crontab)
-                  PWN::Cron.install_scheduler
-                  PWN::Cron.uninstall_scheduler
-                  PWN::Cron.sync_scheduler
-                  PWN::Cron.scheduler_backend
-        PWN::Cron.install_defaults  # seed S1/P3/W2/M1 curriculum jobs (idempotent)
-        PWN::Cron.ensure_worker     # start/restart the background scheduler
-        PWN::Cron.worker_status
-        PWN::Cron.tick              # fire currently-due jobs once
+      puts "USAGE:
+        # Run cron dir and return its result
+        #{self}.cron_dir
 
-                  #{self}.authors
-      USAGE
+        # Run list and return its result
+        #{self}.list
+
+        # Run create and return its result
+        #{self}.create(
+          name: 'optional - binary or identifier name (defaults to job-)',
+          schedule: 'required - required e.g. 0 * * * * or 30m or every 2h',
+          prompt: 'optional - pwn-ai prompt to run',
+          ruby: 'optional - ruby snippet to eval',
+          script: 'optional - path to external script',
+          delivery: 'optional - log|stdout (default log)',
+          enabled: 'optional - enabled value consumed by #create',
+          install_crontab: 'optional - install crontab value consumed by #create'
+        )
+
+        # Executes the job (for pwn-ai prompt it will use current active AI engine
+        #{self}.run(
+          id: 'required - id value consumed by #run'
+        )
+
+        # Run remove and return its result
+        #{self}.remove(
+          id: 'optional - id value consumed by #remove'
+        )
+
+        # Run enable and return its result
+        #{self}.enable(
+          id: 'optional - id value consumed by #enable'
+        )
+
+        # Run disable and return its result
+        #{self}.disable(
+          id: 'optional - id value consumed by #disable'
+        )
+
+        # Install a crontab line that invokes this job via pwn
+        #{self}.install_crontab_entry
+
+        # Run install defaults and return its result
+        #{self}.install_defaults
+
+        # Runtime paths follow cron_dir (and therefore a stubbed CRON_DIR)
+        #{self}.jobs_file
+
+        # Run pid file and return its result
+        #{self}.pid_file
+
+        # Run worker log and return its result
+        #{self}.worker_log
+
+        # Run due and return its result
+        #{self}.due?(
+          schedule: 'required - 5-field cron or relative (30m, every 2h)',
+          last_run: 'optional - Time / iso8601 / nil',
+          now: 'optional - Time (default Time.now)'
+        )
+
+        # Run due jobs and return its result
+        #{self}.due_jobs(
+          now: 'optional - now value consumed by #due_jobs (defaults to Time.now)'
+        )
+
+        # Fires every currently-due enabled job via run(). Returns the list
+        #{self}.run_due(
+          now: 'optional - now value consumed by #run_due (defaults to Time.now)',
+          jobs: 'optional - jobs value consumed by #run_due'
+        )
+
+        # Run worker status and return its result
+        #{self}.worker_status
+
+        # Idempotent. With restart:true (default) a live worker is replaced
+        #{self}.start_worker(
+          interval: 'optional - interval value consumed by #start_worker',
+          foreground: 'optional - foreground value consumed by #start_worker',
+          restart: 'optional - restart value consumed by #start_worker (defaults to foreground)'
+        )
+
+        # Run stop worker and return its result
+        #{self}.stop_worker
+
+        # Single tick used by the loop AND by tests (no sleep)
+        #{self}.tick(
+          now: 'optional - now value consumed by #tick'
+        )
+
+        # Blocking poll loop. `once: true` runs a single tick then returns
+        #{self}.worker_loop(
+          interval: 'optional - interval value consumed by #worker_loop',
+          once: 'optional - once value consumed by #worker_loop'
+        )
+
+        # any setup action so YAML-only default jobs actually fire
+        #{self}.ensure_worker(
+          interval: 'optional - interval value consumed by #ensure_worker (defaults to DEFAULT_INTERVAL)'
+        )
+
+        # Append an @reboot line so the worker comes back after a reboot
+        #{self}.install_worker_crontab
+
+        # Run os type and return its result
+        #{self}.os_type
+
+        # Run windows and return its result
+        #{self}.windows?
+
+        # Run scheduler file and return its result
+        #{self}.scheduler_file
+
+        # Run scheduler config and return its result
+        #{self}.scheduler_config
+
+        # Run cron enabled and return its result
+        #{self}.cron_enabled?
+
+        # Run persist scheduler config and return its result
+        #{self}.persist_scheduler_config(
+          backend: 'optional - backend value consumed by #persist_scheduler_config'
+        )
+
+        # Run apply native and return its result
+        #{self}.apply_native?(
+          apply: 'optional - apply value consumed by #apply_native?'
+        )
+
+        # Run which bin and return its result
+        #{self}.which_bin(
+          name: 'required - binary or identifier name'
+        )
+
+        # Run crontab available and return its result
+        #{self}.crontab_available?
+
+        # Run systemd user available and return its result
+        #{self}.systemd_user_available?
+
+        # Run schtasks available and return its result
+        #{self}.schtasks_available?
+
+        # Run scheduler backend and return its result
+        #{self}.scheduler_backend(
+          backend: 'optional - backend value consumed by #scheduler_backend',
+          os: 'optional - os value consumed by #scheduler_backend'
+        )
+
+        # Run native unit dir and return its result
+        #{self}.native_unit_dir(
+          backend: 'optional - backend value consumed by #native_unit_dir'
+        )
+
+        # Run ruby lib dir and return its result
+        #{self}.ruby_lib_dir
+
+        # Run ruby eval argv and return its result
+        #{self}.ruby_eval_argv(
+          snippet: 'optional - snippet value consumed by #ruby_eval_argv'
+        )
+
+        # Run ruby eval shell and return its result
+        #{self}.ruby_eval_shell(
+          log: 'optional - log value consumed by #ruby_eval_shell'
+        )
+
+        # Convert a 5-field cron expression into a portable calendar hash
+        #{self}.cron_to_calendar(
+          schedule: 'optional - schedule value consumed by #cron_to_calendar'
+        )
+
+        # Run systemd on calendar and return its result
+        #{self}.systemd_on_calendar(
+          calendar: 'optional - calendar value consumed by #systemd_on_calendar',
+          schedule: 'optional - schedule value consumed by #systemd_on_calendar'
+        )
+
+        # Run launchd calendar interval and return its result
+        #{self}.launchd_calendar_interval(
+          calendar: 'optional - calendar value consumed by #launchd_calendar_interval',
+          schedule: 'optional - schedule value consumed by #launchd_calendar_interval'
+        )
+
+        # Run schtasks spec and return its result
+        #{self}.schtasks_spec(
+          calendar: 'optional - calendar value consumed by #schtasks_spec',
+          schedule: 'optional - schedule value consumed by #schtasks_spec'
+        )
+
+        # Run install scheduler and return its result
+        #{self}.install_scheduler(
+          enabled: 'optional - enabled value consumed by #install_scheduler',
+          backend: 'optional - optional force',
+          apply: 'optional - optional (default true unless PWN_CRON_DIR is set',
+          sync_jobs: 'optional - sync jobs value consumed by #install_scheduler'
+        )
+
+        # Run uninstall scheduler and return its result
+        #{self}.uninstall_scheduler(
+          backend: 'optional - backend value consumed by #uninstall_scheduler',
+          persist: 'optional - persist value consumed by #uninstall_scheduler'
+        )
+
+        # Run sync scheduler and return its result
+        #{self}.sync_scheduler
+
+        # Run scheduler status and return its result
+        #{self}.scheduler_status
+
+        # Run install native job and return its result
+        #{self}.install_native_job(
+          job: 'optional - job value consumed by #install_native_job',
+          backend: 'optional - backend value consumed by #install_native_job'
+        )
+
+        # Run remove native job and return its result
+        #{self}.remove_native_job(
+          job: 'optional - job value consumed by #remove_native_job',
+          id: 'optional - id value consumed by #remove_native_job',
+          name: 'optional - binary or identifier name',
+          backend: 'optional - backend value consumed by #remove_native_job'
+        )
+
+        # Run sync native jobs and return its result
+        #{self}.sync_native_jobs(
+          backend: 'optional - backend value consumed by #sync_native_jobs'
+        )
+
+        # ---- crontab -------------------------------------------------------
+        #{self}.install_crontab_worker
+
+        # Run install crontab job and return its result
+        #{self}.install_crontab_job(
+          job: 'optional - job value consumed by #install_crontab_job'
+        )
+
+        # Run uninstall crontab and return its result
+        #{self}.uninstall_crontab
+
+        # Run uninstall crontab job and return its result
+        #{self}.uninstall_crontab_job(
+          job: 'optional - job value consumed by #uninstall_crontab_job'
+        )
+
+        # ---- systemd --user ------------------------------------------------
+        #{self}.install_systemd_user_worker
+
+        # Run install systemd user job and return its result
+        #{self}.install_systemd_user_job(
+          job: 'optional - job value consumed by #install_systemd_user_job'
+        )
+
+        # Run uninstall systemd user and return its result
+        #{self}.uninstall_systemd_user
+
+        # Run uninstall systemd user job and return its result
+        #{self}.uninstall_systemd_user_job(
+          job: 'optional - job value consumed by #uninstall_systemd_user_job'
+        )
+
+        # ---- launchd -------------------------------------------------------
+        #{self}.install_launchd_worker
+
+        # Run install launchd job and return its result
+        #{self}.install_launchd_job(
+          job: 'optional - job value consumed by #install_launchd_job'
+        )
+
+        # Run uninstall launchd and return its result
+        #{self}.uninstall_launchd
+
+        # Run uninstall launchd job and return its result
+        #{self}.uninstall_launchd_job(
+          job: 'optional - job value consumed by #uninstall_launchd_job'
+        )
+
+        # ---- schtasks (Windows) -------------------------------------------
+        #{self}.install_schtasks_worker
+
+        # Run install schtasks job and return its result
+        #{self}.install_schtasks_job(
+          job: 'optional - job value consumed by #install_schtasks_job'
+        )
+
+        # Run uninstall schtasks and return its result
+        #{self}.uninstall_schtasks
+
+        # Run uninstall schtasks job and return its result
+        #{self}.uninstall_schtasks_job(
+          job: 'optional - job value consumed by #uninstall_schtasks_job'
+        )
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
+      constants.sort
     end
   end
 end

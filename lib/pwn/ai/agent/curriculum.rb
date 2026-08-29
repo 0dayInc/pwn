@@ -1634,36 +1634,95 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              # Tier 4 — self-play
-              PWN::AI::Agent::Curriculum.practice(limit: 3)                     # S1 + P14 trajectory DPO pairs + P17 budget-first
-              PWN::AI::Agent::Curriculum.offline_judge(since_hours: 24)         # P3 offline ORM/PRM fill
-              PWN::AI::Agent::Curriculum.preference_balance                     # P5 W1 diversity report
-              PWN::AI::Agent::Curriculum.counterfactual(request:, name:, args:, error:, hint:)  # S2 A/B → DPO pair
-              PWN::AI::Agent::Curriculum.critic(request:, final:)               # S3 tool-armed constitutional critic
-              PWN::AI::Agent::Curriculum.red_team_plan(request:, plan:)         # S4 telemetry-grounded plan review
-              PWN::AI::Agent::Curriculum.hindsight(request:, final:, session_id:) # C3 HER soft-relabel
+          puts "USAGE:
+            # Run practice and return its result
+            #{self}.practice(
+              limit: 'optional - limit value consumed by #practice',
+              prompts_per: 'optional - prompts per value consumed by #practice',
+              dry_run: 'optional - dry run value consumed by #practice'
+            )
 
-              # Tier 5 — close the weight loop
-              PWN::AI::Agent::Curriculum.train_and_gate(dry_run: true)          # W2 export-ready; P11 gate v2 promote only with trainer+dry_run:false
-              PWN::AI::Agent::Curriculum.calibrate(predicted: 0.8, actual: 1.0) # W3 Brier → Metrics[:calibration]
+            # Priority-fix 3 — Offline ORM/PRM pass over recent sessions so
+            #{self}.offline_judge(
+              local: 'optional - failure_only introspect does not starve the reward corpus.',
+              since_hours: 'optional - lookback window (default 24)',
+              limit: 'optional - max sessions to score (default 40)',
+              prm: 'optional - also run Process Reward Model (default true)',
+              commit: 'optional - write scores into learning/sentinel (default true)'
+            )
 
-              Cron self-improvement (seeded by PWN::Cron.install_defaults):
-                curriculum_practice_nightly  0 3 * * *   Curriculum.practice(limit: 3)
-                curriculum_offline_judge     30 3 * * *  Curriculum.offline_judge(since_hours: 24, limit: 40)
-                curriculum_train_weekly      0 4 * * 0   Curriculum.train_and_gate(dry_run: true)
-                learning_consolidate_nightly 0 5 * * *   Learning.consolidate
+            # P5 — W1 diversity report so monoculture is visible before DPO export
+            #{self}.preference_balance(
+              limit: 'optional - limit value consumed by #preference_balance (defaults to 10_000)',
+              scrub: 'optional - scrub value consumed by #preference_balance'
+            )
 
-              Config (PWN::Env[:ai][:agent]) — nil = auto (ON for remote engines, OFF for ollama):
-                :critic         - Boolean/nil, run S3 before every note_outcome
-                :red_team_plan  - Boolean/nil, run S4 after every plan_first
-                :counterfactual - Boolean/nil, run S2 on REPEAT_THRESHOLD
-                :hindsight      - Boolean, HER soft-relabel failures (default true)
-                :reward_llm     - Boolean/nil, force ORM/PRM LLM teacher (nil=on for remote)
+            # Run counterfactual and return its result
+            #{self}.counterfactual(
+              force: 'optional - force value consumed by #counterfactual',
+              request: 'optional - request value consumed by #counterfactual',
+              hint: 'optional - hint value consumed by #counterfactual',
+              name: 'required - binary or identifier name',
+              args: 'required - args value consumed by #counterfactual',
+              error: 'optional - error value consumed by #counterfactual'
+            )
 
-              #{self}.authors
-          USAGE
+            # S3 — Constitutional critic (with tool access)
+            #{self}.critic(
+              request: 'required - user request',
+              final: 'required - candidate final answer',
+              session_id: 'optional - for evidence lookup',
+              text_only: 'optional - text only value consumed by #critic',
+              force: 'optional - force value consumed by #critic'
+            )
+
+            # S4 — Adversarial plan review (grounded in telemetry)
+            #{self}.red_team_plan(
+              request: 'required - user goal',
+              plan: 'required - numbered plan text from plan_first'
+            )
+
+            # C3 — Hindsight Experience Replay
+            #{self}.hindsight(
+              request: 'required - the FAILED goal',
+              final: 'required - the final produced anyway',
+              session_id: 'required - trajectory to relabel'
+            )
+
+            # W2 — Online LoRA A/B with regression gate
+            #{self}.train_and_gate(
+              base_model: 'optional - ollama base tag (default PWN::Env[:ai][:ollama][:model])',
+              trainer: 'optional - :unsloth | :axolotl | :auto (default :auto)',
+              dry_run: 'optional - export + build eval set but do not train (default true)'
+            )
+
+            # Run reclassify backlog and return its result
+            #{self}.reclassify_backlog(
+              limit: 'optional - limit value consumed by #reclassify_backlog'
+            )
+
+            # Run practice kpi and return its result
+            #{self}.practice_kpi(
+              results: 'optional - Array results value consumed by #practice_kpi',
+              reclassified_n: 'optional - reclassified n value consumed by #practice_kpi'
+            )
+
+            # Week-over-week (or last-N snapshots) delta on repeating_n
+            #{self}.repeating_trend(
+              limit: 'optional - limit value consumed by #repeating_trend'
+            )
+
+            # Run calibrate and return its result
+            #{self}.calibrate(
+              predicted: 'optional - predicted value consumed by #calibrate',
+              actual: 'optional - actual value consumed by #calibrate',
+              engine: 'optional - engine value consumed by #calibrate'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

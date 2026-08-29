@@ -379,25 +379,16 @@ module PWN
           }
         end
         # Marker submodule so this file satisfies PWN module conventions
-        # (def self.help / def self.authors per-file) WITHOUT clobbering
-        # PWN::AI::Agent::Extrospection.help defined in the parent file.
-        module OSINTSocial
-          # Author(s):: 0day Inc. <support@0dayinc.com>
+        public_class_method def self.authors
+          "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+        end
 
-          public_class_method def self.authors
-            "AUTHOR(S):\n0day Inc. <support@0dayinc.com>\n"
-          end
-
-          # Display Usage for this Module
-
-          public_class_method def self.help
-            <<~USAGE
-              Social / identity OSINT feeds for PWN::AI::Agent::Extrospection.osint.
-              Feeds: #{SOCIAL_FEEDS.join(', ')}
-              Sites file: #{SOCIAL_SITES_FILE}
-              See PWN::AI::Agent::Extrospection.help / documentation/Extrospection.md.
-            USAGE
-          end
+        public_class_method def self.help
+          puts "USAGE:
+            # Marker submodule so this file satisfies PWN module conventions
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

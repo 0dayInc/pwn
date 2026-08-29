@@ -256,49 +256,58 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run refresh encryption secrets and return its result
           #{self}.refresh_encryption_secrets(
             file: 'required - file to encrypt with new key and iv',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
           )
 
+          # Run create and return its result
           #{self}.create(
-            file: 'required - file to encrypt',
+            file: 'required - encrypted file to create',
             decryptor_file: 'optional - file to save the key && iv values'
           )
 
+          # Run decrypt and return its result
           #{self}.decrypt(
             file: 'required - file to decrypt',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
           )
 
+          # Run dump and return its result
           #{self}.dump(
             file: 'required - file to dump',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt',
-        #   search: 'optional - search for a specific string'
+            yaml: 'optional - dump as parsed yaml hash (default: true)'
           )
 
+          # Run edit and return its result
           #{self}.edit(
             file: 'required - file to edit',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt',
-            editor: 'optional - editor to use (default: \"/usr/bin/vim\")'
+            editor: 'optional - editor to use (default: /usr/bin/vim)'
           )
 
+          # Run encrypt and return its result
           #{self}.encrypt(
             file: 'required - file to encrypt',
             key: 'required - key to decrypt',
             iv: 'required - iv to decrypt'
           )
 
+          # Run file encrypted and return its result
           #{self}.file_encrypted?(
             file: 'required - file to check if encrypted'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -86,19 +86,24 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run list types and return its result
           #{self}.list_types
 
+          # Run generate and return its result
           #{self}.generate(
-            type: 'required - card to generate from #list_types method to generate',
+            type: 'optional - card type from #list_types method to generate (defaults to :random)',
             count: 'optional - number of numbers to generate (defaults to 1)'
           )
 
+          # Run type and return its result
           #{self}.type(
             cc: 'required - e.g. XXXX XXXX XXXX XXXX'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

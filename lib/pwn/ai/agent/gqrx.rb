@@ -41,13 +41,16 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            ai_analysis = PWN::AI::Agent::GQRX.analyze(
+            # Run analyze and return its result
+            #{self}.analyze(
               request: 'required - A string containing the signal data captured by GQRX that you want to analyze. This data should be in a format that can be interpreted by the AI for analysis, such as raw signal data, frequency information, or any relevant metadata associated with the capture.',
               location: 'required - A string containing a city, state, country, or GPS coordinates where the signal data was captured. This information will be used to provide context for the analysis and to determine if the frequency is licensed or unlicensed based on FCC records.'
             )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

@@ -1331,7 +1331,8 @@ module PWN
           req_toks = request.downcase.scan(/[a-z0-9_]{3,}/).uniq
           fin_toks = final.downcase.scan(/[a-z0-9_]{3,}/).uniq
           overlap  = req_toks.empty? ? 1.0 : (req_toks & fin_toks).length.to_f / req_toks.length
-          score = [score, 0.35].min if overlap < 0.08 && req_toks.length >= 4 && score > 0.35
+          long_analytical = final.length >= 800
+          score = [score, 0.35].min if overlap < 0.08 && req_toks.length >= 4 && score > 0.35 && !long_analytical
           ev_score = ev ? ev[:score].to_f : 0.0
           bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
           ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
@@ -1729,37 +1730,154 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              # Tier 1 — reward signal
-              PWN::AI::Agent::Reward.judge(request: req, final: text, session_id: sid)     # R1 ORM → {score:, verdict:, rationale:}
-              PWN::AI::Agent::Reward.prm(request: req, session_id: sid)                    # R2 PRM → per-step credit
-              PWN::AI::Agent::Reward.plan_coverage(plan: tasks, final: text, session_id: sid) # soft plan-quality feature
-              PWN::AI::Agent::Reward.sentinel                                              # R3 reward-hacking detector
-              PWN::AI::Agent::Reward.reset_sentinel                                        # wipe corrupt window + distrust
-              PWN::AI::Agent::Reward.warm_sentinel                                         # P10 fill R3 window from Learning outcomes
-              PWN::AI::Agent::Reward.semantic_ok(name: 'shell', raw: json, args: args)     # R4 kills phantom exit≠0 mistakes
+          puts "USAGE:
+            # R1 — LLM Outcome Reward Model
+            #{self}.judge(
+              request: 'required - original user request',
+              final: 'required - assistant final answer',
+              session_id: 'optional - PWN::Sessions id (adds tool trace)',
+              trace: 'optional - Array of tool-result strings (overrides session_id)',
+              commit: 'optional - write score into learning.jsonl / sentinel (default true)',
+              critic_pass: 'optional - critic pass value consumed by #judge',
+              predicted: 'optional - predicted value consumed by #judge',
+              proxy_ok: 'optional - proxy ok value consumed by #judge'
+            )
 
-              # Tier 5 — preference pairs → DPO
-              PWN::AI::Agent::Reward.record_preference(prompt: p, rejected: r, chosen: c, source: :user_correction)
-              PWN::AI::Agent::Reward.preferences(limit: 100)
-              PWN::AI::Agent::Reward.export_dpo(format: :dpo)                              # W1 → ~/.pwn/finetune/pwn-dpo-*.jsonl (≤40%/source, scrubbed)
-              PWN::AI::Agent::Reward.export_dpo(format: :dpo, balance: false)              # raw dump (diagnostics)
-              PWN::AI::Agent::Reward.scrub_preferences(dry_run: true)                      # P15 ledger hygiene report
-              PWN::AI::Agent::Reward.scrub_preferences                                      # P15 rewrite jsonl (backup first)
-              PWN::AI::Agent::Reward.preference_balance(scrub: true)                       # P15 geometry-aware mix
+            # Run promote to success and return its result
+            #{self}.promote_to_success?(
+              orm: 'optional - orm value consumed by #promote_to_success?',
+              verify: 'optional - verify value consumed by #promote_to_success?',
+              critic: 'optional - critic value consumed by #promote_to_success?'
+            )
 
-              # Tier 6 — grounded reward
-              PWN::AI::Agent::Reward.verify_as_reward(final: text)                         # E3 browser-verified reward
+            # Run prm and return its result
+            #{self}.prm(
+              request: 'required - user goal',
+              session_id: 'optional - session to score in place',
+              trace: 'optional - Array of {name:, args:, result:} or Strings'
+            )
 
-              Config (PWN::Env[:ai][:agent]):
-                :verify_as_reward   - Boolean/nil, ground finals via extro_verify (nil=auto)
-                :reward_llm         - Boolean/nil, force ORM/PRM LLM teacher (nil=on for remote engines)
-                :reward_model       - optional cheaper model id for ORM/PRM (nil=active engine default)
-                :reward_llm_timeout - seconds for cheap ORM chat (default 12, clamp 2..30)
+            # Plan-quality soft signal (W3 feature / Learning tag)
+            #{self}.plan_coverage(
+              plan: 'required - Array of task strings or outline text',
+              final: 'required - assistant final answer',
+              request: 'optional - original user request',
+              trace: 'optional - Array of tool-result strings',
+              session_id: 'optional - load trace from session when trace empty'
+            )
 
-              #{self}.authors
-          USAGE
+            # R3 — Reward-hacking sentinel
+            #{self}.sentinel
+
+            # P4 — scalar 0.0..1.0 haircut applied to Metrics success / Registry β when
+            #{self}.proxy_distrust
+
+            # Run set proxy distrust and return its result
+            #{self}.set_proxy_distrust(
+              gap: 'optional - gap value consumed by #set_proxy_distrust',
+              proxy: 'optional - scheme://proxy_host:port, or tor',
+              judge: 'optional - judge value consumed by #set_proxy_distrust'
+            )
+
+            # Run clear proxy distrust and return its result
+            #{self}.clear_proxy_distrust
+
+            # One-shot: wipe sentinel window + distrust after deploying the
+            #{self}.reset_sentinel
+
+            # P10 — backfill the R3 ring from Learning outcomes so offline/local
+            #{self}.warm_sentinel(
+              limit: 'optional - limit value consumed by #warm_sentinel'
+            )
+
+            # R4 — Structured tool-result classifier
+            #{self}.semantic_ok(
+              name: 'required - tool name',
+              raw: 'required - JSON string returned by Dispatch.call',
+              args: 'optional - the tool call arguments (used for BENIGN_EXIT)'
+            )
+
+            # 2.2 — coarse recoverable shape beside the fingerprint. Paths are
+            #{self}.recoverable_shape(
+              err: 'optional - err value consumed by #recoverable_shape',
+              stderr: 'optional - stderr value consumed by #recoverable_shape',
+              exit_code: 'optional - exit code value consumed by #recoverable_shape'
+            )
+
+            # E3 — verify-as-reward (ground truth without a human)
+            #{self}.verify_as_reward(
+              final: 'optional - final value consumed by #verify_as_reward'
+            )
+
+            # Run record preference and return its result
+            #{self}.record_preference(
+              prompt: 'required - prompt value consumed by #record_preference',
+              rejected: 'required - rejected value consumed by #record_preference',
+              chosen: 'required - chosen value consumed by #record_preference',
+              force: 'optional - force value consumed by #record_preference',
+              source: 'optional - source value consumed by #record_preference (defaults to :unknown))',
+              shape: 'optional - shape value consumed by #record_preference',
+              meta: 'optional - meta value consumed by #record_preference'
+            )
+
+            # Share of `source` among the newest WRITE_SOURCE_WINDOW prefs
+            #{self}.write_source_quota(
+              source: 'optional - source value consumed by #write_source_quota'
+            )
+
+            # P0 — online generator mix report + urgency flags. Controllers
+            #{self}.generator_mix(
+              limit: 'optional - limit value consumed by #generator_mix (defaults to WRITE_SOURCE_WINDOW)'
+            )
+
+            # P0 ops — infer trajectory shape for legacy ledger rows that predate
+            #{self}.infer_shape(
+              row: 'optional - row value consumed by #infer_shape'
+            )
+
+            # P15 — keep only usable preference pairs for balance/export/promote
+            #{self}.usable_preference?(
+              row: 'optional - row value consumed by #usable_preference?'
+            )
+
+            # P15 — one-shot ledger hygiene. Filters in place (rewrite jsonl) or
+            #{self}.scrub_preferences(
+              dry_run: 'optional - dry run value consumed by #scrub_preferences'
+            )
+
+            # P15/P5 — geometry-aware source mix. scrub:true uses usable_preference?
+            #{self}.preference_balance(
+              limit: 'optional - limit value consumed by #preference_balance (defaults to 10_000)',
+              scrub: 'optional - scrub value consumed by #preference_balance'
+            )
+
+            # Run preferences and return its result
+            #{self}.preferences(
+              limit: 'optional - limit value consumed by #preferences (defaults to 500)',
+              source: 'required - source value consumed by #preferences'
+            )
+
+            # Run export dpo and return its result
+            #{self}.export_dpo(
+              format: 'optional - format value consumed by #export_dpo (defaults to :dpo))',
+              out: 'optional - out value consumed by #export_dpo',
+              scrub: 'optional - scrub value consumed by #export_dpo',
+              balance: 'optional - balance value consumed by #export_dpo',
+              source_cap: 'optional - source cap value consumed by #export_dpo'
+            )
+
+            # Run reset and return its result
+            #{self}.reset
+
+            # Weight a judge sample for sentinel / Learning haircuts
+            #{self}.judge_sample_weight(
+              source: 'optional - source value consumed by #judge_sample_weight'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

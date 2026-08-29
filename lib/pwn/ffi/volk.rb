@@ -173,16 +173,45 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.available?                           # => true/false
-          #{self}.unpack_s16le(data: raw_bytes)        # s16le → Float[-1,1]
-          #{self}.accumulate(samples:)                 # Σ samples
-          #{self}.magnitude_squared(iq:)               # |z|² per complex pair
-          #{self}.sqrt(samples:)
-          #{self}.scale(samples:, factor:)
-          #{self}.dot_prod(a:, b:)
+          # Run available and return its result
+          #{self}.available?
 
+          # Run unpack s16le and return its result
+          #{self}.unpack_s16le(
+            data: 'required - raw String of little-endian signed 16-bit PCM'
+          )
+
+          # Run accumulate and return its result
+          #{self}.accumulate(
+            samples: 'optional - samples value consumed by #accumulate'
+          )
+
+          # Run magnitude squared and return its result
+          #{self}.magnitude_squared(
+            iq: 'required - Array of interleaved I/Q Floats (even length)'
+          )
+
+          # Run sqrt and return its result
+          #{self}.sqrt(
+            samples: 'optional - samples value consumed by #sqrt'
+          )
+
+          # Run scale and return its result
+          #{self}.scale(
+            samples: 'optional - samples value consumed by #scale',
+            factor: 'optional - factor value consumed by #scale'
+          )
+
+          # Run dot prod and return its result
+          #{self}.dot_prod(
+            a: 'required - a value consumed by #dot_prod',
+            b: 'required - b value consumed by #dot_prod'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
 
       class << self

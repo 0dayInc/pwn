@@ -843,23 +843,132 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::Mistakes.record(tool: 'shell', error: 'nmpa: command not found', args: '{"command":"nmpa -sV"}')
-              PWN::AI::Agent::Mistakes.top(limit: 10, unresolved_only: true)
-              PWN::AI::Agent::Mistakes.find(signature: 'abc123def456')
-              PWN::AI::Agent::Mistakes.for_tool(tool: 'shell')
-              PWN::AI::Agent::Mistakes.resolve(signature: 'abc123def456', fix: 'binary is spelled `nmap`, not `nmpa`')
-              PWN::AI::Agent::Mistakes.correction_hint(tool: 'shell', error: err)  # inline self-correct
-              PWN::AI::Agent::Mistakes.to_context(limit: 6)                        # injected by PromptBuilder
-              PWN::AI::Agent::Mistakes.correction?(request: "no that's wrong")
-              PWN::AI::Agent::Mistakes.check_user_correction(request: req, session_id: sid)
-              PWN::AI::Agent::Mistakes.signature(tool: 'shell', error: err)
-              PWN::AI::Agent::Mistakes.operator_inbox(limit: 12)
-              PWN::AI::Agent::Mistakes.reset
+          puts "USAGE:
+            # Run load and return its result
+            #{self}.load
 
-              #{self}.authors
-          USAGE
+            # Run save and return its result
+            #{self}.save(
+              store: 'optional - store value consumed by #save'
+            )
+
+            # Run signature and return its result
+            #{self}.signature(
+              tool: 'required - tool/component name that failed',
+              error: 'required - raw error text (will be normalised)'
+            )
+
+            # Run find and return its result
+            #{self}.find(
+              signature: 'optional - exact signature to fetch',
+              tool: 'optional - with error:, compute signature and fetch',
+              error: 'optional - raw error text (used with tool:)'
+            )
+
+            # Run for tool and return its result
+            #{self}.for_tool(
+              tool: 'required - tool name',
+              unresolved_only: 'optional - default false'
+            )
+
+            # Run record and return its result
+            #{self}.record(
+              tool: 'required - tool/component that produced the failure',
+              error: 'required - error text / message',
+              args: 'optional - args that triggered it (stored truncated as sample)',
+              session_id: 'optional - PWN::Sessions id',
+              source: 'optional - :tool | :user_correction | :loop | :model | :heuristic (default :tool)',
+              force: 'optional - force value consumed by #record',
+              meta: 'optional - meta value consumed by #record',
+              cause: 'optional - cause value consumed by #record (defaults to :self))',
+              shape: 'optional - shape value consumed by #record',
+              needs_code_change: 'optional - needs code change value consumed by #record'
+            )
+
+            # Run resolve and return its result
+            #{self}.resolve(
+              signature: 'required - mistake signature (from mistakes_list / .top)',
+              fix: 'required - what to do INSTEAD next time',
+              structured: 'optional - structured value consumed by #resolve',
+              clear_needs_code_change: 'optional - clear needs code change value consumed by #resolve'
+            )
+
+            # Run top and return its result
+            #{self}.top(
+              limit: 'optional - max rows (default 10)',
+              unresolved_only: 'optional - default true',
+              practiceable_only: 'optional - practiceable only value consumed by #top'
+            )
+
+            # Run extinguish and return its result
+            #{self}.extinguish!(
+              signature: 'optional - signature value consumed by #extinguish!',
+              shape: 'optional - shape value consumed by #extinguish!',
+              force: 'optional - force value consumed by #extinguish!'
+            )
+
+            # Auto-resolve parked items that already have a known extinguish recipe
+            #{self}.extinguish_parked!(
+              limit: 'optional - limit value consumed by #extinguish_parked!',
+              dry_run: 'optional - dry run value consumed by #extinguish_parked!'
+            )
+
+            # Run park and return its result
+            #{self}.park(
+              signature: 'required - signature value consumed by #park',
+              reason: 'optional - reason value consumed by #park'
+            )
+
+            # Operator inbox: parked / needs_code_change / needs_human scars that
+            #{self}.operator_inbox(
+              limit: 'optional - limit value consumed by #operator_inbox'
+            )
+
+            # Run to context and return its result
+            #{self}.to_context(
+              limit: 'optional - limit value consumed by #to_context (defaults to 6)',
+              request: 'optional - request value consumed by #to_context',
+              include_open: 'optional - include open value consumed by #to_context',
+              full: 'optional - full value consumed by #to_context'
+            )
+
+            # Run correction hint and return its result
+            #{self}.correction_hint(
+              tool: 'required - tool that just failed',
+              error: 'required - raw error it failed with'
+            )
+
+            # Run correction and return its result
+            #{self}.correction?(
+              request: 'optional - request value consumed by #correction?'
+            )
+
+            # Run check user correction and return its result
+            #{self}.check_user_correction(
+              request: 'required - the incoming user message',
+              session_id: 'optional - session to inspect for the previous answer'
+            )
+
+            # Run lean and return its result
+            #{self}.lean!(
+              dry_run: 'optional - Boolean (default false)',
+              max_resolved_kept: 'optional - cap on resolved-with-fix records',
+              resolved_min_age_days: 'optional - age before resolved count=1 may drop'
+            )
+
+            # Run reset and return its result
+            #{self}.reset
+
+            # Age-weighted count for [REPEATING] threshold — a ×8 signature from
+            #{self}.effective_count(
+              mistake: 'optional - mistake value consumed by #effective_count',
+              signature: 'optional - signature value consumed by #effective_count'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

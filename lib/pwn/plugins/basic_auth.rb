@@ -48,15 +48,21 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run encode and return its result
           #{self}.encode(
-            username: 'optional username',
-            password: 'optional password'
+            username: 'optional - optional username',
+            password: 'optional - optional password'
           )
 
-          #{self}.decode(base64_str: 'base64 encoded string')
+          # Run decode and return its result
+          #{self}.decode(
+            base64_str: 'required - required base64 encoded string'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

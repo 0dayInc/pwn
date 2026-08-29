@@ -51,16 +51,22 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts %{USAGE:
-          #{self}.decode(oauth2_token: 'required oauth2 token')"
-
-          #{self}.get_value_by_key(
-            oauth2_token: 'required oauth2 token',
-            key: 'required oauth2 token key name located within the Base64 encoded token as symbol, e.g. :company_id'
+        puts "USAGE:
+          # Run decode and return its result
+          #{self}.decode(
+            oauth2_token: 'required - required oauth2 token'
           )
 
+          # Run get value by key and return its result
+          #{self}.get_value_by_key(
+            oauth2_token: 'required - required oauth2 token',
+            key: 'required - required oauth2 token key name located within the Base64 encoded token as symbol, e.g. :company_id'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
-        }
+        "
+        constants.sort
       end
     end
   end

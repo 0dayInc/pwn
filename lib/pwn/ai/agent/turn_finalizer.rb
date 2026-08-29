@@ -180,27 +180,47 @@ module PWN
         end
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              # Called from Learning.auto_introspect when Loop.run is on the
-              # stack. You almost never invoke this directly.
-              PWN::AI::Agent::TurnFinalizer.defer(
-                session_id: sid,
-                request: req,
-                final: text,
-                plan: plan,
-                ts_state: ts
-              )
+          puts "USAGE:
+            # Run enter user path and return its result
+            #{self}.enter_user_path!
 
-              # Specs / cron that need the learner to finish before assert:
-              PWN::AI::Agent::TurnFinalizer.join_all!(timeout: 15)
+            # Run leave user path and return its result
+            #{self}.leave_user_path!
 
-              Toggle via PWN::Env[:ai][:agent][:defer_introspect]
-                true  (default) — Hermes split: learn after the reply
-                false           — legacy inline auto_introspect
+            # Run user path and return its result
+            #{self}.user_path?
 
-              #{self}.authors
-          USAGE
+            # Run should defer and return its result
+            #{self}.should_defer?
+
+            # Run defer and return its result
+            #{self}.defer(
+              session_id: 'required - PWN::Sessions id',
+              request: 'optional - original user request',
+              final: 'optional - user-visible final answer',
+              predicted: 'optional - W3 predicted score',
+              plan: 'optional - tangible-task plan',
+              ts_state: 'optional - TaskSummarizer state'
+            )
+
+            # Run finalize and return its result
+            #{self}.finalize(
+              session_id: 'optional - request:, final:, predicted:, plan:, ts_state:',
+              should: 'optional - should value consumed by #finalize'
+            )
+
+            # Run join all and return its result
+            #{self}.join_all!(
+              timeout: 'optional - seconds to wait before giving up'
+            )
+
+            # Run pending and return its result
+            #{self}.pending
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
 
         private_class_method def self.track(opts = {})

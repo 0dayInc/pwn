@@ -235,6 +235,7 @@ module PWN
         gh_bin = ENV['PATH'].to_s.split(File::PATH_SEPARATOR)
                             .map { |d| File.join(d, 'gh') }
                             .find { |f| File.executable?(f) }
+        # Run api and return its result
         raise "ERROR: gh CLI not found on PATH - use #{self}.api(path:) instead, or install gh (https://cli.github.com)" unless gh_bin
 
         token = resolve_token(opts)
@@ -259,36 +260,58 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          response_json = #{self}.download_all_gists(
-            username: 'optional - username of gists to download (default PWN::Env[:plugins][:github][:username])',
+          # Run download all gists and return its result
+          #{self}.download_all_gists(
+            username: 'optional - username of gists to backup (default PWN::Env[:plugins][:github][:username])',
             target_dir: 'required - target directory to save respective gists'
           )
 
-          runs = #{self}.workflow_runs(
-            owner: 'optional - default PWN::Env[:plugins][:github][:username]',
+          # Run workflow runs and return its result
+          #{self}.workflow_runs(
+            owner: 'required - repo owner (default PWN::Env[:plugins][:github][:username])',
             repo: 'required - repo name',
-            workflow: 'optional - e.g. install-matrix.yml',
-            params: 'optional - {branch:, status:, per_page:}'
+            workflow: 'optional - workflow file name or id (e.g. install-matrix.yml). Omit for all runs.',
+            params: 'optional - {branch:, status:, per_page:, page:}',
+            token: 'optional - token value consumed by #workflow_runs'
           )
 
-          jobs = #{self}.workflow_run_jobs(
-            owner: 'optional', repo: 'required', run_id: 'required'
+          # Run workflow run jobs and return its result
+          #{self}.workflow_run_jobs(
+            owner: 'required - repo owner (default PWN::Env[:plugins][:github][:username])',
+            repo: 'required - repo name',
+            run_id: 'required - workflow run id',
+            params: 'optional - params value consumed by #workflow_run_jobs',
+            token: 'optional - token value consumed by #workflow_run_jobs'
           )
 
-          log = #{self}.job_log(
-            owner: 'optional', repo: 'required', job_id: 'required'
+          # Run job log and return its result
+          #{self}.job_log(
+            owner: 'required - repo owner (default PWN::Env[:plugins][:github][:username])',
+            repo: 'required - repo name',
+            job_id: 'required - job id from workflow_run_jobs',
+            token: 'optional - token value consumed by #job_log'
           )
 
-          json = #{self}.api(
-            path: 'required - e.g. repos/0dayinc/pwn/releases/latest',
-            method: 'optional - :get|:post|:put|:patch|:delete',
-            params: 'optional', body: 'optional', raw: 'optional'
+          # Run api and return its result
+          #{self}.api(
+            path: 'required - REST path relative to https://api.github.com (e.g. repos/0dayinc/pwn/releases/latest)',
+            method: 'optional - :get|:post|:put|:patch|:delete (default :get)',
+            params: 'optional - query params Hash',
+            body: 'optional - request body Hash/Array/String for POST/PUT/PATCH',
+            token: 'optional - PAT (default PWN::Env[:plugins][:github][:personal_access_token])',
+            raw: 'optional - return raw RestClient::Response instead of parsed JSON (default false)'
           )
 
-          #{self}.gh(cmd: 'run view <run_id> -R <owner>/<repo> --log-failed')
+          # Thin wrapper around the `gh` CLI with GH_TOKEN injected from PWN::Env so
+          #{self}.gh(
+            cmd: 'required - gh subcommand string, e.g. run list -R 0dayinc/pwn -L 5 --json databaseId,status',
+            token: 'optional - PAT (default PWN::Env[:plugins][:github][:personal_access_token])'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -48,15 +48,18 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          credentials = #{self}.get_temp_credentials(
+          # Run get temp credentials and return its result
+          #{self}.get_temp_credentials(
             region: 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',
             role_arn: 'required - role arn for instance profile to be used',
             role_session_name: 'required - the name of the instance profile role',
             duration_seconds: 'required - seconds in which sts credentials will expire'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -66,20 +66,23 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.username(
-            prompt: 'optional - string to display at prompt'
-          )
+          # Run username and return its result
+          #{self}.username
 
+          # Run mask password and return its result
           #{self}.mask_password(
-            prompt: 'optional - string to display at prompt'
+            prompt: 'optional - string to display at prompt (Default: Password)'
           )
 
+          # Run mfa and return its result
           #{self}.mfa(
-            prompt: 'optional - string to display at prompt'
+            prompt: 'optional - string to display at prompt (Default: MFA Token)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

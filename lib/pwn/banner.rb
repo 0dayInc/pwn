@@ -95,14 +95,18 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        banner = #{self}.get(
+        # Run get and return its result
+        #{self}.get(
           index: 'optional - defaults to random banner index'
         )
 
-        banner = #{self}.welcome
+        # Run welcome and return its result
+        #{self}.welcome
 
+        # Print the AUTHOR(S) string for this module.
         #{self}.authors
       "
+      constants.sort
     end
   end
 end

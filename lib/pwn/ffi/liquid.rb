@@ -395,18 +395,71 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          #{self}.available?                              # => true/false
-          #{self}.freq_demod(iq:, kf: 0.5)                # FM I/Q → audio
-          #{self}.resample(samples:, rate:, as_db: 60.0)  # arbitrary rate
-          #{self}.fir_kaiser(samples:, length: 51, fc: 0.1, as_db: 60.0)
-          #{self}.dc_block(samples:, m: 7, as_db: 60.0)
-#{self}.resample_iq(iq:, rate:, as_db: 60.0)     # complex resample
-#{self}.mix_down(iq:, freq:)                     # NCO mix (rad/samp)
-#{self}.gmsk_demod(iq:, sps:, m: 3, bt: 0.35)    # I/Q → bits
-#{self}.mfsk_demod(iq:, m:, sps:, bw: 0.25)      # I/Q → symbols
+          # Run available and return its result
+          #{self}.available?
 
+          # Run freq demod and return its result
+          #{self}.freq_demod(
+            iq: 'required - interleaved I/Q Array<Float> (even length)',
+            kf: 'optional - modulation factor (default 0.5)'
+          )
+
+          # Run resample and return its result
+          #{self}.resample(
+            samples: 'required - samples value consumed by #resample',
+            rate: 'required - output/input ratio (>0)',
+            as_db: 'optional - stop-band attenuation dB (default 60.0)'
+          )
+
+          # Run fir kaiser and return its result
+          #{self}.fir_kaiser(
+            samples: 'required - samples value consumed by #fir_kaiser',
+            length: 'optional - filter length (default 51, odd preferred)',
+            fc: 'optional - normalised cutoff 0..0.5 (default 0.1)',
+            as_db: 'optional - stop-band attenuation dB (default 60.0)',
+            mu: 'optional - fractional sample offset (default 0.0)'
+          )
+
+          # Run dc block and return its result
+          #{self}.dc_block(
+            samples: 'required - samples value consumed by #dc_block',
+            m: 'optional - prototype semi-length (default 7 → len 15)',
+            as_db: 'optional - stop-band attenuation dB (default 60.0)'
+          )
+
+          # Run resample iq and return its result
+          #{self}.resample_iq(
+            iq: 'required - interleaved I/Q Array<Float>',
+            rate: 'required - output/input ratio (>0)',
+            as_db: 'optional - stop-band attenuation dB (default 60.0)'
+          )
+
+          # Run mix down and return its result
+          #{self}.mix_down(
+            iq: 'required - interleaved I/Q Array<Float>',
+            freq: 'required - normalised angular freq (rad/sample, i.e. 2π·f/fs)'
+          )
+
+          # Run gmsk demod and return its result
+          #{self}.gmsk_demod(
+            iq: 'required - interleaved I/Q Array<Float>, length = k·sym·2',
+            sps: 'required - samples per symbol (integer ≥ 2)',
+            m: 'optional - filter delay (default 3)',
+            bt: 'optional - Gaussian BT (default 0.35)'
+          )
+
+          # Run mfsk demod and return its result
+          #{self}.mfsk_demod(
+            iq: 'required - interleaved I/Q Array<Float>',
+            m: 'required - bits per symbol (1=2FSK, 2=4FSK, …)',
+            sps: 'required - samples per symbol (integer ≥ 2^m)',
+            bw: 'optional - normalised bandwidth 0..0.5 (default 0.25)'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
 
       class << self

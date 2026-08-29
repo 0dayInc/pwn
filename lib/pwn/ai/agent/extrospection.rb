@@ -44,7 +44,7 @@ module PWN
       #
       # PromptBuilder re-injects Extrospection.to_context on every turn.
       # Persistence: ~/.pwn/extrospection.json across REPL restarts.
-      module Extrospection
+      module Extrospection # rubocop:disable Metrics/ModuleLength
         EXTRO_FILE = File.join(Dir.home, '.pwn', 'extrospection.json')
         MAX_OBSERVATIONS = 500
         # CLI tools that accept a cheap, non-interactive --version / -V.
@@ -3630,65 +3630,190 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::Extrospection.snapshot                          # probe host, persist, return {snapshot:, drift:}
-              PWN::AI::Agent::Extrospection.drift(live: true)                 # what changed vs last snapshot
-              PWN::AI::Agent::Extrospection.observe(source: 'nmap', category: :recon, target: '10.0.0.5', data: '22/tcp open ssh 9.6')
-              PWN::AI::Agent::Extrospection.observe(source: 'gqrx', category: :rf, target: '433.920MHz', data: 'peak -34.2 dBFS bw=200k')
-              PWN::AI::Agent::Extrospection.observations(category: 'recon', target: '10.0.0.5')
-              PWN::AI::Agent::Extrospection.intel(query: 'openssl 3.0', record: true)
-              PWN::AI::Agent::Extrospection.correlate                         # introspection x extrospection findings
-              PWN::AI::Agent::Extrospection.to_context                        # injected by PromptBuilder
-              PWN::AI::Agent::Extrospection.stats
-              PWN::AI::Agent::Extrospection.auto_extrospect(session_id: sid)  # called from Learning.auto_introspect
-              PWN::AI::Agent::Extrospection.snapshot(sections: %i[web])        # opt-in browser probe of web_anchors
-              PWN::AI::Agent::Extrospection.watch(url: 'https://target/api/version')
-              PWN::AI::Agent::Extrospection.rf_tune(freq: '101.1')                 # tune GQRX + RDS → now_playing
-              PWN::AI::Agent::Extrospection.osint(query: '+13125551212', kind: :phone)
-              PWN::AI::Agent::Extrospection.osint(query: '2ABIP-ESP32', kind: :fcc_id)
-              PWN::AI::Agent::Extrospection.osint(query: 'US10123456', kind: :patent)
-              PWN::AI::Agent::Extrospection.osint(query: '1HGCM82633A004352', kind: :vin)
-              PWN::AI::Agent::Extrospection.osint(query: '00:11:22:33:44:55', kind: :mac)
-              PWN::AI::Agent::Extrospection.osint(query: 'W1AW', kind: :callsign)
-              PWN::AI::Agent::Extrospection.osint(query: 'CVE-2021-44228', kind: :cve)
-              PWN::AI::Agent::Extrospection.serial_sense(payload: "ATI\r")
-              PWN::AI::Agent::Extrospection.telecomm(action: :status)
-              PWN::AI::Agent::Extrospection.packet_sense(action: :capture, filter: 'tcp port 443', count: 10)
-              PWN::AI::Agent::Extrospection.vision(file: '/tmp/shot.png', action: :ocr)
-              PWN::AI::Agent::Extrospection.voice_sense(action: :tts, text: 'hello from pwn')
-              PWN::AI::Agent::Extrospection.verify(claim: 'CVE-2026-12345 affects OpenSSL 3.2.1')
-              PWN::AI::Agent::Extrospection.revalidate_memory                  # cron: GC stale PWN::Memory :fact entries
-              PWN::AI::Agent::Extrospection.reset
+          puts "USAGE:
+            # Run load and return its result
+            #{self}.load
 
-              PRIMARY use = on-demand sensing (intel / verify / watch / rf_tune / osint /
-              serial_sense / telecomm / packet_sense / vision / voice_sense / observe /
-              rf / web / osint / serial / telecomm / packet / vision / voice).
-              auto_extrospect is OPTIONAL ambient baseline (host/repo/env only - never
-              launches burpsuite/zaproxy/msfconsole/gqrx). Prefer calling sense tools
-              when a question needs the outside world, not after every turn.
+            # Run save and return its result
+            #{self}.save(
+              store: 'required - Hash returned by .load / mutated in place'
+            )
 
-              Enable end-of-run ambient baseline with:
-                PWN::Env[:ai][:agent][:auto_extrospect] = true   # sections: AUTO_SECTIONS
+            # Run snapshot and return its result
+            #{self}.snapshot(
+              persist: 'optional - Boolean, write snapshot to disk & rotate previous (default true)',
+              sections: 'optional - Array subset of [:host, :net, :toolchain, :repo, :env, :rf, :web, :osint, :serial, :telecomm, :packet, :vision, :voice] (default host/net/toolchain/repo/env/rf)'
+            )
 
-              Configure browser-backed :web probe / verify / watch with:
-                PWN::Env[:ai][:agent][:extrospection][:web] =
-                  { anchors: [...], proxy: 'tor', max_anchors: 8, per_page_timeout: 15, screenshot: false, allow_targets: false }
+            # Run observe and return its result
+            #{self}.observe(
+              source: 'required - where the observation came from (nmap, shodan, burp, cve, human, ...)',
+              data: 'required - the observation payload (String or Hash)',
+              category: 'optional - :recon, :vuln, :intel, :target, :network, :env, :rf, :web, :osint, :serial, :telecomm, :packet, :vision, :voice, :misc (default :misc)',
+              target: 'optional - host/ip/url/asset the observation is about',
+              tags: 'optional - Array of String labels',
+              ttl: 'optional - seconds until this observation is considered stale (default nil = forever)'
+            )
 
-              Configure RF sense (rf_tune) with:
-                PWN::Env[:ai][:agent][:extrospection][:rf] =
-                  { host: '127.0.0.1', port: 7356, settle_secs: 8, ttl: 300 }
+            # Run observations and return its result
+            #{self}.observations(
+              limit: 'optional - max entries newest-first (default 50)',
+              source: 'optional - filter by source substring',
+              category: 'optional - filter by category',
+              target: 'optional - filter by target substring',
+              tag: 'optional - filter by tag substring',
+              fresh_only: 'optional - drop entries whose ttl has expired (default false)'
+            )
 
-              Configure new limbs:
-                PWN::Env[:ai][:agent][:extrospection][:osint]    = { ttl: 86400, api_keys: { shodan: '...', hunter: '...', abuseipdb: '...', virustotal: '...', greynoise: '...', haveibeenpwned: '...', securitytrails: '...', steam: '...' }, social: { max_threads: 16, timeout: 6, sites_file: 'etc/osint/social_sites.json', mastodon_instance: 'mastodon.social' }, bridges: { timeout: 120, amass_passive: true } }
-                PWN::Env[:ai][:agent][:extrospection][:serial]   = { block_dev: '/dev/ttyUSB0', baud: 115200, settle_secs: 1.5 }
-                PWN::Env[:ai][:agent][:extrospection][:telecomm] = { host: '127.0.0.1', port: 8000 }
-                PWN::Env[:ai][:agent][:extrospection][:packet]   = { iface: 'eth0' }
-                PWN::Env[:ai][:agent][:extrospection][:vision]   = { lang: 'eng' }
-                PWN::Env[:ai][:agent][:extrospection][:voice]    = { ttl: 3600 }
+            # Run drift and return its result
+            #{self}.drift(
+              live: 'optional - probe host NOW and diff vs stored snapshot (default true). When false, diff stored :snapshot vs stored :previous.'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run intel and return its result
+            #{self}.intel(
+              query: 'required - keyword / product / CVE id to search external threat-intel for',
+              feeds: 'optional - Array subset of [:nvd, :circl, :exploitdb] (default all)',
+              limit: 'optional - max results per feed (default 5)',
+              record: 'optional - also persist each hit as an observation (default false)'
+            )
+
+            # Run verify and return its result
+            #{self}.verify(
+              claim: 'required - factual claim to fact-check against the live web',
+              kind: 'optional - :cve | :version | :doc | :generic (default auto-detect)',
+              url: 'optional - explicit URL the claim cites (forces kind: :doc)',
+              commit: 'optional - write Mistakes/Memory/observe on refute/confirm (default true)',
+              proxy: 'optional - upstream proxy for TransparentBrowser (e.g. tor) (defaults to web_config[:proxy])',
+              in: 'optional - headless mode against a canonical source for the claim class',
+              confidence: 'optional - confidence value consumed by #verify',
+              evidence: 'required - [{url:, title:, excerpt:, dom_sha:, screenshot:}]',
+              action_taken: 'required - :mistakes_record | :extro_observe | :learning_note | nil }'
+            )
+
+            # Run watch and return its result
+            #{self}.watch(
+              url: 'required - URL to render and fingerprint',
+              selector: 'optional - CSS selector whose innerText to hash (default full body)',
+              ttl: 'optional - seconds until stale (default 7 days)',
+              proxy: 'optional - upstream proxy for TransparentBrowser (defaults to web_config[:proxy])',
+              tags: 'optional - Array tags value consumed by #watch'
+            )
+
+            # Run rf tune and return its result
+            #{self}.rf_tune(
+              freq: 'required - frequency: 101.1, 101.1 FM, 101.100.000, 101_100_000, ...',
+              host: 'optional - GQRX remote-control host (default 127.0.0.1)',
+              port: 'optional - GQRX remote-control port (default 7356)',
+              settle_secs: 'optional - seconds to sample RDS after tune (default 8)',
+              rds: 'optional - force RDS on/off (default: auto when FM broadcast / band-plan decoder=:rds)',
+              demodulator_mode: 'optional - e.g. :WFM_ST, :WFM, :FM, :AM (default from band-plan / FM range)',
+              bandwidth: 'optional - passband Hz string, e.g. 200.000 (default from band-plan)',
+              record: 'optional - also observe(category: :rf) so it hits EXTROSPECTION (default true)',
+              ttl: 'optional - observation TTL seconds (default 300 - radio content is ephemeral)'
+            )
+
+            # OSINT sense organ
+            #{self}.osint(
+              query: 'required - phone, IP, domain, email, person name, FCC ID, patent #, username, VIN, MAC, callsign, ...',
+              kind: 'optional - auto|:ip|:geo|:dns|:whois|:rdap|:crtsh|:bgp|:shodan|:hunter|:phone|:fcc_id|:patent|:person|:username|:github|:wayback|:url|:company|:cik|:openfda|:vital_records|:threat|:vin|:mac|:callsign|:npi|:cve (default :auto)',
+              feeds: 'optional - Array subset of DEFAULT_OSINT_FEEDS (default: auto-selected from kind)',
+              limit: 'optional - max hits per feed (default 5)',
+              record: 'optional - also observe(category: :osint) (default true)',
+              ttl: 'optional - observation TTL seconds (default 86400)',
+              api_keys: 'optional - Hash of {shodan:, hunter:, abuseipdb:, virustotal:, greynoise:, haveibeenpwned:, securitytrails:} overriding PWN::Env / ENV'
+            )
+
+            # Serial sense organ
+            #{self}.serial_sense(
+              block_dev: 'optional - device path (default first ttyUSB/ttyACM or config)',
+              baud: 'optional - baud rate (default 9600)',
+              payload: 'optional - String or byte Array to write (e.g. ATI\\\\r or [0x41,0x54])',
+              settle_secs: 'optional - seconds to read after write (default 1.5)',
+              data_bits: 'optional - optional (default 8)',
+              stop_bits: 'optional - optional (default 1)',
+              parity: 'optional - optional :none|:even|:odd (default :none)',
+              record: 'optional - observe(category: :serial) (default true)',
+              ttl: 'optional - observation TTL (default 600)'
+            )
+
+            # Telecomm sense organ (SIP / VoIP / PSTN via BareSIP)
+            #{self}.telecomm(
+              action: 'optional - :status|:dial|:hangup|:inventory (default :inventory)',
+              target: 'optional - SIP URI / phone number for :dial (e.g. sip:alice@example.com or +13125551212)',
+              host: 'optional - BareSIP HTTP control host (default 127.0.0.1)',
+              port: 'optional - BareSIP HTTP control port (default 8000)',
+              record: 'optional - observe(category: :telecomm) (default true)',
+              ttl: 'optional - observation TTL (default 600)'
+            )
+
+            # Packet sense organ
+            #{self}.packet_sense(
+              action: 'optional - :inventory|:capture|:summarize_pcap (default :inventory)',
+              iface: 'optional - capture interface (default first non-lo or any)',
+              filter: 'optional - BPF filter (e.g. tcp port 443)',
+              count: 'optional - packets to capture (default 20, max 200)',
+              timeout: 'optional - capture seconds (default 5, max 60)',
+              path: 'optional - pcap path for :summarize_pcap',
+              record: 'optional - observe(category: :packet) (default true)',
+              ttl: 'optional - observation TTL (default 600)'
+            )
+
+            # Vision / OCR sense organ
+            #{self}.vision(
+              file: 'required - path to image / screenshot / PDF-page render',
+              action: 'optional - :ocr|:barcode|:inventory (default :ocr when file given, else :inventory)',
+              lang: 'optional - tesseract language (default eng)',
+              record: 'optional - observe(category: :vision) (default true)',
+              ttl: 'optional - observation TTL (default 86400)'
+            )
+
+            # Voice sense organ (TTS / STT / inventory)
+            #{self}.voice_sense(
+              action: 'optional - :inventory|:tts|:stt (default :inventory)',
+              text: 'optional - text to speak for :tts (or text_path:)',
+              text_path: 'optional - path to text file for :tts',
+              audio: 'optional - path to audio file for :stt',
+              out: 'optional - output audio path for :tts (wav)',
+              engine: 'optional - :espeak|:festival|:spd_say|:whisper (auto)',
+              model: 'optional - whisper model (default tiny)',
+              record: 'optional - observe(category: :voice) (default true)',
+              ttl: 'optional - observation TTL (default 3600)'
+            )
+
+            # Run revalidate memory and return its result
+            #{self}.revalidate_memory(
+              limit: 'optional - max :fact entries to check (default 25)',
+              proxy: 'optional - upstream proxy for TransparentBrowser (defaults to web_config[:proxy])',
+              ruby: 'optional - PWN::AI::Agent::Extrospection.revalidate_memory'
+            )
+
+            # Run correlate and return its result
+            #{self}.correlate(
+              limit: 'optional - max findings returned (default 10)'
+            )
+
+            # Run to context and return its result
+            #{self}.to_context(
+              drift_limit: 'optional - max drift lines (default 4)',
+              obs_limit: 'optional - max observation lines (default 4)'
+            )
+
+            # Run stats and return its result
+            #{self}.stats
+
+            # Called by Learning.auto_introspect when
+            #{self}.auto_extrospect(
+              session_id: 'optional - id of the just-completed session (for tagging)'
+            )
+
+            # Run reset and return its result
+            #{self}.reset
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

@@ -82,22 +82,27 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          slack_obj = #{self}.login(
-            api_token: 'optional slack api token (will prompt if blank)'
+          # Run login and return its result
+          #{self}.login(
+            api_token: 'required - required slack api token'
           )
 
+          # Run post message and return its result
           #{self}.post_message(
-            slack_obj: 'required slack_obj returned from login method',
-            channel: 'required #channel to post message',
-            message: 'required message to post'
+            slack_obj: 'required - required slack_obj returned from login method',
+            channel: 'required - required #channel to post message',
+            message: 'required - required message to post'
           )
 
+          # Run logout and return its result
           #{self}.logout(
-            slack_obj: 'required slack_obj returned from login method'
+            slack_obj: 'required - required slack_obj returned from login method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

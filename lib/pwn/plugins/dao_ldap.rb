@@ -105,26 +105,32 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          ldap_obj = #{self}.connect(
-            host: 'required host or IP',
-            port: 'required port',
-            base: 'required ldap base to search from (e.g. dc=domain,dc=com)',
-            encryption: 'optional parameter to protect communication in transit, :simple_tls OR :start_tls',
-            auth_method: 'required ldap auth bind method, :simple, :sasl, OR :gss_spnego'
-            username: 'required username',
-            password: 'optional (prompts if left blank)',
+          # Run connect and return its result
+          #{self}.connect(
+            host: 'required - required host or IP',
+            port: 'optional - optional port (defaults to 636)',
+            base: 'required - required ldap base to search from (e.g. dc=domain,dc=com)',
+            encryption: 'optional - optional parameter to protect communication in transit, :simple_tls OR :start_tls',
+            auth_method: 'required - required ldap auth bind method, :simple, :sasl, OR :gss_spnego',
+            username: 'required - required username (e.g. support@0dayinc.com)',
+            password: 'optional - optional (prompts if left blank)'
           )
 
-          employee = #{self}.get_employee_by_username(
-            ldap_obj: 'required ldap_obj returned from #connect method',
-            username: 'required username of employee to retrieve from LDAP server'
+          # Run get employee by username and return its result
+          #{self}.get_employee_by_username(
+            ldap_obj: 'required - required ldap_obj returned from #connect method',
+            username: 'required - required username of employee to retrieve from LDAP server'
           )
-          puts employee[0][:dn]
 
-          #{self}.disconnect(:ldap_obj => ldap_obj)
+          # Run disconnect and return its result
+          #{self}.disconnect(
+            ldap_obj: 'optional - ldap obj value consumed by #disconnect'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end
