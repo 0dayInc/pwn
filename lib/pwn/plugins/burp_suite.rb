@@ -1704,6 +1704,7 @@ module PWN
             uri: json_uri
           )
 
+          # Run help and return its result
           puts "Skipping #{json_uri} - not in scope. Check out #{self}.help >>  #add_to_scope method" unless uri_in_scope
           next unless uri_in_scope
 
@@ -2066,188 +2067,217 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          burp_obj1 = #{self}.start(
+          # Run start and return its result
+          #{self}.start(
             burp_jar_path: 'optional - path of burp suite pro jar file (defaults to /opt/burpsuite/burpsuite_pro.jar)',
-            headless: 'optional - run headless if set to true',
-            browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types'
+            headless: 'optional - run burp headless if set to true (defaults to false)',
+            browser_type: 'optional - defaults to :firefox. See PWN::Plugins::TransparentBrowser.help for a list of types',
+            burp_ip: 'optional - IP address for the Burp proxy (defaults to 127.0.0.1)',
+            burp_port: 'optional - port for the Burp proxy (defaults to a random unused port)',
+            pwn_burp_ip: 'optional - IP address for the PWN Burp API (defaults to 127.0.0.1)',
+            pwn_burp_port: 'optional - port for the PWN Burp API (defaults to a random unused port)'
           )
 
-          uri_in_scope = #{self}.in_scope(
+          # Run in scope and return its result
+          #{self}.in_scope(
             burp_obj: 'required - burp_obj returned by #start method',
             uri: 'required - URI to determine if in scope'
           )
 
-          json_in_scope = #{self}.add_to_scope(
+          # Run add to scope and return its result
+          #{self}.add_to_scope(
             burp_obj: 'required - burp_obj returned by #start method',
             target_url: 'required - target url to add to scope'
           )
 
-          json_spider = #{self}.spider(
+          # Run spider and return its result
+          #{self}.spider(
             burp_obj: 'required - burp_obj returned by #start method',
-            target_url: 'required - target url to spider in scope'
+            target_url: 'required - target url to add to crawl / spider'
           )
 
+          # Run enable proxy and return its result
           #{self}.enable_proxy(
             burp_obj: 'required - burp_obj returned by #start method'
           )
 
+          # Run disable proxy and return its result
           #{self}.disable_proxy(
             burp_obj: 'required - burp_obj returned by #start method'
           )
 
+          # Run get proxy listeners and return its result
           #{self}.get_proxy_listeners(
             burp_obj: 'required - burp_obj returned by #start method'
           )
 
-          json_proxy_listener = #{self}.add_proxy_listener(
+          # Run add proxy listener and return its result
+          #{self}.add_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
-            bindAddress: 'required - bind address for the proxy listener (e.g., \"127.0.0.1\")',
             port: 'required - port for the proxy listener (e.g., 8081)',
-            enabled: 'optional - enable the listener (defaults to true)'
+            enabled: 'optional - enable the listener (defaults to true)',
+            bindAddress: 'required - bindAddress value consumed by #add_proxy_listener'
           )
 
-          json_proxy_listener = #{self}.update_proxy_listener(
+          # Run update proxy listener and return its result
+          #{self}.update_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'optional - ID of the proxy listener (defaults to 0)',
-            bindAddress: 'optional - bind address for the proxy listener (defaults to value of existing listener)',
             port: 'optional - port for the proxy listener (defaults to value of existing listener)',
-            enabled: 'optional - enable the listener (defaults to value of existing listener)'
+            enabled: 'optional - enable or disable the listener (defaults to value of existing listener)',
+            bindAddress: 'optional - bindAddress value consumed by #update_proxy_listener'
           )
 
+          # Run delete proxy listener and return its result
           #{self}.delete_proxy_listener(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'optional - ID of the proxy listener (defaults to 0)'
           )
 
-          json_proxy_history = #{self}.get_proxy_history(
+          # Run get proxy history and return its result
+          #{self}.get_proxy_history(
             burp_obj: 'required - burp_obj returned by #start method',
-            limit: 'optional - integer to limit number of proxy history entries returned (default: 200)',
-            offset: 'optional - integer to offset proxy history results (default: 0)',
-            uri: 'optional - URI to filter proxy history results (default: nil)',
-            highlight: 'optional - highlight color to filter proxy history results (default: \"NONE\")',
-            keyword: 'optional - keyword to filter proxy history results (default: nil)',
+            limit: 'optional - number of proxy history entries to return (default: 200)',
+            offset: 'optional - offset for pagination of proxy history entries (default: 0)',
+            uri: 'optional - filter proxy history entries by URI (default: nil)',
+            highlight: 'optional - highlight color to filter proxy history results (default: NONE)',
+            keyword: 'optional - keyword to filter proxy history entries (default: nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
-          json_proxy_history = #{self}.update_proxy_history(
+          # Run update proxy history and return its result
+          #{self}.update_proxy_history(
             burp_obj: 'required - burp_obj returned by #start method',
-            entry: 'required - proxy history entry hash to update'
+            entry: 'required - hash of the proxy history entry to update'
           )
 
-          json_proxy_history = #{self}.get_websocket_history(
+          # Run get websocket history and return its result
+          #{self}.get_websocket_history(
             burp_obj: 'required - burp_obj returned by #start method',
-            limit: 'optional - integer to limit number of websocket history entries returned (default: 200)',
-            offset: 'optional - integer to offset websocket history results (default: 0)',
-            highlight: 'optional - highlight color to filter proxy history results (default: \"NONE\")',
-            keyword: 'optional - keyword to filter websocket history results (default: nil)'
+            limit: 'optional - number of websocket history entries to return (default: 200)',
+            offset: 'optional - offset for pagination of websocket history entries (default: 0)',
+            highlight: 'optional - highlight color to filter websocket history results (default: NONE)',
+            keyword: 'optional - keyword to filter websocket history entries (default: nil)'
           )
 
-          json_proxy_history = #{self}.update_websocket_history(
+          # Run update websocket history and return its result
+          #{self}.update_websocket_history(
             burp_obj: 'required - burp_obj returned by #start method',
-            entry: 'required - websocket history entry hash to update'
+            entry: 'required - hash of the websocket history entry to update'
           )
 
-          json_sitemap = #{self}.get_sitemap(
+          # Run get sitemap and return its result
+          #{self}.get_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
-            limit: 'optional - integer to limit number of sitemap entries returned (default: 200)',
-            offset: 'optional - integer to offset sitemap results (default: 0)',
-            uri: 'optional - URI to filter sitemap results (default: nil)',
-            highlight: 'optional - highlight color to filter proxy history results (default: \"NONE\")',
-            keyword: 'optional - keyword to filter sitemap results (default: nil)',
+            limit: 'optional - number of sitemap entries to return (default: 200)',
+            offset: 'optional - offset for pagination of sitemap entries (default: 0)',
+            uri: 'optional - URI to filter sitemap entries (default: nil)',
+            highlight: 'optional - highlight color to filter proxy history results (default: NONE)',
+            keyword: 'optional - keyword to filter sitemap entries (default: nil)',
             return_as: 'optional - :base64 or :har (defaults to :base64)'
           )
 
-          json_sitemap = #{self}.add_to_sitemap(
+          # Run add to sitemap and return its result
+          #{self}.add_to_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
             sitemap: 'required - sitemap hash to add',
-            debug: 'optional - boolean to enable sitemap debugging (default: false)'
+            debug: 'optional - boolean to enable sitemap debugging (default: false)',
+            request: 'optional - base64_encoded_request_string',
+            response: 'optional - base64_encoded_response_string',
+            highlight: 'optional - NONE||RED||ORANGE||YELLOW||GREEN||CYAN||BLUE||PINK||MAGENTA||GRAY',
+            comment: 'optional - optional comment for the sitemap entry',
+            http_service: 'optional - http service value consumed by #add_to_sitemap',
+            host: 'optional - hostname or IP address',
+            port: 'optional - TCP/UDP port number',
+            protocol: 'optional - protocol value consumed by #add_to_sitemap'
           )
 
-          Example:
-          json_sitemap = #{self}.add_to_sitemap(
+          # Run update sitemap and return its result
+          #{self}.update_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
-            sitemap: {
-              request: 'base64_encoded_request_string',
-              response: 'base64_encoded_response_string',
-              highlight: 'NONE'||'RED'||'ORANGE'||'YELLOW'||'GREEN'||'CYAN'||'BLUE'||'PINK'||'MAGENTA'||'GRAY',
-              comment: 'optional comment for the sitemap entry',
-              http_service: {
-                host: 'example.com',
-                port: 80,
-                protocol: 'http'
-              }
-            }
+            entry: 'required - hash of the sitemap entry to update'
           )
 
-          json_sitemap = #{self}.update_sitemap(
-            burp_obj: 'required - burp_obj returned by #start method',
-            entry: 'required - sitemap entry hash to update'
-          )
-
-          json_sitemap = #{self}.import_openapi_to_sitemap(
+          # Run import openapi to sitemap and return its result
+          #{self}.import_openapi_to_sitemap(
             burp_obj: 'required - burp_obj returned by #start method',
             openapi_spec: 'required - path to OpenAPI JSON or YAML specification file',
             additional_http_headers: 'optional - hash of additional HTTP headers to include in requests (default: {})',
-            debug: 'optional - boolean to enable debug logging (default: false)',
-            highlight: 'optional - highlight color for the sitemap entry (default: \"NONE\")',
-            comment: 'optional - comment for the sitemap entry (default: \"\")',
+            highlight: 'optional - highlight color for the sitemap entry (default: NONE)',
+            comment: 'optional - comment for the sitemap entry (default: )',
+            debug: 'optional - boolean to enable debug logging (default: false)'
           )
 
-          active_scan_url_arr = #{self}.active_scan(
+          # Run active scan and return its result
+          #{self}.active_scan(
             burp_obj: 'required - burp_obj returned by #start method',
             target_url: 'required - target url to scan in sitemap (should be loaded & authenticated w/ burp_obj[:mitm_browser])',
             exclude_paths: 'optional - array of paths to exclude from active scan (default: [])'
           )
 
-          json_scan_issues = #{self}.get_scan_issues(
+          # Run get scan issues and return its result
+          #{self}.get_scan_issues(
             burp_obj: 'required - burp_obj returned by #start method'
-          ).to_json
+          )
 
-          repeater_id = #{self}.add_repeater_tab(
+          # Run add repeater tab and return its result
+          #{self}.add_repeater_tab(
             burp_obj: 'required - burp_obj returned by #start method',
             name: 'required - name of the repeater tab (max 30 characters)',
             request: 'optional - base64 encoded HTTP request string'
           )
 
-          repeater_tabs = #{self}.get_all_repeater_tabs(
+          # Run get all repeater tabs and return its result
+          #{self}.get_all_repeater_tabs(
             burp_obj: 'required - burp_obj returned by #start method'
           )
 
-          repeater_tab = #{self}.get_repeater_tab(
+          # Run get repeater tab and return its result
+          #{self}.get_repeater_tab(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'required - id of the repeater tab to get'
           )
 
-          repeater_resp = #{self}.send_repeater_request(
+          # Run send repeater request and return its result
+          #{self}.send_repeater_request(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'required - id of the repeater tab to send'
           )
 
-          repeater_obj = #{self}.update_repeater_tab(
+          # Run update repeater tab and return its result
+          #{self}.update_repeater_tab(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'required - id of the repeater tab to update',
             name: 'required - name of the repeater tab (max 30 characters)',
             request: 'required - base64 encoded HTTP request string'
           )
 
-          repeater_obj = #{self}.delete_repeater_tab(
+          # Run delete repeater tab and return its result
+          #{self}.delete_repeater_tab(
             burp_obj: 'required - burp_obj returned by #start method',
             id: 'required - id of the repeater tab to delete'
           )
 
+          # Run generate scan report and return its result
           #{self}.generate_scan_report(
             burp_obj: 'required - burp_obj returned by #start method',
             target_url: 'required - target_url passed to #active_scan method',
             output_dir: 'required - directory to save the report',
-            report_type: 'required - <:html|:xml>'
+            report_type: 'required - report type value consumed by #generate_scan_report'
           )
 
+          # Run update burp jar and return its result
+          #{self}.update_burp_jar
+
+          # Run stop and return its result
           #{self}.stop(
             burp_obj: 'required - burp_obj returned by #start method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

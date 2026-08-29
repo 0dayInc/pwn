@@ -229,17 +229,37 @@ module PWN
         end
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
-            #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
-              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture (≥1.0833 Msps)'
+          puts "USAGE:
+            # Run viterbi decode and return its result
+            #{self}.viterbi_decode(
+              bits: 'required - Array<0|1> soft/hard coded bits (rate-1/2)',
+              k: 'optional - 5, g0: 0o23, g1: 0o33',
+              g0: 'optional - g0 value consumed by #viterbi_decode',
+              g1: 'optional - g1 value consumed by #viterbi_decode'
             )
 
-            #{self}.viterbi_decode(bits:, k: 5, g0: 0o23, g1: 0o33)
+            # Run parity and return its result
+            #{self}.parity(
+              parity: 'optional - parity value consumed by #parity'
+            )
 
+            # Run decode and return its result
+            #{self}.decode(
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              sample_rate: 'optional - sample rate value consumed by #decode',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path'
+            )
+
+            # Run parse line and return its result
+            #{self}.parse_line(
+              line: 'optional - line value consumed by #parse_line'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

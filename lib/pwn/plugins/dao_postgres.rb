@@ -190,34 +190,43 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          pg_conn = #{self}.connect(
-            host: 'required host or IP',
-            port: 'optional port (defaults to 5432)',
-            dbname: 'required database name',
-            user: 'required username',
-            password: 'optional (prompts if left blank)',
-            connect_timeout: 'optional (defaults to 60 seconds)',
-            options: 'optional postgres options',
-            tty: 'optional tty',
-            sslmode: :disable|:allow|:prefer|:require
+          # Run connect and return its result
+          #{self}.connect(
+            host: 'required - required host or IP',
+            port: 'optional - optional port (defaults to 5432)',
+            dbname: 'required - required database name',
+            user: 'required - required username',
+            password: 'optional - optional (prompts if left blank)',
+            connect_timeout: 'optional - optional (defaults to 60 seconds)',
+            options: 'optional - optional postgres options',
+            tty: 'optional - optional tty',
+            sslmode: 'required - :disable|:allow|:prefer|:require'
           )
 
-          res = #{self}.sql_statement(
-            pg_conn: pg_conn,
-            prepared_statement: 'SELECT * FROM tn_users WHERE state = $1',
-            statement_params: ['Active']
+          # Run sql statement and return its result
+          #{self}.sql_statement(
+            pg_conn: 'optional - pg conn value consumed by #sql_statement',
+            prepared_statement: 'optional - SELECT * FROM tn_users WHERE state = $1',
+            statement_params: 'required - statement params value consumed by #sql_statement'
           )
 
-          res = #{self}.list_all_columns_by_table(
-            pg_conn: pg_conn,
-            schema: 'required schema name',
-            table_name: 'required table name'
+          # Method Parameters Not Implemented
+          #{self}.list_all_columns_by_table(
+            pg_conn: 'optional - pg conn value consumed by #list_all_columns_by_table',
+            schema: 'required - required schema name',
+            table_name: 'required - required table name',
+            table_schema: 'optional - table schema value consumed by #list_all_columns_by_table'
           )
 
-          #{self}.disconnect(pg_conn: pg_conn)
+          # Run disconnect and return its result
+          #{self}.disconnect(
+            pg_conn: 'optional - pg conn value consumed by #disconnect'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

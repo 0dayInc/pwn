@@ -72,15 +72,19 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run generate and return its result
           #{self}.generate(
             data: 'required - data to encode',
             type: 'optional - :barcode || :qrcode (defaults to :qrcode)',
             size: 'optional - size of the image when type is :qrcode (defaults to 200)',
-            path: 'optional - path to save image (defaults to \"./\#{data}.png\")'
+            path: 'optional - path to save image (defaults to ./\#{data}.png)',
+            return_type: 'optional - :base64 || :file (defaults to :file)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

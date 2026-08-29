@@ -266,46 +266,56 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          beef_obj = #{self}.login(
-            beef_ip: 'required host/ip of Nexpose Console (server)',
+          # Run login and return its result
+          #{self}.login(
+            beef_ip: 'required - host/ip of BeEF Server',
             beef_port: 'optional - port of BeEF server (defaults to 3000)',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
+            username: 'required - username value consumed by #login',
+            password: 'optional - password (will prompt if nil)'
           )
 
-          hooks = #{self}.hooks(
-            beef_obj: 'required beef_obj returned from #login method'
+          # Run hooks and return its result
+          #{self}.hooks(
+            beef_obj: 'required - required beef_obj returned from #login method'
           )
 
-          hooked_browser_info = #{self}.hooked_browser_info(
-            beef_obj: 'required beef_obj returned from #login method',
+          # Run hooked browser info and return its result
+          #{self}.hooked_browser_info(
+            beef_obj: 'required - required beef_obj returned from #login method',
             browser_session: 'required - browser session id returned from #hooks method'
           )
 
-          logs = #{self}.logs(
-            beef_obj: 'required beef_obj returned from #login method'
+          # Run logs and return its result
+          #{self}.logs(
+            beef_obj: 'required - required beef_obj returned from #login method'
           )
 
-          hooked_browser_logs = #{self}.hooked_browser_logs(
-            beef_obj: 'required beef_obj returned from #login method',
+          # Run hooked browser logs and return its result
+          #{self}.hooked_browser_logs(
+            beef_obj: 'required - required beef_obj returned from #login method',
             browser_session: 'required - browser session id returned from #hooks method'
           )
 
-          modules = #{self}.modules(
-            beef_obj: 'required beef_obj returned from #login method'
+          # Run modules and return its result
+          #{self}.modules(
+            beef_obj: 'required - required beef_obj returned from #login method'
           )
 
-          module_info = #{self}.module_info(
-            beef_obj: 'required beef_obj returned from #login method',
+          # Run module info and return its result
+          #{self}.module_info(
+            beef_obj: 'required - required beef_obj returned from #login method',
             module_id: 'required - module id returned from #modules method'
           )
 
-          beef_obj = #{self}.logout(
-            beef_obj: 'required beef_obj returned from #login method'
+          # Run logout and return its result
+          #{self}.logout(
+            beef_obj: 'required - required beef_obj returned from #login method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

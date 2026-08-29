@@ -281,25 +281,40 @@ module PWN
     # Display Usage for this Module
 
     public_class_method def self.help
-      puts <<~USAGE
-        USAGE:
-          PWN::MemoryIndex.available?
-          PWN::MemoryIndex.recall_semantic(query: 'nmap sweep', limit: 6)
-          PWN::MemoryIndex.to_context(query: 'nmap sweep', limit: 6)  # PromptBuilder drop-in
-          PWN::MemoryIndex.refresh                                    # incremental (re)embed
-          PWN::MemoryIndex.embed(texts: ['a', 'b'])                   # raw vectors
-          PWN::MemoryIndex.reset
+      puts "USAGE:
+        # Run available and return its result
+        #{self}.available?
 
-          Config (prefer direct Ollama; Open WebUI is the fallback proxy):
-            PWN::Env[:ai][:ollama][:base_uri] = 'http://127.0.0.1:11434'
-            PWN::Env[:ai][:ollama][:embed_model] = '<embed-model-tag>'
-            # or:
-            PWN::Env[:ai][:openwebui][:base_uri] = 'https://openwebui.local'
-            PWN::Env[:ai][:openwebui][:key] = '<jwt>'
-            PWN::Env[:ai][:openwebui][:embed_model] = '<embed-model-tag>'
+        # Run recall semantic and return its result
+        #{self}.recall_semantic(
+          query: 'required - user request / search text',
+          limit: 'optional - top-K by cosine similarity (default 6)'
+        )
 
-          #{self}.authors
-      USAGE
+        # Run to context and return its result
+        #{self}.to_context(
+          limit: 'optional - limit value consumed by #to_context (defaults to 6)',
+          drop_hygiene_sops: 'optional - drop hygiene sops value consumed by #to_context',
+          query: 'optional - search query string'
+        )
+
+        # Run refresh and return its result
+        #{self}.refresh(
+          mem: 'optional - mem value consumed by #refresh (defaults to PWN::Memory.load)'
+        )
+
+        # Run embed and return its result
+        #{self}.embed(
+          texts: 'required - Array texts value consumed by #embed'
+        )
+
+        # Run reset and return its result
+        #{self}.reset
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
+      constants.sort
     end
   end
 end

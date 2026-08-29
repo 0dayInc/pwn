@@ -679,40 +679,50 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        # Is ~/.pwn older than this pwn release's schema?
-        #{self}.needed?             # => true/false (cheap; used by refresh_env)
+        # Run installed schema and return its result
+        #{self}.installed_schema
 
-        # Read-only per-file compatibility report.
-        #{self}.status              # => { schema_installed:, schema_current:, files:[…], incompatible:[…] }
-        #{self}.check               # human-readable to $stdout
+        # Run needed and return its result
+        #{self}.needed?
 
-        # Apply schema migrations + (optionally) autofix incompatible files.
-        # Always takes a timestamped backup under ~/.pwn/backup/<ts>/ first.
-        #{self}.run(
-          fix:     'optional - also autofix per-file (default false)',
-          backup:  'optional - default true',
-          dry_run: 'optional - default false',
-          key:     'optional - vault key (default: ~/.pwn/pwn.yaml.decryptor)',
-          iv:      'optional - vault iv'
+        # Run status and return its result
+        #{self}.status
+
+        # Human-readable ~/.pwn state doctor.  Read-only.  Called from
+        #{self}.check(
+          io: 'optional - IO to write the report to (default $stdout)'
         )
 
-        # pwn.yaml specifically — deep-merge missing keys from the
-        # current release template UNDER the user's values, re-encrypt.
-        #{self}.vault_drift         # => { missing: [dotted.paths], … } or nil
-        #{self}.backfill_vault
+        # Run run and return its result
+        #{self}.run(
+          fix: 'optional - also autofix incompatible files (default: schema-migrations only)',
+          backup: 'optional - take timestamped backup of ~/.pwn first (default true)',
+          dry_run: 'optional - report what WOULD happen, write nothing (default false)',
+          key: 'optional - vault key   (default: read ~/.pwn/pwn.yaml.decryptor)',
+          iv: 'optional - vault iv    (default: read ~/.pwn/pwn.yaml.decryptor)',
+          io: 'optional - IO to write to (default $stdout)'
+        )
 
-        # Data:
-        #{self}::SCHEMA_VERSION     # bump when a ~/.pwn file shape changes
-        #{self}::STATE_FILES        # rel-path → owner → verifier → fix
-        #{self}::MIGRATIONS         # ordered idempotent transforms
+        # Run vault drift and return its result
+        #{self}.vault_drift(
+          key: 'optional - vault key, iv: optional - vault iv'
+        )
 
-        # From the shell:
-        pwn setup --migrate                # == #{self}.run
-        pwn setup --migrate --fix          # == #{self}.run(fix: true)
-        pwn setup --migrate --dry-run
+        # Run backfill vault and return its result
+        #{self}.backfill_vault(
+          key: 'optional - optional, iv: optional, dry_run: false, io: $stdout',
+          io: 'optional - io value consumed by #backfill_vault',
+          dry_run: 'optional - dry run value consumed by #backfill_vault',
+          iv: 'optional - iv value consumed by #backfill_vault'
+        )
 
+        # Run env template and return its result
+        #{self}.env_template
+
+        # Print the AUTHOR(S) string for this module.
         #{self}.authors
       "
+      constants.sort
     end
   end
 end

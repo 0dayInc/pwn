@@ -6,7 +6,10 @@ module PWN
   # http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
   module Plugins
     autoload :Android, 'pwn/plugins/android'
+    autoload :AFLplusplus, 'pwn/plugins/aflplusplus'
+    autoload :ArtifactRegistry, 'pwn/plugins/artifact_registry'
     autoload :Assembly, 'pwn/plugins/assembly'
+    autoload :BinaryParser, 'pwn/plugins/binary_parser'
     autoload :AuthenticationHelper, 'pwn/plugins/authentication_helper'
     autoload :BareSIP, 'pwn/plugins/baresip'
     autoload :BasicAuth, 'pwn/plugins/basic_auth'
@@ -16,6 +19,8 @@ module PWN
     autoload :BusPirate, 'pwn/plugins/bus_pirate'
     autoload :Char, 'pwn/plugins/char'
     autoload :CreditCard, 'pwn/plugins/credit_card'
+    autoload :CredentialAttack, 'pwn/plugins/credential_attack'
+    autoload :Doctor, 'pwn/plugins/doctor'
     autoload :PWNLogger, 'pwn/plugins/pwn_logger'
     autoload :DAOLDAP, 'pwn/plugins/dao_ldap'
     autoload :DAOMongo, 'pwn/plugins/dao_mongo'
@@ -26,7 +31,10 @@ module PWN
     autoload :EIN, 'pwn/plugins/ein'
     autoload :FileFu, 'pwn/plugins/file_fu'
     autoload :Fuzz, 'pwn/plugins/fuzz'
+    autoload :Frida, 'pwn/plugins/frida'
+    autoload :ExploitDev, 'pwn/plugins/exploit_dev'
     autoload :Git, 'pwn/plugins/git'
+    autoload :GDB, 'pwn/plugins/gdb'
     autoload :Github, 'pwn/plugins/github'
     autoload :GoogleWorkspace, 'pwn/plugins/google_workspace'
     autoload :HackerOne, 'pwn/plugins/hacker_one'
@@ -35,6 +43,7 @@ module PWN
     autoload :IRC, 'pwn/plugins/irc'
     autoload :Jenkins, 'pwn/plugins/jenkins'
     autoload :JiraDataCenter, 'pwn/plugins/jira_data_center'
+    autoload :Jobs, 'pwn/plugins/jobs'
     autoload :JSONPathify, 'pwn/plugins/json_pathify'
     autoload :Log, 'pwn/plugins/log'
     autoload :MailAgent, 'pwn/plugins/mail_agent'
@@ -44,6 +53,7 @@ module PWN
     autoload :NessusCloud, 'pwn/plugins/nessus_cloud'
     autoload :NexposeVulnScan, 'pwn/plugins/nexpose_vuln_scan'
     autoload :NmapIt, 'pwn/plugins/nmap_it'
+    autoload :Nuclei, 'pwn/plugins/nuclei'
     autoload :OAuth2, 'pwn/plugins/oauth2'
     autoload :OCR, 'pwn/plugins/ocr'
     autoload :OpenAPI, 'pwn/plugins/open_api'
@@ -52,7 +62,10 @@ module PWN
     autoload :PDFParse, 'pwn/plugins/pdf_parse'
     autoload :Pony, 'pwn/plugins/pony'
     autoload :PS, 'pwn/plugins/ps'
+    autoload :ProcessTube, 'pwn/plugins/process_tube'
     autoload :RabbitMQ, 'pwn/plugins/rabbit_mq'
+    autoload :Radare2, 'pwn/plugins/radare2'
+    autoload :Recon, 'pwn/plugins/recon'
     autoload :REPL, 'pwn/plugins/repl'
     autoload :ScannableCodes, 'pwn/plugins/scannable_codes'
     autoload :Serial, 'pwn/plugins/serial'
@@ -61,6 +74,7 @@ module PWN
     autoload :Sock, 'pwn/plugins/sock'
     autoload :Spider, 'pwn/plugins/spider'
     autoload :SSN, 'pwn/plugins/ssn'
+    autoload :Sqlmap, 'pwn/plugins/sqlmap'
     autoload :ThreadPool, 'pwn/plugins/thread_pool'
     autoload :Tor, 'pwn/plugins/tor'
     autoload :TransparentBrowser, 'pwn/plugins/transparent_browser'
@@ -70,6 +84,7 @@ module PWN
     autoload :Vault, 'pwn/plugins/vault'
     autoload :VIN, 'pwn/plugins/vin'
     autoload :Voice, 'pwn/plugins/voice'
+    autoload :Volatility, 'pwn/plugins/volatility'
     autoload :Vsphere, 'pwn/plugins/vsphere'
     autoload :XXD, 'pwn/plugins/xxd'
     autoload :Zaproxy, 'pwn/plugins/zaproxy'
@@ -83,6 +98,10 @@ module PWN
     end
 
     public_class_method def self.help
+      puts "USAGE:
+        # Display a List of Every PWN::Plugins Module
+        #{self}.authors
+      "
       constants.sort
     end
   end

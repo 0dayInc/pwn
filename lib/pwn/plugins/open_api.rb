@@ -897,16 +897,19 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          openapi_spec = #{self}.generate_spec(
+          # Run generate spec and return its result
+          #{self}.generate_spec(
             spec_paths: 'required - array of OpenAPI file paths to merge',
             base_url: 'required - base URL for OpenAPI endpoints (e.g., http://fqdn.com)',
-            output_json_path: 'required - path to save the merged OpenAPI JSON file',
+            output_json_path: 'optional - path to save the merged OpenAPI JSON file',
             target_version: 'optional - target OpenAPI version (default: 3.0.3)',
             debug: 'optional - boolean to enable debug logging (default: false)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

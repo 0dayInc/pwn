@@ -658,49 +658,173 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          h1_obj = #{self}.login(
-            username: 'optional - default PWN::Env[:plugins][:hackerone][:username]',
-            api_key: 'optional - default PWN::Env[:plugins][:hackerone][:api_key]'
+          # Run login and return its result
+          #{self}.login(
+            username: 'optional - username (default PWN::Env[:plugins][:hackerone][:username])',
+            api_key: 'optional - api token (default PWN::Env; will prompt if still nil)',
+            token: 'optional - alias for api_key'
           )
 
-          reports = #{self}.get_me_reports(h1_obj: h1_obj)
-          report  = #{self}.get_report(id: 12345)
-          report  = #{self}.create_report(
-            team_handle: 'security',
-            title: 'Example',
-            vulnerability_information: 'Details...'
+          # Run api and return its result
+          #{self}.api(
+            path: 'required - path relative to /v1/hackers (e.g. me/reports)',
+            method: 'optional - :get|:post|:put|:patch|:delete (default :get)',
+            params: 'optional - query params Hash',
+            body: 'optional - request body Hash/Array/String (defaults to opts[:http_body])',
+            username: 'optional - username value consumed by #api',
+            api_key: 'optional - api key value consumed by #api',
+            h1_obj: 'optional - session from #login (supplies username/api_key)',
+            raw: 'optional - return raw response (default false)',
+            http_method: 'optional - http method value consumed by #api (defaults to :get)',
+            http_body: 'optional - http body value consumed by #api'
           )
 
-          balance  = #{self}.get_balance
-          earnings = #{self}.get_earnings
-          payouts  = #{self}.get_payouts
-
-          programs = #{self}.get_programs
-          program  = #{self}.get_program(handle: 'security')
-          scopes   = #{self}.get_structured_scopes(handle: 'security')
-          excl     = #{self}.get_scope_exclusions(handle: 'security')
-          weak     = #{self}.get_weaknesses(handle: 'security')
-
-          items = #{self}.get_hacktivity
-
-          intents = #{self}.get_report_intents
-          intent  = #{self}.get_report_intent(id: 1)
-          intent  = #{self}.create_report_intent(body: { data: { type: 'report-intent', attributes: {} } })
-          intent  = #{self}.update_report_intent(id: 1, body: { data: { type: 'report-intent', attributes: {} } })
-          #{self}.submit_report_intent(id: 1)
-          #{self}.delete_report_intent(id: 1)
-          atts = #{self}.get_report_intent_attachments(report_intent_id: 1)
-          #{self}.delete_report_intent_attachment(report_intent_id: 1, id: 2)
-
-          json = #{self}.api(
-            path: 'me/reports',
-            method: :get,
-            params: { page: { number: 1 } }
+          # ---- Reports -------------------------------------------------------
+          #{self}.get_me_reports(
+            params: 'optional - query params Hash (e.g. page/filter)',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
           )
 
-          #{self}.logout(h1_obj: h1_obj)
+          # Run get report and return its result
+          #{self}.get_report(
+            id: 'required - report id',
+            username: 'optional - optional, api_key: optional, h1_obj: optional',
+            params: 'optional - params value consumed by #get_report'
+          )
+
+          # Run create report and return its result
+          #{self}.create_report(
+            team_handle: 'required - program handle',
+            title: 'required - report title',
+            vulnerability_information: 'required - detailed description',
+            impact: 'optional - impact text',
+            severity_rating: 'optional - none|low|medium|high|critical',
+            weakness_id: 'optional - weakness id integer',
+            structured_scope_id: 'optional - structured scope id value consumed by #create_report',
+            body: 'optional - full JSON:API body Hash (overrides attribute kwargs)',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # ---- Payments ------------------------------------------------------
+          #{self}.get_balance(
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get earnings and return its result
+          #{self}.get_earnings(
+            params: 'optional - query params Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get payouts and return its result
+          #{self}.get_payouts(
+            params: 'optional - query params Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # ---- Programs -------------------------------------------------------
+          #{self}.get_programs(
+            params: 'optional - query params Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get program and return its result
+          #{self}.get_program(
+            handle: 'required - program handle',
+            username: 'optional - optional, api_key: optional, h1_obj: optional',
+            params: 'optional - params value consumed by #get_program'
+          )
+
+          # Run get structured scopes and return its result
+          #{self}.get_structured_scopes(
+            handle: 'required - program handle',
+            params: 'optional - params value consumed by #get_structured_scopes',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get scope exclusions and return its result
+          #{self}.get_scope_exclusions(
+            handle: 'required - program handle',
+            params: 'optional - params value consumed by #get_scope_exclusions',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get weaknesses and return its result
+          #{self}.get_weaknesses(
+            handle: 'required - program handle',
+            params: 'optional - params value consumed by #get_weaknesses',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # ---- Hacktivity -----------------------------------------------------
+          #{self}.get_hacktivity(
+            params: 'optional - query params Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # ---- Report Intents ------------------------------------------------
+          #{self}.get_report_intents(
+            params: 'optional - params value consumed by #get_report_intents',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get report intent and return its result
+          #{self}.get_report_intent(
+            id: 'required - report intent id',
+            username: 'optional - optional, api_key: optional, h1_obj: optional',
+            params: 'optional - params value consumed by #get_report_intent'
+          )
+
+          # Run create report intent and return its result
+          #{self}.create_report_intent(
+            body: 'required - full JSON:API body Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run update report intent and return its result
+          #{self}.update_report_intent(
+            id: 'required - report intent id',
+            body: 'required - full JSON:API body Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run delete report intent and return its result
+          #{self}.delete_report_intent(
+            id: 'required - report intent id',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run submit report intent and return its result
+          #{self}.submit_report_intent(
+            id: 'required - report intent id',
+            body: 'optional - JSON:API body Hash',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Run get report intent attachments and return its result
+          #{self}.get_report_intent_attachments(
+            report_intent_id: 'required - report intent id value consumed by #get_report_intent_attachments (defaults to opts[:id])',
+            username: 'optional - optional, api_key: optional, h1_obj: optional',
+            id: 'required - id value consumed by #get_report_intent_attachments',
+            params: 'optional - params value consumed by #get_report_intent_attachments'
+          )
+
+          # Run delete report intent attachment and return its result
+          #{self}.delete_report_intent_attachment(
+            report_intent_id: 'required - report intent id value consumed by #delete_report_intent_attachment',
+            id: 'required - attachment id',
+            username: 'optional - optional, api_key: optional, h1_obj: optional'
+          )
+
+          # Clears the session hash in-place (no server-side session to destroy)
+          #{self}.logout(
+            h1_obj: 'required - required h1_obj returned from #login method'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

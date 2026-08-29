@@ -17,6 +17,10 @@ module PWN
     end
 
     public_class_method def self.help
+      puts "USAGE:
+        # Display a List of Every PWN::Blockchain Module
+        #{self}.authors
+      "
       constants.sort
     end
   end

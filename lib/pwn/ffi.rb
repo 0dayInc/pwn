@@ -59,6 +59,18 @@ module PWN
     # Display a List of Every PWN::FFI Module
 
     public_class_method def self.help
+      puts "USAGE:
+        # Run available and return its result
+        #{self}.available?(
+          mod: 'required - Symbol or Module (e.g. :Liquid or PWN::FFI::Liquid)'
+        )
+
+        # Returns { ModuleName => true|false } for every registered binding
+        #{self}.backends
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
       constants.sort
     end
   end

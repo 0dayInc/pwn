@@ -74,6 +74,25 @@ module PWN
     end
 
     public_class_method def self.help
+      puts "USAGE:
+        # Run resolve path and return its result
+        #{self}.resolve_path(
+          path: 'required - filesystem path to read or write',
+          ext: 'optional - ext value consumed by #resolve_path',
+          dir_path: 'optional - dir path value consumed by #resolve_path',
+          report_name: 'optional - report name value consumed by #resolve_path'
+        )
+
+        # Run report payload and return its result
+        #{self}.report_payload(
+          results_hash: 'optional - results hash value consumed by #report_payload',
+          title: 'optional - title value consumed by #report_payload',
+          executive_summary: 'optional - executive summary value consumed by #report_payload'
+        )
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
       constants.sort
     end
   end

@@ -248,25 +248,30 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          tor_obj = #{self}.start(
+          # Run start and return its result
+          #{self}.start(
             ip: 'optional - IP address to listen (default: 127.0.0.1)',
-            port: 'optional - socks port to listen (default: 9050)',
-            ctrl_port: 'optional - tor control port to listen (default: 9051)',
-            net: 'optional - CIDR notation to accept connections (default: 127.0.0.1/32)',
+            port: 'optional - socks port to listen (default: 1024-65535)',
+            ctrl_port: 'optional - tor control port to listen (default: 1024-65535)',
+            net: 'optional - CIDR notation to accept connections (default: 127.0.0.0.1/32)',
             data_dir: 'optional - directory to keep tor session data (default: /tmp/tor_pwn-TIMESTAMP)'
           )
 
+          # Run switch exit node and return its result
           #{self}.switch_exit_node(
             tor_obj: 'required - tor_obj returned from #start method',
             response_timeout: 'optional - float in seconds to timeout (default: 3.0)'
           )
 
+          # Run stop and return its result
           #{self}.stop(
             tor_obj: 'required - tor_obj returned from #start method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

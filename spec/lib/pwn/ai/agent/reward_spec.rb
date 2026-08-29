@@ -399,4 +399,13 @@ describe 'PWN::AI::Agent::Reward vs TUI plan' do
     expect(a[:score]).to be >= 0.6
     expect(a[:verdict].to_s).to eq('solved')
   end
+
+  it 'does not drag a long analytical PASS to partial on zero token overlap' do
+    klass = PWN::AI::Agent::Reward
+    allow(klass).to receive(:llm_judge).and_return(nil)
+    req = 'Analyze the harness in which you currently reside and provide a summary of strengths / weaknesses.'
+    final = ('The control loop architecture is strong. Q-learning, calibration, anti-stall gates. ' * 20)
+    v = klass.judge(request: req, final: final, trace: ['{"success":true,"result":{"exit":0}}'], commit: false)
+    expect(v[:score]).to be > 0.35
+  end
 end

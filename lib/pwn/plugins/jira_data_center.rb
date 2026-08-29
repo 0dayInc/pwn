@@ -607,67 +607,75 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          all_fields = #{self}.get_all_fields
+          # Run get all fields and return its result
+          #{self}.get_all_fields
 
-          user = #{self}.get_user(
-            username: 'required - username to lookup (e.g. jane.doe')',
+          # Run get user and return its result
+          #{self}.get_user(
+            username: 'required - username to lookup (e.g. jane.doe) (defaults to PWN::Plugins::AuthenticationHelper.username)',
             params: 'optional - additional parameters to pass in the URI (e.g. expand, etc.)'
           )
 
-          issue_resp = #{self}.get_issue(
+          # Run get issue and return its result
+          #{self}.get_issue(
             issue: 'required - issue to lookup (e.g. Bug, Issue, Story, or Epic ID)',
             params: 'optional - additional parameters to pass in the URI (e.g. fields, expand, etc.)'
           )
 
-          issue_resp = #{self}.create_issue(
+          # Run create issue and return its result
+          #{self}.create_issue(
             project_key: 'required - project key (e.g. PWN)',
             summary: 'required - summary of the issue (e.g. Epic for PWN-1337)',
             issue_type: 'required - issue type (e.g. :epic, :story, :bug)',
             description: 'optional - description of the issue',
             epic_name: 'optional - name of the epic',
             additional_fields: 'optional - additional fields to set in the issue (e.g. labels, components, custom fields, etc.)',
-            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])',
-            comment: 'optional - comment to add to the issue (e.g. \"This is a comment\")'
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [/tmp/file1.txt, /tmp/file2.txt])',
+            comment: 'optional - comment to add to the issue (e.g. This is a comment)'
           )
 
-          issue_resp = #{self}.update_issue(
-            issue: 'required - issue to update (e.g. Bug, Issue, Story, or Epic ID)',
+          # Run update issue and return its result
+          #{self}.update_issue(
             fields: 'required - fields to update in the issue (e.g. summary, description, labels, components, custom fields, etc.)',
-            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [\"/tmp/file1.txt\", \"/tmp/file2.txt\"])'
+            attachments: 'optional - array of attachment paths to upload to the issue (e.g. [/tmp/file1.txt, /tmp/file2.txt])',
+            issue: 'required - issue value consumed by #update_issue'
           )
 
-          issue_resp = #{self}.issue_comment(
-            issue: 'required - issue to comment on (e.g. Bug, Issue, Story, or Epic ID)',
+          # Run issue comment and return its result
+          #{self}.issue_comment(
+            issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)',
             comment_action: 'required - action to perform on the issue comment (e.g. :delete, :add, :update - Defaults to :add)',
             comment_id: 'optional - comment ID to delete or update (e.g. 10000)',
-            author: 'optional - author of the comment (e.g. \"jane.doe\")',
-            comment: 'optional - comment to add or update in the issue (e.g. \"This is a comment\")'
+            author: 'optional - author of the comment (e.g. jane.doe)',
+            comment: 'optional - comment to add or update in the issue (e.g. This is a comment)'
           )
 
-          issue_type_metadata = #{self}.get_issue_type_metadata(
+          # Run get issue type metadata and return its result
+          #{self}.get_issue_type_metadata(
             project_key: 'required - project key (e.g. PWN)',
             issue_type_id: 'required - issue type ID (e.g. issue[:fields][:issuetype][:id] from #get_issue method)'
           )
 
-          issue_resp = #{self}.clone_issue(
+          # Run clone issue and return its result
+          #{self}.clone_issue(
             issue: 'required - issue to clone (e.g. Bug, Issue, Story, or Epic ID)',
             copy_attachments: 'optional - boolean to indicate whether to copy attachments (Defaults to false)'
           )
 
-          issue_resp = #{self}.delete_issue(
+          # Run delete issue and return its result
+          #{self}.delete_issue(
             issue: 'required - issue to delete (e.g. Bug, Issue, Story, or Epic ID)'
           )
 
-          issue_resp = #{self}.delete_attachment(
+          # Run delete attachment and return its result
+          #{self}.delete_attachment(
             id: 'required - attachment ID to delete (e.g. 10000) found in #get_issue method'
           )
 
-          **********************************************************************
-          * For more information on the Jira Server REST API, see:
-          * https://developer.atlassian.com/server/jira/platform/rest-apis/
-
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

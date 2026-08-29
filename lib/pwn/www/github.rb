@@ -145,29 +145,35 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj = #{self}.open(
+          # Open a session or connection and return a handle.
+          #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          browser_obj = #{self}.login(
+          # Run login and return its result
+          #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
-            username: 'required - username',
-            password: 'optional - passwd (will prompt if blank),
+            username: 'required - username value consumed by #login',
+            password: 'optional - passwd (will prompt if blank)',
             mfa: 'optional - MFA / TOTP token string, or true to prompt (defaults to false)',
             mfa_token: 'optional - MFA / TOTP token used to reach a post-authenticated state'
           )
 
-          browser_obj = #{self}.logout(
+          # Run logout and return its result
+          #{self}.logout(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Close a session previously returned by #open.
           #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -252,23 +252,28 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run opcodes to asm and return its result
           #{self}.opcodes_to_asm(
-            opcodes: 'required - hex escaped opcode(s) (e.g. \"\\x90\\x90\\x90\")',
+            opcodes: 'required - hex escaped opcode(s) (e.g. \\x90\\x90\\x90)',
             opcodes_always_string_obj: 'optional - always interpret opcodes passed in as a string object (defaults to false)',
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
-            endian: 'optional - endianess :big|:little (defaults to system endianess)'
+            endian: 'optional - endianess :big|:little (defaults to current system endianess)'
           )
 
+          # Run asm to opcodes and return its result
           #{self}.asm_to_opcodes(
-            asm: 'required - assembly instruction(s) (e.g. 'nop\nnop\nnop\njmp rsp\n)',
+            asm: 'required - assembly instruction(s) (e.g. nop\\nnop\\nnop\\njmp rsp\\n)',
             arch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',
-            endian: 'optional - endianess :big|:little (defaults to system endianess)'
+            endian: 'optional - endianess :big|:little (defaults to current system endianess)'
           )
 
+          # Run list supported archs and return its result
           #{self}.list_supported_archs
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

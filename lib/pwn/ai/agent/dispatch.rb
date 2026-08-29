@@ -352,22 +352,33 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              json_str = PWN::AI::Agent::Dispatch.call(
-                tool_call: {
-                  id: 'call_1',
-                  type: 'function',
-                  function: { name: 'shell', arguments: '{"command":"id"}' }
-                }
-              )
+          puts "USAGE:
+            # Run call and return its result
+            #{self}.call(
+              tool_call: 'required - Hash { id:, type:, function: { name:, arguments: } }'
+            )
 
-              PWN::AI::Agent::Dispatch.repair_name(name: 'run_shell')  # => 'shell'
-              PWN::AI::Agent::Dispatch.effect(name: 'shell', args: { command: 'ls' })
-              PWN::AI::Agent::Dispatch.tool_calls_from_text(text: 'shell(command="id")')
+            # Run repair name and return its result
+            #{self}.repair_name(
+              name: 'required - possibly-wrong tool name emitted by the model'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run tool calls from text and return its result
+            #{self}.tool_calls_from_text(
+              text: 'required - assistant plain-text that may embed shell(...) / JSON tool forms',
+              call: 'optional - shell{command: uname -s} / tool:shell{command:id}'
+            )
+
+            # Run effect and return its result
+            #{self}.effect(
+              name: 'required - binary or identifier name',
+              args: 'optional - args value consumed by #effect'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

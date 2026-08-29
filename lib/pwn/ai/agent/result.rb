@@ -105,16 +105,25 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              safe = PWN::AI::Agent::Result.condition(
-                content: json_string,
-                entry: PWN::AI::Agent::Registry.lookup(name: 'shell')
-              )
-              safe = PWN::AI::Agent::Result.redact(content: string)
+          puts "USAGE:
+            # Run condition and return its result
+            #{self}.condition(
+              content: 'required - String returned by Dispatch.call',
+              entry: 'optional - Registry::Entry (used for max_chars; nil → DEFAULT_MAX)'
+            )
 
-              #{self}.authors
-          USAGE
+            # Engine-aware default: ollama keeps history inside a tight num_ctx;
+            #{self}.default_max
+
+            # Run redact and return its result
+            #{self}.redact(
+              content: 'required - String to scrub of credential-shaped substrings'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

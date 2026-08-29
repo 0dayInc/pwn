@@ -235,29 +235,34 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          is_rfc1918 = #{self}.check_rfc1918(
+          # Run check rfc1918 and return its result
+          #{self}.check_rfc1918(
             ip: 'required - IP to check'
           )
 
-          ip_info_struc = #{self}.get(
+          # Run get and return its result
+          #{self}.get(
             target: 'required - IP or Host to lookup',
             proxy: 'optional - use a proxy',
-            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
+            tls_port: 'optional - optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
             skip_api: 'optional - skip the API call',
             dns_server: 'optional - DNS server to use for lookup (default: your default DNS server)'
           )
 
+          # Run bruteforce subdomains and return its result
           #{self}.bruteforce_subdomains(
             parent_domain: 'required - Parent Domain to brute force',
             dictionary: 'required - Dictionary to use for subdomain brute force',
             max_threads: 'optional - Maximum number of threads to use (default: 9)',
             proxy: 'optional - use a proxy',
-            tls_port: 'optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
+            tls_port: 'optional - optional port to check cert for Domain Name (default: 443). Will not execute if proxy parameter is set.',
             results_file: 'optional - File to write results to (default: /tmp/parent_domain-timestamp-pwn_bruteforce_subdomains.txt)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

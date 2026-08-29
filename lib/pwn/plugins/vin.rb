@@ -317,46 +317,58 @@ module PWN
       # Display Usage for this Module
       public_class_method def self.help
         puts "USAGE:
-          manufacturers = #{self}.get_all_manufacturers
+          # Run get all manufacturers and return its result
+          #{self}.get_all_manufacturers
 
-          makes = #{self}.get_all_makes
+          # Run get all makes and return its result
+          #{self}.get_all_makes
 
-          wmis = #{self}.get_wmis_for_manufacturer(
+          # Run get wmis for manufacturer and return its result
+          #{self}.get_wmis_for_manufacturer(
             mfr: 'required - Mfr_CommonName returned from #get_all_manufacturers method'
           )
 
-          models = #{self}.decode_wmi(
-            wmi: 'required - WMI to decode (e.g. \"1FD\")'
+          # Run decode wmi and return its result
+          #{self}.decode_wmi(
+            wmi: 'required - WMI to decode (e.g. 1FD)'
           )
 
-          models = #{self}.decode_vin(
+          # Run decode vin and return its result
+          #{self}.decode_vin(
             vin: 'required - 17 character VIN to decode'
           )
 
-          models = #{self}.get_models_for_make(
+          # Run get models for make and return its result
+          #{self}.get_models_for_make(
             make: 'required - Make_Name returned from get_all_makes'
           )
 
-          models = #{self}.get_models_for_make_year(
+          # Run get models for make year and return its result
+          #{self}.get_models_for_make_year(
             make: 'required - Make_Name returned from get_all_makes',
             year: 'optional - e.g. 2023 (defaults to current year)'
           )
 
-          models = #{self}.get_vehicle_types_for_make(
+          # Run get vehicle types for make and return its result
+          #{self}.get_vehicle_types_for_make(
             make: 'required - Make_Name returned from get_all_makes'
           )
 
-          details = #{self}.get_manufacturer_details(
+          # Run get manufacturer details and return its result
+          #{self}.get_manufacturer_details(
             mfr: 'required - Mfr_Name returned from get_all_manufacturers'
           )
 
-          vin = #{self}.generate_vin(
-            mfr: 'required - manufacturer name (e.g., Mfr_CommonName from get_all_manufacturers)',
+          # Run generate vin and return its result
+          #{self}.generate_vin(
+            mfr: 'required - manufacturer name (i.e. Mfr_CommonName from #get_all_manufacturers)',
             year: 'optional - year of the vehicle (defaults to current year)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

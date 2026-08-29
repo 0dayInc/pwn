@@ -53,11 +53,15 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          logger = #{self}.create(
-            level: 'optional - logging verbosity :debug|:error|:fatal|:info|:unknown|:warn (Defaults to :info)'
+          # Run create and return its result
+          #{self}.create(
+            level: 'optional - level value consumed by #create'
           )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

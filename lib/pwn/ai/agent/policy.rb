@@ -665,24 +665,164 @@ module PWN
         end
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::Policy.begin_episode(session_id:, request:, kind:, engine:)
-              PWN::AI::Agent::Policy.observe_step(action: 'shell', ok: true, duration: 0.2)
-              PWN::AI::Agent::Policy.finish(session_id:, score: 0.8, verdict: :solved)
-              PWN::AI::Agent::Policy.q(state:, action:)
-              PWN::AI::Agent::Policy.advantage(state:, action:)   # Registry.rank term
-              PWN::AI::Agent::Policy.recommend(actions: %w[shell pwn_eval])
-              PWN::AI::Agent::Policy.evaluate(limit: 100)
-              PWN::AI::Agent::Policy.stats
-              PWN::AI::Agent::Policy.episode_budget_met?
-              PWN::AI::Agent::Policy.to_context
-              PWN::AI::Agent::Policy.lean!(dry_run: true)
-              PWN::AI::Agent::Policy.warmup!(limit: 200)
-              PWN::AI::Agent::Policy.reset
+          puts "USAGE:
+            # Feature → discrete state
+            #{self}.state(
+              kind: 'optional - statement|question|autonomous_goal|…',
+              request: 'optional - user text / active English task',
+              last_action: 'optional - previous tool name',
+              fails: 'optional - in-turn failure count',
+              engine: 'optional - active engine',
+              request_kind: 'optional - request kind value consumed by #state',
+              task: 'optional - task value consumed by #state',
+              ts_state: 'optional - ts state value consumed by #state',
+              final: 'optional - final value consumed by #state',
+              score: 'optional - score value consumed by #state',
+              last: 'optional - last value consumed by #state',
+              fail_n: 'optional - fail n value consumed by #state'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run cold and return its result
+            #{self}.cold?
+
+            # Run warm and return its result
+            #{self}.warm?
+
+            # True once live returns, warmup-replayed trajectories, or a
+            #{self}.episode_budget_met?
+
+            # Episode / environment loop
+            #{self}.begin_episode(
+              session_id: 'optional - PWN::Sessions id (defaults to ep_)',
+              request: 'optional - user request',
+              kind: 'optional - request kind',
+              intent: 'optional - Loop.request_intent',
+              engine: 'optional - active engine',
+              ts_state: 'optional - TaskSummarizer state hash'
+            )
+
+            # Run observe step and return its result
+            #{self}.observe_step(
+              session_id: 'optional - must match begin_episode when set',
+              action: 'required - tool name',
+              ok: 'required - Boolean, Reward.semantic_ok',
+              duration: 'optional - Float seconds',
+              ts_state: 'optional - TaskSummarizer state',
+              request: 'optional - used if episode was not begun',
+              kind: 'optional - kind value consumed by #observe_step',
+              engine: 'optional - engine value consumed by #observe_step'
+            )
+
+            # Run finish and return its result
+            #{self}.finish(
+              session_id: 'optional - active episode id',
+              score: 'optional - Reward.judge 0..1 (training target)',
+              verdict: 'optional - solved|partial|wrong|refused',
+              proxy_ok: 'optional - Boolean fallback when no judge score',
+              ts_state: 'optional - ts state value consumed by #finish',
+              final: 'optional - final value consumed by #finish',
+              confidence: 'optional - confidence value consumed by #finish'
+            )
+
+            # Value-based update (Q-learning) + policy-gradient (REINFORCE)
+            #{self}.update_q!(
+              transition: 'required - Hash with :state :action :reward :next_state :terminal (defaults to opts)'
+            )
+
+            # Run update pg and return its result
+            #{self}.update_pg!(
+              state: 'required - state value consumed by #update_pg!',
+              action: 'required - action value consumed by #update_pg!',
+              advantage: 'required - scalar G_t − V(s)'
+            )
+
+            # Run q and return its result
+            #{self}.q(
+              state: 'optional - state value consumed by #q',
+              action: 'optional - action value consumed by #q'
+            )
+
+            # Run value and return its result
+            #{self}.value(
+              state: 'optional - state value consumed by #value'
+            )
+
+            # Q(s,a) − V(s). Unknown / cold-start pairs return 0 so rank is unchanged
+            #{self}.advantage(
+              state: 'optional - state value consumed by #advantage (defaults to current_state)',
+              action: 'optional - action value consumed by #advantage'
+            )
+
+            # Run recommend and return its result
+            #{self}.recommend(
+              state: 'optional - default current episode state',
+              actions: 'required - Array of tool names',
+              epsilon: 'optional - explore probability (default EPSILON)'
+            )
+
+            # Run current state and return its result
+            #{self}.current_state
+
+            # Run current episode and return its result
+            #{self}.current_episode
+
+            # Hermes split: snapshot + clear the live episode so Loop.maybe_finish_policy
+            #{self}.detach_episode!
+
+            # Run attach episode and return its result
+            #{self}.attach_episode!(
+              episode: 'optional - episode value consumed by #attach_episode!'
+            )
+
+            # Persistence / eval
+            #{self}.load
+
+            # Run save and return its result
+            #{self}.save(
+              table: 'optional - table value consumed by #save (defaults to load)'
+            )
+
+            # Run trajectories and return its result
+            #{self}.trajectories(
+              limit: 'optional - limit value consumed by #trajectories'
+            )
+
+            # Run stats and return its result
+            #{self}.stats
+
+            # Replay stored trajectories under the current Q table
+            #{self}.evaluate(
+              limit: 'optional - limit value consumed by #evaluate'
+            )
+
+            # Run to context and return its result
+            #{self}.to_context(
+              limit: 'optional - limit value consumed by #to_context'
+            )
+
+            # Run lean and return its result
+            #{self}.lean!(
+              dry_run: 'optional - dry run value consumed by #lean!'
+            )
+
+            # Run reset and return its result
+            #{self}.reset
+
+            # Run enabled and return its result
+            #{self}.enabled?
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+
+            # Replay stored trajectories into Q so a cold table is not empty advice
+            #{self}.warmup!(
+              limit: 'optional - limit value consumed by #warmup!'
+            )
+
+            # Run maybe warmup and return its result
+            #{self}.maybe_warmup!
+          "
+          constants.sort
         end
 
         # ----------------------------------------------------------------

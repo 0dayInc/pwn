@@ -76,14 +76,20 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          proc_list_arr = #{self}.list
+          # Run list and return its result
+          #{self}.list(
+            pid: 'optional - pid value consumed by #list'
+          )
 
+          # Run cleanup pids and return its result
           #{self}.cleanup_pids(
             pids_arr: 'required - array of pids to kill'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

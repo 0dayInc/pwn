@@ -435,14 +435,45 @@ module PWN
     end
 
     public_class_method def self.help
-      puts <<~USAGE
-        USAGE:
-          #{self}.enumerate
-          #{self}.refresh!
-          #{self}.drift
-          #{self}.install(pwn_skills_path: '~/.pwn/skills')
-          #{self}.authors
-      USAGE
+      puts "USAGE:
+        # Run enumerate and return its result
+        #{self}.enumerate(
+          lib_root: 'optional - lib root value consumed by #enumerate'
+        )
+
+        # Run relpath and return its result
+        #{self}.relpath(
+          source: 'optional - source value consumed by #relpath',
+          const: 'optional - const value consumed by #relpath'
+        )
+
+        # Run render and return its result
+        #{self}.render(
+          module: 'optional - module value consumed by #render (defaults to opts)'
+        )
+
+        # Run refresh and return its result
+        #{self}.refresh!(
+          dest: 'required - dest value consumed by #refresh!',
+          lib_root: 'optional - lib root value consumed by #refresh!'
+        )
+
+        # Run drift and return its result
+        #{self}.drift(
+          dest: 'required - dest value consumed by #drift',
+          lib_root: 'optional - lib root value consumed by #drift'
+        )
+
+        # Run install and return its result
+        #{self}.install(
+          pwn_skills_path: 'required - pwn skills path value consumed by #install',
+          source: 'optional - source value consumed by #install'
+        )
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
+      constants.sort
     end
   end
 end

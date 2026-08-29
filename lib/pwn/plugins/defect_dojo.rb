@@ -738,7 +738,8 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          dd_obj = #{self}.login(
+          # Run login and return its result
+          #{self}.login(
             url: 'required - url of DefectDojo Server',
             api_version: 'required - api version to use v1 || v2',
             username: 'required - username to AuthN w/ api v1)',
@@ -746,18 +747,21 @@ module PWN
             proxy: 'optional - proxy all traffic through MITM proxy (defaults to nil)'
           )
 
-          product_list = #{self}.product_list(
-            dd_obj: 'required dd_obj returned from #login_v1 method',
+          # Run product list and return its result
+          #{self}.product_list(
+            dd_obj: 'required - required dd_obj returned from #login method',
             id: 'optional - retrieve single product by id, otherwise return all'
           )
 
-          engagement_list = #{self}.engagement_list(
-            dd_obj: 'required dd_obj returned from #login_v1 method',
+          # Run engagement list and return its result
+          #{self}.engagement_list(
+            dd_obj: 'required - required dd_obj returned from #login method',
             id: 'optional - retrieve single engagement by id, otherwise return all'
           )
 
-          engagement_create_response = #{self}.engagement_create(
-            dd_obj: 'required - dd_obj returned from #login_v1 method',
+          # Run engagement create and return its result
+          #{self}.engagement_create(
+            dd_obj: 'required - dd_obj returned from #login method',
             name: 'required - name of the engagement',
             description: 'optional - description of engagement',
             engagement_type: 'optional - type of engagement Interactive||CI/CD (defaults to CI/CD)',
@@ -774,16 +778,19 @@ module PWN
             check_list: 'optional - boolean to set an engagement as a checkbox assessment (defaults to false)',
             first_contacted: 'optional - date of engagement request e.g. 2018-06-18 (Defaults to current day)',
             target_start: 'optional - date to start enagement e.g. 2018-06-19 (Defaults to current day)',
-            target_end: 'optional - date of engagement completion e.g. 2018-06-20 (Defaults to current day)'
+            target_end: 'optional - date of engagement completion e.g. 2018-06-20 (Defaults to current day)',
+            engagment_type: 'optional - engagment type value consumed by #engagement_create'
           )
 
-          test_list = #{self}.test_list(
-            dd_obj: 'required dd_obj returned from #login_v1 method',
+          # Run test list and return its result
+          #{self}.test_list(
+            dd_obj: 'required - required dd_obj returned from #login method',
             id: 'optional - retrieve single test by id, otherwise return all'
           )
 
-          importscan_response = #{self}.importscan(
-            dd_obj: 'required - dd_obj returned from #login_v1 method',
+          # Run importscan and return its result
+          #{self}.importscan(
+            dd_obj: 'required - dd_obj returned from #login method',
             engagement_name: 'required - name of engagement to associate w/ scan',
             scan_type: 'required - type of scan importing (see <DEFECTDOJO_URL>/admin/dojo/test_type/ for listing)',
             file: 'required - path of scan results file',
@@ -795,11 +802,14 @@ module PWN
             create_finding_groups: 'optional - flag to create finding groups (defaults to false)',
             close_old_findings_product_scope: 'optional - flag to close old findings from engagement (defaults to false)',
             close_old_findings: 'optional - flag to close old findings, regardless of engagement (defaults to false)',
-            push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)'
+            push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)',
+            test_title: 'optional - test title value consumed by #importscan',
+            group_by: 'required - group by value consumed by #importscan'
           )
 
-          reimportscan_response = #{self}.reimportscan(
-            dd_obj: 'required - dd_obj returned from #login_v1 method',
+          # Run reimportscan and return its result
+          #{self}.reimportscan(
+            dd_obj: 'required - dd_obj returned from #login method',
             engagement_name: 'required - name of engagement to associate w/ scan',
             scan_type: 'required - type of scan importing (see <DEFECTDOJO_URL>/admin/dojo/test_type/ for listing)',
             file: 'required - path of scan results file',
@@ -814,27 +824,33 @@ module PWN
             push_to_jira: 'optional - flag to push findings to JIRA (defaults to false)'
           )
 
-          finding_list = #{self}.finding_list(
-            dd_obj: 'required dd_obj returned from #login_v1 method',
+          # Run finding list and return its result
+          #{self}.finding_list(
+            dd_obj: 'required - required dd_obj returned from #login method',
             id: 'optional - retrieve single finding by id, otherwise return all'
           )
 
-          user_list = #{self}.user_list(
-            dd_obj: 'required dd_obj returned from #login_v1 method',
+          # Run user list and return its result
+          #{self}.user_list(
+            dd_obj: 'required - required dd_obj returned from #login method',
             id: 'optional - retrieve single user by id, otherwise return all'
           )
 
-          tool_configuration_list = #{self}.tool_configuration_list(
-            dd_obj: 'required dd_obj returned from #login_v1 method',
+          # Run tool configuration list and return its result
+          #{self}.tool_configuration_list(
+            dd_obj: 'required - required dd_obj returned from #login method',
             id: 'optional - retrieve single test by id, otherwise return all'
           )
 
+          # Run logout and return its result
           #{self}.logout(
-            dd_obj: 'required dd_obj returned from #login_v1 or #login_v2 method'
+            dd_obj: 'required - required dd_obj returned from #login method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -711,62 +711,75 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          son_micro_rfid_obj = #{self}.connect(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
-            baud: 'optional (defaults to 19_200)',
-            data_bits: 'optional (defaults to 8)',
-            stop_bits: 'optional (defaults to 1)',
+          # Run connect and return its result
+          #{self}.connect(
+            block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',
+            baud: 'optional - (defaults to 19_200)',
+            data_bits: 'optional - (defaults to 8)',
+            stop_bits: 'optional - (defaults to 1)',
             parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)',
-            flow_control: 'optional - :none|:hard|:soft (defaults to :none)'
+            flow_control: 'optional - :none||:hard||:soft (defaults to :none)'
           )
 
-          cmds = #{self}.list_cmds
+          # Run list cmds and return its result
+          #{self}.list_cmds
 
-          params = #{self}.list_params(
+          # Run list params and return its result
+          #{self}.list_params(
             cmd: 'required - cmd returned from #list_cmds method'
           )
 
-          parsed_cmd_resp_arr = #{self}.exec(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method',
+          # Run exec and return its result
+          #{self}.exec(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
             cmd: 'required - cmd returned from #list_cmds method',
             params: 'optional - parameters for specific command returned from #list_params method'
           )
 
-          rfid_data = #{self}.read_tag(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method',
+          # Run read tag and return its result
+          #{self}.read_tag(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
             authn: 'optional - authentication flag (default: false)',
             key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
           )
 
-          rfid_data = #{self}.write_tag(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method',
-            rfid_data: 'required - RFID data to write',
+          # Run write tag and return its result
+          #{self}.write_tag(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',
+            rfid_data: 'required - RFID data to write (see #read_tag for structure)',
             authn: 'optional - authentication flag (default: false)',
             key: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'
           )
 
-          rfid_data = #{self}.backup_tag(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method'
+          # Run backup tag and return its result
+          #{self}.backup_tag(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
           )
 
-          rfid_data = #{self}.clone_tag(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method'
+          # Run clone tag and return its result
+          #{self}.clone_tag(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
           )
 
-          rfid_data = #{self}.load_tag_from_file(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method'
+          # Run load tag from file and return its result
+          #{self}.load_tag_from_file(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
           )
 
-          rfid_data = #{self}.update_tag(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method'
+          # Run update tag and return its result
+          #{self}.update_tag(
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
           )
 
+          # Run disconnect and return its result
           #{self}.disconnect(
-            son_micro_rfid_obj: 'required son_micro_rfid_obj returned from #connect method'
+            son_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

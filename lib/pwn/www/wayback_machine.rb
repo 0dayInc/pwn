@@ -85,28 +85,34 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj = #{self}.open(
+          # Open a session or connection and return a handle.
+          #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          browser_obj = #{self}.search(
+          # Run a search using the open session.
+          #{self}.search(
             browser_obj: 'required - browser_obj returned from #open method',
-            q: 'required search string'
+            q: 'required - search string'
           )
 
-          browser_obj = #{self}.timetravel(
+          # Run timetravel and return its result
+          #{self}.timetravel(
             browser_obj: 'required - browser_obj returned from #open method',
             uri: 'required - URI (e.g. https://example.com)',
             date: 'optional - date in YYYYMMDD format (Defaults to today)'
           )
 
-          browser_obj = #{self}.close(
-            browser_obj: 'required - browser_obj returned from #open method',
+          # Close a session previously returned by #open.
+          #{self}.close(
+            browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

@@ -50,20 +50,25 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts %{USAGE:
-          amqp_conn1 = #{self}.open(
-            hostname: 'required',
+        puts "USAGE:
+          # Open a session or connection and return a handle.
+          #{self}.open(
+            hostname: 'required - hostname value consumed by #open',
             port: 'optional - defaults to 5672',
-            username: 'optional',
-            password: 'optional'
+            username: 'optional - username value consumed by #open',
+            password: 'optional - password value consumed by #open'
           )
 
+          # Close a session previously returned by #open.
           #{self}.close(
-            amqp_oject: amqp_conn1
+            amqp_oject: 'optional - amqp oject value consumed by #close',
+            amqp_obj: 'optional - amqp obj value consumed by #close'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
-        }
+        "
+        constants.sort
       end
     end
   end

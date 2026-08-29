@@ -60,20 +60,17 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # arr = [1, 2, 3, 4, 5, 6, 7, 8, 9]
           #{self}.fill(
-            enumerable_array. => 'required array for proper thread pool assignment',
-            max_threads: 'optional number of threads in the thread pool (defaults to 9)',
-            detach: 'optional boolean to detach threads (defaults to false)'
+            enumerable_array: 'required - required array for proper thread pool assignment',
+            max_threads: 'optional - optional number of threads in the thread pool (defaults to 9)',
+            detach: 'optional - optional boolean to detach threads (defaults to false)'
           )
 
-          Example:
-          arr = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-          #{self}.fill(enumerable_array: arr, max_threads: 9) do |integer|
-            puts integer
-          end
-
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

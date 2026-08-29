@@ -569,24 +569,27 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            red_team_arr = #{self}.execute(
+            # Run execute and return its result
+            #{self}.execute(
               strategies: 'required - Array of attack strategy Hashes ({:name, :description}) the attacker LLM instantiates into payloads (seed / round 0)',
-              payload_count: 'optional - Integer - Number of LLM-generated payloads to produce from strategies (default #{DEFAULT_PAYLOAD_COUNT})',
+              payload_count: 'optional - Integer - Number of LLM-generated payloads to produce from strategies (default 10)',
               attack_payloads: 'optional - Array of adversarial prompt strings used as seed when strategies is omitted (legacy)',
               security_references: 'required - Hash with keys :red_team_module, :section, :owasp_llm_uri, :atlas_id, :atlas_uri',
-              target_engine: 'optional - Symbol - AI engine under test (Defaults to PWN::Env[:ai][:active])',
-              target_model: 'optional - String - Specific model on the target engine',
-              attacker_engine: 'optional - Symbol - AI engine that generates adaptive payloads and judges responses (Defaults to PWN::Env[:ai][:active])',
+              target_engine: 'optional - Symbol - AI engine under test (:openai, :anthropic, :grok, :gemini, :ollama). Defaults to PWN::Env[:ai][:active]',
+              target_model: 'optional - String - Specific model on the target engine (Defaults to engine default)',
+              attacker_engine: 'optional - Symbol - AI engine that GENERATES adaptive payloads and JUDGES responses. Defaults to PWN::Env[:ai][:active]',
               attacker_model: 'optional - String - Specific model on the attacker engine',
               system_role_content: 'optional - String - System prompt applied to the target for every payload',
-              max_adaptive_rounds: 'optional - Integer - Hard cap on AI-generated rounds after seed (default #{DEFAULT_MAX_ADAPTIVE_ROUNDS}; 0 disables)',
-              adaptive_batch_size: 'optional - Integer - Payloads generated per adaptive round (default #{DEFAULT_ADAPTIVE_BATCH_SIZE})',
-              stop_on_severity: 'optional - String - Halt on first finding >= this severity (default #{DEFAULT_STOP_ON_SEVERITY})',
-              plateau_rounds: 'optional - Integer - Halt after N consecutive adaptive rounds with no finding >= MEDIUM (default #{DEFAULT_PLATEAU_ROUNDS})'
+              max_adaptive_rounds: 'optional - Integer - Hard cap on AI-generated rounds after seed (default 5; 0 disables adaptivity)',
+              adaptive_batch_size: 'optional - Integer - Payloads generated per adaptive round (default 5)',
+              stop_on_severity: 'optional - String - Halt as soon as a finding >= this severity is produced (default CRITICAL)',
+              plateau_rounds: 'optional - Integer - Halt after N consecutive adaptive rounds with no finding >= MEDIUM (default 2)'
             )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

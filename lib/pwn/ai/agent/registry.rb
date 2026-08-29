@@ -347,18 +347,71 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts <<~USAGE
-            USAGE:
-              PWN::AI::Agent::Registry.discover
-              PWN::AI::Agent::Registry.definitions(enabled: %w[terminal pwn])
-              PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10/8')  # slim (needs :tool_router)
-              PWN::AI::Agent::Registry.rank(query: 'run a shell command')
-              PWN::AI::Agent::Registry.lookup(name: 'shell')   # => Entry
-              PWN::AI::Agent::Registry.toolsets                # => ["memory","pwn","skills","terminal"]
-              PWN::AI::Agent::Registry.register(name:, toolset:, schema:, handler:)
+          puts "USAGE:
+            # Run register and return its result
+            #{self}.register(
+              name: 'required - tool name exposed to the model',
+              toolset: 'required - grouping for enable/disable (terminal, file, pwn, memory…)',
+              schema: 'required - OpenAI function schema {name:, description:, parameters:}',
+              handler: 'required - ->(args_hash) { ... } returning a JSON-serialisable object',
+              check: 'optional - -> { bool } gate; tool only advertised when truthy',
+              max_chars: 'optional - cap on serialised result (default 24_000)'
+            )
 
-              #{self}.authors
-          USAGE
+            # Run lookup and return its result
+            #{self}.lookup(
+              name: 'required - registered tool name'
+            )
+
+            # Run all and return its result
+            #{self}.all
+
+            # Run toolsets and return its result
+            #{self}.toolsets
+
+            # Run definitions and return its result
+            #{self}.definitions(
+              enabled: 'optional - Array of toolset names to include; nil = all whose check passes',
+              relevance: 'optional - user request; when set AND :tool_router is enabled, slim to CORE + top-K keyword matches',
+              top_k: 'optional - keyword-ranked tools to keep beyond CORE (default 10)',
+              order: 'optional - preference list forwarded only when this key is present',
+              preference: 'optional - alias of :order; same key-present rule',
+              kind: 'optional - kind value consumed by #definitions',
+              intent: 'optional - intent value consumed by #definitions',
+              core_only: 'optional - core only value consumed by #definitions'
+            )
+
+            # Run preference order and return its result
+            #{self}.preference_order(
+              order: 'optional - Array of tool names; explicit nil/[] disables',
+              preference: 'optional - alias of :order. Explicit key disables Env/DEFAULT fallback'
+            )
+
+            # Run apply preference and return its result
+            #{self}.apply_preference(
+              items: 'required - Array of Entry objects or OpenAI tool hashes',
+              order: 'optional - forwarded to preference_order only when the key is set',
+              preference: 'optional - alias of :order; same key-present rule',
+              entries: 'optional - entries value consumed by #apply_preference'
+            )
+
+            # Run rank and return its result
+            #{self}.rank(
+              query: 'required - user request text',
+              entries: 'optional - Entry pool to rank (default .all)',
+              order: 'optional - preference list forwarded to preference_order',
+              preference: 'optional - preference value consumed by #rank'
+            )
+
+            # Run discover and return its result
+            #{self}.discover(
+              force: 'optional - re-require tool files even if already discovered (default false)'
+            )
+
+            # Print the AUTHOR(S) string for this module.
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

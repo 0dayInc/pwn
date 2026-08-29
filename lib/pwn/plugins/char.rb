@@ -412,63 +412,93 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          char_arr = #{self}.generate_by_range(
-            from: 'required - integer to start from',
-            to: 'required - integer to end char generation'
+          # Run force utf8 and return its result
+          #{self}.force_utf8(
+            obj: 'required - object to force to UTF-8'
           )
 
+          # Run generate by range and return its result
+          #{self}.generate_by_range(
+            from: 'required - integer to start from',
+            to: 'required - integer to end UTF-8 generation'
+          )
+
+          # Run c0 controls latin basic and return its result
           #{self}.c0_controls_latin_basic
 
+          # Run c1 controls latin supplement and return its result
           #{self}.c1_controls_latin_supplement
 
+          # Run latin extended a and return its result
           #{self}.latin_extended_a
 
+          # Run latin extended b and return its result
           #{self}.latin_extended_b
 
+          # Run spacing modifiers and return its result
           #{self}.spacing_modifiers
 
+          # Run diacritical marks and return its result
           #{self}.diacritical_marks
 
+          # Run greek coptic and return its result
           #{self}.greek_coptic
 
+          # Run cyrillic basic and return its result
           #{self}.cyrillic_basic
 
+          # Run cyrillic supplement and return its result
           #{self}.cyrillic_supplement
 
+          # Run punctuation and return its result
           #{self}.punctuation
 
+          # Run currency symbols and return its result
           #{self}.currency_symbols
 
+          # Run letterlike symbols and return its result
           #{self}.letterlike_symbols
 
+          # Run arrows and return its result
           #{self}.arrows
 
+          # Run math operators and return its result
           #{self}.math_operators
 
+          # Run box drawings and return its result
           #{self}.box_drawings
 
+          # Run block elements and return its result
           #{self}.block_elements
 
+          # Run geometric shapes and return its result
           #{self}.geometric_shapes
 
+          # Run misc symbols and return its result
           #{self}.misc_symbols
 
+          # Run dingbats and return its result
           #{self}.dingbats
 
+          # Run bubble ip and return its result
           #{self}.bubble_ip(
             ip: 'required - ip address to transform'
           )
 
-          encoder_arr = #{self}.list_encoders
+          # Run list encoders and return its result
+          #{self}.list_encoders
 
+          # Run generate encoded files and return its result
           #{self}.generate_encoded_files(
             from: 'required - integer to start from',
             to: 'required - integer to end UTF-8 generation',
             output_dir: 'required - folder to create files'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

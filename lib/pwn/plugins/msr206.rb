@@ -1193,64 +1193,78 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          msr206_obj = #{self}.connect(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
-            baud: 'optional (defaults to 19200)',
-            data_bits: 'optional (defaults to 8)',
-            stop_bits: 'optional (defaults to 1)',
-            parity: 'optional - :even||:odd|:none (defaults to :none)',
-            flow_control: 'optional - :none||:hard||:soft (defaults to :soft)'
+          # Run connect and return its result
+          #{self}.connect(
+            block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',
+            baud: 'optional - (defaults to 19200)',
+            data_bits: 'optional - (defaults to 8)',
+            stop_bits: 'optional - (defaults to 1)',
+            parity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none),',
+            flow_control: 'optional - :none|:hard|:soft (defaults to :soft)'
           )
 
+          # Run list cmds and return its result
+          #{self}.list_cmds
+
+          # Run set protocol and return its result
           #{self}.set_protocol(
             msr206_obj: 'required - msr206_obj returned from #connect method',
             protocol: 'optional - :usi0 or :usi1 (defaults to :usi0)'
           )
 
-          cmds = #{self}.list_cmds
-
-          parsed_cmd_resp_arr = #{self}.exec(
-            msr206_obj: 'required msr206_obj returned from #connect method',
+          # Run exec and return its result
+          #{self}.exec(
+            msr206_obj: 'required - msr206_obj returned from #connect method',
             cmd: 'required - cmd returned from #list_cmds method',
-            params: 'optional - parameters for specific command'
+            params: 'optional - parameters for specific command returned from #list_params method'
           )
 
-          track_data = #{self}.read_card(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+          # Run read card and return its result
+          #{self}.read_card(
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
-          track_data = #{self}.backup_card(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+          # Run backup card and return its result
+          #{self}.backup_card(
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
-          track_data = #{self}.write_card(
-            msr206_obj: 'required msr206_obj returned from #connect method',
+          # Run write card and return its result
+          #{self}.write_card(
+            msr206_obj: 'required - msr206_obj returned from #connect method',
             encoding: 'required - :iso || :iso_alt || :raw',
-            track_data: 'required - track data to write'
+            track_data: 'required - track data to write (see #backup_card for structure)'
           )
 
-          track_data = #{self}.clone_card(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+          # Run clone card and return its result
+          #{self}.clone_card(
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
-          track_data = #{self}.load_card_from_file(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+          # Run load card from file and return its result
+          #{self}.load_card_from_file(
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
-          track_data = #{self}.update_card(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+          # Run update card and return its result
+          #{self}.update_card(
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
-          config = #{self}.get_config(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+          # Run get config and return its result
+          #{self}.get_config(
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
+          # Run disconnect and return its result
           #{self}.disconnect(
-            msr206_obj: 'required msr206_obj returned from #connect method'
+            msr206_obj: 'required - msr206_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

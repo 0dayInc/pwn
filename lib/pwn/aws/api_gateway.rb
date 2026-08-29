@@ -72,20 +72,23 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          api_gateway_obj = #{self}.connect(
-            :region => 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',
-            :access_key_id => 'required - Use AWS STS for best privacy (i.e. temporary access key id)',
-            :secret_access_key => 'required - Use AWS STS for best privacy (i.e. temporary secret access key',
-            :sts_session_token => 'optional - Temporary token returned by STS client for best privacy'
+          # :region => required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2),
+          #{self}.connect(
+            region: 'optional - region value consumed by #connect',
+            access_key_id: 'optional - access key id value consumed by #connect',
+            secret_access_key: 'optional - secret access key value consumed by #connect',
+            sts_session_token: 'optional - sts session token value consumed by #connect'
           )
-          puts api_gateway_obj.public_methods
 
+          # Run disconnect and return its result
           #{self}.disconnect(
-            :api_gateway_obj => 'required - api_gateway_obj returned from #connect method'
+            api_gateway_obj: 'required - api_gateway_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

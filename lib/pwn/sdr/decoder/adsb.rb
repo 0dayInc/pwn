@@ -252,18 +252,49 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q via PWN::FFI + detector fallback):
-            #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
-              source:   'optional - :auto|:rtlsdr|:adalm_pluto|:file',
-              file:     'optional - .cu8/.cs16 capture at ≥2 Msps'
+          puts "USAGE:
+            # Run crc24 and return its result
+            #{self}.crc24(
+              bits: 'optional - bits value consumed by #crc24 (defaults to [])'
             )
 
-            #{self}.decode_modes(bits: [0,1,...])   # 56/112 Mode-S bits
-            #{self}.parse_line(line: 'MSG,3,1,1,ABCDEF,1,...')
+            # Run crc ok and return its result
+            #{self}.crc_ok?(
+              bits: 'optional - bits value consumed by #crc_ok? (defaults to [])'
+            )
 
+            # Run decode modes and return its result
+            #{self}.decode_modes(
+              bits: 'optional - bits value consumed by #decode_modes (defaults to [])'
+            )
+
+            # Run ais char and return its result
+            #{self}.ais_char(
+              code: 'optional - code value consumed by #ais_char'
+            )
+
+            # Run modes altitude and return its result
+            #{self}.modes_altitude(
+              bits12: 'optional - bits12 value consumed by #modes_altitude'
+            )
+
+            # Run decode and return its result
+            #{self}.decode(
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              sample_rate: 'optional - sample rate value consumed by #decode',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path'
+            )
+
+            # Run parse line and return its result
+            #{self}.parse_line(
+              line: 'optional - line value consumed by #parse_line'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

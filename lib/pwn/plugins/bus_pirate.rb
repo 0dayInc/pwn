@@ -118,29 +118,36 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run connect via screen and return its result
           #{self}.connect_via_screen(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)'
+            block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)'
           )
 
-          bus_pirate_obj = #{self}.connect(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)',
-            baud: 'optional (defaults to 9600)',
-            data_bits: 'optional (defaults to 8)',
-            stop_bits: 'optional (defaults to 1)',
-            parity: 'optional - :even||:odd|:none (defaults to :none)'
+          # Run connect and return its result
+          #{self}.connect(
+            block_dev: 'optional - optional serial block device path (defaults to /dev/ttyUSB0)',
+            baud: 'optional - optional (defaults to 9600)',
+            data_bits: 'optional - optional (defaults to 8)',
+            stop_bits: 'optional - optional (defaults to 1)',
+            parity: 'optional - optional (defaults to SerialPort::NONE)',
+            flow_control: 'optional - optional (defaults to SerialPort::HARD) SerialPort::NONE|SerialPort::SOFT|SerialPort::HARD'
           )
 
+          # Run init mode and return its result
           #{self}.init_mode(
-            bus_pirate_obj: 'required - bus_pirate_obj returned from #connect method'
+            bus_pirate_obj: 'required - bus_pirate_obj returned from #connect method',
             mode: 'required - bus pirate mode to invoke'
           )
 
+          # Run disconnect and return its result
           #{self}.disconnect(
             bus_pirate_obj: 'required - bus_pirate_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

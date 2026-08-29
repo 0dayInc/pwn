@@ -57,14 +57,19 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run type and return its result
           #{self}.type
 
+          # Run arch and return its result
           #{self}.arch
 
+          # Run endian and return its result
           #{self}.endian
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

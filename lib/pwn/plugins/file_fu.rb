@@ -116,27 +116,30 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run recurse in dir and return its result
           #{self}.recurse_in_dir(
-            dir_path: 'optional path to dir defaults to .',
-            include_extensions: 'optional - array of file extensions to search for in scan (e.g. ['.js', '.php'])',
-            exclude_extensions: 'optional - array of file extensions to exclude from scan (e.g. ['.log', '.txt', '.spec'])'
-          ) do |entry|
-            puts entry
-          end
+            dir_path: 'optional - optional path to dir defaults to .',
+            include_extensions: 'optional - array of file extensions to search for in scan (e.g. [.js, .php])',
+            exclude_extensions: 'optional - array of file extensions to exclude from scan (e.g. [.log, .txt, .spec])'
+          )
 
+          # Run untar gz file and return its result
           #{self}.untar_gz_file(
             tar_gz_file: 'required - path to .tar.gz file',
             destination: 'required - destination folder to save extracted contents'
           )
 
+          # Run shift file up and return its result
           #{self}.shift_file_up(
             path: 'required - path to file to shift up',
-            bytes: 'required - number of bytes to shift up',
-            buffer_size: 'optional - buffer size to use when shifting file up (default: 256 * 1024 / i.e 256KB)'
+            bytes: 'required - number of bytes to shift up (remove from beginning)',
+            buffer_size: 'optional - buffer size to use when shifting (default: 256KB)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

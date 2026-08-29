@@ -132,17 +132,20 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (ruby-native, no external binaries):
+          puts "USAGE:
+            # Run decode and return its result
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path',
+              out_path: 'optional - out path value consumed by #decode',
+              sample_rate: 'optional - sample rate value consumed by #decode'
             )
 
-            NOTE: Set GQRX to WFM (mono), ~34 kHz filter. Writes an 8-bit
-                  greyscale Netpbm P5 image to /tmp/apt_<ts>.pgm every 10 s
-                  of received pass. Both A/B channels are in one strip.
-
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

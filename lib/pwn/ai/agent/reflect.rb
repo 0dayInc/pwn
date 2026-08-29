@@ -175,19 +175,23 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
+            # Run on and return its result
             #{self}.on(
               request: 'required - String - What you want the AI to reflect on',
               system_role_content: 'optional - context to set up the model behavior for reflection',
-              engine: 'optional - override engine (Symbol) for teacher-student reflection; defaults to PWN::Env[:ai][:reflect_engine]',
+              engine: 'optional - override engine for THIS reflection only (Symbol/String); defaults to PWN::Env[:ai][:reflect_engine] || :active',
+              model: 'optional - override model on the reflection engine for THIS call only; defaults to PWN::Env[:ai][:reflect_model]',
               spinner: 'optional - Boolean - Display spinner during operation (default: false)',
-              suppress_pii_warning: 'optional - Boolean - Suppress PII Warnings (default: false)'
+              suppress_pii_warning: 'optional - Boolean - Suppress PII Warnings (default: false)',
+              timeout: 'optional - seconds to wait before giving up',
+              temp: 'optional - temp value consumed by #on',
+              quiet: 'optional - quiet value consumed by #on'
             )
 
-            Teacher-student config:
-              PWN::Env[:ai][:reflect_engine] = :anthropic   # execute on :active, critique on :anthropic
-
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

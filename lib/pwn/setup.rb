@@ -236,6 +236,55 @@ module PWN
       'jq' => {
         apt: %w[jq], dnf: %w[jq], pacman: %w[jq], brew: %w[jq], port: %w[jq],
         plugins: %w[extro_osint]
+      },
+      'gdb' => {
+        apt: %w[gdb], dnf: %w[gdb], pacman: %w[gdb], brew: %w[gdb], port: %w[gdb],
+        plugins: %w[PWN::Plugins::GDB]
+      },
+      'r2' => {
+        apt: %w[radare2], dnf: %w[radare2], pacman: %w[radare2], brew: %w[radare2], port: %w[radare2],
+        plugins: %w[PWN::Plugins::Radare2]
+      },
+      'checksec' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::GDB PWN::Plugins::ExploitDev]
+      },
+      'ROPgadget' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::ExploitDev]
+      },
+      'one_gadget' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::ExploitDev]
+      },
+      'qemu-x86_64' => {
+        apt: %w[qemu-user-static], dnf: %w[qemu-user-static], pacman: %w[qemu-user-static],
+        brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::GDB]
+      },
+      'yara' => {
+        apt: %w[yara], dnf: %w[yara], pacman: %w[yara], brew: %w[yara], port: %w[yara],
+        plugins: %w[PWN::Plugins::Volatility]
+      },
+      'frida' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::Frida]
+      },
+      'apktool' => {
+        apt: %w[apktool], dnf: %w[], pacman: %w[apktool], brew: %w[apktool], port: %w[],
+        plugins: %w[PWN::Plugins::Android]
+      },
+      'jadx' => {
+        apt: %w[jadx], dnf: %w[], pacman: %w[jadx], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::Android]
+      },
+      'nuclei' => {
+        apt: %w[nuclei], dnf: %w[], pacman: %w[nuclei], brew: %w[nuclei], port: %w[],
+        plugins: %w[PWN::Plugins::Nuclei]
+      },
+      'hydra' => {
+        apt: %w[hydra], dnf: %w[hydra], pacman: %w[hydra], brew: %w[thc-hydra], port: %w[],
+        plugins: %w[PWN::Plugins::CredentialAttack]
       }
     }.freeze
 
@@ -291,6 +340,11 @@ module PWN
         desc: 'Serial · BusPirate · Android · BareSIP · extro_serial · extro_telecomm',
         gems: %w[libusb],
         bins: %w[adb baresip]
+      },
+      re: {
+        desc: 'Radare2 · GDB · ExploitDev · Frida · Android RE tier',
+        gems: %w[],
+        bins: %w[gdb r2 checksec ROPgadget one_gadget qemu-x86_64 yara frida apktool jadx]
       },
       full: {
         desc: 'everything above',
@@ -869,53 +923,56 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        # Read-only doctor — which PWN capabilities are usable on this host?
-        #{self}.check
-
-        # Install OS headers + rebuild native gems for a capability profile.
-        # profile ∈ #{PROFILES.keys.inspect}
-        #{self}.deps(
-          profile: 'optional - capability profile (default :full)',
-          yes:     'optional - assume yes (non-interactive)',
-          dry_run: 'optional - print commands only'
-        )
-
-
-# Opt-in SHIFT+ENTER multi-line support (Terminator plugin + tmux.conf hints).
-#{self}.terminal(
-  yes:     'optional - assume yes (non-interactive)',
-  dry_run: 'optional - print what would happen'
-)
-
-        # List capability profiles.
-        #{self}.list_profiles
-
-        # Detected package manager (:apt / :dnf / :pacman / :brew / :port).
+        # Run pkg manager and return its result
         #{self}.pkg_manager
 
-        # Data tables — versioned with the gem:
-        #{self}::NATIVE_GEMS   # native ext → OS headers → PWN:: constants
-        #{self}::TOOLCHAIN     # external bin → OS package → PWN:: constants
-        #{self}::PROFILES      # capability profile → gems + bins
+        # Run check and return its result
+        #{self}.check(
+          io: 'optional - IO to write the report to (default $stdout)',
+          profile: 'optional - profile value consumed by #check'
+        )
 
-        # From the shell:
-        pwn setup                       # == check
-        pwn setup --check
-        pwn setup --deps                # profile :full
-        pwn setup --profile web
-        pwn setup --profile sdr --yes
-        pwn setup --terminal              # opt-in SHIFT+ENTER multi-line (Terminator/tmux)
-        pwn setup --list-profiles
-        pwn setup --dry-run --profile net
-        pwn setup --migrate                  # verify + upgrade ~/.pwn schema
-        pwn setup --migrate --fix            # also autofix incompatible files
-        # Every non-dry-run `pwn setup` also seeds default jobs and starts
-        # (or reuses) the background PWN::Cron worker, then persists it
-        # via the OS-native scheduler (systemd --user / launchd / schtasks / crontab).
-        # `pwn setup --no-cron` disables that persistence; `--cron` re-enables it.
+        # Run deps and return its result
+        #{self}.deps(
+          profile: 'optional - one of PROFILES.keys (default :full)',
+          yes: 'optional - non-interactive; assume yes to prompts (default false)',
+          dry_run: 'optional - print commands only, do not execute (default false)',
+          io: 'optional - IO to write to (default $stdout)'
+        )
 
+        # Opt-in installer for SHIFT+ENTER multi-line support in the pwn-ai /
+        #{self}.terminal(
+          yes: 'optional - assume yes; non-interactive (default false)',
+          dry_run: 'optional - print what WOULD happen (default false)',
+          io: 'optional - IO to write to (default $stdout)'
+        )
+
+        # Run list profiles and return its result
+        #{self}.list_profiles(
+          io: 'optional - IO to write to (default $stdout)'
+        )
+
+        # Delegate to PWN::Migrate.run — verify every ~/.pwn state file is
+        #{self}.migrate(
+          fix: 'optional - also autofix incompatible ~/.pwn files (default false)',
+          dry_run: 'optional - print what WOULD happen (default false)',
+          yes: 'optional - alias for fix:true (CI-friendly)',
+          io: 'optional - IO to write to (default $stdout)'
+        )
+
+        # Seed default pwn-ai jobs (idempotent) and start the background
+        #{self}.ensure_cron(
+          restart: 'optional - replace a live worker (default false = reuse)',
+          dry_run: 'optional - do not spawn (default false)',
+          interval: 'optional - worker poll seconds (default PWN::Cron::DEFAULT_INTERVAL)',
+          io: 'optional - IO to write the status line to (default $stdout)',
+          enabled: 'optional - enabled value consumed by #ensure_cron'
+        )
+
+        # Print the AUTHOR(S) string for this module.
         #{self}.authors
       "
+      constants.sort
     end
   end
 end

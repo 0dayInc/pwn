@@ -129,12 +129,15 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run generate and return its result
           #{self}.generate(
             count: 'required - number of EIN numbers to generate'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

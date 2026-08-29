@@ -194,12 +194,16 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run get and return its result
           #{self}.get
 
-          #{self}.has_you
+          # Run you and return its result
+          #{self}.you?
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

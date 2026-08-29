@@ -751,23 +751,123 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          logger = #{self}.append(
-            level: 'required - log verbosity :debug|:error|:fatal|:info|:learning|:unknown|:warn',
-            msg: 'required - message to log',
-            which_self: 'required - pass in self object from module calling #{self}'
+          # Run append and return its result
+          #{self}.append(
+            level: 'required - level value consumed by #append',
+            msg: 'optional - msg value consumed by #append',
+            which_self: 'optional - which self value consumed by #append'
           )
 
-          path = #{self}.start_debug(
-            tee: $stdout,
-            session_id: 'optional - pwn-ai session id'
+          # Run debug enabled and return its result
+          #{self}.debug_enabled?
+
+          # Run debug log path and return its result
+          #{self}.debug_log_path
+
+          # Open a debug session. Request traces go to
+          #{self}.start_debug(
+            trace: 'optional - trace value consumed by #start_debug',
+            path: 'required - filesystem path to read or write',
+            tee: 'optional - tee value consumed by #start_debug',
+            session_id: 'optional - session id value consumed by #start_debug',
+            step_io: 'optional - step io value consumed by #start_debug',
+            prefixes: 'optional - prefixes value consumed by #start_debug'
           )
-          #{self}.next_request_log!(session_id: 'optional')
-          #{self}.progress(msg: 'stage', which_self: self)
-          #{self}.finish_request_log!(iter: 1, tools_called: 0, engine_s: 0.2, final_chars: 12)
-          #{self}.stop_debug
-          # start_debug(trace: true) enables TracePoint + ENTER after each Loop step
-          # (toggle-trace). Stored on Pry.config.pwn_ai_trace, not Env.
+
+          # Run trace enabled and return its result
+          #{self}.trace_enabled?
+
+          # Run next request log and return its result
+          #{self}.next_request_log!(
+            force: 'optional - force value consumed by #next_request_log!',
+            session_id: 'optional - session id value consumed by #next_request_log!'
+          )
+
+          # Run finish request log and return its result
+          #{self}.finish_request_log!(
+            force: 'optional - force value consumed by #finish_request_log!',
+            iter: 'optional - iter value consumed by #finish_request_log!',
+            tools_called: 'optional - tools called value consumed by #finish_request_log!',
+            engine_s: 'optional - engine s value consumed by #finish_request_log!',
+            final_chars: 'optional - final chars value consumed by #finish_request_log!',
+            nested: 'optional - nested value consumed by #finish_request_log!'
+          )
+
+          # Run stop debug and return its result
+          #{self}.stop_debug(
+            reason: 'required - reason value consumed by #stop_debug'
+          )
+
+          # Run capture stderr and return its result
+          #{self}.capture_stderr!(
+            text: 'required - text value consumed by #capture_stderr!'
+          )
+
+          # Spinner frames stay on the TTY; never persist them in the RN log
+          #{self}.spinner_frame?(
+            text: 'optional - text value consumed by #spinner_frame?'
+          )
+
+          # Run raw stderr and return its result
+          #{self}.raw_stderr
+
+          # Run quiet tui and return its result
+          #{self}.quiet_tui!(
+            skip: 'optional - skip value consumed by #quiet_tui!'
+          )
+
+          # Run loud tui and return its result
+          #{self}.loud_tui!(
+            skip: 'optional - skip value consumed by #loud_tui!'
+          )
+
+          # One progress line to the debug file and the TUI tee (same payload)
+          #{self}.progress(
+            msg: 'optional - msg value consumed by #progress',
+            which_self: 'optional - which self value consumed by #progress (defaults to self)',
+            keep_newlines: 'optional - keep newlines value consumed by #progress',
+            cap: 'optional - cap value consumed by #progress',
+            tee: 'optional - tee value consumed by #progress'
+          )
+
+          # Run note interrupt and return its result
+          #{self}.note_interrupt!(
+            where: 'required - where value consumed by #note_interrupt!',
+            which_self: 'optional - which self value consumed by #note_interrupt! (defaults to self)'
+          )
+
+          # Run note exception and return its result
+          #{self}.note_exception!(
+            error: 'optional - error value consumed by #note_exception!',
+            where: 'required - where value consumed by #note_exception!',
+            which_self: 'optional - which self value consumed by #note_exception! (defaults to self)'
+          )
+
+          # Clone operator-visible TUI rows into the open RN request log (no ANSI)
+          #{self}.mirror_tui!(
+            msg: 'optional - msg value consumed by #mirror_tui!'
+          )
+
+          # Run start trace and return its result
+          #{self}.start_trace!(
+            prefixes: 'optional - prefixes value consumed by #start_trace!'
+          )
+
+          # Run stop trace and return its result
+          #{self}.stop_trace!(
+            skip: 'optional - skip value consumed by #stop_trace!'
+          )
+
+          # Run wait trace step and return its result
+          #{self}.wait_trace_step!(
+            nested: 'optional - nested value consumed by #wait_trace_step!',
+            label: 'required - label value consumed by #wait_trace_step!'
+          )
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
         "
+        constants.sort
       end
     end
   end

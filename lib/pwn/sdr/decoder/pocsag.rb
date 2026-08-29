@@ -220,21 +220,41 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q + GQRX-audio native paths, no external binaries):
-            #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+          puts "USAGE:
+            # Run decode bits and return its result
+            #{self}.decode_bits(
+              bits: 'optional - bits value consumed by #decode_bits (defaults to [])',
+              baud: 'optional - baud value consumed by #decode_bits'
             )
 
-            #{self}.decode_bits(bits: [0,1,...], baud: 1200) { |msg| ... }
-            #{self}.assemble(pending: {ric:, func:, msg_words:[]}, baud: 1200)
-            #{self}.numeric_decode(words: [Integer, ...])
-            #{self}.alpha_decode(words: [Integer, ...])
+            # Run assemble and return its result
+            #{self}.assemble(
+              pending: 'optional - pending value consumed by #assemble',
+              baud: 'optional - baud value consumed by #assemble'
+            )
 
-            NOTE: Set GQRX to Narrow FM. Baud (512/1200/2400) and NRZ
-                  polarity are auto-detected from the FSC 0x7CD215D8.
+            # Run numeric decode and return its result
+            #{self}.numeric_decode(
+              words: 'optional - words value consumed by #numeric_decode (defaults to [])'
+            )
 
+            # Run alpha decode and return its result
+            #{self}.alpha_decode(
+              words: 'optional - words value consumed by #alpha_decode (defaults to [])'
+            )
+
+            # Run decode and return its result
+            #{self}.decode(
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path',
+              sample_rate: 'optional - sample rate value consumed by #decode'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

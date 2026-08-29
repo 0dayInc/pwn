@@ -41,13 +41,16 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            ai_analysis = PWN::AI::Agent::TransparentBrowser.analyze(
+            # Run analyze and return its result
+            #{self}.analyze(
               request: 'required - current step in the JavaScript debugging session to analyze',
               source_to_review: 'required - the block of JavaScript code in which the current step resides'
             )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

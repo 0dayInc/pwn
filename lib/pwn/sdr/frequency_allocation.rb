@@ -822,10 +822,13 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          band_plans = #{self}.band_plans
+          # Run band plans and return its result
+          #{self}.band_plans
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

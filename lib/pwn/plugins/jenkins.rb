@@ -442,95 +442,103 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts %{USAGE:
-          jenkins_obj = #{self}.connect(
-            ip: 'required host/ip of Jenkins Server',
-            port: 'optional tcp port (defaults to 8080),
-            username: 'optional username (functionality will be limited if ommitted)',
-            api_key: 'optional api_key (functionality will be limited if ommitted)',
-            identity_file: 'optional ssh private key path to AuthN w/ Jenkins PREFERRED over username/api_key',
-            ssl: 'optional connect over TLS (defaults to true),
-            proxy: 'optional debug proxy rest api requests to jenkins (e.g. "http://127.0.0.1:8080")''
+        puts "USAGE:
+          # Run connect and return its result
+          #{self}.connect(
+            ip: 'required - required host/ip of Jenkins Server',
+            port: 'optional - optional tcp port (defaults to 8080',
+            username: 'optional - optional username (functionality will be limited if ommitted)',
+            api_key: 'optional - optional api_key (functionality will be limited if ommitted)',
+            identity_file: 'optional - optional ssh private key path to AuthN w/ Jenkins PREFERRED over username/api_key',
+            ssl: 'optional - optional connect over TLS (defaults to true',
+            proxy: 'optional - optional debug proxy rest api requests to jenkins (e.g. http://127.0.0.1:8080)'
           )
-          puts jenkins_obj.public_methods
 
+          # Run create user and return its result
           #{self}.create_user(
-            jenkins_obj: 'required - jenkins_obj returned from #connect method',
-            username: 'required - user to create',
-            password: 'optional - password for new user (will prompt if nil)'
-            fullname: 'required - full name of new user'
-            email: 'required - email address of new user'
+            jenkins_obj: 'optional - jenkins obj value consumed by #create_user',
+            username: 'optional - username value consumed by #create_user',
+            password: 'optional - password value consumed by #create_user',
+            fullname: 'optional - fullname value consumed by #create_user',
+            email: 'optional - email value consumed by #create_user'
           )
 
+          # Run create ssh credential and return its result
           #{self}.create_ssh_credential(
-            jenkins_obj: 'required - jenkins_obj returned from #connect method',
-            username: 'required - username for new credential'
-            private_key_path: 'required - path of private ssh key for new credential'
-            key_passphrase: 'optional - private key passphrase for new credential'
-            credential_id: 'optional but recommended - useful when creating userland jobs',
-            description: 'optional - description of new credential'
-            domain: 'optional - defaults to GLOBAL',
-            scope: 'optional - GLOBAL or SYSTEM (defaults to GLOBAL)'
+            jenkins_obj: 'optional - jenkins obj value consumed by #create_ssh_credential',
+            username: 'optional - username value consumed by #create_ssh_credential',
+            private_key_path: 'optional - private key path value consumed by #create_ssh_credential',
+            key_passphrase: 'optional - key passphrase value consumed by #create_ssh_credential',
+            credential_id: 'optional - credential id value consumed by #create_ssh_credential',
+            description: 'optional - description value consumed by #create_ssh_credential',
+            domain: 'optional - FQDN to query (e.g. example.com)',
+            scope: 'optional - scope value consumed by #create_ssh_credential'
           )
 
-          git_repo_arr = #{self}.get_all_job_git_repos(
-            jenkins_obj: 'required jenkins_obj returned from connect method'
+          # Run get all job git repos and return its result
+          #{self}.get_all_job_git_repos(
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method'
           )
 
-          git_repo_branches = #{self}.get_all_git_repo_branches_by_commit_date(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            job_name: 'required jenkins job name',
-            git_url: 'required git url for git_repo'
+          # Run list nested jobs and return its result
+          #{self}.list_nested_jobs(
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method',
+            view_path: 'required - required view path to list jobs'
           )
 
-          nested_jobs_arr = #{self}.list_nested_jobs(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            view_path: 'required view path list jobs'
+          # Run list nested views and return its result
+          #{self}.list_nested_views(
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method',
+            view_path: 'required - required view path list sub-views'
           )
 
-          nested_views_arr = #{self}.list_nested_views(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            view_path: 'required view path list sub-views'
+          # Run create nested view and return its result
+          #{self}.create_nested_view(
+            jenkins_obj: 'optional - jenkins obj value consumed by #create_nested_view',
+            view_name: 'optional - view name value consumed by #create_nested_view',
+            create_in_view_path: 'optional - create in view path value consumed by #create_nested_view'
           )
 
-          view_created_bool = #{self}.create_nested_view(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            view_path: 'required view path create',
-            create_in_view_path: 'optional creates nested view within an existing nested view, defaults to / views'
+          # Run add job to nested view and return its result
+          #{self}.add_job_to_nested_view(
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method',
+            view_path: 'required - required view path associate job',
+            job_name: 'required - required view path attach to a view'
           )
 
-          add_job_to_nested_view_resp = #{self}.add_job_to_nested_view(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            view_path: 'required view path associate job',
-            job_name: 'required view path attach to a view',
+          # Run copy job no fail on exist and return its result
+          #{self}.copy_job_no_fail_on_exist(
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method',
+            existing_job_name: 'required - required existing job to copt to new job',
+            new_job_name: 'required - required name of new job'
           )
 
-          copy_job_resp = #{self}.copy_job_no_fail_on_exist(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            existing_job_name: 'required existing job to copt to new job',
-            new_job_name: 'required name of new job'
-          )
-
+          # Run disable jobs by regex and return its result
           #{self}.disable_jobs_by_regex(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            regex: 'required regex pattern for matching jobs to disable e.g. :regex => "^M[0-9]"',
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method',
+            regex: 'required - required regex pattern for matching jobs to disable e.g. :regex => ^M[0-9]'
           )
 
-          #{self}.delete_job_by_regex(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
-            regex: 'required regex pattern for matching jobs to disable e.g. :regex => "^M[0-9]"',
+          # Run delete jobs by regex and return its result
+          #{self}.delete_jobs_by_regex(
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method',
+            regex: 'required - required regex pattern for matching jobs to disable e.g. :regex => ^M[0-9]'
           )
 
+          # Run clear build queue and return its result
           #{self}.clear_build_queue(
-            jenkins_obj: 'required jenkins_obj returned from #connect method',
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method'
           )
 
+          # Run disconnect and return its result
           #{self}.disconnect(
-            jenkins_obj: 'required jenkins_obj returned from connect method'
+            jenkins_obj: 'required - required jenkins_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
-        }
+        "
+        constants.sort
       end
     end
   end

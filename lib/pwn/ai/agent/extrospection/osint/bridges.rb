@@ -214,25 +214,16 @@ module PWN
           { source: 'recon-ng', error: "#{e.class}: #{e.message.to_s[0, 160]}" }
         end
         # Marker submodule so this file satisfies PWN module conventions
-        # (def self.help / def self.authors per-file) WITHOUT clobbering
-        # PWN::AI::Agent::Extrospection.help defined in the parent file.
-        module OSINTBridges
-          # Author(s):: 0day Inc. <support@0dayinc.com>
+        public_class_method def self.authors
+          "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
+        end
 
-          public_class_method def self.authors
-            "AUTHOR(S):\n0day Inc. <support@0dayinc.com>\n"
-          end
-
-          # Display Usage for this Module
-
-          public_class_method def self.help
-            <<~USAGE
-              Local-tool OSINT bridge feeds for PWN::AI::Agent::Extrospection.osint.
-              Feeds: #{BRIDGE_FEEDS.join(', ')}
-              Bins probed: theHarvester, spiderfoot, amass, recon-ng (skips cleanly when absent).
-              See PWN::AI::Agent::Extrospection.help / documentation/Extrospection.md.
-            USAGE
-          end
+        public_class_method def self.help
+          puts "USAGE:
+            # Marker submodule so this file satisfies PWN module conventions
+            #{self}.authors
+          "
+          constants.sort
         end
       end
     end

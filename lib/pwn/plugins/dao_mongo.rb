@@ -80,16 +80,22 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          mongo_conn = #{self}.connect(
-            host: 'optional host or IP defaults to 127.0.0.1',
-            port: 'optional port defaults to 27017',
-            database: 'optional database name'
+          # Run connect and return its result
+          #{self}.connect(
+            host: 'optional - optional host or IP defaults to 127.0.0.1',
+            port: 'optional - optional port defaults to 27017',
+            database: 'optional - optional database name'
           )
 
-          #{self}.disconnect(mongo_conn: mongo_conn)
+          # Run disconnect and return its result
+          #{self}.disconnect(
+            mongo_conn: 'optional - mongo conn value consumed by #disconnect'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

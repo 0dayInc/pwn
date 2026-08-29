@@ -66,13 +66,19 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          sast_arr = #{self}.scan(
-            dir_path: 'optional path to dir defaults to .',
-            git_repo_root_uri: 'optional http uri of git repo scanned'
+          # Run scan and return its result
+          #{self}.scan(
+            dir_path: 'optional - optional path to dir defaults to .',
+            git_repo_root_uri: 'optional - optional http uri of git repo scanned'
           )
 
+          # Used primarily to map NIST 800-53 Revision 4 Security Controls
+          #{self}.security_references
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

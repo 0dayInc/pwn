@@ -86,7 +86,14 @@ module PWN
       end
 
       public_class_method def self.help
-        puts "USAGE:\n  #{self}.generate(\n    path: '/tmp/report.pdf',\n    results_hash: {}\n  )\n\n  #{self}.authors\n"
+        puts "USAGE:
+          # Run generate and return its result
+          #{self}.generate
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
+        constants.sort
       end
     end
   end

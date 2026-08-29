@@ -44,12 +44,15 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run connect via screen and return its result
           #{self}.connect_via_screen(
-            block_dev: 'optional serial block device path (defaults to /dev/ttyUSB0)'
+            block_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

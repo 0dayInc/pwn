@@ -132,27 +132,32 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts %{USAGE:
-          git_html_resp = #{self}.gen_html_diff(
-            repo: 'required git repo name',
-            branch: 'required git repo branch (e.g. master, develop, etc)',
-            since: 'optional date, otherwise default to last pull'
+        puts "USAGE:
+          # Run gen html diff and return its result
+          #{self}.gen_html_diff(
+            repo: 'required - required git repo name',
+            branch: 'required - required git repo branch (e.g. master, develop, etc)',
+            since: 'optional - optional date, otherwise default to last pull'
           )
 
-          author = #{self}.get_author(
-            repo_root: 'optional path to git repo root (defaults to ".")'
-            from_line: 'required line number to start in range',
-            to_line: 'required line number to stop in range',
-            target_file: 'required file in which line range is queried'
-            entry_beautified: 'required boolean'
+          # Run dump all repo branches and return its result
+          #{self}.dump_all_repo_branches(
+            git_url: 'required - required git repo url'
           )
 
-          all_repo_branches = #{self}.dump_all_repo_branches(
-            git_url: 'required git repo url'
+          # Run get author and return its result
+          #{self}.get_author(
+            repo_root: 'optional - repo root value consumed by #get_author',
+            from_line: 'optional - from line value consumed by #get_author',
+            to_line: 'optional - to line value consumed by #get_author',
+            target_file: 'optional - target file value consumed by #get_author',
+            entry_beautified: 'optional - entry beautified value consumed by #get_author'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
-        }
+        "
+        constants.sort
       end
     end
   end

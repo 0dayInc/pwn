@@ -107,18 +107,27 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          sqlite3_conn = #{self}.connect(db_path: 'Required - Path of SQLite3 DB File')
-
-          res = #{self}.sql_statement(
-            sqlite3_conn: sqlite3_conn,
-            prepared_statement: 'SELECT * FROM tn_users WHERE state = ?;',
-            statement_params: ['Active']
+          # Run connect and return its result
+          #{self}.connect(
+            db_path: 'required - Path of SQLite3 DB File'
           )
 
-          #{self}.disconnect(:sqlite3_conn => sqlite3_conn)
+          # Run sql statement and return its result
+          #{self}.sql_statement(
+            sqlite3_conn: 'optional - sqlite3 conn value consumed by #sql_statement',
+            prepared_statement: 'optional - SELECT * FROM tn_users WHERE state = ?;',
+            statement_params: 'required - statement params value consumed by #sql_statement'
+          )
 
+          # Run disconnect and return its result
+          #{self}.disconnect(
+            sqlite3_conn: 'optional - sqlite3 conn value consumed by #disconnect'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

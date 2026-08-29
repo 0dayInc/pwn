@@ -29,4 +29,3 @@
 - https://data.police.uk/api/crime-last-updated
 - https://callook.info/[redacted]
 - https://api.microlink.io?url=[redacted]:[redacted]#{cmd.start_with?(
-- https://target/api/version

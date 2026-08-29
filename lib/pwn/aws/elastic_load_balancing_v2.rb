@@ -72,20 +72,23 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          elastic_lb_v2_obj = #{self}.connect(
+          # Run connect and return its result
+          #{self}.connect(
             region: 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',
             access_key_id: 'required - Use AWS STS for best privacy (i.e. temporary access key id)',
             secret_access_key: 'required - Use AWS STS for best privacy (i.e. temporary secret access key',
             sts_session_token: 'optional - Temporary token returned by STS client for best privacy'
           )
-          puts elastic_lb_v2_obj.public_methods
 
+          # :elastic_lb_v2_obj: required - elastic_lb_v2_obj returned from #connect method
           #{self}.disconnect(
-            elastic_lb_v2_obj: 'required - elastic_lb_v2_obj returned from #connect method'
+            elastic_lb_v2_obj: 'optional - elastic lb v2 obj value consumed by #disconnect'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

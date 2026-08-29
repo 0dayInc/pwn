@@ -169,17 +169,21 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          sast_arr = #{self}.execute(
-            test_case_filter: 'required grep command to filter results',
-            security_references: 'required Hash with keys :sast_module, :section, :nist_800_53_uri, :cwe_id, :cwe_uri',
-            dir_path: 'optional path to dir defaults to .',
-            include_extensions: 'optional array of file extensions to search for in scan (Defaults to all file types / i.e. [])',
-            exclude_extensions: 'optional array of file extensions to exclude from scan (Defaults to [.bin, .dat, .JS-BEAUTIFIED, .o, .test, .png, .jpg, .jpeg, .gif, .svg, .ico, .so, .spec, .zip, .tar, .gz, .tgz, .7z, .mp3, .mp4, .mov, .avi, .wmv, .flv, .mkv])',
-            git_repo_root_uri: 'optional http uri of git repo scanned'
+          # Run execute and return its result
+          #{self}.execute(
+            test_case_filter: 'required - grep command to filter results',
+            security_references: 'required - Hash with keys :sast_module, :section, :nist_800_53_uri, :cwe_id, :cwe_uri',
+            dir_path: 'optional - path to dir defaults to .',
+            include_extensions: 'optional - array of file extensions to search for in scan (Defaults to all file types / i.e. [])',
+            exclude_extensions: 'optional - array of file extensions to exclude from scan (Defaults to [.bin, .dat, .JS-BEAUTIFIED, .o, .test, .png, .jpg, .jpeg, .gif, .svg, .ico, .so, .spec, .zip, .tar, .gz, .tgz, .7z, .mp3, .mp4, .mov, .avi, .wmv, .flv, .mkv])',
+            git_repo_root_uri: 'optional - http uri of git repo scanned',
+            exclude_extentions: 'optional - exclude extentions value consumed by #execute'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

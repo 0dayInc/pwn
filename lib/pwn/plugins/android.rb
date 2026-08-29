@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require 'fileutils'
+require 'tmpdir'
 module PWN
   module Plugins
     # PWN module used to interact w/ Android Devices
@@ -1275,6 +1277,27 @@ module PWN
         raise e
       end
 
+      public_class_method def self.apk_pipeline(opts = {})
+        apk = opts[:apk].to_s
+        raise 'ERROR: apk is required' if apk.empty?
+
+        out = opts[:out_dir] || File.join(Dir.tmpdir, "pwn-apk-#{Process.pid}")
+        FileUtils.mkdir_p(out)
+        decoded = File.join(out, 'apktool')
+        jadx_out = File.join(out, 'jadx')
+        steps = []
+        if PWN::Plugins::Doctor.bin?(name: 'apktool')
+          system('apktool', 'd', '-f', '-o', decoded, apk)
+          steps << :apktool
+        end
+        if PWN::Plugins::Doctor.bin?(name: 'jadx')
+          FileUtils.mkdir_p(jadx_out)
+          system('jadx', '-d', jadx_out, apk)
+          steps << :jadx
+        end
+        { out_dir: out, steps: steps, apk: apk }
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -1287,330 +1310,127 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-
+          # Run adb net connect and return its result
           #{self}.adb_net_connect(
             adb_path: 'required - path to adb binary',
             target: 'required - target host or IP to connect',
             port: 'optional - defaults to tcp 5555'
           )
 
-          adb_response = #{self}.adb_sh(
+          # Run adb sh and return its result
+          #{self}.adb_sh(
             adb_path: 'required - path to adb binary',
-            command: 'adb command to execute'
-            as_root: 'optional - boolean (defaults to false)',
+            command: 'required - adb command to execute',
+            as_root: 'optional - boolean (defaults to false)'
           )
 
+          # Run adb push and return its result
           #{self}.adb_push(
             adb_path: 'required - path to adb binary',
             file: 'required - source file to push',
-            dest: 'required - destination path to push file',
-            as_root: 'optional - boolean (defaults to false)',
+            dest: 'required - destination path to save pushed file',
+            as_root: 'optional - boolean (defaults to false)'
           )
 
+          # Run adb pull and return its result
           #{self}.adb_pull(
             adb_path: 'required - path to adb binary',
             file: 'required - source file to pull',
-            dest: 'required - destination path to pull file',
-            as_root: 'optional - boolean (defaults to false)',
+            dest: 'required - destination path to save pulled file',
+            as_root: 'optional - boolean (defaults to false)'
           )
 
+          # Run take screenshot and return its result
           #{self}.take_screenshot(
             adb_path: 'required - path to adb binary',
             dest: 'optional - destination path to save screenshot file (defaults to /sdcard/screen.png)',
             as_root: 'optional - boolean (defaults to true)'
           )
 
+          # Run screen record and return its result
           #{self}.screen_record(
             adb_path: 'required - path to adb binary',
             dest: 'optional - destination path to save screen record file (defaults to /sdcard/screen.mp4)',
             as_root: 'optional - boolean (defaults to true)'
           )
 
-          installed_apps_arr = #{self}.list_installed_apps(
+          # Run list installed apps and return its result
+          #{self}.list_installed_apps(
             adb_path: 'required - path to adb binary',
-            as_root: 'optional - boolean (defaults to false)',
+            as_root: 'optional - boolean (defaults to false)'
           )
 
-          app_response = #{self}.dumpsys(
+          # Run dumpsys and return its result
+          #{self}.dumpsys(
             adb_path: 'required - path to adb binary',
             app: 'optional - application app to detail otherwise display all (i.e. display info from an android app returned from #list_install_apps method)',
-            as_root: 'optional - boolean (defaults to false)',
+            as_root: 'optional - boolean (defaults to false)'
           )
 
-          app_response = #{self}.open_app(
+          # Run open app and return its result
+          #{self}.open_app(
             adb_path: 'required - path to adb binary',
             app: 'required - application app to run (i.e. open an android app returned from #list_install_apps method)',
             as_root: 'optional - boolean (defaults to false)'
           )
 
+          # Run find hidden codes and return its result
           #{self}.find_hidden_codes(
             adb_path: 'required - path to adb binary',
-            from: 'required - start at keycode #'
+            from: 'required - start at keycode #',
             to: 'required - end at keycode #',
             interact: 'optional - defaults to false'
           )
 
+          # Run swipe and return its result
           #{self}.swipe(
             adb_path: 'required - path to adb binary',
             direction: 'required - direction to swipe (:up|:down|:left|:right)'
           )
 
+          # Run input and return its result
           #{self}.input(
             adb_path: 'required - path to adb binary',
             string: 'required - string to type'
           )
 
+          # see https://developer.android.com/reference/android/view/KeyEvent.html for more info
           #{self}.input_special(
             adb_path: 'required - path to adb binary',
-            event: 'required - special event to invoke (
-              :zoom_in|
-              :zoom_out|
-              :zenkaku_hankaku|
-              :yen|
-              :window|
-              :wakeup|
-              :voice_assist|
-              :tv_zoom_mode|
-              :tv_timer_programming|
-              :tv_terrestrial_digital|
-              :tv_terrestrial_analog|
-              :tv_satellite_teletext|
-              :tv_satellite_service|
-              :tv_satellite|
-              :tv_satellite_bs|
-              :tv_satellite_cs|
-              :tv_radio_service|
-              :tv_power|
-              :tv_number_entry|
-              :tv_network|
-              :tv_media_context_menu|
-              :tv_input_vga1|
-              :tv_input_hdmi1|
-              :tv_input_hdmi2|
-              :tv_input_hdmi3|
-              :tv_input_hdmi4|
-              :tv_input_composite1|
-              :tv_input_composite2|
-              :tv_input_component1|
-              :tv_input_component2|
-              :tv_input|
-              :tv_data_service|
-              :tv_contents_menu|
-              :tv_audio_desc|
-              :tv_audio_desc_mix_up|
-              :tv_audio_desc_mix_down|
-              :tv_antenna_cable|
-              :tv|
-              :sysrq|
-              :switch_charset|
-              :stem_primary|
-              :stem1|
-              :stem2|
-              :stem3|
-              :stb_power|
-              :stb_input|
-              :sleep|
-              :settings|
-              :scroll_lock|
-              :ro|
-              :prog_blue|
-              :prog_green|
-              :prog_red|
-              :prog_yellow|
-              :pairing|
-              :num_lock|
-              :numpad_subtract|
-              :numpad_multiply|
-              :numpad_left_paren|
-              :numpad_right_paren|
-              :numpad_equals|
-              :numpad_enter|
-              :numpad_dot|
-              :numpad_comma|
-              :numpad_add|
-              :numpad0|
-              :numpad1|
-              :numpad2|
-              :numpad3|
-              :numpad4|
-              :numpad5|
-              :numpad6|
-              :numpad7|
-              :numpad8|
-              :numpad9|
-              :num|
-              :nav_in|
-              :nav_next|
-              :nav_out|
-              :nav_previous|
-              :music|
-              :muhenkan|
-              :meta_left|
-              :meta_right|
-              :media_top_menu|
-              :media_step_forward|
-              :media_step_back|
-              :media_skip_forward|
-              :media_skip_back|
-              :media_record|
-              :media_play|
-              :media_eject|
-              :media_close|
-              :media_audio_track|
-              :manner_mode|
-              :last_channel|
-              :language_switch|
-              :katakana_hiragana|
-              :kana|
-              :insert|
-              :info|
-              :henkan|
-              :help|
-              :guide|
-              :del|
-              :f1|
-              :f2|
-              :f3|
-              :f4|
-              :f5|
-              :f6|
-              :f7|
-              :f8|
-              :f9|
-              :f10|
-              :f11|
-              :f12|
-              :escape|
-              :eisu|
-              :dvr|
-              :ctrl_left|
-              :ctrl_right|
-              :cut|
-              :copy|
-              :paste|
-              :contacts|
-              :chan_down|
-              :chan_up|
-              :captions|
-              :caps_lock|
-              :calendar|
-              :calculator|
-              :gamepad1|
-              :gamepad2|
-              :gamepad3|
-              :gamepad4|
-              :gamepad5|
-              :gamepad6|
-              :gamepad7|
-              :gamepad8|
-              :gamepad9|
-              :gamepad10|
-              :gamepad11|
-              :gamepad12|
-              :gamepad13|
-              :gamepad14|
-              :gamepad15|
-              :gamepad16|
-              :gamepad_a|
-              :gamepad_b|
-              :gamepad_c|
-              :gamepad_l1|
-              :gamepad_l2|
-              :gamepad_mode|
-              :gamepad_r1|
-              :gamepad_r2|
-              :gamepad_select|
-              :gamepad_start|
-              :gamepad_thumbl|
-              :gamepad_thumbr|
-              :gamepad_x|
-              :gamepad_y|
-              :gamepad_z|
-              :brightness_up|
-              :brightness_down|
-              :break|
-              :bookmark|
-              :avr_power|
-              :avr_input|
-              :assist|
-              :app_switch|
-              :threeDmode|
-              :eleven|
-              :twelve|
-              :unknown|
-              :soft_left|
-              :soft_right|
-              :soft_sleep|
-              :home|
-              :forward|
-              :back|
-              :call|
-              :endcall|
-              :dpad_up|
-              :dpad_down|
-              :dpad_left|
-              :dpad_right|
-              :dpad_down_left|
-              :dpad_down_right|
-              :dpad_up_left|
-              :dpad_up_right|
-              :dpad_center|
-              :volume_up|
-              :volume_down|
-              :power|
-              :camera|
-              :clear|
-              :alt_left|
-              :alt_right|
-              :shift_left|
-              :shift_right|
-              :tab|
-              :sym|
-              :explorer|
-              :envelope|
-              :enter|
-              :backspace|
-              :headsethook|
-              :focus|
-              :menu|
-              :top_menu|
-              :notification|
-              :search|
-              :media_play_pause|
-              :media_stop|
-              :media_next|
-              :media_previous|
-              :media_rewind|
-              :media_fast_forward|
-              :mute|
-              :page_up|
-              :page_down|
-              :pictsymbols|
-              :move_home|
-              :move_end
-            )
-            see https://developer.android.com/reference/android/view/KeyEvent.html for more info'
+            event: 'required - special event to invoke ('
           )
 
-          app_response = #{self}.close_app(
+          # Run close app and return its result
+          #{self}.close_app(
             adb_path: 'required - path to adb binary',
-            app: 'required - application app to run (i.e. open an android app returned from #list_install_apps method)',
+            app: 'required - application app to close (i.e. open an android app returned from #list_install_apps method)',
             as_root: 'optional - boolean (defaults to false)'
           )
 
+          # Run invoke event listener and return its result
           #{self}.invoke_event_listener(
             adb_path: 'required - path to adb binary',
             as_root: 'optional - boolean (defaults to false)',
+            app: 'optional - app value consumed by #invoke_event_listener'
           )
 
+          # Run adb net disconnect and return its result
           #{self}.adb_net_disconnect(
             adb_path: 'required - path to adb binary',
-            target: 'required - target host or IP to connect',
+            target: 'required - target host or IP to disconnect',
             port: 'optional - defaults to tcp 5555'
           )
 
+          # Run apk pipeline and return its result
+          #{self}.apk_pipeline(
+            apk: 'required - apk value consumed by #apk_pipeline',
+            out_dir: 'optional - out dir value consumed by #apk_pipeline'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

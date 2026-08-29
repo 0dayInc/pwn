@@ -1085,6 +1085,7 @@ module PWN
       # )
 
       public_class_method def self.send(opts = {})
+        PWN::Plugins::Doctor.require_cap_net_raw! if defined?(PWN::Plugins::Doctor)
         pkt = opts[:pkt]
 
         if opts[:iface]
@@ -1205,108 +1206,228 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          pcap = #{self}.open_pcap_file(
+          # Run open pcap file and return its result
+          #{self}.open_pcap_file(
             path: 'required - path to packet capture file'
           )
-          pcap[0].public_methods
-          pcap.each do |p|
-            print \"IP ID: \#{p.ip_id_readable} \"
-            print \"IP Sum: \#{p.ip_sum_readable} \"
-            print \"SRC IP: \#{p.ip_src_readable} \"
-            print \"SRC MAC: (\#{p.eth_src_readable}) \"
-            print \"TCP SRC PORT: \#{p.tcp_sport} => \"
-            print \"DST IP: \#{p.ip_dst_readable} \"
-            print \"DST MAC: (\#{p.eth_dst_readable}) \"
-            print \"TCP DST PORT: \#{p.tcp_dport} \"
-            print \"ETH PROTO: \#{p.eth_proto_readable} \"
-            print \"TCP FLAGS: \#{p.tcp_flags_readable} \"
-            print \"TCP ACK: \#{p.tcp_ack_readable} \"
-            print \"TCP SEQ: \#{p.tcp_seq_readable} \"
-            print \"TCP SUM: \#{p.tcp_sum_readable} \"
-            print \"TCP OPTS: \#{p.tcp_opts_readable} \"
-            puts \"BODY: \#{p.hexify(p.payload)}\"
-            puts \"\\n\\n\\n\"
-          end
 
-          pkt = #{self}.construct_arp(
+          # Run construct arp and return its result
+          #{self}.construct_arp(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_arp',
+            eth_dst: 'optional - eth dst value consumed by #construct_arp',
+            eth_proto: 'optional - eth proto value consumed by #construct_arp',
+            arp_hw: 'optional - arp hw value consumed by #construct_arp',
+            arp_proto: 'optional - arp proto value consumed by #construct_arp',
+            arp_hw_len: 'optional - arp hw len value consumed by #construct_arp',
+            arp_proto_len: 'optional - arp proto len value consumed by #construct_arp',
+            arp_opcode: 'optional - arp opcode value consumed by #construct_arp',
+            arp_src_mac: 'optional - arp src mac value consumed by #construct_arp',
+            arp_dst_mac: 'optional - arp dst mac value consumed by #construct_arp'
           )
 
-          pkt = #{self}.construct_eth(
+          # Run construct eth and return its result
+          #{self}.construct_eth(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_eth',
+            eth_dst: 'optional - eth dst value consumed by #construct_eth',
+            eth_proto: 'optional - eth proto value consumed by #construct_eth'
           )
 
-          pkt = #{self}.construct_hsrp(
+          # Run construct hsrp and return its result
+          #{self}.construct_hsrp(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_hsrp',
+            eth_dst: 'optional - eth dst value consumed by #construct_hsrp',
+            eth_proto: 'optional - eth proto value consumed by #construct_hsrp',
+            ip_v: 'optional - ip v value consumed by #construct_hsrp',
+            ip_hl: 'optional - ip hl value consumed by #construct_hsrp',
+            ip_tos: 'optional - ip tos value consumed by #construct_hsrp',
+            ip_len: 'optional - ip len value consumed by #construct_hsrp',
+            ip_frag: 'optional - ip frag value consumed by #construct_hsrp',
+            ip_ttl: 'optional - ip ttl value consumed by #construct_hsrp',
+            ip_proto: 'optional - ip proto value consumed by #construct_hsrp',
+            ip_sum: 'optional - ip sum value consumed by #construct_hsrp',
+            udp_src_port: 'optional - udp src port value consumed by #construct_hsrp',
+            udp_dst_port: 'optional - udp dst port value consumed by #construct_hsrp',
+            udp_len: 'optional - udp len value consumed by #construct_hsrp',
+            udp_sum: 'optional - udp sum value consumed by #construct_hsrp',
+            hsrp_version: 'optional - hsrp version value consumed by #construct_hsrp',
+            hsrp_opcode: 'optional - hsrp opcode value consumed by #construct_hsrp',
+            hsrp_state: 'optional - hsrp state value consumed by #construct_hsrp',
+            hsrp_hellotime: 'optional - hsrp hellotime value consumed by #construct_hsrp',
+            hsrp_holdtime: 'optional - hsrp holdtime value consumed by #construct_hsrp',
+            hsrp_priority: 'optional - hsrp priority value consumed by #construct_hsrp',
+            hsrp_group: 'optional - hsrp group value consumed by #construct_hsrp',
+            hsrp_reserved: 'optional - hsrp reserved value consumed by #construct_hsrp',
+            hsrp_password: 'optional - hsrp password value consumed by #construct_hsrp',
+            hsrp_addr: 'optional - hsrp addr value consumed by #construct_hsrp'
           )
 
-          pkt = #{self}.construct_icmp(
+          # Run construct icmp and return its result
+          #{self}.construct_icmp(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
-            payload: 'optional - packet payload defaults to \"*ping*\"',
+            payload: 'optional - packet payload defaults to *ping*',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_icmp',
+            eth_dst: 'optional - eth dst value consumed by #construct_icmp',
+            eth_proto: 'optional - eth proto value consumed by #construct_icmp',
+            ip_v: 'optional - ip v value consumed by #construct_icmp',
+            ip_hl: 'optional - ip hl value consumed by #construct_icmp',
+            ip_tos: 'optional - ip tos value consumed by #construct_icmp',
+            ip_len: 'optional - ip len value consumed by #construct_icmp',
+            ip_frag: 'optional - ip frag value consumed by #construct_icmp',
+            ip_ttl: 'optional - ip ttl value consumed by #construct_icmp',
+            ip_proto: 'optional - ip proto value consumed by #construct_icmp',
+            ip_sum: 'optional - ip sum value consumed by #construct_icmp',
+            icmp_type: 'optional - icmp type value consumed by #construct_icmp',
+            icmp_code: 'optional - icmp code value consumed by #construct_icmp',
+            icmp_sum: 'optional - icmp sum value consumed by #construct_icmp'
           )
 
-          pkt = #{self}.construct_icmpv6(
+          # Run construct icmpv6 and return its result
+          #{self}.construct_icmpv6(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_icmpv6',
+            eth_dst: 'optional - eth dst value consumed by #construct_icmpv6',
+            eth_proto: 'optional - eth proto value consumed by #construct_icmpv6',
+            ipv6_v: 'optional - ipv6 v value consumed by #construct_icmpv6',
+            ipv6_class: 'optional - ipv6 class value consumed by #construct_icmpv6',
+            ipv6_label: 'optional - ipv6 label value consumed by #construct_icmpv6',
+            ipv6_len: 'optional - ipv6 len value consumed by #construct_icmpv6',
+            ipv6_next: 'optional - ipv6 next value consumed by #construct_icmpv6',
+            ipv6_hop: 'optional - ipv6 hop value consumed by #construct_icmpv6',
+            ipv6_saddr: 'optional - ipv6 saddr value consumed by #construct_icmpv6',
+            ipv6_daddr: 'optional - ipv6 daddr value consumed by #construct_icmpv6',
+            icmpv6_type: 'optional - icmpv6 type value consumed by #construct_icmpv6',
+            icmpv6_code: 'optional - icmpv6 code value consumed by #construct_icmpv6',
+            icmpv6_sum: 'optional - icmpv6 sum value consumed by #construct_icmpv6'
           )
 
-          pkt = #{self}.construct_ip(
+          # Run construct ip and return its result
+          #{self}.construct_ip(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_ip',
+            eth_dst: 'optional - eth dst value consumed by #construct_ip',
+            eth_proto: 'optional - eth proto value consumed by #construct_ip',
+            ip_v: 'optional - ip v value consumed by #construct_ip',
+            ip_hl: 'optional - ip hl value consumed by #construct_ip',
+            ip_tos: 'optional - ip tos value consumed by #construct_ip',
+            ip_len: 'optional - ip len value consumed by #construct_ip',
+            ip_frag: 'optional - ip frag value consumed by #construct_ip',
+            ip_ttl: 'optional - ip ttl value consumed by #construct_ip',
+            ip_proto: 'optional - ip proto value consumed by #construct_ip',
+            ip_sum: 'optional - ip sum value consumed by #construct_ip'
           )
 
-          pkt = #{self}.construct_ipv6(
+          # Run construct ipv6 and return its result
+          #{self}.construct_ipv6(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_ipv6',
+            eth_dst: 'optional - eth dst value consumed by #construct_ipv6',
+            eth_proto: 'optional - eth proto value consumed by #construct_ipv6',
+            ipv6_v: 'optional - ipv6 v value consumed by #construct_ipv6',
+            ipv6_class: 'optional - ipv6 class value consumed by #construct_ipv6',
+            ipv6_label: 'optional - ipv6 label value consumed by #construct_ipv6',
+            ipv6_len: 'optional - ipv6 len value consumed by #construct_ipv6',
+            ipv6_next: 'optional - ipv6 next value consumed by #construct_ipv6',
+            ipv6_hop: 'optional - ipv6 hop value consumed by #construct_ipv6',
+            ipv6_saddr: 'optional - ipv6 saddr value consumed by #construct_ipv6',
+            ipv6_daddr: 'optional - ipv6 daddr value consumed by #construct_ipv6'
           )
 
-          pkt = #{self}.construct_tcp(
+          # Run construct tcp and return its result
+          #{self}.construct_tcp(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_tcp',
+            eth_dst: 'optional - eth dst value consumed by #construct_tcp',
+            eth_proto: 'optional - eth proto value consumed by #construct_tcp',
+            ip_v: 'optional - ip v value consumed by #construct_tcp',
+            ip_hl: 'optional - ip hl value consumed by #construct_tcp',
+            ip_tos: 'optional - ip tos value consumed by #construct_tcp',
+            ip_len: 'optional - ip len value consumed by #construct_tcp',
+            ip_frag: 'optional - ip frag value consumed by #construct_tcp',
+            ip_ttl: 'optional - ip ttl value consumed by #construct_tcp',
+            ip_proto: 'optional - ip proto value consumed by #construct_tcp',
+            ip_sum: 'optional - ip sum value consumed by #construct_tcp',
+            tcp_src_port: 'optional - tcp src port value consumed by #construct_tcp',
+            tcp_dst_port: 'optional - tcp dst port value consumed by #construct_tcp',
+            tcp_seq: 'optional - tcp seq value consumed by #construct_tcp',
+            tcp_ack: 'optional - tcp ack value consumed by #construct_tcp',
+            tcp_hlen: 'optional - tcp hlen value consumed by #construct_tcp',
+            tcp_reserved: 'optional - tcp reserved value consumed by #construct_tcp',
+            tcp_ecn: 'optional - tcp ecn value consumed by #construct_tcp',
+            tcp_flags: 'optional - tcp flags value consumed by #construct_tcp',
+            tcp_win: 'optional - tcp win value consumed by #construct_tcp',
+            tcp_sum: 'optional - tcp sum value consumed by #construct_tcp',
+            tcp_urg: 'optional - tcp urg value consumed by #construct_tcp',
+            tcp_opts: 'optional - tcp opts value consumed by #construct_tcp'
           )
 
-          pkt = #{self}.construct_udp(
+          # Run construct udp and return its result
+          #{self}.construct_udp(
             ip_saddr: 'required - source ip of packet',
             ip_daddr: 'required - destination ip to send packet',
             payload: 'optional - packet payload defaults to empty string',
             ip_id: 'optional - defaults to 0xfeed',
             iface: 'optional - interface to send packet (defaults to eth0)',
+            eth_src: 'optional - eth src value consumed by #construct_udp',
+            eth_dst: 'optional - eth dst value consumed by #construct_udp',
+            eth_proto: 'optional - eth proto value consumed by #construct_udp',
+            ip_v: 'optional - ip v value consumed by #construct_udp',
+            ip_hl: 'optional - ip hl value consumed by #construct_udp',
+            ip_tos: 'optional - ip tos value consumed by #construct_udp',
+            ip_len: 'optional - ip len value consumed by #construct_udp',
+            ip_frag: 'optional - ip frag value consumed by #construct_udp',
+            ip_ttl: 'optional - ip ttl value consumed by #construct_udp',
+            ip_proto: 'optional - ip proto value consumed by #construct_udp',
+            ip_sum: 'optional - ip sum value consumed by #construct_udp',
+            udp_src_port: 'optional - udp src port value consumed by #construct_udp',
+            udp_dst_port: 'optional - udp dst port value consumed by #construct_udp',
+            udp_len: 'optional - udp len value consumed by #construct_udp',
+            udp_sum: 'optional - udp sum value consumed by #construct_udp'
           )
 
+          # Run send and return its result
           #{self}.send(
             pkt: 'required - pkt returned from other #construct_<type> methods',
-            iface: 'optional - interface to send packet (defaults to eth0)',
+            iface: 'optional - interface to send packet (defaults to eth0)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

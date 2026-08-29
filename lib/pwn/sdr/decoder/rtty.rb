@@ -139,16 +139,19 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q + GQRX-audio native paths, no external binaries):
+          puts "USAGE:
+            # Run decode and return its result
             #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path',
+              sample_rate: 'optional - sample rate value consumed by #decode'
             )
 
-            NOTE: Set GQRX to USB, tune so mark≈2125 Hz / space≈2295 Hz in
-                  the audio passband. 45.45 baud, 170 Hz shift, 1N5+1.5.
-
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

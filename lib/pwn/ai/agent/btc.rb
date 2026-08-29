@@ -37,12 +37,15 @@ module PWN
 
         public_class_method def self.help
           puts "USAGE:
-            ai_analysis = PWN::AI::Agent::BTC.analyze(
+            # Run analyze and return its result
+            #{self}.analyze(
               request: 'required - latest block information retrieved from a bitcoin node via `PWN::Blockchain::BTC.get_latest_block`'
             )
 
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

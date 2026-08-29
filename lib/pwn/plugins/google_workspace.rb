@@ -876,51 +876,194 @@ module PWN
       end
 
       public_class_method def self.help
-        puts <<~USAGE
-          USAGE:
-            # OAuth (Desktop client from Google Cloud Console)
-            # authorize the printed URL; refresh/bearer persist to Env + pwn.yaml
-            #{self}.obtain_oauth_auth_url(services: 'email,calendar')
-            #{self}.obtain_oauth_auth_url(wait: false)  # URL only; no listener
-            #{self}.exchange_oauth_code(code: 'optional paste fallback')
-            #{self}.authenticated?
-            #{self}.revoke
+        puts "USAGE:
+          # Run scopes and return its result
+          #{self}.scopes(
+            scope: 'optional - scope value consumed by #scopes',
+            services: 'optional - services value consumed by #scopes'
+          )
 
-            # Gmail
-            #{self}.gmail_search(query: 'is:unread', max: 10)
-            #{self}.gmail_get(id: 'MESSAGE_ID')
-            #{self}.gmail_send(to: 'a@b.com', subject: 'Hi', body: '...')
-            #{self}.gmail_reply(id: 'MESSAGE_ID', body: 'Thanks')
-            #{self}.gmail_labels
-            #{self}.gmail_modify(id: 'MESSAGE_ID', add_labels: ['STARRED'], remove_labels: ['UNREAD'])
+          # Run parse oauth code and return its result
+          #{self}.parse_oauth_code(
+            code: 'optional - code value consumed by #parse_oauth_code'
+          )
 
-            # Calendar
-            #{self}.calendar_list(start: '2026-03-01T00:00:00Z')
-            #{self}.calendar_create(summary: 'Standup', start: '2026-03-01T10:00:00-06:00', end: '2026-03-01T10:30:00-06:00')
-            #{self}.calendar_update(id: 'EVENT_ID', summary: 'Standup (moved)')
-            #{self}.calendar_delete(id: 'EVENT_ID')
+          # Run obtain oauth auth url and return its result
+          #{self}.obtain_oauth_auth_url(
+            wait: 'optional - wait value consumed by #obtain_oauth_auth_url',
+            timeout: 'optional - seconds to wait before giving up',
+            probe: 'optional - probe value consumed by #obtain_oauth_auth_url'
+          )
 
-            # Drive
-            #{self}.drive_search(query: 'quarterly report')
-            #{self}.drive_get(id: 'FILE_ID')
-            #{self}.drive_upload(path: '/tmp/report.pdf')
-            #{self}.drive_download(id: 'FILE_ID', output: '/tmp/out.pdf')
-            #{self}.drive_create_folder(name: 'Reports')
-            #{self}.drive_share(id: 'FILE_ID', email: 'a@b.com', role: 'reader')
-            #{self}.drive_delete(id: 'FILE_ID')
+          # Run exchange oauth code and return its result
+          #{self}.exchange_oauth_code(
+            code: 'required - code value consumed by #exchange_oauth_code',
+            code_verifier: 'optional - code verifier value consumed by #exchange_oauth_code (defaults to pending[:verifier])'
+          )
 
-            # Docs / Sheets
-            #{self}.docs_create(title: 'Notes', body: 'Hello')
-            #{self}.docs_get(id: 'DOC_ID')
-            #{self}.docs_append(id: 'DOC_ID', text: ' more')
-            #{self}.sheets_create(title: 'Budget')
-            #{self}.sheets_get(id: 'SHEET_ID', range: 'Sheet1!A1:D10')
-            #{self}.sheets_update(id: 'SHEET_ID', range: 'Sheet1!A1', values: [['Name']])
-            #{self}.sheets_append(id: 'SHEET_ID', range: 'Sheet1!A:C', values: [['a', 'b', 'c']])
+          # Run refresh oauth bearer token and return its result
+          #{self}.refresh_oauth_bearer_token(
+            refresh_token: 'required - refresh token value consumed by #refresh_oauth_bearer_token (defaults to c[:refresh_token])',
+            client_id: 'required - client id value consumed by #refresh_oauth_bearer_token (defaults to c[:client_id])',
+            client_secret: 'required - client secret value consumed by #refresh_oauth_bearer_token (defaults to c[:client_secret])'
+          )
 
-            Config: PWN::Env[:plugins][:google_workspace][:oauth]
-            #{self}.authors
-        USAGE
+          # Run bearer token and return its result
+          #{self}.bearer_token
+
+          # Run authenticated and return its result
+          #{self}.authenticated?
+
+          # Run revoke and return its result
+          #{self}.revoke
+
+          # ── Gmail ──────────────────────────────────────────────────────────
+          #{self}.gmail_search(
+            query: 'optional - search query string',
+            max: 'optional - max value consumed by #gmail_search'
+          )
+
+          # Run gmail get and return its result
+          #{self}.gmail_get(
+            id: 'required - id value consumed by #gmail_get',
+            format: 'optional - format value consumed by #gmail_get (defaults to full)'
+          )
+
+          # Run gmail send and return its result
+          #{self}.gmail_send(
+            to: 'required - to value consumed by #gmail_send'
+          )
+
+          # Run gmail reply and return its result
+          #{self}.gmail_reply(
+            id: 'required - id value consumed by #gmail_reply'
+          )
+
+          # Run gmail labels and return its result
+          #{self}.gmail_labels
+
+          # Run gmail modify and return its result
+          #{self}.gmail_modify(
+            id: 'required - id value consumed by #gmail_modify',
+            add_labels: 'optional - add labels value consumed by #gmail_modify',
+            add: 'required - add value consumed by #gmail_modify',
+            remove_labels: 'optional - remove labels value consumed by #gmail_modify',
+            remove: 'required - remove value consumed by #gmail_modify'
+          )
+
+          # ── Calendar ───────────────────────────────────────────────────────
+          #{self}.calendar_list(
+            calendar_id: 'optional - calendar id value consumed by #calendar_list',
+            start: 'optional - start value consumed by #calendar_list',
+            end: 'optional - end value consumed by #calendar_list',
+            max: 'optional - max value consumed by #calendar_list'
+          )
+
+          # Run calendar create and return its result
+          #{self}.calendar_create(
+            calendar_id: 'optional - calendar id value consumed by #calendar_create'
+          )
+
+          # Run calendar update and return its result
+          #{self}.calendar_update(
+            id: 'required - id value consumed by #calendar_update',
+            calendar_id: 'optional - calendar id value consumed by #calendar_update'
+          )
+
+          # Run calendar delete and return its result
+          #{self}.calendar_delete(
+            id: 'required - id value consumed by #calendar_delete',
+            calendar_id: 'optional - calendar id value consumed by #calendar_delete'
+          )
+
+          # ── Drive ──────────────────────────────────────────────────────────
+          #{self}.drive_search(
+            query: 'optional - search query string',
+            raw_query: 'optional - raw query value consumed by #drive_search',
+            max: 'optional - max value consumed by #drive_search'
+          )
+
+          # Run drive get and return its result
+          #{self}.drive_get(
+            id: 'required - id value consumed by #drive_get'
+          )
+
+          # Run drive upload and return its result
+          #{self}.drive_upload(
+            path: 'required - filesystem path to read or write',
+            name: 'required - binary or identifier name',
+            parent: 'optional - parent value consumed by #drive_upload',
+            mime: 'optional - mime value consumed by #drive_upload'
+          )
+
+          # Run drive download and return its result
+          #{self}.drive_download(
+            id: 'required - id value consumed by #drive_download',
+            export_mime: 'optional - export mime value consumed by #drive_download (defaults to EXPORT_MIME[meta[:mimeType])',
+            output: 'optional - output value consumed by #drive_download'
+          )
+
+          # Run drive create folder and return its result
+          #{self}.drive_create_folder(
+            name: 'required - binary or identifier name',
+            parent: 'optional - parent value consumed by #drive_create_folder'
+          )
+
+          # Run drive share and return its result
+          #{self}.drive_share(
+            id: 'required - id value consumed by #drive_share',
+            role: 'optional - role value consumed by #drive_share',
+            type: 'optional - type value consumed by #drive_share',
+            email: 'optional - email value consumed by #drive_share',
+            domain: 'optional - FQDN to query (e.g. example.com)',
+            notify: 'optional - notify value consumed by #drive_share'
+          )
+
+          # Run drive delete and return its result
+          #{self}.drive_delete(
+            id: 'required - id value consumed by #drive_delete',
+            permanent: 'optional - permanent value consumed by #drive_delete'
+          )
+
+          # ── Docs ───────────────────────────────────────────────────────────
+          #{self}.docs_get(
+            id: 'required - id value consumed by #docs_get'
+          )
+
+          # Run docs create and return its result
+          #{self}.docs_create(
+            title: 'required - title value consumed by #docs_create',
+            body: 'optional - body value consumed by #docs_create'
+          )
+
+          # Run docs append and return its result
+          #{self}.docs_append(
+            id: 'required - id value consumed by #docs_append',
+            text: 'optional - text value consumed by #docs_append'
+          )
+
+          # ── Sheets ─────────────────────────────────────────────────────────
+          #{self}.sheets_create(
+            title: 'required - title value consumed by #sheets_create',
+            sheet_name: 'optional - sheet name value consumed by #sheets_create'
+          )
+
+          # Run sheets get and return its result
+          #{self}.sheets_get(
+            id: 'required - id value consumed by #sheets_get',
+            range: 'required - range value consumed by #sheets_get'
+          )
+
+          # Run sheets update and return its result
+          #{self}.sheets_update
+
+          # Run sheets append and return its result
+          #{self}.sheets_append
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
+        constants.sort
       end
     end
   end

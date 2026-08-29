@@ -600,22 +600,142 @@ module PWN
 
     # Display Usage for this Module
     public_class_method def self.help
-      puts <<~USAGE
-        USAGE:
-          mem = PWN::Memory.load
-          PWN::Memory.remember(key: :user_prefers_ruby, value: 'Always prefer pure Ruby + RestClient patterns', category: :preference)
-          facts = PWN::Memory.recall(query: 'recon', category: :fact, limit: 10)
-          # session-first (previous response → older), then durable newest-first:
-          sess  = PWN::Memory.recall(limit: 10)  # or session_id: '20260811_...'
-          hits  = PWN::Memory.recall_semantic(query: 'recon', limit: 6)  # embedding-ranked
-          PWN::Memory.forget(key: :some_key)
-          PWN::Memory.forget(key: :operator_pref_x) rescue puts('protected')
-          PWN::Memory.clear(force: true)
-          context_str = PWN::Memory.to_context
-          PWN::Memory.lean!(dry_run: true)  # drop expired session_* + truncate values
+      puts "USAGE:
+        # Run load and return its result
+        #{self}.load
 
-          #{self}.authors
-      USAGE
+        # Run save and return its result
+        #{self}.save(
+          mem: 'optional - mem value consumed by #save',
+          force: 'optional - force value consumed by #save'
+        )
+
+        # Run remember and return its result
+        #{self}.remember(
+          key: 'required - Symbol or String key for the memory fact',
+          value: 'required - The value (any JSON serializable)',
+          category: 'optional - e.g. :fact, :preference, :lesson, :env (default: :fact)',
+          source: 'optional - :human | :reflect | :heuristic | :resolve | :consolidate (M3 provenance)',
+          confidence: 'optional - 0.0..1.0 how sure the writer was (M3)',
+          importance: 'optional - 0.0..1.0 retrieval/eviction weight (M2/M3)',
+          ttl: 'optional - seconds until stale (M3; consolidate evicts stale low-conf first)'
+        )
+
+        # Run recall and return its result
+        #{self}.recall(
+          query: 'optional - string to search keys/values/categories (simple match)',
+          category: 'optional - filter by category (:session = transcript only)',
+          limit: 'optional - max results (default 50)',
+          session_id: 'optional - current session (default Env/Pry active id)',
+          include_session: 'optional - include session value consumed by #recall'
+        )
+
+        # Resolve the active pwn-ai session id (Env, then Pry config)
+        #{self}.current_session_id(
+          session_id: 'optional - session id value consumed by #current_session_id'
+        )
+
+        # Walk the current session transcript from the previous assistant response
+        #{self}.session_turns(
+          session_id: 'optional - session id value consumed by #session_turns',
+          query: 'required - search query string',
+          limit: 'optional - limit value consumed by #session_turns'
+        )
+
+        # Run recent dialog and return its result
+        #{self}.recent_dialog(
+          session_id: 'optional - session id value consumed by #recent_dialog',
+          pairs: 'optional - max user/assistant pairs (default 2)',
+          max_chars: 'optional - per-turn truncation (default 1200)'
+        )
+
+        # Previous non-empty user message in the active session (what the human
+        #{self}.prior_user_message(
+          pairs: 'optional - pairs value consumed by #prior_user_message',
+          max_chars: 'optional - max chars value consumed by #prior_user_message (defaults to 4_000)',
+          skip_meta: 'optional - skip meta value consumed by #prior_user_message',
+          session_id: 'optional - session id value consumed by #prior_user_message'
+        )
+
+        # Previous non-empty assistant message in the active session
+        #{self}.prior_assistant_message(
+          pairs: 'optional - pairs value consumed by #prior_assistant_message',
+          max_chars: 'optional - max chars value consumed by #prior_assistant_message (defaults to 4_000)',
+          skip_meta: 'optional - skip meta value consumed by #prior_assistant_message',
+          session_id: 'optional - session id value consumed by #prior_assistant_message'
+        )
+
+        # Build chronological user→assistant pairs from the active session
+        #{self}.turn_pairs(
+          pairs: 'optional - pairs value consumed by #turn_pairs',
+          max_chars: 'optional - max chars value consumed by #turn_pairs',
+          session_id: 'optional - session id value consumed by #turn_pairs',
+          include_orphan_user: 'optional - include orphan user value consumed by #turn_pairs'
+        )
+
+        # Find a user↔assistant pair in the active session
+        #{self}.find_turn_pair(
+          match: 'required - match value consumed by #find_turn_pair',
+          skip_meta: 'optional - skip meta value consumed by #find_turn_pair',
+          session_id: 'optional - session id value consumed by #find_turn_pair',
+          pairs: 'optional - pairs value consumed by #find_turn_pair (defaults to 12)',
+          max_chars: 'optional - max chars value consumed by #find_turn_pair (defaults to 4_000)'
+        )
+
+        # Run meta recall user and return its result
+        #{self}.meta_recall_user?(
+          text: 'optional - text value consumed by #meta_recall_user?'
+        )
+
+        # Run meta recall assistant and return its result
+        #{self}.meta_recall_assistant?(
+          text: 'optional - text value consumed by #meta_recall_assistant?'
+        )
+
+        # Run normalize utterance and return its result
+        #{self}.normalize_utterance(
+          text: 'optional - text value consumed by #normalize_utterance'
+        )
+
+        # Run recall semantic and return its result
+        #{self}.recall_semantic(
+          query: 'optional - search query string',
+          limit: 'optional - limit value consumed by #recall_semantic'
+        )
+
+        # Refuses PROTECT_KEY_PREFIXES / PROTECT_CATEGORIES unless force:true
+        #{self}.forget(
+          key: 'required - key value consumed by #forget',
+          force: 'optional - Boolean bypass protect policy (default false)'
+        )
+
+        # Requires force:true — protected prefs/SOPs must not vanish via bare clear
+        #{self}.clear(
+          force: 'required - force value consumed by #clear'
+        )
+
+        # Run to context and return its result
+        #{self}.to_context(
+          limit: 'optional - limit value consumed by #to_context (defaults to 20)'
+        )
+
+        # True when a memory key must survive cap eviction / age GC
+        #{self}.protected_entry?(
+          key: 'optional - key value consumed by #protected_entry?',
+          entry: 'optional - entry value consumed by #protected_entry?'
+        )
+
+        # Run lean and return its result
+        #{self}.lean!(
+          dry_run: 'optional - Boolean plan only (default false)',
+          value_max_chars: 'optional - truncate values (default VALUE_MAX_CHARS)',
+          ephemeral_ttl_secs: 'optional - drop expired session_* keys'
+        )
+
+        # Print the AUTHOR(S) string for this module.
+        #{self}.authors
+      "
+      constants.sort
     end
   end
 end

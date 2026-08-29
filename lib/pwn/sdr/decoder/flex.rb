@@ -473,24 +473,72 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
-          puts "USAGE (true-air I/Q + GQRX-audio native paths, no external binaries):
-            #{self}.decode(
-              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq'
+          puts "USAGE:
+            # Run sync check and return its result
+            #{self}.sync_check(
+              buf: 'optional - buf value consumed by #sync_check'
             )
 
-            demod = #{self}::Demod.new(rate: 48_000)
-            demod.feed(samples) { |msg| puts msg[:summary] }
+            # Run popcnt and return its result
+            #{self}.popcnt(
+              val: 'optional - val value consumed by #popcnt'
+            )
 
-            #{self}.bch_fix(word: Integer)        # → [fixed, nerr]
-            #{self}.alpha_decode(words:, mw1:, mw2:)
-            #{self}.numeric_decode(words:, mw1:, mw2:)
+            # Run even parity and return its result
+            #{self}.even_parity?(
+              word: 'optional - word value consumed by #even_parity?'
+            )
 
-            NOTE: Set GQRX to Narrow FM (~15-20 kHz). All four FLEX modes
-                  (1600/2, 1600/4, 3200/2, 3200/4 sym-rate/levels) are
-                  fully decoded across every active phase (A/B/C/D).
+            # Run bch syn and return its result
+            #{self}.bch_syn(
+              word: 'optional - word value consumed by #bch_syn'
+            )
 
+            # Run bch fix and return its result
+            #{self}.bch_fix(
+              word: 'optional - word value consumed by #bch_fix'
+            )
+
+            # ) { |msg| ... }
+            #{self}.emit_phase(
+              words: 'optional - phase:, cycle:, frame:, mode:, sync_cw: (defaults to [])',
+              phase: 'optional - phase value consumed by #emit_phase',
+              cycle: 'optional - cycle value consumed by #emit_phase',
+              frame: 'optional - frame value consumed by #emit_phase',
+              mode: 'optional - mode value consumed by #emit_phase'
+            )
+
+            # Run alpha decode and return its result
+            #{self}.alpha_decode(
+              words: 'optional - words value consumed by #alpha_decode (defaults to [])',
+              mw1: 'optional - mw1 value consumed by #alpha_decode',
+              mw2: 'optional - mw2 value consumed by #alpha_decode'
+            )
+
+            # Run numeric decode and return its result
+            #{self}.numeric_decode(
+              words: 'optional - words value consumed by #numeric_decode (defaults to [])',
+              mw1: 'optional - mw1 value consumed by #numeric_decode',
+              mw2: 'optional - mw2 value consumed by #numeric_decode'
+            )
+
+            # Run hex decode and return its result
+            #{self}.hex_decode(
+              words: 'optional - words value consumed by #hex_decode (defaults to [])'
+            )
+
+            # Run decode and return its result
+            #{self}.decode(
+              freq_obj: 'required - freq_obj returned from PWN::SDR::GQRX.init_freq',
+              source: 'optional - source value consumed by #decode',
+              file: 'optional - filesystem path',
+              sample_rate: 'optional - sample rate value consumed by #decode'
+            )
+
+            # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
+          constants.sort
         end
       end
     end

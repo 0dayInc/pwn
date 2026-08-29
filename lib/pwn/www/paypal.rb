@@ -167,41 +167,49 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          browser_obj = #{self}.open(
+          # Open a session or connection and return a handle.
+          #{self}.open(
             browser_type: 'optional - :firefox|:chrome|:ie|:headless (Defaults to :firefox)',
             proxy: 'optional - scheme://proxy_host:port || tor'
           )
 
-          browser_obj = #{self}.signup(
+          # Run signup and return its result
+          #{self}.signup(
             browser_obj: 'required - browser_obj returned from #open method',
-            first_name: 'required - first name',
-            last_name: 'required - last name',
-            address: 'required - address',
-            city: 'required - city',
+            first_name: 'required - first name value consumed by #signup',
+            last_name: 'required - last name value consumed by #signup',
+            address: 'required - address value consumed by #signup',
+            city: 'required - city value consumed by #signup',
             state: 'required - state abbreviation',
-            zip_code: 'required - zip code',
-            mobile_phone: 'required - mobile phone',
+            zip_code: 'required - zip code value consumed by #signup',
+            mobile_phone: 'required - mobile phone value consumed by #signup',
             username: 'required - username (email address)',
             password: 'optional - passwd (will prompt if blank)',
+            mfa: 'optional - mfa value consumed by #signup'
           )
 
-          browser_obj = #{self}.login(
+          # Run login and return its result
+          #{self}.login(
             browser_obj: 'required - browser_obj returned from #open method',
             username: 'required - username (email address)',
-            password: 'optional - passwd (will prompt if blank),
+            password: 'optional - passwd (will prompt if blank)',
             mfa: 'optional - if true prompt for mfa token (defaults to false)'
           )
 
-          browser_obj = #{self}.logout(
+          # Run logout and return its result
+          #{self}.logout(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Close a session previously returned by #open.
           #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

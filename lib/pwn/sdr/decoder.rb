@@ -91,6 +91,15 @@ module PWN
       # Display a List of Every PWN::SDR::Decoder Module
 
       public_class_method def self.help
+        puts "USAGE:
+          # Run resolve and return its result
+          #{self}.resolve(
+            decoder: 'required - Symbol/String key from REGISTRY (e.g. :pocsag)'
+          )
+
+          # Print the AUTHOR(S) string for this module.
+          #{self}.authors
+        "
         constants.sort
       end
     end

@@ -310,46 +310,62 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          nsc_obj = #{self}.login(
-            console_ip: 'required host/ip of Nexpose Console (server)',
-            username: 'required username',
-            password: 'optional password (will prompt if nil)'
-          )
-          puts nsc_obj.public_methods
-
-          all_individual_site_assets_arr = #{self}.list_all_individual_site_assets(
-            nsc_obj: 'required nsc_obj returned from login method',
-            site_name: 'required Nexpose site name to update (case-sensitive)'
+          # Run login and return its result
+          #{self}.login(
+            console_ip: 'required - required host/ip of Nexpose Console (server)',
+            username: 'required - required username',
+            password: 'optional - optional password (will prompt if nil)'
           )
 
-          nsc_obj = #{self}.update_site_assets(
-            nsc_obj: 'required nsc_obj returned from login method',
-            site_name: 'required Nexpose site name to update (case-sensitive),
-            assets: 'required array of hashes containing called :ip => values being IP address (All IPs not included in the :assets parameter will be removed from Nexpose)'
+          # Run list all individual site assets and return its result
+          #{self}.list_all_individual_site_assets(
+            nsc_obj: 'required - required nsc_obj returned from login method',
+            site_name: 'required - required Nexpose site name to update (case-sensitive)'
           )
 
-          nsc_obj = #{self}.delete_site_assets_older_than(
-            nsc_obj: 'required nsc_obj returned from login method',
-            site_name: 'required Nexpose site name to update (case-sensitive),
-            days: 'required assets to remove older than number of days in this parameter'
+          # Run update site assets and return its result
+          #{self}.update_site_assets(
+            nsc_obj: 'required - required nsc_obj returned from login method',
+            site_name: 'required - required Nexpose site name to update (case-sensitive',
+            assets: 'required - required array of hashes containing called :ip => values being IP address (All IPs not included in the :assets parameter will be removed from Nexpose)'
           )
 
-          nsc_obj = #{self}.scan_site_by_name(
-            nsc_obj: 'required nsc_obj returned from login method',
-            site_name: 'required Nexpose site name to scan (case-sensitive),
-            poll_interval: 'optional poll interval to check the completion status of the scan (defaults to 60 seconds)
+          # Run delete site assets older than and return its result
+          #{self}.delete_site_assets_older_than(
+            nsc_obj: 'required - required nsc_obj returned from login method',
+            site_name: 'required - required Nexpose site name to update (case-sensitive',
+            days: 'required - required assets to remove older than number of days in this parameter'
           )
 
+          # Run scan site by name and return its result
+          #{self}.scan_site_by_name(
+            nsc_obj: 'required - required nsc_obj returned from login method',
+            site_name: 'required - required Nexpose site name to scan (case-sensitive',
+            poll_interval: 'optional - optional poll interval to check the completion status of the scan (defaults to 3 minutes'
+          )
+
+          # Run generate report via existing config and return its result
+          #{self}.generate_report_via_existing_config(
+            nsc_obj: 'required - required nsc_obj returned from login method',
+            config_id: 'optional - relevant r.config_id returned when invoking the block nsc_obj.reports.each {|r| puts \#{r.name} => \#{r.config_id}}'
+          )
+
+          # Run download recurring report and return its result
           #{self}.download_recurring_report(
-            nsc_obj: 'required nsc_obj returned from login method',
-            report_names: 'required array of report name/types to generate e.g. ['report.html', 'report.pdf', 'report.xml']',
-            poll_interval: 'optional poll interval to check the completion status of report generation (defaults to 60 seconds)
+            nsc_obj: 'required - required nsc_obj returned from login method',
+            report_names: 'required - required array of report name/types to generate e.g. [report.html, report.pdf, report.xml]',
+            poll_interval: 'optional - optional poll interval to check the completion status of report generation (defaults to 60 seconds'
           )
 
-          #{self}.logout(nsc_obj: 'required nsc_obj returned from login method')
+          # Run logout and return its result
+          #{self}.logout(
+            nsc_obj: 'required - required nsc_obj returned from login method'
+          )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

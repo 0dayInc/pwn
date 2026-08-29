@@ -415,13 +415,17 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run generate and return its result
           #{self}.generate(
-            dir_path: dir_path,
-            results_hash: results_hash
+            dir_path: 'optional - Directory path to save the report (defaults to .)',
+            results_hash: 'optional - Hash containing the results of the AI RedTeam analysis (defaults to empty hash structure)',
+            report_name: 'optional - Name of the report file (defaults to current directory name)'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

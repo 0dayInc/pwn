@@ -322,13 +322,16 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run generate and return its result
           #{self}.generate(
-            dir_path: dir_path,
-            results_hash: results_hash
+            dir_path: 'required - dir path value consumed by #generate',
+            results_hash: 'optional - results hash value consumed by #generate'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

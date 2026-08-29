@@ -31,12 +31,15 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run process and return its result
           #{self}.process(
             file: 'required - path to image file'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

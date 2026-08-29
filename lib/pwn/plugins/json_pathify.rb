@@ -33,13 +33,17 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts %{USAGE:
-          json_path_arr = #{self}.search_key(
-            json_data_struct: "required JSON data structure",
-            key: "required key to find in JSON data structure. returns key values"
+        puts "USAGE:
+          # Run search key and return its result
+          #{self}.search_key(
+            json_data_struct: 'required - required JSON data structure',
+            key: 'required - required key to find in JSON data structure. returns key values'
           )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
-        }
+        "
+        constants.sort
       end
     end
   end

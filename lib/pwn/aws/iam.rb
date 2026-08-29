@@ -175,25 +175,31 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          iam_obj = #{self}.connect(
+          # Run connect and return its result
+          #{self}.connect(
             region: 'required - region name to connect (eu-west-1, ap-southeast-1, ap-southeast-2, eu-central-1, ap-northeast-2, ap-northeast-1, us-east-1, sa-east-1, us-west-1, us-west-2)',
             access_key_id: 'required - Use AWS STS for best privacy (i.e. temporary access key id)',
             secret_access_key: 'required - Use AWS STS for best privacy (i.e. temporary secret access key',
             sts_session_token: 'optional - Temporary token returned by STS client for best privacy'
           )
-          puts iam_obj.public_methods
 
-          decoded_key = #{self}.decode_key(
+          # Run decode key and return its result
+          #{self}.decode_key(
             key: 'required - key to decode',
-            key_type: 'optional - key type :access_key_id|:secret_access_key|:sts_session_token (Default: access_key_id
+            key_type: 'optional - key type :access_key_id|:secret_access_key|:sts_session_token (Default: access_key_id)'
           )
 
+          # TODO: Implement this method
           #{self}.disconnect(
+            account_id: 'required - AWS Account ID',
+            prefix: 'optional - prefix for the key :abia|:acca|:agpa|:aida|:aipa|:akia|:anpa|:anva|:apka|:aroa|:asca|:asia (Default: akia)',
             iam_obj: 'required - iam_obj returned from #connect method'
           )
 
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
     end
   end

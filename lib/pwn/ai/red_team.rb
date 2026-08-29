@@ -48,6 +48,10 @@ module PWN
       end
 
       public_class_method def self.help
+        puts "USAGE:
+          # Display a List of Every PWN::AI::RedTeam Module
+          #{self}.authors
+        "
         constants.sort
       end
     end

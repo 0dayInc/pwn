@@ -282,19 +282,70 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
+          # Run available and return its result
           #{self}.available?
-          #{self}.info
-          dev = #{self}.open(serial: nil)
-          #{self}.configure(device: dev, freq_hz:, rate_hz: 10e6, lna_gain: 16, vga_gain: 20, amp: false)
-          rx = #{self}.start_rx(device: dev)
-          data = #{self}.read_sync(handle: rx)   # cs8 interleaved I/Q
-          #{self}.stop_rx(handle: rx)
-          data = #{self}.capture(freq_hz:, rate_hz: 10e6, samples: 262_144)
-          #{self}.device_info(device: dev)
-          #{self}.close(device: dev)
 
+          # Run info and return its result
+          #{self}.info
+
+          # Open a session or connection and return a handle.
+          #{self}.open(
+            serial: 'optional - serial value consumed by #open'
+          )
+
+          # Close a session previously returned by #open.
+          #{self}.close(
+            device: 'optional - device value consumed by #close'
+          )
+
+          # Run configure and return its result
+          #{self}.configure(
+            device: 'required - pointer from .open',
+            freq_hz: 'required - center frequency Hz',
+            rate_hz: 'optional - sample rate (default 10e6)',
+            lna_gain: 'optional - 0..40 step 8 (default 16)',
+            vga_gain: 'optional - 0..62 step 2 (default 20)',
+            amp: 'optional - true/false RF amp (default false)',
+            bb_bw_hz: 'optional - baseband filter BW Hz'
+          )
+
+          # Run device info and return its result
+          #{self}.device_info(
+            device: 'required - device value consumed by #device_info'
+          )
+
+          # Run start rx and return its result
+          #{self}.start_rx(
+            device: 'required - pointer from .open',
+            max_queue: 'optional - max buffered chunks (default 64)'
+          )
+
+          # Run read sync and return its result
+          #{self}.read_sync(
+            handle: 'required - handle from .start_rx',
+            timeout: 'optional - seconds to wait for a chunk (default 1.0)'
+          )
+
+          # Run stop rx and return its result
+          #{self}.stop_rx(
+            handle: 'optional - handle value consumed by #stop_rx'
+          )
+
+          # Run capture and return its result
+          #{self}.capture(
+            freq_hz: 'required - center frequency Hz',
+            rate_hz: 'optional - sample rate (default 10e6)',
+            samples: 'optional - I/Q sample pairs to capture (default 262_144)',
+            lna_gain: 'optional - optional, vga_gain: optional, amp: optional',
+            serial: 'optional - serial value consumed by #capture',
+            vga_gain: 'optional - vga gain value consumed by #capture',
+            amp: 'optional - amp value consumed by #capture'
+          )
+
+          # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
+        constants.sort
       end
 
       class << self
