@@ -31,7 +31,14 @@ PWN::AI::Agent::Registry.register(
       limit: args[:limit] || 12,
       exclude_session_id: exclude,
       include_current: args[:include_current] == true
-    )
+    ).tap do |hits|
+      sid = exclude.to_s
+      next if sid.empty? || !defined?(PWN::Plugins::ArtifactRegistry)
+
+      artifacts = PWN::Plugins::ArtifactRegistry.list(session_id: sid)
+      hits[:artifacts] = artifacts if hits.is_a?(Hash)
+      hits << { artifacts: artifacts } if hits.is_a?(Array) && artifacts.any?
+    end
   }
 )
 

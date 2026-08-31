@@ -257,6 +257,18 @@ module PWN
         apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
         plugins: %w[PWN::Plugins::ExploitDev]
       },
+      'pwndbg' => {
+        apt: %w[pwndbg], dnf: %w[], pacman: %w[pwndbg], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::GDB]
+      },
+      'ropper' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::ExploitDev]
+      },
+      'rizin' => {
+        apt: %w[rizin], dnf: %w[], pacman: %w[rizin], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::Radare2]
+      },
       'qemu-x86_64' => {
         apt: %w[qemu-user-static], dnf: %w[qemu-user-static], pacman: %w[qemu-user-static],
         brew: %w[], port: %w[],
@@ -344,7 +356,7 @@ module PWN
       re: {
         desc: 'Radare2 · GDB · ExploitDev · Frida · Android RE tier',
         gems: %w[],
-        bins: %w[gdb r2 checksec ROPgadget one_gadget qemu-x86_64 yara frida apktool jadx]
+        bins: %w[gdb r2 checksec ROPgadget one_gadget qemu-x86_64 yara frida apktool jadx pwndbg ropper rizin]
       },
       full: {
         desc: 'everything above',

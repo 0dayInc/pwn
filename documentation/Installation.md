@@ -127,7 +127,7 @@ pwn setup --list-profiles
 | `voice` | `PWN::Plugins::Voice` · `extro_voice` · espeak-ng / sox |
 | `exploit` | `Metasploit` · `sqlmap` |
 | `hardware` | `Serial` · `BusPirate` · `Android` · `BareSIP` · `extro_serial` · `extro_telecomm` |
-| `re` | `Radare2` · `GDB` · `ExploitDev` · `Frida` · Android RE (`apktool`/`jadx`) |
+| `re` | `Radare2` · `GDB` · `ExploitDev` · `Frida` · Android RE (`apktool`/`jadx`) · `pwndbg` · `ropper` · `rizin` |
 | `full` | everything above |
 
 ### All flags

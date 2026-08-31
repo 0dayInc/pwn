@@ -35,6 +35,7 @@ PWN::Plugins::AFLplusplus.required_bins(opts)
 
 - `required_bins`
 - `fuzz`
+- `crash_triage`
 - `authors`
 - `help`
 

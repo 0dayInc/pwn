@@ -23,6 +23,7 @@ module PWN
 
         protocol = opts[:protocol]
         protocol ||= :tcp
+        PWN::Plugins::PreflightChecker.require_cap_net_raw! if protocol.to_s.to_sym == :raw
 
         # TODO: Add proxy support
 

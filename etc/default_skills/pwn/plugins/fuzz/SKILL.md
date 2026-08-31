@@ -34,6 +34,8 @@ PWN::Plugins::Fuzz.socket(opts)
 ## Public methods
 
 - `socket`
+- `http`
+- `file_format`
 - `authors`
 - `help`
 

@@ -36,6 +36,8 @@ PWN::Plugins::Frida.required_bins(opts)
 - `required_bins`
 - `ps`
 - `attach`
+- `spawn`
+- `ssl_pinning_script`
 - `authors`
 - `help`
 

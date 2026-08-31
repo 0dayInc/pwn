@@ -39,6 +39,7 @@ PWN::Plugins::GDB.required_bins(opts)
 - `registers`
 - `mitigations`
 - `core`
+- `breakpoints`
 - `authors`
 - `help`
 

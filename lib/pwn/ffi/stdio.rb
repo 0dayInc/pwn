@@ -34,7 +34,9 @@ module PWN
       # Display Usage for this Module
 
       public_class_method def self.help
-        puts "USAGE:
+        # libc `puts` is attached on this module; use Kernel so $stdout capture
+        # (rspec help_contract) and the REPL both see Ruby IO, not fd 1 raw.
+        Kernel.puts "USAGE:
           # Run available and return its result
           #{self}.available?
 

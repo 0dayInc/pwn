@@ -11,7 +11,7 @@ module PWN
       end
 
       public_class_method def self.run(opts = {})
-        PWN::Plugins::Doctor.require_bin!(name: 'sqlmap')
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'sqlmap')
         url = opts[:url].to_s
         raise 'ERROR: url is required' if url.empty?
 

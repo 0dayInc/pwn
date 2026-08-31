@@ -1286,16 +1286,22 @@ module PWN
         decoded = File.join(out, 'apktool')
         jadx_out = File.join(out, 'jadx')
         steps = []
-        if PWN::Plugins::Doctor.bin?(name: 'apktool')
+        if PWN::Plugins::PreflightChecker.bin?(name: 'apktool')
           system('apktool', 'd', '-f', '-o', decoded, apk)
           steps << :apktool
         end
-        if PWN::Plugins::Doctor.bin?(name: 'jadx')
+        if PWN::Plugins::PreflightChecker.bin?(name: 'jadx')
           FileUtils.mkdir_p(jadx_out)
           system('jadx', '-d', jadx_out, apk)
           steps << :jadx
         end
-        { out_dir: out, steps: steps, apk: apk }
+        manifest = File.join(decoded, 'AndroidManifest.xml')
+        perms = []
+        if File.file?(manifest)
+          txt = File.read(manifest)
+          perms = txt.scan(/android:name="([^"]+)"/).flatten.grep(/PERMISSION|permission/)
+        end
+        { out_dir: out, steps: steps, apk: apk, permissions: perms, manifest: (File.file?(manifest) ? manifest : nil) }
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>

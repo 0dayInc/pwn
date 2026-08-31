@@ -38,8 +38,15 @@ PWN::Plugins::CredentialAttack.required_bins(opts)
 - `hydra`
 - `john`
 - `hashcat`
+- `medusa`
+- `identify_hash`
+- `fetch_seclists`
 - `authors`
 - `help`
+
+## References
+
+- `references/urls.md` — URLs from source
 
 ## Source
 

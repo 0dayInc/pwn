@@ -19,7 +19,7 @@ module PWN
       #   path: 'required - filesystem path to the binary r2 should open'
       # )
       public_class_method def self.open(opts = {})
-        PWN::Plugins::Doctor.require_bin!(name: 'r2')
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'r2')
         path = opts[:path].to_s
         raise 'ERROR: path is required' if path.empty?
         raise "ERROR: binary not found: #{path}" unless File.file?(path)

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-describe PWN::Plugins::Doctor do
+describe PWN::Plugins::PreflightChecker do
   it 'should display information for authors' do
     expect(described_class).to respond_to :authors
   end

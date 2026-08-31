@@ -1085,7 +1085,7 @@ module PWN
       # )
 
       public_class_method def self.send(opts = {})
-        PWN::Plugins::Doctor.require_cap_net_raw! if defined?(PWN::Plugins::Doctor)
+        PWN::Plugins::PreflightChecker.require_cap_net_raw! if defined?(PWN::Plugins::PreflightChecker)
         pkt = opts[:pkt]
 
         if opts[:iface]

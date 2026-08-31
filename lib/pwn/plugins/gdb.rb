@@ -11,7 +11,7 @@ module PWN
       end
 
       public_class_method def self.batch(opts = {})
-        PWN::Plugins::Doctor.require_bin!(name: 'gdb')
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'gdb')
         binary = opts[:binary].to_s
         cmds = Array(opts[:commands] || opts[:cmds])
         args = Array(opts[:args])
@@ -38,7 +38,7 @@ module PWN
         batch(opts.merge(commands: ['checksec']))
       rescue StandardError
         path = opts[:binary].to_s
-        return { error: 'gdb missing' } unless PWN::Plugins::Doctor.bin?(name: 'gdb')
+        return { error: 'gdb missing' } unless PWN::Plugins::PreflightChecker.bin?(name: 'gdb')
 
         { hint: 'pwndbg/gef checksec not loaded', binary: path }
       end
@@ -48,7 +48,18 @@ module PWN
         binary = opts[:binary].to_s
         raise 'ERROR: core is required' if core.empty?
 
-        batch(opts.merge(commands: ['bt', 'info registers'], binary: binary, args: []))
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'gdb')
+        binary = opts[:binary].to_s
+        argv = ['gdb', '--batch', '--quiet', '-c', core, '-ex', 'set pagination off', '-ex', 'bt', '-ex', 'info registers']
+        argv << binary unless binary.empty?
+        stdout, stderr, status = Open3.capture3(*argv)
+        { stdout: stdout, stderr: stderr, exit: status.exitstatus }
+      end
+
+      public_class_method def self.breakpoints(opts = {})
+        bps = Array(opts[:breakpoints] || opts[:bp])
+        cmds = bps.map { |b| "break #{b}" } + Array(opts[:commands]) + %w[run bt]
+        batch(opts.merge(commands: cmds))
       end
 
       public_class_method def self.authors
@@ -81,8 +92,17 @@ module PWN
 
           # Run core and return its result
           #{self}.core(
-            core: 'required - core value consumed by #core',
-            binary: 'optional - binary value consumed by #core'
+            core: 'required - filesystem path to the core dump',
+            binary: 'optional - matching binary for symbols'
+          )
+
+          # Plant breakpoints then run and dump a backtrace.
+          #{self}.breakpoints(
+            binary: 'optional - binary to debug',
+            breakpoints: 'optional - Array of break specs (e.g. main or *0x401000)',
+            bp: 'optional - alias for breakpoints',
+            commands: 'optional - extra gdb commands after the breaks',
+            args: 'optional - Array of inferior argv'
           )
 
           # Print the AUTHOR(S) string for this module.
