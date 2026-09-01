@@ -1716,6 +1716,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins.authors Usage"},{"role":"assistant","content":"`PWN::Plugins.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins.help Usage"},{"role":"assistant","content":"`PWN::Plugins.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.crash_triage Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.crash_triage`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.fuzz Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.fuzz`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.help Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.required_bins`: "}]}
@@ -1880,10 +1881,13 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Char.punctuation Usage"},{"role":"assistant","content":"`PWN::Plugins::Char.punctuation`: Supported Method Parameters\n\nPWN::Plugins::Char.punctuation\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Char.spacing_modifiers Usage"},{"role":"assistant","content":"`PWN::Plugins::Char.spacing_modifiers`: Supported Method Parameters\n\nPWN::Plugins::Char.spacing_modifiers\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.fetch_seclists Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.fetch_seclists`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.hashcat Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.hashcat`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.help Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.hydra Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.hydra`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.identify_hash Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.identify_hash`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.john Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.john`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.medusa Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.medusa`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CredentialAttack.wordlist_dir Usage"},{"role":"assistant","content":"`PWN::Plugins::CredentialAttack.wordlist_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::CreditCard.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::CreditCard.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -1934,25 +1938,24 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.endian Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.endian`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.endian\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.help Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.type Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.type`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.type\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.authors`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.bin? Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.bin?`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.cap_net_raw? Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.cap_net_raw?`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.check Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.check`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.host_summary Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.host_summary`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.require_bin! Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.require_bin!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.require_cap_net_raw! Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.require_cap_net_raw!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::Doctor.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Doctor.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::EIN.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::EIN.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::EIN.generate Usage"},{"role":"assistant","content":"`PWN::Plugins::EIN.generate`: Supported Method Parameters\n\nPWN::Plugins::EIN.generate(\n\ncount: 'required - number of EIN numbers to generate'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::EIN.help Usage"},{"role":"assistant","content":"`PWN::Plugins::EIN.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.cve_for_cpe Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.cve_for_cpe`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.search Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.search`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.cyclic Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.cyclic`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.cyclic_find Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.cyclic_find`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.execve_bin_sh_bytes Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.execve_bin_sh_bytes`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.flat Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.flat`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.fmt_writes Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.fmt_writes`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.gadgets Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.gadgets`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.libc_offsets Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.libc_offsets`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.one_gadget Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.one_gadget`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.p16 Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.p16`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.p32 Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.p32`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.p64 Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.p64`: "}]}
@@ -1975,11 +1978,16 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Frida.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Frida.ps Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.ps`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Frida.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Frida.spawn Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.spawn`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Frida.ssl_pinning_script Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.ssl_pinning_script`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Fuzz.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Fuzz.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Fuzz.file_format Usage"},{"role":"assistant","content":"`PWN::Plugins::Fuzz.file_format`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Fuzz.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Fuzz.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Fuzz.http Usage"},{"role":"assistant","content":"`PWN::Plugins::Fuzz.http`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Fuzz.socket Usage"},{"role":"assistant","content":"`PWN::Plugins::Fuzz.socket`: Supported Method Parameters\n\nsocket_fuzz_results_arr = PWN::Plugins::Fuzz.socket(\n\ntarget: 'required - target host or ip',\nport: 'required - target port',\nprotocol: 'optional - :tcp || :udp (defaults to tcp)',\ntls: 'optional - boolean connect to target socket using TLS (defaults to false)',\nfuzz_delimeter: 'optional - fuzz delimeter used in request to specify where payloads should reside (defaults to \\u2665)',\nrequest: 'required - String object of socket request w/ \\u001A as fuzz delimeter (e.g. \"GET /\\u001A\\u001A HTTP/1.1\\r\\nHost: \\u001A127..0.0.1\\u001A\\r\\n\\r\\n\")',\npayload: 'required - payload string',\nresponse_timeout: 'optional - float (defaults to 0.9)',\nrequest_rate_limit: 'optional - float (defaults to 0.3)',\nencoding: 'optional - :base64 || :hex || :html_entity || :url (Defaults to nil)',\nencoding_depth: 'optional - number of times to encode payload (defaults to 1)',\nchar_encoding: 'optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.batch Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.batch`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GDB.breakpoints Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.breakpoints`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.core Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.core`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.help Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.mitigations Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.mitigations`: "}]}
@@ -2146,6 +2154,12 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.status Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.status`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.stop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.tail Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.tail`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::K8s.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::K8s.docker_socket? Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.docker_socket?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::K8s.help Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::K8s.kube_hunter Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.kube_hunter`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::K8s.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::K8s.trivy Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.trivy`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.append Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.append`: Supported Method Parameters\n\nPWN::Log.create( )\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.apply_trace! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.apply_trace!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -2286,6 +2300,8 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.scan Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.scan`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.to_defectdojo Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.to_defectdojo`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.to_findings Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.to_findings`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::OAuth2.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::OAuth2.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::OAuth2.decode Usage"},{"role":"assistant","content":"`PWN::Plugins::OAuth2.decode`: Supported Method Parameters\n\nPWN::Plugins::OAuth2.decode(\n\noauth2_token: 'required oauth2 token'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::OAuth2.get_value_by_key Usage"},{"role":"assistant","content":"`PWN::Plugins::OAuth2.get_value_by_key`: Supported Method Parameters\n\nPWN::Plugins::OAuth2.get_value_by_key(\n\noauth2_token: 'required oauth2 token',\nkey: 'required oauth2 token key name located within the Base64 encoded token as symbol, e.g. :company_id'\n\n)\n"}]}
@@ -2362,8 +2378,19 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Pony.set_content_type Usage"},{"role":"assistant","content":"`PWN::Plugins::Pony.set_content_type`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Pony.standard_options Usage"},{"role":"assistant","content":"`PWN::Plugins::Pony.standard_options`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Pony.subject_prefix Usage"},{"role":"assistant","content":"`PWN::Plugins::Pony.subject_prefix`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.bin? Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.bin?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.cap_net_raw? Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.cap_net_raw?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.check Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.check`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.help Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.host_summary Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.host_summary`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.require_bin! Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.require_bin!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.require_cap_net_raw! Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.require_cap_net_raw!`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.service? Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.service?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.close Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.close`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.connect Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.connect`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.recvline Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.recvline`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.recvuntil Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.recvuntil`: "}]}
@@ -2430,6 +2457,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Radare2.session! Usage"},{"role":"assistant","content":"`PWN::Plugins::Radare2.session!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Radare2.strings Usage"},{"role":"assistant","content":"`PWN::Plugins::Radare2.strings`: Supported Method Parameters\n\nPWN::Plugins::Radare2.strings(\n\nsession: 'required - session id returned by #open'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Radare2.xrefs_to Usage"},{"role":"assistant","content":"`PWN::Plugins::Radare2.xrefs_to`: Supported Method Parameters\n\nPWN::Plugins::Radare2.xrefs_to(\n\nsession: 'required - session id returned by #open',\naddr: 'required - address or flag to list xrefs to (e.g. main or 0x401000)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Recon.amass Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.amass`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.crt_sh Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.crt_sh`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.extract_dns_names Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.extract_dns_names`: "}]}
@@ -2438,6 +2466,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.httpx Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.httpx`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.masscan Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.masscan`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.normalize_names Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.normalize_names`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Recon.passive_dns Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.passive_dns`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Recon.subdomains Usage"},{"role":"assistant","content":"`PWN::Plugins::Recon.subdomains`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::SSN.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::SSN.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -2446,6 +2475,10 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::ScannableCodes.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ScannableCodes.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ScannableCodes.generate Usage"},{"role":"assistant","content":"`PWN::Plugins::ScannableCodes.generate`: Supported Method Parameters\n\nresponse = PWN::Plugins::ScannableCodes.generate(\n\ndata: 'required - data to encode',\ntype: 'optional - :barcode || :qrcode (defaults to :qrcode)',\nsize: 'optional - size of the image when type is :qrcode (defaults to 200)',\npath: 'optional - path to save image (defaults to \"./#{data}.png\")'\nreturn_type: 'optional - :base64 || :file (defaults to :file)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ScannableCodes.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ScannableCodes.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Semgrep.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Semgrep.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Semgrep.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Semgrep.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Semgrep.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Semgrep.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Semgrep.scan Usage"},{"role":"assistant","content":"`PWN::Plugins::Semgrep.scan`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Serial.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Serial.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Serial.connect Usage"},{"role":"assistant","content":"`PWN::Plugins::Serial.connect`: Supported Method Parameters\n\nserial_obj = PWN::Plugins::Serial.connect(\n\nblock_dev: 'optional - serial block device path (defaults to /dev/ttyUSB0)',\nbaud: 'optional - (defaults to 9600)',\ndata_bits: 'optional - (defaults to 8)',\nstop_bits: 'optional - (defaults to 1)',\nparity: 'optional - :even|:mark|:odd|:space|:none (defaults to :none)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Serial.disconnect Usage"},{"role":"assistant","content":"`PWN::Plugins::Serial.disconnect`: Supported Method Parameters\n\nPWN::Plugins::Serial.disconnect(\n\nserial_obj: 'required - serial_obj returned from #connect method'\n\n)\n"}]}
@@ -2586,6 +2619,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Volatility.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Volatility.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Volatility.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Volatility.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Volatility.run Usage"},{"role":"assistant","content":"`PWN::Plugins::Volatility.run`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Volatility.yara Usage"},{"role":"assistant","content":"`PWN::Plugins::Volatility.yara`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vsphere.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Vsphere.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vsphere.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Vsphere.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Vsphere.login Usage"},{"role":"assistant","content":"`PWN::Plugins::Vsphere.login`: Supported Method Parameters\n\nvsphere_obj = PWN::Plugins::Vsphere.login(\n\nhost: 'required - vsphere host or ip',\nusername: 'required - username',\npassword: 'optional - password (will prompt if nil)',\ninsecure: 'optional - ignore ssl checks (defaults to false)\n\n)\n"}]}

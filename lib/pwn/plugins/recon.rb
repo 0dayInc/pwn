@@ -21,8 +21,12 @@ module PWN
         raise 'ERROR: domain is required' if domain.empty?
 
         names = []
-        if PWN::Plugins::Doctor.bin?(name: 'subfinder')
+        if PWN::Plugins::PreflightChecker.bin?(name: 'subfinder')
           stdout, = Open3.capture3('subfinder', '-silent', '-d', domain)
+          names.concat(stdout.lines.map(&:strip).reject(&:empty?))
+        end
+        if PWN::Plugins::PreflightChecker.bin?(name: 'amass')
+          stdout, = Open3.capture3('amass', 'enum', '-passive', '-d', domain, '-nocolor')
           names.concat(stdout.lines.map(&:strip).reject(&:empty?))
         end
         names.concat(Array(crt_sh(domain: domain)))
@@ -30,7 +34,7 @@ module PWN
       end
 
       public_class_method def self.httpx(opts = {})
-        PWN::Plugins::Doctor.require_bin!(name: 'httpx')
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'httpx')
         hosts = Array(opts[:hosts] || opts[:urls])
         stdout, = Open3.capture3('httpx', '-silent', '-json', stdin_data: "#{hosts.join("\n")}\n")
         stdout.each_line.filter_map do |ln|
@@ -41,8 +45,8 @@ module PWN
       end
 
       public_class_method def self.masscan(opts = {})
-        bin = %w[masscan naabu].find { |b| PWN::Plugins::Doctor.bin?(name: b) }
-        raise PWN::Plugins::Doctor::MissingBinary, 'ERROR: masscan/naabu missing' unless bin
+        bin = %w[masscan naabu].find { |b| PWN::Plugins::PreflightChecker.bin?(name: b) }
+        raise PWN::Plugins::PreflightChecker::MissingBinary, 'ERROR: masscan/naabu missing' unless bin
 
         target = opts[:target].to_s
         ports = (opts[:ports] || '1-1024').to_s
@@ -75,6 +79,26 @@ module PWN
         raise "ERROR: cert-transparency lookup failed for #{domain} (#{errors.join('; ')})"
       end
 
+      public_class_method def self.amass(opts = {})
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'amass')
+        domain = opts[:domain].to_s
+        raise 'ERROR: domain is required' if domain.empty?
+
+        stdout, = Open3.capture3('amass', 'enum', '-passive', '-d', domain, '-nocolor')
+        stdout.lines.map(&:strip).reject(&:empty?)
+      end
+
+      public_class_method def self.passive_dns(opts = {})
+        domain = opts[:domain].to_s.downcase.strip
+        raise 'ERROR: domain is required' if domain.empty?
+
+        uri = URI("https://api.hackertarget.com/hostsearch/?q=#{URI.encode_www_form_component(domain)}")
+        rows = http_json(url: uri.to_s, timeout: opts[:timeout] || 8)
+        Array(rows)
+      rescue StandardError => e
+        { error: "#{e.class}: #{e.message}", domain: domain }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -103,6 +127,17 @@ module PWN
 
           # Run crt sh and return its result
           #{self}.crt_sh(
+            domain: 'required - FQDN to query (e.g. example.com)',
+            timeout: 'optional - seconds to wait before giving up'
+          )
+
+          # Passive amass enum (requires amass).
+          #{self}.amass(
+            domain: 'required - FQDN to query (e.g. example.com)'
+          )
+
+          # Passive DNS hostsearch for a domain (hackertarget).
+          #{self}.passive_dns(
             domain: 'required - FQDN to query (e.g. example.com)',
             timeout: 'optional - seconds to wait before giving up'
           )

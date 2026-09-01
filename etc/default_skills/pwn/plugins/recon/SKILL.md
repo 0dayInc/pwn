@@ -38,6 +38,8 @@ PWN::Plugins::Recon.required_bins(opts)
 - `httpx`
 - `masscan`
 - `crt_sh`
+- `amass`
+- `passive_dns`
 - `authors`
 - `help`
 

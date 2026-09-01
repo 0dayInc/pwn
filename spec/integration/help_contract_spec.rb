@@ -75,6 +75,8 @@ RSpec.describe 'PWN:: modules — .help / .authors behavioural contract', :aggre
 
       # .help does not raise, completes in <2 s, and produces SOMETHING
       # (stdout, a String return, or a namespace-index Array).
+      # PWN::FFI::Stdio attaches libc puts; help must not write fd 1 behind
+      # $stdout (Kernel.puts in that module). Still swallow $stdout here.
       out = nil
       expect do
         Timeout.timeout(2) { out = capture_out { mod.help } }

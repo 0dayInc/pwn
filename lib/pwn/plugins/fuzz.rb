@@ -171,6 +171,25 @@ module PWN
         sock_obj = PWN::Plugins::Sock.disconnect(sock_obj: sock_obj) unless sock_obj.nil?
       end
 
+      public_class_method def self.http(opts = {})
+        template = opts[:request].to_s
+        raise 'ERROR: request is required' if template.empty?
+
+        token = (opts[:token] || 'FUZZ').to_s
+        Array(opts[:dictionary] || opts[:payloads] || ['A']).map do |p|
+          template.gsub(token, p.to_s)
+        end
+      end
+
+      public_class_method def self.file_format(opts = {})
+        path = opts[:path].to_s
+        raise 'ERROR: path is required' if path.empty?
+
+        seed = File.binread(path)
+        dict = Array(opts[:dictionary] || ["\xff"])
+        dict.map { |blob| seed + blob.to_s }
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -197,6 +216,20 @@ module PWN
             encoding: 'optional - :base64 || :hex || :html_entity || :url (Defaults to nil)',
             encoding_depth: 'optional - number of times to encode payload (defaults to 1)',
             char_encoding: 'optional - character encoding returned by PWN::Plugins::Char.list_encoders (defaults to UTF-8)'
+          )
+
+          # Expand an HTTP request template by substituting FUZZ with dictionary payloads.
+          #{self}.http(
+            request: 'required - HTTP request template containing FUZZ (or token:)',
+            dictionary: 'optional - Array of payload strings',
+            payloads: 'optional - alias for dictionary',
+            token: 'optional - placeholder to replace (defaults to FUZZ)'
+          )
+
+          # Append dictionary blobs to a seed file for coverage-guided or dumb file fuzzing.
+          #{self}.file_format(
+            path: 'required - filesystem path to the seed file',
+            dictionary: 'optional - Array of binary/string mutations'
           )
 
           # Print the AUTHOR(S) string for this module.

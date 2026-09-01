@@ -34,6 +34,7 @@ module PWN
           started_at: Time.now.utc.iso8601
         }
         File.write(meta, JSON.generate(row))
+        PWN::Plugins::ArtifactRegistry.register(session_id: opts[:session_id], path: log, kind: 'job-log') if opts[:session_id] && defined?(PWN::Plugins::ArtifactRegistry) && File.file?(log)
         row
       end
 

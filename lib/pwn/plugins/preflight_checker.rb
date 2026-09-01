@@ -5,9 +5,10 @@ module PWN
     # Plugin/binary/capability preflight. Plugins declare required_bins /
     # required_caps; HOST summaries list degraded modules without autoloading
     # the whole plugin tree.
-    module Doctor
+    module PreflightChecker
       class MissingBinary < StandardError; end
       class MissingCapability < StandardError; end
+      class MissingService < StandardError; end
 
       PLUGIN_DEPS = {
         'PWN::Plugins::Radare2' => { bins: %w[r2] },
@@ -21,7 +22,8 @@ module PWN
         'PWN::Plugins::Metasploit' => { bins: %w[msfconsole] },
         'PWN::Plugins::BurpSuite' => { bins: %w[burpsuite] },
         'PWN::Plugins::Zaproxy' => { bins: %w[zaproxy] },
-        'PWN::Plugins::Packet' => { bins: [], caps: %w[CAP_NET_RAW] }
+        'PWN::Plugins::Packet' => { bins: [], caps: %w[CAP_NET_RAW] },
+        'PWN::Plugins::K8s' => { bins: %w[trivy], services: [{ name: 'docker', path: '/var/run/docker.sock' }] }
       }.freeze
 
       public_class_method def self.required_bins
@@ -65,6 +67,13 @@ module PWN
               'or run as root. Fallback: PWN::Plugins::Sock.connect (no raw).'
       end
 
+      public_class_method def self.service?(opts = {})
+        path = opts[:path].to_s
+        return File.socket?(path) unless path.empty?
+
+        false
+      end
+
       public_class_method def self.check(opts = {})
         deps = PLUGIN_DEPS
         if opts[:names]
@@ -74,17 +83,19 @@ module PWN
         deps.map do |plugin, dep|
           bins = Array(dep[:bins])
           caps = Array(dep[:caps])
+          services = Array(dep[:services])
           missing_bins = bins.reject { |b| bin?(name: b) }
           missing_caps = []
           missing_caps << 'CAP_NET_RAW' if caps.include?('CAP_NET_RAW') && !cap_net_raw?
-          status = if missing_bins.empty? && missing_caps.empty?
+          missing_services = services.reject { |s| service?(name: s[:name] || s['name'], path: s[:path] || s['path']) }.map { |s| s[:name] || s['name'] }
+          status = if missing_bins.empty? && missing_caps.empty? && missing_services.empty?
                      :ok
                    elsif bins.any? && missing_bins.length == bins.length
                      :dead
                    else
                      :degraded
                    end
-          { plugin: plugin, status: status, missing_bins: missing_bins, missing_caps: missing_caps }
+          { plugin: plugin, status: status, missing_bins: missing_bins, missing_caps: missing_caps, missing_services: missing_services }
         end
       end
 
@@ -95,7 +106,7 @@ module PWN
         degraded = rows.select { |r| r[:status] == :degraded }
         lines = ["HOST plugins ok=#{rows.count { |r| r[:status] == :ok }} degraded=#{degraded.length} dead=#{dead.length}"]
         (degraded + dead).first(cap).each do |r|
-          miss = (r[:missing_bins] + r[:missing_caps]).join(',')
+          miss = (Array(r[:missing_bins]) + Array(r[:missing_caps]) + Array(r[:missing_services])).join(',')
           lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}"
         end
         lines.join("\n")
@@ -127,6 +138,12 @@ module PWN
 
           # Run require cap net raw and return its result
           #{self}.require_cap_net_raw!
+
+          # True when a unix socket/service path exists.
+          #{self}.service?(
+            name: 'optional - service name for the report row',
+            path: 'required - unix socket path (e.g. /var/run/docker.sock)'
+          )
 
           # Run check and return its result
           #{self}.check(

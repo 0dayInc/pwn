@@ -35,6 +35,8 @@ PWN::Plugins::Nuclei.required_bins(opts)
 
 - `required_bins`
 - `scan`
+- `to_findings`
+- `to_defectdojo`
 - `authors`
 - `help`
 

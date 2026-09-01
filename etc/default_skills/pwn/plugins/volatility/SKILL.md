@@ -35,6 +35,7 @@ PWN::Plugins::Volatility.required_bins(opts)
 
 - `required_bins`
 - `run`
+- `yara`
 - `authors`
 - `help`
 

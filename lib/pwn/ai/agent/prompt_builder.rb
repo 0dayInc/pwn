@@ -199,7 +199,7 @@ module PWN
           eval_s = ToolGuard.deadline_s(kind: :eval) if defined?(ToolGuard)
           shell_s = ToolGuard.deadline_s(kind: :shell) if defined?(ToolGuard)
           load_line = "load1=#{snap[:load1]} ncpu=#{snap[:ncpu]} mem_avail_mb=#{snap[:mem_avail_mb]}"
-          doc = (PWN::Plugins::Doctor.host_summary if defined?(PWN::Plugins::Doctor))
+          doc = (PWN::Plugins::PreflightChecker.host_summary if defined?(PWN::Plugins::PreflightChecker))
           "#{load_line} pwn_eval/shell timeout = conservative seconds for this host " \
             "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped). " \
             "#{doc}"

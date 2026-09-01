@@ -2,6 +2,7 @@
 
 require 'pty'
 require 'timeout'
+require 'socket'
 
 module PWN
   module Plugins
@@ -22,6 +23,17 @@ module PWN
         id = "tube_#{pid}"
         @tubes[id] = { r: r, w: w, pid: pid, buf: +'' }
         { id: id, pid: pid }
+      end
+
+      public_class_method def self.connect(opts = {})
+        host = (opts[:host] || opts[:target]).to_s
+        port = opts[:port].to_i
+        raise 'ERROR: host and port are required' if host.empty? || port <= 0
+
+        sock = TCPSocket.new(host, port)
+        id = "sock_#{sock.object_id}"
+        @tubes[id] = { r: sock, w: sock, pid: nil, buf: +'' }
+        { id: id, host: host, port: port }
       end
 
       public_class_method def self.write_line(opts = {})
@@ -59,7 +71,7 @@ module PWN
         t = tube!(opts)
         t[:w].close
         t[:r].close
-        Process.kill('TERM', t[:pid])
+        Process.kill('TERM', t[:pid]) if t[:pid]
         @tubes.delete(opts[:id].to_s)
         true
       rescue StandardError
@@ -80,6 +92,13 @@ module PWN
           #{self}.spawn(
             cmd: 'required - command string to run (defaults to opts[:command])',
             command: 'optional - command value consumed by #spawn'
+          )
+
+          # Connect a TCP tube with the same write_line/recvuntil API as spawn.
+          #{self}.connect(
+            host: 'required - hostname or IP address (defaults to opts[:target])',
+            target: 'optional - hostname, IP, or CIDR to scan',
+            port: 'required - TCP/UDP port number'
           )
 
           # Run write line and return its result
