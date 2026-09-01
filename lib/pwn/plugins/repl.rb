@@ -494,7 +494,7 @@ module PWN
             puts '[*] TAB menus: leading `/` = commands (/cron /skills /sessions …); `/` later = host paths; otherwise Ruby completion (same as the pwn REPL).'
             puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
             tag = pi.config.pwn_ai_session_id.to_s.empty? ? '<SESSION_ID>' : pi.config.pwn_ai_session_id
-            puts "\n\n\npwn-ai debug ON → /tmp/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log"
+            puts "\n\n\npwn-ai debug ON → ~/.pwn/logs/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log"
           end
         end
 
@@ -1051,7 +1051,7 @@ module PWN
         end
 
         Pry::Commands.create_command 'toggle-debug' do
-          description 'Stream pwn-ai stage log to the TUI and /tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log'
+          description 'Stream pwn-ai stage log to the TUI and ~/.pwn/logs/pwn-ai-DEBUG-<SESSION_ID>-RN.log'
 
           def process
             pi = pry_instance
@@ -1242,7 +1242,7 @@ module PWN
                   # Tool request + result are shown in full (no char cap).
                   # Raw ANSI only — PS1 SOH/STX on live stdout swallows later rows.
                   # When debug is on, the same plain text is mirrored into the
-                  # open /tmp pwn-ai-DEBUG-…-RN.log for human troubleshooting.
+                  # open ~/.pwn/logs/pwn-ai-DEBUG-…-RN.log for human troubleshooting.
                   mirror = lambda do |plain|
                     next unless pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
 
