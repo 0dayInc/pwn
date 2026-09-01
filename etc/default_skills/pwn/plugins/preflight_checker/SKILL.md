@@ -36,6 +36,8 @@ PWN::Plugins::PreflightChecker.required_bins(opts)
 - `required_bins`
 - `bin`
 - `require_bin`
+- `route`
+- `pick`
 - `cap_net_raw`
 - `require_cap_net_raw`
 - `service`

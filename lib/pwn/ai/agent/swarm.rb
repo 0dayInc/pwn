@@ -5,6 +5,7 @@ require 'yaml'
 require 'time'
 require 'fileutils'
 require 'securerandom'
+require 'socket'
 
 module PWN
   module AI
@@ -387,6 +388,25 @@ module PWN
           end
         end
 
+        public_class_method def self.map_targets(opts = {})
+          hosts = opts[:targets].to_s.split(/[,\s]+/).reject(&:empty?)
+          ports = opts[:ports].to_s.split(/[,\s]+/).map(&:to_i).reject(&:zero?)
+          ports = [80, 443] if ports.empty?
+
+          hosts.product(ports).map do |host, port|
+            Thread.new do
+              open = begin
+                sock = TCPSocket.new(host, port)
+                sock.close
+                true
+              rescue StandardError
+                false
+              end
+              { host: host, port: port, open: open }
+            end
+          end.map(&:value)
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -462,6 +482,12 @@ module PWN
               swarm_id: 'optional - swarm id value consumed by #broadcast',
               names: 'required - Array names value consumed by #broadcast',
               on_tool: 'optional - on tool value consumed by #broadcast'
+            )
+
+            # TCP-connect map of hosts/CIDR tokens and ports (sequential).
+            #{self}.map_targets(
+              targets: 'required - comma/space separated hosts',
+              ports: 'optional - comma/space separated ports (defaults to 80,443)'
             )
 
             # Print the AUTHOR(S) string for this module.

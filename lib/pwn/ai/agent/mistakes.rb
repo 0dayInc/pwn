@@ -105,8 +105,22 @@ module PWN
 
         public_class_method def self.signature(opts = {})
           tool = opts[:tool].to_s
+          klass = error_class(error: opts[:error])
           norm = normalize_error(error: opts[:error])
-          Digest::SHA256.hexdigest("#{tool}|#{norm}")[0, 12]
+          Digest::SHA256.hexdigest("#{tool}|#{klass}|#{norm}")[0, 12]
+        end
+
+        public_class_method def self.error_class(opts = {})
+          e = opts[:error].to_s
+          return 'auth_denied' if e.match?(/access denied|unauthorized|not authorized|\b401\b|\b403\b|pull access denied/i)
+          return 'name_conflict' if e.match?(/already (?:in use|exists)|name conflict|Conflict\.|duplicate/i)
+          return 'parse_error' if e.match?(/parse error|parsererror|template.*error|unexpected token/i)
+          return 'missing_path' if e.match?(%r{no such file|enoent|not found: /}i)
+          return 'net_unreach' if e.match?(/network is unreachable|no route to host|ehostunreach/i)
+          return 'perm_denied' if e.match?(/permission denied|eacces/i)
+          return 'timeout' if e.match?(/timeout|timed out|etimedout/i)
+
+          'other'
         end
 
         # Supported Method Parameters::
@@ -856,6 +870,11 @@ module PWN
             #{self}.signature(
               tool: 'required - tool/component name that failed',
               error: 'required - raw error text (will be normalised)'
+            )
+
+            # Classify an error into auth_denied/name_conflict/parse_error/missing_path/net_unreach/perm_denied/timeout/other.
+            #{self}.error_class(
+              error: 'required - raw error text'
             )
 
             # Run find and return its result

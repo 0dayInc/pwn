@@ -31,10 +31,17 @@ module PWN
         os = :cygwin if OS.cygwin?
         os = :freebsd if OS.freebsd?
         os = :linux if OS.linux?
-        os = :netbsd if OS.host_os.include?('netbsd')
-        os = :openbsd if OS.host_os.include?('openbsd')
+        os = :netbsd if OS.host_os.to_s.include?('netbsd')
+        os = :openbsd if OS.host_os.to_s.include?('openbsd')
         os = :osx if OS.osx?
         os = :windows if OS.windows?
+        if os.nil?
+          uname = `uname -s 2>/dev/null`.to_s.downcase
+          os = :openbsd if uname.include?('openbsd')
+          os = :freebsd if uname.include?('freebsd')
+          os = :netbsd if uname.include?('netbsd')
+          os = :linux if uname.include?('linux')
+        end
 
         os
       rescue StandardError => e
@@ -151,6 +158,56 @@ module PWN
         osr['VERSION'].to_s
       end
 
+      # Supported Method Parameters::
+      # PWN::Plugins::DetectOS.living_off_the_land(
+      #   os_release: 'optional - /etc/os-release body (defaults to reading the file)',
+      #   which: 'optional - Hash of binary name => present Boolean (skips live PATH)',
+      #   bins: 'optional - extra binary names to probe besides plugin required_bins'
+      # )
+
+      public_class_method def self.living_off_the_land(opts = {})
+        os_type = opts[:type] || type
+        flavor = distro(opts)
+        ver = version(opts)
+        cpu = opts[:arch] || arch
+        endn = opts[:endian] || endian
+        names = inventory_names(bins: opts[:bins])
+        which = opts[:which]
+        present = []
+        missing = []
+        names.each do |name|
+          ok = if which.is_a?(Hash)
+                 which[name] || which[name.to_sym]
+               else
+                 bin_present?(name: name)
+               end
+          (ok ? present : missing) << name
+        end
+        cap = if opts.key?(:cap_net_raw)
+                opts[:cap_net_raw]
+              else
+                cap_net_raw_live
+              end
+        docker = if opts.key?(:docker)
+                   opts[:docker]
+                 else
+                   docker_live
+                 end
+        summary = "#{flavor} #{ver} #{cpu} present=#{present.first(24).join(',')} missing=#{missing.first(12).join(',')}"
+        {
+          type: os_type,
+          distro: flavor,
+          version: ver,
+          arch: cpu.to_s,
+          endian: endn,
+          present: present,
+          missing: missing,
+          cap_net_raw: cap,
+          docker: docker,
+          summary: summary
+        }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):
           0day Inc. <support@0dayinc.com>
@@ -193,10 +250,60 @@ module PWN
             version: 'optional - force a version string instead of detecting'
           )
 
+          # Profile this host: distro, arch, and which plugin bins are on PATH.
+          #{self}.living_off_the_land(
+            os_release: 'optional - /etc/os-release body (defaults to reading the file)',
+            lsb_release: 'optional - /etc/lsb-release body',
+            build_prop: 'optional - Android /system/build.prop body',
+            type: 'optional - OS family from #type',
+            which: 'optional - Hash of binary name => true/false (skips live PATH when set)',
+            bins: 'optional - extra binary names to probe besides plugin required_bins',
+            arch: 'optional - CPU arch override',
+            endian: 'optional - :little or :big override',
+            cap_net_raw: 'optional - Boolean CAP_NET_RAW override',
+            docker: 'optional - Boolean docker.sock override'
+          )
+
           # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
         constants.sort
+      end
+
+      private_class_method def self.inventory_names(opts = {})
+        extra = Array(opts[:bins]).map(&:to_s).reject(&:empty?)
+        deps = if defined?(PWN::Plugins::PreflightChecker::PLUGIN_DEPS)
+                 PWN::Plugins::PreflightChecker::PLUGIN_DEPS.values.flat_map { |row| Array(row[:bins]) }
+               else
+                 []
+               end
+        (deps + extra).map(&:to_s).reject(&:empty?).uniq
+      end
+
+      private_class_method def self.bin_present?(opts = {})
+        name = opts[:name].to_s
+        return false if name.empty?
+        return PWN::Plugins::PreflightChecker.bin?(name: name) if defined?(PWN::Plugins::PreflightChecker)
+
+        ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).any? { |dir| File.executable?(File.join(dir, name)) }
+      rescue StandardError
+        false
+      end
+
+      private_class_method def self.cap_net_raw_live
+        return unless defined?(PWN::Plugins::PreflightChecker)
+
+        PWN::Plugins::PreflightChecker.cap_net_raw?
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.docker_live
+        return unless defined?(PWN::Plugins::PreflightChecker)
+
+        PWN::Plugins::PreflightChecker.service?(name: 'docker', path: '/var/run/docker.sock')
+      rescue StandardError
+        nil
       end
 
       private_class_method def self.normalize_id(opts = {})

@@ -193,7 +193,10 @@ module PWN
             # Advisory only: never replaces TaskSummarizer / plan_first.
             policy: true,
             toolsets: nil,
-            operator_account: nil
+            operator_account: nil,
+            sessions_keep_days: 90,
+            artifacts_keep_days: 90,
+            max_total_mb: 512
             # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
             # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
           }

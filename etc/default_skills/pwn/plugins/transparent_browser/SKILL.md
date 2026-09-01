@@ -55,8 +55,10 @@ PWN::Plugins::TransparentBrowser.open(opts)
 - `toggle_devtools`
 - `jmp_devtools_panel`
 - `close`
+- `evidence`
 - `authors`
 - `help`
+- `evidence!`
 
 ## Source
 

@@ -31,6 +31,7 @@ module PWN
     autoload :EIN, 'pwn/plugins/ein'
     autoload :ExploitDB, 'pwn/plugins/exploit_db'
     autoload :FileFu, 'pwn/plugins/file_fu'
+    autoload :Findings, 'pwn/plugins/findings'
     autoload :Fuzz, 'pwn/plugins/fuzz'
     autoload :Frida, 'pwn/plugins/frida'
     autoload :ExploitDev, 'pwn/plugins/exploit_dev'

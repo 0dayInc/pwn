@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'digest'
+require 'json'
+require 'fileutils'
 
 module PWN
   module AI
@@ -63,6 +65,7 @@ module PWN
         # assign HTTP = "/path/http" or Digest = "(self.we" and then every
         # provider hop / payload_sig TypeErrors.
         CORE_CONSTS = %i[HTTP Digest JSON URI Timeout].freeze
+        RUNTIMES_FILE = File.join(Dir.home, '.pwn', 'metrics', 'runtimes.json')
 
         public_class_method def self.protect_http!
           protect_core_constants!
@@ -164,6 +167,9 @@ module PWN
           asked = opts[:timeout] || opts[:timeout_s]
           asked_i = asked.to_i
           return asked_i.clamp(1, TIMEOUT_MAX_S) if asked_i.positive?
+
+          learned = predicted_timeout(command_class: command_class(payload: opts[:payload].to_s))
+          return learned.clamp(1, TIMEOUT_MAX_S) if learned.to_i.positive?
 
           snap = host_load
           ncpu = [snap[:ncpu].to_i, 1].max
@@ -352,6 +358,85 @@ module PWN
           false
         end
 
+        public_class_method def self.scope_refusal(opts = {})
+          cmd = opts[:command].to_s
+          path = File.join(Dir.home, '.pwn', 'scope.yaml')
+          return nil unless File.file?(path)
+
+          require 'yaml'
+          scope = YAML.safe_load_file(path, permitted_classes: [Symbol]) || {}
+          return nil if scope.nil? || scope.empty?
+
+          allow = Array(scope['cidr_allowlist'] || scope[:cidr_allowlist]).map(&:to_s)
+          domains = Array(scope['domain_allowlist'] || scope[:domain_allowlist]).map(&:to_s)
+          return nil if allow.empty? && domains.empty?
+
+          ips = cmd.scan(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)
+          hosts = cmd.scan(/\b[a-z0-9][a-z0-9.-]+\.[a-z]{2,}\b/i)
+          bad_ip = allow.any? ? ips.find { |ip| allow.none? { |cidr| ip_in_cidr?(ip: ip, cidr: cidr) } } : nil
+          bad_host = domains.any? ? hosts.find { |h| domains.none? { |d| h.downcase.end_with?(d.downcase) } } : nil
+          hit = bad_ip || bad_host
+          return nil unless hit
+
+          "Refused: #{hit} is outside ~/.pwn/scope.yaml allowlists."
+        rescue StandardError
+          nil
+        end
+
+        public_class_method def self.ip_in_cidr?(opts = {})
+          ip = opts[:ip].to_s.split('.').map(&:to_i)
+          cidr, bits = opts[:cidr].to_s.split('/')
+          return false if ip.length != 4 || cidr.to_s.split('.').length != 4
+
+          mask = bits.to_i
+          mask = 32 if mask <= 0
+          a = ip.inject(0) { |acc, oct| (acc << 8) + oct }
+          b = cidr.split('.').map(&:to_i).inject(0) { |acc, oct| (acc << 8) + oct }
+          shift = 32 - mask
+          (a >> shift) == (b >> shift)
+        end
+
+        public_class_method def self.command_class(opts = {})
+          cmd = opts[:payload].to_s.split.first.to_s
+          cmd.empty? ? 'shell' : File.basename(cmd)
+        end
+
+        public_class_method def self.record_runtime(opts = {})
+          klass = opts[:command_class].to_s
+          secs = opts[:seconds].to_f
+          return {} if klass.empty? || secs <= 0
+
+          data = load_runtimes
+          data[klass] ||= []
+          data[klass] << secs
+          data[klass] = data[klass].last(50)
+          FileUtils.mkdir_p(File.dirname(RUNTIMES_FILE))
+          File.write(RUNTIMES_FILE, JSON.generate(data))
+          data
+        end
+
+        public_class_method def self.predicted_timeout(opts = {})
+          samples = Array(load_runtimes[opts[:command_class].to_s]).map(&:to_f)
+          return nil if samples.empty?
+
+          sorted = samples.sort
+          idx = [(sorted.length * 0.95).ceil - 1, 0].max
+          (sorted[idx] * 1.5).ceil
+        end
+
+        public_class_method def self.auto_job?(opts = {})
+          pred = opts[:predicted] || predicted_timeout(command_class: opts[:command_class] || command_class(payload: opts[:payload].to_s))
+          pred.to_i > 120
+        end
+
+        private_class_method def self.load_runtimes
+          return {} unless File.file?(RUNTIMES_FILE)
+
+          JSON.parse(File.read(RUNTIMES_FILE))
+        rescue StandardError
+          {}
+        end
+
         public_class_method def self.authors
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
@@ -456,6 +541,40 @@ module PWN
             #{self}.refuse_copied_persist?(
               name: 'optional - binary or identifier name',
               args: 'optional - args value consumed by #refuse_copied_persist?'
+            )
+
+            # Refuse a command whose IPs/hosts are outside the ~/.pwn scope yaml allowlists.
+            #{self}.scope_refusal(
+              command: 'required - shell command to inspect for IPs and hostnames'
+            )
+
+            # True when ip is inside cidr (e.g. 10.1.2.3 in 10.0.0.0/8).
+            #{self}.ip_in_cidr?(
+              ip: 'required - IPv4 address',
+              cidr: 'required - CIDR (e.g. 10.0.0.0/8)'
+            )
+
+            # First token of a payload used as the runtime class key.
+            #{self}.command_class(
+              payload: 'required - command string whose first token is the class'
+            )
+
+            # Append an observed runtime sample for a command class.
+            #{self}.record_runtime(
+              command_class: 'required - class key from the command first token',
+              seconds: 'required - observed wall seconds'
+            )
+
+            # p95 * 1.5 timeout from ~/.pwn/metrics/runtimes.json, or nil.
+            #{self}.predicted_timeout(
+              command_class: 'required - class key to look up'
+            )
+
+            # True when predicted timeout exceeds 120s (route to job_run).
+            #{self}.auto_job?(
+              command_class: 'optional - class key',
+              predicted: 'optional - override predicted seconds',
+              payload: 'optional - command string if class omitted'
             )
 
             # Print the AUTHOR(S) string for this module.

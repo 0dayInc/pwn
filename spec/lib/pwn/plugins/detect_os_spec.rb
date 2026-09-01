@@ -62,4 +62,44 @@ describe PWN::Plugins::DetectOS do
       expect(described_class.distro(type: :netbsd, uname: 'NetBSD')).to eq(:netbsd)
     end
   end
+
+  describe '.living_off_the_land' do
+    it 'profiles distro, arch, and which host bins are present from fixtures' do
+      body = "ID=kali\nVERSION_ID=\"2026.3\"\n"
+      row = described_class.living_off_the_land(
+        os_release: body,
+        type: :linux,
+        which: { 'gdb' => true, 'r2' => true, 'nuclei' => false }
+      )
+      expect(row[:distro]).to eq(:kali)
+      expect(row[:version]).to eq('2026.3')
+      expect(row[:arch]).to be_a(String)
+      expect(row[:endian]).to be_a(Symbol)
+      expect(row[:present]).to include('gdb', 'r2')
+      expect(row[:missing]).to include('nuclei')
+      expect(row[:present]).not_to include('nuclei')
+      expect(row[:summary]).to include('kali')
+      expect(row[:summary]).to include('gdb')
+    end
+
+    it 'does not fall through to live os-release when fixtures are passed' do
+      row = described_class.living_off_the_land(
+        os_release: "ID=alpine\nVERSION_ID=3.20.0\n",
+        type: :linux,
+        which: {}
+      )
+      expect(row[:distro]).to eq(:alpine)
+      expect(row[:version]).to eq('3.20.0')
+    end
+
+    it 'probes extra bins from opts without inventing a PATH dump' do
+      row = described_class.living_off_the_land(
+        os_release: "ID=debian\nVERSION_ID=12\n",
+        type: :linux,
+        bins: %w[jq],
+        which: { 'jq' => true }
+      )
+      expect(row[:present]).to include('jq')
+    end
+  end
 end

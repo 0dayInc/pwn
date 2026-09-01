@@ -51,6 +51,9 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 - `lean`
 - `gc_stores`
 - `purge_noise`
+- `lesson_record`
+- `lesson_observe`
+- `lesson_prompt`
 - `authors`
 - `help`
 - `gc_stores!`

@@ -567,7 +567,7 @@ module PWN
         end
 
         private_class_method def self.stamped_effect(opts = {})
-          raw = opts[:content].to_s
+          raw = unwrap_untrusted(text: opts[:content].to_s)
           return if raw.empty?
 
           parsed = JSON.parse(raw, symbolize_names: true)
@@ -661,12 +661,20 @@ module PWN
 
         private_class_method def self.declared_contract_unsatisfied?(opts = {})
           contract = declared_contract(request: opts[:request])
+          request = opts[:request].to_s
           files = Array(contract[:paths]) + Array(contract[:proofs])
           return true if files.any? { |path| deliverable_missing?(path: path) }
-          return true if declared_skills_missing?(skills: contract[:skills])
-          return true if declared_hosts_missing?(hosts: contract[:hosts], messages: opts[:messages])
-          return true if declared_hosts_missing?(hosts: contract[:techniques], messages: opts[:messages])
-          return true if contract[:issue_work] && Array(contract[:proofs]).empty?
+
+          trace_files = session_files(messages: opts[:messages])
+          return true if contract[:issue_work] && Array(contract[:proofs]).empty? && files.empty? && trace_files.empty?
+
+          return true if declared_skills_missing?(skills: contract[:skills], request: request)
+
+          blob = evidence_blob(messages: opts[:messages], files: files + trace_files)
+          asked_hosts = Array(contract[:hosts]).select { |host| request.downcase.include?(host.to_s.downcase) }
+          asked_tech = Array(contract[:techniques]).select { |tech| request.downcase.include?(tech.to_s.downcase) }
+          return true if evidence_tokens_missing?(tokens: asked_hosts, blob: blob)
+          return true if evidence_tokens_missing?(tokens: asked_tech, blob: blob)
 
           false
         rescue StandardError
@@ -675,6 +683,8 @@ module PWN
 
         private_class_method def self.declared_skills_missing?(opts = {})
           names = Array(opts[:skills]).map(&:to_s).reject(&:empty?)
+          req = opts[:request].to_s.downcase
+          names = names.select { |name| req.include?(name.downcase) }
           return false if names.empty?
           return true unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash)
 
@@ -682,15 +692,41 @@ module PWN
           names.any? { |name| !have.include?(name) }
         end
 
-        private_class_method def self.declared_hosts_missing?(opts = {})
-          hosts = Array(opts[:hosts]).map(&:to_s).reject(&:empty?)
-          return false if hosts.empty?
+        private_class_method def self.evidence_tokens_missing?(opts = {})
+          tokens = Array(opts[:tokens]).map(&:to_s).reject(&:empty?)
+          return false if tokens.empty?
 
-          blob = Array(opts[:messages]).select { |msg| msg.is_a?(Hash) && msg[:role].to_s == 'tool' }
-                                       .map { |msg| msg[:content].to_s }
+          blob = opts[:blob].to_s.downcase
+          tokens.any? { |tok| !blob.include?(tok.downcase) }
+        end
+
+        private_class_method def self.evidence_blob(opts = {})
+          parts = Array(opts[:messages]).select { |msg| msg.is_a?(Hash) && %w[tool assistant].include?(msg[:role].to_s) }.map do |msg|
+            unwrap_untrusted(text: msg[:content].to_s)
+          end
+          Array(opts[:files]).each do |path|
+            parts << File.binread(path) if File.file?(path.to_s)
+          rescue StandardError
+            nil
+          end
+          parts.join("\n").downcase
+        end
+
+        private_class_method def self.session_files(opts = {})
+          blob = Array(opts[:messages]).grep(Hash)
+                                       .map { |msg| unwrap_untrusted(text: msg[:content].to_s) }
                                        .join("\n")
-                                       .downcase
-          hosts.any? { |host| !blob.include?(host.to_s.downcase) }
+          blob.scan(%r{(/[A-Za-z0-9._/+-]+)}).flatten.uniq.select do |path|
+            File.file?(path) && File.size(path).positive?
+          rescue StandardError
+            false
+          end
+        end
+
+        private_class_method def self.unwrap_untrusted(opts = {})
+          text = opts[:text].to_s
+          text = text.sub(/\A\[UNTRUSTED TOOL OUTPUT[^\]]*\]\s*/m, '')
+          text.sub(%r{\s*\[/UNTRUSTED TOOL OUTPUT\]\s*\z}m, '')
         end
 
         private_class_method def self.declared_deliverables(opts = {})
@@ -1759,7 +1795,10 @@ module PWN
           FileUtils.mkdir_p(dir)
           path = File.join(dir, "#{digest}.txt")
           File.binwrite(path, text) unless File.file?(path)
-          "[compacted path=#{path} sha256=#{digest} bytes=#{text.bytesize}]"
+          head = text.byteslice(0, 2_048).to_s
+          tail = text.bytesize > 3_072 ? text.byteslice(-1_024, 1_024).to_s : ''
+          mid = tail.empty? ? '' : "\n...\n#{tail}"
+          "#{head}#{mid}\n[compacted path=#{path} sha256=#{digest} bytes=#{text.bytesize}]"
         rescue StandardError
           "[compacted bytes=#{opts[:text].to_s.bytesize}]"
         end

@@ -2,6 +2,7 @@
 
 require 'open3'
 require 'digest'
+require 'json'
 
 module PWN
   module Plugins
@@ -24,16 +25,38 @@ module PWN
         { stdout: stdout, stderr: stderr, exit: status.exitstatus }
       end
 
+      public_class_method def self.parse_stats(opts = {})
+        out_dir = (opts[:out_dir] || opts[:output]).to_s
+        raise 'ERROR: out_dir is required' if out_dir.empty?
+
+        path = File.join(out_dir, 'fuzzer_stats')
+        path = File.join(out_dir, 'default', 'fuzzer_stats') unless File.file?(path)
+        return {} unless File.file?(path)
+
+        File.read(path).each_line.with_object({}) do |line, acc|
+          key, val = line.split(':', 2)
+          next if key.to_s.strip.empty?
+
+          acc[key.strip.to_sym] = val.to_s.strip
+        end
+      end
+
       public_class_method def self.crash_triage(opts = {})
         out_dir = (opts[:out_dir] || opts[:output]).to_s
         raise 'ERROR: out_dir is required' if out_dir.empty?
 
         crashes = Dir[File.join(out_dir, '**/crashes/id:*')]
         hashes = crashes.map { |p| [p, Digest::SHA256.file(p).hexdigest] }
+        rows = hashes.map do |path, sha|
+          art = File.join(out_dir, "crash-#{sha[0, 12]}.json")
+          File.write(art, JSON.generate(path: path, sha256: sha))
+          { path: path, sha256: sha, artifact: art }
+        end
         {
           crashes: crashes,
           unique: hashes.map(&:last).uniq,
-          asan: crashes.any? { |p| File.binread(p).include?('AddressSanitizer') }
+          asan: crashes.any? { |p| File.binread(p).include?('AddressSanitizer') },
+          artifacts: rows
         }
       end
 
@@ -54,6 +77,12 @@ module PWN
             output: 'optional - output value consumed by #fuzz',
             target: 'required - hostname, IP, or CIDR to scan',
             args: 'optional - Array args value consumed by #fuzz'
+          )
+
+          # Parse AFL fuzzer_stats (execs_per_sec, paths, crashes) from out_dir.
+          #{self}.parse_stats(
+            out_dir: 'required - AFL output directory containing fuzzer_stats',
+            output: 'optional - alias for out_dir'
           )
 
           # Dedup AFL++ crash files by sha256 and note AddressSanitizer hits.

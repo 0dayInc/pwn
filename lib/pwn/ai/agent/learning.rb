@@ -26,6 +26,7 @@ module PWN
       # restarts and is shared by every future session.
       module Learning
         LEARNING_FILE      = File.join(Dir.home, '.pwn', 'learning.jsonl')
+        LESSONS_FILE       = File.join(Dir.home, '.pwn', 'lessons.json')
         FINETUNE_DIR       = File.join(Dir.home, '.pwn', 'finetune')
         # P0 — post-answer introspect must not train "stop early" while
         # spending the iteration budget after the final. Soft cap skips
@@ -1762,6 +1763,61 @@ module PWN
           { removed: before - mem.size, remaining: mem.size }
         end
 
+        public_class_method def self.lesson_record(opts = {})
+          text = opts[:text].to_s
+          raise 'ERROR: text is required' if text.empty?
+
+          store = lesson_store
+          id = Digest::SHA256.hexdigest(text)[0, 12]
+          store[id] ||= { id: id, text: text, state: 'candidate', successes: 0, contradictions: 0 }
+          lesson_save(store: store)
+          store[id]
+        end
+
+        public_class_method def self.lesson_observe(opts = {})
+          id = opts[:id].to_s
+          store = lesson_store
+          row = store[id]
+          return nil unless row
+
+          if opts[:success]
+            row[:successes] = row[:successes].to_i + 1
+            row[:state] = 'verified' if row[:successes] >= 2
+          else
+            row[:contradictions] = row[:contradictions].to_i + 1
+            row[:state] = 'demoted' if row[:contradictions] >= 2
+          end
+          store[id] = row
+          lesson_save(store: store)
+          row
+        end
+
+        public_class_method def self.lesson_prompt(opts = {})
+          include_demoted = opts[:include_demoted] ? true : false
+          lesson_store.values.filter_map do |row|
+            next if !include_demoted && row[:state].to_s == 'demoted'
+
+            tag = row[:state].to_s == 'verified' ? '' : '[UNVERIFIED] '
+            "#{tag}#{row[:text]}"
+          end.join("\n")
+        end
+
+        private_class_method def self.lesson_store
+          return {} unless File.file?(LESSONS_FILE)
+
+          raw = JSON.parse(File.read(LESSONS_FILE))
+          raw.each_with_object({}) do |(k, v), acc|
+            acc[k.to_s] = v.transform_keys(&:to_sym)
+          end
+        rescue StandardError
+          {}
+        end
+
+        private_class_method def self.lesson_save(opts = {})
+          FileUtils.mkdir_p(File.dirname(LESSONS_FILE))
+          File.write(LESSONS_FILE, JSON.pretty_generate(opts[:store]))
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -1908,6 +1964,22 @@ module PWN
 
             # One-shot GC of the pre-R1 garbage: drops every PWN::Memory entry
             #{self}.purge_noise
+
+            # Record a lesson as candidate (injected with [UNVERIFIED] until verified).
+            #{self}.lesson_record(
+              text: 'required - lesson text to quarantine'
+            )
+
+            # Count a success or contradiction against a lesson id.
+            #{self}.lesson_observe(
+              id: 'required - lesson id from #lesson_record',
+              success: 'required - true to count a success, false for a contradiction'
+            )
+
+            # Prompt block of non-demoted lessons; candidates prefixed [UNVERIFIED].
+            #{self}.lesson_prompt(
+              include_demoted: 'optional - include demoted lessons (defaults to false)'
+            )
 
             # Print the AUTHOR(S) string for this module.
             #{self}.authors
