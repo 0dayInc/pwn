@@ -19,7 +19,7 @@ describe PWN::Plugins::Log do
       PWN::Plugins::Log.stop_debug if PWN::Plugins::Log.respond_to?(:stop_debug)
     end
 
-    it 'starts a /tmp/pwn-ai-DEBUG-TIMESTAMP.log and tees progress to TUI + file' do
+    it 'starts a request debug log and tees progress to TUI + file' do
       expect(PWN::Plugins::Log).to respond_to(:start_debug)
       expect(PWN::Plugins::Log).to respond_to(:stop_debug)
       expect(PWN::Plugins::Log).to respond_to(:progress)
@@ -32,7 +32,7 @@ describe PWN::Plugins::Log do
       PWN::Plugins::Log.start_debug(tee: tee, path: nil)
       expect(PWN::Plugins::Log.debug_enabled?).to eq(true)
       path = PWN::Plugins::Log.next_request_log!(session_id: "sess#{Process.pid}")
-      expect(path).to eq("/tmp/pwn-ai-DEBUG-sess#{Process.pid}-R1.log")
+      expect(path).to eq(File.join(PWN::Plugins::Log.debug_dir, "pwn-ai-DEBUG-sess#{Process.pid}-R1.log"))
       expect(File.file?(path)).to eq(true)
       expect(PWN::Plugins::Log.debug_log_path).to eq(path)
 
@@ -218,8 +218,8 @@ describe PWN::Plugins::Log do
       PWN::Plugins::Log.finish_request_log!(iter: 1, tools_called: 0, engine_s: 0.1, final_chars: 4)
       second = PWN::Plugins::Log.next_request_log!(session_id: sid)
       PWN::Plugins::Log.progress(msg: 'req-two', which_self: PWN::AI::Agent::Loop)
-      expect(first).to eq("/tmp/pwn-ai-DEBUG-#{sid}-R1.log")
-      expect(second).to eq("/tmp/pwn-ai-DEBUG-#{sid}-R2.log")
+      expect(first).to eq(File.join(PWN::Plugins::Log.debug_dir, "pwn-ai-DEBUG-#{sid}-R1.log"))
+      expect(second).to eq(File.join(PWN::Plugins::Log.debug_dir, "pwn-ai-DEBUG-#{sid}-R2.log"))
       expect(File.read(first)).to include('req-one')
       expect(File.read(first)).to include('footer iter=1')
       expect(File.read(first)).not_to include('req-two')
@@ -234,7 +234,7 @@ describe PWN::Plugins::Log do
       first = PWN::Plugins::Log.next_request_log!(session_id: sid)
       second = PWN::Plugins::Log.next_request_log!(session_id: sid)
       expect(second).to eq(first)
-      expect(second).to eq("/tmp/pwn-ai-DEBUG-#{sid}-R1.log")
+      expect(second).to eq(File.join(PWN::Plugins::Log.debug_dir, "pwn-ai-DEBUG-#{sid}-R1.log"))
     end
 
     it 'does not TracePoint PWN calls unless trace: true' do
@@ -409,5 +409,10 @@ describe 'PWN::Plugins::Log toggle-trace step' do
     )
     PWN::Plugins::Log.wait_trace_step!(label: 'engine', nested: true)
     expect(io.pos).to eq(0)
+  end
+
+  it 'defaults request logs under ~/.pwn/logs unless PWN_DEBUG_DIR is set' do
+    expect(PWN::Plugins::Log.debug_dir).to include('.pwn')
+    expect(PWN::Plugins::Log.debug_dir).to include('logs')
   end
 end

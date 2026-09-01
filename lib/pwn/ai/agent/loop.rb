@@ -1168,10 +1168,20 @@ module PWN
         end
 
         private_class_method def self.note_same_payload!(opts = {})
+          return 0 if read_like?(opts)
+
           sig = payload_sig(opts)
           counts = Thread.current[:pwn_same_payload] ||= Hash.new(0)
           counts[sig] += 1
           counts[sig]
+        end
+
+        private_class_method def self.read_like?(opts = {})
+          name = opts[:name].to_s
+          return true if name.match?(/_(read|get|list|status|recall|tail)\z/)
+          return true if %w[pty_read artifact_read artifacts_get job_status job_result].include?(name)
+
+          false
         end
 
         private_class_method def self.no_progress_result(opts = {})

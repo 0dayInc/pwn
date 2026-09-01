@@ -11,5 +11,6 @@ describe 'PWN::AI::Agent::Tools artifacts' do
   it 'registers expected tool names' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'artifacts_list')).not_to be_nil
     expect(PWN::AI::Agent::Registry.lookup(name: 'artifacts_get')).not_to be_nil
+    expect(PWN::AI::Agent::Registry.lookup(name: 'artifact_read')).not_to be_nil
   end
 end

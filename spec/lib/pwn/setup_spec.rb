@@ -218,4 +218,9 @@ describe PWN::Setup do
       PWN::Setup.packages_for(bin: 'nmap', distro: :openbsd, version: '7.6', pm_key: :pkg_add)
     ).to eq(%w[nmap])
   end
+
+  it 're profile includes pwndbg, ropper, and rizin' do
+    bins = described_class::PROFILES[:re][:bins]
+    expect(bins).to include('pwndbg', 'ropper', 'rizin')
+  end
 end

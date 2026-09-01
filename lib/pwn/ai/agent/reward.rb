@@ -1252,7 +1252,8 @@ module PWN
         private_class_method def self.judge_model
           return nil unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
-          m = PWN::Env.dig(:ai, :agent, :reward_model)
+          m = PWN::Env.dig(:ai, :agent, :model_routes, :judge)
+          m = PWN::Env.dig(:ai, :agent, :reward_model) if m.to_s.empty?
           m = PWN::Env.dig(:ai, :reflect_model) if m.to_s.empty?
           m.to_s.empty? ? nil : m.to_s
         rescue StandardError

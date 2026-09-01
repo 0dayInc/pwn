@@ -389,6 +389,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.plan_first Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.plan_first`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.publish_usage Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.publish_usage`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.quiet_debug_tui! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.quiet_debug_tui!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.read_like? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.read_like?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.recall_target Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.recall_target`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.record_metrics Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.record_metrics`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.repair_tool_history! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.repair_tool_history!`: "}]}
@@ -579,6 +580,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.definitions Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.definitions`: Supported Method Parameters\n\ntools = PWN::AI::Agent::Registry.definitions(\n\nenabled: 'optional - Array of toolset names to include; nil = all whose check passes',\nrelevance: 'optional - user request; when set AND :tool_router is enabled, slim to CORE + top-K keyword matches',\ntop_k: 'optional - keyword-ranked tools to keep beyond CORE (default 10)',\norder: 'optional - preference list forwarded only when this key is present',\npreference: 'optional - alias of :order; same key-present rule'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.discover Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.discover`: Supported Method Parameters\n\nnames = PWN::AI::Agent::Registry.discover(\n\nforce: 'optional - re-require tool files even if already discovered (default false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.domain_pin_names Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.domain_pin_names`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.lookup Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.lookup`: Supported Method Parameters\n\nentry = PWN::AI::Agent::Registry.lookup(\n\nname: 'required - registered tool name'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.metrics_rates Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.metrics_rates`: "}]}
@@ -749,14 +751,17 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.auto_job? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.auto_job?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.bashism? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.bashism?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.budget_exhausted? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.budget_exhausted?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.canary_leak? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.canary_leak?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.coerce_args Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.coerce_args`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.command_class Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.command_class`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.deadline_s Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.deadline_s`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.host_load Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.host_load`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.injection_score Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.injection_score`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.invalid_payload Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.invalid_payload`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.ip_in_cidr? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.ip_in_cidr?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.load_runtimes Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.load_runtimes`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.mint_canary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.mint_canary`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.mutation_count Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.mutation_count`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.next_timeout Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.next_timeout`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.note_timeout! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.note_timeout!`: "}]}
@@ -767,13 +772,16 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.present? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.present?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_core_constants! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_core_constants!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_http! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_http!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.quarantine_output Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.quarantine_output`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.record_runtime Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.record_runtime`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.refuse_copied_persist? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.refuse_copied_persist?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.rfc1918? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.rfc1918?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.scope_refusal Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.scope_refusal`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_bash? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_bash?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_name Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_name`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_syntax_surface Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_syntax_surface`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.task_key Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.task_key`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.timeout_lesson Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.timeout_lesson`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.timeout_mutated Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.timeout_mutated`: "}]}
@@ -1673,9 +1681,11 @@
 {"messages":[{"role":"user","content":"PWN::Memory.turn_pairs Usage"},{"role":"assistant","content":"`PWN::Memory.turn_pairs`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.authors Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.available? Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.available?`: Supported Method Parameters\n\nbool = PWN::MemoryIndex.available?\n"}]}
+{"messages":[{"role":"user","content":"PWN::MemoryIndex.bm25 Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.bm25`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.cosine Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.cosine`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.embed Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.embed`: Supported Method Parameters\n\nvecs = PWN::MemoryIndex.embed(texts: [‘a’, ‘b’])\n"}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.embed_endpoint Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.embed_endpoint`: "}]}
+{"messages":[{"role":"user","content":"PWN::MemoryIndex.expand_query Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.expand_query`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.fallback Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.fallback`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.help Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::MemoryIndex.load_index Usage"},{"role":"assistant","content":"`PWN::MemoryIndex.load_index`: "}]}
@@ -1761,6 +1771,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.get Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.get`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.list Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.list`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.read_page Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.read_page`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.register Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.register`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Assembly.asm_to_opcodes Usage"},{"role":"assistant","content":"`PWN::Plugins::Assembly.asm_to_opcodes`: Supported Method Parameters\n\nPWN::Plugins::Assembly.asm_to_opcodes(\n\nasm: 'required - assembly instruction(s) (e.g. 'nop\\nnop\\nnop\\njmp rsp\\n)',\narch: 'optional - architecture returned from objdump --info (defaults to PWN::Plugins::DetectOS.arch)',\nendian: 'optional - endianess :big|:little (defaults to current system endianess)'\n\n)\n"}]}
@@ -2039,6 +2050,12 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.registers Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.registers`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.run_to_crash Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.run_to_crash`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Ghidra.analyze Usage"},{"role":"assistant","content":"`PWN::Plugins::Ghidra.analyze`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Ghidra.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Ghidra.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Ghidra.decompile Usage"},{"role":"assistant","content":"`PWN::Plugins::Ghidra.decompile`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Ghidra.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Ghidra.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Ghidra.r2_fallback Usage"},{"role":"assistant","content":"`PWN::Plugins::Ghidra.r2_fallback`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Ghidra.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Ghidra.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Git.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Git.authors`: Author(s)\n\nJacob Hoopes <jake.hoopes@gmail.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Git.dump_all_repo_branches Usage"},{"role":"assistant","content":"`PWN::Plugins::Git.dump_all_repo_branches`: Supported Method Parameters\n\nPWN::Plugins::Git.dump_all_repo_branches(\n\ngit_url: 'required git repo url'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Git.gen_html_diff Usage"},{"role":"assistant","content":"`PWN::Plugins::Git.gen_html_diff`: Supported Method Parameters\n\nPWN::Plugins::Git.gen_html_diff(\n\nrepo: 'required git repo name',\nbranch: 'required git repo branch (e.g. master, develop, etc)',\nsince: 'optional date, otherwise default to last pull'\n\n)\n"}]}
@@ -2212,6 +2229,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.capture_stderr! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.capture_stderr!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.close_debug_file! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.close_debug_file!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.color_progress Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.color_progress`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Log.debug_dir Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.debug_dir`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.debug_enabled? Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.debug_enabled?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.debug_log_path Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.debug_log_path`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Log.finish_request_log! Usage"},{"role":"assistant","content":"`PWN::Plugins::Log.finish_request_log!`: "}]}

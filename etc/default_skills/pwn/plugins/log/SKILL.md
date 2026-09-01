@@ -38,6 +38,7 @@ PWN::Plugins::Log.append(opts)
 - `debug_log_path`
 - `start_debug`
 - `trace_enabled`
+- `debug_dir`
 - `next_request_log`
 - `finish_request_log`
 - `stop_debug`

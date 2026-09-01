@@ -1,5 +1,5 @@
 {
-  "req09": [
+  "cases": [
     {"error": "pull access denied for library/foo", "class": "auth_denied"},
     {"error": "Conflict. The container name is already in use", "class": "name_conflict"},
     {"error": "template parsing error: unexpected token", "class": "parse_error"}

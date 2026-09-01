@@ -1560,4 +1560,18 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     expect(src).not_to match(/ai.*agent.*debug_trace/)
     expect(described_class).to respond_to(:debug_on?)
   end
-end # rubocop:enable Metrics/BlockLength
+
+  it 'does not increment the same-payload counter for read-like tools' do
+    Thread.current[:pwn_same_payload] = Hash.new(0)
+    5.times do
+      n = described_class.send(:note_same_payload!, name: 'artifact_read', args: { path: '/tmp/x' })
+      expect(n).to eq(0)
+    end
+  end
+
+  it 'compacts large tool bodies with a head, tail, and spill path' do
+    src = File.read(described_class.method(:run).source_location.first)
+    expect(src).to include('[compacted path=')
+    expect(src).to include('byteslice(0, 2_048)')
+  end
+end

@@ -45,4 +45,15 @@ describe PWN::AI::Agent::Registry do
     expect(names).not_to include('sessions_view')
     expect(names.length).to eq(described_class::CORE_TOOLS.length)
   end
+
+  it 'pins pentest and RE tools when the request is offensive-security work' do
+    described_class.discover(force: true)
+    defs = described_class.definitions(
+      relevance: 'penetration testing and reverse engineering fitness'
+    )
+    names = defs.map { |d| d.dig(:function, :name) || d.dig('function', 'name') }
+    %w[binary_triage job_run exploitdev finding_record fuzz_campaign pty_open].each do |n|
+      expect(names).to include(n)
+    end
+  end
 end

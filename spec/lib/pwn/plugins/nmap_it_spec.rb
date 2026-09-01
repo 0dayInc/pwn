@@ -19,4 +19,8 @@ describe PWN::Plugins::NmapIt do
     expect(src).to include('opts[')
     expect(src).to include('output_xml')
   end
+
+  it 'to_findings returns [] for a missing xml file' do
+    expect(described_class.to_findings(xml_file: '/tmp/no-such-nmap.xml')).to eq([])
+  end
 end

@@ -339,4 +339,19 @@ describe PWN::AI::Agent::Learning do
   ensure
     FileUtils.rm_rf(tmp) if defined?(tmp) && tmp
   end
+
+  it 'tags candidate lessons UNVERIFIED until two successes, then demotes after two contradictions' do
+    Dir.mktmpdir do |dir|
+      stub_const('PWN::AI::Agent::Learning::LESSONS_FILE', File.join(dir, 'lessons.json'))
+      row = described_class.lesson_record(text: 'always ls parent first')
+      expect(described_class.lesson_prompt).to include('[UNVERIFIED]')
+      described_class.lesson_observe(id: row[:id], success: true)
+      described_class.lesson_observe(id: row[:id], success: true)
+      expect(described_class.lesson_prompt).not_to include('[UNVERIFIED]')
+      expect(described_class.lesson_prompt).to include('always ls parent first')
+      described_class.lesson_observe(id: row[:id], success: false)
+      described_class.lesson_observe(id: row[:id], success: false)
+      expect(described_class.lesson_prompt).not_to include('always ls parent first')
+    end
+  end
 end

@@ -59,14 +59,14 @@ describe PWN::Cron do
 
     it 'marks a 5-field cron job due when last_run missed the slot' do
       now = Time.local(2026, 8, 14, 14, 12, 0)
-      last = Time.utc(2026, 7, 26, 1, 32, 11)
+      last = Time.local(2026, 7, 26, 1, 32, 11)
       expect(
         PWN::Cron.due?(schedule: '0 5 * * *', last_run: last, now: now)
       ).to be true
       expect(
         PWN::Cron.due?(
           schedule: '0 3 * * *',
-          last_run: Time.utc(2026, 8, 14, 9, 0, 5),
+          last_run: Time.local(2026, 8, 14, 9, 0, 5),
           now: now
         )
       ).to be false

@@ -408,4 +408,18 @@ describe 'PWN::AI::Agent::Reward vs TUI plan' do
     v = klass.judge(request: req, final: final, trace: ['{"success":true,"result":{"exit":0}}'], commit: false)
     expect(v[:score]).to be > 0.35
   end
+
+  it 'floors verified PASS analytical answers at 0.6' do
+    src = File.read(PWN::AI::Agent::Reward.method(:judge).source_location.first)
+    expect(src).to include('[score, 0.6].max')
+    expect(src).to include('\bPASS\b')
+  end
+
+  it 'prefers model_routes.judge when selecting a judge model' do
+    allow(PWN::Env).to receive(:is_a?).and_return(true)
+    allow(PWN::Env).to receive(:dig).and_call_original
+    allow(PWN::Env).to receive(:dig).with(:ai, :agent, :model_routes, :judge).and_return('local-judge')
+    m = PWN::AI::Agent::Reward.send(:judge_model)
+    expect(m).to eq('local-judge')
+  end
 end

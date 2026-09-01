@@ -39,6 +39,7 @@ PWN::MemoryIndex.available(opts)
 - `refresh`
 - `embed`
 - `reset`
+- `bm25`
 - `authors`
 - `help`
 - `available?`

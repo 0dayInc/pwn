@@ -3,6 +3,7 @@
 require 'digest'
 require 'json'
 require 'fileutils'
+require 'securerandom'
 
 module PWN
   module AI
@@ -45,9 +46,48 @@ module PWN
         end
 
         public_class_method def self.bashism?(opts = {})
-          BASHISM_RX.match?(opts[:text].to_s)
+          BASHISM_RX.match?(shell_syntax_surface(text: opts[:text]))
         rescue StandardError
           false
+        end
+
+        public_class_method def self.shell_syntax_surface(opts = {})
+          s = opts[:text].to_s.dup
+          s.gsub!(/<<[-~]?\s*(['"])(\w+)\1.*?^\2\s*$/m, ' ')
+          s.gsub!(/'[^']*'/, "''")
+          s
+        end
+
+        public_class_method def self.mint_canary(opts = {})
+          n = (opts[:bytes] || 8).to_i
+          n = 8 if n <= 0
+          tok = "PWNCANARY#{SecureRandom.hex(n)}"
+          Thread.current[:pwn_canary] = tok
+          tok
+        end
+
+        public_class_method def self.canary_leak?(opts = {})
+          tok = Thread.current[:pwn_canary].to_s
+          return false if tok.empty?
+
+          opts[:text].to_s.include?(tok)
+        end
+
+        public_class_method def self.injection_score(opts = {})
+          t = opts[:text].to_s
+          score = 0
+          score += 3 if t.match?(/ignore (all )?(previous|prior) (instructions|directives)/i)
+          score += 2 if t.match?(/system:\s|tool_call|function_call/i)
+          score += 2 if t.match?(/\bexfiltrat|\bdo not tell (the )?(user|operator)/i)
+          score
+        end
+
+        public_class_method def self.quarantine_output(opts = {})
+          text = opts[:text].to_s
+          score = injection_score(text: text)
+          return text unless score >= 3
+
+          "[QUARANTINED injection_score=#{score}]\n#{text}"
         end
 
         public_class_method def self.shell_bash?
@@ -373,7 +413,7 @@ module PWN
 
           ips = cmd.scan(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)
           hosts = cmd.scan(/\b[a-z0-9][a-z0-9.-]+\.[a-z]{2,}\b/i)
-          bad_ip = allow.any? ? ips.find { |ip| allow.none? { |cidr| ip_in_cidr?(ip: ip, cidr: cidr) } } : nil
+          bad_ip = allow.any? ? ips.find { |ip| !rfc1918?(ip: ip) && allow.none? { |cidr| ip_in_cidr?(ip: ip, cidr: cidr) } } : nil
           bad_host = domains.any? ? hosts.find { |h| domains.none? { |d| h.downcase.end_with?(d.downcase) } } : nil
           hit = bad_ip || bad_host
           return nil unless hit
@@ -381,6 +421,17 @@ module PWN
           "Refused: #{hit} is outside ~/.pwn/scope.yaml allowlists."
         rescue StandardError
           nil
+        end
+
+        public_class_method def self.rfc1918?(opts = {})
+          oct = opts[:ip].to_s.split('.').map(&:to_i)
+          return false unless oct.length == 4
+
+          return true if [10, 127].include?(oct[0])
+          return true if oct[0] == 192 && oct[1] == 168
+          return true if oct[0] == 172 && oct[1].between?(16, 31)
+
+          false
         end
 
         public_class_method def self.ip_in_cidr?(opts = {})
@@ -456,6 +507,31 @@ module PWN
             # Run bashism and return its result
             #{self}.bashism?(
               text: 'optional - text value consumed by #bashism?'
+            )
+
+            # Strip quoted heredocs and single-quoted strings before bash-syntax lint.
+            #{self}.shell_syntax_surface(
+              text: 'required - command string to lint'
+            )
+
+            # Mint a per-thread session canary token stored on Thread.current.
+            #{self}.mint_canary(
+              bytes: 'optional - hex length (defaults to 8)'
+            )
+
+            # True when text contains the current session canary.
+            #{self}.canary_leak?(
+              text: 'required - outbound argv or URL to inspect'
+            )
+
+            # Heuristic injection score for tool output (ignore-previous, tool-call spoof).
+            #{self}.injection_score(
+              text: 'required - tool output to score'
+            )
+
+            # Prefix high-score tool output with a QUARANTINED frame.
+            #{self}.quarantine_output(
+              text: 'required - tool output to wrap if injection_score >= 3'
             )
 
             # Run shell bash and return its result
@@ -546,6 +622,11 @@ module PWN
             # Refuse a command whose IPs/hosts are outside the ~/.pwn scope yaml allowlists.
             #{self}.scope_refusal(
               command: 'required - shell command to inspect for IPs and hostnames'
+            )
+
+            # True when ip is RFC1918 or loopback (always in-scope unless strict).
+            #{self}.rfc1918?(
+              ip: 'required - IPv4 address'
             )
 
             # True when ip is inside cidr (e.g. 10.1.2.3 in 10.0.0.0/8).

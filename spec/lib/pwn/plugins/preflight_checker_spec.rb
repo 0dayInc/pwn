@@ -20,4 +20,28 @@ describe PWN::Plugins::PreflightChecker do
     expect(rows).to be_an(Array)
     expect(rows.first).to include(:plugin, :status)
   end
+
+  it 'selects the first healthy alternative for a proxy task' do
+    allow(described_class).to receive(:bin?).and_call_original
+    allow(described_class).to receive(:bin?).with(name: 'burpsuite').and_return(false)
+    allow(described_class).to receive(:bin?).with(name: 'zaproxy').and_return(true)
+    row = described_class.pick(task: 'proxy')
+    expect(row[:ok]).to be true
+    expect(row[:name]).to eq('zaproxy')
+  end
+
+  it 'route degrades missing bins without raising' do
+    row = described_class.route(name: 'definitely-not-a-bin-zzzz')
+    expect(row[:ok]).to be false
+    expect(row[:degraded]).to be true
+  end
+
+  it 'check includes missing_services' do
+    row = described_class.check.find { |r| r[:plugin].to_s.include?('Packet') }
+    expect(row).to include(:missing_services)
+  end
+
+  it 'service? is false for a missing unix socket' do
+    expect(described_class.service?(name: 'no-such-pwn-svc', path: '/tmp/pwn-no-such.sock')).to be false
+  end
 end

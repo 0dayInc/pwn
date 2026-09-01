@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'json'
 require 'tmpdir'
 require 'fileutils'
 
@@ -193,5 +194,25 @@ describe PWN::AI::Agent::Mistakes do
     expect(src).not_to match(/unauthorized_recon/)
     expect(src).not_to match(/recon_blocked/)
     expect(src).not_to match(/auth_gate/)
+  end
+
+  it 'classifies pull-denied and name-conflict as distinct error classes' do
+    expect(described_class.error_class(error: 'pull access denied')).to eq('auth_denied')
+    expect(described_class.error_class(error: 'name already in use')).to eq('name_conflict')
+  end
+
+  it 'does not collapse docker socket perms into missing_path' do
+    expect(described_class.error_class(error: 'permission denied while trying to connect to docker.sock')).to eq('socket_perm')
+    a = described_class.signature(tool: 'shell', error: 'pull access denied for library/foo')
+    b = described_class.signature(tool: 'shell', error: 'permission denied while trying to connect to docker.sock')
+    expect(a).not_to eq(b)
+  end
+
+  it 'maps docker failure goldens to distinct error classes' do
+    path = File.expand_path('fixtures/error_class_docker.json', __dir__)
+    rows = JSON.parse(File.read(path))['cases']
+    classes = rows.map { |r| described_class.error_class(error: r['error']) }
+    expect(classes).to eq(rows.map { |r| r['class'] })
+    expect(classes.uniq.length).to eq(3)
   end
 end

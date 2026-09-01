@@ -127,7 +127,8 @@ module PWN
             pool = pool.select { |e| CORE_TOOLS.include?(e.name) }
           elsif opts[:relevance] && router_enabled?
             keep = rank({ query: opts[:relevance], entries: pool }.merge(pref_fwd)).first(opts[:top_k] || 10).map(&:name)
-            names = (CORE_TOOLS + keep).uniq
+            pinned = domain_pin_names(query: opts[:relevance])
+            names = (CORE_TOOLS + keep + pinned).uniq
             pool  = pool.select { |e| names.include?(e.name) }
           end
 
@@ -336,6 +337,25 @@ module PWN
           Metrics.summary(limit: 200).to_h { |r| [r[:name], r[:effective_rate] || r[:success_rate]] }
         rescue StandardError
           {}
+        end
+
+        DOMAIN_PINS = {
+          re: %w[pty_open pty_send pty_read pty_close binary_triage exploitdev job_run decompile],
+          pentest: %w[pty_open job_run finding_record binary_triage fuzz_campaign exploitdev],
+          fuzzing: %w[fuzz_campaign job_run job_status job_result],
+          exploitation: %w[exploitdev pty_open job_run finding_record],
+          reporting: %w[finding_record finding_report artifacts_list]
+        }.freeze
+
+        private_class_method def self.domain_pin_names(opts = {})
+          q = opts[:query].to_s.downcase
+          classes = []
+          classes << :re if q.match?(/reverse.?engineer|binary.?analy|decompile/)
+          classes << :pentest if q.match?(/penet|bug.?bounty|offensive|red.?team|pentest/)
+          classes << :fuzzing if q.match?(/\bfuzz|afl/)
+          classes << :exploitation if q.match?(/exploit|payload/)
+          classes << :reporting if q.match?(/finding|report|severity/)
+          classes.flat_map { |c| Array(DOMAIN_PINS[c]) }.uniq
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>
