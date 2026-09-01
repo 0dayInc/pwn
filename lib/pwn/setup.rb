@@ -262,6 +262,7 @@ module PWN
       },
       'pwndbg' => {
         apt: %w[pwndbg], dnf: %w[], pacman: %w[pwndbg], brew: %w[], port: %w[],
+        script: "curl --proto '=https' --tlsv1.2 -LsSf 'https://install.pwndbg.re' | sh -s -- -t pwndbg-gdb",
         plugins: %w[PWN::Plugins::GDB]
       },
       'ropper' => {
@@ -372,6 +373,18 @@ module PWN
         next unless t[bin]
 
         t[bin] = t[bin].merge(ubuntu: [], debian: [])
+      end
+      {
+        'checksec' => %w[checksec],
+        'ROPgadget' => %w[python3-ropgadget],
+        'ropper' => %w[ropper],
+        'pwndbg' => [],
+        'semgrep' => [],
+        'vol' => []
+      }.each do |bin, pkgs|
+        next unless t[bin]
+
+        t[bin] = t[bin].merge(kali: pkgs)
       end
     end.freeze
 
@@ -653,6 +666,8 @@ module PWN
       gems.each { |g| os_pkgs.concat(Array(NATIVE_GEMS.dig(g, pm[:key]))) }
       bins.each { |b| os_pkgs.concat(packages_for(bin: b, distro: distro, version: version, pm_key: pm[:key])) }
       os_pkgs = os_pkgs.reject(&:empty?).uniq
+      alts = alt_install_cmds(bins: bins, pm_key: pm[:key], distro: distro, version: version)
+      os_pkgs = (['pipx'] + os_pkgs).uniq if pm[:key] == :apt && alts.any? { |c| c.include?('pipx install') }
 
       io.puts "Profile   : #{profile} — #{prof[:desc]}"
       io.puts "Distro    : #{distro} #{version}"
@@ -661,14 +676,13 @@ module PWN
       io.puts "Ruby exts : #{gems.empty? ? '(none)' : gems.join(' ')}"
       io.puts
 
-      cmds = []
-      cmds << "#{pm[:install]} #{os_pkgs.map { |p| Shellwords.escape(p) }.join(' ')}" unless os_pkgs.empty?
+      cmds = os_pkgs.map { |pkg| "#{pm[:install]} #{Shellwords.escape(pkg)}" }
       unless gems.empty?
         broken = gems.reject { |g| gem_loadable?(name: g) }
         cmds << "gem pristine #{broken.map { |g| Shellwords.escape(g) }.join(' ')}" unless broken.empty?
         cmds << "gem install #{broken.map { |g| Shellwords.escape(g) }.join(' ')}"  unless broken.empty?
       end
-      cmds.concat(alt_install_cmds(bins: bins, pm_key: pm[:key], distro: distro, version: version))
+      cmds.concat(alts)
 
       if cmds.empty?
         io.puts "Nothing to do — profile '#{profile}' is already satisfied."
@@ -922,10 +936,22 @@ module PWN
         next if packages_for(bin: b, pm_key: pm_key, distro: distro, version: version).any?
 
         if meta[:pip].to_s != ''
-          "python3 -m pip install --user #{Shellwords.escape(meta[:pip])}"
+          pip_install_cmd(pkg: meta[:pip], distro: distro)
         elsif meta[:gem].to_s != ''
           "gem install #{Shellwords.escape(meta[:gem])}"
+        elsif meta[:script].to_s != ''
+          meta[:script].to_s
         end
+      end
+    end
+
+    private_class_method def self.pip_install_cmd(opts = {})
+      pkg = opts[:pkg].to_s
+      distro = opts[:distro].to_s.to_sym
+      if %i[kali debian ubuntu mint pop chromeos].include?(distro)
+        "pipx install #{Shellwords.escape(pkg)}"
+      else
+        "python3 -m pip install --user #{Shellwords.escape(pkg)}"
       end
     end
 

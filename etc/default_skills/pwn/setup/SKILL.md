@@ -44,6 +44,10 @@ PWN::Setup.packages_for(opts)
 - `authors`
 - `help`
 
+## References
+
+- `references/urls.md` — URLs from source
+
 ## Source
 
 `pwn/setup.rb`

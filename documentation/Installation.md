@@ -108,8 +108,9 @@ pwn setup --list-profiles
    `24.04`) via `PWN::Setup.packages_for`. Family fallbacks still live in
    `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN`. Tools with no OS package on this
    distro (Frida, one_gadget, ROPgadget, checksec, ropper, kube-hunter, or
-   Kali-only names on Ubuntu) install via `pip` / `gem` or are skipped so
-   `apt-get` does not abort the whole profile.
+   Kali-only names on Ubuntu) install via `pipx` (Debian/Kali/Ubuntu) or `pip`
+   / `gem`, or are skipped so one missing apt name cannot abort the whole
+   profile. Each OS package is installed in its own `apt-get`/`dnf`/… command.
 3. Show the exact commands, prompt (unless `--yes`), run them, then
    `gem pristine` / `gem install` any native extension that still fails to
    load, and re-run the doctor.
