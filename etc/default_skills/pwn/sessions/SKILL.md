@@ -46,6 +46,9 @@ PWN::Sessions.sessions_dir(opts)
 - `stats`
 - `lean`
 - `protected_session_ids`
+- `export`
+- `retain`
+- `redact`
 - `authors`
 - `help`
 - `lean!`

@@ -191,4 +191,31 @@ describe PWN::Setup do
     expect(apt.length).to be > 1
     apt.each { |c| expect(c).to match(/apt-get install -y \S+\z/) }
   end
+
+  it 'selects pkg_add when DetectOS.distro is openbsd' do
+    PWN::Setup.instance_variable_set(:@pkg_manager, nil)
+    allow(PWN::Plugins::DetectOS).to receive(:distro).and_return(:openbsd)
+    pm = PWN::Setup.pkg_manager
+    expect(pm[:key]).to eq(:pkg_add)
+    expect(pm[:install]).to match(/pkg_add/)
+  ensure
+    PWN::Setup.instance_variable_set(:@pkg_manager, nil)
+  end
+
+  it 'deps does not raise unknown package manager on OpenBSD' do
+    PWN::Setup.instance_variable_set(:@pkg_manager, nil)
+    allow(PWN::Plugins::DetectOS).to receive(:distro).and_return(:openbsd)
+    allow(PWN::Plugins::DetectOS).to receive(:version).and_return('7.6')
+    r = PWN::Setup.deps(profile: :core, dry_run: true, io: StringIO.new, distro: :openbsd, version: '7.6')
+    expect(r[:profile]).to eq(:core)
+    expect(PWN::Setup.pkg_manager[:key]).to eq(:pkg_add)
+  ensure
+    PWN::Setup.instance_variable_set(:@pkg_manager, nil)
+  end
+
+  it 'packages_for falls back to the binary name on pkg_add' do
+    expect(
+      PWN::Setup.packages_for(bin: 'nmap', distro: :openbsd, version: '7.6', pm_key: :pkg_add)
+    ).to eq(%w[nmap])
+  end
 end

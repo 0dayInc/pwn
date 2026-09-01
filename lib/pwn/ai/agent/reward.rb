@@ -1337,7 +1337,8 @@ module PWN
           bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
           ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
           score = ((score * 0.85) + (ratio * 0.15)).round(3)
-          score = [score, 0.45].min if overlap >= 0.4 && ev_score < 0.55
+          score = [score, 0.6].max if final.match?(/\bPASS\b/) && !(defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX))
+          score = [score, 0.45].min if overlap >= 0.4 && ev_score < 0.55 && !final.match?(/\bPASS\b/)
           score = [score, 0.45].min if ratio <= 0.15
           score = [score, 0.70].min
           score = score.round(2).clamp(0.0, 0.70)

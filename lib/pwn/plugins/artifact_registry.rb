@@ -2,6 +2,7 @@
 
 require 'fileutils'
 require 'json'
+require 'digest'
 
 module PWN
   module Plugins
@@ -40,6 +41,14 @@ module PWN
         end
       end
 
+      public_class_method def self.get(opts = {})
+        path = opts[:path].to_s
+        raise 'ERROR: path is required' if path.empty?
+        raise "ERROR: file not found: #{path}" unless File.file?(path)
+
+        { path: path, sha256: Digest::SHA256.file(path).hexdigest, bytes: File.size(path), body: File.binread(path)[0, 65_536] }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -59,6 +68,11 @@ module PWN
           # Run list and return its result
           #{self}.list(
             session_id: 'optional - session id value consumed by #list'
+          )
+
+          # Read an artifact file and return sha256 plus a body cap.
+          #{self}.get(
+            path: 'required - filesystem path of a registered artifact'
           )
 
           # Print the AUTHOR(S) string for this module.

@@ -115,6 +115,30 @@ module PWN
         raise e
       end
 
+      public_class_method def self.to_findings(opts = {})
+        xml_file = opts[:xml_file].to_s
+        raise 'ERROR: xml_file is required' if xml_file.empty?
+        return [] unless File.file?(xml_file)
+
+        rows = []
+        parse_xml_results(xml_file: xml_file) do |xml|
+          xml.each_host do |host|
+            host.each_port do |port|
+              rows << {
+                host: host.ip.to_s,
+                port: port.number,
+                proto: port.protocol.to_s,
+                service: (port.service.name if port.respond_to?(:service) && port.service),
+                version: (port.service.version if port.respond_to?(:service) && port.service.respond_to?(:version)),
+                template_id: nil,
+                severity: 'info'
+              }
+            end
+          end
+        end
+        rows
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -147,6 +171,11 @@ module PWN
             xml_a: 'required - path to nmap xml results',
             xml_b: 'required - path to nmap xml results',
             diff: 'required - path to nmap xml results diff'
+          )
+
+          # Normalize nmap XML into {host, port, proto, service, version} rows.
+          #{self}.to_findings(
+            xml_file: 'required - path to nmap XML output'
           )
 
           # Print the AUTHOR(S) string for this module.

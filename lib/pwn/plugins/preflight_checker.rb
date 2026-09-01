@@ -50,6 +50,32 @@ module PWN
         raise MissingBinary, "ERROR: required binary missing: #{name}. Install via pwn setup --profile re (or the plugin profile)."
       end
 
+      public_class_method def self.route(opts = {})
+        name = opts[:name].to_s
+        raise 'ERROR: name is required' if name.empty?
+
+        return { ok: true, name: name } if bin?(name: name)
+
+        { ok: false, name: name, degraded: true, hint: "missing #{name}; install via pwn setup --deps" }
+      end
+
+      TASK_BINS = {
+        'proxy' => %w[burpsuite zaproxy],
+        'vuln-scan' => %w[nuclei openvas],
+        're' => %w[r2 gdb]
+      }.freeze
+
+      public_class_method def self.pick(opts = {})
+        task = opts[:task].to_s
+        raise 'ERROR: task is required' if task.empty?
+
+        tried = Array(TASK_BINS[task])
+        tried.each do |name|
+          return { ok: true, name: name, task: task } if bin?(name: name)
+        end
+        { ok: false, task: task, tried: tried, hint: "no healthy alternative for #{task}" }
+      end
+
       public_class_method def self.cap_net_raw?(opts = {})
         return true unless File.readable?('/proc/self/status')
 
@@ -133,6 +159,16 @@ module PWN
           # Run require bin and return its result
           #{self}.require_bin!(
             name: 'required - binary or identifier name'
+          )
+
+          # Return ok/degraded for a binary without raising.
+          #{self}.route(
+            name: 'required - binary name to probe'
+          )
+
+          # First healthy binary for a task (proxy, vuln-scan, re).
+          #{self}.pick(
+            task: 'required - capability name such as proxy or vuln-scan'
           )
 
           # Run cap net raw and return its result

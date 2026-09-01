@@ -474,7 +474,11 @@ module PWN
       return Array(meta[ver_key]) if meta.key?(ver_key)
       return Array(meta[distro]) if meta.key?(distro)
 
-      Array(meta[pm_key])
+      pkgs = Array(meta[pm_key])
+      return pkgs unless pkgs.empty?
+      return [bin] if %i[pkg pkg_add pkgin apk].include?(pm_key) && !bin.empty?
+
+      []
     end
 
     # Supported Method Parameters::
@@ -492,7 +496,14 @@ module PWN
       rescue StandardError
         false
       end
-      sudo = root || !bin?(name: 'sudo') ? '' : 'sudo '
+      priv =
+        if !root && bin?(name: 'doas')
+          'doas '
+        elsif !root && bin?(name: 'sudo')
+          'sudo '
+        else
+          ''
+        end
 
       distro = begin
         PWN::Plugins::DetectOS.distro
@@ -501,14 +512,20 @@ module PWN
       end
 
       @pkg_manager =
-        if distro == :freebsd && bin?(name: 'pkg')
-          { key: :pkg, install: "#{sudo}pkg install -y", sudo: !sudo.empty? }
-        elsif distro == :openbsd && bin?(name: 'pkg_add')
-          { key: :pkg_add, install: "#{sudo}pkg_add", sudo: !sudo.empty? }
-        elsif distro == :netbsd && bin?(name: 'pkgin')
-          { key: :pkgin, install: "#{sudo}pkgin -y install", sudo: !sudo.empty? }
+        if distro == :freebsd
+          cmd = which(name: 'pkg')
+          cmd = '/usr/sbin/pkg' if cmd.empty?
+          { key: :pkg, install: "#{priv}#{cmd} install -y", sudo: !priv.empty? }
+        elsif distro == :openbsd
+          cmd = which(name: 'pkg_add')
+          cmd = '/usr/sbin/pkg_add' if cmd.empty?
+          { key: :pkg_add, install: "#{priv}#{cmd}", sudo: !priv.empty? }
+        elsif distro == :netbsd
+          cmd = which(name: 'pkgin')
+          cmd = '/usr/pkg/bin/pkgin' if cmd.empty?
+          { key: :pkgin, install: "#{priv}#{cmd} -y install", sudo: !priv.empty? }
         elsif distro == :alpine && bin?(name: 'apk')
-          { key: :apk, install: "#{sudo}apk add", sudo: !sudo.empty? }
+          { key: :apk, install: "#{priv}apk add", sudo: !priv.empty? }
         elsif distro == :android && bin?(name: 'pkg')
           { key: :pkg, install: 'pkg install -y', sudo: false }
         elsif distro == :windows && bin?(name: 'winget')
@@ -516,15 +533,15 @@ module PWN
         elsif distro == :windows && bin?(name: 'choco')
           { key: :choco, install: 'choco install -y', sudo: false }
         elsif bin?(name: 'apt-get')
-          { key: :apt, install: "#{sudo}apt-get install -y", sudo: !sudo.empty? }
+          { key: :apt, install: "#{priv}apt-get install -y", sudo: !priv.empty? }
         elsif bin?(name: 'dnf')
-          { key: :dnf, install: "#{sudo}dnf install -y", sudo: !sudo.empty? }
+          { key: :dnf, install: "#{priv}dnf install -y", sudo: !priv.empty? }
         elsif bin?(name: 'pacman')
-          { key: :pacman, install: "#{sudo}pacman -S --noconfirm", sudo: !sudo.empty? }
+          { key: :pacman, install: "#{priv}pacman -S --noconfirm", sudo: !priv.empty? }
         elsif bin?(name: 'brew')
           { key: :brew, install: 'brew install', sudo: false }
         elsif bin?(name: 'port')
-          { key: :port, install: "#{sudo}port -N install", sudo: !sudo.empty? }
+          { key: :port, install: "#{priv}port -N install", sudo: !priv.empty? }
         else
           { key: :unknown, install: nil, sudo: false }
         end
@@ -648,7 +665,7 @@ module PWN
       raise "Unknown profile '#{profile}'. Known: #{PROFILES.keys.join(', ')}" unless PROFILES.key?(profile)
 
       pm = pkg_manager
-      raise 'No supported package manager found (apt / dnf / pacman / brew / port / pkg / winget / choco).' if pm[:key] == :unknown
+      raise 'No supported package manager found (apt / dnf / pacman / brew / port / pkg_add / pkg / winget).' if pm[:key] == :unknown
 
       prof     = PROFILES[profile]
       gems     = Array(prof[:gems])
@@ -961,7 +978,11 @@ module PWN
 
     private_class_method def self.which(opts = {})
       name = opts[:name].to_s
-      ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).each do |dir|
+      return '' if name.empty?
+
+      dirs = ENV.fetch('PATH', '').split(File::PATH_SEPARATOR)
+      dirs |= %w[/usr/bin /bin /usr/sbin /sbin /usr/local/bin /usr/local/sbin /usr/pkg/bin]
+      dirs.each do |dir|
         path = File.join(dir, name)
         return path if File.executable?(path) && !File.directory?(path)
       end

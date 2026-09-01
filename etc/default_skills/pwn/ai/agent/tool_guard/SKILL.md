@@ -53,9 +53,17 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `timeout_result`
 - `timeout_prior_count`
 - `refuse_copied_persist`
+- `scope_refusal`
+- `ip_in_cidr`
+- `command_class`
+- `record_runtime`
+- `predicted_timeout`
+- `auto_job`
 - `authors`
 - `help`
+- `auto_job?`
 - `bashism?`
+- `ip_in_cidr?`
 - `note_timeout!`
 - `placeholder?`
 - `present?`

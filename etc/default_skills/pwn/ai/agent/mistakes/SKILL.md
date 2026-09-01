@@ -36,6 +36,7 @@ PWN::AI::Agent::Mistakes.load(opts)
 - `load`
 - `save`
 - `signature`
+- `error_class`
 - `find`
 - `for_tool`
 - `record`

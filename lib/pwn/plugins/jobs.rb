@@ -23,7 +23,7 @@ module PWN
         id = SecureRandom.hex(6)
         log = File.join(JOBS_DIR, "#{id}.log")
         meta = File.join(JOBS_DIR, "#{id}.json")
-        pid = spawn(cmd.to_s, %i[out err] => [log, 'a'])
+        pid = spawn(cmd.to_s, %i[out err] => [log, 'a'], pgroup: true)
         Process.detach(pid)
         row = {
           id: id,
@@ -57,6 +57,11 @@ module PWN
         File.readlines(row[:log]).last(n).join
       end
 
+      public_class_method def self.result(opts = {})
+        row = status(opts)
+        row.merge(tail: tail(opts.merge(lines: opts[:lines] || 80)))
+      end
+
       public_class_method def self.stop(opts = {})
         row = load_job(opts)
         Process.kill('TERM', row[:pid].to_i)
@@ -87,6 +92,12 @@ module PWN
           # Run tail and return its result
           #{self}.tail(
             lines: 'optional - lines value consumed by #tail'
+          )
+
+          # Return status plus log tail for a job id.
+          #{self}.result(
+            id: 'required - job id from #start',
+            lines: 'optional - tail line count (defaults to 80)'
           )
 
           # Run stop and return its result

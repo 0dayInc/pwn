@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require 'metasm'
+require 'digest'
+require 'json'
+require 'fileutils'
 
 module PWN
   module Plugins
@@ -78,6 +81,29 @@ module PWN
         []
       end
 
+      public_class_method def self.triage(opts = {})
+        path = opts[:path].to_s
+        inf = info(opts)
+        secs = sections(opts)
+        imps = Array(imports(opts)).first(40)
+        exps = Array(exports(opts)).first(40)
+        summary = {
+          format: inf[:format],
+          arch: inf[:cpu],
+          bits: inf[:cpu].to_s[/\d+/],
+          imports: imps,
+          exports: exps,
+          function_count: Array(symbols(opts)).length,
+          section_entropy_map: secs.to_h { |s| [s[:name], s[:size]] }
+        }
+        sha = Digest::SHA256.file(path).hexdigest
+        dir = File.join(Dir.home, '.pwn', 'artifacts', 'triage')
+        FileUtils.mkdir_p(dir)
+        art = File.join(dir, "#{sha[0, 16]}.json")
+        File.write(art, JSON.pretty_generate(summary.merge(path: path, sha256: sha)))
+        summary.merge(artifact: art)
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -112,6 +138,11 @@ module PWN
           # Run relocations and return its result
           #{self}.relocations(
             limit: 'optional - limit value consumed by #relocations'
+          )
+
+          # Structured binary triage JSON plus an artifact path under ~/.pwn/artifacts/triage.
+          #{self}.triage(
+            path: 'required - filesystem path of the binary to triage'
           )
 
           # Print the AUTHOR(S) string for this module.

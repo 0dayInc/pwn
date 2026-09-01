@@ -1,9 +1,0 @@
-pwn_critic swarm 20260819_214041_e6ff4d
-REQUEST: what skills are available?
-LIVE INDEX: /home/ninp0/.pwn/skills
-LIVE COUNT: 103
-CANDIDATE CLAIM: 103 skills, complete A-Z list
-CANDIDATE LISTED: 24 names, last item truncated at "document-to-action-items -- Extract cited obligations, deadli"
-MISSING COUNT: 79
-VERDICT: FLAW
-ONE LINE: Claims 103 skills from the live SKILLS index but the list stops at item 24 mid-word; 79 skills are omitted.

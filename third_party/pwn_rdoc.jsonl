@@ -281,6 +281,11 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.infer_success Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.infer_success`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.introspective_lessons Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.introspective_lessons`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.lean! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.lean!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.lesson_observe Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.lesson_observe`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.lesson_prompt Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.lesson_prompt`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.lesson_record Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.lesson_record`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.lesson_save Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.lesson_save`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.lesson_store Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.lesson_store`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.locate_skill_for_update Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.locate_skill_for_update`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.maybe_prune_outcomes! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.maybe_prune_outcomes!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.merge_cluster Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.merge_cluster`: "}]}
@@ -338,7 +343,6 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_contract Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_contract`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_contract_unsatisfied? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_contract_unsatisfied?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_deliverables Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_deliverables`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_hosts_missing? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_hosts_missing?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_min_seconds Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_min_seconds`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.declared_skills_missing? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.declared_skills_missing?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.default_interactive_toolsets Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.default_interactive_toolsets`: "}]}
@@ -349,7 +353,9 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.emit_task_summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.emit_task_summary`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.engine_transient? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.engine_transient?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.escalate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.escalate`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.evidence_blob Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.evidence_blob`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.evidence_enough_to_finalize? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.evidence_enough_to_finalize?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.evidence_tokens_missing? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.evidence_tokens_missing?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.expose_current_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.expose_current_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.extract_recall_match Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.extract_recall_match`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.finish_debug_request! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.finish_debug_request!`: "}]}
@@ -391,6 +397,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.request_unsatisfied? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.request_unsatisfied?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.run Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.run`: Supported Method Parameters\n\nfinal = PWN::AI::Agent::Loop.run(\n\nrequest: 'required - what the human typed',\nsession_id: 'optional - PWN::Sessions id (transcript is appended to it)',\nenabled_toolsets: 'optional - subset of Registry.toolsets, or nil for all',\non_tool: 'optional - ->(name, args, result) callback for live UI',\nsystem_role_content: 'optional - override default system prompt (built from session_id if not provided)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_chat_history Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_chat_history`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_files Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_files`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.should_auto_introspect? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.should_auto_introspect?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.spill_tool_body Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.spill_tool_body`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.spill_tool_history! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.spill_tool_history!`: "}]}
@@ -404,6 +411,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.task_summary_record! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.task_summary_record!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.timeout_task Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.timeout_task`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.tool_effects Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.tool_effects`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.unwrap_untrusted Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.unwrap_untrusted`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wait_trace_step! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wait_trace_step!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.world_knowledge? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.world_knowledge?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wrap_untrusted_tool Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wrap_untrusted_tool`: "}]}
@@ -446,6 +454,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.correction? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.correction?`: Supported Method Parameters\n\nbool = PWN::AI::Agent::Mistakes.correction?(request: user_text)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.correction_hint Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.correction_hint`: Supported Method Parameters\n\nstr = PWN::AI::Agent::Mistakes.correction_hint(\n\ntool: 'required - tool that just failed',\nerror: 'required - raw error it failed with'\n\n)\n\nCalled by Loop.run immediately after a failed dispatch. Returns a string to append to the tool result telling the model (a) how many times this exact failure has occurred across ALL sessions, and (b) the recorded fix if one exists — so it can self-correct on the very next iteration instead of re-discovering the fix from scratch.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.effective_count Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.effective_count`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.error_class Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.error_class`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.extinguish! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.extinguish!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.extinguish_parked! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.extinguish_parked!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.find Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.find`: Supported Method Parameters\n\nentry = PWN::AI::Agent::Mistakes.find(\n\nsignature: 'optional - exact signature to fetch',\ntool: 'optional - with error:, compute signature and fetch',\nerror: 'optional - raw error text (used with tool:)'\n\n)\n"}]}
@@ -658,6 +667,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.env_ai Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.env_ai`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.list Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.list`: Supported Method Parameters\n\nswarms = PWN::AI::Agent::Swarm.list\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.map_targets Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.map_targets`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.max_depth Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.max_depth`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.normalize_persona Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.normalize_persona`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.persona_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.persona_session`: "}]}
@@ -736,25 +746,32 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.verbose? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.verbose?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::TaskSummarizer.why_bit Usage"},{"role":"assistant","content":"`PWN::AI::Agent::TaskSummarizer.why_bit`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.auto_job? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.auto_job?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.bashism? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.bashism?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.budget_exhausted? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.budget_exhausted?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.coerce_args Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.coerce_args`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.command_class Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.command_class`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.deadline_s Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.deadline_s`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.host_load Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.host_load`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.invalid_payload Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.invalid_payload`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.ip_in_cidr? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.ip_in_cidr?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.load_runtimes Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.load_runtimes`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.mutation_count Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.mutation_count`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.next_timeout Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.next_timeout`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.note_timeout! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.note_timeout!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.payload_key Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.payload_key`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.payload_spent Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.payload_spent`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.placeholder? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.placeholder?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.predicted_timeout Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.predicted_timeout`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.present? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.present?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_core_constants! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_core_constants!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.protect_http! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.protect_http!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.record_runtime Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.record_runtime`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.refuse_copied_persist? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.refuse_copied_persist?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.reset_timeout_budget! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.reset_timeout_budget!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.scope_refusal Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.scope_refusal`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_bash? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_bash?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.shell_name Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.shell_name`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::ToolGuard.task_key Usage"},{"role":"assistant","content":"`PWN::AI::Agent::ToolGuard.task_key`: "}]}
@@ -1719,6 +1736,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.crash_triage Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.crash_triage`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.fuzz Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.fuzz`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.help Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.parse_stats Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.parse_stats`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::AFLplusplus.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::AFLplusplus.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Android.adb_net_connect Usage"},{"role":"assistant","content":"`PWN::Plugins::Android.adb_net_connect`: Supported Method Parameters\n\nPWN::Plugins::Android.adb_net_connect(\n\nadb_path: 'required - path to adb binary',\ntarget: 'required - target host or IP to connect',\nport: 'optional - defaults to tcp 5555'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Android.adb_net_disconnect Usage"},{"role":"assistant","content":"`PWN::Plugins::Android.adb_net_disconnect`: Supported Method Parameters\n\nPWN::Plugins::Android.adb_net_disconnect(\n\nadb_path: 'required - path to adb binary',\ntarget: 'required - target host or IP to disconnect',\nport: 'optional - defaults to tcp 5555'\n\n)\n"}]}
@@ -1740,6 +1758,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Android.swipe Usage"},{"role":"assistant","content":"`PWN::Plugins::Android.swipe`: Supported Method Parameters\n\nPWN::Plugins::Android.swipe(\n\nadb_path: 'required - path to adb binary',\ndirection: 'required - direction to swipe (:up|:down|:left|:right)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Android.take_screenshot Usage"},{"role":"assistant","content":"`PWN::Plugins::Android.take_screenshot`: Supported Method Parameters\n\nPWN::Plugins::Android.take_screenshot(\n\nadb_path: 'required - path to adb binary',\ndest: 'optional - destination path to save screenshot file (defaults to /sdcard/screen.png)',\nas_root: 'optional - boolean (defaults to true)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.get Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.get`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.list Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.list`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ArtifactRegistry.register Usage"},{"role":"assistant","content":"`PWN::Plugins::ArtifactRegistry.register`: "}]}
@@ -1790,6 +1809,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::BinaryParser.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::BinaryParser.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BinaryParser.sections Usage"},{"role":"assistant","content":"`PWN::Plugins::BinaryParser.sections`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BinaryParser.symbols Usage"},{"role":"assistant","content":"`PWN::Plugins::BinaryParser.symbols`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::BinaryParser.triage Usage"},{"role":"assistant","content":"`PWN::Plugins::BinaryParser.triage`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan Usage"},{"role":"assistant","content":"`PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan`: Supported Method Parameters\n\nresponse = PWN::Plugins::BlackDuckBinaryAnalysis.abort_product_scan(\n\ntoken: 'required - Bearer token',\nproduct_id: 'required - product id'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BlackDuckBinaryAnalysis.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::BlackDuckBinaryAnalysis.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::BlackDuckBinaryAnalysis.bd_bin_analysis_rest_call Usage"},{"role":"assistant","content":"`PWN::Plugins::BlackDuckBinaryAnalysis.bd_bin_analysis_rest_call`: Supported Method Parameters\n\nbd_bin_analysis_rest_call(\n\ntoken: 'required - Black Duck Binary Analysis API token',\nhttp_method: 'optional HTTP method (defaults to GET)\nrest_call: 'required rest call to make per the schema',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_headers: 'optional HTTP headers sent in HTTP methods that support it e.g. POST'\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST'\n\n)\n"}]}
@@ -1936,15 +1956,20 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.android_host? Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.android_host?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.arch Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.arch`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.bin_present? Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.bin_present?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.cap_net_raw_live Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.cap_net_raw_live`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.chromeos_host? Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.chromeos_host?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.distro Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.distro`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.distro(\n\nos_release: 'optional - /etc/os-release body (defaults to reading the file)',\nlsb_release: 'optional - /etc/lsb-release body',\nbuild_prop: 'optional - Android /system/build.prop body',\ntype: 'optional - OS family from #type (e.g. :linux :osx :windows :freebsd)',\nplatform: 'optional - RUBY_PLATFORM override',\nuname: 'optional - uname -s string',\nsw_vers: 'optional - macOS/iOS product version string',\nwin_ver: 'optional - Windows ver command output'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.docker_live Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.docker_live`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.endian Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.endian`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.help Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.inventory_names Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.inventory_names`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.ios_host? Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.ios_host?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.live_sw_vers Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.live_sw_vers`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.live_uname_r Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.live_uname_r`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.live_uname_s Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.live_uname_s`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.live_win_ver Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.live_win_ver`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.living_off_the_land Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.living_off_the_land`: Supported Method Parameters\n\nPWN::Plugins::DetectOS.living_off_the_land(\n\nos_release: 'optional - /etc/os-release body (defaults to reading the file)',\nwhich: 'optional - Hash of binary name => present Boolean (skips live PATH)',\nbins: 'optional - extra binary names to probe besides plugin required_bins'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.normalize_id Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.normalize_id`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.parse_kv Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.parse_kv`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::DetectOS.read_if_present Usage"},{"role":"assistant","content":"`PWN::Plugins::DetectOS.read_if_present`: "}]}
@@ -1956,6 +1981,8 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.cve_for_cpe Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.cve_for_cpe`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.intel_csv Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.intel_csv`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.local_hits Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.local_hits`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.search Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.search`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.authors`: "}]}
@@ -1985,6 +2012,12 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::FileFu.recurse_in_dir Usage"},{"role":"assistant","content":"`PWN::Plugins::FileFu.recurse_in_dir`: Supported Method Parameters\n\nPWN::Plugins::FileFu.recurse_in_dir(\n\ndir_path: 'optional path to dir defaults to .',\ninclude_extensions: 'optional - array of file extensions to search for in scan (e.g. ['.js', '.php'])',\nexclude_extensions: 'optional - array of file extensions to exclude from scan (e.g. ['.log', '.txt', '.spec'])'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::FileFu.shift_file_up Usage"},{"role":"assistant","content":"`PWN::Plugins::FileFu.shift_file_up`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::FileFu.untar_gz_file Usage"},{"role":"assistant","content":"`PWN::Plugins::FileFu.untar_gz_file`: Supported Method Parameters\n\nPWN::Plugins::FileFu.untar_gz_file(\n\ntar_gz_file: 'required - path to .tar.gz file',\ndestination: 'required - destination folder to save extracted contents'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Findings.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Findings.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Findings.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Findings.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Findings.record Usage"},{"role":"assistant","content":"`PWN::Plugins::Findings.record`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Findings.render Usage"},{"role":"assistant","content":"`PWN::Plugins::Findings.render`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Findings.report Usage"},{"role":"assistant","content":"`PWN::Plugins::Findings.report`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Findings.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Findings.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Frida.attach Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.attach`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Frida.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Frida.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Frida.help`: "}]}
@@ -2162,6 +2195,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.load_job Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.load_job`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Jobs.result Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.result`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.start Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.start`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.status Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.status`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.stop`: "}]}
@@ -2308,6 +2342,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::NmapIt.nmap_compat Usage"},{"role":"assistant","content":"`PWN::Plugins::NmapIt.nmap_compat`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::NmapIt.parse_xml_results Usage"},{"role":"assistant","content":"`PWN::Plugins::NmapIt.parse_xml_results`: Supported Method Parameters\n\nPWN::Plugins::NmapIt.parse_xml_results(:xml_file => ‘required - path to nmap xml results’) do |xml|\n\nputs xml.public_methods\nxml.each_host do |host|\n  puts \"[#{host.ip}]\"\n\n  host.scripts.each do |name,output|\n    output.each_line { |line| puts \"  #{line}\" }\n  end\n\n  host.each_port do |port|\n    puts \"  [#{port.number}/#{port.protocol}]\"\n\n    port.scripts.each do |name,output|\n      puts \"    [#{name}]\"\n      output.each_line { |line| puts \"      #{line}\" }\n    end\n  end\nend\n\n\nend\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::NmapIt.port_scan Usage"},{"role":"assistant","content":"`PWN::Plugins::NmapIt.port_scan`: Supported Method Parameters\n\nPWN::Plugins::NmapIt.port_scan do |nmap|\n\nputs nmap.public_methods\nnmap.connect_scan = true\nnmap.service_scan = true\nnmap.verbose = true\nnmap.ports = [1..1024, 1337]\nnmap.targets = '127.0.0.1'\nnmap.xml = '/tmp/nmap_port_scan_res.xml' # alias of output_xml\n\n\nend\n\nPWN::Plugins::NmapIt.port_scan(\n\ntargets: '127.0.0.1',\nports: '1-65535',\nconnect_scan: true,\nservice_scan: true,\nscript: 'vuln,safe',\nxml: '/tmp/nmap_port_scan_res.xml'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::NmapIt.to_findings Usage"},{"role":"assistant","content":"`PWN::Plugins::NmapIt.to_findings`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.help Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Nuclei.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::Nuclei.required_bins`: "}]}
@@ -2396,9 +2431,11 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.check Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.check`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.help Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.host_summary Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.host_summary`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.pick Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.pick`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.require_bin! Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.require_bin!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.require_cap_net_raw! Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.require_cap_net_raw!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.required_bins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.route Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.route`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::PreflightChecker.service? Usage"},{"role":"assistant","content":"`PWN::Plugins::PreflightChecker.service?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ProcessTube.close Usage"},{"role":"assistant","content":"`PWN::Plugins::ProcessTube.close`: "}]}
@@ -2574,6 +2611,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.devtools_websocket_messages Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.devtools_websocket_messages`: Supported Method Parameters\n\nmessages = PWN::Plugins::TransparentBrowser.devtools_websocket_messages(\n\nbrowser_obj: 'required - browser_obj returned from #open method)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.dom Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.dom`: Supported Method Parameters\n\ncurrent_dom = PWN::Plugins::TransparentBrowser.dom(\n\nbrowser_obj: 'required - browser_obj returned from #open method)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.dump_links Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.dump_links`: Supported Method Parameters\n\nbrowser_obj = PWN::Plugins::TransparentBrowser.dump_links(\n\nbrowser_obj: browser_obj1\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.evidence! Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.evidence!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.find_elements_by_text Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.find_elements_by_text`: Supported Method Parameters\n\nbrowser_obj = PWN::Plugins::TransparentBrowser.find_elements_by_text(\n\nbrowser_obj: browser_obj1,\ntext: 'required - text to search for in the DOM'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.get_page_state Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.get_page_state`: Supported Method Parameters\n\npage_state = PWN::Plugins::TransparentBrowser.get_page_state(\n\nbrowser_obj: 'required - browser_obj returned from #open method)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::TransparentBrowser.get_targets Usage"},{"role":"assistant","content":"`PWN::Plugins::TransparentBrowser.get_targets`: Supported Method Parameters\n\npage_state_arr = PWN::Plugins::TransparentBrowser.get_targets(\n\nbrowser_obj: 'required - browser_obj returned from #open method)'\n\n)\n"}]}
@@ -3164,10 +3202,12 @@
 {"messages":[{"role":"user","content":"PWN::SDR::SonMicroRFID.update_tag Usage"},{"role":"assistant","content":"`PWN::SDR::SonMicroRFID.update_tag`: Supported Method Parameters\n\nPWN::SDR::SonMicroRFID.update_tag(\n\nson_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::SDR::SonMicroRFID.write_tag Usage"},{"role":"assistant","content":"`PWN::SDR::SonMicroRFID.write_tag`: Supported Method Parameters\n\nPWN::SDR::SonMicroRFID.write_tag(\n\nson_micro_rfid_obj: 'required - son_micro_rfid_obj returned from #connect method',\nrfid_data: 'required - RFID data to write (see #read_tag for structure)',\nauthn: 'optional - authentication flag (default: false)',\nkey: 'optional - key for authentication (default: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.append Usage"},{"role":"assistant","content":"`PWN::Sessions.append`: Supported Method Parameters\n\nPWN::Sessions.append(\n\nsession_id: 'required',\nrole: 'user|assistant|system|observation',\ncontent: 'the message or obs'\n\n)\n"}]}
-{"messages":[{"role":"user","content":"PWN::Sessions.authors Usage"},{"role":"assistant","content":"`PWN::Sessions.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.authors Usage"},{"role":"assistant","content":"`PWN::Sessions.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.compact_transcript! Usage"},{"role":"assistant","content":"`PWN::Sessions.compact_transcript!`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.create Usage"},{"role":"assistant","content":"`PWN::Sessions.create`: Supported Method Parameters\n\nsession = PWN::Sessions.create(\n\ntitle: 'optional - human title',\nsource: 'optional - e.g. pwn-ai',\nid: 'optional - fixed session id (tests / replay); default timestamp_hex'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.delete Usage"},{"role":"assistant","content":"`PWN::Sessions.delete`: Supported Method Parameters\n\nPWN::Sessions.delete(\n\nsession_id: 'required',\nforce: 'optional - Boolean bypass pin policy (default false)'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.expand_tokens Usage"},{"role":"assistant","content":"`PWN::Sessions.expand_tokens`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.export Usage"},{"role":"assistant","content":"`PWN::Sessions.export`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.help Usage"},{"role":"assistant","content":"`PWN::Sessions.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.lean! Usage"},{"role":"assistant","content":"`PWN::Sessions.lean!`: Supported Method Parameters\n\nresult = PWN::Sessions.lean!(\n\ndry_run: 'optional - Boolean (default false)',\nretain_days: 'optional - drop unreferenced older than this',\nhot_days: 'optional - always keep newer than this',\nmax_files: 'optional - soft file cap after protections',\ncurrent_session_id: 'optional - never delete this id'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.list Usage"},{"role":"assistant","content":"`PWN::Sessions.list`: Supported Method Parameters\n\nsessions = PWN::Sessions.list\n"}]}
@@ -3176,6 +3216,10 @@
 {"messages":[{"role":"user","content":"PWN::Sessions.protected_session_ids Usage"},{"role":"assistant","content":"`PWN::Sessions.protected_session_ids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.recall Usage"},{"role":"assistant","content":"`PWN::Sessions.recall`: Supported Method Parameters\n\nhits = PWN::Sessions.recall(\n\nquery: 'optional - substring / tokens to match',\nexclude_session_id: 'optional - skip this id (current session)',\ninclude_current: 'optional - Boolean include excluded id (default false)',\nlimit: 'optional - max hits (default 12)',\nmax_files: 'optional - newest files to scan (default 40)',\ntruncate: 'optional - chars per hit (default 280)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.recall_score Usage"},{"role":"assistant","content":"`PWN::Sessions.recall_score`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.redact Usage"},{"role":"assistant","content":"`PWN::Sessions.redact`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.redact_disabled? Usage"},{"role":"assistant","content":"`PWN::Sessions.redact_disabled?`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.redacted_token Usage"},{"role":"assistant","content":"`PWN::Sessions.redacted_token`: "}]}
+{"messages":[{"role":"user","content":"PWN::Sessions.retain Usage"},{"role":"assistant","content":"`PWN::Sessions.retain`: "}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.sessions_dir Usage"},{"role":"assistant","content":"`PWN::Sessions.sessions_dir`: Supported Method Parameters\n\ndir = PWN::Sessions.sessions_dir\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.stats Usage"},{"role":"assistant","content":"`PWN::Sessions.stats`: Supported Method Parameters\n\nstats = PWN::Sessions.stats\n"}]}
 {"messages":[{"role":"user","content":"PWN::Sessions.stub_session? Usage"},{"role":"assistant","content":"`PWN::Sessions.stub_session?`: "}]}

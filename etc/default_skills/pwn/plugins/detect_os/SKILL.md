@@ -38,6 +38,7 @@ PWN::Plugins::DetectOS.type(opts)
 - `endian`
 - `distro`
 - `version`
+- `living_off_the_land`
 - `authors`
 - `help`
 

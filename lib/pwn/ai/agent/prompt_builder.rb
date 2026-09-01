@@ -200,9 +200,10 @@ module PWN
           shell_s = ToolGuard.deadline_s(kind: :shell) if defined?(ToolGuard)
           load_line = "load1=#{snap[:load1]} ncpu=#{snap[:ncpu]} mem_avail_mb=#{snap[:mem_avail_mb]}"
           doc = (PWN::Plugins::PreflightChecker.host_summary if defined?(PWN::Plugins::PreflightChecker))
+          land = (PWN::Plugins::DetectOS.living_off_the_land[:summary] if defined?(PWN::Plugins::DetectOS))
           "#{load_line} pwn_eval/shell timeout = conservative seconds for this host " \
             "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped). " \
-            "#{doc}"
+            "LIVING OFF THE LAND #{land} #{doc}"
         rescue StandardError
           'load unknown — pass a conservative timeout on pwn_eval/shell anyway.'
         end
@@ -278,19 +279,18 @@ module PWN
                           else
                             []
                           end
-          extra = 0
-          lines = []
-          PWN::Skills.each_key do |name|
-            key = name.to_s
-            unless catalog_names.include?(key)
-              extra += 1
-              next
-            end
-
-            lines << "  - #{key}"
+          extra = PWN::Skills.keys.map(&:to_s).count { |key| !catalog_names.include?(key) }
+          by_ns = Hash.new(0)
+          catalog_names.each do |name|
+            top = name.to_s.split(%r{[/_-]}, 2).first.to_s
+            by_ns[top] += 1 unless top.empty?
           end
-          extra_line = extra.positive? ? "  (#{extra} additional files under ~/.pwn/skills — call skills_recall to search; they are not this catalog)\n" : ''
-          "SKILLS CATALOG (bundled pwn-ai; call skills_recall with no query to list)\n#{lines.join("\n")}\n#{extra_line}\n"
+          top = by_ns.sort_by { |_k, n| -n }.first(4).map { |k, n| "#{k}:#{n}" }.join(' ')
+          extra_line = extra.positive? ? "(#{extra} extra under ~/.pwn/skills — skills_recall, not this catalog)" : ''
+          groups = top.empty? ? extra_line : "groups: #{top}\n#{extra_line}"
+          "SKILLS CATALOG (names via skills_recall; do not dump)\n" \
+            "#{catalog_names.length} bundled skills. Call skills_recall to load one by name.\n" \
+            "#{groups}\n"
         rescue StandardError
           ''
         end

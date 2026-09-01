@@ -71,6 +71,11 @@ PWN::AI::Agent::Registry.register(
       )
     end
 
+    scoped = PWN::AI::Agent::ToolGuard.scope_refusal(command: cmd)
+    return scoped if scoped
+
+    return PWN::Plugins::Jobs.start(command: cmd).merge(routed: 'job_run') if args[:timeout].to_i <= 0 && PWN::AI::Agent::ToolGuard.auto_job?(payload: cmd)
+
     stdout = +''
     stderr = +''
     exitstatus = nil

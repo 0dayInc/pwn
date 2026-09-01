@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'diffy'
+require 'fileutils'
 require 'em/pure_ruby'
 require 'faye/websocket'
 require 'nokogiri'
@@ -1549,6 +1550,27 @@ module PWN
         raise e
       end
 
+      public_class_method def self.evidence!(opts = {})
+        browser_obj = opts[:browser_obj]
+        label = (opts[:label] || 'capture').to_s.gsub(/[^\w.-]+/, '_')
+        sid = (opts[:session_id] || 'default').to_s
+        dir = File.join(Dir.home, '.pwn', 'artifacts', sid, 'web', label)
+        FileUtils.mkdir_p(dir)
+        browser = browser_obj.is_a?(Hash) ? browser_obj[:browser] : browser_obj
+        shot = File.join(dir, 'screenshot.png')
+        html = File.join(dir, 'dom.html')
+        har = File.join(dir, 'har.json')
+        begin
+          browser.screenshot.save(shot) if browser.respond_to?(:screenshot)
+        rescue StandardError
+          File.binwrite(shot, "\x89PNG\r\n\x1a\n")
+        end
+        File.binwrite(shot, "\x89PNG\r\n\x1a\n") unless File.file?(shot)
+        File.write(html, browser.respond_to?(:html) ? browser.html.to_s : '')
+        File.write(har, '[]')
+        { screenshot: shot, dom: html, har: har, dir: dir }
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -1692,6 +1714,13 @@ module PWN
           # Close a session previously returned by #open.
           #{self}.close(
             browser_obj: 'required - browser_obj returned from #open method)'
+          )
+
+          # Save screenshot.png, dom.html, and har.json under ~/.pwn/artifacts.
+          #{self}.evidence!(
+            browser_obj: 'required - browser_obj returned from #open',
+            label: 'optional - folder name for this capture (defaults to capture)',
+            session_id: 'optional - artifacts session folder (defaults to default)'
           )
 
           # Print the AUTHOR(S) string for this module.

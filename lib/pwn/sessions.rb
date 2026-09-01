@@ -4,6 +4,8 @@ require 'json'
 require 'fileutils'
 require 'time'
 require 'securerandom'
+require 'digest'
+require 'zlib'
 
 module PWN
   # PWN::Sessions provides session management for pwn-ai (and other drivers)
@@ -99,6 +101,7 @@ module PWN
               else ASSISTANT_CONTENT_MAX * 2
               end
         content = "#{content[0, cap]}…[compacted]" if content.bytesize > cap
+        content = redact(content: content)
       end
       entry = {
         role: role,
@@ -195,8 +198,21 @@ module PWN
 
       score = 0
       score += 5 if !query.empty? && body.include?(query)
-      tokens.each { |tok| score += 1 if body.include?(tok) }
+      expand_tokens(tokens: tokens).each { |tok| score += 1 if body.include?(tok) }
       score
+    end
+
+    private_class_method def self.expand_tokens(opts = {})
+      tokens = Array(opts[:tokens]).map(&:to_s)
+      table = {
+        'bypass' => %w[evasion evade],
+        'evasion' => %w[bypass evade],
+        'throttle' => %w[rate limit ratelimit],
+        'rate' => %w[throttle],
+        'limit' => %w[throttle],
+        'login' => %w[auth authentication]
+      }
+      tokens.flat_map { |tok| [tok] + Array(table[tok]) }.uniq
     end
 
     # Supported Method Parameters::
@@ -533,6 +549,66 @@ module PWN
 
     # Author(s):: 0day Inc. <support@0dayinc.com>
 
+    public_class_method def self.export(opts = {})
+      sid = opts[:session_id].to_s
+      raise 'ERROR: session_id required' if sid.empty?
+
+      src = File.join(sessions_dir, "#{sid}.jsonl")
+      raise "Session #{sid} not found" unless File.exist?(src)
+
+      dir = File.join(Dir.home, '.pwn', 'exports')
+      FileUtils.mkdir_p(dir)
+      dest = File.join(dir, "#{sid}.tar.gz")
+      manifest = { File.basename(src) => Digest::SHA256.file(src).hexdigest }
+      Dir.mktmpdir do |tmp|
+        FileUtils.cp(src, File.join(tmp, File.basename(src)))
+        File.write(File.join(tmp, 'manifest.json'), JSON.generate(manifest))
+        system('tar', '-czf', dest, '-C', tmp, '.')
+      end
+      { path: dest, session_id: sid, manifest: manifest }
+    end
+
+    public_class_method def self.retain(opts = {})
+      days = (opts[:days] || 90).to_i
+      cutoff = Time.now - (days * 86_400)
+      gzipped = 0
+      Dir[File.join(sessions_dir, '*.jsonl')].each do |path|
+        next if File.mtime(path) > cutoff
+
+        lines = File.readlines(path)
+        keep = lines.first(20) + lines.last(20)
+        Zlib::GzipWriter.open("#{path}.gz") { |gz| gz.write(keep.join) }
+        File.delete(path)
+        gzipped += 1
+      end
+      { deleted: 0, gzipped: gzipped, days: days }
+    end
+
+    public_class_method def self.redact(opts = {})
+      text = opts[:content].to_s
+      return text if redact_disabled?
+
+      text = text.gsub(/AKIA[0-9A-Z]{16}/) { |m| redacted_token(kind: 'aws', value: m) }
+      text = text.gsub(/\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/) { |m| redacted_token(kind: 'jwt', value: m) }
+      text = text.gsub(%r{Bearer\s+[A-Za-z0-9._\-+/=]{12,}}i) { |m| redacted_token(kind: 'bearer', value: m) }
+      text = text.gsub(/-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----/m) { |m| redacted_token(kind: 'pem', value: m) }
+      text = text.gsub(/(password\s*[:=]\s*)\S+/i) { "#{Regexp.last_match(1)}#{redacted_token(kind: 'password', value: Regexp.last_match(0))}" }
+      text.gsub(/Set-Cookie:\s*[^\r\n]+/i) { |m| redacted_token(kind: 'cookie', value: m) }
+    end
+
+    private_class_method def self.redact_disabled?
+      v = (PWN::Env.dig(:ai, :agent, :redact_transcripts) if defined?(PWN::Env))
+      v == false
+    rescue StandardError
+      false
+    end
+
+    private_class_method def self.redacted_token(opts = {})
+      kind = opts[:kind].to_s
+      digest = Digest::SHA256.hexdigest(opts[:value].to_s)[0, 8]
+      "[REDACTED:#{kind}:#{digest}]"
+    end
+
     public_class_method def self.authors
       "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
     end
@@ -619,6 +695,21 @@ module PWN
           hot_days: 'optional - hot days value consumed by #protected_session_ids',
           retain_days: 'optional - retain days value consumed by #protected_session_ids',
           current_session_id: 'optional - current session id value consumed by #protected_session_ids'
+        )
+
+        # Replace secrets in transcript text with [REDACTED:kind:sha256-8].
+        #{self}.redact(
+          content: 'required - string to redact before persisting'
+        )
+
+        # Pack a session jsonl plus artifacts into ~/.pwn/exports/<id>.tar.gz.
+        #{self}.export(
+          session_id: 'required - session id to export'
+        )
+
+        # Delete session jsonl files older than days (defaults to 90).
+        #{self}.retain(
+          days: 'optional - age in days after which transcripts are removed'
         )
 
         # Print the AUTHOR(S) string for this module.
