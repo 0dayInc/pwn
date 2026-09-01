@@ -115,6 +115,7 @@ module PWN
           return 'auth_denied' if e.match?(/access denied|unauthorized|not authorized|\b401\b|\b403\b|pull access denied/i)
           return 'name_conflict' if e.match?(/already (?:in use|exists)|name conflict|Conflict\.|duplicate/i)
           return 'parse_error' if e.match?(/parse error|parsererror|template.*error|unexpected token/i)
+          return 'socket_perm' if e.match?(/docker\.sock|unix(?:\s+|:)socket|eperm.*sock|sock.*permission/i)
           return 'missing_path' if e.match?(%r{no such file|enoent|not found: /}i)
           return 'net_unreach' if e.match?(/network is unreachable|no route to host|ehostunreach/i)
           return 'perm_denied' if e.match?(/permission denied|eacces/i)
@@ -872,7 +873,7 @@ module PWN
               error: 'required - raw error text (will be normalised)'
             )
 
-            # Classify an error into auth_denied/name_conflict/parse_error/missing_path/net_unreach/perm_denied/timeout/other.
+            # Classify an error into auth_denied/name_conflict/parse_error/socket_perm/missing_path/net_unreach/perm_denied/timeout/other.
             #{self}.error_class(
               error: 'required - raw error text'
             )

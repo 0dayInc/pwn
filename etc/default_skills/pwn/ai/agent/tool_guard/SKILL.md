@@ -36,6 +36,11 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `present`
 - `placeholder`
 - `bashism`
+- `shell_syntax_surface`
+- `mint_canary`
+- `canary_leak`
+- `injection_score`
+- `quarantine_output`
 - `shell_bash`
 - `shell_name`
 - `protect_http`
@@ -54,6 +59,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `timeout_prior_count`
 - `refuse_copied_persist`
 - `scope_refusal`
+- `rfc1918`
 - `ip_in_cidr`
 - `command_class`
 - `record_runtime`
@@ -63,6 +69,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `help`
 - `auto_job?`
 - `bashism?`
+- `canary_leak?`
 - `ip_in_cidr?`
 - `note_timeout!`
 - `placeholder?`
@@ -71,6 +78,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `protect_http!`
 - `refuse_copied_persist?`
 - `reset_timeout_budget!`
+- `rfc1918?`
 - `shell_bash?`
 
 ## Source

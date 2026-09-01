@@ -49,6 +49,27 @@ module PWN
         { path: path, sha256: Digest::SHA256.file(path).hexdigest, bytes: File.size(path), body: File.binread(path)[0, 65_536] }
       end
 
+      public_class_method def self.read_page(opts = {})
+        path = opts[:path].to_s
+        raise 'ERROR: path is required' if path.empty?
+        raise "ERROR: file not found: #{path}" unless File.file?(path)
+
+        offset = opts[:offset].to_i
+        length = (opts[:length] || 4_096).to_i
+        length = 4_096 if length <= 0
+        mode = (opts[:mode] || 'text').to_s
+        data = File.binread(path, length, offset).to_s
+        case mode
+        when 'hex'
+          { path: path, offset: offset, bytes: data.bytesize, hex: data.unpack1('H*') }
+        when 'base64'
+          require 'base64'
+          { path: path, offset: offset, bytes: data.bytesize, body: Base64.strict_encode64(data) }
+        else
+          { path: path, offset: offset, bytes: data.bytesize, body: data.force_encoding('UTF-8').scrub }
+        end
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -73,6 +94,14 @@ module PWN
           # Read an artifact file and return sha256 plus a body cap.
           #{self}.get(
             path: 'required - filesystem path of a registered artifact'
+          )
+
+          # Page an artifact as text, hex, or base64 from an offset.
+          #{self}.read_page(
+            path: 'required - filesystem path of the artifact',
+            offset: 'optional - byte offset (defaults to 0)',
+            length: 'optional - byte count (defaults to 4096)',
+            mode: 'optional - text, hex, or base64 (defaults to text)'
           )
 
           # Print the AUTHOR(S) string for this module.

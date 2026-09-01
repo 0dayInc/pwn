@@ -272,6 +272,50 @@ module PWN
       []
     end
 
+    public_class_method def self.bm25(opts = {})
+      query = opts[:query].to_s.downcase
+      docs = Array(opts[:docs]).map(&:to_s)
+      qtok = expand_query(query: query)
+      return docs.map { |d| { doc: d, score: 0.0 } } if qtok.empty?
+
+      df = Hash.new(0)
+      tokenized = docs.map do |d|
+        toks = d.downcase.scan(/[a-z0-9]{3,}/)
+        toks.uniq.each { |t| df[t] += 1 }
+        toks
+      end
+      n = docs.length.to_f
+      avgdl = tokenized.sum(&:length) / [n, 1].max
+      k1 = 1.2
+      b = 0.75
+      ranked = docs.each_with_index.map do |doc, i|
+        toks = tokenized[i]
+        tf = Hash.new(0)
+        toks.each { |t| tf[t] += 1 }
+        dl = toks.length.to_f
+        score = qtok.sum do |t|
+          f = tf[t]
+          next 0.0 if f.zero?
+
+          idf = Math.log(((n - df[t] + 0.5) / (df[t] + 0.5)) + 1)
+          idf * ((f * (k1 + 1)) / (f + (k1 * (1 - b + (b * dl / avgdl)))))
+        end
+        { doc: doc, score: score }
+      end
+      ranked.sort_by { |h| -h[:score] }
+    end
+
+    private_class_method def self.expand_query(opts = {})
+      toks = opts[:query].to_s.downcase.scan(/[a-z0-9]{3,}/)
+      table = {
+        'bypass' => %w[evasion evade],
+        'rate' => %w[throttle],
+        'limit' => %w[throttle],
+        'login' => %w[auth]
+      }
+      toks.flat_map { |t| [t] + Array(table[t]) }.uniq
+    end
+
     # Author(s):: 0day Inc. <support@0dayinc.com>
 
     public_class_method def self.authors
@@ -306,6 +350,12 @@ module PWN
         # Run embed and return its result
         #{self}.embed(
           texts: 'required - Array texts value consumed by #embed'
+        )
+
+        # Rank documents by BM25 (pure Ruby; no embedder required).
+        #{self}.bm25(
+          query: 'required - search text',
+          docs: 'required - Array of document strings'
         )
 
         # Run reset and return its result

@@ -46,6 +46,10 @@ module PWN
           args = parse_args(raw: raw, entry: entry)
           required = Array(entry.schema&.dig(:parameters, :required))
           args = ToolGuard.coerce_args(args: args, required: required) if defined?(ToolGuard)
+          if defined?(ToolGuard) && ToolGuard.respond_to?(:canary_leak?) &&
+             ToolGuard.canary_leak?(text: args.inspect)
+            return JSON.generate(success: false, error: 'refused: session canary in outbound args')
+          end
           if defined?(ToolGuard) && ToolGuard.respond_to?(:refuse_copied_persist?) &&
              ToolGuard.refuse_copied_persist?(name: entry.name, args: args)
             return JSON.generate(
@@ -54,6 +58,7 @@ module PWN
             )
           end
           result = entry.handler.call(args)
+          result = ToolGuard.quarantine_output(text: result) if defined?(ToolGuard) && result.is_a?(String) && ToolGuard.respond_to?(:quarantine_output)
           JSON.generate(success: true, result: result, effect: effect(name: entry.name, args: args))
         rescue StandardError => e
           JSON.generate(

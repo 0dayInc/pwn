@@ -33,3 +33,29 @@ PWN::AI::Agent::Registry.register(
     PWN::Plugins::ArtifactRegistry.get(path: args[:path] || args['path'])
   }
 )
+PWN::AI::Agent::Registry.register(
+  name: 'artifact_read',
+  toolset: 'sessions',
+  schema: {
+    name: 'artifact_read',
+    description: 'Page an artifact as text/hex/base64 from offset.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        offset: { type: 'integer' },
+        length: { type: 'integer' },
+        mode: { type: 'string', description: 'text|hex|base64' }
+      },
+      required: %w[path]
+    }
+  },
+  handler: lambda { |args|
+    PWN::Plugins::ArtifactRegistry.read_page(
+      path: args[:path] || args['path'],
+      offset: args[:offset] || args['offset'],
+      length: args[:length] || args['length'],
+      mode: args[:mode] || args['mode']
+    )
+  }
+)

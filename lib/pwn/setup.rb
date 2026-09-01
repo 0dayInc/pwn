@@ -265,6 +265,11 @@ module PWN
         script: "curl --proto '=https' --tlsv1.2 -LsSf 'https://install.pwndbg.re' | sh -s -- -t pwndbg-gdb",
         plugins: %w[PWN::Plugins::GDB]
       },
+      'analyzeHeadless' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        script: 'echo install Ghidra from https://ghidra-sre.org so analyzeHeadless is on PATH',
+        plugins: %w[PWN::Plugins::Ghidra]
+      },
       'ropper' => {
         apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
         pip: 'ropper',

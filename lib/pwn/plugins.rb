@@ -37,6 +37,7 @@ module PWN
     autoload :ExploitDev, 'pwn/plugins/exploit_dev'
     autoload :Git, 'pwn/plugins/git'
     autoload :GDB, 'pwn/plugins/gdb'
+    autoload :Ghidra, 'pwn/plugins/ghidra'
     autoload :Github, 'pwn/plugins/github'
     autoload :GoogleWorkspace, 'pwn/plugins/google_workspace'
     autoload :HackerOne, 'pwn/plugins/hacker_one'

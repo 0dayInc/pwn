@@ -10,4 +10,9 @@ describe PWN::Plugins::K8s do
   it 'should display information for existing help method' do
     expect(described_class).to respond_to :help
   end
+
+  it 'responds to trivy and kube_hunter' do
+    expect(described_class).to respond_to(:trivy)
+    expect(described_class).to respond_to(:kube_hunter)
+  end
 end

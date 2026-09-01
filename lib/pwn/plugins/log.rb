@@ -181,6 +181,13 @@ module PWN
         @debug_trace == true
       end
 
+      public_class_method def self.debug_dir(opts = {})
+        override = opts[:dir] || ENV.fetch('PWN_DEBUG_DIR', nil)
+        return override.to_s unless override.to_s.empty?
+
+        File.join(Dir.home, '.pwn', 'logs')
+      end
+
       public_class_method def self.next_request_log!(opts = {})
         return unless debug_enabled?
         return @debug_path if @debug_request_open && opts[:force] != true
@@ -190,7 +197,9 @@ module PWN
         sid = 'nosession' if sid.empty?
         @debug_session_id = sid
         n = next_debug_request_n(session_id: sid)
-        path = "/tmp/pwn-ai-DEBUG-#{sid}-R#{n}.log"
+        dir = debug_dir
+        FileUtils.mkdir_p(dir, mode: 0o700)
+        path = File.join(dir, "pwn-ai-DEBUG-#{sid}-R#{n}.log")
         open_debug_file!(path: path)
         @debug_req_n = n
         @debug_request_open = true
@@ -385,7 +394,7 @@ module PWN
       private_class_method def self.next_debug_request_n(opts = {})
         sid = sanitize_debug_session_id(session_id: opts[:session_id])
         max_n = 0
-        Dir.glob("/tmp/pwn-ai-DEBUG-#{sid}-R*.log").each do |p|
+        Dir.glob(File.join(debug_dir, "pwn-ai-DEBUG-#{sid}-R*.log")).each do |p|
           n = p[/-R(\d+)\.log\z/, 1].to_i
           max_n = n if n > max_n
         end
@@ -409,7 +418,8 @@ module PWN
 
         close_debug_file!
         FileUtils.mkdir_p(File.dirname(path))
-        io = File.open(path, 'a')
+        io = File.open(path, 'a', 0o600)
+        io.chmod(0o600)
         io.sync = true
         @debug_file = io
         @debug_path = path
@@ -776,6 +786,11 @@ module PWN
 
           # Run trace enabled and return its result
           #{self}.trace_enabled?
+
+          # Directory for request debug logs under PWN_DEBUG_DIR or ~/.pwn/logs.
+          #{self}.debug_dir(
+            dir: 'optional - override directory instead of PWN_DEBUG_DIR / ~/.pwn/logs'
+          )
 
           # Run next request log and return its result
           #{self}.next_request_log!(

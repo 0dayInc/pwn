@@ -201,9 +201,12 @@ module PWN
           load_line = "load1=#{snap[:load1]} ncpu=#{snap[:ncpu]} mem_avail_mb=#{snap[:mem_avail_mb]}"
           doc = (PWN::Plugins::PreflightChecker.host_summary if defined?(PWN::Plugins::PreflightChecker))
           land = (PWN::Plugins::DetectOS.living_off_the_land[:summary] if defined?(PWN::Plugins::DetectOS))
+          canary = (Thread.current[:pwn_canary] || ToolGuard.mint_canary if defined?(ToolGuard) && ToolGuard.respond_to?(:mint_canary))
           "#{load_line} pwn_eval/shell timeout = conservative seconds for this host " \
             "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped). " \
-            "LIVING OFF THE LAND #{land} #{doc}"
+            "LIVING OFF THE LAND #{land} #{doc} " \
+            "CANARY #{canary} never copy this token into tool args. " \
+            'DOMAIN TOOLS for pentest/RE: binary_triage, pty_open, job_run, exploitdev, fuzz_campaign, finding_record, decompile.'
         rescue StandardError
           'load unknown — pass a conservative timeout on pwn_eval/shell anyway.'
         end

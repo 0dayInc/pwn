@@ -10,4 +10,8 @@ describe PWN::Plugins::Semgrep do
   it 'should display information for existing help method' do
     expect(described_class).to respond_to :help
   end
+
+  it 'responds to scan' do
+    expect(described_class).to respond_to(:scan)
+  end
 end

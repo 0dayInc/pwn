@@ -114,4 +114,57 @@ describe PWN::Sessions do
   ensure
     FileUtils.rm_rf(tmp) if tmp
   end
+
+  it 'retrieves a throttle-evasion session from a rate-limit paraphrase' do
+    Dir.mktmpdir do |dir|
+      allow(described_class).to receive(:sessions_dir).and_return(dir)
+      FileUtils.mkdir_p(dir)
+      sid = described_class.create(id: 'throttle_fix', title: 'login')[:id]
+      described_class.append(session_id: sid, role: 'assistant', content: 'throttle evasion on the login form')
+      hits = described_class.recall(query: 'how did I bypass the login rate limit')
+      expect(hits.map { |h| h[:session_id] }).to include(sid)
+    end
+  end
+
+  it 'redacts AWS access-key shaped tokens' do
+    out = described_class.redact(content: 'id AKIAIOSFODNN7EXAMPLE extra')
+    expect(out).to include('[REDACTED:aws:')
+    expect(out).not_to include('AKIAIOSFODNN7EXAMPLE')
+  end
+
+  it 'gzips old transcripts and leaves findings alone' do
+    Dir.mktmpdir do |dir|
+      allow(described_class).to receive(:sessions_dir).and_return(File.join(dir, 'sessions'))
+      FileUtils.mkdir_p(described_class.sessions_dir)
+      path = File.join(described_class.sessions_dir, 'old.jsonl')
+      File.write(path, %({"role":"user","content":"hi"}\n))
+      File.utime(Time.now - (10 * 86_400), Time.now - (10 * 86_400), path)
+      findings = File.join(dir, 'findings.jsonl')
+      File.write(findings, 'keep')
+      stub_const('PWN::Plugins::Findings::FILE', findings)
+      r = described_class.retain(days: 1)
+      expect(r[:gzipped].to_i).to be >= 1
+      expect(File.file?(path)).to be false
+      expect(File.file?("#{path}.gz")).to be true
+      expect(File.read(findings)).to eq('keep')
+    end
+  end
+
+  it 'retain with a huge keep window reports zero deleted' do
+    expect(described_class.retain(days: 10_000)[:deleted]).to eq(0)
+  end
+
+  it 'export writes a sha256 manifest next to the tarball' do
+    Dir.mktmpdir do |dir|
+      allow(described_class).to receive(:sessions_dir).and_return(File.join(dir, 'sessions'))
+      FileUtils.mkdir_p(described_class.sessions_dir)
+      allow(Dir).to receive(:home).and_return(dir)
+      sid = 'exportme'
+      File.write(File.join(described_class.sessions_dir, "#{sid}.jsonl"), %({"role":"user"}\n))
+      out = described_class.export(session_id: sid)
+      expect(File.file?(out[:path])).to be true
+      expect(out[:manifest]).to be_a(Hash)
+      expect(out[:manifest].values.first.to_s).to match(/\A[0-9a-f]{64}\z/)
+    end
+  end
 end

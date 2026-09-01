@@ -37,4 +37,10 @@ describe PWN::AI::Agent::Swarm do
     expect(src).to match(/text_only/)
     expect(src).to match(/core_only:\s*empty_tools/)
   end
+
+  it 'maps several ports and returns a merged result set' do
+    rows = described_class.map_targets(targets: '127.0.0.1', ports: '1,9,22,80')
+    expect(rows.length).to eq(4)
+    expect(rows.map { |r| r[:port] }.uniq.length).to eq(4)
+  end
 end
