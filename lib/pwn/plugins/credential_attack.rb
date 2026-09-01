@@ -10,7 +10,7 @@ module PWN
       WORDLISTS = File.join(Dir.home, '.pwn', 'wordlists')
 
       public_class_method def self.required_bins
-        []
+        %w[hydra john hashcat medusa]
       end
 
       public_class_method def self.wordlist_dir(opts = {})

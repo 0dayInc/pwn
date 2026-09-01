@@ -160,7 +160,7 @@ module PWN
       },
       'sqlmap' => {
         apt: %w[sqlmap], dnf: %w[sqlmap], pacman: %w[sqlmap], brew: %w[sqlmap], port: %w[],
-        plugins: %w[PWN::Plugins::Fuzz]
+        plugins: %w[PWN::Plugins::Sqlmap PWN::Plugins::Fuzz]
       },
       'tor' => {
         apt: %w[tor], dnf: %w[tor], pacman: %w[tor], brew: %w[tor], port: %w[tor],
@@ -246,15 +246,18 @@ module PWN
         plugins: %w[PWN::Plugins::Radare2]
       },
       'checksec' => {
-        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        apt: %w[], dnf: %w[], pacman: %w[checksec], brew: %w[], port: %w[],
+        pip: 'checksec.py',
         plugins: %w[PWN::Plugins::GDB PWN::Plugins::ExploitDev]
       },
       'ROPgadget' => {
         apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        pip: 'ROPGadget',
         plugins: %w[PWN::Plugins::ExploitDev]
       },
       'one_gadget' => {
         apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        gem: 'one_gadget',
         plugins: %w[PWN::Plugins::ExploitDev]
       },
       'pwndbg' => {
@@ -263,6 +266,7 @@ module PWN
       },
       'ropper' => {
         apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        pip: 'ropper',
         plugins: %w[PWN::Plugins::ExploitDev]
       },
       'rizin' => {
@@ -280,6 +284,7 @@ module PWN
       },
       'frida' => {
         apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        pip: 'frida-tools',
         plugins: %w[PWN::Plugins::Frida]
       },
       'apktool' => {
@@ -297,8 +302,78 @@ module PWN
       'hydra' => {
         apt: %w[hydra], dnf: %w[hydra], pacman: %w[hydra], brew: %w[thc-hydra], port: %w[],
         plugins: %w[PWN::Plugins::CredentialAttack]
+      },
+      'afl-fuzz' => {
+        apt: %w[afl++], dnf: %w[afl++], pacman: %w[afl++], brew: %w[afl++], port: %w[],
+        plugins: %w[PWN::Plugins::AFLplusplus]
+      },
+      'searchsploit' => {
+        apt: %w[exploitdb], dnf: %w[], pacman: %w[exploitdb], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::ExploitDB]
+      },
+      'trivy' => {
+        apt: %w[trivy], dnf: %w[trivy], pacman: %w[trivy], brew: %w[trivy], port: %w[],
+        plugins: %w[PWN::Plugins::K8s]
+      },
+      'kube-hunter' => {
+        apt: %w[], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        pip: 'kube-hunter',
+        plugins: %w[PWN::Plugins::K8s]
+      },
+      'semgrep' => {
+        apt: %w[semgrep], dnf: %w[], pacman: %w[], brew: %w[semgrep], port: %w[],
+        pip: 'semgrep',
+        plugins: %w[PWN::Plugins::Semgrep]
+      },
+      'vol' => {
+        apt: %w[volatility3], dnf: %w[], pacman: %w[volatility3], brew: %w[], port: %w[],
+        pip: 'volatility3',
+        plugins: %w[PWN::Plugins::Volatility]
+      },
+      'subfinder' => {
+        apt: %w[subfinder], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::Recon]
+      },
+      'httpx' => {
+        apt: %w[httpx-toolkit], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::Recon]
+      },
+      'masscan' => {
+        apt: %w[masscan], dnf: %w[masscan], pacman: %w[masscan], brew: %w[masscan], port: %w[],
+        plugins: %w[PWN::Plugins::Recon]
+      },
+      'naabu' => {
+        apt: %w[naabu], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::Recon]
+      },
+      'amass' => {
+        apt: %w[amass], dnf: %w[], pacman: %w[], brew: %w[amass], port: %w[],
+        plugins: %w[PWN::Plugins::Recon]
+      },
+      'john' => {
+        apt: %w[john], dnf: %w[john], pacman: %w[john], brew: %w[john], port: %w[john],
+        plugins: %w[PWN::Plugins::CredentialAttack]
+      },
+      'hashcat' => {
+        apt: %w[hashcat], dnf: %w[hashcat], pacman: %w[hashcat], brew: %w[hashcat], port: %w[],
+        plugins: %w[PWN::Plugins::CredentialAttack]
+      },
+      'medusa' => {
+        apt: %w[medusa], dnf: %w[medusa], pacman: %w[medusa], brew: %w[], port: %w[],
+        plugins: %w[PWN::Plugins::CredentialAttack]
+      },
+      'hashid' => {
+        apt: %w[hashid], dnf: %w[], pacman: %w[], brew: %w[], port: %w[],
+        pip: 'hashid',
+        plugins: %w[PWN::Plugins::CredentialAttack]
       }
-    }.freeze
+    }.tap do |t|
+      %w[burpsuite zaproxy msfconsole nuclei searchsploit httpx subfinder naabu amass apktool jadx rizin pwndbg trivy semgrep vol hashid].each do |bin|
+        next unless t[bin]
+
+        t[bin] = t[bin].merge(ubuntu: [], debian: [])
+      end
+    end.freeze
 
     # Capability profiles — how you get the ergonomics of `pwn-full`
     # without shipping a second gem. `pwn setup --profile <name>`.
@@ -369,6 +444,27 @@ module PWN
     MISS = "\e[31mMISSING\e[0m"
 
     # Supported Method Parameters::
+    # PWN::Setup.packages_for(
+    #   bin: 'required - TOOLCHAIN key (e.g. nmap or burpsuite)',
+    #   distro: 'optional - DetectOS.distro symbol (defaults to live detect)',
+    #   version: 'optional - DetectOS.version string (defaults to live detect)',
+    #   pm_key: 'optional - package-manager family (:apt :dnf :pacman :brew :port :pkg …)'
+    # )
+
+    public_class_method def self.packages_for(opts = {})
+      bin = opts[:bin].to_s
+      meta = TOOLCHAIN[bin] || {}
+      distro = (opts[:distro] || PWN::Plugins::DetectOS.distro).to_s.to_sym
+      version = (opts[:version] || PWN::Plugins::DetectOS.version).to_s
+      pm_key = opts[:pm_key] || pkg_manager[:key]
+      ver_key = :"#{distro}/#{version}"
+      return Array(meta[ver_key]) if meta.key?(ver_key)
+      return Array(meta[distro]) if meta.key?(distro)
+
+      Array(meta[pm_key])
+    end
+
+    # Supported Method Parameters::
     # PWN::Setup.pkg_manager
 
     public_class_method def self.pkg_manager
@@ -385,13 +481,39 @@ module PWN
       end
       sudo = root || !bin?(name: 'sudo') ? '' : 'sudo '
 
+      distro = begin
+        PWN::Plugins::DetectOS.distro
+      rescue StandardError
+        nil
+      end
+
       @pkg_manager =
-        if bin?(name: 'apt-get')     then { key: :apt,    install: "#{sudo}apt-get install -y",    sudo: !sudo.empty? }
-        elsif bin?(name: 'dnf')      then { key: :dnf,    install: "#{sudo}dnf install -y",        sudo: !sudo.empty? }
-        elsif bin?(name: 'pacman')   then { key: :pacman, install: "#{sudo}pacman -S --noconfirm", sudo: !sudo.empty? }
-        elsif bin?(name: 'brew')     then { key: :brew,   install: 'brew install',                 sudo: false        }
-        elsif bin?(name: 'port')     then { key: :port,   install: "#{sudo}port -N install",       sudo: !sudo.empty? }
-        else { key: :unknown, install: nil, sudo: false }
+        if distro == :freebsd && bin?(name: 'pkg')
+          { key: :pkg, install: "#{sudo}pkg install -y", sudo: !sudo.empty? }
+        elsif distro == :openbsd && bin?(name: 'pkg_add')
+          { key: :pkg_add, install: "#{sudo}pkg_add", sudo: !sudo.empty? }
+        elsif distro == :netbsd && bin?(name: 'pkgin')
+          { key: :pkgin, install: "#{sudo}pkgin -y install", sudo: !sudo.empty? }
+        elsif distro == :alpine && bin?(name: 'apk')
+          { key: :apk, install: "#{sudo}apk add", sudo: !sudo.empty? }
+        elsif distro == :android && bin?(name: 'pkg')
+          { key: :pkg, install: 'pkg install -y', sudo: false }
+        elsif distro == :windows && bin?(name: 'winget')
+          { key: :winget, install: 'winget install -e --accept-package-agreements --accept-source-agreements', sudo: false }
+        elsif distro == :windows && bin?(name: 'choco')
+          { key: :choco, install: 'choco install -y', sudo: false }
+        elsif bin?(name: 'apt-get')
+          { key: :apt, install: "#{sudo}apt-get install -y", sudo: !sudo.empty? }
+        elsif bin?(name: 'dnf')
+          { key: :dnf, install: "#{sudo}dnf install -y", sudo: !sudo.empty? }
+        elsif bin?(name: 'pacman')
+          { key: :pacman, install: "#{sudo}pacman -S --noconfirm", sudo: !sudo.empty? }
+        elsif bin?(name: 'brew')
+          { key: :brew, install: 'brew install', sudo: false }
+        elsif bin?(name: 'port')
+          { key: :port, install: "#{sudo}port -N install", sudo: !sudo.empty? }
+        else
+          { key: :unknown, install: nil, sudo: false }
         end
     end
 
@@ -506,12 +628,14 @@ module PWN
       profile = (opts[:profile] || :full).to_sym
       yes     = opts[:yes] ? true : false
       dry_run = opts[:dry_run] ? true : false
+      distro  = opts[:distro] || PWN::Plugins::DetectOS.distro
+      version = opts[:version] || PWN::Plugins::DetectOS.version
       io      = opts[:io] || $stdout
 
       raise "Unknown profile '#{profile}'. Known: #{PROFILES.keys.join(', ')}" unless PROFILES.key?(profile)
 
       pm = pkg_manager
-      raise 'No supported package manager found (apt / dnf / pacman / brew / port).' if pm[:key] == :unknown
+      raise 'No supported package manager found (apt / dnf / pacman / brew / port / pkg / winget / choco).' if pm[:key] == :unknown
 
       prof     = PROFILES[profile]
       gems     = Array(prof[:gems])
@@ -527,10 +651,11 @@ module PWN
       bins     = Array(prof[:bins])
       os_pkgs  = []
       gems.each { |g| os_pkgs.concat(Array(NATIVE_GEMS.dig(g, pm[:key]))) }
-      bins.each { |b| os_pkgs.concat(Array(TOOLCHAIN.dig(b, pm[:key]))) }
+      bins.each { |b| os_pkgs.concat(packages_for(bin: b, distro: distro, version: version, pm_key: pm[:key])) }
       os_pkgs = os_pkgs.reject(&:empty?).uniq
 
       io.puts "Profile   : #{profile} — #{prof[:desc]}"
+      io.puts "Distro    : #{distro} #{version}"
       io.puts "Pkg mgr   : #{pm[:key]}"
       io.puts "OS pkgs   : #{os_pkgs.empty? ? '(none)' : os_pkgs.join(' ')}"
       io.puts "Ruby exts : #{gems.empty? ? '(none)' : gems.join(' ')}"
@@ -543,6 +668,7 @@ module PWN
         cmds << "gem pristine #{broken.map { |g| Shellwords.escape(g) }.join(' ')}" unless broken.empty?
         cmds << "gem install #{broken.map { |g| Shellwords.escape(g) }.join(' ')}"  unless broken.empty?
       end
+      cmds.concat(alt_install_cmds(bins: bins, pm_key: pm[:key], distro: distro, version: version))
 
       if cmds.empty?
         io.puts "Nothing to do — profile '#{profile}' is already satisfied."
@@ -786,6 +912,23 @@ module PWN
       false
     end
 
+    private_class_method def self.alt_install_cmds(opts = {})
+      bins = Array(opts[:bins])
+      pm_key = opts[:pm_key]
+      distro = opts[:distro]
+      version = opts[:version]
+      bins.filter_map do |b|
+        meta = TOOLCHAIN[b] || {}
+        next if packages_for(bin: b, pm_key: pm_key, distro: distro, version: version).any?
+
+        if meta[:pip].to_s != ''
+          "python3 -m pip install --user #{Shellwords.escape(meta[:pip])}"
+        elsif meta[:gem].to_s != ''
+          "gem install #{Shellwords.escape(meta[:gem])}"
+        end
+      end
+    end
+
     private_class_method def self.bin?(opts = {})
       !which(name: opts[:name]).empty?
     end
@@ -935,8 +1078,16 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        # Run pkg manager and return its result
+        # Detect this host's package manager (apt, dnf, pacman, brew, pkg, winget, …).
         #{self}.pkg_manager
+
+        # Resolve OS package names for a TOOLCHAIN binary on this distro/version.
+        #{self}.packages_for(
+          bin: 'required - TOOLCHAIN key (e.g. nmap or burpsuite)',
+          distro: 'optional - DetectOS.distro symbol (defaults to live detect)',
+          version: 'optional - DetectOS.version string (defaults to live detect)',
+          pm_key: 'optional - package-manager family (:apt :dnf :pacman :brew :port :pkg)'
+        )
 
         # Run check and return its result
         #{self}.check(
@@ -944,12 +1095,14 @@ module PWN
           profile: 'optional - profile value consumed by #check'
         )
 
-        # Run deps and return its result
+        # Install OS packages + native gems for a capability profile.
         #{self}.deps(
           profile: 'optional - one of PROFILES.keys (default :full)',
           yes: 'optional - non-interactive; assume yes to prompts (default false)',
           dry_run: 'optional - print commands only, do not execute (default false)',
-          io: 'optional - IO to write to (default $stdout)'
+          io: 'optional - IO to write to (default $stdout)',
+          distro: 'optional - DetectOS.distro override (e.g. :kali :ubuntu :macos)',
+          version: 'optional - DetectOS.version override (e.g. 2026.3 or 24.04)'
         )
 
         # Opt-in installer for SHIFT+ENTER multi-line support in the pwn-ai /

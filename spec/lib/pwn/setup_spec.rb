@@ -101,4 +101,58 @@ describe PWN::Setup do
     expect(body.scan('PWN::Setup.ensure_cron').length).to eq(1)
     expect(body).to include('opts[:migrate] && running')
   end
+
+  it 'TOOLCHAIN covers every plugin required_bins name' do
+    plugin_bins = Dir[File.expand_path('../../../lib/pwn/plugins/*.rb', __dir__)].flat_map do |path|
+      src = File.read(path)
+      m = src.match(/public_class_method def self\.required_bins\n\s+%w\[([^\]]*)\]/)
+      next [] unless m
+
+      m[1].split
+    end.uniq
+    missing = plugin_bins - PWN::Setup::TOOLCHAIN.keys
+    expect(missing).to eq([]), "pwn setup TOOLCHAIN missing plugin bins: #{missing.join(', ')}"
+  end
+
+  it 'every TOOLCHAIN row has an OS package or pip/gem installer' do
+    PWN::Setup::TOOLCHAIN.each do |bin, meta|
+      has_pkg = %i[apt dnf pacman brew port].any? { |k| Array(meta[k]).any? }
+      has_alt = meta[:pip].to_s != '' || meta[:gem].to_s != ''
+      expect(has_pkg || has_alt).to be(true), "#{bin} has no apt/dnf/pacman/brew/port/pip/gem installer"
+    end
+  end
+
+  it 'deps --profile full dry-run emits pip/gem for unpackaged toolchain bins' do
+    io = StringIO.new
+    r = PWN::Setup.deps(profile: :full, dry_run: true, io: io)
+    cmds = Array(r[:ran]).map { |h| h[:cmd] }.join("\n")
+    expect(r[:skipped]).not_to be true
+    unpackaged = PWN::Setup::TOOLCHAIN.select do |_bin, meta|
+      %i[apt dnf pacman brew port].none? { |k| Array(meta[k]).any? }
+    end
+    unpackaged.each do |bin, meta|
+      token = meta[:pip] || meta[:gem] || bin
+      expect(cmds).to include(token.to_s), "full dry-run missing installer for #{bin} (#{token})"
+    end
+  end
+
+  it 'packages_for prefers distro overrides then package-manager family' do
+    expect(
+      PWN::Setup.packages_for(bin: 'nmap', distro: :ubuntu, version: '24.04', pm_key: :apt)
+    ).to eq(%w[nmap])
+    expect(
+      PWN::Setup.packages_for(bin: 'burpsuite', distro: :kali, version: '2026.3', pm_key: :apt)
+    ).to eq(%w[burpsuite])
+    expect(
+      PWN::Setup.packages_for(bin: 'burpsuite', distro: :ubuntu, version: '24.04', pm_key: :apt)
+    ).to eq([])
+  end
+
+  it 'deps skips kali-only apt packages on ubuntu' do
+    io = StringIO.new
+    r = PWN::Setup.deps(profile: :web, dry_run: true, io: io, distro: :ubuntu, version: '24.04')
+    cmds = Array(r[:ran]).map { |h| h[:cmd] }.join(' ')
+    expect(cmds).not_to include('burpsuite')
+    expect(cmds).not_to include('zaproxy')
+  end
 end
