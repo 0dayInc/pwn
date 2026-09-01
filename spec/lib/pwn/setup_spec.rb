@@ -117,21 +117,24 @@ describe PWN::Setup do
   it 'every TOOLCHAIN row has an OS package or pip/gem installer' do
     PWN::Setup::TOOLCHAIN.each do |bin, meta|
       has_pkg = %i[apt dnf pacman brew port].any? { |k| Array(meta[k]).any? }
-      has_alt = meta[:pip].to_s != '' || meta[:gem].to_s != ''
+      has_alt = meta[:pip].to_s != '' || meta[:gem].to_s != '' || meta[:script].to_s != ''
       expect(has_pkg || has_alt).to be(true), "#{bin} has no apt/dnf/pacman/brew/port/pip/gem installer"
     end
   end
 
-  it 'deps --profile full dry-run emits pip/gem for unpackaged toolchain bins' do
+  it 'deps --profile full dry-run emits pipx/gem for bins with no distro package' do
     io = StringIO.new
     r = PWN::Setup.deps(profile: :full, dry_run: true, io: io)
     cmds = Array(r[:ran]).map { |h| h[:cmd] }.join("\n")
     expect(r[:skipped]).not_to be true
-    unpackaged = PWN::Setup::TOOLCHAIN.select do |_bin, meta|
-      %i[apt dnf pacman brew port].none? { |k| Array(meta[k]).any? }
-    end
-    unpackaged.each do |bin, meta|
-      token = meta[:pip] || meta[:gem] || bin
+    distro = PWN::Plugins::DetectOS.distro
+    version = PWN::Plugins::DetectOS.version
+    PWN::Setup::TOOLCHAIN.each do |bin, meta|
+      next if PWN::Setup.packages_for(bin: bin, distro: distro, version: version).any?
+
+      token = meta[:pip] || meta[:gem]
+      next unless token
+
       expect(cmds).to include(token.to_s), "full dry-run missing installer for #{bin} (#{token})"
     end
   end
@@ -154,5 +157,38 @@ describe PWN::Setup do
     cmds = Array(r[:ran]).map { |h| h[:cmd] }.join(' ')
     expect(cmds).not_to include('burpsuite')
     expect(cmds).not_to include('zaproxy')
+  end
+
+  it 'maps Kali 2026.3 apt names for checksec ROPgadget ropper' do
+    k = { distro: :kali, version: '2026.3', pm_key: :apt }
+    expect(PWN::Setup.packages_for(k.merge(bin: 'checksec'))).to eq(%w[checksec])
+    expect(PWN::Setup.packages_for(k.merge(bin: 'ROPgadget'))).to eq(%w[python3-ropgadget])
+    expect(PWN::Setup.packages_for(k.merge(bin: 'ropper'))).to eq(%w[ropper])
+  end
+
+  it 'does not apt-get Kali-missing names and does not pip --user on Kali' do
+    k = { distro: :kali, version: '2026.3', pm_key: :apt }
+    %w[pwndbg semgrep vol].each do |b|
+      expect(PWN::Setup.packages_for(k.merge(bin: b))).to eq([])
+    end
+    r = PWN::Setup.deps(profile: :full, dry_run: true, io: StringIO.new, distro: :kali, version: '2026.3')
+    cmds = Array(r[:ran]).map { |h| h[:cmd] }
+    apt = cmds.select { |c| c.include?('apt-get') }.join("\n")
+    expect(apt).to include('checksec')
+    expect(apt).to include('python3-ropgadget')
+    expect(apt).to include('ropper')
+    expect(apt).not_to match(/\bpwndbg\b/)
+    expect(apt).not_to match(/\bsemgrep\b/)
+    expect(apt).not_to include('volatility3')
+    expect(cmds.join("\n")).not_to include('pip install --user')
+    expect(cmds.join("\n")).to include('install.pwndbg.re')
+    expect(cmds.join("\n")).to include('pwndbg-gdb')
+  end
+
+  it 'issues one apt-get per package so a missing name cannot abort the rest' do
+    r = PWN::Setup.deps(profile: :net, dry_run: true, io: StringIO.new, distro: :kali, version: '2026.3')
+    apt = Array(r[:ran]).map { |h| h[:cmd] }.select { |c| c.include?('apt-get install') }
+    expect(apt.length).to be > 1
+    apt.each { |c| expect(c).to match(/apt-get install -y \S+\z/) }
   end
 end
