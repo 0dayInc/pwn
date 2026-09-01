@@ -28,11 +28,12 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::Setup.help
-PWN::Setup.pkg_manager(opts)
+PWN::Setup.packages_for(opts)
 ```
 
 ## Public methods
 
+- `packages_for`
 - `pkg_manager`
 - `check`
 - `deps`
@@ -49,5 +50,5 @@ PWN::Setup.pkg_manager(opts)
 
 ## Verification
 
-`PWN::Setup.respond_to?(:pkg_manager)` after the
+`PWN::Setup.respond_to?(:packages_for)` after the
 module is loaded. Read the source for parameter names.

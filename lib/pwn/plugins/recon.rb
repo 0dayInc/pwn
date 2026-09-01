@@ -13,7 +13,7 @@ module PWN
       UA = 'pwn-recon/1.0'
 
       public_class_method def self.required_bins
-        []
+        %w[subfinder httpx masscan amass]
       end
 
       public_class_method def self.subdomains(opts = {})

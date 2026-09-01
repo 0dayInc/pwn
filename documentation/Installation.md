@@ -103,10 +103,13 @@ pwn setup --list-profiles
 `--deps` / `--profile` will:
 
 1. Resolve the profile → set of native gems + external binaries.
-2. Map those to OS packages for **your** package manager (data lives in
-   `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN` - versioned with the gem, so
-   `gem install --verbose pwn`, git checkout, Docker, Packer and Vagrant all read the
-   same table).
+2. Map those to OS packages for **this** distro and version
+   (`PWN::Plugins::DetectOS.distro` / `.version`, e.g. Kali `2026.3` vs Ubuntu
+   `24.04`) via `PWN::Setup.packages_for`. Family fallbacks still live in
+   `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN`. Tools with no OS package on this
+   distro (Frida, one_gadget, ROPgadget, checksec, ropper, kube-hunter, or
+   Kali-only names on Ubuntu) install via `pip` / `gem` or are skipped so
+   `apt-get` does not abort the whole profile.
 3. Show the exact commands, prompt (unless `--yes`), run them, then
    `gem pristine` / `gem install` any native extension that still fails to
    load, and re-run the doctor.

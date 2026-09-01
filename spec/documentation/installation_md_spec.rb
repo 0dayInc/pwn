@@ -146,7 +146,7 @@ RSpec.describe 'documentation/Installation.md' do
       pm   = PWN::Setup.pkg_manager[:key]
       # every :net bin's package appears in the plan
       PWN::Setup::PROFILES[:net][:bins].each do |b|
-        Array(PWN::Setup::TOOLCHAIN.dig(b, pm)).each do |pkg|
+        Array(PWN::Setup.packages_for(bin: b, pm_key: pm)).each do |pkg|
           expect(plan).to include(pkg), "profile :net missing own package '#{pkg}'"
         end
       end

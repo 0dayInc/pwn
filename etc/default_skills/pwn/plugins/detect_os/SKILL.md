@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Plugins::DetectOS
 
-This plugin converts images to readable text
+Detect host OS family, distro flavor, and version string.
 
 ## When to use
 
@@ -36,6 +36,8 @@ PWN::Plugins::DetectOS.type(opts)
 - `type`
 - `arch`
 - `endian`
+- `distro`
+- `version`
 - `authors`
 - `help`
 

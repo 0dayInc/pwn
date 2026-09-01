@@ -23,7 +23,11 @@ module PWN
         'PWN::Plugins::BurpSuite' => { bins: %w[burpsuite] },
         'PWN::Plugins::Zaproxy' => { bins: %w[zaproxy] },
         'PWN::Plugins::Packet' => { bins: [], caps: %w[CAP_NET_RAW] },
-        'PWN::Plugins::K8s' => { bins: %w[trivy], services: [{ name: 'docker', path: '/var/run/docker.sock' }] }
+        'PWN::Plugins::K8s' => { bins: %w[trivy], services: [{ name: 'docker', path: '/var/run/docker.sock' }] },
+        'PWN::Plugins::Semgrep' => { bins: %w[semgrep] },
+        'PWN::Plugins::ExploitDB' => { bins: %w[searchsploit] },
+        'PWN::Plugins::Recon' => { bins: %w[subfinder httpx] },
+        'PWN::Plugins::CredentialAttack' => { bins: %w[hydra john hashcat] }
       }.freeze
 
       public_class_method def self.required_bins
