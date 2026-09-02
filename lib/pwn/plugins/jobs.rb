@@ -4,6 +4,7 @@ require 'json'
 require 'fileutils'
 require 'securerandom'
 require 'open3'
+require 'time'
 
 module PWN
   module Plugins
@@ -31,6 +32,7 @@ module PWN
           command: cmd.to_s,
           log: log,
           session_id: opts[:session_id],
+          max_runtime: opts[:max_runtime].to_i,
           started_at: Time.now.utc.iso8601
         }
         File.write(meta, JSON.generate(row))
@@ -46,7 +48,20 @@ module PWN
         rescue Errno::ESRCH, Errno::EPERM
           false
         end
-        row.merge(alive: alive)
+        max = row[:max_runtime].to_i
+        if alive && max.positive?
+          started = begin
+            Time.parse(row[:started_at].to_s)
+          rescue StandardError
+            Time.now
+          end
+          if Time.now - started > max
+            Process.kill('TERM', row[:pid].to_i)
+            alive = false
+            row[:status] = 'TIMEOUT'
+          end
+        end
+        row.merge(alive: alive, status: row[:status] || (alive ? 'RUNNING' : 'COMPLETED'))
       end
 
       public_class_method def self.tail(opts = {})
@@ -60,6 +75,20 @@ module PWN
       public_class_method def self.result(opts = {})
         row = status(opts)
         row.merge(tail: tail(opts.merge(lines: opts[:lines] || 80)))
+      end
+
+      public_class_method def self.harvest(opts = {})
+        result(opts)
+      end
+
+      public_class_method def self.list(opts = {})
+        _limit = opts[:limit]
+        Dir[File.join(JOBS_DIR, '*.json')].filter_map do |path|
+          row = JSON.parse(File.read(path), symbolize_names: true)
+          status(id: row[:id])
+        rescue StandardError
+          nil
+        end
       end
 
       public_class_method def self.stop(opts = {})
@@ -83,7 +112,8 @@ module PWN
           #{self}.start(
             command: 'required - command value consumed by #start (defaults to opts[:cmd])',
             cmd: 'required - command string to run',
-            session_id: 'optional - session id value consumed by #start'
+            session_id: 'optional - session id value consumed by #start',
+            max_runtime: 'optional - seconds after which a live job is killed (TIMEOUT)'
           )
 
           # Run status and return its result
@@ -98,6 +128,17 @@ module PWN
           #{self}.result(
             id: 'required - job id from #start',
             lines: 'optional - tail line count (defaults to 80)'
+          )
+
+          # Alias of result for harvesting a detached job from a later session.
+          #{self}.harvest(
+            id: 'required - job id from #start',
+            lines: 'optional - tail line count (defaults to 80)'
+          )
+
+          # List job metadata rows under ~/.pwn/jobs.
+          #{self}.list(
+            limit: 'optional - unused cap reserved for callers'
           )
 
           # Run stop and return its result

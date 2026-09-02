@@ -184,7 +184,8 @@ describe PWN::AI::Agent::ToolGuard do
       allow(Dir).to receive(:home).and_return(dir)
       expect(described_class.scope_refusal(command: 'scan 10.0.0.5')).to be_nil
       expect(described_class.scope_refusal(command: 'scan 192.168.1.2')).to be_nil
-      expect(described_class.scope_refusal(command: 'scan 8.8.8.8')).to include('8.8.8.8')
+      expect(described_class.scope_refusal(command: 'scan 8.8.8.8')[:token]).to eq('8.8.8.8')
+      expect(described_class.scope_refusal(command: 'scan 8.8.8.8')[:code]).to eq('SCOPE_DENY')
     end
   end
 

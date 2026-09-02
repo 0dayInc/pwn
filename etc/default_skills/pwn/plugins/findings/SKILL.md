@@ -36,6 +36,8 @@ PWN::Plugins::Findings.required_bins(opts)
 - `required_bins`
 - `record`
 - `report`
+- `query`
+- `chain`
 - `render`
 - `authors`
 - `help`

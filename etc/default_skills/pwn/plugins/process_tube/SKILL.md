@@ -40,6 +40,9 @@ PWN::Plugins::ProcessTube.required_bins(opts)
 - `recvuntil`
 - `recvline`
 - `close`
+- `expect`
+- `stream`
+- `reap_orphans`
 - `authors`
 - `help`
 

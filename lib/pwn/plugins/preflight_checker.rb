@@ -30,6 +30,14 @@ module PWN
         'PWN::Plugins::CredentialAttack' => { bins: %w[hydra john hashcat] }
       }.freeze
 
+      FALLBACKS = {
+        'PWN::Plugins::Metasploit' => %w[exploitdev pwn_eval],
+        'PWN::Plugins::BurpSuite' => %w[TransparentBrowser nuclei],
+        'PWN::Plugins::Zaproxy' => %w[nuclei TransparentBrowser],
+        'PWN::Plugins::K8s' => %w[pwn_eval],
+        'PWN::Plugins::ExploitDB' => %w[intel_lookup]
+      }.freeze
+
       public_class_method def self.required_bins
         []
       end
@@ -137,7 +145,9 @@ module PWN
         lines = ["HOST plugins ok=#{rows.count { |r| r[:status] == :ok }} degraded=#{degraded.length} dead=#{dead.length}"]
         (degraded + dead).first(cap).each do |r|
           miss = (Array(r[:missing_bins]) + Array(r[:missing_caps]) + Array(r[:missing_services])).join(',')
-          lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}"
+          fb = Array(FALLBACKS[r[:plugin]]).join(',')
+          extra = fb.empty? ? '' : " fallback=#{fb}"
+          lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}#{extra}"
         end
         lines.join("\n")
       end

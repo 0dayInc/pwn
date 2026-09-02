@@ -38,6 +38,8 @@ PWN::Plugins::Jobs.required_bins(opts)
 - `status`
 - `tail`
 - `result`
+- `harvest`
+- `list`
 - `stop`
 - `authors`
 - `help`

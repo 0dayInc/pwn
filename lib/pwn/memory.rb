@@ -15,6 +15,7 @@ module PWN
   # via ruby code blocks during execution loops.
   module Memory
     MEMORY_FILE = File.join(Dir.home, '.pwn', 'memory.json')
+    ARCHIVE_FILE = File.join(Dir.home, '.pwn', 'memory.archive.json')
     # Lean retention — keep RL-quality signal, drop ephemeral bulk.
     VALUE_MAX_CHARS = 2_000
     PROTECT_KEY_PREFIXES = %w[operator_pref_ process_sop_ mistake_fix_ memory_].freeze
@@ -111,7 +112,10 @@ module PWN
         source: (opts[:source] || 'pwn-ai').to_s,
         confidence: opts[:confidence]&.to_f&.clamp(0.0, 1.0),
         importance: opts[:importance]&.to_f&.clamp(0.0, 1.0),
-        ttl: opts[:ttl]&.to_i
+        ttl: opts[:ttl]&.to_i,
+        namespace: (opts[:namespace] || 'default').to_s,
+        last_hit: Time.now.utc.iso8601,
+        hits: 1
       }.compact
       mem[key.to_sym] = entry
       save(mem: mem)
@@ -510,15 +514,60 @@ module PWN
     #   context = PWN::Memory.to_context(limit: 20)
     #   (used internally by pwn-ai hook to inject into system prompt)
     public_class_method def self.to_context(opts = {})
-      limit = opts[:limit] || 20
-      mem = recall(limit: limit, include_session: false)
-      return '' if mem.empty?
+      limit = (opts[:limit] || 12).to_i
+      limit = 12 if limit <= 0
+      mem = load
+      now = Time.now.utc
+      live = {}
+      expired = {}
+      mem.each do |k, v|
+        next unless v.is_a?(Hash)
+
+        ttl = v[:ttl].to_i
+        ts = begin
+          Time.parse(v[:timestamp].to_s)
+        rescue StandardError
+          now
+        end
+        if ttl.positive? && (now - ts) > ttl
+          expired[k] = v
+        else
+          live[k] = v
+        end
+      end
+      archive_expired!(rows: expired) unless expired.empty?
+      ranked = live.sort_by do |_k, v|
+        hits = v[:hits].to_i
+        hits = 1 if hits <= 0
+        rec = begin
+          Time.parse((v[:last_hit] || v[:timestamp]).to_s).to_f
+        rescue StandardError
+          0
+        end
+        -(hits * rec)
+      end.first(limit)
+      return '' if ranked.empty?
 
       ctx = "\n\nPERSISTENT MEMORY (cross-session facts, prefs, lessons - use PWN::Memory.remember to store new ones):\n"
-      mem.each do |k, v|
+      ranked.each do |k, v|
         ctx += "- #{k} [#{v[:category]} @ #{v[:timestamp]}]: #{v[:value].to_s[0, 300]}\n"
       end
       ctx
+    end
+
+    private_class_method def self.archive_expired!(opts = {})
+      rows = opts[:rows]
+      return if rows.nil? || rows.empty?
+
+      arch = File.file?(ARCHIVE_FILE) ? JSON.parse(File.read(ARCHIVE_FILE), symbolize_names: true) : {}
+      arch.merge!(rows)
+      FileUtils.mkdir_p(File.dirname(ARCHIVE_FILE))
+      File.write(ARCHIVE_FILE, JSON.pretty_generate(arch))
+      mem = load
+      rows.each_key { |k| mem.delete(k) }
+      save(mem: mem, force: mem.empty?)
+    rescue StandardError
+      nil
     end
 
     # True when a memory key must survive cap eviction / age GC.
@@ -618,7 +667,8 @@ module PWN
           source: 'optional - :human | :reflect | :heuristic | :resolve | :consolidate (M3 provenance)',
           confidence: 'optional - 0.0..1.0 how sure the writer was (M3)',
           importance: 'optional - 0.0..1.0 retrieval/eviction weight (M2/M3)',
-          ttl: 'optional - seconds until stale (M3; consolidate evicts stale low-conf first)'
+          ttl: 'optional - seconds until stale (M3; consolidate evicts stale low-conf first)',
+          namespace: 'optional - memory namespace string (defaults to default)'
         )
 
         # Run recall and return its result

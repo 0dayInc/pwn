@@ -407,6 +407,37 @@ module PWN
           end.map(&:value)
         end
 
+        public_class_method def self.fact_record(opts = {})
+          eng = (opts[:engagement_id] || 'default').to_s
+          dir = File.join(Dir.home, '.pwn', 'engagements', eng)
+          FileUtils.mkdir_p(dir)
+          path = File.join(dir, 'facts.jsonl')
+          row = {
+            kind: (opts[:kind] || 'host').to_s,
+            value: opts[:value],
+            source_session: opts[:source_session].to_s,
+            confidence: (opts[:confidence] || 0.7).to_f,
+            at: Time.now.utc.iso8601
+          }
+          File.open(path, 'a') { |f| f.puts(JSON.generate(row)) }
+          row.merge(path: path)
+        end
+
+        public_class_method def self.facts_prompt(opts = {})
+          eng = (opts[:engagement_id] || 'default').to_s
+          path = File.join(Dir.home, '.pwn', 'engagements', eng, 'facts.jsonl')
+          return '' unless File.file?(path)
+
+          rows = File.readlines(path).filter_map do |ln|
+            JSON.parse(ln, symbolize_names: true)
+          rescue JSON::ParserError
+            nil
+          end
+          return '' if rows.empty?
+
+          "FACTS #{rows.map { |r| "#{r[:kind]}=#{r[:value]}" }.join(' ')}"
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -488,6 +519,20 @@ module PWN
             #{self}.map_targets(
               targets: 'required - comma/space separated hosts',
               ports: 'optional - comma/space separated ports (defaults to 80,443)'
+            )
+
+            # Append a typed engagement fact (port, cred, host, vuln).
+            #{self}.fact_record(
+              engagement_id: 'optional - engagement id (defaults to default)',
+              kind: 'optional - port|cred|host|vuln (defaults to host)',
+              value: 'required - fact value',
+              source_session: 'optional - session id that discovered the fact',
+              confidence: 'optional - 0.0..1.0 (defaults to 0.7)'
+            )
+
+            # One-line FACTS block for the system prompt.
+            #{self}.facts_prompt(
+              engagement_id: 'optional - engagement id (defaults to default)'
             )
 
             # Print the AUTHOR(S) string for this module.

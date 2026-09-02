@@ -201,10 +201,21 @@ module PWN
           load_line = "load1=#{snap[:load1]} ncpu=#{snap[:ncpu]} mem_avail_mb=#{snap[:mem_avail_mb]}"
           doc = (PWN::Plugins::PreflightChecker.host_summary if defined?(PWN::Plugins::PreflightChecker))
           land = (PWN::Plugins::DetectOS.living_off_the_land[:summary] if defined?(PWN::Plugins::DetectOS))
+          jobs = if defined?(PWN::Plugins::Jobs)
+                   run = Array(PWN::Plugins::Jobs.list).select { |j| j[:alive] }
+                   run.empty? ? '' : " JOBS running=#{run.map { |j| j[:id] }.join(',')}"
+                 else
+                   ''
+                 end
+          facts = (PWN::AI::Agent::Swarm.facts_prompt if defined?(PWN::AI::Agent::Swarm))
+          rev = [
+            (File.mtime(PWN::AI::Agent::Mistakes::MISTAKES_FILE).to_i if defined?(PWN::AI::Agent::Mistakes::MISTAKES_FILE) && File.file?(PWN::AI::Agent::Mistakes::MISTAKES_FILE)),
+            (File.mtime(PWN::AI::Agent::Learning::LESSONS_FILE).to_i if defined?(PWN::AI::Agent::Learning::LESSONS_FILE) && File.file?(PWN::AI::Agent::Learning::LESSONS_FILE))
+          ].compact.max
           canary = (Thread.current[:pwn_canary] || ToolGuard.mint_canary if defined?(ToolGuard) && ToolGuard.respond_to?(:mint_canary))
           "#{load_line} pwn_eval/shell timeout = conservative seconds for this host " \
             "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped). " \
-            "LIVING OFF THE LAND #{land} #{doc} " \
+            "LIVING OFF THE LAND #{land} #{doc}#{jobs} #{facts} LESSONS_REV #{rev} " \
             "CANARY #{canary} never copy this token into tool args. " \
             'DOMAIN TOOLS for pentest/RE: binary_triage, pty_open, job_run, exploitdev, fuzz_campaign, finding_record, decompile.'
         rescue StandardError

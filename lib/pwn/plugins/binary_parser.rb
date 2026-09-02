@@ -91,17 +91,35 @@ module PWN
           format: inf[:format],
           arch: inf[:cpu],
           bits: inf[:cpu].to_s[/\d+/],
+          endian: inf[:endian] || inf[:ei_data],
+          stripped: inf[:stripped],
+          static: inf[:static],
+          protections: {
+            nx: inf[:nx],
+            pie: inf[:pie],
+            relro: inf[:relro],
+            canary: inf[:canary],
+            fortify: inf[:fortify]
+          },
+          sections: secs,
           imports: imps,
           exports: exps,
+          strings_top: Array(inf[:strings]).first(20),
+          entry: inf[:entry] || inf[:entrypoint],
           function_count: Array(symbols(opts)).length,
-          section_entropy_map: secs.to_h { |s| [s[:name], s[:size]] }
+          notes: []
         }
         sha = Digest::SHA256.file(path).hexdigest
-        dir = File.join(Dir.home, '.pwn', 'artifacts', 'triage')
+        dir = File.join(Dir.home, '.pwn', 'cache', 'triage')
         FileUtils.mkdir_p(dir)
-        art = File.join(dir, "#{sha[0, 16]}.json")
-        File.write(art, JSON.pretty_generate(summary.merge(path: path, sha256: sha)))
-        summary.merge(artifact: art)
+        art = File.join(dir, "#{sha}.json")
+        if File.file?(art)
+          cached = JSON.parse(File.read(art), symbolize_names: true)
+          return cached.merge(cached: true, artifact: art)
+        end
+        body = summary.merge(path: path, sha256: sha)
+        File.write(art, JSON.pretty_generate(body))
+        body.merge(artifact: art, cached: false)
       end
 
       public_class_method def self.authors

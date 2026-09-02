@@ -27,16 +27,6 @@ module PWN
         'mswin' => :windows
       }.freeze
 
-      PATH_NOISE = %w[
-        sh bash zsh fish csh tcsh dash true false echo test pwd ls cat cp mv rm
-        mkdir rmdir chmod chown chgrp ln touch head tail more less grep egrep fgrep
-        sed awk sort uniq wc find xargs tar gzip gunzip zcat bzip2 xz make
-        python python2 python3 ruby perl php node java git svn hg
-        vi vim nvi nano ed ex
-        apt apt-get dpkg rpm yum dnf pacman brew port pkg pkg_add
-        sudo doas su login id whoami uname hostname env export
-      ].freeze
-
       public_class_method def self.type
         os = :cygwin if OS.cygwin?
         os = :freebsd if OS.freebsd?
@@ -193,7 +183,7 @@ module PWN
           found << name if ok
         end
         owned = pwn_installed_bins(pwn_bins: opts[:pwn_bins])
-        native = (found.map(&:to_s) - owned - PATH_NOISE).reject(&:empty?).uniq.sort
+        native = (found.map(&:to_s) - owned).reject(&:empty?).uniq.sort
         cap = if opts.key?(:cap_net_raw)
                 opts[:cap_net_raw]
               else

@@ -4,6 +4,7 @@ require 'digest'
 require 'json'
 require 'fileutils'
 require 'securerandom'
+require 'time'
 
 module PWN
   module AI
@@ -163,13 +164,28 @@ module PWN
 
         public_class_method def self.invalid_payload(opts = {})
           hint = opts[:hint].to_s
+          tok = opts[:offending_token].to_s
           {
             stdout: '',
             stderr: hint,
             exit: 2,
             error: 'invalid_payload',
+            code: (opts[:code] || 'SYNTAX_DENY').to_s,
+            rule_id: (opts[:rule_id] || 'payload').to_s,
+            offending_token: tok,
+            suggestion: opts[:suggestion].to_s,
             hint: hint,
             shell: opts[:shell] || shell_name
+          }
+        end
+
+        public_class_method def self.denial(opts = {})
+          {
+            code: opts[:code].to_s,
+            rule_id: opts[:rule_id].to_s,
+            token: opts[:token].to_s,
+            offending_token: opts[:offending_token] || opts[:token].to_s,
+            suggestion: opts[:suggestion].to_s
           }
         end
 
@@ -407,8 +423,11 @@ module PWN
           scope = YAML.safe_load_file(path, permitted_classes: [Symbol]) || {}
           return nil if scope.nil? || scope.empty?
 
-          allow = Array(scope['cidr_allowlist'] || scope[:cidr_allowlist]).map(&:to_s)
-          domains = Array(scope['domain_allowlist'] || scope[:domain_allowlist]).map(&:to_s)
+          expiry = (scope['expiry'] || scope[:expiry]).to_s
+          return denial(code: 'SCOPE_DENY', rule_id: 'expiry', token: expiry, suggestion: 'renew ~/.pwn/scope.yaml expiry') unless expiry.empty? || Time.parse(expiry) >= Time.now
+
+          allow = Array(scope['cidr_allowlist'] || scope[:cidr_allowlist] || scope['cidrs'] || scope[:cidrs]).map(&:to_s)
+          domains = Array(scope['domain_allowlist'] || scope[:domain_allowlist] || scope['domains'] || scope[:domains]).map(&:to_s)
           return nil if allow.empty? && domains.empty?
 
           ips = cmd.scan(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)
@@ -418,7 +437,7 @@ module PWN
           hit = bad_ip || bad_host
           return nil unless hit
 
-          "Refused: #{hit} is outside ~/.pwn/scope.yaml allowlists."
+          denial(code: 'SCOPE_DENY', rule_id: 'allowlist', token: hit, suggestion: 'use an in-scope host or CIDR')
         rescue StandardError
           nil
         end
@@ -552,10 +571,23 @@ module PWN
               required: 'optional - Array required value consumed by #coerce_args'
             )
 
-            # Run invalid payload and return its result
+            # Build a machine-readable invalid_payload denial (SYNTAX_DENY by default).
             #{self}.invalid_payload(
-              hint: 'optional - hint value consumed by #invalid_payload',
-              shell: 'optional - shell value consumed by #invalid_payload (defaults to shell_name)'
+              hint: 'optional - operator-facing hint string',
+              shell: 'optional - shell name (defaults to shell_name)',
+              code: 'optional - denial code (defaults to SYNTAX_DENY)',
+              rule_id: 'optional - rule identifier (defaults to payload)',
+              offending_token: 'optional - exact rejected token span',
+              suggestion: 'optional - how to rewrite the payload'
+            )
+
+            # Build a machine-readable guard denial (SCOPE_DENY, CANARY_DENY, ...).
+            #{self}.denial(
+              code: 'required - denial code such as SCOPE_DENY',
+              rule_id: 'optional - rule identifier',
+              token: 'optional - out-of-scope host or CIDR',
+              offending_token: 'optional - exact rejected token span',
+              suggestion: 'optional - how to stay in scope'
             )
 
             # Run host load and return its result

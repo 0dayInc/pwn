@@ -44,6 +44,8 @@ PWN::AI::Agent::Swarm.personas(opts)
 - `debate`
 - `broadcast`
 - `map_targets`
+- `fact_record`
+- `facts_prompt`
 - `authors`
 - `help`
 
