@@ -27,6 +27,16 @@ module PWN
         'mswin' => :windows
       }.freeze
 
+      PATH_NOISE = %w[
+        sh bash zsh fish csh tcsh dash true false echo test pwd ls cat cp mv rm
+        mkdir rmdir chmod chown chgrp ln touch head tail more less grep egrep fgrep
+        sed awk sort uniq wc find xargs tar gzip gunzip zcat bzip2 xz make
+        python python2 python3 ruby perl php node java git svn hg
+        vi vim nvi nano ed ex
+        apt apt-get dpkg rpm yum dnf pacman brew port pkg pkg_add
+        sudo doas su login id whoami uname hostname env export
+      ].freeze
+
       public_class_method def self.type
         os = :cygwin if OS.cygwin?
         os = :freebsd if OS.freebsd?
@@ -162,7 +172,8 @@ module PWN
       # PWN::Plugins::DetectOS.living_off_the_land(
       #   os_release: 'optional - /etc/os-release body (defaults to reading the file)',
       #   which: 'optional - Hash of binary name => present Boolean (skips live PATH)',
-      #   bins: 'optional - extra binary names to probe besides plugin required_bins'
+      #   bins: 'optional - extra host binary names to include when present',
+      #   pwn_bins: 'optional - Array of names pwn setup already installs (skipped)'
       # )
 
       public_class_method def self.living_off_the_land(opts = {})
@@ -171,18 +182,19 @@ module PWN
         ver = version(opts)
         cpu = opts[:arch] || arch
         endn = opts[:endian] || endian
-        names = inventory_names(bins: opts[:bins])
-        which = opts[:which]
-        present = []
-        missing = []
-        names.each do |name|
-          ok = if which.is_a?(Hash)
-                 which[name] || which[name.to_sym]
+        found = host_path_names(opts)
+        extra = Array(opts[:bins]).map(&:to_s).reject(&:empty?)
+        extra.each do |name|
+          ok = if opts[:which].is_a?(Hash)
+                 opts[:which][name] || opts[:which][name.to_sym]
                else
                  bin_present?(name: name)
                end
-          (ok ? present : missing) << name
+          found << name if ok
         end
+        owned = pwn_installed_bins(pwn_bins: opts[:pwn_bins])
+        native = (found.map(&:to_s) - owned - PATH_NOISE).reject(&:empty?).uniq.sort
+        native = native.first(256)
         cap = if opts.key?(:cap_net_raw)
                 opts[:cap_net_raw]
               else
@@ -193,15 +205,15 @@ module PWN
                  else
                    docker_live
                  end
-        summary = "#{flavor} #{ver} #{cpu} present=#{present.first(24).join(',')} missing=#{missing.first(12).join(',')}"
+        sample = native.first(24).join(',')
+        summary = "#{flavor} #{ver} #{cpu} native=#{sample}"
         {
           type: os_type,
           distro: flavor,
           version: ver,
           arch: cpu.to_s,
           endian: endn,
-          present: present,
-          missing: missing,
+          native: native,
           cap_net_raw: cap,
           docker: docker,
           summary: summary
@@ -250,14 +262,15 @@ module PWN
             version: 'optional - force a version string instead of detecting'
           )
 
-          # Profile this host: distro, arch, and which plugin bins are on PATH.
+          # Inventory extra PATH binaries on this host that pwn plugins do not already wrap.
           #{self}.living_off_the_land(
             os_release: 'optional - /etc/os-release body (defaults to reading the file)',
             lsb_release: 'optional - /etc/lsb-release body',
             build_prop: 'optional - Android /system/build.prop body',
             type: 'optional - OS family from #type',
             which: 'optional - Hash of binary name => true/false (skips live PATH when set)',
-            bins: 'optional - extra binary names to probe besides plugin required_bins',
+            bins: 'optional - extra host binary names to include when present on PATH',
+            pwn_bins: 'optional - extra names to treat as already wrapped (skipped from native)',
             arch: 'optional - CPU arch override',
             endian: 'optional - :little or :big override',
             cap_net_raw: 'optional - Boolean CAP_NET_RAW override',
@@ -270,14 +283,46 @@ module PWN
         constants.sort
       end
 
-      private_class_method def self.inventory_names(opts = {})
-        extra = Array(opts[:bins]).map(&:to_s).reject(&:empty?)
+      private_class_method def self.host_path_names(opts = {})
+        return Array(opts[:path_names]).map(&:to_s) if opts.key?(:path_names)
+
+        if opts.key?(:which)
+          which = opts[:which]
+          return [] unless which.is_a?(Hash)
+
+          return which.select { |_n, ok| ok }.keys.map(&:to_s)
+        end
+
+        scan_path_executables
+      end
+
+      private_class_method def self.scan_path_executables(opts = {})
+        return [] if opts[:skip]
+
+        names = []
+        ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).each do |dir|
+          next unless File.directory?(dir)
+
+          Dir.children(dir).each do |base|
+            path = File.join(dir, base)
+            next unless File.file?(path) && File.executable?(path)
+
+            names << base.sub(/\.(exe|bat|cmd|com)\z/i, '')
+          end
+        rescue StandardError
+          next
+        end
+        names.uniq
+      end
+
+      private_class_method def self.pwn_installed_bins(opts = {})
+        extra = Array(opts[:pwn_bins]).map(&:to_s)
         deps = if defined?(PWN::Plugins::PreflightChecker::PLUGIN_DEPS)
-                 PWN::Plugins::PreflightChecker::PLUGIN_DEPS.values.flat_map { |row| Array(row[:bins]) }
+                 PWN::Plugins::PreflightChecker::PLUGIN_DEPS.values.flat_map { |row| Array(row[:bins]).map(&:to_s) }
                else
                  []
                end
-        (deps + extra).map(&:to_s).reject(&:empty?).uniq
+        (extra + deps).reject(&:empty?).uniq
       end
 
       private_class_method def self.bin_present?(opts = {})
