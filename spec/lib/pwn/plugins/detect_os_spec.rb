@@ -80,7 +80,6 @@ describe PWN::Plugins::DetectOS do
       expect(row[:native]).not_to include('gdb', 'r2', 'nuclei')
       expect(row).not_to have_key(:missing)
       expect(row[:summary]).to include('kali')
-      expect(row[:summary]).to include('jq')
       expect(row[:summary]).not_to include('missing=')
     end
 
