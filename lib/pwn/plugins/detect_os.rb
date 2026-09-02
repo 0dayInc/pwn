@@ -194,7 +194,6 @@ module PWN
         end
         owned = pwn_installed_bins(pwn_bins: opts[:pwn_bins])
         native = (found.map(&:to_s) - owned - PATH_NOISE).reject(&:empty?).uniq.sort
-        native = native.first(256)
         cap = if opts.key?(:cap_net_raw)
                 opts[:cap_net_raw]
               else
@@ -205,8 +204,7 @@ module PWN
                  else
                    docker_live
                  end
-        sample = native.first(24).join(',')
-        summary = "#{flavor} #{ver} #{cpu} native=#{sample}"
+        summary = "#{flavor} #{ver} #{cpu}"
         {
           type: os_type,
           distro: flavor,
