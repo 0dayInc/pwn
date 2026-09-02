@@ -931,7 +931,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         {
           role: 'tool',
           name: 'pwn_eval',
-          content: '{"success":true,"result":{"stdout":"Report saved to /tmp/pentest_report.json"},"effect":"write"}'
+          content: '{"success":true,"result":{"stdout":"Report saved to /tmp/pwn-spec-report.json"},"effect":"write"}'
         },
         {
           role: 'assistant',
