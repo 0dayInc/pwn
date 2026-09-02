@@ -64,42 +64,48 @@ describe PWN::Plugins::DetectOS do
   end
 
   describe '.living_off_the_land' do
-    it 'profiles distro, arch, and which host bins are present from fixtures' do
+    it 'reports extra PATH binaries that pwn setup does not install' do
       body = "ID=kali\nVERSION_ID=\"2026.3\"\n"
       row = described_class.living_off_the_land(
         os_release: body,
         type: :linux,
-        which: { 'gdb' => true, 'r2' => true, 'nuclei' => false }
+        pwn_bins: %w[gdb r2 nuclei],
+        which: { 'jq' => true, 'gdb' => true, 'r2' => true, 'yara' => true, 'nuclei' => false }
       )
       expect(row[:distro]).to eq(:kali)
       expect(row[:version]).to eq('2026.3')
       expect(row[:arch]).to be_a(String)
       expect(row[:endian]).to be_a(Symbol)
-      expect(row[:present]).to include('gdb', 'r2')
-      expect(row[:missing]).to include('nuclei')
-      expect(row[:present]).not_to include('nuclei')
+      expect(row[:native]).to include('jq', 'yara')
+      expect(row[:native]).not_to include('gdb', 'r2', 'nuclei')
+      expect(row).not_to have_key(:missing)
       expect(row[:summary]).to include('kali')
-      expect(row[:summary]).to include('gdb')
+      expect(row[:summary]).to include('jq')
+      expect(row[:summary]).not_to include('missing=')
     end
 
     it 'does not fall through to live os-release when fixtures are passed' do
       row = described_class.living_off_the_land(
         os_release: "ID=alpine\nVERSION_ID=3.20.0\n",
         type: :linux,
+        pwn_bins: %w[],
         which: {}
       )
       expect(row[:distro]).to eq(:alpine)
       expect(row[:version]).to eq('3.20.0')
+      expect(row[:native]).to eq([])
     end
 
-    it 'probes extra bins from opts without inventing a PATH dump' do
+    it 'does not treat plugin required_bins gaps as the inventory' do
       row = described_class.living_off_the_land(
         os_release: "ID=debian\nVERSION_ID=12\n",
         type: :linux,
+        pwn_bins: %w[gdb r2],
         bins: %w[jq],
-        which: { 'jq' => true }
+        which: { 'jq' => true, 'gdb' => false }
       )
-      expect(row[:present]).to include('jq')
+      expect(row[:native]).to include('jq')
+      expect(row[:native]).not_to include('gdb')
     end
   end
 end
