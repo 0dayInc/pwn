@@ -2002,6 +2002,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.cve_for_cpe Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.cve_for_cpe`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.gtfobins Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.gtfobins`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.gtfobins_functions Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.gtfobins_functions`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.gtfobins_json Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.gtfobins_json`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDB.http_get Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDB.http_get`: "}]}

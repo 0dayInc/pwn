@@ -661,7 +661,6 @@ module PWN
 
         private_class_method def self.declared_contract_unsatisfied?(opts = {})
           return false if verify_passed?(messages: opts[:messages])
-          return false if write_or_read_evidenced?(messages: opts[:messages])
 
           completion_unmet(opts).any?
         rescue StandardError
@@ -670,7 +669,6 @@ module PWN
 
         private_class_method def self.completion_unmet(opts = {})
           return [] if verify_passed?(messages: opts[:messages])
-          return [] if write_or_read_evidenced?(messages: opts[:messages])
 
           contract = declared_contract(request: opts[:request])
           request = opts[:request].to_s

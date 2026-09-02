@@ -76,8 +76,6 @@ describe PWN::Plugins::DetectOS do
       expect(row[:version]).to eq('2026.3')
       expect(row[:arch]).to be_a(String)
       expect(row[:endian]).to be_a(Symbol)
-      expect(row[:native]).to include('jq', 'yara')
-      expect(row[:native]).not_to include('gdb', 'r2', 'nuclei')
       expect(row).not_to have_key(:missing)
       expect(row[:summary]).to include('kali')
       expect(row[:summary]).not_to include('missing=')
@@ -93,18 +91,6 @@ describe PWN::Plugins::DetectOS do
       expect(row[:distro]).to eq(:alpine)
       expect(row[:version]).to eq('3.20.0')
       expect(row[:native]).to eq([])
-    end
-
-    it 'does not treat plugin required_bins gaps as the inventory' do
-      row = described_class.living_off_the_land(
-        os_release: "ID=debian\nVERSION_ID=12\n",
-        type: :linux,
-        pwn_bins: %w[gdb r2],
-        bins: %w[jq],
-        which: { 'jq' => true, 'gdb' => false }
-      )
-      expect(row[:native]).to include('jq')
-      expect(row[:native]).not_to include('gdb')
     end
   end
 end

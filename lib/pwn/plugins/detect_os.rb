@@ -182,8 +182,7 @@ module PWN
                end
           found << name if ok
         end
-        owned = pwn_installed_bins(pwn_bins: opts[:pwn_bins])
-        native = (found.map(&:to_s) - owned).reject(&:empty?).uniq.sort
+        native = found.map(&:to_s).reject(&:empty?).uniq.sort
         cap = if opts.key?(:cap_net_raw)
                 opts[:cap_net_raw]
               else
