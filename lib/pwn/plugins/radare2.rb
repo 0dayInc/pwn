@@ -3,6 +3,7 @@
 require 'json'
 require 'open3'
 require 'securerandom'
+require 'digest'
 
 module PWN
   module Plugins
@@ -24,10 +25,17 @@ module PWN
         raise 'ERROR: path is required' if path.empty?
         raise "ERROR: binary not found: #{path}" unless File.file?(path)
 
+        sha = Digest::SHA256.file(path).hexdigest
+        hit = @sessions.find { |_id, sess| sess[:path] == path && sess[:sha256] == sha }
+        return hit[0] if hit
+
         stdin, stdout, waiter = Open3.popen2('r2', '-q0', '-e', 'scr.color=0', path)
         sid = SecureRandom.hex(8)
-        @sessions[sid] = { stdin: stdin, stdout: stdout, waiter: waiter, path: path }
+        pid = waiter.pid if waiter.respond_to?(:pid)
+        @sessions[sid] = { stdin: stdin, stdout: stdout, waiter: waiter, path: path, sha256: sha, pid: pid }
         read_until_null(io: stdout)
+        cmd(session: sid, cmd: 'aaa')
+        @sessions[sid][:aaa] = true
         sid
       end
 

@@ -13,5 +13,6 @@ describe 'PWN::AI::Agent::Tools pty_session' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'pty_send')).not_to be_nil
     expect(PWN::AI::Agent::Registry.lookup(name: 'pty_read')).not_to be_nil
     expect(PWN::AI::Agent::Registry.lookup(name: 'pty_close')).not_to be_nil
+    expect(PWN::AI::Agent::Registry.lookup(name: 'pty_session')).not_to be_nil
   end
 end

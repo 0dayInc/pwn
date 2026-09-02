@@ -48,7 +48,7 @@ module PWN
           args = ToolGuard.coerce_args(args: args, required: required) if defined?(ToolGuard)
           if defined?(ToolGuard) && ToolGuard.respond_to?(:canary_leak?) &&
              ToolGuard.canary_leak?(text: args.inspect)
-            return JSON.generate(success: false, error: 'refused: session canary in outbound args')
+            return JSON.generate(success: false, error: 'refused: session canary in outbound args', code: 'CANARY_DENY', rule_id: 'canary')
           end
           if defined?(ToolGuard) && ToolGuard.respond_to?(:refuse_copied_persist?) &&
              ToolGuard.refuse_copied_persist?(name: entry.name, args: args)

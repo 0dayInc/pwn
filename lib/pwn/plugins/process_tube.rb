@@ -79,6 +79,32 @@ module PWN
         false
       end
 
+      public_class_method def self.expect(opts = {})
+        text = recvuntil(opts)
+        t = tube!(opts)
+        { matched: text, offset: t[:buf].to_s.bytesize, id: opts[:id].to_s }
+      end
+
+      public_class_method def self.stream(opts = {})
+        t = tube!(opts)
+        off = opts[:offset].to_i
+        begin
+          t[:buf] << t[:r].read_nonblock(4_096)
+        rescue IO::WaitReadable, EOFError
+          nil
+        end
+        data = t[:buf].to_s.byteslice(off..-1).to_s
+        { data: data, offset: t[:buf].to_s.bytesize, id: opts[:id].to_s }
+      end
+
+      public_class_method def self.reap_orphans(opts = {})
+        _sid = opts[:session_id]
+        n = @tubes.length
+        @tubes.each_key { |id| close(id: id) }
+        @tubes.clear
+        n
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -119,6 +145,24 @@ module PWN
           # Close a session previously returned by #open.
           #{self}.close(
             id: 'optional - id value consumed by #close'
+          )
+
+          # Expect a pattern and return matched buffer plus byte offset.
+          #{self}.expect(
+            id: 'required - tube id from spawn or connect',
+            until: 'required - substring to wait for',
+            timeout: 'optional - seconds to wait before giving up'
+          )
+
+          # Tail the PTY buffer since a prior offset.
+          #{self}.stream(
+            id: 'required - tube id from spawn or connect',
+            offset: 'optional - byte offset to start from (defaults to 0)'
+          )
+
+          # Close every open tube (session end / orphan GC).
+          #{self}.reap_orphans(
+            session_id: 'optional - agent session id for transcript grouping'
           )
 
           # Print the AUTHOR(S) string for this module.

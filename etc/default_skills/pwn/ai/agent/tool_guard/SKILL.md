@@ -47,6 +47,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `protect_core_constants`
 - `coerce_args`
 - `invalid_payload`
+- `denial`
 - `host_load`
 - `deadline_s`
 - `reset_timeout_budget`

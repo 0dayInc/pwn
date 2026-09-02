@@ -30,6 +30,10 @@ module PWN
           evidence: opts[:evidence].to_s,
           poc: opts[:poc].to_s,
           poc_artifacts: arts,
+          cvss: opts[:cvss].to_s,
+          status: (opts[:status] || 'open').to_s,
+          engagement_id: opts[:engagement_id].to_s,
+          chain_parent_id: opts[:chain_parent_id].to_s,
           session_id: opts[:session_id].to_s,
           at: Time.now.utc.iso8601
         }
@@ -51,6 +55,21 @@ module PWN
         rows
       end
 
+      public_class_method def self.query(opts = {})
+        report(opts)
+      end
+
+      public_class_method def self.chain(opts = {})
+        parent_id = opts[:parent_id].to_s
+        raise 'ERROR: parent_id is required' if parent_id.empty?
+
+        child = record(opts.merge(chain_parent_id: parent_id))
+        ranks = { 'info' => 0, 'low' => 1, 'medium' => 2, 'high' => 3, 'critical' => 4 }
+        parent = report.find { |r| r[:id].to_s == parent_id }
+        sev = [parent&.[](:severity), child[:severity]].compact.max_by { |s| ranks[s.to_s] || 0 }
+        child.merge(composite_severity: sev)
+      end
+
       public_class_method def self.render(opts = {})
         dir = opts[:dir_path].to_s
         dir = File.join(Dir.home, '.pwn', 'exports') if dir.empty?
@@ -60,7 +79,8 @@ module PWN
         {
           markdown: PWN::Reports::Markdown.generate(results_hash: payload, dir_path: dir, report_name: name),
           html: PWN::Reports::HTML.generate(results_hash: payload, dir_path: dir, report_name: name),
-          json: PWN::Reports::JSON.generate(results_hash: payload, dir_path: dir, report_name: name)
+          json: PWN::Reports::JSON.generate(results_hash: payload, dir_path: dir, report_name: name),
+          sarif: PWN::Reports::SARIF.generate(results_hash: payload, dir_path: dir, report_name: name)
         }
       end
 
@@ -81,6 +101,25 @@ module PWN
             evidence: 'optional - proof text or path',
             poc: 'optional - filesystem path of a PoC',
             poc_artifacts: 'required - Array of artifact paths proving the issue',
+            cvss: 'optional - CVSS vector or score string',
+            status: 'optional - open|closed (defaults to open)',
+            engagement_id: 'optional - engagement identifier',
+            session_id: 'optional - pwn-ai session id',
+            chain_parent_id: 'optional - id of a parent finding this issue chains from'
+          )
+
+          # Alias of report for querying stored findings.
+          #{self}.query(
+            host: 'optional - affected host or URL'
+          )
+
+          # Record a child finding chained to a parent and return composite severity.
+          #{self}.chain(
+            parent_id: 'required - id of the parent finding',
+            title: 'required - short finding title',
+            severity: 'optional - info|low|medium|high|critical (defaults to info)',
+            poc_artifacts: 'required - Array of artifact paths proving the issue',
+            host: 'optional - affected host or URL',
             session_id: 'optional - pwn-ai session id'
           )
 
@@ -89,7 +128,7 @@ module PWN
             host: 'optional - only rows whose host matches this string'
           )
 
-          # Render findings as markdown, html, and json reports.
+          # Render findings as markdown, html, json, and SARIF reports.
           #{self}.render(
             dir_path: 'optional - output directory (defaults to ~/.pwn/exports)',
             report_name: 'optional - basename without extension (defaults to findings)'

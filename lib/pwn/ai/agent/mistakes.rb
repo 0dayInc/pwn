@@ -112,7 +112,10 @@ module PWN
 
         public_class_method def self.error_class(opts = {})
           e = opts[:error].to_s
-          return 'auth_denied' if e.match?(/access denied|unauthorized|not authorized|\b401\b|\b403\b|pull access denied/i)
+          return 'docker_daemon' if e.match?(/cannot connect to the docker daemon|docker daemon|is the docker daemon running/i)
+          return 'docker_registry_auth' if e.match?(/unauthorized: authentication required|pull access denied/i)
+          return 'oom' if e.match?(/\boom\b|out of memory|cannot allocate memory/i)
+          return 'auth_denied' if e.match?(/access denied|unauthorized|not authorized|\b401\b|\b403\b/i)
           return 'name_conflict' if e.match?(/already (?:in use|exists)|name conflict|Conflict\.|duplicate/i)
           return 'parse_error' if e.match?(/parse error|parsererror|template.*error|unexpected token/i)
           return 'socket_perm' if e.match?(/docker\.sock|unix(?:\s+|:)socket|eperm.*sock|sock.*permission/i)
@@ -873,7 +876,7 @@ module PWN
               error: 'required - raw error text (will be normalised)'
             )
 
-            # Classify an error into auth_denied/name_conflict/parse_error/socket_perm/missing_path/net_unreach/perm_denied/timeout/other.
+            # Classify an error into docker_daemon/docker_registry_auth/oom/auth_denied/name_conflict/parse_error/socket_perm/missing_path/net_unreach/perm_denied/timeout/other.
             #{self}.error_class(
               error: 'required - raw error text'
             )

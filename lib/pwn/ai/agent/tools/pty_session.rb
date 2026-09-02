@@ -71,3 +71,46 @@ PWN::AI::Agent::Registry.register(
     PWN::Plugins::ProcessTube.close(id: args[:id] || args['id'])
   }
 )
+PWN::AI::Agent::Registry.register(
+  name: 'pty_session',
+  toolset: 'terminal',
+  schema: {
+    name: 'pty_session',
+    description: 'Interactive PTY: op spawn|expect|send|stream|close.',
+    parameters: {
+      type: 'object',
+      properties: {
+        op: { type: 'string' },
+        session_id: { type: 'string' },
+        id: { type: 'string' },
+        cmd: { type: 'string' },
+        command: { type: 'string' },
+        pattern: { type: 'string' },
+        until: { type: 'string' },
+        timeout: { type: 'integer' },
+        data: { type: 'string' },
+        line: { type: 'string' },
+        offset: { type: 'integer' }
+      },
+      required: %w[op]
+    }
+  },
+  handler: lambda { |args|
+    op = (args[:op] || args['op']).to_s
+    id = args[:id] || args[:session_id] || args['id'] || args['session_id']
+    case op
+    when 'spawn'
+      PWN::Plugins::ProcessTube.spawn(cmd: args[:cmd] || args[:command] || args['cmd'])
+    when 'expect'
+      PWN::Plugins::ProcessTube.expect(id: id, until: args[:pattern] || args[:until] || args['pattern'], timeout: args[:timeout])
+    when 'send'
+      PWN::Plugins::ProcessTube.write_line(id: id, line: args[:data] || args[:line] || args['data'])
+    when 'stream'
+      PWN::Plugins::ProcessTube.stream(id: id, offset: args[:offset])
+    when 'close'
+      PWN::Plugins::ProcessTube.close(id: id)
+    else
+      { error: "unknown op #{op}" }
+    end
+  }
+)

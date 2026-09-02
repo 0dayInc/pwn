@@ -1,6 +1,6 @@
 {
   "cases": [
-    {"error": "pull access denied for library/foo", "class": "auth_denied"},
+    {"error": "pull access denied for library/foo", "class": "docker_registry_auth"},
     {"error": "Conflict. The container name is already in use", "class": "name_conflict"},
     {"error": "template parsing error: unexpected token", "class": "parse_error"}
   ]

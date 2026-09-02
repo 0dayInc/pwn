@@ -660,24 +660,57 @@ module PWN
         end
 
         private_class_method def self.declared_contract_unsatisfied?(opts = {})
+          return false if verify_passed?(messages: opts[:messages])
+          return false if write_or_read_evidenced?(messages: opts[:messages])
+
+          completion_unmet(opts).any?
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.completion_unmet(opts = {})
+          return [] if verify_passed?(messages: opts[:messages])
+          return [] if write_or_read_evidenced?(messages: opts[:messages])
+
           contract = declared_contract(request: opts[:request])
           request = opts[:request].to_s
+          unmet = []
           files = Array(contract[:paths]) + Array(contract[:proofs])
-          return true if files.any? { |path| deliverable_missing?(path: path) }
-
+          files.each { |path| unmet << "file_exists:#{path}" if deliverable_missing?(path: path) }
           trace_files = session_files(messages: opts[:messages])
-          return true if contract[:issue_work] && Array(contract[:proofs]).empty? && files.empty? && trace_files.empty?
-
-          return true if declared_skills_missing?(skills: contract[:skills], request: request)
-
+          unmet << 'issue_work_proofs' if contract[:issue_work] && Array(contract[:proofs]).empty? && files.empty? && trace_files.empty?
+          unmet << 'skills' if declared_skills_missing?(skills: contract[:skills], request: request)
           blob = evidence_blob(messages: opts[:messages], files: files + trace_files)
           asked_hosts = Array(contract[:hosts]).select { |host| request.downcase.include?(host.to_s.downcase) }
           asked_tech = Array(contract[:techniques]).select { |tech| request.downcase.include?(tech.to_s.downcase) }
-          return true if evidence_tokens_missing?(tokens: asked_hosts, blob: blob)
-          return true if evidence_tokens_missing?(tokens: asked_tech, blob: blob)
-
-          false
+          unmet << 'hosts' if evidence_tokens_missing?(tokens: asked_hosts, blob: blob)
+          unmet << 'techniques' if evidence_tokens_missing?(tokens: asked_tech, blob: blob)
+          unmet
         rescue StandardError
+          []
+        end
+
+        private_class_method def self.verify_passed?(opts = {})
+          Array(opts[:messages]).reverse_each do |msg|
+            next unless msg.is_a?(Hash) && msg[:role].to_s == 'tool'
+
+            raw = unwrap_untrusted(text: msg[:content].to_s)
+            parsed = JSON.parse(raw)
+            parsed = parsed['result'] || parsed[:result] || parsed
+            next unless parsed.is_a?(Hash)
+
+            return true if parsed[:passed] == true || parsed['passed'] == true
+          rescue StandardError
+            next
+          end
+          false
+        end
+
+        private_class_method def self.write_or_read_evidenced?(opts = {})
+          effects = tool_effects(messages: opts[:messages])
+          files = session_files(messages: opts[:messages])
+          return true if effects.intersect?(%i[write read]) && files.any?
+
           false
         end
 
@@ -2971,11 +3004,12 @@ module PWN
                 text: text
               )
                 turn_fails['unsatisfied'] += 1
-                warn "[pwn-ai/loop] original request not evidenced on iter=#{i}; continuing"
-                debug_progress(msg: "bounce unsatisfied snippet=#{debug_snippet(text: text)}")
+                unmet = completion_unmet(request: request, messages: messages)
+                warn "[pwn-ai/loop] original request not evidenced on iter=#{i} unmet=#{unmet.join(',')}; continuing"
+                debug_progress(msg: "bounce unsatisfied unmet=#{unmet.join(',')} snippet=#{debug_snippet(text: text)}")
                 messages << {
                   role: 'user',
-                  content: '[pwn-ai] The original request is not evidenced yet. ' \
+                  content: "[pwn-ai] The original request is not evidenced yet. unmet=#{unmet.join(',')} " \
                            'Keep calling CORE_TOOLS (shell, pwn_eval) until that request is ' \
                            'done or a tool returned failure evidence. pwn-ai does not decide ' \
                            'authorization. Do not declare completion from a listing or a refusal.'

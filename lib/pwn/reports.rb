@@ -18,6 +18,7 @@ module PWN
     autoload :PDF, 'pwn/reports/pdf'
     autoload :Phone, 'pwn/reports/phone'
     autoload :SAST, 'pwn/reports/sast'
+    autoload :SARIF, 'pwn/reports/sarif'
     autoload :URIBuster, 'pwn/reports/uri_buster'
     autoload :XML, 'pwn/reports/xml'
 

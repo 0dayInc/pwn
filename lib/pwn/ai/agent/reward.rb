@@ -188,6 +188,20 @@ module PWN
           )
           v[:needs_spot_check] = v[:success] && v[:score].to_f >= 0.85 && (rand < 0.05)
           v[:engine] = eng
+          pass = final.match?(/\bPASS\b/) && !(defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX))
+          v[:task_class] = request.match?(/analy[sz]e|summar|strength|weakness|fitness/i) ? 'analysis' : 'operational'
+          if pass
+            v[:score] = [v[:score].to_f, 0.7].max
+            v[:score] = [v[:score].to_f, 0.70].min
+          end
+          v[:score_components] ||= {
+            judge: v[:score].to_f,
+            overlap: pass ? 0.0 : nil,
+            checks: 0.0,
+            weights: { overlap: pass ? 0.0 : 0.15 }
+          }
+          v[:score_components][:weights][:overlap] = 0.0 if pass
+          Learning.note_outcome(task: request[0, 80], success: v[:score].to_f >= 0.6, score: v[:score], details: v[:score_components].to_json) if commit && defined?(Learning) && opts[:persist_components]
           # W3 — write Brier on every judged turn so overconfidence can
           # throttle max_iters/critic even when plan_first never fired.
           if commit
@@ -1332,14 +1346,15 @@ module PWN
           req_toks = request.downcase.scan(/[a-z0-9_]{3,}/).uniq
           fin_toks = final.downcase.scan(/[a-z0-9_]{3,}/).uniq
           overlap  = req_toks.empty? ? 1.0 : (req_toks & fin_toks).length.to_f / req_toks.length
+          pass = final.match?(/\bPASS\b/) && !(defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX))
           long_analytical = final.length >= 800
-          score = [score, 0.35].min if overlap < 0.08 && req_toks.length >= 4 && score > 0.35 && !long_analytical
+          score = [score, 0.35].min if !pass && overlap < 0.08 && req_toks.length >= 4 && score > 0.35 && !long_analytical
           ev_score = ev ? ev[:score].to_f : 0.0
           bad   = trace.count { |t| !semantic_ok(name: 'shell', raw: t.to_s)[:semantic_ok] }
           ratio = trace.empty? ? 0.5 : 1.0 - (bad.to_f / trace.length)
           score = ((score * 0.85) + (ratio * 0.15)).round(3)
-          score = [score, 0.6].max if final.match?(/\bPASS\b/) && !(defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX))
-          score = [score, 0.45].min if overlap >= 0.4 && ev_score < 0.55 && !final.match?(/\bPASS\b/)
+          score = [score, 0.7].max if pass
+          score = [score, 0.45].min if !pass && overlap >= 0.4 && ev_score < 0.55
           score = [score, 0.45].min if ratio <= 0.15
           score = [score, 0.70].min
           score = score.round(2).clamp(0.0, 0.70)
@@ -1348,7 +1363,19 @@ module PWN
                     else :wrong
                     end
           rationale = "heuristic evidence=#{ev ? ev[:score] : '-'} overlap=#{overlap.round(2)} ratio=#{ratio.round(2)}"
-          { score: score, verdict: verdict, rationale: rationale, key_step: -1, source: :heuristic }
+          {
+            score: score,
+            verdict: verdict,
+            rationale: rationale,
+            key_step: -1,
+            source: :heuristic,
+            score_components: {
+              judge: score,
+              overlap: pass ? 0.0 : overlap.round(3),
+              checks: 0.0,
+              weights: { overlap: pass ? 0.0 : 0.15 }
+            }
+          }
         end
 
         private_class_method def self.heuristic_prm(opts = {})
@@ -1742,7 +1769,8 @@ module PWN
               commit: 'optional - write score into learning.jsonl / sentinel (default true)',
               critic_pass: 'optional - critic pass value consumed by #judge',
               predicted: 'optional - predicted value consumed by #judge',
-              proxy_ok: 'optional - proxy ok value consumed by #judge'
+              proxy_ok: 'optional - proxy ok value consumed by #judge',
+              persist_components: 'optional - write score_components into the learning ledger'
             )
 
             # Run promote to success and return its result

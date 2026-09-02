@@ -24,7 +24,19 @@ describe PWN::Plugins::Findings do
       out = described_class.render(dir_path: dir, report_name: 'findings')
       expect(File.file?(out[:markdown])).to be true
       expect(File.file?(out[:html])).to be true
-      expect(File.file?(out[:json])).to be true
+      expect(File.file?(out[:sarif])).to be true
+    end
+  end
+
+  it 'chains a child finding and reports composite severity' do
+    Dir.mktmpdir do |dir|
+      stub_const('PWN::Plugins::Findings::FILE', File.join(dir, 'findings.jsonl'))
+      poc = File.join(dir, 'poc.rb')
+      File.write(poc, 'puts 1')
+      parent = described_class.record(title: 'xss', poc_artifacts: [poc], severity: 'medium')
+      child = described_class.chain(parent_id: parent[:id], title: 'account-takeover', poc_artifacts: [poc], severity: 'high')
+      expect(child[:chain_parent_id]).to eq(parent[:id])
+      expect(child[:composite_severity]).to eq('high')
     end
   end
 end

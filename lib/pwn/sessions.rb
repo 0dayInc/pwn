@@ -162,6 +162,7 @@ module PWN
       include_current = opts[:include_current] == true
 
       hits = []
+      target = opts[:target].to_s.downcase
       list.sort_by { |s| s[:mtime].to_s }.reverse.first(max_files).each do |sess|
         sid = sess[:id].to_s
         next if !include_current && !exclude.empty? && sid == exclude
@@ -172,9 +173,12 @@ module PWN
 
           body = row[:content].to_s
           next if body.strip.empty?
+          next if !target.empty? && !body.downcase.include?(target)
 
           score = recall_score(body: body.downcase, query: query, tokens: tokens)
-          next if score <= 0
+          next if score <= 0 && target.empty?
+
+          score = [score, 1].max unless target.empty?
 
           hits << {
             session_id: sid,
@@ -561,7 +565,18 @@ module PWN
       dest = File.join(dir, "#{sid}.tar.gz")
       manifest = { File.basename(src) => Digest::SHA256.file(src).hexdigest }
       Dir.mktmpdir do |tmp|
-        FileUtils.cp(src, File.join(tmp, File.basename(src)))
+        body = File.read(src)
+        body = redact(content: body)
+        File.write(File.join(tmp, File.basename(src)), body)
+        eng = opts[:engagement_id].to_s
+        unless eng.empty? && opts[:engagement] != true
+          rendered = PWN::Plugins::Findings.render(dir_path: tmp, report_name: 'findings') if defined?(PWN::Plugins::Findings)
+          Array(rendered&.values).each do |p|
+            next unless p.to_s != '' && File.file?(p.to_s)
+
+            manifest[File.basename(p)] = Digest::SHA256.file(p).hexdigest
+          end
+        end
         File.write(File.join(tmp, 'manifest.json'), JSON.generate(manifest))
         system('tar', '-czf', dest, '-C', tmp, '.')
       end
@@ -653,7 +668,8 @@ module PWN
           include_current: 'optional - Boolean include excluded id (default false)',
           limit: 'optional - max hits (default 12)',
           max_files: 'optional - newest files to scan (default 40)',
-          truncate: 'optional - chars per hit (default 280)'
+          truncate: 'optional - chars per hit (default 280)',
+          target: 'optional - IP, host, or token that must appear in the hit'
         )
 
         # Run to response history and return its result
@@ -704,7 +720,9 @@ module PWN
 
         # Pack a session jsonl plus artifacts into ~/.pwn/exports/<id>.tar.gz.
         #{self}.export(
-          session_id: 'required - session id to export'
+          session_id: 'required - session id to export',
+          engagement_id: 'optional - include findings SARIF/md/json in the tarball',
+          engagement: 'optional - Boolean include findings even without an id'
         )
 
         # Delete session jsonl files older than days (defaults to 90).

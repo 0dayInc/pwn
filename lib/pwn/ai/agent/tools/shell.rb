@@ -59,7 +59,10 @@ PWN::AI::Agent::Registry.register(
     if cmd.empty? || PWN::AI::Agent::ToolGuard.placeholder?(text: cmd)
       return PWN::AI::Agent::ToolGuard.invalid_payload(
         hint: 'command is required (string). Do not send ..., {...}, {…}, or empty. ' \
-              'Example: shell(command="uname -r").'
+              'Example: shell(command="uname -r").',
+        offending_token: '...',
+        code: 'SYNTAX_DENY',
+        suggestion: 'replace ellipsis or placeholders with a concrete command'
       )
     end
 

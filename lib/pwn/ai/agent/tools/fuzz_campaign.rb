@@ -11,7 +11,7 @@ PWN::AI::Agent::Registry.register(
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', description: 'start|status|stop|triage' },
+        action: { type: 'string', description: 'start|status|stop|triage|minimize' },
         in_dir: { type: 'string' },
         out_dir: { type: 'string' },
         target: { type: 'string' },
@@ -37,6 +37,8 @@ PWN::AI::Agent::Registry.register(
       PWN::Plugins::Jobs.stop(id: args[:id] || args['id'])
     when 'triage'
       PWN::Plugins::AFLplusplus.crash_triage(out_dir: args[:out_dir] || args['out_dir'])
+    when 'minimize'
+      PWN::Plugins::AFLplusplus.minimize(crash: args[:crash] || args['crash'], out: args[:out] || args['out'], target: args[:target] || args['target'])
     else
       { error: "unknown action #{act}" }
     end

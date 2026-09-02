@@ -10,11 +10,11 @@ PWN::AI::Agent::Registry.register(
     description: 'Export a session transcript plus attached artifacts as a tar.gz under ~/.pwn/exports.',
     parameters: {
       type: 'object',
-      properties: { session_id: { type: 'string' } },
+      properties: { session_id: { type: 'string' }, engagement_id: { type: 'string' } },
       required: %w[session_id]
     }
   },
   handler: lambda { |args|
-    PWN::Sessions.export(session_id: args[:session_id] || args['session_id'])
+    PWN::Sessions.export(session_id: args[:session_id] || args['session_id'], engagement_id: args[:engagement_id] || args['engagement_id'])
   }
 )

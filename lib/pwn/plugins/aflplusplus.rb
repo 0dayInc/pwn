@@ -60,6 +60,17 @@ module PWN
         }
       end
 
+      public_class_method def self.minimize(opts = {})
+        crash = opts[:crash].to_s
+        out = opts[:out].to_s
+        target = opts[:target].to_s
+        raise 'ERROR: crash, out, and target are required' if crash.empty? || out.empty? || target.empty?
+        return { error: 'afl-tmin missing', hint: 'pwn setup --profile re' } unless PWN::Plugins::PreflightChecker.bin?(name: 'afl-tmin')
+
+        stdout, stderr, status = Open3.capture3('afl-tmin', '-i', crash, '-o', out, '--', target)
+        { stdout: stdout, stderr: stderr, exit: status.exitstatus, out: out }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -89,6 +100,13 @@ module PWN
           #{self}.crash_triage(
             out_dir: 'required - AFL output directory containing crashes/',
             output: 'optional - alias for out_dir'
+          )
+
+          # Minimize a crash input with afl-tmin when present.
+          #{self}.minimize(
+            crash: 'required - path to a crashing input',
+            out: 'required - path to write the minimized input',
+            target: 'required - fuzz target binary'
           )
 
           # Print the AUTHOR(S) string for this module.

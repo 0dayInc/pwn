@@ -197,8 +197,9 @@ describe PWN::AI::Agent::Mistakes do
   end
 
   it 'classifies pull-denied and name-conflict as distinct error classes' do
-    expect(described_class.error_class(error: 'pull access denied')).to eq('auth_denied')
+    expect(described_class.error_class(error: 'pull access denied')).to eq('docker_registry_auth')
     expect(described_class.error_class(error: 'name already in use')).to eq('name_conflict')
+    expect(described_class.error_class(error: 'Cannot connect to the Docker daemon')).to eq('docker_daemon')
   end
 
   it 'does not collapse docker socket perms into missing_path' do
