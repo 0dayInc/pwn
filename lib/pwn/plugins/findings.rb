@@ -23,6 +23,9 @@ module PWN
         arts << opts[:poc].to_s unless opts[:poc].to_s.empty?
         raise 'ERROR: poc_artifacts are required' if arts.empty?
 
+        ev = opts[:evidence].to_s
+        raise 'ERROR: evidence must be at least 40 characters citing the PoC' if ev.length < 40
+
         row = {
           id: SecureRandom.hex(6),
           title: title,
@@ -83,7 +86,12 @@ module PWN
         parent_id = opts[:parent_id].to_s
         raise 'ERROR: parent_id is required' if parent_id.empty?
 
-        child = record(opts.merge(chain_parent_id: parent_id))
+        child = record(
+          opts.merge(
+            chain_parent_id: parent_id,
+            evidence: (opts[:evidence].to_s.length >= 40 ? opts[:evidence] : 'Chained finding reuses parent PoC evidence and raises composite impact.')
+          )
+        )
         ranks = { 'info' => 0, 'low' => 1, 'medium' => 2, 'high' => 3, 'critical' => 4 }
         parent = report.find { |r| r[:id].to_s == parent_id }
         sev = [parent&.[](:severity), child[:severity]].compact.max_by { |s| ranks[s.to_s] || 0 }

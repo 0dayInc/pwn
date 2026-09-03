@@ -28,6 +28,15 @@ describe PWN::AI::Agent::Dispatch do
     expect(described_class.effect(name: 'memory_recall', args: { query: 'docs' })).to eq :recall
     expect(described_class.effect(name: 'memory_remember', args: { key: 'sop' })).to eq :store
     expect(described_class.effect(name: 'learning_note_outcome', args: { task: 'x' })).to eq :store
+    expect(
+      described_class.effect(
+        name: 'shell',
+        args: {
+          command: "cat >> ~/.pwn/logs/pwn-ai-DEBUG-2026-09-03.md <<'EOF'\n" \
+                   "ToolGuard, TransparentBrowser, and devtools are strengths.\nEOF"
+        }
+      )
+    ).to eq :write
     src = File.read(described_class.method(:effect).source_location.first)
     expect(src).to match(/def self\.effect/)
   end

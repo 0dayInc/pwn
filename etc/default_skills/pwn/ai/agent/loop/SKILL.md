@@ -28,11 +28,12 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::AI::Agent::Loop.help
-PWN::AI::Agent::Loop.debug_on(opts)
+PWN::AI::Agent::Loop.evidence_satisfied(opts)
 ```
 
 ## Public methods
 
+- `evidence_satisfied`
 - `debug_on`
 - `catalog_lookup`
 - `world_knowledge`
@@ -46,6 +47,7 @@ PWN::AI::Agent::Loop.debug_on(opts)
 - `help`
 - `catalog_lookup?`
 - `debug_on?`
+- `evidence_satisfied?`
 - `needs_host_work?`
 - `world_knowledge?`
 
@@ -59,5 +61,5 @@ PWN::AI::Agent::Loop.debug_on(opts)
 
 ## Verification
 
-`PWN::AI::Agent::Loop.respond_to?(:debug_on)` after the
+`PWN::AI::Agent::Loop.respond_to?(:evidence_satisfied)` after the
 module is loaded. Read the source for parameter names.

@@ -227,6 +227,16 @@ module PWN
           ledger
         end
 
+        public_class_method def self.evidence_satisfied?(opts = {})
+          row = arbitrate(
+            request: opts[:request],
+            messages: opts[:messages] || opts[:trace],
+            paths: opts[:paths],
+            session_t0: opts[:session_t0]
+          )
+          row[:complete] == true && Array(row[:unmet]).empty?
+        end
+
         public_class_method def self.authors
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
@@ -279,7 +289,16 @@ module PWN
 
             # Build path → {write,read} ledger from tool messages.
             #{self}.evidence_ledger(
-              messages: 'optional - Array of role/content hashes for this turn'
+              messages: 'optional - Array of role/content hashes'
+            )
+
+            # True when write-then-readback evidence satisfies the original request.
+            #{self}.evidence_satisfied?(
+              request: 'optional - original request text',
+              messages: 'optional - Array of role/content hashes',
+              trace: 'optional - alias for messages (Array of role/content hashes)',
+              paths: 'optional - Array of declared deliverable paths',
+              session_t0: 'optional - session start Time'
             )
 
             # Print the AUTHOR(S) string for this module.

@@ -3,6 +3,7 @@
 require 'fileutils'
 require 'json'
 require 'digest'
+require 'time'
 
 module PWN
   module Plugins
@@ -70,6 +71,26 @@ module PWN
         end
       end
 
+      public_class_method def self.put(opts = {})
+        bytes = opts[:bytes]
+        src = opts[:path].to_s
+        bytes = File.binread(src) if bytes.nil? && File.file?(src)
+        raise 'ERROR: bytes or path is required' if bytes.nil?
+
+        sha = Digest::SHA256.hexdigest(bytes)
+        dir = File.join(ROOT, 'sha256', sha[0, 2])
+        FileUtils.mkdir_p(dir)
+        dest = File.join(dir, sha)
+        File.binwrite(dest, bytes) unless File.file?(dest)
+        meta = File.join(ROOT, 'manifest.jsonl')
+        FileUtils.mkdir_p(ROOT)
+        File.open(meta, 'a') do |f|
+          f.flock(File::LOCK_EX)
+          f.puts(JSON.generate(sha256: sha, size: bytes.bytesize, tool: opts[:tool], session: opts[:session_id], kind: opts[:kind], created_at: Time.now.utc.iso8601, source_path: src, dest: dest))
+        end
+        { sha256: sha, path: dest, size: bytes.bytesize }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -81,14 +102,14 @@ module PWN
 
           # Run register and return its result
           #{self}.register(
-            session_id: 'optional - session id value consumed by #register',
+            session_id: 'optional - pwn-ai session id that produced this artifact',
             path: 'required - filesystem path to read or write',
             kind: 'optional - kind value consumed by #register'
           )
 
           # Run list and return its result
           #{self}.list(
-            session_id: 'optional - session id value consumed by #list'
+            session_id: 'optional - pwn-ai session id whose artifacts to list'
           )
 
           # Read an artifact file and return sha256 plus a body cap.
@@ -102,6 +123,15 @@ module PWN
             offset: 'optional - byte offset (defaults to 0)',
             length: 'optional - byte count (defaults to 4096)',
             mode: 'optional - text, hex, or base64 (defaults to text)'
+          )
+
+          # Store bytes under artifacts/sha256/<h2>/<hash> and append manifest.jsonl.
+          #{self}.put(
+            bytes: 'optional - raw bytes to store',
+            path: 'optional - filesystem path to read when bytes is omitted',
+            tool: 'optional - tool name for provenance',
+            session_id: 'optional - pwn-ai session id for provenance',
+            kind: 'optional - artifact kind'
           )
 
           # Print the AUTHOR(S) string for this module.

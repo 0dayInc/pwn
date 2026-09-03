@@ -172,6 +172,10 @@ module PWN
           next unless %w[user assistant].include?(row[:role].to_s)
 
           body = row[:content].to_s
+          if body.include?('[compacted') && body =~ /ref=(\S+)/
+            ref = Regexp.last_match(1)
+            body = File.read(ref) if File.file?(ref)
+          end
           next if body.strip.empty?
           next if !target.empty? && !body.downcase.include?(target)
 

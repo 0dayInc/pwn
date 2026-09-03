@@ -43,9 +43,11 @@ PWN::AI::Agent::TurnFinalizer.enter_user_path(opts)
 - `pending`
 - `arbitrate`
 - `evidence_ledger`
+- `evidence_satisfied`
 - `authors`
 - `help`
 - `enter_user_path!`
+- `evidence_satisfied?`
 - `join_all!`
 - `leave_user_path!`
 - `should_defer?`

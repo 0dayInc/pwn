@@ -38,6 +38,7 @@ PWN::Plugins::ArtifactRegistry.required_bins(opts)
 - `list`
 - `get`
 - `read_page`
+- `put`
 - `authors`
 - `help`
 

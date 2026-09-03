@@ -64,6 +64,18 @@ module PWN
           unsatisfied incomplete_final empty_final evidence_final
         ].freeze
 
+        public_class_method def self.evidence_satisfied?(opts = {})
+          messages = Array(opts[:messages] || opts[:trace])
+          text = opts[:text].to_s
+          if defined?(TurnFinalizer) && TurnFinalizer.respond_to?(:arbitrate)
+            row = TurnFinalizer.arbitrate(request: opts[:request].to_s, messages: messages, paths: [])
+            return true if row[:complete] && row[:unmet].empty? && row[:ledger].any? { |_p, v| v[:write] && v[:read] }
+          end
+          write_or_read_evidenced?(messages: messages) && !text.strip.empty?
+        rescue StandardError
+          false
+        end
+
         public_class_method def self.debug_on?(opts = {})
           return true if opts[:debug]
           return true if defined?(PWN::Plugins::Log) && PWN::Plugins::Log.debug_enabled?
@@ -394,6 +406,7 @@ module PWN
         # the original request → force synthesis. English tasks are an advisory
         # compass only — an open verify tail must not block a finished ask.
         # The original request is the completion signal.
+
         private_class_method def self.evidence_enough_to_finalize?(opts = {})
           messages = Array(opts[:messages])
           turn_fails = opts[:turn_fails] || {}
@@ -595,7 +608,7 @@ module PWN
             request: request,
             messages: opts[:messages]
           )
-          return true if need == :write && !write_verified?(effects: effects)
+          return true if need == :write && !write_verified?(effects: effects, request: request, messages: opts[:messages])
           return true if need == :browse && !effects.include?(:browse)
           return true if need == :any && !effects.intersect?(%i[write browse eval])
 
@@ -607,10 +620,27 @@ module PWN
         private_class_method def self.write_verified?(opts = {})
           effects = Array(opts[:effects])
           idx = effects.index(:write)
-          return false if idx.nil?
+          if idx
+            tail = effects[(idx + 1)..] || []
+            return true if tail.intersect?(%i[read eval])
+          end
 
-          tail = effects[(idx + 1)..] || []
-          tail.intersect?(%i[read eval])
+          saw_write_argv = false
+          Array(opts[:messages]).each do |msg|
+            next unless msg.is_a?(Hash)
+
+            if msg[:role].to_s == 'assistant' && defined?(Dispatch)
+              Array(msg[:tool_calls]).each do |tc|
+                blob = Dispatch.send(:argv_blob, args: tc.dig(:function, :arguments) || tc.dig('function', 'arguments'))
+                saw_write_argv = true if blob.to_s.match?(Dispatch::WRITE_ARGV_RX)
+              end
+            elsif saw_write_argv && msg[:role].to_s == 'tool'
+              fx = stamped_effect(content: msg[:content])
+              return true if %i[read eval].include?(fx)
+            end
+          end
+
+          false
         rescue StandardError
           false
         end
@@ -875,6 +905,7 @@ module PWN
         end
 
         private_class_method def self.may_finalize?(opts = {})
+          return true if evidence_satisfied?(messages: opts[:messages], text: opts[:text], request: opts[:request])
           return false if incomplete_final?(text: opts[:text], last_iter: false)
           return false if request_unsatisfied?(
             request: opts[:request],
@@ -1678,6 +1709,7 @@ module PWN
             }
             # Ollama + abliterated / weak chat-templates often ignore tools: and
             # answer in prose (or print shell(...) as text). Force native
+
             # tool_calls until at least one tool result is already in history;
             # after that, auto so the model can emit a real final answer.
             # Respect explicit PWN::Env[:ai][:ollama][:tool_choice] override.
@@ -1705,10 +1737,6 @@ module PWN
           end
         end
 
-        # 3.1 — sliding-window history compaction for local models.
-        # Keep: system, original user, PLAN assistant (if any), last K tool
-        # pairs (assistant+tool), and the most recent assistant. Stale tool
-        # bodies are truncated to history_tool_max_chars.
         private_class_method def self.session_chat_history(opts = {})
           return [] unless defined?(PWN::Sessions) && PWN::Sessions.respond_to?(:to_llm_messages)
 
@@ -1831,15 +1859,15 @@ module PWN
 
         private_class_method def self.spill_tool_body(opts = {})
           text = opts[:text].to_s
-          digest = Digest::SHA256.hexdigest(text)[0, 16]
-          dir = HISTORY_SPILL_DIR
+          digest = Digest::SHA256.hexdigest(text)
+          dir = File.join(Dir.home, '.pwn', 'artifacts', 'transcripts', (Thread.current[:pwn_session_id] || 'default').to_s)
           FileUtils.mkdir_p(dir)
-          path = File.join(dir, "#{digest}.txt")
+          path = File.join(dir, "#{digest[0, 12]}.txt")
           File.binwrite(path, text) unless File.file?(path)
           head = text.byteslice(0, 2_048).to_s
           tail = text.bytesize > 3_072 ? text.byteslice(-1_024, 1_024).to_s : ''
           mid = tail.empty? ? '' : "\n...\n#{tail}"
-          "#{head}#{mid}\n[compacted path=#{path} sha256=#{digest} bytes=#{text.bytesize}]"
+          "#{head}#{mid}\n[compacted path=#{path} sha256=#{digest} bytes=#{text.bytesize} ref=#{path}]"
         rescue StandardError
           "[compacted bytes=#{opts[:text].to_s.bytesize}]"
         end
@@ -3002,17 +3030,21 @@ module PWN
                 text: text
               )
                 turn_fails['unsatisfied'] += 1
-                unmet = completion_unmet(request: request, messages: messages)
-                warn "[pwn-ai/loop] original request not evidenced on iter=#{i} unmet=#{unmet.join(',')}; continuing"
-                debug_progress(msg: "bounce unsatisfied unmet=#{unmet.join(',')} snippet=#{debug_snippet(text: text)}")
-                messages << {
-                  role: 'user',
-                  content: "[pwn-ai] The original request is not evidenced yet. unmet=#{unmet.join(',')} " \
-                           'Keep calling CORE_TOOLS (shell, pwn_eval) until that request is ' \
-                           'done or a tool returned failure evidence. pwn-ai does not decide ' \
-                           'authorization. Do not declare completion from a listing or a refusal.'
-                }
-                next
+                if turn_fails['unsatisfied'] >= 2 && evidence_satisfied?(request: request, messages: messages, text: text)
+                  debug_progress(msg: 'nag cap: evidence_satisfied after 2 bounces')
+                else
+                  unmet = completion_unmet(request: request, messages: messages)
+                  warn "[pwn-ai/loop] original request not evidenced on iter=#{i} unmet=#{unmet.join(',')}; continuing"
+                  debug_progress(msg: "bounce unsatisfied unmet=#{unmet.join(',')} snippet=#{debug_snippet(text: text)}")
+                  messages << {
+                    role: 'user',
+                    content: "[pwn-ai] The original request is not evidenced yet. unmet=#{unmet.join(',')} " \
+                             'Keep calling CORE_TOOLS (shell, pwn_eval) until that request is ' \
+                             'done or a tool returned failure evidence. pwn-ai does not decide ' \
+                             'authorization. Do not declare completion from a listing or a refusal.'
+                  }
+                  next
+                end
               end
               debug_progress(msg: "final accepted chars=#{text.to_s.length}")
               quiet_debug_tui!(reason: 'final')
@@ -3163,13 +3195,19 @@ module PWN
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
 
-        # Display Usage for this Module
-
         public_class_method def self.help
           puts "USAGE:
             # Run debug on and return its result
             #{self}.debug_on?(
               debug: 'optional - debug value consumed by #debug_on?'
+            )
+
+            # True when write-then-readback evidence satisfies the original request.
+            #{self}.evidence_satisfied?(
+              messages: 'optional - Array of role/content hashes',
+              trace: 'optional - alias for messages',
+              text: 'optional - final answer text',
+              request: 'optional - original request'
             )
 
             # True only when the ask needs a live host/file/browser effect. World-knowledge

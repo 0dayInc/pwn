@@ -203,10 +203,11 @@ module PWN
           v[:engine] = eng
           v[:task_class] = request.match?(/analy[sz]e|summar|strength|weakness|fitness/i) ? 'analysis' : 'operational'
           if pass
-            v[:score] = [v[:score].to_f, 0.7].max
-            v[:score] = [v[:score].to_f, 0.70].min
+            score = v[:score].to_f
+            v[:score] = [score, 0.6].max
             v[:success] = true if prec
             v[:verifier_verdict] ||= :pass
+            v[:verdict] = :solved
           end
           v[:score_components] ||= {
             judge: v[:score].to_f,
@@ -1099,7 +1100,7 @@ module PWN
         CHEAP_ORM_TEMP    = 0.1
         CHEAP_ORM_TRACE_N = 12
         ORM_SAMPLE_WEIGHT = 1.0
-        HEURISTIC_SAMPLE_WEIGHT = 0.25
+        HEURISTIC_SAMPLE_WEIGHT = 0.45
         ERROR_SAMPLE_WEIGHT = 0.15
         ENGINE_CHAT_MODS = {
           openai: 'PWN::AI::OpenAI',

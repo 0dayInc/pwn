@@ -67,6 +67,23 @@ module PWN
         { ok: false, name: name, degraded: true, hint: "missing #{name}; install via pwn setup --deps" }
       end
 
+      CAPABILITIES = {
+        web_scan: %w[nuclei burpsuite zaproxy],
+        raw_packet: %w[],
+        decompile: %w[analyzeHeadless r2],
+        debug: %w[gdb]
+      }.freeze
+
+      public_class_method def self.capability_coverage(opts = {})
+        want = opts[:capability] || opts[:cap]
+        if want
+          bins = Array(CAPABILITIES[want.to_sym])
+          covered = bins.any? { |b| bin?(name: b) }
+          return { capability: want.to_s, covered: covered, bins: bins }
+        end
+        CAPABILITIES.keys.map { |k| capability_coverage(capability: k) }
+      end
+
       TASK_BINS = {
         'proxy' => %w[burpsuite zaproxy],
         'vuln-scan' => %w[nuclei openvas],
@@ -174,6 +191,12 @@ module PWN
           # Return ok/degraded for a binary without raising.
           #{self}.route(
             name: 'required - binary name to probe'
+          )
+
+          # Report whether a named capability is covered by any healthy plugin binary.
+          #{self}.capability_coverage(
+            capability: 'optional - capability name such as web_scan',
+            cap: 'optional - alias for capability'
           )
 
           # First healthy binary for a task (proxy, vuln-scan, re).

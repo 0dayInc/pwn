@@ -42,8 +42,11 @@ PWN::AI::Agent::Registry.register(opts)
 - `apply_preference`
 - `rank`
 - `discover`
+- `eager_load`
+- `selftest`
 - `authors`
 - `help`
+- `eager_load!`
 
 ## Source
 
