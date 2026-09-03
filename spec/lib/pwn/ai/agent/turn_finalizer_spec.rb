@@ -103,4 +103,22 @@ describe PWN::AI::Agent::TurnFinalizer do
       described_class.leave_user_path! while described_class.user_path?
     end
   end
+
+  it 'finalizes write-then-readback and names unmet without readback' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'out.pdf')
+      File.write(path, 'pdf')
+      msgs = [
+        { role: 'tool', content: { success: true, result: { path: path }, effect: 'write' }.to_json },
+        { role: 'tool', content: { success: true, result: { stdout: path }, effect: 'read' }.to_json }
+      ]
+      row = described_class.arbitrate(request: "store #{path}", messages: msgs, paths: [path])
+      expect(row[:complete]).to eq(true)
+      expect(row[:unmet]).to eq([])
+      write_only = [{ role: 'tool', content: { success: true, result: { path: path }, effect: 'write' }.to_json }]
+      nag = described_class.arbitrate(request: "store #{path}", messages: write_only, paths: [path])
+      expect(nag[:complete]).to eq(false)
+      expect(nag[:unmet].map { |u| u[:criterion] }).to include('readback_missing')
+    end
+  end
 end

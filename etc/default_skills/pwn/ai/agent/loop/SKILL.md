@@ -41,6 +41,7 @@ PWN::AI::Agent::Loop.debug_on(opts)
 - `openai_wire_messages`
 - `request_intent`
 - `run`
+- `budget_status`
 - `authors`
 - `help`
 - `catalog_lookup?`

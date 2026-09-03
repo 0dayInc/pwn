@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module PWN
   module AI
     module Agent
@@ -175,6 +177,56 @@ module PWN
           MUTEX.synchronize { THREADS.count(&:alive?) }
         end
 
+        public_class_method def self.arbitrate(opts = {})
+          request = opts[:request].to_s
+          messages = Array(opts[:messages])
+          t0 = opts[:session_t0] || Thread.current[:pwn_loop_t0]
+          paths = Array(opts[:paths]).map(&:to_s).select { |p| p.start_with?('/') }
+          paths += request.scan(%r{(/[A-Za-z0-9._/+-]+\.\w+)}).flatten
+          paths.uniq!
+          ledger = evidence_ledger(messages: messages)
+          unmet = []
+          paths.each do |path|
+            row = ledger[path]
+            if row.nil? || !File.file?(path)
+              unmet << { criterion: 'artifact_missing', detail: path }
+              next
+            end
+            unmet << { criterion: 'empty_artifact', detail: path } if File.size(path) <= 0
+            unmet << { criterion: 'readback_missing', detail: path } unless row[:read]
+            unmet << { criterion: 'artifact_mtime_before_session', detail: path } if t0 && File.mtime(path) < t0 && !row[:write]
+          end
+          {
+            complete: unmet.empty? && (!paths.empty? || ledger.any?),
+            unmet: unmet,
+            ledger: ledger
+          }
+        end
+
+        public_class_method def self.evidence_ledger(opts = {})
+          ledger = {}
+          Array(opts[:messages]).each do |msg|
+            next unless msg.is_a?(Hash) && msg[:role].to_s == 'tool'
+
+            raw = msg[:content].to_s
+            fx = nil
+            begin
+              parsed = JSON.parse(raw, symbolize_names: true)
+              fx = parsed[:effect].to_s.to_sym if parsed.is_a?(Hash)
+            rescue StandardError
+              fx = nil
+            end
+            raw.scan(%r{(/[A-Za-z0-9._/+-]+)}).flatten.each do |path|
+              next unless path.start_with?('/')
+
+              ledger[path] ||= { write: false, read: false }
+              ledger[path][:write] = true if fx == :write
+              ledger[path][:read] = true if fx == :read
+            end
+          end
+          ledger
+        end
+
         public_class_method def self.authors
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
@@ -216,6 +268,19 @@ module PWN
 
             # Run pending and return its result
             #{self}.pending
+
+            # Arbitrate a completion claim against the turn evidence ledger.
+            #{self}.arbitrate(
+              request: 'optional - original operator request',
+              messages: 'optional - Array of role/content hashes for this turn',
+              paths: 'optional - absolute paths that must exist',
+              session_t0: 'optional - session start Time (mtime-before-session is named, not silent)'
+            )
+
+            # Build path → {write,read} ledger from tool messages.
+            #{self}.evidence_ledger(
+              messages: 'optional - Array of role/content hashes for this turn'
+            )
 
             # Print the AUTHOR(S) string for this module.
             #{self}.authors

@@ -203,9 +203,25 @@ module PWN
               act: nil,
               sensitive: nil
             }
-            # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
-            # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
+          },
+          reward: {
+            verifier_precedence: true
+          },
+          engagement: {
+            enforce: 'block'
+          },
+          taint: {
+            mode: 'enforce'
+          },
+          learning: {
+            max_baks: 5,
+            compact_after_days: 30
+          },
+          capabilities: {
+            grantable: %w[cap_net_raw]
           }
+          # multi-agent personas : ~/.pwn/agents.yml  (see PWN::AI::Agent::Swarm.help)
+          # swarm bus            : ~/.pwn/swarm/<swarm_id>/bus.jsonl
         },
         plugins: {
           asm: { arch: PWN::Plugins::DetectOS.arch, endian: PWN::Plugins::DetectOS.endian.to_s },

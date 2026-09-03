@@ -3,6 +3,7 @@
 require 'json'
 require 'fileutils'
 require 'securerandom'
+require 'digest'
 
 module PWN
   module Plugins
@@ -39,7 +40,26 @@ module PWN
         }
         FileUtils.mkdir_p(File.dirname(FILE))
         File.open(FILE, 'a') { |f| f.puts(JSON.generate(row)) }
+        evidence_anchor(row: row, arts: arts)
         row
+      end
+
+      public_class_method def self.evidence_verify(opts = {})
+        eng = (opts[:engagement_id] || opts[:name] || 'default').to_s
+        path = File.join(Dir.home, '.pwn', 'engagements', eng, 'evidence.jsonl')
+        return { ok: true, rows: 0 } unless File.file?(path)
+
+        mismatches = []
+        n = 0
+        File.readlines(path).each do |ln|
+          row = JSON.parse(ln, symbolize_names: true)
+          n += 1
+          next unless File.file?(row[:path].to_s)
+
+          sha = Digest::SHA256.file(row[:path]).hexdigest
+          mismatches << row[:path] unless sha == row[:sha256].to_s
+        end
+        { ok: mismatches.empty?, rows: n, mismatches: mismatches }
       end
 
       public_class_method def self.report(opts = {})
@@ -82,6 +102,27 @@ module PWN
           json: PWN::Reports::JSON.generate(results_hash: payload, dir_path: dir, report_name: name),
           sarif: PWN::Reports::SARIF.generate(results_hash: payload, dir_path: dir, report_name: name)
         }
+      end
+
+      private_class_method def self.evidence_anchor(opts = {})
+        row = opts[:row]
+        arts = Array(opts[:arts])
+        eng = (row[:engagement_id] || 'default').to_s
+        dir = File.join(Dir.home, '.pwn', 'engagements', eng)
+        FileUtils.mkdir_p(dir)
+        path = File.join(dir, 'evidence.jsonl')
+        arts.each do |art|
+          next unless File.file?(art.to_s)
+
+          rec = {
+            ts: Time.now.utc.iso8601,
+            finding_id: row[:id],
+            path: art,
+            sha256: Digest::SHA256.file(art).hexdigest,
+            size: File.size(art)
+          }
+          File.open(path, 'a') { |f| f.puts(JSON.generate(rec)) }
+        end
       end
 
       public_class_method def self.authors
@@ -132,6 +173,12 @@ module PWN
           #{self}.render(
             dir_path: 'optional - output directory (defaults to ~/.pwn/exports)',
             report_name: 'optional - basename without extension (defaults to findings)'
+          )
+
+          # Re-hash evidence files and report tampering.
+          #{self}.evidence_verify(
+            engagement_id: 'optional - engagement name (defaults to default)',
+            name: 'optional - alias for engagement_id'
           )
 
           # Print the AUTHOR(S) string for this module.

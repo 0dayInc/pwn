@@ -54,8 +54,12 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 - `lesson_record`
 - `lesson_observe`
 - `lesson_prompt`
+- `list_conflicted`
+- `requeue_conflicted`
+- `compact`
 - `authors`
 - `help`
+- `compact!`
 - `gc_stores!`
 - `lean!`
 - `prune_outcomes!`

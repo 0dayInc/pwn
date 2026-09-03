@@ -62,6 +62,34 @@ module PWN
         batch(opts.merge(commands: cmds))
       end
 
+      public_class_method def self.crash_info(opts = {})
+        binary = opts[:binary].to_s
+        row = run_to_crash(opts.merge(binary: binary))
+        out = "#{row[:stdout]}#{row[:stderr]}"
+        sig = out[/Program received signal ([A-Z0-9]+)/, 1] || out[/SIG[A-Z]+/]
+        pc = out[/\bpc\s+0x([0-9a-f]+)/i, 1] || out[/rip\s+0x([0-9a-f]+)/i, 1]
+        frames = out.scan(/#\d+\s+0x[0-9a-f]+.+/).first(8)
+        exploitability = if sig.to_s.include?('SEGV') && pc
+                           'likely-exploitable'
+                         elsif sig
+                           'unknown'
+                         end
+        {
+          signal: sig,
+          pc: pc,
+          faulting_access: out[/Access at address 0x([0-9a-f]+)/, 1],
+          backtrace: frames,
+          regs: out,
+          exploitability_heuristic: exploitability,
+          raw: row
+        }
+      end
+
+      public_class_method def self.debug_session(opts = {})
+        script = Array(opts[:script] || opts[:commands])
+        crash_info(opts.merge(commands: script))
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -103,6 +131,20 @@ module PWN
             bp: 'optional - alias for breakpoints',
             commands: 'optional - extra gdb commands after the breaks',
             args: 'optional - Array of inferior argv'
+          )
+
+          # Parse a run-to-crash gdb session into typed crash_info.
+          #{self}.crash_info(
+            binary: 'required - crashing binary path',
+            args: 'optional - Array of inferior argv',
+            commands: 'optional - extra gdb commands'
+          )
+
+          # Alias of crash_info for the debug_session agent tool.
+          #{self}.debug_session(
+            binary: 'required - crashing binary path',
+            args: 'optional - Array of inferior argv',
+            script: 'optional - Array of gdb/MI commands'
           )
 
           # Print the AUTHOR(S) string for this module.

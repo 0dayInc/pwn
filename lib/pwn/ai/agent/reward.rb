@@ -177,22 +177,36 @@ module PWN
             v[:confidence] = [v[:confidence].to_f, ground[:confidence].to_f].max if ground[:confidence]
           end
 
-          v[:success] = promote_to_success?(
-            orm: v[:source].to_s != 'heuristic' && v[:score].to_f >= 0.6,
-            verify: if ground.nil?
-                      nil
-                    else
-                      ground[:verdict] == :confirmed
-                    end,
-            critic: opts.key?(:critic_pass) ? opts[:critic_pass] : nil
-          )
+          pass = final.match?(/\bPASS\b/) && !(defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX))
+          v[:judge_score] = v[:score].to_f
+          vv = opts[:verifier_verdict]
+          vv = :pass if vv.nil? && (opts[:verifier_pass] == true || pass || (ground && ground[:verdict] == :confirmed))
+          vv = vv.to_s.to_sym if vv
+          v[:verifier_verdict] = vv
+          v[:verdict_class] = taxonomy_class(opts.merge(score: v[:score], verifier_verdict: vv, request: request, final: final))
+          v[:remediation_hint] = taxonomy_hint(verdict_class: v[:verdict_class])
+          prec = verifier_precedence?
+          if prec && vv == :pass
+            v[:success] = true
+          else
+            v[:success] = promote_to_success?(
+              orm: v[:source].to_s != 'heuristic' && v[:score].to_f >= 0.6,
+              verify: if ground.nil?
+                        nil
+                      else
+                        ground[:verdict] == :confirmed
+                      end,
+              critic: opts.key?(:critic_pass) ? opts[:critic_pass] : nil
+            )
+          end
           v[:needs_spot_check] = v[:success] && v[:score].to_f >= 0.85 && (rand < 0.05)
           v[:engine] = eng
-          pass = final.match?(/\bPASS\b/) && !(defined?(Learning) && final.match?(Learning::FAILURE_FINAL_RX))
           v[:task_class] = request.match?(/analy[sz]e|summar|strength|weakness|fitness/i) ? 'analysis' : 'operational'
           if pass
             v[:score] = [v[:score].to_f, 0.7].max
             v[:score] = [v[:score].to_f, 0.70].min
+            v[:success] = true if prec
+            v[:verifier_verdict] ||= :pass
           end
           v[:score_components] ||= {
             judge: v[:score].to_f,
@@ -201,7 +215,16 @@ module PWN
             weights: { overlap: pass ? 0.0 : 0.15 }
           }
           v[:score_components][:weights][:overlap] = 0.0 if pass
-          Learning.note_outcome(task: request[0, 80], success: v[:score].to_f >= 0.6, score: v[:score], details: v[:score_components].to_json) if commit && defined?(Learning) && opts[:persist_components]
+          if commit && defined?(Learning) && opts[:persist_components]
+            Learning.note_outcome(
+              task: request[0, 80],
+              success: v[:success],
+              score: v[:score],
+              details: v[:score_components].to_json,
+              verifier_verdict: v[:verifier_verdict],
+              verdict_class: v[:verdict_class]
+            )
+          end
           # W3 — write Brier on every judged turn so overconfidence can
           # throttle max_iters/critic even when plan_first never fired.
           if commit
@@ -1254,6 +1277,45 @@ module PWN
           false
         end
 
+        private_class_method def self.verifier_precedence?(opts = {})
+          return true unless opts.is_a?(Hash)
+          return true unless defined?(PWN::Env)
+
+          v = PWN::Env.dig(:ai, :reward, :verifier_precedence)
+          v != false
+        rescue StandardError
+          true
+        end
+
+        private_class_method def self.taxonomy_class(opts = {})
+          given = (opts[:verdict_class] || opts['verdict_class']).to_s
+          return given unless given.empty?
+
+          vv = opts[:verifier_verdict]
+          score = opts[:score].to_f
+          final = opts[:final].to_s
+          request = opts[:request].to_s
+          return 'unverified_claim' if vv == :pass && score < 0.6
+          return 'missing_artifact' if request.match?(%r{/(?:tmp|home|opt|var)/}) && !final.match?(%r{/(?:tmp|home|opt|var)/})
+          return 'wrong_path' if request.include?('/tmp/') && final.include?('/tmp/') && request.split.none? { |tok| tok.start_with?('/') && final.include?(tok) }
+          return 'scope_miss' if final.match?(/out of scope|SCOPE_DENY/i)
+          return 'partial_coverage' if score.between?(0.3, 0.59)
+          return 'style_only' if score >= 0.6 && Array(opts[:trace]).empty?
+
+          'unverified_claim'
+        end
+
+        private_class_method def self.taxonomy_hint(opts = {})
+          {
+            'missing_artifact' => 'Write the requested path then read it back.',
+            'wrong_path' => 'Use the absolute path named in the original request.',
+            'unverified_claim' => 'Add a verifier PASS (file readback, exit 0, or hash match).',
+            'scope_miss' => 'Stay inside the active engagement scope.',
+            'partial_coverage' => 'Finish remaining request clauses before claiming done.',
+            'style_only' => 'Produce a host-visible artifact, not prose restyling.'
+          }[opts[:verdict_class].to_s] || 'Produce evidence that matches the original request.'
+        end
+
         private_class_method def self.cheap_orm_timeout
           n = agent_flag(key: :reward_llm_timeout, default: CHEAP_ORM_TIMEOUT).to_i
           n = CHEAP_ORM_TIMEOUT if n < 2
@@ -1770,7 +1832,9 @@ module PWN
               critic_pass: 'optional - critic pass value consumed by #judge',
               predicted: 'optional - predicted value consumed by #judge',
               proxy_ok: 'optional - proxy ok value consumed by #judge',
-              persist_components: 'optional - write score_components into the learning ledger'
+              persist_components: 'optional - write score_components into the learning ledger',
+              verifier_verdict: 'optional - :pass when a deterministic verifier already succeeded',
+              verifier_pass: 'optional - true as a boolean alias for verifier_verdict :pass'
             )
 
             # Run promote to success and return its result

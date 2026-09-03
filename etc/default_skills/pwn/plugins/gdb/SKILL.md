@@ -40,6 +40,8 @@ PWN::Plugins::GDB.required_bins(opts)
 - `mitigations`
 - `core`
 - `breakpoints`
+- `crash_info`
+- `debug_session`
 - `authors`
 - `help`
 

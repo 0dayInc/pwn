@@ -82,7 +82,7 @@ describe PWN::Plugins::REPL do
       hits = described_class.pwn_ai_complete(target: '/sk', line: '/sk')
       expect(hits).to include('/skills')
       hits = described_class.pwn_ai_complete(target: '/', line: '/')
-      %w[/cron /skills /sessions /memory /debug /trace /back /help /model].each do |cmd|
+      %w[/cron /skills /sessions /memory /debug /trace /back /help /model /learning].each do |cmd|
         expect(hits).to include(cmd)
       end
       hits = described_class.pwn_ai_complete(target: 'li', line: '/cron li')

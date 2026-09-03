@@ -1583,7 +1583,7 @@ module PWN
       end
 
       PWN_AI_SLASH_COMMANDS = %w[
-        /back /cron /debug /delegate /help /memory /model /sessions /skills /trace
+        /back /cron /debug /delegate /help /learning /memory /model /sessions /skills /trace
       ].freeze
 
       PWN_AI_SLASH_SUBCOMMANDS = {
@@ -1595,7 +1595,8 @@ module PWN
         '/memory' => %w[list recall remember forget clear],
         '/model' => %w[list],
         '/sessions' => %w[list resume delete stats],
-        '/skills' => %w[list recall]
+        '/skills' => %w[list recall],
+        '/learning' => %w[list requeue]
       }.freeze
 
       # Supported Method Parameters::
@@ -1785,6 +1786,8 @@ module PWN
           puts '    Use agent_list / agent_debate from pwn-ai, or pwn-ai-delegate in the pwn REPL.'
         when '/model'
           pwn_ai_run_model(args: args)
+        when '/learning'
+          pwn_ai_run_learning(args: args)
         end
         true
       rescue StandardError => e
@@ -2016,6 +2019,21 @@ module PWN
         end
       end
 
+      public_class_method def self.pwn_ai_run_learning(opts = {})
+        args = Array(opts[:args])
+        sub = args[0] || 'list'
+        case sub
+        when 'list'
+          flag = args.include?('--conflicted') || args.include?('conflicted')
+          rows = flag ? PWN::AI::Agent::Learning.list_conflicted : PWN::AI::Agent::Learning.outcomes(limit: 20)
+          puts rows.inspect
+        when 'requeue'
+          puts PWN::AI::Agent::Learning.requeue_conflicted.inspect
+        else
+          puts 'Usage: /learning [list [--conflicted]|requeue]'
+        end
+      end
+
       public_class_method def self.pwn_ai_run_skills(opts = {})
         args = Array(opts[:args])
         sub = args[0] || 'list'
@@ -2244,6 +2262,11 @@ module PWN
           # Run pwn ai run memory and return its result
           #{self}.pwn_ai_run_memory(
             args: 'optional - Array args value consumed by #pwn_ai_run_memory'
+          )
+
+          # List or requeue conflicted learning outcomes.
+          #{self}.pwn_ai_run_learning(
+            args: 'optional - list [--conflicted] or requeue'
           )
 
           # Run pwn ai run skills and return its result

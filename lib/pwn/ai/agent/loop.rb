@@ -3143,6 +3143,20 @@ module PWN
           TurnFinalizer.leave_user_path! if defined?(TurnFinalizer)
         end
 
+        public_class_method def self.budget_status(opts = {})
+          t0 = opts[:t0] || Thread.current[:pwn_loop_t0] || Time.now
+          elapsed = Time.now - t0
+          remain = (opts[:remaining_s] || Thread.current[:pwn_loop_budget_s] || 10_800).to_f - elapsed
+          {
+            elapsed_s: elapsed.round,
+            remaining_tool_budget_s: [remain, 0].max.round,
+            mutations_used: Thread.current[:pwn_loop_mutations].to_i,
+            mutations_max: 10,
+            context_tokens_used: Thread.current[:pwn_loop_tokens].to_i,
+            est_max: 128_000
+          }
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -3199,6 +3213,12 @@ module PWN
               from: 'optional - sender account or address to bind as operator',
               account: 'optional - operator account id to bind',
               force_tools: 'optional - force tools value consumed by #run'
+            )
+
+            # Remaining time/token/mutation budget for the current loop.
+            #{self}.budget_status(
+              t0: 'optional - session start Time (defaults to thread t0)',
+              remaining_s: 'optional - override remaining tool budget seconds'
             )
 
             # Print the AUTHOR(S) string for this module.

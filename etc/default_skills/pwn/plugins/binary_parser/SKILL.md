@@ -42,6 +42,7 @@ PWN::Plugins::BinaryParser.required_bins(opts)
 - `exports`
 - `relocations`
 - `triage`
+- `diff`
 - `authors`
 - `help`
 

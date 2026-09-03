@@ -39,4 +39,17 @@ describe PWN::Plugins::Findings do
       expect(child[:composite_severity]).to eq('high')
     end
   end
+
+  it 'flags tampered evidence files' do
+    Dir.mktmpdir do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
+      stub_const('PWN::Plugins::Findings::FILE', File.join(dir, 'findings.jsonl'))
+      poc = File.join(dir, 'poc.rb')
+      File.write(poc, 'puts 1')
+      described_class.record(title: 'xss', poc_artifacts: [poc], engagement_id: 'lab')
+      expect(described_class.evidence_verify(engagement_id: 'lab')[:ok]).to eq(true)
+      File.write(poc, 'tampered')
+      expect(described_class.evidence_verify(engagement_id: 'lab')[:ok]).to eq(false)
+    end
+  end
 end

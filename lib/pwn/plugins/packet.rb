@@ -1194,6 +1194,24 @@ module PWN
         raise e
       end
 
+      public_class_method def self.tcp_connect_scan(opts = {})
+        hosts = Array(opts[:hosts] || opts[:targets])
+        ports = Array(opts[:ports]).map(&:to_i).reject(&:zero?)
+        ports = [80, 443] if ports.empty?
+        timeout = (opts[:timeout] || 2).to_f
+        rows = hosts.product(ports).map do |host, port|
+          open = begin
+            sock = Socket.tcp(host, port, connect_timeout: timeout)
+            sock.close
+            true
+          rescue StandardError
+            false
+          end
+          { host: host, port: port, open: open }
+        end
+        { results: rows, degraded: true, fidelity: 'connect-scan (no raw sockets / custom IP flags)' }
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -1422,6 +1440,14 @@ module PWN
           #{self}.send(
             pkt: 'required - pkt returned from other #construct_<type> methods',
             iface: 'optional - interface to send packet (defaults to eth0)'
+          )
+
+          # Unprivileged TCP connect sweep (fallback when CAP_NET_RAW is missing).
+          #{self}.tcp_connect_scan(
+            hosts: 'required - Array of hostnames or IPs',
+            targets: 'optional - alias for hosts',
+            ports: 'optional - Array of ports (defaults to 80,443)',
+            timeout: 'optional - connect timeout seconds (defaults to 2)'
           )
 
           # Print the AUTHOR(S) string for this module.

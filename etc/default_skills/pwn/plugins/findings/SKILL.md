@@ -35,6 +35,7 @@ PWN::Plugins::Findings.required_bins(opts)
 
 - `required_bins`
 - `record`
+- `evidence_verify`
 - `report`
 - `query`
 - `chain`

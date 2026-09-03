@@ -46,6 +46,20 @@ module PWN
           args = parse_args(raw: raw, entry: entry)
           required = Array(entry.schema&.dig(:parameters, :required))
           args = ToolGuard.coerce_args(args: args, required: required) if defined?(ToolGuard)
+          blob = args.inspect
+          if defined?(PWN::Plugins::Vault)
+            blob = PWN::Plugins::Vault.expand(text: blob)
+            args = expand_vault_args(args: args)
+          end
+          if defined?(Engagement)
+            denied = Engagement.deny_if_out_of_scope(args: args, command: blob)
+            return JSON.generate(denied) if denied
+          end
+          if defined?(ToolGuard) && ToolGuard.respond_to?(:policy_decision)
+            pol = ToolGuard.policy_decision(name: entry.name, args: args)
+            return JSON.generate(pol) if pol.is_a?(Hash) && pol[:action] == 'deny'
+          end
+          return JSON.generate(success: false, error: 'taint: tool-output instruction in args', code: 'TAINT_DENY') if taint_blocked?(name: entry.name, args: args)
           if defined?(ToolGuard) && ToolGuard.respond_to?(:canary_leak?) &&
              ToolGuard.canary_leak?(text: args.inspect)
             return JSON.generate(success: false, error: 'refused: session canary in outbound args', code: 'CANARY_DENY', rule_id: 'canary')
@@ -59,6 +73,12 @@ module PWN
           end
           result = entry.handler.call(args)
           result = ToolGuard.quarantine_output(text: result) if defined?(ToolGuard) && result.is_a?(String) && ToolGuard.respond_to?(:quarantine_output)
+          note_taint(text: result)
+          if defined?(PWN::Plugins::Vault) && result.is_a?(String)
+            result = PWN::Plugins::Vault.redact(text: result)
+          elsif defined?(PWN::Plugins::Vault) && result.is_a?(Hash)
+            result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(result)))
+          end
           JSON.generate(success: true, result: result, effect: effect(name: entry.name, args: args))
         rescue StandardError => e
           JSON.generate(
@@ -346,6 +366,53 @@ module PWN
         private_class_method def self.symbolize(opts = {})
           hash = opts[:hash] ||= {}
           hash.each_with_object({}) { |(k, v), m| m[k.to_sym] = v }
+        end
+
+        private_class_method def self.expand_vault_args(opts = {})
+          args = opts[:args]
+          return args unless args.is_a?(Hash)
+
+          args.transform_values do |v|
+            v.is_a?(String) ? PWN::Plugins::Vault.expand(text: v) : v
+          end
+        rescue StandardError
+          opts[:args]
+        end
+
+        private_class_method def self.note_taint(opts = {})
+          text = opts[:text].to_s
+          grams = text.scan(/.{12,}/).first(20)
+          store = Thread.current[:pwn_taint] ||= []
+          grams.each { |g| store << g[0, 64] }
+          store.shift while store.length > 200
+          store
+        end
+
+        private_class_method def self.taint_blocked?(opts = {})
+          mode = taint_mode
+          return false if mode == 'off'
+
+          blob = opts[:args].inspect
+          return false if blob.length < 12
+          return false if opts[:args].is_a?(Hash) && (opts[:args][:taint_ack] == true || opts[:args]['taint_ack'] == true)
+
+          hit = Array(Thread.current[:pwn_taint]).any? { |g| g.length >= 12 && blob.include?(g) }
+          return false unless hit
+          return false unless blob.match?(/curl |bash -c|sh -c|\|\s*sh\b/i)
+
+          mode == 'enforce'
+        rescue StandardError
+          false
+        end
+
+        private_class_method def self.taint_mode(opts = {})
+          override = opts[:mode]
+          return override.to_s unless override.to_s.empty?
+          return 'enforce' unless defined?(PWN::Env)
+
+          (PWN::Env.dig(:ai, :taint, :mode) || 'enforce').to_s
+        rescue StandardError
+          'enforce'
         end
 
         # Author(s):: 0day Inc. <support@0dayinc.com>

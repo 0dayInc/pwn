@@ -44,6 +44,7 @@ PWN::Plugins::Packet.open_pcap_file(opts)
 - `construct_tcp`
 - `construct_udp`
 - `send`
+- `tcp_connect_scan`
 - `authors`
 - `help`
 
