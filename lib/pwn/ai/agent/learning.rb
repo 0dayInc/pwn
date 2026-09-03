@@ -26,6 +26,7 @@ module PWN
       # restarts and is shared by every future session.
       module Learning
         LEARNING_FILE      = File.join(Dir.home, '.pwn', 'learning.jsonl')
+        DISPUTED_FILE      = File.join(Dir.home, '.pwn', 'learning', 'disputed.jsonl')
         LESSONS_FILE       = File.join(Dir.home, '.pwn', 'lessons.json')
         FINETUNE_DIR       = File.join(Dir.home, '.pwn', 'finetune')
         # P0 — post-answer introspect must not train "stop early" while
@@ -138,6 +139,12 @@ module PWN
             entry[:success] = true
             success = true
           end
+          check = consistency_check(details: details, success: success, rationale: opts[:rationale])
+          if check == :disputed
+            entry[:status] = 'disputed'
+            disputed_save(entry: entry)
+            return entry
+          end
           FileUtils.mkdir_p(File.dirname(LEARNING_FILE))
           File.open(LEARNING_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
           maybe_prune_outcomes!
@@ -156,6 +163,22 @@ module PWN
             eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)) if eng.to_s.empty?
             Curriculum.calibrate(predicted: pred, actual: opts[:score], engine: eng)
           end
+          entry
+        end
+
+        public_class_method def self.consistency_check(opts = {})
+          details = "#{opts[:details]} #{opts[:rationale]}"
+          success = opts[:success]
+          return :disputed if details.match?(/\bPASS\b/) && success == false
+          return :disputed if details.match?(/\bFAIL\b/) && success == true && !details.match?(/\bPASS\b/)
+
+          :ok
+        end
+
+        public_class_method def self.disputed_save(opts = {})
+          entry = opts[:entry] || {}
+          FileUtils.mkdir_p(File.dirname(DISPUTED_FILE))
+          File.open(DISPUTED_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
           entry
         end
 
@@ -2079,6 +2102,18 @@ module PWN
             # Prompt block of non-demoted lessons; candidates prefixed [UNVERIFIED].
             #{self}.lesson_prompt(
               include_demoted: 'optional - include demoted lessons (defaults to false)'
+            )
+
+            # Refuse PASS+success:false rows; they go to the disputed queue.
+            #{self}.consistency_check(
+              details: 'optional - details string that may contain PASS/FAIL',
+              rationale: 'optional - judge rationale text',
+              success: 'required - boolean success flag'
+            )
+
+            # Append a disputed outcome to ~/.pwn/learning/disputed.jsonl.
+            #{self}.disputed_save(
+              entry: 'required - Hash of the disputed learning row'
             )
 
             # Print the AUTHOR(S) string for this module.

@@ -494,7 +494,12 @@ module PWN
             puts '[*] TAB menus: leading `/` = commands (/cron /skills /sessions …); `/` later = host paths; otherwise Ruby completion (same as the pwn REPL).'
             puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
             tag = pi.config.pwn_ai_session_id.to_s.empty? ? '<SESSION_ID>' : pi.config.pwn_ai_session_id
-            puts "\n\n\npwn-ai debug ON → ~/.pwn/logs/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log"
+
+            dbg_lvl = ''
+            dbg_lvl = 'trace' if pi.config.pwn_ai_trace
+            dbg_lvl = 'debug' if pi.config.pwn_ai_debug && !pi.config.pwn_ai_trace
+
+            puts "\n\n\npwn-ai #{dbg_lvl} ON → ~/.pwn/logs/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log" unless dbg_lvl.empty?
           end
         end
 

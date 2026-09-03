@@ -143,17 +143,21 @@ module PWN
           #       confidence handles that in the bandit blend.
           eng = (PWN::Env.dig(:ai, :active) if defined?(PWN::Env)).to_s.downcase
           local = eng == 'ollama' || eng.empty?
-          if v[:source].to_s == 'heuristic'
-            v[:confidence] = local ? 0.35 : 0.5
+          if v[:source].to_s == 'heuristic' || v[:source].to_s.start_with?('heuristic')
+            toolbacked = Array(trace).any?
+            v[:heuristic_class] = toolbacked ? :toolbacked : :textual
+            v[:source] = :heuristic
+            v[:confidence] = if toolbacked
+                               local ? 0.55 : 0.7
+                             else
+                               local ? 0.35 : 0.5
+                             end
             raw = v[:score].to_f
             v[:score_raw] = raw
-            # preserve empty / failure-language / polite floors exactly (raw <= 0.15)
-            # and pass-through non-capped heuristics via the default arm.
-            if local && raw > 0.15 && trace.empty? && raw >= 0.6 && final.length < 400
+            if !toolbacked && local && raw > 0.15 && trace.empty? && raw >= 0.6 && final.length < 400
               v[:score] = [raw, 0.45].min
               v[:rationale] = "#{v[:rationale]} | P1:local_no_trace_cap"
-            elsif local && raw > 0.15 && trace.length < 2 && raw >= 0.85
-              # thin-evidence local highs: mild shrink toward 0.5
+            elsif !toolbacked && local && raw > 0.15 && trace.length < 2 && raw >= 0.85
               v[:score] = (0.5 + ((raw - 0.5) * 0.7)).round(3).clamp(0.0, 1.0)
             else
               v[:score] = raw

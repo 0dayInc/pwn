@@ -22,4 +22,13 @@ describe PWN::Plugins::ArtifactRegistry do
       expect(rows.first[:kind]).to eq('loot')
     end
   end
+
+  it 'greps an artifact by regex' do
+    Dir.mktmpdir do |dir|
+      src = File.join(dir, 'dump.txt')
+      File.write(src, "nop\ncall system\nret\n")
+      hits = described_class.read_page(path: src, grep: 'call.*system')
+      expect(hits[:matches].first[:text]).to include('call system')
+    end
+  end
 end

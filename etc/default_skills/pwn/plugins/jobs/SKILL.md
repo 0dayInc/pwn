@@ -35,6 +35,7 @@ PWN::Plugins::Jobs.required_bins(opts)
 
 - `required_bins`
 - `start`
+- `watch`
 - `status`
 - `tail`
 - `result`

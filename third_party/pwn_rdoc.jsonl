@@ -280,9 +280,11 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.compact! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.compact!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.compress_exemplar Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.compress_exemplar`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.compress_finetune_trace Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.compress_finetune_trace`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.consistency_check Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.consistency_check`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.consolidate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.consolidate`: Supported Method Parameters\n\nremoved = PWN::AI::Agent::Learning.consolidate(\n\nmax_entries: 'optional - hard cap on PWN::Memory size (default MAX_MEMORY_ENTRIES)'\n\n)\n\nDeduplicates near-identical lesson values and prunes the oldest entries once the cap is exceeded so the injected MEMORY block stays high-signal.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.discount_success_rate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.discount_success_rate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.display_task Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.display_task`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.disputed_save Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.disputed_save`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.distill_skill Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.distill_skill`: Supported Method Parameters\n\nskill = PWN::AI::Agent::Learning.distill_skill(\n\nname: 'required - snake_case name for the new skill',\nsession_id: 'optional - PWN::Sessions id to mine (uses its transcript)',\ncontent: 'optional - explicit markdown body; overrides transcript mining',\nreferences: 'optional - Array of reference URLs / CWE / CVE / ATT&CK ids'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.exemplars_for Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.exemplars_for`: Supported Method Parameters\n\nmsgs = PWN::AI::Agent::Learning.exemplars_for(\n\nrequest: 'required - current user request',\nlimit: 'optional - max exemplar traces to return (default 1)',\nmax_msgs: 'optional - cap on messages per exemplar (default 6)'\n\n)\n\nRetrieval-augmented BEHAVIOUR: keyword-matches request against prior successful outcomes in learning.jsonl, loads the matching session, and compresses its (user, tool, assistant) trace into a short few-shot exemplar Loop.run splices between system and user. Local models are dramatically better with 1 concrete example than with 25 abstract lessons.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Learning.export_finetune Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Learning.export_finetune`: "}]}
@@ -419,6 +421,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.run Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.run`: Supported Method Parameters\n\nfinal = PWN::AI::Agent::Loop.run(\n\nrequest: 'required - what the human typed',\nsession_id: 'optional - PWN::Sessions id (transcript is appended to it)',\nenabled_toolsets: 'optional - subset of Registry.toolsets, or nil for all',\non_tool: 'optional - ->(name, args, result) callback for live UI',\nsystem_role_content: 'optional - override default system prompt (built from session_id if not provided)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_chat_history Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_chat_history`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_files Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_files`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_tool_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_tool_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.should_auto_introspect? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.should_auto_introspect?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.spill_tool_body Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.spill_tool_body`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.spill_tool_history! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.spill_tool_history!`: "}]}
@@ -467,6 +470,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.save Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.save`: Supported Method Parameters\n\nPWN::AI::Agent::Metrics.save(\n\nmetrics: 'required - Hash returned by .load / mutated in place'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.scale_prediction Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.scale_prediction`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.scoreboard Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.scoreboard`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.snapshot Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.snapshot`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.summary`: Supported Method Parameters\n\nrows = PWN::AI::Agent::Metrics.summary(\n\nlimit: 'optional - cap number of tools returned (default 25)',\nengine: 'optional - only that engine\\'s sub-bucket (falls back to global when absent)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.thompson Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.thompson`: Supported Method Parameters\n\np = PWN::AI::Agent::Metrics.thompson(name: ‘shell’)\n\nC1 — Thompson sample from Beta(ok+1, fail+1). Naturally balances exploit/explore; used by Registry.rank as the tie-breaker.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Metrics.to_context Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Metrics.to_context`: Supported Method Parameters\n\nctx = PWN::AI::Agent::Metrics.to_context(\n\nlimit: 'optional - cap number of tools included (default 8)',\nengine: 'optional - restrict to one engine\\'s telemetry'\n\n)\n"}]}
@@ -481,6 +485,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.error_class Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.error_class`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.extinguish! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.extinguish!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.extinguish_parked! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.extinguish_parked!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.family Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.family`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.find Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.find`: Supported Method Parameters\n\nentry = PWN::AI::Agent::Mistakes.find(\n\nsignature: 'optional - exact signature to fetch',\ntool: 'optional - with error:, compute signature and fetch',\nerror: 'optional - raw error text (used with tool:)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.for_tool Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.for_tool`: Supported Method Parameters\n\nrows = PWN::AI::Agent::Mistakes.for_tool(\n\ntool: 'required - tool name',\nunresolved_only: 'optional - default false'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.help`: "}]}
@@ -488,6 +493,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.lean! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.lean!`: Supported Method Parameters\n\nresult = PWN::AI::Agent::Mistakes.lean!(\n\ndry_run: 'optional - Boolean (default false)',\nmax_resolved_kept: 'optional - cap on resolved-with-fix records',\nresolved_min_age_days: 'optional - age before resolved count=1 may drop'\n\n)\n\nCompact text fields on every record. Never drops unresolved, regressed, or high-count repeaters. Aged resolved-once fixes may drop after Memory already holds mistake_fix_<sig>.\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.load Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.load`: Supported Method Parameters\n\nstore = PWN::AI::Agent::Mistakes.load\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.normalize_error Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.normalize_error`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.note_hint_outcome Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.note_hint_outcome`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.operator_inbox Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.operator_inbox`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.park Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.park`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Mistakes.previous_assistant Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Mistakes.previous_assistant`: "}]}
@@ -2068,6 +2074,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.flat Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.flat`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.fmt_writes Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.fmt_writes`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.fmtstr Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.fmtstr`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.from_crash Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.from_crash`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.gadgets Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.gadgets`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.help Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ExploitDev.io Usage"},{"role":"assistant","content":"`PWN::Plugins::ExploitDev.io`: "}]}
@@ -2121,6 +2128,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.debug_session Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.debug_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.help Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.mitigations Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.mitigations`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::GDB.ptrace_preflight Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.ptrace_preflight`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.registers Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.registers`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.required_bins Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.required_bins`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::GDB.run_to_crash Usage"},{"role":"assistant","content":"`PWN::Plugins::GDB.run_to_crash`: "}]}
@@ -2293,6 +2301,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.status Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.status`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.stop Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.stop`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::Jobs.tail Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.tail`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::Jobs.watch Usage"},{"role":"assistant","content":"`PWN::Plugins::Jobs.watch`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::K8s.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::K8s.docker_socket? Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.docker_socket?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::K8s.help Usage"},{"role":"assistant","content":"`PWN::Plugins::K8s.help`: "}]}

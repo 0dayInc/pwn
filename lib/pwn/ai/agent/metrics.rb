@@ -156,6 +156,19 @@ module PWN
               .sort_by { |r| [-r[:calls], -r[:success_rate]] }.first(limit)
         end
 
+        public_class_method def self.snapshot(opts = {})
+          _day = opts[:day]
+          learn = defined?(Learning) ? Learning.stats : {}
+          {
+            success_rate: learn[:success_rate],
+            success_rate_orm: learn[:success_rate_orm],
+            success_rate_heur: learn[:success_rate_heur],
+            brier: (learn.dig(:calibration, :brier) if learn.is_a?(Hash)),
+            proxy_distrust: learn[:proxy_distrust],
+            tools: summary(limit: 8)
+          }
+        end
+
         # Supported Method Parameters::
         # ctx = PWN::AI::Agent::Metrics.to_context(
         #   limit: 'optional - cap number of tools included (default 8)',
@@ -813,6 +826,11 @@ module PWN
 
             # Run reset and return its result
             #{self}.reset
+
+            # Snapshot success rates per judge source for the LEARNING block.
+            #{self}.snapshot(
+              day: 'optional - reserved day key for rotation'
+            )
 
             # Print the AUTHOR(S) string for this module.
             #{self}.authors
