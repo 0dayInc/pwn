@@ -4,6 +4,7 @@ require 'metasm'
 require 'digest'
 require 'json'
 require 'fileutils'
+require 'open3'
 
 module PWN
   module Plugins
@@ -122,6 +123,24 @@ module PWN
         body.merge(artifact: art, cached: false)
       end
 
+      public_class_method def self.diff(opts = {})
+        a = (opts[:a] || opts[:old]).to_s
+        b = (opts[:b] || opts[:new]).to_s
+        raise 'ERROR: a and b are required' if a.empty? || b.empty?
+
+        return { error: 'radiff2 missing', hint: 'pwn setup --profile re', a: a, b: b } unless PWN::Plugins::PreflightChecker.bin?(name: 'radiff2')
+
+        stdout, stderr, status = Open3.capture3('radiff2', '-C', a, b)
+        funcs = stdout.lines.filter_map do |ln|
+          next unless ln.include?(' | ')
+
+          cols = ln.split('|').map(&:strip)
+          { a: cols[0], similarity: cols[1].to_f, b: cols[2], changed: cols[1].to_f < 100 }
+        end
+        funcs = funcs.sort_by { |r| r[:similarity].to_f }
+        { a: a, b: b, functions: funcs, stderr: stderr, exit: status.exitstatus }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -161,6 +180,14 @@ module PWN
           # Structured binary triage JSON plus an artifact path under ~/.pwn/artifacts/triage.
           #{self}.triage(
             path: 'required - filesystem path of the binary to triage'
+          )
+
+          # Diff two binaries via radiff2 -C (changed functions first).
+          #{self}.diff(
+            a: 'required - filesystem path of the first binary',
+            b: 'required - filesystem path of the second binary',
+            old: 'optional - alias for a',
+            new: 'optional - alias for b'
           )
 
           # Print the AUTHOR(S) string for this module.

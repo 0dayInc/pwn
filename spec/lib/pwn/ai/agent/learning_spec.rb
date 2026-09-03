@@ -355,3 +355,26 @@ describe PWN::AI::Agent::Learning do
     end
   end
 end
+
+describe 'PWN::AI::Agent::Learning conflicted outcomes' do
+  it 'tags verifier/judge conflicts and keeps them out of RECENT FAILURES' do
+    Dir.mktmpdir do |dir|
+      stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(dir, 'learning.jsonl'))
+      PWN::AI::Agent::Learning.note_outcome(task: 'pass-low-judge', success: false, score: 0.36, verifier_verdict: :pass, details: 'overlap=0.01 ratio=1.0')
+      expect(PWN::AI::Agent::Learning.list_conflicted.first[:status]).to eq('conflicted')
+      ctx = PWN::AI::Agent::Learning.to_context(limit: 10)
+      expect(ctx).not_to include('overlap=')
+    end
+  end
+
+  it 'prunes bak files down to max_baks' do
+    Dir.mktmpdir do |dir|
+      stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(dir, 'learning.jsonl'))
+      File.write(File.join(dir, 'learning.jsonl'), "{}\n")
+      7.times { |i| File.write(File.join(dir, "learning.jsonl.bak-#{i}"), 'x') }
+      out = PWN::AI::Agent::Learning.compact!(max_baks: 5)
+      expect(Dir[File.join(dir, '*.bak*')].length).to eq(5)
+      expect(out[:pruned]).to eq(2)
+    end
+  end
+end

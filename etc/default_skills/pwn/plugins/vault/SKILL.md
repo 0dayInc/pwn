@@ -40,6 +40,10 @@ PWN::Plugins::Vault.refresh_encryption_secrets(opts)
 - `edit`
 - `encrypt`
 - `file_encrypted`
+- `store`
+- `fetch`
+- `expand`
+- `redact`
 - `authors`
 - `help`
 - `file_encrypted?`

@@ -9,6 +9,7 @@ module PWN
   module Reports
     autoload :AIRedTeam, 'pwn/reports/ai_red_team'
     autoload :CSV, 'pwn/reports/csv'
+    autoload :Engagement, 'pwn/reports/engagement'
     autoload :Fuzz, 'pwn/reports/fuzz'
     autoload :HTML, 'pwn/reports/html'
     autoload :HTMLFooter, 'pwn/reports/html_footer'

@@ -25,4 +25,14 @@ describe PWN::Plugins::GDB do
       expect(joined).to include('break *0x401000')
     end
   end
+
+  it 'parses crash_info from gdb output' do
+    allow(Open3).to receive(:capture3).and_return(
+      ["Program received signal SIGSEGV\nrip            0x401000\n#0  0x401000 in foo ()\n", '', instance_double(Process::Status, exitstatus: 0)]
+    )
+    allow(PWN::Plugins::PreflightChecker).to receive(:require_bin!)
+    row = described_class.crash_info(binary: '/bin/true')
+    expect(row[:signal]).to include('SEGV')
+    expect(row[:exploitability_heuristic]).to eq('likely-exploitable')
+  end
 end

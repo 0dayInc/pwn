@@ -422,4 +422,20 @@ describe 'PWN::AI::Agent::Reward vs TUI plan' do
     m = PWN::AI::Agent::Reward.send(:judge_model)
     expect(m).to eq('local-judge')
   end
+
+  it 'records verifier PASS as success even when the judge scores 0.0' do
+    allow(PWN::AI::Agent::Reward).to receive(:llm_judge).and_return(
+      { score: 0.0, source: 'heuristic', verdict: :wrong, rationale: 'overlap=0.01', confidence: 0.3 }
+    )
+    v = PWN::AI::Agent::Reward.judge(
+      request: 'write /tmp/x',
+      final: 'PASS file exists',
+      trace: ['{"success":true}'],
+      commit: false,
+      verifier_verdict: :pass
+    )
+    expect(v[:success]).to eq(true)
+    expect(v[:verifier_verdict]).to eq(:pass)
+    expect(v[:judge_score]).to be < 0.6
+  end
 end

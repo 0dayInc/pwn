@@ -3,6 +3,8 @@
 require 'base64'
 require 'openssl'
 require 'yaml'
+require 'json'
+require 'fileutils'
 
 module PWN
   module Plugins
@@ -244,6 +246,99 @@ module PWN
         raise e
       end
 
+      public_class_method def self.store(opts = {})
+        label = opts[:label].to_s
+        secret = opts[:secret].to_s
+        raise 'ERROR: label and secret are required' if label.empty? || secret.empty?
+
+        box = load_box
+        box[label] = encrypt_secret(secret: secret)
+        save_box(box: box)
+        { label: label, stored: true }
+      end
+
+      public_class_method def self.fetch(opts = {})
+        label = opts[:label].to_s
+        raise 'ERROR: label is required' if label.empty?
+
+        row = load_box[label]
+        return nil unless row
+
+        decrypt_secret(row: row)
+      end
+
+      public_class_method def self.expand(opts = {})
+        text = opts[:text].to_s
+        text.gsub(/\{\{vault:([^}]+)\}\}/) { fetch(label: Regexp.last_match(1).to_s.strip).to_s }
+      end
+
+      public_class_method def self.redact(opts = {})
+        text = opts[:text].to_s
+        load_box.each do |label, row|
+          val = decrypt_secret(row: row).to_s
+          next if val.empty?
+
+          text = text.gsub(val, "{{vault:#{label}}}")
+        end
+        text
+      end
+
+      private_class_method def self.key_path
+        File.join(Dir.home, '.pwn-vault.key')
+      end
+
+      private_class_method def self.box_path
+        File.join(Dir.home, '.pwn', 'vault-secrets.json')
+      end
+
+      private_class_method def self.master_key(opts = {})
+        _n = opts[:n]
+        path = key_path
+        unless File.file?(path)
+          File.binwrite(path, OpenSSL::Random.random_bytes(32))
+          File.chmod(0o600, path)
+        end
+        File.binread(path)
+      end
+
+      private_class_method def self.encrypt_secret(opts = {})
+        cipher = OpenSSL::Cipher.new('aes-256-gcm')
+        cipher.encrypt
+        cipher.key = master_key
+        iv = cipher.random_iv
+        cipher.auth_data = 'pwn-vault'
+        ct = cipher.update(opts[:secret].to_s) + cipher.final
+        { iv: Base64.strict_encode64(iv), ct: Base64.strict_encode64(ct), tag: Base64.strict_encode64(cipher.auth_tag) }
+      end
+
+      private_class_method def self.decrypt_secret(opts = {})
+        row = opts[:row]
+        return '' unless row.is_a?(Hash)
+
+        cipher = OpenSSL::Cipher.new('aes-256-gcm')
+        cipher.decrypt
+        cipher.key = master_key
+        cipher.iv = Base64.strict_decode64(row[:iv] || row['iv'].to_s)
+        cipher.auth_tag = Base64.strict_decode64(row[:tag] || row['tag'].to_s)
+        cipher.auth_data = 'pwn-vault'
+        cipher.update(Base64.strict_decode64(row[:ct] || row['ct'].to_s)) + cipher.final
+      end
+
+      private_class_method def self.load_box(opts = {})
+        return {} unless opts.is_a?(Hash)
+        return {} unless File.file?(box_path)
+
+        JSON.parse(File.read(box_path))
+      rescue StandardError
+        {}
+      end
+
+      private_class_method def self.save_box(opts = {})
+        FileUtils.mkdir_p(File.dirname(box_path))
+        File.write(box_path, JSON.pretty_generate(opts[:box] || {}))
+        File.chmod(0o600, box_path)
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -302,6 +397,27 @@ module PWN
           # Run file encrypted and return its result
           #{self}.file_encrypted?(
             file: 'required - file to check if encrypted'
+          )
+
+          # Store a secret outside the transcript (AES-GCM; key in ~/.pwn-vault.key).
+          #{self}.store(
+            label: 'required - vault label',
+            secret: 'required - secret value'
+          )
+
+          # Fetch a stored secret by label.
+          #{self}.fetch(
+            label: 'required - vault label'
+          )
+
+          # Replace {{vault:label}} tokens with stored secrets.
+          #{self}.expand(
+            text: 'required - string possibly containing {{vault:label}} tokens'
+          )
+
+          # Replace stored secret values with {{vault:label}} placeholders.
+          #{self}.redact(
+            text: 'required - string that may contain stored secrets'
           )
 
           # Print the AUTHOR(S) string for this module.

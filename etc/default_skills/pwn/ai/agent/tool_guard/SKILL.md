@@ -60,6 +60,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `timeout_prior_count`
 - `refuse_copied_persist`
 - `scope_refusal`
+- `policy_decision`
 - `rfc1918`
 - `ip_in_cidr`
 - `command_class`

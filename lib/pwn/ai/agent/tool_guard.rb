@@ -442,6 +442,39 @@ module PWN
           nil
         end
 
+        public_class_method def self.policy_decision(opts = {})
+          name = opts[:name].to_s
+          blob = opts[:args].inspect
+          path = File.join(Dir.home, '.pwn', 'toolguard.yaml')
+          return nil unless File.file?(path)
+
+          require 'yaml'
+          doc = YAML.safe_load_file(path, permitted_classes: [Symbol]) || {}
+          Array(doc['rules'] || doc[:rules]).each do |rule|
+            next unless rule.is_a?(Hash)
+
+            tool = (rule['tool'] || rule[:tool]).to_s
+            next unless tool.empty? || tool == name
+
+            pat = (rule['arg_pattern'] || rule[:arg_pattern]).to_s
+            next if pat.empty? || blob.match?(Regexp.new(pat)) == false
+
+            action = (rule['action'] || rule[:action] || 'allow').to_s
+            next if action == 'allow'
+
+            return {
+              action: action,
+              success: false,
+              error: (rule['reason'] || rule[:reason] || 'toolguard policy deny').to_s,
+              code: 'POLICY_DENY',
+              tool: name
+            }
+          end
+          nil
+        rescue StandardError
+          nil
+        end
+
         public_class_method def self.rfc1918?(opts = {})
           oct = opts[:ip].to_s.split('.').map(&:to_i)
           return false unless oct.length == 4
@@ -688,6 +721,12 @@ module PWN
               command_class: 'optional - class key',
               predicted: 'optional - override predicted seconds',
               payload: 'optional - command string if class omitted'
+            )
+
+            # Evaluate ~/.pwn/toolguard.yaml first-match rules.
+            #{self}.policy_decision(
+              name: 'required - tool name',
+              args: 'required - Hash of tool arguments'
             )
 
             # Print the AUTHOR(S) string for this module.

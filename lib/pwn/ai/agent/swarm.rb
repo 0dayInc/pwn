@@ -438,6 +438,34 @@ module PWN
           "FACTS #{rows.map { |r| "#{r[:kind]}=#{r[:value]}" }.join(' ')}"
         end
 
+        public_class_method def self.claim(opts = {})
+          eng = (opts[:engagement_id] || 'default').to_s
+          unit = opts[:unit].to_s
+          raise 'ERROR: unit is required' if unit.empty?
+
+          ttl = (opts[:ttl] || 300).to_i
+          agent = (opts[:agent_id] || 'anon').to_s
+          dir = File.join(Dir.home, '.pwn', 'swarm', eng)
+          FileUtils.mkdir_p(dir)
+          path = File.join(dir, "#{unit.gsub(/[^A-Za-z0-9._:-]/, '_')}.claim")
+          now = Time.now.to_i
+          File.open(path, File::RDWR | File::CREAT, 0o644) do |f|
+            f.flock(File::LOCK_EX)
+            existing = begin
+              JSON.parse(f.read, symbolize_names: true)
+            rescue StandardError
+              {}
+            end
+            return { ok: false, unit: unit, holder: existing[:agent_id] } if existing[:until].to_i > now && existing[:agent_id].to_s != agent
+
+            row = { unit: unit, agent_id: agent, until: now + ttl }
+            f.rewind
+            f.truncate(0)
+            f.write(JSON.generate(row))
+            { ok: true, unit: unit, agent_id: agent, until: row[:until] }
+          end
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -533,6 +561,14 @@ module PWN
             # One-line FACTS block for the system prompt.
             #{self}.facts_prompt(
               engagement_id: 'optional - engagement id (defaults to default)'
+            )
+
+            # Atomically claim a work unit (INSERT-or-fail until TTL).
+            #{self}.claim(
+              unit: 'required - normalized target+phase key',
+              engagement_id: 'optional - engagement id (defaults to default)',
+              ttl: 'optional - seconds until the claim expires (defaults to 300)',
+              agent_id: 'optional - claimant id'
             )
 
             # Print the AUTHOR(S) string for this module.

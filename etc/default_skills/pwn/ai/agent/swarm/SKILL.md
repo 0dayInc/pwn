@@ -46,6 +46,7 @@ PWN::AI::Agent::Swarm.personas(opts)
 - `map_targets`
 - `fact_record`
 - `facts_prompt`
+- `claim`
 - `authors`
 - `help`
 

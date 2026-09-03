@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tmpdir'
 
 describe PWN::AI::Agent::Swarm do
   it 'should display information for authors' do
@@ -42,5 +43,15 @@ describe PWN::AI::Agent::Swarm do
     rows = described_class.map_targets(targets: '127.0.0.1', ports: '1,9,22,80')
     expect(rows.length).to eq(4)
     expect(rows.map { |r| r[:port] }.uniq.length).to eq(4)
+  end
+
+  it 'allows only one live claim per unit' do
+    Dir.mktmpdir do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
+      a = described_class.claim(unit: '10.0.0.5:recon', agent_id: 'a', ttl: 60, engagement_id: 'lab')
+      b = described_class.claim(unit: '10.0.0.5:recon', agent_id: 'b', ttl: 60, engagement_id: 'lab')
+      expect(a[:ok]).to eq(true)
+      expect(b[:ok]).to eq(false)
+    end
   end
 end

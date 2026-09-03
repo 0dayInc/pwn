@@ -128,6 +128,16 @@ module PWN
           entry[:score] = opts[:score].to_f if opts.key?(:score)
           src = opts[:judge_source].to_s
           entry[:judge_source] = src unless src.empty?
+          vv = (opts[:verifier_verdict] || opts['verifier_verdict']).to_s
+          entry[:verifier_verdict] = vv unless vv.empty?
+          vc = (opts[:verdict_class] || opts['verdict_class']).to_s
+          entry[:verdict_class] = vc unless vc.empty?
+          entry[:remediation_hint] = opts[:remediation_hint].to_s unless opts[:remediation_hint].to_s.empty?
+          if vv == 'pass' && opts.key?(:score) && opts[:score].to_f < 0.6
+            entry[:status] = 'conflicted'
+            entry[:success] = true
+            success = true
+          end
           FileUtils.mkdir_p(File.dirname(LEARNING_FILE))
           File.open(LEARNING_FILE, 'a') { |f| f.puts(JSON.generate(entry)) }
           maybe_prune_outcomes!
@@ -137,7 +147,7 @@ module PWN
           # are promoted into PWN::Memory[:lesson] so PromptBuilder recall
           # survives across sessions. Without this, the agent re-learns
           # "run rubocop after every patch" every turn (empty memory.json).
-          promote_process_lesson(entry: entry) if defined?(PWN::Memory)
+          promote_process_lesson(entry: entry) if defined?(PWN::Memory) && entry[:status].to_s != 'conflicted'
           if opts.key?(:score) && defined?(Curriculum) && Curriculum.respond_to?(:calibrate)
             pred = opts[:predicted]
             pred = Thread.current[:pwn_plan_predicted] if pred.nil?
@@ -215,6 +225,8 @@ module PWN
           # envelope rows (REQUEST:/GOAL: prefixes) without starving the block.
           rows  = prefer_primary_tasks(rows: outcomes(limit: limit * 4)).first(limit)
           fails = prefer_primary_tasks(rows: outcomes(limit: 200, success: false))
+          fails = fails.reject { |r| r[:status].to_s == 'conflicted' }
+          fails = fails.reject { |r| r[:verifier_verdict].to_s == 'pass' }
           # Do not mirror the same ids under both headings — that doubled the
           # failure signal and made RECENT OUTCOMES == RECENT FAILURES when the
           # last N attempts all failed (the injected block looked "stuck").
@@ -234,8 +246,12 @@ module PWN
             # Surface a one-line cause crumb so the agent can actually learn
             # from failures instead of only seeing that they failed.
             if r[:success] != true
-              crumb = cause_crumb(details: r[:details])
-              line += "\n      cause: #{crumb}" unless crumb.empty?
+              if r[:verdict_class].to_s == ''
+                crumb = cause_crumb(details: r[:details])
+                line += "\n      cause: #{crumb}" unless crumb.empty?
+              else
+                line += "\n      cause: #{r[:verdict_class]} #{r[:remediation_hint]}"
+              end
             end
             line
           end
@@ -1049,6 +1065,7 @@ module PWN
 
         private_class_method def self.cause_crumb(opts = {})
           d = opts[:details].to_s.gsub(/\s+/, ' ').strip
+          d = d.gsub(/overlap=\S+/, '').gsub(/ratio=\S+/, '').strip
           return '' if d.empty?
 
           # Prefer explicit FLAW / CORRECTED crumbs; else verdict(score) head.
@@ -1818,6 +1835,55 @@ module PWN
           File.write(LESSONS_FILE, JSON.pretty_generate(opts[:store]))
         end
 
+        private_class_method def self.learning_max_baks(opts = {})
+          n = opts[:max_baks]
+          return n.to_i if n.to_i.positive?
+          return 5 unless defined?(PWN::Env)
+
+          v = PWN::Env.dig(:ai, :learning, :max_baks)
+          v.to_i.positive? ? v.to_i : 5
+        rescue StandardError
+          5
+        end
+
+        public_class_method def self.list_conflicted(opts = {})
+          limit = (opts[:limit] || 50).to_i
+          outcomes(limit: 500).select { |r| r[:status].to_s == 'conflicted' }.first(limit)
+        end
+
+        public_class_method def self.requeue_conflicted(opts = {})
+          dry = opts[:dry_run] ? true : false
+          rows = list_conflicted(limit: 10_000)
+          return { rescored: 0, dry_run: dry } if rows.empty? || dry
+
+          n = 0
+          rows.each do |r|
+            note_outcome(
+              task: "requeue:#{r[:task]}",
+              success: true,
+              score: [r[:score].to_f, 0.7].max,
+              verifier_verdict: :pass,
+              details: 'rescored after verifier precedence',
+              tags: %w[requeue]
+            )
+            n += 1
+          end
+          { rescored: n, dry_run: false }
+        end
+
+        public_class_method def self.compact!(opts = {})
+          max_baks = (opts[:max_baks] || learning_max_baks).to_i
+          max_baks = 5 if max_baks <= 0
+          dir = File.dirname(LEARNING_FILE)
+          baks = Dir[File.join(dir, '*.bak*')].sort_by { |p| File.mtime(p) }.reverse
+          pruned = 0
+          baks.drop(max_baks).each do |path|
+            File.delete(path)
+            pruned += 1
+          end
+          { pruned: pruned, kept: [baks.length, max_baks].min, max_baks: max_baks }
+        end
+
         # Author(s):: 0day Inc. <support@0dayinc.com>
 
         public_class_method def self.authors
@@ -1839,7 +1905,25 @@ module PWN
               judge_source: 'required - judge source value consumed by #note_outcome',
               predicted: 'optional - predicted value consumed by #note_outcome',
               confidence: 'optional - confidence value consumed by #note_outcome',
-              engine: 'optional - engine value consumed by #note_outcome'
+              engine: 'optional - engine value consumed by #note_outcome',
+              verifier_verdict: 'optional - pass|fail from a deterministic verifier',
+              verdict_class: 'optional - missing_artifact|wrong_path|unverified_claim|scope_miss|partial_coverage|style_only',
+              remediation_hint: 'optional - one-line fix hint'
+            )
+
+            # List outcomes tagged conflicted (verifier PASS vs low judge).
+            #{self}.list_conflicted(
+              limit: 'optional - max entries (defaults to 50)'
+            )
+
+            # Rescore conflicted outcomes after verifier-precedence lands.
+            #{self}.requeue_conflicted(
+              dry_run: 'optional - true to count without writing'
+            )
+
+            # Prune excess *.bak siblings under the learning directory.
+            #{self}.compact!(
+              max_baks: 'optional - newest bak files to keep (defaults to 5)'
             )
 
             # Run outcomes and return its result

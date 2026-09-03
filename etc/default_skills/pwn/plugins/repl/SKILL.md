@@ -56,6 +56,7 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `pwn_ai_run_cron`
 - `pwn_ai_run_sessions`
 - `pwn_ai_run_memory`
+- `pwn_ai_run_learning`
 - `pwn_ai_run_skills`
 - `enable_autocomplete`
 - `start`
