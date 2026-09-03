@@ -36,6 +36,7 @@ PWN::AI::Agent::Metrics.load(opts)
 - `load`
 - `save`
 - `record`
+- `append_jsonl`
 - `summary`
 - `to_context`
 - `proxy_trust`

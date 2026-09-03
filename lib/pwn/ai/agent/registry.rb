@@ -113,6 +113,7 @@ module PWN
         # )
 
         public_class_method def self.definitions(opts = {})
+          eager_load!
           enabled = opts[:enabled]
           enabled = enabled.map(&:to_s) if enabled
           pool = @entries.values.select { |e| (enabled.nil? || enabled.include?(e.toolset)) && safe_check(entry: e) }
@@ -296,6 +297,10 @@ module PWN
         # )
 
         public_class_method def self.discover(opts = {})
+          eager_load!(opts)
+        end
+
+        public_class_method def self.eager_load!(opts = {})
           force = opts[:force] ||= false
           return @entries.keys if @discovered && !force
 
@@ -309,6 +314,19 @@ module PWN
           end
           @discovered = true
           @entries.keys
+        end
+
+        public_class_method def self.selftest(opts = {})
+          _dry = opts[:dry_run]
+          eager_load!
+          tools_dir = File.join(__dir__, 'tools')
+          files = Dir[File.join(tools_dir, '*.rb')]
+          rows = @entries.map do |name, e|
+            schema = e.schema.is_a?(Hash)
+            required = Array(e.schema&.dig(:parameters, :required) || e.schema&.dig('parameters', 'required'))
+            { name: name, schema_valid: schema, handler: !e.handler.nil?, required: required }
+          end
+          { tools: rows, files: files.length, registered: @entries.length, ok: rows.length >= files.length }
         end
 
         private_class_method def self.safe_check(opts = {})
@@ -426,6 +444,16 @@ module PWN
             # Run discover and return its result
             #{self}.discover(
               force: 'optional - re-require tool files even if already discovered (default false)'
+            )
+
+            # Eager-load every tools/*.rb so Registry.definitions works in a cold REPL.
+            #{self}.eager_load!(
+              force: 'optional - re-require tool files even if already discovered (default false)'
+            )
+
+            # Schema/handler contract check for every registered tool.
+            #{self}.selftest(
+              dry_run: 'optional - reserved dry-run flag'
             )
 
             # Print the AUTHOR(S) string for this module.

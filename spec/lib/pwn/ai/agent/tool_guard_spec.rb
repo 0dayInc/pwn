@@ -36,6 +36,15 @@ describe PWN::AI::Agent::ToolGuard do
     it 'rejects a real command' do
       expect(described_class.placeholder?(text: 'uname -r')).to be false
     end
+
+    it 'does not treat ellipsis inside a heredoc body as a placeholder command' do
+      body = "cat <<'EOF'\nThe token ... lives in the document body.\nEOF\n"
+      expect(described_class.placeholder?(text: body)).to be false
+    end
+
+    it 'still denies a command that is only a placeholder token' do
+      expect(described_class.placeholder?(text: ' ... ')).to be true
+    end
   end
 
   describe '.coerce_args' do

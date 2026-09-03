@@ -61,6 +61,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `refuse_copied_persist`
 - `scope_refusal`
 - `policy_decision`
+- `scope_check`
 - `rfc1918`
 - `ip_in_cidr`
 - `command_class`
@@ -81,6 +82,7 @@ PWN::AI::Agent::ToolGuard.present(opts)
 - `refuse_copied_persist?`
 - `reset_timeout_budget!`
 - `rfc1918?`
+- `scope_check!`
 - `shell_bash?`
 
 ## Source

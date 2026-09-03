@@ -21,7 +21,7 @@ module PWN
         argv = cmd.is_a?(Array) ? cmd.map(&:to_s) : ['bash', '-lc', cmd.to_s]
         r, w, pid = PTY.spawn(*argv)
         id = "tube_#{pid}"
-        @tubes[id] = { r: r, w: w, pid: pid, buf: +'' }
+        @tubes[id] = { r: r, w: w, pid: pid, buf: +'', started_at: Time.now, last_io: Time.now }
         { id: id, pid: pid }
       end
 
@@ -105,6 +105,26 @@ module PWN
         n
       end
 
+      public_class_method def self.list(opts = {})
+        _idle = opts[:idle]
+        now = Time.now
+        @tubes.map do |id, t|
+          { id: id, pid: t[:pid], started_at: t[:started_at], last_io: t[:last_io], age_s: (now - (t[:started_at] || now)).to_i }
+        end
+      end
+
+      public_class_method def self.kill(opts = {})
+        id = opts[:id].to_s
+        t = @tubes[id]
+        return { ok: false, id: id } unless t
+
+        Process.kill('TERM', t[:pid]) if t[:pid]
+        close(id: id)
+        { ok: true, id: id }
+      rescue StandardError => e
+        { ok: false, id: id, error: e.message }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -163,6 +183,16 @@ module PWN
           # Close every open tube (session end / orphan GC).
           #{self}.reap_orphans(
             session_id: 'optional - agent session id for transcript grouping'
+          )
+
+          # List live tubes with age.
+          #{self}.list(
+            idle: 'optional - unused reserved idle-seconds filter'
+          )
+
+          # SIGTERM then close a tube by id.
+          #{self}.kill(
+            id: 'required - tube id from spawn or connect'
           )
 
           # Print the AUTHOR(S) string for this module.

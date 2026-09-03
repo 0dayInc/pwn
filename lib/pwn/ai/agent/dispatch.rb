@@ -52,7 +52,8 @@ module PWN
             args = expand_vault_args(args: args)
           end
           if defined?(Engagement)
-            denied = Engagement.deny_if_out_of_scope(args: args, command: blob)
+            denied = ToolGuard.scope_check!(args: args, command: blob) if defined?(ToolGuard) && ToolGuard.respond_to?(:scope_check!)
+            denied ||= Engagement.deny_if_out_of_scope(args: args, command: blob)
             return JSON.generate(denied) if denied
           end
           if defined?(ToolGuard) && ToolGuard.respond_to?(:policy_decision)
@@ -343,8 +344,8 @@ module PWN
           return :store if STORE_TOOLS.include?(name)
 
           blob = argv_blob(args: opts[:args])
-          return :browse if blob.match?(BROWSE_ARGV_RX)
           return :write if blob.match?(WRITE_ARGV_RX)
+          return :browse if blob.match?(BROWSE_ARGV_RX)
           return :eval if name == 'pwn_eval'
 
           :read
@@ -381,7 +382,7 @@ module PWN
 
         private_class_method def self.note_taint(opts = {})
           text = opts[:text].to_s
-          grams = text.scan(/.{12,}/).first(20)
+          grams = text.scan(/.{24,}/).first(20)
           store = Thread.current[:pwn_taint] ||= []
           grams.each { |g| store << g[0, 64] }
           store.shift while store.length > 200
@@ -393,10 +394,10 @@ module PWN
           return false if mode == 'off'
 
           blob = opts[:args].inspect
-          return false if blob.length < 12
+          return false if blob.length < 24
           return false if opts[:args].is_a?(Hash) && (opts[:args][:taint_ack] == true || opts[:args]['taint_ack'] == true)
 
-          hit = Array(Thread.current[:pwn_taint]).any? { |g| g.length >= 12 && blob.include?(g) }
+          hit = Array(Thread.current[:pwn_taint]).any? { |g| g.length >= 24 && blob.include?(g) }
           return false unless hit
           return false unless blob.match?(/curl |bash -c|sh -c|\|\s*sh\b/i)
 

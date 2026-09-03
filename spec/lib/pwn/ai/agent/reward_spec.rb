@@ -411,7 +411,7 @@ describe 'PWN::AI::Agent::Reward vs TUI plan' do
 
   it 'floors verified PASS analytical answers at 0.6' do
     src = File.read(PWN::AI::Agent::Reward.method(:judge).source_location.first)
-    expect(src).to include('[score, 0.7].max')
+    expect(src).to include('[score, 0.6].max')
     expect(src).to include('\bPASS\b')
   end
 

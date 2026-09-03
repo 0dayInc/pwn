@@ -196,11 +196,21 @@ module PWN
           jmean  = total.positive? ? weighted_judge_mean(rows: rows) : nil
           distrust = 0.0
           distrust = Reward.proxy_distrust.to_f.clamp(0.0, 1.0) if defined?(Reward) && Reward.respond_to?(:proxy_distrust)
+          orm = rows.select { |r| r[:judge_source].to_s != 'heuristic' && r[:source].to_s != 'heuristic' }
+          heur = rows.select { |r| r[:judge_source].to_s == 'heuristic' || r[:source].to_s == 'heuristic' }
+          orm_n = orm.length
+          heur_n = heur.length
+          orm_ok = orm.count { |r| r[:success] == true }
+          heur_ok = heur.count { |r| r[:success] == true }
           {
             total_outcomes: total,
             successes: ok,
             failures: total - ok,
             success_rate: raw,
+            success_rate_orm: orm_n.positive? ? (orm_ok.to_f / orm_n).round(3) : 0.0,
+            success_rate_heur: heur_n.positive? ? (heur_ok.to_f / heur_n).round(3) : 0.0,
+            orm_n: orm_n,
+            heur_n: heur_n,
             adjusted_success_rate: discount_success_rate(proxy: raw, judge: jmean, distrust: distrust),
             proxy_distrust: distrust,
             skills_known: skills,
@@ -227,6 +237,12 @@ module PWN
           fails = prefer_primary_tasks(rows: outcomes(limit: 200, success: false))
           fails = fails.reject { |r| r[:status].to_s == 'conflicted' }
           fails = fails.reject { |r| r[:verifier_verdict].to_s == 'pass' }
+          fails = fails.reject { |r| r[:details].to_s.match?(/\bPASS\b/) && r[:success] == true }
+          fails = fails.select do |r|
+            v = r[:verdict].to_s
+            v == 'wrong' || v == 'refused' || (r[:score].to_f < 0.3 && !r[:details].to_s.match?(/\bPASS\b/)) || r[:success] == false
+          end
+          fails = fails.reject { |r| r[:success] == true }
           # Do not mirror the same ids under both headings — that doubled the
           # failure signal and made RECENT OUTCOMES == RECENT FAILURES when the
           # last N attempts all failed (the injected block looked "stuck").
@@ -260,7 +276,7 @@ module PWN
           d   = s[:proxy_distrust].to_f
           rate = d > 0.05 ? s[:adjusted_success_rate] : s[:success_rate]
           tag  = d > 0.05 ? ' adj' : ''
-          hdr = "RECENT OUTCOMES (success_rate=#{(rate.to_f * 100).round(1)}%#{tag}#{" judge_mean=#{jm}" if jm} over #{s[:total_outcomes]} attempts)"
+          hdr = "RECENT OUTCOMES (success_rate=#{(rate.to_f * 100).round(1)}%#{tag} success=orm:#{(s[:success_rate_orm].to_f * 100).round(1)}%(#{s[:orm_n]}) / heur:#{(s[:success_rate_heur].to_f * 100).round(1)}%(#{s[:heur_n]})#{" judge_mean=#{jm}" if jm} over #{s[:total_outcomes]} attempts)"
           out = "#{hdr}\n#{rows.map(&fmt).join("\n")}\n"
           out += "RECENT FAILURES (learn from these — do not repeat)\n#{fails.map(&fmt).join("\n")}\n" unless fails.empty?
           "#{out}\n"

@@ -985,6 +985,50 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       Thread.current[:pwn_loop_deliverables] = nil
     end
 
+    it 'does not bounce with empty unmet after a redirected write whose body mentions browsers' do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'pwn-ai-DEBUG-2026-09-03.md')
+        File.write(path, "# assessment\n" * 40)
+        req = "analyze how well pwn-ai enables pentest. Store this list in #{path}."
+        write_cmd = "cat >> #{path} <<'EOF'\nTransparentBrowser and devtools are strengths.\nEOF"
+        msgs = [
+          { role: 'user', content: req },
+          {
+            role: 'assistant',
+            tool_calls: [{ function: { name: 'shell', arguments: { command: write_cmd }.to_json } }]
+          },
+          {
+            role: 'tool',
+            name: 'shell',
+            content: {
+              success: true,
+              result: { stdout: 'APPENDED', exit: 0 },
+              effect: PWN::AI::Agent::Dispatch.effect(name: 'shell', args: { command: write_cmd })
+            }.to_json
+          },
+          {
+            role: 'assistant',
+            tool_calls: [{ function: { name: 'shell', arguments: { command: "cat #{path}" }.to_json } }]
+          },
+          {
+            role: 'tool',
+            name: 'shell',
+            content: { success: true, result: { stdout: File.read(path), exit: 0 }, effect: 'read' }.to_json
+          }
+        ]
+        expect(described_class.send(:completion_unmet, request: req, messages: msgs)).to eq([])
+        expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(false)
+        expect(
+          described_class.send(
+            :may_finalize?,
+            request: req,
+            messages: msgs,
+            text: "Done. The assessment is at #{path}."
+          )
+        ).to eq(true)
+      end
+    end
+
     it 'keeps issue_work unsatisfied until proofs exist, without Crit/High regex' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).not_to include('Crit/High')

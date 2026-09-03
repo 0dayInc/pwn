@@ -43,6 +43,8 @@ PWN::Plugins::ProcessTube.required_bins(opts)
 - `expect`
 - `stream`
 - `reap_orphans`
+- `list`
+- `kill`
 - `authors`
 - `help`
 

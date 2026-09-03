@@ -5,6 +5,9 @@ require 'json'
 require 'fileutils'
 require 'securerandom'
 require 'time'
+require 'openssl'
+require 'uri'
+require 'base64'
 
 module PWN
   module AI
@@ -41,7 +44,12 @@ module PWN
         end
 
         public_class_method def self.placeholder?(opts = {})
-          PLACEHOLDER_RX.match?(opts[:text].to_s)
+          s = opts[:text].to_s.dup
+          s.gsub!(/<<[-~]?\s*(['"])(\w+)\1.*?^\2\s*$/m, ' ')
+          s.gsub!(/<<[-~]?\s*(\w+).*?^\1\s*$/m, ' ')
+          s.gsub!(/'[^']*'/, "''")
+          s.gsub!(/"([^"\\]|\\.)*"/, '""')
+          PLACEHOLDER_RX.match?(s)
         rescue StandardError
           false
         end
@@ -60,18 +68,36 @@ module PWN
         end
 
         public_class_method def self.mint_canary(opts = {})
-          n = (opts[:bytes] || 8).to_i
-          n = 8 if n <= 0
-          tok = "PWNCANARY#{SecureRandom.hex(n)}"
+          _bytes = opts[:bytes]
+          turn = (opts[:turn] || Thread.current[:pwn_loop_iter] || 0).to_i
+          sid = (opts[:session_id] || Thread.current[:pwn_session_id] || 'sess').to_s
+          key = (Thread.current[:pwn_canary_key] ||= SecureRandom.hex(16))
+          tok = OpenSSL::HMAC.hexdigest('SHA256', key, "#{sid}:#{turn}")[0, 16]
+          hist = Thread.current[:pwn_canary_hist] ||= []
+          hist << tok
+          hist.shift while hist.length > 4
           Thread.current[:pwn_canary] = tok
           tok
         end
 
         public_class_method def self.canary_leak?(opts = {})
-          tok = Thread.current[:pwn_canary].to_s
-          return false if tok.empty?
+          text = opts[:text].to_s
+          toks = Array(Thread.current[:pwn_canary_hist])
+          toks << Thread.current[:pwn_canary].to_s
+          toks = toks.reject(&:empty?).uniq
+          return false if toks.empty?
 
-          opts[:text].to_s.include?(tok)
+          require 'base64'
+          toks.any? do |tok|
+            next true if text.include?(tok)
+
+            b64 = Base64.strict_encode64(tok)
+            b64u = Base64.urlsafe_encode64(tok)
+            hex = tok.each_byte.map { |b| format('%02x', b) }.join
+            enc = URI.encode_www_form_component(tok)
+            rot = tok.tr('A-Za-z', 'N-ZA-Mn-za-m')
+            text.include?(b64) || text.include?(b64u) || text.include?(hex) || text.include?(enc) || text.include?(rot)
+          end
         end
 
         public_class_method def self.injection_score(opts = {})
@@ -475,6 +501,16 @@ module PWN
           nil
         end
 
+        public_class_method def self.scope_check!(opts = {})
+          return nil unless defined?(Engagement)
+
+          Engagement.deny_if_out_of_scope(
+            args: opts[:args],
+            command: opts[:command] || opts[:args].inspect,
+            text: opts[:text]
+          )
+        end
+
         public_class_method def self.rfc1918?(opts = {})
           oct = opts[:ip].to_s.split('.').map(&:to_i)
           return false unless oct.length == 4
@@ -568,7 +604,9 @@ module PWN
 
             # Mint a per-thread session canary token stored on Thread.current.
             #{self}.mint_canary(
-              bytes: 'optional - hex length (defaults to 8)'
+              bytes: 'optional - unused reserved length (HMAC uses 16 hex chars)',
+              turn: 'optional - turn number mixed into the HMAC',
+              session_id: 'optional - session id mixed into the HMAC'
             )
 
             # True when text contains the current session canary.
@@ -727,6 +765,13 @@ module PWN
             #{self}.policy_decision(
               name: 'required - tool name',
               args: 'required - Hash of tool arguments'
+            )
+
+            # Block network args outside the active engagement scope.
+            #{self}.scope_check!(
+              args: 'optional - Hash of tool arguments',
+              command: 'optional - command string to scan for hosts',
+              text: 'optional - free-form blob to scan'
             )
 
             # Print the AUTHOR(S) string for this module.

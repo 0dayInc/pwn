@@ -99,7 +99,30 @@ module PWN
             bump(bucket: e, success: success, duration: duration, error: error)
           end
           save(metrics: metrics)
+          append_jsonl(opts.merge(name: name, success: success, duration: duration, error: error, engine: engine))
           t
+        end
+
+        public_class_method def self.append_jsonl(opts = {})
+          path = File.join(Dir.home, '.pwn', 'logs', 'tool_metrics.jsonl')
+          FileUtils.mkdir_p(File.dirname(path))
+          row = {
+            ts: Time.now.utc.iso8601,
+            session: Thread.current[:pwn_session_id],
+            tool: opts[:name],
+            latency_ms: (opts[:duration].to_f * 1000).round,
+            timeout_used: opts[:timeout],
+            outcome: opts[:success] ? 'ok' : 'err',
+            error_class: opts[:error].to_s.split(':').first,
+            bytes_out: opts[:bytes_out].to_i
+          }
+          File.open(path, 'a') do |f|
+            f.flock(File::LOCK_EX)
+            f.puts(JSON.generate(row))
+          end
+          row
+        rescue StandardError
+          nil
         end
 
         # Supported Method Parameters::
@@ -664,9 +687,20 @@ module PWN
             #{self}.record(
               name: 'required - tool name that was dispatched',
               success: 'required - Boolean, did the handler complete without error',
-              duration: 'optional - Float seconds the dispatch took',
+              duration: 'optional - Float seconds the dispatch took (wall time)',
               error: 'optional - String error message when success is false',
               engine: 'optional - Symbol/String AI engine that chose this tool (segments telemetry)'
+            )
+
+            # Append one JSONL telemetry row under ~/.pwn/logs/tool_metrics.jsonl.
+            #{self}.append_jsonl(
+              name: 'required - tool name',
+              success: 'optional - Boolean outcome',
+              duration: 'optional - Float seconds the dispatch took (wall time)',
+              error: 'optional - error string',
+              engine: 'optional - engine name',
+              timeout: 'optional - timeout used',
+              bytes_out: 'optional - output byte count'
             )
 
             # Run summary and return its result
