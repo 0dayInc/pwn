@@ -34,6 +34,8 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 ## Public methods
 
 - `note_outcome`
+- `consistency_check`
+- `disputed_save`
 - `outcomes`
 - `stats`
 - `to_context`

@@ -1176,6 +1176,16 @@ module PWN
           false
         end
 
+        private_class_method def self.session_tool_budget(opts = {})
+          name = opts[:name].to_s
+          result = opts[:result].to_s
+          return 16_384 if name.match?(/decompile|binary_triage|artifact_read|exploitdev/)
+          return 16_384 if name == 'pwn_eval' && result.match?(/r2 |objdump|xxd |pdf\b|afl-/)
+          return 16_384 if name == 'shell' && result.match?(/objdump|xxd|radare|r2 |disassembl/)
+
+          1_024
+        end
+
         # E1 — did the environment change under this tool? If Metrics CUSUM
         # tripped for it in the last hour AND Extrospection.drift shows a
         # toolchain/net/repo change, blame the WORLD not the AGENT.
@@ -3126,7 +3136,7 @@ module PWN
               append_session(
                 session_id: session_id,
                 role: 'tool',
-                content: "#{name} → #{result[0, 1_024]}"
+                content: "#{name} → #{result[0, session_tool_budget(name: name, result: result)]}"
               )
             end
 

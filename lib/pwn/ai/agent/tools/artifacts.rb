@@ -45,17 +45,22 @@ PWN::AI::Agent::Registry.register(
         path: { type: 'string' },
         offset: { type: 'integer' },
         length: { type: 'integer' },
-        mode: { type: 'string', description: 'text|hex|base64' }
+        mode: { type: 'string', description: 'text|hex|base64' },
+        grep: { type: 'string' },
+        ref: { type: 'string' },
+        sha256: { type: 'string' }
       },
       required: %w[path]
     }
   },
   handler: lambda { |args|
     PWN::Plugins::ArtifactRegistry.read_page(
-      path: args[:path] || args['path'],
+      path: args[:path] || args['path'] || args[:ref] || args['ref'],
       offset: args[:offset] || args['offset'],
       length: args[:length] || args['length'],
-      mode: args[:mode] || args['mode']
+      mode: args[:mode] || args['mode'],
+      grep: args[:grep] || args['grep'],
+      sha256: args[:sha256] || args['sha256']
     )
   }
 )

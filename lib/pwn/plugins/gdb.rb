@@ -90,6 +90,18 @@ module PWN
         crash_info(opts.merge(commands: script))
       end
 
+      public_class_method def self.ptrace_preflight(opts = {})
+        _target = opts[:target]
+        scope = 0
+        path = '/proc/sys/kernel/yama/ptrace_scope'
+        scope = File.read(path).to_i if File.file?(path)
+        {
+          ptrace_scope: scope,
+          attach_ok: scope.zero?,
+          hint: scope.positive? ? 'spawn instead of attach' : 'ok'
+        }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -145,6 +157,11 @@ module PWN
             binary: 'required - crashing binary path',
             args: 'optional - Array of inferior argv',
             script: 'optional - Array of gdb/MI commands'
+          )
+
+          # Probe yama ptrace_scope before gdb/frida attach.
+          #{self}.ptrace_preflight(
+            target: 'optional - pid or binary path being attached'
           )
 
           # Print the AUTHOR(S) string for this module.

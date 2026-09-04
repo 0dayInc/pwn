@@ -120,7 +120,10 @@ module PWN
         end
         body = summary.merge(path: path, sha256: sha)
         File.write(art, JSON.pretty_generate(body))
-        body.merge(artifact: art, cached: false)
+        facts_dir = File.join(Dir.home, '.pwn', 'engagements', 'default', 'binaries', sha)
+        FileUtils.mkdir_p(facts_dir)
+        File.write(File.join(facts_dir, 'facts.json'), JSON.pretty_generate(body))
+        body.merge(artifact: art, cached: false, facts: File.join(facts_dir, 'facts.json'))
       end
 
       public_class_method def self.diff(opts = {})

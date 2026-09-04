@@ -72,6 +72,15 @@ module PWN
               error: 'refused: memory_remember/skills_update text copied from last tool output'
             )
           end
+          if blob.match?(/open_sockraw|sockraw/) && defined?(PWN::Plugins::PreflightChecker) &&
+             PWN::Plugins::PreflightChecker.respond_to?(:cap_net_raw?) && !PWN::Plugins::PreflightChecker.cap_net_raw?
+            return JSON.generate(
+              success: false,
+              error: 'capability missing CAP_NET_RAW',
+              substitute: 'PWN::Plugins::Packet.tcp_connect_scan',
+              code: 'CAP_DENY'
+            )
+          end
           result = entry.handler.call(args)
           result = ToolGuard.quarantine_output(text: result) if defined?(ToolGuard) && result.is_a?(String) && ToolGuard.respond_to?(:quarantine_output)
           note_taint(text: result)

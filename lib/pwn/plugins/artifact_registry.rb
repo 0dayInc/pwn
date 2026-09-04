@@ -51,13 +51,26 @@ module PWN
       end
 
       public_class_method def self.read_page(opts = {})
-        path = opts[:path].to_s
+        path = (opts[:path] || opts[:ref]).to_s
         raise 'ERROR: path is required' if path.empty?
         raise "ERROR: file not found: #{path}" unless File.file?(path)
 
+        raise 'ERROR: sha256 mismatch' if opts[:sha256].to_s != '' && Digest::SHA256.file(path).hexdigest != opts[:sha256].to_s
+
+        grep = opts[:grep].to_s
+        unless grep.empty?
+          rx = Regexp.new(grep, Regexp::IGNORECASE)
+          hits = []
+          File.foreach(path).with_index(1) do |ln, i|
+            hits << { line: i, text: ln.chomp } if ln.match?(rx)
+            break if hits.length >= 50
+          end
+          return { path: path, grep: grep, matches: hits }
+        end
+
         offset = opts[:offset].to_i
-        length = (opts[:length] || 4_096).to_i
-        length = 4_096 if length <= 0
+        length = (opts[:length] || 16_384).to_i
+        length = 16_384 if length <= 0
         mode = (opts[:mode] || 'text').to_s
         data = File.binread(path, length, offset).to_s
         case mode
@@ -117,14 +130,6 @@ module PWN
             path: 'required - filesystem path of a registered artifact'
           )
 
-          # Page an artifact as text, hex, or base64 from an offset.
-          #{self}.read_page(
-            path: 'required - filesystem path of the artifact',
-            offset: 'optional - byte offset (defaults to 0)',
-            length: 'optional - byte count (defaults to 4096)',
-            mode: 'optional - text, hex, or base64 (defaults to text)'
-          )
-
           # Store bytes under artifacts/sha256/<h2>/<hash> and append manifest.jsonl.
           #{self}.put(
             bytes: 'optional - raw bytes to store',
@@ -132,6 +137,17 @@ module PWN
             tool: 'optional - tool name for provenance',
             session_id: 'optional - pwn-ai session id for provenance',
             kind: 'optional - artifact kind'
+          )
+
+          # Page an artifact; grep: searches lines, ref: alias for path.
+          #{self}.read_page(
+            path: 'required - filesystem path of the artifact',
+            ref: 'optional - alias for path',
+            offset: 'optional - byte offset (defaults to 0)',
+            length: 'optional - byte count (defaults to 16384)',
+            mode: 'optional - text, hex, or base64 (defaults to text)',
+            grep: 'optional - regex to search instead of paging',
+            sha256: 'optional - expected sha256 of the file'
           )
 
           # Print the AUTHOR(S) string for this module.

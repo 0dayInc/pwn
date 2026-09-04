@@ -216,4 +216,14 @@ describe PWN::AI::Agent::Mistakes do
     expect(classes).to eq(rows.map { |r| r['class'] })
     expect(classes.uniq.length).to eq(3)
   end
+
+  it 'gives pull-access-denied an auth family hint, never ls-the-parent' do
+    stub_const('PWN::AI::Agent::Mistakes::MISTAKES_FILE', File.join(Dir.mktmpdir, 'mistakes.json'))
+    described_class.reset
+    described_class.record(tool: 'shell', error: 'pull access denied for library/foo')
+    hint = described_class.correction_hint(tool: 'shell', error: 'pull access denied for library/foo')
+    expect(hint).to match(/credential|registry/i)
+    expect(hint).not_to match(%r{ls/test -e the parent})
+    expect(described_class.family(error: 'pull access denied')).to eq('auth_denied')
+  end
 end

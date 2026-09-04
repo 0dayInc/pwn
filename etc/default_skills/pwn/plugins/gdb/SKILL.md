@@ -42,6 +42,7 @@ PWN::Plugins::GDB.required_bins(opts)
 - `breakpoints`
 - `crash_info`
 - `debug_session`
+- `ptrace_preflight`
 - `authors`
 - `help`
 

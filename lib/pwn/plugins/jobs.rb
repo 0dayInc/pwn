@@ -40,6 +40,19 @@ module PWN
         row
       end
 
+      public_class_method def self.watch(opts = {})
+        row = load_job(opts)
+        pattern = opts[:pattern].to_s
+        raise 'ERROR: pattern is required' if pattern.empty?
+
+        log = row[:log].to_s
+        return { id: row[:id], hits: [] } unless File.file?(log)
+
+        rx = Regexp.new(pattern)
+        hits = File.readlines(log).grep(rx).last(20)
+        { id: row[:id], hits: hits.map(&:chomp), pattern: pattern }
+      end
+
       public_class_method def self.status(opts = {})
         row = load_job(opts)
         alive = begin
@@ -143,6 +156,12 @@ module PWN
 
           # Run stop and return its result
           #{self}.stop
+
+          # Tail a job log for a regex (AFL new-crash lines).
+          #{self}.watch(
+            id: 'required - job id from #start',
+            pattern: 'required - regex to match in the job log'
+          )
 
           # Print the AUTHOR(S) string for this module.
           #{self}.authors

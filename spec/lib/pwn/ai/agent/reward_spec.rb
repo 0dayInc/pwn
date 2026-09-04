@@ -438,4 +438,16 @@ describe 'PWN::AI::Agent::Reward vs TUI plan' do
     expect(v[:verifier_verdict]).to eq(:pass)
     expect(v[:judge_score]).to be < 0.6
   end
+
+  it 'tags tool-backed heuristics so they are not haircut' do
+    allow(PWN::AI::Agent::Reward).to receive(:llm_judge).and_return(nil)
+    v = PWN::AI::Agent::Reward.judge(
+      request: 'write /tmp/x and verify',
+      final: 'PASS file exists',
+      trace: ['{"success":true,"result":{"exit":0}}'],
+      commit: false
+    )
+    expect(v[:heuristic_class].to_s).to eq('toolbacked')
+    expect(v[:score]).to be >= 0.6
+  end
 end

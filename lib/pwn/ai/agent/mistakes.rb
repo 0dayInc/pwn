@@ -127,6 +127,31 @@ module PWN
           'other'
         end
 
+        public_class_method def self.family(opts = {})
+          klass = error_class(opts)
+          case klass
+          when 'docker_registry_auth', 'auth_denied' then 'auth_denied'
+          when 'name_conflict' then 'name_conflict'
+          when 'parse_error' then 'parse_error'
+          when 'missing_path', 'enoent' then 'missing_path'
+          when 'perm_denied', 'socket_perm', 'eacces' then 'permission_capability'
+          when 'net_unreach' then 'network_unreachable'
+          when 'timeout' then 'timeout'
+          else 'other'
+          end
+        end
+
+        FAMILY_FIXES = {
+          'auth_denied' => 'check registry credentials / image name; do NOT ls paths',
+          'name_conflict' => 'rename the resource or remove the existing name; do NOT ls paths',
+          'parse_error' => 'fix template/JSON syntax; do NOT ls paths',
+          'missing_path' => 'Path missing. ls/test -e the parent first, then run. Do not retry the same missing path.',
+          'permission_capability' => 'Raw sockets need CAP_NET_RAW. Do not retry open_sockraw. Use connect-scan or Sock.',
+          'network_unreachable' => 'network unreachable; check routing/VPN, do not ls paths',
+          'timeout' => 'deadline too short; retry same payload with timeout += 180',
+          'other' => 'inspect the exact error class before retrying'
+        }.freeze
+
         # Supported Method Parameters::
         # entry = PWN::AI::Agent::Mistakes.find(
         #   signature: 'optional - exact signature to fetch',
@@ -630,8 +655,36 @@ module PWN
 
           parts = ["seen #{m[:count]}× across #{Array(m[:sessions]).length} session(s), sig=#{m[:signature]}"]
           parts << 'REGRESSED (previous fix did not hold)' if m[:regressed]
-          parts << "KNOWN FIX: #{m[:fix]}" if m[:fix].to_s.strip.length.positive?
+          fam = family(error: opts[:error] || m[:error])
+          fam_fix = FAMILY_FIXES[fam]
+          stored = m[:fix].to_s.strip
+          stored = '' if stored.match?(%r{ls/test -e the parent}) && fam != 'missing_path'
+          stored = '' if m[:hint_confidence].to_f.negative?
+          stored = '' if stored.include?('[UNVERIFIED]')
+          hint = stored.empty? ? fam_fix : stored
+          parts << "KNOWN FIX: #{hint}" unless hint.to_s.empty?
           "[pwn-ai/mistakes] #{parts.join(' | ')}"
+        end
+
+        public_class_method def self.note_hint_outcome(opts = {})
+          sig = (opts[:signature] || signature(tool: opts[:tool], error: opts[:error])).to_s
+          return nil if sig.empty?
+
+          store = load
+          m = store[sig.to_sym]
+          return nil unless m
+
+          m[:hint_outcomes] = m[:hint_outcomes].to_i + 1
+          unless opts[:helped]
+            m[:hint_misses] = m[:hint_misses].to_i + 1
+            if m[:hint_misses].to_i >= 3
+              m[:fix] = "[UNVERIFIED] #{m[:fix]}"
+              m[:hint_confidence] = -1.0
+            end
+          end
+          store[sig.to_sym] = m
+          save(store: store)
+          m
         end
 
         # Supported Method Parameters::
@@ -986,6 +1039,19 @@ module PWN
             #{self}.effective_count(
               mistake: 'optional - mistake value consumed by #effective_count',
               signature: 'optional - signature value consumed by #effective_count'
+            )
+
+            # Map an error string onto a coarse family (auth vs path vs parse).
+            #{self}.family(
+              error: 'required - raw error text'
+            )
+
+            # Record whether an injected KNOWN FIX helped; demote after 3 misses.
+            #{self}.note_hint_outcome(
+              tool: 'optional - tool name',
+              error: 'optional - raw error text',
+              signature: 'optional - explicit signature',
+              helped: 'optional - true when the hint resolved the failure'
             )
 
             # Print the AUTHOR(S) string for this module.

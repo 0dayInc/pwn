@@ -37,6 +37,7 @@ PWN::AI::Agent::Mistakes.load(opts)
 - `save`
 - `signature`
 - `error_class`
+- `family`
 - `find`
 - `for_tool`
 - `record`
@@ -48,6 +49,7 @@ PWN::AI::Agent::Mistakes.load(opts)
 - `operator_inbox`
 - `to_context`
 - `correction_hint`
+- `note_hint_outcome`
 - `correction`
 - `check_user_correction`
 - `lean`
