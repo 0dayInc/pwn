@@ -8,11 +8,18 @@ require 'tty-prompt'
 require 'unicode/display_width'
 require 'yaml'
 require 'json'
+require 'base64'
 
 module PWN
   module Plugins
     # This module contains methods related to the pwn REPL Driver.
     module REPL
+      autoload :ASM, 'pwn/plugins/repl/asm'
+      autoload :AI, 'pwn/plugins/repl/ai'
+      autoload :IRC, 'pwn/plugins/repl/irc'
+      autoload :Mesh, 'pwn/plugins/repl/mesh'
+      autoload :Vault, 'pwn/plugins/repl/vault'
+
       # Custom input handler for pwn-ai and pwn-asm to support multi-line
       # submissions. Plain ENTER submits the full (possibly multi-line)
       # buffer; a newline is inserted (keep editing) by ANY of:
@@ -433,698 +440,11 @@ module PWN
         #    end
         #  end
 
-        Pry::Commands.create_command 'pwn-asm' do
-          description 'Initiate pwn.asm shell.'
-
-          def process
-            pi = pry_instance
-            pi.config.pwn_asm = true
-
-            # Switch to custom multi-line input (SHIFT+ENTER newline, ENTER submit) —
-            # same handler pwn-ai uses; restored by `back`.
-            pi.config.input = PWNMultiLineInput.new(pi)
-
-            pi.custom_completions = proc do
-              [pi.input.line_buffer]
-            end
-
-            puts '[*] MULTILINE in pwn-asm: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits.'
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-ai' do
-          description 'Initiate pwn.ai autonomous agent TUI (instruct tasks using PWN modules + CLI tools; memory/sessions/agents/cron/skills-aware from PWN::Config/PWN::Memory etc).'
-
-          def process
-            pi = pry_instance
-            pi.config.pwn_ai = true
-            pi.config.pwn_ai_agent = true
-            pi.config.color = false if pi.config.pwn_ai
-
-            # Switch to custom multi-line input for pwn-ai (SHIFT+ENTER newline, ENTER submit)
-            pi.config.input = PWNMultiLineInput.new(pi)
-            PWN::Plugins::REPL.install_pwn_ai_completer!(pry: pi)
-
-            # Load and make aware of skills folder (scaled in PWN::Config per user pwn_env_path parent)
-            skills_path = begin
-              PWN::Config.pwn_skills_path
-            rescue StandardError
-              "#{Dir.home}/.pwn/skills"
-            end
-            PWN::ModuleSkills.install(pwn_skills_path: skills_path) if defined?(PWN::ModuleSkills) && PWN::ModuleSkills.respond_to?(:install)
-            PWN::Config.load_skills(pwn_skills_path: skills_path)
-            skills_count = (PWN.const_defined?(:Skills) ? PWN::Skills.keys.length : 0)
-
-            # pwn-ai activation: initialise memory/sessions/cron stores
-            PWN::Config.load_memory
-            mem_count = (PWN.const_defined?(:Memory) ? PWN::Memory.load.keys.length : 0)
-            sess = begin
-              PWN::Plugins::REPL.pwn_ai_activation_session(pry: pi)
-            rescue StandardError
-              nil
-            end
-            pi.config.pwn_ai_session_id = sess[:id] if sess
-            cron_count = (PWN.const_defined?(:Cron) ? PWN::Cron.list.keys.length : 0)
-
-            puts '[*] pwn-ai agent TUI activated (PWN REPL driver w/ memory, sessions, delegation, cron).'
-            puts "[*] Memory facts: #{mem_count} | Session: #{pi.config.pwn_ai_session_id} | Cron jobs: #{cron_count} | Skills: #{skills_count}"
-            puts '[*] Instruct the AI agent to carry out a task, e.g.:'
-            puts "    'Use NmapIt to port scan target.com then use TransparentBrowser to spider and SAST::TestCaseEngine to analyze code if cloned. Generate report with PWN::Reports.'"
-            puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"
-            puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) + memory/sessions/cron to expand autonomous capabilities."
-            puts "[*] Type 'back' or CTRL+D to exit pwn-ai mode."
-            puts '[*] MULTILINE in pwn-ai: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits to the AI.'
-            puts '[*] TAB menus: leading `/` = commands (/cron /skills /sessions …); `/` later = host paths; otherwise Ruby completion (same as the pwn REPL).'
-            puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
-            tag = pi.config.pwn_ai_session_id.to_s.empty? ? '<SESSION_ID>' : pi.config.pwn_ai_session_id
-
-            dbg_lvl = ''
-            dbg_lvl = 'trace' if pi.config.pwn_ai_trace
-            dbg_lvl = 'debug' if pi.config.pwn_ai_debug && !pi.config.pwn_ai_trace
-
-            puts "\n\n\npwn-ai #{dbg_lvl} ON → ~/.pwn/logs/pwn-ai-DEBUG-#{tag}-R<REQUEST_NUMBER>.log" unless dbg_lvl.empty?
-          end
-        end
-
-        Pry::Commands.create_command 'ai.profile' do
-          description 'Select a session routing profile: ai.profile NAME (no args lists names).'
-
-          def process
-            PWN::Plugins::REPL.pwn_ai_profile_command(pry: pry_instance, args: args, output: output)
-          end
-        end
-
-        Pry::Commands.create_command 'ai.memory' do
-          description 'View/edit pinned engagement memory: ai.memory [view|edit TEXT|clear].'
-
-          def process
-            PWN::Plugins::REPL.pwn_ai_memory_command(pry: pry_instance, args: args, output: output)
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-ai-memory' do
-          description 'Manage pwn-ai persistent memory.'
-
-          def process
-            cmd = args[0]
-            case cmd
-            when 'list', 'recall', nil
-              q = args[1]
-              res = PWN::Memory.recall(query: q)
-              puts res.inspect
-            when 'remember'
-              key = args[1]
-              val = args[2..-1].join(' ')
-              PWN::Memory.remember(key: key, value: val)
-              puts "Remembered #{key}"
-            when 'forget'
-              PWN::Memory.forget(key: args[1])
-              puts "Forgot #{args[1]}"
-            when 'clear'
-              PWN::Memory.clear(force: true)
-              puts 'Memory cleared'
-            else
-              puts PWN::Memory.help
-            end
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-ai-sessions' do
-          description 'List/resume/delete pwn-ai sessions.'
-
-          def process
-            cmd = args[0]
-            case cmd
-            when 'list', nil
-              puts PWN::Sessions.list.inspect
-            when 'resume'
-              sid = args[1]
-              hist = PWN::Sessions.to_response_history(session_id: sid)
-              puts "Loaded session #{sid} with #{hist[:choices].size} entries (set manually into response_history if needed)"
-            when 'delete'
-              PWN::Sessions.delete(session_id: args[1], force: true)
-              puts "Deleted #{args[1]}"
-            when 'stats'
-              puts PWN::Sessions.stats
-            else
-              puts PWN::Sessions.help
-            end
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-ai-cron' do
-          description 'Manage scheduled pwn-ai / cron jobs.'
-
-          def process
-            cmd = args[0]
-            case cmd
-            when 'list', nil
-              puts PWN::Cron.list.inspect
-            when 'create'
-              # simplistic: pwn-ai-cron create '0 * * * *' 'prompt here'
-              sched = args[1]
-              pr = args[2..-1].join(' ')
-              job = PWN::Cron.create(schedule: sched, prompt: pr)
-              puts "Created #{job}"
-            when 'run'
-              res = PWN::Cron.run(id: args[1])
-              puts res
-            when 'remove'
-              PWN::Cron.remove(id: args[1])
-              puts 'Removed'
-            else
-              puts PWN::Cron.help
-            end
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-ai-delegate' do
-          description 'Delegate sub-task to a PWN::AI::Agent or simple sub-chat.'
-
-          def process
-            goal = args.join(' ')
-            puts "[*] Delegating: #{goal}"
-            # Simple delegation: use a specialized agent if matches, else another chat turn
-            if goal =~ /sast|code|scan/i
-              res = PWN::AI::Agent::SAST.analyze(request: goal)
-            elsif goal =~ /vuln|report/i
-              res = PWN::AI::Agent::VulnGen.analyze(request: goal)
-            else
-              # fallback sub call to active engine (no full loop here)
-              engine = PWN::Env[:ai][:active].to_s.downcase.to_sym
-              case engine
-              when :anthropic then res = PWN::AI::Anthropic.chat(request: goal)
-              when :gemini then res = PWN::AI::Gemini.chat(request: goal)
-              when :grok then res = PWN::AI::Grok.chat(request: goal)
-              else res = PWN::AI::Ollama.chat(request: goal)
-              end
-            end
-            puts res
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-irc' do
-          description 'IRC viewport onto a PWN::AI::Agent::Swarm (deprecated as multi-agent transport).'
-
-          # pwn-irc is now a THIN OBSERVER over PWN::AI::Agent::Swarm.
-          # The old inspircd/weechat block spun up N text-only .chat bots
-          # per nick — that bypassed tools, Memory, Skills, Learning,
-          # Metrics and Extrospection. Multi-agent now lives in
-          # PWN::AI::Agent::Swarm (agent_ask / agent_debate / agent_broadcast
-          # from inside pwn-ai). This command just bridges a swarm's
-          # bus.jsonl into an IRC channel so you can watch in weechat and
-          # type `@red enumerate ports on 10.0.0.5` to route into Swarm.ask.
-          def process
-            host = '127.0.0.1'
-            port = 6667
-            chan = '#pwn'
-
-            unless PWN::Plugins::Sock.check_port_in_use(server_ip: host, port: port)
-              puts <<~MIGRATE
-                pwn-irc is now an optional viewport onto PWN::AI::Agent::Swarm.
-                Multi-agent no longer requires IRC:
-
-                  pwn-ai
-                  » agent_list
-                  » agent_debate(names: %w[red blue], topic: '...', rounds: 3)
-
-                or from Ruby:
-                  PWN::AI::Agent::Swarm.debate(names: %w[red blue], topic: '...')
-
-                Personas: #{PWN::AI::Agent::Swarm::AGENTS_FILE}
-                Bus     : ~/.pwn/swarm/<swarm_id>/bus.jsonl
-
-                (Start inspircd on #{host}:#{port} if you still want the weechat view.)
-              MIGRATE
-              return
-            end
-
-            personas = PWN::AI::Agent::Swarm.personas
-            if personas.empty?
-              puts "No personas defined in #{PWN::AI::Agent::Swarm::AGENTS_FILE} — " \
-                   'use PWN::AI::Agent::Swarm.spawn or agent_spawn from pwn-ai.'
-              return
-            end
-
-            swarm  = PWN::AI::Agent::Swarm.create(topic: 'pwn-irc bridge')
-            sid    = swarm[:swarm_id]
-            bus    = swarm[:bus]
-            ui     = ENV.fetch('USER', 'human')
-            bridge = 'swarmbot'
-
-            irc = PWN::Plugins::IRC.connect(host: host.to_s, port: port.to_s, nick: bridge)
-            PWN::Plugins::IRC.join(irc_obj: irc, nick: bridge, chan: chan)
-            PWN::Plugins::IRC.privmsg(
-              irc_obj: irc, nick: bridge, chan: chan,
-              message: "*** swarm #{sid} bridged | personas: #{personas.keys.join(', ')} " \
-                       "| say '@<persona> <request>' | tailing #{bus}"
-            )
-
-            # bus.jsonl → #pwn
-            tailer = Thread.new do
-              seen = File.exist?(bus) ? File.foreach(bus).count : 0
-              loop do
-                lines = File.exist?(bus) ? File.readlines(bus) : []
-                lines[seen..].to_a.each do |l|
-                  m = JSON.parse(l, symbolize_names: true)
-                  PWN::Plugins::IRC.privmsg(
-                    irc_obj: irc, nick: bridge, chan: chan,
-                    message: "[#{m[:from]}→#{m[:to]}] #{m[:content].to_s.tr("\n", ' ')[0, 400]}"
-                  )
-                rescue StandardError
-                  next
-                end
-                seen = lines.length
-                sleep 1
-              end
-            end
-
-            # #pwn '@persona ...' → Swarm.ask
-            listener = Thread.new do
-              PWN::Plugins::IRC.listen(irc_obj: irc) do |raw|
-                next unless raw.to_s.split[1] == 'PRIVMSG'
-
-                body = raw.to_s.split(' :', 2).last.to_s
-                from = raw.to_s.split('!').first.to_s.delete_prefix(':')
-                m    = body.match(/@(\w+)\s+(.+)/)
-                next unless m && personas.key?(m[1].to_sym)
-
-                begin
-                  PWN::AI::Agent::Swarm.ask(
-                    name: m[1], request: m[2], swarm_id: sid, from: from
-                  )
-                rescue StandardError => e
-                  PWN::Plugins::IRC.privmsg(
-                    irc_obj: irc, nick: bridge, chan: chan,
-                    message: "[error] #{m[1]}: #{e.class}: #{e.message[0, 200]}"
-                  )
-                end
-              end
-            end
-
-            if File.exist?('/usr/bin/weechat')
-              cmds = [
-                "/server add pwn #{host}/#{port} -notls", '/connect pwn',
-                "/wait 3 /allserv /nick #{ui}", "/wait 4 /join -server pwn #{chan}"
-              ].join(';')
-              system('/usr/bin/weechat', '--run-command', "'#{cmds}'")
-            else
-              puts "Bridging swarm #{sid} on ##{chan} (weechat not found — use any IRC client). Ctrl-C to stop."
-              listener.join
-            end
-          ensure
-            tailer&.kill
-            listener&.kill
-            PWN::Plugins::IRC.quit(irc_obj: irc) if defined?(irc) && irc
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-mesh' do
-          description 'Communicate with Meshtastic network within pwn REPL.'
-
-          def process
-            pi = pry_instance
-            # meshtastic is a *setup-managed* gem (see pwn.gemspec / PWN::Setup):
-            # its rubygems.org releases carry `required_ruby_version >= 4.0`, so
-            # it cannot be a hard runtime dependency while pwn supports ruby 3.3+.
-            begin
-              require 'meshtastic'
-            rescue LoadError => e
-              output.puts "pwn-mesh unavailable: #{e.message}"
-              output.puts "  meshtastic requires ruby >= 4.0 (running #{RUBY_VERSION})." if Gem::Version.new(RUBY_VERSION) < Gem::Version.new('4.0.0')
-              output.puts '  Run: `pwn setup --profile full` (or `gem install meshtastic`) on ruby >= 4.0.'
-              return
-            end
-
-            pi.config.pwn_mesh = true
-            meshtastic_env = PWN::Env[:plugins][:meshtastic]
-
-            PWN.send(:remove_const, :MeshTxEchoThread) if PWN.const_defined?(:MeshTxEchoThread)
-            PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
-            PWN.send(:remove_const, :MeshRxHeaderWin) if PWN.const_defined?(:MeshRxHeaderWin)
-            PWN.send(:remove_const, :MeshRxBodyWin) if PWN.const_defined?(:MeshRxBodyWin)
-            PWN.send(:remove_const, :MeshTxWin) if PWN.const_defined?(:MeshTxWin)
-            PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
-            PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
-
-            mqtt_env = meshtastic_env[:mqtt]
-            host = mqtt_env[:host]
-            port = mqtt_env[:port]
-            tls = mqtt_env[:tls]
-            username = mqtt_env[:user]
-            password = mqtt_env[:pass]
-
-            mqtt_obj = Meshtastic::MQTT.connect(
-              host: host,
-              port: port,
-              tls: tls,
-              username: username,
-              password: password
-            )
-            PWN.const_set(:MqttObj, mqtt_obj)
-
-            active_channel = meshtastic_env[:channel][:active].to_s.to_sym
-            channel_env = meshtastic_env[:channel][active_channel]
-            psk = channel_env[:psk]
-            region = channel_env[:region]
-            topic = channel_env[:topic]
-            channel_num = channel_env[:channel_num]
-
-            # Init ncurses UI (idempotent) with separate RX (top) and TX (bottom) panes
-            Curses.init_screen
-            Curses.curs_set(0)
-            Curses.noecho
-            Curses.cbreak
-            Curses.crmode
-            Curses.ESCDELAY = 0
-            Curses.start_color
-            Curses.use_default_colors
-
-            mesh_highlight_colors = [
-              { fg: Curses::COLOR_RED, bg: Curses::COLOR_WHITE },
-              { fg: Curses::COLOR_GREEN, bg: Curses::COLOR_BLACK },
-              { fg: Curses::COLOR_YELLOW, bg: Curses::COLOR_BLACK },
-              { fg: Curses::COLOR_BLUE, bg: Curses::COLOR_WHITE },
-              { fg: Curses::COLOR_CYAN, bg: Curses::COLOR_BLACK },
-              { fg: Curses::COLOR_MAGENTA, bg: Curses::COLOR_WHITE },
-              { fg: Curses::COLOR_WHITE, bg: Curses::COLOR_BLUE }
-            ]
-            mesh_highlight_colors.each_with_index do |hash, idx|
-              color_id = idx + 1
-              color_fg = hash[:fg]
-              color_bg = hash[:bg]
-              Curses.init_pair(color_id, color_fg, color_bg)
-            end
-            PWN.const_set(:MeshColors, (1..mesh_highlight_colors.length).to_a)
-            PWN.const_set(:MeshLastColor, PWN::MeshColors.sample)
-
-            mesh_ui_colors = []
-            mesh_highlight_colors.each_with_index do |hl_hash, idx|
-              ui_hash = {
-                color_id: idx + 10,
-                fg: hl_hash[:fg],
-                bg: -1
-              }
-              Curses.init_pair(ui_hash[:color_id], ui_hash[:fg], ui_hash[:bg])
-              mesh_ui_colors.push(ui_hash)
-            end
-
-            red = mesh_ui_colors[0][:color_id]
-            green = mesh_ui_colors[1][:color_id]
-            yellow = mesh_ui_colors[2][:color_id]
-            blue = mesh_ui_colors[3][:color_id]
-            cyan = mesh_ui_colors[4][:color_id]
-            magenta = mesh_ui_colors[5][:color_id]
-            white = mesh_ui_colors[6][:color_id]
-
-            rx_height = Curses.lines - 4
-            rx_header_win = Curses::Window.new(rx_height, Curses.cols, 0, 0)
-            # TODO: Scrollable but should stay below header_line
-            rx_header_win.scrollok(false)
-            rx_header_win.nodelay = true
-            rx_header_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
-
-            # Make rx_header bold and green
-            rx_header_win.attron(Curses.color_pair(green) | Curses::A_BOLD)
-            rx_header = "<<< #{host}:#{port} | #{region}/#{topic} | ch:#{channel_num} >>>"
-            rx_header_len = rx_header.length
-            rx_header_pos = (Curses.cols / 2) - (rx_header_len / 2)
-            rx_header_win.setpos(1, rx_header_pos)
-            rx_header_win.addstr(rx_header)
-            rx_header_win.attroff(Curses.color_pair(green) | Curses::A_BOLD)
-            # Jump two lines below header before messages begin
-            rx_header_win.setpos(2, 0)
-            rx_header_win.attron(Curses.color_pair(cyan) | Curses::A_BOLD)
-            header_line = "\u2014" * Curses.cols
-            rx_header_bottom_line_pos = (Curses.cols / 2) - (header_line.length / 2)
-            rx_header_win.addstr(header_line)
-            rx_header_win.attroff(Curses.color_pair(cyan) | Curses::A_BOLD)
-            rx_header_win.refresh
-            PWN.const_set(:MeshRxHeaderWin, rx_header_win)
-
-            body_start_row = 3
-            body_height = rx_height - body_start_row
-            rx_body_win = Curses::Window.new(body_height, Curses.cols, body_start_row, 0)
-            rx_body_win.scrollok(true)
-            rx_body_win.nodelay = true
-            rx_body_win.refresh
-            PWN.const_set(:MeshRxBodyWin, rx_body_win)
-
-            tx_height = rx_height - 1
-            tx_win = Curses::Window.new(4, Curses.cols, tx_height, 0)
-            tx_win.scrollok(false)
-            tx_win.nodelay = true
-            tx_win.refresh
-
-            PWN.const_set(:MeshTxWin, tx_win)
-            PWN.const_set(:MeshMutex, Mutex.new)
-
-            # Live typing echo thread (idempotent)
-            tx_prompt = "pwn.mesh:#{region}/#{topic} >>> "
-            echo_thread = Thread.new do
-              last_line = nil
-              last_cursor_pos = -1
-              loop do
-                break unless pi.config.pwn_mesh
-
-                tx_win = PWN.const_get(:MeshTxWin)
-                mutex = PWN.const_get(:MeshMutex)
-                msg_input = pi.input.line_buffer.to_s
-                ts = Time.now.strftime('%H:%M:%S%z')
-                cursor_pos = Readline.point
-                base_line = "#{tx_prompt}#{msg_input}"
-                cursor_abs_index = tx_prompt.length + cursor_pos
-                current_line = base_line
-                if last_line != current_line || cursor_pos != last_cursor_pos
-                  mutex.synchronize do
-                    tx_win.clear
-                    tx_win.attron(Curses.color_pair(red) | Curses::A_BOLD)
-                    tx_header_line_pos = (Curses.cols / 2) - (header_line.length / 2)
-                    tx_win.addstr(header_line)
-                    tx_win.attroff(Curses.color_pair(red) | Curses::A_BOLD)
-
-                    tx_win.attron(Curses.color_pair(yellow) | Curses::A_BOLD)
-                    inner_width = Curses.cols
-                    segments = current_line.chars.each_slice(inner_width).map(&:join)
-                    available_rows = tx_win.maxy - 1
-                    segments.first(available_rows).each_with_index do |seg, idx|
-                      tx_win.setpos(1 + idx, 0)
-                      start_index = idx * inner_width
-                      end_index = start_index + inner_width
-                      if cursor_abs_index.between?(start_index, end_index)
-                        cursor_col = cursor_abs_index - start_index
-                        (0..inner_width).each do |col|
-                          ch = seg[col] || ' '
-                          if col == cursor_col
-                            tx_win.attron(Curses.color_pair(red) | Curses::A_REVERSE | Curses::A_BOLD)
-                            tx_win.addch(ch)
-                            tx_win.attroff(Curses.color_pair(red) | Curses::A_REVERSE | Curses::A_BOLD)
-                          else
-                            tx_win.addch(ch)
-                          end
-                        end
-                      else
-                        tx_win.addstr(seg.ljust(inner_width))
-                      end
-                    end
-                    tx_win.attroff(Curses.color_pair(yellow) | Curses::A_BOLD)
-                    tx_win.refresh
-                  end
-                  last_line = current_line
-                  last_cursor_pos = cursor_pos
-                end
-                sleep 0.00001
-              end
-            end
-            echo_thread.abort_on_exception = false
-            PWN.const_set(:MeshTxEchoThread, echo_thread)
-
-            # Start single subscriber thread (idempotent)
-            psks = { active_channel => psk }
-            PWN::Plugins::ThreadPool.fill(
-              enumerable_array: [:mesh_sub],
-              max_threads: 1,
-              detach: true
-            ) do |_|
-              last_from = nil
-              last_line = nil
-              Meshtastic::MQTT.subscribe(
-                mqtt_obj: mqtt_obj,
-                region: region,
-                topic: topic,
-                channel: channel_num,
-                psks: psks
-              ) do |msg|
-                next unless msg.key?(:packet) && msg[:packet].key?(:decoded) && msg[:packet][:decoded].is_a?(Hash)
-
-                packet = msg[:packet]
-                decoded = packet[:decoded]
-                next unless decoded.key?(:portnum) && decoded[:portnum] == :TEXT_MESSAGE_APP
-
-                # rx_header_win = PWN.const_get(:MeshRxHeaderWin)
-                mutex = PWN.const_get(:MeshMutex)
-
-                from = "#{packet[:node_id_from]} ".ljust(9, ' ')
-                absolute_topic = "#{region}/#{topic.gsub('#', from)}"
-                to = packet[:node_id_to]
-                rx_text = decoded[:payload]
-                ts = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
-
-                # Select a random color different from the last used one
-                colors_arr = PWN.const_get(:MeshColors)
-                last_color = PWN.const_get(:MeshLastColor)
-                color = last_color
-                unless last_from == from
-                  PWN.send(:remove_const, :MeshLastColor)
-                  color_choices = colors_arr.reject { |c| c == last_color }
-                  color = color_choices.sample
-                  PWN.const_set(:MeshLastColor, color)
-                end
-
-                to_label = 'To'
-                to_label = 'DM' unless to == '!ffffffff'
-                current_line = "\nDate: #{ts}\nFrom: #{from}\n#{to_label}: #{to}\nTopic: #{absolute_topic}\n> #{rx_text.gsub("\n", "\n> ")}"
-
-                if last_line != current_line
-                  rx_body_win = PWN.const_get(:MeshRxBodyWin)
-                  mutex.synchronize do
-                    inner_height = rx_body_win.maxy - 5
-                    inner_width = rx_body_win.maxx
-                    segments = current_line.scan(/.{1,#{inner_width}}/)
-                    rx_body_win.attron(Curses.color_pair(color) | Curses::A_REVERSE)
-                    segments.each do |seg|
-                      rx_body_win.setpos(rx_body_win.cury, 0)
-                      # Handle wide Unicode characters for proper alignment
-                      display_width = Unicode::DisplayWidth.of(seg)
-                      width_diff = seg.length - display_width
-                      shift_width = inner_width + width_diff
-                      line = seg.ljust(shift_width)
-                      rx_body_win.addstr(line)
-                    end
-                    rx_body_win.attroff(Curses.color_pair(color) | Curses::A_REVERSE)
-                    rx_body_win.refresh
-                  end
-                  last_line = current_line
-                  last_from = from
-                end
-              end
-            end
-          rescue StandardError => e
-            raise e
-          end
-        end
-
-        Pry::Commands.create_command 'pwn-vault' do
-          description 'Edit the pwn.yaml configuration file.'
-
-          def process
-            pwn_env_path = PWN::Env[:driver_opts][:pwn_env_path] ||= "#{Dir.home}/.pwn/pwn.yaml"
-            unless File.exist?(pwn_env_path)
-              puts "ERROR: pwn environment file not found: #{pwn_env_path}"
-              return
-            end
-
-            # Prefer driver_opts (set by Config.refresh_env); fall back to the
-            # canonical sidecar path Config uses: <pwn.yaml>.decryptor
-            pwn_dec_path = PWN::Env[:driver_opts][:pwn_dec_path] ||= "#{pwn_env_path}.decryptor"
-            unless File.exist?(pwn_dec_path)
-              puts "ERROR: pwn decryptor file not found: #{pwn_dec_path}"
-              return
-            end
-
-            decryptor = YAML.load_file(pwn_dec_path, symbolize_names: true)
-            key = decryptor[:key]
-            iv = decryptor[:iv]
-
-            # Vault.edit decrypts -> opens editor -> encrypts and only sets
-            # Pry.config.refresh_pwn_env = true. PWN::Config.refresh_env (which
-            # raises RuntimeError on invalid pwn.yaml) historically ran later in
-            # the PS1 hook, OUTSIDE this command - so the old rescue/retry never
-            # saw Config errors. Validate here: on RuntimeError print the error,
-            # prompt "Press Enter to Resolve", wait on $stdin.gets, then re-open
-            # the editor until the vault loads cleanly.
-            loop do
-              PWN::Plugins::Vault.edit(
-                file: pwn_env_path,
-                key: key,
-                iv: iv
-              )
-
-              begin
-                PWN::Config.refresh_env(
-                  pwn_env_path: pwn_env_path,
-                  pwn_dec_path: pwn_dec_path,
-                  key: key,
-                  iv: iv
-                )
-                break
-              rescue RuntimeError => e
-                # Keep the prior in-memory Env usable if the operator aborts
-                # further edits; otherwise the next PS1 tick would raise again.
-                Pry.config.refresh_pwn_env = false if defined?(Pry)
-                print "\001\e[33m\002"
-                puts e.message
-                print 'Press ENTER to resolve...'
-                print "\001\e[0m\002\s"
-                $stdin.gets
-              end
-            end
-          rescue StandardError => e
-            raise e
-          end
-        end
-
-        Pry::Commands.create_command 'toggle-debug' do
-          description 'Stream pwn-ai stage log to the TUI and ~/.pwn/logs/pwn-ai-DEBUG-<SESSION_ID>-RN.log'
-
-          def process
-            pi = pry_instance
-            if pi.config.pwn_ai_debug
-              path = PWN::Plugins::Log.stop_debug
-              pi.config.pwn_ai_debug = false
-              pi.config.pwn_ai_trace = false
-              if path
-                output.puts "pwn-ai debug OFF (was #{path})"
-              else
-                output.puts 'pwn-ai debug OFF'
-              end
-            else
-              sid = pi.config.pwn_ai_session_id
-              PWN::Plugins::Log.start_debug(tee: output, session_id: sid)
-              pi.config.pwn_ai_debug = true
-              output.puts 'pwn-ai debug ON.'
-            end
-          end
-        end
-
-        Pry::Commands.create_command 'toggle-trace' do
-          description 'toggle-debug plus TracePoint; ENTER after each Loop step. Stored on Pry.config like toggle-debug, not Env.'
-
-          def process
-            pi = pry_instance
-            if pi.config.pwn_ai_trace
-              PWN::Plugins::Log.stop_debug
-              pi.config.pwn_ai_debug = false
-              pi.config.pwn_ai_trace = false
-              output.puts 'pwn-ai trace OFF (debug OFF)'
-            else
-              sid = pi.config.pwn_ai_session_id
-              PWN::Plugins::Log.start_debug(tee: output, session_id: sid, trace: true)
-              pi.config.pwn_ai_debug = true
-              pi.config.pwn_ai_trace = true
-              output.puts 'pwn-ai trace ON (debug ON, TracePoint, ENTER each loop step)'
-            end
-          end
-        end
-
-        Pry::Commands.create_command 'toggle-pwn-ai-speaks' do
-          description 'Use speech capabilities within pwn.ai to speak answers.'
-
-          def process
-            pi = pry_instance
-            pi.config.pwn_ai_speak ? pi.config.pwn_ai_speak = false : pi.config.pwn_ai_speak = true
-          end
-        end
+        PWN::Plugins::REPL::ASM.add_commands
+        PWN::Plugins::REPL::AI.add_commands
+        PWN::Plugins::REPL::IRC.add_commands
+        PWN::Plugins::REPL::Mesh.add_commands
+        PWN::Plugins::REPL::Vault.add_commands
 
         Pry::Commands.create_command 'back' do
           description 'Jump back to pwn REPL when in pwn-asm || pwn-ai. CTRL+D does the same in those modes.'
@@ -1521,228 +841,22 @@ module PWN
 
         Pry.config.hooks.add_hook(:after_read, :pwn_mesh_hook) do |request, pi|
           if pi.config.pwn_mesh && !request.chomp.empty?
-            mqtt_obj = PWN.const_get(:MqttObj)
-            active_channel = PWN::Env[:plugins][:meshtastic][:channel][:active].to_s.to_sym
-            region = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:region]
-            topic = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:topic]
-            channel_num = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:channel_num]
-            from = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:from] ||= "!#{mqtt_obj.client_id}"
-            psk = PWN::Env[:plugins][:meshtastic][:channel][active_channel][:psk]
-
-            psks = {}
-            psks[active_channel] = psk
-
-            tx_text = pi.input.line_buffer.to_s
-            to = '!ffffffff'
-            # If text include @! with 8 byte length,
-            # send DM to that address
-            if tx_text.include?('@!')
-              to_raw = tx_text.split('@').last.chomp[0..8]
-              # If to_raw[1..-1] is hex than set to = to_raw
-              to = to_raw if to_raw[1..-1].match?(/^[a-fA-F0-9]{8}$/)
-              # Remove any spaces from beginning of to_raw
-              tx_text.gsub!("@#{to_raw}", '').strip!
+            orig_request = request.to_s.chomp
+            if PWN::Plugins::REPL.pwn_mesh_dispatch_slash!(request: orig_request, pry: pi)
+              PWN::Plugins::REPL.mesh_reset_input!(pry: pi, submitted: orig_request)
+              request.replace('nil') if request.respond_to?(:replace)
+              next
             end
 
-            Meshtastic::MQTT.send_text(
-              mqtt_obj: mqtt_obj,
-              from: from,
-              to: to,
-              region: region,
-              topic: topic,
-              channel: channel_num,
-              text: tx_text,
-              psks: psks
-            )
+            mqtt_obj = PWN.const_get(:MeshObj)
+            mesh_env = PWN::Env[:plugins][:meshtastic]
+            PWN::Plugins::REPL.send(:mesh_compose_send, env: mesh_env, obj: mqtt_obj, text: orig_request)
+            PWN::Plugins::REPL.mesh_reset_input!(pry: pi, submitted: orig_request)
+            request.replace('nil') if request.respond_to?(:replace)
           end
         end
       rescue StandardError => e
         raise e
-      end
-
-      PWN_AI_SLASH_COMMANDS = %w[
-        /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /trace
-      ].freeze
-
-      PWN_AI_SLASH_SUBCOMMANDS = {
-        '/cron' => %w[list create run remove],
-        '/debug' => [],
-        '/trace' => [],
-        '/delegate' => [],
-        '/help' => [],
-        '/memory' => %w[list recall remember forget clear],
-        '/mcp' => %w[list backends use current connect disconnect ping tools call status help],
-        '/model' => %w[list],
-        '/sessions' => %w[list resume delete stats],
-        '/skills' => %w[list recall],
-        '/learning' => %w[list requeue]
-      }.freeze
-
-      # Supported Method Parameters::
-      # kind = PWN::Plugins::REPL.pwn_ai_complete_kind(line: 'optional - current input buffer')
-      #
-      # 1. first char is '/' → :command (pwn-ai slash menu)
-      # 2. '/' anywhere else → :path (host-native file nav)
-      # 3. else → :ruby (same Pry::InputCompleter menu as the pwn REPL)
-      public_class_method def self.pwn_ai_complete_kind(opts = {})
-        line = opts[:line].to_s
-        return :command if line.start_with?('/')
-        return :path if line.include?('/') || line.include?('~')
-
-        :ruby
-      end
-
-      # Supported Method Parameters::
-      # hits = PWN::Plugins::REPL.pwn_ai_complete(
-      #   target: 'required - token Reline is completing',
-      #   line: 'optional - full line buffer',
-      #   pry: 'optional - Pry instance for Ruby completion'
-      # )
-      public_class_method def self.pwn_ai_complete(opts = {})
-        target = opts[:target].to_s
-        line = opts[:line].to_s
-        line = target if line.empty?
-        kind = pwn_ai_complete_kind(line: line)
-        case kind
-        when :command
-          pwn_ai_complete_command(target: target, line: line)
-        when :path
-          pwn_ai_complete_path(target: target, line: line)
-        else
-          pwn_ai_complete_ruby(target: target, pry: opts[:pry])
-        end
-      end
-
-      public_class_method def self.pwn_ai_complete_command(opts = {})
-        line = opts[:line].to_s
-        target = opts[:target].to_s
-        tokens = line.split(/\s+/, -1)
-        tokens = [''] if tokens.empty?
-        if tokens.length <= 1
-          prefix = tokens.first.to_s
-          prefix = '/' if prefix.empty?
-          return PWN_AI_SLASH_COMMANDS.select { |c| c.start_with?(prefix) }
-        end
-
-        cmd = tokens.first
-        sub_prefix = tokens.last.to_s
-        if cmd == '/model'
-          engines = pwn_ai_engines
-          if tokens.length == 2
-            pool = (%w[list] + engines)
-            return pool.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
-          end
-          return %w[llms].select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) } if tokens.length == 3 && tokens[1] == 'list'
-
-          if tokens.length >= 3
-            current = pwn_ai_engine_model(engine: tokens[1]).to_s
-            hits = [current].reject(&:empty?).select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
-            return hits unless hits.empty?
-          end
-        end
-        if cmd == '/mcp'
-          backends = begin
-            PWN::AI::MCP.backends.map { |row| row[:name].to_s }
-          rescue StandardError
-            []
-          end
-          if tokens.length == 2
-            pool = (Array(PWN_AI_SLASH_SUBCOMMANDS['/mcp']) + backends).uniq
-            return pool.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
-          end
-          return %w[tools].select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) } if tokens.length == 3 && tokens[1] == 'list'
-
-          named = backends.include?(tokens[1])
-          action = named ? tokens[2] : tokens[1]
-          return Array(PWN_AI_SLASH_SUBCOMMANDS['/mcp']).select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) } if named && tokens.length == 3
-          return backends.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) } if tokens.length >= 3 && %w[use connect disconnect ping tools status].include?(tokens[1])
-
-          if action == 'call' && ((named && tokens.length == 4) || (!named && tokens.length == 3))
-            selected = named ? tokens[1] : PWN::AI::MCP.current.to_s
-            tools = if selected.empty?
-                      backends.flat_map do |name|
-                        row = PWN::AI::MCP.backends.find { |backend| backend[:name] == name }
-                        Array(row && row[:tools])
-                      end
-                    else
-                      row = PWN::AI::MCP.backends.find { |backend| backend[:name] == selected }
-                      Array(row && row[:tools])
-                    end
-            return tools.uniq.map(&:to_s).select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
-          end
-        end
-        subs = Array(PWN_AI_SLASH_SUBCOMMANDS[cmd])
-        hits = subs.select { |s| sub_prefix.empty? || s.start_with?(sub_prefix) }
-        hits = [target] if hits.empty? && !target.empty?
-        hits
-      end
-
-      public_class_method def self.pwn_ai_complete_path(opts = {})
-        target = opts[:target].to_s
-        line = opts[:line].to_s
-        token = line.split(/\s+/, -1).last.to_s
-        token = target if token.empty?
-        return [] if token.empty?
-
-        home = Dir.home
-        glob_src = token.sub(%r{\A~(?=/|\z)}, home)
-        pattern = token.end_with?('/') ? File.join(glob_src, '*') : "#{glob_src}*"
-        Dir.glob(pattern).filter_map do |path|
-          shown = if token.start_with?('~/') || token == '~'
-                    path.sub(/\A#{Regexp.escape(home)}/, '~')
-                  else
-                    path
-                  end
-          shown = "#{shown}/" if File.directory?(path)
-          shown
-        end
-      rescue StandardError
-        []
-      end
-
-      public_class_method def self.pwn_ai_complete_ruby(opts = {})
-        target = opts[:target].to_s
-        pry = opts[:pry] || Thread.current[:pwn_ai_completer_pry]
-        return [] unless defined?(Pry::InputCompleter)
-
-        return Array(pry.complete(target)) if pry.respond_to?(:complete)
-
-        Array(Pry::InputCompleter.new(pry || Pry.new(quiet: true)).call(target))
-      rescue StandardError
-        []
-      end
-
-      # Install Reline dropdown for pwn-ai (commands / paths / Ruby).
-      public_class_method def self.install_pwn_ai_completer!(opts = {})
-        return unless defined?(Reline)
-
-        Thread.current[:pwn_ai_completer_pry] = opts[:pry]
-        @pwn_ai_prev_completion_proc = Reline.completion_proc
-        if Reline.respond_to?(:completer_word_break_characters)
-          @pwn_ai_prev_word_break = Reline.completer_word_break_characters
-          # Keep '/' inside the token so /cron and /opt/pwn complete as paths/cmds.
-          Reline.completer_word_break_characters = Reline.completer_word_break_characters.to_s.delete('/')
-        end
-        Reline.autocompletion = true
-        Reline.completion_proc = proc do |target|
-          line = Reline.respond_to?(:line_buffer) ? Reline.line_buffer.to_s : target.to_s
-          pwn_ai_complete(
-            target: target,
-            line: line,
-            pry: Thread.current[:pwn_ai_completer_pry]
-          )
-        end
-        Reline.completion_proc
-      end
-
-      public_class_method def self.restore_pwn_ai_completer!(opts = {})
-        return unless defined?(Reline)
-
-        Thread.current[:pwn_ai_completer_pry] = nil
-        Reline.completion_proc = @pwn_ai_prev_completion_proc if @pwn_ai_prev_completion_proc
-        Reline.completer_word_break_characters = @pwn_ai_prev_word_break if @pwn_ai_prev_word_break && Reline.respond_to?(:completer_word_break_characters=)
-        enable_autocomplete(enabled: opts.fetch(:enabled, true))
-        Reline.completion_proc
       end
 
       # Leave pwn-ai / pwn-asm / pwn-mesh and restore the host REPL (also CTRL+D).
@@ -1768,13 +882,33 @@ module PWN
           PWN.const_get(:MeshTxEchoThread).kill
           PWN.send(:remove_const, :MeshTxEchoThread)
         end
-        if PWN.const_defined?(:MqttObj)
-          Meshtastic::MQTT.disconnect(mqtt_obj: PWN.const_get(:MqttObj))
-          PWN.send(:remove_const, :MqttObj)
+        if PWN.const_defined?(:MeshObj)
+          PWN::Plugins::REPL.send(
+            :mesh_disconnect,
+            env: (defined?(PWN::Env) && PWN::Env.dig(:plugins, :meshtastic)) || {},
+            obj: PWN.const_get(:MeshObj)
+          )
+          PWN.send(:remove_const, :MeshObj)
         end
+        PWN.send(:remove_const, :MqttObj) if PWN.const_defined?(:MqttObj)
+        if PWN.const_defined?(:MeshSubThread)
+          thr = PWN.const_get(:MeshSubThread)
+          thr.kill if thr.respond_to?(:alive?) && thr.alive?
+          PWN.send(:remove_const, :MeshSubThread)
+        end
+        PWN.send(:remove_const, :MeshTransport) if PWN.const_defined?(:MeshTransport)
+        PWN.send(:remove_const, :MeshTxPrompt) if PWN.const_defined?(:MeshTxPrompt)
+        PWN.send(:remove_const, :MeshTxEpoch) if PWN.const_defined?(:MeshTxEpoch)
+        PWN.send(:remove_const, :MeshTxBlank) if PWN.const_defined?(:MeshTxBlank)
+        PWN.send(:remove_const, :MeshLastSubmit) if PWN.const_defined?(:MeshLastSubmit)
+        PWN.send(:remove_const, :MeshRxState) if PWN.const_defined?(:MeshRxState)
         if PWN.const_defined?(:MeshRxHeaderWin)
           PWN.const_get(:MeshRxHeaderWin).close
           PWN.send(:remove_const, :MeshRxHeaderWin)
+        end
+        if PWN.const_defined?(:MeshRxFrameWin)
+          PWN::MeshRxFrameWin.close
+          PWN.send(:remove_const, :MeshRxFrameWin)
         end
         if PWN.const_defined?(:MeshRxBodyWin)
           PWN.const_get(:MeshRxBodyWin).close
@@ -1788,518 +922,12 @@ module PWN
         PWN.send(:remove_const, :MeshLastColor) if PWN.const_defined?(:MeshLastColor)
         PWN.send(:remove_const, :MeshMutex) if PWN.const_defined?(:MeshMutex)
         PWN.send(:remove_const, :MqttSubThread) if PWN.const_defined?(:MqttSubThread)
+        PWN.send(:remove_const, :MeshEvents) if PWN.const_defined?(:MeshEvents)
         Curses.close_screen
         pi
       end
 
       # Consume a CLI-prepared session once; ordinary activation creates one.
-      public_class_method def self.pwn_ai_activation_session(opts = {})
-        config = opts[:pry].config
-        sid = config.pwn_ai_startup_session_id
-        config.pwn_ai_startup_session_id = nil
-        return { id: sid } if sid
-
-        PWN::Sessions.create(title: "pwn-ai #{Time.now.strftime('%Y-%m-%d %H:%M')}", source: 'pwn-ai')
-      end
-
-      # Validate selection before changing request-local routing state.
-      public_class_method def self.pwn_ai_profile_command(opts = {})
-        require 'pwn/ai/agent/profiles'
-        env = opts[:env] || PWN::Env
-        profiles = env[:ai_profiles] || {}
-        router = PWN::AI::Agent::Profiles.new(profiles: profiles)
-        args = Array(opts[:args])
-        output = opts[:output] || $stdout
-        if args.empty?
-          output.puts("AI profiles: #{profiles.keys.map(&:to_s).sort.join(', ')}")
-          return profiles.keys.map(&:to_s).sort
-        end
-        raise ArgumentError, 'Usage: ai.profile NAME' unless args.length == 1
-
-        route = router.lookup(name: args.first)
-        opts.fetch(:pry).config.pwn_ai_profile = args.first.to_s
-        output.puts("AI profile: #{route[:name]} (#{route[:provider]} / #{route[:model]})")
-        route
-      end
-
-      # View/edit the session's pinned block, separate from cross-session facts.
-      public_class_method def self.pwn_ai_memory_command(opts = {})
-        require 'pwn/ai/agent/engagement_memory'
-        sid = opts[:pry]&.config&.pwn_ai_session_id.to_s
-        raise ArgumentError, 'Start pwn-ai before using ai.memory' if sid.empty?
-
-        goal = PWN::Sessions.load(session_id: sid).find { |entry| entry[:role].to_s == 'user' }
-        settings = { original_goal: goal ? goal[:content] : '', session_id: sid }
-        settings[:root] = opts[:root] if opts[:root]
-        memory = PWN::AI::Agent::EngagementMemory.new(**settings)
-        args = Array(opts[:args])
-        case args.first
-        when nil, 'view'
-          text = memory.view
-        when 'edit'
-          raise ArgumentError, 'Usage: ai.memory edit TEXT (or ai.memory clear)' if args.length < 2
-
-          text = memory.edit(text: args.drop(1).join(' '))
-        when 'clear'
-          text = memory.edit(text: '')
-        else
-          raise ArgumentError, 'Usage: ai.memory [view|edit TEXT|clear]'
-        end
-        (opts[:output] || $stdout).puts(text)
-        text
-      end
-
-      # Run a leading-slash pwn-ai command locally. Returns true when handled
-      # (caller should not send the line to Loop.run).
-      public_class_method def self.pwn_ai_dispatch_slash!(opts = {})
-        request = opts[:request].to_s
-        if request.strip.match?(/\Aai\.profile(?:\s|$)/)
-          pwn_ai_profile_command(pry: opts[:pry], args: request.strip.split(/\s+/).drop(1))
-          return true
-        end
-        if request.strip.match?(/\Aai\.memory(?:\s|$)/)
-          pwn_ai_memory_command(pry: opts[:pry], args: request.strip.split(/\s+/).drop(1))
-          return true
-        end
-        return false unless pwn_ai_complete_kind(line: request) == :command
-
-        tokens = request.strip.split(/\s+/)
-        cmd = tokens[0].to_s
-        return false unless PWN_AI_SLASH_COMMANDS.include?(cmd)
-
-        args = tokens[1..]
-        pi = opts[:pry]
-        case cmd
-        when '/help'
-          puts 'pwn-ai commands:'
-          PWN_AI_SLASH_COMMANDS.each do |c|
-            subs = Array(PWN_AI_SLASH_SUBCOMMANDS[c])
-            puts(subs.empty? ? "  #{c}" : "  #{c} #{subs.join('|')}")
-          end
-          puts '  TAB: /… command menu · slash later in the line: path nav · else Ruby completion'
-        when '/back'
-          if pi.respond_to?(:eval)
-            pi.eval('back')
-          else
-            puts "[*] Type 'back' to leave pwn-ai."
-          end
-        when '/debug'
-          if pi.respond_to?(:eval)
-            pi.eval('toggle-debug')
-          else
-            puts '[*] toggle-debug'
-          end
-        when '/trace'
-          if pi.respond_to?(:eval)
-            pi.eval('toggle-trace')
-          else
-            puts '[*] toggle-trace'
-          end
-        when '/cron'
-          pwn_ai_run_cron(args: args)
-        when '/sessions'
-          pwn_ai_run_sessions(args: args)
-        when '/memory'
-          pwn_ai_run_memory(args: args)
-        when '/skills'
-          pwn_ai_run_skills(args: args)
-        when '/delegate'
-          puts "[*] Delegating: #{args.join(' ')}"
-          puts '    Use agent_list / agent_debate from pwn-ai, or pwn-ai-delegate in the pwn REPL.'
-        when '/model'
-          pwn_ai_run_model(args: args)
-        when '/mcp'
-          pwn_ai_run_mcp(args: args)
-        when '/learning'
-          pwn_ai_run_learning(args: args)
-        end
-        true
-      rescue StandardError => e
-        warn "[pwn-ai] #{cmd}: #{e.class}: #{e.message}"
-        true
-      end
-
-      public_class_method def self.pwn_ai_engines(opts = {})
-        return [] unless opts.is_a?(Hash)
-
-        tmpl = {}
-        tmpl = PWN::Config.env_template[:ai] if defined?(PWN::Config) && PWN::Config.respond_to?(:env_template)
-        keys = tmpl.select { |_k, v| v.is_a?(Hash) && v.key?(:model) }.keys.map(&:to_s)
-        if defined?(PWN::Env) && PWN::Env.is_a?(Hash) && PWN::Env[:ai].is_a?(Hash)
-          PWN::Env[:ai].each do |k, v|
-            next unless v.is_a?(Hash)
-            next if %i[agent driver_opts].include?(k.to_sym)
-
-            keys << k.to_s if v.key?(:model) || v.key?(:key) || v.key?(:base_uri)
-          end
-        end
-        keys.uniq.sort
-      end
-
-      public_class_method def self.pwn_ai_provider_class(opts = {})
-        engine = opts[:engine].to_s.downcase
-        map = {
-          'anthropic' => 'Anthropic',
-          'gemini' => 'Gemini',
-          'grok' => 'Grok',
-          'ollama' => 'Ollama',
-          'openai' => 'OpenAI',
-          'openwebui' => 'OpenWebUI'
-        }
-        name = map[engine]
-        return nil if name.nil? || !defined?(PWN::AI) || !PWN::AI.const_defined?(name)
-
-        PWN::AI.const_get(name)
-      end
-
-      public_class_method def self.pwn_ai_model_ids(opts = {})
-        raw = opts[:models]
-        rows = case raw
-               when Array then raw
-               when Hash then raw[:data] || raw[:models] || raw['data'] || raw['models'] || []
-               else []
-               end
-        Array(rows).filter_map do |row|
-          if row.is_a?(Hash)
-            row[:id] || row['id'] || row[:slug] || row['slug'] || row[:name] || row['name'] || row[:model] || row['model']
-          else
-            row.to_s
-          end
-        end.map(&:to_s).reject(&:empty?).uniq
-      end
-
-      public_class_method def self.pwn_ai_list_llms(opts = {})
-        engine = opts[:engine].to_s
-        engine = PWN::Env.dig(:ai, :active).to_s if engine.empty? && defined?(PWN::Env)
-        raise 'no active engine — /model <engine> first' if engine.empty?
-
-        klass = pwn_ai_provider_class(engine: engine)
-        raise "#{engine} has no PWN::AI provider with get_models" unless klass.respond_to?(:get_models)
-
-        ids = pwn_ai_model_ids(models: klass.get_models)
-        puts "[*] #{engine} llms (#{ids.length})"
-        ids.each { |id| puts id }
-        ids
-      end
-
-      public_class_method def self.pwn_ai_engine_model(opts = {})
-        engine = opts[:engine].to_s.downcase.to_sym
-        return '' if engine.empty?
-        return '' unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
-
-        PWN::Env.dig(:ai, engine, :model).to_s
-      end
-
-      public_class_method def self.pwn_ai_run_model(opts = {})
-        args = Array(opts[:args]).map(&:to_s)
-        engines = pwn_ai_engines
-        current = defined?(PWN::Env) && PWN::Env.is_a?(Hash) ? PWN::Env.dig(:ai, :active).to_s : ''
-        current_model = pwn_ai_engine_model(engine: current)
-        sub = args[0].to_s
-        if sub.empty? || %w[show status].include?(sub)
-          msg = "active=#{current.empty? ? '(none)' : current} model=#{current_model.empty? ? '(unset)' : current_model}"
-          puts "[*] #{msg}"
-          return msg
-        end
-        if %w[list help].include?(sub)
-          return pwn_ai_list_llms(engine: current) if args[1].to_s == 'llms'
-
-          puts 'pwn-ai /model — switch provider and model in this session'
-          puts "  current: #{current} #{current_model}"
-          puts '  usage: /model [list] | /model list llms | /model <engine> [model] | /model <model>'
-          engines.each do |eng|
-            mark = eng == current ? '*' : ' '
-            puts "  #{mark} #{eng}  #{pwn_ai_engine_model(engine: eng)}"
-          end
-          return engines
-        end
-
-        engine = nil
-        model = nil
-        if engines.include?(sub)
-          engine = sub
-          model = args[1..].join(' ')
-          model = nil if model.strip.empty?
-        else
-          engine = current
-          model = args.join(' ')
-        end
-        raise "no active engine — /model <engine> first (#{engines.join(', ')})" if engine.to_s.empty?
-        raise "unknown engine #{engine.inspect} — try: #{engines.join(', ')}" unless engines.include?(engine.to_s)
-
-        PWN::Env[:ai] ||= {}
-        PWN::Env[:ai][engine.to_sym] ||= {}
-        PWN::Env[:ai][:active] = engine.to_s
-        PWN::Env[:ai][engine.to_sym][:model] = model unless model.to_s.strip.empty?
-        persisted = persist_ai_selection(engine: engine, model: PWN::Env[:ai][engine.to_sym][:model])
-        shown = PWN::Env[:ai][engine.to_sym][:model]
-        msg = "active=#{engine} model=#{shown.to_s.empty? ? '(unset)' : shown}"
-        msg = "#{msg} (session only)" unless persisted
-        puts "[*] #{msg}"
-        msg
-      end
-
-      public_class_method def self.persist_ai_selection(opts = {})
-        engine = opts[:engine].to_s
-        model = opts[:model]
-        return false if engine.empty?
-
-        env_path = nil
-        dec_path = nil
-        if defined?(PWN::Env) && PWN::Env.is_a?(Hash)
-          env_path = PWN::Env.dig(:driver_opts, :pwn_env_path)
-          dec_path = PWN::Env.dig(:driver_opts, :pwn_dec_path)
-        end
-        env_path = env_path.to_s.strip
-        env_path = File.join(Dir.home, '.pwn', 'pwn.yaml') if env_path.empty?
-        dec_path = dec_path.to_s.strip
-        dec_path = "#{env_path}.decryptor" if dec_path.empty?
-        return false unless File.exist?(env_path) && File.exist?(dec_path) && File.readable?(dec_path)
-
-        decryptor = YAML.load_file(dec_path, symbolize_names: true)
-        key = decryptor.is_a?(Hash) ? decryptor[:key] : nil
-        iv = decryptor.is_a?(Hash) ? decryptor[:iv] : nil
-        return false if key.to_s.strip.empty? || iv.to_s.strip.empty?
-
-        PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-        begin
-          cfg = YAML.load_file(env_path, symbolize_names: true)
-          cfg = {} unless cfg.is_a?(Hash)
-          cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
-          cfg[:ai][:active] = engine
-          unless model.to_s.strip.empty?
-            slot = engine.to_sym
-            cfg[:ai][slot] = {} unless cfg[:ai][slot].is_a?(Hash)
-            cfg[:ai][slot][:model] = model
-          end
-          yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-          File.write(env_path, yaml_env)
-          File.chmod(0o600, env_path)
-        ensure
-          PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
-        end
-        true
-      rescue StandardError => e
-        warn "[pwn-ai] /model persist skipped: #{e.class}: #{e.message}"
-        false
-      end
-
-      public_class_method def self.pwn_ai_run_cron(opts = {})
-        args = Array(opts[:args])
-        sub = args[0] || 'list'
-        case sub
-        when 'list'
-          puts PWN::Cron.list.inspect
-        when 'create'
-          job = PWN::Cron.create(schedule: args[1], prompt: args[2..].join(' '))
-          puts "Created #{job}"
-        when 'run'
-          puts PWN::Cron.run(id: args[1])
-        when 'remove'
-          PWN::Cron.remove(id: args[1])
-          puts 'Removed'
-        else
-          puts PWN::Cron.help
-        end
-      end
-
-      public_class_method def self.pwn_ai_run_sessions(opts = {})
-        args = Array(opts[:args])
-        sub = args[0] || 'list'
-        case sub
-        when 'list'
-          puts PWN::Sessions.list.inspect
-        when 'resume'
-          sid = args[1]
-          hist = PWN::Sessions.to_response_history(session_id: sid)
-          puts "Loaded session #{sid} with #{hist[:choices].size} entries"
-        when 'delete'
-          PWN::Sessions.delete(session_id: args[1], force: true)
-          puts "Deleted #{args[1]}"
-        when 'stats'
-          puts PWN::Sessions.stats
-        else
-          puts PWN::Sessions.help
-        end
-      end
-
-      public_class_method def self.pwn_ai_run_memory(opts = {})
-        args = Array(opts[:args])
-        sub = args[0] || 'list'
-        case sub
-        when 'list', 'recall'
-          puts PWN::Memory.recall(query: args[1]).inspect
-        when 'remember'
-          PWN::Memory.remember(key: args[1], value: args[2..].join(' '))
-          puts "Remembered #{args[1]}"
-        when 'forget'
-          PWN::Memory.forget(key: args[1])
-          puts "Forgot #{args[1]}"
-        when 'clear'
-          PWN::Memory.clear(force: true)
-          puts 'Memory cleared'
-        else
-          puts PWN::Memory.help
-        end
-      end
-
-      public_class_method def self.pwn_ai_run_learning(opts = {})
-        args = Array(opts[:args])
-        sub = args[0] || 'list'
-        case sub
-        when 'list'
-          flag = args.include?('--conflicted') || args.include?('conflicted')
-          rows = flag ? PWN::AI::Agent::Learning.list_conflicted : PWN::AI::Agent::Learning.outcomes(limit: 20)
-          puts rows.inspect
-        when 'requeue'
-          puts PWN::AI::Agent::Learning.requeue_conflicted.inspect
-        else
-          puts 'Usage: /learning [list [--conflicted]|requeue]'
-        end
-      end
-
-      public_class_method def self.pwn_ai_run_skills(opts = {})
-        args = Array(opts[:args])
-        sub = args[0] || 'list'
-        names = if PWN.const_defined?(:Skills)
-                  PWN::Skills.keys.map(&:to_s)
-                else
-                  []
-                end
-        case sub
-        when 'list'
-          puts names.sort
-        when 'recall'
-          q = args[1].to_s
-          hits = names.select { |n| n.include?(q) }
-          puts(hits.empty? ? names.sort : hits.sort)
-        else
-          puts 'Usage: /skills [list|recall <query>]'
-        end
-      end
-
-      # Run pwn-ai /mcp locally without sending the line through Loop.run.
-
-      public_class_method def self.pwn_ai_run_mcp(opts = {})
-        args = Array(opts[:args]).map(&:to_s)
-        backends = begin
-          PWN::AI::MCP.backends.map { |row| row[:name].to_s }
-        rescue StandardError
-          []
-        end
-        backend = nil
-        if backends.include?(args[0].to_s)
-          backend = args[0]
-          args = args[1..]
-        end
-        sub = args[0].to_s
-        rest = args[1..]
-        sub = 'use' if backend && sub.empty?
-        if sub.empty? || sub == 'help'
-          puts 'pwn-ai /mcp — local MCP session broker for every PWN::AI::MCP::* client'
-          puts '  usage: /mcp [list|backends|use|current|connect|disconnect|ping|tools|call|status|help]'
-          puts '         /mcp <backend> [connect|disconnect|ping|tools|call|status]'
-          puts '         /mcp use <backend>'
-          puts '         /mcp call <tool> [key=value|{"k":"v"}]'
-          result = PWN::AI::MCP.invoke(action: 'backends')
-          current = PWN::AI::MCP.current
-          Array(result[:backends]).each do |row|
-            mark = row[:name] == current ? '*' : ' '
-            puts "  #{mark} #{row[:name]}  #{row[:constant]}"
-          end
-          return result.merge(current: current)
-        end
-
-        hardware = rest.intersect?(%w[hardware --hardware --mcp-allow-hardware])
-        rest = rest.reject { |tok| %w[hardware --hardware --mcp-allow-hardware].include?(tok) }
-        payload =
-          case sub
-          when 'list'
-            rest[0].to_s == 'tools' ? { action: 'list_tools', backend: rest[1] || backend } : { action: 'backends' }
-          when 'backends'
-            { action: 'backends' }
-          when 'use'
-            { action: 'use', backend: rest[0] || backend }
-          when 'current'
-            { action: 'current' }
-          when 'connect'
-            { action: 'connect', backend: rest[0] || backend, allow_hardware: hardware }
-          when 'disconnect', 'close'
-            { action: 'disconnect', backend: rest[0] || backend }
-          when 'ping'
-            { action: 'ping', backend: rest[0] || backend }
-          when 'tools'
-            { action: 'list_tools', backend: rest[0] || backend }
-          when 'status'
-            { action: 'status', backend: rest[0] || backend }
-          when 'call'
-            name = rest[0].to_s
-            raise ArgumentError, 'usage: /mcp call <tool> [key=value]' if name.empty?
-
-            { action: 'call_tool', backend: backend, name: name }.merge(pwn_ai_mcp_call_args(tokens: rest[1..]))
-          else
-            raise ArgumentError, "unknown /mcp #{sub.inspect}"
-          end
-        payload[:backend] = payload[:backend].to_s
-        payload.delete(:backend) if payload[:backend].empty?
-        result = PWN::AI::MCP.invoke(payload)
-        puts result.inspect
-        result
-      end
-
-      private_class_method def self.pwn_ai_mcp_call_args(opts = {})
-        tokens = Array(opts[:tokens]).map(&:to_s)
-        joined = tokens.join(' ').strip
-        if joined.start_with?('{')
-          parsed = JSON.parse(joined)
-          raise ArgumentError, 'JSON call args must be an object' unless parsed.is_a?(Hash)
-
-          return { arguments: parsed }
-        end
-
-        arguments = {}
-        tokens.each do |tok|
-          next unless tok.include?('=')
-
-          key, value = tok.split('=', 2)
-          arguments[key] = pwn_ai_mcp_coerce(value: value)
-        end
-        arguments.empty? ? {} : { arguments: arguments }
-      end
-
-      private_class_method def self.pwn_ai_mcp_coerce(opts = {})
-        value = opts[:value].to_s
-        return value if value.match?(/\A\d+\.\d+\z/)
-        return true if value == 'true'
-        return false if value == 'false'
-        return Integer(value) if value.match?(/\A-?\d+\z/)
-
-        value
-      end
-
-      # Supported Method Parameters::
-      # PWN::Plugins::REPL.enable_autocomplete(
-      #   enabled: 'optional - Boolean (default true). false reverts to single-line cycling.'
-      # )
-      #
-      # IRB-style suggest-as-you-type for the pwn REPL.
-      #
-      # Replaces Pry's default input (rb-readline — single-candidate TAB
-      # cycling) with Reline and turns on Reline.autocompletion, which
-      # renders a live dropdown of candidates below the cursor as you
-      # type (the same widget IRB uses).  Pry already wires
-      # Reline.completion_proc → @pry.complete (Pry::InputCompleter) when
-      # input == Reline, so the menu is fed by the full Ruby/PWN object
-      # graph: constants (PWN::Plugins::Nm<TAB>), instance methods,
-      # local/global variables, and Pry slash-commands.
-      #
-      # Navigate with ↑/↓ or TAB, accept with → or ENTER, dismiss with ESC.
-      #
-      # Scope: this drives the MAIN pwn REPL (Ruby).  pwn-ai swaps
-      # PWNMultiLineInput onto Reline.readmultiline and installs
-      # install_pwn_ai_completer! so TAB is command / path / Ruby menus.
-      # pwn-asm keeps opcode input without those menus.
-
       public_class_method def self.enable_autocomplete(opts = {})
         enabled = opts.fetch(:enabled, true)
 
@@ -2517,6 +1145,47 @@ module PWN
             args: 'optional - slash tokens after /mcp such as list tools or call menu_catalog'
           )
 
+          # Curses arrow-key picker for pwn-mesh channel, transport, and device lists
+          #{self}.mesh_menu_pick(
+            title: 'optional - window title drawn on the boxed curses menu',
+            items: 'required - Array of selectable strings such as channel names',
+            current: 'optional - currently selected item to highlight',
+            getch: 'optional - proc returning the next key so specs can drive the menu without a TTY'
+          )
+
+          # Clear the pwn-mesh TX buffer after a slash command or sent mesh line
+          #{self}.mesh_reset_input!(
+            pry: 'optional - Pry instance whose Reline/line_buffer should be emptied',
+            submitted: 'optional - the line that was just accepted so the TX pane can hide it'
+          )
+
+          # Curses overlay rows for the pwn-mesh slash menu while typing a leading slash
+          #{self}.pwn_mesh_menu_rows(
+            line: 'optional - current TX buffer; leading slash lists matching mesh commands'
+          )
+
+          # TAB hits for pwn-mesh slash menus (commands, named channels, transports, devices)
+          #{self}.pwn_mesh_complete(
+            target: 'required - token Reline is completing in pwn-mesh',
+            line: 'optional - full line buffer so /channel P<TAB> can list named channels'
+          )
+
+          # Install Reline dropdown for pwn-mesh slash commands
+          #{self}.install_pwn_mesh_completer!(
+            pry: 'optional - Pry instance stored for mesh TAB completion'
+          )
+
+          # Run a leading-slash pwn-mesh command locally instead of sending it as mesh text
+          #{self}.pwn_mesh_dispatch_slash!(
+            request: 'optional - full line such as /channel list or /transport serial',
+            pry: 'optional - Pry instance used by /back to leave pwn-mesh'
+          )
+
+          # Write plugins.meshtastic from the live Env into the encrypted pwn.yaml vault
+          #{self}.persist_mesh_env(
+            mesh: 'optional - meshtastic Hash to persist (defaults to PWN::Env plugins.meshtastic)'
+          )
+
           # IRB-style suggest-as-you-type for the pwn REPL
           #{self}.enable_autocomplete(
             enabled: 'optional - Boolean (default true). false reverts to single-line cycling.',
@@ -2549,3 +1218,9 @@ module PWN
     end
   end
 end
+
+require_relative 'repl/asm'
+require_relative 'repl/ai'
+require_relative 'repl/irc'
+require_relative 'repl/mesh'
+require_relative 'repl/vault'

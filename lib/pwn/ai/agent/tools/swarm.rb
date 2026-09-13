@@ -239,3 +239,22 @@ PWN::AI::Agent::Registry.register(
     PWN::AI::Agent::Swarm.list
   }
 )
+PWN::AI::Agent::Registry.register(
+  name: 'agent_roster',
+  toolset: 'swarm',
+  schema: {
+    name: 'agent_roster',
+    description: 'Create ephemeral recon, authz, injection, xss, and business_logic ' \
+                 'specialists for a swarm. Does not run those agents. Call agent_ask ' \
+                 'per specialist after view_graph shows the unit is free.',
+    parameters: {
+      type: 'object',
+      properties: { swarm_id: { type: 'string' } },
+      required: %w[swarm_id]
+    }
+  },
+  check: -> { defined?(PWN::AI::Agent::Swarm) },
+  handler: lambda { |args|
+    PWN::AI::Agent::Swarm.ensure_specialists(swarm_id: args[:swarm_id])
+  }
+)

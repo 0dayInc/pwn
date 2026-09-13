@@ -37,6 +37,7 @@ PWN::Plugins::Github.download_all_gists(opts)
 - `workflow_runs`
 - `workflow_run_jobs`
 - `job_log`
+- `open_fix_pr`
 - `api`
 - `gh`
 - `authors`

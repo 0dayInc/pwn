@@ -196,6 +196,38 @@ module PWN
         raise e
       end
 
+      # Open a GitHub pull request that carries finding remediations and optional SARIF.
+
+      public_class_method def self.open_fix_pr(opts = {})
+        owner = resolve_username(opts)
+        repo = opts[:repo].to_s
+        title = opts[:title].to_s
+        head = opts[:head].to_s
+        raise ArgumentError, 'repo is required' if repo.empty?
+        raise ArgumentError, 'title is required' if title.empty?
+        raise ArgumentError, 'head is required' if head.empty?
+
+        body = opts[:body].to_s
+        sarif = opts[:sarif_path].to_s
+        body = "#{body}\n\nSARIF: #{sarif}" unless sarif.empty?
+        payload = api(
+          path: "repos/#{owner}/#{repo}/pulls",
+          method: :post,
+          token: opts[:token],
+          body: {
+            title: title,
+            body: body,
+            head: head,
+            base: (opts[:base] || 'main').to_s
+          }
+        )
+        {
+          number: payload['number'] || payload[:number],
+          html_url: payload['html_url'] || payload[:html_url],
+          sarif_path: sarif.empty? ? nil : sarif
+        }
+      end
+
       # Supported Method Parameters::
       # response = PWN::Plugins::Github.api(
       #   path: 'required - REST path relative to https://api.github.com (e.g. "repos/0dayinc/pwn/releases/latest")',
@@ -290,6 +322,18 @@ module PWN
             repo: 'required - repo name',
             job_id: 'required - job id from workflow_run_jobs',
             token: 'optional - token value consumed by #job_log'
+          )
+
+          # Open a pull request for finding remediations and optional SARIF.
+          #{self}.open_fix_pr(
+            owner: 'optional - repo owner (default PWN::Env[:plugins][:github][:username])',
+            repo: 'required - repo name',
+            title: 'required - pull request title',
+            head: 'required - branch containing the fix',
+            base: 'optional - base branch (defaults to main)',
+            body: 'optional - pull request body',
+            sarif_path: 'optional - absolute SARIF path mentioned in the body',
+            token: 'optional - PAT (default PWN::Env[:plugins][:github][:personal_access_token])'
           )
 
           # Run api and return its result

@@ -39,7 +39,7 @@ history                             # what you've typed → copy into a driver
 |---|---|
 | `pwn-ai` | Enter the agent TUI (SHIFT+ENTER = newline, ENTER = submit) |
 | `pwn-asm` | Multi-line assembly ↔ opcode workbench |
-| `pwn-mesh` | Meshtastic serial / MQTT client (Ruby ≥ 4.0) |
+| `pwn-mesh` | Meshtastic serial / bluetooth / TCP / MQTT client (Ruby ≥ 4.0) |
 | `pwn-vault` | Decrypt → edit `~/.pwn/pwn.yaml` in `$EDITOR` → re-encrypt |
 | `pwn-ai-memory` | Inspect / edit `~/.pwn/memory.json` |
 | `pwn-ai-sessions` | List / view / delete transcripts |

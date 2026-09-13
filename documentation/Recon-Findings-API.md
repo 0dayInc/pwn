@@ -24,6 +24,10 @@ Use `affected_asset: asset[:id]` and `evidence_paths: asset[:evidence_paths]` in
 
 Legacy `Findings.record`, query/report, chain, render, and SARIF output remain callable; legacy record is not the strict API. Agent record and chain operations are strict. Existing query/export tool operations remain available. Accepted structured rows mark `verification_status: not_executed`; evidence hashes prove captured bytes, not exploit execution. Severity is derived from the validated score. No automatic escalation for linked findings.
 
+`Findings.verify` / `finding_record op=verify` attests a working PoC from HTTP request/response files or a script execution log. The impact marker must appear in that evidence or the row stays `failed`. `Findings.retest` replays the same path after a fix (`still_open` vs `fixed`). `Findings.chain_impact` may raise combined severity only when a combined-impact file names every finding id. Issue work is unfinished while recorded findings remain `not_executed` (`issue_work_unverified`).
+
+`PWN::AI::Agent::Swarm.ensure_specialists` / `agent_roster` writes recon, authz, injection, xss, and business_logic personas. SARIF export is `Findings.render`; `PWN::Plugins::Github.open_fix_pr` opens a remediation PR (tests stub the GitHub API).
+
 Markdown/HTML/JSON report payloads compose connected explicit references into attack-chain sections, preserving all finding fields. Combined severity is maximum recorded constituent severity with a rationale explicitly disclaiming escalation and combined exploitability. This is not a computed CVSS chain score.
 
 ## Verification boundaries

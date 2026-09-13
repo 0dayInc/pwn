@@ -258,19 +258,32 @@ module PWN
           },
           meshtastic: {
             admin_key: 'Public key authorized to send admin messages to nodes',
+            transport: 'auto',
+            dispatch_to_pwn_ai: false,
+            ai_whitelist: [],
             serial: {
-              port: '/dev/ttyUSB0',
+              port: '/dev/ttyACM0',
               baud: 115_200,
               bits: 8,
               stop: 1,
               parity: :none
+            },
+            bluetooth: {
+              address: 'AA:BB:CC:DD:EE:FF'
+            },
+            tcp: {
+              host: '127.0.0.1',
+              port: 4403
             },
             mqtt: {
               host: 'mqtt.meshtastic.org',
               port: 1883,
               tls: false,
               user: 'meshdev',
-              pass: 'large4cats'
+              pass: 'large4cats',
+              client_id: '',
+              keep_alive: 60,
+              ack_timeout: 5
             },
             channel: {
               active: 'LongFast',

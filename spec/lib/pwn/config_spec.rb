@@ -67,8 +67,21 @@ describe PWN::Config do
       expect(env[:ai][:openwebui][:base_uri]).to eq 'https://owu.example'
       expect(env[:ai][:openwebui][:key]).to eq 'sk-test'
       expect(env[:ai][:openwebui][:model]).to eq 'm1'
-      # absent keys filled
       expect(env[:ai][:openwebui][:num_ctx]).not_to be_nil
+    end
+  end
+
+  describe 'meshtastic transports' do
+    let(:mesh) { described_class.env_template[:plugins][:meshtastic] }
+
+    it 'defaults transport to auto and includes serial bluetooth tcp mqtt' do
+      expect(mesh[:transport].to_s).to eq('auto')
+      expect(mesh[:serial]).to include(:port, :baud, :bits, :stop, :parity)
+      expect(mesh[:bluetooth]).to include(:address)
+      expect(mesh[:tcp]).to include(:host, :port)
+      expect(mesh[:mqtt]).to include(:host, :port, :tls, :user, :pass)
+      expect(mesh[:dispatch_to_pwn_ai]).to eq(false)
+      expect(mesh[:ai_whitelist]).to eq([])
     end
   end
 
