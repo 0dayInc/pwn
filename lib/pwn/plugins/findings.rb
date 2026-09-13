@@ -210,6 +210,73 @@ module PWN
           rationale: 'Maximum recorded constituent severity. No automatic escalation; linking is not proof of combined exploitability.' }
       end
 
+      # Attest a working PoC from request/response or script output. File hashes are not execution.
+
+      public_class_method def self.verify(opts = {})
+        attest(opts.merge(mode: 'verify'))
+      end
+
+      # Re-run the same PoC path after a fix. Impact present => still_open; absent => fixed.
+
+      public_class_method def self.retest(opts = {})
+        attest(opts.merge(mode: 'retest'))
+      end
+
+      # Combine findings only when a combined-impact evidence file names every id.
+
+      public_class_method def self.chain_impact(opts = {})
+        opts = opts.transform_keys(&:to_sym)
+        ids = Array(opts[:ids]).map(&:to_s)
+        raise ArgumentError, 'ids must name at least two findings' if ids.length < 2
+
+        rows = report
+        chosen = ids.map { |id| rows.find { |row| row[:id].to_s == id } }
+        raise ArgumentError, 'ids must name existing findings' if chosen.any?(&:nil?)
+
+        path = opts[:combined_impact_path].to_s
+        raise ArgumentError, 'combined_impact_path must be an existing readable absolute file' unless path.start_with?('/') && File.file?(path) && File.readable?(path)
+
+        text = File.read(path)
+        raise ArgumentError, 'combined_impact_path must be at least 40 characters and name every finding id' unless text.length >= 40 && ids.all? { |id| text.include?(id) }
+
+        score = chain_score(ids: ids)
+        ranks = { 'info' => 0, 'low' => 1, 'medium' => 2, 'high' => 3, 'critical' => 4 }
+        combined = score[:combined_severity]
+        if opts[:escalate]
+          wanted = opts[:combined_severity].to_s
+          raise ArgumentError, 'combined_severity is required when escalate is true' if wanted.empty? || !ranks.key?(wanted)
+
+          combined = wanted
+        end
+        patch = { combined_impact: path, combined_severity: combined, attack_chain_refs: (Array(chosen.last[:attack_chain_refs]) + ids[0..-2]).uniq }
+        updated = rewrite_row(id: ids.last, patch: patch)
+        evidence_anchor(row: updated, arts: [path])
+        {
+          finding_ids: ids,
+          combined_severity: combined,
+          combined_impact_path: path,
+          rationale: opts[:escalate] ? 'independently evidenced combined impact' : score[:rationale],
+          finding: updated
+        }
+      end
+
+      # Gaps that keep issue work unfinished: unreproduced rows, unchained pairs.
+
+      public_class_method def self.issue_work_gaps(opts = {})
+        opts = opts.transform_keys(&:to_sym)
+        rows = report
+        eng = opts[:engagement_id].to_s
+        sid = opts[:session_id].to_s
+        rows = rows.select { |row| row[:engagement_id].to_s == eng } unless eng.empty?
+        rows = rows.select { |row| row[:session_id].to_s == sid } unless sid.empty?
+        structured = rows.select { |row| row[:cwe].to_s.start_with?('CWE-') || row.key?(:verification_status) }
+        reproduced = structured.select { |row| row[:verification_status].to_s == 'reproduced' }
+        unverified = structured.select { |row| row[:verification_status].to_s == 'not_executed' }
+        unchained = reproduced.length >= 2 && reproduced.none? { |row| Array(row[:attack_chain_refs]).any? || row[:combined_impact].to_s.strip != '' }
+        { recorded: structured.map { |row| row[:id] }, unverified: unverified.map { |row| row[:id] },
+          reproduced: reproduced.map { |row| row[:id] }, unchained: unchained }
+      end
+
       public_class_method def self.render(opts = {})
         dir = opts[:dir_path].to_s
         dir = File.join(Dir.home, '.pwn', 'exports') if dir.empty?
@@ -222,6 +289,76 @@ module PWN
           json: PWN::Reports::JSON.generate(results_hash: payload, dir_path: dir, report_name: name),
           sarif: PWN::Reports::SARIF.generate(results_hash: payload, dir_path: dir, report_name: name)
         }
+      end
+
+      private_class_method def self.attest(opts = {})
+        opts = opts.transform_keys(&:to_sym)
+        row = report.find { |item| item[:id].to_s == opts[:id].to_s }
+        raise ArgumentError, 'id must name an existing finding' unless row
+
+        kind = opts[:kind].to_s
+        raise ArgumentError, 'kind must be http or script' unless %w[http script].include?(kind)
+
+        impact = opts[:impact].to_s
+        raise ArgumentError, 'impact must be a non-empty string' if impact.strip.empty?
+
+        arts, body = execution_blob(opts.merge(kind: kind))
+        hit = body.include?(impact)
+        if opts[:mode].to_s == 'retest'
+          status = hit ? 'still_open' : 'fixed'
+          finding_status = hit ? 'open' : 'closed'
+        else
+          status = hit ? 'reproduced' : 'failed'
+          finding_status = row[:status]
+        end
+        updated = rewrite_row(
+          id: row[:id],
+          patch: {
+            verification_status: status,
+            verification_kind: kind,
+            impact: impact,
+            poc_artifacts: arts,
+            status: finding_status,
+            verified_at: Time.now.utc.iso8601
+          }
+        )
+        evidence_anchor(row: updated, arts: arts)
+        updated
+      end
+
+      private_class_method def self.execution_blob(opts = {})
+        kind = opts[:kind].to_s
+        if kind == 'http'
+          req = opts[:request_path].to_s
+          res = opts[:response_path].to_s
+          [req, res].each do |path|
+            raise ArgumentError, 'request_path and response_path must be existing readable absolute files' unless path.start_with?('/') && File.file?(path) && File.readable?(path)
+          end
+          [[req, res], "#{File.read(req)}\n#{File.read(res)}"]
+        else
+          log = opts[:execution_log].to_s
+          raise ArgumentError, 'execution_log must be an existing readable absolute file' unless log.start_with?('/') && File.file?(log) && File.readable?(log)
+
+          [[log], File.read(log)]
+        end
+      end
+
+      private_class_method def self.rewrite_row(opts = {})
+        id = opts[:id].to_s
+        patch = opts[:patch] || {}
+        rows = report
+        idx = rows.index { |row| row[:id].to_s == id }
+        raise ArgumentError, 'id must name an existing finding' unless idx
+
+        rows[idx] = rows[idx].merge(patch)
+        FileUtils.mkdir_p(File.dirname(FILE))
+        File.open(FILE, File::RDWR | File::CREAT, 0o644) do |file|
+          file.flock(File::LOCK_EX)
+          file.rewind
+          file.truncate(0)
+          rows.each { |row| file.puts(JSON.generate(row)) }
+        end
+        rows[idx]
       end
 
       private_class_method def self.evidence_anchor(opts = {})
@@ -325,6 +462,40 @@ module PWN
           #{self}.chain_score(
             ids: 'optional - Array of finding ids to score together',
             chain_refs: 'optional - alias for ids'
+          )
+
+          # Attest a working PoC from HTTP or script evidence; hashes are not execution.
+          #{self}.verify(
+            id: 'required - finding id',
+            kind: 'required - http or script',
+            impact: 'required - marker that must appear in the evidence',
+            request_path: 'optional - absolute HTTP request file when kind is http',
+            response_path: 'optional - absolute HTTP response file when kind is http',
+            execution_log: 'optional - absolute script output file when kind is script'
+          )
+
+          # Re-run the same PoC path after a fix (still_open or fixed).
+          #{self}.retest(
+            id: 'required - finding id',
+            kind: 'required - http or script',
+            impact: 'required - marker that must appear in the evidence',
+            request_path: 'optional - absolute HTTP request file when kind is http',
+            response_path: 'optional - absolute HTTP response file when kind is http',
+            execution_log: 'optional - absolute script output file when kind is script'
+          )
+
+          # Escalate combined severity only with an evidence file that names every id.
+          #{self}.chain_impact(
+            ids: 'required - Array of at least two finding ids',
+            combined_impact_path: 'required - absolute evidence file',
+            escalate: 'optional - true to set combined_severity from evidence',
+            combined_severity: 'optional - info|low|medium|high|critical when escalate is true'
+          )
+
+          # List unreproduced findings and whether two-plus reproduced rows lack a chain.
+          #{self}.issue_work_gaps(
+            engagement_id: 'optional - engagement identifier',
+            session_id: 'optional - pwn-ai session id'
           )
 
           # Print the AUTHOR(S) string for this module.

@@ -34,6 +34,33 @@ module PWN
         DEFAULT_TAIL    = 12
         DEFAULT_TOOLSET = %w[terminal pwn memory skills sessions learning
                              metrics extrospection].freeze
+        SPECIALIST_ROLES = {
+          recon: {
+            role: 'Map the operator-named target. Record assets and working probes. Do not invent hosts.',
+            skills: %w[osint penetration-testing],
+            toolsets: %w[pwn terminal extrospection http]
+          },
+          authz: {
+            role: 'Test authorization and IDOR on discovered assets. Reproduce with request/response PoCs.',
+            skills: %w[web-application-penetration-testing],
+            toolsets: %w[pwn terminal http]
+          },
+          injection: {
+            role: 'Test injection on discovered inputs. Attach a working PoC, not a scanner signature.',
+            skills: %w[web-application-penetration-testing deep-exploitation],
+            toolsets: %w[pwn terminal http]
+          },
+          xss: {
+            role: 'Test XSS and CSRF in a real browser session. Evidence is a reproduced payload, not a pattern hit.',
+            skills: %w[web-application-penetration-testing],
+            toolsets: %w[pwn terminal http]
+          },
+          business_logic: {
+            role: 'Chain authorization, injection, and workflow flaws into one evidenced impact path.',
+            skills: %w[web-application-penetration-testing bug-bounty-hunting],
+            toolsets: %w[pwn terminal http]
+          }
+        }.freeze
 
         # ------------------------------------------------------------------
         # Persona registry (~/.pwn/agents.yml)
@@ -524,6 +551,33 @@ module PWN
           { name: name, skills: skills, toolsets: toolsets }
         end
 
+        # Catalog of lead-spawned offensive specialists (recon through business logic).
+
+        public_class_method def self.specialist_roles(opts = {})
+          name = opts[:name].to_s
+          return SPECIALIST_ROLES.fetch(name.to_sym) unless name.empty?
+
+          SPECIALIST_ROLES
+        end
+
+        # Write ephemeral specialist personas for a swarm without running Loop.
+
+        public_class_method def self.ensure_specialists(opts = {})
+          sid = opts[:swarm_id].to_s
+          raise ArgumentError, 'swarm_id is required' if sid.empty?
+
+          SPECIALIST_ROLES.map do |name, spec|
+            spawn(
+              name: name.to_s,
+              role: spec[:role],
+              skills: spec[:skills],
+              toolsets: spec[:toolsets],
+              swarm_id: sid,
+              ephemeral: true
+            )
+          end
+        end
+
         public_class_method def self.child_inbox(opts = {})
           sid = opts[:session_id].to_s
           findings = if defined?(PWN::Plugins::Findings)
@@ -735,6 +789,16 @@ module PWN
               skills: 'optional - Array of SOP skill names (kept at most 3)',
               toolsets: 'optional - Registry toolset names',
               orchestrator: 'optional - true to keep the swarm toolset'
+            )
+
+            # Catalog of lead-spawned specialists (recon, authz, injection, xss, business_logic).
+            #{self}.specialist_roles(
+              name: 'optional - one role name; omit to return the full catalog'
+            )
+
+            # Write ephemeral specialist personas for a swarm without running Loop.
+            #{self}.ensure_specialists(
+              swarm_id: 'required - swarm id from #create'
             )
 
             # World-object inbox for a child session (finding ids, artifact shas).

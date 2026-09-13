@@ -41,6 +41,10 @@ PWN::Plugins::Findings.required_bins(opts)
 - `query`
 - `chain`
 - `chain_score`
+- `verify`
+- `retest`
+- `chain_impact`
+- `issue_work_gaps`
 - `render`
 - `authors`
 - `help`

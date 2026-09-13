@@ -21,7 +21,7 @@ commands.
 | `pwn-ai` | `Agent::Loop` | Enter the AI agent TUI |
 | `pwn-vault` | `PWN::Plugins::Vault` | Decrypt, edit `~/.pwn/pwn.yaml`, re-encrypt. Stays in the editor until `PWN::Config` accepts the file. |
 | `pwn-asm` | `Plugins::Assembly` | Multiline asm ↔ opcodes workbench |
-| `pwn-mesh` | `Meshtastic` gem | Meshtastic serial / MQTT client (Ruby ≥ 4.0; installed via `pwn setup`) |
+| `pwn-mesh` | `Meshtastic` gem | Meshtastic serial / bluetooth / TCP / MQTT client (Ruby ≥ 4.0; `plugins.meshtastic.transport`). Inside the mesh TUI, leading-slash menus (`/channel`, `/transport`, `/device`, `/status`, `/help`, `/back`) configure the session locally and are not sent as mesh text. TAB completes those commands. |
 | `pwn-ai-memory` | `PWN::Memory` | View/edit persistent memory |
 | `pwn-ai-sessions` | `PWN::Sessions` | List/view/delete transcripts |
 | `pwn-ai-cron` | `PWN::Cron` | List/run/toggle scheduled jobs |
@@ -33,6 +33,26 @@ commands.
 | `welcome-banner` | `PWN::Banner` | Redraw a random banner |
 | `toggle-pager` | Pry | Page long output on/off |
 | `back` | - | Leave `pwn-ai` / `pwn-asm` / `pwn-mesh` sub-REPL |
+
+## pwn-mesh slash commands
+
+Typed at the mesh TX prompt (leading `/`). `/` or `/menu` opens a boxed curses menu (arrows/j/k, Enter, Esc). `/channel`, `/transport`, and `/device` without an argument open the same kind of list. Explicit `/channel LongFast` still jumps without a menu. Commands are local — they are not published as Meshtastic text. Changes update `PWN::Env[:plugins][:meshtastic]` and persist to `~/.pwn/pwn.yaml` when the vault decryptor is available; a live session reconnects so RX follows the new channel or radio.
+
+| Command | Purpose |
+|---|---|
+| `/help` | List mesh slash commands |
+| `/status` | Show active transport, device, and channel |
+| `/channel list` | List named `plugins.meshtastic.channel` blocks (`*` = active) |
+| `/channel <name>` | Switch the active channel (e.g. `LongFast`) |
+| `/transport list` | List `auto` / `serial` / `bluetooth` / `tcp` / `mqtt` |
+| `/transport <kind>` | Pin a connection type (`auto` re-enables serial → bluetooth → tcp → mqtt probe) |
+| `/device list` | List serial ports, BLE Meshtastic addresses, or the configured TCP/MQTT host |
+| `/device <id>` | Switch radio for the active transport (`/dev/ttyACM0`, BLE MAC, `host:port`) |
+| `/msg [!nodeid|channel] <text>` | Send a DM to `!nodeid`, or a broadcast on a named channel. Omit the target to reuse the last incoming DM sender or channel. A compose line without `/msg` goes to the active channel. Also `@!aabbccdd text` on a normal send. |
+| `/toggle-dispatch-to-pwn-ai` | Off by default. When on, pwn-ai answers only if the source channel is encrypted, listed in `plugins.meshtastic.ai_whitelist`, and the text begins with `@ai`. DMs are allowed when they reside on a whitelisted channel. Uses `PWN::Env[:ai][:active]`. |
+| `/back` | Leave pwn-mesh (same as `back` / CTRL+D) |
+
+Typing `/` shows matching commands in the TX pane (ncurses hides Reline's dropdown). TAB still completes `/…` commands, channel names, transports, and device ids.
 
 ## Multi-line input
 

@@ -48,6 +48,8 @@ PWN::AI::Agent::Swarm.personas(opts)
 - `facts_prompt`
 - `claim`
 - `pack_specialist`
+- `specialist_roles`
+- `ensure_specialists`
 - `child_inbox`
 - `child_honesty`
 - `honesty_unmet`

@@ -203,18 +203,29 @@ plugins:
     token: ...                       # Jira Personal Access Token for PWN::Plugins::JiraDataCenter. Redacted.
   meshtastic:
     admin_key: ...                   # Public key authorised to send admin messages to mesh nodes via `pwn-mesh`.
+    transport: auto                  # auto | serial | bluetooth | tcp | mqtt — `auto` probes serial → bluetooth → tcp → mqtt; `/transport` pins one.
+    dispatch_to_pwn_ai: false        # `/toggle-dispatch-to-pwn-ai` — encrypted + ai_whitelist + `@ai` prefix → pwn-ai via Env ai.active; DMs if the channel is on ai_whitelist.
+    ai_whitelist: []                 # Channel names pwn-ai may answer on (e.g. LongFast). Empty = none.
     serial:
-      port: /dev/ttyUSB0           # Serial device path for a locally-attached Meshtastic node.
+      port: /dev/ttyACM0           # Serial device path (`Meshtastic::Serial.connect` block_dev).
       baud: 115200                 # Serial baud rate.
-      bits: 8                      # Serial data bits.
-      stop: 1                      # Serial stop bits.
+      bits: 8                      # Serial data bits (`data_bits`).
+      stop: 1                      # Serial stop bits (`stop_bits`).
       parity: none                 # Serial parity (none | even | odd).
+    bluetooth:
+      address: AA:BB:CC:DD:EE:FF   # BLE MAC/address for `Meshtastic::Bluetooth.connect`.
+    tcp:
+      host: 127.0.0.1              # IP/hostname for `Meshtastic::TCP.connect`.
+      port: 4403                   # TCP port for a Meshtastic node (default 4403).
     mqtt:
       host: mqtt.meshtastic.org    # MQTT broker hostname for Meshtastic-over-MQTT.
       port: 1883                   # MQTT broker port (8883 for TLS).
       tls: false                   # Use TLS to the MQTT broker.
       user: meshdev                # MQTT username (public Meshtastic broker default shown).
       pass: large4cats             # MQTT password (public Meshtastic broker default shown). Redacted.
+      client_id:                   # Optional MQTT client id (`Meshtastic::MQTT.connect`).
+      keep_alive: 60               # Optional MQTT keep-alive seconds.
+      ack_timeout: 5               # Optional MQTT ack timeout seconds.
     channel:
       active: LongFast             # Which named channel block below `pwn-mesh` uses for TX/RX.
       LongFast:                    # Channel definition - name is arbitrary, referenced by `active:` above.
@@ -367,16 +378,25 @@ PWN::Config.refresh_env
 | `plugins.jira_data_center.base_uri` | String | - | `PWN::Plugins::JiraDataCenter` | Jira DC REST base (e.g. `https://jira.company.com/rest/api/latest`). |
 | `plugins.jira_data_center.token` | String | - | `PWN::Plugins::JiraDataCenter` | Jira Personal Access Token. |
 | `plugins.meshtastic.admin_key` | String | - | `PWN::Plugins::REPL` (`pwn-mesh`) | Public key authorised to send admin messages to mesh nodes. |
-| `plugins.meshtastic.serial.port` | String | `/dev/ttyUSB0` | `pwn-mesh` (serial) | Serial device path for a locally-attached Meshtastic node. |
+| `plugins.meshtastic.transport` | String | `auto` | `pwn-mesh` | `auto` probes serial → bluetooth → tcp → mqtt. Pin with `/transport <kind>`. |
+| `plugins.meshtastic.dispatch_to_pwn_ai` | Boolean | `false` | `pwn-mesh` `/toggle-dispatch-to-pwn-ai` | When true, pwn-ai may answer TEXT_MESSAGE_APP on a securely encrypted channel that is listed in `ai_whitelist` and whose text begins with `@ai`. DMs are allowed when they reside on a whitelisted channel. |
+| `plugins.meshtastic.ai_whitelist` | Array | `[]` | `pwn-mesh` dispatch | Channel names pwn-ai is allowed to answer on. Empty means none. |
+| `plugins.meshtastic.serial.port` | String | `/dev/ttyACM0` | `pwn-mesh` → `Meshtastic::Serial.connect` `block_dev` | Serial device path. |
 | `plugins.meshtastic.serial.baud` | Integer | `115200` | `pwn-mesh` (serial) | Serial baud rate. |
-| `plugins.meshtastic.serial.bits` | Integer | `8` | `pwn-mesh` (serial) | Serial data bits. |
-| `plugins.meshtastic.serial.stop` | Integer | `1` | `pwn-mesh` (serial) | Serial stop bits. |
+| `plugins.meshtastic.serial.bits` | Integer | `8` | `pwn-mesh` (serial) `data_bits` | Serial data bits. |
+| `plugins.meshtastic.serial.stop` | Integer | `1` | `pwn-mesh` (serial) `stop_bits` | Serial stop bits. |
 | `plugins.meshtastic.serial.parity` | Symbol | `:none` | `pwn-mesh` (serial) | Serial parity. |
+| `plugins.meshtastic.bluetooth.address` | String | - | `pwn-mesh` → `Meshtastic::Bluetooth.connect` | BLE MAC/address of the node. |
+| `plugins.meshtastic.tcp.host` | String | `127.0.0.1` | `pwn-mesh` → `Meshtastic::TCP.connect` | TCP host of the node. |
+| `plugins.meshtastic.tcp.port` | Integer | `4403` | `pwn-mesh` (tcp) | TCP port of the node. |
 | `plugins.meshtastic.mqtt.host` | String | `mqtt.meshtastic.org` | `pwn-mesh` → `Meshtastic::MQTT.connect` | MQTT broker hostname. |
 | `plugins.meshtastic.mqtt.port` | Integer | `1883` | `pwn-mesh` | MQTT broker port. |
 | `plugins.meshtastic.mqtt.tls` | Boolean | `false` | `pwn-mesh` | Use TLS to the MQTT broker. |
 | `plugins.meshtastic.mqtt.user` | String | `meshdev` | `pwn-mesh` | MQTT username. |
 | `plugins.meshtastic.mqtt.pass` | String | `large4cats` | `pwn-mesh` | MQTT password. |
+| `plugins.meshtastic.mqtt.client_id` | String | - | `pwn-mesh` | Optional MQTT client id. |
+| `plugins.meshtastic.mqtt.keep_alive` | Integer | `60` | `pwn-mesh` | Optional MQTT keep-alive seconds. |
+| `plugins.meshtastic.mqtt.ack_timeout` | Integer | `5` | `pwn-mesh` | Optional MQTT ack timeout seconds. |
 | `plugins.meshtastic.channel.active` | String | `LongFast` | `pwn-mesh` | Which named channel block below is used for TX/RX. |
 | `plugins.meshtastic.channel.<NAME>.psk` | String (b64) | `AQ==` | `pwn-mesh` | Channel pre-shared key. |
 | `plugins.meshtastic.channel.<NAME>.region` | String | - | `pwn-mesh` | LoRa region tag (e.g. `US/UT`). |

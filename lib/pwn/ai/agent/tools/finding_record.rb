@@ -28,9 +28,18 @@ PWN::AI::Agent::Registry.register(
         poc: { type: 'string' },
         poc_artifacts: { type: 'array', items: { type: 'string' } },
         session_id: { type: 'string' },
-        op: { type: 'string' },
+        op: { type: 'string', enum: %w[query export chain record verify retest chain_impact gaps] },
         parent_id: { type: 'string' },
-        engagement_id: { type: 'string' }
+        engagement_id: { type: 'string' },
+        kind: { type: 'string', enum: %w[http script] },
+        impact: { type: 'string' },
+        request_path: { type: 'string' },
+        response_path: { type: 'string' },
+        execution_log: { type: 'string' },
+        ids: { type: 'array', items: { type: 'string' } },
+        combined_impact_path: { type: 'string' },
+        escalate: { type: 'boolean' },
+        combined_severity: { type: 'string' }
       },
       required: %w[],
       anyOf: [
@@ -52,6 +61,14 @@ PWN::AI::Agent::Registry.register(
       PWN::Plugins::Findings.record_structured(args.merge(attack_chain_refs: (Array(args[:attack_chain_refs]) + [parent]).uniq))
     when 'export'
       PWN::Plugins::Findings.render(args)
+    when 'verify'
+      PWN::Plugins::Findings.verify(args)
+    when 'retest'
+      PWN::Plugins::Findings.retest(args)
+    when 'chain_impact'
+      PWN::Plugins::Findings.chain_impact(args)
+    when 'gaps'
+      PWN::Plugins::Findings.issue_work_gaps(args)
     when 'record'
       PWN::Plugins::Findings.record_structured(args)
     else

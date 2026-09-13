@@ -8,13 +8,9 @@ describe 'pwn-vault Config RuntimeError retry' do
   # inside the command so RuntimeError from invalid pwn.yaml prints the error,
   # waits on "Press Enter to Resolve" via $stdin.gets, then re-opens the editor.
   # Validation must NOT be deferred solely to the PS1 hook.
-  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:repl_src) { File.read(PWN::Plugins::REPL::Vault.method(:add_commands).source_location.first) }
   let(:vault_src) { File.read(PWN::Plugins::Vault.method(:edit).source_location.first) }
-  let(:block) do
-    start = repl_src.index("Pry::Commands.create_command 'pwn-vault'")
-    stop = repl_src.index("Pry::Commands.create_command 'toggle-debug'")
-    repl_src[start...stop]
-  end
+  let(:block) { repl_src }
 
   it 'validates via PWN::Config.refresh_env inside the pwn-vault command' do
     expect(block).to include('PWN::Config.refresh_env')
@@ -134,7 +130,7 @@ describe 'pwn-vault Config RuntimeError retry' do
 end
 
 describe 'toggle-debug' do
-  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:repl_src) { File.read(PWN::Plugins::REPL::AI.method(:add_commands).source_location.first) }
   let(:block) do
     start = repl_src.index("Pry::Commands.create_command 'toggle-debug'")
     stop = repl_src.index("Pry::Commands.create_command 'toggle-trace'")
@@ -156,7 +152,7 @@ describe 'toggle-debug' do
 end
 
 describe 'toggle-trace' do
-  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:repl_src) { File.read(PWN::Plugins::REPL::AI.method(:add_commands).source_location.first) }
   let(:block) do
     start = repl_src.index("Pry::Commands.create_command 'toggle-trace'")
     stop = repl_src.index("Pry::Commands.create_command 'toggle-pwn-ai-speaks'")
@@ -186,7 +182,7 @@ describe 'toggle-trace' do
 end
 
 describe 'pwn-ai debug final answer placement' do
-  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_commands).source_location.first) }
+  let(:repl_src) { File.read(PWN::Plugins::REPL.method(:add_hooks).source_location.first) }
   let(:hook) do
     start = repl_src.index('Pry.config.hooks.add_hook(:after_read, :pwn_ai_hook)')
     repl_src[start..]

@@ -24,7 +24,7 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 | `policy` | **`policy_stats`** · **`policy_evaluate`** · **`policy_recommend`** | `PWN::AI::Agent::Policy` → `~/.pwn/policy.json` + `~/.pwn/policy_traj.jsonl` |
 | `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · **`extro_watch`** · **`extro_verify`** · **`extro_rf_tune`** · **`extro_osint`** · **`extro_serial`** · **`extro_telecomm`** · **`extro_packet`** · **`extro_vision`** · **`extro_voice`** · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` | `PWN::AI::Agent::Extrospection` (+ Serial/Packet/OCR/Voice/BareSIP/TransparentBrowser/GQRX) → `~/.pwn/extrospection.json` |
 | `cron` | `cron_list` · `cron_create` · `cron_run` · `cron_enable` · `cron_disable` · `cron_remove` | `PWN::Cron` → `~/.pwn/cron/jobs.yml` |
-| `swarm` | `agent_list` · `agent_spawn` · `agent_ask` · `agent_debate` · `agent_broadcast` · `swarm_bus` · `swarm_list` | `PWN::AI::Agent::Swarm` → `~/.pwn/agents.yml` + `~/.pwn/swarm/` |
+| `swarm` | `agent_list` · `agent_spawn` · `agent_ask` · `agent_debate` · `agent_broadcast` · `swarm_bus` · `swarm_list` · `agent_roster` | `PWN::AI::Agent::Swarm` → `~/.pwn/agents.yml` + `~/.pwn/swarm/` |
 | `manifest` | `host_os_type` | YAML tool declarations in `lib/pwn/ai/tools/*.yaml` via `PWN::AI::Agent::Manifest` |
 
 The `learning` toolset is deliberately large: **Mistakes** (negative feedback),

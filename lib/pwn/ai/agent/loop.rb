@@ -705,6 +705,11 @@ module PWN
           artifact[:unmet].each { |row| unmet << "#{row[:criterion]}:#{row[:detail]}" }
           trace_files = session_files(messages: opts[:messages])
           unmet << 'issue_work_proofs' if contract[:issue_work] && Array(contract[:proofs]).empty? && files.empty? && trace_files.empty?
+          if contract[:issue_work] && defined?(PWN::Plugins::Findings)
+            gaps = PWN::Plugins::Findings.issue_work_gaps(session_id: Thread.current[:pwn_session_id].to_s)
+            unmet << 'issue_work_unverified' if Array(gaps[:recorded]).any? && Array(gaps[:reproduced]).empty?
+            unmet << 'issue_work_unchained' if gaps[:unchained]
+          end
           unmet << 'skills' if declared_skills_missing?(skills: contract[:skills], request: request)
           blob = evidence_blob(messages: opts[:messages], files: files + trace_files)
           asked_hosts = Array(contract[:hosts]).select { |host| request.downcase.include?(host.to_s.downcase) }
@@ -2787,7 +2792,8 @@ module PWN
           bound = operator_bound_refusal(from: opts[:from] || opts[:account])
           return bound if bound
 
-          engine = active_engine
+          engine = opts[:engine]
+          engine = engine.to_s.empty? ? active_engine : engine.to_s.downcase.to_sym
           local  = local_engine?(engine: engine)
 
           # Cheap intent/kind FIRST - before PromptBuilder / Registry / TaskSummarizer
@@ -3366,6 +3372,7 @@ module PWN
               account: 'optional - operator account id to bind',
               force_tools: 'optional - force tools value consumed by #run',
               nested: 'optional - true for Swarm/child Loop.run (skip RN footer)',
+              engine: 'optional - provider name; defaults to PWN::Env ai.active',
               core_only: 'optional - restrict to CORE_TOOLS when true',
               trace: 'optional - enable TracePoint debug for this run',
               debug_tee: 'optional - IO to tee debug logs'
