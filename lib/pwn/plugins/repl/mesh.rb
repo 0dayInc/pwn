@@ -536,10 +536,107 @@ module PWN
           end
 
           # Send a text frame on the active mesh transport.
+          def mesh_text_payload_max(opts = {})
+            return 0 unless opts.is_a?(Hash)
+
+            cap = opts[:max] || Meshtastic::Constants::DATA_PAYLOAD_LEN
+            # DATA_PAYLOAD_LEN is the protobuf Data.payload max. A MeshPacket
+            # around a full-size payload is ~260 bytes and will not fit a 256-byte
+            # LoRa frame, so the radio accepts ToRadio then silently drops TX.
+            lora = 256
+            overhead = 32
+            [cap, lora - overhead].min
+          end
+
+          def mesh_payload_fits?(opts = {})
+            return false unless opts.is_a?(Hash)
+
+            text = opts[:text].to_s
+            max = opts[:max] || mesh_text_payload_max
+            text.length <= max && text.bytesize <= max
+          end
+
+          def mesh_tx_row_ready?(opts = {})
+            return false unless opts.is_a?(Hash)
+
+            row = opts[:row]
+            return false unless row.is_a?(Hash)
+
+            packet = row[:packet] || row['packet']
+            return false unless packet.is_a?(Hash)
+
+            decoded = packet[:decoded] || packet['decoded']
+            return false unless decoded.is_a?(Hash)
+
+            port = decoded[:portnum] || decoded['portnum']
+            %w[5 ROUTING_APP].include?(port.to_s) || port == :ROUTING_APP
+          end
+
+          def mesh_wait_tx_slot(opts = {})
+            return unless opts.is_a?(Hash)
+
+            obj = opts[:obj]
+            return unless obj.is_a?(Hash)
+
+            timeout = opts[:timeout]
+            timeout = 8 if timeout.nil?
+            timeout = Float(timeout)
+            return if timeout <= 0
+
+            since = opts[:since].to_i
+            deadline = Time.now + timeout
+            loop do
+              rows = if obj[:rx_mutex]
+                       obj[:rx_mutex].synchronize { Array(obj[:proto_data]).dup }
+                     else
+                       Array(obj[:proto_data])
+                     end
+              ready = rows.drop(since).any? do |row|
+                mesh_tx_row_ready?(row: row)
+              end
+              return if ready
+              return if Time.now >= deadline
+
+              sleep 0.05
+            end
+          end
+
+          def mesh_text_chunks(opts = {})
+            return [] unless opts.is_a?(Hash)
+
+            text = opts[:text].to_s
+            max = mesh_text_payload_max
+            return [text] if mesh_payload_fits?(text: text, max: max)
+
+            n = 2
+            loop do
+              prefix = "(#{n}/#{n}) "
+              body_max = max - prefix.length
+              raise ArgumentError, "DATA_PAYLOAD_LEN #{max} cannot hold a chunk prefix" if body_max < 1
+
+              bodies = []
+              offset = 0
+              while offset < text.length
+                take = body_max
+                piece = text[offset, take].to_s
+                while !mesh_payload_fits?(text: "#{prefix}#{piece}", max: max) && take > 1
+                  take -= 1
+                  piece = text[offset, take].to_s
+                end
+                bodies << piece
+                offset += piece.length
+              end
+              if bodies.size <= n
+                total = bodies.size
+                return bodies.each_with_index.map { |body, i| "(#{i + 1}/#{total}) #{body}" }
+              end
+              n = bodies.size
+            end
+          end
+
           def mesh_send_text(opts = {})
             env = opts[:env] || {}
             obj = opts[:obj]
-            text = opts[:text]
             from = opts[:from]
             channel = opts[:channel]
             psks = opts[:psks]
@@ -550,49 +647,57 @@ module PWN
             radio = opts[:radio]
             radio = mesh_radio_index_for_name(env: env, obj: obj, name: channel_name) if radio.nil? && !channel_name.empty?
             radio = mesh_radio_channel(env: env, obj: obj) if radio.nil? && %i[serial bluetooth tcp].include?(kind)
-            case kind
-            when :serial
-              tx = { serial_obj: obj, to: dest, text: text, want_ack: true }
-              tx[:channel] = radio unless radio.nil?
-              Meshtastic::Serial.send_text(tx)
-            when :bluetooth
-              tx = { bluetooth_obj: obj, to: dest, text: text, want_ack: true }
-              tx[:channel] = radio unless radio.nil?
-              Meshtastic::Bluetooth.send_text(tx)
-            when :tcp
-              tx = { tcp_obj: obj, to: dest, text: text }
-              tx[:channel] = radio unless radio.nil?
-              Meshtastic::TCP.send_text(tx)
-            else
-              send_psks = psks
-              send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
-              Meshtastic::MQTT.send_text(
-                mqtt_obj: obj,
-                from: from,
-                to: dest,
-                region: mesh_mqtt_region(region: opts[:region], env: env),
-                topic: mesh_mqtt_topic(env: env, topic: opts[:topic]),
-                channel: channel,
-                text: text,
-                psks: send_psks
-              )
-            end
-            from_id = from.to_s
-            from_id = mesh_self_node_id(env: env, obj: obj) if from_id.empty?
-            PWN.send(:remove_const, :MeshLastTx) if PWN.const_defined?(:MeshLastTx)
-            PWN.const_set(:MeshLastTx, { from: from_id, to: dest, text: text.to_s, at: Time.now })
-            mesh_handle_rx(
-              local: true,
-              channel_name: channel_name,
-              msg: {
-                packet: {
-                  channel: radio,
-                  node_id_from: from_id,
-                  node_id_to: dest,
-                  decoded: { portnum: :TEXT_MESSAGE_APP, payload: text.to_s }
+            chunks = mesh_text_chunks(text: opts[:text])
+            chunks.each_with_index do |piece, idx|
+              since = obj.is_a?(Hash) ? Array(obj[:proto_data]).size : 0
+              case kind
+              when :serial
+                tx = { serial_obj: obj, to: dest, text: piece, want_ack: true }
+                tx[:channel] = radio unless radio.nil?
+                Meshtastic::Serial.send_text(tx)
+              when :bluetooth
+                tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true }
+                tx[:channel] = radio unless radio.nil?
+                Meshtastic::Bluetooth.send_text(tx)
+              when :tcp
+                tx = { tcp_obj: obj, to: dest, text: piece }
+                tx[:channel] = radio unless radio.nil?
+                Meshtastic::TCP.send_text(tx)
+              else
+                send_psks = psks
+                send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
+                Meshtastic::MQTT.send_text(
+                  mqtt_obj: obj,
+                  from: from,
+                  to: dest,
+                  region: mesh_mqtt_region(region: opts[:region], env: env),
+                  topic: mesh_mqtt_topic(env: env, topic: opts[:topic]),
+                  channel: channel,
+                  text: piece,
+                  psks: send_psks
+                )
+              end
+              from_id = from.to_s
+              from_id = mesh_self_node_id(env: env, obj: obj) if from_id.empty?
+              PWN.send(:remove_const, :MeshLastTx) if PWN.const_defined?(:MeshLastTx)
+              PWN.const_set(:MeshLastTx, { from: from_id, to: dest, text: piece.to_s, at: Time.now })
+              mesh_handle_rx(
+                local: true,
+                channel_name: channel_name,
+                msg: {
+                  packet: {
+                    channel: radio,
+                    node_id_from: from_id,
+                    node_id_to: dest,
+                    decoded: { portnum: :TEXT_MESSAGE_APP, payload: piece.to_s }
+                  }
                 }
-              }
-            )
+              )
+              next unless idx + 1 < chunks.size
+              next unless %i[serial bluetooth tcp].include?(kind)
+
+              mesh_wait_tx_slot(obj: obj, since: since)
+            end
           end
 
           # Close the Meshtastic session opened by #mesh_connect.
@@ -1268,8 +1373,8 @@ module PWN
                 channel: slot[:channel_num] || channel_name,
                 psks: mesh_channel_psks(env: env)
               )
-            rescue StandardError
-              nil
+            rescue StandardError => e
+              mesh_ui_puts(text: "TX failed: #{e.class}: #{e.message}")
             ensure
               PWN.send(:remove_const, :MeshDispatchLock) if PWN.const_defined?(:MeshDispatchLock)
             end
@@ -1705,7 +1810,7 @@ module PWN
 
           private :mesh_transport, :mesh_bound_transport, :mesh_box!, :mesh_mqtt_region, :mesh_mqtt_topic, :mesh_active_psks, :mesh_device_channel_meta, :mesh_device_channels
           private :mesh_radio_channel, :mesh_radio_index_for_name, :mesh_channel_name_for_index, :mesh_unassigned_slot_map, :mesh_psk_b64, :mesh_psk_same?, :mesh_env_channel_name_for_psk, :mesh_whitelist_name_for_index, :mesh_channel_name_from_topic, :mesh_link_label
-          private :mesh_connect_one, :mesh_connect, :mesh_mqtt_tls?, :mesh_subscribe, :mesh_send_text, :mesh_disconnect, :mesh_compose_send, :mesh_channel_names, :mesh_env_hash
+          private :mesh_connect_one, :mesh_connect, :mesh_mqtt_tls?, :mesh_subscribe, :mesh_text_payload_max, :mesh_payload_fits?, :mesh_text_chunks, :mesh_tx_row_ready?, :mesh_wait_tx_slot, :mesh_send_text, :mesh_disconnect, :mesh_compose_send, :mesh_channel_names, :mesh_env_hash
           private :mesh_submit, :mesh_console_loop, :mesh_drain_events, :mesh_draw_input, :mesh_wrap_text, :mesh_ui_puts, :mesh_menu_root, :mesh_list_devices
           private :mesh_start_rx!, :mesh_channel_psks, :mesh_text_app?, :mesh_rx_text, :mesh_self_node_id, :mesh_decorate_local_id, :mesh_public_psk?, :mesh_channel_securely_encrypted?
           private :mesh_ai_whitelisted?, :mesh_ai_prompt, :mesh_broadcast?, :mesh_reply_target_label, :mesh_handle_rx, :mesh_maybe_dispatch_to_pwn_ai, :mesh_refresh_ui!, :mesh_reconnect!
