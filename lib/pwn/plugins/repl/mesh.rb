@@ -88,9 +88,10 @@ module PWN
               PWN.const_set(:MeshColors, [20, 23, 21])
               PWN.const_set(:MeshLastColor, 20)
 
-              mesh_tx_rows = 5
-              mesh_header_rows = 5
-              body_height = [Curses.lines - mesh_tx_rows - mesh_header_rows, 4].max
+              layout = PWN::Plugins::REPL.send(:mesh_layout, lines: Curses.lines, cols: Curses.cols)
+              mesh_tx_rows = layout[:tx]
+              mesh_header_rows = layout[:header]
+              body_height = layout[:body]
               rx_header_win = Curses::Window.new(mesh_header_rows, Curses.cols, 0, 0)
               rx_header_win.scrollok(false)
               rx_header_win.nodelay = true
@@ -111,14 +112,18 @@ module PWN
               frame.addstr(' CONVERSATION ')
               frame.refresh
               PWN.const_set(:MeshRxFrameWin, frame)
-              rx_body_win = Curses::Window.new(body_height - 2, Curses.cols - 4, body_start_row + 1, 2)
+              rx_body_win = Curses::Window.new(
+                [body_height - 2, 1].max,
+                [Curses.cols - 4, 1].max,
+                body_start_row + (body_height > 2 ? 1 : 0),
+                Curses.cols > 4 ? 2 : 0
+              )
               rx_body_win.scrollok(true)
               rx_body_win.nodelay = true
               rx_body_win.refresh
               PWN.const_set(:MeshRxBodyWin, rx_body_win)
 
-              tx_height = mesh_header_rows + body_height
-              tx_win = Curses::Window.new(mesh_tx_rows, Curses.cols, tx_height, 0)
+              tx_win = Curses::Window.new(mesh_tx_rows, Curses.cols, layout[:tx_top], 0)
               tx_win.scrollok(false)
               tx_win.nodelay = true
               PWN::Plugins::REPL.send(:mesh_box!, win: tx_win)
@@ -163,6 +168,41 @@ module PWN
 
             t = mesh_transport(env: env)
             t == :auto ? PWN_MESH_TRANSPORTS.first : t
+          end
+
+          # Row counts for header, CONVERSATION, and COMPOSE so the TUI fits the terminal.
+          def mesh_layout(opts = {})
+            lines = opts[:lines]
+            cols = opts[:cols]
+            lines = lines.nil? ? Curses.lines : Integer(lines)
+            cols = cols.nil? ? Curses.cols : Integer(cols)
+            lines = 1 if lines < 1
+            cols = 1 if cols < 1
+            header = 5
+            tx = 5
+            min_header = 3
+            min_tx = 3
+            min_body = 3
+            body = lines - header - tx
+            while body < min_body && header > min_header
+              header -= 1
+              body = lines - header - tx
+            end
+            while body < min_body && tx > min_tx
+              tx -= 1
+              body = lines - header - tx
+            end
+            body = [body, 1].max
+            overflow = header + body + tx - lines
+            body -= overflow if overflow.positive? && body > 1
+            body = 1 if body < 1
+            {
+              header: header,
+              body: body,
+              tx: tx,
+              cols: cols,
+              tx_top: header + body
+            }
           end
 
           # Explicit Unicode avoids ACS falling back to ASCII on some terminals.
@@ -1808,7 +1848,7 @@ module PWN
             false
           end
 
-          private :mesh_transport, :mesh_bound_transport, :mesh_box!, :mesh_mqtt_region, :mesh_mqtt_topic, :mesh_active_psks, :mesh_device_channel_meta, :mesh_device_channels
+          private :mesh_transport, :mesh_bound_transport, :mesh_layout, :mesh_box!, :mesh_mqtt_region, :mesh_mqtt_topic, :mesh_active_psks, :mesh_device_channel_meta, :mesh_device_channels
           private :mesh_radio_channel, :mesh_radio_index_for_name, :mesh_channel_name_for_index, :mesh_unassigned_slot_map, :mesh_psk_b64, :mesh_psk_same?, :mesh_env_channel_name_for_psk, :mesh_whitelist_name_for_index, :mesh_channel_name_from_topic, :mesh_link_label
           private :mesh_connect_one, :mesh_connect, :mesh_mqtt_tls?, :mesh_subscribe, :mesh_text_payload_max, :mesh_payload_fits?, :mesh_text_chunks, :mesh_tx_row_ready?, :mesh_wait_tx_slot, :mesh_send_text, :mesh_disconnect, :mesh_compose_send, :mesh_channel_names, :mesh_env_hash
           private :mesh_submit, :mesh_console_loop, :mesh_drain_events, :mesh_draw_input, :mesh_wrap_text, :mesh_ui_puts, :mesh_menu_root, :mesh_list_devices
