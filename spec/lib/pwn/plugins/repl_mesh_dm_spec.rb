@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'meshtastic'
 
 describe PWN::Plugins::REPL, 'mesh msg command' do
   let(:mesh_env) do
@@ -49,6 +50,22 @@ describe PWN::Plugins::REPL, 'mesh msg command' do
     expect(described_class).to have_received(:mesh_send_text).with(hash_including(to: '!deadbeef', text: 'hello'))
     expect(described_class.pwn_mesh_complete(target: '/', line: '/')).to include('/msg')
     expect(described_class.pwn_mesh_complete(target: '/', line: '/')).not_to include('/dm')
+  end
+
+  it 'encodes a named MQTT channel message before receiving anything' do
+    broker = double('broker', client_id: '!00000b0b')
+    PWN.send(:remove_const, :MeshObj)
+    PWN.const_set(:MeshObj, broker)
+    envelope = nil
+    allow(broker).to receive(:publish) do |_topic, bytes|
+      envelope = Meshtastic::ServiceEnvelope.decode(bytes)
+    end
+
+    described_class.send(:pwn_mesh_run_msg, env: mesh_env, args: %w[LongFast hello])
+
+    expect(envelope.packet.to).to eq(0xffffffff)
+    expect(envelope.packet.channel).to eq(8)
+    expect(envelope.channel_id).to eq('LongFast')
   end
 
   it 'addresses a named channel with /msg <channel> text' do

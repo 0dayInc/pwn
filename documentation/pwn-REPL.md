@@ -54,6 +54,33 @@ Typed at the mesh TX prompt (leading `/`). `/` or `/menu` opens a boxed curses m
 
 Typing `/` shows matching commands in the TX pane (ncurses hides Reline's dropdown). TAB still completes `/…` commands, channel names, transports, and device ids.
 
+In COMPOSE, Up recalls older submitted lines and Down recalls newer ones.
+Moving past the newest entry restores the draft and cursor position from before
+history browsing. Recalled lines can be edited without changing saved entries.
+History includes messages and slash commands, skips blank lines and consecutive
+duplicates, and keeps the latest 100 entries in memory for the current pwn-mesh
+session only; it is not written to disk.
+
+### Encrypted DMs and key discovery
+
+On serial, Bluetooth, or TCP, a DM checks the destination's public key in the
+connected radio's NodeInfo records. If missing, pwn-mesh sends its own public
+NodeInfo to that destination with a response requested and waits up to 15 seconds.
+Only after obtaining the destination key does it submit the text with PKI
+encryption explicitly required. Both radios must be reachable over the selected
+channel; this does not verify a peer's identity outside Meshtastic's key exchange.
+
+Discovery failure sends no DM text. The most recent failed attempt is retained
+in session memory; bare `/msg` retries it using the current connection and active
+channel. A new DM replaces that retained attempt, and exiting the process loses
+it. Retention ends after transport submission, not a delivery acknowledgement;
+later radio failures are displayed separately. There is no plaintext or
+channel-PSK downgrade. Missing local public-key metadata requires a reconnect.
+
+MQTT channel broadcasts remain supported, but PKI DMs are not implemented for
+the broker transport. MQTT DM attempts remain unsent with an explicit error;
+switch to serial, Bluetooth, or TCP and use `/msg` to retry.
+
 ## Multi-line input
 
 `pwn-ai` and `pwn-asm` use a custom `PWNMultiLineInput` reader. Plain

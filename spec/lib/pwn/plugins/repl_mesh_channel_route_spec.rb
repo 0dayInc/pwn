@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'meshtastic'
 
 describe PWN::Plugins::REPL, 'mesh packet channel routing' do
   let(:mesh_env) do
@@ -40,6 +41,18 @@ describe PWN::Plugins::REPL, 'mesh packet channel routing' do
     %i[MeshDispatchLock MeshObj MeshTransport MeshLastDm MeshRxBodyWin MeshMutex MeshRxState].each do |c|
       PWN.send(:remove_const, c) if PWN.const_defined?(c)
     end
+  end
+
+  it 'does not route LongFast to disabled protobuf slots with omitted roles' do
+    mesh_env[:channel][:LongFast].delete(:radio_index)
+    radio[:proto_data] = [
+      Meshtastic::FromRadio.new(channel: Meshtastic::Channel.new(index: 1, role: :SECONDARY, settings: { name: 'LongFast' })).to_h,
+      Meshtastic::FromRadio.new(channel: Meshtastic::Channel.new(index: 7, role: :DISABLED)).to_h
+    ]
+    expect(described_class.send(:mesh_radio_index_for_name, env: mesh_env, obj: radio, name: 'LongFast')).to eq(1)
+    expect(described_class.send(:mesh_device_channel_meta, obj: radio).keys).to eq([1])
+    radio[:proto_data] << Meshtastic::FromRadio.new(channel: Meshtastic::Channel.new(index: 1, role: :DISABLED)).to_h
+    expect(described_class.send(:mesh_device_channel_meta, obj: radio)).to be_empty
   end
 
   it 'paints and replies on the packet radio slot instead of the selected channel' do

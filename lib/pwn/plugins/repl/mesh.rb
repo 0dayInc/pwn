@@ -270,10 +270,14 @@ module PWN
               next unless ch.is_a?(Hash)
 
               role = (ch[:role] || ch['role']).to_s.downcase
-              next if %w[disabled 0].include?(role)
-
               idx = (ch[:index] || ch['index'] || 0).to_i
               next unless (0..7).cover?(idx)
+
+              # Protobuf omits the default DISABLED role from to_h.
+              if role.empty? || %w[disabled 0].include?(role)
+                by_index.delete(idx)
+                next
+              end
 
               settings = ch[:settings] || ch['settings'] || {}
               settings = settings.to_h if !settings.is_a?(Hash) && settings.respond_to?(:to_h)
@@ -674,6 +678,65 @@ module PWN
             end
           end
 
+          def mesh_node_user(opts = {})
+            obj = opts[:obj]
+            return unless obj.is_a?(Hash)
+
+            rows = obj[:rx_mutex] ? obj[:rx_mutex].synchronize { Array(obj[:proto_data]).dup } : Array(obj[:proto_data]).dup
+            user = nil
+            rows.each do |row|
+              next unless row.is_a?(Hash)
+
+              info = row[:node_info] || row[:nodeInfo]
+              user = info[:user] if info.is_a?(Hash) && info[:num] == opts[:num]
+              packet = row[:packet]
+              next unless packet.is_a?(Hash) && packet[:from] == opts[:num]
+
+              data = packet[:decoded]
+              next unless data.is_a?(Hash) && %w[4 NODEINFO_APP].include?(data[:portnum].to_s)
+
+              payload = data[:payload]
+              user = payload.is_a?(String) ? Meshtastic::User.decode(payload).to_h : payload
+            end
+            user if user.is_a?(Hash)
+          end
+
+          def mesh_dm_key(opts = {})
+            kind = opts[:kind]
+            raise IOError, 'MQTT PKI DMs are unsupported; message remains unsent. Use a device transport.' if kind == :mqtt
+
+            obj = opts[:obj]
+            raise IOError, 'No connected radio; message remains unsent.' unless obj.is_a?(Hash)
+
+            num = opts[:to].delete_prefix('!').to_i(16)
+            user = mesh_node_user(obj: obj, num: num)
+            return user[:public_key] if user && user[:public_key].to_s.bytesize == 32
+
+            own = mesh_node_user(obj: obj, num: obj[:my_node_num])
+            raise IOError, 'Local radio public key unavailable; reconnect to refresh NodeInfo. Message remains unsent.' unless own && own[:public_key].to_s.bytesize == 32
+
+            timeout = Float(opts.fetch(:timeout, 15))
+            raise ArgumentError, 'key timeout must be between 0 and 60 seconds' unless timeout.finite? && (0..60).cover?(timeout)
+
+            mesh_ui_puts(text: "Discovering public key for #{opts[:to]} (up to #{timeout}s); DM text is held locally.")
+            data = Meshtastic::Data.new(portnum: :NODEINFO_APP, payload: Meshtastic::User.new(own).to_proto, want_response: true)
+            transport = { serial: Meshtastic::Serial, bluetooth: Meshtastic::Bluetooth, tcp: Meshtastic::TCP }.fetch(kind)
+            transport.send_data({ "#{kind}_obj": obj, to: opts[:to], channel: opts[:radio] || 0,
+                                  data: data, port_num: Meshtastic::PortNum::NODEINFO_APP, want_ack: true })
+            deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+            loop do
+              user = mesh_node_user(obj: obj, num: num)
+              return user[:public_key] if user && user[:public_key].to_s.bytesize == 32
+
+              break if obj[:closing] || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+              sleep 0.05
+            end
+            raise IOError, 'Destination public key discovery timed out; message remains unsent. Retry with /msg.'
+          end
+
+          private :mesh_node_user, :mesh_dm_key
+
           def mesh_send_text(opts = {})
             env = opts[:env] || {}
             obj = opts[:obj]
@@ -687,38 +750,56 @@ module PWN
             radio = opts[:radio]
             radio = mesh_radio_index_for_name(env: env, obj: obj, name: channel_name) if radio.nil? && !channel_name.empty?
             radio = mesh_radio_channel(env: env, obj: obj) if radio.nil? && %i[serial bluetooth tcp].include?(kind)
+            dm_key = nil
+            unless mesh_broadcast?(to: dest)
+              raise ArgumentError, 'DM destination must be ! followed by eight hex digits' unless dest.match?(/\A![0-9a-fA-F]{8}\z/)
+
+              PWN.send(:remove_const, :MeshPendingDm) if PWN.const_defined?(:MeshPendingDm)
+              PWN.const_set(:MeshPendingDm, { to: dest, text: opts[:text].to_s, channel_name: channel_name })
+              dm_key = mesh_dm_key(obj: obj, kind: kind, to: dest, radio: radio, timeout: opts.fetch(:key_timeout, 15))
+            end
             chunks = mesh_text_chunks(text: opts[:text])
             chunks.each_with_index do |piece, idx|
               since = obj.is_a?(Hash) ? Array(obj[:proto_data]).size : 0
-              case kind
-              when :serial
-                tx = { serial_obj: obj, to: dest, text: piece, want_ack: true }
-                tx[:channel] = radio unless radio.nil?
-                Meshtastic::Serial.send_text(tx)
-              when :bluetooth
-                tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true }
-                tx[:channel] = radio unless radio.nil?
-                Meshtastic::Bluetooth.send_text(tx)
-              when :tcp
-                tx = { tcp_obj: obj, to: dest, text: piece }
-                tx[:channel] = radio unless radio.nil?
-                Meshtastic::TCP.send_text(tx)
+              if dm_key
+                bytes = Meshtastic::MeshInterface.new.send_text(from: obj[:my_node_num] || 0, to: dest, channel: radio || 0, text: piece, want_ack: true, psks: nil)
+                packet = Meshtastic::ToRadio.decode(bytes)
+                packet.packet.pki_encrypted = true
+                packet.packet.public_key = dm_key
+                transport = { serial: Meshtastic::Serial, bluetooth: Meshtastic::Bluetooth, tcp: Meshtastic::TCP }.fetch(kind)
+                transport.send_to_radio({ "#{kind}_obj": obj, to_radio: packet.to_proto })
               else
-                send_psks = psks
-                send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
-                Meshtastic::MQTT.send_text(
-                  mqtt_obj: obj,
-                  from: from,
-                  to: dest,
-                  region: mesh_mqtt_region(region: opts[:region], env: env),
-                  topic: mesh_mqtt_topic(env: env, topic: opts[:topic]),
-                  channel: channel,
-                  text: piece,
-                  psks: send_psks
-                )
+                case kind
+                when :serial
+                  tx = { serial_obj: obj, to: dest, text: piece, want_ack: true }
+                  tx[:channel] = radio unless radio.nil?
+                  Meshtastic::Serial.send_text(tx)
+                when :bluetooth
+                  tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true }
+                  tx[:channel] = radio unless radio.nil?
+                  Meshtastic::Bluetooth.send_text(tx)
+                when :tcp
+                  tx = { tcp_obj: obj, to: dest, text: piece }
+                  tx[:channel] = radio unless radio.nil?
+                  Meshtastic::TCP.send_text(tx)
+                else
+                  send_psks = psks
+                  send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
+                  Meshtastic::MQTT.send_text(
+                    mqtt_obj: obj,
+                    from: from,
+                    to: dest,
+                    region: mesh_mqtt_region(region: opts[:region], env: env),
+                    topic: mesh_mqtt_topic(env: env, topic: opts[:topic]),
+                    channel: channel,
+                    text: piece,
+                    psks: send_psks
+                  )
+                end
               end
               from_id = from.to_s
               from_id = mesh_self_node_id(env: env, obj: obj) if from_id.empty?
+              from_id = mesh_format_node_id(id: from_id)
               PWN.send(:remove_const, :MeshLastTx) if PWN.const_defined?(:MeshLastTx)
               PWN.const_set(:MeshLastTx, { from: from_id, to: dest, text: piece.to_s, at: Time.now })
               mesh_handle_rx(
@@ -727,6 +808,7 @@ module PWN
                 msg: {
                   packet: {
                     channel: radio,
+                    pki_encrypted: !dm_key.nil?,
                     node_id_from: from_id,
                     node_id_to: dest,
                     decoded: { portnum: :TEXT_MESSAGE_APP, payload: piece.to_s }
@@ -738,6 +820,10 @@ module PWN
 
               mesh_wait_tx_slot(obj: obj, since: since)
             end
+            return unless dm_key && PWN.const_defined?(:MeshPendingDm)
+
+            PWN.send(:remove_const, :MeshPendingDm)
+            PWN.const_set(:MeshPendingDm, nil)
           end
 
           # Close the Meshtastic session opened by #mesh_connect.
@@ -830,6 +916,10 @@ module PWN
             end
             text = +''
             cursor = 0
+            history = []
+            history_index = 0
+            draft = +''
+            draft_cursor = 0
             while pi.config.pwn_mesh
               mesh_drain_events
               mesh_draw_input(text: text, cursor: cursor)
@@ -839,10 +929,33 @@ module PWN
                 break if text.empty?
               when "\n", "\r", 10, 13, Curses::KEY_ENTER
                 submitted = text.dup
+                unless submitted.strip.empty? || history.last == submitted
+                  history << submitted.dup
+                  history.shift if history.length > 100
+                end
+                history_index = history.length
+                draft = +''
+                draft_cursor = 0
                 text.clear
                 cursor = 0
                 mesh_draw_input(text: text, cursor: cursor)
                 mesh_submit(request: submitted, pry: pi)
+              when Curses::KEY_UP
+                next if history.empty? || history_index.zero?
+
+                if history_index == history.length
+                  draft = text.dup
+                  draft_cursor = cursor
+                end
+                history_index -= 1
+                text = history[history_index].dup
+                cursor = text.length
+              when Curses::KEY_DOWN
+                next if history_index >= history.length
+
+                history_index += 1
+                text = history_index == history.length ? draft.dup : history[history_index].dup
+                cursor = history_index == history.length ? draft_cursor : text.length
               when "\u007f", "\b", 127, 8, Curses::KEY_BACKSPACE
                 if cursor.positive?
                   cursor -= 1
@@ -918,7 +1031,7 @@ module PWN
               end
             end
             win.setpos(3, 2)
-            win.addstr('Enter send   Tab complete   /menu settings   Ctrl+D back'[0, win.maxx - 4])
+            win.addstr('Enter send   Up/Down history   Tab complete   /menu settings   Ctrl+D back'[0, win.maxx - 4])
             win.refresh
           end
 
@@ -1199,12 +1312,24 @@ module PWN
             ''
           end
 
+          def mesh_format_node_id(opts = {})
+            id = opts[:id]
+            return format('!%08x', id) if id.is_a?(Integer) && (0..0xffffffff).cover?(id)
+
+            text = id.to_s
+            return text unless text.match?(/\A![0-9a-fA-F]{1,8}\z/)
+
+            format('!%08x', text.delete_prefix('!').to_i(16))
+          end
+
+          private :mesh_format_node_id
+
           def mesh_self_node_id(opts = {})
             return '!00000b0b' unless opts.is_a?(Hash)
 
             obj = opts[:obj]
             obj = PWN.const_get(:MeshObj) if obj.nil? && PWN.const_defined?(:MeshObj)
-            return "!#{obj[:my_node_num].to_i.to_s(16)}" if obj.is_a?(Hash) && !obj[:my_node_num].nil?
+            return mesh_format_node_id(id: obj[:my_node_num].to_i) if obj.is_a?(Hash) && !obj[:my_node_num].nil?
 
             '!00000b0b'
           end
@@ -1212,7 +1337,7 @@ module PWN
           def mesh_decorate_local_id(opts = {})
             return '' unless opts.is_a?(Hash)
 
-            id = opts[:id].to_s
+            id = mesh_format_node_id(id: opts[:id])
             return id if id.empty?
 
             self_id = mesh_self_node_id(env: opts[:env], obj: opts[:obj])
@@ -1225,7 +1350,7 @@ module PWN
             return true unless opts.is_a?(Hash)
 
             psk = opts[:psk].to_s.strip
-            psk.empty? || %w[none default aq==].include?(psk.downcase)
+            psk.empty? || %w[none default aq==].include?(psk.downcase) || psk == '1PG7OiApB1nwvP+rz05pAQ=='
           end
 
           def mesh_channel_securely_encrypted?(opts = {})
@@ -1281,7 +1406,17 @@ module PWN
 
             packet = msg[:packet].is_a?(Hash) ? msg[:packet] : msg
             decoded = packet[:decoded]
-            return unless decoded.is_a?(Hash) && mesh_text_app?(portnum: decoded[:portnum])
+            return unless decoded.is_a?(Hash)
+
+            if %w[5 ROUTING_APP].include?(decoded[:portnum].to_s)
+              routing = decoded[:payload]
+              routing = Meshtastic::Routing.decode(routing).to_h if routing.is_a?(String)
+              reason = routing[:error_reason] if routing.is_a?(Hash)
+              reason = Meshtastic::Routing::Error.lookup(reason) || reason if reason.is_a?(Integer)
+              mesh_ui_puts(text: "TX failed: packet #{decoded[:request_id]}: #{reason}") if reason && !%w[0 NONE].include?(reason.to_s)
+              return
+            end
+            return unless mesh_text_app?(portnum: decoded[:portnum])
 
             env = mesh_env_hash
             idx = packet[:channel] || packet['channel']
@@ -1300,9 +1435,11 @@ module PWN
             return if rx_text.strip.empty?
 
             from_id = packet[:node_id_from].to_s
-            from_id = "!#{packet[:from].to_i.to_s(16)}" if from_id.empty? && packet[:from]
+            from_id = packet[:from] if from_id.empty? && packet[:from]
+            from_id = mesh_format_node_id(id: from_id)
             to = packet[:node_id_to].to_s
-            to = "!#{packet[:to].to_i.to_s(16)}" if to.empty? && packet[:to]
+            to = packet[:to] if to.empty? && packet[:to]
+            to = mesh_format_node_id(id: to)
             unless opts[:local]
               last = PWN.const_defined?(:MeshLastTx) ? PWN.const_get(:MeshLastTx) : nil
               if last.is_a?(Hash) &&
@@ -1332,13 +1469,15 @@ module PWN
               state = PWN.const_defined?(:MeshRxState) ? PWN.const_get(:MeshRxState) : {}
               ts = Time.now.strftime('%H:%M:%S')
               color = opts[:local] ? 23 : 21
-              current_line = "#{ts}  #{from.strip}  #{dest_label}\n#{rx_text}"
+              secure = packet[:pki_encrypted] == true || mesh_channel_securely_encrypted?(env: env, channel: channel_name)
+              security_icon = secure ? '🔒' : '🔍'
+              current_line = "#{ts}  #{security_icon}  #{from.strip}  #{dest_label}\n#{rx_text}"
               unless state[:last_line] == current_line
                 rx_body_win = PWN.const_get(:MeshRxBodyWin)
                 mutex.synchronize do
                   width = [rx_body_win.maxx - 2, 1].max
                   rx_body_win.attron(Curses.color_pair(color) | Curses::A_BOLD)
-                  rx_body_win.addstr(" #{ts}  #{from.strip}  ·  #{dest_label}\n")
+                  rx_body_win.addstr(" #{ts}  #{security_icon}  #{from.strip}  ·  #{dest_label}\n")
                   rx_body_win.attroff(Curses.color_pair(color) | Curses::A_BOLD)
                   rx_body_win.attron(Curses.color_pair(24))
                   mesh_wrap_text(text: rx_text, width: width - 1).each do |line|
@@ -1669,11 +1808,16 @@ module PWN
           def pwn_mesh_run_msg(opts = {})
             env = opts[:env] || mesh_env_hash
             tokens = Array(opts[:args]).map(&:to_s)
+            if tokens.empty? && PWN.const_defined?(:MeshPendingDm) && PWN::MeshPendingDm
+              pending = PWN::MeshPendingDm
+              tokens = [pending[:to], pending[:text]]
+            end
             names = mesh_channel_names(env: env)
             dest = nil
             channel_name = ''
             if tokens[0].to_s.match?(/\A![0-9a-fA-F]{8}\z/)
               dest = tokens.shift
+              channel_name = env.dig(:channel, :active).to_s
             elsif names.any? { |n| n.casecmp?(tokens[0].to_s) }
               channel_name = names.find { |n| n.casecmp?(tokens[0].to_s) }.to_s
               tokens.shift
@@ -1688,6 +1832,7 @@ module PWN
             raise ArgumentError, 'usage: /msg [!nodeid|channel] <text>' if dest.to_s.empty? || text.empty?
 
             channel_name = PWN.const_get(:MeshLastChannel).to_s if channel_name.empty? && PWN.const_defined?(:MeshLastChannel)
+            channel_name = env.dig(:channel, :active).to_s if channel_name.empty?
             ch = env[:channel] || {}
             slot = ch[channel_name.to_sym] || ch[channel_name] || {}
             obj = PWN.const_defined?(:MeshObj) ? PWN.const_get(:MeshObj) : nil
