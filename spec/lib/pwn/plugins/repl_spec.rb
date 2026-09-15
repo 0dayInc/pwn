@@ -497,7 +497,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
 
     it 'uses the named device channel index instead of forcing slot zero' do
       require 'meshtastic'
-      obj = { proto_data: [{ channel: { index: 3, settings: { name: 'LongFast' } } }] }
+      obj = { proto_data: [{ channel: { index: 3, role: :SECONDARY, settings: { name: 'LongFast' } } }] }
       env = { transport: 'serial', channel: { active: 'LongFast', LongFast: { channel_num: 99 } } }
       expect(Meshtastic::Serial).to receive(:send_text).with(hash_including(channel: 3))
       described_class.send(:mesh_send_text, env: env, obj: obj, channel: 99, text: 'slot three')
@@ -507,8 +507,8 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       require 'meshtastic'
       obj = {
         proto_data: [
-          { channel: { index: 0, settings: { name: '' } } },
-          { channel: { index: 2, settings: { name: 'LongFast' } } }
+          { channel: { index: 0, role: :PRIMARY, settings: { name: '' } } },
+          { channel: { index: 2, role: :SECONDARY, settings: { name: 'LongFast' } } }
         ]
       }
       env = {
