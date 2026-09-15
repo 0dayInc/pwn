@@ -8,10 +8,16 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       described_class,
       described_class::ASM,
       described_class::AI,
-      described_class::IRC,
       described_class::Mesh,
       described_class::Vault
     ].map { |mod| File.read(mod.method(:add_commands).source_location.first) }.uniq.join("\n")
+  end
+
+  it 'does not register pwn-irc or define REPL::IRC' do
+    described_class.add_commands
+    expect(Pry::Commands.find_command('pwn-irc')).to be_nil
+    expect(defined?(PWN::Plugins::REPL::IRC)).to be_nil
+    expect(PWN::Plugins::IRC).to be_a(Module)
   end
 
   describe 'ai.memory pinned engagement block' do

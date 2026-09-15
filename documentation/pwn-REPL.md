@@ -26,7 +26,6 @@ commands.
 | `pwn-ai-sessions` | `PWN::Sessions` | List/view/delete transcripts |
 | `pwn-ai-cron` | `PWN::Cron` | List/run/toggle scheduled jobs |
 | `pwn-ai-delegate` | `Agent::Swarm` | Send one request to a persona |
-| `pwn-irc` | *(deprecated)* | Prints a pointer to `Agent::Swarm` - the IRC daemon transport is gone |
 | `toggle-debug` | `Agent::Loop` / `Plugins::Log` | Stage log per operator request to `/tmp/pwn-ai-DEBUG-<SESSION_ID>-RN.log` |
 | `toggle-trace` | `Agent::Loop` / `Plugins::Log` | Turns `toggle-debug` on with TracePoint; ENTER after each engine/tool step. Pry.config, not Env. Off turns both off. |
 | `toggle-pwn-ai-speaks` | `Plugins::Voice` | TTS every final answer on/off |

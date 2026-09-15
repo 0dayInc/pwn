@@ -254,10 +254,10 @@ module PWN
               unmet << { criterion: 'artifact_missing', detail: path }
               next
             end
-            unmet << { criterion: 'empty_artifact', detail: path } if File.size(path) <= 0
+            unmet << { criterion: 'empty_artifact', detail: path } if File.size(path) < 2
             unmet << { criterion: 'write_missing', detail: path } unless row && row[:write]
             unmet << { criterion: 'readback_missing', detail: path } unless row && row[:read]
-            unmet << { criterion: 'artifact_mtime_before_session', detail: path } if t0 && File.mtime(path) < t0 && !(row && row[:write])
+            unmet << { criterion: 'artifact_mtime_before_session', detail: path } if t0 && File.mtime(path) < t0
           end
           {
             complete: unmet.empty? && (!paths.empty? || ledger.any?),

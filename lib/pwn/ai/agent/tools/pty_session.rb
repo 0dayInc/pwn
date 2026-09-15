@@ -90,6 +90,8 @@ PWN::AI::Agent::Registry.register(
         timeout: { type: 'integer' },
         data: { type: 'string' },
         line: { type: 'string' },
+        bytes: { type: 'string' },
+        strip_ansi: { type: 'boolean' },
         offset: { type: 'integer' }
       },
       required: %w[op]
@@ -102,9 +104,13 @@ PWN::AI::Agent::Registry.register(
     when 'spawn'
       PWN::Plugins::ProcessTube.spawn(cmd: args[:cmd] || args[:command] || args['cmd'])
     when 'expect'
-      PWN::Plugins::ProcessTube.expect(id: id, until: args[:pattern] || args[:until] || args['pattern'], timeout: args[:timeout])
+      pat = args[:pattern] || args[:until] || args['pattern']
+      pat = Regexp.new(pat) if args[:regex] == true || args['regex'] == true
+      PWN::Plugins::ProcessTube.expect(id: id, pattern: pat, timeout: args[:timeout], strip_ansi: args[:strip_ansi] || args['strip_ansi'])
     when 'send'
       PWN::Plugins::ProcessTube.write_line(id: id, line: args[:data] || args[:line] || args['data'])
+    when 'send_raw'
+      PWN::Plugins::ProcessTube.send_raw(id: id, bytes: args[:bytes] || args[:data] || args['bytes'])
     when 'stream'
       PWN::Plugins::ProcessTube.stream(id: id, offset: args[:offset])
     when 'close'

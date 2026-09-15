@@ -25,7 +25,7 @@ module PWN
         # Token-level junk the model keeps emitting instead of a real command.
         PLACEHOLDER_RX = /
           \A\s*(?:\.{3}|…|\{\s*\.{3}\s*\}|\{\s*…\s*\}|<\.{3}>)\s*\z
-          |\{\s*(?:\.{3}|…)\s*\}
+          |(?:\A|\n)\s*(?:\.{3}|…)\s*(?:\z|\n)
         /x
 
         # Conservative bash-only constructs. POSIX `$(())` is allowed.
@@ -59,9 +59,15 @@ module PWN
         end
 
         public_class_method def self.placeholder?(opts = {})
-          s = opts[:text].to_s.dup
+          return false if opts[:placeholder_ok] == true
+
+          raw = opts[:text].to_s.dup
+          s = raw.dup
           s.gsub!(/<<[-~]?\s*(['"])(\w+)\1.*?^\2\s*$/m, ' ')
           s.gsub!(/<<[-~]?\s*(\w+).*?^\1\s*$/m, ' ')
+          return true if s.lines.any? { |ln| ln.match?(/^\s*(?:\.{3}|…)\s*$/) }
+          return true if s.strip.match?(/\A\[\s*(?:\.{3}|…)\s*\]\z/)
+
           s.gsub!(/'[^']*'/, "''")
           s.gsub!(/"([^"\\]|\\.)*"/, '""')
           PLACEHOLDER_RX.match?(s)
@@ -622,9 +628,10 @@ module PWN
               value: 'required - integer or string to pack/encode'
             )
 
-            # Run placeholder and return its result
+            # Detect isolated ellipsis placeholders, not inline ranges or prose.
             #{self}.placeholder?(
-              text: 'optional - text value consumed by #placeholder?'
+              text: 'optional - command or payload text to inspect',
+              placeholder_ok: 'optional - true skips denial when the operator opts in'
             )
 
             # Run bashism and return its result

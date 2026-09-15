@@ -16,7 +16,6 @@ module PWN
     module REPL
       autoload :ASM, 'pwn/plugins/repl/asm'
       autoload :AI, 'pwn/plugins/repl/ai'
-      autoload :IRC, 'pwn/plugins/repl/irc'
       autoload :Mesh, 'pwn/plugins/repl/mesh'
       autoload :Vault, 'pwn/plugins/repl/vault'
 
@@ -442,7 +441,6 @@ module PWN
 
         PWN::Plugins::REPL::ASM.add_commands
         PWN::Plugins::REPL::AI.add_commands
-        PWN::Plugins::REPL::IRC.add_commands
         PWN::Plugins::REPL::Mesh.add_commands
         PWN::Plugins::REPL::Vault.add_commands
 
@@ -1221,6 +1219,5 @@ end
 
 require_relative 'repl/asm'
 require_relative 'repl/ai'
-require_relative 'repl/irc'
 require_relative 'repl/mesh'
 require_relative 'repl/vault'

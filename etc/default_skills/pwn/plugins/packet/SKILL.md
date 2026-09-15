@@ -47,6 +47,7 @@ PWN::Plugins::Packet.open_pcap_file(opts)
 - `tcp_connect_scan`
 - `cap_net_raw`
 - `capture`
+- `health`
 - `authors`
 - `help`
 - `cap_net_raw?`

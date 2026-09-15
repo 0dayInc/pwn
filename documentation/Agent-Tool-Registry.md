@@ -6,13 +6,13 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 
 ![Tool registry](diagrams/agent-tool-registry.svg)
 
-## Toolsets to tools  (13 toolsets · 87 tools)
+## Toolsets to tools  (13 toolsets · 88 tools)
 
 | Toolset | Tools | Backed by |
 |---|---|---|
 | `http` | `http_proxy_start` · `http_proxy_stop` · `http_proxy_entries` · `http_proxy_rules` · `http_replay` | `PWN::Plugins::MitmProxy`: native HTTP HAR capture/replay; opaque CONNECT tunnels |
 | `terminal` | `shell` | `Open3.capture3` on the host, after `PWN::AI::Agent::ToolGuard` |
-| `pwn` | `pwn_eval` | `TOPLEVEL_BINDING.eval` in the live REPL process, after `ToolGuard` |
+| `pwn` | `pwn_eval` · `sbom_scan` | `TOPLEVEL_BINDING.eval` in the live REPL process, after `ToolGuard`; SBOM engines via `PWN::Plugins::SBOM` |
 | `mcp` | `mcp` | `PWN::AI::MCP` session broker → any `PWN::AI::MCP::*` stdio client |
 | `memory` | `memory_remember` · `memory_recall` · `memory_forget` · `memory_clear` · **`memory_lean`** | `PWN::Memory` → `~/.pwn/memory.json` |
 | `skills` | `skills_consolidate` · **`skills_recall`** · `skill_list` · `skill_view` · `skill_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
@@ -70,7 +70,7 @@ PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
 PWN::AI::Agent::Registry.preference_order                     # Env / DEFAULT_PREFERENCE
 PWN::AI::Agent::Registry.toolsets                              # -> the 13 names above
-PWN::AI::Agent::Registry.all.count                             # -> 87
+PWN::AI::Agent::Registry.all.count                             # -> 88
 ```
 
 Frontier engines leave `tool_router` off (unless you set it) and receive the

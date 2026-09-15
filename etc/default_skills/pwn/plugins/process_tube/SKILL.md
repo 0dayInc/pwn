@@ -41,6 +41,8 @@ PWN::Plugins::ProcessTube.required_bins(opts)
 - `recvuntil`
 - `recvline`
 - `close`
+- `send_raw`
+- `register`
 - `expect`
 - `stream`
 - `reap_orphans`

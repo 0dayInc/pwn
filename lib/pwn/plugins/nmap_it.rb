@@ -3,6 +3,8 @@
 require 'nmap/command'
 require 'nmap/xml'
 require 'open3'
+require 'securerandom'
+require 'tmpdir'
 
 module PWN
   module Plugins
@@ -124,12 +126,15 @@ module PWN
         parse_xml_results(xml_file: xml_file) do |xml|
           xml.each_host do |host|
             host.each_port do |port|
+              scripts = {}
+              port.scripts.each { |name, output| scripts[name.to_s] = output.to_s } if port.respond_to?(:scripts) && port.scripts
               rows << {
                 host: host.ip.to_s,
                 port: port.number,
                 proto: port.protocol.to_s,
                 service: (port.service.name if port.respond_to?(:service) && port.service),
                 version: (port.service.version if port.respond_to?(:service) && port.service.respond_to?(:version)),
+                scripts: scripts,
                 template_id: nil,
                 severity: 'info'
               }
@@ -137,6 +142,22 @@ module PWN
           end
         end
         rows
+      end
+
+      public_class_method def self.scan(opts = {})
+        targets = opts[:targets] || opts[:target]
+        check = PWN::Engagement.warn_unless_in_scope(host: Array(targets).first, override: opts[:override]) if defined?(PWN::Engagement) && opts[:engagement] != false
+        return check.merge(scanned: false) if check.is_a?(Hash) && check[:ok] == false
+
+        xml = (opts[:xml_file] || opts[:xml]).to_s
+        if xml.empty? || opts[:run] == true
+          xml = File.join(Dir.tmpdir, "pwn-nmap-#{Process.pid}-#{SecureRandom.hex(4)}.xml") if xml.empty?
+          port_scan(opts.merge(xml: xml, targets: targets))
+        end
+        rows = to_findings(xml_file: xml)
+        PWN::Engagement.merge_scan(results: rows, override: opts[:override], engagement: opts[:engagement] || opts[:name]) if defined?(PWN::Engagement) && opts[:engagement] != false
+        grouped = rows.group_by { |row| row[:host] }.map { |host, ports| { host: host, ports: ports, services: ports.map { |p| p[:service] }.compact } }
+        { hosts: grouped, ports: rows, xml: xml }
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -176,6 +197,17 @@ module PWN
           # Normalize nmap XML into {host, port, proto, service, version} rows.
           #{self}.to_findings(
             xml_file: 'required - path to nmap XML output'
+          )
+
+          # Parse nmap XML into enumerable host/port hashes and merge engagement state.
+          #{self}.scan(
+            xml_file: 'optional - existing nmap XML path',
+            xml: 'optional - alias for xml_file',
+            run: 'optional - true forces port_scan even when xml_file is set',
+            engagement: 'optional - false skips host-state merge',
+            override: 'optional - true records out-of-scope hosts',
+            target: 'optional - alias for targets',
+            name: 'optional - engagement name for host-state merge'
           )
 
           # Print the AUTHOR(S) string for this module.

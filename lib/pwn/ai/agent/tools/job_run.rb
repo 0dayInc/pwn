@@ -13,13 +13,19 @@ PWN::AI::Agent::Registry.register(
       properties: {
         command: { type: 'string' },
         cmd: { type: 'string' },
-        tag: { type: 'string' }
+        tag: { type: 'string' },
+        jobs: { type: 'array' },
+        artifact_dir: { type: 'string' }
       },
-      required: %w[command]
+      required: %w[]
     }
   },
   handler: lambda { |args|
-    PWN::Plugins::Jobs.start(command: args[:command] || args[:cmd] || args['command'], session_id: args[:tag] || args['tag'])
+    if args[:jobs] || args['jobs']
+      PWN::Plugins::Jobs.graph(jobs: args[:jobs] || args['jobs'], artifact_dir: args[:artifact_dir] || args['artifact_dir'])
+    else
+      PWN::Plugins::Jobs.start(command: args[:command] || args[:cmd] || args['command'], session_id: args[:tag] || args['tag'])
+    end
   }
 )
 PWN::AI::Agent::Registry.register(

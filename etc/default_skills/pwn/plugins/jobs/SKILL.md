@@ -47,6 +47,7 @@ PWN::Plugins::Jobs.required_bins(opts)
 - `harvest`
 - `list`
 - `stop`
+- `graph`
 - `authors`
 - `help`
 

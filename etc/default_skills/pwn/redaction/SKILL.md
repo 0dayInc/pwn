@@ -35,6 +35,7 @@ PWN::Redaction.redact(opts)
 
 - `redact`
 - `token`
+- `capture`
 - `authors`
 - `help`
 

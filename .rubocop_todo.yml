@@ -20,7 +20,6 @@ Lint/NestedMethodDefinition:
     - 'lib/pwn/plugins/repl.rb'
     - 'lib/pwn/plugins/repl/ai.rb'
     - 'lib/pwn/plugins/repl/asm.rb'
-    - 'lib/pwn/plugins/repl/irc.rb'
     - 'lib/pwn/plugins/repl/mesh.rb'
     - 'lib/pwn/plugins/repl/vault.rb'
 

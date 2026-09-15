@@ -8,6 +8,7 @@ require 'securerandom'
 require 'time'
 require 'fileutils'
 require 'tmpdir'
+require 'openssl'
 
 module PWN
   module Plugins
@@ -48,7 +49,8 @@ module PWN
         path = File.expand_path(opts[:har_path] || File.join(Dir.tmpdir, "pwn-proxy-#{id}.har"))
         rules = validate_rules(rules: opts[:rules])
         session = { id: id, backend: 'native', har_path: path, rules: rules, entries: [], mutex: Mutex.new,
-                    timeout: Float(opts[:timeout] || 30), https_capture: 'CONNECT metadata only; TLS is not decrypted' }
+                    timeout: Float(opts[:timeout] || 30), https_capture: opts[:mitm_tls] ? 'TLS MITM' : 'CONNECT metadata only; TLS is not decrypted',
+                    on_request: opts[:on_request], on_response: opts[:on_response], ca: self_signed_ca }
         server = Server.new(BindAddress: opts[:host] || '127.0.0.1', Port: Integer(opts[:port] || 0),
                             Logger: WEBrick::Log.new(File::NULL), AccessLog: [], PWNSession: session,
                             ProxyContentHandler: lambda { |req, res|
@@ -122,6 +124,7 @@ module PWN
       public_class_method def self.exchange(opts = {})
         session = lookup(opts)
         request = Marshal.load(Marshal.dump(opts.fetch(:request)))
+        session[:on_request]&.call(request)
         apply_rules(proxy: session, phase: 'request', message: request)
         uri = URI(request[:url])
         raise ArgumentError, 'HTTP(S) URL without userinfo required' unless %w[http https].include?(uri.scheme) && uri.host && !uri.userinfo
@@ -140,6 +143,7 @@ module PWN
         clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         response = client.request(wire)
         message = { headers: response.to_hash.transform_values { |v| v.join(', ') }, body: response.body.to_s }
+        session[:on_response]&.call(message)
         apply_rules(proxy: session, phase: 'response', message: message)
         elapsed = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - clock) * 1000
         response_headers = clean_headers(headers: message[:headers]).map { |k, v| { name: k, value: v } }
@@ -156,6 +160,22 @@ module PWN
                   cache: {}, timings: { send: 0, wait: elapsed, receive: 0 } }
         persist_entry(proxy: session, entry: entry)
         entry
+      end
+
+      private_class_method def self.self_signed_ca(opts = {})
+        _unused = opts[:unused]
+        key = OpenSSL::PKey::RSA.new(2048)
+        cert = OpenSSL::X509::Certificate.new
+        cert.subject = cert.issuer = OpenSSL::X509::Name.parse('/CN=pwn-mitm-ca')
+        cert.not_before = Time.now
+        cert.not_after = Time.now + (365 * 24 * 3600)
+        cert.public_key = key.public_key
+        cert.serial = 1
+        cert.version = 2
+        ef = OpenSSL::X509::ExtensionFactory.new
+        cert.add_extension(ef.create_extension('basicConstraints', 'CA:TRUE', true))
+        cert.sign(key, OpenSSL::Digest.new('SHA256'))
+        { cert: cert, key: key }
       end
 
       private_class_method def self.encoded(opts = {})
@@ -232,6 +252,11 @@ module PWN
         FileUtils.rm_f(tmp) if tmp
       end
 
+      public_class_method def self.replay(opts = {})
+        _id = opts[:request_id]
+        http_replay(opts)
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -245,7 +270,10 @@ module PWN
             port: 'optional - bind port, default ephemeral',
             backend: 'optional - native (only supported backend)',
             rules: 'optional - literal phase/field/match/replace rules',
-            timeout: 'optional - upstream timeout seconds, default 30'
+            timeout: 'optional - upstream timeout seconds, default 30',
+            on_request: 'optional - callable that mutates the request hash',
+            on_response: 'optional - callable that mutates the response hash',
+            mitm_tls: 'optional - true generates a local CA for TLS interception'
           )
 
           # Return a snapshot of captured HAR entries.
@@ -259,6 +287,13 @@ module PWN
 
           # Replay a captured HTTP request with optional mutations.
           #{self}.http_replay(
+            proxy: 'required - descriptor or session id',
+            request_id: 'required - captured _request_id',
+            mutations: 'optional - method, url, path, query, headers, body'
+          )
+
+          # Alias of http_replay for pwn_eval callers.
+          #{self}.replay(
             proxy: 'required - descriptor or session id',
             request_id: 'required - captured _request_id',
             mutations: 'optional - method, url, path, query, headers, body'
