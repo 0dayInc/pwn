@@ -6,9 +6,8 @@ require 'pwn/ai/agent/swarm'
 # Multi-agent orchestration tools. These let the PRIMARY pwn-ai agent
 # spawn/ask/debate SUB-agents (personas from ~/.pwn/agents.yml), each of
 # which is a full PWN::AI::Agent::Loop.run — tool-calling, memory-aware,
-# metrics-recorded, learning-reflected. This replaces the legacy pwn-irc
-# "N chatbots on inspircd" mechanism with an in-process JSONL bus under
-# ~/.pwn/swarm/<id>/, so conversations survive the process and can be
+# metrics-recorded, learning-reflected. Conversations live on an in-process
+# JSONL bus under ~/.pwn/swarm/<id>/, so they survive the process and can be
 # resumed cross-session by any pwn-ai / PWN::Cron job.
 
 PWN::AI::Agent::Registry.register(
@@ -138,9 +137,7 @@ PWN::AI::Agent::Registry.register(
     description: 'Round-robin an antagonistic debate between 2+ personas. ' \
                  'Each persona sees the swarm bus tail (prior turns) and is ' \
                  'asked to respond/critique/advance. Returns the full ' \
-                 'transcript plus swarm_id so you can continue it later. ' \
-                 'This is the native replacement for the legacy pwn-irc ' \
-                 'multi-agent chat.',
+                 'transcript plus swarm_id so you can continue it later.',
     parameters: {
       type: 'object',
       properties: {

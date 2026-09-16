@@ -165,7 +165,10 @@ module PWN
           services = Array(dep[:services])
           missing_bins = bins.reject { |b| bin?(name: b) }
           missing_caps = []
-          missing_caps << 'CAP_NET_RAW' if caps.include?('CAP_NET_RAW') && !cap_net_raw?
+          if caps.include?('CAP_NET_RAW')
+            pkt_ok = defined?(PWN::Plugins::Packet) && PWN::Plugins::Packet.respond_to?(:health) && PWN::Plugins::Packet.health[:ok]
+            missing_caps << 'CAP_NET_RAW' unless pkt_ok || cap_net_raw?
+          end
           missing_services = services.reject { |s| service?(name: s[:name] || s['name'], path: s[:path] || s['path']) }.map { |s| s[:name] || s['name'] }
           status = if missing_bins.empty? && missing_caps.empty? && missing_services.empty?
                      :ok
@@ -188,7 +191,8 @@ module PWN
           miss = (Array(r[:missing_bins]) + Array(r[:missing_caps]) + Array(r[:missing_services])).join(',')
           fb = Array(FALLBACKS[r[:plugin]]).join(',')
           extra = fb.empty? ? '' : " fallback=#{fb}"
-          lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}#{extra}"
+          anchor = r[:plugin].to_s.downcase.gsub(/[^a-z0-9]+/, '-').gsub(/\A-+|-+\z/, '')
+          lines << "  #{r[:status]} #{r[:plugin]} missing=#{miss}#{extra} see documentation/Plugin-Degradation.md##{anchor}"
         end
         lines.join("\n")
       end

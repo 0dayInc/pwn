@@ -39,6 +39,7 @@ PWN::Plugins::MitmProxy.start(opts)
 - `rules`
 - `http_replay`
 - `exchange`
+- `replay`
 - `authors`
 - `help`
 

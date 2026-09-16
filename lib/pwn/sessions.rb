@@ -93,7 +93,9 @@ module PWN
       raise "Session #{sid} not found" unless File.exist?(path)
 
       role = (opts[:role] || 'user').to_s
-      content = PWN::Redaction.redact(value: opts[:content])
+      raw = opts[:content]
+      PWN::Redaction.capture(value: raw, vault: true) if raw.is_a?(String) && %w[tool observation].include?(role)
+      content = PWN::Redaction.redact(value: raw)
       if content.is_a?(String)
         # Write-path policy: cap bulk by role using compact limits so append
         # cannot grow transcripts past TOOL_CONTENT_MAX / ASSISTANT_CONTENT_MAX.

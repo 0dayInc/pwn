@@ -190,6 +190,61 @@ module PWN
         dict.map { |blob| seed + blob.to_s }
       end
 
+      public_class_method def self.triage(opts = {})
+        require 'digest'
+        crashes = Array(opts[:crashes])
+        crashes = Dir.glob(File.join(opts[:dir].to_s, '*')) if crashes.empty?
+        files = crashes.select { |path| File.file?(path) }
+        groups = files.group_by { |path| crash_hash(path: path) }
+        groups.map do |hash, group|
+          mini = minimize_group(files: group, target: opts[:target])
+          body = File.binread(mini).to_s
+          score = exploitability(text: body, path: mini)
+          row = {
+            hash: hash,
+            count: group.length,
+            minimized: mini,
+            exploitability: score,
+            files: group
+          }
+          if opts[:record] == true && defined?(PWN::Plugins::Findings)
+            PWN::Plugins::Findings.record(
+              title: "fuzz crash #{hash}",
+              severity: score.include?('pc_control') ? 'high' : 'medium',
+              host: opts[:target].to_s,
+              evidence: mini,
+              poc: mini
+            )
+          end
+          row
+        end
+      end
+
+      private_class_method def self.crash_hash(opts = {})
+        body = File.binread(opts[:path]).to_s
+        if (m = body.match(/AddressSanitizer[^\n]*\n(?:.*\n){0,12}/))
+          Digest::SHA256.hexdigest(m[0])[0, 16]
+        elsif (m = body.scan(/#\d+\s+0x[0-9a-f]+.+/).first(6)).any?
+          Digest::SHA256.hexdigest(m.join)[0, 16]
+        else
+          Digest::SHA256.hexdigest(body)[0, 16]
+        end
+      end
+
+      private_class_method def self.minimize_group(opts = {})
+        files = Array(opts[:files])
+        files.min_by { |path| File.size(path) }
+      end
+
+      private_class_method def self.exploitability(opts = {})
+        text = opts[:text].to_s
+        return 'pc_control_candidate' if text.match?(/pc\s+0x|rip\s+0x|eip\s+0x|SEGV on unknown address 0x/i)
+        return 'writable_address_control' if text.match?(/WRITE of size|heap-buffer-overflow|stack-buffer-overflow/i)
+        return 'pc_control_candidate' if File.size(opts[:path].to_s).to_i >= 8
+
+        'unknown'
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -230,6 +285,13 @@ module PWN
           #{self}.file_format(
             path: 'required - filesystem path to the seed file',
             dictionary: 'optional - Array of binary/string mutations'
+          )
+
+          # Dedup crash files by content hash and pick the smallest reproducer.
+          #{self}.triage(
+            crashes: 'optional - Array of crash file paths',
+            dir: 'optional - directory globbed when crashes is empty',
+            record: 'optional - true records unique crashes via Findings.record'
           )
 
           # Print the AUTHOR(S) string for this module.

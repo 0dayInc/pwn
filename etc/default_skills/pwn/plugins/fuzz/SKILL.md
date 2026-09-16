@@ -36,6 +36,7 @@ PWN::Plugins::Fuzz.socket(opts)
 - `socket`
 - `http`
 - `file_format`
+- `triage`
 - `authors`
 - `help`
 

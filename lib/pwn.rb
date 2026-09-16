@@ -17,6 +17,8 @@ module PWN
   autoload :Blockchain, 'pwn/blockchain'
   autoload :Config, 'pwn/config'
   autoload :Cron, 'pwn/cron'
+  autoload :Corpus, 'pwn/corpus'
+  autoload :Engagement, 'pwn/engagement'
   autoload :Memory, 'pwn/memory'
   autoload :MemoryIndex, 'pwn/memory_index'
   autoload :Migrate, 'pwn/migrate'

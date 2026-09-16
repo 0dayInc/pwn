@@ -1151,6 +1151,18 @@ module PWN
         { ok: false, degraded: true, error: e.message }
       end
 
+      public_class_method def self.health(opts = {})
+        require 'pwn/plugins/capability_broker'
+        result = CapabilityBroker.request(operation: 'status', socket: opts[:socket])
+        if result[:ok]
+          { ok: true, degraded: false, via: 'capability_broker', missing_capabilities: [] }
+        elsif cap_net_raw?(iface: opts[:iface])
+          { ok: true, degraded: false, via: 'cap_net_raw' }
+        else
+          result.merge(ok: false, degraded: true, missing_capabilities: ['CAP_NET_RAW'])
+        end
+      end
+
       # Author(s):: 0day Inc. <support@0dayinc.com>
 
       public_class_method def self.authors
@@ -1402,6 +1414,12 @@ module PWN
             path: 'optional - output pcap path',
             timeout: 'optional - maximum capture duration in seconds',
             socket: 'optional - local capability broker Unix socket path'
+          )
+
+          # Report ok when the capability broker or live CAP_NET_RAW is available.
+          #{self}.health(
+            socket: 'optional - local capability broker Unix socket path',
+            iface: 'optional - interface name reserved for callers'
           )
 
           # Print the AUTHOR(S) string for this module.

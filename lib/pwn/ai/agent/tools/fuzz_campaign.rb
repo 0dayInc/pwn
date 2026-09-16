@@ -45,7 +45,8 @@ PWN::AI::Agent::Registry.register(
     when 'stop'
       PWN::Plugins::Jobs.stop(id: args[:id] || args['id'])
     when 'triage'
-      PWN::Plugins::AFLplusplus.crash_triage(out_dir: args[:out_dir] || args['out_dir'])
+      out_dir = args[:out_dir] || args['out_dir']
+      PWN::Plugins::Fuzz.triage(dir: File.join(out_dir.to_s, 'crashes'), record: true, target: args[:target] || args['target'])
     when 'minimize'
       PWN::Plugins::AFLplusplus.minimize(crash: args[:crash] || args['crash'], out: args[:out] || args['out'], target: args[:target] || args['target'])
     else

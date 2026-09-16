@@ -19,6 +19,10 @@ module PWN
       # Strict P10 boundary. Legacy record remains available for older callers.
       public_class_method def self.record_structured(opts = {})
         opts = opts.transform_keys(&:to_sym)
+        opts[:affected_asset] ||= opts[:target]
+        opts[:poc] ||= opts[:repro_cmd]
+        opts[:target] ||= opts[:affected_asset]
+        opts[:repro_cmd] ||= opts[:poc]
         %i[title cwe cvss_vector affected_asset poc remediation].each do |key|
           raise ArgumentError, "#{key} must be a non-empty string" unless opts[key].is_a?(String) && !opts[key].strip.empty?
         end
@@ -53,7 +57,8 @@ module PWN
         row = opts.slice(:title, :cwe, :cvss_vector, :cvss_score, :affected_asset, :evidence_paths, :poc,
                          :attack_chain_refs, :remediation, :confidence, :engagement_id, :session_id)
         row = row.merge(id: SecureRandom.hex(6), severity: severity, status: 'open', verification_status: 'not_executed',
-                        chain_refs: refs, host: opts[:affected_asset], evidence: paths.map { |path| Digest::SHA256.file(path).hexdigest },
+                        chain_refs: refs, host: opts[:affected_asset], target: opts[:affected_asset],
+                        repro_cmd: opts[:poc], evidence: paths.map { |path| Digest::SHA256.file(path).hexdigest },
                         poc_artifacts: [], at: Time.now.utc.iso8601)
         FileUtils.mkdir_p(File.dirname(FILE))
         File.open(FILE, 'a') do |file|
@@ -378,7 +383,11 @@ module PWN
             sha256: Digest::SHA256.file(art).hexdigest,
             size: File.size(art)
           }
-          File.open(path, 'a') { |f| f.puts(JSON.generate(rec)) }
+          dest = File.join(dir, 'evidence', rec[:sha256])
+          FileUtils.mkdir_p(File.dirname(dest))
+          FileUtils.cp(art, dest) unless File.file?(dest)
+          rec[:stored] = dest
+          File.open(path, 'a') { |file| file.puts(JSON.generate(rec)) }
         end
       end
 
@@ -404,7 +413,9 @@ module PWN
             remediation: 'required - remediation instructions',
             confidence: 'required - numeric 0..1',
             engagement_id: 'optional - simple engagement identifier',
-            session_id: 'optional - session identifier'
+            session_id: 'optional - session identifier',
+            target: 'optional - alias for affected_asset',
+            repro_cmd: 'optional - alias for poc'
           )
 
           # Append a legacy finding row to ~/.pwn/findings.jsonl.

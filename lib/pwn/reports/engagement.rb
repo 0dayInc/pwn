@@ -21,7 +21,8 @@ module PWN
         rows = if opts[:findings]
                  Array(opts[:findings])
                elsif defined?(PWN::Plugins::Findings)
-                 PWN::Plugins::Findings.report
+                 rows = PWN::Plugins::Findings.report
+                 rows = rows.select { |row| row[:engagement_id].to_s == name || name == 'default' }
                else
                  []
                end

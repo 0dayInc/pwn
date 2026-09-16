@@ -5,6 +5,7 @@ require 'fileutils'
 require 'securerandom'
 require 'open3'
 require 'time'
+require 'timeout'
 
 module PWN
   module Plugins
@@ -132,6 +133,53 @@ module PWN
         false
       end
 
+      public_class_method def self.graph(opts = {})
+        jobs = Array(opts[:jobs])
+        raise ArgumentError, 'jobs must be an Array of hashes with id and command' unless jobs.all?(Hash)
+
+        dir = opts[:artifact_dir] || File.join(JOBS_DIR, "graph-#{SecureRandom.hex(4)}")
+        FileUtils.mkdir_p(dir)
+        remaining = jobs.map { |job| job.transform_keys(&:to_sym) }
+        done = {}
+        until remaining.empty?
+          loop do
+            failed = done.select { |_id, row| row[:ok] == false }.keys
+            blocked = remaining.select { |job| Array(job[:needs]).any? { |need| failed.include?(need.to_s) } }
+            break if blocked.empty?
+
+            blocked.each do |job|
+              done[job[:id].to_s] = { id: job[:id], ok: false, skipped: true, stdout: '', stderr: 'upstream failed' }
+              remaining.delete(job)
+            end
+          end
+          ready = remaining.select { |job| Array(job[:needs]).all? { |need| done[need.to_s] && done[need.to_s][:ok] } }
+          raise ArgumentError, 'job graph deadlock or missing needs' if ready.empty? && remaining.any?
+
+          threads = ready.map do |job|
+            remaining.delete(job)
+            Thread.new do
+              timeout = (job[:timeout] || opts[:timeout]).to_f
+              timeout = 3_600 if timeout <= 0
+              out = err = ''
+              st = nil
+              begin
+                Timeout.timeout(timeout) do
+                  out, err, st = Open3.capture3(job[:command].to_s, chdir: dir)
+                end
+                { id: job[:id], ok: st.success?, stdout: out, stderr: err, exit: st.exitstatus }
+              rescue Timeout::Error
+                { id: job[:id], ok: false, stdout: out, stderr: 'timeout', exit: 124, timeout: true }
+              end
+            end
+          end
+          threads.each do |thr|
+            row = thr.value
+            done[row[:id].to_s] = row
+          end
+        end
+        { jobs: done, artifact_dir: dir, ok: done.values.none? { |row| row[:ok] == false && row[:skipped] != true } && done.values.any? { |row| row[:ok] } }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -214,6 +262,13 @@ module PWN
           #{self}.job_kill(
             handle: 'optional - job handle from #run',
             id: 'optional - job id alias for handle'
+          )
+
+          # Run a declarative DAG of shell jobs with needs and a shared artifact dir.
+          #{self}.graph(
+            jobs: 'required - Array of hashes with id, command, optional needs and timeout',
+            artifact_dir: 'optional - working directory shared by every job',
+            timeout: 'optional - default per-job timeout in seconds'
           )
 
           # Print the AUTHOR(S) string for this module.

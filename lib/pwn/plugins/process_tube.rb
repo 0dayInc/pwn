@@ -3,6 +3,7 @@
 require 'pty'
 require 'timeout'
 require 'socket'
+require 'securerandom'
 
 module PWN
   module Plugins
@@ -32,7 +33,7 @@ module PWN
 
         sock = TCPSocket.new(host, port)
         id = "sock_#{sock.object_id}"
-        @tubes[id] = { r: sock, w: sock, pid: nil, buf: +'' }
+        @tubes[id] = { r: sock, w: sock, pid: nil, buf: +'', scrollback: +'', started_at: Time.now, last_io: Time.now }
         { id: id, host: host, port: port }
       end
 
@@ -58,10 +59,11 @@ module PWN
         timeout = (opts[:timeout] || 5).to_f
         Timeout.timeout(timeout) do
           loop do
-            return t[:buf] if t[:buf].include?(needle)
+            idx = t[:buf].index(needle)
+            return consume_buf(tube: t, bytes: idx + needle.bytesize) if idx
 
             ch = t[:r].read_nonblock(4_096)
-            t[:buf] << ch
+            append_buf(tube: t, data: ch)
           rescue IO::WaitReadable
             t[:r].wait_readable(0.2)
             retry
@@ -86,10 +88,54 @@ module PWN
         false
       end
 
-      public_class_method def self.expect(opts = {})
-        text = recvuntil(opts)
+      public_class_method def self.send_raw(opts = {})
         t = tube!(opts)
-        { matched: text, offset: t[:buf].to_s.bytesize, id: opts[:id].to_s }
+        bytes = opts[:bytes] || opts[:data]
+        raise ArgumentError, 'bytes is required' if bytes.nil?
+
+        data = bytes.is_a?(String) ? bytes.b : Array(bytes).pack('C*')
+        t[:w].write(data)
+        t[:w].flush
+        t[:last_io] = Time.now
+        note_scrollback(tube: t, data: data)
+        { written: data.bytesize, id: (opts[:id] || opts[:name]).to_s }
+      end
+
+      public_class_method def self.register(opts = {})
+        io = opts[:io] || opts[:r]
+        raise ArgumentError, 'io is required' unless io
+
+        id = (opts[:id] || "sock_#{SecureRandom.hex(4)}").to_s
+        @tubes[id] = { r: io, w: opts[:w] || io, pid: opts[:pid], buf: +'', scrollback: +'', started_at: Time.now, last_io: Time.now }
+        { id: id }
+      end
+
+      public_class_method def self.expect(opts = {})
+        t = tube!(opts)
+        pattern = opts[:pattern] || opts[:until]
+        raise ArgumentError, 'pattern is required' if pattern.nil? || pattern.to_s.empty?
+
+        timeout = (opts[:timeout] || 5).to_f
+        Timeout.timeout(timeout) do
+          loop do
+            hay = t[:buf].to_s
+            hay = hay.gsub(/\e\[[0-9;]*[A-Za-z]/, '') if opts[:strip_ansi]
+            if pattern.is_a?(Regexp)
+              if (m = hay.match(pattern))
+                consume_buf(tube: t, bytes: m.end(0))
+                return { matched: m[0], offset: m.begin(0), id: (opts[:id] || opts[:name]).to_s }
+              end
+            elsif (idx = hay.index(pattern.to_s))
+              take = consume_buf(tube: t, bytes: idx + pattern.to_s.bytesize)
+              return { matched: take, offset: idx, id: (opts[:id] || opts[:name]).to_s }
+            end
+            ch = t[:r].read_nonblock(4_096)
+            append_buf(tube: t, data: ch)
+          rescue IO::WaitReadable
+            t[:r].wait_readable(0.2)
+            retry
+          end
+        end
       end
 
       public_class_method def self.stream(opts = {})
@@ -183,11 +229,31 @@ module PWN
             id: 'optional - id value consumed by #close'
           )
 
-          # Expect a pattern and return matched buffer plus byte offset.
+          # Expect a regex or substring, optionally stripping ANSI.
           #{self}.expect(
             id: 'required - tube id from spawn or connect',
-            until: 'required - substring to wait for',
-            timeout: 'optional - seconds to wait before giving up'
+            name: 'optional - alias for id',
+            until: 'optional - substring to wait for',
+            pattern: 'optional - regex or string to wait for',
+            timeout: 'optional - seconds to wait before giving up',
+            strip_ansi: 'optional - true removes CSI sequences before matching'
+          )
+
+          # Write raw bytes without appending a newline.
+          #{self}.send_raw(
+            id: 'required - tube id from spawn or connect',
+            name: 'optional - alias for id',
+            bytes: 'required - String or byte Array to write',
+            data: 'optional - alias for bytes'
+          )
+
+          # Register an existing IO as a named tube.
+          #{self}.register(
+            io: 'required - readable/writable IO object',
+            r: 'optional - alias for io',
+            w: 'optional - write IO when split from r',
+            id: 'optional - tube name to assign',
+            pid: 'optional - associated process id'
           )
 
           # Tail the PTY buffer since a prior offset.
@@ -223,6 +289,31 @@ module PWN
         raise 'ERROR: id is required / unknown tube' unless t
 
         t
+      end
+
+      BUF_MAX = 1_048_576
+
+      private_class_method def self.append_buf(opts = {})
+        t = opts[:tube]
+        t[:buf] << opts[:data].to_s
+        t[:buf].slice!(0, t[:buf].bytesize - BUF_MAX) if t[:buf].bytesize > BUF_MAX
+        note_scrollback(tube: t, data: opts[:data])
+        t[:buf]
+      end
+
+      private_class_method def self.consume_buf(opts = {})
+        t = opts[:tube]
+        n = opts[:bytes].to_i
+        n = t[:buf].bytesize if n > t[:buf].bytesize
+        t[:buf].slice!(0, n)
+      end
+
+      private_class_method def self.note_scrollback(opts = {})
+        t = opts[:tube]
+        return unless t
+
+        t[:scrollback] = "#{t[:scrollback]}#{opts[:data]}"
+        t[:scrollback].slice!(0, t[:scrollback].bytesize - BUF_MAX) if t[:scrollback].bytesize > BUF_MAX
       end
 
       private_class_method def self.dump_scrollback(opts = {})

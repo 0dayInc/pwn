@@ -12,7 +12,7 @@ metadata:
 
 # PWN::AI::Agent::Swarm
 
-Native multi-agent orchestration for pwn-ai. Swarm replaces the legacy `pwn-irc` mechanism (inspircd + weechat + PRIVMSG-flattened .chat calls) with first-class sub-agents built on top of PWN::AI::Agent::Loop.run. Each persona is a full tool-calling agent — Memory, Skills, Learning, Metrics and Extrospection all apply — so the self-improvement loop covers the whole swarm. ~/.pwn/agents.yml # persona registry ~/.pwn/swarm/<swarm_id>/bus.jsonl # append-only message bus ~/.pwn/swarm/<swarm_id>/personas.json# persona -> PWN::Sessions id Cross-session / cross-process communication == another pwn-ai (or a PWN::Cron job) calling Swarm.ask/debate with the same swarm_id and reading the same bus.jsonl. No daemon required.
+Native multi-agent orchestration for pwn-ai. First-class sub-agents built on top of PWN::AI::Agent::Loop.run. Each persona is a full tool-calling agent — Memory, Skills, Learning, Metrics and Extrospection all apply — so the self-improvement loop covers the whole swarm. ~/.pwn/agents.yml # persona registry ~/.pwn/swarm/<swarm_id>/bus.jsonl # append-only message bus ~/.pwn/swarm/<swarm_id>/personas.json# persona -> PWN::Sessions id Cross-session / cross-process communication == another pwn-ai (or a PWN::Cron job) calling Swarm.ask/debate with the same swarm_id and reading the same bus.jsonl. No daemon required.
 
 ## When to use
 

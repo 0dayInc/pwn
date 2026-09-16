@@ -10,4 +10,4 @@ sudo sed -e 's/^new_cursors=true/new_cursors=false/g' \
 sudo systemctl enable inspircd
 sudo systemctl restart inspircd
 
-# TODO: tweak /etc/inspircd/inspircd.conf to compliment pwn-irc AI agents
+# inspircd/irssi for PWN::Plugins::IRC clients

@@ -36,7 +36,8 @@ PWN::AI::Agent::Registry.register(
         timeout: {
           type: 'integer',
           description: 'Conservative seconds this command should take given HOST LOAD. Omit for a host-derived default. Explicit values honored 1..10800 (3 hours). On timeout keep the same payload and timeout += 180; rewrite only after the 3-hour budget (max 10 mutations/task).'
-        }
+        },
+        placeholder_ok: { type: 'boolean', description: 'Allow isolated ellipsis tokens when the operator opts in.' }
       },
       required: %w[command]
     }
@@ -49,7 +50,7 @@ PWN::AI::Agent::Registry.register(
     return PWN::AI::Agent::ToolGuard.invalid_payload(hint: args[:__schema_hint]) if args[:__schema_error]
 
     cmd = args[:command].to_s
-    if PWN::AI::Agent::ToolGuard.placeholder?(text: cmd)
+    if PWN::AI::Agent::ToolGuard.placeholder?(text: cmd, placeholder_ok: args[:placeholder_ok] || args['placeholder_ok'])
       return PWN::AI::Agent::ToolGuard.invalid_payload(
         hint: 'command is required (string). Do not send ..., {...}, {…}.',
         text: cmd,

@@ -82,7 +82,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{harness}TOOL USE
+            #{harness}#{deliverable_block(request: request)}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).
@@ -362,6 +362,24 @@ module PWN
 
           ctx = PWN::AI::Agent::Extrospection.to_context.to_s
           ctx.strip.empty? ? '' : ctx
+        rescue StandardError
+          ''
+        end
+
+        private_class_method def self.deliverable_block(opts = {})
+          request = opts[:request].to_s
+          return '' unless defined?(PWN::AI::Agent::TurnFinalizer)
+
+          paths = PWN::AI::Agent::TurnFinalizer.output_paths(request: request)
+          return '' if paths.empty?
+
+          rows = paths.map { |path| "              - #{path} (must exist, mtime in this turn, non-empty, then read back)" }.join("\n")
+          <<~BLOCK
+            DELIVERABLES
+              Do not finalize until every path below exists with a fresh mtime and non-trivial size:
+            #{rows}
+
+          BLOCK
         rescue StandardError
           ''
         end

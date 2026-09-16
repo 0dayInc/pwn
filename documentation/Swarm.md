@@ -1,8 +1,7 @@
 # Swarm - Native Multi-Agent Orchestration
 
-`PWN::AI::Agent::Swarm` replaces the legacy `pwn-irc` (inspircd + weechat +
-PRIVMSG) transport with **first-class sub-agents** built directly on
-`PWN::AI::Agent::Loop`. Each persona is a *full* tool-calling agent - Memory,
+`PWN::AI::Agent::Swarm` is first-class multi-agent orchestration built
+directly on `PWN::AI::Agent::Loop`. Each persona is a *full* tool-calling agent - Memory,
 Skills, Learning, Metrics and Extrospection all apply - so the
 self-improvement loop covers the whole swarm.
 

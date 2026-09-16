@@ -37,6 +37,7 @@ PWN::Plugins::NmapIt.port_scan(opts)
 - `parse_xml_results`
 - `diff_xml_results`
 - `to_findings`
+- `scan`
 - `authors`
 - `help`
 
