@@ -47,6 +47,56 @@ describe PWN::AI::Agent::Registry do
     expect(names.length).to eq(described_class::CORE_TOOLS.length)
   end
 
+  it 'advertises the MCP broker for a named backend in the normal core-only prompt path' do
+    described_class.discover
+    request = 'Use combo.nation to inspect the menu catalog'
+    enabled = PWN::AI::Agent::Loop.send(:default_interactive_toolsets, request: request)
+    expect(PWN::AI::MCP::ComboNation).not_to receive(:connect)
+    definitions = described_class.definitions(core_only: true, relevance: request, enabled: enabled)
+    tool = definitions.find { |row| row.dig(:function, :name) == 'mcp' }
+    expect(tool).not_to be_nil
+    expect(tool.dig(:function, :description)).to include('combo_nation', 'PWN::AI::MCP::ComboNation', 'menu_catalog')
+  end
+
+  it 'routes MCP names and capabilities without relying on keyword rank or changing unrelated core prompts' do
+    described_class.discover
+    allow(described_class).to receive(:router_enabled?).and_return(true)
+    ['PWN::AI::MCP::ComboNation', 'combo_nation', 'ComboNation', 'combo.nation', 'menu_dial_calibration', 'MCP backends'].each do |query|
+      [true, false].each do |core_only|
+        names = described_class.definitions(core_only: core_only, relevance: query, top_k: 0).map { |row| row.dig(:function, :name) }
+        expect(names).to include('mcp')
+      end
+    end
+    names = described_class.definitions(core_only: true, relevance: 'inspect a local Ruby file').map { |row| row.dig(:function, :name) }
+    expect(names).to eq(described_class::CORE_TOOLS)
+  end
+
+  it 'discovers another MCP client from its metadata and respects explicit toolset exclusion' do
+    described_class.discover
+    client = Module.new
+    %i[connect disconnect list_tools call_tool].each { |method| client.define_singleton_method(method) { |_| {} } }
+    client.const_set(:TOOLS, %w[inspect_widget])
+    stub_const('PWN::AI::MCP::WidgetLab', client)
+    expect(client).not_to receive(:connect)
+    %w[widget_lab inspect_widget].each do |query|
+      tools = described_class.definitions(core_only: true, relevance: query)
+      mcp = tools.find { |row| row.dig(:function, :name) == 'mcp' }
+      expect(mcp.dig(:function, :description)).to include('widget_lab', 'inspect_widget')
+      expect(described_class.definitions(core_only: true, relevance: query, enabled: [])).to eq([])
+      names = described_class.definitions(core_only: true, relevance: query, enabled: ['pwn']).map { |row| row.dig(:function, :name) }
+      expect(names).not_to include('mcp')
+    end
+    expect(described_class.lookup(name: 'mcp').schema[:description]).not_to include('WidgetLab')
+  end
+
+  it 'does not let MCP relevance bypass a failed availability check' do
+    described_class.discover
+    entry = described_class.lookup(name: 'mcp')
+    allow(entry.check).to receive(:call).and_return(false)
+    tools = described_class.definitions(core_only: true, relevance: 'combo.nation')
+    expect(tools.map { |row| row.dig(:function, :name) }).not_to include('mcp')
+  end
+
   it 'applies observed shell and Ruby prerequisites to the existing core tools' do
     described_class.discover
     context = { environment: :local, capabilities: { shell: false, ruby: false } }
