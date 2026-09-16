@@ -51,6 +51,37 @@ describe 'PWN::AI::Agent::Tools mcp' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'mcp').toolset).to eq('mcp')
   end
 
+  it 'dispatches the broker advertised for a combo.nation prompt and preserves menu IDs across calls' do
+    registry = PWN::AI::Agent::Registry
+    tools = registry.definitions(core_only: true, relevance: 'Inspect combo.nation menus')
+    schema = tools.find { |tool| tool.dig(:function, :name) == 'mcp' }
+    expect(schema).not_to be_nil
+    fake = start_fake_server
+    # Only replace process spawning; exercise the real protocol client, broker,
+    # schema validation and Dispatch with JSON arguments as returned by a model.
+    allow(PWN::AI::MCP::ComboNation).to receive(:connect).and_wrap_original do |method, opts|
+      expect(opts[:allow_hardware]).not_to eq(true)
+      method.call(opts.merge(reader: fake[:reader], writer: fake[:writer], timeout: 2))
+    end
+    calls = [
+      { action: 'list_tools', backend: 'combo_nation' },
+      { action: 'call_tool', backend: 'combo_nation', name: 'menu_guess', arguments: { option: '5.10' } }
+    ]
+    results = calls.map do |args|
+      JSON.parse(PWN::AI::Agent::Dispatch.call(
+                   scope_policy: { enabled: false },
+                   tool_call: { id: 'mcp-test', type: 'function', function: { name: schema.dig(:function, :name), arguments: JSON.generate(args) } }
+                 ))
+    end
+    expect(results.first.dig('result', 'tools').map { |tool| tool['name'] }).to include('menu_catalog')
+    expect(results.last.dig('result', 'parsed', 'arguments')).to eq('option' => '5.10')
+    expect(results.last.dig('result', 'allow_hardware')).to eq(false)
+    expect(PWN::AI::MCP::ComboNation).to have_received(:connect).once
+  ensure
+    PWN::AI::MCP.reset!
+    fake[:thread].join(2) if fake
+  end
+
   it 'lists MCP backends and drives combo.nation tools through Dispatch-shaped args' do
     entry = PWN::AI::Agent::Registry.lookup(name: 'mcp')
     listed = entry.handler.call(action: 'backends')

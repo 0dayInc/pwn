@@ -2965,8 +2965,9 @@ module PWN
           # TaskSummarizer.emit_plan! we re-rank using English tangible tasks
           # so generated tasks — not the bare request — drive which tools
           # the model may call.
-          # CORE_TOOLS is the default action space. Extra schemas are
-          # opt-in via enabled_toolsets + core_only: false.
+          # CORE_TOOLS is the default action space, plus the MCP broker when
+          # local client metadata matches the request. Other extra schemas
+          # are opt-in via enabled_toolsets + core_only: false.
           core_only = opts.fetch(:core_only, true)
           if nested && needs_host_work?(request: request) &&
              !(opts.key?(:enabled_toolsets) && Array(opts[:enabled_toolsets]).empty?)
@@ -3441,7 +3442,7 @@ module PWN
               force_tools: 'optional - force tools value consumed by #run',
               nested: 'optional - true for Swarm/child Loop.run (skip RN footer)',
               engine: 'optional - provider name; defaults to PWN::Env ai.active',
-              core_only: 'optional - restrict to CORE_TOOLS when true',
+              core_only: 'optional - restrict to CORE_TOOLS plus relevant MCP discovery when true',
               trace: 'optional - enable TracePoint debug for this run',
               debug_tee: 'optional - IO to tee debug logs'
             )

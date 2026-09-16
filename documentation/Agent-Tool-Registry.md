@@ -50,6 +50,20 @@ protected operator preferences, open mistakes, or gold outcomes.
 
 ## Dynamic tool-set slimming (`ai.agent.tool_router`)
 
+The normal `Loop.run` path uses `core_only: true`. The central registry also
+includes `mcp` when the original request names MCP, a discovered backend, or
+one of its declared tools. Backend names and tool names come from
+`PWN::AI::MCP.backends`, not a ComboNation-specific router. Thus `combo.nation`,
+`combo_nation`, and `PWN::AI::MCP::ComboNation` expose the same broker, even in
+core-only mode or with a zero top-K budget. Unrelated core-only prompts remain
+unchanged, and explicit toolset exclusions and availability checks still apply.
+
+The advertised MCP schema includes the local backend catalog. Use `list_tools`
+for the selected backend's live argument schemas, then `call_tool` with a JSON
+`arguments` object. Sessions persist across calls and menu IDs such as `5.10`
+must stay strings. Catalog discovery reads local metadata only: it does not
+launch a server or enable hardware. Hardware still requires explicit opt-in.
+
 Shipping every schema on every turn overwhelms a small local model - the
 choice space is huge and it mis-routes (for example, picks an RF tool for a git
 question). When `ai.agent.tool_router: true` **and** `Loop.run` passes the

@@ -122,6 +122,8 @@ module PWN
           enabled = enabled.map(&:to_s) if enabled
           pool = @entries.values.select { |e| (enabled.nil? || enabled.include?(e.toolset)) && safe_check(entry: e) }
           pool = pool.select { |e| available?(entry: e, trusted_context: opts[:trusted_context]) }
+          mcp = pool.any? { |entry| entry.name == 'mcp' } ? mcp_routing(query: opts[:relevance]) : {}
+          relevant = mcp[:relevant] ? ['mcp'] : []
 
           pref_fwd = {}
           pref_fwd[:order] = opts[:order] if opts.key?(:order)
@@ -131,16 +133,20 @@ module PWN
           pref_fwd[:trusted_context] = opts[:trusted_context] if opts.key?(:trusted_context)
 
           if opts[:core_only]
-            pool = pool.select { |e| CORE_TOOLS.include?(e.name) }
+            pool = pool.select { |e| (CORE_TOOLS + relevant).include?(e.name) }
           elsif opts[:relevance] && router_enabled?
             keep = rank({ query: opts[:relevance], entries: pool }.merge(pref_fwd)).first(opts[:top_k] || 10).map(&:name)
             pinned = domain_pin_names(query: opts[:relevance])
-            names = (CORE_TOOLS + keep + pinned).uniq
+            names = (CORE_TOOLS + keep + pinned + relevant).uniq
             pool  = pool.select { |e| names.include?(e.name) }
           end
 
           pool = apply_preference({ items: pool }.merge(pref_fwd))
-          pool.map { |e| { type: 'function', function: e.schema } }
+          pool.map do |entry|
+            schema = entry.schema
+            schema = schema.merge(description: "#{schema[:description]} #{mcp[:description]}") if entry.name == 'mcp'
+            { type: 'function', function: schema }
+          end
         end
 
         # Supported Method Parameters::
@@ -361,6 +367,30 @@ module PWN
           end
         end
 
+        # Read only local client metadata: schema discovery must never spawn a
+        # server, connect hardware, or inherit permission from a matching name.
+        private_class_method def self.mcp_routing(opts = {})
+          backends = PWN::AI::MCP.backends
+          normalize = lambda do |text|
+            text.to_s.gsub(/([a-z0-9])([A-Z])/, '\1 \2').downcase.gsub(/[^a-z0-9]+/, ' ').strip
+          end
+          query = " #{normalize.call(opts[:query])} "
+          terms = ['mcp', 'model context protocol'] + backends.flat_map do |backend|
+            [backend[:name], backend[:constant].to_s.split('::').last, *Array(backend[:tools])]
+          end
+          relevant = terms.any? do |term|
+            phrase = normalize.call(term)
+            !phrase.empty? && query.include?(" #{phrase} ")
+          end
+          catalog = backends.map do |backend|
+            "#{backend[:name]} (#{backend[:constant]}): #{Array(backend[:tools]).join(', ')}"
+          end.join('; ')
+          {
+            relevant: relevant,
+            description: "Local backend catalog: #{catalog}. For matching server tasks, use this broker and list_tools to discover live schemas before call_tool. Discovery does not enable hardware."
+          }
+        end
+
         private_class_method def self.safe_check(opts = {})
           entry = opts[:entry]
           entry.check.call
@@ -449,7 +479,7 @@ module PWN
               preference: 'optional - alias of :order; same key-present rule',
               kind: 'optional - kind value consumed by #definitions',
               intent: 'optional - intent value consumed by #definitions',
-              core_only: 'optional - core only value consumed by #definitions',
+              core_only: 'optional - restrict to CORE_TOOLS plus the MCP broker when client metadata matches relevance',
               trusted_context: 'optional - caller observations accepted by Policy.observed_context; defaults to live episode observations'
             )
 
