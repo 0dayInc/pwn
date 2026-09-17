@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'yaml'
 require 'open3'
 require 'tmpdir'
 
@@ -91,11 +92,21 @@ RSpec.describe 'PWN::AI::CLI' do
     expect { PWN::AI::CLI.help }.to output(/\.parse.*\.run.*\.authors/m).to_stdout
   end
 
+  it 'emits a YAML DAG for --plan-only without running the agent loop' do
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    expect(PWN::AI::Agent::Dispatch).not_to receive(:call)
+    out = StringIO.new
+    expect(PWN::AI::CLI.run(argv: ['--plan-only', '--ai', 'echo one then echo two'], output: out)).to eq(0)
+    dag = YAML.safe_load(out.string)
+    expect(dag['steps'].length).to be >= 2
+    expect(dag['steps'].first).to include('tool', 'args', 'side_effect', 'dependencies')
+  end
+
   it 'prints executable help without reading or creating a vault' do
     Dir.mktmpdir do |home|
       output, status = Open3.capture2e({ 'HOME' => home }, 'ruby', '-Ilib', 'bin/pwn-ai', '--help')
       expect(status.success?).to be(true), output
-      expect(output).to include('--analyze', '--replay', '--rerun')
+      expect(output).to include('--analyze', '--replay', '--rerun', '--plan-only', '--resume')
       expect(Dir.children(home)).to eq([])
     end
   end

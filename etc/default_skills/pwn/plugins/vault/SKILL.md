@@ -44,6 +44,9 @@ PWN::Plugins::Vault.seal_credentials(opts)
 - `file_encrypted`
 - `store`
 - `fetch`
+- `query`
+- `offer`
+- `ingest`
 - `expand`
 - `redact`
 - `authors`

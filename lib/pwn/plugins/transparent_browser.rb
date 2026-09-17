@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require 'diffy'
+require 'digest'
 require 'fileutils'
+require 'json'
 require 'em/pure_ruby'
 require 'faye/websocket'
 require 'nokogiri'
@@ -11,7 +13,9 @@ require 'securerandom'
 require 'selenium/devtools'
 require 'selenium/webdriver'
 require 'socksify'
+require 'time'
 require 'timeout'
+require 'tmpdir'
 require 'watir'
 require 'yaml'
 
@@ -1560,25 +1564,87 @@ module PWN
         raise e
       end
 
+      # Capture screenshot, DOM snapshot, and HAR into the artifact store.
       public_class_method def self.evidence!(opts = {})
         browser_obj = opts[:browser_obj]
         label = (opts[:label] || 'capture').to_s.gsub(/[^\w.-]+/, '_')
-        sid = (opts[:session_id] || 'default').to_s
+        sid = (opts[:session_id] || 'web').to_s
+        sid = 'web' if sid.empty?
         dir = File.join(Dir.home, '.pwn', 'artifacts', sid, 'web', label)
         FileUtils.mkdir_p(dir)
-        browser = browser_obj.is_a?(Hash) ? browser_obj[:browser] : browser_obj
         shot = File.join(dir, 'screenshot.png')
-        html = File.join(dir, 'dom.html')
-        har = File.join(dir, 'har.json')
-        begin
-          browser.screenshot.save(shot) if browser.respond_to?(:screenshot)
-        rescue StandardError
-          File.binwrite(shot, "\x89PNG\r\n\x1a\n")
+        html_path = File.join(dir, 'dom.html')
+        har_path = File.join(dir, 'har.json')
+        png = png_bytes(opts)
+        html = html_body(opts)
+        har = har_document(opts)
+        har_json = JSON.generate(har)
+        File.binwrite(shot, png)
+        File.write(html_path, html)
+        File.write(har_path, har_json)
+        shot_art = spill_web(bytes: png, session_id: sid)
+        html_art = spill_web(bytes: html, session_id: sid)
+        har_art = spill_web(bytes: har_json, session_id: sid)
+        {
+          screenshot: shot,
+          dom: html_path,
+          har: har_path,
+          dir: dir,
+          screenshot_handle: shot_art[:handle],
+          dom_handle: html_art[:handle],
+          har_handle: har_art[:handle],
+          artifact_handles: [
+            { handle: shot_art[:handle], kind: 'screenshot', label: 'screenshot', sha256: shot_art[:sha256], path: shot_art[:path] },
+            { handle: html_art[:handle], kind: 'evidence', label: 'dom', sha256: html_art[:sha256], path: html_art[:path] },
+            { handle: har_art[:handle], kind: 'evidence', label: 'har', sha256: har_art[:sha256], path: har_art[:path] }
+          ]
+        }
+      end
+
+      # Navigate a page and optionally record screenshot, DOM, HAR, and a finding.
+      public_class_method def self.goto(opts = {})
+        browser_obj = opts[:browser_obj]
+        url = (opts[:url] || opts[:uri]).to_s
+        browser = browser_handle(browser_obj: browser_obj)
+        browser.goto(url) if browser.respond_to?(:goto) && !url.empty?
+        url = browser.url.to_s if url.empty? && browser.respond_to?(:url)
+        finding_opts = opts[:finding]
+        finding_opts = finding_opts.transform_keys(&:to_sym) if finding_opts.is_a?(Hash)
+        title = (opts[:title] || (finding_opts.is_a?(Hash) ? finding_opts[:title] : nil)).to_s
+        capture = opts[:capture]
+        capture = true if capture.nil? && !title.empty?
+        capture = [true, 'true', 1, '1'].include?(capture)
+        pack = nil
+        if capture
+          pack = evidence!(
+            browser_obj: browser_obj,
+            url: url,
+            label: opts[:label],
+            session_id: opts[:session_id],
+            screenshot: opts[:screenshot],
+            html: opts[:html],
+            dom: opts[:dom],
+            har: opts[:har],
+            har_json: opts[:har_json],
+            entries: opts[:entries]
+          )
         end
-        File.binwrite(shot, "\x89PNG\r\n\x1a\n") unless File.file?(shot)
-        File.write(html, browser.respond_to?(:html) ? browser.html.to_s : '')
-        File.write(har, '[]')
-        { screenshot: shot, dom: html, har: har, dir: dir }
+        finding = nil
+        unless title.empty?
+          finding = persist_web_finding(
+            title: title,
+            url: url,
+            severity: opts[:severity] || (finding_opts.is_a?(Hash) ? finding_opts[:severity] : nil),
+            session_id: opts[:session_id],
+            engagement_id: opts[:engagement_id],
+            capture_pack: pack,
+            browser_obj: browser_obj,
+            screenshot: opts[:screenshot],
+            html: opts[:html],
+            har: opts[:har]
+          )
+        end
+        { url: url, evidence: pack, finding: finding }
       end
 
       public_class_method def self.intercept(opts = {})
@@ -1623,6 +1689,111 @@ module PWN
         r.body = body.to_s if body
         resp = http.request(r)
         { status: resp.code.to_i, headers: resp.to_hash, body: resp.body.to_s[0, 65_536], url: url, method: method }
+      end
+
+      private_class_method def self.browser_handle(opts = {})
+        obj = opts[:browser_obj] || opts[:browser]
+        obj.is_a?(Hash) ? obj[:browser] : obj
+      end
+
+      private_class_method def self.png_bytes(opts = {})
+        src = opts[:screenshot]
+        if src.is_a?(String) && File.file?(src)
+          return File.binread(src)
+        elsif src.is_a?(String) && src.b.start_with?("\x89PNG".b)
+          return src.b
+        end
+
+        browser = browser_handle(opts)
+        if browser.respond_to?(:screenshot)
+          begin
+            path = File.join(Dir.tmpdir, "pwn-tb-#{SecureRandom.hex(4)}.png")
+            browser.screenshot.save(path)
+            return File.binread(path) if File.file?(path)
+          rescue StandardError
+            nil
+          end
+        end
+        "\x89PNG\r\n\x1a\n".b
+      end
+
+      private_class_method def self.html_body(opts = {})
+        src = opts[:html] || opts[:dom]
+        return File.read(src) if src.is_a?(String) && File.file?(src)
+        return src.to_s unless src.nil?
+
+        browser = browser_handle(opts)
+        browser.respond_to?(:html) ? browser.html.to_s : ''
+      end
+
+      private_class_method def self.har_document(opts = {})
+        src = opts[:har] || opts[:har_json]
+        parsed = parse_har(src: src)
+        return parsed if parsed
+
+        entries = Array(opts[:entries])
+        browser_obj = opts[:browser_obj]
+        proxy = browser_obj.is_a?(Hash) ? browser_obj[:capture_proxy] : nil
+        if proxy.is_a?(Hash)
+          path = proxy[:har_path].to_s
+          parsed = parse_har(src: path) if File.file?(path)
+          return parsed if parsed
+
+          entries = Array(proxy[:entries]) if entries.empty?
+        end
+        entries = Array(@intercepted) if entries.empty?
+        url = opts[:url].to_s
+        html = html_body(opts)
+        if entries.empty? && !url.empty?
+          entries = [{
+            'startedDateTime' => Time.now.utc.iso8601,
+            'request' => { 'method' => 'GET', 'url' => url, 'headers' => [] },
+            'response' => { 'status' => 200, 'headers' => [], 'content' => { 'mimeType' => 'text/html', 'text' => html.to_s[0, 65_536] } }
+          }]
+        end
+        { 'log' => { 'version' => '1.2', 'creator' => { 'name' => 'PWN::Plugins::TransparentBrowser', 'version' => '1' }, 'entries' => entries } }
+      end
+
+      private_class_method def self.parse_har(opts = {})
+        src = opts[:src]
+        return nil if src.nil?
+
+        if src.is_a?(Hash)
+          return src['log'] || src[:log] ? src : { 'log' => src }
+        end
+
+        text = src.to_s
+        return nil if text.empty?
+
+        text = File.read(text) if File.file?(text)
+        JSON.parse(text)
+      rescue JSON::ParserError
+        nil
+      end
+
+      private_class_method def self.spill_web(opts = {})
+        bytes = opts[:bytes].to_s
+        sid = opts[:session_id].to_s
+        sid = 'web' if sid.empty?
+        PWN::Plugins::ArtifactRegistry.spill(bytes: bytes, session_id: sid)
+      end
+
+      private_class_method def self.persist_web_finding(opts = {})
+        pack = opts[:capture_pack]
+        pack = evidence!(opts) unless pack.is_a?(Hash)
+        url = opts[:url].to_s
+        arts = [pack[:screenshot], pack[:har], pack[:dom]].select { |path| File.file?(path.to_s) }
+        evidence = "pixel=#{pack[:screenshot]} har=#{pack[:har]} url=#{url} screenshot PNG and HAR log prove the navigation"
+        PWN::Plugins::Findings.record(
+          title: opts[:title].to_s,
+          severity: opts[:severity] || 'info',
+          host: url,
+          url: url,
+          poc_artifacts: arts,
+          evidence: evidence,
+          session_id: opts[:session_id],
+          engagement_id: opts[:engagement_id]
+        )
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -1773,9 +1944,16 @@ module PWN
 
           # Save screenshot.png, dom.html, and har.json under ~/.pwn/artifacts.
           #{self}.evidence!(
-            browser_obj: 'required - browser_obj returned from #open',
+            browser_obj: 'optional - browser_obj returned from open; omit when html or har fixtures are supplied',
             label: 'optional - folder name for this capture (defaults to capture)',
-            session_id: 'optional - artifacts session folder (defaults to default)'
+            session_id: 'optional - artifacts session folder (defaults to web)',
+            screenshot: 'optional - PNG path used when no live screenshot is available',
+            html: 'optional - DOM HTML string or file used when no live browser is available',
+            dom: 'optional - alias for html',
+            har: 'optional - HAR JSON string, Hash, or file used when no live capture is available',
+            har_json: 'optional - alias for har',
+            entries: 'optional - Array of HAR entries used when har is omitted',
+            url: 'optional - navigated URL embedded into a synthetic HAR entry'
           )
 
           # Enable CDP Fetch interception (Burp-like hook without Burp).
@@ -1796,6 +1974,26 @@ module PWN
             request: 'required - Hash or JSON of method/url/headers/body',
             req: 'optional - alias for request',
             mutations: 'optional - Hash of url/method/headers/body overlays'
+          )
+
+          # Navigate then optionally capture screenshot, DOM, and HAR; record a finding when title is set.
+          #{self}.goto(
+            browser_obj: 'optional - browser_obj returned from open; omit when html or har fixtures are supplied',
+            url: 'optional - HTTP(S) URL to open; required unless uri is set',
+            uri: 'optional - alias for url',
+            capture: 'optional - true spills screenshot DOM HAR (defaults true when title is set)',
+            title: 'optional - finding title; records pixel and HAR proof without a second call',
+            finding: 'optional - Hash with title and severity overlay for the recorded finding',
+            severity: 'optional - finding severity string (defaults to info)',
+            session_id: 'optional - artifact session id (defaults to web)',
+            engagement_id: 'optional - findings engagement id',
+            label: 'optional - capture folder name under the session web dir',
+            screenshot: 'optional - PNG path used when no live screenshot is available',
+            html: 'optional - DOM HTML string or file used when no live browser is available',
+            dom: 'optional - alias for html',
+            har: 'optional - HAR JSON string, Hash, or file used when no live capture is available',
+            har_json: 'optional - alias for har',
+            entries: 'optional - Array of HAR entries used when har is omitted'
           )
 
           # Print the AUTHOR(S) string for this module.

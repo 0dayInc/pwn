@@ -217,7 +217,10 @@ module PWN
             "(defaults eval=#{eval_s || 20}s shell=#{shell_s || 30}s, clamped). " \
             "LIVING OFF THE LAND #{land} #{doc}#{jobs} #{facts} LESSONS_REV #{rev} " \
             "CANARY #{canary} never copy this token into tool args. " \
-            'DOMAIN TOOLS for pentest/RE: binary_triage, pty_open, job_run, exploitdev, fuzz_campaign, finding_record, decompile.'
+            'LONG WORK: run fuzzers, full scans and Ghidra analysis through job_run, not blocking shell timeouts. ' \
+            'Use max_runtime for the campaign lifetime (21600 for six hours; 0 unlimited). Retain its id; poll job_status(id) and ' \
+            'read job_tail(id, offset) using next_offset. Current log eof is not job completion. Never relaunch a running job or apply the +180 timeout retry ladder to it. ' \
+            'Use job_status without id to recover jobs from earlier sessions. DOMAIN TOOLS for pentest/RE: binary_triage, pty_open, job_run, exploitdev, fuzz_campaign, finding_record, decompile.'
         rescue StandardError
           'load unknown — pass a conservative timeout on pwn_eval/shell anyway.'
         end
@@ -370,13 +373,13 @@ module PWN
           request = opts[:request].to_s
           return '' unless defined?(PWN::AI::Agent::TurnFinalizer)
 
-          paths = PWN::AI::Agent::TurnFinalizer.output_paths(request: request)
+          paths = PWN::AI::Agent::TurnFinalizer.required_artifacts(request: request)
           return '' if paths.empty?
 
-          rows = paths.map { |path| "              - #{path} (must exist, mtime in this turn, non-empty, then read back)" }.join("\n")
+          rows = paths.map { |path| "              - #{path} (current-turn write-effect tool call, then host stat + SHA-256 readback)" }.join("\n")
           <<~BLOCK
             DELIVERABLES
-              Do not finalize until every path below exists with a fresh mtime and non-trivial size:
+              Required artifacts are precommitted. Do not finalize until every path below has a verified current-turn write, fresh mtime, non-trivial size, and stat + SHA-256 readback:
             #{rows}
 
           BLOCK

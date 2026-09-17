@@ -17,6 +17,7 @@ module PWN
     autoload :OpenAI, 'pwn/ai/open_ai'
     autoload :OpenWebUI, 'pwn/ai/open_web_ui'
     autoload :RedTeam, 'pwn/ai/red_team'
+    autoload :Router, 'pwn/ai/router'
 
     # Display a List of Every PWN::AI Module
 

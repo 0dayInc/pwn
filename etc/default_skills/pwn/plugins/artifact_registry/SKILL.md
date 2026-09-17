@@ -34,10 +34,13 @@ PWN::Plugins::ArtifactRegistry.required_bins(opts)
 ## Public methods
 
 - `required_bins`
+- `spill`
 - `register`
 - `list`
 - `get`
 - `read_page`
+- `grep`
+- `resolve`
 - `put`
 - `authors`
 - `help`

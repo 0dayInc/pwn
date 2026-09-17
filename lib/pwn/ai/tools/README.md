@@ -20,6 +20,11 @@ risk_gates:
   med: prompt
   high: prompt
   crit: deny
+confirmation:
+  read_only: auto
+  active_scan: auto
+  exploit: prompt
+  destructive: prompt
 ```
 
 Missing risk gates deny; unannotated tools use `crit`. `enabled: false` explicitly

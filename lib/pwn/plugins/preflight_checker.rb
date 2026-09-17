@@ -18,6 +18,7 @@ module PWN
         'PWN::Plugins::Radare2' => { bins: %w[r2] },
         'PWN::Plugins::GDB' => { bins: %w[gdb] },
         'PWN::Plugins::Nuclei' => { bins: %w[nuclei] },
+        'PWN::Plugins::Httpx' => { bins: %w[httpx] },
         'PWN::Plugins::Sqlmap' => { bins: %w[sqlmap] },
         'PWN::Plugins::Frida' => { bins: %w[frida] },
         'PWN::Plugins::AFLplusplus' => { bins: %w[afl-fuzz] },
@@ -36,8 +37,8 @@ module PWN
 
       FALLBACKS = {
         'PWN::Plugins::Metasploit' => %w[exploitdev pwn_eval],
-        'PWN::Plugins::BurpSuite' => %w[TransparentBrowser nuclei],
-        'PWN::Plugins::Zaproxy' => %w[nuclei TransparentBrowser],
+        'PWN::Plugins::BurpSuite' => %w[TransparentBrowser nuclei httpx],
+        'PWN::Plugins::Zaproxy' => %w[nuclei httpx TransparentBrowser],
         'PWN::Plugins::K8s' => %w[pwn_eval],
         'PWN::Plugins::ExploitDB' => %w[intel_lookup]
       }.freeze

@@ -37,6 +37,8 @@ PWN::Plugins::ProcessTube.required_bins(opts)
 - `spawn`
 - `connect`
 - `send_line`
+- `sendline`
+- `recv`
 - `write_line`
 - `recvuntil`
 - `recvline`

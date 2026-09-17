@@ -105,6 +105,20 @@ describe PWN::AI::Agent::TurnFinalizer do
   end
 
   describe 'output path literals' do
+    it 'precommits immutable required_artifacts before cwd or request processing can drift' do
+      Dir.mktmpdir do |dir|
+        request = 'Read /tmp/input.md and write ./answer.md'
+        contract = described_class.commit_artifacts!(request: request, cwd: dir)
+        expect(contract[:required_artifacts]).to eq([File.join(dir, 'answer.md')])
+        expect(contract).to be_frozen
+        expect(contract[:required_artifacts]).to be_frozen
+        expect(described_class.required_artifacts(request: request)).to eq(contract[:required_artifacts])
+        expect(described_class.arbitrate(request: request, messages: [])[:unmet]).to include(criterion: 'artifact_missing', detail: File.join(dir, 'answer.md'))
+      end
+    ensure
+      Thread.current[:pwn_artifact_contract] = nil
+    end
+
     it 'does not interpret words inside earlier filenames as new instructions' do
       expect(described_class.output_paths(request: 'Write /tmp/read.md and /tmp/answer.md')).to eq(['/tmp/read.md', '/tmp/answer.md'])
     end
@@ -122,6 +136,68 @@ describe PWN::AI::Agent::TurnFinalizer do
       expect(described_class.output_paths(request: 'Read /tmp/source.md and explain it.')).to eq([])
       expect(described_class.output_paths(request: 'Output: result.txt')).to eq([File.expand_path('result.txt')])
     end
+  end
+
+  it 'rejects host observations from an earlier turn even when stat and digest still match' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'answer.md')
+      request = "Write #{path}"
+      described_class.commit_artifacts!(request: request)
+      before = described_class.artifact_snapshot(paths: [path])
+      File.write(path, 'verified first turn')
+      observations = described_class.observe_artifacts(paths: [path], before: before, effect: :write, success: true)
+      messages = [{ role: 'tool', artifact_observations: observations }]
+      expect(described_class.arbitrate(request: request, messages: messages)[:complete]).to eq(true)
+      described_class.commit_artifacts!(request: request)
+      result = described_class.arbitrate(request: request, messages: messages)
+      expect(result[:unmet]).to include(criterion: 'write_missing', detail: path)
+      expect(result[:unmet]).to include(criterion: 'readback_missing', detail: path)
+    end
+  ensure
+    Thread.current[:pwn_artifact_contract] = nil
+  end
+
+  it 'gates finalization on real Dispatch writes and current-turn stat plus SHA-256 for every committed path' do
+    PWN::AI::Agent::Registry.discover
+    loop_module = PWN::AI::Agent::Loop
+    allow(loop_module).to receive(:evidence_satisfied?).and_return(true)
+    allow(loop_module).to receive(:record_artifact_bounce)
+    Dir.mktmpdir do |dir|
+      paths = %w[first.md second.md].map { |name| File.join(dir, name) }
+      request = "Write #{paths.join(' and ')}"
+      contract = described_class.commit_artifacts!(request: request)
+      messages = [{ role: 'assistant', content: 'Both files were written and verified.' }]
+      finalize = -> { loop_module.send(:may_finalize?, request: request, messages: messages, text: 'Delivered both files.') }
+      expect(finalize.call).to eq(false)
+      paths.each_with_index do |path, index|
+        code = "File.write(#{path.inspect}, 'verified artifact #{index}')"
+        args = index.zero? ? { code: code } : { encoding: 'base64', data: Base64.strict_encode64(code) }
+        before = described_class.artifact_snapshot(paths: contract[:required_artifacts])
+        raw = PWN::AI::Agent::Dispatch.call(scope_policy: { enabled: false }, tool_call: { function: { name: 'pwn_eval', arguments: JSON.generate(args) } })
+        parsed = JSON.parse(raw)
+        expect(parsed.dig('result', 'error')).to be_nil
+        effect = PWN::AI::Agent::Dispatch.effect(name: 'pwn_eval', args: args)
+        expect(effect).to eq(:write)
+        observed = described_class.observe_artifacts(paths: contract[:required_artifacts], before: before, effect: effect, success: parsed['success'])
+        expect(observed.fetch(path)[:sha256]).to eq(Digest::SHA256.file(path).hexdigest)
+        expect(observed.fetch(path)[:stat][:size]).to eq(File.size(path))
+        messages << { role: 'tool', content: raw, artifact_observations: observed }
+        expect(finalize.call).to eq(index == 1)
+      end
+      File.write(paths.last, 'changed after readback')
+      expect(finalize.call).to eq(false)
+    end
+  ensure
+    Thread.current[:pwn_artifact_contract] = nil
+    Thread.current[:pwn_dispatch_budget] = nil
+  end
+
+  it 'precommits before cheap returns and uses the committed list for dispatch observation' do
+    source = File.read(PWN::AI::Agent::Loop.method(:run).source_location.first)
+    run = source[source.index('public_class_method def self.run(opts = {})')..]
+    expect(run.index('commit_artifacts!')).to be < run.index('cheap =')
+    expect(run).to include('allow_text_only = required_artifacts.empty?', 'cheap = allow_text_only', 'declared_paths = required_artifacts')
+    expect(run).to include('Thread.current[:pwn_artifact_contract] = prior_artifact_contract')
   end
 
   it 'requires a current-turn write even when a file is newly present and readable' do

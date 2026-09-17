@@ -19,10 +19,16 @@ module PWN
       public_class_method def self.generate(opts = {})
         name = (opts[:engagement] || opts[:name] || 'default').to_s
         rows = if opts[:findings]
-                 Array(opts[:findings])
+                 Array(opts[:findings]).select do |row|
+                   engagement = (row[:engagement_id] || row['engagement_id']).to_s
+                   engagement.empty? || engagement == name
+                 end
                elsif defined?(PWN::Plugins::Findings)
                  rows = PWN::Plugins::Findings.report
-                 rows = rows.select { |row| row[:engagement_id].to_s == name || name == 'default' }
+                 rows.select do |row|
+                   engagement = (row[:engagement_id] || row['engagement_id']).to_s
+                   engagement == name || (name == 'default' && engagement.empty?)
+                 end
                else
                  []
                end

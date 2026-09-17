@@ -50,6 +50,7 @@ PWN::Plugins::Jobs.required_bins(opts)
 - `graph`
 - `authors`
 - `help`
+- `supervise`
 
 ## Source
 

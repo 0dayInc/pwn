@@ -38,29 +38,59 @@ PWN::AI::Agent::Registry.register(
   toolset: 'sessions',
   schema: {
     name: 'artifact_read',
-    description: 'Page an artifact as text/hex/base64 from offset.',
+    description: 'Read a bounded byte page. Use handle from a spilled tool result, offset and length; follow next_offset until eof. Handle pages default to lossless base64.',
     parameters: {
       type: 'object',
       properties: {
+        handle: { type: 'string' },
         path: { type: 'string' },
-        offset: { type: 'integer' },
-        length: { type: 'integer' },
+        offset: { type: 'integer', minimum: 0 },
+        length: { type: 'integer', minimum: 1 },
         mode: { type: 'string', description: 'text|hex|base64' },
         grep: { type: 'string' },
         ref: { type: 'string' },
         sha256: { type: 'string' }
       },
-      required: %w[path]
+      anyOf: [{ required: %w[handle] }, { required: %w[path] }, { required: %w[ref] }]
     }
   },
   handler: lambda { |args|
     PWN::Plugins::ArtifactRegistry.read_page(
+      handle: args[:handle] || args['handle'],
       path: args[:path] || args['path'] || args[:ref] || args['ref'],
       offset: args[:offset] || args['offset'],
       length: args[:length] || args['length'],
-      mode: args[:mode] || args['mode'],
+      max_length: PWN::AI::Agent::Result.page_length,
+      max_bytes: PWN::AI::Agent::Result.page_length,
+      mode: args[:mode] || args['mode'] || (args[:handle] || args['handle'] ? 'base64' : 'text'),
       grep: args[:grep] || args['grep'],
       sha256: args[:sha256] || args['sha256']
+    )
+  }
+)
+PWN::AI::Agent::Registry.register(
+  name: 'artifact_grep',
+  toolset: 'sessions',
+  schema: {
+    name: 'artifact_grep',
+    description: 'Search saved tool output by complete binary lines (first match per line, maximum line 64 MiB). Returns bounded previews and byte offsets; resume next_offset until eof, even after empty matches. Use artifact_read for exact bytes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        handle: { type: 'string' },
+        regex: { type: 'string' },
+        offset: { type: 'integer', minimum: 0 }
+      },
+      required: %w[handle regex]
+    }
+  },
+  handler: lambda { |args|
+    PWN::Plugins::ArtifactRegistry.grep(
+      handle: args[:handle] || args['handle'],
+      regex: args[:regex] || args['regex'],
+      offset: args[:offset] || args['offset'],
+      limit: 1,
+      max_bytes: PWN::AI::Agent::Result.page_length
     )
   }
 )

@@ -198,8 +198,46 @@ module PWN
         raise e
       end
 
-      # Supported Method Parameters::
-      # PWN::Plugins::Assembly.list_archs
+      public_class_method def self.assemble(opts = {})
+        asm = opts[:asm].to_s
+        raise 'ERROR: asm is required' if asm.empty?
+
+        if opts[:engine].to_s != 'metasm' && PWN::FFI.available?(mod: :Keystone)
+          begin
+            return PWN::FFI::Keystone.assemble(opts)
+          rescue StandardError
+            nil
+          end
+        end
+
+        arch_obj = arch_object(opts)
+        bytes = Metasm::Shellcode.assemble(arch_obj, asm).encode_string
+        { engine: 'metasm', bytes: bytes, hex: bytes.unpack1('H*'), count: bytes.bytesize }
+      end
+
+      public_class_method def self.disassemble(opts = {})
+        raw = opts[:bytes] || opts[:opcodes]
+        raise 'ERROR: bytes is required' if raw.to_s.empty?
+
+        if opts[:engine].to_s != 'metasm' && PWN::FFI.available?(mod: :Capstone)
+          begin
+            row = PWN::FFI::Capstone.disassemble(opts)
+            return row if Array(row[:insns]).any?
+          rescue StandardError
+            nil
+          end
+        end
+
+        arch_obj = arch_object(opts)
+        text = Metasm::Shellcode.disassemble(arch_obj, raw.to_s.b).to_s
+        insns = text.lines.filter_map do |line|
+          match = line.match(/^\s*(?:0x)?([0-9a-f]+)\s+(\S+)\s*(.*)$/i)
+          next unless match
+
+          { address: match[1].to_i(16), mnemonic: match[2], op_str: match[3].to_s.strip }
+        end
+        { engine: 'metasm', insns: insns, count: insns.length, text: text }
+      end
 
       public_class_method def self.list_supported_archs
         [
@@ -267,6 +305,25 @@ module PWN
             endian: 'optional - endianess :big|:little (defaults to current system endianess)'
           )
 
+          # Assemble instructions via Keystone FFI when present, else Metasm.
+          #{self}.assemble(
+            asm: 'required - assembly source (one instruction per line)',
+            arch: 'optional - architecture string (as from objdump --info)',
+            endian: 'optional - :little or :big byte order',
+            engine: 'optional - assembler backend keystone when libkeystone loads, otherwise metasm',
+            address: 'optional - start address'
+          )
+
+          # Disassemble bytes via Capstone FFI when present, else Metasm.
+          #{self}.disassemble(
+            bytes: 'required - raw machine-code bytes',
+            opcodes: 'optional - alias for bytes',
+            arch: 'optional - architecture string (as from objdump --info)',
+            endian: 'optional - :little or :big byte order',
+            engine: 'optional - disassembler backend capstone when libcapstone loads, otherwise metasm',
+            address: 'optional - start address'
+          )
+
           # Run list supported archs and return its result
           #{self}.list_supported_archs
 
@@ -274,6 +331,20 @@ module PWN
           #{self}.authors
         "
         constants.sort
+      end
+
+      private_class_method def self.arch_object(opts = {})
+        arch = (opts[:arch] || PWN::Plugins::DetectOS.arch).to_s
+        endian = opts[:endian] || PWN::Plugins::DetectOS.endian
+        endian = endian.to_sym
+        case arch.downcase
+        when 'i386', 'i686', 'x86' then Metasm::Ia32.new(endian)
+        when 'amd64', 'x86_64' then Metasm::X86_64.new(endian)
+        when 'aarch64', 'arm64' then Metasm::ARM64.new(endian)
+        when /arm/ then Metasm::ARM.new(endian)
+        else
+          raise "Unsupported architecture: #{arch}"
+        end
       end
     end
   end

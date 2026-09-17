@@ -25,11 +25,68 @@ describe PWN::Plugins::BinaryParser do
     skip 'no ELF on PATH' unless path
     Dir.mktmpdir do |dir|
       allow(Dir).to receive(:home).and_return(dir)
-      first = described_class.triage(path: path)
+      stub_const('PWN::Plugins::ArtifactRegistry::ROOT', File.join(dir, 'artifacts'))
+      first = described_class.triage(path: path, session_id: 'fixture')
       expect(first).to include(:format, :arch, :protections, :sha256, :sections)
       expect(first[:cached]).to be false
-      second = described_class.triage(path: path)
+      second = described_class.triage(path: path, session_id: 'fixture')
       expect(second[:cached]).to be true
+    end
+  end
+
+  it 'surfaces mitigations and attack surface for a stripped ELF in one JSON artifact' do
+    Dir.mktmpdir('pwn-triage-') do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
+      stub_const('PWN::Plugins::ArtifactRegistry::ROOT', File.join(dir, 'artifacts'))
+      source = File.join(dir, 'fixture.c')
+      path = File.join(dir, 'fixture')
+      File.write(source, <<~C)
+        #include <stdio.h>
+        int main(void) {
+          puts("https://example.test/api");
+          puts("/var/lib/pwn/keys");
+          puts("BEGIN RSA PRIVATE KEY");
+          printf("%s %n\\n", "fmt");
+          return 0;
+        }
+      C
+      out, status = Open3.capture2e('cc', '-O0', '-g', '-fstack-protector-all', '-o', path, source)
+      expect(status.success?).to eq(true), out
+      Open3.capture2e('strip', '--strip-all', path)
+      row = described_class.triage(path: path, session_id: 'fixture')
+      expect(row[:file_type] || row[:format]).to match(/elf/i)
+      expect(row[:arch].to_s).not_to be_empty
+      expect(row[:linking].to_s).to match(/dynamic|static/)
+      expect(row[:protections]).to include(:nx, :pie, :relro, :canary, :cfi)
+      expect(row[:protections].values).to all(satisfy { |value| [true, false].include?(value) || value.is_a?(String) })
+      expect(row[:stripped]).to eq(true)
+      expect(Array(row[:imports]).any? { |name| name.to_s.include?('puts') || name.to_s.include?('printf') || name.to_s.include?('libc') }).to eq(true)
+      strings = row[:interesting_strings]
+      blob = JSON.generate(strings)
+      expect(blob).to include('https://example.test/api')
+      expect(blob).to match(%r{/var/lib/pwn/keys})
+      expect(blob).to include('%n')
+      expect(row[:entropy]).to be_a(Hash)
+      expect(row[:entropy].keys).not_to be_empty
+      expect(row[:packer]).to include(:packed, :indicators)
+      expect(row[:handle].to_s).to match(%r{\Afixture/[0-9a-f]{8}\.bin\z})
+      stored = JSON.parse(File.binread(row[:artifact][:path] || File.join(dir, 'artifacts', row[:handle])), symbolize_names: true)
+      expect(stored[:sha256]).to eq(row[:sha256])
+      expect(stored[:protections]).to include(:canary)
+    end
+  end
+
+  it 'elf_resolve maps symbols, GOT, and PLT on a compiled ELF' do
+    Dir.mktmpdir('pwn-elf-resolve-') do |dir|
+      src = File.join(dir, 't.c')
+      path = File.join(dir, 't')
+      File.write(src, "#include <stdio.h>\n#include <stdlib.h>\nint main(void) { puts(\"hi\"); if (0) system(\"x\"); return 0; }\n")
+      out, status = Open3.capture2e('cc', '-O0', '-no-pie', '-o', path, src)
+      expect(status.success?).to eq(true), out
+      row = described_class.elf_resolve(path: path)
+      expect(row[:plt].keys.map(&:to_s)).to include('puts')
+      expect(row[:got].keys.map(&:to_s)).to include('puts')
+      expect(row[:symbols]['main'] || row[:symbols][:main]).to be_a(Integer)
     end
   end
 end

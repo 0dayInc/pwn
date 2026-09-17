@@ -41,6 +41,8 @@ PWN::AI::Agent::TurnFinalizer.enter_user_path(opts)
 - `finalize`
 - `join_all`
 - `pending`
+- `commit_artifacts`
+- `required_artifacts`
 - `output_paths`
 - `artifact_snapshot`
 - `observe_artifacts`
@@ -49,6 +51,7 @@ PWN::AI::Agent::TurnFinalizer.enter_user_path(opts)
 - `evidence_satisfied`
 - `authors`
 - `help`
+- `commit_artifacts!`
 - `enter_user_path!`
 - `evidence_satisfied?`
 - `join_all!`

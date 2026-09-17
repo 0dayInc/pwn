@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
+require 'json'
+require 'base64'
+
 module PWN
   module AI
     module Agent
       # Conditioning applied to every tool result before it re-enters the
-      # conversation as a role:'tool' message: hard size cap + credential
+      # conversation as a role:'tool' message: lossless paging + credential
       # redaction. Keeps the context window bounded and avoids leaking
       # PWN::Env credentials back into the model.
       module Result
@@ -36,11 +39,64 @@ module PWN
 
         public_class_method def self.condition(opts = {})
           content = opts[:content].to_s
-          entry   = opts[:entry]
-          cap     = entry ? entry.max_chars : default_max
-
-          content = "#{content[0, cap]}…[truncated #{opts[:content].to_s.length - cap} chars]" if content.length > cap
+          content = JSON.generate(spill_summary(content: content, session_id: opts[:session_id])) if content.bytesize > token_limit(entry: opts[:entry]) || !content.dup.force_encoding('UTF-8').valid_encoding?
           redact(content: content)
+        end
+
+        # Preserve the original handler result before redaction/quarantine.
+        public_class_method def self.page(opts = {})
+          value = opts[:value]
+          safe_value = value.is_a?(String) ? value : transport_value(value: value)
+          content = value.is_a?(String) ? value : JSON.generate(safe_value)
+          return safe_value if content.bytesize <= token_limit(entry: opts[:entry]) && content.dup.force_encoding('UTF-8').valid_encoding?
+
+          summary = spill_summary(content: content, session_id: opts[:session_id])
+          summary[:serialization] = value.is_a?(String) ? 'raw' : 'json (binary strings use encoding/base64 wrappers)'
+          if value.is_a?(Hash)
+            %w[success ok exit exit_code exit_status timed_out error code].each do |key|
+              next unless value.key?(key.to_sym) || value.key?(key)
+
+              field = value.key?(key.to_sym) ? value[key.to_sym] : value[key]
+              summary[key.to_sym] = field if [true, false, nil].include?(field) || field.is_a?(Numeric) || (field.is_a?(String) && field.bytesize <= 128)
+            end
+          end
+          summary
+        end
+
+        # A byte is a conservative token upper bound; never assume four bytes
+        # per token for arbitrary strings/hex/binary dumps. No tokenizer needed.
+        public_class_method def self.token_limit(opts = {})
+          configured = PWN::Env.dig(:ai, :agent, :artifact_max_tokens).to_i if defined?(PWN::Env)
+          limit = configured.to_i.positive? ? configured : default_max / 4
+          cap = opts[:entry]&.max_chars.to_i
+          limit = [limit, cap].min if cap.positive?
+          [limit, 1024].max
+        end
+
+        # Reserve room for JSON escaping, metadata, and the dispatch envelope.
+        public_class_method def self.page_length
+          ((token_limit - 768) / 8).clamp(32, 2048)
+        end
+
+        private_class_method def self.spill_summary(opts = {})
+          content = opts[:content]
+          artifact = PWN::Plugins::ArtifactRegistry.spill(bytes: content, session_id: opts[:session_id] || Thread.current[:pwn_session_id] || 'default')
+          {
+            artifact: artifact,
+            summary: 'Full result saved without truncation. Use artifact_read(handle, offset, length) or artifact_grep(handle, regex); offsets are bytes.',
+            preview: redact(content: content.byteslice(0, 32).to_s.dup.force_encoding('UTF-8').scrub)
+          }
+        end
+
+        private_class_method def self.transport_value(opts = {})
+          value = opts[:value]
+          case value
+          when Hash then value.transform_values { |v| transport_value(value: v) }
+          when Array then value.map { |v| transport_value(value: v) }
+          when String
+            value.dup.force_encoding('UTF-8').valid_encoding? ? value.dup.force_encoding('UTF-8') : { encoding: 'base64', body: Base64.strict_encode64(value) }
+          else value
+          end
         end
 
         # Engine-aware default: ollama keeps history inside a tight num_ctx;
@@ -109,8 +165,22 @@ module PWN
             # Run condition and return its result
             #{self}.condition(
               content: 'required - String returned by Dispatch.call',
-              entry: 'optional - Registry::Entry (used for max_chars; nil → DEFAULT_MAX)'
+              entry: 'optional - Registry::Entry (used for max_chars; nil → DEFAULT_MAX)',
+              session_id: 'optional - session directory used for lossless spilled results'
             )
+
+            # Preserve oversized handler results before redaction or quarantine.
+            #{self}.page(
+              value: 'required - original tool handler result to condition',
+              entry: 'optional - registry entry with an inline size cap',
+              session_id: 'optional - session directory for the saved result'
+            )
+
+            # Conservative byte-based token bound, configurable through ai.agent.artifact_max_tokens.
+            #{self}.token_limit(entry: 'optional - registry entry imposing a smaller cap')
+
+            # Maximum page bytes with space reserved for response metadata.
+            #{self}.page_length
 
             # Engine-aware default: ollama keeps history inside a tight num_ctx;
             #{self}.default_max

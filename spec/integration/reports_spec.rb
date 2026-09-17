@@ -12,6 +12,99 @@ require 'json'
 # ─────────────────────────────────────────────────────────────────────────────
 
 RSpec.describe 'PWN::Reports', :aggregate_failures do
+  describe 'directed attack-chain presentation' do
+    around do |example|
+      Dir.mktmpdir('pwn_chain_evidence') do |dir|
+        @evidence_dir = dir
+        File.write(File.join(dir, 'proof'), 'demonstrated admin access')
+        example.run
+      end
+    end
+
+    let(:evidence) do
+      path = File.join(@evidence_dir, 'proof')
+      { label: '<proof>', kind: 'poc', stored: path, sha256: Digest::SHA256.file(path).hexdigest, size: File.size(path) }
+    end
+    let(:members) do
+      [
+        { 'id' => 'ssrf', 'title' => 'SSRF <entry>', 'severity' => 'medium', 'cvss' => 5.3, 'enables' => ['admin'] },
+        { 'id' => 'admin', 'title' => 'Internal admin', 'severity' => 'medium', 'cvss' => 6.5,
+          'chain_assessments' => [{ 'finding_ids' => %w[ssrf admin], 'combined_severity' => 'critical', 'rationale' => 'Verified <admin> access',
+                                    'reproduction_steps' => ['Send <request>', 'Observe admin access'], 'evidence_artifacts' => [evidence.transform_keys(&:to_s)] }] },
+        { 'id' => 'other', 'title' => 'Other issue', 'severity' => 'high' }
+      ]
+    end
+    let(:chain) do
+      payload[:attack_chains].first
+    end
+    let(:payload) do
+      PWN::Reports.package_evidence(payload: PWN::Reports.report_payload(results_hash: { findings: members }), path: File.join(@evidence_dir, 'expected.json'))
+    end
+
+    it 'exports one critical chain SARIF result with all constituent metadata and unchanged standalone shape' do
+      Dir.mktmpdir('pwn_chain_sarif') do |dir|
+        doc = JSON.parse(File.read(PWN::Reports::SARIF.generate(dir_path: dir, report_name: 'chain', results_hash: { findings: members })))
+        results = doc['runs'].first['results']
+        expect(results.length).to eq(2)
+        expect(results.first).to include('level' => 'error', 'message' => { 'text' => chain[:title] })
+        expect(results.first['properties']).to include('chain' => JSON.parse(JSON.generate(chain)), 'constituent_findings' => members.first(2))
+        attachment = results.first['properties']['chain']['evidence_artifacts'].first.fetch('attachment')
+        expect(Digest::SHA256.file(File.join(dir, attachment)).hexdigest).to eq(evidence[:sha256])
+        expect(results.last).to eq('ruleId' => 'other', 'level' => 'error', 'message' => { 'text' => 'Other issue' }, 'properties' => members.last)
+      end
+    end
+
+    it 'exports ranked priorities alongside unchanged constituent findings in JSON' do
+      Dir.mktmpdir('pwn_chain_json') do |dir|
+        doc = JSON.parse(File.read(PWN::Reports::JSON.generate(dir_path: dir, report_name: 'chain', results_hash: { findings: members })))
+        expect(doc['priorities']).to eq(JSON.parse(JSON.generate(payload[:priorities])))
+        expect(doc['attack_chains']).to eq(JSON.parse(JSON.generate([chain])))
+        expect(doc['findings']).to eq(members)
+        attachment = doc['priorities'].first['evidence_artifacts'].first.fetch('attachment')
+        expect(Digest::SHA256.file(File.join(dir, attachment)).hexdigest).to eq(evidence[:sha256])
+      end
+    end
+
+    it 'ranks and documents the critical path before detailed findings in Markdown' do
+      Dir.mktmpdir('pwn_chain_md') do |dir|
+        text = File.read(PWN::Reports::Markdown.generate(dir_path: dir, report_name: 'chain', results_hash: { findings: members }))
+        summary = text.split('## Ranked priorities').last.split('## Attack chains').first
+        expect(summary.scan(/^\d+\./).length).to eq(2)
+        expect(summary).to include('critical', 'SSRF &lt;entry&gt;')
+        expect(summary).not_to include('medium')
+        expect(text.index('## Attack chains')).to be < text.index('## Findings')
+        expect(text).to include('evidence\\_backed', 'Verified &lt;admin&gt; access', 'Send &lt;request&gt;', 'ssrf \\-&gt; admin', 'attachments/', evidence[:sha256], '5\\.3', '6\\.5')
+        expect(text).not_to include('<entry>', '<proof>', '<request>', '<admin>')
+      end
+    end
+
+    it 'presents one critical path before constituent audit details in HTML' do
+      Dir.mktmpdir('pwn_chain_html') do |dir|
+        text = File.read(PWN::Reports::HTML.generate(dir_path: dir, report_name: 'chain', results_hash: { findings: members }))
+        summary = text.split('<tbody>').last.split('</tbody>').first
+        expect(summary.scan('<tr>').length).to eq(2)
+        expect(summary).to include('critical', 'SSRF &lt;entry&gt; -&gt; Internal admin')
+        expect(summary).not_to include('medium')
+        expect(text.index('Attack chains')).to be < text.index('<dt>cvss</dt>')
+        expect(text).to include('evidence_backed', 'Verified &lt;admin&gt; access', 'Send &lt;request&gt;', 'ssrf -&gt; admin', 'attachments/', evidence[:sha256], '5.3', '6.5')
+        expect(text).not_to include('<entry>', '<proof>', '<request>', '<admin>')
+      end
+    end
+  end
+
+  describe 'standalone SARIF compatibility' do
+    it 'preserves distinct metadata for findings without IDs in priority order' do
+      Dir.mktmpdir('pwn_sarif_anonymous') do |dir|
+        rows = [{ title: 'Lower', severity: 'low', description: 'first' }, { title: 'Higher', severity: 'high', description: 'second' }]
+        doc = JSON.parse(File.read(PWN::Reports::SARIF.generate(dir_path: dir, report_name: 'anonymous', results_hash: { findings: rows })))
+        results = doc['runs'].first['results']
+        expect(results.map { |result| result['properties']['description'] }).to eq(%w[second first])
+        expect(results.map { |result| result['level'] }).to eq(%w[error note])
+        expect(results.map { |result| result['ruleId'] }).to eq(%w[finding finding])
+      end
+    end
+  end
+
   describe 'PWN::Reports::SAST.generate' do
     it 'writes <report>.json (valid, contains every finding line_no) and <report>.html' do
       Dir.mktmpdir('pwn_reports_sast') do |dir|

@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Plugins::Nuclei
 
-nuclei wrapper: template/severity, JSONL findings.
+nuclei wrapper: template/severity, JSONL findings into the findings store.
 
 ## When to use
 
@@ -34,6 +34,7 @@ PWN::Plugins::Nuclei.required_bins(opts)
 ## Public methods
 
 - `required_bins`
+- `select_templates`
 - `scan`
 - `to_findings`
 - `to_defectdojo`

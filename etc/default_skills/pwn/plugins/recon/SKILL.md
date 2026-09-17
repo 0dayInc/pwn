@@ -41,6 +41,7 @@ PWN::Plugins::Recon.required_bins(opts)
 - `crt_sh`
 - `amass`
 - `passive_dns`
+- `harvest_loot`
 - `authors`
 - `help`
 

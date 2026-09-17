@@ -43,6 +43,67 @@ describe PWN::Plugins::REPL, 'mesh packet channel routing' do
     end
   end
 
+  [false, true].each do |local|
+    it "includes the original sender and message in a #{local ? 'sent' : 'received'} reaction without changing header colors" do
+      win = double('rx', maxx: 200)
+      %i[attron attroff addstr refresh].each { |method| allow(win).to receive(method) }
+      allow(Curses).to receive(:color_pair) { |color| color }
+      PWN.const_set(:MeshRxBodyWin, win)
+      PWN.const_set(:MeshMutex, Mutex.new)
+      PWN.const_set(:MeshRxState, {})
+      allow(described_class).to receive(:mesh_maybe_dispatch_to_pwn_ai)
+      original = Meshtastic::MeshPacket.new(id: 123, from: 0xaabbccdd, to: 0xffffffff, channel: 1,
+                                            decoded: { portnum: :TEXT_MESSAGE_APP, payload: 'Meet at noon' }).to_h
+      described_class.send(:mesh_handle_rx, msg: { packet: original })
+      reaction = Meshtastic::MeshPacket.new(id: 124, from: 0xb0b, to: 0xffffffff, channel: 1,
+                                            decoded: { portnum: :TEXT_MESSAGE_APP, payload: '👍'.b, emoji: 1, reply_id: 123 }).to_h
+      described_class.send(:mesh_handle_rx, local: local, msg: { packet: reaction })
+      expect(win).to have_received(:addstr).with(" Reacted to: \"!aabbccdd >> Meet at noon\" with: 👍.\n")
+      expect(win).to have_received(:attron).with((local ? 23 : 21) | Curses::A_BOLD).at_least(:once)
+      expect(described_class).to have_received(:mesh_maybe_dispatch_to_pwn_ai).once
+    end
+  end
+
+  it 'remembers the actual transmitted packet ID for reactions to locally sent messages' do
+    sent = nil
+    allow(Meshtastic::Serial).to receive(:send_to_radio) do |args|
+      sent = Meshtastic::ToRadio.decode(args[:to_radio]).packet
+    end
+    allow(described_class).to receive(:mesh_maybe_dispatch_to_pwn_ai)
+    described_class.send(:mesh_send_text, env: mesh_env, obj: radio, text: 'Local message', channel_name: 'LongFast')
+    expect(sent.decoded.payload).to eq('Local message')
+    packet = { decoded: { emoji: 1, reply_id: sent.id } }
+    text = described_class.send(:mesh_reaction_text, packet: packet, text: '👍', channel: 'LongFast', index: 1)
+    expect(text).to eq('Reacted to: "!00000b0b >> Local message" with: 👍.')
+  end
+
+  it 'recovers a reaction target from transport history when the display cache is empty' do
+    radio[:proto_data] << Meshtastic::FromRadio.new(packet: {
+                                                      id: 123, from: 0xaabbccdd, to: 0xffffffff, channel: 1,
+                                                      decoded: { portnum: :TEXT_MESSAGE_APP, payload: 'Earlier message' }
+                                                    }).to_h
+    packet = { channel: 1, decoded: { emoji: 1, reply_id: 123 } }
+    text = described_class.send(:mesh_reaction_text, packet: packet, text: '👍', channel: 'LongFast', index: 1)
+    expect(text).to eq('Reacted to: "!aabbccdd >> Earlier message" with: 👍.')
+  end
+
+  it 'resolves the same radio slot after its channel name becomes known' do
+    described_class.send(:mesh_reaction_text, packet: { id: 123, decoded: {} }, text: 'Before channel listing', from: '!aabbccdd', channel: '', index: 1)
+    packet = { decoded: { emoji: 1, reply_id: 123 } }
+    text = described_class.send(:mesh_reaction_text, packet: packet, text: '👍', channel: 'LongFast', index: 1)
+    expect(text).to eq('Reacted to: "!aabbccdd >> Before channel listing" with: 👍.')
+    other = described_class.send(:mesh_reaction_text, packet: packet, text: '👍', channel: 'LongFast', index: 2)
+    expect(other).to include('original message unavailable')
+  end
+
+  it 'labels unavailable reaction targets rather than inventing their sender or text' do
+    packet = { decoded: { emoji: 1, reply_id: 999 } }
+    text = described_class.send(:mesh_reaction_text, packet: packet, text: '👍', channel: 'LongFast', index: 1)
+    expect(text).to eq('Reacted to: "original message unavailable (packet 999)" with: 👍.')
+    packet[:decoded][:emoji] = 0
+    expect(described_class.send(:mesh_reaction_text, packet: packet, text: '👍')).to eq('👍')
+  end
+
   it 'does not route LongFast to disabled protobuf slots with omitted roles' do
     mesh_env[:channel][:LongFast].delete(:radio_index)
     radio[:proto_data] = [

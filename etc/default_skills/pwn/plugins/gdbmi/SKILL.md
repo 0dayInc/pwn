@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Plugins::GDBMI
 
-GDB machine-interface bridge: breakpoints, stepping, registers, memory, backtraces, checksec. Pairs with ProcessTube for interactive sessions.
+Plugin namespace. GDBMi is a requested alias of GDBMI.
 
 ## When to use
 
@@ -35,12 +35,18 @@ PWN::Plugins::GDBMI.required_bins(opts)
 
 - `required_bins`
 - `open`
+- `session`
+- `close`
 - `break`
-- `step`
+- `run`
+- `continue`
 - `registers`
+- `read_mem`
 - `read_memory`
 - `backtrace`
+- `step`
 - `checksec`
+- `run_to_crash`
 - `mi`
 - `authors`
 - `help`

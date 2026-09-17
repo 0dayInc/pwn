@@ -29,6 +29,38 @@ describe PWN::AI::Agent::ToolGuard do
   end
 
   describe '.placeholder?' do
+    it 'ignores shell multiline quoted data and tab-stripped or quoted-delimiter heredocs' do
+      ["printf '%s' '\n...\n'", "printf '%s' \"\n…\n\"", "cat <<-'MD'\n...\n\tMD\n", "cat <<'DOC-END'\n...\nDOC-END\n", "cat <<A <<\"B\"\n...\nA\n…\nB\n"].each do |text|
+        expect(described_class.placeholder?(text: text, language: :shell)).to eq(false), text
+      end
+    end
+
+    it 'uses Ruby tokens to distinguish literal content and real syntax from code stubs' do
+      ["File.write(path, \"line\n...\n\")", "File.write(path, %q{\n...\n})", "File.write(path, <<~DOC)\n  ...\nDOC\n", 'x = 1...3', 'def foo(...); bar(...); end'].each do |text|
+        expect(described_class.placeholder?(text: text, language: :ruby)).to eq(false), text
+      end
+      ['def foo(<3dots>); end', "def foo(...)\n", "def foo\n...\nend"].each do |text|
+        expect(described_class.placeholder?(text: text, language: :ruby)).to eq(true), text
+      end
+    end
+
+    it 'keeps comments and escaped shell words as data but detects code after a heredoc' do
+      ["# ...\nprintf ok", 'printf %s \\...', 'cat <<< "..."', "cat <<D\\OC\n...\nDOC\n"].each do |text|
+        expect(described_class.placeholder?(text: text)).to eq(false), text
+      end
+      ['printf ok; ...', "cat <<-'EOF'\n...\n\tEOF\n...", '…', '<...>'].each do |text|
+        expect(described_class.placeholder?(text: text)).to eq(true), text
+      end
+    end
+
+    it 'locates Ruby stubs in bytes without selecting ellipses from literal tokens' do
+      text = 'doc = %q{é ...}; def foo(<3dots>); end'
+      match = described_class.placeholder_match(text: text, language: :ruby)
+      expect(match[:offset]).to eq(text.b.index('<3dots>'))
+      expect(text.byteslice(match[:offset], match[:match].bytesize)).to eq('<3dots>')
+      expect(described_class.placeholder?(text: 'def foo(<3dots>); end', language: :ruby, placeholder_ok: true)).to eq(false)
+    end
+
     it 'matches ellipsis placeholders' do
       expect(described_class.placeholder?(text: '...')).to be true
       expect(described_class.placeholder?(text: '{...}')).to be true
@@ -56,6 +88,13 @@ describe PWN::AI::Agent::ToolGuard do
   end
 
   describe '.coerce_args' do
+    it 'locates the actual unsupported shell syntax after quoted UTF-8 literals' do
+      text = "printf 'é PIPESTATUS'; echo ${PIPESTATUS[0]}"
+      matched = described_class.bashism_match(text: text)
+      expect(matched).to include(rule_id: 'payload.shell_syntax', match: 'PIPESTATUS')
+      expect(matched[:offset]).to eq(text.b.rindex('PIPESTATUS'))
+    end
+
     it 'aliases value onto the first required key' do
       args = described_class.coerce_args(args: { value: 'id' }, required: %w[command])
       expect(args[:command]).to eq('id')
@@ -81,6 +120,15 @@ describe PWN::AI::Agent::ToolGuard do
     it 'names the byte range of a placeholder token' do
       out = described_class.invalid_payload(hint: 'ellipsis', offending_token: '...', text: 'foo ... bar')
       expect(out[:byte_range]).to eq([4, 7])
+    end
+
+    it 'returns a matched substring, byte offset and actionable remedy for UTF-8 payloads' do
+      text = 'é …'
+      out = described_class.invalid_payload(hint: 'ellipsis', offending_token: '…', text: text)
+      expect(out[:match]).to eq('…')
+      expect(out[:offset]).to eq('é '.bytesize)
+      expect(text.byteslice(out[:offset], out[:match].bytesize)).to eq(out[:match])
+      expect(out[:remedy]).not_to be_empty
     end
   end
 

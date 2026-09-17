@@ -12,7 +12,7 @@ metadata:
 
 # PWN::AI::Agent::Result
 
-Conditioning applied to every tool result before it re-enters the conversation as a role:'tool' message: hard size cap + credential redaction. Keeps the context window bounded and avoids leaking PWN::Env credentials back into the model.
+Conditioning applied to every tool result before it re-enters the conversation as a role:'tool' message: lossless paging + credential redaction. Keeps the context window bounded and avoids leaking PWN::Env credentials back into the model.
 
 ## When to use
 
@@ -34,6 +34,9 @@ PWN::AI::Agent::Result.condition(opts)
 ## Public methods
 
 - `condition`
+- `page`
+- `token_limit`
+- `page_length`
 - `default_max`
 - `redact`
 - `authors`

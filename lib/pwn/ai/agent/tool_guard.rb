@@ -8,6 +8,8 @@ require 'time'
 require 'openssl'
 require 'uri'
 require 'base64'
+require 'ripper'
+require 'strscan'
 
 module PWN
   module AI
@@ -59,36 +61,155 @@ module PWN
         end
 
         public_class_method def self.placeholder?(opts = {})
-          return false if opts[:placeholder_ok] == true
+          !placeholder_match(text: opts[:text], language: opts[:language], placeholder_ok: opts[:placeholder_ok]).nil?
+        end
 
-          raw = opts[:text].to_s.dup
-          s = raw.dup
-          s.gsub!(/<<[-~]?\s*(['"])(\w+)\1.*?^\2\s*$/m, ' ')
-          s.gsub!(/<<[-~]?\s*(\w+).*?^\1\s*$/m, ' ')
-          return true if s.lines.any? { |ln| ln.match?(/^\s*(?:\.{3}|…)\s*$/) }
-          return true if s.strip.match?(/\A\[\s*(?:\.{3}|…)\s*\]\z/)
+        public_class_method def self.placeholder_match(opts = {})
+          return nil if opts[:placeholder_ok] == true
 
-          s.gsub!(/'[^']*'/, "''")
-          s.gsub!(/"([^"\\]|\\.)*"/, '""')
-          PLACEHOLDER_RX.match?(s)
+          raw = opts[:text].to_s.dup.force_encoding(Encoding::UTF_8)
+          return ruby_placeholder_match(text: raw) if opts[:language].to_s == 'ruby'
+
+          s = shell_code_surface(text: raw)
+          found = /(?:\A|[;\n|&()])\s*(?<token>\.{3}|…)\s*(?=\z|[;\n|&()])/.match(s) || /\A\s*\[\s*(?<token>\.{3}|…)\s*\]\s*\z/.match(s)
+          if found
+            index = found.begin(:token)
+            token = found[:token]
+          else
+            found = PLACEHOLDER_RX.match(s)
+            return nil unless found
+
+            token = found[0].strip
+            index = found.begin(0) + found[0].index(token)
+          end
+          offset = s[0...index].bytesize
+          { rule_id: 'payload.placeholder', match: raw.byteslice(offset, token.bytesize), offset: offset }
         rescue StandardError
-          false
+          nil
+        end
+
+        private_class_method def self.ruby_placeholder_match(opts = {})
+          raw = opts[:text]
+          # Parsed ranges and argument forwarding are real Ruby, not elision.
+          return nil if Ripper.sexp(raw)
+
+          lines = raw.lines
+          tokens = Ripper.lex(raw).reject { |_, type, _, _| %i[on_sp on_nl on_ignored_nl on_comment].include?(type) }
+          tokens.each_with_index do |(position, type, text, _), index|
+            next unless %i[on_op on_ident].include?(type)
+
+            marker = text if %w[... …].include?(text)
+            following = tokens[index, 4]
+            marker = '<3dots>' if following.map { |row| row[2] } == ['<', '3', 'dots', '>']
+            next unless marker
+
+            offset = lines.first(position[0] - 1).sum(&:bytesize) + position[1]
+            return { rule_id: 'payload.placeholder', match: marker, offset: offset }
+          end
+          nil
+        end
+
+        # Shlex-style word scanning with quote removal and queued heredocs.
+        # Mask literal bytes, retaining newlines and original byte positions.
+        private_class_method def self.shell_code_surface(opts = {})
+          raw = opts[:text].to_s
+          scanner = StringScanner.new(raw)
+          surface = raw.b.dup
+          pending = []
+          mask = lambda do |start, finish|
+            surface[start...finish] = raw.byteslice(start...finish).b.gsub(/[^\n]/n, '_')
+          end
+          until scanner.eos?
+            next if scanner.scan(/[ \t\r]+/)
+
+            if scanner.scan("\n")
+              pending.each do |delimiter, tabs|
+                until scanner.eos?
+                  start = scanner.pos
+                  line = scanner.scan(/[^\n]*(?:\n|\z)/)
+                  mask.call(start, scanner.pos)
+                  value = line.delete_suffix("\n")
+                  value = value.sub(/\A\t+/, '') if tabs
+                  break if value == delimiter
+                end
+              end
+              pending.clear
+            elsif scanner.peek(1) == '#'
+              start = scanner.pos
+              scanner.scan(/[^\n]*/)
+              mask.call(start, scanner.pos)
+            elsif scanner.peek(3) == '<<<'
+              start = scanner.pos
+              scanner.scan('<<<')
+              scanner.scan(/[ \t]*/)
+              shell_word(scanner: scanner)
+              mask.call(start, scanner.pos)
+            elsif scanner.peek(2) == '<<'
+              start = scanner.pos
+              operator = scanner.scan(/<<-?/)
+              scanner.scan(/[ \t]*/)
+              word = shell_word(scanner: scanner)
+              pending << [word[:text], operator == '<<-'] unless word[:text].empty?
+              mask.call(start, scanner.pos)
+            elsif scanner.scan(/[;|&()<>]/)
+              next
+            else
+              start = scanner.pos
+              word = shell_word(scanner: scanner)
+              mask.call(start, scanner.pos) if word[:quoted]
+            end
+          end
+          surface.force_encoding(raw.encoding)
+        end
+
+        private_class_method def self.shell_word(opts = {})
+          scanner = opts[:scanner]
+          text = +''
+          quoted = false
+          until scanner.eos? || scanner.peek(1).b.match?(/[\s;|&()<>]/n)
+            char = scanner.getch
+            if ["'", '"'].include?(char)
+              quoted = true
+              quote = char
+              until scanner.eos?
+                char = scanner.getch
+                break if char == quote
+
+                char = scanner.getch if char == '\\' && quote == '"' && !scanner.eos?
+                text << char
+              end
+            elsif char == '\\' && !scanner.eos?
+              quoted = true
+              text << scanner.getch
+            else
+              text << char
+            end
+          end
+          { text: text, quoted: quoted }
         end
 
         public_class_method def self.bashism?(opts = {})
-          surface = shell_syntax_surface(text: opts[:text])
-          return false if surface.to_s.empty?
+          !bashism_match(text: opts[:text]).nil?
+        end
 
-          surface = surface.gsub(/\$\{?RANDOM\}?\b/, '') if surface.match?(/\bRANDOM=/)
-          BASHISM_RX.match?(surface)
+        public_class_method def self.bashism_match(opts = {})
+          surface = shell_syntax_surface(text: opts[:text])
+          return nil if surface.to_s.empty?
+
+          surface = surface.gsub(/\$\{?RANDOM\}?\b/) { |token| ' ' * token.length } if surface.match?(/\bRANDOM=/)
+          found = BASHISM_RX.match(surface)
+          return nil unless found
+
+          raw = opts[:text].to_s
+          { rule_id: 'payload.shell_syntax', match: raw[found.begin(0), found[0].length], offset: raw[0...found.begin(0)].bytesize }
         rescue StandardError
-          false
+          nil
         end
 
         public_class_method def self.shell_syntax_surface(opts = {})
           s = opts[:text].to_s.dup
-          s.gsub!(/<<[-~]?\s*(['"])(\w+)\1.*?^\2\s*$/m, ' ')
-          s.gsub!(/'[^']*'/, "''")
+          s.gsub!(/<<[-~]?\s*(['"])(\w+)\1.*?^\2\s*$/m) { |body| ' ' * body.length }
+          s.gsub!(/'[^']*'/) { |body| "'#{' ' * (body.length - 2)}'" }
           s
         end
 
@@ -217,13 +338,15 @@ module PWN
 
         public_class_method def self.invalid_payload(opts = {})
           hint = opts[:hint].to_s
-          tok = opts[:offending_token].to_s
+          tok = (opts[:match] || opts[:offending_token]).to_s
           text = opts[:text].to_s
           range = opts[:byte_range]
           if range.nil? && !tok.empty? && !text.empty?
-            idx = text.index(tok)
+            idx = opts[:offset] || text.b.index(tok.b)
             range = [idx, idx + tok.bytesize] if idx
           end
+          remedy = (opts[:remedy] || opts[:suggestion]).to_s
+          remedy = "Correct the payload before retrying. #{hint}" if remedy.empty?
           {
             stdout: '',
             stderr: hint,
@@ -231,10 +354,13 @@ module PWN
             error: 'invalid_payload',
             code: (opts[:code] || 'SYNTAX_DENY').to_s,
             rule_id: (opts[:rule_id] || 'payload').to_s,
+            match: tok.empty? ? nil : tok,
+            offset: range&.first,
+            remedy: remedy,
             offending_token: tok,
             byte_range: range,
             max_payload_bytes: MAX_PAYLOAD_BYTES,
-            suggestion: opts[:suggestion].to_s,
+            suggestion: remedy,
             hint: hint,
             shell: opts[:shell] || shell_name
           }
@@ -631,12 +757,25 @@ module PWN
             # Detect isolated ellipsis placeholders, not inline ranges or prose.
             #{self}.placeholder?(
               text: 'optional - command or payload text to inspect',
-              placeholder_ok: 'optional - true skips denial when the operator opts in'
+              placeholder_ok: 'optional - true skips denial when the operator opts in',
+              language: 'optional - ruby uses Ripper; shell (default) scans quotes and heredocs'
+            )
+
+            # Locate a rejected placeholder in the original decoded payload.
+            #{self}.placeholder_match(
+              text: 'optional - command or payload text to inspect',
+              placeholder_ok: 'optional - true returns no match for intentional literal content',
+              language: 'optional - ruby uses Ripper; shell (default) scans quotes and heredocs'
             )
 
             # Run bashism and return its result
             #{self}.bashism?(
               text: 'optional - text value consumed by #bashism?'
+            )
+
+            # Locate unsupported shell syntax in the original decoded payload.
+            #{self}.bashism_match(
+              text: 'optional - shell command to inspect for bash-only constructs'
             )
 
             # Strip quoted heredocs and single-quoted strings before bash-syntax lint.
@@ -693,7 +832,10 @@ module PWN
               offending_token: 'optional - exact rejected token span',
               suggestion: 'optional - how to rewrite the payload',
               text: 'optional - original payload used to compute byte_range',
-              byte_range: 'optional - [start, stop] byte offsets of the offending span'
+              byte_range: 'optional - [start, stop] byte offsets of the offending span',
+              match: 'optional - exact matched substring; alias for offending_token',
+              offset: 'optional - zero-based byte offset in the original decoded payload',
+              remedy: 'optional - sanctioned correction; alias for suggestion'
             )
 
             # Build a machine-readable guard denial (SCOPE_DENY, CANARY_DENY, ...).

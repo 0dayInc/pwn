@@ -36,6 +36,8 @@ PWN::Reports.resolve_path(opts)
 - `resolve_path`
 - `report_payload`
 - `attack_chains`
+- `package_evidence`
+- `poc_preview`
 - `authors`
 - `help`
 

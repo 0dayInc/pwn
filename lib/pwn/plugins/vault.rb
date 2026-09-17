@@ -5,6 +5,8 @@ require 'openssl'
 require 'yaml'
 require 'json'
 require 'fileutils'
+require 'securerandom'
+require 'time'
 
 module PWN
   module Plugins
@@ -300,25 +302,83 @@ module PWN
         raise e
       end
 
+      # Store an engagement-scoped secret with host, finding, and source provenance.
       public_class_method def self.store(opts = {})
-        label = opts[:label].to_s
         secret = opts[:secret].to_s
-        raise 'ERROR: label and secret are required' if label.empty? || secret.empty?
+        raise 'ERROR: secret is required' if secret.empty?
 
-        box = load_box
-        box[label] = encrypt_secret(secret: secret)
-        save_box(box: box)
-        { label: label, stored: true }
+        eng = engagement_id(opts)
+        label = opts[:label].to_s
+        label = "#{opts[:host] || 'loot'}:#{opts[:username] || 'user'}:#{SecureRandom.hex(4)}" if label.empty?
+        records = load_records(engagement: eng)
+        record = {
+          id: SecureRandom.hex(6),
+          label: label,
+          kind: (opts[:kind] || 'password').to_s,
+          engagement: eng,
+          host: opts[:host].to_s,
+          service: opts[:service].to_s,
+          username: opts[:username].to_s,
+          secret: encrypt_secret(secret: secret),
+          source: (opts[:source] || 'manual').to_s,
+          where: (opts[:where] || opts[:path]).to_s,
+          finding_id: (opts[:finding_id] || opts[:finding]).to_s,
+          at: Time.now.utc.iso8601
+        }
+        records.reject! { |row| row[:label] == label }
+        records << record
+        save_records(engagement: eng, records: records)
+        record.except(:secret).merge(stored: true)
       end
 
       public_class_method def self.fetch(opts = {})
         label = opts[:label].to_s
         raise 'ERROR: label is required' if label.empty?
 
-        row = load_box[label]
+        rows = opts[:engagement] || opts[:engagement_id] ? load_records(opts) : load_all_records
+        row = rows.find { |item| item[:label] == label }
         return nil unless row
 
-        decrypt_secret(row: row)
+        decrypt_secret(row: row[:secret] || row)
+      end
+
+      # List loot metadata for lateral-movement planning (no plaintext secrets).
+      public_class_method def self.query(opts = {})
+        host = opts[:host].to_s.downcase
+        service = opts[:service].to_s
+        kind = opts[:kind].to_s
+        finding = (opts[:finding_id] || opts[:finding]).to_s
+        load_records(opts).filter_map do |row|
+          next if !host.empty? && !host_match?(host: host, row: row)
+          next if !service.empty? && !row[:service].to_s.empty? && row[:service].to_s != service
+          next if !kind.empty? && row[:kind].to_s != kind
+          next if !finding.empty? && row[:finding_id].to_s != finding
+
+          row.except(:secret).merge(has_secret: true)
+        end
+      end
+
+      # Return decrypted creds that match a service auth prompt.
+      public_class_method def self.offer(opts = {})
+        query(
+          host: opts[:host],
+          service: opts[:service],
+          kind: opts[:kind],
+          finding_id: opts[:finding_id] || opts[:finding],
+          engagement: opts[:engagement] || opts[:engagement_id]
+        ).map do |row|
+          row.merge(secret: fetch(label: row[:label], engagement: row[:engagement]))
+        end
+      end
+
+      # Parse username/password (or token) strings from recon evidence into the loot store.
+      public_class_method def self.ingest(opts = {})
+        text = opts[:text].to_s
+        username = text[/\buser(?:name)?\s*[=:]\s*(\S+)/i, 1]
+        password = text[/\b(?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*(\S+)/i, 1]
+        return [] if password.to_s.empty?
+
+        [store(opts.merge(username: username, secret: password.to_s.sub(/[.,;]+$/, ''), kind: opts[:kind] || 'password'))]
       end
 
       public_class_method def self.expand(opts = {})
@@ -328,20 +388,41 @@ module PWN
 
       public_class_method def self.redact(opts = {})
         text = opts[:text].to_s
-        load_box.each do |label, row|
-          val = decrypt_secret(row: row).to_s
+        load_all_records.each do |row|
+          val = decrypt_secret(row: row[:secret] || row).to_s
           next if val.empty?
 
-          text = text.gsub(val, "{{vault:#{label}}}")
+          text = text.gsub(val, "{{vault:#{row[:label]}}}")
         end
         text
+      end
+
+      private_class_method def self.engagement_id(opts = {})
+        value = (opts[:engagement] || opts[:engagement_id] || 'default').to_s
+        value = 'default' if value.empty?
+        raise ArgumentError, 'engagement_id must be a simple identifier' unless value.match?(/\A[a-zA-Z0-9_-]+\z/)
+
+        value
+      end
+
+      private_class_method def self.host_match?(opts = {})
+        want = opts[:host].to_s.downcase
+        have = opts[:row][:host].to_s.downcase
+        return false if have.empty?
+
+        have == want || have.end_with?(".#{want}") || want.end_with?(".#{have}")
       end
 
       private_class_method def self.key_path
         File.join(Dir.home, '.pwn-vault.key')
       end
 
-      private_class_method def self.box_path
+      private_class_method def self.box_path(opts = {})
+        File.join(Dir.home, '.pwn', 'engagements', engagement_id(opts), 'loot.json')
+      end
+
+      private_class_method def self.legacy_box_path(opts = {})
+        _n = opts[:n]
         File.join(Dir.home, '.pwn', 'vault-secrets.json')
       end
 
@@ -376,21 +457,49 @@ module PWN
         cipher.auth_tag = Base64.strict_decode64(row[:tag] || row['tag'].to_s)
         cipher.auth_data = 'pwn-vault'
         cipher.update(Base64.strict_decode64(row[:ct] || row['ct'].to_s)) + cipher.final
-      end
-
-      private_class_method def self.load_box(opts = {})
-        return {} unless opts.is_a?(Hash)
-        return {} unless File.file?(box_path)
-
-        JSON.parse(File.read(box_path))
       rescue StandardError
-        {}
+        ''
       end
 
-      private_class_method def self.save_box(opts = {})
-        FileUtils.mkdir_p(File.dirname(box_path))
-        File.write(box_path, JSON.pretty_generate(opts[:box] || {}))
-        File.chmod(0o600, box_path)
+      private_class_method def self.load_records(opts = {})
+        path = box_path(opts)
+        rows = parse_box(path: path)
+        rows.concat(parse_box(path: legacy_box_path)) if engagement_id(opts) == 'default' && path != legacy_box_path
+        rows
+      end
+
+      private_class_method def self.load_all_records(opts = {})
+        _n = opts[:n]
+        paths = Dir.glob(File.join(Dir.home, '.pwn', 'engagements', '*', 'loot.json'))
+        paths << legacy_box_path
+        paths.uniq.flat_map { |path| parse_box(path: path) }
+      end
+
+      private_class_method def self.parse_box(opts = {})
+        path = opts[:path].to_s
+        return [] unless File.file?(path)
+
+        data = JSON.parse(File.read(path), symbolize_names: true)
+        if data.is_a?(Hash) && data[:records].is_a?(Array)
+          data[:records].map { |row| row.transform_keys(&:to_sym) }
+        elsif data.is_a?(Hash)
+          data.map do |label, row|
+            next unless row.is_a?(Hash)
+
+            { label: label.to_s, secret: row.transform_keys(&:to_sym), engagement: 'default', host: '', source: 'legacy' }
+          end.compact
+        else
+          []
+        end
+      rescue StandardError
+        []
+      end
+
+      private_class_method def self.save_records(opts = {})
+        path = box_path(opts)
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, JSON.pretty_generate(version: 2, records: opts[:records] || []))
+        File.chmod(0o600, path)
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -468,13 +577,62 @@ module PWN
 
           # Store a secret outside the transcript (AES-GCM; key in ~/.pwn-vault.key).
           #{self}.store(
-            label: 'required - vault label',
-            secret: 'required - secret value'
+            secret: 'required - secret value (password, token, or key material)',
+            label: 'optional - vault label; defaults to host:user:hex',
+            engagement: 'optional - engagement id scoping the loot file (defaults to default)',
+            engagement_id: 'optional - alias for engagement',
+            host: 'optional - hostname or IP this secret authenticates',
+            service: 'optional - service name such as http or ssh',
+            username: 'optional - account name recovered with the secret',
+            kind: 'optional - password, token, or key (defaults to password)',
+            source: 'optional - provenance source such as recon or redaction',
+            where: 'optional - URL, banner, or path where the secret was found',
+            path: 'optional - alias for where',
+            finding_id: 'optional - finding id this secret is linked to',
+            finding: 'optional - alias for finding_id'
           )
 
           # Fetch a stored secret by label.
           #{self}.fetch(
-            label: 'required - vault label'
+            label: 'required - vault label',
+            engagement: 'optional - engagement id to search first',
+            engagement_id: 'optional - alias for engagement'
+          )
+
+          # List loot metadata for lateral-movement planning without plaintext secrets.
+          #{self}.query(
+            host: 'optional - hostname or IP to match',
+            service: 'optional - service name such as http or ssh',
+            kind: 'optional - password, token, or key',
+            finding_id: 'optional - finding id this secret is linked to',
+            finding: 'optional - alias for finding_id',
+            engagement: 'optional - engagement id scoping the loot file (defaults to default)',
+            engagement_id: 'optional - alias for engagement'
+          )
+
+          # Return decrypted creds that match a service auth prompt.
+          #{self}.offer(
+            host: 'optional - hostname or IP to match',
+            service: 'optional - service name such as http or ssh',
+            kind: 'optional - password, token, or key',
+            finding_id: 'optional - finding id this secret is linked to',
+            finding: 'optional - alias for finding_id',
+            engagement: 'optional - engagement id scoping the loot file (defaults to default)',
+            engagement_id: 'optional - alias for engagement'
+          )
+
+          # Parse username/password strings from recon evidence into the loot store.
+          #{self}.ingest(
+            text: 'required - recon banner, .env, or HTML containing creds',
+            host: 'optional - hostname or IP this secret authenticates',
+            service: 'optional - service name such as http or ssh',
+            source: 'optional - provenance source such as recon',
+            where: 'optional - URL, banner, or path where the secret was found',
+            engagement: 'optional - engagement id scoping the loot file (defaults to default)',
+            engagement_id: 'optional - alias for engagement',
+            finding_id: 'optional - finding id this secret is linked to',
+            kind: 'optional - password, token, or key (defaults to password)',
+            label: 'optional - vault label; defaults to host:user:hex'
           )
 
           # Replace {{vault:label}} tokens with stored secrets.

@@ -80,11 +80,11 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 2))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: false, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([3])
+      expect(result[:applied_migrations]).to eq([3, 4])
       expected = Marshal.load(Marshal.dump(original))
       expected['custom']['model'] = nil
       expect(YAML.safe_load_file(path)).to eq(expected)
-      expect(described_class.installed_schema).to eq(3)
+      expect(described_class.installed_schema).to eq(described_class::SCHEMA_VERSION)
       bytes = File.binread(path)
       described_class::MIGRATIONS.fetch(3).call(@tmp, io)
       expect(File.binread(path)).to eq(bytes)
@@ -174,8 +174,36 @@ describe PWN::Migrate do
       stale = { ai: { active: 'grok', grok: { key: 'x' } } }
       miss  = PWN::Migrate.send(:missing_paths, tmpl: PWN::Config.env_template, user: stale)
       expect(miss).to include('ai.agent')
+      expect(miss).to include('ai_sandbox')
+      expect(miss).to include('ai_router')
       expect(miss).to include('memory')
       expect(miss).not_to include('ai.active')
+    end
+
+    it 'upgrades a schema-3 vault with new pwn.yaml keys without changing user values' do
+      yaml = File.join(@tmp, 'pwn.yaml')
+      dec = File.join(@tmp, 'pwn.yaml.decryptor')
+      stale = { ai: { active: 'grok', grok: { key: 'sk-KEEP' } } }
+      File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
+      PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
+      File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 3))
+      expect(described_class.needed?).to be(true)
+      result = described_class.run(fix: true, backup: false, io: io)
+      expect(result[:applied_migrations]).to eq([4])
+      creds = YAML.safe_load_file(dec, symbolize_names: true)
+      user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      expect(user[:ai][:active]).to eq('grok')
+      expect(user[:ai][:grok][:key]).to eq('sk-KEEP')
+      expect(user[:ai_sandbox]).to eq('off')
+      expect(user[:ai_router]).to be_a(Hash)
+      expect(user[:ai_router][:summarize] || user[:ai_router]['summarize']).to be_a(Hash)
+      routes = user.dig(:ai, :agent, :model_routes) || user.dig('ai', 'agent', 'model_routes')
+      expect(routes).to include(:exploit_dev).or include('exploit_dev')
+      second = described_class.run(fix: true, backup: false, io: io)
+      expect(second[:applied_migrations]).to eq([])
+      again = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      expect(again[:ai][:grok][:key]).to eq('sk-KEEP')
+      expect(described_class.needed?).to be(false)
     end
 
     it 'dry_run writes nothing' do

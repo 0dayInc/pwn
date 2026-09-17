@@ -25,14 +25,16 @@ PWN::AI::Agent::Registry.register(
                  'Pass timeout as a conservative integer seconds estimate given ' \
                  'HOST LOAD (loadavg, ncpu, mem). Omit for a host-derived default. ' \
                  'Explicit timeout is honored up to 10800s (3 hours) for any payload. On ' \
-                 'timeout, keep the same payload and retry with timeout += 180 ' \
-                 'until the 3-hour budget is gone; then rewrite (max 10 mutations/task).',
+                 'timeout for short foreground work, keep the same payload and retry with timeout += 180 ' \
+                 'until the 3-hour budget is gone; then rewrite (max 10 mutations/task). For fuzz campaigns, full scans, or Ghidra use job_run, or background:true here; poll the returned job id instead of timeout retries.',
     parameters: {
       type: 'object',
       properties: {
         command: { type: 'string', description: 'The exact shell command to run.' },
         encoding: { type: 'string', description: 'Set to base64 when data holds the command bytes.' },
         data: { type: 'string', description: 'Base64 command blob when encoding is base64.' },
+        background: { type: 'boolean', description: 'Run detached under the durable job supervisor, bypassing foreground timeout/retry budgets.' },
+        max_runtime: { type: 'integer', minimum: 0, description: 'Detached supervisor runtime in seconds; 0 unlimited. Use job_run for cwd/env/idempotency options.' },
         timeout: {
           type: 'integer',
           description: 'Conservative seconds this command should take given HOST LOAD. Omit for a host-derived default. Explicit values honored 1..10800 (3 hours). On timeout keep the same payload and timeout += 180; rewrite only after the 3-hour budget (max 10 mutations/task).'
@@ -47,20 +49,25 @@ PWN::AI::Agent::Registry.register(
     # Payload bytes are opaque; only the shell interprets command syntax.
     args = PWN::AI::Agent::ToolGuard.unwrap_payload(args: args, key: :command)
     args = PWN::AI::Agent::ToolGuard.coerce_args(args: args, required: %w[command])
-    return PWN::AI::Agent::ToolGuard.invalid_payload(hint: args[:__schema_hint]) if args[:__schema_error]
+    return PWN::AI::Agent::ToolGuard.invalid_payload(rule_id: 'payload.required', hint: args[:__schema_hint]) if args[:__schema_error]
 
     cmd = args[:command].to_s
-    if PWN::AI::Agent::ToolGuard.placeholder?(text: cmd, placeholder_ok: args[:placeholder_ok] || args['placeholder_ok'])
+    placeholder = PWN::AI::Agent::ToolGuard.placeholder_match(text: cmd, placeholder_ok: args[:placeholder_ok] || args['placeholder_ok'])
+    if placeholder
       return PWN::AI::Agent::ToolGuard.invalid_payload(
+        **placeholder,
         hint: 'command is required (string). Do not send ..., {...}, {…}.',
         text: cmd,
-        offending_token: '...'
+        remedy: 'Replace the placeholder with complete content or set placeholder_ok: true for intentional literal text. For quoting/transport use encoding: "base64" and data: Base64.strict_encode64(command); base64 does not bypass validation, so retain placeholder_ok: true when needed.'
       )
     end
-    if PWN::AI::Agent::ToolGuard.bashism?(text: cmd) && !PWN::AI::Agent::ToolGuard.shell_bash?
+    bashism = PWN::AI::Agent::ToolGuard.bashism_match(text: cmd)
+    if bashism && !PWN::AI::Agent::ToolGuard.shell_bash?
       return PWN::AI::Agent::ToolGuard.invalid_payload(
+        **bashism,
         hint: 'bash-only construct (PIPESTATUS/RANDOM/[[) is not POSIX. Rewrite for /bin/sh or set ai.agent.shell_bash.',
-        text: cmd
+        text: cmd,
+        remedy: 'Rewrite the matched construct for /bin/sh or enable ai.agent.shell_bash. Neither base64 nor placeholder_ok bypasses shell-syntax validation.'
       )
     end
     timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :shell, payload: cmd)
@@ -69,15 +76,20 @@ PWN::AI::Agent::Registry.register(
         hint: "command exceeds max payload size #{PWN::AI::Agent::ToolGuard::MAX_PAYLOAD_BYTES} bytes",
         text: cmd,
         byte_range: [PWN::AI::Agent::ToolGuard::MAX_PAYLOAD_BYTES, cmd.bytesize],
-        code: 'PAYLOAD_TOO_LARGE'
+        code: 'PAYLOAD_TOO_LARGE',
+        rule_id: 'payload.max_bytes',
+        remedy: 'Split the command into smaller complete calls within max_payload_bytes. Base64 and placeholder_ok do not increase the decoded size limit.'
       )
     end
-    return PWN::AI::Agent::ToolGuard.invalid_payload(hint: 'command must be a nonempty string') unless args[:command].is_a?(String) && !cmd.empty?
+    return PWN::AI::Agent::ToolGuard.invalid_payload(rule_id: 'payload.type', hint: 'command must be a nonempty string') unless args[:command].is_a?(String) && !cmd.empty?
 
     scoped = PWN::AI::Agent::ToolGuard.scope_refusal(command: cmd)
     return scoped if scoped
 
-    return PWN::Plugins::Jobs.start(command: cmd).merge(routed: 'job_run') if args[:timeout].to_i <= 0 && PWN::AI::Agent::ToolGuard.auto_job?(payload: cmd)
+    sandboxed = PWN::Plugins::AISandbox.wrap_shell(command: cmd, timeout: timeout)
+    return sandboxed unless sandboxed.nil?
+
+    return PWN::Plugins::Jobs.start(command: cmd, max_runtime: args[:max_runtime], session_id: Thread.current[:pwn_session_id]).merge(routed: 'job_run') if args[:background] == true || (args[:timeout].to_i <= 0 && PWN::AI::Agent::ToolGuard.auto_job?(payload: cmd))
 
     stdout = +''
     stderr = +''

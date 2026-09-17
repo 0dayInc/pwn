@@ -35,6 +35,7 @@ PWN::AI::Agent::Registry.register(
         code: { type: 'string', description: 'Ruby source to evaluate.' },
         encoding: { type: 'string', description: 'Set to base64 when data holds the Ruby source.' },
         data: { type: 'string', description: 'Base64 Ruby source when encoding is base64.' },
+        placeholder_ok: { type: 'boolean', description: 'Explicitly permit placeholder tokens; Ruby must still parse and execute. Literal strings/heredocs never require this.' },
         timeout: {
           type: 'integer',
           description: 'Conservative seconds this eval should take given HOST LOAD. Omit for a host-derived default. Explicit values honored 1..10800 (3 hours). On timeout keep the same payload and timeout += 180; rewrite only after the 3-hour budget (max 10 mutations/task).'
@@ -58,11 +59,27 @@ PWN::AI::Agent::Registry.register(
     code = args[:code].to_s
     return PWN::AI::Agent::ToolGuard.invalid_payload(hint: 'code must be a nonempty string') unless args[:code].is_a?(String) && !code.empty?
 
+    placeholder = PWN::AI::Agent::ToolGuard.placeholder_match(text: code, language: :ruby, placeholder_ok: args[:placeholder_ok])
+    if placeholder
+      return PWN::AI::Agent::ToolGuard.invalid_payload(
+        **placeholder,
+        text: code,
+        hint: 'Ruby source contains an elided code stub outside literal data.',
+        remedy: 'Replace the matched stub with complete Ruby code. Strings and heredocs may contain ellipses without placeholder_ok. Explicit placeholder_ok: true skips this guard but not Ruby parsing; base64 data is decoded before validation.'
+      )
+    end
+
+    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :eval, payload: code)
+    PWN::AI::Agent::ToolGuard.protect_http!
+    sandboxed = PWN::Plugins::AISandbox.wrap_ruby(code: code, timeout: timeout)
+    return sandboxed unless sandboxed.nil?
+
+    blocked = PWN::Plugins::MethodCatalog.guard_eval(code: code)
+    return blocked if blocked
+
     old_stdout = $stdout
     buf = StringIO.new
     $stdout = buf
-    timeout = PWN::AI::Agent::ToolGuard.deadline_s(timeout: args[:timeout], kind: :eval, payload: code)
-    PWN::AI::Agent::ToolGuard.protect_http!
     begin
       # rubocop:disable Security/Eval
       # INTENTIONAL: this IS the pwn-ai → PWN bridge

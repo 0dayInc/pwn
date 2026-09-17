@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Plugins::AFLplusplus
 
-AFL++ campaign wrapper.
+AFL++ / libFuzzer campaign wrapper with corpus, dictionary, and RE triage handoff.
 
 ## When to use
 
@@ -36,6 +36,10 @@ PWN::Plugins::AFLplusplus.required_bins(opts)
 - `required_bins`
 - `fuzz`
 - `parse_stats`
+- `dictionary_from_binary`
+- `prepare_corpus`
+- `campaign_command`
+- `campaign`
 - `crash_triage`
 - `minimize`
 - `authors`

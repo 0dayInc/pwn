@@ -36,7 +36,7 @@
 | | |
 |---|---|
 | [AI / LLM Integration](AI-Integration.md) | OpenAI · Anthropic · Grok (OAuth) · Gemini · Ollama · Open WebUI |
-| [Agent Tool Registry](Agent-Tool-Registry.md) | 13 toolsets · **87** LLM-callable tools |
+| [Agent Tool Registry](Agent-Tool-Registry.md) | 16 toolsets · **150** LLM-callable tools |
 | [Memory · Skills · Learning](Skills-Memory-Learning.md) | Introspection - self-improvement loop + 10 bundled skills on first launch |
 | [Mistakes](Mistakes.md) | **Negative feedback** - fingerprint failures · do-NOT-repeat · `[REPEATING]`/`[REGRESSED]` · inline self-correction |
 | [Reinforcement Learning](Reinforcement-Learning.md) | **`Reward` + `Curriculum` + `Policy`** - outcome/process judges · preference ledger · self-play practice · live Q / REINFORCE (advisory) · export-ready LoRA gate |

@@ -36,7 +36,9 @@ PWN::AI::Agent::ToolGuard.unwrap_payload(opts)
 - `unwrap_payload`
 - `present`
 - `placeholder`
+- `placeholder_match`
 - `bashism`
+- `bashism_match`
 - `shell_syntax_surface`
 - `mint_canary`
 - `canary_leak`
