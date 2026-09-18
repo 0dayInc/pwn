@@ -2,6 +2,7 @@
 
 require 'json'
 require 'digest'
+require 'securerandom'
 
 module PWN
   module AI
@@ -178,6 +179,27 @@ module PWN
           MUTEX.synchronize { THREADS.count(&:alive?) }
         end
 
+        # Freeze operator-owned destinations once, before tools can change cwd.
+        public_class_method def self.commit_artifacts!(opts = {})
+          return Thread.current[:pwn_artifact_contract] if opts[:inherit] && Thread.current[:pwn_artifact_contract]
+
+          request = opts[:request].to_s.dup.freeze
+          paths = output_paths(request: request, cwd: opts[:cwd]).map(&:freeze).freeze
+          Thread.current[:pwn_artifact_contract] = {
+            id: SecureRandom.hex(16).freeze,
+            request: request,
+            required_artifacts: paths,
+            started_at: Time.now.freeze
+          }.freeze
+        end
+
+        public_class_method def self.required_artifacts(opts = {})
+          contract = Thread.current[:pwn_artifact_contract]
+          return contract[:required_artifacts] if contract && (contract[:request] == opts[:request].to_s || Thread.current[:pwn_loop_nested])
+
+          output_paths(request: opts[:request], cwd: opts[:cwd])
+        end
+
         # Literal destinations only; source paths are never delivery obligations.
         public_class_method def self.output_paths(opts = {})
           request = opts[:request].to_s
@@ -211,8 +233,12 @@ module PWN
           return {} unless opts[:success] == true && opts[:effect].to_s == 'write'
 
           before = opts[:before] || {}
-          artifact_snapshot(paths: opts[:paths]).select do |path, row|
+          observed = artifact_snapshot(paths: opts[:paths]).select do |path, row|
             row && before.key?(path) && before[path] != row
+          end
+          observed.transform_values do |row|
+            contract = Thread.current[:pwn_artifact_contract]
+            contract ? row.merge(artifact_turn_id: contract[:id]) : row
           end
         end
 
@@ -242,9 +268,9 @@ module PWN
         public_class_method def self.arbitrate(opts = {})
           request = opts[:request].to_s
           messages = Array(opts[:messages])
-          t0 = opts[:session_t0] || Thread.current[:pwn_loop_t0]
+          t0 = opts[:session_t0] || Thread.current[:pwn_artifact_contract]&.dig(:started_at) || Thread.current[:pwn_loop_t0]
           paths = Array(opts[:paths]).map { |path| File.expand_path(path.to_s) }
-          paths += output_paths(request: request)
+          paths += required_artifacts(request: request)
           paths.uniq!
           ledger = evidence_ledger(messages: messages)
           unmet = []
@@ -257,7 +283,10 @@ module PWN
             unmet << { criterion: 'empty_artifact', detail: path } if File.size(path) < 2
             unmet << { criterion: 'write_missing', detail: path } unless row && row[:write]
             unmet << { criterion: 'readback_missing', detail: path } unless row && row[:read]
-            unmet << { criterion: 'artifact_mtime_before_session', detail: path } if t0 && File.mtime(path) < t0
+            # Filesystem timestamps can lag Time.now by a clock tick. A bound
+            # current-turn write delta plus matching readback is stronger proof.
+            current_turn = row && row.dig(:evidence, :artifact_turn_id) == Thread.current[:pwn_artifact_contract]&.dig(:id) && Thread.current[:pwn_artifact_contract]
+            unmet << { criterion: 'artifact_mtime_before_session', detail: path } if t0 && File.mtime(path) < t0 && !current_turn
           end
           {
             complete: unmet.empty? && (!paths.empty? || ledger.any?),
@@ -274,8 +303,14 @@ module PWN
             next unless msg[:artifact_observations].is_a?(Hash)
 
             msg[:artifact_observations].each do |path, observed|
+              next unless observed.is_a?(Hash)
+
+              contract = Thread.current[:pwn_artifact_contract]
+              next if contract && observed[:artifact_turn_id] != contract[:id]
+
               current = artifact_readback(path: path)
-              next unless current && current == observed
+              readback = observed.except(:artifact_turn_id)
+              next unless current && current == readback
 
               ledger[path] = { write: true, read: true, evidence: observed }
             end
@@ -337,6 +372,12 @@ module PWN
 
             # Extract explicit output literals, excluding source/read paths.
             #{self}.output_paths(request: 'required - original user request', cwd: 'optional - relative path base')
+
+            # Precommit immutable required_artifacts for this turn before tools run.
+            #{self}.commit_artifacts!(request: 'required - original user request', cwd: 'optional - initial relative path base', inherit: 'optional - reuse the owning turn contract for a nested call')
+
+            # Return precommitted paths, or parse literals outside an active turn.
+            #{self}.required_artifacts(request: 'required - original user request', cwd: 'optional - relative path base outside a turn')
 
             # Snapshot named destinations immediately before a tool runs.
             #{self}.artifact_snapshot(paths: 'required - destination paths')

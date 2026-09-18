@@ -4,6 +4,7 @@ require 'pty'
 require 'timeout'
 require 'socket'
 require 'securerandom'
+require 'open3'
 
 module PWN
   module Plugins
@@ -20,10 +21,19 @@ module PWN
         raise 'ERROR: cmd is required' if cmd.to_s.empty?
 
         argv = cmd.is_a?(Array) ? cmd.map(&:to_s) : ['bash', '-lc', cmd.to_s]
+        name = (opts[:name] || "tube_#{SecureRandom.hex(4)}").to_s
+        if opts[:pty] == false
+          stdin, stdout, waiter = Open3.popen2(*argv)
+          stdin.binmode
+          stdout.binmode
+          @tubes[name] = { r: stdout, w: stdin, pid: waiter.pid, buf: +'', started_at: Time.now, last_io: Time.now, name: name, scrollback: +'', wait: waiter }
+          return { id: name, pid: waiter.pid, name: name, pty: false }
+        end
+
         r, w, pid = PTY.spawn(*argv)
         name = (opts[:name] || "tube_#{pid}").to_s
         @tubes[name] = { r: r, w: w, pid: pid, buf: +'', started_at: Time.now, last_io: Time.now, name: name, scrollback: +'' }
-        { id: name, pid: pid, name: name }
+        { id: name, pid: pid, name: name, pty: true }
       end
 
       public_class_method def self.connect(opts = {})
@@ -39,6 +49,29 @@ module PWN
 
       public_class_method def self.send_line(opts = {})
         write_line(opts)
+      end
+
+      public_class_method def self.sendline(opts = {})
+        write_line(opts)
+      end
+
+      public_class_method def self.recv(opts = {})
+        t = tube!(opts)
+        want = (opts[:n] || opts[:bytes] || 4_096).to_i
+        timeout = (opts[:timeout] || 5).to_f
+        Timeout.timeout(timeout) do
+          loop do
+            return consume_buf(tube: t, bytes: want) if t[:buf].bytesize >= want || (opts[:n].nil? && !t[:buf].empty? && !t[:r].wait_readable(0))
+
+            ch = t[:r].read_nonblock(4_096)
+            append_buf(tube: t, data: ch)
+          rescue IO::WaitReadable
+            t[:r].wait_readable(0.2)
+            retry
+          rescue EOFError
+            return consume_buf(tube: t, bytes: t[:buf].bytesize)
+          end
+        end
       end
 
       public_class_method def self.write_line(opts = {})
@@ -191,7 +224,8 @@ module PWN
           #{self}.spawn(
             cmd: 'required - command string to run (defaults to opts[:command])',
             command: 'optional - command value consumed by #spawn',
-            name: 'optional - persistent session name reused across tool calls'
+            name: 'optional - persistent session name reused across tool calls',
+            pty: 'optional - false uses pipes for binary IO (defaults to PTY)'
           )
 
           # Connect a TCP tube with the same write_line/recvuntil API as spawn.
@@ -223,6 +257,21 @@ module PWN
 
           # Run recvline and return its result
           #{self}.recvline
+
+          # pwntools-style alias of write_line.
+          #{self}.sendline(
+            id: 'required - tube id from spawn or connect',
+            line: 'optional - line to write',
+            data: 'optional - alias for line'
+          )
+
+          # Read up to n bytes from a tube.
+          #{self}.recv(
+            id: 'required - tube id from spawn or connect',
+            n: 'optional - byte count (defaults to 4096)',
+            bytes: 'optional - alias for n',
+            timeout: 'optional - seconds to wait before giving up'
+          )
 
           # Close a session previously returned by #open.
           #{self}.close(

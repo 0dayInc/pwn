@@ -4,6 +4,7 @@ require 'json'
 require 'digest'
 require 'json_schemer'
 require 'securerandom'
+require 'base64'
 require 'pwn/ai/agent/tool_guard'
 require 'pwn/ai/agent/manifest'
 
@@ -57,10 +58,12 @@ module PWN
           schema = { allOf: [schema, declaration['params']] } if declaration
           if raw.nil?
             required = Array(schema[:required] || schema['required']).map(&:to_s)
-            return JSON.generate(success: false, error: 'invalid_payload', code: 'SCHEMA_DENY') if required.any? { |key| !ToolGuard.present?(value: args[key.to_sym] || args[key]) }
+            missing = required.reject { |key| ToolGuard.present?(value: args[key.to_sym] || args[key]) }
+            return schema_denial(type: 'required', error: "Supply required fields: #{missing.join(', ')}") unless missing.empty?
           end
           type_schema = drop_required(node: schema)
-          return JSON.generate(success: false, error: 'invalid_payload', code: 'SCHEMA_DENY') unless args.is_a?(Hash) && JSONSchemer.schema(JSON.parse(JSON.generate(type_schema))).valid?(JSON.parse(JSON.generate(args)))
+          violation = JSONSchemer.schema(JSON.parse(JSON.generate(type_schema))).validate(JSON.parse(JSON.generate(args))).first
+          return schema_denial(violation.transform_keys(&:to_sym)) if violation
 
           blob = args.inspect
           if defined?(PWN::Plugins::Vault)
@@ -100,6 +103,15 @@ module PWN
               code: 'CAP_DENY'
             )
           end
+          ack = Confirmation.gate(
+            name: entry.name,
+            args: args,
+            engagement_id: opts[:engagement_id] || args[:engagement_id] || args['engagement_id'],
+            operator_ack: opts[:operator_ack] || args[:operator_ack] || args['operator_ack'],
+            scope_path: opts[:scope_path]
+          )
+          return JSON.generate(ack) if ack
+
           budget = prepare_budget(opts.merge(entry: entry, args: args))
           return JSON.generate(budget[:denial]) if budget && budget[:denial]
 
@@ -111,6 +123,7 @@ module PWN
             raise
           end
           telemetry = finish_budget(budget: budget, result: result, elapsed: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
+          result = Result.page(value: result, entry: entry, session_id: opts[:session_id])
           result = ToolGuard.quarantine_output(text: result) if defined?(ToolGuard) && result.is_a?(String) && ToolGuard.respond_to?(:quarantine_output)
           note_taint(text: result)
           if defined?(PWN::Plugins::Vault) && result.is_a?(String)
@@ -169,13 +182,32 @@ module PWN
           nil
         end
 
+        private_class_method def self.schema_denial(opts = {})
+          pointer = opts[:data_pointer].to_s
+          message = opts[:error].to_s
+          data = opts[:data]
+          # Schema failures identify a JSON field, not a span of command bytes.
+          # Do not echo whole argument objects (which may contain credentials).
+          token = data.to_s unless data.nil? || data.is_a?(Hash) || data.is_a?(Array)
+          denial = ToolGuard.invalid_payload(
+            code: 'SCHEMA_DENY', rule_id: "schema.#{opts[:type]}",
+            match: token, hint: message,
+            remedy: "Correct #{pointer.empty? ? 'the tool arguments' : pointer}: #{message}. Resubmit arguments matching the advertised JSON schema."
+          )
+          JSON.generate(denial.merge(success: false, data_pointer: pointer))
+        end
+
         # Caller owns task lifecycle. Fallback is thread-local, never process-global.
         private_class_method def self.prepare_budget(opts = {})
           entry = opts[:entry]
+          args = opts[:args]
+          if entry.name == 'shell' && (args[:background] == true || (!args.key?(:timeout) && ToolGuard.auto_job?(payload: args[:command].to_s)))
+            args[:background] = true
+            return nil
+          end
           schema = JSON.parse(JSON.generate(entry.schema))
           return nil unless schema.dig('parameters', 'properties', 'timeout')
 
-          args = opts[:args]
           ledger = opts[:budget_ledger] || (Thread.current[:pwn_dispatch_budget] ||= {})
           chains = ledger[:chains] ||= {}
           key = opts[:budget_key] || entry.name
@@ -496,7 +528,10 @@ module PWN
           args = opts[:args]
           args = JSON.parse(args, symbolize_names: true) if args.is_a?(String) && args.strip.start_with?('{')
           case args
-          when Hash then args.values.join(' ')
+          when Hash
+            return Base64.strict_decode64((args[:data] || args['data']).to_s) if (args[:encoding] || args['encoding']).to_s == 'base64'
+
+            args.values.join(' ')
           else args.to_s
           end
         rescue StandardError
@@ -573,8 +608,11 @@ module PWN
               budget_key: 'optional - trusted approach identifier; defaults to tool name',
               scope_policy: 'optional - trusted policy Hash',
               scope_path: 'optional - trusted scope file path',
+              session_id: 'optional - session directory for oversized result artifacts',
               audit_path: 'optional - trusted audit JSONL path',
-              approval_callback: 'optional - trusted callback for prompt risk gates'
+              approval_callback: 'optional - trusted callback for prompt risk gates',
+              engagement_id: 'optional - engagement id used to cache exploit/destructive ACK',
+              operator_ack: 'optional - true records a one-time ACK for this engagement'
             )
 
             # Run repair name and return its result

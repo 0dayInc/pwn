@@ -15,6 +15,10 @@ Required: `gdb`. Fallback: `PWN::Plugins::Debugger` still exposes `cyclic` helpe
 
 Required: `nuclei`. Fallback: `TransparentBrowser` + `pwn_eval`.
 
+## pwn-plugins-httpx
+
+Required: `httpx`. Fallback: `TransparentBrowser` + `NmapIt.scan`.
+
 ## pwn-plugins-sqlmap
 
 Required: `sqlmap`. Fallback: `pwn_eval` HTTP clients.
@@ -41,11 +45,11 @@ Required: `msfconsole`. Fallback: `exploitdev`, `pwn_eval`, `PWN::Plugins::Handl
 
 ## pwn-plugins-burpsuite
 
-Required: `burpsuite`. Fallback: `TransparentBrowser`, `nuclei`, `PWN::Plugins::MitmProxy`.
+Required: `burpsuite`. Fallback: `TransparentBrowser`, `nuclei`, `httpx`, `PWN::Plugins::MitmProxy`.
 
 ## pwn-plugins-zaproxy
 
-Required: `zaproxy`. Fallback: `nuclei`, `TransparentBrowser`, `PWN::Plugins::MitmProxy`.
+Required: `zaproxy`. Fallback: `nuclei`, `httpx`, `TransparentBrowser`, `PWN::Plugins::MitmProxy`.
 
 ## pwn-plugins-packet
 

@@ -35,6 +35,8 @@ PWN::Plugins::Assembly.opcodes_to_asm(opts)
 
 - `opcodes_to_asm`
 - `asm_to_opcodes`
+- `assemble`
+- `disassemble`
 - `list_supported_archs`
 - `authors`
 - `help`

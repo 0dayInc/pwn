@@ -23,4 +23,19 @@ describe PWN::Plugins::Recon do
     names = described_class.crt_sh(domain: '0dayinc.com')
     expect(names).to include('www.0dayinc.com', 'vpn.0dayinc.com')
   end
+
+  it 'harvests recon banners into the loot store' do
+    Dir.mktmpdir('pwn-recon-loot-') do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
+      described_class.harvest_loot(
+        engagement_id: 'lab',
+        assets: [{
+          address: 'app.example.test',
+          observations: [{ banner: "SSH-2.0\nusername=admin\npassword=hunter2\n" }]
+        }]
+      )
+      offered = PWN::Plugins::Vault.offer(host: 'app.example.test', engagement: 'lab')
+      expect(offered.first[:secret]).to eq('hunter2')
+    end
+  end
 end

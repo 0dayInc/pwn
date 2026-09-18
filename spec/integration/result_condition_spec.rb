@@ -4,26 +4,29 @@ require 'spec_helper'
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  #4 — Result.condition is the ONLY thing standing between PWN::Env
-#  secrets and the model. NON-BLOCKING: pure string in / string out.
+#  secrets and the model. Oversized originals persist privately for paging.
 #
 #  Fixture credentials are built by concatenation (exactly as
 #  Result::REDACT_PATTERNS builds its regexes) so nothing token-shaped
 #  lands in git as a literal.
 # ─────────────────────────────────────────────────────────────────────────────
 
-RSpec.describe 'PWN::AI::Agent::Result.condition — redaction & truncation', :aggregate_failures do
+RSpec.describe 'PWN::AI::Agent::Result.condition — redaction & paging', :aggregate_failures do
   include_context 'pwn tmp sandbox'
 
   let(:result)   { PWN::AI::Agent::Result }
   let(:registry) { PWN::AI::Agent::Registry }
 
-  it 'truncates over-cap output and appends a […truncated N chars] marker' do
+  before { stub_const('PWN::Plugins::ArtifactRegistry::ROOT', File.join(@tmp, 'artifacts')) }
+
+  it 'spills over-cap output intact and returns a bounded retrieval handle' do
     entry = registry::Entry.new(name: 't', max_chars: 100)
     big   = 'A' * 5_000
     out   = result.condition(content: big, entry: entry)
-    expect(out.length).to be < 200
-    expect(out).to match(/truncated 4900 chars/)
-    expect(out).to start_with('A' * 100)
+    expect(out.bytesize).to be <= result.token_limit(entry: entry)
+    summary = JSON.parse(out)
+    expect(summary['summary']).to include('artifact_read')
+    expect(File.binread(summary['artifact']['path'])).to eq(big)
   end
 
   it 'redacts every REDACT_PATTERNS credential shape' do
@@ -66,12 +69,12 @@ RSpec.describe 'PWN::AI::Agent::Result.condition — redaction & truncation', :a
     end
   end
 
-  it '.condition composes truncation THEN redaction' do
+  it '.condition persists full fidelity while redacting its inline preview' do
     tok   = %w[s k -].join + ('Z' * 40)
     entry = registry::Entry.new(name: 't', max_chars: 200)
     out   = result.condition(content: "#{tok} " * 50, entry: entry)
     expect(out).not_to include(tok)
     expect(out).to include('<<<REDACTED>>>')
-    expect(out).to match(/truncated \d+ chars/)
+    expect(File.binread(JSON.parse(out)['artifact']['path'])).to eq("#{tok} " * 50)
   end
 end

@@ -760,9 +760,10 @@ module PWN
             end
             chunks = mesh_text_chunks(text: opts[:text])
             chunks.each_with_index do |piece, idx|
+              packet_id = Random.rand(2...0xffffffff)
               since = obj.is_a?(Hash) ? Array(obj[:proto_data]).size : 0
               if dm_key
-                bytes = Meshtastic::MeshInterface.new.send_text(from: obj[:my_node_num] || 0, to: dest, channel: radio || 0, text: piece, want_ack: true, psks: nil)
+                bytes = Meshtastic::MeshInterface.new.send_text(from: obj[:my_node_num] || 0, to: dest, channel: radio || 0, text: piece, want_ack: true, psks: nil, last_packet_id: packet_id - 1)
                 packet = Meshtastic::ToRadio.decode(bytes)
                 packet.packet.pki_encrypted = true
                 packet.packet.public_key = dm_key
@@ -771,15 +772,15 @@ module PWN
               else
                 case kind
                 when :serial
-                  tx = { serial_obj: obj, to: dest, text: piece, want_ack: true }
+                  tx = { serial_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
                   tx[:channel] = radio unless radio.nil?
                   Meshtastic::Serial.send_text(tx)
                 when :bluetooth
-                  tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true }
+                  tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
                   tx[:channel] = radio unless radio.nil?
                   Meshtastic::Bluetooth.send_text(tx)
                 when :tcp
-                  tx = { tcp_obj: obj, to: dest, text: piece }
+                  tx = { tcp_obj: obj, to: dest, text: piece, last_packet_id: packet_id - 1 }
                   tx[:channel] = radio unless radio.nil?
                   Meshtastic::TCP.send_text(tx)
                 else
@@ -787,6 +788,7 @@ module PWN
                   send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
                   Meshtastic::MQTT.send_text(
                     mqtt_obj: obj,
+                    last_packet_id: packet_id - 1,
                     from: from,
                     to: dest,
                     region: mesh_mqtt_region(region: opts[:region], env: env),
@@ -807,6 +809,7 @@ module PWN
                 channel_name: channel_name,
                 msg: {
                   packet: {
+                    id: packet_id,
                     channel: radio,
                     pki_encrypted: !dm_key.nil?,
                     node_id_from: from_id,
@@ -1440,6 +1443,7 @@ module PWN
             to = packet[:node_id_to].to_s
             to = packet[:to] if to.empty? && packet[:to]
             to = mesh_format_node_id(id: to)
+            display_text = mesh_reaction_text(packet: packet, text: rx_text, from: from_id, channel: channel_name, index: idx)
             unless opts[:local]
               last = PWN.const_defined?(:MeshLastTx) ? PWN.const_get(:MeshLastTx) : nil
               if last.is_a?(Hash) &&
@@ -1471,7 +1475,7 @@ module PWN
               color = opts[:local] ? 23 : 21
               secure = packet[:pki_encrypted] == true || mesh_channel_securely_encrypted?(env: env, channel: channel_name)
               security_icon = secure ? '🔒' : '🔍'
-              current_line = "#{ts}  #{security_icon}  #{from.strip}  #{dest_label}\n#{rx_text}"
+              current_line = "#{ts}  #{security_icon}  #{from.strip}  #{dest_label}\n#{display_text}"
               unless state[:last_line] == current_line
                 rx_body_win = PWN.const_get(:MeshRxBodyWin)
                 mutex.synchronize do
@@ -1480,7 +1484,7 @@ module PWN
                   rx_body_win.addstr(" #{ts}  #{security_icon}  #{from.strip}  ·  #{dest_label}\n")
                   rx_body_win.attroff(Curses.color_pair(color) | Curses::A_BOLD)
                   rx_body_win.attron(Curses.color_pair(24))
-                  mesh_wrap_text(text: rx_text, width: width - 1).each do |line|
+                  mesh_wrap_text(text: display_text, width: width - 1).each do |line|
                     rx_body_win.addstr(" #{line}\n")
                   end
                   rx_body_win.addstr("\n")
@@ -1494,7 +1498,7 @@ module PWN
               end
             end
 
-            unless opts[:local]
+            unless opts[:local] || decoded[:emoji].to_i.positive?
               mesh_maybe_dispatch_to_pwn_ai(
                 text: rx_text,
                 from: from_id,
@@ -1506,6 +1510,48 @@ module PWN
           rescue StandardError => e
             mesh_ui_puts(text: "RX display failed: #{e.class}: #{e.message}")
           end
+
+          def mesh_reaction_text(opts = {})
+            packet = opts[:packet]
+            text = opts[:text]
+            decoded = packet[:decoded]
+            state = PWN.const_defined?(:MeshRxState) ? PWN.const_get(:MeshRxState) : {}
+            PWN.const_set(:MeshRxState, state) unless PWN.const_defined?(:MeshRxState)
+            messages = state[:messages] ||= {}
+            scope = opts[:index].nil? ? [:channel, opts[:channel]] : [:radio, opts[:index].to_i]
+            id = packet[:id].to_i
+            if decoded[:emoji].to_i.zero?
+              messages[[scope, id]] = { from: opts[:from], text: text } if id.positive?
+              messages.shift while messages.size > 1000
+              return text
+            end
+
+            original = messages[[scope, decoded[:reply_id].to_i]]
+            original ||= mesh_reaction_original(reply_id: decoded[:reply_id], index: opts[:index])
+            target = original ? "#{original[:from]} >> #{original[:text]}" : "original message unavailable (packet #{decoded[:reply_id].to_i})"
+            "Reacted to: \"#{target}\" with: #{text}."
+          end
+
+          def mesh_reaction_original(opts = {})
+            obj = PWN.const_defined?(:MeshObj) ? PWN.const_get(:MeshObj) : nil
+            return unless obj.is_a?(Hash) && opts[:reply_id].to_i.positive?
+            return if opts[:index].nil?
+
+            rows = obj[:rx_mutex] ? obj[:rx_mutex].synchronize { Array(obj[:proto_data]).dup } : Array(obj[:proto_data]).dup
+            originals = rows.filter_map do |row|
+              packet = row[:packet] if row.is_a?(Hash)
+              next unless packet.is_a?(Hash) && packet[:id].to_i == opts[:reply_id].to_i
+              next unless packet.fetch(:channel, 0).to_i == opts[:index].to_i
+
+              data = packet[:decoded]
+              next unless data.is_a?(Hash) && mesh_text_app?(portnum: data[:portnum]) && data[:emoji].to_i.zero?
+
+              { from: mesh_format_node_id(id: packet[:node_id_from] || packet[:from]), text: mesh_rx_text(payload: data[:payload]).to_s }
+            end.uniq
+            originals.first if originals.size == 1
+          end
+
+          private :mesh_reaction_text, :mesh_reaction_original
 
           def mesh_maybe_dispatch_to_pwn_ai(opts = {})
             return :skipped unless opts.is_a?(Hash)

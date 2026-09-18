@@ -35,6 +35,7 @@ PWN::Plugins::Radare2.required_bins(opts)
 
 - `required_bins`
 - `open`
+- `analyze`
 - `cmd`
 - `cmdj`
 - `close`
@@ -42,6 +43,8 @@ PWN::Plugins::Radare2.required_bins(opts)
 - `xrefs_to`
 - `xrefs_from`
 - `disasm`
+- `seek`
+- `patch_bytes`
 - `strings`
 - `imports`
 - `sections`

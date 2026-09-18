@@ -7,18 +7,32 @@ module PWN
     # SARIF 2.1.0 writer for finding export.
     module SARIF
       public_class_method def self.generate(opts = {})
-        payload = PWN::Reports.report_payload(opts)
+        path = PWN::Reports.resolve_path(opts.merge(ext: 'sarif.json'))
+        payload = PWN::Reports.package_evidence(payload: PWN::Reports.report_payload(opts), path: path)
+        remaining = payload[:findings].dup
+        results = Array(payload[:priorities]).map do |priority|
+          if priority[:kind] == 'chain'
+            chain = priority.except(:kind)
+            members = chain[:finding_ids].flat_map { |id| payload[:findings].select { |row| row['id'].to_s == id.to_s } }
+            result = result_row(row: { 'id' => "attack-chain:#{chain[:finding_ids].join('->')}", 'severity' => chain[:combined_severity], 'title' => chain[:title] })
+            result.merge(properties: { chain: chain, constituent_findings: members })
+          else
+            index = remaining.index do |finding|
+              finding['id'].to_s == priority[:finding_ids].first.to_s && finding['title'].to_s == priority[:title].to_s && finding['severity'].to_s == priority[:combined_severity].to_s
+            end
+            result_row(row: index ? remaining.delete_at(index) : {})
+          end
+        end
         doc = {
           version: '2.1.0',
           '$schema' => 'https://json.schemastore.org/sarif-2.1.0.json',
           runs: [
             {
               tool: { driver: { name: 'pwn', version: (defined?(PWN::VERSION) ? PWN::VERSION : '0') } },
-              results: Array(payload[:findings]).map { |row| result_row(row: row) }
+              results: results
             }
           ]
         }
-        path = PWN::Reports.resolve_path(opts.merge(ext: 'sarif.json'))
         File.write(path, ::JSON.pretty_generate(doc))
         path
       end

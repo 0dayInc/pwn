@@ -5,6 +5,8 @@ require 'nmap/xml'
 require 'open3'
 require 'securerandom'
 require 'tmpdir'
+require 'rexml/document'
+require 'time'
 
 module PWN
   module Plugins
@@ -118,30 +120,46 @@ module PWN
       end
 
       public_class_method def self.to_findings(opts = {})
-        xml_file = opts[:xml_file].to_s
-        raise 'ERROR: xml_file is required' if xml_file.empty?
-        return [] unless File.file?(xml_file)
+        inventory(opts)[:ports]
+      end
 
-        rows = []
-        parse_xml_results(xml_file: xml_file) do |xml|
-          xml.each_host do |host|
-            host.each_port do |port|
-              scripts = {}
-              port.scripts.each { |name, output| scripts[name.to_s] = output.to_s } if port.respond_to?(:scripts) && port.scripts
-              rows << {
-                host: host.ip.to_s,
-                port: port.number,
-                proto: port.protocol.to_s,
-                service: (port.service.name if port.respond_to?(:service) && port.service),
-                version: (port.service.version if port.respond_to?(:service) && port.service.respond_to?(:version)),
-                scripts: scripts,
-                template_id: nil,
-                severity: 'info'
-              }
-            end
+      public_class_method def self.inventory(opts = {})
+        xml_file = (opts[:xml_file] || opts[:xml]).to_s
+        raise 'ERROR: xml_file is required' if xml_file.empty?
+        return { hosts: [], ports: [] } unless File.file?(xml_file)
+
+        doc = REXML::Document.new(File.read(xml_file))
+        hosts = []
+        ports = []
+        doc.elements.each('nmaprun/host') do |node|
+          ip = node.elements['address']&.attributes&.[]('addr').to_s
+          next if ip.empty?
+
+          host_scripts = script_map(node: node.elements['hostscript'])
+          host_ports = []
+          node.elements.each('ports/port') do |port_node|
+            number = port_node.attributes['portid'].to_i
+            proto = port_node.attributes['protocol'].to_s
+            state = port_node.elements['state']&.attributes&.[]('state').to_s
+            svc = port_node.elements['service']
+            scripts = script_map(node: port_node)
+            row = {
+              host: ip,
+              port: number,
+              proto: proto,
+              state: state,
+              service: svc&.attributes&.[]('name'),
+              version: svc&.attributes&.[]('version') || svc&.attributes&.[]('product'),
+              scripts: scripts,
+              template_id: nil,
+              severity: 'info'
+            }
+            host_ports << row
+            ports << row
           end
+          hosts << { host: ip, ports: host_ports, services: host_ports.map { |row| row[:service] }.compact.uniq, scripts: host_scripts }
         end
-        rows
+        { hosts: hosts, ports: ports, xml: xml_file }
       end
 
       public_class_method def self.scan(opts = {})
@@ -154,10 +172,41 @@ module PWN
           xml = File.join(Dir.tmpdir, "pwn-nmap-#{Process.pid}-#{SecureRandom.hex(4)}.xml") if xml.empty?
           port_scan(opts.merge(xml: xml, targets: targets))
         end
-        rows = to_findings(xml_file: xml)
-        PWN::Engagement.merge_scan(results: rows, override: opts[:override], engagement: opts[:engagement] || opts[:name]) if defined?(PWN::Engagement) && opts[:engagement] != false
-        grouped = rows.group_by { |row| row[:host] }.map { |host, ports| { host: host, ports: ports, services: ports.map { |p| p[:service] }.compact } }
-        { hosts: grouped, ports: rows, xml: xml }
+        inv = inventory(xml_file: xml)
+        rows = inv[:ports]
+        eng = opts[:engagement] || opts[:name]
+        if defined?(PWN::Engagement) && opts[:engagement] != false
+          PWN::Engagement.merge_scan(results: rows, override: opts[:override], engagement: eng)
+          PWN::Engagement.record_scan(hosts: inv[:hosts], ports: rows, xml: xml, at: opts[:at], engagement: eng, kind: 'nmap')
+        end
+        grouped = inv[:hosts]
+        {
+          hosts: grouped,
+          ports: rows,
+          xml: xml,
+          diff: changes(opts.merge(engagement: eng, latest: inv[:hosts]))
+        }
+      end
+
+      public_class_method def self.changes(opts = {})
+        eng = opts[:engagement] || opts[:name]
+        snaps = defined?(PWN::Engagement) ? PWN::Engagement.scans(engagement: eng, name: eng) : []
+        latest_hosts = opts[:latest]
+        if latest_hosts.nil?
+          return { since: opts[:since], added_hosts: [], removed_hosts: [], added_ports: [], removed_ports: [], changed_scripts: [], first: true } if snaps.empty?
+
+          latest_hosts = Array(snaps.last[:hosts])
+        end
+        cutoff = parse_since(since: opts[:since])
+        pool = Array(snaps[0..-2])
+        previous = pool.reverse.find do |snap|
+          at = Time.parse(snap[:at].to_s).utc
+          cutoff.nil? || at <= cutoff
+        end
+        previous ||= snaps[-2]
+        return { since: opts[:since], previous_at: nil, added_hosts: [], removed_hosts: [], added_ports: [], removed_ports: [], changed_scripts: [], first: true } unless previous
+
+        diff_inventories(previous: Array(previous[:hosts]), current: latest_hosts).merge(since: opts[:since], previous_at: previous[:at], current_at: snaps.last && snaps.last[:at])
       end
 
       # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -207,13 +256,95 @@ module PWN
             engagement: 'optional - false skips host-state merge',
             override: 'optional - true records out-of-scope hosts',
             target: 'optional - alias for targets',
-            name: 'optional - engagement name for host-state merge'
+            name: 'optional - engagement name for host-state merge',
+            at: 'optional - Time or ISO8601 timestamp stored on the scan snapshot'
+          )
+
+          # Parse nmap XML into hosts, ports, and script output hashes.
+          #{self}.inventory(
+            xml_file: 'required - path to nmap XML output unless xml is set',
+            xml: 'optional - alias for xml_file'
+          )
+
+          # Diff the latest engagement snapshot against yesterday or a prior scan.
+          #{self}.changes(
+            since: 'optional - yesterday, last-scan, ISO8601, or Time (defaults to previous snapshot)',
+            engagement: 'optional - engagement identifier',
+            name: 'optional - alias for engagement',
+            latest: 'optional - inventory host array to treat as current'
           )
 
           # Print the AUTHOR(S) string for this module.
           #{self}.authors
         "
         constants.sort
+      end
+
+      private_class_method def self.script_map(opts = {})
+        node = opts[:node]
+        return {} unless node
+
+        map = {}
+        node.elements.each('script') do |script|
+          map[script.attributes['id'].to_s] = script.attributes['output'].to_s
+        end
+        map
+      end
+
+      private_class_method def self.parse_since(opts = {})
+        token = opts[:since]
+        return nil if token.nil? || token.to_s.empty? || token.to_s.match?(/last.?scan/i)
+        return token.getutc if token.is_a?(Time)
+
+        return Time.now.utc - 86_400 if token.to_s.match?(/yesterday/i)
+
+        Time.parse(token.to_s).utc
+      rescue ArgumentError
+        Time.now.utc - 86_400
+      end
+
+      private_class_method def self.diff_inventories(opts = {})
+        prev = index_inventory(hosts: opts[:previous])
+        curr = index_inventory(hosts: opts[:current])
+        added_ports = (curr[:ports].keys - prev[:ports].keys).map { |key| curr[:ports][key] }
+        removed_ports = (prev[:ports].keys - curr[:ports].keys).map { |key| prev[:ports][key] }
+        changed_scripts = []
+        curr[:scripts].each do |key, now|
+          was = prev[:scripts][key]
+          next if was == now
+
+          changed_scripts << { host: key[0], port: key[1], name: key[2], before: was, after: now }
+        end
+        {
+          added_hosts: (curr[:hosts] - prev[:hosts]).to_a,
+          removed_hosts: (prev[:hosts] - curr[:hosts]).to_a,
+          added_ports: added_ports,
+          removed_ports: removed_ports,
+          changed_scripts: changed_scripts
+        }
+      end
+
+      private_class_method def self.index_inventory(opts = {})
+        hosts = []
+        ports = {}
+        scripts = {}
+        Array(opts[:hosts]).each do |host|
+          host = host.transform_keys(&:to_sym) if host.respond_to?(:transform_keys)
+          ip = host[:host].to_s
+          hosts << ip
+          Array(host[:scripts]).each do |name, output|
+            scripts[[ip, 0, name.to_s]] = output.to_s
+          end
+          Array(host[:ports]).each do |port|
+            port = port.transform_keys(&:to_sym) if port.respond_to?(:transform_keys)
+            key = [ip, port[:port], port[:proto].to_s]
+            ports[key] = { host: ip, port: port[:port], proto: port[:proto], service: port[:service], version: port[:version] }
+            Array(port[:scripts]).each do |name, output|
+              scripts[[ip, port[:port], name.to_s]] = output.to_s
+            end
+          end
+        end
+        { hosts: hosts, ports: ports, scripts: scripts }
       end
     end
   end

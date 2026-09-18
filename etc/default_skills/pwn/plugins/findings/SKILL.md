@@ -40,6 +40,7 @@ PWN::Plugins::Findings.required_bins(opts)
 - `report`
 - `query`
 - `chain`
+- `link`
 - `chain_score`
 - `verify`
 - `retest`

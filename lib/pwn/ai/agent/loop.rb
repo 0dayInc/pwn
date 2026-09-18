@@ -67,7 +67,7 @@ module PWN
         public_class_method def self.evidence_satisfied?(opts = {})
           messages = Array(opts[:messages] || opts[:trace])
           text = opts[:text].to_s
-          return false if TurnFinalizer.output_paths(request: opts[:request]).any? && completion_unmet(request: opts[:request], messages: messages).any?
+          return false if TurnFinalizer.required_artifacts(request: opts[:request]).any? && completion_unmet(request: opts[:request], messages: messages).any?
 
           if defined?(TurnFinalizer) && TurnFinalizer.respond_to?(:arbitrate)
             row = TurnFinalizer.arbitrate(request: opts[:request].to_s, messages: messages, paths: [])
@@ -783,7 +783,7 @@ module PWN
         end
 
         private_class_method def self.declared_contract(opts = {})
-          literals = TurnFinalizer.output_paths(request: opts[:request])
+          literals = TurnFinalizer.required_artifacts(request: opts[:request])
           cached = Thread.current[:pwn_loop_deliverables]
           contract = if cached.is_a?(Array) || cached.is_a?(Hash)
                        normalize_contract(raw: cached)
@@ -908,7 +908,7 @@ module PWN
         end
 
         private_class_method def self.may_finalize?(opts = {})
-          paths = TurnFinalizer.output_paths(request: opts[:request])
+          paths = TurnFinalizer.required_artifacts(request: opts[:request])
           if paths.any?
             artifact = TurnFinalizer.arbitrate(request: opts[:request], paths: paths, messages: opts[:messages])
             unless artifact[:complete]
@@ -1177,7 +1177,7 @@ module PWN
               shape = :timeout
             end
             m = Mistakes.record(tool: name, error: err, args: opts[:args], session_id: opts[:session_id], source: :tool, cause: cause, shape: shape)
-            m = Mistakes.extinguish!(signature: m[:signature], args: opts[:args], shape: sem[:shape]) || m if m && defined?(Mistakes) && Mistakes.respond_to?(:extinguish!)
+            m = Mistakes.extinguish!(signature: m[:signature], args: opts[:args], shape: sem[:shape]) || m if m && defined?(Mistakes) && Mistakes.respond_to?(:extinguish!) && !retryable_execution_failure?(raw: raw)
           end
           { ok: sem[:semantic_ok], err: sem[:err], mistake: m, benign: sem[:benign] }
         rescue StandardError
@@ -1330,6 +1330,33 @@ module PWN
           counts[sig]
         end
 
+        # Only trusted structured execution outcomes grant the retry exemption.
+        # Checkpoint/policy/budget denials are not failed command executions.
+        private_class_method def self.retryable_execution_failure?(opts = {})
+          raw = opts[:raw]
+          data = raw.is_a?(Hash) ? raw : JSON.parse(raw.to_s)
+          return false unless data.is_a?(Hash)
+
+          data = data.transform_keys(&:to_s)
+          return false if data['checkpoint'] || data['denied'] || data['code'] || %w[retry_required budget_exhausted].include?(data['error'])
+
+          result = data['result'].is_a?(Hash) ? data['result'].transform_keys(&:to_s) : {}
+          [data, result].any? do |row|
+            row['timed_out'] == true || row['error'].to_s.match?(/\A(?:Timeout::Error:|timeout\b)/i) ||
+              %w[exit exit_code exit_status].any? { |key| row[key].to_s.match?(/\A-?\d+\z/) && !row[key].to_i.zero? }
+          end
+        rescue JSON::ParserError
+          false
+        end
+
+        private_class_method def self.note_payload_result!(opts = {})
+          return unless retryable_execution_failure?(raw: opts[:raw])
+
+          sig = payload_sig(opts)
+          Thread.current[:pwn_same_payload]&.delete(sig)
+          Thread.current[:pwn_extinguished]&.delete(sig)
+        end
+
         private_class_method def self.read_like?(opts = {})
           name = opts[:name].to_s
           return true if name.match?(/_(read|get|list|status|recall|tail)\z/)
@@ -1365,6 +1392,7 @@ module PWN
           hint   = opts[:hint].to_s
           thresh = defined?(Mistakes) ? Mistakes::REPEAT_THRESHOLD : 3
           result = "#{result}\n#{hint}" unless hint.empty?
+          return result if retryable_execution_failure?(raw: opts[:raw] || opts[:result])
           return result if count < thresh
 
           if defined?(Mistakes) && Mistakes.respond_to?(:extinguish!)
@@ -2832,6 +2860,7 @@ module PWN
         # )
 
         public_class_method def self.run(opts = {})
+          prior_artifact_contract = Thread.current[:pwn_artifact_contract]
           request = opts[:request].to_s
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
@@ -2869,6 +2898,8 @@ module PWN
             OpenGoal.begin!(request: request, session_id: session_id)
           end
           Thread.current[:pwn_request_intent] = intent
+          TurnFinalizer.commit_artifacts!(request: request, inherit: nested)
+          required_artifacts = TurnFinalizer.required_artifacts(request: request)
           Thread.current[:pwn_extinguished] = {}
           Thread.current[:pwn_same_payload] = Hash.new(0)
           Thread.current[:pwn_loop_t0] = Time.now unless nested
@@ -2880,9 +2911,10 @@ module PWN
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
-          cheap = opts[:force_tools] != true && %i[greeting howto recall].include?(intent)
+          allow_text_only = required_artifacts.empty? && opts[:force_tools] != true
+          cheap = allow_text_only && %i[greeting howto recall].include?(intent)
 
-          if intent == :greeting && opts[:force_tools] != true
+          if allow_text_only && intent == :greeting
             debug_progress(msg: 'path=greeting', debug: opts[:debug])
             quiet_debug_tui!(debug: opts[:debug], reason: 'greeting')
             txt = answer_greeting(
@@ -3242,7 +3274,7 @@ module PWN
               argv_s = args.is_a?(String) ? args.to_s : args.inspect
               debug_progress(msg: "tool #{name} start:\n#{argv_s}", keep_newlines: true, cap: 0, tee: nil)
               sig = payload_sig(name: name, args: args)
-              declared_paths = TurnFinalizer.output_paths(request: request)
+              declared_paths = required_artifacts
               arg_paths = tool_arg_paths(args: args)
               watch_paths = (declared_paths + arg_paths).uniq
               before_host = TurnFinalizer.artifact_snapshot(paths: watch_paths)
@@ -3254,9 +3286,10 @@ module PWN
                 raw = if same_n >= 3
                         checkpoint_result(name: name, args: args)
                       else
-                        Dispatch.call(tool_call: tc)
+                        Dispatch.call(tool_call: tc, session_id: session_id)
                       end
               end
+              note_payload_result!(name: name, args: args, raw: raw)
               tools_called += 1
               if opts[:verification_contract]
                 after_artifacts = Verification.snapshot(opts[:verification_contract])
@@ -3265,7 +3298,7 @@ module PWN
               end
               tele    = record_metrics(name: name, action_id: tc[:id], trusted_context: Policy.current_episode&.dig(:trusted_context) || trusted_context,
                                        started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)
-              result  = Result.condition(content: raw, entry: entry)
+              result  = Result.condition(content: raw, entry: entry, session_id: session_id)
 
               unless tele[:ok]
                 fkey = Digest::SHA256.hexdigest("#{name}|#{args}")[0, 16]
@@ -3280,11 +3313,11 @@ module PWN
                 # P17 — never fork counterfactual when budget fingerprints dominate:
                 # CF is another mini agent loop and is the #1 amplifier of
                 # iteration-budget exhaustion on this host.
-                if count >= thresh && !escalated && defined?(Curriculum) && !budget_exhaustion_hot?
+                if count >= thresh && !retryable_execution_failure?(raw: raw) && !escalated && defined?(Curriculum) && !budget_exhaustion_hot?
                   cf = (turn_fails["cf:#{fkey}"] += 1) == 1 ? Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint) : nil
                   hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
                 end
-                result = guard_repeated_failure(name: name, count: count, hint: hint, result: result, mistake: tele[:mistake], args: args, shape: tele.dig(:mistake, :shape))
+                result = guard_repeated_failure(name: name, count: count, hint: hint, raw: raw, result: result, mistake: tele[:mistake], args: args, shape: tele.dig(:mistake, :shape))
               end
 
               on_tool&.call(name, args, result)
@@ -3345,6 +3378,7 @@ module PWN
           end
           raise
         ensure
+          Thread.current[:pwn_artifact_contract] = prior_artifact_contract
           unless nested
             Thread.current[:pwn_loop_active] = nil
             Thread.current[:pwn_loop_deliverables] = nil

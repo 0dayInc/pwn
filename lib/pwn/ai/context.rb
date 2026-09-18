@@ -49,7 +49,8 @@ module PWN
         text = if defined?(PWN::Plugins::Radare2) && File.file?(path)
                  sid = PWN::Plugins::Radare2.open(path: path)
                  addr = fn.empty? ? 'main' : fn
-                 PWN::Plugins::Radare2.disasm(session: sid, addr: addr, n: 64)
+                 result = PWN::Plugins::Radare2.disasm(session: sid, addr: addr, n: 64)
+                 result.is_a?(String) ? result : JSON.pretty_generate(result)
                else
                  File.binread(path).to_s[0, CHUNK]
                end
@@ -136,8 +137,9 @@ module PWN
                    File.binwrite(dest, bytes)
                    { sha256: sha, path: dest, size: bytes.bytesize }
                  end
-        chunks = []
         body = summary.to_s
+        body = PWN::AI::Router.summarize(text: body) if bytes.bytesize > WINDOW && defined?(PWN::AI::Router)
+        chunks = []
         i = 0
         while i < body.bytesize
           chunks << body.byteslice(i, CHUNK)

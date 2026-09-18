@@ -14,8 +14,17 @@ module PWN
       # )
 
       public_class_method def self.encode(opts = {})
-        basic_user = opts[:username].to_s.chomp unless opts[:username].nil?
-        basic_pass = opts[:password].to_s.chomp unless opts[:password].nil?
+        basic_user = opts[:username]
+        basic_pass = opts[:password]
+        if (basic_user.nil? || basic_pass.nil?) && !opts[:host].to_s.empty?
+          hit = Array(PWN::Plugins::Vault.offer(host: opts[:host], service: opts[:service], engagement: opts[:engagement] || opts[:engagement_id])).first
+          if hit
+            basic_user = hit[:username] if basic_user.nil?
+            basic_pass = hit[:secret] if basic_pass.nil?
+          end
+        end
+        basic_user = basic_user.to_s.chomp unless basic_user.nil?
+        basic_pass = basic_pass.to_s.chomp unless basic_pass.nil?
         base64_str = "#{basic_user}:#{basic_pass}"
         @base64_encoded_auth = Base64.strict_encode64(base64_str).to_s.chomp
         @base64_encoded_auth
@@ -50,8 +59,12 @@ module PWN
         puts "USAGE:
           # Run encode and return its result
           #{self}.encode(
-            username: 'optional - optional username',
-            password: 'optional - optional password'
+            username: 'optional - username; omitted values are filled from Vault.offer',
+            password: 'optional - password; omitted values are filled from Vault.offer',
+            host: 'optional - hostname used to offer recon loot when username or password is omitted',
+            service: 'optional - service name such as http or ssh used to match loot',
+            engagement: 'optional - engagement id scoping the loot file (defaults to default)',
+            engagement_id: 'optional - alias for engagement'
           )
 
           # Run decode and return its result

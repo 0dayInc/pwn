@@ -28,7 +28,39 @@ Legacy `Findings.record`, query/report, chain, render, and SARIF output remain c
 
 `PWN::AI::Agent::Swarm.ensure_specialists` / `agent_roster` writes recon, authz, injection, xss, and business_logic personas. SARIF export is `Findings.render`; `PWN::Plugins::Github.open_fix_pr` opens a remediation PR (tests stub the GitHub API).
 
-Markdown/HTML/JSON report payloads compose connected explicit references into attack-chain sections, preserving all finding fields. Combined severity is maximum recorded constituent severity with a rationale explicitly disclaiming escalation and combined exploitability. This is not a computed CVSS chain score.
+## Directed attack paths and combined impact
+
+`enables: [finding_id]` is an outgoing edge: this finding enables the named
+finding. Targets must already exist in the same engagement. For findings
+recorded earlier, use `finding_record(op: 'link', id: ssrf_id,
+enables: [admin_id])` or `Findings.link(id: ssrf_id, enables: [admin_id])`.
+The update replaces outgoing `enables` links; legacy `attack_chain_refs` are
+incoming prerequisites and remain supported. Missing IDs, duplicate edges,
+self-links, cross-engagement links, and cycles are rejected.
+
+Record the demonstrated combined impact with ordered source-to-impact `ids`:
+`finding_record(op: 'chain_impact', ids: [ssrf_id, admin_id],
+combined_impact_path: '/tmp/combined-impact.txt', escalate: true,
+combined_severity: 'critical', severity_justification: justification,
+reproduction_steps: steps)`. The evidence file must name each ID and describe
+the combined impact; keep actual PoC output with it. This preserves a scoped
+`chain_assessments` entry containing the ordered IDs, justification, steps,
+and durable evidence hashes. Different paths retain separate assessments.
+
+Reports enumerate directed root-to-leaf paths and rank them by the assessed
+combined severity, not by summing or averaging constituent CVSS. An evidenced
+SSRF → internal-admin takeover can therefore be one critical priority while
+both constituent findings retain their medium CVSS in technical details.
+HTML/Markdown display ranked paths before details; JSON includes `priorities`
+and `attack_chains`; SARIF emits one result per path plus standalone findings.
+Chain evidence is exported beside the report and verified against its hash.
+
+An assessment applies only to its exact ordered path. Linking alone never
+creates a critical rating: unassessed paths retain maximum constituent
+severity and are explicitly marked `unassessed`. Severity is an evidence-based
+assessment, not an automatically calculated chain CVSS score. The report
+rejects invalid cyclic graphs and more than 1000 reportable paths rather than
+silently dropping paths. Hash checks prove byte identity, not exploit execution.
 
 ## Verification boundaries
 

@@ -29,6 +29,57 @@ RSpec.describe PWN::AI::Agent::Dispatch do
     expect(out.dig(:result, :stdout)).to include(' ... ')
   end
 
+  it 'explains an elided command after markdown data and accepts one corrected call' do
+    PWN::AI::Agent::Registry.discover
+    command = "cat <<-'MD'\n# Résumé ... inline prose\n...\n\tMD\n...\n"
+    denied = dispatch('shell', { command: command, timeout: 2 }).fetch(:result)
+    expect(denied).to include(error: 'invalid_payload', code: 'SYNTAX_DENY', rule_id: 'payload.placeholder', match: '...')
+    expect(denied[:offset]).to eq(command.b.rindex("\n...".b) + 1)
+    expect(command.byteslice(denied[:offset], denied[:match].bytesize)).to eq('...')
+    expect(denied[:remedy]).to include('placeholder_ok', 'base64', 'data')
+    expect(denied[:remedy]).to include('does not bypass')
+    corrected_command = command.byteslice(0, denied[:offset])
+    corrected = dispatch('shell', { command: corrected_command, timeout: 2 })
+    expect(corrected.dig(:result, :exit)).to eq(0)
+    expect(corrected.dig(:result, :stdout)).to include("# Résumé ... inline prose\n...\n")
+  end
+
+  it 'preserves decoded byte offsets through base64 and does not present encoding as a validation bypass' do
+    PWN::AI::Agent::Registry.discover
+    command = "cat <<-'MD'\n# Résumé ...\n…\n\tMD\n…\n"
+    args = { encoding: 'base64', data: Base64.strict_encode64(command), timeout: 2 }
+    denied = dispatch('shell', args).fetch(:result)
+    expect(denied[:match]).to eq('…')
+    expect(denied[:offset]).to eq(command.b.rindex('…'.b))
+    expect(denied[:byte_range]).to eq([denied[:offset], denied[:offset] + '…'.bytesize])
+    corrected = dispatch('shell', args.merge(data: Base64.strict_encode64(command.byteslice(0, denied[:offset]))))
+    expect(corrected.dig(:result, :exit)).to eq(0)
+    expect(corrected.dig(:result, :stdout)).to include('…')
+  end
+
+  it 'explains schema invalid_payload errors with the field and correction' do
+    PWN::AI::Agent::Registry.discover
+    denied = dispatch('shell', { command: 'printf ok', timeout: 20_000 })
+    expect(denied).to include(error: 'invalid_payload', rule_id: 'schema.maximum', offset: nil)
+    expect(denied[:match]).to eq('20000')
+    expect(denied[:remedy]).to include('/timeout', '10800')
+  end
+
+  it 'writes Ruby literal ellipses as data and denies a code stub before side effects' do
+    PWN::AI::Agent::Registry.discover
+    path = File.join(@dir, 'document.md')
+    code = "doc_with_ellipsis = <<~DOC\n  # Résumé\n  ...\n  def foo(<3dots>)\nDOC\nFile.write(#{path.inspect}, doc_with_ellipsis)"
+    result = dispatch('pwn_eval', { code: code, timeout: 2 })
+    expect(result.dig(:result, :error)).to be_nil
+    expect(File.read(path)).to eq("# Résumé\n...\ndef foo(<3dots>)\n")
+    File.delete(path)
+    stub = "File.write(#{path.inspect}, 'should not execute'); def foo(<3dots>); end"
+    denied = dispatch('pwn_eval', { code: stub, timeout: 2 }).fetch(:result)
+    expect(denied).to include(error: 'invalid_payload', rule_id: 'payload.placeholder', match: '<3dots>')
+    expect(denied[:offset]).to eq(stub.b.index('<3dots>'))
+    expect(File.exist?(path)).to eq(false)
+  end
+
   it 'loads a YAML-whitelisted plugin method as a callable tool' do
     PWN::AI::Agent::Registry.discover
     entry = PWN::AI::Agent::Registry.lookup(name: 'host_os_type')

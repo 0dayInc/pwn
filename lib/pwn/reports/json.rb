@@ -8,12 +8,13 @@ module PWN
     module JSON
       public_class_method def self.generate(opts = {})
         out = PWN::Reports.resolve_path(opts.merge(ext: 'json'))
-        payload = PWN::Reports.report_payload(opts)
+        payload = PWN::Reports.package_evidence(payload: PWN::Reports.report_payload(opts), path: out)
         File.write(
           out,
           ::JSON.pretty_generate(
             'title' => payload[:title],
             'executive_summary' => payload[:executive_summary],
+            'priorities' => payload[:priorities],
             'findings' => payload[:findings],
             'attack_chains' => payload[:attack_chains]
           )

@@ -18,26 +18,37 @@ module PWN
 
       # Supported Method Parameters::
       # session = PWN::Plugins::Radare2.open(
-      #   path: 'required - filesystem path to the binary r2 should open'
+      #   bin: 'required - filesystem path to the binary (alias: path)',
+      #   write: 'optional - open r2/rizin with -w so patch_bytes can mutate the file'
       # )
       public_class_method def self.open(opts = {})
-        PWN::Plugins::PreflightChecker.require_bin!(name: 'r2')
-        path = opts[:path].to_s
-        raise 'ERROR: path is required' if path.empty?
+        path = (opts[:bin] || opts[:path]).to_s
+        raise ArgumentError, 'bin or path is required' if path.empty?
         raise "ERROR: binary not found: #{path}" unless File.file?(path)
 
+        engine = engine(opts)
         sha = Digest::SHA256.file(path).hexdigest
-        hit = @sessions.find { |_id, sess| sess[:path] == path && sess[:sha256] == sha }
+        write = opts[:write] == true
+        hit = @sessions.find { |_id, sess| sess[:path] == path && sess[:sha256] == sha && sess[:engine] == engine && sess[:write] == write }
         return hit[0] if hit
 
-        stdin, stdout, waiter = Open3.popen2('r2', '-q0', '-e', 'scr.color=0', path)
+        argv = [engine, '-q0', '-e', 'scr.color=0']
+        argv.insert(1, '-w') if write
+        stdin, stdout, waiter = Open3.popen2({ 'R2_NOPLUGINS' => '1' }, *argv, path)
         sid = SecureRandom.hex(8)
         pid = waiter.pid if waiter.respond_to?(:pid)
-        @sessions[sid] = { stdin: stdin, stdout: stdout, waiter: waiter, path: path, sha256: sha, pid: pid }
+        @sessions[sid] = { stdin: stdin, stdout: stdout, waiter: waiter, path: path, sha256: sha, pid: pid, engine: engine, write: write, aaa: false }
         read_until_null(io: stdout)
         cmd(session: sid, cmd: 'aaa')
         @sessions[sid][:aaa] = true
         sid
+      end
+
+      public_class_method def self.analyze(opts = {})
+        sess = session!(opts)
+        cmd(opts.merge(cmd: 'aaa'))
+        sess[:aaa] = true
+        functions(opts)
       end
 
       # Supported Method Parameters::
@@ -61,10 +72,13 @@ module PWN
       #   cmd: 'required - r2 command; trailing j is added if missing and stdout is JSON.parse (e.g. afl or aflj)'
       # )
       public_class_method def self.cmdj(opts = {})
-        raw = cmd(opts.merge(cmd: opts[:cmd].to_s.sub(/j?\z/, 'j')))
+        line = opts[:cmd].to_s
+        raise ArgumentError, 'cmd is required' if line.empty?
+
+        verb, rest = line.split(/\s+/, 2)
+        verb = "#{verb}j" unless verb.end_with?('j')
+        raw = cmd(opts.merge(cmd: [verb, rest].compact.join(' ')))
         JSON.parse(raw)
-      rescue JSON::ParserError
-        raw
       end
 
       # Supported Method Parameters::
@@ -97,13 +111,11 @@ module PWN
       #   addr: 'required - address or flag to list xrefs to (e.g. main or 0x401000)'
       # )
       public_class_method def self.xrefs_to(opts = {})
-        addr = opts[:addr].to_s
-        cmdj(opts.merge(cmd: "axtj #{addr}"))
+        cmdj(opts.merge(cmd: "axtj #{addr!(opts)}"))
       end
 
       public_class_method def self.xrefs_from(opts = {})
-        addr = opts[:addr].to_s
-        cmdj(opts.merge(cmd: "axfj #{addr}"))
+        cmdj(opts.merge(cmd: "axfj #{addr!(opts)}"))
       end
 
       # Supported Method Parameters::
@@ -113,9 +125,36 @@ module PWN
       #   n: 'optional - instruction count (defaults to 32)'
       # )
       public_class_method def self.disasm(opts = {})
-        addr = opts[:addr].to_s
-        n = (opts[:n] || opts[:len] || 32).to_i
-        cmd(opts.merge(cmd: "pd #{n} @ #{addr}"))
+        addr = addr!(opts)
+        count = opts[:n] || opts[:len]
+        if count.nil?
+          cmdj(opts.merge(cmd: "pdfj @ #{addr}"))
+        else
+          n = Integer(count)
+          raise ArgumentError, 'n must be 1..4096 instructions' unless n.between?(1, 4096)
+
+          cmdj(opts.merge(cmd: "pdj #{n} @ #{addr}"))
+        end
+      end
+
+      public_class_method def self.seek(opts = {})
+        addr = addr!(opts)
+        cmd(opts.merge(cmd: "s #{addr}"))
+        raw = cmd(opts.merge(cmd: 's'))
+        value = raw.to_s.strip
+        { addr: value, offset: value.to_i(16) }
+      end
+
+      public_class_method def self.patch_bytes(opts = {})
+        addr = addr!(opts)
+        hex = opts[:hex].to_s.downcase.delete_prefix('0x')
+        raise ArgumentError, 'hex must be nonempty even-length hex' unless hex.match?(/\A[0-9a-f]+\z/) && hex.length.even?
+
+        sess = session!(opts)
+        raise ArgumentError, 'open the session with write: true before patch_bytes' unless sess[:write]
+
+        cmd(opts.merge(cmd: "wx #{hex} @ #{addr}"))
+        cmdj(opts.merge(cmd: "pxj #{hex.length / 2} @ #{addr}"))
       end
 
       # Supported Method Parameters::
@@ -160,8 +199,7 @@ module PWN
       #   addr: 'required - address or flag to decompile (needs r2ghidra)'
       # )
       public_class_method def self.decompile(opts = {})
-        addr = opts[:addr].to_s
-        cmd(opts.merge(cmd: "pdg @ #{addr}"))
+        cmd(opts.merge(cmd: "pdg @ #{addr!(opts)}"))
       rescue StandardError => e
         { error: "#{e.class}: #{e.message}", hint: 'r2ghidra plugin may be absent' }
       end
@@ -227,9 +265,17 @@ module PWN
           # List host binaries this module expects to be installed.
           #{self}.required_bins
 
-          # Open the binary in r2 (-q0) and return a session id.
+          # Open the binary in r2/rizin (-q0) and return a session id.
           #{self}.open(
-            path: 'required - filesystem path to the binary r2 should open'
+            bin: 'required - filesystem path to the binary r2 or rizin should open',
+            path: 'optional - alias for bin',
+            write: 'optional - true opens with -w so patch_bytes can persist mutations',
+            backend: 'optional - r2 or rizin; default is r2 then rizin'
+          )
+
+          # Run aaa and return parsed aflj JSON.
+          #{self}.analyze(
+            session: 'required - session id returned by #open'
           )
 
           # Run a command and return raw text output.
@@ -266,12 +312,25 @@ module PWN
             addr: 'required - address or flag to list xrefs from'
           )
 
-          # Disassemble n instructions at addr (pd text).
+          # Disassemble a function (pdfj) or n instructions (pdj) as parsed JSON.
           #{self}.disasm(
             session: 'required - session id returned by #open',
-            addr: 'required - address or flag to disassemble from',
-            n: 'optional - instruction count (defaults to 32)',
-            len: 'optional - alias for n, number of instructions to disassemble'
+            addr: 'required - address or flag; symbols, decimal, and 0x hex only',
+            n: 'optional - instruction count for pdj; omit for pdfj of the function',
+            len: 'optional - alias for n'
+          )
+
+          # Seek and return the current offset as JSON.
+          #{self}.seek(
+            session: 'required - session id returned by #open',
+            addr: 'required - address or flag to seek to'
+          )
+
+          # Write hex bytes at addr (wx) and return parsed pxj of the written span.
+          #{self}.patch_bytes(
+            session: 'required - session id returned by #open',
+            addr: 'required - address or flag to patch',
+            hex: 'required - even-length hex string'
           )
 
           # List strings in the binary (izj JSON).
@@ -306,7 +365,10 @@ module PWN
           #{self}.required_bins
           # Invoke open with the documented options; normalized path APIs report their backend.
           #{self}.open(
-            path: 'optional - filesystem path to the local artifact or binary'
+            bin: 'optional - filesystem path to the local artifact or binary',
+            path: 'optional - filesystem path to the local artifact or binary',
+            write: 'optional - true opens the r2pipe session read/write',
+            backend: 'optional - analysis backend name; binutils forces lightweight fallback'
           )
           # Invoke cmd with the documented options; normalized path APIs report their backend.
           #{self}.cmd(
@@ -322,6 +384,21 @@ module PWN
           )
           # Invoke functions with the documented options; normalized path APIs report their backend.
           #{self}.functions
+          # Run aaa and return parsed aflj JSON.
+          #{self}.analyze(
+            session: 'optional - session identifier returned by Radare2.open'
+          )
+          # Seek and return the current offset as JSON.
+          #{self}.seek(
+            session: 'optional - session identifier returned by Radare2.open',
+            addr: 'optional - hexadecimal address or binary symbol name'
+          )
+          # Write hex bytes at addr (wx) and return parsed pxj of the written span.
+          #{self}.patch_bytes(
+            session: 'optional - session identifier returned by Radare2.open',
+            addr: 'optional - hexadecimal address or binary symbol name',
+            hex: 'optional - even-length hex string to write'
+          )
           # Invoke xrefs_to with the documented options; normalized path APIs report their backend.
           #{self}.xrefs_to(
             addr: 'optional - hexadecimal address or binary symbol name'
@@ -376,6 +453,23 @@ module PWN
         raise 'ERROR: session is required / unknown' unless sess
 
         sess
+      end
+
+      private_class_method def self.engine(opts = {})
+        wanted = opts[:backend].to_s
+        return wanted if %w[r2 rizin].include?(wanted) && PWN::Plugins::PreflightChecker.bin?(name: wanted)
+        return 'r2' if PWN::Plugins::PreflightChecker.bin?(name: 'r2')
+        return 'rizin' if PWN::Plugins::PreflightChecker.bin?(name: 'rizin')
+
+        PWN::Plugins::PreflightChecker.require_bin!(name: 'r2')
+      end
+
+      private_class_method def self.addr!(opts = {})
+        addr = opts[:addr].to_s
+        raise ArgumentError, 'addr is required' if addr.empty?
+        raise ArgumentError, 'invalid address' unless addr.match?(/\A(?:0x[0-9a-fA-F]+|[0-9]+|[A-Za-z_$.][A-Za-z0-9_$.@]*)\z/)
+
+        addr
       end
 
       private_class_method def self.read_until_null(opts = {})

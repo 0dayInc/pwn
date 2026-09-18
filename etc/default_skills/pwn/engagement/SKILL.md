@@ -41,6 +41,8 @@ PWN::Engagement.open(opts)
 - `record_host`
 - `hosts`
 - `merge_scan`
+- `record_scan`
+- `scans`
 - `authors`
 - `help`
 - `in_scope?`

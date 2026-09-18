@@ -17,6 +17,13 @@ module PWN
     #     user values on `pwn setup --migrate --fix`
     public_class_method def self.env_template
       {
+        ai_sandbox: 'off',
+        ai_router: {
+          summarize: { engine: 'ollama', model: nil, fallbacks: [{ engine: 'openwebui' }], allow_frontier: false },
+          plan: { engine: 'ollama', model: nil, fallbacks: [{ engine: 'openwebui' }], allow_frontier: false },
+          exploit_dev: { engine: 'ollama', model: 'qwen2.5-coder', fallbacks: [{ engine: 'openai' }] },
+          triage: { engine: 'ollama', model: nil, fallbacks: [{ engine: 'openwebui' }] }
+        },
         ai: {
           active: 'grok',
           module_reflection: false,
@@ -204,6 +211,9 @@ module PWN
             max_total_mb: 512,
             model_routes: {
               summarize: nil,
+              plan: nil,
+              exploit_dev: nil,
+              triage: nil,
               judge: nil,
               act: nil,
               sensitive: nil

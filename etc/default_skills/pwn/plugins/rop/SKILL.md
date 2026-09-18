@@ -34,6 +34,7 @@ PWN::Plugins::ROP.required_bins(opts)
 ## Public methods
 
 - `required_bins`
+- `parse`
 - `gadgets`
 - `filter`
 - `authors`

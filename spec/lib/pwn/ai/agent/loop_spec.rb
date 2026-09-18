@@ -683,9 +683,95 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       chunk = src[/if Thread\.current\[:pwn_extinguished\].*?tools_called \+= 1/m]
       expect(chunk).to include('same_n = note_same_payload!')
       expect(chunk.index('note_same_payload!')).to be < chunk.index('Dispatch.call')
+      expect(chunk.index('Dispatch.call')).to be < chunk.index('note_payload_result!')
       expect(chunk).to match(/same_n >= 3/)
       raw = described_class.send(:checkpoint_result, name: 'shell', args: '{"command":"echo same"}')
       expect(JSON.parse(raw)).to include('success' => false, 'checkpoint' => true)
+    end
+
+    it 'allows verbatim retries after nonzero exits and checkpoints repeated successes' do
+      Thread.current[:pwn_same_payload] = Hash.new(0)
+      args = { command: 'test -f ready', timeout: 2 }
+      4.times do
+        expect(described_class.send(:note_same_payload!, name: 'shell', args: args)).to eq(1)
+        raw = JSON.generate(success: true, result: { exit: 1, stdout: '', stderr: '' })
+        described_class.send(:note_payload_result!, name: 'shell', args: args, raw: raw)
+        expect(described_class.send(:guard_repeated_failure, name: 'shell', args: args, count: 650, raw: raw, result: raw)).to eq(raw)
+      end
+      expect(described_class.send(:note_same_payload!, name: 'shell', args: args)).to eq(1)
+      described_class.send(:note_payload_result!, name: 'shell', args: args, raw: JSON.generate(success: true, result: { exit: 0 }))
+      expect(described_class.send(:note_same_payload!, name: 'shell', args: args)).to eq(2)
+      expect(described_class.send(:note_same_payload!, name: 'shell', args: args)).to eq(3)
+    ensure
+      Thread.current[:pwn_same_payload] = nil
+      Thread.current[:pwn_extinguished] = nil
+    end
+
+    it 'retries a real failing shell command verbatim until it succeeds without a checkpoint' do
+      PWN::AI::Agent::Registry.discover
+      Thread.current[:pwn_same_payload] = Hash.new(0)
+      Thread.current[:pwn_dispatch_budget] = nil
+      Dir.mktmpdir('retry-checkpoint') do |dir|
+        program = 'p=ARGV.fetch(0); n=File.exist?(p) ? File.read(p).to_i+1 : 1; File.write(p,n); puts n; exit(n<4 ? 7 : 0)'
+        args = { command: "ruby -e '#{program}' #{File.join(dir, 'attempts').inspect}", timeout: 10 }
+        exits = 4.times.map do
+          expect(described_class.send(:note_same_payload!, name: 'shell', args: args)).to eq(1)
+          raw = PWN::AI::Agent::Dispatch.call(scope_policy: { enabled: false }, tool_call: { function: { name: 'shell', arguments: JSON.generate(args) } })
+          described_class.send(:note_payload_result!, name: 'shell', args: args, raw: raw)
+          parsed = JSON.parse(raw)
+          expect(parsed['error']).to be_nil
+          parsed.dig('result', 'exit')
+        end
+        expect(exits).to eq([7, 7, 7, 0])
+        expect(File.read(File.join(dir, 'attempts'))).to eq('4')
+      end
+    ensure
+      Thread.current[:pwn_same_payload] = nil
+      Thread.current[:pwn_dispatch_budget] = nil
+    end
+
+    it 'permits repeated timeout retries while Dispatch increases the same payload deadline' do
+      PWN::AI::Agent::Registry.discover
+      Thread.current[:pwn_same_payload] = Hash.new(0)
+      Thread.current[:pwn_dispatch_budget] = nil
+      entry = PWN::AI::Agent::Registry.lookup(name: 'shell')
+      deadlines = []
+      allow(entry.handler).to receive(:call) do |args|
+        deadlines << args[:timeout]
+        deadlines.length < 4 ? { error: 'timeout after test deadline' } : { exit: 0, stdout: 'finished' }
+      end
+      args = { command: 'unchanged command', timeout: 1 }
+      4.times do
+        expect(described_class.send(:note_same_payload!, name: 'shell', args: args)).to eq(1)
+        raw = PWN::AI::Agent::Dispatch.call(scope_policy: { enabled: false }, tool_call: { function: { name: 'shell', arguments: JSON.generate(args) } })
+        described_class.send(:note_payload_result!, name: 'shell', args: args, raw: raw)
+        expect(JSON.parse(raw)['error']).to be_nil
+        result = described_class.send(:guard_repeated_failure, name: 'shell', args: args, count: 650, raw: raw, result: raw) if deadlines.length < 4
+        expect(result).not_to include('EXTINGUISHED') if result
+      end
+      expect(deadlines).to eq([1, 181, 361, 541])
+      expect(Thread.current[:pwn_dispatch_budget].dig(:chains, 'shell', :active)).to be_nil
+    ensure
+      Thread.current[:pwn_same_payload] = nil
+      Thread.current[:pwn_dispatch_budget] = nil
+      Thread.current[:pwn_extinguished] = nil
+    end
+
+    it 'does not mistake policy denials, checkpoints or stdout text for retryable execution failures' do
+      [
+        { checkpoint: true, result: { exit: 1 } },
+        { error: 'retry_required' },
+        { error: 'budget_exhausted', result: { error: 'timeout' } },
+        { code: 'SCOPE_DENY', result: { exit: 1 } },
+        { success: true, result: { exit: 0, stdout: 'timeout exit_code=1' } },
+        { success: false, error: 'invalid_payload' }
+      ].each do |raw|
+        expect(described_class.send(:retryable_execution_failure?, raw: JSON.generate(raw))).to eq(false)
+      end
+      [{ result: { exit_code: 2 } }, { result: { exit_status: '3' } }, { error: 'Timeout::Error: expired' }, { result: { timed_out: true } }].each do |raw|
+        expect(described_class.send(:retryable_execution_failure?, raw: raw)).to eq(true)
+      end
+      expect(described_class.send(:retryable_execution_failure?, raw: 'timeout in plain text')).to eq(false)
     end
 
     it 'records a timeout increment mistake instead of treating success:true as ok' do

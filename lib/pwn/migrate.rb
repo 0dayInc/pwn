@@ -49,7 +49,7 @@ module PWN
     # Bump this whenever the shape of any file under ~/.pwn changes in a
     # way that requires a one-time transform.  Add the transform as an
     # entry in MIGRATIONS keyed by the NEW schema number.
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
 
     OK   = "\e[32mok\e[0m"
     BAD  = "\e[31mFAIL\e[0m"
@@ -241,6 +241,10 @@ module PWN
 
         File.write(path, YAML.dump(raw))
         io.puts "    · agents.yml added default model to #{patched} personas"
+      },
+      4 => lambda { |_root, io|
+        io.puts '    · pwn.yaml ai_sandbox, ai_router, model_routes task classes'
+        PWN::Migrate.backfill_vault(io: io)
       }
     }.freeze
 

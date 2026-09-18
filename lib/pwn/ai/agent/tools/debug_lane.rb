@@ -27,6 +27,29 @@ PWN::AI::Agent::Registry.register(
   }
 )
 PWN::AI::Agent::Registry.register(
+  name: 'gdb_run_to_crash',
+  toolset: 'pwn',
+  schema: {
+    name: 'gdb_run_to_crash',
+    description: 'Run a binary under gdb MI3 until crash and return {signal, pc, fault_addr, exploitability} plus ExploitDev offset from stdin/payload.',
+    parameters: {
+      type: 'object',
+      properties: {
+        binary: { type: 'string' },
+        bin: { type: 'string' },
+        stdin: { type: 'string', description: 'Crashing input bytes.' },
+        payload: { type: 'string' },
+        pwndbg: { type: 'boolean' }
+      },
+      anyOf: [{ required: %w[binary] }, { required: %w[bin] }]
+    }
+  },
+  handler: lambda { |args|
+    args = args.transform_keys(&:to_sym)
+    PWN::Plugins::GDBMI.run_to_crash(binary: args[:binary] || args[:bin], stdin: args[:stdin] || args[:payload], pwndbg: args[:pwndbg])
+  }
+)
+PWN::AI::Agent::Registry.register(
   name: 'binary_diff',
   toolset: 'pwn',
   schema: {

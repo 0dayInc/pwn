@@ -138,6 +138,7 @@ module PWN
           File.rename(temp, path)
         end
         result = JSON.parse(File.read(path), symbolize_names: true).merge(path: path)
+        result[:loot] = harvest_loot(assets: result[:assets], engagement_id: engagement)
         if opts[:ingest]
           begin
             ingestor = opts[:ingestor] || PWN::AI::Context.method(:ingest)
@@ -259,6 +260,29 @@ module PWN
         { error: "#{e.class}: #{e.message}", domain: domain }
       end
 
+      # Harvest credential strings from recon assets into the encrypted loot store.
+      public_class_method def self.harvest_loot(opts = {})
+        eng = opts[:engagement_id] || opts[:engagement]
+        Array(opts[:assets]).flat_map do |asset|
+          asset = asset.transform_keys(&:to_sym) if asset.is_a?(Hash)
+          host = (asset[:address] || asset[:host]).to_s
+          Array(asset[:observations]).flat_map do |obs|
+            obs = obs.transform_keys(&:to_sym) if obs.is_a?(Hash)
+            blob = [obs[:banner], obs[:body], obs[:text], obs[:matched_at]].compact.join("\n")
+            next [] if blob.empty?
+
+            PWN::Plugins::Vault.ingest(
+              text: blob,
+              host: host,
+              source: 'recon',
+              where: opts[:where] || "banner:#{obs[:port] || asset[:port]}",
+              engagement: eng,
+              finding_id: opts[:finding_id]
+            )
+          end
+        end
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -279,6 +303,15 @@ module PWN
             ingest: 'optional - invoke Context.ingest after persistence; defaults false',
             ingestor: 'optional - callable(path, **options) replacing Context.ingest',
             ingest_options: 'optional - Hash passed to the ingestor'
+          )
+
+          # Harvest credential strings from recon assets into the encrypted loot store.
+          #{self}.harvest_loot(
+            assets: 'required - Array of recon asset hashes with address and observations',
+            engagement_id: 'optional - engagement id scoping the loot file (defaults to default)',
+            engagement: 'optional - alias for engagement_id',
+            where: 'optional - provenance path overlay when observation port is missing',
+            finding_id: 'optional - finding id linked onto harvested secrets'
           )
 
           # Run subdomains and return its result

@@ -3,6 +3,7 @@
 require 'json'
 require 'fileutils'
 require 'ipaddr'
+require 'time'
 
 module PWN
   # Engagement scope, host state, and vault refs under ~/.pwn/engagements.
@@ -85,6 +86,31 @@ module PWN
       hosts(name: opts[:engagement] || opts[:name])
     end
 
+    public_class_method def self.record_scan(opts = {})
+      name = (opts[:engagement] || opts[:name] || PWN::AI::Agent::Engagement.current_name || 'default').to_s
+      dir = File.join(PWN::AI::Agent::Engagement::ROOT, name, 'scans')
+      FileUtils.mkdir_p(dir)
+      at = opts[:at] || Time.now.utc
+      at = Time.parse(at.to_s).utc unless at.is_a?(Time)
+      path = File.join(dir, "nmap-#{at.utc.strftime('%Y%m%dT%H%M%SZ')}.json")
+      body = {
+        at: at.utc.iso8601,
+        kind: opts[:kind] || 'nmap',
+        xml: opts[:xml],
+        hosts: opts[:hosts],
+        ports: opts[:ports]
+      }
+      File.write(path, JSON.pretty_generate(body))
+      body.merge(path: path)
+    end
+
+    public_class_method def self.scans(opts = {})
+      name = (opts[:name] || opts[:engagement] || PWN::AI::Agent::Engagement.current_name || 'default').to_s
+      Dir[File.join(PWN::AI::Agent::Engagement::ROOT, name, 'scans', 'nmap-*.json')].map do |path|
+        JSON.parse(File.read(path), symbolize_names: true).merge(path: path)
+      end
+    end
+
     public_class_method def self.authors
       "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
     end
@@ -147,7 +173,25 @@ module PWN
         #{self}.merge_scan(
           hosts: 'optional - Array of {host, port, service} hashes',
           results: 'optional - alias for hosts',
-          override: 'optional - true records out-of-scope hosts'
+          override: 'optional - true records out-of-scope hosts',
+          engagement: 'optional - engagement identifier (defaults to active)'
+        )
+
+        # Persist a timestamped nmap inventory snapshot under the engagement scans/ dir.
+        #{self}.record_scan(
+          hosts: 'required - inventory host array from NmapIt',
+          ports: 'optional - flattened port rows',
+          xml: 'optional - source nmap XML path',
+          at: 'optional - Time or ISO8601 timestamp of the scan',
+          kind: 'optional - scanner kind (defaults to nmap)',
+          engagement: 'optional - engagement identifier',
+          name: 'optional - alias for engagement'
+        )
+
+        # List persisted nmap snapshots oldest-first.
+        #{self}.scans(
+          name: 'optional - engagement identifier',
+          engagement: 'optional - alias for name'
         )
 
         # Print the AUTHOR(S) string for this module.
