@@ -144,10 +144,29 @@ module PWN
 
           pool = apply_preference({ items: pool }.merge(pref_fwd))
           pool.map do |entry|
-            schema = entry.schema
+            schema = entry.schema.merge(parameters: explicit_root_types(schema: entry.schema[:parameters]))
             schema = schema.merge(description: "#{schema[:description]} #{mcp[:description]}") if entry.name == 'mcp'
             { type: 'function', function: schema }
           end
+        end
+
+        # Providers inspect union branches independently of their object parent.
+        # Inherit only along same-instance combinators, never into properties or
+        # array items (which may legitimately be scalar/object unions).
+        private_class_method def self.explicit_root_types(opts = {})
+          schema = opts[:schema]
+          return schema unless schema.is_a?(Hash)
+
+          result = schema.dup
+          type = schema[:type] || schema['type'] || opts[:inherited_type]
+          result[:type] = type if type && !schema.key?(:type) && !schema.key?('type')
+          %i[anyOf oneOf allOf].each do |combiner|
+            key = schema.key?(combiner) ? combiner : combiner.to_s
+            next unless schema[key].is_a?(Array)
+
+            result[key] = schema[key].map { |branch| explicit_root_types(schema: branch, inherited_type: type) }
+          end
+          result
         end
 
         # Supported Method Parameters::

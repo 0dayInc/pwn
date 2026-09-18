@@ -47,6 +47,33 @@ describe PWN::AI::Agent::Registry do
     expect(names.length).to eq(described_class::CORE_TOOLS.length)
   end
 
+  it 'exports explicitly object-typed root alternatives without changing registered schemas' do
+    described_class.discover
+    original = Marshal.dump(described_class.lookup(name: 'artifact_read').schema)
+    definitions = described_class.definitions(core_only: false, top_k: 0)
+    check = lambda do |schema|
+      %i[anyOf oneOf allOf].each do |key|
+        Array(schema[key]).each do |branch|
+          expect(branch[:type]).to eq('object')
+          check.call(branch)
+        end
+      end
+    end
+    definitions.each { |tool| check.call(tool[:function][:parameters]) }
+    tool = definitions.find { |entry| entry[:function][:name] == 'artifact_read' }
+    expect(tool[:function][:parameters][:anyOf].map { |branch| branch[:required] }).to eq([%w[handle], %w[path], %w[ref]])
+    expect(Marshal.dump(described_class.lookup(name: 'artifact_read').schema)).to eq(original)
+  end
+
+  it 'preserves property-level scalar unions and explicit branch types' do
+    schema = { 'type' => 'object', 'oneOf' => [{ 'required' => ['value'] }],
+               'properties' => { 'value' => { 'anyOf' => [{ 'type' => 'string' }, { 'type' => 'object' }] } } }
+    normalized = described_class.send(:explicit_root_types, schema: schema)
+    expect(normalized['oneOf'].first[:type]).to eq('object')
+    expect(normalized['properties']).to eq(schema['properties'])
+    expect(schema['oneOf'].first).to eq('required' => ['value'])
+  end
+
   it 'advertises the MCP broker for a named backend in the normal core-only prompt path' do
     described_class.discover
     request = 'Use combo.nation to inspect the menu catalog'

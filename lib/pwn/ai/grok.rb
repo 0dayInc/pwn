@@ -476,7 +476,7 @@ module PWN
                 extra: '429 retries exhausted', error: e
               )
             end
-            return "#{e.message}: #{e.response}"
+            raise
           end
           sleep(PWN::AI::HttpRetry.retry_after_s(response: e.response, retry_count: retry_count) + rand(0.3..5.0))
           retry
@@ -497,8 +497,10 @@ module PWN
           nil
         end
       rescue RestClient::ExceptionWithResponse => e
-        puts "ERROR: #{e.message}: #{e.response}" unless opts[:quiet]
-        "#{e.message}: #{e.response}" if opts[:quiet]
+        # Keep the HTTP type/response for callers, and surface provider diagnostics
+        # instead of turning failed requests into nil or unparseable JSON text.
+        e.message = "Grok HTTP #{e.http_code} (#{http_method.to_s.upcase} #{rest_call}): #{e.response&.body}"
+        raise
       rescue StandardError => e
         case e.message
         when '400 Bad Request', '404 Resource Not Found'

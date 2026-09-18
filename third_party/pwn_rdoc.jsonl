@@ -685,6 +685,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.discover Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.discover`: Supported Method Parameters\n\nnames = PWN::AI::Agent::Registry.discover(\n\nforce: 'optional - re-require tool files even if already discovered (default false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.domain_pin_names Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.domain_pin_names`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.eager_load! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.eager_load!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.explicit_root_types Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.explicit_root_types`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.lookup Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.lookup`: Supported Method Parameters\n\nentry = PWN::AI::Agent::Registry.lookup(\n\nname: 'required - registered tool name'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Registry.mcp_routing Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Registry.mcp_routing`: "}]}
