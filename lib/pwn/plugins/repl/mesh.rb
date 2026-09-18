@@ -614,31 +614,49 @@ module PWN
           end
 
           def mesh_tx_row_ready?(opts = {})
-            return false unless opts.is_a?(Hash)
+            mesh_tx_outcome(opts) == :ok
+          end
+
+          def mesh_tx_outcome(opts = {})
+            return :idle unless opts.is_a?(Hash)
 
             row = opts[:row]
-            return false unless row.is_a?(Hash)
+            return :idle unless row.is_a?(Hash)
 
             packet = row[:packet] || row['packet']
-            return false unless packet.is_a?(Hash)
+            return :idle unless packet.is_a?(Hash)
 
             decoded = packet[:decoded] || packet['decoded']
-            return false unless decoded.is_a?(Hash)
+            return :idle unless decoded.is_a?(Hash)
 
             port = decoded[:portnum] || decoded['portnum']
-            %w[5 ROUTING_APP].include?(port.to_s) || port == :ROUTING_APP
+            return :idle unless %w[5 ROUTING_APP].include?(port.to_s) || port == :ROUTING_APP
+
+            want = opts[:request_id]
+            got = decoded[:request_id] || decoded['request_id']
+            return :idle if want && got && want.to_i != got.to_i
+
+            routing = decoded[:payload] || decoded['payload']
+            routing = Meshtastic::Routing.decode(routing).to_h if routing.is_a?(String)
+            reason = routing[:error_reason] if routing.is_a?(Hash)
+            reason = Meshtastic::Routing::Error.lookup(reason) || reason if reason.is_a?(Integer)
+            name = reason.to_s
+            return :ok if reason.nil? || %w[0 NONE].include?(name)
+            return :rate_limited if name == 'RATE_LIMIT_EXCEEDED'
+
+            :error
           end
 
           def mesh_wait_tx_slot(opts = {})
-            return unless opts.is_a?(Hash)
+            return :ok unless opts.is_a?(Hash)
 
             obj = opts[:obj]
-            return unless obj.is_a?(Hash)
+            return :ok unless obj.is_a?(Hash)
 
             timeout = opts[:timeout]
             timeout = 8 if timeout.nil?
             timeout = Float(timeout)
-            return if timeout <= 0
+            return :ok if timeout <= 0
 
             since = opts[:since].to_i
             deadline = Time.now + timeout
@@ -648,11 +666,11 @@ module PWN
                      else
                        Array(obj[:proto_data])
                      end
-              ready = rows.drop(since).any? do |row|
-                mesh_tx_row_ready?(row: row)
+              rows.drop(since).each do |row|
+                outcome = mesh_tx_outcome(row: row, request_id: opts[:request_id])
+                return outcome unless outcome == :idle
               end
-              return if ready
-              return if Time.now >= deadline
+              return :timeout if Time.now >= deadline
 
               sleep 0.05
             end
@@ -682,6 +700,13 @@ module PWN
                 end
                 bodies << piece
                 offset += piece.length
+                next unless offset < text.length && piece.match?(/[^[:space:]]\z/)
+
+                cut = piece.rindex(/[[:space:]]/)
+                next unless cut&.positive?
+
+                bodies[-1] = piece[0, cut + 1]
+                offset = offset - piece.length + bodies[-1].length
               end
               if bodies.size <= n
                 total = bodies.size
@@ -772,69 +797,77 @@ module PWN
               dm_key = mesh_dm_key(obj: obj, kind: kind, to: dest, radio: radio, timeout: opts.fetch(:key_timeout, 15))
             end
             chunks = mesh_text_chunks(text: opts[:text])
-            chunks.each_with_index do |piece, idx|
-              packet_id = Random.rand(2...0xffffffff)
-              since = obj.is_a?(Hash) ? Array(obj[:proto_data]).size : 0
-              if dm_key
-                bytes = Meshtastic::MeshInterface.new.send_text(from: obj[:my_node_num] || 0, to: dest, channel: radio || 0, text: piece, want_ack: true, psks: nil, last_packet_id: packet_id - 1)
-                packet = Meshtastic::ToRadio.decode(bytes)
-                packet.packet.pki_encrypted = true
-                packet.packet.public_key = dm_key
-                transport = { serial: Meshtastic::Serial, bluetooth: Meshtastic::Bluetooth, tcp: Meshtastic::TCP }.fetch(kind)
-                transport.send_to_radio({ "#{kind}_obj": obj, to_radio: packet.to_proto })
-              else
-                case kind
-                when :serial
-                  tx = { serial_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
-                  tx[:channel] = radio unless radio.nil?
-                  Meshtastic::Serial.send_text(tx)
-                when :bluetooth
-                  tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
-                  tx[:channel] = radio unless radio.nil?
-                  Meshtastic::Bluetooth.send_text(tx)
-                when :tcp
-                  tx = { tcp_obj: obj, to: dest, text: piece, last_packet_id: packet_id - 1 }
-                  tx[:channel] = radio unless radio.nil?
-                  Meshtastic::TCP.send_text(tx)
+            chunks.each_with_index do |piece, _idx|
+              echoed = false
+              attempts = 0
+              loop do
+                attempts += 1
+                packet_id = Random.rand(2...0xffffffff)
+                since = obj.is_a?(Hash) ? Array(obj[:proto_data]).size : 0
+                if dm_key
+                  bytes = Meshtastic::MeshInterface.new.send_text(from: obj[:my_node_num] || 0, to: dest, channel: radio || 0, text: piece, want_ack: true, psks: nil, last_packet_id: packet_id - 1)
+                  packet = Meshtastic::ToRadio.decode(bytes)
+                  packet.packet.pki_encrypted = true
+                  packet.packet.public_key = dm_key
+                  transport = { serial: Meshtastic::Serial, bluetooth: Meshtastic::Bluetooth, tcp: Meshtastic::TCP }.fetch(kind)
+                  transport.send_to_radio({ "#{kind}_obj": obj, to_radio: packet.to_proto })
                 else
-                  send_psks = psks
-                  send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
-                  Meshtastic::MQTT.send_text(
-                    mqtt_obj: obj,
-                    last_packet_id: packet_id - 1,
-                    from: from,
-                    to: dest,
-                    region: mesh_mqtt_region(region: opts[:region], env: env),
-                    topic: mesh_mqtt_topic(env: env, topic: opts[:topic]),
-                    channel: channel,
-                    text: piece,
-                    psks: send_psks
-                  )
+                  case kind
+                  when :serial
+                    tx = { serial_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
+                    tx[:channel] = radio unless radio.nil?
+                    Meshtastic::Serial.send_text(tx)
+                  when :bluetooth
+                    tx = { bluetooth_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
+                    tx[:channel] = radio unless radio.nil?
+                    Meshtastic::Bluetooth.send_text(tx)
+                  when :tcp
+                    tx = { tcp_obj: obj, to: dest, text: piece, want_ack: true, last_packet_id: packet_id - 1 }
+                    tx[:channel] = radio unless radio.nil?
+                    Meshtastic::TCP.send_text(tx)
+                  else
+                    send_psks = psks
+                    send_psks = mesh_channel_psks(env: env) if send_psks.nil? || send_psks.empty?
+                    Meshtastic::MQTT.send_text(
+                      mqtt_obj: obj,
+                      last_packet_id: packet_id - 1,
+                      from: from,
+                      to: dest,
+                      region: mesh_mqtt_region(region: opts[:region], env: env),
+                      topic: mesh_mqtt_topic(env: env, topic: opts[:topic]),
+                      channel: channel,
+                      text: piece,
+                      psks: send_psks
+                    )
+                  end
                 end
-              end
-              from_id = from.to_s
-              from_id = mesh_self_node_id(env: env, obj: obj) if from_id.empty?
-              from_id = mesh_format_node_id(id: from_id)
-              PWN.send(:remove_const, :MeshLastTx) if PWN.const_defined?(:MeshLastTx)
-              PWN.const_set(:MeshLastTx, { from: from_id, to: dest, text: piece.to_s, at: Time.now })
-              mesh_handle_rx(
-                local: true,
-                channel_name: channel_name,
-                msg: {
-                  packet: {
-                    id: packet_id,
-                    channel: radio,
-                    pki_encrypted: !dm_key.nil?,
-                    node_id_from: from_id,
-                    node_id_to: dest,
-                    decoded: { portnum: :TEXT_MESSAGE_APP, payload: piece.to_s }
-                  }
-                }
-              )
-              next unless idx + 1 < chunks.size
-              next unless %i[serial bluetooth tcp].include?(kind)
+                unless echoed
+                  from_id = from.to_s
+                  from_id = mesh_self_node_id(env: env, obj: obj) if from_id.empty?
+                  from_id = mesh_format_node_id(id: from_id)
+                  PWN.send(:remove_const, :MeshLastTx) if PWN.const_defined?(:MeshLastTx)
+                  PWN.const_set(:MeshLastTx, { from: from_id, to: dest, text: piece.to_s, at: Time.now })
+                  mesh_handle_rx(
+                    local: true,
+                    channel_name: channel_name,
+                    msg: {
+                      packet: {
+                        id: packet_id,
+                        channel: radio,
+                        pki_encrypted: !dm_key.nil?,
+                        node_id_from: from_id,
+                        node_id_to: dest,
+                        decoded: { portnum: :TEXT_MESSAGE_APP, payload: piece.to_s }
+                      }
+                    }
+                  )
+                  echoed = true
+                end
+                break unless %i[serial bluetooth tcp].include?(kind)
 
-              mesh_wait_tx_slot(obj: obj, since: since)
+                slot = mesh_wait_tx_slot(obj: obj, since: since, request_id: packet_id)
+                break if slot == :ok || slot == :timeout || slot == :error || attempts >= 8
+              end
             end
             return unless dm_key && PWN.const_defined?(:MeshPendingDm)
 
@@ -1016,7 +1049,8 @@ module PWN
               next if event[:obj] && (!PWN.const_defined?(:MeshObj) || !event[:obj].equal?(PWN::MeshObj))
 
               if event[:notice]
-                mesh_notice(text: event[:notice])
+                notice = mesh_notice_text(text: event[:notice])
+                mesh_notice(text: notice) if notice
               elsif event[:msg]
                 mesh_handle_rx(msg: event[:msg])
               else
@@ -1102,6 +1136,14 @@ module PWN
             text
           end
 
+          def mesh_notice_text(opts = {})
+            text = opts[:text].to_s.dup.force_encoding(Encoding::UTF_8).scrub
+            text.gsub!(/\e\[[0-9;?]*[A-Za-z]/, '')
+            text.gsub!(/[\x00-\x08\x0b\x0c\x0e-\x1f]/, '')
+            text.strip!
+            text.empty? ? nil : text
+          end
+
           def mesh_capture_output(opts = {})
             original_out = $stdout
             original_err = $stderr
@@ -1116,7 +1158,8 @@ module PWN
                 rescue EOFError
                   # Flush the last diagnostic even when the TUI is closing.
                 end
-                events << { notice: text.force_encoding(Encoding::UTF_8).scrub }
+                notice = mesh_notice_text(text: text)
+                events << { notice: notice } if notice
               end
             rescue IOError
               nil
@@ -1173,7 +1216,7 @@ module PWN
             end
           end
 
-          private :mesh_capture_output, :mesh_notice
+          private :mesh_capture_output, :mesh_notice, :mesh_notice_text
 
           # Drop the submitted TX buffer so the next prompt is empty (Reline keeps the old line).
           def mesh_reset_input!(opts = {})
@@ -1551,7 +1594,7 @@ module PWN
               routing = Meshtastic::Routing.decode(routing).to_h if routing.is_a?(String)
               reason = routing[:error_reason] if routing.is_a?(Hash)
               reason = Meshtastic::Routing::Error.lookup(reason) || reason if reason.is_a?(Integer)
-              mesh_ui_puts(text: "TX failed: packet #{decoded[:request_id]}: #{reason}") if reason && !%w[0 NONE].include?(reason.to_s)
+              mesh_ui_puts(text: "TX failed: packet #{decoded[:request_id]}: #{reason}") if reason && !%w[0 NONE RATE_LIMIT_EXCEEDED].include?(reason.to_s)
               return
             end
             return unless mesh_text_app?(portnum: decoded[:portnum])
@@ -2185,7 +2228,7 @@ module PWN
 
           private :mesh_transport, :mesh_bound_transport, :mesh_layout, :mesh_box!, :mesh_mqtt_region, :mesh_mqtt_topic, :mesh_active_psks, :mesh_device_channel_meta, :mesh_device_channels
           private :mesh_radio_channel, :mesh_radio_index_for_name, :mesh_channel_name_for_index, :mesh_unassigned_slot_map, :mesh_psk_b64, :mesh_psk_same?, :mesh_env_channel_name_for_psk, :mesh_whitelist_name_for_index, :mesh_channel_name_from_topic, :mesh_link_label
-          private :mesh_connect_one, :mesh_connect, :mesh_mqtt_tls?, :mesh_subscribe, :mesh_text_payload_max, :mesh_payload_fits?, :mesh_text_chunks, :mesh_tx_row_ready?, :mesh_wait_tx_slot, :mesh_send_text, :mesh_disconnect, :mesh_compose_send, :mesh_channel_names, :mesh_env_hash
+          private :mesh_connect_one, :mesh_connect, :mesh_mqtt_tls?, :mesh_subscribe, :mesh_text_payload_max, :mesh_payload_fits?, :mesh_text_chunks, :mesh_tx_row_ready?, :mesh_tx_outcome, :mesh_wait_tx_slot, :mesh_send_text, :mesh_disconnect, :mesh_compose_send, :mesh_channel_names, :mesh_env_hash
           private :mesh_submit, :mesh_console_loop, :mesh_drain_events, :mesh_draw_input, :mesh_wrap_text, :mesh_ui_puts, :mesh_menu_root, :mesh_list_devices
           private :mesh_start_rx!, :mesh_channel_psks, :mesh_text_app?, :mesh_rx_text, :mesh_self_node_id, :mesh_decorate_local_id, :mesh_public_psk?, :mesh_channel_securely_encrypted?
           private :mesh_ai_whitelisted?, :mesh_ai_prompt, :mesh_broadcast?, :mesh_reply_target_label, :mesh_handle_rx, :mesh_maybe_dispatch_to_pwn_ai, :mesh_refresh_ui!, :mesh_reconnect!

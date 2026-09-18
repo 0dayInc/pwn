@@ -113,6 +113,7 @@ describe PWN::Plugins::REPL, 'mesh packet channel routing' do
       sent = Meshtastic::ToRadio.decode(args[:to_radio]).packet
     end
     allow(described_class).to receive(:mesh_maybe_dispatch_to_pwn_ai)
+    allow(described_class).to receive(:mesh_wait_tx_slot).and_return(:ok)
     described_class.send(:mesh_send_text, env: mesh_env, obj: radio, text: 'Local message', channel_name: 'LongFast')
     expect(sent.decoded.payload).to eq('Local message')
     packet = { decoded: { emoji: 1, reply_id: sent.id } }
