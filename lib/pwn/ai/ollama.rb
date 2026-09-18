@@ -182,7 +182,7 @@ module PWN
                 extra: '429 retries exhausted', error: e
               )
             end
-            return "#{e.message}: #{e.response}"
+            raise
           end
           sleep(PWN::AI::HttpRetry.retry_after_s(response: e.response, retry_count: retry_count) + rand(0.3..5.0))
           retry

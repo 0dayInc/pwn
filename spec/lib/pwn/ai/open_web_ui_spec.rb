@@ -3,6 +3,23 @@
 require 'spec_helper'
 
 describe PWN::AI::OpenWebUI do
+  [false, true].each do |quiet|
+    it "raises an actionable exhausted 429 instead of parsing error text (quiet=#{quiet})" do
+      stub_const('PWN::Env', { ai: { openwebui: { model: 'fixture', base_uri: 'http://example.test', key: 'fixture-key' } } })
+      allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
+      response = instance_double(RestClient::Response, code: 429, body: 'rate limit exceeded', to_s: 'rate limit exceeded', headers: { retry_after: '2' })
+      allow(RestClient::Request).to receive(:execute).and_raise(RestClient::TooManyRequests.new(response))
+      allow(described_class).to receive(:sleep)
+      allow(described_class).to receive(:rand).and_return(0.5)
+      allow(PWN::AI::HttpRetry).to receive(:report_event)
+      expect do
+        described_class.chat_with_tools(messages: [{ role: 'user', content: 'hello' }], quiet: quiet)
+      end.to raise_error(RuntimeError, /Open WebUI.*429.*rate limit exceeded/)
+      expect(RestClient::Request).to have_received(:execute).exactly(5).times
+      expect(described_class).to have_received(:sleep).with(2.5).exactly(4).times
+    end
+  end
+
   it 'should display information for authors' do
     authors_response = PWN::AI::OpenWebUI
     expect(authors_response).to respond_to :authors
