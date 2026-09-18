@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'meshtastic'
 
-describe PWN::Plugins::REPL, 'mesh packet channel routing' do
+RSpec.shared_context 'mesh packet channel fixture' do
   let(:mesh_env) do
     {
       transport: 'serial',
@@ -42,8 +42,27 @@ describe PWN::Plugins::REPL, 'mesh packet channel routing' do
       PWN.send(:remove_const, c) if PWN.const_defined?(c)
     end
   end
+end
+
+describe PWN::Plugins::REPL, 'mesh packet channel routing' do
+  include_context 'mesh packet channel fixture'
 
   [false, true].each do |local|
+    it "paints absolute source and destination paths for #{local ? 'TX' : 'RX'}" do
+      mesh_env[:mqtt] = { region: 'US/CA' }
+      win = double('rx', maxx: 200)
+      %i[attron attroff addstr refresh].each { |method| allow(win).to receive(method) }
+      allow(Curses).to receive(:color_pair) { |color| color }
+      PWN.const_set(:MeshRxBodyWin, win)
+      PWN.const_set(:MeshMutex, Mutex.new)
+      allow(described_class).to receive(:mesh_maybe_dispatch_to_pwn_ai)
+      described_class.send(:mesh_handle_rx, local: local, msg: { packet: {
+                             channel: 1, from: 0xb0b, to: 0xffffffff,
+                             decoded: { portnum: 1, payload: 'Absolute paths' }
+                           } })
+      expect(win).to have_received(:addstr).with(a_string_including('US/CA/2/e/LongFast/!00000b0b (ME)', 'US/CA/2/e/LongFast/#'))
+      expect(win).to have_received(:attron).with((local ? 23 : 21) | Curses::A_BOLD)
+    end
     it "includes the original sender and message in a #{local ? 'sent' : 'received'} reaction without changing header colors" do
       win = double('rx', maxx: 200)
       %i[attron attroff addstr refresh].each { |method| allow(win).to receive(method) }
@@ -61,7 +80,31 @@ describe PWN::Plugins::REPL, 'mesh packet channel routing' do
       expect(win).to have_received(:addstr).with(" Reacted to: \"!aabbccdd >> Meet at noon\" with: 👍.\n")
       expect(win).to have_received(:attron).with((local ? 23 : 21) | Curses::A_BOLD).at_least(:once)
       expect(described_class).to have_received(:mesh_maybe_dispatch_to_pwn_ai).once
+      reply = Meshtastic::MeshPacket.new(id: 125, from: 0xb0b, to: 0xffffffff, channel: 1,
+                                         decoded: { portnum: :TEXT_MESSAGE_APP, payload: 'See you there!', reply_id: 123 }).to_h
+      described_class.send(:mesh_handle_rx, local: local, msg: { packet: reply })
+      expect(win).to have_received(:addstr).with(" Replied to: \"!aabbccdd >> Meet at noon\" with: See you there!\n")
     end
+  end
+
+  it 'uses the received topic region for both endpoints of a DM' do
+    mesh_env[:mqtt] = { region: 'US' }
+    win = double('rx', maxx: 200)
+    %i[attron attroff addstr refresh].each { |method| allow(win).to receive(method) }
+    allow(Curses).to receive(:color_pair).and_return(0)
+    PWN.const_set(:MeshRxBodyWin, win)
+    PWN.const_set(:MeshMutex, Mutex.new)
+    allow(described_class).to receive(:mesh_maybe_dispatch_to_pwn_ai)
+    described_class.send(:mesh_handle_rx, msg: {
+                           topic: 'msh/US/CA/2/e/LongFast/!aabbccdd',
+                           packet: { channel: 1, from: 0xaabbccdd, to: 0xb0b, decoded: { portnum: 1, payload: 'DM' } }
+                         })
+    expect(win).to have_received(:addstr).with(a_string_including('US/CA/2/e/LongFast/!aabbccdd', 'US/CA/2/e/LongFast/!00000b0b (ME)'))
+  end
+
+  it 'preserves a configured channel topic without a wildcard suffix' do
+    mesh_env[:channel][:LongFast][:topic] = '2/e/LongFast'
+    expect(described_class.send(:mesh_conversation_path, env: mesh_env, channel_name: 'LongFast')).to eq('US/2/e/LongFast')
   end
 
   it 'remembers the actual transmitted packet ID for reactions to locally sent messages' do
@@ -101,6 +144,8 @@ describe PWN::Plugins::REPL, 'mesh packet channel routing' do
     text = described_class.send(:mesh_reaction_text, packet: packet, text: '👍', channel: 'LongFast', index: 1)
     expect(text).to eq('Reacted to: "original message unavailable (packet 999)" with: 👍.')
     packet[:decoded][:emoji] = 0
+    expect(described_class.send(:mesh_reaction_text, packet: packet, text: 'Reply')).to eq('Replied to: "original message unavailable (packet 999)" with: Reply')
+    packet[:decoded].delete(:reply_id)
     expect(described_class.send(:mesh_reaction_text, packet: packet, text: '👍')).to eq('👍')
   end
 

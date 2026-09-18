@@ -6,6 +6,7 @@ require 'json'
 require 'base64'
 require 'pry'
 require 'reline'
+require 'io/wait'
 
 module PWN
   module Plugins
@@ -134,10 +135,12 @@ module PWN
 
               # Curses owns input and rendering until this command returns to Pry.
               PWN.const_set(:MeshEvents, Queue.new)
-              PWN::Plugins::REPL.send(:mesh_start_rx!, env: meshtastic_env, obj: mesh_obj)
-              PWN::Plugins::REPL.send(:mesh_refresh_ui!, env: meshtastic_env)
-              PWN::Plugins::REPL.send(:mesh_ui_puts, text: 'Ready. /menu opens settings. Incoming channel messages appear here.')
-              PWN::Plugins::REPL.send(:mesh_console_loop, pry: pi)
+              PWN::Plugins::REPL.send(:mesh_capture_output, run: proc {
+                PWN::Plugins::REPL.send(:mesh_start_rx!, env: meshtastic_env, obj: mesh_obj)
+                PWN::Plugins::REPL.send(:mesh_refresh_ui!, env: meshtastic_env)
+                PWN::Plugins::REPL.send(:mesh_ui_puts, text: 'Ready. /menu opens settings. Incoming channel messages appear here.')
+                PWN::Plugins::REPL.send(:mesh_console_loop, pry: pi)
+              })
             rescue StandardError => e
               raise e
             ensure
@@ -146,6 +149,15 @@ module PWN
           end
         end
         PWN_MESH_TRANSPORTS = %i[serial bluetooth tcp mqtt].freeze
+        # meshtastic 0.0.184 loses protobuf defaults in Data#to_h. Empty
+        # decoded data is not an unsupported application payload.
+        EMPTY_DATA_DECODER = Module.new do
+          define_method(:decode_payload) do |opts = {}|
+            return nil if opts[:payload].nil? && opts[:msg_type].nil?
+
+            super(opts)
+          end
+        end
 
         # Meshtastic transport for pwn-mesh: auto (probe order) or a pinned kind.
         class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
@@ -557,6 +569,7 @@ module PWN
 
           # Subscribe for inbound TEXT_MESSAGE_APP frames.
           def mesh_subscribe(opts = {})
+            Meshtastic::MeshInterface.prepend(Mesh::EMPTY_DATA_DECODER) unless Meshtastic::MeshInterface.ancestors.include?(Mesh::EMPTY_DATA_DECODER)
             env = opts[:env] || {}
             obj = opts[:obj]
             psks = opts[:psks]
@@ -1002,7 +1015,13 @@ module PWN
               event = PWN::MeshEvents.pop(true)
               next if event[:obj] && (!PWN.const_defined?(:MeshObj) || !event[:obj].equal?(PWN::MeshObj))
 
-              event[:msg] ? mesh_handle_rx(msg: event[:msg]) : mesh_ui_puts(text: event[:text])
+              if event[:notice]
+                mesh_notice(text: event[:notice])
+              elsif event[:msg]
+                mesh_handle_rx(msg: event[:msg])
+              else
+                mesh_ui_puts(text: event[:text])
+              end
             end
           rescue ThreadError
             nil
@@ -1059,6 +1078,10 @@ module PWN
 
           def mesh_ui_puts(opts = {})
             text = opts[:text].to_s
+            if PWN.const_defined?(:MeshEvents) && text.match?(/warning|error|failed|disconnect|persist skipped|unknown command/i)
+              PWN::MeshEvents << { notice: text }
+              return text
+            end
             if PWN.const_defined?(:MeshRxBodyWin) && PWN.const_defined?(:MeshMutex)
               win = PWN.const_get(:MeshRxBodyWin)
               mutex = PWN.const_get(:MeshMutex)
@@ -1078,6 +1101,79 @@ module PWN
             end
             text
           end
+
+          def mesh_capture_output(opts = {})
+            original_out = $stdout
+            original_err = $stderr
+            input, output = IO.pipe
+            output.sync = true
+            events = PWN::MeshEvents
+            collector = Thread.new do
+              loop do
+                text = input.readpartial(4096)
+                begin
+                  text << input.readpartial(4096) while text.bytesize < 16_384 && input.wait_readable(0.02)
+                rescue EOFError
+                  # Flush the last diagnostic even when the TUI is closing.
+                end
+                events << { notice: text.force_encoding(Encoding::UTF_8).scrub }
+              end
+            rescue IOError
+              nil
+            end
+            $stdout = output
+            $stderr = output
+            opts[:run].call
+          ensure
+            $stdout = original_out
+            $stderr = original_err
+            output&.close
+            collector&.join(1)
+            collector&.kill
+            input&.close
+          end
+
+          def mesh_notice(opts = {})
+            width = [Curses.cols - 2, 80].min
+            lines = mesh_wrap_text(text: opts[:text].to_s, width: [width - 4, 1].max)
+            height = [lines.size + 5, Curses.lines - 2].min
+            win = Curses::Window.new(height, width, (Curses.lines - height) / 2, (Curses.cols - width) / 2)
+            win.keypad(true)
+            offset = 0
+            loop do
+              win.erase
+              mesh_box!(win: win)
+              win.setpos(0, 2)
+              win.attron(Curses.color_pair(20) | Curses::A_BOLD)
+              win.addstr(' NOTICE ')
+              win.attroff(Curses.color_pair(20) | Curses::A_BOLD)
+              lines.drop(offset).first([height - 4, 1].max).each_with_index do |line, index|
+                win.setpos(index + 1, 2)
+                win.addstr(line)
+              end
+              win.setpos(height - 2, (width - 2) / 2)
+              win.attron(Curses.color_pair(20) | Curses::A_BOLD | Curses::A_REVERSE)
+              win.addstr('Ok')
+              win.attroff(Curses.color_pair(20) | Curses::A_BOLD | Curses::A_REVERSE)
+              win.refresh
+              key = opts[:getch] ? opts[:getch].call : win.getch
+              break if [10, 13, "\n", "\r", Curses::KEY_ENTER].include?(key)
+
+              offset = [offset - 1, 0].max if key == Curses::KEY_UP
+              offset += 1 if key == Curses::KEY_DOWN && offset < lines.size - (height - 4)
+            end
+          ensure
+            win&.close
+            %i[MeshRxHeaderWin MeshRxFrameWin MeshRxBodyWin MeshTxWin].each do |name|
+              next unless PWN.const_defined?(name)
+
+              pane = PWN.const_get(name)
+              pane.touch
+              pane.refresh
+            end
+          end
+
+          private :mesh_capture_output, :mesh_notice
 
           # Drop the submitted TX buffer so the next prompt is empty (Reline keeps the old line).
           def mesh_reset_input!(opts = {})
@@ -1264,7 +1360,25 @@ module PWN
             psks = mesh_active_psks(env: env) if psks.empty?
             PWN.const_set(:MeshRxState, { last_from: nil, last_line: nil }) unless PWN.const_defined?(:MeshRxState)
             events = PWN.const_defined?(:MeshEvents) ? PWN::MeshEvents : Queue.new
+            kind = mesh_bound_transport(env: env)
+            interval = Float(opts.fetch(:heartbeat_interval, 30))
+            raise ArgumentError, 'heartbeat interval must be positive and finite' unless interval.positive? && interval.finite?
+
             thread = Thread.new do
+              heartbeat = if obj.is_a?(Hash) && %i[serial bluetooth tcp].include?(kind)
+                            Thread.new do
+                              transport = { serial: Meshtastic::Serial, bluetooth: Meshtastic::Bluetooth, tcp: Meshtastic::TCP }.fetch(kind)
+                              bytes = Meshtastic::ToRadio.new(heartbeat: Meshtastic::Heartbeat.new(nonce: 0)).to_proto
+                              loop do
+                                break if obj[:closing]
+
+                                transport.send_to_radio({ "#{kind}_obj": obj, to_radio: bytes })
+                                sleep interval
+                              end
+                            rescue StandardError => e
+                              events << { text: "RX keepalive failed: #{e.class}: #{e.message}", obj: obj }
+                            end
+                          end
               mesh_subscribe(
                 env: env,
                 obj: obj,
@@ -1276,6 +1390,9 @@ module PWN
               events << { text: 'RX stopped: transport stream closed. Use /transport to reconnect.', obj: obj }
             rescue StandardError => e
               events << { text: "RX failed: #{e.class}: #{e.message}", obj: obj }
+            ensure
+              heartbeat&.kill
+              heartbeat&.join
             end
             PWN.send(:remove_const, :MeshSubThread) if PWN.const_defined?(:MeshSubThread)
             PWN.const_set(:MeshSubThread, thread)
@@ -1401,6 +1518,24 @@ module PWN
             opts[:channel_name].to_s
           end
 
+          def mesh_conversation_path(opts = {})
+            env = opts[:env] || mesh_env_hash
+            name = opts[:channel_name].to_s
+            topic = opts[:topic].to_s.sub(%r{\Amsh/}, '')
+            base = topic[%r{\A(.+/2/[ec]/[^/]+)(?:/[^/]+)?\z}, 1]
+            return base if base
+            return '' if name.empty?
+
+            slot = env.dig(:channel, name.to_sym) || env.dig(:channel, name) || {}
+            topic = slot[:topic].to_s
+            topic = "2/e/#{name}/#" if topic.empty?
+            topic = topic.sub(%r{/e/#\z}, "/e/#{name}/#").sub(%r{/(?:#|![0-9a-fA-F]{8})\z}, '')
+            region = mesh_mqtt_region(env: env)
+            topic.start_with?("#{region}/") ? topic : "#{region}/#{topic}"
+          end
+
+          private :mesh_conversation_path
+
           def mesh_handle_rx(opts = {})
             return unless opts.is_a?(Hash)
 
@@ -1459,6 +1594,11 @@ module PWN
             dest_label = mesh_reply_target_label(to: dest, env: env, channel_name: channel_name)
             from = mesh_decorate_local_id(id: from_id, env: env)
             dest_label = mesh_decorate_local_id(id: dest_label, env: env)
+            path = mesh_conversation_path(env: env, channel_name: channel_name, topic: msg[:topic] || packet[:topic])
+            unless path.empty?
+              from = "#{path}/#{from}"
+              dest_label = "#{path}/#{mesh_broadcast?(to: dest) ? '#' : dest_label}"
+            end
             unless opts[:local] || mesh_broadcast?(to: to) || from_id.empty?
               PWN.send(:remove_const, :MeshLastDm) if PWN.const_defined?(:MeshLastDm)
               PWN.const_set(:MeshLastDm, from_id)
@@ -1523,13 +1663,17 @@ module PWN
             if decoded[:emoji].to_i.zero?
               messages[[scope, id]] = { from: opts[:from], text: text } if id.positive?
               messages.shift while messages.size > 1000
-              return text
+              return text unless decoded[:reply_id].to_i.positive?
             end
 
             original = messages[[scope, decoded[:reply_id].to_i]]
             original ||= mesh_reaction_original(reply_id: decoded[:reply_id], index: opts[:index])
             target = original ? "#{original[:from]} >> #{original[:text]}" : "original message unavailable (packet #{decoded[:reply_id].to_i})"
-            "Reacted to: \"#{target}\" with: #{text}."
+            if decoded[:emoji].to_i.positive?
+              "Reacted to: \"#{target}\" with: #{text}."
+            else
+              "Replied to: \"#{target}\" with: #{text}"
+            end
           end
 
           def mesh_reaction_original(opts = {})
@@ -2035,7 +2179,7 @@ module PWN
             end
             true
           rescue StandardError => e
-            warn "[pwn-mesh] persist skipped: #{e.class}: #{e.message}"
+            mesh_ui_puts(text: "[pwn-mesh] persist skipped: #{e.class}: #{e.message}")
             false
           end
 
