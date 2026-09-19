@@ -49,10 +49,12 @@ module PWN
                            'PWN::Plugins::Jobs.supervise(root: ARGV[0], id: ARGV[1])', root, id,
                            in: File::NULL, out: File::NULL, err: File::NULL, close_others: true)
             Process.detach(worker)
-            deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+            row[:worker_pid] = worker
+            persist(root: root, row: row)
+            deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 8
             loop do
               row = load_job(id: id)
-              break if row[:worker_pid] || row[:status] != 'RUNNING' || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+              break if row[:worker_identity] || row[:status] != 'RUNNING' || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
               sleep 0.02
             end
@@ -372,7 +374,11 @@ module PWN
           next unless row[:status] == 'RUNNING'
 
           begin
-            Process.setsid
+            begin
+              Process.setsid
+            rescue Errno::EPERM
+              nil
+            end
             row.merge!(worker_pid: Process.pid, worker_identity: SecureRandom.hex(16), started_at: Time.now.utc.iso8601(6))
             pid = spawn(row[:env].transform_keys(&:to_s), '/bin/sh', '-c', row[:command], chdir: row[:cwd],
                                                                                           in: File::NULL, %i[out err] => [row[:log], 'ab'], pgroup: true, close_others: true)

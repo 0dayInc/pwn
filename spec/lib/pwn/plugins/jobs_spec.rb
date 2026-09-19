@@ -64,7 +64,16 @@ describe PWN::Plugins::Jobs do
 
   it 'pages binary logs with byte offsets and distinguishes EOF from completion' do
     row = described_class.start(command: "printf 'abc\\377def'; sleep 1", max_runtime: 5)
-    first = described_class.job_tail(handle: row[:id], offset: 0, length: 4)
+    first = Timeout.timeout(8) do
+      loop do
+        page = described_class.job_tail(handle: row[:id], offset: 0, length: 4)
+        break page if page[:bytes].to_i.positive?
+
+        raise 'job ended before log bytes' unless page[:status] == 'RUNNING'
+
+        sleep 0.05
+      end
+    end
     expect(first).to include(bytes: 4, next_offset: 4, encoding: 'base64', eof: false, status: 'RUNNING')
     expect(Base64.strict_decode64(first[:data])).to eq("abc\xFF".b)
     last = described_class.tail(id: row[:id], offset: 4, length: 100)

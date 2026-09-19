@@ -181,7 +181,7 @@ module PWN
         current = nil
         dump.each_line do |line|
           current = Regexp.last_match(1) if line =~ /<([^>]+)>:/
-          next unless current && (line =~ /call\w*\s+.*<([^>@]+)/ || line =~ /call\w*\s+([A-Za-z_]\w*)(?:@plt)?/)
+          next unless current && (line =~ /\b(?:call\w*|blx?r?|jalr?)\b.*<([^>@]+)/ || line =~ /\b(?:call\w*|blx?r?|jalr?)\s+([A-Za-z_]\w*)(?:@plt)?/)
 
           db.execute('INSERT INTO xrefs(src, dst) VALUES(?,?)', [current, Regexp.last_match(1)])
         end

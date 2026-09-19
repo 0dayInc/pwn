@@ -40,6 +40,35 @@ describe PWN::Plugins::REPL, 'mesh compose history' do
     described_class.send(:mesh_drain_events)
   end
 
+  it 'does not turn spinner cursor restores into a notice overlay' do
+    events = Queue.new
+    stub_const('PWN::MeshEvents', events)
+    described_class.send(:mesh_capture_output, run: proc {
+      3.times { $stdout.write("\e[?25h") }
+      $stderr.write("\e[?25h")
+    })
+    expect(events).to be_empty
+  end
+
+  it 'does not notice TTYSpinner cursor restore during capture' do
+    events = Queue.new
+    stub_const('PWN::MeshEvents', events)
+    described_class.send(:mesh_capture_output, run: proc {
+      PWN::Plugins::TTYSpinner.send(:show_cursor, spin: nil)
+    })
+    expect(events).to be_empty
+  end
+
+  it 'keeps real warnings after stripping cursor sequences' do
+    events = Queue.new
+    stub_const('PWN::MeshEvents', events)
+    described_class.send(:mesh_capture_output, run: proc {
+      $stderr.write("\e[?25hWARNING: decoder fixture\e[?25h\n")
+    })
+    expect(events.pop(true)[:notice]).to eq('WARNING: decoder fixture')
+    expect(events).to be_empty
+  end
+
   it 'captures dependency stdout and stderr and restores both streams on failure' do
     events = Queue.new
     stub_const('PWN::MeshEvents', events)

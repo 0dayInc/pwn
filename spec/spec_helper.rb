@@ -31,6 +31,7 @@ RSpec.configure do |config|
   end
   config.filter_run_excluding :rtl_sdr_hardware unless ENV['PWN_TEST_RTL_SDR_HARDWARE'] == '1'
   config.filter_run_excluding :combo_nation_mcp unless ENV['PWN_TEST_COMBO_NATION_MCP'] == '1'
+  config.filter_run_excluding :x86_64_binary unless RbConfig::CONFIG['host_cpu'].to_s.match?(/amd64|x86_64/)
 
   next if ENV['PWN_SPEC_VERBOSE']
 
