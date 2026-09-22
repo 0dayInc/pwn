@@ -16,9 +16,10 @@ module PWN
           options.on('--analyze PATH', 'Ingest evidence before starting the AI session') { |v| result[:analyze] = v }
           options.on('--replay ID', 'Render saved trace without executing tools') { |v| result[:replay] = v }
           options.on('--rerun ID', 'Re-execute saved tools in a fresh context (side effects possible)') { |v| result[:rerun] = v }
-          options.on('--plan-only', 'Emit a YAML task DAG with zero side effects') { result[:plan_only] = true }
+          options.on('--plan-only', 'Emit a YAML task DAG and write the mission ledger without running tools') { result[:plan_only] = true }
           options.on('--execute PATH', 'Run an approved YAML task DAG') { |v| result[:execute] = v }
           options.on('--resume RUN_ID', 'Resume a checkpointed DAG run, skipping completed steps') { |v| result[:resume] = v }
+          options.on('--mission ID', 'Bind this plan or run to a durable mission') { |v| result[:mission] = v }
           options.on('--ai PROMPT', 'One-shot request; - reads standard input') { |v| result[:ai] = v }
           options.on('--pwn-env PATH', 'Use the specified encrypted configuration') { |v| result[:pwn_env_path] = v }
           options.on('--pwn-dec PATH', 'Use the specified decryptor') { |v| result[:pwn_dec_path] = v }
@@ -47,17 +48,23 @@ module PWN
           prompt = parsed[:ai] == '-' ? (opts[:input] || $stdin).read : parsed[:ai]
           raise ArgumentError, '--ai requires a non-empty prompt' if prompt.to_s.strip.empty?
 
-          dag = PWN::AI::Agent::TaskDAG.plan(request: prompt)
+          dag = PWN::AI::Agent::Mission.plan!(request: prompt, id: parsed[:mission])
           output.puts(YAML.dump(JSON.parse(JSON.generate(dag))))
           return 0
         end
         if parsed[:resume] || parsed[:execute]
           PWN::Config.refresh_env(**parsed.slice(:pwn_env_path, :pwn_dec_path))
-          report = if parsed[:resume]
-                     PWN::AI::Agent::TaskDAG.resume(run_id: parsed[:resume])
-                   else
-                     PWN::AI::Agent::TaskDAG.execute(path: parsed[:execute])
-                   end
+          begin
+            report = if parsed[:resume]
+                       PWN::AI::Agent::TaskDAG.resume(run_id: parsed[:resume], operator: true, mission_id: parsed[:mission])
+                     else
+                       PWN::AI::Agent::TaskDAG.execute(path: parsed[:execute], approved: true, operator: true, mission_id: parsed[:mission])
+                     end
+          rescue ArgumentError => e
+            output.puts(e.message)
+            return 1
+          end
+          bind_mission!(mission_id: parsed[:mission], report: report)
           output.puts(JSON.generate(report))
           return report[:ok] == false ? 1 : 0
         end
@@ -88,6 +95,21 @@ module PWN
           PWN::Plugins::REPL.start(ai_session_id: session[:id])
         end
         0
+      end
+
+      private_class_method def self.bind_mission!(opts = {})
+        report = opts[:report] || {}
+        return report unless report[:run_id]
+
+        mid = opts[:mission_id].to_s
+        mid = PWN::AI::Agent::Mission.active_id if mid.empty?
+        return report if mid.to_s.empty?
+
+        PWN::AI::Agent::Mission.begin!(id: mid, request: 'approved dag', unattended: true) unless PWN::AI::Agent::Mission.current(id: mid)
+        root = report[:dir] ? File.dirname(report[:dir].to_s) : nil
+        PWN::AI::Agent::Mission.bind_run!(id: mid, run_id: report[:run_id], root: root)
+        PWN::AI::Agent::OpenGoal.begin!(request: PWN::AI::Agent::Mission.current(id: mid)[:request], mission_id: mid)
+        report
       end
 
       public_class_method def self.authors

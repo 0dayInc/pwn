@@ -45,6 +45,7 @@ module PWN
       autoload :ToolGuard, 'pwn/ai/agent/tool_guard'
       autoload :TurnFinalizer, 'pwn/ai/agent/turn_finalizer'
       autoload :Engagement, 'pwn/ai/agent/engagement'
+      autoload :Mission, 'pwn/ai/agent/mission'
       autoload :OpenGoal, 'pwn/ai/agent/open_goal'
       autoload :PromptCache, 'pwn/ai/agent/prompt_cache'
 

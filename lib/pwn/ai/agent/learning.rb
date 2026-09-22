@@ -581,6 +581,28 @@ module PWN
           { session_id: session_id, lessons: saved, count: saved.length, dry_run: dry_run }
         end
 
+        public_class_method def self.rsi_tick(opts = {})
+          request = opts[:request].to_s
+          return { skipped: true, request: request, regressed: false } unless defined?(Metrics)
+
+          current_esr = Metrics.esr
+          current_asr = Metrics.asr
+          prev = Metrics.previous_rates
+          regressed = !current_esr[:rate].nil? && !prev[:esr].nil? && current_esr[:rate] < prev[:esr].to_f
+          if regressed
+            note_outcome(
+              task: 'RSI exploit rate regressed',
+              success: false,
+              details: "esr #{prev[:esr]} -> #{current_esr[:rate]} asr=#{current_asr[:rate]} #{request}"[0, 400],
+              tags: %w[rsi esr]
+            )
+          end
+          Metrics.snapshot_rates(esr: current_esr[:rate], asr: current_asr[:rate])
+          { esr: current_esr, asr: current_asr, regressed: regressed, request: request }
+        rescue StandardError
+          { skipped: true, regressed: false, request: request }
+        end
+
         # Supported Method Parameters::
         # PWN::AI::Agent::Learning.auto_introspect(
         #   session_id: 'required - id of the just-completed session',
@@ -793,6 +815,11 @@ module PWN
             end
           rescue StandardError => e
             warn "[pwn-ai/learning] post-introspect lean swallowed: #{e.class}: #{e.message}"
+          end
+
+          if defined?(Metrics)
+            stages_run << :rsi
+            rsi_tick(request: opts[:request])
           end
 
           {
@@ -2147,6 +2174,11 @@ module PWN
             # Append a disputed outcome to ~/.pwn/learning/disputed.jsonl.
             #{self}.disputed_save(
               entry: 'required - Hash of the disputed learning row'
+            )
+
+            # Compare measured ESR/ASR with the previous tick and record a regression lesson.
+            #{self}.rsi_tick(
+              request: 'optional - operator request that triggered this measurement'
             )
 
             # Print the AUTHOR(S) string for this module.

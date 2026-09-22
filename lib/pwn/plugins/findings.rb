@@ -5,6 +5,7 @@ require 'fileutils'
 require 'securerandom'
 require 'digest'
 require 'time'
+require 'open3'
 
 module PWN
   module Plugins
@@ -48,23 +49,13 @@ module PWN
         raise ArgumentError, 'attack_chain_refs must reference existing findings in this engagement' unless refs.is_a?(Array) && refs.all? { |id| id.is_a?(String) && rows.any? { |row| row[:id] == id } }
 
         score = opts[:cvss_score]
-        severity = if score.zero?
-                     'info'
-                   elsif score < 4
-                     'low'
-                   elsif score < 7
-                     'medium'
-                   elsif score < 9
-                     'high'
-                   else
-                     'critical'
-                   end
+        claimed = severity_from_score(score: score)
         row = opts.slice(:title, :cwe, :cvss_vector, :cvss_score, :affected_asset, :evidence_paths, :poc,
                          :attack_chain_refs, :remediation, :confidence, :engagement_id, :session_id, :artifact_handles, :severity_justification)
         row[:enables] = opts.fetch(:enables, [])
         row[:evidence_paths] = paths
         row[:reproduction_steps] = steps
-        row = row.merge(id: SecureRandom.hex(6), severity: severity, status: 'open', verification_status: 'not_executed',
+        row = row.merge(id: SecureRandom.hex(6), severity: 'info', claimed_severity: claimed, status: 'open', verification_status: 'not_executed',
                         chain_refs: refs, host: opts[:affected_asset], target: opts[:affected_asset],
                         repro_cmd: opts[:poc], evidence: paths.map { |path| Digest::SHA256.file(path).hexdigest },
                         poc_artifacts: [], at: Time.now.utc.iso8601)
@@ -196,16 +187,19 @@ module PWN
         ev_text = ev_list.join(' ')
         raise 'ERROR: evidence must be at least 40 characters citing the PoC' if ev_text.length < 40
 
-        sha_ev = arts.filter_map do |p|
-          next unless File.file?(p)
+        sha_ev = arts.filter_map do |path|
+          next unless File.file?(path)
 
-          Digest::SHA256.file(p).hexdigest
+          Digest::SHA256.file(path).hexdigest
         end
-        proven = sha_ev.any?
+        claimed = opts[:severity].to_s
+        claimed = 'info' if claimed.empty?
         row = {
           id: SecureRandom.hex(6),
           title: title,
-          severity: proven ? (opts[:severity] || 'info').to_s : 'unproven',
+          severity: 'info',
+          claimed_severity: claimed,
+          verification_status: 'not_executed',
           cvss_vector: (opts[:cvss_vector] || opts[:cvss]).to_s,
           affected_asset: (opts[:affected_asset] || opts[:host]).to_s,
           host: opts[:host].to_s,
@@ -217,7 +211,7 @@ module PWN
           template_id: opts[:template_id].to_s,
           chain_refs: Array(opts[:chain_refs] || opts[:chain_parent_id]).map(&:to_s).reject(&:empty?),
           cvss: opts[:cvss].to_s,
-          status: proven ? (opts[:status] || 'open').to_s : 'unproven',
+          status: 'open',
           engagement_id: opts[:engagement_id].to_s,
           chain_parent_id: opts[:chain_parent_id].to_s,
           session_id: opts[:session_id].to_s,
@@ -226,7 +220,19 @@ module PWN
         row[:evidence_artifacts] = evidence_anchor(row: row, arts: arts)
         FileUtils.mkdir_p(File.dirname(FILE))
         File.open(FILE, 'a') { |f| f.puts(JSON.generate(row)) }
+        note_mission(finding_id: row[:id], host: opts[:host])
         row
+      end
+
+      private_class_method def self.note_mission(opts = {})
+        return unless defined?(PWN::AI::Agent::Mission)
+
+        mid = PWN::AI::Agent::Mission.active_id
+        return if mid.to_s.empty?
+
+        PWN::AI::Agent::Mission.note_finding!(id: mid, finding_id: opts[:finding_id], host: opts[:host])
+      rescue StandardError
+        nil
       end
 
       public_class_method def self.evidence_verify(opts = {})
@@ -276,16 +282,12 @@ module PWN
         parent_id = opts[:parent_id].to_s
         raise 'ERROR: parent_id is required' if parent_id.empty?
 
-        child = record(
-          opts.merge(
-            chain_parent_id: parent_id,
-            evidence: (opts[:evidence].to_s.length >= 40 ? opts[:evidence] : 'Chained finding reuses parent PoC evidence and raises composite impact.')
-          )
-        )
-        ranks = { 'info' => 0, 'low' => 1, 'medium' => 2, 'high' => 3, 'critical' => 4 }
-        parent = report.find { |r| r[:id].to_s == parent_id }
-        sev = [parent&.[](:severity), child[:severity]].compact.max_by { |s| ranks[s.to_s] || 0 }
-        child.merge(composite_severity: sev)
+        evidence = opts[:evidence].to_s
+        raise ArgumentError, 'evidence must be at least 40 characters citing the PoC' if evidence.length < 40
+
+        child = record(opts.merge(chain_parent_id: parent_id, evidence: evidence))
+        parent = report.find { |row| row[:id].to_s == parent_id }
+        child.merge(composite_severity: parent ? parent[:severity].to_s : 'info')
       end
 
       public_class_method def self.link(opts = {})
@@ -380,6 +382,7 @@ module PWN
         updated = candidate.find { |row| row[:id] == ids.last }
         updated.merge!(patch)
         persist_rows(rows: candidate)
+        note_rates(kind: 'attack', success: true, technique: 'chain_impact', finding_id: ids.last)
         {
           finding_ids: ids,
           combined_severity: combined,
@@ -431,8 +434,12 @@ module PWN
         impact = opts[:impact].to_s
         raise ArgumentError, 'impact must be a non-empty string' if impact.strip.empty?
 
-        arts, body = execution_blob(opts.merge(kind: kind))
-        hit = body.include?(impact)
+        steps = reproduction_commands(row: row)
+        raise ArgumentError, 'reproduction_steps are required to verify' if steps.empty?
+
+        transcript = run_reproduction(steps: steps)
+        hit = transcript.include?(impact)
+        arts = steps.select { |step| step.start_with?('/') && File.file?(step) }
         if opts[:mode].to_s == 'retest'
           status = hit ? 'still_open' : 'fixed'
           finding_status = hit ? 'open' : 'closed'
@@ -440,19 +447,91 @@ module PWN
           status = hit ? 'reproduced' : 'failed'
           finding_status = row[:status]
         end
+        published = status == 'reproduced' ? claimed_severity(row: row) : 'info'
         artifacts = (Array(row[:evidence_artifacts]) + evidence_anchor(row: row, arts: arts)).uniq { |artifact| [artifact[:path], artifact[:sha256]] }
-        rewrite_row(
+        updated = rewrite_row(
           id: row[:id],
           patch: {
             verification_status: status,
             verification_kind: kind,
             impact: impact,
+            severity: published,
+            transcript: transcript,
             poc_artifacts: arts,
             evidence_artifacts: artifacts,
             status: finding_status,
             verified_at: Time.now.utc.iso8601
           }
         )
+        note_rates(
+          kind: 'exploit',
+          success: status == 'reproduced',
+          tool: row[:cwe].to_s.empty? ? 'poc' : row[:cwe].to_s,
+          vulnerable_tool: (row[:product] || row[:affected_asset] || row[:host] || row[:id]).to_s,
+          vulnerable: status == 'reproduced',
+          technique: row[:cwe],
+          finding_id: row[:id]
+        )
+        note_rates(kind: 'attack', success: %w[reproduced still_open].include?(status), technique: row[:cwe], finding_id: row[:id])
+        updated
+      end
+
+      private_class_method def self.note_rates(opts = {})
+        return unless defined?(PWN::AI::Agent::Metrics)
+
+        PWN::AI::Agent::Metrics.record_attempt(
+          kind: opts[:kind],
+          success: opts[:success],
+          technique: opts[:technique],
+          finding_id: opts[:finding_id],
+          tool: opts[:tool],
+          vulnerable_tool: opts[:vulnerable_tool],
+          vulnerable: opts[:vulnerable],
+          revoke: opts[:revoke]
+        )
+      rescue StandardError
+        nil
+      end
+
+      private_class_method def self.reproduction_commands(opts = {})
+        row = opts[:row] || {}
+        steps = Array(row[:reproduction_steps]).map(&:to_s)
+        poc = row[:poc]
+        steps << (poc.is_a?(Hash) ? (poc[:path] || poc['path']).to_s : poc.to_s)
+        steps << row[:repro_cmd].to_s
+        steps.map(&:strip).reject(&:empty?).uniq
+      end
+
+      private_class_method def self.run_reproduction(opts = {})
+        transcript = +''
+        Array(opts[:steps]).each do |step|
+          stdout, stderr, status = Open3.capture3('sh', '-c', step.to_s)
+          transcript << stdout.to_s << stderr.to_s
+          transcript << "\nexit=#{status.exitstatus}\n"
+        end
+        transcript
+      end
+
+      private_class_method def self.claimed_severity(opts = {})
+        claimed = opts[:row][:claimed_severity].to_s
+        return 'info' if claimed.empty? || claimed == 'unproven'
+
+        claimed
+      end
+
+      private_class_method def self.severity_from_score(opts = {})
+        score = opts[:score].to_f
+        if score.zero?
+          'info'
+        elsif score < 4
+          'low'
+        elsif score < 7
+          'medium'
+        elsif score < 9
+          'high'
+        else
+          'critical'
+        end
       end
 
       private_class_method def self.execution_blob(opts = {})
@@ -600,11 +679,12 @@ module PWN
             host: 'optional - affected host or URL'
           )
 
-          # Record a child finding chained to a parent and return composite severity.
+          # Record a child finding chained to a parent without raising severity above the parent.
           #{self}.chain(
             parent_id: 'required - id of the parent finding',
             title: 'required - short finding title',
-            severity: 'optional - info|low|medium|high|critical (defaults to info)',
+            severity: 'optional - claimed severity stored until verify; does not raise composite severity',
+            evidence: 'required - citation of at least 40 characters; a shorter citation is refused',
             poc_artifacts: 'required - Array of artifact paths proving the issue',
             host: 'optional - affected host or URL',
             session_id: 'optional - pwn-ai session id'

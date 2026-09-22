@@ -150,6 +150,14 @@ module PWN
         result
       end
 
+      private_class_method def self.observations_path(opts = {})
+        eng = opts[:engagement_id].to_s
+        eng = 'default' if eng.empty?
+        raise ArgumentError, 'engagement_id must be a simple identifier' unless eng.match?(/\A[a-zA-Z0-9_-]+\z/)
+
+        File.join(Dir.home, '.pwn', 'engagements', eng, 'recon', 'observations.jsonl')
+      end
+
       private_class_method def self.pipeline_command(opts = {})
         Open3.popen3(*opts[:argv], pgroup: true) do |stdin, stdout, stderr, wait|
           stdin.close
@@ -283,6 +291,54 @@ module PWN
         end
       end
 
+      public_class_method def self.observe(opts = {})
+        host = (opts[:host] || opts[:address]).to_s
+        raise ArgumentError, 'host is required' if host.empty?
+
+        row = {
+          host: host,
+          port: opts[:port],
+          product: (opts[:product] || opts[:service]).to_s,
+          version: opts[:version].to_s,
+          evidence_path: (opts[:evidence_path] || opts[:path]).to_s,
+          source: opts[:source].to_s,
+          lead: opts[:lead].to_s,
+          at: Time.now.utc.iso8601
+        }
+        path = observations_path(engagement_id: opts[:engagement_id])
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open(path, 'a') { |file| file.puts(JSON.generate(row)) }
+        row
+      end
+
+      public_class_method def self.observations(opts = {})
+        path = observations_path(engagement_id: opts[:engagement_id])
+        return [] unless File.file?(path)
+
+        File.readlines(path).filter_map do |line|
+          JSON.parse(line, symbolize_names: true)
+        rescue JSON::ParserError
+          nil
+        end
+      end
+
+      public_class_method def self.known_ports(opts = {})
+        host = opts[:host].to_s
+        observations(engagement_id: opts[:engagement_id]).select { |row| host.empty? || row[:host].to_s == host }.map { |row| row[:port].to_i }.uniq
+      end
+
+      public_class_method def self.handoff(opts = {})
+        row = opts[:asset] || opts[:handoff] || {}
+        row = row.transform_keys(&:to_sym) if row.is_a?(Hash)
+        {
+          host: (row[:host] || row[:address]).to_s,
+          port: row[:port],
+          product: (row[:product] || row[:service]).to_s,
+          version: row[:version].to_s,
+          evidence_path: (row[:evidence_path] || row[:path]).to_s
+        }
+      end
+
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
       end
@@ -346,6 +402,38 @@ module PWN
           #{self}.passive_dns(
             domain: 'required - FQDN to query (e.g. example.com)',
             timeout: 'optional - seconds to wait before giving up'
+          )
+
+          # Append a scanner or service lead. This is not a finding.
+          #{self}.observe(
+            host: 'required - hostname or IP',
+            address: 'optional - alias for host',
+            port: 'optional - integer port',
+            product: 'optional - product or service name',
+            service: 'optional - alias for product',
+            version: 'optional - product version',
+            evidence_path: 'optional - absolute path of the lead evidence',
+            path: 'optional - alias for evidence_path',
+            source: 'optional - nuclei, sbom, nmap, or another lead source',
+            lead: 'optional - short lead title',
+            engagement_id: 'optional - engagement identifier'
+          )
+
+          # Read stored leads for an engagement.
+          #{self}.observations(
+            engagement_id: 'optional - engagement identifier'
+          )
+
+          # Ports already observed for a host.
+          #{self}.known_ports(
+            host: 'optional - hostname or IP; empty returns every observed port',
+            engagement_id: 'optional - engagement identifier'
+          )
+
+          # Normalize an asset into host, port, product, version, and evidence path.
+          #{self}.handoff(
+            asset: 'optional - asset hash from recon',
+            handoff: 'optional - alias for asset'
           )
 
           # Print the AUTHOR(S) string for this module.

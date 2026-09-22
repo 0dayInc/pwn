@@ -49,7 +49,7 @@ PWN::AI::Agent::Registry.register(
         cwd: args[:cwd],
         env: env&.transform_keys(&:to_s)
       )
-      PWN::Plugins::Jobs.start(
+      row = PWN::Plugins::Jobs.start(
         command: cmd,
         max_runtime: args[:max_runtime],
         session_id: args[:session_id] || Thread.current[:pwn_session_id],
@@ -57,6 +57,10 @@ PWN::AI::Agent::Registry.register(
         env: env&.transform_keys(&:to_s),
         idempotency_key: args[:idempotency_key]
       )
+      if defined?(PWN::AI::Agent::Mission) && (mid = PWN::AI::Agent::Mission.active_id)
+        PWN::AI::Agent::Mission.note_job!(id: mid, job_id: row[:id], idempotent: !args[:idempotency_key].to_s.empty?, log_offset: 0, command: cmd, idempotency_key: args[:idempotency_key])
+      end
+      row
     when 'status'
       row = PWN::Plugins::Jobs.status(id: args[:id])
       out_dir = args[:out_dir]

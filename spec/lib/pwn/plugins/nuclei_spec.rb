@@ -36,9 +36,11 @@ describe PWN::Plugins::Nuclei do
       expect(finding[:template_id] || finding[:template]).to eq('cve-2024-wordpress-rce')
       expect(finding[:severity].to_s).to match(/high/i)
       stored = PWN::Plugins::Findings.report
-      expect(stored.map { |item| item[:title] }.join).to include('WordPress')
-      expect(stored.first[:matched_at] || stored.first[:url]).to include('xmlrpc.php')
-      expect(stored.first[:template_id]).to eq('cve-2024-wordpress-rce')
+      expect(stored).to eq([])
+      observed = PWN::Plugins::Recon.observations
+      expect(observed.map { |item| item[:lead] }.join).to include('WordPress')
+      expect(observed.first[:evidence_path]).to end_with('.json')
+      expect(observed.first[:source]).to eq('nuclei')
     end
   end
 

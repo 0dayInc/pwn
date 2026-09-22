@@ -1,8 +1,6 @@
 # Memory · Skills · Learning · Mistakes · Metrics · Policy - Introspection
 
-The **inward-facing** half of the pwn-ai feedback loop: how the agent measures
-its own performance, turns wins into permanent capability, and - critically -
-**learns from its own mistakes so it does not repeat them**.
+The inward half of the pwn-ai feedback loop: the agent writes what it did, and the next prompt can see it. Wins become skills. Failures become fingerprinted mistakes.
 
 ![Memory / Skills detail](diagrams/memory-skills-detailed.svg)
 
@@ -15,7 +13,17 @@ its own performance, turns wins into permanent capability, and - critically -
 | **Policy** | `policy.json` + `policy_traj.jsonl` | Loop `begin_episode` / `observe_step` / `finish` | `policy_stats` · `policy_evaluate` · `policy_recommend` | `POLICY` block - live tabular Q / REINFORCE. Advisory rank only. Disable with `ai.agent.policy: false`. |
 | **Learning** | `learning.jsonl` | `learning_note_outcome` · `learning_reflect` | `learning_outcomes` · `learning_stats` · `Learning.exemplars_for` | `LEARNING` block - recent outcomes + success_rate. Prior *successful* traces are also spliced in as **few-shot exemplars** for local models. |
 | **Mistakes** | `mistakes.json` | `mistakes_record` · `mistakes_resolve` · *auto on failure* | `mistakes_list` | `KNOWN MISTAKES` + `KNOWN FIXES` blocks - do-NOT-repeat + do-THIS-instead |
-| **Metrics** | `metrics.json` | *automatic* (every Dispatch) | `metrics_summary` | `TOOL EFFECTIVENESS` block - steer tool choice. **Segmented per engine** (`engine=...`) so a local model's telemetry never blends with a frontier model's. |
+| **Metrics** | `metrics.json` | *automatic* (every Dispatch) plus `Metrics.record_attempt` | `metrics_summary` | `TOOL EFFECTIVENESS` block, plus ESR and ASR on the health line. |
+
+## Exploit and attack rates
+
+`PWN::AI::Agent::Metrics` keeps two rates that RSI can compare across turns.
+
+ESR is `verified_exploit_tools / vulnerable_tools`. A tool enters `verified_exploit_tools` only when an exploit attempt for that tool name succeeds. A tool enters `vulnerable_tools` when the caller marks it vulnerable, or when a successful exploit names that target. Repeating the same tool does not change the counts. The rate stays nil until at least one vulnerable tool exists.
+
+ASR is `successful_attacks / total_attack_attempts`. Every attack attempt increments the denominator. A reproduced impact, a still-open retest, or an accepted `chain_impact` increments the numerator. This one is an attempt ratio, not a set of tool names.
+
+`Learning.rsi_tick` compares the current ESR with the previous snapshot. A drop writes a lesson tagged `rsi`. `Loop` already calls `Learning.auto_introspect`, and that path calls `rsi_tick`. A green rake is not an ESR sample. The default suite does not hit a live target.
 
 ## Memory write guard
 
@@ -122,6 +130,7 @@ bundled skills into `~/.pwn/skills/` when the name is missing:
 | `cwe` | Exhaustive test procedure per CWE ID (`references/CWE-<id>.md`) |
 | `capec` | Exhaustive attack-pattern procedure per CAPEC ID (`references/CAPEC-<id>.md`) |
 | `att&ck` | Exhaustive test procedure per ATT&CK technique (`references/T1059.001.md`) |
+| `humanizer` | Strip AI writing patterns from prose. Keep meaning and identifiers. |
 
 Source: `etc/default_skills/` in the gem. SOP edits in `~/.pwn/skills/<name>/SKILL.md`
 are never overwritten. Generated `~/.pwn/skills/pwn/**/SKILL.md` module skills

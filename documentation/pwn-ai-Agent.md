@@ -99,6 +99,8 @@ $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 
 ![Self-improvement loop](diagrams/pwn-ai-feedback-learning-loop.svg)
 
+After the reply, `Learning.auto_introspect` calls `rsi_tick`. That tick reads ESR (`verified_exploit_tools / vulnerable_tools`) and ASR (`successful_attacks / total_attack_attempts`) from `Metrics`. A lower ESR than the previous snapshot becomes a lesson tagged `rsi`. Scanner output does not feed those rates. `Findings.verify` does, and only when the stored PoC's transcript contains the impact string.
+
 ## What the agent can call
 
 16 toolsets · **150 tools** - full table at

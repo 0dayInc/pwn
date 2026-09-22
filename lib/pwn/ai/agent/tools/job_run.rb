@@ -35,7 +35,11 @@ PWN::AI::Agent::Registry.register(
       script = 'r=PWN::Plugins::Jobs.graph(JSON.parse(ARGV.fetch(0), symbolize_names:true)); puts JSON.generate(r); exit(r[:ok] ? 0 : 1)'
       command = Shellwords.join([RbConfig.ruby, '-I', File.expand_path('../../../..', __dir__), '-rpwn', '-rjson', '-e', script, payload])
     end
-    PWN::Plugins::Jobs.start(command: command, session_id: args[:session_id] || args[:tag] || Thread.current[:pwn_session_id], max_runtime: args[:max_runtime], cwd: args[:cwd], env: args[:env]&.transform_keys(&:to_s), idempotency_key: args[:idempotency_key])
+    row = PWN::Plugins::Jobs.start(command: command, session_id: args[:session_id] || args[:tag] || Thread.current[:pwn_session_id], max_runtime: args[:max_runtime], cwd: args[:cwd], env: args[:env]&.transform_keys(&:to_s), idempotency_key: args[:idempotency_key])
+    if defined?(PWN::AI::Agent::Mission) && (mid = PWN::AI::Agent::Mission.active_id)
+      PWN::AI::Agent::Mission.note_job!(id: mid, job_id: row[:id], idempotent: !args[:idempotency_key].to_s.empty?, log_offset: 0, command: command, idempotency_key: args[:idempotency_key])
+    end
+    row
   }
 )
 PWN::AI::Agent::Registry.register(

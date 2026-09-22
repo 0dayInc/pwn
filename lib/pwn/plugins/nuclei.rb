@@ -6,6 +6,7 @@ require 'fileutils'
 require 'tempfile'
 require 'securerandom'
 require 'tmpdir'
+require 'uri'
 
 module PWN
   module Plugins
@@ -40,11 +41,15 @@ module PWN
       end
 
       public_class_method def self.scan(opts = {})
+        handoff = PWN::Plugins::Recon.handoff(handoff: opts[:handoff] || opts[:asset]) if opts[:handoff] || opts[:asset]
+        target = handoff && !handoff[:host].empty? ? handoff[:host] : (opts[:target] || opts[:url])
         stdout = jsonl_body(opts)
         opts = opts.merge(techs: PWN::Plugins::Httpx.probe(jsonl: opts[:httpx_jsonl])[:techs]) if stdout.nil? && !opts[:httpx_jsonl].to_s.empty?
         unless stdout
+          skipped = skip_known(target: target, port: handoff && handoff[:port], refresh: opts[:refresh], engagement_id: opts[:engagement_id])
+          return skipped if skipped
+
           PWN::Plugins::PreflightChecker.require_bin!(name: 'nuclei')
-          target = opts[:target] || opts[:url]
           raise 'ERROR: target is required' if target.to_s.empty?
 
           cmd = ['nuclei', '-u', target.to_s, '-jsonl', '-silent']
@@ -60,7 +65,7 @@ module PWN
         findings = parse_jsonl(text: stdout)
         rows = to_findings(rows: findings)
         recorded = []
-        recorded = rows.map { |row| persist_finding(finding: row, raw: findings, dir: opts[:dir]) } if opts[:record] != false
+        recorded = rows.map { |row| persist_observation(finding: row, dir: opts[:dir], engagement_id: opts[:engagement_id]) } if opts[:record] != false
         { findings: rows, raw: findings, recorded: recorded, stderr: stderr, exit: status&.exitstatus }
       end
 
@@ -109,7 +114,11 @@ module PWN
             url: 'optional - HTTP(S) URL alias for target',
             jsonl: 'optional - nuclei JSONL file path or raw JSONL text (skips the nuclei binary)',
             httpx_jsonl: 'optional - httpx JSONL used to select -tags from detected tech',
-            record: 'optional - false skips Findings.record (defaults to true)',
+            record: 'optional - false skips the recon observation (defaults to true); a template match is not a finding',
+            refresh: 'optional - true rescans a port that already has an observation',
+            handoff: 'optional - recon asset hash with host, port, product, version, and evidence_path',
+            asset: 'optional - alias for handoff',
+            engagement_id: 'optional - engagement identifier for stored observations',
             severity: 'optional - nuclei -severity filter',
             templates: 'optional - nuclei -t template path or id',
             tags: 'optional - tech names forwarded to select_templates',
@@ -158,25 +167,36 @@ module PWN
         [stdout, '', status]
       end
 
-      private_class_method def self.persist_finding(opts = {})
+      private_class_method def self.persist_observation(opts = {})
         finding = opts[:finding]
         dir = opts[:dir].to_s
         dir = Dir.tmpdir if dir.empty?
         FileUtils.mkdir_p(dir)
         poc = File.join(dir, "nuclei-#{finding[:template_id].to_s.gsub(/[^A-Za-z0-9._-]/, '_')}-#{SecureRandom.hex(4)}.json")
         File.write(poc, JSON.pretty_generate(finding))
-        evidence = "nuclei matched-at #{finding[:matched_at]} template #{finding[:template_id]} severity #{finding[:severity]} poc=#{poc}"
-        PWN::Plugins::Findings.record(
-          title: finding[:title],
-          severity: finding[:severity],
-          host: finding[:url],
-          url: finding[:url],
-          matched_at: finding[:matched_at],
-          template_id: finding[:template_id],
-          poc: poc,
-          poc_artifacts: [poc],
-          evidence: evidence
+        uri = URI.parse(finding[:url].to_s)
+        PWN::Plugins::Recon.observe(
+          host: uri.host || finding[:url].to_s,
+          port: uri.port,
+          product: finding[:template_id].to_s,
+          version: '',
+          evidence_path: poc,
+          source: 'nuclei',
+          lead: finding[:title],
+          engagement_id: opts[:engagement_id]
         )
+      rescue URI::InvalidURIError
+        PWN::Plugins::Recon.observe(host: finding[:url].to_s, product: finding[:template_id].to_s, evidence_path: poc, source: 'nuclei', lead: finding[:title], engagement_id: opts[:engagement_id])
+      end
+
+      private_class_method def self.skip_known(opts = {})
+        return nil if opts[:refresh]
+        return nil if opts[:target].to_s.empty? || opts[:port].nil?
+
+        known = PWN::Plugins::Recon.known_ports(host: opts[:target], engagement_id: opts[:engagement_id])
+        return nil unless known.include?(opts[:port].to_i)
+
+        { findings: [], recorded: [], skipped: true, skipped_ports: [opts[:port].to_i], reason: 'existing observation' }
       end
     end
   end

@@ -328,7 +328,19 @@ module PWN
         records.reject! { |row| row[:label] == label }
         records << record
         save_records(engagement: eng, records: records)
+        note_mission_loot(handle: record[:id], host: opts[:host])
         record.except(:secret).merge(stored: true)
+      end
+
+      private_class_method def self.note_mission_loot(opts = {})
+        return unless defined?(PWN::AI::Agent::Mission)
+
+        mid = PWN::AI::Agent::Mission.active_id
+        return if mid.to_s.empty?
+
+        PWN::AI::Agent::Mission.note_loot!(id: mid, handle: opts[:handle], host: opts[:host])
+      rescue StandardError
+        nil
       end
 
       public_class_method def self.fetch(opts = {})

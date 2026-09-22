@@ -7,7 +7,7 @@ PWN::AI::Agent::Registry.register(
   toolset: 'pwn',
   schema: {
     name: 'nuclei_scan',
-    description: 'Run or ingest nuclei JSONL (optionally after httpx tech-detect). Records web findings with matched-at URL, template id, and severity into the findings store.',
+    description: 'Run or ingest nuclei JSONL (optionally after httpx tech-detect). Stores a recon observation with host, port, product, and evidence path. A template match is not a finding until verify reproduces it.',
     parameters: {
       type: 'object',
       properties: {

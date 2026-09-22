@@ -57,6 +57,7 @@ module PWN
       findings = [] unless findings.is_a?(Array)
       findings = findings.map { |row| stringify_keys(hash: row) }
       chains = attack_chains(findings: findings)
+      refuse_unproven_combined!(findings: findings, chains: chains)
       {
         title: title,
         executive_summary: summary,
@@ -143,6 +144,20 @@ module PWN
       result.merge(combined_severity: assessment['combined_severity'], rationale: assessment['rationale'], assessment_status: 'evidence_backed',
                    evidence_artifacts: evidence.map { |artifact| artifact.transform_keys(&:to_sym) },
                    reproduction_steps: assessment['reproduction_steps'] || result[:reproduction_steps])
+    end
+
+    private_class_method def self.refuse_unproven_combined!(opts = {})
+      findings = Array(opts[:findings])
+      Array(opts[:chains]).each do |chain|
+        next unless %w[high critical].include?(chain[:combined_severity].to_s)
+        next if Array(chain[:finding_ids]).length < 2
+
+        members = chain[:finding_ids].map { |id| findings.find { |row| row['id'].to_s == id } }
+        raise ArgumentError, 'refusing to print high or critical for an unverified linked pair' unless members.all? { |row| row && row['verification_status'].to_s == 'reproduced' }
+
+        text = Array(chain[:evidence_artifacts]).map { |artifact| File.file?(artifact[:stored].to_s) ? File.read(artifact[:stored]) : '' }.join
+        raise ArgumentError, 'combined-impact file must name every finding id' unless chain[:finding_ids].all? { |id| text.include?(id.to_s) }
+      end
     end
 
     private_class_method def self.impact_rank(opts = {})

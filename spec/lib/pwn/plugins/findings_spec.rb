@@ -34,11 +34,11 @@ describe PWN::Plugins::Findings do
       poc = File.join(dir, 'poc.rb')
       File.write(poc, 'puts 1')
       parent = described_class.record(title: 'xss', poc_artifacts: [poc], severity: 'medium', evidence: 'PoC file reproduces reflected XSS in search; see artifact path.')
-      child = described_class.chain(parent_id: parent[:id], title: 'account-takeover', poc_artifacts: [poc], severity: 'high')
+      child = described_class.chain(parent_id: parent[:id], title: 'account-takeover', poc_artifacts: [poc], severity: 'high', evidence: 'Child citation is long enough to record and does not raise the parent severity.')
       expect(child[:chain_parent_id]).to eq(parent[:id])
-      expect(child[:composite_severity]).to eq('high')
+      expect(child[:composite_severity]).to eq('info')
       score = described_class.chain_score(ids: [parent[:id], child[:id]])
-      expect(score[:combined_severity]).to eq('high')
+      expect(score[:combined_severity]).to eq('info')
       expect(score[:rationale]).to include('No automatic escalation')
     end
   end

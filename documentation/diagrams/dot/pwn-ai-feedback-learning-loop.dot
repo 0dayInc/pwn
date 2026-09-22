@@ -34,7 +34,7 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
   subgraph cluster_intro {
     label="INTROSPECTION  (self)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    Metrics  [label="Metrics\nper-tool · PER-ENGINE\nsuccess · avg ms", fillcolor="#6ee7b7"];
+    Metrics  [label="Metrics\nESR = verified exploit tools / vulnerable tools\nASR = successful attacks / attempts", fillcolor="#6ee7b7"];
     Learning [label="Learning\nnote_outcome · reflect\nexemplars_for · SFT quality gate\nfact_check_local_final", fillcolor="#6ee7b7"];
     Mistakes [label="Mistakes\nrecord · resolve\nguard · correction_hint\n[REPEATING] · [REGRESSED]", fillcolor="#6ee7b7", penwidth=2];
     ReflectT [label="Reflect\nteacher-student\n(reflect_engine)", fillcolor="#6ee7b7", penwidth=2];
@@ -106,6 +106,7 @@ Escalate [label="escalate\n>=N fails → Swarm hint",        fillcolor="#c4b5fd"
   /* L2 → L3 */
   Metrics  -> Correlate [color="#34d399"];
   Learning -> Correlate [color="#34d399"];
+  Learning -> Metrics [label="rsi_tick\nESR drop writes a lesson", style=dashed, color="#34d399", constraint=false];
   Mistakes -> Correlate [color="#34d399"];
   Snapshot -> Correlate [color="#f59e0b"];
   Observe  -> Correlate [color="#f59e0b"];

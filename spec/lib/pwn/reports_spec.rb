@@ -6,10 +6,10 @@ describe PWN::Reports do
   it 'ranks an evidenced critical directed path above isolated high findings without rewriting member CVSS' do
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'combined.txt')
-      File.write(path, 'SSRF enables internal-admin access and demonstrated full administrative control in this fixture.')
+      File.write(path, 'SSRF ssrf enables admin and demonstrated full administrative control in this fixture.')
       evidence = { stored: path, path: path, sha256: Digest::SHA256.file(path).hexdigest, size: File.size(path) }
-      rows = [{ id: 'ssrf', title: 'SSRF', severity: 'medium', enables: ['admin'] },
-              { id: 'admin', title: 'Internal admin panel', severity: 'medium', chain_assessments: [
+      rows = [{ id: 'ssrf', title: 'SSRF', severity: 'medium', verification_status: 'reproduced', enables: ['admin'] },
+              { id: 'admin', title: 'Internal admin panel', severity: 'medium', verification_status: 'reproduced', chain_assessments: [
                 { finding_ids: %w[ssrf admin], combined_severity: 'critical', rationale: 'Full administrative control through the SSRF.',
                   reproduction_steps: ['Send the SSRF request.', 'Observe internal administrative control.'], evidence_artifacts: [evidence] }
               ] }, { id: 'isolated', title: 'Isolated high', severity: 'high' }]

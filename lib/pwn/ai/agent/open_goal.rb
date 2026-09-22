@@ -37,6 +37,7 @@ module PWN
           row = {
             request: request,
             session_id: opts[:session_id].to_s,
+            mission_id: opts[:mission_id].to_s,
             updated_at: Time.now.utc.iso8601
           }
           File.write(goal_file, "#{JSON.pretty_generate(row)}\n")
@@ -46,6 +47,7 @@ module PWN
         public_class_method def self.clear!(opts = {})
           return :ok unless opts.is_a?(Hash)
           return :ok unless File.file?(goal_file)
+          return :held if mission_open?
 
           File.delete(goal_file)
           :ok
@@ -77,7 +79,8 @@ module PWN
             # Run begin and return its result
             #{self}.begin!(
               request: 'required - request value consumed by #begin!',
-              session_id: 'optional - session id value consumed by #begin!'
+              session_id: 'optional - session id value consumed by #begin!',
+              mission_id: 'optional - durable mission id consumed by #begin!'
             )
 
             # Run clear and return its result
@@ -92,6 +95,17 @@ module PWN
             #{self}.authors
           "
           constants.sort
+        end
+
+        private_class_method def self.mission_open?(opts = {})
+          return false unless defined?(PWN::AI::Agent::Mission)
+
+          mid = (opts[:mission_id] || (current && current[:mission_id])).to_s
+          return false if mid.empty?
+
+          !PWN::AI::Agent::Mission.done?(id: mid)
+        rescue StandardError
+          false
         end
       end
     end

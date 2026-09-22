@@ -2,6 +2,7 @@
 
 require 'json'
 require 'yaml'
+require 'digest'
 require 'fileutils'
 require 'time'
 
@@ -41,10 +42,12 @@ module PWN
           klass = tier(name: name, args: args)
           policy = load_policy(opts)
           action = (policy[klass] || DEFAULTS[klass] || 'auto').to_s
+          return { success: false, error: 'unattended mission refuses exploit and destructive calls without scope.yaml confirmation', code: 'ACK_DENY', tier: klass } if opts[:unattended] && policy.equal?(AUTONOMOUS) && %w[exploit destructive].include?(klass)
           return { success: false, error: "confirmation deny for #{klass}", code: 'ACK_DENY', tier: klass } if action == 'deny'
           return nil unless action == 'prompt'
 
           eng = engagement_id(opts.merge(args: args))
+          return scoped_ack(opts.merge(name: name, args: args, engagement_id: eng, tier: klass)) if opts[:ack_scope]
           return nil if acked?(engagement_id: eng)
 
           if truthy?(value: opts[:operator_ack] || args[:operator_ack] || args['operator_ack'])
@@ -83,13 +86,43 @@ module PWN
               args: 'optional - Hash of tool arguments',
               engagement_id: 'optional - engagement id used to cache the ACK',
               operator_ack: 'optional - true records a one-time ACK for this engagement',
-              scope_path: 'optional - scope.yaml path; defaults to ~/.pwn/scope.yaml'
+              scope_path: 'optional - scope.yaml path; defaults to ~/.pwn/scope.yaml',
+              unattended: 'optional - true denies exploit and destructive when confirmation is absent',
+              ack_scope: 'optional - true scopes the ACK to tool, host, and arguments',
+              ack_ttl: 'optional - seconds before a scoped ACK expires'
             )
 
             # Print the AUTHOR(S) string for this module.
             #{self}.authors
           "
           constants.sort
+        end
+
+        private_class_method def self.scoped_ack(opts = {})
+          host = (opts[:args][:host] || opts[:args]['host'] || opts[:host]).to_s
+          digest = Digest::SHA256.hexdigest("#{opts[:name]}:#{host}:#{JSON.generate(opts[:args])}")
+          path = File.join(File.dirname(ack_path(opts)), "ack-#{digest}.json")
+          if File.file?(path)
+            row = JSON.parse(File.read(path), symbolize_names: true)
+            return nil if row[:ack] && Time.parse(row[:expires_at].to_s) > Time.now
+          end
+          if truthy?(value: opts[:operator_ack])
+            FileUtils.mkdir_p(File.dirname(path))
+            File.write(path, JSON.generate(ack: true, at: Time.now.utc.iso8601, expires_at: (Time.now + Integer(opts[:ack_ttl] || 3600)).utc.iso8601))
+            File.chmod(0o600, path)
+            return nil
+          end
+          {
+            success: false,
+            needs_ack: true,
+            code: 'ACK_REQUIRED',
+            tier: opts[:tier],
+            engagement_id: opts[:engagement_id],
+            diff: intended_diff(name: opts[:name], args: opts[:args], tier: opts[:tier]),
+            error: "operator ACK required for #{opts[:tier]}-tier tool call"
+          }
+        rescue StandardError
+          { success: false, needs_ack: true, code: 'ACK_REQUIRED', error: 'operator ACK required' }
         end
 
         private_class_method def self.payload_tier(opts = {})
