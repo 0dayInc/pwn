@@ -80,7 +80,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 2))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: false, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([3, 4])
+      expect(result[:applied_migrations]).to eq([3, 4, 5])
       expected = Marshal.load(Marshal.dump(original))
       expected['custom']['model'] = nil
       expect(YAML.safe_load_file(path)).to eq(expected)
@@ -189,7 +189,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 3))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([4])
+      expect(result[:applied_migrations]).to eq([4, 5])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user[:ai][:active]).to eq('grok')
@@ -204,6 +204,33 @@ describe PWN::Migrate do
       again = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(again[:ai][:grok][:key]).to eq('sk-KEEP')
       expect(described_class.needed?).to be(false)
+    end
+
+    it 'upgrades a schema-4 vault with skill_review without changing a user setting' do
+      yaml = File.join(@tmp, 'pwn.yaml')
+      dec = File.join(@tmp, 'pwn.yaml.decryptor')
+      stale = { ai: { active: 'grok', grok: { key: 'sk-KEEP' }, agent: { skill_review: 'off', max_iters: 3 } } }
+      missing = { ai: { active: 'openai', openai: { key: 'sk-OTHER' }, agent: { max_iters: 9 } } }
+      File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
+      PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
+      File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 4))
+      result = described_class.run(fix: true, backup: false, io: io)
+      expect(result[:applied_migrations]).to eq([5])
+      creds = YAML.safe_load_file(dec, symbolize_names: true)
+      user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      expect(user.dig(:ai, :agent, :skill_review)).to eq('off')
+      expect(user.dig(:ai, :agent, :max_iters)).to eq(3)
+      expect(user.dig(:ai, :grok, :key)).to eq('sk-KEEP')
+
+      File.write(yaml, YAML.dump(missing).gsub(/^(\s*):/, '\1'))
+      PWN::Plugins::Vault.encrypt(file: yaml, key: creds[:key], iv: creds[:iv])
+      File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 4))
+      described_class.run(fix: true, backup: false, io: io)
+      filled = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      expect(filled.dig(:ai, :agent, :skill_review)).to eq('recommend')
+      expect(filled.dig(:ai, :agent, :max_iters)).to eq(9)
+      expect(filled.dig(:ai, :openai, :key)).to eq('sk-OTHER')
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([])
     end
 
     it 'dry_run writes nothing' do

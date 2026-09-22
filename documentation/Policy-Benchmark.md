@@ -220,6 +220,82 @@ fields except `elapsed_seconds`. They contain no wall-clock timestamps, random
 IDs or temporary paths. The original training report still contains the timing
 and metadata variability described above.
 
+## Offline operator CLI
+
+`pwn-ai --policy evaluate|promote|rollback` reuses `PolicyEvaluation`; it never
+starts a session, loads the encrypted configuration, runs `Learning.rsi_tick`,
+or invokes the agent loop. It cannot be combined with `--ai`, replay, mission,
+or other session options. Evaluation accepts existing explicit frozen snapshots,
+runs suites 0 and 1, and prints a JSON **array** suitable for `--reports`. It does
+not train or write the live policy. The Ruby API supports other indices 0..7.
+
+From a source checkout, this disposable demonstration stays entirely under a
+new `/tmp` directory (use `pwn-ai` instead of `ruby -Ilib bin/pwn-ai` for an
+installed executable):
+
+```sh
+umask 077
+work=$(mktemp -d /tmp/pwn-offline-policy.XXXXXX)
+ruby scripts/benchmark_policy.rb --heldout \
+  --snapshot-dir "$work/snapshots" --output "$work/benchmark.json"
+ruby -Ilib bin/pwn-ai --policy evaluate \
+  --baseline "$work/snapshots/off.json" --candidate "$work/snapshots/on.json" \
+  > "$work/reports.json"
+cp "$work/snapshots/off.json" "$work/demo-live.json"
+```
+
+Review `reports.json` before deciding whether to proceed. For a real target,
+first stop **all** agent processes and other policy writers, take the baseline
+copy only after stopping them, and keep writers stopped through promotion and
+readback. The acknowledgement does not stop processes or acquire a writer lock.
+Concurrent promotions are also unsupported. Do not replace a real policy with
+these demonstration snapshots or infer live gains from this fixture experiment.
+
+Only if approving the change to the **disposable demo target**, run:
+
+```sh
+ruby -Ilib bin/pwn-ai --policy promote \
+  --baseline "$work/snapshots/off.json" --candidate "$work/snapshots/on.json" \
+  --reports "$work/reports.json" --live-policy "$work/demo-live.json" \
+  --approve-policy-change --policy-writers-stopped > "$work/promotion.json"
+cmp "$work/demo-live.json" "$work/snapshots/on.json"
+```
+
+The command re-executes both reports before considering replacement. It returns
+nonzero on refusal or malformed input; check the exit status and JSON, not just
+whether a redirected file exists. Keep the successful `promotion.json` receipt
+and digest-named backup. Use distinct, new output paths: shell redirection opens
+files before the CLI starts, so never redirect onto snapshots, the live target,
+or an existing receipt. A failed retry must not overwrite the successful receipt.
+
+Rollback is a separate explicit operator decision with the same stopped-writer
+requirement; it refuses intervening changes to the target:
+
+```sh
+ruby -Ilib bin/pwn-ai --policy rollback \
+  --receipt "$work/promotion.json" --live-policy "$work/demo-live.json" \
+  --approve-policy-change --policy-writers-stopped > "$work/rollback.json"
+cmp "$work/demo-live.json" "$work/snapshots/off.json"
+```
+
+Neither approval flag alone is sufficient. There is no default live path,
+automatic promotion, target discovery, network task, or model training in this
+CLI path. Reports and receipts are operator-owned local JSON, not executable
+configuration; neither can supply approval flags. Existing `Learning.rsi_tick`
+only snapshots measured rates and records a regression lesson. It does not call
+this gate, generate candidates, schedule practice, or approve changes. The
+broader online learning and curriculum paths remain unchanged and separate.
+
+Focused verification commands (no hardware, providers, or live models):
+
+```sh
+bundle exec rspec spec/lib/pwn/ai/cli_spec.rb \
+  spec/lib/pwn/ai/agent/policy_evaluation_spec.rb \
+  spec/lib/pwn/ai/agent/learning_spec.rb spec/lib/pwn/ai/agent/rsi_metrics_spec.rb
+bundle exec rubocop lib/pwn/ai/cli.rb spec/lib/pwn/ai/cli_spec.rb \
+  spec/lib/pwn/ai/agent/rsi_metrics_spec.rb
+```
+
 ## Explicit promotion and rollback
 
 This is an **operator-invoked local eligibility gate**, not automatic online

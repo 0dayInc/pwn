@@ -14,6 +14,114 @@ RSpec.describe 'PWN::AI::CLI' do
     expect(PWN::AI::CLI.parse(argv: ['--rerun', 'session-1'])).to include(rerun: 'session-1')
   end
 
+  it 'evaluates two frozen offline suites without loading configuration or running the loop' do
+    Dir.mktmpdir('pwn-cli-policy-', '/tmp') do |root|
+      snapshot = File.join(root, 'snapshot.json')
+      File.write(snapshot, JSON.generate(q: {}, h: {}, visits: {}, returns: [], n_updates: 0, td_abs_sum: 0.0))
+      expect(PWN::Config).not_to receive(:refresh_env)
+      expect(PWN::AI::Agent::Loop).not_to receive(:run)
+      out = StringIO.new
+      expect(PWN::AI::CLI.run(argv: ['--policy', 'evaluate', '--baseline', snapshot, '--candidate', snapshot], output: out)).to eq(0)
+      reports = JSON.parse(out.string)
+      expect(reports.map { |report| report['seed'] }).to eq([0, 1])
+      expect(reports).to all(include('protocol' => 'pwn-policy-heldout-v2'))
+      stdout, stderr, status = Open3.capture3(
+        { 'HOME' => root, 'LANG' => 'C.UTF-8' }, RbConfig.ruby, '-Ilib', 'bin/pwn-ai',
+        '--policy', 'evaluate', '--baseline', snapshot, '--candidate', snapshot,
+        unsetenv_others: true
+      )
+      expect(status.success?).to be(true), stderr
+      expect(JSON.parse(stdout).map { |report| report['seed'] }).to eq([0, 1])
+      expect(Dir.children(root)).to eq(['snapshot.json'])
+    end
+  end
+
+  it 'promotes only with both operator acknowledgements and rolls back using the saved receipt' do
+    Dir.mktmpdir('pwn-cli-policy-', '/tmp') do |root|
+      output, error, status = Open3.capture3(
+        { 'HOME' => root, 'LANG' => 'C.UTF-8' }, RbConfig.ruby,
+        File.expand_path('../../../../scripts/benchmark_policy.rb', __dir__),
+        '--heldout', '--snapshot-dir', File.join(root, 'snapshots'), unsetenv_others: true
+      )
+      expect(status.success?).to be(true), error
+      baseline = File.join(root, 'snapshots', 'off.json')
+      candidate = File.join(root, 'snapshots', 'on.json')
+      reports = File.join(root, 'reports.json')
+      File.write(reports, JSON.generate(JSON.parse(output).fetch('heldout')))
+      live = File.join(root, 'live.json')
+      FileUtils.cp(baseline, live)
+      argv = ['--policy', 'promote', '--baseline', baseline, '--candidate', candidate, '--reports', reports, '--live-policy', live]
+      expect(PWN::Config).not_to receive(:refresh_env)
+      expect(PWN::AI::Agent::Loop).not_to receive(:run)
+      [[], ['--approve-policy-change'], ['--policy-writers-stopped']].each do |flags|
+        expect(PWN::AI::CLI.run(argv: argv + flags, output: StringIO.new)).to eq(1)
+        expect(File.binread(live)).to eq(File.binread(baseline))
+      end
+      approval = %w[--approve-policy-change --policy-writers-stopped]
+      original_reports = File.read(reports)
+      tampered = JSON.parse(original_reports)
+      tampered.first['passed'] = true
+      File.write(reports, JSON.generate(tampered))
+      rejected = StringIO.new
+      expect(PWN::AI::CLI.run(argv: argv + approval, output: rejected)).to eq(1)
+      expect(JSON.parse(rejected.string)).to include('promoted' => false, 'reason' => 'provenance/artifact replay mismatch')
+      expect(File.binread(live)).to eq(File.binread(baseline))
+      File.write(reports, original_reports)
+      out = StringIO.new
+      expect(PWN::AI::CLI.run(argv: argv + approval, output: out)).to eq(0)
+      expect(JSON.parse(out.string)).to include('promoted' => true, 'replayed_seeds' => [0, 1])
+      expect(File.binread(live)).to eq(File.binread(candidate))
+      receipt = File.join(root, 'receipt.json')
+      File.write(receipt, out.string)
+      rollback = ['--policy', 'rollback', '--receipt', receipt, '--live-policy', live]
+      expect(PWN::AI::CLI.run(argv: rollback, output: StringIO.new)).to eq(1)
+      expect(File.binread(live)).to eq(File.binread(candidate))
+      File.write(live, File.read(baseline))
+      expect(PWN::AI::CLI.run(argv: rollback + approval, output: StringIO.new)).to eq(1)
+      File.write(live, File.read(candidate))
+      expect(PWN::AI::CLI.run(argv: rollback + approval, output: StringIO.new)).to eq(0)
+      expect(File.binread(live)).to eq(File.binread(baseline))
+    end
+  end
+
+  it 'rejects policy flags outside their action and never combines offline evaluation with a live session' do
+    [
+      %w[--baseline baseline.json],
+      %w[--approve-policy-change],
+      %w[--policy evaluate --baseline b --candidate c --ai prompt],
+      %w[--policy evaluate --baseline b --candidate c --replay session],
+      %w[--policy evaluate --baseline b --candidate c --mission mission],
+      %w[--policy evaluate --baseline b --candidate c --pwn-env vault],
+      %w[--policy evaluate --baseline b --candidate c --live-policy live],
+      %w[--policy evaluate --baseline b --candidate c --approve-policy-change],
+      %w[--policy evaluate --baseline b],
+      %w[--policy rollback --receipt r],
+      %w[--policy promote --baseline b --candidate c --reports r],
+      %w[--policy rollback --receipt r --live-policy l --candidate c]
+    ].each do |argv|
+      expect { PWN::AI::CLI.parse(argv: argv) }.to raise_error(OptionParser::ParseError), argv.inspect
+    end
+  end
+
+  it 'returns nonzero JSON diagnostics for malformed offline inputs without starting a session' do
+    Dir.mktmpdir('pwn-cli-policy-', '/tmp') do |root|
+      path = File.join(root, 'invalid.json')
+      File.write(path, 'not json')
+      expect(PWN::Config).not_to receive(:refresh_env)
+      expect(PWN::Sessions).not_to receive(:create)
+      expect(PWN::AI::Agent::Loop).not_to receive(:run)
+      [
+        ['--policy', 'evaluate', '--baseline', path, '--candidate', path],
+        ['--policy', 'rollback', '--receipt', path, '--live-policy', path, '--approve-policy-change', '--policy-writers-stopped']
+      ].each do |argv|
+        out = StringIO.new
+        expect(PWN::AI::CLI.run(argv: argv, output: out)).to eq(1)
+        expect(JSON.parse(out.string)).to have_key('error')
+        expect(File.read(path)).to eq('not json')
+      end
+    end
+  end
+
   it 'rejects ambiguous actions and stray positional arguments' do
     [%w[--replay one --rerun two], %w[--analyze file --replay one], %w[--replay one --ai prompt], ['stray']].each do |argv|
       expect { PWN::AI::CLI.parse(argv: argv) }.to raise_error(OptionParser::ParseError)

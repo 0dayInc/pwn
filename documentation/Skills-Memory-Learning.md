@@ -132,6 +132,8 @@ bundled skills into `~/.pwn/skills/` when the name is missing:
 | `att&ck` | Exhaustive test procedure per ATT&CK technique (`references/T1059.001.md`) |
 | `humanizer` | Strip AI writing patterns from prose. Keep meaning and identifiers. |
 
+`PWN::AI::Agent::SkillReview` runs after introspection. A routine success does not create a skill. A tested procedure, a resolved recurring mistake, or an explicit correction can recommend an update to the closest skill under `~/.pwn/skills`. The default mode is `recommend`. `auto-safe` writes only a small addition that an execution fixture passed in three sessions, and it keeps a backup. It does not create skills, rewrite generated `pwn/` module skills, or save secrets and raw tool output. Set `ai.agent.skill_review` to `off`, `recommend`, or `auto-safe`.
+
 Source: `etc/default_skills/` in the gem. SOP edits in `~/.pwn/skills/<name>/SKILL.md`
 are never overwritten. Generated `~/.pwn/skills/pwn/**/SKILL.md` module skills
 are updated on migrate when `lib/pwn` changes.

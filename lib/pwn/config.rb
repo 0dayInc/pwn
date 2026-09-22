@@ -161,6 +161,8 @@ module PWN
             max_depth: 3,
             # run PWN::AI::Agent::Learning.auto_introspect after every final answer
             auto_introspect: true,
+            # off, recommend, or auto-safe. A missing key means recommend.
+            skill_review: 'recommend',
             # also run PWN::AI::Agent::Extrospection.auto_extrospect from auto_introspect
             # (host/repo/env probes only — no toolchain/GUI/net side-effects)
             auto_extrospect: true,

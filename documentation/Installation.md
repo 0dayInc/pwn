@@ -187,6 +187,7 @@ What `--migrate` does:
    directory layout) → **deep-merge** any keys the current
    `PWN::Config.env_template` added into your encrypted `~/.pwn/pwn.yaml`
    **without overwriting your values** (re-encrypted with the same key/IV).
+   Schema 5 adds `ai.agent.skill_review` (`recommend` when the key is absent).
 
 Everything is idempotent and dry-run capable. The plain `pwn` launcher also
 prints a one-line drift warning on startup whenever `~/.pwn/.schema`

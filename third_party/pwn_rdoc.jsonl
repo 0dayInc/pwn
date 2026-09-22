@@ -826,6 +826,22 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SkillConsolidation.consolidate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillConsolidation.consolidate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SkillConsolidation.consolidate_file Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillConsolidation.consolidate_file`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SkillConsolidation.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillConsolidation.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.append_ledger Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.append_ledger`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.apply_update Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.apply_update`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.auto_safe? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.auto_safe?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.finish Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.finish`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.generated? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.generated?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.locate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.locate`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.mode_from Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.mode_from`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.note_reuse Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.note_reuse`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.procedure_from Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.procedure_from`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.review Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.review`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.review_turn Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.review_turn`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.sensitive? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.sensitive?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.useful? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.useful?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.verified_execution? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.verified_execution?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.ask Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.ask`: Supported Method Parameters\n\nreply = PWN::AI::Agent::Swarm.ask(\n\nname: 'required - persona name from ~/.pwn/agents.yml',\nrequest: 'required - what to ask/instruct the persona',\nswarm_id: 'optional - join an existing swarm (created if omitted)',\nto: 'optional - addressee recorded on the bus (default :all)',\non_tool: 'optional - ->(name, args, result) live-UI callback'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.broadcast Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.broadcast`: Supported Method Parameters\n\nresult = PWN::AI::Agent::Swarm.broadcast(\n\nrequest: 'required', names: 'optional - default all personas',\nswarm_id: 'optional'\n\n)\n"}]}
@@ -1052,6 +1068,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::CLI.help Usage"},{"role":"assistant","content":"`PWN::AI::CLI.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.parse Usage"},{"role":"assistant","content":"`PWN::AI::CLI.parse`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::CLI.run Usage"},{"role":"assistant","content":"`PWN::AI::CLI.run`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::CLI.run_policy Usage"},{"role":"assistant","content":"`PWN::AI::CLI.run_policy`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::CLI.validate_policy_options Usage"},{"role":"assistant","content":"`PWN::AI::CLI.validate_policy_options`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Context.attach_disasm Usage"},{"role":"assistant","content":"`PWN::AI::Context.attach_disasm`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Context.attach_file Usage"},{"role":"assistant","content":"`PWN::AI::Context.attach_file`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Context.attach_hexdump Usage"},{"role":"assistant","content":"`PWN::AI::Context.attach_hexdump`: "}]}

@@ -59,6 +59,16 @@ pwn_setup --migrate --fix        # ~/.pwn state doctor + autofix (PWN::Migrate)
 See [Installation](Installation.md) for the full profile table, the
 `PWN::Setup` API and the `PWN::Migrate` state-file registry.
 
+## Offline policy evaluation with `pwn-ai`
+
+`pwn-ai --policy evaluate --baseline PATH --candidate PATH` prints two frozen
+held-out reports without opening a vault or starting an AI session. The separate
+`--policy promote` and `--policy rollback` actions require an explicit target and
+both `--approve-policy-change` and `--policy-writers-stopped`. They never start
+network tasks or automatically promote on success. See
+[Policy-Benchmark](Policy-Benchmark.md#offline-operator-cli) for runnable local
+commands, receipt preservation, fresh replay gates, and limitations.
+
 ## Typical CI usage
 
 ```yaml

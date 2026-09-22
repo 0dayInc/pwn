@@ -20,6 +20,14 @@ module PWN
           options.on('--execute PATH', 'Run an approved YAML task DAG') { |v| result[:execute] = v }
           options.on('--resume RUN_ID', 'Resume a checkpointed DAG run, skipping completed steps') { |v| result[:resume] = v }
           options.on('--mission ID', 'Bind this plan or run to a durable mission') { |v| result[:mission] = v }
+          options.on('--policy ACTION', %w[evaluate promote rollback], 'Offline policy: evaluate, promote, rollback (no AI session)') { |v| result[:policy] = v }
+          options.on('--baseline PATH', 'Frozen baseline policy JSON') { |v| result[:baseline] = v }
+          options.on('--candidate PATH', 'Frozen candidate policy JSON') { |v| result[:candidate] = v }
+          options.on('--reports PATH', 'JSON array from --policy evaluate; replayed before promotion') { |v| result[:reports] = v }
+          options.on('--receipt PATH', 'Saved successful promotion JSON for rollback') { |v| result[:receipt] = v }
+          options.on('--live-policy PATH', 'Explicit existing policy target; no default') { |v| result[:live_path] = v }
+          options.on('--approve-policy-change', 'Operator explicitly approves promotion or rollback') { result[:enabled] = true }
+          options.on('--policy-writers-stopped', 'Operator attests ALL policy writers are stopped') { result[:quiescent] = true }
           options.on('--ai PROMPT', 'One-shot request; - reads standard input') { |v| result[:ai] = v }
           options.on('--pwn-env PATH', 'Use the specified encrypted configuration') { |v| result[:pwn_env_path] = v }
           options.on('--pwn-dec PATH', 'Use the specified decryptor') { |v| result[:pwn_dec_path] = v }
@@ -30,6 +38,8 @@ module PWN
         raise OptionParser::InvalidArgument, 'choose only one of --analyze, --replay, --rerun, --plan-only, --execute, --resume' if %i[analyze replay rerun plan_only execute resume].count { |key| result.key?(key) } > 1
         raise OptionParser::InvalidArgument, '--ai cannot accompany --replay or --rerun' if result[:ai] && (result[:replay] || result[:rerun])
         raise OptionParser::InvalidArgument, '--plan-only requires --ai' if result[:plan_only] && !result[:ai]
+
+        validate_policy_options(parsed: result)
 
         result[:help_text] = parser.to_s
         result
@@ -44,6 +54,8 @@ module PWN
         end
 
         require 'pwn'
+        return run_policy(parsed: parsed, output: output) if parsed[:policy]
+
         if parsed[:plan_only]
           prompt = parsed[:ai] == '-' ? (opts[:input] || $stdin).read : parsed[:ai]
           raise ArgumentError, '--ai requires a non-empty prompt' if prompt.to_s.strip.empty?
@@ -95,6 +107,48 @@ module PWN
           PWN::Plugins::REPL.start(ai_session_id: session[:id])
         end
         0
+      end
+
+      private_class_method def self.validate_policy_options(opts = {})
+        parsed = opts[:parsed]
+        fields = %i[baseline candidate reports receipt live_path enabled quiescent]
+        unless parsed[:policy]
+          raise OptionParser::InvalidArgument, 'policy options require --policy' if fields.any? { |key| parsed.key?(key) }
+
+          return
+        end
+
+        allowed = {
+          'evaluate' => %i[baseline candidate],
+          'promote' => %i[baseline candidate reports live_path enabled quiescent],
+          'rollback' => %i[receipt live_path enabled quiescent]
+        }.fetch(parsed[:policy])
+        unexpected = parsed.keys - allowed - %i[policy help]
+        raise OptionParser::InvalidArgument, "options not allowed with --policy #{parsed[:policy]}: #{unexpected.join(', ')}" unless unexpected.empty?
+
+        missing = (allowed - %i[enabled quiescent]) - parsed.keys
+        raise OptionParser::InvalidArgument, "missing policy options: #{missing.join(', ')}" unless missing.empty? || parsed[:help]
+      end
+
+      private_class_method def self.run_policy(opts = {})
+        parsed = opts[:parsed]
+        evaluator = PWN::AI::Agent::PolicyEvaluation
+        args = parsed.slice(:baseline, :candidate, :live_path, :enabled, :quiescent)
+        report = case parsed[:policy]
+                 when 'evaluate'
+                   [0, 1].map { |seed| evaluator.evaluate(args.merge(seed: seed)) }
+                 when 'promote', 'rollback'
+                   raise ArgumentError, 'requires --approve-policy-change and --policy-writers-stopped; stop all policy writers first' unless parsed[:enabled] && parsed[:quiescent]
+
+                   key = parsed[:policy] == 'promote' ? :reports : :receipt
+                   args[key] = JSON.parse(File.read(parsed.fetch(key)), symbolize_names: true)
+                   parsed[:policy] == 'promote' ? evaluator.promote(args) : evaluator.rollback(args)
+                 end
+        opts[:output].puts(JSON.generate(report))
+        report.is_a?(Hash) && (report[:promoted] == false || report[:rolled_back] == false) ? 1 : 0
+      rescue StandardError => e
+        opts[:output].puts(JSON.generate(error: e.message))
+        1
       end
 
       private_class_method def self.bind_mission!(opts = {})
