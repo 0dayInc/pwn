@@ -81,21 +81,16 @@ module PWN
 
       private_class_method def self.run!(opts = {})
         argv = opts[:argv]
-        if Open3.respond_to?(:capture3)
-          out, err, st = Open3.capture3(*argv)
-          raise IOError, "#{argv.first} failed: #{err}" unless st.success? || opts[:allow_nonzero] == true
+        out, st = Open3.capture2(*argv)
+        raise IOError, "#{argv.first} failed" unless st.success? || opts[:allow_nonzero] == true
 
-        else
-          out, = Open3.capture2(*argv)
-        end
-        out
-      rescue Errno::ENOENT
-        out, = Open3.capture2(*opts[:argv])
         out
       end
 
       private_class_method def self.parse_grype(opts = {})
         out = run!(argv: ['grype', '-o', 'json', opts[:target]], allow_nonzero: true)
+        raise IOError, 'grype returned no JSON' if out.to_s.strip.empty?
+
         json = JSON.parse(out)
         Array(json['matches']).map do |row|
           art = row['artifact'] || {}

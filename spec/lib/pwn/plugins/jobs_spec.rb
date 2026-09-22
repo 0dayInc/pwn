@@ -32,12 +32,14 @@ describe PWN::Plugins::Jobs do
   end
 
   it 'survives an exited creator and records completion in a fresh session' do
-    row = fresh("puts JSON.generate(PWN::Plugins::Jobs.start(command: 'sleep 2; printf durable', max_runtime: 21600, session_id: 'old'))")
+    gate = File.join(@root, 'release')
+    row = fresh("puts JSON.generate(PWN::Plugins::Jobs.start(command: 'while [ ! -f #{gate} ]; do sleep 0.05; done; printf durable', max_runtime: 21600, session_id: 'old'))")
     expect(row[:status]).to eq('RUNNING')
     expect(row[:worker_pid]).to be_a(Integer)
     expect(row[:worker_identity]).not_to be_nil
     worker_session = Process.getsid(row[:worker_pid])
     expect(fresh("puts JSON.generate(PWN::Plugins::Jobs.status(id: '#{row[:id]}'))")[:status]).to eq('RUNNING')
+    File.write(gate, '1')
     done = finished(row[:id])
     expect(worker_session).to eq(row[:worker_pid])
     expect(done).to include(status: 'COMPLETED', exit_code: 0, max_runtime: 21_600, session_id: 'old')
