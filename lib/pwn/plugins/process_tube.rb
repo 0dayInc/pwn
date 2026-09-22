@@ -100,6 +100,8 @@ module PWN
           rescue IO::WaitReadable
             t[:r].wait_readable(0.2)
             retry
+          rescue EOFError
+            return consume_buf(tube: t, bytes: t[:buf].bytesize)
           end
         end
       end
