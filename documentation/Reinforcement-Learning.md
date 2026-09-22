@@ -12,6 +12,13 @@ one. Without a trainer it still **exports** the datasets and a manual CLI. Live 
 
 ESR and ASR are the rates RSI actually compares. ESR is `verified_exploit_tools / vulnerable_tools`. ASR is `successful_attacks / total_attack_attempts`. `Learning.rsi_tick` stores the pair and writes an `rsi` lesson when ESR falls. Tool telemetry and the judge score are separate. A passing suite is not either rate.
 
+RSI's rate tick does not generate or promote policy candidates. For the separate
+**offline operator evaluation** path, use `pwn-ai --policy evaluate` and review
+the fixed local held-out reports. Promotion and rollback each require explicit
+`--approve-policy-change --policy-writers-stopped` plus a named live policy path;
+neither runs automatically from RSI. See the executable commands, stopped-writer
+requirements, and benchmark limits in [Policy-Benchmark](Policy-Benchmark.md#offline-operator-cli).
+
 ![Reinforcement-learning loop](diagrams/reinforcement-learning.svg)
 
 ```

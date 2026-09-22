@@ -822,13 +822,20 @@ module PWN
             rsi_tick(request: opts[:request])
           end
 
+          skill_review = nil
+          if defined?(SkillReview)
+            stages_run << :skill_review
+            skill_review = SkillReview.review_turn(request: opts[:request], final: opts[:final], success: opts[:success], session_id: opts[:session_id])
+          end
+
           {
             ok: ok,
             score: v[:score],
             elapsed_ms: elapsed_ms.call,
             budget_hot: budget_hot,
             stages_run: stages_run,
-            stages_skipped: stages_skipped
+            stages_skipped: stages_skipped,
+            skill_review: skill_review
           }
         rescue StandardError => e
           warn "[pwn-ai/learning] auto_introspect swallowed: #{e.class}: #{e.message}"

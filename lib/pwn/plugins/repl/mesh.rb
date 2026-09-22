@@ -1654,7 +1654,7 @@ module PWN
             if PWN.const_defined?(:MeshMutex) && PWN.const_defined?(:MeshRxBodyWin)
               mutex = PWN.const_get(:MeshMutex)
               state = PWN.const_defined?(:MeshRxState) ? PWN.const_get(:MeshRxState) : {}
-              ts = Time.now.strftime('%H:%M:%S')
+              ts = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
               color = opts[:local] ? 23 : 21
               secure = packet[:pki_encrypted] == true || mesh_channel_securely_encrypted?(env: env, channel: channel_name)
               security_icon = secure ? '🔒' : '🔍'

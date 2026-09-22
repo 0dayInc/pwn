@@ -15,6 +15,7 @@ module PWN
       autoload :GQRX, 'pwn/ai/agent/gqrx'
       autoload :SAST, 'pwn/ai/agent/sast'
       autoload :SkillConsolidation, 'pwn/ai/agent/skill_consolidation'
+      autoload :SkillReview, 'pwn/ai/agent/skill_review'
       autoload :TransparentBrowser, 'pwn/ai/agent/transparent_browser'
       autoload :VulnGen, 'pwn/ai/agent/vuln_gen'
 

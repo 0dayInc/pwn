@@ -34,6 +34,11 @@ describe 'RSI exploit and attack rates' do
   end
 
   it 'writes an RSI lesson when the measured exploit rate falls' do
+    expect(PWN::AI::Agent::PolicyEvaluation).not_to receive(:evaluate)
+    expect(PWN::AI::Agent::PolicyEvaluation).not_to receive(:promote)
+    expect(PWN::AI::Agent::PolicyEvaluation).not_to receive(:rollback)
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    expect(PWN::AI::Agent::Dispatch).not_to receive(:call)
     PWN::AI::Agent::Metrics.record_attempt(kind: 'exploit', tool: 'ret2libc', vulnerable_tool: 'libc', vulnerable: true, success: true)
     PWN::AI::Agent::Learning.rsi_tick(request: 'measure exploit rate')
     PWN::AI::Agent::Metrics.record_attempt(kind: 'exploit', tool: 'rop', vulnerable_tool: 'nginx', vulnerable: true, success: false)
