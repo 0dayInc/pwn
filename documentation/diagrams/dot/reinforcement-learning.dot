@@ -47,8 +47,9 @@ digraph "PWN_Reinforcement_Learning" {
     W1 [label="preference ledger\ntrajectory pairs\nscrub + geometry filter\nwrite+export <=40%/src", fillcolor="#fda4af"];
     W2 [label="train_and_gate\nSFT+DPO → LoRA vN+1\ngate + preference diet\nexport_ready without trainer", fillcolor="#fda4af", penwidth=2];
     W3 [label="calibrate\np(success) vs actual → Brier", fillcolor="#fda4af"];
+    Rates [label="ESR verified_exploit_tools / vulnerable_tools\nASR successful_attacks / total_attack_attempts\nrsi_tick on an ESR drop", fillcolor="#fda4af"];
   }
-  {rank=same; W1; W2; W3}
+  {rank=same; W1; W2; W3; Rates}
 
   /* Persistence */
   subgraph cluster_files {
@@ -97,6 +98,7 @@ digraph "PWN_Reinforcement_Learning" {
   W2 -> Ollama [label="LoRA", color="#fb7185", penwidth=2];
   Fmis -> W2 [label="eval set", style=dashed, color="#fbbf24", constraint=false];
   W3 -> Loop [label="calibration", style=dashed, color="#fbbf24", constraint=false];
+  Loop -> Rates [label="rsi_tick", color="#34d399", style=dashed, constraint=false];
 
   /* cron seeds */
   Cron [label="⏱  PWN::Cron.install_defaults\npractice · offline_judge\ntrain dry_run · consolidate", fillcolor="#7dd3fc"];

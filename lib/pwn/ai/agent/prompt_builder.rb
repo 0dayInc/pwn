@@ -82,7 +82,7 @@ module PWN
               pwn        : #{pwn_version}
               session_id : #{session_id || '(none)'}
 
-            #{harness}#{deliverable_block(request: request)}TOOL USE
+            #{harness}#{deliverable_block(request: request)}#{mission_ledger(request: request)}TOOL USE
               Use the provided function tools to act on the host via NATIVE
               tool_calls / function calling — never print tool invocations as
               plain text (e.g. do NOT write shell(command="...") as your answer).
@@ -182,6 +182,17 @@ module PWN
           PWN::Env.dig(:ai, :active).to_s.downcase.to_sym
         rescue StandardError
           :openai
+        end
+
+        private_class_method def self.mission_ledger(opts = {})
+          return '' unless defined?(PWN::AI::Agent::Mission)
+
+          text = PWN::AI::Agent::Mission.ledger_text(request: opts[:request])
+          return '' if text.empty?
+
+          "MISSION LEDGER\n#{text}\n"
+        rescue StandardError
+          ''
         end
 
         private_class_method def self.host_line

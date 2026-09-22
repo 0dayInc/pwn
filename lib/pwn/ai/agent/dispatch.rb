@@ -103,12 +103,15 @@ module PWN
               code: 'CAP_DENY'
             )
           end
+          mission = defined?(Mission) ? Mission.active : nil
           ack = Confirmation.gate(
             name: entry.name,
             args: args,
             engagement_id: opts[:engagement_id] || args[:engagement_id] || args['engagement_id'],
             operator_ack: opts[:operator_ack] || args[:operator_ack] || args['operator_ack'],
-            scope_path: opts[:scope_path]
+            scope_path: opts[:scope_path],
+            unattended: mission && mission[:unattended] == true,
+            ack_scope: mission && mission[:unattended] == true
           )
           return JSON.generate(ack) if ack
 

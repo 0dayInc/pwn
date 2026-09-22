@@ -17,6 +17,8 @@ digraph "PWN_Reports" {
     Fuzz [label="Plugins::Fuzz", fillcolor="#6ee7b7"];
     Uri  [label="URI Buster",    fillcolor="#6ee7b7"];
     Phone[label="BareSIP recon", fillcolor="#6ee7b7"];
+    Obs  [label="Nuclei · SBOM\nrecon observations\nnot findings", fillcolor="#6ee7b7"];
+    Find [label="Findings.record\nseverity info\nuntil verify", fillcolor="#6ee7b7"];
   }
   subgraph cluster_gen {
     label="Generators"; fontcolor="#fde68a"; style=rounded;
@@ -33,12 +35,16 @@ digraph "PWN_Reports" {
     JSON [label="JSON",                   fillcolor="#c4b5fd"];
     DD   [label="DefectDojo\nimport/reimport", fillcolor="#c4b5fd"];
     Jira [label="JiraDataCenter",          fillcolor="#c4b5fd"];
+    Gate [label="refuse_unproven_combined!\nhigh/critical needs reproduced\nchain file naming every id", fillcolor="#fda4af"];
   }
 
   Sast  -> Rsast  [color="#f59e0b"];
   Fuzz  -> Rfuzz  [color="#f59e0b"];
   Uri   -> Ruri   [color="#f59e0b"];
   Phone -> Rphone [color="#f59e0b"];
+  Obs   -> Find   [label="handoff", color="#34d399"];
+  Find  -> Gate   [label="verify transcript", color="#f59e0b"];
+  Gate  -> HTML   [color="#a78bfa"];
   Rsast  -> HTML [color="#a78bfa"];
   Rfuzz  -> JSON [color="#a78bfa"];
   Ruri   -> DD   [color="#a78bfa"];

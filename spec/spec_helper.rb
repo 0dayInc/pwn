@@ -33,6 +33,17 @@ RSpec.configure do |config|
   config.filter_run_excluding :combo_nation_mcp unless ENV['PWN_TEST_COMBO_NATION_MCP'] == '1'
   config.filter_run_excluding :x86_64_binary unless RbConfig::CONFIG['host_cpu'].to_s.match?(/amd64|x86_64/)
 
+  if ENV['PWN_RAKE_SPEC'] == '1'
+    module SilenceRakeFilterBanner
+      def report_filter_message(message)
+        return if message.to_s.start_with?('Run options:')
+
+        super
+      end
+    end
+    RSpec::Core::World.prepend(SilenceRakeFilterBanner)
+  end
+
   next if ENV['PWN_SPEC_VERBOSE']
 
   original_stdout = $stdout

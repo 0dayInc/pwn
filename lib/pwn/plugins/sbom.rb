@@ -30,15 +30,23 @@ module PWN
                else
                  raise IOError, 'no SBOM engine installed (syft, grype, trivy, or osv-scanner)'
                end
-        findings = []
-        if defined?(PWN::Plugins::Findings) && opts[:record] == true
+        observations = []
+        if defined?(PWN::Plugins::Recon) && opts[:record] == true
           rows.each do |row|
             next if row[:cve].to_s.empty?
 
-            findings << PWN::Plugins::Findings.record(title: "#{row[:package]} #{row[:cve]}", severity: row[:severity], host: target, evidence: row.inspect, poc: "sbom_scan #{target}")
+            observations << PWN::Plugins::Recon.observe(
+              host: target,
+              product: row[:package].to_s,
+              version: row[:version].to_s,
+              evidence_path: target,
+              source: 'sbom',
+              lead: "#{row[:package]} #{row[:cve]}",
+              engagement_id: opts[:engagement_id]
+            )
           end
         end
-        { engine: engine, target: target, vulns: rows, findings: findings }
+        { engine: engine, target: target, vulns: rows, observations: observations }
       end
 
       public_class_method def self.authors
@@ -56,7 +64,8 @@ module PWN
             path: 'optional - alias for path_or_image',
             image: 'optional - alias for path_or_image',
             engine: 'optional - syft, grype, trivy, or osv-scanner',
-            record: 'optional - true records each CVE via Findings.record'
+            record: 'optional - true stores each CVE as a recon observation, not a finding',
+            engagement_id: 'optional - engagement identifier for the observation'
           )
 
           # Print the AUTHOR(S) string for this module.

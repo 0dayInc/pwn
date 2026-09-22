@@ -14,8 +14,9 @@ describe 'PWN::AI::Agent::Tools nuclei_scan' do
     expect(PWN::AI::Agent::Registry.lookup(name: 'nuclei_scan')).not_to be_nil
   end
 
-  it 'records a web finding from JSONL in one Dispatch call' do
+  it 'stores a nuclei lead as a recon observation, not a finding' do
     Dir.mktmpdir('pwn-nuclei-tool-') do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
       stub_const('PWN::Plugins::Findings::FILE', File.join(dir, 'findings.jsonl'))
       jsonl = File.join(dir, 'hit.jsonl')
       File.write(jsonl, "#{JSON.generate(
@@ -29,9 +30,11 @@ describe 'PWN::AI::Agent::Tools nuclei_scan' do
       )
       row = JSON.parse(raw, symbolize_names: true).fetch(:result)
       expect(row[:findings].first[:template_id]).to eq('exposed-panel')
-      stored = PWN::Plugins::Findings.report
-      expect(stored.first[:matched_at]).to include('/admin')
-      expect(stored.first[:severity].to_s).to match(/medium/i)
+      expect(PWN::Plugins::Findings.report).to eq([])
+      observed = PWN::Plugins::Recon.observations
+      expect(observed.first[:lead]).to include('admin')
+      expect(observed.first[:host]).to eq('app.example.test')
+      expect(observed.first[:source]).to eq('nuclei')
     end
   end
 end

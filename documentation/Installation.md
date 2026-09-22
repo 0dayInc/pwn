@@ -268,6 +268,7 @@ The first `pwn` launch creates `~/.pwn/` and an **encrypted**
 - `cwe`
 - `capec`
 - `att&ck`
+- `humanizer`
 
 Source lives in the gem at `etc/default_skills/`. `PWN::Config.install_default_skills`
 walks every `SKILL.md` recursively (idempotent SOP copies; never overwrites an

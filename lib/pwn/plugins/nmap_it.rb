@@ -169,6 +169,9 @@ module PWN
 
         xml = (opts[:xml_file] || opts[:xml]).to_s
         if xml.empty? || opts[:run] == true
+          skipped = skip_known_ports(opts)
+          return skipped if skipped
+
           xml = File.join(Dir.tmpdir, "pwn-nmap-#{Process.pid}-#{SecureRandom.hex(4)}.xml") if xml.empty?
           port_scan(opts.merge(xml: xml, targets: targets))
         end
@@ -257,7 +260,10 @@ module PWN
             override: 'optional - true records out-of-scope hosts',
             target: 'optional - alias for targets',
             name: 'optional - engagement name for host-state merge',
-            at: 'optional - Time or ISO8601 timestamp stored on the scan snapshot'
+            at: 'optional - Time or ISO8601 timestamp stored on the scan snapshot',
+            refresh: 'optional - true rescans ports that already have an observation',
+            ports: 'optional - ports to scan; known observation ports are skipped unless refresh is true',
+            handoff: 'optional - recon asset hash used as the scan target'
           )
 
           # Parse nmap XML into hosts, ports, and script output hashes.
@@ -278,6 +284,24 @@ module PWN
           #{self}.authors
         "
         constants.sort
+      end
+
+      private_class_method def self.skip_known_ports(opts = {})
+        return nil if opts[:refresh]
+        return nil unless defined?(PWN::Plugins::Recon)
+
+        handoff = PWN::Plugins::Recon.handoff(handoff: opts[:handoff] || opts[:asset]) if opts[:handoff] || opts[:asset]
+        host = handoff && !handoff[:host].empty? ? handoff[:host] : Array(opts[:targets] || opts[:target]).first.to_s
+        return nil if host.empty?
+
+        known = PWN::Plugins::Recon.known_ports(host: host, engagement_id: opts[:engagement] || opts[:name])
+        requested = Array(opts[:ports]).map(&:to_i)
+        requested = [handoff[:port].to_i] if requested.empty? && handoff && handoff[:port]
+        covered = requested.empty? ? known : (requested & known)
+        return nil if covered.empty?
+        return nil if !requested.empty? && (requested - known).any?
+
+        { hosts: [], ports: [], scanned: false, skipped_ports: covered, reason: 'existing observation' }
       end
 
       private_class_method def self.script_map(opts = {})

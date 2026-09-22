@@ -59,6 +59,11 @@ PWN::AI::Agent::Metrics.load(opts)
 - `calibration`
 - `calibration_green`
 - `scale_prediction`
+- `record_attempt`
+- `esr`
+- `asr`
+- `snapshot_rates`
+- `previous_rates`
 - `scoreboard`
 - `health_line`
 - `reset`

@@ -11,6 +11,10 @@ require 'rdoc/task'
 require 'rubocop/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)
+task :silence_rspec_filter_banner do
+  ENV['PWN_RAKE_SPEC'] = '1'
+end
+Rake::Task[:spec].enhance([:silence_rspec_filter_banner])
 
 RuboCop::RakeTask.new do |rubocop|
   config_file = '.rubocop.yml'

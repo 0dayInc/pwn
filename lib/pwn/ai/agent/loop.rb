@@ -2886,17 +2886,20 @@ module PWN
           # Cheap intent/kind FIRST - before PromptBuilder / Registry / TaskSummarizer
           # so greetings, FYIs, how-tos, recall, and simple Qs never pay the fat path.
           intent = request_intent(request: request)
-          if defined?(OpenGoal) && OpenGoal.resume?(request: request)
-            prior = OpenGoal.current
-            if prior && !prior[:request].to_s.strip.empty?
-              request = prior[:request].to_s
-              opts[:request] = request
-              intent = request_intent(request: request)
-            end
-          elsif !nested && defined?(OpenGoal) && needs_host_work?(request: request) &&
-                !%i[greeting howto recall].include?(intent)
-            OpenGoal.begin!(request: request, session_id: session_id)
-          end
+          prepared = prepare_open_goal(
+            request: request,
+            intent: intent,
+            nested: nested,
+            session_id: session_id,
+            unattended: opts[:unattended],
+            mission_id: opts[:mission_id],
+            min_seconds: opts[:min_seconds]
+          )
+          return prepared[:early] if prepared[:early]
+
+          request = prepared[:request]
+          opts[:request] = request
+          intent = prepared[:intent]
           Thread.current[:pwn_request_intent] = intent
           TurnFinalizer.commit_artifacts!(request: request, inherit: nested)
           required_artifacts = TurnFinalizer.required_artifacts(request: request)
@@ -3416,6 +3419,45 @@ module PWN
           "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
         end
 
+        private_class_method def self.prepare_open_goal(opts = {})
+          request = opts[:request].to_s
+          intent = opts[:intent]
+          nested = opts[:nested]
+          if defined?(Mission) && (mid = Mission.active_id)
+            Mission.recover!(id: mid)
+            return { request: request, intent: intent, early: 'mission has a live supervisor; not starting a second executor' } if Mission.busy?(id: mid)
+          end
+          return { request: request, intent: intent } unless defined?(OpenGoal)
+
+          if OpenGoal.resume?(request: request)
+            prior = OpenGoal.current
+            if defined?(Mission) && prior && !prior[:mission_id].to_s.empty?
+              row = Mission.current(id: prior[:mission_id])
+              return { request: request, intent: intent, early: 'unattended mission has no approved run; use pwn-ai --execute' } if row && row[:unattended] && row[:run_id].to_s.empty?
+
+              report = Mission.resume_run(id: prior[:mission_id])
+              return { request: request, intent: intent, early: report[:text] } if report[:resumed] && !nested
+            end
+            if prior && !prior[:request].to_s.strip.empty?
+              request = prior[:request].to_s
+              intent = request_intent(request: request)
+            end
+          elsif !nested && needs_host_work?(request: request) && !%i[greeting howto recall].include?(intent)
+            mission_id = nil
+            if opts[:unattended] && defined?(Mission)
+              mission = Mission.begin!(
+                request: request,
+                id: opts[:mission_id],
+                unattended: true,
+                min_seconds: opts[:min_seconds]
+              )
+              mission_id = mission[:id]
+            end
+            OpenGoal.begin!(request: request, session_id: opts[:session_id], mission_id: mission_id)
+          end
+          { request: request, intent: intent }
+        end
+
         public_class_method def self.help
           puts "USAGE:
             # Run debug on and return its result
@@ -3478,7 +3520,10 @@ module PWN
               engine: 'optional - provider name; defaults to PWN::Env ai.active',
               core_only: 'optional - restrict to CORE_TOOLS plus relevant MCP discovery when true',
               trace: 'optional - enable TracePoint debug for this run',
-              debug_tee: 'optional - IO to tee debug logs'
+              debug_tee: 'optional - IO to tee debug logs',
+              unattended: 'optional - true starts a durable mission and fails closed without an approved DAG',
+              mission_id: 'optional - mission identifier consumed by #run',
+              min_seconds: 'optional - named duration that keeps the mission open'
             )
 
             # Remaining time/token/mutation budget for the current loop.

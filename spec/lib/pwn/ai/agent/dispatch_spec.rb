@@ -55,4 +55,15 @@ describe PWN::AI::Agent::Dispatch do
     expect(parsed[:effect].to_s).to eq 'read'
     expect(parsed.dig(:result, :stdout).to_s).to include('effect_stamp_ok')
   end
+
+  it 'fails closed for an unattended mission without passing job tails to the gate' do
+    allow(PWN::AI::Agent::Mission).to receive(:active).and_return(id: 'lab', unattended: true)
+    allow(PWN::AI::Agent::Confirmation).to receive(:gate).and_return(success: false, code: 'ACK_DENY')
+    described_class.call(
+      tool_call: {
+        function: { name: 'shell', arguments: JSON.generate(command: 'true') }
+      }
+    )
+    expect(PWN::AI::Agent::Confirmation).to have_received(:gate).with(hash_including(unattended: true, ack_scope: true))
+  end
 end

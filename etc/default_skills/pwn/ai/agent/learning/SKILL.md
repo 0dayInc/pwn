@@ -44,6 +44,7 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 - `distill_skill`
 - `update_skill`
 - `reflect`
+- `rsi_tick`
 - `auto_introspect`
 - `flip_last_outcome`
 - `consolidate`

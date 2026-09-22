@@ -77,7 +77,9 @@ POLICY · EXTROSPECTION · RECENT TURNS) are re-injected into the next system
 prompt.
 Nightly hygiene cron trims `~/.pwn` stores. Curriculum practice, offline
 judge, and weekly LoRA train ship seeded but disabled; turn them on with
-`cron_enable` when you want that loop:
+`cron_enable` when you want that loop.
+
+`Metrics.esr` is `verified_exploit_tools / vulnerable_tools`. `Metrics.asr` is `successful_attacks / total_attack_attempts`. `Learning.rsi_tick` compares ESR with the previous snapshot and writes a lesson when it falls. A file hash, a nuclei template match, or a CVE id does not move ESR. Only a reproduced exploit does.
 
 ![Self-improvement loop](diagrams/pwn-ai-feedback-learning-loop.svg)
 

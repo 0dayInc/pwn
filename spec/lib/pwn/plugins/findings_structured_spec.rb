@@ -25,7 +25,7 @@ RSpec.describe PWN::Plugins::Findings do
   it 'persists the complete structured contract without treating file existence as PoC execution' do
     row = described_class.record_structured(finding)
     expect(row).to include(finding)
-    expect(row[:severity]).to eq('medium')
+    expect(row[:severity]).to eq('info')
     expect(row[:verification_status]).to eq('not_executed')
     expect(described_class.report(engagement_id: 'fixture').first).to include(finding)
     expect(described_class.report(engagement_id: 'other')).to eq([])
@@ -142,12 +142,12 @@ RSpec.describe PWN::Plugins::Findings do
     parent = described_class.record_structured(finding)
     child = described_class.record_structured(finding.merge(title: '<script>fixture</script>', attack_chain_refs: [parent[:id]]))
     score = described_class.chain_score(ids: [parent[:id], child[:id]])
-    expect(score[:combined_severity]).to eq('medium')
+    expect(score[:combined_severity]).to eq('info')
     expect(score[:rationale]).to include('No automatic escalation')
     outputs = described_class.render(dir_path: @dir, engagement_id: 'fixture')
     json = JSON.parse(File.read(outputs[:json]))
     expect(json['attack_chains'].first['finding_ids']).to contain_exactly(parent[:id], child[:id])
-    expect(json['attack_chains'].first['combined_severity']).to eq('medium')
+    expect(json['attack_chains'].first['combined_severity']).to eq('info')
     expect(File.read(outputs[:markdown])).to include('## Attack chains', parent[:id], 'No automatic escalation')
     html = File.read(outputs[:html])
     expect(html).to include('Attack chains', 'CWE-200', 'Restrict fixture access.', @evidence, '&lt;script&gt;')
@@ -165,23 +165,21 @@ RSpec.describe PWN::Plugins::Findings do
     expect(File.exist?(described_class::FILE)).to be(false)
   end
 
-  it 'marks a finding reproduced only when request/response evidence contains the impact' do
-    row = described_class.record_structured(finding)
-    request = File.join(@dir, 'req.txt')
-    response = File.join(@dir, 'res.txt')
-    File.write(request, "GET /admin HTTP/1.1\nHost: 127.0.0.1")
-    File.write(response, "HTTP/1.1 200 OK\n\nuid=0(root) fixture")
-    verified = described_class.verify(id: row[:id], kind: 'http', request_path: request, response_path: response, impact: 'uid=0')
+  it 'marks a finding reproduced only when the stored PoC prints the impact' do
+    script = File.join(@dir, 'poc.sh')
+    File.write(script, "#!/bin/sh\nprintf 'uid=0(root) fixture\\n'\n")
+    File.chmod(0o755, script)
+    row = described_class.record_structured(finding.merge(poc: script, reproduction_steps: [script]))
+    planted = File.join(@dir, 'res.txt')
+    File.write(planted, "HTTP/1.1 200 OK\n\nuid=0(root) fixture")
+    verified = described_class.verify(id: row[:id], kind: 'script', impact: 'uid=0', request_path: planted, response_path: planted)
     expect(verified[:verification_status]).to eq('reproduced')
-    expect(verified[:evidence_artifacts].map { |artifact| artifact[:path] }).to include(request, response)
-    expect(verified[:evidence_artifacts].all? { |artifact| Digest::SHA256.file(artifact[:stored]).hexdigest == artifact[:sha256] }).to be(true)
+    expect(verified[:severity]).to eq('medium')
     expect(described_class.report(engagement_id: 'fixture').first[:verification_status]).to eq('reproduced')
-    File.write(response, "HTTP/1.1 403 Forbidden\n\ndenied")
-    retest = described_class.retest(id: row[:id], kind: 'http', request_path: request, response_path: response, impact: 'uid=0')
+    File.write(script, "#!/bin/sh\nprintf 'denied\\n'\n")
+    retest = described_class.retest(id: row[:id], kind: 'script', impact: 'uid=0')
     expect(retest[:verification_status]).to eq('fixed')
     expect(retest[:status]).to eq('closed')
-    responses = retest[:evidence_artifacts].select { |artifact| artifact[:path] == response }
-    expect(responses.map { |artifact| artifact[:sha256] }.uniq.length).to eq(2)
   end
 
   it 'persists path-scoped impact assessments with actual evidence and only consecutive directed edges' do
@@ -217,8 +215,8 @@ RSpec.describe PWN::Plugins::Findings do
     expect(assessments.find { |item| item[:finding_ids] == [d[:id], c[:id]] }).to include(combined_severity: 'high', reproduction_steps: ['Replay alternate fixture.'])
     expect(described_class.chain_score(ids: ids)[:combined_severity]).to eq('critical')
     expect(described_class.chain_score(ids: [d[:id], c[:id]])[:combined_severity]).to eq('high')
-    expect(described_class.chain_score(ids: [b[:id], c[:id]])[:combined_severity]).to eq('medium')
-    expect(described_class.chain_score(ids: ids.reverse)[:combined_severity]).to eq('medium')
+    expect(described_class.chain_score(ids: [b[:id], c[:id]])[:combined_severity]).to eq('info')
+    expect(described_class.chain_score(ids: ids.reverse)[:combined_severity]).to eq('info')
   end
 
   it 'scores exact requested paths through the canonical graph without unrelated assessment uplift' do
@@ -235,11 +233,11 @@ RSpec.describe PWN::Plugins::Findings do
     score = described_class.chain_score(ids: [a[:id], b[:id]])
     expect(score).to include(score: 'critical', combined_severity: 'critical', n: 2, rationale: text)
     expect(score[:chains].first).to include(finding_ids: [a[:id], b[:id]], assessment_status: 'evidence_backed')
-    expect(described_class.chain_score(chain_refs: [other[:id], b[:id]])).to include(score: 'medium', n: 2)
-    expect(described_class.chain_score(ids: [b[:id]])).to include(score: 'medium', n: 1)
+    expect(described_class.chain_score(chain_refs: [other[:id], b[:id]])).to include(score: 'info', n: 2)
+    expect(described_class.chain_score(ids: [b[:id]])).to include(score: 'info', n: 1)
     expect(described_class.chain_score(ids: ['missing'])).to include(score: 'info', n: 0)
     expect(described_class.chain_score[:combined_severity]).to eq('critical')
-    expect(described_class.report.map { |row| row[:severity] }.uniq).to eq(['medium'])
+    expect(described_class.report.map { |row| row[:severity] }.uniq).to eq(['info'])
   end
 
   it 'rejects invalid impact paths before changing any finding or evidence ledger' do
@@ -280,13 +278,11 @@ RSpec.describe PWN::Plugins::Findings do
     expect(File.read(described_class::FILE)).to eq(before)
   end
 
-  it 'rejects signature-only verification and requires combined-impact evidence to escalate a chain' do
-    parent = described_class.record_structured(finding)
-    child = described_class.record_structured(finding.merge(title: 'IDOR fixture', cwe: 'CWE-639'))
-    expect { described_class.verify(id: parent[:id], kind: 'http', impact: 'uid=0') }.to raise_error(ArgumentError, /request_path/)
-    expect(described_class.report(engagement_id: 'fixture').first[:verification_status]).to eq('not_executed')
-    File.write(@evidence, 'Local fixture returned the reproducible response.')
-    failed = described_class.verify(id: parent[:id], kind: 'http', request_path: @evidence, response_path: @evidence, impact: 'not-in-file')
+  it 'rejects a planted impact file and requires an executed transcript' do
+    parent = described_class.record_structured(finding.merge(reproduction_steps: ["printf 'no-impact\\n'"]))
+    child = described_class.record_structured(finding.merge(title: 'IDOR fixture', cwe: 'CWE-639', reproduction_steps: ["printf 'child\\n'"]))
+    File.write(@evidence, 'uid=0')
+    failed = described_class.verify(id: parent[:id], kind: 'script', request_path: @evidence, response_path: @evidence, impact: 'uid=0')
     expect(failed[:verification_status]).to eq('failed')
     impact = File.join(@dir, 'combined.txt')
     File.write(impact, "Chaining #{parent[:id]} with #{child[:id]} yields account takeover on the fixture.")

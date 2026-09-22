@@ -93,6 +93,9 @@ RSpec.describe 'PWN::AI::CLI' do
   end
 
   it 'emits a YAML DAG for --plan-only without running the agent loop' do
+    home = Dir.mktmpdir('pwn-cli-plan-')
+    stub_const('PWN::AI::Agent::Mission::ROOT', File.join(home, 'missions'))
+    stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(home, 'open_goal.json'))
     expect(PWN::AI::Agent::Loop).not_to receive(:run)
     expect(PWN::AI::Agent::Dispatch).not_to receive(:call)
     out = StringIO.new
@@ -100,6 +103,38 @@ RSpec.describe 'PWN::AI::CLI' do
     dag = YAML.safe_load(out.string)
     expect(dag['steps'].length).to be >= 2
     expect(dag['steps'].first).to include('tool', 'args', 'side_effect', 'dependencies')
+  ensure
+    FileUtils.remove_entry(home) if home && Dir.exist?(home)
+  end
+
+  it 'writes a mission ledger for --plan-only and binds it on --execute' do
+    home = Dir.mktmpdir('pwn-cli-mission-')
+    allow(PWN::Config).to receive(:refresh_env)
+    stub_const('PWN::AI::Agent::Mission::ROOT', File.join(home, 'missions'))
+    stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(home, 'open_goal.json'))
+    stub_const('PWN::AI::Agent::TaskDAG::ROOT', File.join(home, 'runs'))
+    out = StringIO.new
+    expect(PWN::AI::CLI.run(argv: ['--plan-only', '--ai', 'echo one then echo two', '--mission', 'lab'], output: out)).to eq(0)
+    expect(PWN::AI::Agent::Mission.current(id: 'lab')[:request]).to eq('echo one then echo two')
+    expect(PWN::AI::Agent::OpenGoal.current[:mission_id]).to eq('lab')
+    dag_path = File.join(home, 'missions', 'lab', 'dag.yaml')
+    File.write(dag_path, File.read(dag_path).sub("tool: shell\n", "tool: shell\n    hand_written: true\n"))
+    expect(PWN::AI::Agent::TaskDAG).to receive(:execute).and_return(run_id: 'lab-run', ok: true, results: [])
+    expect(PWN::AI::CLI.run(argv: ['--execute', dag_path, '--mission', 'lab'], output: StringIO.new)).to eq(0)
+    expect(PWN::AI::Agent::Mission.current(id: 'lab')[:run_id]).to eq('lab-run')
+  ensure
+    FileUtils.remove_entry(home) if home && Dir.exist?(home)
+  end
+
+  it 'rejects an inferred shell step on operator execute' do
+    home = Dir.mktmpdir('pwn-cli-shell-')
+    allow(PWN::Config).to receive(:refresh_env)
+    stub_const('PWN::AI::Agent::Mission::ROOT', File.join(home, 'missions'))
+    path = File.join(home, 'dag.yaml')
+    File.write(path, YAML.dump('steps' => [{ 'id' => 's1', 'tool' => 'shell', 'args' => { 'command' => 'true' }, 'dependencies' => [] }]))
+    expect(PWN::AI::CLI.run(argv: ['--execute', path, '--mission', 'lab'], output: StringIO.new)).to eq(1)
+  ensure
+    FileUtils.remove_entry(home) if home && Dir.exist?(home)
   end
 
   it 'prints executable help without reading or creating a vault' do

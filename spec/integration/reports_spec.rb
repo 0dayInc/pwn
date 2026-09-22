@@ -16,7 +16,7 @@ RSpec.describe 'PWN::Reports', :aggregate_failures do
     around do |example|
       Dir.mktmpdir('pwn_chain_evidence') do |dir|
         @evidence_dir = dir
-        File.write(File.join(dir, 'proof'), 'demonstrated admin access')
+        File.write(File.join(dir, 'proof'), 'ssrf enables admin demonstrated admin access')
         example.run
       end
     end
@@ -27,8 +27,8 @@ RSpec.describe 'PWN::Reports', :aggregate_failures do
     end
     let(:members) do
       [
-        { 'id' => 'ssrf', 'title' => 'SSRF <entry>', 'severity' => 'medium', 'cvss' => 5.3, 'enables' => ['admin'] },
-        { 'id' => 'admin', 'title' => 'Internal admin', 'severity' => 'medium', 'cvss' => 6.5,
+        { 'id' => 'ssrf', 'title' => 'SSRF <entry>', 'severity' => 'medium', 'verification_status' => 'reproduced', 'cvss' => 5.3, 'enables' => ['admin'] },
+        { 'id' => 'admin', 'title' => 'Internal admin', 'severity' => 'medium', 'verification_status' => 'reproduced', 'cvss' => 6.5,
           'chain_assessments' => [{ 'finding_ids' => %w[ssrf admin], 'combined_severity' => 'critical', 'rationale' => 'Verified <admin> access',
                                     'reproduction_steps' => ['Send <request>', 'Observe admin access'], 'evidence_artifacts' => [evidence.transform_keys(&:to_s)] }] },
         { 'id' => 'other', 'title' => 'Other issue', 'severity' => 'high' }

@@ -209,7 +209,8 @@ module PWN
           limit  = opts[:limit] || 8
           engine = opts[:engine]
           rows   = summary(limit: limit, engine: engine)
-          return '' if rows.empty?
+          rates = "ESR=#{esr[:rate] || '-'} ASR=#{asr[:rate] || '-'}\n"
+          return rates if rows.empty? && (esr[:n].to_i.positive? || asr[:n].to_i.positive?)
 
           # P4 — when Reward.sentinel says proxy is hacked, haircut displayed
           # success rates so the model does not trust the lie in the prompt.
@@ -577,6 +578,93 @@ module PWN
           opts[:predicted].to_f.clamp(0.0, 1.0)
         end
 
+        public_class_method def self.record_attempt(opts = {})
+          kind = opts[:kind].to_s
+          raise ArgumentError, 'kind must be exploit or attack' unless %w[exploit attack].include?(kind)
+
+          success = opts[:success] == true
+          tool = (opts[:tool] || opts[:technique]).to_s
+          vulnerable_tool = (opts[:vulnerable_tool] || opts[:finding_id]).to_s
+          vulnerable = opts[:vulnerable] == true
+          metrics = load
+          metrics[:rates] ||= {}
+          if kind == 'exploit'
+            bucket = metrics[:rates][:exploit] ||= { verified_exploit_tools: [], vulnerable_tools: [] }
+            verified = Array(bucket[:verified_exploit_tools]).map(&:to_s).reject(&:empty?)
+            vulnerable_tools = Array(bucket[:vulnerable_tools]).map(&:to_s).reject(&:empty?)
+            vulnerable_tools << vulnerable_tool if vulnerable && !vulnerable_tool.empty? && !vulnerable_tools.include?(vulnerable_tool)
+            if success && !tool.empty?
+              verified << tool unless verified.include?(tool)
+              vulnerable_tools << vulnerable_tool if !vulnerable_tool.empty? && !vulnerable_tools.include?(vulnerable_tool)
+            elsif opts[:revoke] == true && !tool.empty?
+              verified.delete(tool)
+            end
+            bucket[:verified_exploit_tools] = verified
+            bucket[:vulnerable_tools] = vulnerable_tools
+          else
+            bucket = metrics[:rates][:attack] ||= { successful_attacks: 0, total_attack_attempts: 0, window: [] }
+            bucket[:total_attack_attempts] = bucket[:total_attack_attempts].to_i + 1
+            bucket[:successful_attacks] = bucket[:successful_attacks].to_i + 1 if success
+            bucket[:window] = (Array(bucket[:window]) + [success ? 1 : 0]).last(WINDOW)
+          end
+          bucket[:last_technique] = opts[:technique].to_s
+          bucket[:last_finding_id] = opts[:finding_id].to_s
+          save(metrics: metrics)
+          kind == 'exploit' ? esr(window: opts[:window]) : asr(window: opts[:window])
+        end
+
+        public_class_method def self.esr(opts = {})
+          _window = opts[:window]
+          bucket = (load[:rates] || {})[:exploit] || {}
+          verified = Array(bucket[:verified_exploit_tools]).map(&:to_s).reject(&:empty?).uniq
+          vulnerable = Array(bucket[:vulnerable_tools]).map(&:to_s).reject(&:empty?).uniq
+          rate = vulnerable.empty? ? nil : (verified.length.to_f / vulnerable.length).round(3)
+          {
+            kind: 'exploit',
+            verified_exploit_tools: verified.length,
+            vulnerable_tools: vulnerable.length,
+            n: vulnerable.length,
+            ok: verified.length,
+            rate: rate
+          }
+        end
+
+        public_class_method def self.asr(opts = {})
+          bucket = (load[:rates] || {})[:attack] || {}
+          total = bucket[:total_attack_attempts].to_i
+          total = bucket[:n].to_i if total.zero? && bucket[:n].to_i.positive?
+          ok = bucket.key?(:successful_attacks) ? bucket[:successful_attacks].to_i : bucket[:ok].to_i
+          window = Array(bucket[:window])
+          rate = if opts[:window] && window.any?
+                   (window.sum.to_f / window.length).round(3)
+                 elsif total.positive?
+                   (ok.to_f / total).round(3)
+                 end
+          {
+            kind: 'attack',
+            successful_attacks: ok,
+            total_attack_attempts: total,
+            n: total,
+            ok: ok,
+            rate: rate
+          }
+        end
+
+        public_class_method def self.snapshot_rates(opts = {})
+          metrics = load
+          metrics[:rsi] ||= {}
+          metrics[:rsi][:esr] = opts[:esr]
+          metrics[:rsi][:asr] = opts[:asr]
+          metrics[:rsi][:at] = Time.now.utc.iso8601
+          save(metrics: metrics)
+          metrics[:rsi]
+        end
+
+        public_class_method def self.previous_rates(opts = {})
+          _n = opts[:n]
+          load[:rsi] || {}
+        end
+
         public_class_method def self.scoreboard(opts = {})
           rows = summary(limit: 50)
           tool_ok = if rows.empty?
@@ -606,6 +694,8 @@ module PWN
             tool_ok: tool_ok,
             task_ok: task_ok,
             judge_ok: judge_ok,
+            esr: esr[:rate],
+            asr: asr[:rate],
             mean_predicted: cal[:mean_predicted],
             overconfidence: cal[:overconfidence],
             n: cal[:n].to_i
@@ -629,6 +719,7 @@ module PWN
           traj = (Reward.generator_mix[:trajectory_fraction] if defined?(Reward) && Reward.respond_to?(:generator_mix))
           parked = (Mistakes.operator_inbox(limit: 50)[:count] if defined?(Mistakes) && Mistakes.respond_to?(:operator_inbox))
           "HEALTH tool_ok=#{board[:tool_ok] || '-'} task_ok=#{board[:task_ok] || '-'} " \
+            "esr=#{board[:esr] || '-'} asr=#{board[:asr] || '-'} " \
             "judge_ok=#{board[:judge_ok] || '-'} pred=#{board[:mean_predicted] || '-'} " \
             "judge-proxy-gap=#{gap || '-'} repeating=#{trend[:status] || '-'} " \
             "w1-traj=#{traj || '-'} parked-needs-human=#{parked || '-'}\n"
@@ -880,6 +971,40 @@ module PWN
             # Return ai.routing fallback chain from pwn.yaml.
             #{self}.routing(
               n: 'optional - unused reserved index'
+            )
+
+            # Record one exploit-tool or attack attempt.
+            #{self}.record_attempt(
+              kind: 'required - exploit or attack',
+              success: 'required - true only when the exploit or attack reproduced the impact',
+              tool: 'optional - exploit tool name counted in verified_exploit_tools on success',
+              vulnerable_tool: 'optional - target tool counted in vulnerable_tools',
+              vulnerable: 'optional - true adds vulnerable_tool even when the exploit did not verify',
+              revoke: 'optional - true removes tool from verified_exploit_tools',
+              technique: 'optional - technique or CWE label used when tool is omitted',
+              finding_id: 'optional - finding id used as vulnerable_tool when that key is omitted',
+              window: 'optional - true returns the rolling ASR window; ESR ignores it'
+            )
+
+            # Exploit success rate: verified_exploit_tools / vulnerable_tools.
+            #{self}.esr(
+              window: 'optional - accepted and ignored; ESR is a tool-set ratio, not an attempt window'
+            )
+
+            # Attack success rate: successful_attacks / total_attack_attempts.
+            #{self}.asr(
+              window: 'optional - true uses the rolling attempt window instead of the lifetime ratio'
+            )
+
+            # Store the rates the next RSI tick compares against.
+            #{self}.snapshot_rates(
+              esr: 'optional - exploit success rate to remember',
+              asr: 'optional - attack success rate to remember'
+            )
+
+            # Read the previous RSI rate snapshot.
+            #{self}.previous_rates(
+              n: 'optional - unused placeholder so the method reads opts'
             )
 
             # Print the AUTHOR(S) string for this module.

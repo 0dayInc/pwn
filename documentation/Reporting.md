@@ -24,6 +24,14 @@
 | `PWN::Plugins::JiraDataCenter` | Create issues from findings |
 | `PWN::Plugins::SlackClient` / `MailAgent` | Notify |
 
+## Severity and chain gates
+
+`Findings.record` and `record_structured` store `severity: info` and `verification_status: not_executed`. `verify` runs the stored PoC and searches that transcript. The claimed severity is published only when the status is `reproduced`.
+
+`PWN::Reports.report_payload` calls `refuse_unproven_combined!` before a chain leaves the process. It refuses to print `high` or `critical` for a linked pair that is not `reproduced`, or whose combined-impact file does not name every id. Max-of-two is not a chain.
+
+Nuclei and SBOM leads stay recon observations until a later `verify` reproduces them.
+
 ## Example
 
 ```ruby

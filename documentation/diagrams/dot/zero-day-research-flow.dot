@@ -23,6 +23,8 @@ digraph "PWN_ZeroDay" {
     color="#a16207"; bgcolor="#422006";
     Fuzz [label="Fuzz · Sock\nPacket",        fillcolor="#fcd34d"];
     TB   [label="TransparentBrowser\nBurp replay", fillcolor="#fcd34d"];
+    Obs  [label="Recon.observe\nhost port product\nversion evidence", fillcolor="#fcd34d"];
+    Ver  [label="Findings.verify\ntranscript shows impact\nor severity stays info", fillcolor="#fcd34d"];
   }
   subgraph cluster_weapon {
     label="Weaponise"; fontcolor="#fecaca"; style=rounded;
@@ -39,8 +41,11 @@ digraph "PWN_ZeroDay" {
 
   Surface -> SAST [color="#38bdf8"];
   Surface -> AI   [color="#38bdf8"];
-  SAST -> Fuzz [color="#f59e0b"];
-  AI   -> TB   [color="#f59e0b"];
+  SAST -> Obs [color="#f59e0b"];
+  AI   -> Obs [color="#f59e0b"];
+  Obs  -> Ver [label="lead, not a finding", color="#f59e0b"];
+  Ver  -> Fuzz [color="#f59e0b"];
+  Ver  -> TB   [color="#f59e0b"];
   Fuzz -> Asm  [color="#fb7185"];
   TB   -> MSF  [color="#fb7185"];
   Asm  -> H1   [color="#a78bfa"];

@@ -42,6 +42,10 @@ PWN::Plugins::Recon.required_bins(opts)
 - `amass`
 - `passive_dns`
 - `harvest_loot`
+- `observe`
+- `observations`
+- `known_ports`
+- `handoff`
 - `authors`
 - `help`
 

@@ -34,4 +34,11 @@ describe PWN::AI::Agent::OpenGoal do
     expect(described_class.resume?(request: 'Update all markdown files again')).to eq false
     expect(described_class.resume?(request: 'what color is a cherry')).to eq false
   end
+
+  it 'holds the saved goal while a bound mission is not done' do
+    described_class.begin!(request: 'fuzz for 6 hours', session_id: 's1', mission_id: 'long')
+    allow(PWN::AI::Agent::Mission).to receive(:done?).with(id: 'long').and_return(false)
+    expect(described_class.clear!).to eq(:held)
+    expect(described_class.current[:request]).to eq('fuzz for 6 hours')
+  end
 end

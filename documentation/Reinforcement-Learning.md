@@ -8,8 +8,9 @@ local adapter.
 `Curriculum.practice` -> `Reward.export_dpo` -> `Curriculum.train_and_gate`
 
 That path can promote a new local adapter when the candidate beats the current
-one. Without a trainer it still **exports** the datasets and a manual CLI. Live
-improvement does not wait on weights.
+one. Without a trainer it still **exports** the datasets and a manual CLI. Live improvement does not wait on weights.
+
+ESR and ASR are the rates RSI actually compares. ESR is `verified_exploit_tools / vulnerable_tools`. ASR is `successful_attacks / total_attack_attempts`. `Learning.rsi_tick` stores the pair and writes an `rsi` lesson when ESR falls. Tool telemetry and the judge score are separate. A passing suite is not either rate.
 
 ![Reinforcement-learning loop](diagrams/reinforcement-learning.svg)
 

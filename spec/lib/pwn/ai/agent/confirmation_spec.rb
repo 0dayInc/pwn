@@ -56,4 +56,24 @@ describe PWN::AI::Agent::Confirmation do
       expect(third).to be_nil
     end
   end
+
+  it 'denies exploit on an unattended mission when scope confirmation is absent' do
+    Dir.mktmpdir('pwn-ack-') do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
+      denied = described_class.gate(name: 'exploitdev', args: { action: 'ret2libc' }, unattended: true, scope_path: File.join(dir, 'missing.yaml'))
+      expect(denied[:code]).to eq('ACK_DENY')
+    end
+  end
+
+  it 'does not reuse an ACK when the tool arguments change under ack_scope' do
+    Dir.mktmpdir('pwn-ack-') do |dir|
+      allow(Dir).to receive(:home).and_return(dir)
+      scope = File.join(dir, '.pwn', 'scope.yaml')
+      FileUtils.mkdir_p(File.dirname(scope))
+      File.write(scope, YAML.dump('confirmation' => { 'exploit' => 'prompt' }))
+      described_class.gate(name: 'exploitdev', args: { action: 'ret2libc', host: '10.0.0.5' }, engagement_id: 'lab', operator_ack: true, ack_scope: true, scope_path: scope)
+      again = described_class.gate(name: 'exploitdev', args: { action: 'pattern_create', host: '10.0.0.5' }, engagement_id: 'lab', ack_scope: true, scope_path: scope)
+      expect(again[:needs_ack]).to eq(true)
+    end
+  end
 end

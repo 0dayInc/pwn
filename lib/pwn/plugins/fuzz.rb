@@ -192,12 +192,14 @@ module PWN
 
       public_class_method def self.triage(opts = {})
         require 'digest'
+        handoff = PWN::Plugins::Recon.handoff(handoff: opts[:handoff] || opts[:asset]) if opts[:handoff] || opts[:asset]
+        target = handoff && !handoff[:host].empty? ? handoff[:host] : opts[:target]
         crashes = Array(opts[:crashes])
         crashes = Dir.glob(File.join(opts[:dir].to_s, '*')) if crashes.empty?
         files = crashes.select { |path| File.file?(path) }
         groups = files.group_by { |path| crash_hash(path: path) }
         groups.map do |hash, group|
-          mini = minimize_group(files: group, target: opts[:target])
+          mini = minimize_group(files: group, target: target)
           body = File.binread(mini).to_s
           score = exploitability(text: body, path: mini)
           row = {
@@ -211,7 +213,7 @@ module PWN
             PWN::Plugins::Findings.record(
               title: "fuzz crash #{hash}",
               severity: score.include?('pc_control') ? 'high' : 'medium',
-              host: opts[:target].to_s,
+              host: target.to_s,
               evidence: mini,
               poc: mini
             )
@@ -291,6 +293,9 @@ module PWN
           #{self}.triage(
             crashes: 'optional - Array of crash file paths',
             dir: 'optional - directory globbed when crashes is empty',
+            target: 'optional - prose target ignored when handoff supplies a host',
+            handoff: 'optional - recon asset hash; host replaces a prose target',
+            asset: 'optional - alias for handoff',
             record: 'optional - true records unique crashes via Findings.record'
           )
 

@@ -33,11 +33,13 @@ module PWN
 
         # Run an approved DAG; completed checkpoints are skipped on resume.
         public_class_method def self.execute(opts = {})
+          refuse_operator_shell!(opts)
           root = opts[:root] || ROOT
           run_id = (opts[:run_id] || SecureRandom.hex(8)).to_s
           dir = File.join(root, run_id)
           FileUtils.mkdir_p(dir)
           dag = load_dag(opts.merge(dir: dir))
+          refuse_unapproved!(dag: dag, opts: opts)
           File.write(File.join(dir, 'dag.yaml'), YAML.dump(JSON.parse(JSON.generate(dag)))) unless File.file?(File.join(dir, 'dag.yaml'))
           File.write(File.join(dir, 'run_id'), run_id)
           done = load_done(dir: dir)
@@ -86,7 +88,11 @@ module PWN
               path: 'optional - YAML DAG path',
               run_id: 'optional - existing run to resume; generated when omitted',
               root: 'optional - runs directory; defaults to ~/.pwn/runs',
-              halt_after: 'optional - step id used by tests to stop after a checkpoint'
+              halt_after: 'optional - step id used by tests to stop after a checkpoint',
+              approved: 'optional - true allows shell steps on an unattended mission',
+              unattended: 'optional - true refuses inferred shell steps unless approved',
+              operator: 'optional - true rejects inferred shell steps even when approved',
+              mission_id: 'optional - mission that records a hand-written shell exception'
             )
 
             # Resume a checkpointed run, skipping completed steps.
@@ -99,6 +105,35 @@ module PWN
             #{self}.authors
           "
           constants.sort
+        end
+
+        private_class_method def self.refuse_operator_shell!(opts = {})
+          return unless opts[:operator]
+          return unless opts[:path] || opts[:dag]
+
+          dag = load_dag(opts)
+          steps = Array(dag['steps'] || dag[:steps])
+          inferred = steps.any? do |step|
+            tool = (step['tool'] || step[:tool]).to_s
+            written = step['hand_written'] == true || step[:hand_written] == true
+            tool == 'shell' && !written
+          end
+          raise ArgumentError, 'operator execute refuses inferred shell steps' if inferred
+
+          written = steps.select { |step| (step['tool'] || step[:tool]).to_s == 'shell' && (step['hand_written'] == true || step[:hand_written] == true) }
+          return if written.empty? || opts[:mission_id].to_s.empty?
+
+          PWN::AI::Agent::Mission.note_shell_exception!(id: opts[:mission_id], step_ids: written.map { |step| step['id'] || step[:id] })
+        end
+
+        private_class_method def self.refuse_unapproved!(opts = {})
+          return unless opts[:opts][:unattended]
+          return if opts[:opts][:approved]
+
+          dag = opts[:dag]
+          steps = Array(dag['steps'] || dag[:steps])
+          shell = steps.any? { |step| (step['tool'] || step[:tool]).to_s == 'shell' }
+          raise ArgumentError, 'unattended mission refuses inferred shell steps until the DAG is approved' if shell
         end
 
         private_class_method def self.infer_steps(opts = {})
@@ -159,6 +194,7 @@ module PWN
             'tool' => step['tool'].to_s,
             'args' => args,
             'side_effect' => (step['side_effect'] || side_effect_tier(tool: step['tool'], args: args)).to_s,
+            'hand_written' => step['hand_written'] == true || step[:hand_written] == true,
             'dependencies' => Array(step['dependencies']).map(&:to_s)
           }
         end
@@ -210,6 +246,7 @@ module PWN
           body = JSON.parse(raw, symbolize_names: true)
           result = body[:result] || body
           ok = !result.is_a?(Hash) || result[:error].nil?
+          PWN::AI::Agent::Mission.note_technique!(technique: step['tool']) if ok && defined?(PWN::AI::Agent::Mission) && PWN::AI::Agent::Mission.active_id
           { id: step['id'], ok: ok, result: result }
         rescue StandardError => e
           { id: step['id'], ok: false, error: "#{e.class}: #{e.message}" }
