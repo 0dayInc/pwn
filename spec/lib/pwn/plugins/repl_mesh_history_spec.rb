@@ -18,8 +18,10 @@ describe PWN::Plugins::REPL, 'mesh compose history' do
     described_class.send(:mesh_subscribe, obj: { from_radio_queue: queue }, psks: {}, on_message: proc { |message| received << message })
     expect(received.size).to eq(2)
     expect(output.string).not_to include("Can't decode")
-    Meshtastic::MeshInterface.new.decode_payload(payload: 'unsupported', msg_type: :PRIVATE_APP)
-    expect(output.string).to include("Can't decode", 'unsupported')
+    # meshtastic 0.0.186 returns unknown application bytes instead of warning.
+    decoded = Meshtastic::MeshInterface.new.decode_payload(payload: 'unsupported', msg_type: :PRIVATE_APP)
+    expect(decoded).to eq('unsupported')
+    expect(output.string).not_to include("Can't decode")
   ensure
     $stdout = old
   end
