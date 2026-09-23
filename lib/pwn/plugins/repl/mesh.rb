@@ -149,11 +149,14 @@ module PWN
           end
         end
         PWN_MESH_TRANSPORTS = %i[serial bluetooth tcp mqtt].freeze
-        # meshtastic 0.0.184 loses protobuf defaults in Data#to_h. Empty
-        # decoded data is not an unsupported application payload.
+        # meshtastic 0.0.184 Data#to_h omits empty payload bytes, and an
+        # unknown PortNum stays an integer (51 is not in the enum). That is
+        # not an undecodable application payload. Bytes on an unsupported
+        # port still warn.
         EMPTY_DATA_DECODER = Module.new do
           define_method(:decode_payload) do |opts = {}|
-            return nil if opts[:payload].nil? && opts[:msg_type].nil?
+            payload = opts[:payload]
+            return nil if payload.nil? || payload == ''
 
             super(opts)
           end
@@ -1140,6 +1143,9 @@ module PWN
             text = opts[:text].to_s.dup.force_encoding(Encoding::UTF_8).scrub
             text.gsub!(/\e\[[0-9;?]*[A-Za-z]/, '')
             text.gsub!(/[\x00-\x08\x0b\x0c\x0e-\x1f]/, '')
+            # Serial.subscribe prints this on startup. It is not a diagnostic,
+            # and capturing it opens a NOTICE before the TUI can be used.
+            text.gsub!('Subscribing to serial FromRadio stream...', '')
             text.strip!
             text.empty? ? nil : text
           end
