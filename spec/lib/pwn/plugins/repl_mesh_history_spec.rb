@@ -24,6 +24,22 @@ describe PWN::Plugins::REPL, 'mesh compose history' do
     $stdout = old
   end
 
+  it 'does not warn when a packet has an unknown portnum and no payload' do
+    stub_const('PWN::MeshTransport', :serial)
+    queue = Queue.new
+    encoded = Meshtastic::FromRadio.new(packet: { decoded: Meshtastic::Data.new(portnum: 51) }).to_proto
+    queue << Meshtastic::FromRadio.decode(encoded)
+    queue.close
+    output = StringIO.new
+    old = $stdout
+    $stdout = output
+    described_class.send(:mesh_subscribe, obj: { from_radio_queue: queue }, psks: {}, on_message: proc { |_message| })
+    expect(output.string).not_to include("Can't decode")
+    expect(output.string).not_to include('portnum: 51')
+  ensure
+    $stdout = old
+  end
+
   it 'queues warnings for acknowledgement instead of writing through the TUI' do
     events = Queue.new
     stub_const('PWN::MeshEvents', events)
@@ -64,6 +80,25 @@ describe PWN::Plugins::REPL, 'mesh compose history' do
     stub_const('PWN::MeshEvents', events)
     described_class.send(:mesh_capture_output, run: proc {
       $stderr.write("\e[?25hWARNING: decoder fixture\e[?25h\n")
+    })
+    expect(events.pop(true)[:notice]).to eq('WARNING: decoder fixture')
+    expect(events).to be_empty
+  end
+
+  it 'does not open a notice for the serial subscribe banner' do
+    events = Queue.new
+    stub_const('PWN::MeshEvents', events)
+    described_class.send(:mesh_capture_output, run: proc {
+      puts 'Subscribing to serial FromRadio stream...'
+    })
+    expect(events).to be_empty
+  end
+
+  it 'keeps a warning that shares a chunk with the serial subscribe banner' do
+    events = Queue.new
+    stub_const('PWN::MeshEvents', events)
+    described_class.send(:mesh_capture_output, run: proc {
+      $stdout.write("Subscribing to serial FromRadio stream...\nWARNING: decoder fixture\n")
     })
     expect(events.pop(true)[:notice]).to eq('WARNING: decoder fixture')
     expect(events).to be_empty
