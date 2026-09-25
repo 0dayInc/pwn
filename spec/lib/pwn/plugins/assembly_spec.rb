@@ -24,4 +24,18 @@ describe PWN::Plugins::Assembly do
     expect(blob).to match(/nop/i)
     expect(%w[capstone metasm]).to include(dis[:engine].to_s)
   end
+
+  it 'falls back to metasm when capstone returns a mis-laid-out mnemonic' do
+    allow(PWN::FFI).to receive(:available?).and_call_original
+    allow(PWN::FFI).to receive(:available?).with(mod: :Capstone).and_return(true)
+    allow(PWN::FFI::Capstone).to receive(:disassemble).and_return(
+      engine: 'capstone',
+      insns: [{ mnemonic: "L\xCB\xEFy", op_str: "L\xCB\xEFy", size: 4 }]
+    )
+    asm = described_class.assemble(asm: "nop\nret", arch: 'x86_64', engine: 'metasm')
+    dis = described_class.disassemble(bytes: asm[:bytes], arch: 'x86_64')
+    expect(dis[:engine]).to eq('metasm')
+    blob = dis[:insns].map { |row| row[:mnemonic] }.join(' ')
+    expect(blob).to match(/nop/i)
+  end
 end

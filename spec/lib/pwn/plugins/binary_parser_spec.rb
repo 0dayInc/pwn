@@ -89,4 +89,21 @@ describe PWN::Plugins::BinaryParser do
       expect(row[:symbols]['main'] || row[:symbols][:main]).to be_a(Integer)
     end
   end
+
+  it 'elf_resolve points system at the .plt.sec stub, not the next slot' do
+    Dir.mktmpdir('pwn-elf-ibt-') do |dir|
+      src = File.join(dir, 't.c')
+      path = File.join(dir, 't')
+      File.write(src, "#include <stdlib.h>\nint main(void) { return system(\"x\"); }\n")
+      out, status = Open3.capture2e('cc', '-O0', '-fno-pie', '-no-pie', '-Wl,-z,ibt', '-o', path, src)
+      expect(status.success?).to eq(true), out
+      expect(File.binread(path)).to include('.plt.sec')
+      row = described_class.elf_resolve(path: path)
+      dump, dump_status = Open3.capture2('objdump', '-d', path)
+      expect(dump_status.success?).to eq(true), dump
+      real = dump[/^([0-9a-f]+) <system@plt>:/, 1]
+      expect(real).not_to be_nil
+      expect(row[:plt]['system']).to eq(real.to_i(16))
+    end
+  end
 end

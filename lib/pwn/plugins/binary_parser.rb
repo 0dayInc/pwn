@@ -578,6 +578,8 @@ module PWN
         pltrelsz = dyn[2].to_i
         relaent = bits == 64 ? 24 : 12
         plt_base = sections['.plt.sec']&.[](:addr) || sections['.plt']&.[](:addr)
+        # .plt.sec slots start at the section base. Classic .plt reserves the first 16 bytes for the lazy resolver.
+        plt_bias = sections['.plt.sec'] ? 0 : 1
         if jmprel && pltrelsz.positive?
           rel_off = v2off.call(jmprel)
           idx = 0
@@ -593,7 +595,7 @@ module PWN
             end
             unless name.to_s.empty?
               got[name] = r_offset
-              plt[name] = plt_base + (16 * (idx + 1)) if plt_base
+              plt[name] = plt_base + (16 * (idx + plt_bias)) if plt_base
             end
             idx += 1
           end
