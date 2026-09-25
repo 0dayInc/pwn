@@ -42,6 +42,7 @@ PWN::FFI::Capstone.available(opts)
 - `cs_disasm`
 - `cs_free`
 - `cs_open`
+- `cs_version`
 - `load_error`
 
 ## Source

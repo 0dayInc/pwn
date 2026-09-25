@@ -17,8 +17,20 @@ module PWN
       CS_MODE_32 = 4
       CS_MODE_64 = 8
 
-      # Capstone cs_insn layout used by cs_disasm.
-      class Insn < PubFFI::Struct
+      # Capstone 4 stores 16 instruction bytes; Capstone 5 stores 24.
+      # A mismatched layout returns non-empty garbage instead of raising.
+      class InsnV4 < PubFFI::Struct
+        layout :id, :uint,
+               :address, :uint64,
+               :size, :ushort,
+               :bytes, [:uchar, 16],
+               :mnemonic, [:char, 32],
+               :op_str, [:char, 160],
+               :detail, :pointer
+      end
+
+      # Capstone 5 widened cs_insn.bytes from 16 to 24.
+      class InsnV5 < PubFFI::Struct
         layout :id, :uint,
                :address, :uint64,
                :size, :ushort,
@@ -44,6 +56,7 @@ module PWN
         attach_function :cs_disasm, %i[size_t pointer size_t uint64 size_t pointer], :size_t
         attach_function :cs_free, %i[pointer size_t], :void
         attach_function :cs_close, [:pointer], :int
+        attach_function :cs_version, %i[pointer pointer], :uint
       end
 
       public_class_method def self.available?(opts = {})
@@ -67,13 +80,21 @@ module PWN
         count = cs_disasm(handle.read_ulong, buf, bytes.bytesize, (opts[:address] || 0).to_i, 0, insn_ptr)
         insns = []
         base = insn_ptr.read_pointer
+        klass = insn_class
         count.times do |i|
-          insn = Insn.new(base + (i * Insn.size))
+          insn = klass.new(base + (i * klass.size))
           insns << { address: insn[:address], mnemonic: insn[:mnemonic].to_s, op_str: insn[:op_str].to_s, size: insn[:size] }
         end
         cs_free(base, count) unless base.null?
         cs_close(handle)
         { engine: 'capstone', insns: insns, count: count }
+      end
+
+      private_class_method def self.insn_class
+        major = PubFFI::MemoryPointer.new(:int)
+        minor = PubFFI::MemoryPointer.new(:int)
+        cs_version(major, minor)
+        major.read_int >= 5 ? InsnV5 : InsnV4
       end
 
       private_class_method def self.arch_mode(opts = {})

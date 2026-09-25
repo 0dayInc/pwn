@@ -204,7 +204,8 @@ module PWN
 
         if opts[:engine].to_s != 'metasm' && PWN::FFI.available?(mod: :Keystone)
           begin
-            return PWN::FFI::Keystone.assemble(opts)
+            row = PWN::FFI::Keystone.assemble(opts)
+            return row if assembled_matches?(bytes: row[:bytes], asm: asm, arch: opts[:arch])
           rescue StandardError
             nil
           end
@@ -222,7 +223,7 @@ module PWN
         if opts[:engine].to_s != 'metasm' && PWN::FFI.available?(mod: :Capstone)
           begin
             row = PWN::FFI::Capstone.disassemble(opts)
-            return row if Array(row[:insns]).any?
+            return row if plausible_insns?(insns: row[:insns])
           rescue StandardError
             nil
           end
@@ -231,12 +232,32 @@ module PWN
         arch_obj = arch_object(opts)
         text = Metasm::Shellcode.disassemble(arch_obj, raw.to_s.b).to_s
         insns = text.lines.filter_map do |line|
-          match = line.match(/^\s*(?:0x)?([0-9a-f]+)\s+(\S+)\s*(.*)$/i)
-          next unless match
-
-          { address: match[1].to_i(16), mnemonic: match[2], op_str: match[3].to_s.strip }
+          if (match = line.match(/^\s*([A-Za-z][A-Za-z0-9.]*)\s*(.*?)\s*;\s*@([0-9a-f]+)/))
+            { address: match[3].to_i(16), mnemonic: match[1], op_str: match[2].to_s.strip }
+          elsif (match = line.match(/^\s*(?:0x)?([0-9a-f]+)\s+(\S+)\s*(.*)$/i))
+            { address: match[1].to_i(16), mnemonic: match[2], op_str: match[3].to_s.strip }
+          end
         end
         { engine: 'metasm', insns: insns, count: insns.length, text: text }
+      end
+
+      # A mis-laid-out libcapstone still returns rows. Reject those and use Metasm.
+      private_class_method def self.plausible_insns?(opts = {})
+        insns = Array(opts[:insns])
+        return false if insns.empty?
+
+        insns.all? do |insn|
+          insn[:mnemonic].to_s.match?(/\A[A-Za-z][A-Za-z0-9.]{0,15}\z/) && insn[:size].to_i.between?(1, 15)
+        end
+      end
+
+      # Keystone ABI mismatches can return bytes that are not the requested instructions.
+      private_class_method def self.assembled_matches?(opts = {})
+        token = opts[:asm].to_s.lines.filter_map { |line| line.strip.split(/\s+/, 2).first }.find { |word| !word.end_with?(':') }
+        return false if token.to_s.empty?
+
+        dis = disassemble(bytes: opts[:bytes], arch: opts[:arch], engine: 'metasm')
+        Array(dis[:insns]).any? { |insn| insn[:mnemonic].to_s.casecmp?(token) }
       end
 
       public_class_method def self.list_supported_archs
