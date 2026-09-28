@@ -154,6 +154,28 @@ module PWN
           reflect_engine: nil,
           # optional model override on :reflect_engine (nil = engine default)
           reflect_model: nil,
+          tui: {
+            theme: {
+              border: 'black',
+              title: 'red',
+              operator: 'red',
+              request: 'white',
+              assistant: 'white',
+              task: 'green',
+              tool: 'cyan',
+              result: 'yellow',
+              notice: 'cyan',
+              warning: 'red',
+              category: 'yellow',
+              value: 'white',
+              composer: 'white',
+              header: 'white',
+              footer: 'white',
+              prompt: 'red',
+              selection: 'red',
+              status: 'yellow'
+            }
+          },
           agent: {
             native_tools: true,
             max_iters: 777,

@@ -37,6 +37,10 @@ PWN::Plugins::REPL::AI.add_commands(opts)
 - `authors`
 - `help`
 
+## References
+
+- `references/urls.md` — URLs from source
+
 ## Source
 
 `pwn/plugins/repl/ai.rb`

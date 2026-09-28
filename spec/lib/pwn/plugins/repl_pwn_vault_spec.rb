@@ -189,11 +189,13 @@ describe 'pwn-ai debug final answer placement' do
   end
 
   it 'prints the green final after Loop.run and does not pp the session after it' do
-    expect(hook).to match(/Loop\.run\(/)
+    expect(hook).to include('PWN::Plugins::REPL.pwn_ai_run_steerable(')
+    wrapper = File.read(PWN::Plugins::REPL.method(:pwn_ai_run_steerable).source_location.first)
+    expect(wrapper).to include('control.with_reader { PWN::AI::Agent::Loop.run(')
     expect(hook).to match(/\\e\[32m#\{final\}/)
     expect(hook).not_to include('[0, 280]')
     expect(hook).not_to include('[0, 700]')
-    native_start = hook.index('final = PWN::AI::Agent::Loop.run')
+    native_start = hook.index('final = PWN::Plugins::REPL.pwn_ai_run_steerable')
     native_stop = hook.index("request.replace('nil')", native_start)
     native = hook[native_start..native_stop]
     expect(native).not_to include('\001')
@@ -208,7 +210,7 @@ describe 'pwn-ai debug final answer placement' do
   end
 
   it 'does not fall through to regex-ReAct after a native Loop.run error' do
-    native_start = hook.index('final = PWN::AI::Agent::Loop.run')
+    native_start = hook.index('final = PWN::Plugins::REPL.pwn_ai_run_steerable')
     rescue_at = hook.index('rescue StandardError', native_start)
     expect(rescue_at).not_to be_nil
     chunk = hook[rescue_at, 900]

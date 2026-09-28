@@ -80,7 +80,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 2))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: false, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([3, 4, 5])
+      expect(result[:applied_migrations]).to eq([3, 4, 5, 6, 7])
       expected = Marshal.load(Marshal.dump(original))
       expected['custom']['model'] = nil
       expect(YAML.safe_load_file(path)).to eq(expected)
@@ -189,7 +189,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 3))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([4, 5])
+      expect(result[:applied_migrations]).to eq([4, 5, 6, 7])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user[:ai][:active]).to eq('grok')
@@ -215,7 +215,7 @@ describe PWN::Migrate do
       PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 4))
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([5])
+      expect(result[:applied_migrations]).to eq([5, 6, 7])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user.dig(:ai, :agent, :skill_review)).to eq('off')
@@ -231,6 +231,43 @@ describe PWN::Migrate do
       expect(filled.dig(:ai, :agent, :max_iters)).to eq(9)
       expect(filled.dig(:ai, :openai, :key)).to eq('sk-OTHER')
       expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([])
+    end
+
+    it 'upgrades a schema-5 vault with ai.tui.theme without replacing a chosen color' do
+      yaml = File.join(@tmp, 'pwn.yaml')
+      dec = File.join(@tmp, 'pwn.yaml.decryptor')
+      stale = { ai: { active: 'grok', grok: { key: 'sk-KEEP' }, tui: { theme: { assistant: 'blue' } } } }
+      File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
+      PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
+      File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 5))
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([6, 7])
+      creds = YAML.safe_load_file(dec, symbolize_names: true)
+      user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      theme = user.dig(:ai, :tui, :theme)
+      expect(theme[:assistant]).to eq('blue')
+      expect(theme[:border]).to eq('black')
+      expect(theme[:title]).to eq('red')
+      expect(theme[:request]).to eq('white')
+      expect(theme).to eq(PWN::Config.env_template.dig(:ai, :tui, :theme).merge(assistant: 'blue'))
+      expect(user.dig(:ai, :grok, :key)).to eq('sk-KEEP')
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([])
+      expect(PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv]).dig(:ai, :tui, :theme)).to eq(theme)
+    end
+
+    it 'preserves every configured theme role when backfilling a current-schema vault' do
+      yaml = File.join(@tmp, 'pwn.yaml')
+      dec = File.join(@tmp, 'pwn.yaml.decryptor')
+      chosen = PWN::Config.env_template.dig(:ai, :tui, :theme).transform_values { 'blue' }
+      user = PWN::Config.env_template
+      user[:ai][:tui][:theme] = chosen
+      File.write(yaml, YAML.dump(user))
+      PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
+      File.write(File.join(@tmp, '.schema'), JSON.generate(schema: described_class::SCHEMA_VERSION))
+      encrypted = File.binread(yaml)
+      expect(described_class.backfill_vault(io: io)[:added]).to eq(0)
+      expect(File.binread(yaml)).to eq(encrypted)
+      creds = YAML.safe_load_file(dec, symbolize_names: true)
+      expect(PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv]).dig(:ai, :tui, :theme)).to eq(chosen)
     end
 
     it 'dry_run writes nothing' do

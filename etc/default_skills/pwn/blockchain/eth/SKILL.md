@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Blockchain::ETH
 
-This plugin interacts with BitCoin's Blockchain API.
+Read-only Ethereum intelligence via BlockCypher and explicit JSON-RPC endpoints.
 
 ## When to use
 
@@ -28,11 +28,20 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::Blockchain::ETH.help
-PWN::Blockchain::ETH.get_latest_block(opts)
+PWN::Blockchain::ETH.decode_transfer(opts)
 ```
 
 ## Public methods
 
+- `decode_transfer`
+- `event_logs`
+- `address_activity`
+- `call`
+- `token_metadata`
+- `block`
+- `account`
+- `transaction`
+- `chain_status`
 - `get_latest_block`
 - `get_block_details`
 - `authors`
@@ -48,5 +57,5 @@ PWN::Blockchain::ETH.get_latest_block(opts)
 
 ## Verification
 
-`PWN::Blockchain::ETH.respond_to?(:get_latest_block)` after the
+`PWN::Blockchain::ETH.respond_to?(:decode_transfer)` after the
 module is loaded. Read the source for parameter names.

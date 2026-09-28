@@ -194,9 +194,10 @@ describe PWN::AI::Agent::TurnFinalizer do
 
   it 'precommits before cheap returns and uses the committed list for dispatch observation' do
     source = File.read(PWN::AI::Agent::Loop.method(:run).source_location.first)
-    run = source[source.index('public_class_method def self.run(opts = {})')..]
+    expect(source).to include('run_turn(options)')
+    run = source[source.index('private_class_method def self.run_turn(opts = {})')..]
     expect(run.index('commit_artifacts!')).to be < run.index('cheap =')
-    expect(run).to include('allow_text_only = required_artifacts.empty?', 'cheap = allow_text_only', 'declared_paths = required_artifacts')
+    expect(run).to include('allow_text_only = steering.nil? && required_artifacts.empty?', 'cheap = allow_text_only', 'declared_paths = required_artifacts')
     expect(run).to include('Thread.current[:pwn_artifact_contract] = prior_artifact_contract')
   end
 

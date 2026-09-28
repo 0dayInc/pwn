@@ -127,6 +127,11 @@ describe PWN::AI::OpenAI do
     expect(src).to include('enabled?(engine: :openai)')
   end
 
+  it 'forwards an explicit none effort on Responses models that support it' do
+    body = described_class.send(:responses_http_body, model: 'gpt-5.5', messages: [], reasoning_effort: 'none')
+    expect(body[:reasoning]).to include(effort: 'none')
+  end
+
   it 'treats gpt-5 family as reasoning models' do
     expect(described_class.send(:reasoning_model?, model: 'gpt-5.5')).to eq(true)
     expect(described_class.send(:reasoning_model?, model: 'gpt-5-mini')).to eq(true)

@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Blockchain::BTC
 
-This plugin interacts with BitCoin's Blockchain API.
+Read-only Bitcoin Core intelligence. No wallet, signing or broadcast RPCs.
 
 ## When to use
 
@@ -34,14 +34,17 @@ PWN::Blockchain::BTC.get_latest_block(opts)
 ## Public methods
 
 - `get_latest_block`
+- `chain_status`
 - `get_block_details`
+- `inspect_transaction`
+- `inspect_outpoint`
+- `mempool_summary`
+- `trace_transaction`
+- `scan_transactions`
 - `get_transactions`
+- `scan_address_activity`
 - `authors`
 - `help`
-
-## References
-
-- `references/urls.md` — URLs from source
 
 ## Source
 

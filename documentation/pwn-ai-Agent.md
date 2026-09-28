@@ -10,17 +10,270 @@ so it doesn't repeat it**.
 ## Two ways to run it
 
 ```text
-# 1. Interactive TUI (inside the pwn REPL)
+# 1. Interactive curses console (inside the pwn REPL)
 pwn[CURRENT_VERSION]:001 >>> pwn-ai
-✨ pwn-ai · anthropic · session 20260707_225041_d7f2f3bb
-> Use NmapIt to sweep 10.0.0.0/24, then TransparentBrowser via Burp on any
- host with 443 open, active-scan, and give me a Reports::SAST summary.
+# Or launch directly from the shell:
+pwn-ai
+```
+
+The interactive default is a single-owner curses screen: a provider/model
+and session header, scrollable typed timeline (OPERATOR, TASK, TOOL, RESULT,
+ASSISTANT and WARNING), a persistent multiline composer, and an operational
+sidebar at 100 columns or wider. Narrower screens give the timeline the full width.
+At 100 columns × 26 rows or larger, the header may carve out a bordered retro-game
+ASCII animation on the left (Tetris, Snake, Pong and other 8-bit-style scenes).
+Its framed width in terminal cells equals the complete header's height in rows;
+the interior canvas is `(header height - 2)` cells on each side. This is a
+cell-square, not a pixel-square—terminal glyph cells are usually taller than wide.
+When that interior exceeds the artwork API's 16-cell limit, the complete game
+art is centered and padded inside the larger square rather than clipped or stretched.
+One `PWN::Banner.mini_names` animation is randomly
+selected for the session and retained across redraws, model changes and resize;
+changing the active session selects again. Frames advance at the banner API's
+`MINI_FRAME_SECONDS` cadence using monotonic time in the existing render loop—no extra animation
+thread, input reader or provider call. This is decoration, not progress or
+telemetry. The pane uses the existing border/title/header theme roles. Settings
+wrap in the right-hand region without losing their label colors. A bounded,
+nonrecursive layout pass grows the header and square together. If the terminal
+is narrow/short, or that reduced width would clip any setting, the decoration
+disappears and settings reclaim the full width.
+
+Timestamped entries (`%Y-%m-%d %H:%M:%S%z`), measured request elapsed
+time, completed-tool/event counts, and the last observed tool provide operational
+context. There are no estimated progress bars. Running
+status reflects the request's actual model/tool boundary. Borders are black; the OPERATOR
+label, warnings, and the mission prompt are red. Pane titles (`pwn-ai vN`, `SESSION`,
+`OPERATIONS`, `MISSION`) use `title`, which defaults to red and is separate from
+`border`. The operator's request text is
+white. The header grows to show all wrapped settings without shortening or
+replacing their text. Only when the terminal cannot fit the full header plus
+a one-row timeline, composer and footer does it limit the visible rows; its
+title then points to Ctrl+O (or `/status`) for the complete scrollable settings.
+State remains visible at every supported size. Header setting labels use the
+same `category` color as OPERATIONS labels, including across wrapped lines;
+their values retain the `header` color in both the header and details view.
+Use PgUp/PgDn, arrows or Home/End there; Esc or Ctrl+O restores the unchanged
+draft. The short sidebar prioritizes elapsed time, tools, tokens, cost and last
+tool; Ctrl+O exposes the remaining details even without a sidebar.
+Assistant text is white, tasks green, tools and notices cyan, and results yellow.
+Operations category labels are yellow. Those colors are the default
+`ai.tui.theme` in `~/.pwn/pwn.yaml` (`PWN::Env[:ai][:tui][:theme]`). Named curses
+colors (`black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`)
+may replace any role; an unknown name keeps that role's default. `NO_COLOR=1`
+keeps labels and Unicode borders without color; `TERM=dumb` or non-TTY input/output
+uses the existing line interface and explicitly reports the fallback.
+
+| Default color | Theme roles |
+| --- | --- |
+| black | `border` |
+| red | `title`, `operator`, `warning`, `prompt`, `selection` |
+| white | `request`, `assistant`, `value`, `composer`, `header`, `footer` |
+| green | `task` |
+| cyan | `tool`, `notice` |
+| yellow | `result`, `category`, `status` |
+
+Fresh configurations and missing roles use these defaults. Existing configured
+colors are preserved by runtime resolution and migration/backfill. This palette
+changes only default values, not the configuration schema; no migration is needed.
+
+| Key or command | Action |
+| --- | --- |
+| Enter | Submit the mission |
+| Shift+Enter, or trailing `\\` + Enter | Insert a newline. Terminals that cannot distinguish Shift+Enter need `tmux set -s extended-keys on` or the backslash fallback. |
+| Up/Down | Move the completion highlight while the Command menu is visible (wrapping at either end). Otherwise recall requests from `~/.pwn/pwn_history`, including prior runs; Down past the newest restores the draft and cursor. Esc closes the menu to resume history recall. |
+| Ctrl+P / Ctrl+N | Alternative completion selection keys; recall history when no menu is visible. Tab still accepts the highlight. |
+| Tab | Accept the highlighted as-you-type parameter |
+| Ctrl+O or `/status` | Inspect full status/settings, including overflowing header text; Esc or Ctrl+O closes |
+| Ctrl+L | Clear only the Session pane, including while a request runs; preserve stored conversation, token totals, and draft |
+| Ctrl+R | Incremental reverse search of request history from `~/.pwn/pwn_history`; repeat for an older match, Enter accepts into the draft without sending, Esc cancels and restores the draft/cursor |
+| `/clear` | Clear the session pane only; stored conversation and token totals remain |
+| `/verbose [on|off]` | Toggle compact or full tool/notice output |
+| Ctrl+G or `/swarm` | Open the draft-preserving swarm workspace; `/swarm dashboard` also opens it |
+| `/` + Enter or `/menu` | Open the slash menu |
+| PgUp/PgDn | Scroll the timeline; new output does not pull a scrolled viewport to the bottom |
+| `/model`, `/sessions resume ID` | Show model settings / change the next request's model or session while idle |
+| `/steer INSTRUCTION` | Redirect the active request at a safe boundary |
+| `/input TEXT` | Send one line to an ordinary tool stdin prompt; not retained in input recall |
+| Ctrl+C | Cancel the active request cooperatively, or clear an idle draft |
+| `back`, `/back`, Ctrl+D | Leave the console; if busy, cancel and wait for safe completion first |
+
+Request recall shares Pry's existing `~/.pwn/pwn_history` (append-only plain-text
+lines), not a separate console history file or only the current transcript.
+Requests are saved through Pry's history owner with its normal duplicate and
+save/ignore settings. Multiline input uses Pry's existing line-oriented format.
+Search and Up/Down never write history; `/input` tool responses are excluded from
+both persistence and recall. Ctrl+L never deletes history or resets token totals.
+
+### Model and reasoning selection
+
+`/model` (also `show` or `status`) displays the current selection. Existing
+`/model list`, `/model list llms`, `/model <engine> [model]` and `/model <model>`
+forms are unchanged. Submitting a supported model opens a **REASONING EFFORT**
+list: Up/Down (or j/k) selects, Enter accepts, Esc/Ctrl+C cancels both changes
+and restores the submitted draft. The current effort is preselected when valid;
+otherwise the catalog default or the existing medium default is used when
+supported. The header updates after acceptance. The legacy interactive line
+interface asks the same question (Enter accepts the default; q/Esc cancels).
+Noninteractive callers use the valid current/default effort without reading stdin.
+
+OpenAI options come from the model catalog's `supported_reasoning_levels` and
+`default_reasoning_level`; catalog discovery happens once on submission, never
+while typing. When metadata is absent, explicit documented GPT-5, GPT-5.1/5.2/
+5.4/5.5 and GPT-6 Astra API contracts provide fallback options. Astra never offers
+`none`. Grok 3 Mini and Grok 4.5/4.6/4.7 use their documented effort levels.
+Unknown models without capability metadata and Anthropic, Gemini, Ollama and
+OpenWebUI do not offer an effort list: those adapters do not consume this effort
+setting (their thinking controls, where present, are different).
+
+Acceptance merges `ai.active`, the selected engine's `model` and its existing
+`reasoning_effort` field into the encrypted vault; other settings are retained.
+Missing decryptor files leave changes session-only. No schema migration is needed.
+Capability references: [OpenAI model pages](https://developers.openai.com/api/docs/models),
+[xAI reasoning](https://docs.x.ai/developers/model-capabilities/text/reasoning).
+
+Settings and new requests are rejected while a request is running, rather than
+mutating its context concurrently. Network-capable local commands (`/mcp`,
+`/cron run`, `/model`) also run off the event thread so `/input` and
+exit remain responsive. `/steer` applies to model requests, not these local
+commands; cancellation waits until a local command returns.
+At less than 48 columns or 14 rows, a compact
+resize notice replaces the panes; cancellation and exit remain available. The
+screen is repainted after a resize. Request history persists through Pry in
+`~/.pwn/pwn_history`. The timeline retains the most recent 2,000 events;
+each displayed event is capped at 16 KiB with an explicit truncation notice.
+Scrollback stays pinned while new output arrives and shows a new-event count.
+The opaque command menu highlights selection even with color disabled. At tiny
+sizes hidden submissions are blocked and the draft is preserved until resize.
+Slash parameters complete after spaces as well as during typing; Up/Down or Ctrl+P/Ctrl+N
+can reach every command, not just the visible menu page. `PWN::` completion lists
+constants without loading each candidate's dependencies, and paths complete
+outside the usual `/tmp` and `/home` roots too. Tab replaces the token at the
+cursor without removing subsequent text. Completion does not fetch provider catalogs.
+
+Describe a concrete outcome in the composer, for example:
+
+```text
+Use NmapIt to sweep 10.0.0.0/24, then TransparentBrowser via Burp on hosts
+with 443 open, active-scan, and give me a Reports::SAST summary.
 ```
 
 ```bash
 # 2. Headless one-shot (CI-friendly)
 $ pwn --ai "run bin/pwn_sast against ./src and push findings to DefectDojo"
 ```
+
+## Swarm workspace
+
+Write a mission in MISSION CONTROL, then press **Ctrl+G**. Nothing runs just
+because the workspace opens, an agent is selected, or you navigate. The roster
+shows each persona's role, engine and model (including inherited/default values).
+It uses the existing Swarm registry and backend, not another agent runtime.
+
+| Workspace key | Action |
+|---|---|
+| Tab | Switch roster / session-owned jobs |
+| j / k | Move the highlighted agent or job; outside this overlay, Up/Down select an open Command menu or recall request history |
+| Space | Toggle an agent in the selected set |
+| a | Prepare the current mission draft for the highlighted agent |
+| b | Prepare a broadcast to the explicitly selected agents |
+| d | Prepare a debate among at least two selected agents, in selection order |
+| Enter | Open full agent/job details, or execute a displayed confirmation |
+| s | On a job, compose a separate steering instruction; Enter reviews, Enter again sends |
+| c | On a job, review cancellation; Enter confirms |
+| n | Add a swarm-local persona: name, role, then confirm; no provider call |
+| r | Refresh the local roster; no remote model catalog lookup |
+| PgUp/PgDn, Home/End | Scroll full metadata, results, errors and confirmation text |
+| Esc | Abort a prompt/confirmation, leave details, or return to the mission |
+| Ctrl+G | Close the workspace immediately, leaving the mission draft and cursor unchanged |
+
+Every action is explicit: inspect the action, targets and text before pressing
+Enter on its confirmation. The original draft is never cleared or overwritten
+by a swarm action. A new agent inherits routing defaults; use
+`/swarm spawn NAME ROLE --engine ENGINE --model MODEL --toolsets a,b` for overrides.
+An empty roster offers `n`; an empty jobs tab explains how to launch a mission.
+
+Job details retain observed state, reply/error and the last completed tool for
+this console's lifetime. Result text is redacted for display. Broadcasts visit
+selected personas sequentially in one owned job; debates pass the previous
+speaker's reply into the next turn (one round by default). Separate jobs can
+run concurrently, up to eight active jobs. The workspace does not claim a
+percentage complete or infer success from time elapsed.
+
+Steering and cancellation affect only the selected owned job. Finished jobs
+cannot be steered or revived by cancellation. In the main console Ctrl+C
+cancels its active request and owned swarm jobs; Ctrl+D cancels and waits before
+leaving. Below the minimum terminal size, hidden actions are blocked but Ctrl+C
+and Ctrl+D still work. A running tool finishes cooperatively: neither rollback
+nor remote provider billing cancellation is promised. Swarm jobs should use
+noninteractive tools; their individual stdin prompts are not multiplexed.
+
+Typed `/swarm roster|status|create|use|spawn|retire|ask|broadcast|debate|tail|steer|cancel`
+commands remain available, including parameter completion. These are direct
+operator commands and do not add the workspace's extra confirmation step.
+`/swarm status JOB` includes retained outcomes. Jobs shown here belong to this
+console, not a cross-process durable scheduler.
+
+## Steering a running request
+
+In the interactive native-tool REPL, type a complete line while the agent is
+busy:
+
+```text
+/steer Stop writing the report. Summarize the evidence already collected instead.
+```
+
+This is a **local terminal command**, not Ruby, a model tool, or text appended
+to Pry's busy input buffer. `/help` and TAB include `/steer`. An empty command
+prints usage; at an idle prompt it reports that there is no active request.
+
+* During the protected model call, a scoped cancellation signal stops the
+  local wait and discards the obsolete response. This does not promise that the
+  provider stops remote computation or billing. Setup/planning helpers outside
+  that window finish before the next cooperative checkpoint.
+* During a tool, the notice says **wait until the current tool finishes;
+  already-started work is not undone**. No exception is injected into tool
+  code. Remaining calls in the obsolete batch are marked not executed, with
+  paired tool-result messages, before restarting the loop.
+* Instructions are processed FIFO, only in this request/session. Completed
+  conversation and tool evidence stay available. The latest explicit user
+  instruction takes precedence over conflicting earlier instructions; tool
+  output cannot submit steering.
+* A steer starts a fresh completion scope from the latest instruction, not a
+  keyword-edited reconstruction of the original goal. Include all still-required
+  deliverables in that instruction. Old artifact requirements and a supplied
+  old verification contract are not silently imposed on the revised task.
+  Previously completed work is retained as evidence, not claimed to be undone.
+
+In curses, **only the main event thread draws and reads terminal keys**. One
+request-owned worker runs the real `Loop.run`, inheriting PWN request thread
+locals, and sends output through an event queue. The existing Steering model
+window/checkpoints are reused without starting its canonical stdin reader.
+Ordinary tool stdin is a forwarding pipe: explicitly use `/input TEXT`, never
+send a bare line that could be mistaken for a new request. Each request gets a
+fresh pipe, and cancellation closes it so waiting prompts receive EOF. Ruby
+stdout/stderr and the debug tee are captured for the console lifetime, sanitized,
+and restored on exit; spinner control sequences are not displayed as notices.
+Trace logging remains available, but **ENTER-to-step is disabled** so it cannot
+compete for input. Task/tool/result/final rows remain mirrored into request logs.
+
+`Ctrl+C` stops a model wait or requests cancellation at the next tool boundary.
+It never asynchronously raises into a side-effecting tool. `back` and Ctrl+D do
+the same and keep the UI alive in a closing state until the owned request ends.
+The console joins its own worker; it does not kill unrelated threads. A tool
+that ignores EOF and has no timeout can delay exit until it finishes. Already
+launched durable jobs have their own lifecycle; cancellation does not undo them.
+
+Fullscreen/raw-terminal tools, programs opening `/dev/tty` directly, and code
+writing directly to OS terminal descriptors (rather than captured Ruby output
+or a tool's returned result) are not supported inside curses. Run those outside
+the agent. Stdin temporarily reports non-TTY. Do not expect local cancellation
+to stop remote provider computation or billing.
+
+The non-TTY/dumb-terminal legacy line interface retains its foreground Loop and
+single canonical steering reader: there, non-command lines are forwarded to
+ordinary stdin prompts, and EOF ends the reader. Both paths restore the input
+descriptor, its flags, terminal mode and output on cleanup. Restart the REPL
+after upgrading these files.
 
 ## Anatomy of a turn
 

@@ -51,6 +51,7 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `persist_ai_selection`
 - `persist_mesh_env`
 - `pwn_ai_activation_session`
+- `pwn_ai_apply_model`
 - `pwn_ai_complete`
 - `pwn_ai_complete_command`
 - `pwn_ai_complete_kind`
@@ -63,7 +64,9 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `pwn_ai_memory_command`
 - `pwn_ai_model_ids`
 - `pwn_ai_profile_command`
+- `pwn_ai_prompt_reasoning`
 - `pwn_ai_provider_class`
+- `pwn_ai_reasoning_selection`
 - `pwn_ai_run_cron`
 - `pwn_ai_run_learning`
 - `pwn_ai_run_mcp`
@@ -71,6 +74,7 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `pwn_ai_run_model`
 - `pwn_ai_run_sessions`
 - `pwn_ai_run_skills`
+- `pwn_ai_run_steerable`
 - `pwn_mesh_complete`
 - `pwn_mesh_dispatch_slash!`
 - `pwn_mesh_menu_rows`

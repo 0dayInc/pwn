@@ -3,6 +3,105 @@
 require 'spec_helper'
 
 describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
+  describe 'reasoning selection' do
+    include_context 'pwn tmp sandbox'
+
+    it 'forwards explicit none through the agent rather than silently using provider defaults' do
+      PWN::Env[:ai] = { active: 'openai', openai: { model: 'gpt-5.5', reasoning_effort: 'none' } }
+      expect(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(reasoning_effort: 'none', think: false)).and_return(choices: [{ message: { role: 'assistant', content: 'fixture' } }])
+      PWN::AI::Agent::Loop.send(:invoke_provider_chat, engine: :openai, messages: [], tools: [])
+    end
+
+    it 'forwards OpenAI effort through the agent into Chat Completions and Responses payloads' do
+      PWN::Env[:ai] = { active: 'openai', openai: { model: 'gpt-5', reasoning_effort: 'high' } }
+      expect(PWN::AI::OpenAI).to receive(:open_ai_rest_call).with(hash_including(rest_call: 'chat/completions', http_body: hash_including(reasoning_effort: 'high'))).and_return({ choices: [{ message: { role: 'assistant', content: 'offline fixture' } }] }.to_json)
+      PWN::AI::Agent::Loop.send(:invoke_provider_chat, engine: :openai, messages: [{ role: 'user', content: 'fixture' }], tools: [])
+      PWN::Env[:ai][:openai][:model] = 'gpt-6-astra'
+      expect(PWN::AI::OpenAI).to receive(:open_ai_rest_call).with(hash_including(rest_call: 'responses', http_body: hash_including(reasoning: { effort: 'high', summary: 'auto' }))).and_return({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'offline fixture' }] }] }.to_json)
+      PWN::AI::Agent::Loop.send(:invoke_provider_chat, engine: :openai, messages: [{ role: 'user', content: 'fixture' }], tools: [])
+    end
+
+    it 'forwards the Grok effort through the agent into the HTTP payload' do
+      PWN::Env[:ai] = { active: 'grok', grok: { model: 'grok-4.6', reasoning_effort: 'high' } }
+      expect(PWN::AI::Grok).to receive(:grok_rest_call).with(hash_including(http_body: hash_including(model: 'grok-4.6', reasoning_effort: 'high'))).and_return({ choices: [{ message: { role: 'assistant', content: 'offline fixture' } }] }.to_json)
+      PWN::AI::Agent::Loop.send(:invoke_provider_chat, engine: :grok, messages: [{ role: 'user', content: 'fixture' }], tools: [])
+    end
+
+    it 'uses Enter for the current effort and permits cancellation in the legacy prompt' do
+      input = StringIO.new("\nq\n")
+      allow(input).to receive(:tty?).and_return(true)
+      previous = $stdin
+      $stdin = input
+      selection = { engine: 'grok', model: 'grok-4.6', efforts: %w[low medium high], default: 'high' }
+      expect(described_class.pwn_ai_prompt_reasoning(selection: selection)).to eq('high')
+      expect(described_class.pwn_ai_prompt_reasoning(selection: selection)).to be_nil
+    ensure
+      $stdin = previous
+    end
+
+    it 'does not offer effort controls for unsupported models' do
+      expect(described_class.pwn_ai_reasoning_selection(engine: 'grok', model: 'grok-4')[:efforts]).to eq([])
+      expect(described_class.pwn_ai_reasoning_selection(engine: 'openai', model: 'gpt-4o')[:efforts]).to eq([])
+      %w[anthropic gemini ollama openwebui].each do |engine|
+        expect(described_class.pwn_ai_reasoning_selection(engine: engine, model: 'fixture')[:efforts]).to eq([])
+      end
+    end
+
+    it 'cancels without changing any configuration or persisting' do
+      PWN::Env[:ai] = { active: 'ollama', ollama: { model: 'old' }, grok: { model: 'old', reasoning_effort: 'high' } }
+      before = Marshal.dump(PWN::Env[:ai])
+      expect(described_class).not_to receive(:persist_ai_selection)
+      described_class.pwn_ai_run_model(args: %w[grok grok-4.6], prompt: ->(_selection) {})
+      expect(Marshal.dump(PWN::Env[:ai])).to eq(before)
+    end
+
+    it 'skips effort prompts and catalogs for engines without effort support' do
+      PWN::Env[:ai] = { active: 'ollama', ollama: { model: 'old', think: false } }
+      allow(described_class).to receive(:persist_ai_selection).and_return(false)
+      expect(PWN::AI::OpenAI).not_to receive(:get_models)
+      prompt = double('prompt')
+      expect(prompt).not_to receive(:call)
+      described_class.pwn_ai_run_model(args: %w[ollama fixture], prompt: prompt)
+      expect(PWN::Env[:ai][:ollama]).to eq(model: 'fixture', think: false)
+    end
+
+    it 'merges reasoning and model into an encrypted sandbox vault without replacing other values' do
+      require 'yaml'
+      previous_driver_opts = PWN::Env[:driver_opts]
+      PWN::Env[:driver_opts] = previous_driver_opts.to_h.dup
+      path = File.join(@tmp, 'selection.yaml')
+      key = Base64.strict_encode64('k' * 32)
+      iv = Base64.strict_encode64('i' * 16)
+      original = { ai: { active: 'ollama', openai: { model: 'old', key: 'fixture', reasoning_effort: 'low', oauth: { account_id: 'fixture' } }, ollama: { model: 'keep' } }, unrelated: 'keep' }
+      File.write(path, YAML.dump(original))
+      File.write("#{path}.decryptor", YAML.dump(key: key, iv: iv))
+      PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+      PWN::Env[:driver_opts][:pwn_env_path] = path
+      PWN::Env[:driver_opts][:pwn_dec_path] = "#{path}.decryptor"
+      expect(described_class.persist_ai_selection(engine: 'openai', model: 'gpt-6-astra', reasoning_effort: 'high')).to be(true)
+      expect(File.read(path)).not_to include('reasoning_effort')
+      PWN::Plugins::Vault.decrypt(file: path, key: key, iv: iv)
+      original[:ai][:active] = 'openai'
+      original[:ai][:openai].merge!(model: 'gpt-6-astra', reasoning_effort: 'high')
+      expect(YAML.load_file(path, symbolize_names: true)).to eq(original)
+    ensure
+      PWN::Env[:driver_opts] = previous_driver_opts
+    end
+
+    it 'offers catalog efforts before applying either model or effort' do
+      PWN::Env[:ai] = { active: 'ollama', ollama: { model: 'old' }, openai: { model: 'old', reasoning_effort: 'high' } }
+      allow(PWN::AI::OpenAI).to receive(:get_models).and_return(data: [{ id: 'gpt-6-astra', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }], default_reasoning_level: 'low' }])
+      allow(described_class).to receive(:persist_ai_selection).and_return(false)
+      described_class.pwn_ai_run_model(args: %w[openai gpt-6-astra], prompt: lambda { |selection|
+        expect(PWN::Env[:ai][:active]).to eq('ollama')
+        expect(selection).to include(efforts: %w[low high], default: 'high')
+        'low'
+      })
+      expect(PWN::Env[:ai]).to include(active: 'openai', openai: { model: 'gpt-6-astra', reasoning_effort: 'low' })
+      expect(described_class).to have_received(:persist_ai_selection).with(engine: 'openai', model: 'gpt-6-astra', reasoning_effort: 'low')
+    end
+  end
+
   def command_src
     [
       described_class,
@@ -193,6 +292,16 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
   end
 
   describe 'pwn-ai completion menus' do
+    it 'handles idle steering and empty steering locally without eval or a model call' do
+      pry = double('local pry')
+      expect(pry).not_to receive(:eval)
+      expect(PWN::AI::Agent::Loop).not_to receive(:run)
+      expect { expect(described_class.pwn_ai_dispatch_slash!(request: '/steer', pry: pry)).to be(true) }.to output(%r{Usage: /steer <instruction>}).to_stdout
+      expect { expect(described_class.pwn_ai_dispatch_slash!(request: '/steer stop', pry: pry)).to be(true) }.to output(/no active request/).to_stdout
+      expect(described_class.pwn_ai_complete(target: '/st', line: '/st')).to include('/steer')
+      expect { described_class.pwn_ai_dispatch_slash!(request: '/help', pry: pry) }.to output(%r{/steer <instruction>}).to_stdout
+    end
+
     it 'classifies leading slash as command, other slash as path, else ruby' do
       expect(described_class).to respond_to(:pwn_ai_complete_kind)
       expect(described_class.pwn_ai_complete_kind(line: '/cron')).to eq(:command)
