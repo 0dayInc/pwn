@@ -3,6 +3,29 @@
 require 'spec_helper'
 
 describe PWN::Banner do
+  it 'reclaims the wordmark row for unbranded games and leaves tiny panes blank' do
+    described_class.mini_names.product([1, 3, 5, 8, 16]).each do |name, size|
+      [0, 6, 100, 1799].each do |frame|
+        args = { name: name, width: size, height: size, frame: frame, branding: false }
+        cells = described_class.mini_cells(**args)
+        ascii = described_class.mini_frame(**args)
+        expect(cells.length).to eq(size)
+        expect(cells.map(&:length)).to all(eq(size))
+        expect(cells.flatten.map { |cell| cell[:glyph] }.join).not_to match(/[PWN]/)
+        expect(ascii.length).to eq(size)
+        expect(ascii.map(&:length)).to all(eq(size))
+        expect(ascii.join).not_to match(/[PWN]/)
+        next if size < 5
+
+        replay = described_class.send(:mini_replay, name: name, width: size, height: size + 1, seed: 73)
+        expected = replay[frame][:rows].drop(1).map do |row|
+          row.chars.map { |pixel| described_class::MINI_PIXELS.fetch(pixel).first }.join
+        end
+        expect(cells.map { |row| row.map { |cell| cell[:glyph] }.join }).to eq(expected)
+      end
+    end
+  end
+
   def block_colors(rows)
     rows.flat_map do |row|
       [0, 2].map do |bit|
@@ -31,9 +54,9 @@ describe PWN::Banner do
 
   it 'keeps every active tetromino color beside the stack throughout its fall and lock' do
     rotations = Hash.new { |hash, key| hash[key] = [] }
-    [5, 8, 16, 20].product([1, 73, 74]).each do |size, seed|
-      args = { name: :falling_blocks, width: size, height: size, seed: seed }
-      frames = described_class.send(:mini_replay, **args)
+    [5, 8, 16, 20].product([1, 73, 74], [true, false]).each do |size, seed, branding|
+      args = { name: :falling_blocks, width: size, height: size, seed: seed, branding: branding }
+      frames = described_class.send(:mini_replay, **args, height: size + (branding ? 0 : 1))
       frames.each_with_index do |frame, index|
         next unless frame[:state][:active]
 
@@ -45,13 +68,17 @@ describe PWN::Banner do
         points.each { |x, y| expected[y][x] = color }
         expect(block_colors(frame[:rows].drop(1))).to eq(expected)
         points.each do |x, y|
-          cell = cells[1 + (y / 2)][x]
+          expect(x).to be_between(0, size - 1)
+          expect(y).to be_between(0, ((size - (branding ? 1 : 0)) * 2) - 1)
+          cell = cells[(branding ? 1 : 0) + (y / 2)][x]
           mask = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█'.index(cell[:glyph])
           actual = mask[(y % 2) * 2] == 1 ? cell[:foreground] : cell[:background]
           expect(actual).to eq(color)
         end
         next unless frames[index + 1][:event] == :lock
 
+        stack = frame[:state][:stack]
+        expect(points.any? { |x, y| y == stack.length - 1 || stack[y + 1][x] != ' ' }).to be(true)
         expect(frames[index + 1][:rows]).to eq(frame[:rows])
         expect(described_class.mini_cells(**args, frame: index + 1)).to eq(cells)
         rotations[type] << points.map { |x, y| [x - points.map(&:first).min, y - points.map(&:last).min] }.sort
