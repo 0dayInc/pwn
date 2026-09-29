@@ -378,12 +378,15 @@ module PWN
             end
             # Artwork owns complete foreground/background pairs, separate from
             # semantic theme colors. Never silently drop a colored background.
-            @banner_colors = @curses.color_pairs > PALETTE.length + (PALETTE.length**2)
+            @banner_colors = @curses.color_pairs > PALETTE.length * 2
             return unless @banner_colors
 
             PALETTE.each_with_index do |name, index|
               @curses.init_pair(PALETTE.length + index + 1, Curses.const_get("COLOR_#{name.upcase}"), Curses::COLOR_BLACK)
             end
+            @banner_two_colors = @curses.color_pairs > PALETTE.length + (PALETTE.length**2)
+            return unless @banner_two_colors
+
             PALETTE.reject { |name| name == 'black' }.each_with_index do |background, bg_index|
               PALETTE.each_with_index do |foreground, fg_index|
                 @curses.init_pair(17 + (bg_index * 8) + fg_index, Curses.const_get("COLOR_#{foreground.upcase}"), Curses.const_get("COLOR_#{background.upcase}"))
@@ -1039,7 +1042,7 @@ module PWN
               put(top + row, left + box_width - 1, '│', color)
             end
             put(top + height - 1, left, "╰#{'─' * (box_width - 2)}╯", color)
-            put(top, left + 2, fit(" #{title} ", box_width - 4), tone(:title))
+            put(top, left + 2, fit(" #{title} ", box_width - 4), tone(:title)) unless title.empty?
           end
 
           def seed_request_history
@@ -1135,9 +1138,9 @@ module PWN
             end
             cadence = cells ? @banner_frame_seconds : PWN::Banner::MINI_FRAME_SECONDS
             frame = ((now - @banner_started) / cadence).floor % PWN::Banner::MINI_FRAME_COUNT
-            return PWN::Banner.mini_cells(name: @banner_name, frame: frame, width: size, height: size, seed: @banner_seed) if cells
+            return PWN::Banner.mini_cells(name: @banner_name, frame: frame, width: size, height: size, seed: @banner_seed, branding: false) if cells
 
-            art = PWN::Banner.mini_frame(name: @banner_name, frame: frame, width: size, height: size)
+            art = PWN::Banner.mini_frame(name: @banner_name, frame: frame, width: size, height: size, branding: false)
             canvas = Array.new(size) { ' ' * size }
             top = (size - art.length) / 2
             art.each_with_index { |row, index| canvas[top + index] = row.center(size) }
@@ -1154,7 +1157,8 @@ module PWN
               row.first(size).each_with_index do |cell, x|
                 index = PALETTE.index(cell[:foreground].to_s)
                 background = PALETTE.index(cell[:background].to_s)
-                pair = if @banner_colors && index && background
+                colors = @banner_colors && (@banner_name != :falling_blocks || @banner_two_colors)
+                pair = if colors && index && background && (background == 7 || @banner_two_colors)
                          background == 7 ? 9 + index : 17 + (background * 8) + index
                        end
                 # Two occupied halves must remain filled in monochrome too.
@@ -1204,7 +1208,7 @@ module PWN
             put(1, @header_text_column, fit("#{state} · #{elapsed} · #{scroll_status}", @header_text_width), tone(:status))
             visible.each_with_index { |spans, index| put_spans(2 + index, @header_text_column, spans) }
             if @header_pane_height
-              box(0, 0, height, height, 'PWN')
+              box(0, 0, height, height, '')
               draw_banner(height - 2)
             end
             height

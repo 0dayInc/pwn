@@ -425,6 +425,25 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     PWN::Env[:ai] = previous
   end
 
+  it 'draws every game without wordmark glyphs in color, monochrome and tiny panes' do
+    PWN::Banner.mini_names.product([1, 3, 5, 8, 16, 20], [true, false]).each do |name, size, colors|
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+      allow(PWN::Banner).to receive(:mini_names).and_return([name])
+      now = 100.0
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
+      console.instance_variable_set(:@banner_colors, colors)
+      console.instance_variable_set(:@banner_two_colors, colors)
+      calls = []
+      allow(console).to receive(:put) { |*args| calls << args }
+      console.draw_banner(size)
+      now += 10.0
+      console.draw_banner(size)
+      expect(calls.map { |_, _, text| text }.join).not_to match(/[PWN]/)
+      expect(calls).to all(satisfy { |y, x, text| y.between?(1, size) && x >= 1 && x + text.length <= size + 1 })
+      expect(console.banner_frame(size).join).not_to match(/[PWN]/)
+    end
+  end
+
   it 'selects one mini-banner per session and advances only from monotonic elapsed time' do
     pry = Pry.new
     pry.config.pwn_ai_session_id = 'banner-one'
@@ -435,16 +454,16 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     now = 100.0
     allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
     first = console.banner_frame(8)
-    expect(first).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 0, width: 8, height: 8))
+    expect(first).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 0, width: 8, height: 8, branding: false))
     now += PWN::Banner::MINI_FRAME_SECONDS / 2
     expect(console.banner_frame(8)).to eq(first)
     now += PWN::Banner::MINI_FRAME_SECONDS * 0.75
-    expect(console.banner_frame(8)).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 1, width: 8, height: 8))
+    expect(console.banner_frame(8)).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 1, width: 8, height: 8, branding: false))
     now += PWN::Banner::MINI_FRAME_SECONDS * PWN::Banner::MINI_FRAME_COUNT
-    expect(console.banner_frame(12)).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 1, width: 12, height: 12))
+    expect(console.banner_frame(12)).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 1, width: 12, height: 12, branding: false))
     expect(choices).to have_received(:sample).once
     pry.config.pwn_ai_session_id = 'banner-two'
-    expect(console.banner_frame(8)).to eq(PWN::Banner.mini_frame(name: choices.last, frame: 0, width: 8, height: 8))
+    expect(console.banner_frame(8)).to eq(PWN::Banner.mini_frame(name: choices.last, frame: 0, width: 8, height: 8, branding: false))
     expect(choices).to have_received(:sample).twice
   end
 
@@ -454,7 +473,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(100.0)
     size = 24
     canvas = console.banner_frame(size)
-    art = PWN::Banner.mini_frame(name: :pong, frame: 0, width: size, height: size)
+    art = PWN::Banner.mini_frame(name: :pong, frame: 0, width: size, height: size, branding: false)
     expect(canvas.length).to eq(size)
     expect(canvas.map(&:length)).to all(eq(size))
     top = (size - art.length) / 2
@@ -470,14 +489,14 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
     console.banner_frame(20, cells: true)
     seed = console.instance_variable_get(:@banner_seed)
-    frames = PWN::Banner.send(:mini_replay, name: :falling_blocks, width: 20, height: 20, seed: seed)
+    frames = PWN::Banner.send(:mini_replay, name: :falling_blocks, width: 20, height: 21, seed: seed)
     tick = frames.index { |frame| frame[:event] == :lock }
     now += (tick + 0.1) * PWN::Banner::MINI_FRAME_SECONDS
     calls = []
     allow(console).to receive(:put) { |*args| calls << args }
     console.draw_banner(20)
     expect(calls.select { |y, _x, text| y == 20 && text.strip != '' }).not_to be_empty
-    expect(calls).to include([1, 9, 'P', nil], [1, 10, 'W', nil], [1, 11, 'N', nil])
+    expect(calls.map { |_, _, text| text }.join).not_to match(/[PWN]/)
     expect(calls).to all(satisfy { |y, x, text| y.between?(1, 20) && x >= 1 && x + text.length <= 21 })
   end
 
@@ -498,12 +517,13 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     end
     allow(PWN::Banner).to receive(:mini_cells).and_call_original
     console.draw
-    expect(rectangles).to include([0, 0, 10, 10, 'PWN'])
+    expect(rectangles).to include([0, 0, 10, 10, ''])
     expect(rectangles).to include([0, 10, 10, 109, "pwn-ai v#{PWN::VERSION}"])
     expect(console.instance_variable_get(:@header_text_column)).to eq(12)
     expect(painted).to include([2, 12, 'PROVIDER (ENGINE):', console.tone(:category)])
     expect(painted.any? { |y, x, text, color| y == 0 && x == 0 && text.include?('╭') && color == console.tone(:border) }).to be(true)
-    expect(painted.any? { |y, x, text, color| y == 0 && x == 2 && text.include?('PWN') && color == console.tone(:title) }).to be(true)
+    expect(painted.any? { |y, x, _text, _color| y == 0 && x == 2 }).to be(false)
+    expect(painted.select { |y, x, _text, _color| y < 10 && x < 10 }.map { |_, _, text| text }.join).not_to match(/[PWN]/)
     expect(painted.select { |y, x, text, _color| y.between?(1, 8) && x == 1 && text == ' ' * 8 }.length).to eq(8)
     expect(painted.select { |y, _x, _text, _color| y < 10 }).to all(satisfy { |y, x, text, _color| y >= 0 && x >= 0 && x + console.width(text) <= 120 })
     expect(PWN::Banner).to have_received(:mini_cells).with(hash_including(width: 8, height: 8)).once
@@ -511,7 +531,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       allow(curses).to receive_messages(cols: columns, lines: rows)
       rectangles.clear
       console.draw
-      expect(rectangles.map(&:last)).not_to include('PWN')
+      expect(rectangles.map(&:last)).not_to include('')
       expect(console.instance_variable_get(:@header_text_column)).to eq(2)
     end
     allow(curses).to receive_messages(cols: 120, lines: 26)
@@ -533,7 +553,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(PWN::Banner).to receive(:mini_cells).and_call_original
     height = console.draw_header('ollama', 'fixture')
     expect(height).to be > 10
-    expect(console).to have_received(:box).with(0, 0, height, height, 'PWN')
+    expect(console).to have_received(:box).with(0, 0, height, height, '')
     expect(PWN::Banner).to have_received(:mini_cells).with(hash_including(width: height - 2, height: height - 2))
     expect(console.instance_variable_get(:@header_spans).length + 3).to be <= height
     expect(console.header_lines('ollama', 'fixture', console.instance_variable_get(:@header_text_width)).join).to include('REASONING EFFORT: high')
@@ -560,7 +580,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'paints both colors of touching blocks and preserves solid occupancy without color' do
-    [256, 16].each do |count|
+    [256, 32, 16].each do |count|
       curses = double(has_colors?: true, start_color: nil, use_default_colors: nil, init_pair: nil, color_pairs: count)
       console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
       allow(ENV).to receive(:key?).with('NO_COLOR').and_return(false)
@@ -605,10 +625,10 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.banner_frame(8, cells: true)
     seed = console.instance_variable_get(:@banner_seed)
     expect(seed).to be_a(Integer)
-    expect(console.banner_frame(8, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 0, width: 8, height: 8, seed: seed))
+    expect(console.banner_frame(8, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 0, width: 8, height: 8, seed: seed, branding: false))
     now += 0.21
-    expect(console.banner_frame(8, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 2, width: 8, height: 8, seed: seed))
-    expect(console.banner_frame(12, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 2, width: 12, height: 12, seed: seed))
+    expect(console.banner_frame(8, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 2, width: 8, height: 8, seed: seed, branding: false))
+    expect(console.banner_frame(12, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 2, width: 12, height: 12, seed: seed, branding: false))
     expect(console.instance_variable_get(:@banner_seed)).to eq(seed)
     pry.config.pwn_ai_session_id = 'another-colored-session'
     console.banner_frame(8, cells: true)
@@ -630,7 +650,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       console.banner_frame(8, cells: true)
       seed = console.instance_variable_get(:@banner_seed)
       now += 1.21
-      expect(PWN::Banner).to receive(:mini_cells).with(name: name, frame: 24, width: 8, height: 8, seed: seed).twice.and_call_original
+      expect(PWN::Banner).to receive(:mini_cells).with(name: name, frame: 24, width: 8, height: 8, seed: seed, branding: false).twice.and_call_original
       2.times { console.banner_frame(8, cells: true) }
     end
   end

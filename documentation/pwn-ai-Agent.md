@@ -31,7 +31,9 @@ its seeded autonomous flight is decorative, not player-controlled.
 Its framed width in terminal cells equals the complete header's height in rows;
 the interior canvas is `(header height - 2)` cells on each side. This is a
 cell-square, not a pixel-square—terminal glyph cells are usually taller than wide.
-Falling blocks fill the entire interior below the PWN wordmark, including the
+The animation pane has no wordmark; its former label row belongs to gameplay.
+The main `pwn-ai` header title and full-screen static banners are unchanged.
+Falling blocks fill the entire interior, including the
 bottom two quadrants. Each logical block occupies one horizontal half-cell from
 spawn through landing and locking. This deliberately replaces independent
 quarter-cell blocks: a terminal cell has only a foreground and background, so
@@ -51,11 +53,13 @@ changing the active session selects again. Frames advance at the banner API's
 blocks/snake) using monotonic time in the existing render loop—no extra animation
 thread, input reader or provider call. This is decoration, not progress or
 telemetry. The frame keeps the existing border/title theme roles. Artwork comes
-from `PWN::Banner.mini_cells` with dedicated foreground/background curses pairs,
+from `PWN::Banner.mini_cells(branding: false)` with dedicated foreground/background curses pairs,
 not ANSI output or theme overrides. `NO_COLOR` and terminals with too few color
 pairs retain occupied geometry in monochrome (two differently colored occupied
 halves become a full block, not a half-block with its background lost). The `mini_frame` ASCII API
-retains its 60-frame, 0.1-second loops for other callers. Colored replays contain
+retains its 60-frame, 0.1-second loops for other callers. Both miniature APIs
+default to their legacy branding; `branding: false` reclaims the label row and
+leaves undersized fallback panes blank. Colored replays contain
 1800 frames (90 seconds for Pong/Asteroids, 180 for blocks/snake), use a local
 per-session seed, and share a bounded six-replay cache. Settings
 wrap in the right-hand region without losing their label colors. A bounded,

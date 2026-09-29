@@ -4,7 +4,8 @@ module PWN
   # Static banners and pure, PWN-branded retro ASCII/color loops: falling_blocks,
   # snake, pong, and asteroids. mini_frame returns fresh rows on a borderless canvas;
   # use equal width and height (5..16) for complete square artwork. Dimensions
-  # clamp to 0..16 (colored blocks: 0..64), with tiny panes showing a wordmark. The caller
+  # clamp to 0..16 (colored blocks: 0..64). Set branding: false for an unbranded
+  # pane with the wordmark row reclaimed for play; tiny panes then stay blank. The caller
   # samples mini_names once per session and advances the explicit frame index
   # every mini_frame_seconds(name:) (0.05 for Pong/Asteroids, 0.1 otherwise).
   # mini_cells replays 1800 seeded gameplay
@@ -98,7 +99,8 @@ module PWN
     #   name: 'optional - falling_blocks, snake, pong, or asteroids; defaults to falling_blocks',
     #   frame: 'optional - integer frame index, defaults to zero and wraps at 60',
     #   width: 'optional - output columns clamped to zero through 16, defaults to 16',
-    #   height: 'optional - output rows clamped to zero through 16, defaults to 16'
+    #   height: 'optional - output rows clamped to zero through 16, defaults to 16',
+    #   branding: 'optional - include the legacy wordmark, defaults to true; false reclaims its row'
     # )
 
     public_class_method def self.mini_frame(opts = {})
@@ -110,12 +112,16 @@ module PWN
       height = (opts[:height] || MINI_HEIGHT).to_i.clamp(0, MINI_HEIGHT)
       return [] if width.zero? || height.zero?
 
+      branding = opts[:branding] != false
+      return Array.new(height) { ' ' * width } if !branding && (width < 5 || height < 5)
+
+      height += 1 unless branding
       rows = Array.new(height) { ' ' * width }
       rows[0] = 'PWN'[0, width].center(width)
       return rows if width < 5 || height < 5
 
       send("mini_#{name}", rows: rows, phase: phase, width: width, height: height)
-      rows
+      branding ? rows : rows.drop(1)
     end
 
     # Supported Method Parameters::
@@ -150,7 +156,8 @@ module PWN
     #   frame: 'optional - integer index, defaults to zero and wraps at 1800',
     #   width: 'optional - columns clamped to 0..64 for blocks, 0..16 otherwise; defaults to 16',
     #   height: 'optional - rows clamped to 0..64 for blocks, 0..16 otherwise; defaults to 16',
-    #   seed: 'optional - integer local PRNG seed, defaults to 73; retain per session'
+    #   seed: 'optional - integer local PRNG seed, defaults to 73; retain per session',
+    #   branding: 'optional - include the legacy wordmark, defaults to true; false reclaims its row'
     # )
 
     public_class_method def self.mini_cells(opts = {})
@@ -163,10 +170,14 @@ module PWN
       height = (opts[:height] || MINI_HEIGHT).to_i.clamp(0, limit)
       return [] if width.zero? || height.zero?
 
+      branding = opts[:branding] != false
+      # Simulate one extra row before removing the legacy label, so every output
+      # row belongs to gameplay without changing the public dimension limits.
       rows = if width < 5 || height < 5
-               ['PWN'[0, width].center(width)] + Array.new(height - 1) { ' ' * width }
+               [branding ? 'PWN'[0, width].center(width) : ' ' * width] + Array.new(height - 1) { ' ' * width }
              else
-               mini_replay(name: name, width: width, height: height, seed: (opts[:seed] || MINI_SEED).to_i)[phase][:rows]
+               replay = mini_replay(name: name, width: width, height: height + (branding ? 0 : 1), seed: (opts[:seed] || MINI_SEED).to_i)
+               branding ? replay[phase][:rows] : replay[phase][:rows].drop(1)
              end
       rows.map do |row|
         row.chars.map do |pixel|
@@ -823,11 +834,13 @@ module PWN
           name: 'optional - falling_blocks, snake, pong, or asteroids; defaults to falling_blocks',
           frame: 'optional - integer frame index, defaults to zero and wraps at 60',
           width: 'optional - columns clamped to zero through 16; defaults to 16',
-          height: 'optional - rows clamped to zero through 16; defaults to 16'
+          height: 'optional - rows clamped to zero through 16; defaults to 16',
+          branding: 'optional - include the legacy wordmark, defaults to true; false reclaims its row'
         )
 
         # Return fresh Unicode block cells: { glyph:, foreground:, background: }.
-        # Colors are standard terminal names; background is black. No ANSI or IO.
+        # Colors are standard terminal names; blocks may use colored backgrounds.
+        # No ANSI or IO. Other games retain black backgrounds.
         # 1800 frames; mini_frame_seconds is 0.05 for Pong/Asteroids, 0.1 otherwise.
         # Caller samples mini_names once per session. No timers or animation threads.
         # Seeded gameplay, bounded six-replay cache; white hold/wipe marks resets.
@@ -837,7 +850,8 @@ module PWN
           frame: 'optional - integer frame index, defaults to zero and wraps at 1800',
           width: 'optional - columns clamped to 0..64 for blocks, 0..16 otherwise; defaults to 16',
           height: 'optional - rows clamped to 0..64 for blocks, 0..16 otherwise; defaults to 16',
-          seed: 'optional - integer local PRNG seed, defaults to 73; retain per session'
+          seed: 'optional - integer local PRNG seed, defaults to 73; retain per session',
+          branding: 'optional - include the legacy wordmark, defaults to true; false reclaims its row'
         )
 
         # Run welcome and return its result
