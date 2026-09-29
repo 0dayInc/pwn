@@ -23,6 +23,16 @@ describe PWN::Config do
     expect(env[:ai_profiles][:local]).to eq(model: 'fixture')
   end
 
+  it 'defaults every TUI role to the configured palette' do
+    expect(described_class.env_template.dig(:ai, :tui, :theme)).to eq(
+      border: 'black', title: 'red', operator: 'red', request: 'white',
+      assistant: 'white', task: 'green', tool: 'cyan', result: 'yellow',
+      notice: 'cyan', warning: 'red', category: 'yellow', value: 'white',
+      composer: 'white', header: 'white', footer: 'white', prompt: 'red',
+      selection: 'red', status: 'yellow'
+    )
+  end
+
   describe '.env_template AI providers' do
     let(:ai) { described_class.env_template[:ai] }
 

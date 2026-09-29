@@ -16,6 +16,10 @@ module PWN
     module REPL
       autoload :ASM, 'pwn/plugins/repl/asm'
       autoload :AI, 'pwn/plugins/repl/ai'
+      autoload :AIConsole, 'pwn/plugins/repl/ai_console'
+      autoload :AIConsoleCommands, 'pwn/plugins/repl/ai_console_commands'
+      autoload :AIConsoleUsage, 'pwn/plugins/repl/ai_console_usage'
+      autoload :AISwarm, 'pwn/plugins/repl/ai_swarm'
       autoload :Mesh, 'pwn/plugins/repl/mesh'
       autoload :Vault, 'pwn/plugins/repl/vault'
 
@@ -579,7 +583,7 @@ module PWN
                   puts
                   mirror.call("#{header}\n#{argv_out}#{res_header}\n#{res_out}\n")
                 end
-                final = PWN::AI::Agent::Loop.run(
+                final = PWN::Plugins::REPL.pwn_ai_run_steerable(
                   request: orig_request,
                   session_id: sess_id,
                   enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
@@ -1104,13 +1108,31 @@ module PWN
 
           # Run pwn ai run model and return its result
           #{self}.pwn_ai_run_model(
-            args: 'optional - Array args value consumed by #pwn_ai_run_model'
+            args: 'optional - Array args value consumed by #pwn_ai_run_model',
+            prompt: 'optional - callable receiving selection metadata; return effort, nil to cancel, or :deferred'
+          )
+
+          # Resolve provider-supported effort options for a submitted model selection.
+          #{self}.pwn_ai_reasoning_selection(
+            engine: 'required - provider name',
+            model: 'required - exact model identifier'
+          )
+
+          # Prompt for reasoning effort in the legacy line interface.
+          #{self}.pwn_ai_prompt_reasoning(
+            selection: 'required - model selection with efforts and default'
+          )
+
+          # Apply accepted engine, model and reasoning effort as one selection.
+          #{self}.pwn_ai_apply_model(
+            selection: 'required - engine, model and optional reasoning_effort'
           )
 
           # Run persist ai selection and return its result
           #{self}.persist_ai_selection(
             engine: 'required - engine value consumed by #persist_ai_selection',
-            model: 'required - model value consumed by #persist_ai_selection'
+            model: 'required - model value consumed by #persist_ai_selection',
+            reasoning_effort: 'optional - accepted reasoning effort to merge into this engine'
           )
 
           # Run pwn ai run cron and return its result

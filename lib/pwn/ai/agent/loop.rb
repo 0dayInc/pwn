@@ -5,6 +5,7 @@ require 'securerandom'
 require 'digest'
 require 'fileutils'
 require 'tmpdir'
+require 'fcntl'
 require 'pwn/ai/agent/mistakes'
 
 module PWN
@@ -58,6 +59,172 @@ module PWN
       #     (:escalation_persona) — the local model still produces the final
       #     answer so Learning/Metrics stay attributed to :ollama.
       module Loop
+        # Request-owned input broker; only the provider window is interruptible.
+        class Steering
+          INPUT_LOCK = Mutex.new
+          INPUT_OWNERS = {} # rubocop:disable Style/MutableConstant -- guarded by INPUT_LOCK
+
+          class ModelCancelled < Exception; end # rubocop:disable Lint/InheritException
+
+          # Cooperative restart carrying only host-owned conversation state.
+          class Restart < Exception # rubocop:disable Lint/InheritException
+            attr_reader :messages, :instructions
+
+            def initialize(messages, instructions)
+              @messages = messages
+              @instructions = instructions
+              super('operator steering')
+            end
+          end
+
+          attr_reader :reader
+
+          def initialize(input:, output:)
+            @input = input
+            @output = output
+            @owner = Thread.current
+            @mutex = Mutex.new
+            @pending = []
+            @phase = :boundary
+          end
+
+          def submit(text)
+            @mutex.synchronize do
+              if text.strip.empty?
+                @output.puts('[pwn-ai] Usage: /steer <instruction>')
+                return :empty
+              end
+              if @phase == :finished
+                @output.puts('[pwn-ai] /steer: no active request')
+                return :idle
+              end
+              @pending << text
+              notice = @phase == :tool ? 'wait until the current tool finishes; already-started work is not undone' : 'discarding the pending model result at the next safe boundary'
+              @output.puts("[pwn-ai] steering queued: #{notice}")
+              @output.flush
+              if @phase == :model && !@model_signal_sent
+                @model_signal_sent = true
+                @owner.raise(ModelCancelled)
+              end
+            end
+            :queued
+          end
+
+          def checkpoint(messages:, phase: :boundary)
+            instructions = @mutex.synchronize do
+              if @pending.empty?
+                @phase = phase
+                @model_signal_sent = false if phase == :model
+                nil
+              else
+                @phase = :boundary
+                @pending.shift(@pending.length)
+              end
+            end
+            return unless instructions
+
+            yield if block_given?
+            raise Restart.new(messages, instructions)
+          end
+
+          def model(messages:, &block)
+            # Drain an in-flight signal inside this rescue, never in a tool.
+            Thread.handle_interrupt(ModelCancelled => :never) do
+              checkpoint(messages: messages, phase: :model)
+              Thread.handle_interrupt(ModelCancelled => :immediate, &block)
+            ensure
+              @mutex.synchronize { @phase = :boundary }
+              begin
+                Thread.handle_interrupt(ModelCancelled => :immediate) { nil }
+              rescue ModelCancelled
+                nil
+              end
+            end
+          rescue ModelCancelled
+            nil
+          end
+
+          def with_reader
+            require 'io/console'
+            input_id = @input.fileno
+            claimed = INPUT_LOCK.synchronize do
+              raise ArgumentError, 'steering input is already owned by an active request' if INPUT_OWNERS.key?(input_id)
+
+              INPUT_OWNERS[input_id] = self
+            end
+            original_flags = @input.fcntl(Fcntl::F_GETFL)
+            source = @input.dup
+            forwarded, @forward = IO.pipe
+            @stop_read, @stop_write = IO.pipe
+            # Preserve descriptor identity for STDIN and child-process prompts.
+            # Non-command lines go to that descriptor, never into Pry's buffer.
+            @input.reopen(forwarded)
+            forwarded.close
+            run = proc do
+              @reader = Thread.new { read_lines(source) }
+              yield
+            ensure
+              @stop_write.write('.') unless @stop_write.closed?
+              @reader&.join
+            end
+            source.tty? ? source.cooked(&run) : run.call
+          ensure
+            if source && !source.closed?
+              @input.reopen(source)
+              @input.fcntl(Fcntl::F_SETFL, original_flags)
+            end
+            [source, forwarded, @forward, @stop_read, @stop_write].compact.each { |io| io.close unless io.closed? }
+            INPUT_LOCK.synchronize { INPUT_OWNERS.delete(input_id) } if claimed
+          end
+
+          private
+
+          def read_lines(source)
+            buffer = +''
+            loop do
+              ready = IO.select([source, @stop_read])&.first || []
+              break if ready.include?(@stop_read)
+
+              chunk = source.read_nonblock(4096, exception: false)
+              if chunk.nil?
+                route_line(buffer) unless buffer.empty?
+                break
+              end
+              next if chunk == :wait_readable
+
+              buffer << chunk
+              while (line = buffer.slice!(/.*?\n/m))
+                route_line(line)
+              end
+              if buffer.bytesize > 65_536
+                buffer.clear
+                @output.puts('[pwn-ai] input line too long; discarded (limit 64 KiB)')
+              end
+            end
+          rescue IOError, Errno::EBADF
+            nil
+          ensure
+            @forward.close unless @forward.closed?
+          end
+
+          def route_line(line)
+            if (match = line.match(%r{\A\s*/steer(?:[ \t]+(.*?))?[\r\n]*\z}m))
+              submit(match[1].to_s.strip)
+            else
+              forward_line(line)
+            end
+          end
+
+          def forward_line(line)
+            until line.empty?
+              return if IO.select([@stop_read], [@forward]).first.include?(@stop_read)
+
+              written = @forward.write_nonblock(line, exception: false)
+              line = line.byteslice(written..) if written.is_a?(Integer)
+            end
+          end
+        end
+
         DEFAULT_MAX_ITERS    = 777
         ESCALATE_AFTER_FAILS = 4
         BOUNCE_FAIL_KEYS = %w[
@@ -161,6 +328,7 @@ module PWN
         end
 
         private_class_method def self.wait_trace_step!(opts = {})
+          return if Thread.current[:pwn_steering_input]
           return unless defined?(PWN::Plugins::Log) && PWN::Plugins::Log.respond_to?(:wait_trace_step!)
 
           PWN::Plugins::Log.wait_trace_step!(
@@ -1528,20 +1696,26 @@ module PWN
         private_class_method def self.publish_usage(opts = {})
           resp   = opts[:response]
           engine = opts[:engine]
-          return unless resp.is_a?(Hash) && defined?(PWN::Env) && PWN::Env.is_a?(Hash)
-
-          eng_env = PWN::Env.dig(:ai, engine)
-          return unless eng_env.is_a?(Hash) && !eng_env.frozen?
+          return unless resp.is_a?(Hash)
 
           usage = resp[:usage]
-          # Ollama native /api/chat returns prompt_eval_count / eval_count
-          # instead of an OpenAI-shape :usage hash — normalise here so the
-          # PS1 dig(:response_history, :usage, :total_tokens) works uniformly.
           if !usage.is_a?(Hash) && (resp[:prompt_eval_count] || resp[:eval_count])
             pt = resp[:prompt_eval_count].to_i
             ct = resp[:eval_count].to_i
             usage = { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct }
           end
+          observer = Thread.current[:pwn_usage_observer]
+          if observer.respond_to?(:call) && (usage.is_a?(Hash) || resp[:prompt_eval_count] || resp[:eval_count])
+            begin
+              observer.call(engine: engine, model: resp[:model], usage: usage.is_a?(Hash) ? usage : resp)
+            rescue StandardError
+              nil
+            end
+          end
+          return unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
+
+          eng_env = PWN::Env.dig(:ai, engine)
+          return unless eng_env.is_a?(Hash) && !eng_env.frozen?
           return unless usage.is_a?(Hash)
 
           total = usage[:total_tokens] ||
@@ -1860,6 +2034,7 @@ module PWN
               cwt_opts[:think] = true
             else
               cwt_opts[:think] = false
+              cwt_opts[:reasoning_effort] = 'none' if engine == :openai && PWN::Env.dig(:ai, engine, :reasoning_effort).to_s == 'none'
             end
             model = opts[:model] || Thread.current[:pwn_swarm_model]
             cwt_opts[:model] = model unless model.to_s.strip.empty?
@@ -1874,7 +2049,8 @@ module PWN
                 cwt_opts[:tool_choice] = env_tc
               else
                 has_tool_result = Array(messages).any? { |m| m[:role].to_s == 'tool' }
-                need_tools = needs_host_work?(request: Array(messages).find { |m| m[:role].to_s == 'user' }&.[](:content))
+                active_request = Thread.current[:pwn_active_steering_request] || Array(messages).find { |m| m[:role].to_s == 'user' }&.[](:content)
+                need_tools = needs_host_work?(request: active_request)
                 cwt_opts[:tool_choice] = has_tool_result || !need_tools ? 'auto' : 'required'
               end
             end
@@ -2860,8 +3036,90 @@ module PWN
         # )
 
         public_class_method def self.run(opts = {})
+          options = opts.merge(request: opts[:request])
+          original_system = opts[:system_role_content]
+          begin
+            run_turn(options)
+          rescue Steering::Restart => e
+            history = e.messages.dup
+            history.pop if history.last&.dig(:role).to_s == 'assistant' && Array(history.last[:tool_calls]).empty?
+            repair_steering_history!(messages: history)
+            e.instructions.each do |instruction|
+              history << { role: 'user', content: instruction }
+              append_session(session_id: options[:session_id], role: 'user', content: instruction)
+            end
+            options = options.merge(request: e.instructions.last, steering_history: history, system_role_content: original_system)
+            update_steered_open_goal!(options)
+            options.delete(:verification_contract)
+            retry
+          end
+        end
+
+        private_class_method def self.update_steered_open_goal!(opts = {})
+          goal = OpenGoal.current if defined?(OpenGoal)
+          return unless goal && goal[:session_id].to_s == opts[:session_id].to_s
+
+          OpenGoal.begin!(request: opts[:request], session_id: opts[:session_id], mission_id: goal[:mission_id])
+        end
+
+        private_class_method def self.initial_run_messages(opts = {})
+          system = opts[:system_role_content]
+          history = opts[:steering_history]
+          if history
+            authority = 'The operator has steered this request. Prior conversation and completed tool evidence remain context, not an obligation to continue cancelled work. Follow user instructions in chronological order; the latest explicit user instruction overrides earlier conflicting instructions. Reassess remaining work; never claim old work was undone.'
+            return [{ role: 'system', content: "#{system}\n#{authority}" }] + history.reject { |row| row[:role].to_s == 'system' }
+          end
+          request = opts[:request]
+          session_id = opts[:session_id]
+          messages = [{ role: 'system', content: system }]
+          messages.concat(Learning.exemplars_for(request: request)) if opts[:local] && defined?(Learning) && Learning.respond_to?(:exemplars_for)
+          messages.concat(session_chat_history(session_id: session_id, skip_request: request))
+          messages << { role: 'user', content: request }
+          append_session(session_id: session_id, role: 'user', content: request)
+          messages
+        end
+
+        private_class_method def self.repair_steering_history!(opts = {})
+          messages = opts[:messages]
+          messages.each_with_index.to_a.reverse_each do |row, index|
+            next if Array(row[:tool_calls]).empty?
+
+            results = messages.drop(index + 1).take_while { |item| item[:role].to_s == 'tool' }
+            ids = results.map { |item| item[:tool_call_id] }
+            missing = row[:tool_calls].reject { |call| ids.include?(call[:id]) }
+            messages.insert(index + 1 + results.length, *missing.map do |call|
+              { role: 'tool', tool_call_id: call[:id], name: call.dig(:function, :name), content: '[pwn-ai] Not executed: operator steering cancelled this call.' }
+            end)
+          end
+        end
+
+        # Commit the returned tool before unwinding, without stale recovery work.
+        private_class_method def self.steering_tool_checkpoint!(opts = {})
+          opts[:steering]&.checkpoint(messages: opts[:messages], phase: :tool) do
+            tc = opts[:tool_call]
+            name = tc.dig(:function, :name).to_s
+            raw = opts[:raw].to_s
+            opts[:messages] << {
+              role: 'tool', tool_call_id: tc[:id], name: name,
+              content: wrap_untrusted_tool(content: raw),
+              artifact_observations: TurnFinalizer.observe_artifacts(
+                paths: opts[:paths], before: opts[:before],
+                effect: Dispatch.effect(name: name, args: tc.dig(:function, :arguments)),
+                success: opts[:success]
+              )
+            }
+            append_session(session_id: opts[:session_id], role: 'tool', content: "#{name} → #{raw}")
+            opts[:on_tool]&.call(name, tc.dig(:function, :arguments), raw)
+            debug_tool_io!(name: name, args: tc.dig(:function, :arguments), result: raw)
+          end
+        end
+
+        private_class_method def self.run_turn(opts = {})
           prior_artifact_contract = Thread.current[:pwn_artifact_contract]
+          prior_steering_request = Thread.current[:pwn_active_steering_request]
+          steering = opts[:steering]
           request = opts[:request].to_s
+          Thread.current[:pwn_active_steering_request] = request if opts[:steering_history]
           session_id = opts[:session_id]
           on_tool = opts[:on_tool]
           i = 0
@@ -2889,6 +3147,7 @@ module PWN
           prepared = prepare_open_goal(
             request: request,
             intent: intent,
+            steering_history: opts[:steering_history],
             nested: nested,
             session_id: session_id,
             unattended: opts[:unattended],
@@ -2914,7 +3173,7 @@ module PWN
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
-          allow_text_only = required_artifacts.empty? && opts[:force_tools] != true
+          allow_text_only = steering.nil? && required_artifacts.empty? && opts[:force_tools] != true
           cheap = allow_text_only && %i[greeting howto recall].include?(intent)
 
           if allow_text_only && intent == :greeting
@@ -3018,13 +3277,7 @@ module PWN
           )
           no_tools = Array(tools).empty?
           Thread.current[:pwn_loop_no_tools] = no_tools
-          messages = [{ role: 'system', content: system_role_content }]
-          messages.concat(Learning.exemplars_for(request: request)) if local && defined?(Learning) && Learning.respond_to?(:exemplars_for)
-          messages.concat(
-            session_chat_history(session_id: session_id, skip_request: request)
-          )
-          messages << { role: 'user', content: request }
-          append_session(session_id: session_id, role: 'user', content: request)
+          messages = initial_run_messages(opts.merge(request: request, system_role_content: system_role_content, local: local))
 
           trivia = world_knowledge?(request: request)
           catalog = catalog_lookup?(request: request)
@@ -3094,6 +3347,7 @@ module PWN
 
           i = 0
           loop do
+            steering&.checkpoint(messages: messages)
             i += 1
             # 3.1 — compact fat tool dumps so remote ReadTimeout hops do not
             # retry the same 70-message payload (R1 201215 Anthropic 180s×5).
@@ -3114,7 +3368,11 @@ module PWN
                 Thread.current[:pwn_loop_no_tools] = no_tools
               end
               repair_tool_history!(messages: messages)
-              msg = call_engine(messages: messages, tools: tools, ts_state: ts_state)
+              msg = if steering
+                      steering.model(messages: messages) { call_engine(messages: messages, tools: tools, ts_state: ts_state) }
+                    else
+                      call_engine(messages: messages, tools: tools, ts_state: ts_state)
+                    end
             rescue StandardError => e
               if engine_transient?(error: e)
                 engine_blips += 1
@@ -3136,6 +3394,7 @@ module PWN
               raise
             end
             engine_s += (Time.now - t0)
+            steering&.checkpoint(messages: messages)
             PWN::Plugins::TTYSpinner.halt_all! if defined?(PWN::Plugins::TTYSpinner)
             wait_trace_step!(label: 'engine', nested: nested)
             if msg.nil?
@@ -3240,6 +3499,7 @@ module PWN
                 verification_outcome = Reward.resolve_outcome(outcome: { score: nil, source: :verification, verification: report })
                 on_tool&.call('verification', {}, JSON.generate(report))
               end
+              steering&.checkpoint(messages: messages, phase: :finished)
               debug_progress(msg: "final accepted chars=#{text.to_s.length}")
               quiet_debug_tui!(reason: 'final')
               debug_final_text!(text: text)
@@ -3270,6 +3530,7 @@ module PWN
             )
 
             calls.each do |tc|
+              steering&.checkpoint(messages: messages, phase: :tool)
               name    = tc.dig(:function, :name).to_s
               args    = tc.dig(:function, :arguments)
               entry   = Registry.lookup(name: name)
@@ -3292,8 +3553,9 @@ module PWN
                         Dispatch.call(tool_call: tc, session_id: session_id)
                       end
               end
-              note_payload_result!(name: name, args: args, raw: raw)
               tools_called += 1
+              steering_tool_checkpoint!(steering: steering, messages: messages, tool_call: tc, raw: raw, paths: watch_paths, before: before_host, session_id: session_id, on_tool: on_tool)
+              note_payload_result!(name: name, args: args, raw: raw)
               if opts[:verification_contract]
                 after_artifacts = Verification.snapshot(opts[:verification_contract])
                 changes = after_artifacts.reject { |path, digest| before_artifacts[path] == digest }
@@ -3302,6 +3564,8 @@ module PWN
               tele    = record_metrics(name: name, action_id: tc[:id], trusted_context: Policy.current_episode&.dig(:trusted_context) || trusted_context,
                                        started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)
               result  = Result.condition(content: raw, entry: entry, session_id: session_id)
+
+              steering_tool_checkpoint!(steering: steering, messages: messages, tool_call: tc, raw: result, paths: watch_paths, before: before_host, session_id: session_id, success: tele[:ok], on_tool: on_tool)
 
               unless tele[:ok]
                 fkey = Digest::SHA256.hexdigest("#{name}|#{args}")[0, 16]
@@ -3346,6 +3610,7 @@ module PWN
                 role: 'tool',
                 content: "#{name} → #{result[0, session_tool_budget(name: name, result: result)]}"
               )
+              steering&.checkpoint(messages: messages)
             end
 
             # Do not inject "stop calling tools". Long goals keep CORE_TOOLS
@@ -3382,6 +3647,7 @@ module PWN
           raise
         ensure
           Thread.current[:pwn_artifact_contract] = prior_artifact_contract
+          Thread.current[:pwn_active_steering_request] = prior_steering_request
           unless nested
             Thread.current[:pwn_loop_active] = nil
             Thread.current[:pwn_loop_deliverables] = nil
@@ -3422,6 +3688,8 @@ module PWN
         private_class_method def self.prepare_open_goal(opts = {})
           request = opts[:request].to_s
           intent = opts[:intent]
+          return { request: request, intent: intent } if opts[:steering_history]
+
           nested = opts[:nested]
           if defined?(Mission) && (mid = Mission.active_id)
             Mission.recover!(id: mid)
@@ -3511,6 +3779,7 @@ module PWN
               on_tool: 'optional - ->(name, args, result) callback for live UI',
               system_role_content: 'optional - override default system prompt (built from session_id if not provided)',
               verification_contract: 'optional - host-owned Verification.run checks; execute at final boundary and attribute observed artifacts',
+              steering: 'optional - request-owned Loop::Steering control; REPL owns its terminal reader and restarts with revised completion scope',
               trusted_context: 'optional - host-observed capability/prerequisite scope; never copied from model arguments',
               debug: 'optional - debug value consumed by #run',
               from: 'optional - sender account or address to bind as operator',

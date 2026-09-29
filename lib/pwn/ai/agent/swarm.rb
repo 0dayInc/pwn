@@ -111,14 +111,27 @@ module PWN
         end
 
         # Supported Method Parameters::
-        #   PWN::AI::Agent::Swarm.retire(name: 'required - persona name')
+        #   PWN::AI::Agent::Swarm.retire(
+        #     name: 'required - persona name',
+        #     swarm_id: 'optional - swarm directory when local is true',
+        #     local: 'optional - true retires only that swarm registry'
+        #   )
 
         public_class_method def self.retire(opts = {})
           name = opts[:name].to_s
+          sid = opts[:swarm_id].to_s
+          if opts[:local] == true && !sid.empty?
+            path = File.join(SWARM_ROOT, sid, 'agents.yml')
+            all = load_personas_file(path: path)
+            gone = all.delete(name.to_sym)
+            File.write(path, YAML.dump(deep_stringify(hash: all))) if gone
+            return { name: name, removed: !gone.nil?, scope: :swarm }
+          end
+
           all  = personas
           gone = all.delete(name.to_sym)
           File.write(AGENTS_FILE, YAML.dump(deep_stringify(hash: all))) if gone
-          { name: name, removed: !gone.nil? }
+          { name: name, removed: !gone.nil?, scope: :global }
         end
 
         # ------------------------------------------------------------------
@@ -212,7 +225,9 @@ module PWN
         #     request: 'required - what to ask/instruct the persona',
         #     swarm_id: 'optional - join an existing swarm (created if omitted)',
         #     to: 'optional - addressee recorded on the bus (default :all)',
-        #     on_tool: 'optional - ->(name, args, result) live-UI callback'
+        #     on_tool: 'optional - ->(name, args, result) live-UI callback',
+        #     steering: 'optional - Loop::Steering for this persona turn',
+        #     usage_observer: 'optional - callable receiving provider usage'
         #   )
 
         public_class_method def self.ask(opts = {})
@@ -246,6 +261,8 @@ module PWN
           Thread.current[:pwn_swarm_depth] = depth + 1
           Thread.current[:pwn_swarm_id] = sid
           reply = with_persona_env(persona: persona) do
+            prior_observer = Thread.current[:pwn_usage_observer]
+            Thread.current[:pwn_usage_observer] = opts[:usage_observer] if opts[:usage_observer]
             Loop.run(
               request: opts[:request].to_s,
               session_id: session_id,
@@ -253,8 +270,11 @@ module PWN
               core_only: empty_tools ? false : true,
               system_role_content: sys,
               on_tool: opts[:on_tool],
+              steering: opts[:steering],
               nested: true
             )
+          ensure
+            Thread.current[:pwn_usage_observer] = prior_observer
           end
 
           bus_append(swarm_id: sid, from: name, to: opts[:to] || :all, content: reply)
@@ -698,7 +718,9 @@ module PWN
 
             # Run retire and return its result
             #{self}.retire(
-              name: 'optional - binary or identifier name'
+              name: 'required - persona name',
+              swarm_id: 'optional - swarm directory when local is true',
+              local: 'optional - true retires only that swarm registry'
             )
 
             # Swarm lifecycle & bus
@@ -730,6 +752,8 @@ module PWN
               swarm_id: 'optional - join an existing swarm (created if omitted)',
               to: 'optional - addressee recorded on the bus (default :all)',
               on_tool: 'optional - ->(name, args, result) live-UI callback',
+              steering: 'optional - Loop::Steering for this persona turn',
+              usage_observer: 'optional - callable receiving provider usage',
               from: 'optional - sender account or address to bind as operator (defaults to caller_label)',
               text_only: 'required - text only value consumed by #ask',
               unit: 'optional - claim key (host+phase) before the child runs',

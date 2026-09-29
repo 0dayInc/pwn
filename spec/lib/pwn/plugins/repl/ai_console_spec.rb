@@ -1,0 +1,1066 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+require 'stringio'
+require 'pry'
+
+describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- public launch, terminal lifecycle and deterministic worker integration
+  include_context 'pwn tmp sandbox'
+
+  before do
+    @history_path = File.join(@tmp, 'pwn_history')
+    @request_history = Pry::History.new(file_path: @history_path)
+    allow(Pry).to receive(:history).and_return(@request_history)
+    allow(PWN::AI::Agent::PromptBuilder).to receive(:build).and_return('offline console test')
+    allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
+    allow(PWN::AI::Agent::Loop).to receive(:should_auto_introspect?).and_return(false)
+    allow(PWN::AI::Agent::Loop).to receive(:may_finalize?).and_return(true)
+  end
+
+  def launch(keys, &tick)
+    require 'pty'
+    require 'timeout'
+    master, input = PTY.open
+    @paint = []
+    owner = Thread.current
+    window = double('screen')
+    allow(window).to receive_messages(erase: nil, refresh: nil, setpos: nil)
+    @positions = []
+    allow(window).to receive(:setpos) { |*position| @positions << position }
+    allow(window).to receive(:addstr) { |text|
+      expect(Thread.current).to eq(owner)
+      @paint << text
+    }
+    allow(window).to receive(:attron) { |_attribute, &block| block.call }
+    screen = double('curses', init_screen: window, raw: nil, noecho: nil, curs_set: nil, close_screen: nil,
+                              lines: 30, cols: 110, stdscr: window, has_colors?: false, resizeterm: nil)
+    @pry = Pry.new
+    @pry.config.pwn_ai_session_id = PWN::Sessions.create(title: 'console')[:id]
+    @pry.config.pwn_ai = true
+    @screen = screen
+    output = double('terminal', tty?: true)
+    previous = [$stdin, $stdout, $stderr]
+    Timeout.timeout(25, Class.new(Exception)) do # rubocop:disable Lint/InheritException
+      PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen,
+                                        getch: -> { keys.empty? ? tick.call : keys.shift })
+    end
+    expect([$stdin, $stdout]).to eq(previous.take(2))
+    expect(PWN::Plugins::Log.raw_stderr).to equal(previous[2])
+    expect(input).to be_tty
+    expect(screen).to have_received(:close_screen)
+  ensure
+    master&.close
+    input&.close
+  end
+
+  it 'runs the real Loop from the public launch, steering a blocked model without a second input reader' do
+    loop_module = PWN::AI::Agent::Loop
+    entered = Queue.new
+    calls = []
+    Thread.current[:pwn_console_probe] = :copied
+    allow(loop_module).to receive(:call_engine) do |opts|
+      expect(Thread.current[:pwn_console_probe]).to eq(:copied)
+      expect(Thread.current[:pwn_steering_input].reader).to be_nil
+      calls << opts[:messages].map(&:dup)
+      if calls.length == 1
+        entered << true
+        Queue.new.pop
+      end
+      { role: 'assistant', content: 'Yellow.', tool_calls: [] }
+    end
+    keys = "what color is a passion fruit?\n".chars
+    steered = false
+    launch(keys) do
+      if !steered && !entered.empty?
+        entered.pop
+        steered = true
+        keys.concat("/steer what color is a lemon?\n".chars)
+      elsif @paint.any? { |row| row.include?('Yellow.') }
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+    expect(calls.length).to eq(2)
+    expect(calls.last.select { |row| row[:role] == 'user' }.map { |row| row[:content] }).to include('what color is a lemon?')
+    expect(@paint.join).to include('pwn-ai', 'ASSISTANT', 'MISSION', 'steering')
+  ensure
+    Thread.current[:pwn_console_probe] = nil
+  end
+
+  it 'opens a draft-preserving swarm workspace and sends only after explicit confirmation' do
+    allow(PWN::AI::Agent::Swarm).to receive(:personas).and_return(scout: { role: 'Inspect evidence', engine: 'ollama', model: 'fixture' })
+    allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture')
+    allow(PWN::AI::Agent::Swarm).to receive(:ask).and_return(reply: 'Workspace result')
+    keys = "mission draft\u0007a".chars
+    stage = 0
+    launch(keys) do
+      case stage
+      when 0
+        expect(PWN::AI::Agent::Swarm).not_to have_received(:ask)
+        expect(@paint.join).to include('SWARM WORKSPACE', 'Inspect evidence', 'fixture', 'Confirm')
+        stage = 1
+        "\r"
+      when 1
+        if @paint.join.include?('Workspace result')
+          stage = 2
+          "\e"
+        end
+      when 2
+        expect(@paint.last(100).join).to include('mission draft')
+        "\u0004"
+      end
+    end
+    expect(PWN::AI::Agent::Swarm).to have_received(:ask).with(include(name: 'scout', request: 'mission draft')).once
+  end
+
+  it 'cancels a blocked model on Ctrl+C, returns idle, and does not kill another worker' do
+    entered = Queue.new
+    foreign = Thread.new { sleep }
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine) {
+      entered << true
+      Queue.new.pop
+    }
+    keys = "what color is a lemon?\n".chars
+    cancelled = false
+    launch(keys) do
+      if !cancelled && !entered.empty?
+        cancelled = true
+        "\u0003"
+      elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+    expect(foreign).to be_alive
+  ensure
+    foreign&.kill
+    foreign&.join
+  end
+
+  it 'forwards tool input, preserves completed evidence before steering, and locks settings while running' do
+    entered = Queue.new
+    calls = 0
+    observed = nil
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
+      calls += 1
+      if calls == 1
+        { role: 'assistant', tool_calls: %w[first stale].map { |id| { id: id, type: 'function', function: { name: 'shell', arguments: '{}' } } } }
+      else
+        { role: 'assistant', content: 'Yellow.', tool_calls: [] }
+      end
+    end
+    expect(PWN::AI::Agent::Dispatch).to receive(:call).once do
+      entered << true
+      observed = $stdin.gets
+      JSON.generate(success: true, result: { stdout: observed, exitstatus: 0 })
+    end
+    expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_run_model)
+    keys = "what color is a passion fruit?\n".chars
+    sent = false
+    launch(keys) do
+      if !sent && !entered.empty?
+        sent = true
+        keys.concat("/model openai wrong\n/steer what color is a lemon?\n/input tool answer\n".chars)
+        nil
+      elsif @paint.any? { |row| row.include?('Yellow.') }
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+    expect(observed).to eq("tool answer\n")
+    expect(@paint.join).to include('TOOL', 'RESULT', 'tool answer', 'Settings and new requests wait')
+    expect(@paint.join).to include('tools 1')
+  end
+
+  it 'closes the tool prompt pipe on busy exit and joins rather than orphaning the active request' do
+    entered = Queue.new
+    finished = Queue.new
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(
+      { role: 'assistant', tool_calls: [{ id: 'prompt', type: 'function', function: { name: 'shell', arguments: '{}' } }] }
+    )
+    allow(PWN::AI::Agent::Dispatch).to receive(:call) do
+      entered << true
+      answer = $stdin.gets
+      finished << answer
+      JSON.generate(success: true, result: { stdout: 'prompt completed', exitstatus: 0 })
+    end
+    keys = "what color is a lemon?\n".chars
+    launch(keys) { entered.empty? ? nil : "\u0004" }
+    expect(finished.pop).to be_nil
+  end
+
+  it 'wraps menu selection without changing the draft or persistent history, then recalls after Escape' do
+    stored = "first request\nsecond request\n"
+    File.write(@history_path, stored)
+    @request_history.load
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    console.seed_request_history
+    '/verbose '.each_char { |key| console.handle(key) }
+    menu = console.instance_variable_get(:@menu)
+    expect(menu.map { |item| item[:label] }).to eq(%w[on off])
+    draft = [editor.text.dup, editor.cursor]
+    console.handle(:up)
+    expect(console.instance_variable_get(:@menu_index)).to eq(1)
+    console.handle(:down)
+    expect(console.instance_variable_get(:@menu_index)).to eq(0)
+    console.handle("\u0010")
+    expect(console.instance_variable_get(:@menu_index)).to eq(1)
+    console.handle("\u000e")
+    expect(console.instance_variable_get(:@menu_index)).to eq(0)
+    expect(console.instance_variable_get(:@menu)).to eq(menu)
+    expect([editor.text, editor.cursor]).to eq(draft)
+    expect(File.read(@history_path)).to eq(stored)
+    console.handle("\e")
+    expect(console.instance_variable_get(:@menu)).to be_nil
+    console.handle(:up)
+    expect(editor.text).to eq('second request')
+    console.handle(:up)
+    expect(editor.text).to eq('first request')
+    console.handle(:down)
+    expect(editor.text).to eq('second request')
+    console.handle(:down)
+    expect([editor.text, editor.cursor]).to eq(draft)
+    expect(File.read(@history_path)).to eq(stored)
+  end
+
+  it 'keeps typing filters live after arrow selection and accepts the selected completion with Tab' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    '/verbose '.each_char { |key| console.handle(key) }
+    console.handle(:down)
+    console.handle("\t")
+    expect(editor.text.strip).to eq('/verbose off')
+    console.handle("\u0015")
+    '/verbose '.each_char { |key| console.handle(key) }
+    console.handle(:up)
+    'on'.each_char { |key| console.handle(key) }
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to eq(['on'])
+    expect(console.instance_variable_get(:@menu_index)).to eq(0)
+    console.handle("\t")
+    expect(editor.text.strip).to eq('/verbose on')
+  end
+
+  it 'loads prior operator requests and keeps session event colors distinct' do
+    pry = Pry.new
+    pry.config.pwn_ai_session_id = 'color-history'
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    @request_history << 'prior mission'
+    expect(PWN::Sessions).not_to receive(:load)
+    console.send(:seed_request_history)
+    console.handle(:up)
+    expect(console.instance_variable_get(:@editor).text).to eq('prior mission')
+    console.add(:operator, 'look here')
+    console.add(:assistant, 'answer')
+    console.add(:task, 'plan')
+    console.add(:tool, 'shell')
+    console.add(:result, 'evidence')
+    colors = console.timeline_rows(40).each_with_object({}) do |(color, text), found|
+      found[:operator_label] = color if text.start_with?('OPERATOR')
+      found[:operator_body] = color if text.include?('look here')
+      found[:assistant] = color if text.include?('answer')
+      found[:task] = color if text.include?('plan')
+      found[:tool] = color if text.include?('shell')
+      found[:result] = color if text.include?('evidence')
+    end
+    expect(colors).to eq(operator_label: 4, operator_body: 5, assistant: 5, task: 2, tool: 1, result: 3)
+  end
+
+  it 'uses template colors for every unconfigured role without mutating defaults or overrides' do
+    defaults = PWN::Config.env_template.dig(:ai, :tui, :theme)
+    [nil, {}, 'invalid'].each do |configured|
+      expect(PWN::Plugins::REPL::AIConsole.theme(theme: configured)).to eq(defaults)
+    end
+    overrides = defaults.transform_values { 'blue' }.freeze
+    expect(PWN::Plugins::REPL::AIConsole.theme(theme: overrides)).to eq(overrides)
+    expect(overrides.values.uniq).to eq(['blue'])
+    PWN::Env[:ai] = {}
+    expect(PWN::Plugins::REPL::AIConsole.theme).to eq(defaults)
+    expect(PWN::Config.env_template.dig(:ai, :tui, :theme)).to eq(defaults)
+  end
+
+  it 'applies ai.tui.theme and ignores unknown color names' do
+    previous = PWN::Env[:ai]
+    PWN::Env[:ai] = { tui: { theme: { assistant: 'blue', border: 'nope' } } }
+    theme = PWN::Plugins::REPL::AIConsole.theme
+    expect(theme[:assistant]).to eq('blue')
+    expect(theme[:border]).to eq('black')
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.add(:assistant, 'themed answer')
+    color = console.timeline_rows(40).find { |_pair, text| text.include?('themed answer') }&.first
+    expect(color).to eq(6)
+    console.instance_variable_set(:@height, 20)
+    console.instance_variable_set(:@width, 80)
+    painted = []
+    allow(console).to receive(:put) { |row, column, text, pair| painted << [row, column, text, pair] }
+    console.box(0, 0, 4, 24, 'MISSION')
+    expect(painted.first[3]).to eq(console.tone(:border))
+    title = painted.find { |row, _column, text, _pair| row.zero? && text.include?('MISSION') }
+    expect(title[3]).to eq(console.tone(:title))
+    expect(title[3]).not_to eq(painted.first[3])
+  ensure
+    PWN::Env[:ai] = previous
+  end
+
+  it 'selects one mini-banner per session and advances only from monotonic elapsed time' do
+    pry = Pry.new
+    pry.config.pwn_ai_session_id = 'banner-one'
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    choices = PWN::Banner.mini_names.first(2)
+    allow(PWN::Banner).to receive(:mini_names).and_return(choices)
+    allow(choices).to receive(:sample).and_return(*choices)
+    now = 100.0
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
+    first = console.banner_frame(8)
+    expect(first).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 0, width: 8, height: 8))
+    now += PWN::Banner::MINI_FRAME_SECONDS / 2
+    expect(console.banner_frame(8)).to eq(first)
+    now += PWN::Banner::MINI_FRAME_SECONDS * 0.75
+    expect(console.banner_frame(8)).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 1, width: 8, height: 8))
+    now += PWN::Banner::MINI_FRAME_SECONDS * PWN::Banner::MINI_FRAME_COUNT
+    expect(console.banner_frame(12)).to eq(PWN::Banner.mini_frame(name: choices.first, frame: 1, width: 12, height: 12))
+    expect(choices).to have_received(:sample).once
+    pry.config.pwn_ai_session_id = 'banner-two'
+    expect(console.banner_frame(8)).to eq(PWN::Banner.mini_frame(name: choices.last, frame: 0, width: 8, height: 8))
+    expect(choices).to have_received(:sample).twice
+  end
+
+  it 'centers capped retro artwork inside a larger cell-square canvas' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    allow(PWN::Banner).to receive(:mini_names).and_return([:pong])
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(100.0)
+    size = 24
+    canvas = console.banner_frame(size)
+    art = PWN::Banner.mini_frame(name: :pong, frame: 0, width: size, height: size)
+    expect(canvas.length).to eq(size)
+    expect(canvas.map(&:length)).to all(eq(size))
+    top = (size - art.length) / 2
+    left = (size - art.first.length) / 2
+    expect(canvas.slice(top, art.length).map { |row| row[left, art.first.length] }).to eq(art)
+    expect(canvas.first(top)).to all(eq(' ' * size))
+  end
+
+  it 'carves a themed cell-square banner pane only when all settings still fit, keeping bounds and draft' do
+    PWN::Env[:ai] = { active: :ollama, tui: { theme: { category: 'magenta', header: 'white', border: 'blue', title: 'red' } },
+                      ollama: { model: 'fixture', system_role_content: 'Complete functional settings.', reasoning_effort: 'high' } }
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    curses = double(lines: 36, cols: 120)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    console.instance_variable_get(:@editor).place('retained draft', 4)
+    painted = []
+    rectangles = []
+    allow(console).to receive(:put) { |*args| painted << args }
+    allow(console).to receive(:box).and_wrap_original do |method, *args|
+      rectangles << args
+      method.call(*args)
+    end
+    allow(PWN::Banner).to receive(:mini_frame).and_call_original
+    console.draw
+    expect(rectangles).to include([0, 0, 10, 10, 'PWN'])
+    expect(rectangles).to include([0, 10, 10, 109, "pwn-ai v#{PWN::VERSION}"])
+    expect(console.instance_variable_get(:@header_text_column)).to eq(12)
+    expect(painted).to include([2, 12, 'PROVIDER (ENGINE):', console.tone(:category)])
+    expect(painted.any? { |y, x, text, color| y == 0 && x == 0 && text.include?('╭') && color == console.tone(:border) }).to be(true)
+    expect(painted.any? { |y, x, text, color| y == 0 && x == 2 && text.include?('PWN') && color == console.tone(:title) }).to be(true)
+    expect(painted.select { |y, x, _text, _color| y.between?(1, 8) && x == 1 }.length).to eq(8)
+    expect(painted.select { |y, _x, _text, _color| y < 10 }).to all(satisfy { |y, x, text, _color| y >= 0 && x >= 0 && x + console.width(text) <= 120 })
+    expect(PWN::Banner).to have_received(:mini_frame).with(hash_including(width: 8, height: 8)).once
+    [[80, 36], [120, 24]].each do |columns, rows|
+      allow(curses).to receive_messages(cols: columns, lines: rows)
+      rectangles.clear
+      console.draw
+      expect(rectangles.map(&:last)).not_to include('PWN')
+      expect(console.instance_variable_get(:@header_text_column)).to eq(2)
+    end
+    allow(curses).to receive_messages(cols: 120, lines: 26)
+    PWN::Env[:ai][:ollama][:system_role_content] = 'operator ' * 110
+    console.draw
+    expect(console.instance_variable_get(:@header_text_column)).to eq(2)
+    expect(console.header_lines('ollama', 'fixture', 115).length).to be <= 13
+    expect(PWN::Banner).to have_received(:mini_frame).once
+    expect([console.instance_variable_get(:@editor).text, console.instance_variable_get(:@editor).cursor]).to eq(['retained draft', 4])
+  end
+
+  it 'grows both game canvas dimensions with the header without recursively shrinking settings' do
+    PWN::Env[:ai] = { active: :ollama, ollama: { model: 'fixture', system_role_content: 'operator ' * 100, reasoning_effort: 'high' } }
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@width, 120)
+    console.instance_variable_set(:@height, 40)
+    allow(console).to receive(:put)
+    allow(console).to receive(:box)
+    allow(PWN::Banner).to receive(:mini_frame).and_call_original
+    height = console.draw_header('ollama', 'fixture')
+    expect(height).to be > 10
+    expect(console).to have_received(:box).with(0, 0, height, height, 'PWN')
+    expect(PWN::Banner).to have_received(:mini_frame).with(hash_including(width: height - 2, height: height - 2))
+    expect(console.instance_variable_get(:@header_spans).length + 3).to be <= height
+    expect(console.header_lines('ollama', 'fixture', console.instance_variable_get(:@header_text_width)).join).to include('REASONING EFFORT: high')
+  end
+
+  it 'wraps every header line and labels the system role' do
+    previous = PWN::Env[:ai]
+    PWN::Env[:ai] = { active: :ollama, ollama: { system_role_content: 'ethical operator ' * 12, temp: 0.2 } }
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@width, 36)
+    lines = console.header_lines('ollama', 'qwen')
+    expect(lines.length).to be > 2
+    joined = lines.join(' ').gsub(/\s+/, ' ')
+    expect(joined).to include('SYSTEM ROLE CONTENT: ethical operator')
+    expect(joined).to include('PROVIDER (ENGINE): ollama MODEL: qwen')
+    expect(joined).not_to match(/\brole ethical/)
+  ensure
+    PWN::Env[:ai] = previous
+  end
+
+  it 'reuses wrapped settings until the width or values change' do
+    PWN::Env[:ai] = { active: :ollama, ollama: { system_role_content: 'long role ' * 500 } }
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@width, 80)
+    lines = console.header_lines('ollama', 'fixture')
+    expect(console.header_lines('ollama', 'fixture')).to equal(lines)
+    expect(console.header_lines('ollama', 'fixture', 40)).not_to equal(lines)
+    PWN::Env[:ai][:ollama][:temp] = 0.3
+    expect(console.header_lines('ollama', 'fixture').join).to include('TEMP: 0.3')
+  end
+
+  it 'draws the complete settings by growing the header and preserves label colors across wraps and resize' do
+    PWN::Env[:ai] = { active: :ollama, tui: { theme: { category: 'magenta', header: 'white' } },
+                      ollama: { system_role_content: 'operator ' * 35, temp: 0.2, max_tokens: 1024,
+                                max_prompt_length: 2048, reasoning_effort: 'high' } }
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    curses = double(lines: 48, cols: 80)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    painted = []
+    allow(console).to receive(:put).and_wrap_original do |method, *args|
+      painted << args
+      method.call(*args)
+    end
+    [[80, 48], [48, 60], [160, 48]].each do |columns, rows|
+      allow(curses).to receive_messages(lines: rows, cols: columns)
+      painted.clear
+      console.draw
+      lines = console.header_lines('ollama', PWN::Plugins::REPL.pwn_ai_engine_model(engine: 'ollama'), console.instance_variable_get(:@header_text_width))
+      text_column = console.instance_variable_get(:@header_text_column)
+      header = painted.select { |y, x, _text, _color| y >= 2 && y < lines.length + 2 && x >= text_column && x < columns - 2 }
+      actual = header.group_by(&:first).values.map { |row| row.map { |entry| entry[2] }.join }
+      expect(actual).to eq(lines)
+      expect(header.select { |entry| entry[3] == console.tone(:category) }.map { |entry| entry[2] }.join).to include('SYSTEM ROLE CONTENT:', 'MAX PROMPT LENGTH:', 'REASONING EFFORT:')
+      expect(header.select { |entry| entry[3] == console.tone(:header) }.map { |entry| entry[2] }.join).to include('operator', '1024', 'high')
+      if columns == 48
+        labels = header.select { |entry| entry[3] == console.tone(:category) }.map { |entry| entry[2] }
+        expect(labels.join).to include('MAX PROMPT LENGTH:')
+        expect(labels).not_to include(a_string_including('MAX PROMPT LENGTH:'))
+      end
+      expect(console.instance_variable_get(:@page_size)).to be >= 1
+    end
+    console.handle("\u000f")
+    console.draw
+    console.handle(:end)
+    painted.clear
+    console.draw
+    expect(painted.select { |entry| entry[3] == console.tone(:category) }.map { |entry| entry[2] }.join).to include('REQUEST', 'TOKENS', 'SYSTEM ROLE CONTENT:', 'REASONING EFFORT:')
+    expect(painted.select { |entry| entry[3] == console.tone(:header) }.map { |entry| entry[2] }.join).to include('1024', 'high')
+  end
+
+  it 'bounds long settings at every usable size and exposes the full text without sacrificing the draft' do
+    PWN::Env[:ai] = { active: :ollama, ollama: { system_role_content: "#{'operator ' * 500}ROLE END", temp: 0.2 } }
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    curses = double(lines: 24, cols: 80)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    editor = console.instance_variable_get(:@editor)
+    editor.replace('retained draft')
+    rectangles = []
+    allow(console).to receive(:box).and_wrap_original do |method, *args|
+      rectangles << args
+      method.call(*args)
+    end
+    [[160, 48], [80, 24], [48, 14]].each do |columns, rows|
+      allow(curses).to receive_messages(lines: rows, cols: columns)
+      rectangles.clear
+      console.draw
+      expect(console.instance_variable_get(:@page_size)).to be >= 1
+      expect(rectangles).to all(satisfy { |top, _left, height| height >= 3 && top + height <= rows - 1 })
+    end
+    console.add(:assistant, 'latest evidence')
+    expect(console.timeline_rows(40).last[1]).to include('latest evidence')
+    console.handle("\u000f")
+    console.draw
+    expect(screen).to have_received(:addstr).with(a_string_including('STATUS'))
+    console.handle(:end)
+    console.draw
+    expect(screen).to have_received(:addstr).with(a_string_including('ROLE END')).at_least(:once)
+    console.handle('x')
+    console.handle("\r")
+    console.handle("\e")
+    expect(editor.text).to eq('retained draft')
+  end
+
+  it 'persists requests through Pry history and searches the same file in a fresh console' do
+    File.write(@history_path, "existing request\n/input legacy hidden\n")
+    @request_history.load
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.seed_request_history
+    allow(console).to receive(:start_request)
+    console.submit('durable alpha request')
+    expect(File.read(@history_path)).to include("durable alpha request\n")
+    console.submit('durable alpha request')
+    Pry.history << 'durable alpha request'
+    console.submit('/input excluded secret')
+    console.submit('  /input excluded secret')
+    expected = "existing request\n/input legacy hidden\ndurable alpha request\n"
+    expect(File.read(@history_path)).to eq(expected)
+    reloaded = Pry::History.new(file_path: @history_path)
+    reloaded.load
+    allow(Pry).to receive(:history).and_return(reloaded)
+    fresh = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    fresh.seed_request_history
+    fresh.instance_variable_get(:@editor).place('unsent draft', 2)
+    fresh.handle(:up)
+    expect(fresh.instance_variable_get(:@editor).text).to eq('durable alpha request')
+    fresh.handle(:up)
+    expect(fresh.instance_variable_get(:@editor).text).to eq('existing request')
+    fresh.handle(:down)
+    fresh.handle(:down)
+    expect([fresh.instance_variable_get(:@editor).text, fresh.instance_variable_get(:@editor).cursor]).to eq(['unsent draft', 2])
+    fresh.handle("\u0012")
+    'alpha'.each_char { |char| fresh.handle(char) }
+    fresh.handle("\r")
+    expect(fresh.instance_variable_get(:@editor).text).to eq('durable alpha request')
+    fresh.handle("\u000c")
+    expect(File.read(@history_path)).to eq(expected)
+    fresh.handle("\u0012")
+    'hidden'.each_char { |char| fresh.handle(char) }
+    expect(fresh.instance_variable_get(:@editor).search[:match]).to be_nil
+  end
+
+  it 'selects broadcast and debate targets explicitly, escapes missions, and restores the exact draft cursor' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    swarm = PWN::Plugins::REPL::AISwarm::Controller.new(session_id: 'fixture')
+    console.instance_variable_set(:@swarm, swarm)
+    allow(PWN::AI::Agent::Swarm).to receive(:personas).and_return(scout: { role: 'Inspect' }, critic: { role: 'Critique' })
+    allow(swarm).to receive(:execute).and_return(ok: true, job_id: 'fixture')
+    editor = console.instance_variable_get(:@editor)
+    editor.place("--names\nquoted 'mission'", 4)
+    console.handle("\u0007")
+    console.handle('d')
+    expect(console.instance_variable_get(:@workspace)[:notice]).to include('at least 2')
+    [' ', 'j', ' ', 'b'].each { |key| console.handle(key) }
+    expect(swarm).not_to have_received(:execute)
+    expect(console.swarm_content.join).to include("--names\nquoted 'mission'")
+    console.handle("\r")
+    expect(swarm).to have_received(:execute).with(include(line: Shellwords.join(['/swarm', 'broadcast', '--names', 'scout,critic', '--', editor.text])))
+    console.handle("\t")
+    console.handle('d')
+    console.handle("\r")
+    expect(swarm).to have_received(:execute).with(include(line: Shellwords.join(['/swarm', 'debate', 'scout,critic', '--', editor.text])))
+    console.handle("\u0007")
+    expect([editor.text, editor.cursor]).to eq(["--names\nquoted 'mission'", 4])
+  ensure
+    swarm&.close
+  end
+
+  it 'handles empty rosters, new persona prompts, errors and no-job navigation without submitting a mission' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    swarm = PWN::Plugins::REPL::AISwarm::Controller.new(session_id: 'fixture')
+    console.instance_variable_set(:@swarm, swarm)
+    allow(PWN::AI::Agent::Swarm).to receive(:personas).and_return({})
+    allow(swarm).to receive(:execute).and_return(ok: false, error: 'fixture spawn failed')
+    console.handle("\u0007")
+    expect(console.swarm_content.join).to include('No agents')
+    "nscout\rInspect evidence\r".each_char { |key| console.handle(key) }
+    expect(swarm).not_to have_received(:execute)
+    console.handle("\r")
+    expect(console.instance_variable_get(:@workspace)[:notice]).to eq('fixture spawn failed')
+    console.handle("\t")
+    expect(console.swarm_content.join).to include('No jobs yet')
+    ['s', 'c', "\r", "\e", "\e"].each { |key| console.handle(key) }
+    expect(console.instance_variable_get(:@workspace)).to be_nil
+    expect(swarm).to have_received(:execute).once
+  ensure
+    swarm&.close
+  end
+
+  it 'clears only the displayed session on Ctrl+L even while busy' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    editor.preload(['retained request'])
+    editor.replace('draft')
+    console.add(:assistant, 'visible evidence')
+    allow(console).to receive(:busy?).and_return(true)
+    allow(console).to receive(:clear_view).and_call_original
+    console.instance_variable_get(:@usage).record(usage: { input_tokens: 123, output_tokens: 45 })
+    usage = console.instance_variable_get(:@usage).snapshot
+    expect(PWN::Sessions).not_to receive(:append)
+    console.handle("\u000c")
+    expect(console).to have_received(:clear_view)
+    expect(console.timeline_rows(60).join).not_to include('visible evidence')
+    expect(console.instance_variable_get(:@usage).snapshot).to eq(usage)
+    expect(editor.text).to eq('draft')
+    console.handle(:up)
+    expect(editor.text).to eq('retained request')
+  end
+
+  it 'searches local request history incrementally, accepts without sending and cancels with cursor restored' do
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: double(lines: 30, cols: 100), getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    editor = console.instance_variable_get(:@editor)
+    editor.preload(['older alpha', '/input hidden alpha', 'newer alpha', 'beta'])
+    editor.place('original draft', 3)
+    expect(console).not_to receive(:submit)
+    console.handle("\u0012")
+    'alpha'.each_char { |char| console.handle(char) }
+    console.draw
+    expect(screen).to have_received(:addstr).with(a_string_including('alpha')).at_least(:once)
+    expect(screen).to have_received(:addstr).with(a_string_including('newer alpha')).at_least(:once)
+    console.handle("\u0012")
+    console.handle("\r")
+    expect(editor.text).to eq('older alpha')
+    console.handle(:up)
+    expect(editor.text).to eq('beta')
+    console.handle(:down)
+    expect(editor.text).to eq('older alpha')
+    editor.place('original draft', 3)
+    console.handle("\u0012")
+    'missing'.each_char { |char| console.handle(char) }
+    console.draw
+    expect(screen).to have_received(:addstr).with(a_string_including('no match')).at_least(:once)
+    console.handle("\u007f")
+    console.handle("\e")
+    expect([editor.text, editor.cursor]).to eq(['original draft', 3])
+  end
+
+  it 'reads application and kitty arrow sequences as history keys' do
+    reader, writer = IO.pipe
+    writer.write("\eOA\e[1;1B")
+    writer.close
+    keyboard = PWN::Plugins::REPL::AIConsole::Keyboard.new(reader)
+    expect(keyboard.call).to eq(:up)
+    expect(keyboard.call).to eq(:down)
+  ensure
+    reader&.close
+  end
+
+  it 'does not retain tool input in recall history' do
+    editor = PWN::Plugins::REPL::AIConsole::Editor.new
+    editor.replace('previous task')
+    editor.submit
+    editor.replace('/input secret tool response')
+    editor.submit
+    editor.recall(:up)
+    expect(editor.text).to eq('previous task')
+  end
+
+  it 'flushes an unterminated dependency prompt through the event queue without terminal control bytes' do
+    queue = Queue.new
+    output = PWN::Plugins::REPL::AIConsole::EventIO.new(queue)
+    output.write('Tool asks: value? ')
+    output.flush
+    expect(queue.size).to eq(1)
+  end
+
+  it 'pages above the current viewport on the first PgUp and pins that position for incoming output' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@total_rows, 100)
+    console.instance_variable_set(:@page_size, 20)
+    console.handle(:page_up)
+    expect(console.instance_variable_get(:@scroll)).to eq(60)
+    console.add(:notice, 'new output')
+    expect(console.instance_variable_get(:@scroll)).to eq(60)
+    console.handle(:page_down)
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+  end
+
+  it 'wraps at words without discarding code whitespace or splitting graphemes' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    expect(console.wrap('some evidence', 12)).to eq(['some ', 'evidence'])
+    text = "  code  evidence\n界e\u0301🙂abcdef  "
+    rows = console.wrap(text, 8)
+    expect(rows.join).to eq(text.delete("\n"))
+    expect(rows).to all(satisfy { |row| console.width(row) <= 8 })
+    expect(rows.join.scan(/\X/)).to eq(text.delete("\n").scan(/\X/))
+    expect(console.wrap('abcdefghij', 4)).to eq(%w[abcd efgh ij])
+    expect(console.wrap("a\n\n", 4)).to eq(['a', '', ''])
+    expect(console.wrap('👩‍💻界', 2)).to eq(['👩‍💻', '界'])
+    expect(console.width('👩‍💻')).to eq(2)
+  end
+
+  it 'shows observed elapsed time, completed tools, event timestamps and pinned new output' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(10.0, 12.5, 14.0)
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 1, 2, 3, 4, 5))
+    console.begin_request_metrics
+    console.add(:task, 'task summary, not a completed tool')
+    console.add(:tool, "shell\n{}")
+    console.add(:result, 'observed result')
+    expect(console.elapsed).to eq('2.5s')
+    expect(console.operation_lines.join(' ')).to include('Completed tools 1', 'Events 3', 'LAST TOOL', 'shell')
+    expect(console.timeline_rows(40).map(&:last).join).to include('03:04:05', 'TOOL')
+    console.instance_variable_set(:@total_rows, 100)
+    console.instance_variable_set(:@page_size, 20)
+    console.handle(:page_up)
+    console.add(:notice, 'incoming')
+    expect(console.scroll_status).to include('61–80/100', '1 new')
+    console.handle(:page_down)
+    expect(console.scroll_status).to eq('live')
+    console.finish_request_metrics
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(100.0)
+    expect(console.elapsed).to eq('4.0s')
+    console.begin_request_metrics
+    expect(console.operation_lines.join(' ')).to include('Completed tools 0', 'not observed')
+  end
+
+  it 'keeps tokens, cost and last tool in a short operations sidebar' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@width, 120)
+    console.instance_variable_set(:@last_tool, 'shell')
+    allow(console).to receive(:box)
+    painted = []
+    allow(console).to receive(:put) { |_row, _column, text, _color| painted << text }
+    console.draw_sidebar(6, 94, 11)
+    expect(painted.join(' ')).to include('TOKENS', 'Cost', 'LAST TOOL', 'shell')
+  end
+
+  it 'bounds giant timeline events explicitly and caches wrapping until width or events change' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.add(:result, 'evidence ' * 20_000)
+    expect(console.instance_variable_get(:@timeline).first[1].bytesize).to be < 17_000
+    rows = console.timeline_rows(40)
+    expect(rows.map(&:last).join).to include('[display truncated')
+    expect(console).not_to receive(:wrap)
+    expect(console.timeline_rows(40)).to equal(rows)
+  end
+
+  it 'edits graphemes and restores the full-history draft and cursor' do
+    editor = PWN::Plugins::REPL::AIConsole::Editor.new
+    105.times do |index|
+      editor.replace("task #{index}")
+      editor.submit
+    end
+    editor.replace("界e\u0301🙂 draft")
+    editor.edit(:left)
+    cursor = editor.cursor
+    editor.recall(:up)
+    editor.edit("\b")
+    editor.recall(:down)
+    expect(editor.text).to eq("界e\u0301🙂 draft")
+    expect(editor.cursor).to eq(cursor)
+    110.times { editor.recall(:up) }
+    expect(editor.text).to eq('task 0')
+    editor.replace("界e\u0301🙂")
+    editor.edit(:home)
+    editor.edit(:right)
+    editor.edit(:delete)
+    expect(editor.text).to eq('界🙂')
+  end
+
+  it 'restores IO and terminal state if rendering fails' do
+    original = [$stdin, $stdout, $stderr]
+    keys = []
+    expect do
+      launch(keys) do
+        allow(@screen.stdscr).to receive(:addstr).and_raise(IOError, 'paint failed')
+        nil
+      end
+    end.to raise_error(IOError, 'paint failed')
+    expect([$stdin, $stdout, $stderr]).to eq(original)
+    expect(@screen).to have_received(:close_screen)
+  end
+
+  it 'keeps cancellation and exit hints visible at the minimum supported width' do
+    resized = false
+    launch([]) do
+      if resized
+        expect(@paint.last).to include('^C cancel', '^D back')
+        expect(Unicode::DisplayWidth.of(@paint.last)).to be <= 46
+        "\u0004"
+      else
+        allow(@screen).to receive_messages(lines: 14, cols: 48)
+        resized = true
+        nil
+      end
+    end
+  end
+
+  it 'renders a visible slash menu and safely handles a tiny resize' do
+    keys = "/\n".chars
+    stage = 0
+    launch(keys) do
+      if stage.zero? && @paint.any? { |row| row.include?('COMMANDS') }
+        stage = 1
+        allow(@screen).to receive_messages(lines: 7, cols: 35)
+        "\e"
+      elsif stage == 1 && @paint.any? { |row| row.include?('terminal too small') }
+        stage = 2
+        allow(@screen).to receive_messages(lines: 30, cols: 125)
+        nil
+      elsif stage == 2 && @paint.any? { |row| row.include?('OPERATIONS') }
+        "\u0004"
+      end
+    end
+    expect(@paint.join).to include('/model', 'terminal too small', 'OPERATIONS')
+  end
+
+  it 'blocks hidden composer input during tiny resize, keeps its draft and still accepts cancellation and exit' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: double(lines: 7, cols: 35), getch: nil)
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    console.instance_variable_set(:@screen, screen)
+    editor = console.instance_variable_get(:@editor)
+    editor.replace('saved draft')
+    console.draw
+    expect(console).not_to receive(:submit)
+    ['x', "\r", :paste_start, :newline, :up, "\t", :paste_end].each { |key| console.handle(key) }
+    expect(editor.text).to eq('saved draft')
+    expect(console).to receive(:cancel).once
+    console.handle("\u0003")
+    console.handle("\u0004")
+    expect(console.instance_variable_get(:@leaving)).to be true
+    expect(editor.text).to eq('saved draft')
+  end
+
+  it 'adds console-only commands to completion without changing the global dispatcher' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    allow(PWN::Plugins::REPL).to receive(:pwn_ai_complete).and_return(['/model'])
+    console.instance_variable_get(:@editor).replace('/')
+    console.complete
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to include('/input', '/menu', '/model')
+    console.instance_variable_get(:@editor).replace('/in')
+    console.complete
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to include('/input')
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).not_to include('/menu')
+    console.instance_variable_get(:@editor).replace('/menu')
+    console.complete
+    console.instance_variable_set(:@menu_index, console.instance_variable_get(:@menu).index { |item| item[:label] == '/menu' })
+    console.handle("\r")
+    expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_dispatch_slash!)
+    console.handle("\r")
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to include('/menu', '/input')
+  end
+
+  it 'keeps slash parameter completion live across spaces and clears stale menus on submit' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    '/verbose '.chars.each { |key| console.handle(key) }
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to eq(%w[on off])
+    console.handle('o')
+    console.handle('f')
+    console.handle('f')
+    console.handle("\r")
+    expect(console.instance_variable_get(:@menu)).to be_nil
+  end
+
+  it 'clears every cell behind the completion popup and reverses the selected row even without colors' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    screen = double('popup screen')
+    paint = []
+    position = nil
+    reversed = false
+    allow(screen).to receive(:setpos) { |*pos| position = pos }
+    allow(screen).to receive(:addstr) { |text| paint << [position, text, reversed] }
+    allow(screen).to receive(:attron) do |attribute, &block|
+      expect(attribute).to eq(Curses::A_REVERSE)
+      reversed = true
+      block.call(0) # ncurses yields the wattron result
+      reversed = false
+    end
+    console.instance_variable_set(:@screen, screen)
+    console.instance_variable_set(:@width, 80)
+    console.instance_variable_set(:@height, 30)
+    console.instance_variable_set(:@menu, ['/界', '/menu'])
+    console.instance_variable_set(:@menu_index, 0)
+    console.draw_menu
+    expect(paint.take(4).map { |position_and_text| position_and_text[1] }).to eq([' ' * 65] * 4)
+    selected = paint.find { |_pos, text, reverse| reverse && text.include?('/界') }
+    expect(selected).not_to be_nil
+    expect(console.width(selected[1])).to eq(61)
+  end
+
+  it 'keeps the terminal cursor inside the multiline composer after painting the footer' do
+    launch(['界', :newline, 'é']) { "\u0004" }
+    expect(@positions.last).to eq([25, 5])
+  end
+
+  it 'keeps the editing cursor in the composer while completion is open' do
+    launch(['/']) { "\u0004" }
+    expect(@positions.last).to eq([24, 5])
+  end
+
+  it 'keeps debug output queued and restores the debug tee after leaving curses' do
+    log = PWN::Plugins::Log
+    allow(log).to receive(:debug_dir).and_return(File.join(@tmp, 'debug'))
+    previous = $stdout
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine).and_return(role: 'assistant', content: 'Debug final.', tool_calls: [])
+    PWN::Plugins::REPL.add_commands
+    keys = "/debug\nwhat color is a lemon?\n".chars
+    launch(keys) { @paint.any? { |row| row.include?('Debug final.') } ? "\u0004" : nil }
+    expect(log.instance_variable_get(:@debug_tee)).to equal(previous)
+    expect(log.raw_stderr).not_to be_a(PWN::Plugins::REPL::AIConsole::EventIO)
+    path = log.debug_log_path
+    expect(File.read(path)).to include('Debug final.', 'footer iter=') if path
+  ensure
+    log&.stop_debug
+  end
+
+  it 'cancels the reasoning overlay with the original draft and cursor intact' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    selection = { engine: 'grok', model: 'grok-4.6', efforts: %w[low medium high], default: 'medium' }
+    original = Marshal.dump(PWN::Env[:ai])
+    console.instance_variable_set(:@model_prompt, selection)
+    console.instance_variable_set(:@model_index, 1)
+    console.instance_variable_set(:@model_draft, ['/model grok grok-4.6', 7])
+    expect(PWN::Plugins::REPL).not_to receive(:persist_ai_selection)
+    console.handle(:down)
+    expect(console.instance_variable_get(:@model_index)).to eq(2)
+    console.handle("\e")
+    expect(editor.text).to eq('/model grok grok-4.6')
+    expect(editor.cursor).to eq(7)
+    expect(Marshal.dump(PWN::Env[:ai])).to eq(original)
+    expect(console.instance_variable_get(:@model_prompt)).to be_nil
+  end
+
+  it 'prompts in curses and forwards the accepted effort to the next provider request' do
+    PWN::Env[:ai][:openai] = { model: 'old', reasoning_effort: 'medium' }
+    allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+    allow(PWN::AI::OpenAI).to receive(:get_models).and_return(data: [{ id: 'gpt-6-astra', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }] }])
+    expect(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(reasoning_effort: 'high')) do
+      { choices: [{ message: { role: 'assistant', content: 'Effort accepted.', tool_calls: [] } }] }
+    end
+    keys = "/model openai gpt-6-astra\n".chars
+    accepted = false
+    launch(keys) do
+      if !accepted && @paint.any? { |row| row.include?('REASONING EFFORT · SELECT') }
+        accepted = true
+        keys.concat([:down, "\n"] + "what color is a lemon?\n".chars)
+        nil
+      elsif @paint.any? { |row| row.include?('Effort accepted.') }
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+    expect(PWN::Env.dig(:ai, :openai, :reasoning_effort)).to eq('high')
+  end
+
+  it 'honors locally selected model and resumed session in the actual provider call' do
+    sid = PWN::Sessions.create(title: 'resumed console')[:id]
+    allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+    expect(PWN::AI::OpenAI).to receive(:chat_with_tools) do
+      expect(PWN::Env.dig(:ai, :openai, :model)).to eq('console-fixture')
+      { choices: [{ message: { role: 'assistant', content: 'Selected route.', tool_calls: [] } }] }
+    end
+    keys = "/model openai console-fixture\n/sessions resume #{sid}\nwhat color is a lemon?\n".chars
+    launch(keys) { @paint.any? { |row| row.include?('Selected route.') } ? "\u0004" : nil }
+    expect(@pry.config.pwn_ai_session_id).to eq(sid)
+    expect(PWN::Sessions.load(session_id: sid).map { |row| row[:content] }.join).to include('Selected route.')
+  end
+
+  it 'strips spinner controls, redacts queued secrets, and accepts binary dependency warnings' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.add(:notice, "\e[?25h\e[0m")
+    expect(console.instance_variable_get(:@timeline)).to be_empty
+    console.add(:warning, "api_key=super-secret-fixture\n\e[31mwarning\e[0m")
+    expect(console.instance_variable_get(:@timeline).inspect).not_to include('super-secret-fixture', "\e")
+    expect { console.add(:warning, "warning\xff".b) }.not_to raise_error
+  end
+
+  it 'decodes terminal keys and Unicode without a competing stdin reader' do
+    require 'pty'
+    master, slave = PTY.open
+    slave.raw do
+      reader = PWN::Plugins::REPL::AIConsole::Keyboard.new(slave)
+      master.write("界\e[D\e[13;2u\e[3~\e[5~")
+      expect(Array.new(5) { reader.call }).to eq(['界', :left, :newline, :delete, :page_up])
+    end
+  ensure
+    master&.close
+    slave&.close
+  end
+
+  it 'consumes valid UTF-8 prefixes immediately and recovers from malformed bytes' do
+    source = double('incremental terminal', wait_readable: false)
+    reader = PWN::Plugins::REPL::AIConsole::Keyboard.new(source)
+    buffer = reader.instance_variable_get(:@buffer)
+    buffer << "a\xe7".b
+    expect(reader.call).to eq('a')
+    expect(reader.call).to be_nil
+    buffer << "\x95\x8c".b
+    expect(reader.call).to eq('界')
+    buffer << "\xff\xe0\x80b\xe7c".b
+    expect(Array.new(6) { reader.call }).to eq(['�', '�', '�', 'b', '�', 'c'])
+    buffer << "\xf0\x9f".b
+    expect(reader.call).to be_nil
+    buffer << "\x99\x82".b
+    expect(reader.call).to eq('🙂')
+  end
+
+  it 'keeps the grapheme cursor valid when combining characters arrive as separate terminal keys' do
+    editor = PWN::Plugins::REPL::AIConsole::Editor.new
+    editor.insert('e')
+    editor.insert("\u0301")
+    expect(editor.cursor).to eq(1)
+    editor.edit("\b")
+    expect(editor.text).to eq('')
+  end
+
+  it 'exposes steering and cancellation as operational states rather than simulated progress' do
+    control = PWN::Plugins::REPL::AIConsole::Control.new(input: StringIO.new, output: StringIO.new)
+    control.submit('revised task')
+    expect(control.phase.to_s).to include('steering')
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@worker, Thread.current)
+    console.instance_variable_set(:@cancelling, true)
+    expect(console.state).to include('cancelling')
+  end
+
+  it 'keeps network slash commands off the event thread so tool prompts can receive explicit input' do
+    entered = Queue.new
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    expect(PWN::Plugins::REPL).to receive(:pwn_ai_dispatch_slash!).with(request: '/mcp call fixture', pry: anything) do
+      entered << true
+      puts "local command received: #{$stdin.gets}"
+      true
+    end
+    keys = "/mcp call fixture\n".chars
+    sent = false
+    launch(keys) do
+      if !sent && !entered.empty?
+        sent = true
+        keys.concat("/input ready\n".chars)
+        nil
+      elsif @paint.any? { |row| row.include?('local command received: ready') }
+        "\u0004"
+      end
+    end
+  end
+
+  it 'routes the actual pwn-ai command into the default fullscreen console and leaves the mode on return' do
+    repl = PWN::Plugins::REPL
+    repl.add_commands
+    pi = Pry.new
+    pi.config.pwn_ai_startup_session_id = 'prepared-console-session'
+    allow(PWN::ModuleSkills).to receive(:install)
+    allow(PWN::Config).to receive(:load_skills)
+    allow(PWN::Config).to receive(:load_memory)
+    allow(PWN::Memory).to receive(:load).and_return({})
+    allow(PWN::Cron).to receive(:list).and_return({})
+    expect(PWN::Plugins::REPL::AIConsole).to receive(:run).with(pry: pi).and_return(:closed)
+    expect(repl).to receive(:leave_special_mode!).with(pry: pi)
+    Pry::Commands.find_command('pwn-ai').new(pry_instance: pi, output: StringIO.new).process
+    expect(pi.config.pwn_ai_session_id).to eq('prepared-console-session')
+  end
+
+  it 'provides a public curses console with an honest non-terminal fallback' do
+    expect(PWN::Plugins::REPL.const_defined?(:AIConsole)).to be true
+    expect(PWN::Plugins::REPL::AIConsole.run(pry: Pry.new, input: StringIO.new, output: StringIO.new)).to eq(:unavailable)
+  end
+end

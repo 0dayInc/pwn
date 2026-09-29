@@ -676,6 +676,8 @@ module PWN
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
 
         endpoint = api_endpoint(model: model, tools: opts[:tools])
+        effort = opts[:reasoning_effort] || engine[:reasoning_effort]
+        http_body[:reasoning_effort] = effort if reasoning && !effort.to_s.empty?
         if endpoint == 'responses'
           http_body = responses_http_body(
             model: model,
@@ -683,7 +685,7 @@ module PWN
             tools: opts[:tools],
             tool_choice: opts[:tool_choice],
             max_tokens: max_tokens,
-            reasoning_effort: opts[:reasoning_effort] || engine[:reasoning_effort]
+            reasoning_effort: effort
           )
         end
 
@@ -791,7 +793,7 @@ module PWN
           body[:tool_choice] = tc
         end
         effort = opts[:reasoning_effort].to_s
-        body[:reasoning] = { effort: effort, summary: 'auto' } if !effort.empty? && effort != 'none'
+        body[:reasoning] = { effort: effort, summary: 'auto' } unless effort.empty? || (effort == 'none' && model.to_s.start_with?('gpt-6-astra'))
         body
       end
 

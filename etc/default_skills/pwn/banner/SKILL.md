@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Banner
 
-This file, using the autoload directive loads Banner modules into memory only when they're needed. For more information, see: http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
+Static banners and pure, PWN-branded retro ASCII loops: falling_blocks, snake, and pong. mini_frame returns fresh rows on a borderless canvas; use equal width and height (5..16) for complete square artwork. Dimensions clamp to 0..16, with smaller panes degrading to a wordmark. The caller samples mini_names once per session and advances the explicit frame index every MINI_FRAME_SECONDS (0.1), wrapping at MINI_FRAME_COUNT (60). These are decorative animations, not interactive games or telemetry. Static Banner modules autoload only when needed. For more information, see: http://www.rubyinside.com/ruby-techniques-revealed-autoload-1652.html
 
 ## When to use
 
@@ -28,11 +28,13 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::Banner.help
-PWN::Banner.get(opts)
+PWN::Banner.mini_frame(opts)
 ```
 
 ## Public methods
 
+- `mini_frame`
+- `mini_names`
 - `get`
 - `welcome`
 - `authors`
@@ -48,5 +50,5 @@ PWN::Banner.get(opts)
 
 ## Verification
 
-`PWN::Banner.respond_to?(:get)` after the
+`PWN::Banner.respond_to?(:mini_frame)` after the
 module is loaded. Read the source for parameter names.

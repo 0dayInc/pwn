@@ -18,6 +18,12 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
+        # Read-only Bitcoin Core intelligence: transactions, UTXOs, bounded ancestor traces and scans.
+        PWN::Blockchain::BTC.help
+
+        # Read-only Ethereum intelligence: receipts, pinned account state, contract reads and event logs.
+        PWN::Blockchain::ETH.help
+
         # Display a List of Every PWN::Blockchain Module
         #{self}.authors
       "

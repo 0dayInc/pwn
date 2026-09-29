@@ -5,6 +5,263 @@ require 'tmpdir'
 require 'fileutils'
 
 describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
+  describe 'operator steering' do
+    include_context 'pwn tmp sandbox'
+
+    around do |example|
+      require 'timeout'
+      Timeout.timeout(15, Class.new(Exception)) { example.run } # rubocop:disable Lint/InheritException -- must escape provider retry rescues
+    end
+
+    it 'isolates simultaneous model windows and input readers across sessions' do
+      inputs = Array.new(2) { IO.pipe }
+      entered = Queue.new
+      completed = Queue.new
+      releases = Array.new(2) { Queue.new }
+      threads = inputs.each_with_index.map do |(input, _writer), index|
+        Thread.new do
+          control = described_class::Steering.new(input: input, output: StringIO.new)
+          result = control.with_reader do
+            control.model(messages: []) do
+              entered << index
+              releases[index].pop
+            end
+            control.checkpoint(messages: [])
+            :original
+          rescue described_class::Steering::Restart => e
+            e.instructions
+          end
+          completed << [index, result, control.reader.alive?]
+        end
+      end
+      expect([entered.pop, entered.pop].sort).to eq([0, 1])
+      inputs[0][1].puts('/steer only session zero')
+      expect(completed.pop).to eq([0, ['only session zero'], false])
+      expect(threads[1]).to be_alive
+      releases[1] << true
+      expect(completed.pop).to eq([1, :original, false])
+    ensure
+      threads&.each do |thread|
+        thread.kill if thread.alive?
+        thread.join
+      end
+      inputs&.flatten&.each { |io| io.close unless io.closed? }
+    end
+
+    it 'disables competing trace step reads while the input broker owns the terminal' do
+      input, writer = IO.pipe
+      expect(PWN::AI::Agent::Loop).to receive(:run) do
+        expect(PWN::Plugins::Log).not_to receive(:wait_trace_step!)
+        described_class.send(:wait_trace_step!, label: 'engine')
+        'done'
+      end
+      expect(PWN::Plugins::REPL.pwn_ai_run_steerable(input: input, output: StringIO.new, request: 'test')).to eq('done')
+      expect(Thread.current[:pwn_steering_input]).to be_nil
+    ensure
+      input&.close
+      writer&.close
+    end
+
+    it 'does not accept or preserve a final answer superseded during finalization' do
+      input, writer = IO.pipe
+      control = described_class::Steering.new(input: input, output: StringIO.new)
+      sid = PWN::Sessions.create(title: 'steered final')[:id]
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      calls = 0
+      allow(described_class).to receive(:call_engine) do |opts|
+        calls += 1
+        expect(opts[:messages].none? { |row| row[:content] == 'Stale final.' }).to be(true)
+        { role: 'assistant', content: calls == 1 ? 'Stale final.' : 'Yellow.', tool_calls: [] }
+      end
+      allow(described_class).to receive(:may_finalize?) do
+        control.submit('what color is a lemon?') if calls == 1
+        true
+      end
+      result = described_class.run(steering: control, request: 'what color is a passion fruit?', session_id: sid,
+                                   system_role_content: 'test', enabled_toolsets: [])
+      expect(result).to eq('Yellow.')
+      expect(PWN::Sessions.load(session_id: sid).none? { |row| row[:content] == 'Stale final.' }).to be(true)
+    ensure
+      input&.close
+      writer&.close
+    end
+
+    it 'rejects a second reader for the same input without disturbing the first' do
+      input, writer = IO.pipe
+      control = described_class::Steering.new(input: input, output: StringIO.new)
+      control.with_reader do
+        other = described_class::Steering.new(input: input, output: StringIO.new)
+        expect { other.with_reader { nil } }.to raise_error(ArgumentError, /already owned/)
+        expect(control.reader).to be_alive
+      end
+      expect(control.reader).not_to be_alive
+    ensure
+      input&.close
+      writer&.close
+    end
+
+    it 'queues multiple directives FIFO and ends the reader on EOF without losing a final unterminated line' do
+      input, writer = IO.pipe
+      control = described_class::Steering.new(input: input, output: StringIO.new)
+      control.with_reader do
+        writer.write("/steer first\n/steer second")
+        writer.close
+        expect(control.reader.join(2)).to eq(control.reader)
+        expect { control.checkpoint(messages: []) }.to raise_error(described_class::Steering::Restart) do |error|
+          expect(error.instructions).to eq(%w[first second])
+        end
+      end
+      expect(input.gets).to be_nil
+    ensure
+      input&.close
+      writer&.close unless writer&.closed?
+    end
+
+    it 'restores a real PTY and joins its reader on CTRL+C' do
+      require 'pty'
+      require 'io/console'
+      master, slave = PTY.open
+      original = slave.echo?
+      control = described_class::Steering.new(input: slave, output: StringIO.new)
+      expect { control.with_reader { raise Interrupt } }.to raise_error(Interrupt)
+      expect(control.reader).not_to be_alive
+      expect(slave).to be_tty
+      expect(slave.echo?).to eq(original)
+    ensure
+      master&.close
+      slave&.close
+    end
+
+    it 'uses the active steered request rather than the first historical user to select required tools' do
+      # The sandbox restores :ai on the original Env; replacing the constant
+      # would leave that original object configured for Ollama after teardown.
+      PWN::Env[:ai] = { active: 'openai', openai: {} }
+      Thread.current[:pwn_active_steering_request] = 'what color is a lemon?'
+      expect(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(tool_choice: 'auto')).and_return(choices: [{ message: { role: 'assistant', content: 'Yellow.' } }])
+      described_class.send(
+        :invoke_provider_chat,
+        engine: :openai,
+        messages: [{ role: 'user', content: 'Write a file to /tmp/stale.txt' }, { role: 'user', content: 'what color is a lemon?' }],
+        tools: [{ type: 'function', function: { name: 'shell' } }]
+      )
+    ensure
+      Thread.current[:pwn_active_steering_request] = nil
+    end
+
+    it 'lets an active tool finish, forwards prompt input, preserves evidence, and suppresses the rest of its batch' do
+      input, writer = IO.pipe
+      output = StringIO.new
+      entered = Queue.new
+      queued = Queue.new
+      sid = PWN::Sessions.create(title: 'steer tool')[:id]
+      old_request = "Write a report to #{File.join(@tmp, 'old-report.txt')}"
+      latest = 'what color is a lemon?'
+      observed = []
+      on_tool = ->(name, _args, result) { observed << [name, result] }
+      allow(output).to receive(:puts).and_wrap_original do |method, text|
+        method.call(text)
+        queued << true if text.include?('steering queued')
+      end
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      tool_calls = %w[first stale].map { |id| { id: id, type: 'function', function: { name: 'shell', arguments: '{}' } } }
+      count = 0
+      allow(described_class).to receive(:call_engine) do |opts|
+        count += 1
+        if count == 1
+          { role: 'assistant', tool_calls: tool_calls }
+        else
+          expect(count).to eq(2)
+          messages = opts[:messages]
+          expect(messages.select { |row| row[:role] == 'user' }.map { |row| row[:content] }).to include(old_request, latest)
+          results = messages.select { |row| row[:role] == 'tool' }
+          expect(results.map { |row| row[:tool_call_id] }).to eq(%w[first stale])
+          expect(results.first[:content]).to include('tool answer')
+          expect(results.last[:content]).to include('Not executed')
+          expect(PWN::AI::Agent::TurnFinalizer.required_artifacts(request: latest)).to be_empty
+          expect(Thread.current[:pwn_artifact_contract][:request]).to eq(latest)
+          expect(PWN::AI::Agent::OpenGoal.current[:request]).to eq(latest)
+          { role: 'assistant', content: 'Yellow.', tool_calls: [] }
+        end
+      end
+      expect(PWN::AI::Agent::Dispatch).to receive(:call).once do |opts|
+        expect(opts[:tool_call][:id]).to eq('first')
+        entered << true
+        answer = input.gets
+        File.write(File.join(@tmp, 'finished-work'), answer)
+        JSON.generate(success: true, result: { stdout: answer, exitstatus: 0 })
+      end
+      producer = Thread.new do
+        entered.pop
+        writer.puts("/steer #{latest}")
+        queued.pop
+        writer.puts('tool answer')
+      end
+      result = PWN::Plugins::REPL.pwn_ai_run_steerable(
+        input: input, output: output, request: old_request,
+        session_id: sid, system_role_content: 'test system', enabled_toolsets: [], on_tool: on_tool
+      )
+      expect(result).to eq('Yellow.')
+      expect(File.read(File.join(@tmp, 'finished-work'))).to eq("tool answer\n")
+      expect(output.string).to include('wait until the current tool finishes', 'not undone')
+      expect(observed.filter_map { |name, result| result if name == 'shell' }).to contain_exactly(include('tool answer'))
+    ensure
+      producer&.join(2)
+      producer&.kill if producer&.alive?
+      input&.close unless input&.closed?
+      writer&.close unless writer&.closed?
+    end
+
+    it 'reads a real PTY while the foreground model is blocked and restarts with the latest user instruction' do
+      require 'fcntl'
+      require 'pty'
+      require 'io/console'
+      writer, input = PTY.open
+      original_flags = input.fcntl(Fcntl::F_GETFL)
+      original_echo = input.echo?
+      output = StringIO.new
+      sid = PWN::Sessions.create(title: 'steering')[:id]
+      entered = Queue.new
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      calls = []
+      owner = Thread.current
+      allow(described_class).to receive(:call_engine) do |opts|
+        expect(Thread.current).to eq(owner)
+        calls << Marshal.load(Marshal.dump(opts[:messages]))
+        if calls.length == 1
+          entered << true
+          Queue.new.pop
+        end
+        { role: 'assistant', content: 'Yellow.', tool_calls: [] }
+      end
+      producer = Thread.new do
+        entered.pop
+        writer.puts('/steer what color is a lemon?')
+      end
+      result = PWN::Plugins::REPL.pwn_ai_run_steerable(
+        input: input, output: output, request: 'what color is a passion fruit?',
+        session_id: sid, system_role_content: 'test system', enabled_toolsets: []
+      )
+      expect(result).to eq('Yellow.')
+      expect(calls.length).to eq(2)
+      users = calls.last.select { |row| row[:role] == 'user' }.map { |row| row[:content] }
+      expect(users).to include('what color is a passion fruit?', 'what color is a lemon?')
+      persisted = PWN::Sessions.load(session_id: sid).select { |row| row[:role] == 'user' }.map { |row| row[:content] }
+      expect(persisted).to eq(['what color is a passion fruit?', 'what color is a lemon?'])
+      expect(output.string).to include('steering queued')
+      expect(input).not_to be_closed
+      expect(input.fcntl(Fcntl::F_GETFL)).to eq(original_flags)
+      expect(input.echo?).to eq(original_echo)
+    ensure
+      producer&.join(2)
+      producer&.kill if producer&.alive?
+      input&.close unless input&.closed?
+      writer&.close unless writer&.closed?
+    end
+  end
+
   it 'should display information for authors' do
     authors_response = PWN::AI::Agent::Loop
     expect(authors_response).to respond_to :authors
@@ -680,7 +937,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
 
     it 'does not Dispatch.call an identical payload once the checkpoint fires' do
       src = File.read(described_class.method(:run).source_location.first)
-      chunk = src[/if Thread\.current\[:pwn_extinguished\].*?tools_called \+= 1/m]
+      chunk = src[/if Thread\.current\[:pwn_extinguished\].*?note_payload_result!/m]
       expect(chunk).to include('same_n = note_same_payload!')
       expect(chunk.index('note_same_payload!')).to be < chunk.index('Dispatch.call')
       expect(chunk.index('Dispatch.call')).to be < chunk.index('note_payload_result!')

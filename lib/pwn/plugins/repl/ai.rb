@@ -21,9 +21,7 @@ module PWN
               pi.config.pwn_ai_agent = true
               pi.config.color = false if pi.config.pwn_ai
 
-              # Switch to custom multi-line input for pwn-ai (SHIFT+ENTER newline, ENTER submit)
-              pi.config.input = PWNMultiLineInput.new(pi)
-              PWN::Plugins::REPL.install_pwn_ai_completer!(pry: pi)
+              # Terminal ownership belongs to curses, not Reline.
 
               # Load and make aware of skills folder (scaled in PWN::Config per user pwn_env_path parent)
               skills_path = begin
@@ -46,6 +44,21 @@ module PWN
               pi.config.pwn_ai_session_id = sess[:id] if sess
               cron_count = (PWN.const_defined?(:Cron) ? PWN::Cron.list.keys.length : 0)
 
+              begin
+                console = PWN::Plugins::REPL::AIConsole.run(pry: pi)
+              rescue Exception # rubocop:disable Lint/RescueException -- restore Pry mode even on terminal interrupts
+                PWN::Plugins::REPL.leave_special_mode!(pry: pi)
+                raise
+              end
+              if console == :closed
+                PWN::Plugins::REPL.leave_special_mode!(pry: pi)
+                return
+              end
+
+              # Non-TTY/dumb terminal fallback keeps the existing line interface.
+              pi.config.input = PWNMultiLineInput.new(pi)
+              PWN::Plugins::REPL.install_pwn_ai_completer!(pry: pi)
+              puts '[*] Fullscreen curses unavailable on this terminal; using the legacy line interface.'
               puts '[*] pwn-ai agent TUI activated (PWN REPL driver w/ memory, sessions, delegation, cron).'
               puts "[*] Memory facts: #{mem_count} | Session: #{pi.config.pwn_ai_session_id} | Cron jobs: #{cron_count} | Skills: #{skills_count}"
               puts '[*] Instruct the AI agent to carry out a task, e.g.:'
@@ -53,6 +66,7 @@ module PWN
               puts "    'Execute CLI nmap -sV target.com and summarize findings using PWN modules.'"
               puts "[*] Skills loaded from #{skills_path} (#{skills_count} available) + memory/sessions/cron to expand autonomous capabilities."
               puts "[*] Type 'back' or CTRL+D to exit pwn-ai mode."
+              puts '[*] While busy: /steer <instruction> redirects the request; a running tool finishes first and is not undone. Trace ENTER stepping is suspended.'
               puts '[*] MULTILINE in pwn-ai: SHIFT+ENTER (or ALT+ENTER, or trailing `\\`) inserts a newline; ENTER submits to the AI.'
               puts '[*] TAB menus: leading `/` = commands (/cron /skills /sessions …); `/` later = host paths; otherwise Ruby completion (same as the pwn REPL).'
               puts "[*] tmux + terminator users: Ensure ~/.tmux.conf has 'set -s extended-keys on' and 'set -g xterm-keys on', then restart tmux. Use TERM=xterm-256color."
@@ -235,7 +249,7 @@ module PWN
           end
         end
         PWN_AI_SLASH_COMMANDS = %w[
-          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /trace
+          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /trace
         ].freeze
 
         PWN_AI_SLASH_SUBCOMMANDS = {
@@ -259,6 +273,19 @@ module PWN
         # 2. '/' anywhere else → :path (host-native file nav)
         # 3. else → :ruby (same Pry::InputCompleter menu as the pwn REPL)
         class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
+          # Foreground Loop plus one scoped terminal reader, not another Pry
+          # readline and not a worker thread running tools without their locals.
+          def pwn_ai_run_steerable(opts = {})
+            previous = Thread.current[:pwn_steering_input]
+            input = opts[:input] || $stdin
+            output = opts[:output] || $stdout
+            control = PWN::AI::Agent::Loop::Steering.new(input: input, output: output)
+            Thread.current[:pwn_steering_input] = control
+            control.with_reader { PWN::AI::Agent::Loop.run(opts.merge(steering: control)) }
+          ensure
+            Thread.current[:pwn_steering_input] = previous
+          end
+
           def pwn_ai_complete_kind(opts = {})
             line = opts[:line].to_s
             return :command if line.start_with?('/')
@@ -497,6 +524,8 @@ module PWN
             args = tokens[1..]
             pi = opts[:pry]
             case cmd
+            when '/steer'
+              puts(args.empty? ? '[pwn-ai] Usage: /steer <instruction>' : '[pwn-ai] /steer: no active request; submit a normal request instead')
             when '/help'
               puts 'pwn-ai commands:'
               PWN_AI_SLASH_COMMANDS.each do |c|
@@ -504,6 +533,7 @@ module PWN
                 puts(subs.empty? ? "  #{c}" : "  #{c} #{subs.join('|')}")
               end
               puts '  TAB: /… command menu · slash later in the line: path nav · else Ruby completion'
+              puts '  /steer <instruction>: redirect an active request; a running tool finishes first (not undone)'
             when '/back'
               if pi.respond_to?(:eval)
                 pi.eval('back')
@@ -625,6 +655,8 @@ module PWN
             sub = args[0].to_s
             if sub.empty? || %w[show status].include?(sub)
               msg = "active=#{current.empty? ? '(none)' : current} model=#{current_model.empty? ? '(unset)' : current_model}"
+              effort = PWN::Env.dig(:ai, current.to_sym, :reasoning_effort)
+              msg += " reasoning_effort=#{effort}" unless effort.to_s.empty?
               puts "[*] #{msg}"
               return msg
             end
@@ -634,6 +666,7 @@ module PWN
               puts 'pwn-ai /model — switch provider and model in this session'
               puts "  current: #{current} #{current_model}"
               puts '  usage: /model [list] | /model list llms | /model <engine> [model] | /model <model>'
+              puts '  Supported models prompt for reasoning effort before applying; Enter accepts, Esc cancels.'
               engines.each do |eng|
                 mark = eng == current ? '*' : ' '
                 puts "  #{mark} #{eng}  #{pwn_ai_engine_model(engine: eng)}"
@@ -654,13 +687,93 @@ module PWN
             raise "no active engine — /model <engine> first (#{engines.join(', ')})" if engine.to_s.empty?
             raise "unknown engine #{engine.inspect} — try: #{engines.join(', ')}" unless engines.include?(engine.to_s)
 
+            selection = pwn_ai_reasoning_selection(engine: engine, model: model || pwn_ai_engine_model(engine: engine))
+            prompt = opts[:prompt]
+            if selection[:efforts].any?
+              effort = prompt.respond_to?(:call) ? prompt.call(selection) : pwn_ai_prompt_reasoning(selection: selection)
+              return 'Model selection cancelled.' if effort.nil?
+              return selection if effort == :deferred
+
+              raise ArgumentError, 'unsupported reasoning effort' unless selection[:efforts].include?(effort)
+
+              selection[:reasoning_effort] = effort
+            end
+            pwn_ai_apply_model(selection: selection)
+          end
+
+          # Resolve capabilities only on submitted selections, never completion.
+          def pwn_ai_reasoning_selection(opts = {})
+            engine = opts[:engine].to_s
+            model = opts[:model].to_s
+            efforts = []
+            default = 'medium'
+            if engine == 'openai' && PWN::AI::OpenAI.send(:reasoning_model?, model: model)
+              begin
+                catalog = PWN::AI::OpenAI.get_models
+                rows = catalog[:data] || catalog[:models] || []
+                row = Array(rows).find { |item| item.is_a?(Hash) && (item[:id] || item[:slug] || item['id'] || item['slug']) == model } || {}
+                levels = row[:supported_reasoning_levels] || row['supported_reasoning_levels']
+                efforts = Array(levels).filter_map { |level| level.is_a?(Hash) ? (level[:effort] || level['effort']) : nil }.map(&:to_s)
+                default = row[:default_reasoning_level] || row['default_reasoning_level'] || default
+              rescue StandardError => e
+                warn "[pwn-ai] reasoning catalog unavailable: #{e.class}; using documented capabilities."
+              end
+              # Model-specific API contracts; do not guess future families.
+              # https://developers.openai.com/api/docs/models/gpt-6-astra
+              # https://developers.openai.com/api/docs/models/gpt-5
+              efforts = %w[low medium high xhigh max] if efforts.empty? && model == 'gpt-6-astra'
+              efforts = %w[minimal low medium high] if efforts.empty? && model.match?(/\Agpt-5(?:-\d{4}-\d{2}-\d{2})?\z/)
+              # Same model pages document these explicit versions (not codex/pro variants).
+              efforts = %w[none low medium high] if efforts.empty? && model.match?(/\Agpt-5\.1(?:-\d{4}-\d{2}-\d{2})?\z/)
+              efforts = %w[none low medium high xhigh] if efforts.empty? && model.match?(/\Agpt-5\.(?:2|4|5)(?:-\d{4}-\d{2}-\d{2})?\z/)
+            elsif engine == 'grok'
+              # https://docs.x.ai/developers/model-capabilities/text/reasoning
+              efforts = %w[low medium high xhigh] if %w[grok-4.6 grok-4.7].include?(model)
+              efforts = %w[low medium high] if model == 'grok-4.5'
+              efforts = %w[low high] if %w[grok-3-mini grok-3-mini-fast].include?(model)
+            end
+            current = PWN::Env.dig(:ai, engine.to_sym, :reasoning_effort).to_s
+            efforts.delete('none') if engine == 'openai' && model.start_with?('gpt-6-astra')
+            default = current if efforts.include?(current)
+            default = efforts.first unless efforts.include?(default)
+            { engine: engine, model: model, efforts: efforts.uniq, default: default }
+          end
+
+          def pwn_ai_prompt_reasoning(opts = {})
+            selection = opts[:selection]
+            # The legacy line interface alone owns stdin here. Curses supplies a callback.
+            return selection[:default] unless $stdin.tty?
+
+            loop do
+              puts "Reasoning effort for #{selection[:engine]}/#{selection[:model]}: #{selection[:efforts].join(', ')}"
+              print "Effort [#{selection[:default]}] (Enter accepts; q/Esc cancels): "
+              line = $stdin.gets
+              return nil if line.nil? || ["\e", 'q', 'cancel'].include?(line.strip)
+
+              value = line.strip.empty? ? selection[:default] : line.strip
+              return value if selection[:efforts].include?(value)
+            end
+          rescue Interrupt
+            nil
+          end
+
+          def pwn_ai_apply_model(opts = {})
+            selection = opts[:selection]
+            engine = selection[:engine]
+            model = selection[:model]
             PWN::Env[:ai] ||= {}
             PWN::Env[:ai][engine.to_sym] ||= {}
             PWN::Env[:ai][:active] = engine.to_s
             PWN::Env[:ai][engine.to_sym][:model] = model unless model.to_s.strip.empty?
-            persisted = persist_ai_selection(engine: engine, model: PWN::Env[:ai][engine.to_sym][:model])
+            persistence = { engine: engine, model: PWN::Env[:ai][engine.to_sym][:model] }
+            if selection.key?(:reasoning_effort)
+              PWN::Env[:ai][engine.to_sym][:reasoning_effort] = selection[:reasoning_effort]
+              persistence[:reasoning_effort] = selection[:reasoning_effort]
+            end
+            persisted = persist_ai_selection(persistence)
             shown = PWN::Env[:ai][engine.to_sym][:model]
             msg = "active=#{engine} model=#{shown.to_s.empty? ? '(unset)' : shown}"
+            msg += " reasoning_effort=#{selection[:reasoning_effort]}" if selection.key?(:reasoning_effort)
             msg = "#{msg} (session only)" unless persisted
             puts "[*] #{msg}"
             msg
@@ -698,6 +811,10 @@ module PWN
                 slot = engine.to_sym
                 cfg[:ai][slot] = {} unless cfg[:ai][slot].is_a?(Hash)
                 cfg[:ai][slot][:model] = model
+              end
+              if opts.key?(:reasoning_effort)
+                cfg[:ai][engine.to_sym] ||= {}
+                cfg[:ai][engine.to_sym][:reasoning_effort] = opts[:reasoning_effort]
               end
               yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
               File.write(env_path, yaml_env)
@@ -1006,13 +1123,31 @@ module PWN
 
             # Apply /model arguments to the active engine.
             #{self}.pwn_ai_run_model(
-              args: 'optional - Array of slash tokens after /model'
+              args: 'optional - Array of slash tokens after /model',
+              prompt: 'optional - callable receiving selection metadata; return effort, nil to cancel, or :deferred'
+            )
+
+            # Resolve model-specific reasoning options from provider capabilities.
+            #{self}.pwn_ai_reasoning_selection(
+              engine: 'required - provider name',
+              model: 'required - exact model identifier'
+            )
+
+            # Ask for effort in the legacy line interface only.
+            #{self}.pwn_ai_prompt_reasoning(
+              selection: 'required - model selection with efforts and default'
+            )
+
+            # Apply an accepted model selection and merge its vault fields.
+            #{self}.pwn_ai_apply_model(
+              selection: 'required - engine, model and optional reasoning_effort'
             )
 
             # Persist engine and model into the encrypted pwn.yaml vault.
             #{self}.persist_ai_selection(
               engine: 'required - engine name to store as ai.active',
-              model: 'required - model id to store for that engine'
+              model: 'required - model id to store for that engine',
+              reasoning_effort: 'optional - accepted effort to merge into that engine only'
             )
 
             # Run /cron locally without Loop.run.
