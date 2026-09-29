@@ -249,7 +249,7 @@ module PWN
           end
         end
         PWN_AI_SLASH_COMMANDS = %w[
-          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /trace
+          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /system-role /trace
         ].freeze
 
         PWN_AI_SLASH_SUBCOMMANDS = {
@@ -565,6 +565,8 @@ module PWN
               puts '    Use agent_list / agent_debate from pwn-ai, or pwn-ai-delegate in the pwn REPL.'
             when '/model'
               pwn_ai_run_model(args: args)
+            when '/system-role'
+              puts '[pwn-ai] /system-role requires the curses console. Open pwn-ai in an interactive terminal.'
             when '/mcp'
               pwn_ai_run_mcp(args: args)
             when '/learning'
@@ -779,6 +781,16 @@ module PWN
             msg
           end
 
+          def pwn_ai_apply_system_role(opts = {})
+            engine = opts[:engine].to_s
+            content = opts[:content].to_s
+            raise 'Active engine changed; reopen /system-role.' unless engine == PWN::Env.dig(:ai, :active).to_s && PWN::Env.dig(:ai, engine.to_sym).is_a?(Hash)
+            raise 'System role not saved: vault persistence failed (check vault/decryptor permissions).' unless persist_ai_selection(engine: engine, system_role_content: content)
+
+            PWN::Env[:ai][engine.to_sym][:system_role_content] = content
+            :saved
+          end
+
           def persist_ai_selection(opts = {})
             engine = opts[:engine].to_s
             model = opts[:model]
@@ -801,12 +813,19 @@ module PWN
             iv = decryptor.is_a?(Hash) ? decryptor[:iv] : nil
             return false if key.to_s.strip.empty? || iv.to_s.strip.empty?
 
-            PWN::Plugins::Vault.decrypt(file: env_path, key: key, iv: iv)
-            begin
-              cfg = YAML.load_file(env_path, symbolize_names: true)
+            # Never decrypt the live vault in place: failed encryption must leave
+            # the previous ciphertext intact. Rename only the encrypted merge.
+            require 'tempfile'
+            Tempfile.create(['.pwn-ai-selection', '.yaml'], File.dirname(env_path)) do |file|
+              file.binmode
+              file.write(File.binread(env_path))
+              file.flush
+              path = file.path
+              PWN::Plugins::Vault.decrypt(file: path, key: key, iv: iv)
+              cfg = YAML.load_file(path, symbolize_names: true)
               cfg = {} unless cfg.is_a?(Hash)
               cfg[:ai] = {} unless cfg[:ai].is_a?(Hash)
-              cfg[:ai][:active] = engine
+              cfg[:ai][:active] = engine unless opts.key?(:system_role_content)
               unless model.to_s.strip.empty?
                 slot = engine.to_sym
                 cfg[:ai][slot] = {} unless cfg[:ai][slot].is_a?(Hash)
@@ -816,15 +835,19 @@ module PWN
                 cfg[:ai][engine.to_sym] ||= {}
                 cfg[:ai][engine.to_sym][:reasoning_effort] = opts[:reasoning_effort]
               end
+              if opts.key?(:system_role_content)
+                cfg[:ai][engine.to_sym] ||= {}
+                cfg[:ai][engine.to_sym][:system_role_content] = opts[:system_role_content]
+              end
               yaml_env = YAML.dump(cfg).gsub(/^(\s*):/, '\1')
-              File.write(env_path, yaml_env)
-              File.chmod(0o600, env_path)
-            ensure
-              PWN::Plugins::Vault.encrypt(file: env_path, key: key, iv: iv)
+              File.write(path, yaml_env)
+              File.chmod(0o600, path)
+              PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+              File.rename(path, env_path)
             end
             true
           rescue StandardError => e
-            warn "[pwn-ai] /model persist skipped: #{e.class}: #{e.message}"
+            warn "[pwn-ai] settings persist failed: #{e.class}: #{e.message}"
             false
           end
 
@@ -1143,11 +1166,18 @@ module PWN
               selection: 'required - engine, model and optional reasoning_effort'
             )
 
-            # Persist engine and model into the encrypted pwn.yaml vault.
+            # Save a role to the vault before updating the active engine.
+            #{self}.pwn_ai_apply_system_role(
+              engine: 'required - active engine name captured when opening the editor',
+              content: 'required - exact multiline system role content, including an empty string'
+            )
+
+            # Persist engine settings into the encrypted pwn.yaml vault.
             #{self}.persist_ai_selection(
               engine: 'required - engine name to store as ai.active',
-              model: 'required - model id to store for that engine',
-              reasoning_effort: 'optional - accepted effort to merge into that engine only'
+              model: 'optional - model id to store for that engine',
+              reasoning_effort: 'optional - accepted effort to merge into that engine only',
+              system_role_content: 'optional - exact accepted role to merge into that engine only'
             )
 
             # Run /cron locally without Loop.run.

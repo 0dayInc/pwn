@@ -25,11 +25,19 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     owner = Thread.current
     window = double('screen')
     allow(window).to receive_messages(erase: nil, refresh: nil, setpos: nil)
+    frame = []
+    position = [0, 0]
+    allow(window).to receive(:erase) { frame = [] }
+    allow(window).to receive(:refresh) { @rendered = frame.dup }
     @positions = []
-    allow(window).to receive(:setpos) { |*position| @positions << position }
+    allow(window).to receive(:setpos) do |*coords|
+      position = coords
+      @positions << coords
+    end
     allow(window).to receive(:addstr) { |text|
       expect(Thread.current).to eq(owner)
       @paint << text
+      frame << [*position, text]
     }
     allow(window).to receive(:attron) { |_attribute, &block| block.call }
     screen = double('curses', init_screen: window, raw: nil, noecho: nil, curs_set: nil, close_screen: nil,
@@ -51,6 +59,115 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   ensure
     master&.close
     input&.close
+  end
+
+  it 'edits system role in an isolated multiline modal and preserves mission cursor on save and cancel' do
+    PWN::Env[:ai] = { active: 'openai', openai: { system_role_content: "first\nsecond" } }
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: Curses, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('mission draft', 4)
+    console.submit('/system-role')
+    expect(console.instance_variable_get(:@role_editor).text).to eq("first\nsecond")
+    console.handle("\u0015")
+    "new\nrole".chars.each { |key| console.handle(key) }
+    ["\u0012", "\u0007", "\u000f", "\u000c"].each { |key| console.handle(key) }
+    expect(editor.text).to eq('mission draft')
+    expect(editor.cursor).to eq(4)
+    expect(PWN::Plugins::REPL).to receive(:pwn_ai_apply_system_role).with(engine: 'openai', content: "new\nrole").and_return(:saved)
+    console.handle("\u0013")
+    expect(console.instance_variable_get(:@role_editor)).to be_nil
+    console.submit('/system-role')
+    console.handle('x')
+    console.handle("\e")
+    expect(editor.text).to eq('mission draft')
+    expect(editor.cursor).to eq(4)
+    expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq("first\nsecond")
+  end
+
+  it 'saves system role from curses to an encrypted vault and the next provider payload' do
+    previous_driver_opts = PWN::Env[:driver_opts]
+    path = File.join(@tmp, 'role.yaml')
+    key = Base64.strict_encode64('k' * 32)
+    iv = Base64.strict_encode64('i' * 16)
+    PWN::Env[:ai] = { active: 'openai', openai: { model: 'gpt-4o', system_role_content: 'original role' } }
+    File.write(path, YAML.dump(ai: PWN::Env[:ai]))
+    File.write("#{path}.decryptor", YAML.dump(key: key, iv: iv))
+    PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+    ciphertext = File.binread(path)
+    PWN::Env[:driver_opts] = { pwn_env_path: path, pwn_dec_path: "#{path}.decryptor" }
+    allow(PWN::AI::Agent::PromptBuilder).to receive(:build).and_wrap_original do |method, opts|
+      method.call(opts.merge(thin: true))
+    end
+    expect(PWN::AI::OpenAI).to receive(:open_ai_rest_call) do |opts|
+      expect(opts[:http_body][:messages].find { |message| message[:role] == 'system' }[:content]).to start_with("Saved role\nsecond line")
+      { choices: [{ message: { role: 'assistant', content: 'Role forwarded.', tool_calls: [] } }] }.to_json
+    end
+    keys = "/system-role\n".chars
+    phase = :cancel
+    launch(keys) do
+      case phase
+      when :cancel
+        expect(@paint.join).to include('SYSTEM ROLE CONTENT', 'original role', 'Ctrl+S Save', 'Esc Cancel')
+        keys.concat("\u0015discarded\e".chars)
+        phase = :reopen
+        nil
+      when :reopen
+        expect(File.binread(path)).to eq(ciphertext)
+        expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq('original role')
+        keys.concat("\n\u0015Saved role\nsecond line\u0013".chars)
+        phase = :request
+        nil
+      when :request
+        expect(rendered_header).to include('Saved role second line')
+        keys.concat("\u0015what color is a lemon?\n".chars)
+        phase = :done
+        nil
+      else
+        @paint.any? { |row| row.include?('Role forwarded.') } ? "\u0004" : Thread.pass && nil
+      end
+    end
+    expect(File.binread(path)).not_to include('Saved role')
+    PWN::Plugins::Vault.decrypt(file: path, key: key, iv: iv)
+    expect(YAML.load_file(path, symbolize_names: true).dig(:ai, :openai, :system_role_content)).to eq("Saved role\nsecond line")
+  ensure
+    PWN::Env[:driver_opts] = previous_driver_opts
+  end
+
+  it 'keeps failed system role edits open and blocks request and swarm context mutation' do
+    PWN::Env[:ai] = { active: 'openai', openai: { system_role_content: 'original' } }
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: Curses, getch: nil)
+    console.instance_variable_set(:@worker, double(alive?: true))
+    console.submit('/system-role')
+    expect(console.instance_variable_get(:@role_editor)).to be_nil
+    console.instance_variable_set(:@worker, nil)
+    console.instance_variable_set(:@swarm, double(busy?: true))
+    console.submit('/system-role')
+    expect(console.instance_variable_get(:@role_editor)).to be_nil
+    console.instance_variable_set(:@swarm, nil)
+    console.submit('/system-role')
+    allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+    console.handle('x')
+    console.handle("\u0013")
+    expect(console.instance_variable_get(:@role_editor).text).to eq('originalx')
+    expect(console.instance_variable_get(:@role_error)).to include('Not saved')
+    expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq('original')
+  end
+
+  it 'moves the role cursor between multiline grapheme columns without history recall' do
+    PWN::Env[:ai] = { active: 'openai', openai: { system_role_content: "αβ\nx\nlast" } }
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: Curses, getch: nil)
+    console.submit('/system-role')
+    role = console.instance_variable_get(:@role_editor)
+    console.handle(:up)
+    expect(role.cursor).to eq(4)
+    console.handle(:up)
+    expect(role.cursor).to eq(1)
+    console.handle(:down)
+    expect(role.cursor).to eq(4)
+    console.handle(:left)
+    console.handle(:delete)
+    console.handle('新')
+    expect(role.text).to eq("αβ\n新\nlast")
   end
 
   it 'runs the real Loop from the public launch, steering a blocked model without a second input reader' do
@@ -346,6 +463,24 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(canvas.first(top)).to all(eq(' ' * size))
   end
 
+  it 'paints falling blocks against the actual pane floor even beyond sixteen cells' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
+    now = 100.0
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
+    console.banner_frame(20, cells: true)
+    seed = console.instance_variable_get(:@banner_seed)
+    frames = PWN::Banner.send(:mini_replay, name: :falling_blocks, width: 20, height: 20, seed: seed)
+    tick = frames.index { |frame| frame[:event] == :lock }
+    now += (tick + 0.1) * PWN::Banner::MINI_FRAME_SECONDS
+    calls = []
+    allow(console).to receive(:put) { |*args| calls << args }
+    console.draw_banner(20)
+    expect(calls.select { |y, _x, text| y == 20 && text.strip != '' }).not_to be_empty
+    expect(calls).to include([1, 9, 'P', nil], [1, 10, 'W', nil], [1, 11, 'N', nil])
+    expect(calls).to all(satisfy { |y, x, text| y.between?(1, 20) && x >= 1 && x + text.length <= 21 })
+  end
+
   it 'carves a themed cell-square banner pane only when all settings still fit, keeping bounds and draft' do
     PWN::Env[:ai] = { active: :ollama, tui: { theme: { category: 'magenta', header: 'white', border: 'blue', title: 'red' } },
                       ollama: { model: 'fixture', system_role_content: 'Complete functional settings.', reasoning_effort: 'high' } }
@@ -361,7 +496,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       rectangles << args
       method.call(*args)
     end
-    allow(PWN::Banner).to receive(:mini_frame).and_call_original
+    allow(PWN::Banner).to receive(:mini_cells).and_call_original
     console.draw
     expect(rectangles).to include([0, 0, 10, 10, 'PWN'])
     expect(rectangles).to include([0, 10, 10, 109, "pwn-ai v#{PWN::VERSION}"])
@@ -369,9 +504,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(painted).to include([2, 12, 'PROVIDER (ENGINE):', console.tone(:category)])
     expect(painted.any? { |y, x, text, color| y == 0 && x == 0 && text.include?('╭') && color == console.tone(:border) }).to be(true)
     expect(painted.any? { |y, x, text, color| y == 0 && x == 2 && text.include?('PWN') && color == console.tone(:title) }).to be(true)
-    expect(painted.select { |y, x, _text, _color| y.between?(1, 8) && x == 1 }.length).to eq(8)
+    expect(painted.select { |y, x, text, _color| y.between?(1, 8) && x == 1 && text == ' ' * 8 }.length).to eq(8)
     expect(painted.select { |y, _x, _text, _color| y < 10 }).to all(satisfy { |y, x, text, _color| y >= 0 && x >= 0 && x + console.width(text) <= 120 })
-    expect(PWN::Banner).to have_received(:mini_frame).with(hash_including(width: 8, height: 8)).once
+    expect(PWN::Banner).to have_received(:mini_cells).with(hash_including(width: 8, height: 8)).once
     [[80, 36], [120, 24]].each do |columns, rows|
       allow(curses).to receive_messages(cols: columns, lines: rows)
       rectangles.clear
@@ -384,7 +519,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.draw
     expect(console.instance_variable_get(:@header_text_column)).to eq(2)
     expect(console.header_lines('ollama', 'fixture', 115).length).to be <= 13
-    expect(PWN::Banner).to have_received(:mini_frame).once
+    expect(PWN::Banner).to have_received(:mini_cells).once
     expect([console.instance_variable_get(:@editor).text, console.instance_variable_get(:@editor).cursor]).to eq(['retained draft', 4])
   end
 
@@ -395,13 +530,109 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.instance_variable_set(:@height, 40)
     allow(console).to receive(:put)
     allow(console).to receive(:box)
-    allow(PWN::Banner).to receive(:mini_frame).and_call_original
+    allow(PWN::Banner).to receive(:mini_cells).and_call_original
     height = console.draw_header('ollama', 'fixture')
     expect(height).to be > 10
     expect(console).to have_received(:box).with(0, 0, height, height, 'PWN')
-    expect(PWN::Banner).to have_received(:mini_frame).with(hash_including(width: height - 2, height: height - 2))
+    expect(PWN::Banner).to have_received(:mini_cells).with(hash_including(width: height - 2, height: height - 2))
     expect(console.instance_variable_get(:@header_spans).length + 3).to be <= height
     expect(console.header_lines('ollama', 'fixture', console.instance_variable_get(:@header_text_width)).join).to include('REASONING EFFORT: high')
+  end
+
+  it 'paints centered colored block cells inside the square without reusing theme pairs' do
+    curses = double(has_colors?: true, start_color: nil, use_default_colors: nil, init_pair: nil, color_pairs: 256)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    allow(ENV).to receive(:key?).with('NO_COLOR').and_return(false)
+    console.setup_colors
+    expect(curses).to have_received(:init_pair).with(9, Curses::COLOR_CYAN, Curses::COLOR_BLACK)
+    expect(curses).to have_received(:init_pair).with(16, Curses::COLOR_BLACK, Curses::COLOR_BLACK)
+    allow(console).to receive(:put)
+    allow(console).to receive(:banner_frame).with(8, cells: true).and_return([[{ glyph: '█', foreground: :cyan, background: :black }]])
+    console.draw_banner(8)
+    expect(console).to have_received(:put).with(4, 4, '█', 9)
+    expect(console).to have_received(:put).with(8, 1, ' ' * 8, 16)
+    oversized = Array.new(10) { Array.new(10) { { glyph: '▀', foreground: :yellow, background: :black } } }
+    allow(console).to receive(:banner_frame).with(8, cells: true).and_return(oversized)
+    calls = []
+    allow(console).to receive(:put) { |*args| calls << args }
+    console.draw_banner(8)
+    expect(calls).to all(satisfy { |y, x, text, _pair| y.between?(1, 8) && x >= 1 && x + text.length <= 9 })
+  end
+
+  it 'paints both colors of touching blocks and preserves solid occupancy without color' do
+    [256, 16].each do |count|
+      curses = double(has_colors?: true, start_color: nil, use_default_colors: nil, init_pair: nil, color_pairs: count)
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+      allow(ENV).to receive(:key?).with('NO_COLOR').and_return(false)
+      console.setup_colors
+      allow(console).to receive(:put)
+      allow(console).to receive(:banner_frame).with(8, cells: true).and_return([[{ glyph: '▀', foreground: :cyan, background: :red }]])
+      console.draw_banner(8)
+      if count == 256
+        palette = PWN::Plugins::REPL::AIConsole::Console::PALETTE
+        pair = 17 + (palette.reject { |color| color == 'black' }.index('red') * 8)
+        expect(curses).to have_received(:init_pair).with(pair, Curses::COLOR_CYAN, Curses::COLOR_RED)
+        expect(console).to have_received(:put).with(4, 4, '▀', pair)
+      else
+        expect(console).to have_received(:put).with(4, 4, '█', nil)
+      end
+    end
+  end
+
+  it 'retains block glyphs without allocating color pairs under NO_COLOR or on limited palettes' do
+    [true, false].each do |no_color|
+      curses = double(has_colors?: true, start_color: nil, use_default_colors: nil, init_pair: nil, color_pairs: 16)
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+      allow(ENV).to receive(:key?).with('NO_COLOR').and_return(no_color)
+      console.setup_colors
+      expect(curses).not_to have_received(:init_pair).with(9, anything, anything)
+      allow(console).to receive(:put)
+      allow(console).to receive(:banner_frame).with(8, cells: true).and_return([[{ glyph: '█', foreground: :green, background: :black }]])
+      console.draw_banner(8)
+      expect(console).to have_received(:put).with(4, 4, '█', nil)
+    end
+  end
+
+  it 'uses the same monotonic cadence and session selection for colored frames' do
+    pry = Pry.new
+    pry.config.pwn_ai_session_id = 'colored-session'
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    names = [:snake]
+    allow(PWN::Banner).to receive(:mini_names).and_return(names)
+    expect(names).to receive(:sample).twice.and_return(:snake)
+    now = 100.0
+    allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
+    console.banner_frame(8, cells: true)
+    seed = console.instance_variable_get(:@banner_seed)
+    expect(seed).to be_a(Integer)
+    expect(console.banner_frame(8, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 0, width: 8, height: 8, seed: seed))
+    now += 0.21
+    expect(console.banner_frame(8, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 2, width: 8, height: 8, seed: seed))
+    expect(console.banner_frame(12, cells: true)).to eq(PWN::Banner.mini_cells(name: :snake, frame: 2, width: 12, height: 12, seed: seed))
+    expect(console.instance_variable_get(:@banner_seed)).to eq(seed)
+    pry.config.pwn_ai_session_id = 'another-colored-session'
+    console.banner_frame(8, cells: true)
+    expect(console.instance_variable_get(:@banner_seed)).not_to eq(seed)
+  end
+
+  it 'samples Asteroids or Pong once and caches their faster cadence outside the key path' do
+    allow(PWN::Banner).to receive(:mini_cells).and_call_original
+    %i[pong asteroids].each do |name|
+      pry = Pry.new
+      pry.config.pwn_ai_session_id = 'fast-colored-session'
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+      names = PWN::Banner.mini_names
+      allow(PWN::Banner).to receive(:mini_names).and_return(names)
+      expect(names).to receive(:sample).once.and_return(name)
+      expect(PWN::Banner).to receive(:mini_frame_seconds).with(name: name).once.and_call_original
+      now = 100.0
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
+      console.banner_frame(8, cells: true)
+      seed = console.instance_variable_get(:@banner_seed)
+      now += 1.21
+      expect(PWN::Banner).to receive(:mini_cells).with(name: name, frame: 24, width: 8, height: 8, seed: seed).twice.and_call_original
+      2.times { console.banner_frame(8, cells: true) }
+    end
   end
 
   it 'wraps every header line and labels the system role' do
@@ -417,6 +648,20 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(joined).not_to match(/\brole ethical/)
   ensure
     PWN::Env[:ai] = previous
+  end
+
+  it 'refreshes text and banner geometry when a model string is changed in place' do
+    PWN::Env[:ai] = { active: +'ollama', ollama: { model: +'before' } }
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    curses = double(lines: 50, cols: 120)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    console.draw
+    old_height = console.instance_variable_get(:@header_pane_height)
+    PWN::Env[:ai][:ollama][:model].replace('new-model-' * 90)
+    console.draw
+    expect(console.instance_variable_get(:@header_lines).join).to include('new-model-')
+    expect(console.instance_variable_get(:@header_pane_height)).to be > old_height
   end
 
   it 'reuses wrapped settings until the width or values change' do
@@ -925,6 +1170,129 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(editor.cursor).to eq(7)
     expect(Marshal.dump(PWN::Env[:ai])).to eq(original)
     expect(console.instance_variable_get(:@model_prompt)).to be_nil
+  end
+
+  def rendered_header
+    boundary = @rendered.find { |_row, _column, text| text.start_with?(' SESSION ') }&.first || 0
+    @rendered.select { |row, _column, _text| row < boundary }.map(&:last).join
+  end
+
+  it 'repaints an asynchronous model command with all active settings before another key' do
+    PWN::Env[:ai][:openai] = { model: 'old', system_role_content: 'new operator role', temp: 0.37,
+                               max_tokens: 1234, max_prompt_length: 5678, reasoning_effort: 'fixture-effort' }
+    allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+    keys = "/model openai header-fixture\n".chars
+    launch(keys) do
+      header = rendered_header
+      if header.include?('header-fixture')
+        expect(header).to include('openai', 'new operator role', '0.37', '1234', '5678', 'fixture-effort')
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+  end
+
+  it 'repaints settings and theme changed by a command worker without worker drawing or a wakeup key' do
+    PWN::Env[:ai] = { active: :ollama, ollama: { model: 'settings-fixture' } }
+    owner = Thread.current
+    painted = []
+    allow_any_instance_of(PWN::Plugins::REPL::AIConsole::Console).to receive(:put).and_wrap_original do |method, *args|
+      painted << args
+      method.call(*args)
+    end
+    allow(PWN::Cron).to receive(:run) do
+      expect(Thread.current).not_to eq(owner)
+      slot = PWN::Env[:ai][PWN::Env[:ai][:active].to_sym]
+      slot[:system_role_content] = 'worker settings role'
+      slot[:temp] = 0.42
+      slot[:max_tokens] = 4321
+      slot[:max_prompt_length] = 8765
+      slot[:reasoning_effort] = 'worker-effort'
+      PWN::Env[:ai][:tui] = { theme: { category: 'magenta', header: 'blue' } }
+      'offline settings fixture completed'
+    end
+    keys = "/cron run settings-fixture\n".chars
+    launch(keys) do
+      if rendered_header.include?('worker-effort')
+        expect(rendered_header).to include('worker settings role', '0.42', '4321', '8765')
+        expect(painted).to include([a_kind_of(Integer), a_kind_of(Integer), 'MODEL:', 7])
+        expect(painted).to include([a_kind_of(Integer), a_kind_of(Integer), ' worker-effort', 6])
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+  end
+
+  it 'repaints accepted reasoning before another key even when persistence is session only' do
+    PWN::Env[:ai][:openai] = { model: 'old', reasoning_effort: 'medium' }
+    allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+    allow(PWN::AI::OpenAI).to receive(:get_models).and_return(data: [{ id: 'gpt-6-astra', supported_reasoning_levels: [{ effort: 'medium' }, { effort: 'high' }] }])
+    keys = "/model openai gpt-6-astra\n".chars
+    accepted = false
+    launch(keys) do
+      if !accepted && @rendered.any? { |row| row.last.include?('REASONING EFFORT · SELECT') }
+        accepted = true
+        keys.push(:down, "\n")
+        nil
+      elsif accepted && rendered_header.include?('gpt-6-astra')
+        expect(rendered_header).to include('REASONING EFFORT:', 'high')
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+  end
+
+  ["\e", "\u0003"].each do |cancel_key|
+    it "keeps the rendered header and banner unchanged after reasoning cancellation #{cancel_key.inspect}" do
+      allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
+      expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_apply_model)
+      original = Marshal.dump(PWN::Env[:ai])
+      keys = "/model grok grok-4.6\n".chars
+      cancelled = false
+      baseline = nil
+      allow(PWN::Banner).to receive(:mini_frame).and_return(['stable artwork'])
+      allow(PWN::Banner).to receive(:mini_cells).and_return([[{ glyph: '█', foreground: :cyan, background: :black }]])
+      launch(keys) do
+        if !cancelled && @rendered.any? { |row| row.last.include?('REASONING EFFORT · SELECT') }
+          baseline = rendered_header
+          cancelled = true
+          cancel_key
+        elsif cancelled
+          expect(Marshal.dump(PWN::Env[:ai])).to eq(original)
+          expect(rendered_header).to eq(baseline)
+          "\u0004"
+        else
+          Thread.pass
+          nil
+        end
+      end
+    end
+  end
+
+  it 'renders a resumed session and reselects artwork only for an actual session change' do
+    sid = PWN::Sessions.create(title: 'header resume')[:id]
+    names = PWN::Banner.mini_names
+    allow(PWN::Banner).to receive(:mini_names).and_return(names)
+    expect(names).to receive(:sample).twice.and_return(names.first)
+    keys = "/sessions resume #{sid}\n".chars
+    repeated = false
+    launch(keys) do
+      if @rendered.any? { |row| row.last.include?("SESSION #{sid}") }
+        if repeated
+          "\u0004"
+        else
+          repeated = true
+          keys.concat("/sessions resume #{sid}\n".chars)
+          nil
+        end
+      end
+    end
   end
 
   it 'prompts in curses and forwards the accepted effort to the next provider request' do

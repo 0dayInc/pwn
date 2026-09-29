@@ -6,7 +6,7 @@ module PWN
       # Live slash-command parameter completion. Never calls a provider.
       module AIConsoleCommands
         COMMANDS = %w[
-          /back /clear /cron /debug /delegate /help /input /learning /mcp /memory /menu /model
+          /back /clear /cron /debug /delegate /help /input /learning /mcp /memory /menu /model /system-role
           /sessions /skills /status /steer /swarm /trace /verbose
         ].freeze
         SWARM = %w[dashboard help roster status create use spawn retire ask debate broadcast tail steer cancel].freeze

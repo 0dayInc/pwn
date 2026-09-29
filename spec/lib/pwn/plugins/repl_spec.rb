@@ -6,6 +6,63 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
   describe 'reasoning selection' do
     include_context 'pwn tmp sandbox'
 
+    it 'persists system role before updating Env and preserves unrelated vault fields' do
+      previous_driver_opts = PWN::Env[:driver_opts]
+      path = File.join(@tmp, 'role.yaml')
+      key = Base64.strict_encode64('k' * 32)
+      iv = Base64.strict_encode64('i' * 16)
+      original = { ai: { active: 'openai', openai: { model: 'old', system_role_content: 'original', key: 'fixture' }, ollama: { model: 'keep' } }, unrelated: 'keep' }
+      PWN::Env[:ai] = Marshal.load(Marshal.dump(original[:ai]))
+      File.write(path, YAML.dump(original))
+      File.write("#{path}.decryptor", YAML.dump(key: key, iv: iv))
+      PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+      PWN::Env[:driver_opts] = { pwn_env_path: path, pwn_dec_path: "#{path}.decryptor" }
+      expect(described_class.pwn_ai_apply_system_role(engine: 'openai', content: "new role\nsecond line")).to eq(:saved)
+      expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq("new role\nsecond line")
+      expect(File.read(path)).not_to include('new role')
+      PWN::Plugins::Vault.decrypt(file: path, key: key, iv: iv)
+      original[:ai][:openai][:system_role_content] = "new role\nsecond line"
+      expect(YAML.load_file(path, symbolize_names: true)).to eq(original)
+      PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+      expect(described_class.pwn_ai_apply_system_role(engine: 'openai', content: '')).to eq(:saved)
+      original[:ai][:openai][:system_role_content] = ''
+      expect(PWN::Plugins::Vault.dump(file: path, key: key, iv: iv)).to eq(original)
+    ensure
+      PWN::Env[:driver_opts] = previous_driver_opts
+    end
+
+    it 'leaves ciphertext and Env untouched when role encryption fails' do
+      previous_driver_opts = PWN::Env[:driver_opts]
+      path = File.join(@tmp, 'role.yaml')
+      key = Base64.strict_encode64('k' * 32)
+      iv = Base64.strict_encode64('i' * 16)
+      PWN::Env[:ai] = { active: 'openai', openai: { model: 'old', system_role_content: 'original' } }
+      File.write(path, YAML.dump(ai: PWN::Env[:ai]))
+      File.write("#{path}.decryptor", YAML.dump(key: key, iv: iv))
+      PWN::Plugins::Vault.encrypt(file: path, key: key, iv: iv)
+      ciphertext = File.binread(path)
+      PWN::Env[:driver_opts] = { pwn_env_path: path, pwn_dec_path: "#{path}.decryptor" }
+      allow(PWN::Plugins::Vault).to receive(:encrypt).and_raise(IOError, 'fixture encryption failure')
+      expect { described_class.pwn_ai_apply_system_role(engine: 'openai', content: 'unsaved') }.to raise_error(/not saved/)
+      expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq('original')
+      expect(File.binread(path)).to eq(ciphertext)
+      expect(Dir.glob(File.join(@tmp, '.pwn-ai-selection*'))).to be_empty
+    ensure
+      PWN::Env[:driver_opts] = previous_driver_opts
+    end
+
+    it 'rejects role saves without a decryptor or after switching the active engine' do
+      previous_driver_opts = PWN::Env[:driver_opts]
+      PWN::Env[:driver_opts] = { pwn_env_path: File.join(@tmp, 'missing.yaml'), pwn_dec_path: File.join(@tmp, 'missing.decryptor') }
+      PWN::Env[:ai] = { active: 'openai', openai: { system_role_content: 'original' } }
+      expect { described_class.pwn_ai_apply_system_role(engine: 'openai', content: 'unsaved') }.to raise_error(/not saved/)
+      expect(PWN::Env.dig(:ai, :openai, :system_role_content)).to eq('original')
+      expect(described_class).not_to receive(:persist_ai_selection)
+      expect { described_class.pwn_ai_apply_system_role(engine: 'ollama', content: 'unsaved') }.to raise_error(/Active engine changed/)
+    ensure
+      PWN::Env[:driver_opts] = previous_driver_opts
+    end
+
     it 'forwards explicit none through the agent rather than silently using provider defaults' do
       PWN::Env[:ai] = { active: 'openai', openai: { model: 'gpt-5.5', reasoning_effort: 'none' } }
       expect(PWN::AI::OpenAI).to receive(:chat_with_tools).with(hash_including(reasoning_effort: 'none', think: false)).and_return(choices: [{ message: { role: 'assistant', content: 'fixture' } }])
@@ -316,7 +373,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       hits = described_class.pwn_ai_complete(target: '/sk', line: '/sk')
       expect(hits).to include('/skills')
       hits = described_class.pwn_ai_complete(target: '/', line: '/')
-      %w[/cron /skills /sessions /memory /debug /trace /back /help /model /learning /mcp].each do |cmd|
+      %w[/cron /skills /sessions /memory /debug /trace /back /help /model /learning /mcp /system-role].each do |cmd|
         expect(hits).to include(cmd)
       end
       hits = described_class.pwn_ai_complete(target: 'li', line: '/cron li')

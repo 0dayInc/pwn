@@ -52,6 +52,7 @@ PWN::Plugins::REPL.ready_tty(opts)
 - `persist_mesh_env`
 - `pwn_ai_activation_session`
 - `pwn_ai_apply_model`
+- `pwn_ai_apply_system_role`
 - `pwn_ai_complete`
 - `pwn_ai_complete_command`
 - `pwn_ai_complete_kind`
