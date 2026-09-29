@@ -7,6 +7,8 @@ describe PWN::Plugins::REPL::AIConsoleCommands do
     allow(PWN::Plugins::REPL).to receive(:pwn_ai_engines).and_return(%w[openai grok])
     first = described_class.complete(line: '/mo', cursor: 3)
     expect(first[:items].map { |item| item[:label] }).to include('/model')
+    expect(described_class.complete(line: '/', cursor: 1)[:items].map { |item| item[:label] }).to include('/system-role')
+    expect(described_class.complete(line: '/sys', cursor: 4)[:items].map { |item| item[:label] }).to eq(['/system-role'])
     engines = described_class.complete(line: '/model ', cursor: 7)
     expect(engines[:items].map { |item| item[:label] }).to include('openai', 'list')
     expect(engines[:items].map { |item| item[:text] }).to include('/model openai')

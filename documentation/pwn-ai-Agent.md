@@ -21,22 +21,53 @@ and session header, scrollable typed timeline (OPERATOR, TASK, TOOL, RESULT,
 ASSISTANT and WARNING), a persistent multiline composer, and an operational
 sidebar at 100 columns or wider. Narrower screens give the timeline the full width.
 At 100 columns × 26 rows or larger, the header may carve out a bordered retro-game
-ASCII animation on the left (Tetris, Snake, Pong and other 8-bit-style scenes).
+colored Unicode-block animation on the left: falling tetrominoes with line clears,
+a connected snake eating food and growing, Pong with small tracking paddles and a
+bouncing ball, or Asteroids with a rotating cyan ship, red thrust, drifting green
+rocks, yellow shots and magenta fragments. Pong's one-cell-high paddles and
+quadrant-block ball move in half-cell steps; doubling the presentation rate does
+not double gameplay speed. Asteroids wraps at the edges and shots break up rocks;
+its seeded autonomous flight is decorative, not player-controlled.
 Its framed width in terminal cells equals the complete header's height in rows;
 the interior canvas is `(header height - 2)` cells on each side. This is a
 cell-square, not a pixel-square—terminal glyph cells are usually taller than wide.
-When that interior exceeds the artwork API's 16-cell limit, the complete game
-art is centered and padded inside the larger square rather than clipped or stretched.
+Falling blocks fill the entire interior below the PWN wordmark, including the
+bottom two quadrants. Each logical block occupies one horizontal half-cell from
+spawn through landing and locking. This deliberately replaces independent
+quarter-cell blocks: a terminal cell has only a foreground and background, so
+two piece colors plus empty black cannot be represented faithfully in four
+quadrants. Two horizontal halves always fit that limit, retaining each piece's
+color, holes and silhouette instead of recoloring neighbors when they touch.
+The board remains full-width; only its horizontal logical resolution changes.
+Completed rows intentionally flash white before collapsing; game-over and replay
+resets also use white holds/wipes. Ordinary locking never changes color or shape.
+Colored falling blocks support interiors up to 64 cells; the other artwork retains
+its 16-cell limit. Above the applicable limit, art is centered and padded rather
+than clipped or stretched.
 One `PWN::Banner.mini_names` animation is randomly
 selected for the session and retained across redraws, model changes and resize;
 changing the active session selects again. Frames advance at the banner API's
-`MINI_FRAME_SECONDS` cadence using monotonic time in the existing render loop—no extra animation
+`mini_frame_seconds(name:)` cadence (0.05 seconds for Pong/Asteroids, 0.1 for
+blocks/snake) using monotonic time in the existing render loop—no extra animation
 thread, input reader or provider call. This is decoration, not progress or
-telemetry. The pane uses the existing border/title/header theme roles. Settings
+telemetry. The frame keeps the existing border/title theme roles. Artwork comes
+from `PWN::Banner.mini_cells` with dedicated foreground/background curses pairs,
+not ANSI output or theme overrides. `NO_COLOR` and terminals with too few color
+pairs retain occupied geometry in monochrome (two differently colored occupied
+halves become a full block, not a half-block with its background lost). The `mini_frame` ASCII API
+retains its 60-frame, 0.1-second loops for other callers. Colored replays contain
+1800 frames (90 seconds for Pong/Asteroids, 180 for blocks/snake), use a local
+per-session seed, and share a bounded six-replay cache. Settings
 wrap in the right-hand region without losing their label colors. A bounded,
 nonrecursive layout pass grows the header and square together. If the terminal
 is narrow/short, or that reduced width would clip any setting, the decoration
 disappears and settings reclaim the full width.
+
+Accepted `/model` selections (including reasoning effort), session switches and
+command-driven setting/theme changes repaint on the event loop without another
+keypress. Header wrapping and square geometry follow the current values, even
+when a model string is edited in place. Cancelling model selection leaves the
+configuration unchanged.
 
 Timestamped entries (`%Y-%m-%d %H:%M:%S%z`), measured request elapsed
 time, completed-tool/event counts, and the last observed tool provide operational
@@ -92,6 +123,7 @@ changes only default values, not the configuration schema; no migration is neede
 | `/` + Enter or `/menu` | Open the slash menu |
 | PgUp/PgDn | Scroll the timeline; new output does not pull a scrolled viewport to the bottom |
 | `/model`, `/sessions resume ID` | Show model settings / change the next request's model or session while idle |
+| `/system-role` | Open the active engine's multiline SYSTEM ROLE CONTENT editor while idle; Ctrl+S saves, Esc cancels |
 | `/steer INSTRUCTION` | Redirect the active request at a safe boundary |
 | `/input TEXT` | Send one line to an ordinary tool stdin prompt; not retained in input recall |
 | Ctrl+C | Cancel the active request cooperatively, or clear an idle draft |
@@ -103,6 +135,27 @@ Requests are saved through Pry's history owner with its normal duplicate and
 save/ignore settings. Multiline input uses Pry's existing line-oriented format.
 Search and Up/Down never write history; `/input` tool responses are excluded from
 both persistence and recall. Ctrl+L never deletes history or resets token totals.
+
+### System role editor
+
+Choose `/system-role` from the root slash menu (or type it and press Enter).
+The **SYSTEM ROLE CONTENT** pane is prefilled with the active engine's exact
+text. Enter/Shift+Enter inserts a newline; arrows move the cursor, Home/End
+move to the beginning/end of the text, Backspace/Delete edit, and Ctrl+U clears.
+**Ctrl+S Save** explicitly accepts the whole text, including an empty value;
+**Esc Cancel** or Ctrl+C discards edits. Ctrl+D exits without saving. The editor
+owns its keys: Ctrl+R, Ctrl+G, Ctrl+O and Ctrl+L do not activate underlying
+history search, swarm, status or clear. The mission buffer and cursor are retained.
+
+Save merges only `ai.<active engine>.system_role_content` into the encrypted
+`~/.pwn/pwn.yaml` (or configured vault path), preserving other engines and settings.
+It uses the existing decryptor and settings persistence path, encrypting a private
+temporary merge before replacing the vault. A failure leaves the previous vault
+and live role unchanged and keeps the editor open with **Not saved**; there is
+no silent session-only fallback. On success, the header and next request use
+the new role immediately, and a new session loads it from the vault. Request or
+swarm activity blocks role changes. No schema migration is required. The legacy
+non-curses interface reports that this editor requires an interactive terminal.
 
 ### Model and reasoning selection
 

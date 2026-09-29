@@ -376,6 +376,19 @@ module PWN
             PALETTE.each_with_index do |name, index|
               @curses.init_pair(index + 1, Curses.const_get("COLOR_#{name.upcase}"), -1)
             end
+            # Artwork owns complete foreground/background pairs, separate from
+            # semantic theme colors. Never silently drop a colored background.
+            @banner_colors = @curses.color_pairs > PALETTE.length + (PALETTE.length**2)
+            return unless @banner_colors
+
+            PALETTE.each_with_index do |name, index|
+              @curses.init_pair(PALETTE.length + index + 1, Curses.const_get("COLOR_#{name.upcase}"), Curses::COLOR_BLACK)
+            end
+            PALETTE.reject { |name| name == 'black' }.each_with_index do |background, bg_index|
+              PALETTE.each_with_index do |foreground, fg_index|
+                @curses.init_pair(17 + (bg_index * 8) + fg_index, Curses.const_get("COLOR_#{foreground.upcase}"), Curses.const_get("COLOR_#{background.upcase}"))
+              end
+            end
           end
 
           def event_loop
@@ -550,6 +563,8 @@ module PWN
               complete
             elsif busy?
               busy_command(line)
+            elsif line.strip == '/system-role'
+              open_system_role
             elsif line.match?(%r{\A/(?:mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$))})
               start_request(line, command: true)
             elsif line.start_with?('/') || line.start_with?('ai.profile ', 'ai.memory ')
@@ -636,6 +651,8 @@ module PWN
 
           def handle(key)
             return if key.nil?
+            return handle_system_role(key) if @role_editor && (!@too_small || ["\e", "\u0003", "\u0004", :eof].include?(key))
+
             return if @too_small && ![:eof, "\u0003", "\u0004"].include?(key)
             return cancel if @too_small && key == "\u0003" && !@model_prompt
 
@@ -689,6 +706,8 @@ module PWN
                 @editor.insert("\n")
               else
                 @menu = @menu_hint = nil
+                return submit(@editor.text) if @editor.text.strip == '/system-role'
+
                 @model_draft = [@editor.text.dup, @editor.cursor] if @editor.text.match?(%r{\A/model(?:\s|$)})
                 submit(@editor.submit)
               end
@@ -714,6 +733,87 @@ module PWN
                 refresh_completion
               end
             end
+          end
+
+          def open_system_role
+            return add(:warning, 'System role cannot change while a request or swarm job is running.') if busy?
+
+            @role_engine = PWN::Env.dig(:ai, :active).to_s
+            raise 'Select an active engine with /model first.' unless PWN::Env.dig(:ai, @role_engine.to_sym).is_a?(Hash)
+
+            @role_editor = Editor.new
+            @role_editor.replace(PWN::Env.dig(:ai, @role_engine.to_sym, :system_role_content).to_s)
+            @role_error = nil
+            @role_paste = false
+            @menu = nil
+            @paste = false
+          end
+
+          def handle_system_role(key)
+            case key
+            when "\e", "\u0003", "\u0004", :eof
+              @role_editor = nil
+              add(:notice, 'System role cancelled; configuration unchanged.')
+              @leaving = true if [:eof, "\u0004"].include?(key)
+            when "\u0013"
+              return if @role_paste
+              raise 'System role cannot change while a request or swarm job is running.' if busy?
+
+              REPL.pwn_ai_apply_system_role(engine: @role_engine, content: @role_editor.text)
+              @role_editor = nil
+              add(:notice, 'System role saved to encrypted pwn.yaml; effective for the next request.')
+            when :paste_start then @role_paste = true
+            when :paste_end then @role_paste = false
+            when "\r", "\n", :newline then @role_editor.insert("\n")
+            when :up, :down then move_role_cursor(key)
+            when :left, :right, :home, :end, :delete, "\b", "\u007f", "\u0001", "\u0005", "\u0015"
+              @role_editor.edit(key)
+            else
+              @role_editor.insert(key) if key.is_a?(String) && key.ord >= 32
+            end
+          rescue StandardError => e
+            @role_error = "Not saved: #{e.message}"
+            add(:warning, @role_error)
+          end
+
+          def move_role_cursor(direction)
+            chars = @role_editor.text.scan(/\X/)
+            cursor = @role_editor.cursor
+            start = (chars.take(cursor).rindex("\n") || -1) + 1
+            column = cursor - start
+            if direction == :up
+              return if start.zero?
+
+              target = (chars.take(start - 1).rindex("\n") || -1) + 1
+              position = target + [column, start - target - 1].min
+            else
+              finish = chars.index.with_index { |char, index| index >= cursor && char == "\n" }
+              return unless finish
+
+              target = finish + 1
+              length = chars.drop(target).take_while { |char| char != "\n" }.length
+              position = target + [column, length].min
+            end
+            @role_editor.place(@role_editor.text, position)
+          end
+
+          def draw_system_role
+            height = @height - 4
+            pane_width = @width - 4
+            top = 2
+            height.times { |row| put(top + row, 2, ' ' * pane_width) }
+            box(top, 2, height, pane_width, 'SYSTEM ROLE CONTENT')
+            put(top + 1, 4, fit("#{@role_engine} · edits are not saved until Ctrl+S", pane_width - 4), tone(:category))
+            limit = pane_width - 6
+            rows = wrap(@role_editor.text, limit, words: false)
+            prefix = wrap(@role_editor.text.scan(/\X/).take(@role_editor.cursor).join, limit, words: false)
+            cursor_row = prefix.length - 1
+            visible = height - 5
+            first = [cursor_row - visible + 1, 0].max
+            rows.slice(first, visible).to_a.each_with_index { |row, index| put(top + 2 + index, 4, row, tone(:composer)) }
+            put(top + height - 3, 4, fit(@role_error || 'Arrows move · Home/End · Ctrl+U clear', pane_width - 4), tone(@role_error ? :warning : :footer))
+            put(top + height - 2, 4, fit('Ctrl+S Save · Esc Cancel · Enter newline', pane_width - 4), tone(:selection))
+            @cursor_position = [top + 2 + cursor_row - first, [4 + width(prefix.last), @width - 5].min]
           end
 
           def handle_model_prompt(key)
@@ -978,7 +1078,8 @@ module PWN
 
           def header_lines(engine, model, limit = [@width.to_i - 5, 1].max)
             settings = engine_settings
-            key = [engine, model, settings, limit]
+            # Env strings can be edited in place; cache values, not live aliases.
+            key = [engine.dup, model.dup, settings, limit]
             return @header_lines if @header_key == key
 
             @header_key = key
@@ -1022,15 +1123,20 @@ module PWN
 
           # Artwork has no worker, IO, or request-progress meaning. The existing
           # event-loop repaint supplies its clock, including while requests run.
-          def banner_frame(size)
+          def banner_frame(size, cells: false)
             now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
             session = @pry.config.pwn_ai_session_id.to_s
             if @banner_session != session
               @banner_session = session
               @banner_name = PWN::Banner.mini_names.sample
+              @banner_frame_seconds = PWN::Banner.mini_frame_seconds(name: @banner_name)
+              @banner_seed = session.bytes.reduce(PWN::Banner::MINI_SEED) { |seed, byte| ((seed * 33) ^ byte) & 0xffffffff }
               @banner_started = now
             end
-            frame = ((now - @banner_started) / PWN::Banner::MINI_FRAME_SECONDS).floor % PWN::Banner::MINI_FRAME_COUNT
+            cadence = cells ? @banner_frame_seconds : PWN::Banner::MINI_FRAME_SECONDS
+            frame = ((now - @banner_started) / cadence).floor % PWN::Banner::MINI_FRAME_COUNT
+            return PWN::Banner.mini_cells(name: @banner_name, frame: frame, width: size, height: size, seed: @banner_seed) if cells
+
             art = PWN::Banner.mini_frame(name: @banner_name, frame: frame, width: size, height: size)
             canvas = Array.new(size) { ' ' * size }
             top = (size - art.length) / 2
@@ -1038,8 +1144,28 @@ module PWN
             canvas
           end
 
+          def draw_banner(size)
+            cells = banner_frame(size, cells: true)
+            top = [(size - cells.length) / 2, 0].max
+            # Clear padding too when the bounded artwork is smaller than the pane.
+            size.times { |row| put(row + 1, 1, ' ' * size, @banner_colors ? 16 : nil) }
+            cells.first(size).each_with_index do |row, y|
+              left = [(size - row.length) / 2, 0].max
+              row.first(size).each_with_index do |cell, x|
+                index = PALETTE.index(cell[:foreground].to_s)
+                background = PALETTE.index(cell[:background].to_s)
+                pair = if @banner_colors && index && background
+                         background == 7 ? 9 + index : 17 + (background * 8) + index
+                       end
+                # Two occupied halves must remain filled in monochrome too.
+                glyph = !pair && cell[:background] != :black ? '█' : cell[:glyph]
+                put(top + y + 1, left + x + 1, glyph, pair)
+              end
+            end
+          end
+
           def header_layout(engine, model)
-            key = [engine, model, engine_settings, @width, @height]
+            key = [engine.dup, model.dup, engine_settings, @width, @height]
             return if @header_layout_key == key
 
             @header_layout_key = key
@@ -1079,7 +1205,7 @@ module PWN
             visible.each_with_index { |spans, index| put_spans(2 + index, @header_text_column, spans) }
             if @header_pane_height
               box(0, 0, height, height, 'PWN')
-              banner_frame(height - 2).each_with_index { |row, index| put(1 + index, 1, row, tone(:header)) }
+              draw_banner(height - 2)
             end
             height
           end
@@ -1145,7 +1271,8 @@ module PWN
             draw_model_prompt if @model_prompt
             draw_details(engine, model) if @details
             draw_swarm if @workspace
-            @screen.setpos(*@cursor_position) unless @details || @workspace
+            draw_system_role if @role_editor
+            @screen.setpos(*@cursor_position) if @role_editor || !(@details || @workspace)
             @screen.refresh
           end
 
