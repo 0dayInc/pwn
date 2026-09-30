@@ -1070,10 +1070,10 @@ module PWN
             role = cfg[:system_role_content].to_s.gsub(/\s+/, ' ').strip
             parts = []
             parts << "SYSTEM ROLE CONTENT: #{role}" unless role.empty?
-            parts << "\nTEMP: #{cfg[:temp]}" unless cfg[:temp].nil?
-            parts << " MAX TOKENS: #{cfg[:max_tokens]}" unless cfg[:max_tokens].nil?
+            parts << "\nMAX TOKENS: #{cfg[:max_tokens]}" unless cfg[:max_tokens].nil?
             parts << " MAX PROMPT LENGTH: #{cfg[:max_prompt_length]}" unless cfg[:max_prompt_length].nil?
-            parts << "\nREASONING EFFORT: #{cfg[:reasoning_effort]}" unless cfg[:reasoning_effort].to_s.empty?
+            parts << " REASONING EFFORT: #{cfg[:reasoning_effort]}" unless cfg[:reasoning_effort].to_s.empty?
+            parts << " TEMP: #{cfg[:temp]}" unless cfg[:temp].nil?
             parts.join(' · ')
           rescue StandardError
             ''
