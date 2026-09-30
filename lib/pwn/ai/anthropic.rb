@@ -578,7 +578,7 @@ module PWN
               input_schema: anthropic_input_schema(schema: fn[:parameters] || fn['parameters'])
             }
           end
-          http_body[:tool_choice] = anth_tool_choice(choice: opts[:tool_choice]) if opts[:tool_choice]
+          http_body[:tool_choice] = anth_tool_choice(choice: opts[:tool_choice], model: model) if opts[:tool_choice]
         end
 
         response = anthropic_rest_call(
@@ -794,15 +794,28 @@ module PWN
 
       private_class_method def self.anth_tool_choice(opts = {})
         choice = opts[:choice]
-        case choice
-        when 'none', :none then { type: 'none' }
-        when 'required', :required, 'any', :any then { type: 'any' }
-        when Hash
-          fn = choice[:function] || choice['function'] || choice
-          { type: 'tool', name: fn[:name] || fn['name'] }
-        else # 'auto', :auto, nil, anything else
-          { type: 'auto' }
-        end
+        mapped = case choice
+                 when 'none', :none then { type: 'none' }
+                 when 'required', :required, 'any', :any then { type: 'any' }
+                 when Hash
+                   fn = choice[:function] || choice['function'] || choice
+                   { type: 'tool', name: fn[:name] || fn['name'] }
+                 else
+                   { type: 'auto' }
+                 end
+        return { type: 'auto' } if !forced_tool_choice?(model: opts[:model]) && %w[any tool].include?(mapped[:type].to_s)
+
+        mapped
+      end
+
+      # Claude Mythos 5.1, Fable 5.1, Opus 5.5, and Sonnet 5.5 reject forced tool use.
+      # Mythos 5 still accepts type any/tool, so match the documented ids, not every Mythos model.
+      private_class_method def self.forced_tool_choice?(opts = {})
+        model = opts[:model].to_s
+        return false if model.match?(/claude-(?:mythos|fable)-5-1(?:-|\z)/i)
+        return false if model.match?(/claude-(?:opus|sonnet)-5-5(?:-|\z)/i)
+
+        true
       end
 
       # Supported Method Parameters::

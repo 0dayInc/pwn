@@ -106,4 +106,31 @@ describe PWN::AI::Anthropic do
     expect(flat[:properties].keys.map(&:to_s)).to include('handle', 'path')
     expect(flat[:description]).to include('handle', 'path')
   end
+
+  it 'does not force tool use on Anthropic models that reject tool_choice any and tool' do
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return(
+      anthropic: { key: 'test-key', model: 'claude-mythos-5', temp: 1, max_tokens: 100 }
+    )
+    allow(PWN::AI::Agent::PromptCache).to receive(:enabled?).and_return(false) if defined?(PWN::AI::Agent::PromptCache)
+    captured = nil
+    allow(described_class).to receive(:anthropic_rest_call) do |opts|
+      captured = opts[:http_body]
+      '{"id":"msg_choice","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}'
+    end
+    tools = [{ type: 'function', function: { name: 'memory_recall', description: 'recall', parameters: { type: 'object', properties: {} } } }]
+    messages = [{ role: 'user', content: 'hello' }]
+
+    described_class.chat_with_tools(messages: messages, tools: tools, model: 'claude-mythos-5', tool_choice: 'required')
+    expect(captured[:tool_choice]).to eq(type: 'any')
+
+    %w[claude-mythos-5-1 claude-fable-5-1 claude-opus-5-5 claude-sonnet-5-5].each do |model|
+      described_class.chat_with_tools(messages: messages, tools: tools, model: model, tool_choice: 'required')
+      expect(captured[:tool_choice]).to eq(type: 'auto'), model
+      described_class.chat_with_tools(messages: messages, tools: tools, model: model, tool_choice: { type: 'function', function: { name: 'memory_recall' } })
+      expect(captured[:tool_choice]).to eq(type: 'auto'), model
+    end
+
+    described_class.chat_with_tools(messages: messages, tools: tools, model: 'claude-mythos-5-1', tool_choice: 'none')
+    expect(captured[:tool_choice]).to eq(type: 'none')
+  end
 end
