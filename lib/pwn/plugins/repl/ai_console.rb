@@ -279,6 +279,7 @@ module PWN
             @editor = Editor.new
             @timeline = []
             @scroll = nil
+            @focus = :mission
             @event_count = @completed_tools = @unseen = 0
             @verbose = true
             @usage = AIConsoleUsage::Tracker.new
@@ -652,6 +653,28 @@ module PWN
             @menu = nil if @menu.empty?
           end
 
+          # Live view uses a nil scroll. Up from that view pins one row above the bottom.
+          def scroll_session(key)
+            bottom = [@total_rows.to_i - @page_size.to_i, 0].max
+            case key
+            when :up, "\u0010"
+              @scroll = [(@scroll || bottom) - 1, 0].max
+            when :down, "\u000e"
+              return if @scroll.nil?
+
+              @scroll += 1
+              if @scroll >= bottom
+                @scroll = nil
+                @unseen = 0
+              end
+            when :home
+              @scroll = bottom.zero? ? nil : 0
+            when :end
+              @scroll = nil
+              @unseen = 0
+            end
+          end
+
           def handle(key)
             return if key.nil?
             return handle_system_role(key) if @role_editor && (!@too_small || ["\e", "\u0003", "\u0004", :eof].include?(key))
@@ -681,7 +704,14 @@ module PWN
             if key == "\u0012"
               @menu = nil
               @paste = false
+              @focus = :mission
               @editor.search_history
+              return
+            end
+
+            if key == "\u0018"
+              @menu = nil
+              @focus = @focus == :session ? :mission : :session
               return
             end
 
@@ -702,7 +732,9 @@ module PWN
             when :paste_end then @paste = false
             when :newline then @editor.insert("\n")
             when "\r", "\n"
-              if @paste
+              if @focus == :session && !@paste
+                @focus = :mission
+              elsif @paste
                 @editor.insert("\n")
               elsif @editor.text.end_with?('\\')
                 @editor.edit("\b")
@@ -718,6 +750,8 @@ module PWN
               direction = [:up, "\u0010"].include?(key) ? :up : :down
               if @menu
                 @menu_index = (@menu_index + (direction == :up ? -1 : 1)) % @menu.length
+              elsif @focus == :session
+                scroll_session(key)
               else
                 @editor.recall(direction)
               end
@@ -727,11 +761,21 @@ module PWN
               @scroll = nil if @scroll >= [@total_rows.to_i - @page_size.to_i, 0].max
               @unseen = 0 unless @scroll
             when "\t" then accept_completion
-            when :left, :right, :home, :end, :delete, "\b", "\u007f", "\u0001", "\u0005", "\u0015"
-              @editor.edit(key)
-              refresh_completion
+            when :home, :end
+              if @focus == :session
+                scroll_session(key)
+              else
+                @editor.edit(key)
+                refresh_completion
+              end
+            when :left, :right, :delete, "\b", "\u007f", "\u0001", "\u0005", "\u0015"
+              unless @focus == :session
+                @editor.edit(key)
+                refresh_completion
+              end
             else
               if key.is_a?(String) && key.ord >= 32
+                @focus = :mission
                 @editor.insert(key)
                 refresh_completion
               end
@@ -1045,6 +1089,13 @@ module PWN
             put(top, left + 2, fit(" #{title} ", box_width - 4), tone(:title)) unless title.empty?
           end
 
+          def mark_active(top, left, box_width, title)
+            return unless @screen.respond_to?(:attron)
+
+            text = fit(" #{title} ", box_width - 4)
+            @screen.attron(Curses::A_REVERSE) { put(top, left + 2, text, tone(:title)) }
+          end
+
           def seed_request_history
             # REPL configures ~/.pwn/pwn_history and Pry loads it at startup.
             # Reuse that owner rather than loading twice or opening another writer.
@@ -1262,21 +1313,36 @@ module PWN
             @total_rows = rows.length
             @scroll = @scroll.clamp(0, [rows.length - @page_size, 0].max) if @scroll
             session_id = @pry.config.pwn_ai_session_id.to_s
-            box(header_height, 0, timeline_height, pane_width, "SESSION #{session_id}")
+            session_title = "SESSION #{session_id}"
+            session_title += ' · active' if @focus == :session
+            box(header_height, 0, timeline_height, pane_width, session_title)
+            mark_active(header_height, 0, pane_width, session_title) if @focus == :session
             start = @scroll || [rows.length - @page_size, 0].max
             rows.slice(start, @page_size).to_a.each_with_index { |(color, row), index| put(header_height + 1 + index, 2, row, color) }
             draw_sidebar(header_height, pane_width + 1, timeline_height) if sidebar.positive?
             compose_y = @height - compose_height - 1
-            box(compose_y, 0, compose_height, @width - 1, 'MISSION CONTROL')
+            mission_title = @focus == :session ? 'MISSION CONTROL' : 'MISSION CONTROL · active'
+            box(compose_y, 0, compose_height, @width - 1, mission_title)
+            mark_active(compose_y, 0, @width - 1, mission_title) if @focus != :session
             draw_composer(compose_y)
-            hint = @menu ? '↑↓/^P/^N select · Tab accept · Esc close' : '↑↓ history · PgUp/PgDn scroll'
+            hint = if @menu
+                     '↑↓/^P/^N select · Tab accept · Esc close'
+                   elsif @focus == :session
+                     '↑↓/Home/End scroll · ^X mission'
+                   else
+                     '↑↓ history · ^X session'
+                   end
             put(@height - 1, 1, "^C cancel ^D back · #{hint} · ^G swarm ^L clear ^R search ^O status · Enter send", tone(:footer))
             draw_menu if @menu
             draw_model_prompt if @model_prompt
             draw_details(engine, model) if @details
             draw_swarm if @workspace
             draw_system_role if @role_editor
-            @screen.setpos(*@cursor_position) if @role_editor || !(@details || @workspace)
+            if @focus == :session && !(@details || @workspace || @role_editor)
+              @screen.setpos(header_height + 1, 2)
+            elsif @role_editor || !(@details || @workspace)
+              @screen.setpos(*@cursor_position)
+            end
             @screen.refresh
           end
 
@@ -1291,7 +1357,7 @@ module PWN
             first = [cursor_row - 2, 0].max
             put(top + 1, 2, '›', tone(:prompt)) if first.zero?
             rows.slice(first, 3).to_a.each_with_index { |row, index| put(top + 1 + index, 4, row, tone(:composer)) }
-            hint = @menu ? 'Tab accept · ↑↓/^P/^N select · Esc close' : '^G swarm · Shift+Enter newline · / commands · ^O status'
+            hint = @menu ? 'Tab accept · ↑↓/^P/^N select · Esc close' : '^X pane · ^G swarm · Shift+Enter newline · / commands · ^O status'
             put(top + 4, 4, fit(hint, @width - 7), tone(:footer))
             @cursor_position = [top + 1 + cursor_row - first, [4 + width(prefix.last), @width - 3].min]
           end
@@ -1557,7 +1623,8 @@ module PWN
         public_class_method def self.help
           puts "USAGE:
             # Ctrl+L clears only the session pane, including while busy.
-            # Up/Down select in menus, otherwise recall ~/.pwn/pwn_history; Ctrl+R searches history.
+            # Ctrl+X switches the active pane between SESSION and MISSION CONTROL.
+            # Up/Down select in menus, recall ~/.pwn/pwn_history in the mission pane, and scroll the session pane when it is active.
             # Search: Enter accepts without sending; Esc restores the draft.
             # Launch the single-owner curses console; non-terminals return unavailable.
             #{self}.run(
