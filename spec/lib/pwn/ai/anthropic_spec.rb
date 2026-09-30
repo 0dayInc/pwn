@@ -58,4 +58,52 @@ describe PWN::AI::Anthropic do
       expect(src).to include('PromptCache.enabled?')
     end
   end
+
+  it 'drops root combinators from Anthropic input_schema without mutating registry schemas' do
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return(
+      anthropic: { key: 'test-key', model: 'claude-test', temp: 1, max_tokens: 100 }
+    )
+    allow(PWN::AI::Agent::PromptCache).to receive(:enabled?).and_return(false) if defined?(PWN::AI::Agent::PromptCache)
+    tools = PWN::AI::Agent::Registry.definitions(core_only: true)
+    artifact = tools.find { |tool| tool.dig(:function, :name) == 'artifact_read' }
+    original = artifact[:function][:parameters]
+    nested = {
+      type: 'object',
+      properties: {
+        item: { anyOf: [{ type: 'string' }, { type: 'object', properties: { handle: { type: 'string' } } }] }
+      }
+    }
+    union = {
+      'anyOf' => [
+        { 'type' => 'object', 'properties' => { 'handle' => { 'type' => 'string' } }, 'required' => ['handle'] },
+        { 'type' => 'object', 'properties' => { 'path' => { 'type' => 'string' } }, 'required' => ['path'] }
+      ]
+    }
+    sent = tools + [
+      { type: 'function', function: { name: 'nested_union', description: 'keep nested', parameters: nested } },
+      { type: 'function', function: { name: 'root_union', description: 'flatten', parameters: union } }
+    ]
+    captured = nil
+    allow(described_class).to receive(:anthropic_rest_call) do |opts|
+      captured = opts[:http_body]
+      '{"id":"msg_schema","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}'
+    end
+
+    described_class.chat_with_tools(messages: [{ role: 'user', content: 'hello' }], tools: sent, model: 'claude-test')
+
+    expect(original).to have_key(:anyOf)
+    wire = captured[:tools]
+    expect(wire.map { |tool| tool[:name] }[10]).to eq('artifact_read')
+    wire.each do |tool|
+      schema = tool[:input_schema]
+      expect(schema.keys.map(&:to_s)).not_to include('anyOf', 'oneOf', 'allOf')
+    end
+    read_schema = wire[10][:input_schema]
+    expect(read_schema[:properties].keys.map(&:to_s)).to include('handle', 'path', 'ref')
+    expect(read_schema[:description]).to include('handle', 'path', 'ref')
+    expect(wire.find { |tool| tool[:name] == 'nested_union' }[:input_schema][:properties][:item]).to have_key(:anyOf)
+    flat = wire.find { |tool| tool[:name] == 'root_union' }[:input_schema]
+    expect(flat[:properties].keys.map(&:to_s)).to include('handle', 'path')
+    expect(flat[:description]).to include('handle', 'path')
+  end
 end

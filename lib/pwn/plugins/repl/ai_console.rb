@@ -1070,10 +1070,10 @@ module PWN
             role = cfg[:system_role_content].to_s.gsub(/\s+/, ' ').strip
             parts = []
             parts << "SYSTEM ROLE CONTENT: #{role}" unless role.empty?
-            parts << "\nTEMP: #{cfg[:temp]}" unless cfg[:temp].nil?
-            parts << " MAX TOKENS: #{cfg[:max_tokens]}" unless cfg[:max_tokens].nil?
+            parts << "\nMAX TOKENS: #{cfg[:max_tokens]}" unless cfg[:max_tokens].nil?
             parts << " MAX PROMPT LENGTH: #{cfg[:max_prompt_length]}" unless cfg[:max_prompt_length].nil?
-            parts << "\nREASONING EFFORT: #{cfg[:reasoning_effort]}" unless cfg[:reasoning_effort].to_s.empty?
+            parts << " REASONING EFFORT: #{cfg[:reasoning_effort]}" unless cfg[:reasoning_effort].to_s.empty?
+            parts << " TEMP: #{cfg[:temp]}" unless cfg[:temp].nil?
             parts.join(' · ')
           rescue StandardError
             ''
@@ -1182,8 +1182,8 @@ module PWN
             # Solve monotonically within physical bounds, never recurse or clip
             # settings to make room for decoration. Eight interior cells is the
             # smallest useful game canvas; larger settings grow both dimensions.
-            height = 10
-            while height <= @height - 10 && @width - height - 5 >= 60
+            height = 9
+            while height <= @height - 9 && @width - height - 5 >= 60
               limit = @width - height - 5
               needed = header_lines(engine, model, limit).length + 3
               if needed <= height

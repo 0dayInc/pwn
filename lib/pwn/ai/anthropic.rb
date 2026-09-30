@@ -575,7 +575,7 @@ module PWN
             {
               name: fn[:name] || fn['name'],
               description: fn[:description] || fn['description'],
-              input_schema: fn[:parameters] || fn['parameters'] || { type: 'object', properties: {} }
+              input_schema: anthropic_input_schema(schema: fn[:parameters] || fn['parameters'])
             }
           end
           http_body[:tool_choice] = anth_tool_choice(choice: opts[:tool_choice]) if opts[:tool_choice]
@@ -596,6 +596,78 @@ module PWN
         anthropic_resp_to_oa(response: json_resp)
       rescue StandardError => e
         raise e
+      end
+
+      # Anthropic rejects oneOf, allOf, and anyOf at the root of input_schema.
+      # Return a deep copy with those root keys removed and branch properties merged.
+      # Nested combinators and the caller's schema stay unchanged.
+      private_class_method def self.anthropic_input_schema(opts = {})
+        schema = opts[:schema]
+        return { type: 'object', properties: {} } unless schema.is_a?(Hash)
+
+        copy = json_copy(value: schema)
+        notes = []
+        %w[anyOf oneOf allOf].each do |name|
+          key = anthropic_schema_key(schema: copy, name: name)
+          next unless key
+
+          Array(copy.delete(key)).each do |branch|
+            next unless branch.is_a?(Hash)
+
+            anthropic_schema_notes(branch: branch, notes: notes)
+            props = branch[:properties] || branch['properties']
+            next unless props.is_a?(Hash)
+
+            dest = copy.key?('properties') ? 'properties' : :properties
+            copy[dest] = {} unless copy[dest].is_a?(Hash)
+            props.each { |prop, spec| copy[dest][prop] = spec unless copy[dest].key?(prop) }
+          end
+        end
+        copy[:type] = 'object' unless copy.key?(:type) || copy.key?('type')
+        copy[:properties] = {} unless copy.key?(:properties) || copy.key?('properties')
+        unless notes.empty?
+          note = "One of these field sets is required: #{notes.uniq.join('; ')}."
+          copy[:description] = [copy[:description] || copy['description'], note].compact.reject { |part| part.to_s.empty? }.join(' ')
+          copy.delete('description')
+        end
+        copy
+      end
+
+      private_class_method def self.anthropic_schema_notes(opts = {})
+        branch = opts[:branch]
+        notes = opts[:notes]
+        return notes unless branch.is_a?(Hash) && notes.is_a?(Array)
+
+        required = branch[:required] || branch['required']
+        notes << required.join('+') if required.is_a?(Array) && required.any?
+        %w[anyOf oneOf allOf].each do |name|
+          key = anthropic_schema_key(schema: branch, name: name)
+          next unless key
+
+          Array(branch[key]).each { |child| anthropic_schema_notes(branch: child, notes: notes) }
+        end
+        notes
+      end
+
+      private_class_method def self.anthropic_schema_key(opts = {})
+        schema = opts[:schema]
+        name = opts[:name]
+        return name if schema.is_a?(Hash) && schema.key?(name)
+        return name.to_sym if schema.is_a?(Hash) && schema.key?(name.to_sym)
+
+        nil
+      end
+
+      private_class_method def self.json_copy(opts = {})
+        value = opts[:value]
+        case value
+        when Hash
+          value.each_with_object({}) { |(key, item), out| out[key] = json_copy(value: item) }
+        when Array
+          value.map { |item| json_copy(value: item) }
+        else
+          value.is_a?(String) ? value.dup : value
+        end
       end
 
       # OpenAI messages[] -> [system_string, anthropic messages[]]
