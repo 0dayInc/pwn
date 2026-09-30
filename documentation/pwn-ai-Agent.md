@@ -115,8 +115,10 @@ changes only default values, not the configuration schema; no migration is neede
 | --- | --- |
 | Enter | Submit the mission |
 | Shift+Enter, or trailing `\\` + Enter | Insert a newline. Terminals that cannot distinguish Shift+Enter need `tmux set -s extended-keys on` or the backslash fallback. |
-| Up/Down | Move the completion highlight while the Command menu is visible (wrapping at either end). Otherwise recall requests from `~/.pwn/pwn_history`, including prior runs; Down past the newest restores the draft and cursor. Esc closes the menu to resume history recall. |
-| Ctrl+P / Ctrl+N | Alternative completion selection keys; recall history when no menu is visible. Tab still accepts the highlight. |
+| Up/Down | In MISSION CONTROL, move the completion highlight while the Command menu is visible (wrapping at either end). Otherwise recall requests from `~/.pwn/pwn_history`, including prior runs; Down past the newest restores the draft and cursor. In SESSION, move one transcript row. Esc closes the menu to resume history recall. |
+| Home/End | In MISSION CONTROL, move the composer cursor to the start or end of the line. In SESSION, jump to the top of the transcript or back to the live bottom. |
+| Ctrl+X | Toggle the active pane between SESSION and MISSION CONTROL. The active title is reversed and marked `active`. Typing or Enter returns to MISSION CONTROL; Enter does not submit while SESSION is active. |
+| Ctrl+P / Ctrl+N | Alternative completion selection keys. In MISSION CONTROL they recall history when no menu is visible. In SESSION they scroll one row. Tab still accepts the highlight. |
 | Tab | Accept the highlighted as-you-type parameter |
 | Ctrl+O or `/status` | Inspect full status/settings, including overflowing header text; Esc or Ctrl+O closes |
 | Ctrl+L | Clear only the Session pane, including while a request runs; preserve stored conversation, token totals, and draft |

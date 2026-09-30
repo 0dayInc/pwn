@@ -947,6 +947,62 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(console.instance_variable_get(:@scroll)).to be_nil
   end
 
+  it 'toggles the active pane so session arrows, Home and End scroll without changing the draft' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('kept draft', 4)
+    console.instance_variable_set(:@total_rows, 100)
+    console.instance_variable_set(:@page_size, 20)
+    console.instance_variable_set(:@unseen, 3)
+    console.handle(:up)
+    expect(editor.text).to eq('kept draft')
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+    console.handle("\u0018")
+    expect(console.instance_variable_get(:@focus)).to eq(:session)
+    console.handle(:up)
+    expect(console.instance_variable_get(:@scroll)).to eq(79)
+    console.handle("\u0010")
+    expect(console.instance_variable_get(:@scroll)).to eq(78)
+    console.handle(:home)
+    expect(console.instance_variable_get(:@scroll)).to eq(0)
+    console.handle(:end)
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+    expect(console.instance_variable_get(:@unseen)).to eq(0)
+    console.handle(:up)
+    console.handle(:down)
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+    expect([editor.text, editor.cursor]).to eq(['kept draft', 4])
+    console.handle("\n")
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+    expect(editor.text).to eq('kept draft')
+    console.handle("\u0018")
+    console.handle('x')
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+    expect(editor.text).to eq('keptx draft')
+    console.handle(:up)
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+  end
+
+  it 'marks the active pane and parks the cursor in the session when that pane is selected' do
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil, attron: nil)
+    allow(screen).to receive(:attron).and_yield
+    curses = double(lines: 36, cols: 120)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    painted = []
+    allow(console).to receive(:put) { |*args| painted << args }
+    console.draw
+    expect(painted.map { |row| row[2] }.join).to include('MISSION CONTROL · active')
+    expect(painted.map { |row| row[2] }.join).not_to include('SESSION  · active')
+    expect(screen).to have_received(:attron).with(Curses::A_REVERSE).at_least(:once)
+    console.handle("\u0018")
+    painted.clear
+    console.draw
+    expect(painted.map { |row| row[2] }.join).to include('SESSION  · active')
+    expect(screen).to have_received(:setpos).with(a_kind_of(Integer), 2)
+  end
+
   it 'wraps at words without discarding code whitespace or splitting graphemes' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     expect(console.wrap('some evidence', 12)).to eq(['some ', 'evidence'])
