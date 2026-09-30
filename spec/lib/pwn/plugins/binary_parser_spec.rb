@@ -91,13 +91,22 @@ describe PWN::Plugins::BinaryParser do
   end
 
   it 'elf_resolve points system at the .plt.sec stub, not the next slot' do
+    x86_64 = RbConfig::CONFIG['host_cpu'].to_s.match?(/amd64|x86_64/)
     Dir.mktmpdir('pwn-elf-ibt-') do |dir|
       src = File.join(dir, 't.c')
       path = File.join(dir, 't')
       File.write(src, "#include <stdlib.h>\nint main(void) { return system(\"x\"); }\n")
-      out, status = Open3.capture2e('cc', '-O0', '-fno-pie', '-no-pie', '-Wl,-z,ibt', '-o', path, src)
+      flags = ['-O0', '-fno-pie', '-no-pie']
+      flags << '-Wl,-z,ibt' if x86_64
+      out, status = Open3.capture2e('cc', *flags, '-o', path, src)
       expect(status.success?).to eq(true), out
-      expect(File.binread(path)).to include('.plt.sec')
+      binary = File.binread(path)
+      unless x86_64
+        expect(binary).not_to include('.plt.sec')
+        next
+      end
+
+      expect(binary).to include('.plt.sec')
       row = described_class.elf_resolve(path: path)
       dump, dump_status = Open3.capture2('objdump', '-d', path)
       expect(dump_status.success?).to eq(true), dump
