@@ -1182,8 +1182,8 @@ module PWN
             # Solve monotonically within physical bounds, never recurse or clip
             # settings to make room for decoration. Eight interior cells is the
             # smallest useful game canvas; larger settings grow both dimensions.
-            height = 9
-            while height <= @height - 9 && @width - height - 5 >= 60
+            height = 10
+            while height <= @height - 10 && @width - height - 5 >= 60
               limit = @width - height - 5
               needed = header_lines(engine, model, limit).length + 3
               if needed <= height

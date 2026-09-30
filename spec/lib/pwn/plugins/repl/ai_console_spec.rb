@@ -535,10 +535,10 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       expect(console.instance_variable_get(:@header_text_column)).to eq(2)
     end
     allow(curses).to receive_messages(cols: 120, lines: 26)
-    PWN::Env[:ai][:ollama][:system_role_content] = 'operator ' * 110
+    PWN::Env[:ai][:ollama][:system_role_content] = 'operator ' * 200
     console.draw
     expect(console.instance_variable_get(:@header_text_column)).to eq(2)
-    expect(console.header_lines('ollama', 'fixture', 115).length).to be <= 13
+    expect(console.header_lines('ollama', 'fixture', 115).length).to be > 16
     expect(PWN::Banner).to have_received(:mini_cells).once
     expect([console.instance_variable_get(:@editor).text, console.instance_variable_get(:@editor).cursor]).to eq(['retained draft', 4])
   end
@@ -719,13 +719,15 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       expect(actual).to eq(lines)
       expect(header.select { |entry| entry[3] == console.tone(:category) }.map { |entry| entry[2] }.join).to include('SYSTEM ROLE CONTENT:', 'MAX PROMPT LENGTH:', 'REASONING EFFORT:')
       expect(header.select { |entry| entry[3] == console.tone(:header) }.map { |entry| entry[2] }.join).to include('operator', '1024', 'high')
-      if columns == 48
-        labels = header.select { |entry| entry[3] == console.tone(:category) }.map { |entry| entry[2] }
-        expect(labels.join).to include('MAX PROMPT LENGTH:')
-        expect(labels).not_to include(a_string_including('MAX PROMPT LENGTH:'))
-      end
       expect(console.instance_variable_get(:@page_size)).to be >= 1
     end
+    console.header_lines('ollama', 'fixture', 35)
+    labels = []
+    console.instance_variable_get(:@header_spans).each do |row|
+      row.each { |role, text| labels << text if role == :category }
+    end
+    expect(labels.join).to include('MAX PROMPT LENGTH:')
+    expect(labels).not_to include(a_string_including('MAX PROMPT LENGTH:'))
     console.handle("\u000f")
     console.draw
     console.handle(:end)
@@ -1238,7 +1240,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       if rendered_header.include?('worker-effort')
         expect(rendered_header).to include('worker settings role', '0.42', '4321', '8765')
         expect(painted).to include([a_kind_of(Integer), a_kind_of(Integer), 'MODEL:', 7])
-        expect(painted).to include([a_kind_of(Integer), a_kind_of(Integer), ' worker-effort', 6])
+        value = painted.find { |_y, _x, text, color| color == 6 && text.to_s.include?('worker-effort') }
+        expect(value).not_to be_nil
+        expect(value[2]).not_to include('REASONING EFFORT:')
         "\u0004"
       else
         Thread.pass
