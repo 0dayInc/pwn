@@ -526,6 +526,30 @@ module PWN
       end
 
       # Supported Method Parameters::
+      # model = PWN::AI::Grok.get_model(name: 'required - model id')
+      #
+      # xAI prices are integer USD cents per 100 million tokens on the model
+      # record itself (prompt/completion/cached). Zero means that component
+      # is unpublished, not free.
+
+      public_class_method def self.get_model(opts = {})
+        name = opts[:name].to_s.strip
+        raise 'ERROR: Model name is required' if name.empty?
+
+        hop = PWN::AI::ModelCatalog.lookup_opts(opts)
+        row = PWN::AI::ModelCatalog.parse_row(raw: grok_rest_call(hop.merge(rest_call: "models/#{URI.encode_www_form_component(name)}")))
+        return row if PWN::AI::ModelCatalog.model_row?(row: row)
+        return nil if opts[:fallback] == false
+
+        listed = PWN::AI::ModelCatalog.parse_row(raw: grok_rest_call(hop.merge(rest_call: 'models')))
+        PWN::AI::ModelCatalog.find_row(models: listed.is_a?(Hash) ? listed[:data] : listed, name: name)
+      rescue StandardError => e
+        raise e if name.empty?
+
+        nil
+      end
+
+      # Supported Method Parameters::
       # response = PWN::AI::Grok.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
       #   tools: 'optional - OpenAI tools array [{type:"function", function:{...}}]',
@@ -740,6 +764,13 @@ module PWN
 
           # Run get models and return its result
           #{self}.get_models
+
+          # Return one model record, including published token prices when the provider sends them.
+          #{self}.get_model(
+            name: 'required - model id',
+            timeout: 'optional - seconds (default 15)',
+            fallback: 'optional - false skips the full catalog when the direct route misses'
+          )
 
           # Run chat with tools and return its result
           #{self}.chat_with_tools(

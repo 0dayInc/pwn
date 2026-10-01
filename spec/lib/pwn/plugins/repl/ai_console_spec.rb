@@ -967,7 +967,18 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(console.instance_variable_get(:@scroll)).to eq(0)
     console.handle(:end)
     expect(console.instance_variable_get(:@scroll)).to be_nil
+    console.handle(:page_up)
+    expect(console.instance_variable_get(:@scroll)).to eq(60)
+    console.handle(:page_down)
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+    console.handle(:page_down)
+    expect(console.instance_variable_get(:@scroll)).to be_nil
+    console.handle(:home)
+    expect(console.instance_variable_get(:@scroll)).to eq(0)
+    console.handle(:page_up)
+    expect(console.instance_variable_get(:@scroll)).to eq(0)
     expect(console.instance_variable_get(:@unseen)).to eq(0)
+    console.handle(:end)
     console.handle(:up)
     console.handle(:down)
     expect(console.instance_variable_get(:@scroll)).to be_nil
@@ -1001,6 +1012,38 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.draw
     expect(painted.map { |row| row[2] }.join).to include('SESSION  · active')
     expect(screen).to have_received(:setpos).with(a_kind_of(Integer), 2)
+  end
+
+  it 'toggles the pane with Ctrl+T and opens swarm with Ctrl+S' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.handle("\u0014")
+    expect(console.instance_variable_get(:@focus)).to eq(:session)
+    console.handle("\u0013")
+    expect(console.instance_variable_get(:@workspace)).to be_a(Hash)
+    console.handle("\u0013")
+    expect(console.instance_variable_get(:@workspace)).to be_nil
+  end
+
+  it 'wraps the footer inside the window and omits the composer hint line' do
+    screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
+    curses = double(lines: 24, cols: 48)
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+    console.instance_variable_set(:@screen, screen)
+    painted = []
+    allow(console).to receive(:put) { |*args| painted << args }
+    console.draw
+    text = painted.map { |row| row[2].to_s }.join("\n")
+    expect(text).not_to include('^X pane')
+    expect(text).to include('^T=toggle pane', '^S=swarm', 'Shift+Enter=newline', 'Enter=send')
+    footer = painted.select { |row| row[2].to_s.include?('^T=toggle pane') || row[2].to_s.include?('Enter=send') || row[2].to_s.include?('/ menu') }
+    expect(footer.length).to be > 1
+    expect(footer).to all(satisfy { |_y, _x, line, _color| console.width(line) <= 46 })
+    console.handle("\u0014")
+    painted.clear
+    console.draw
+    session = painted.map { |row| row[2].to_s }.join
+    expect(session).to include('↑↓ scroll · HOME · PGUP · PGDN · END')
+    expect(session).not_to include('↑↓ history')
   end
 
   it 'wraps at words without discarding code whitespace or splitting graphemes' do
@@ -1103,8 +1146,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     resized = false
     launch([]) do
       if resized
-        expect(@paint.last).to include('^C cancel', '^D back')
-        expect(Unicode::DisplayWidth.of(@paint.last)).to be <= 46
+        footer = @paint.select { |line| (line.include?('^C=cancel') || line.include?('Enter=send')) && Unicode::DisplayWidth.of(line) <= 46 }
+        expect(footer.join).to include('^C=cancel', '^D=back')
+        expect(footer.length).to be > 1
         "\u0004"
       else
         allow(@screen).to receive_messages(lines: 14, cols: 48)

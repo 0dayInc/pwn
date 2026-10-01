@@ -3,6 +3,7 @@
 require 'json'
 require 'rest-client'
 require 'securerandom'
+require 'uri'
 
 module PWN
   module AI
@@ -132,6 +133,30 @@ module PWN
         JSON.parse(models, symbolize_names: true)[:models]
       rescue StandardError => e
         raise e
+      end
+
+      # Supported Method Parameters::
+      # model = PWN::AI::Gemini.get_model(name: 'required - model id or models/<id>')
+      #
+      # Gemini names models as models/<id> and usually publishes token limits,
+      # not USD rates. A pricing object on the record is kept; none is invented.
+
+      public_class_method def self.get_model(opts = {})
+        name = opts[:name].to_s.strip
+        raise 'ERROR: Model name is required' if name.empty?
+
+        hop = PWN::AI::ModelCatalog.lookup_opts(opts)
+        id = name.delete_prefix('models/')
+        row = PWN::AI::ModelCatalog.parse_row(raw: gemini_rest_call(hop.merge(rest_call: "models/#{URI.encode_www_form_component(id)}")))
+        return row if PWN::AI::ModelCatalog.model_row?(row: row)
+        return nil if opts[:fallback] == false
+
+        listed = PWN::AI::ModelCatalog.parse_row(raw: gemini_rest_call(hop.merge(rest_call: 'models')))
+        PWN::AI::ModelCatalog.find_row(models: listed.is_a?(Hash) ? listed[:models] : listed, name: name)
+      rescue StandardError => e
+        raise e if name.empty?
+
+        nil
       end
 
       # ----------------------------------------------------------------------
@@ -459,6 +484,13 @@ module PWN
         puts "USAGE:
           # Run get models and return its result
           #{self}.get_models
+
+          # Return one model record. Gemini usually publishes token limits, not USD rates.
+          #{self}.get_model(
+            name: 'required - model id or models/<id>',
+            timeout: 'optional - seconds (default 15)',
+            fallback: 'optional - false skips the full catalog when the direct route misses'
+          )
 
           # Native tool-calling adapter for PWN::AI::Agent::Loop
           #{self}.chat_with_tools(

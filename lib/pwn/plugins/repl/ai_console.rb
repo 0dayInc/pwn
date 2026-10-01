@@ -686,7 +686,7 @@ module PWN
 
             return clear_view if key == "\u000c"
 
-            if key == "\u0007"
+            if ["\u0007", "\u0013"].include?(key)
               @workspace ? @workspace = nil : open_swarm
               return
             end
@@ -709,7 +709,7 @@ module PWN
               return
             end
 
-            if key == "\u0018"
+            if ["\u0018", "\u0014"].include?(key)
               @menu = nil
               @focus = @focus == :session ? :mission : :session
               return
@@ -757,9 +757,18 @@ module PWN
               end
             when :page_up then @scroll = [(@scroll || (@total_rows.to_i - @page_size.to_i)) - @page_size.to_i, 0].max
             when :page_down
-              @scroll = [@scroll.to_i + @page_size.to_i, @total_rows.to_i].min
-              @scroll = nil if @scroll >= [@total_rows.to_i - @page_size.to_i, 0].max
-              @unseen = 0 unless @scroll
+              bottom = [@total_rows.to_i - @page_size.to_i, 0].max
+              # nil is the live end, not row 0. Treating it as 0 jumps upward, then later presses walk back down.
+              if @scroll.nil? || @scroll >= bottom
+                @scroll = nil
+                @unseen = 0
+              else
+                @scroll = [@scroll + @page_size.to_i, bottom].min
+                if @scroll >= bottom
+                  @scroll = nil
+                  @unseen = 0
+                end
+              end
             when "\t" then accept_completion
             when :home, :end
               if @focus == :session
@@ -1247,11 +1256,34 @@ module PWN
             end
           end
 
+          def header_content_limit
+            compose = @compose_height || 5
+            footer = @footer_height || 1
+            [@height.to_i - compose - footer - 6, 1].max
+          end
+
+          def footer_text
+            text = '/ menu · ^C=cancel · ^D=back · ^L=clear · ^T=toggle pane · ^S=swarm · ^R=search ^O=operations · ↑↓ history · Shift+Enter=newline · Enter=send'
+            @focus == :session ? text.sub('↑↓ history', '↑↓ scroll · HOME · PGUP · PGDN · END') : text
+          end
+
+          def footer_lines
+            wrap(footer_text, [@width.to_i - 2, 1].max)
+          end
+
+          def layout_chrome
+            footer = footer_lines
+            compose = 5
+            footer_height = footer.length
+            compose -= 1 while @height.to_i - 4 - compose - footer_height < 3 && compose > 3
+            [footer, compose, footer_height]
+          end
+
           def draw_header(engine, model)
             header_layout(engine, model)
             content = header_lines(engine, model, @header_text_width)
             # Reserve only the physical minimum: timeline (3), composer (6), footer (1).
-            visible = @header_spans.first([@height - 13, 1].max)
+            visible = @header_spans.first([header_content_limit, 1].max)
             overflow = visible.length < content.length ? ' · ^O full settings' : ''
             height = @header_pane_height || (visible.length + 3)
             left = @header_pane_height || 0
@@ -1303,11 +1335,14 @@ module PWN
             end
             engine = PWN::Env.dig(:ai, :active).to_s
             model = REPL.pwn_ai_engine_model(engine: engine)
+            footer, compose_height, footer_height = layout_chrome
+            @compose_height = compose_height
+            @footer_height = footer_height
             header_height = draw_header(engine, model)
             sidebar = @width >= 100 ? 27 : 0
             pane_width = @width - sidebar - 2
-            compose_height = 6
-            timeline_height = @height - compose_height - 1 - header_height
+            timeline_height = @height - compose_height - footer_height - header_height
+            timeline_height = 3 if timeline_height < 3
             @page_size = timeline_height - 2
             rows = timeline_rows(pane_width - 6)
             @total_rows = rows.length
@@ -1320,19 +1355,13 @@ module PWN
             start = @scroll || [rows.length - @page_size, 0].max
             rows.slice(start, @page_size).to_a.each_with_index { |(color, row), index| put(header_height + 1 + index, 2, row, color) }
             draw_sidebar(header_height, pane_width + 1, timeline_height) if sidebar.positive?
-            compose_y = @height - compose_height - 1
+            compose_y = @height - compose_height - footer_height
             mission_title = @focus == :session ? 'MISSION CONTROL' : 'MISSION CONTROL · active'
             box(compose_y, 0, compose_height, @width - 1, mission_title)
             mark_active(compose_y, 0, @width - 1, mission_title) if @focus != :session
-            draw_composer(compose_y)
-            hint = if @menu
-                     '↑↓/^P/^N select · Tab accept · Esc close'
-                   elsif @focus == :session
-                     '↑↓/Home/End scroll · ^X mission'
-                   else
-                     '↑↓ history · ^X session'
-                   end
-            put(@height - 1, 1, "^C cancel ^D back · #{hint} · ^G swarm ^L clear ^R search ^O status · Enter send", tone(:footer))
+            draw_composer(compose_y, height: compose_height)
+            footer_top = @height - footer_height
+            footer.first(footer_height).each_with_index { |line, index| put(footer_top + index, 1, line, tone(:footer)) }
             draw_menu if @menu
             draw_model_prompt if @model_prompt
             draw_details(engine, model) if @details
@@ -1346,30 +1375,29 @@ module PWN
             @screen.refresh
           end
 
-          def draw_composer(top)
-            return draw_search(top) if @editor.search
+          def draw_composer(top, height: 5)
+            return draw_search(top, height: height) if @editor.search
 
             chars = @editor.text.scan(/\X/)
             before = chars.take(@editor.cursor).join
             rows = wrap(@editor.text, @width - 8, words: false)
             prefix = wrap(before, @width - 8, words: false)
             cursor_row = prefix.length - 1
-            first = [cursor_row - 2, 0].max
+            interior = [height - 2, 1].max
+            first = [cursor_row - (interior - 1), 0].max
             put(top + 1, 2, '›', tone(:prompt)) if first.zero?
-            rows.slice(first, 3).to_a.each_with_index { |row, index| put(top + 1 + index, 4, row, tone(:composer)) }
-            hint = @menu ? 'Tab accept · ↑↓/^P/^N select · Esc close' : '^X pane · ^G swarm · Shift+Enter newline · / commands · ^O status'
-            put(top + 4, 4, fit(hint, @width - 7), tone(:footer))
+            rows.slice(first, interior).to_a.each_with_index { |row, index| put(top + 1 + index, 4, row, tone(:composer)) }
             @cursor_position = [top + 1 + cursor_row - first, [4 + width(prefix.last), @width - 3].min]
           end
 
-          def draw_search(top)
+          def draw_search(top, height: 5)
             search = @editor.search
             query = "reverse search: #{search[:query]}"
             query_rows = wrap(query, @width - 8, words: false)
             put(top + 1, 4, query_rows.last, tone(:category))
             match = search[:match] || '(no match)'
-            wrap(match, @width - 8).first(2).each_with_index { |row, index| put(top + 2 + index, 4, row, tone(:composer)) }
-            put(top + 4, 4, '^R older · Enter accept · Esc cancel', tone(:footer))
+            interior = [height - 2, 1].max
+            wrap(match, @width - 8).first([interior - 1, 1].max).each_with_index { |row, index| put(top + 2 + index, 4, row, tone(:composer)) }
             @cursor_position = [top + 1, [4 + width(query_rows.last), @width - 3].min]
           end
 
@@ -1566,9 +1594,9 @@ module PWN
               cursor = [bottom + 2, [3 + width(chars[first...editor.cursor].join), @width - 3].min]
             else
               swarm_put(bottom + 1, "DRAFT: #{@editor.text}", :composer)
-              swarm_put(bottom + 2, 'Esc/^G return to unchanged mission draft', :footer)
+              swarm_put(bottom + 2, 'Esc/^S/^G return to unchanged mission draft', :footer)
             end
-            put(@height - 1, 1, '^D back · ^G close · actions require Enter', tone(:footer))
+            put(@height - 1, 1, '^D back · ^S/^G close · actions require Enter', tone(:footer))
             @screen.setpos(*(cursor || [0, 2]))
           end
 
@@ -1623,7 +1651,7 @@ module PWN
         public_class_method def self.help
           puts "USAGE:
             # Ctrl+L clears only the session pane, including while busy.
-            # Ctrl+X switches the active pane between SESSION and MISSION CONTROL.
+            # Ctrl+T toggles the active pane between SESSION and MISSION CONTROL. Ctrl+S opens swarm.
             # Up/Down select in menus, recall ~/.pwn/pwn_history in the mission pane, and scroll the session pane when it is active.
             # Search: Enter accepts without sending; Esc restores the draft.
             # Launch the single-owner curses console; non-terminals return unavailable.

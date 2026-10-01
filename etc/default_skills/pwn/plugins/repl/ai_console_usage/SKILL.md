@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Plugins::REPL::AIConsoleUsage
 
-Provider-reported token totals and explicitly configured USD estimates.
+Provider-reported token totals. USD comes from the active model's published prices, then from explicitly configured rates. Missing prices stay unavailable.
 
 ## When to use
 

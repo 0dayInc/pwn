@@ -13,6 +13,7 @@ module PWN
     autoload :Grok, 'pwn/ai/grok'
     autoload :HttpRetry, 'pwn/ai/http_retry'
     autoload :MCP, 'pwn/ai/mcp'
+    autoload :ModelCatalog, 'pwn/ai/model_catalog'
     autoload :Ollama, 'pwn/ai/ollama'
     autoload :OpenAI, 'pwn/ai/open_ai'
     autoload :OpenWebUI, 'pwn/ai/open_web_ui'

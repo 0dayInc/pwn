@@ -34,6 +34,7 @@ PWN::AI::Gemini.get_models(opts)
 ## Public methods
 
 - `get_models`
+- `get_model`
 - `chat_with_tools`
 - `chat`
 - `authors`
