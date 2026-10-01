@@ -117,7 +117,8 @@ changes only default values, not the configuration schema; no migration is neede
 | Shift+Enter, or trailing `\\` + Enter | Insert a newline. Terminals that cannot distinguish Shift+Enter need `tmux set -s extended-keys on` or the backslash fallback. |
 | Up/Down | In MISSION CONTROL, move the completion highlight while the Command menu is visible (wrapping at either end). Otherwise recall requests from `~/.pwn/pwn_history`, including prior runs; Down past the newest restores the draft and cursor. In SESSION, move one transcript row. Esc closes the menu to resume history recall. |
 | Home/End | In MISSION CONTROL, move the composer cursor to the start or end of the line. In SESSION, jump to the top of the transcript or back to the live bottom. |
-| Ctrl+X | Toggle the active pane between SESSION and MISSION CONTROL. The active title is reversed and marked `active`. Typing or Enter returns to MISSION CONTROL; Enter does not submit while SESSION is active. |
+| Ctrl+T | Toggle the active pane between SESSION and MISSION CONTROL. Ctrl+X still toggles. The active title is reversed and marked `active`. Typing or Enter returns to MISSION CONTROL; Enter does not submit while SESSION is active. |
+| Ctrl+S or Ctrl+G or `/swarm` | Open the draft-preserving swarm workspace; `/swarm dashboard` also opens it. Ctrl+S still saves inside the system-role editor. |
 | Ctrl+P / Ctrl+N | Alternative completion selection keys. In MISSION CONTROL they recall history when no menu is visible. In SESSION they scroll one row. Tab still accepts the highlight. |
 | Tab | Accept the highlighted as-you-type parameter |
 | Ctrl+O or `/status` | Inspect full status/settings, including overflowing header text; Esc or Ctrl+O closes |
@@ -125,7 +126,6 @@ changes only default values, not the configuration schema; no migration is neede
 | Ctrl+R | Incremental reverse search of request history from `~/.pwn/pwn_history`; repeat for an older match, Enter accepts into the draft without sending, Esc cancels and restores the draft/cursor |
 | `/clear` | Clear the session pane only; stored conversation and token totals remain |
 | `/verbose [on|off]` | Toggle compact or full tool/notice output |
-| Ctrl+G or `/swarm` | Open the draft-preserving swarm workspace; `/swarm dashboard` also opens it |
 | `/` + Enter or `/menu` | Open the slash menu |
 | PgUp/PgDn | Scroll the timeline; new output does not pull a scrolled viewport to the bottom |
 | `/model`, `/sessions resume ID` | Show model settings / change the next request's model or session while idle |

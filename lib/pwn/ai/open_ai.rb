@@ -593,6 +593,32 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # model = PWN::AI::OpenAI.get_model(name: 'required - model id or slug')
+      #
+      # Platform catalogs use data[].id. ChatGPT/Codex catalogs use
+      # models[].slug and may nest pricing under a different key. get_model
+      # returns that one row; it does not invent a USD rate the catalog omitted.
+
+      public_class_method def self.get_model(opts = {})
+        name = opts[:name].to_s.strip
+        raise 'ERROR: Model name is required' if name.empty?
+
+        hop = PWN::AI::ModelCatalog.lookup_opts(opts)
+        row = PWN::AI::ModelCatalog.parse_row(raw: open_ai_rest_call(hop.merge(rest_call: "models/#{URI.encode_www_form_component(name)}")))
+        return row if PWN::AI::ModelCatalog.model_row?(row: row)
+        return nil if opts[:fallback] == false
+
+        listed = open_ai_rest_call(hop.merge(rest_call: 'models'))
+        return nil if listed.nil?
+
+        PWN::AI::ModelCatalog.find_row(models: catalog_models(raw: listed), name: name)
+      rescue StandardError => e
+        raise e if name.empty?
+
+        nil
+      end
+
       private_class_method def self.catalog_models(opts = {})
         raw = opts[:raw]
         raw = JSON.parse(raw, symbolize_names: true) if raw.is_a?(String) || raw.respond_to?(:to_str)
@@ -1516,6 +1542,13 @@ module PWN
 
           # Run get models and return its result
           #{self}.get_models
+
+          # Return one model row by id or slug. A missing price is not invented.
+          #{self}.get_model(
+            name: 'required - model id or slug',
+            timeout: 'optional - seconds (default 15)',
+            fallback: 'optional - false skips the full catalog when the direct route misses'
+          )
 
           # Chat Completions vs Responses path for this model (tools may force Responses).
           #{self}.api_endpoint(

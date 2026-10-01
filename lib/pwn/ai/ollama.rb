@@ -3,6 +3,7 @@
 require 'json'
 require 'base64'
 require 'securerandom'
+require 'uri'
 
 module PWN
   module AI
@@ -405,6 +406,31 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # model = PWN::AI::Ollama.get_model(name: 'required - tag name')
+      #
+      # Local tags have size and family, not token prices. get_model reads
+      # /api/show for that tag and returns it. Missing pricing stays missing.
+
+      public_class_method def self.get_model(opts = {})
+        name = opts[:name].to_s.strip
+        raise 'ERROR: Model name is required' if name.empty?
+
+        hop = PWN::AI::ModelCatalog.lookup_opts(opts)
+        row = PWN::AI::ModelCatalog.parse_row(
+          raw: ollama_rest_call(hop.merge(http_method: :post, rest_call: 'api/show', http_body: { model: name }))
+        )
+        return row if PWN::AI::ModelCatalog.model_row?(row: row)
+        return nil if opts[:fallback] == false
+
+        listed = PWN::AI::ModelCatalog.parse_row(raw: ollama_rest_call(hop.merge(rest_call: 'api/tags')))
+        PWN::AI::ModelCatalog.find_row(models: listed.is_a?(Hash) ? listed[:models] : listed, name: name)
+      rescue StandardError => e
+        raise e if name.empty?
+
+        nil
+      end
+
       # Coerce OpenAI-wire message history into Ollama-native shapes before
       # POST /api/chat (or Open WebUI /ollama/api/chat):
       # - function.arguments must be a Hash/Array object, not a JSON string
@@ -678,6 +704,13 @@ module PWN
         puts "USAGE:
           # Run get models and return its result
           #{self}.get_models
+
+          # Return one local tag via /api/show. Missing token prices stay missing.
+          #{self}.get_model(
+            name: 'required - tag name',
+            timeout: 'optional - seconds (default 15)',
+            fallback: 'optional - false skips /api/tags when /api/show misses'
+          )
 
           # Run chat with tools and return its result
           #{self}.chat_with_tools(

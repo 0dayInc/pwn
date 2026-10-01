@@ -13,6 +13,14 @@ describe PWN::AI::Grok do
     expect(help_response).to respond_to :help
   end
 
+  it 'loads one priced model without listing the catalog' do
+    allow(described_class).to receive(:grok_rest_call).and_return('{"id":"grok-4.7","prompt_text_token_price":20000,"completion_text_token_price":60000}')
+    row = described_class.get_model(name: 'grok-4.7')
+    expect(row[:id]).to eq('grok-4.7')
+    expect(described_class).to have_received(:grok_rest_call).once
+    expect { described_class.get_model(name: ' ') }.to raise_error(RuntimeError, /Model name is required/)
+  end
+
   it 'chat_with_tools sanitizes messages via Loop.openai_wire_messages' do
     src = File.read(described_class.method(:chat_with_tools).source_location.first)
     expect(src).to match(/openai_wire_messages/)

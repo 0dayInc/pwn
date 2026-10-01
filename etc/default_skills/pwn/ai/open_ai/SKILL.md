@@ -36,6 +36,7 @@ PWN::AI::OpenAI.refresh_oauth_bearer_token(opts)
 - `refresh_oauth_bearer_token`
 - `obtain_oauth_bearer_token`
 - `get_models`
+- `get_model`
 - `chat_with_tools`
 - `api_endpoint`
 - `chat`

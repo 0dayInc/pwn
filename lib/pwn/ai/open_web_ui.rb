@@ -3,6 +3,7 @@
 require 'json'
 require 'base64'
 require 'securerandom'
+require 'uri'
 
 module PWN
   module AI
@@ -433,6 +434,35 @@ module PWN
         raise e
       end
 
+      # Supported Method Parameters::
+      # model = PWN::AI::OpenWebUI.get_model(name: 'required - model id')
+      #
+      # Open WebUI mixes OpenAI-compat rows and proxied Ollama tags. A direct
+      # model route is tried first; otherwise the already-fetched catalog row
+      # is returned. Local tags without a price stay unpriced.
+
+      public_class_method def self.get_model(opts = {})
+        name = opts[:name].to_s.strip
+        raise 'ERROR: Model name is required' if name.empty?
+
+        hop = PWN::AI::ModelCatalog.lookup_opts(opts)
+        encoded = URI.encode_www_form_component(name)
+        row = PWN::AI::ModelCatalog.parse_row(raw: openwebui_rest_call(hop.merge(rest_call: "api/v1/models/#{encoded}")))
+        return row if PWN::AI::ModelCatalog.model_row?(row: row)
+        return nil if opts[:fallback] == false
+
+        listed = PWN::AI::ModelCatalog.parse_row(raw: openwebui_rest_call(hop.merge(rest_call: 'api/v1/models')))
+        found = PWN::AI::ModelCatalog.find_row(models: listed.is_a?(Hash) ? (listed[:data] || listed[:models]) : listed, name: name)
+        return found if found
+
+        tags = PWN::AI::ModelCatalog.parse_row(raw: openwebui_rest_call(hop.merge(rest_call: 'ollama/api/tags')))
+        PWN::AI::ModelCatalog.find_row(models: tags.is_a?(Hash) ? tags[:models] : tags, name: name)
+      rescue StandardError => e
+        raise e if name.empty?
+
+        nil
+      end
+
       # Coerce OpenAI-wire message history into Ollama-native shapes before
       # POST /api/chat (or Open WebUI /ollama/api/chat):
       # - function.arguments must be a Hash/Array object, not a JSON string
@@ -704,6 +734,13 @@ module PWN
         puts "USAGE:
           # Run get models and return its result
           #{self}.get_models
+
+          # Return one catalog row. OpenAI-compat and proxied Ollama tags use different routes.
+          #{self}.get_model(
+            name: 'required - model id',
+            timeout: 'optional - seconds (default 15)',
+            fallback: 'optional - false skips the catalog list when the direct route misses'
+          )
 
           # Run chat with tools and return its result
           #{self}.chat_with_tools(
