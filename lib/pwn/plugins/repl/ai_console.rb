@@ -266,7 +266,7 @@ module PWN
 
         # Own the terminal, event pump and the lifetime of exactly one request.
         class Console # rubocop:disable Metrics/ClassLength -- cohesive single-owner terminal state machine
-          COLORS = { operator: :operator, task: :task, tool: :tool, result: :result, assistant: :assistant, notice: :notice, warning: :warning }.freeze
+          COLORS = { operator: :operator, task: :task, thinking: :notice, tool: :tool, result: :result, assistant: :assistant, notice: :notice, warning: :warning }.freeze
           PALETTE = %w[cyan green yellow red white blue magenta black].freeze
 
           def initialize(pry:, input:, curses:, getch:)
@@ -480,6 +480,8 @@ module PWN
               on_tool = lambda do |name, args, result|
                 if name.to_s == 'task'
                   @events << [:task, args.to_s]
+                elsif name.to_s == 'thinking'
+                  @events << [:thinking, args.to_s]
                 else
                   @events << [:tool, "#{name}\n#{args.is_a?(String) ? args : args.inspect}"]
                   @events << [:result, result.to_s]
@@ -503,7 +505,8 @@ module PWN
                   enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
                   on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug, debug_tee: @output
                 )
-                @events << [:assistant, final.to_s]
+                promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
+                @events << [:assistant, final.to_s] unless promoted
               end
             rescue Control::Stopped => e
               @events << [:warning, e.message]
@@ -1652,6 +1655,7 @@ module PWN
           puts "USAGE:
             # Ctrl+L clears only the session pane, including while busy.
             # Ctrl+T toggles the active pane between SESSION and MISSION CONTROL. Ctrl+S opens swarm.
+            # Thinking from a model that returns it is a THINKING row in the session pane, above the answer.
             # Up/Down select in menus, recall ~/.pwn/pwn_history in the mission pane, and scroll the session pane when it is active.
             # Search: Enter accepts without sending; Esc restores the draft.
             # Launch the single-owner curses console; non-terminals return unavailable.

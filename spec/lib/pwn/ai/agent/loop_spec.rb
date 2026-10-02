@@ -2123,36 +2123,33 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
     expect(src).to include('byteslice(0, 2_048)')
   end
 
-  describe 'thinking on the task TUI line' do
-    it 'prefers model thinking over the TaskSummarizer brief' do
+  describe 'thinking on the session pane' do
+    it 'keeps the task brief and emits thinking separately' do
       allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(true)
       allow(PWN::AI::Agent::TaskSummarizer).to receive(:about_to).and_return('task 1/3: scan')
       seen = []
       described_class.send(
-        :task_summary_about_to!,
-        state: { plan: ['scan'] },
-        tools: [{ name: 'shell' }],
-        request: 'scan the host',
+        :emit_thinking!,
         thinking: 'Need to fingerprint the service before scanning.',
         on_tool: ->(name, args, _res) { seen << [name, args] }
       )
-      expect(seen).to eq([['task', 'Need to fingerprint the service before scanning.']])
-      expect(PWN::AI::Agent::TaskSummarizer).not_to have_received(:about_to)
-    end
-
-    it 'falls back to the TaskSummarizer brief when thinking is blank' do
-      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(true)
-      allow(PWN::AI::Agent::TaskSummarizer).to receive(:about_to).and_return('task 1/3: scan')
-      seen = []
       described_class.send(
         :task_summary_about_to!,
         state: { plan: ['scan'] },
         tools: [{ name: 'shell' }],
         request: 'scan the host',
-        thinking: '  ',
         on_tool: ->(name, args, _res) { seen << [name, args] }
       )
-      expect(seen).to eq([['task', 'task 1/3: scan']])
+      expect(seen).to eq([
+                           ['thinking', 'Need to fingerprint the service before scanning.'],
+                           ['task', 'task 1/3: scan']
+                         ])
+    end
+
+    it 'does not emit a blank thinking row' do
+      seen = []
+      described_class.send(:emit_thinking!, thinking: '  ', on_tool: ->(name, args, _res) { seen << [name, args] })
+      expect(seen).to eq([])
     end
   end
 
