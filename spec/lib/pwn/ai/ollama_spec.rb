@@ -12,10 +12,11 @@ describe PWN::AI::Ollama do
       allow(described_class).to receive(:sleep)
       allow(described_class).to receive(:rand).and_return(0.5)
       allow(PWN::AI::HttpRetry).to receive(:report_event)
+      described_class.instance_variable_set(:@strict_system_cache, nil)
       expect do
         described_class.chat_with_tools(messages: [{ role: 'user', content: 'hello' }], quiet: quiet)
       end.to raise_error(RuntimeError, /Ollama.*429.*rate limit exceeded/)
-      expect(RestClient::Request).to have_received(:execute).exactly(5).times
+      expect(RestClient::Request).to have_received(:execute).exactly(6).times
       expect(described_class).to have_received(:sleep).with(2.5).exactly(4).times
     end
   end

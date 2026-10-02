@@ -468,6 +468,9 @@ module PWN
       # - function.arguments must be a Hash/Array object, not a JSON string
       #   (string args → HTTP 400 "can't find closing '}' symbol")
       # - assistant content nil + tool_calls → "" (Open WebUI form validation)
+      # - system/developer rows after the first message are merged into one
+      #   leading system message. Qwen-style templates raise HTTP 500
+      #   "System message must be at the beginning" otherwise.
       private_class_method def self.parse_tool_arguments_object(opts = {})
         raw = opts[:arguments]
         case raw
@@ -490,7 +493,7 @@ module PWN
       end
 
       private_class_method def self.normalize_messages_for_ollama(opts = {})
-        Array(opts[:messages]).filter_map do |m|
+        rows = Array(opts[:messages]).filter_map do |m|
           next unless m.is_a?(Hash)
 
           role = (m[:role] || m['role']).to_s
@@ -540,6 +543,71 @@ module PWN
 
           out
         end
+        lead_system(messages: rows, fold_into_user: opts[:fold_into_user])
+      end
+
+      # One system role is only safe when the server does not already prepend one.
+      # mini-mythos-mission-ready has a Modelfile SYSTEM prompt and a template that
+      # raises if any later message has role system. Fold those rows into the
+      # first user message instead of sending a second system role.
+      private_class_method def self.lead_system(opts = {})
+        parts = []
+        rest = []
+        Array(opts[:messages]).each do |row|
+          next unless row.is_a?(Hash)
+
+          role = (row[:role] || row['role']).to_s
+          if %w[system developer].include?(role)
+            text = (row.key?(:content) ? row[:content] : row['content']).to_s
+            parts << text unless text.strip.empty?
+          else
+            rest << row
+          end
+        end
+        return rest if parts.empty?
+
+        text = parts.join("\n\n")
+        return [{ role: 'system', content: text }] + rest unless opts[:fold_into_user]
+
+        user = rest.find { |row| (row[:role] || row['role']).to_s == 'user' }
+        if user
+          body = (user.key?(:content) ? user[:content] : user['content']).to_s
+          user[:content] = "#{text}\n\n#{body}"
+          user.delete('content')
+          rest
+        else
+          [{ role: 'user', content: text }] + rest
+        end
+      end
+
+      private_class_method def self.strict_system_template?(opts = {})
+        name = opts[:model].to_s.strip
+        return false if name.empty?
+
+        @strict_system_cache ||= {}
+        return @strict_system_cache[name] if @strict_system_cache.key?(name)
+
+        @strict_system_cache[name] = template_rejects_later_system?(model: name)
+      rescue StandardError
+        false
+      end
+
+      private_class_method def self.template_rejects_later_system?(opts = {})
+        name = opts[:model].to_s
+        names = [name]
+        names << "#{name}:latest" unless name.include?(':')
+        names.each do |candidate|
+          raw = openwebui_rest_call(
+            http_method: :post, rest_call: 'ollama/api/show',
+            http_body: { model: candidate }, timeout: 8, quiet: true, non_interactive: true
+          )
+          template = PWN::AI::ModelCatalog.parse_row(raw: raw)
+          text = template.is_a?(Hash) ? (template[:template] || template['template']).to_s : ''
+          return true if text.include?('System message must be at the beginning')
+        end
+        false
+      rescue StandardError
+        false
       end
 
       # Supported Method Parameters::
@@ -559,12 +627,15 @@ module PWN
       # Bare POST /api/chat is not an API route on stock Open WebUI (405).
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine   = PWN::Env[:ai][:openwebui]
-        messages = normalize_messages_for_ollama(messages: opts[:messages])
-        raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
-
+        engine = PWN::Env[:ai][:openwebui]
         model = opts[:model] ||= engine[:model]
         raise 'ERROR: Model is required.  Call #get_models method for details' unless real_config_value?(value: model)
+
+        messages = normalize_messages_for_ollama(
+          messages: opts[:messages],
+          fold_into_user: strict_system_template?(model: model)
+        )
+        raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
         temp = opts[:temp].to_f
         temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
@@ -682,6 +753,10 @@ module PWN
         end
 
         http_body[:messages].push(user_role)
+        http_body[:messages] = lead_system(
+          messages: http_body[:messages],
+          fold_into_user: strict_system_template?(model: model)
+        )
 
         timeout = opts[:timeout]
         spinner = opts[:spinner]
