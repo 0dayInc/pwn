@@ -403,6 +403,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.dispatch_fail_n Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.dispatch_fail_n`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.duration_unsatisfied? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.duration_unsatisfied?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.emit_task_summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.emit_task_summary`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.emit_thinking! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.emit_thinking!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.engine_transient? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.engine_transient?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.escalate Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.escalate`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.evidence_blob Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.evidence_blob`: "}]}
@@ -1206,6 +1207,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::Ollama.ollama_rest_call Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.ollama_rest_call`: Supported Method Parameters\n\nollama_rest_call(\n\nhttp_method: 'optional HTTP method (defaults to GET)',\nrest_call: 'required rest call path relative to base_uri (e.g. api/chat)',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',\ntimeout: 'optional timeout in seconds (defaults to 900)',\nspinner: 'optional - display spinner (defaults to false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Ollama.parse_tool_arguments_object Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.parse_tool_arguments_object`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Ollama.real_config_value? Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.real_config_value?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Ollama.strict_system_template? Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.strict_system_template?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Ollama.template_rejects_later_system? Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.template_rejects_later_system?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Ollama.visible_from_thinking Usage"},{"role":"assistant","content":"`PWN::AI::Ollama.visible_from_thinking`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenAI.api_endpoint Usage"},{"role":"assistant","content":"`PWN::AI::OpenAI.api_endpoint`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenAI.authors Usage"},{"role":"assistant","content":"`PWN::AI::OpenAI.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
@@ -1258,6 +1261,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.openwebui_rest_call Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.openwebui_rest_call`: Supported Method Parameters\n\nopenwebui_rest_call(\n\nhttp_method: 'optional HTTP method (defaults to GET)',\nrest_call: 'required rest call path relative to base_uri',\nparams: 'optional params passed in the URI or HTTP Headers',\nhttp_body: 'optional HTTP body sent in HTTP methods that support it e.g. POST',\ntimeout: 'optional timeout in seconds (defaults to 900)',\nspinner: 'optional - display spinner (defaults to false)'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.parse_tool_arguments_object Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.parse_tool_arguments_object`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.real_config_value? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.real_config_value?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.strict_system_template? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.strict_system_template?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.template_rejects_later_system? Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.template_rejects_later_system?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::OpenWebUI.visible_from_thinking Usage"},{"role":"assistant","content":"`PWN::AI::OpenWebUI.visible_from_thinking`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::RedTeam.authors Usage"},{"role":"assistant","content":"`PWN::AI::RedTeam.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::RedTeam.help Usage"},{"role":"assistant","content":"`PWN::AI::RedTeam.help`: "}]}

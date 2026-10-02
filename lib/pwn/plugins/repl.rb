@@ -561,6 +561,19 @@ module PWN
                     mirror.call("#{header}\n#{body_out}")
                     next
                   end
+                  if name.to_s == 'thinking'
+                    body = args.is_a?(String) ? args.to_s : args.inspect
+                    timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
+                    header = "[ #{timestamp} → pwn-ai → thinking ]"
+                    puts "\e[36m#{header}\e[0m"
+                    body_out = +''
+                    body.to_s.each_line do |ln|
+                      puts "\e[36m  #{ln.rstrip}\e[0m"
+                      body_out << "  #{ln.rstrip}\n"
+                    end
+                    mirror.call("#{header}\n#{body_out}")
+                    next
+                  end
 
                   argv = args.is_a?(String) ? args.to_s : args.inspect
                   timestamp = Time.now.strftime('%Y-%m-%d %H:%M:%S%z')
@@ -592,9 +605,12 @@ module PWN
                   debug_tee: $stdout
                 )
                 $stdout.flush
-                puts "\n\e[32m#{final}\e[0m\n\n"
-                $stdout.flush
-                PWN::Plugins::Log.mirror_tui!(msg: "\n#{final}\n\n") if pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
+                promoted = Thread.current[:pwn_thinking_promoted] && final.to_s.strip == Thread.current[:pwn_last_thinking].to_s.strip
+                unless promoted
+                  puts "\n\e[32m#{final}\e[0m\n\n"
+                  $stdout.flush
+                  PWN::Plugins::Log.mirror_tui!(msg: "\n#{final}\n\n") if pi.config.pwn_ai_debug && defined?(PWN::Plugins::Log)
+                end
                 if pi.config.pwn_ai_debug && sess_id && PWN.const_defined?(:Sessions)
                   PWN::Plugins::Log.progress(
                     msg: "session=#{sess_id}",

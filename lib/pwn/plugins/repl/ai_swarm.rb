@@ -279,6 +279,10 @@ module PWN
 
           def tool_callback(job, opts)
             lambda do |name, args, result|
+              if name.to_s == 'thinking'
+                opts[:on_event]&.call(:thinking, args.to_s)
+                return
+              end
               update(job, job[:state], last_tool: name)
               opts[:on_event]&.call(:tool, "#{job[:agent]} [#{job[:id]}] #{name}\n#{args.inspect}")
               opts[:on_event]&.call(:result, result.to_s)

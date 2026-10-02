@@ -389,6 +389,19 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(colors).to eq(operator_label: 4, operator_body: 5, assistant: 5, task: 2, tool: 1, result: 3)
   end
 
+  it 'shows model thinking in the session pane even when compact' do
+    pry = Pry.new
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@verbose, false)
+    console.add(:thinking, 'The lemon is yellow because of carotenoids.')
+    console.add(:assistant, 'Yellow.')
+    text = console.timeline_rows(60).map { |_color, row| row }.join("\n")
+    expect(text).to include('THINKING')
+    expect(text).to include('The lemon is yellow because of carotenoids.')
+    expect(text).to include('ASSISTANT')
+    expect(text).to include('Yellow.')
+  end
+
   it 'uses template colors for every unconfigured role without mutating defaults or overrides' do
     defaults = PWN::Config.env_template.dig(:ai, :tui, :theme)
     [nil, {}, 'invalid'].each do |configured|

@@ -1923,12 +1923,16 @@ module PWN
 
           content = msg[:content]
           tool_calls = Array(msg[:tool_calls])
+          promoted = false
           # Local/thinking models (Ollama Qwen3, DeepSeek-R1, etc.) sometimes
           # return only :thinking with empty :content and no tool_calls. Promote
           # thinking so the agent does not print a blank final answer.
           if content.to_s.strip.empty? && tool_calls.empty?
             thinking = msg[:thinking].to_s
-            content = thinking unless thinking.strip.empty?
+            unless thinking.strip.empty?
+              content = thinking
+              promoted = true
+            end
           end
 
           out = {
@@ -1953,6 +1957,7 @@ module PWN
           out[:_native_content] = msg[:_native_content] if msg[:_native_content]
           thinking = msg[:thinking] || msg[:reasoning_content]
           out[:thinking] = thinking if thinking.to_s.strip != ''
+          out[:_thinking_promoted] = true if promoted
           # Local/abliterated models sometimes emit shell(...) as plain content
           # with empty tool_calls. Coerce registered call-shaped text into
           # structured tool_calls so Loop dispatches instead of FINAL-answering.
@@ -2297,6 +2302,17 @@ module PWN
           nil
         end
 
+        private_class_method def self.emit_thinking!(opts = {})
+          text = opts[:thinking].to_s.strip
+          Thread.current[:pwn_last_thinking] = text
+          Thread.current[:pwn_thinking_promoted] = opts[:promoted] ? true : false
+          return if text.empty?
+
+          opts[:on_tool]&.call('thinking', text, '')
+        rescue StandardError
+          nil
+        end
+
         # Pre-dispatch: one high-level brief for the whole upcoming tool
         # collection (pwn-ai → task is one-to-many with pwn-ai → <tool>).
         # Prefer opts[:tools] = [{name:, args:}, ...]; falls back to single name.
@@ -2304,18 +2320,13 @@ module PWN
           state = opts[:state]
           return nil unless state && defined?(TaskSummarizer) && TaskSummarizer.enabled?
 
-          thinking = opts[:thinking].to_s.strip
-          line = if thinking.empty?
-                   TaskSummarizer.about_to(
-                     name: opts[:name],
-                     args: opts[:args],
-                     state: state,
-                     request: opts[:request],
-                     tools: opts[:tools]
-                   )
-                 else
-                   thinking
-                 end
+          line = TaskSummarizer.about_to(
+            name: opts[:name],
+            args: opts[:args],
+            state: state,
+            request: opts[:request],
+            tools: opts[:tools]
+          )
           # about_to returns nil when the brief is a duplicate of the last one
           emit_task_summary(line: line, on_tool: opts[:on_tool]) if line
           line
@@ -3409,6 +3420,11 @@ module PWN
 
             calls = Array(msg[:tool_calls])
             text  = msg[:content].to_s
+            emit_thinking!(
+              thinking: msg[:thinking] || msg[:reasoning_content],
+              promoted: msg[:_thinking_promoted],
+              on_tool: on_tool
+            )
 
             # Belt-and-suspenders: plain-text shell(...) / tool forms from local
             # models under weak TEMPLATE {{ .Prompt }} become real tool_calls.
@@ -3525,7 +3541,6 @@ module PWN
                 }
               end,
               request: request,
-              thinking: msg[:thinking] || msg[:reasoning_content],
               on_tool: on_tool
             )
 
