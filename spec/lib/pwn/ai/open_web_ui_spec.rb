@@ -12,10 +12,11 @@ describe PWN::AI::OpenWebUI do
       allow(described_class).to receive(:sleep)
       allow(described_class).to receive(:rand).and_return(0.5)
       allow(PWN::AI::HttpRetry).to receive(:report_event)
+      described_class.instance_variable_set(:@strict_system_cache, nil)
       expect do
         described_class.chat_with_tools(messages: [{ role: 'user', content: 'hello' }], quiet: quiet)
       end.to raise_error(RuntimeError, /Open WebUI.*429.*rate limit exceeded/)
-      expect(RestClient::Request).to have_received(:execute).exactly(5).times
+      expect(RestClient::Request).to have_received(:execute).exactly(6).times
       expect(described_class).to have_received(:sleep).with(2.5).exactly(4).times
     end
   end
@@ -81,6 +82,33 @@ describe PWN::AI::OpenWebUI do
     end
     described_class.chat(request: 'hello', model: 'test')
     expect(captured_chat[:stream]).to be true
+  end
+
+  it 'merges later system and developer messages into one leading system message' do
+    engine = { model: 'mini-mythos-mission-ready', num_ctx: 2048, keep_alive: '1m', temp: 0.1, tool_temp: 0.1 }
+    allow(PWN::Env).to receive(:[]).and_call_original
+    allow(PWN::Env).to receive(:[]).with(:ai).and_return({ openwebui: engine, active: 'openwebui' })
+    captured = nil
+    allow(described_class).to receive(:openwebui_rest_call) do |**kwargs|
+      captured = kwargs[:http_body]
+      '{"message":{"role":"assistant","content":"ok"}}'
+    end
+    described_class.chat_with_tools(
+      messages: [
+        { role: 'system', content: 'operator rules' },
+        { role: 'user', content: 'hello' },
+        { role: 'system', content: 'ENGAGEMENT MEMORY\nnotes' },
+        { role: 'developer', content: 'mid-turn reminder' },
+        { role: 'assistant', content: '', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'shell', arguments: '{"cmd":"id"}' } }] }
+      ],
+      model: 'mini-mythos-mission-ready'
+    )
+    roles = captured[:messages].map { |row| row[:role] }
+    expect(roles).to eq(%w[system user assistant])
+    expect(captured[:messages][0][:content]).to include('operator rules')
+    expect(captured[:messages][0][:content]).to include('ENGAGEMENT MEMORY')
+    expect(captured[:messages][0][:content]).to include('mid-turn reminder')
+    expect(captured[:messages][2][:tool_calls].first[:function][:arguments]).to eq({ cmd: 'id' })
   end
 
   it 'assembles native /api/chat NDJSON stream into a single message' do
