@@ -487,9 +487,10 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wrap_untrusted_tool Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wrap_untrusted_tool`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.write_or_read_evidenced? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.write_or_read_evidenced?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.write_verified? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.write_verified?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::ProviderWindow.model Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::ProviderWindow.model`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::ProviderWindow.request_model_cancel Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::ProviderWindow.request_model_cancel`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::Steering.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::Steering.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::Steering.checkpoint Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::Steering.checkpoint`: "}]}
-{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::Steering.model Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::Steering.model`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::Steering.submit Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::Steering.submit`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::Steering.with_reader Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::Steering.with_reader`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop::Steering::Restart.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop::Steering::Restart.new`: "}]}
@@ -1734,6 +1735,7 @@
 {"messages":[{"role":"user","content":"PWN::Banner.mini_asteroids Usage"},{"role":"assistant","content":"`PWN::Banner.mini_asteroids`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_asteroids_snapshot Usage"},{"role":"assistant","content":"`PWN::Banner.mini_asteroids_snapshot`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_block_board Usage"},{"role":"assistant","content":"`PWN::Banner.mini_block_board`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner.mini_block_plan Usage"},{"role":"assistant","content":"`PWN::Banner.mini_block_plan`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_cells Usage"},{"role":"assistant","content":"`PWN::Banner.mini_cells`: Supported Method Parameters\n\nReturn rows of single-column Unicode block cells, with named terminal colors. Each fresh cell has glyph, foreground and background keys; no ANSI or IO. Square means terminal-cell dimensions, not physical pixels. Caller owns borders. Use mini_frame_seconds for cadence; 1800 frames span 90 or 180 seconds. Colored blocks fill the canvas with half-cell pieces; other games cap at 16. PWN::Banner.mini_cells(\n\nname: 'optional - falling_blocks, snake, pong, or asteroids; defaults to falling_blocks',\nframe: 'optional - integer index, defaults to zero and wraps at 1800',\nwidth: 'optional - columns clamped to 0..64 for blocks, 0..16 otherwise; defaults to 16',\nheight: 'optional - rows clamped to 0..64 for blocks, 0..16 otherwise; defaults to 16',\nseed: 'optional - integer local PRNG seed, defaults to 73; retain per session',\nbranding: 'optional - include the legacy wordmark, defaults to true; false reclaims its row'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_delta Usage"},{"role":"assistant","content":"`PWN::Banner.mini_delta`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_emit Usage"},{"role":"assistant","content":"`PWN::Banner.mini_emit`: "}]}
@@ -1745,6 +1747,7 @@
 {"messages":[{"role":"user","content":"PWN::Banner.mini_landing Usage"},{"role":"assistant","content":"`PWN::Banner.mini_landing`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_names Usage"},{"role":"assistant","content":"`PWN::Banner.mini_names`: Supported Method Parameters\n\nList animation names; callers may sample once and retain the session choice. PWN::Banner.mini_names\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_pixel Usage"},{"role":"assistant","content":"`PWN::Banner.mini_pixel`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner.mini_play_piece Usage"},{"role":"assistant","content":"`PWN::Banner.mini_play_piece`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_pong Usage"},{"role":"assistant","content":"`PWN::Banner.mini_pong`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_pong_snapshot Usage"},{"role":"assistant","content":"`PWN::Banner.mini_pong_snapshot`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner.mini_quarter_board Usage"},{"role":"assistant","content":"`PWN::Banner.mini_quarter_board`: "}]}
@@ -1786,6 +1789,13 @@
 {"messages":[{"role":"user","content":"PWN::Banner::Matrix.get Usage"},{"role":"assistant","content":"`PWN::Banner::Matrix.get`: Supported Method Parameters\n\nPWN::Banner::Matrix.get\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Matrix.help Usage"},{"role":"assistant","content":"`PWN::Banner::Matrix.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Matrix.you? Usage"},{"role":"assistant","content":"`PWN::Banner::Matrix.you?`: Supported Method Parameters\n\nPWN::Banner::Matrix.has_you\n"}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.new Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.<< Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.<<`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.cells Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.cells`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.controls Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.controls`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.key Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.key`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.length Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.length`: "}]}
+{"messages":[{"role":"user","content":"PWN::Banner::MiniGame.step Usage"},{"role":"assistant","content":"`PWN::Banner::MiniGame.step`: "}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Ninja.authors Usage"},{"role":"assistant","content":"`PWN::Banner::Ninja.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Ninja.get Usage"},{"role":"assistant","content":"`PWN::Banner::Ninja.get`: Supported Method Parameters\n\nPWN::Banner::Ninja.get\n"}]}
 {"messages":[{"role":"user","content":"PWN::Banner::Ninja.help Usage"},{"role":"assistant","content":"`PWN::Banner::Ninja.help`: "}]}
@@ -3339,6 +3349,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.footer_lines Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.footer_lines`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.footer_text Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.footer_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.handle Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.handle`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.handle_animation Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.handle_animation`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.handle_details Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.handle_details`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.handle_model_prompt Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.handle_model_prompt`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.handle_search Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.handle_search`: "}]}
@@ -3354,6 +3365,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.open_swarm Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.open_swarm`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.open_system_role Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.open_system_role`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.operation_lines Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.operation_lines`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.playable_banner Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.playable_banner`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.prepare_swarm_mission Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.prepare_swarm_mission`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.put Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.put`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.put_spans Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.put_spans`: "}]}

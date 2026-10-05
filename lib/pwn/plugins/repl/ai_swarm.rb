@@ -15,6 +15,7 @@ module PWN
 
           def stop
             @stopping = true
+            request_model_cancel
             submit('Stop this swarm job.')
           end
 

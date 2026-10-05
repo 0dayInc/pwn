@@ -86,6 +86,7 @@ module PWN
 
           def stop
             @stopping = true
+            request_model_cancel
             submit('Stop the active request.')
           end
 
@@ -524,13 +525,12 @@ module PWN
 
           def cancel
             if busy?
-              return if @cancelling
-
+              first = !@cancelling
               @cancelling = true
               @control&.stop
               @swarm&.cancel_all
               @tool_input.close unless @tool_input.closed?
-              add(:warning, 'Cancellation requested. Waiting for the active tool to finish; work already started is not undone.')
+              add(:warning, 'Cancellation requested. Waiting for a safe boundary; work already started is not undone.') if first
             else
               @editor.replace('')
             end
@@ -681,6 +681,7 @@ module PWN
           def handle(key)
             return if key.nil?
             return handle_system_role(key) if @role_editor && (!@too_small || ["\e", "\u0003", "\u0004", :eof].include?(key))
+            return cancel if key == "\u0003" && busy?
 
             return if @too_small && ![:eof, "\u0003", "\u0004"].include?(key)
             return cancel if @too_small && key == "\u0003" && !@model_prompt
@@ -714,7 +715,10 @@ module PWN
 
             if ["\u0018", "\u0014"].include?(key)
               @menu = nil
-              @focus = @focus == :session ? :mission : :session
+              panes = @header_pane_height ? %i[mission session animation] : %i[mission session]
+              @focus = panes[(panes.index(@focus).to_i + 1) % panes.length]
+              @banner_game&.controls
+              @banner_game_tick = nil
               return
             end
 
@@ -726,6 +730,8 @@ module PWN
               @menu = nil
               return
             end
+            return handle_animation(key) if @focus == :animation && ![:eof, "\u0003", "\u0004"].include?(key)
+
             case key
             when :eof, "\u0004"
               @leaving = true
@@ -791,6 +797,24 @@ module PWN
                 @editor.insert(key)
                 refresh_completion
               end
+            end
+          end
+
+          def handle_animation(key)
+            if key == :paste_start
+              @focus = :mission
+              @paste = true
+              @banner_game&.controls
+            elsif [:up, :down, :left, :right, ' '].include?(key)
+              @banner_game&.key(key)
+            elsif ["\r", "\n", "\e", :newline].include?(key)
+              @focus = :mission
+              @banner_game&.controls
+            elsif key.is_a?(String) && key.ord >= 32
+              @focus = :mission
+              @banner_game&.controls
+              @editor.insert(key)
+              refresh_completion
             end
           end
 
@@ -1201,6 +1225,7 @@ module PWN
             end
             cadence = cells ? @banner_frame_seconds : PWN::Banner::MINI_FRAME_SECONDS
             frame = ((now - @banner_started) / cadence).floor % PWN::Banner::MINI_FRAME_COUNT
+            return playable_banner(size, now) if cells && @focus == :animation
             return PWN::Banner.mini_cells(name: @banner_name, frame: frame, width: size, height: size, seed: @banner_seed, branding: false) if cells
 
             art = PWN::Banner.mini_frame(name: @banner_name, frame: frame, width: size, height: size, branding: false)
@@ -1208,6 +1233,21 @@ module PWN
             top = (size - art.length) / 2
             art.each_with_index { |row, index| canvas[top + index] = row.center(size) }
             canvas
+          end
+
+          def playable_banner(size, now)
+            key = [@banner_session, @banner_name, size, @banner_seed]
+            if @banner_game_key != key
+              @banner_game_key = key
+              @banner_game = PWN::Banner::MiniGame.new(name: @banner_name, width: size, height: size, seed: @banner_seed)
+              @banner_game_tick = nil
+            end
+            tick = (now / @banner_frame_seconds).floor
+            if @banner_game_tick != tick
+              @banner_game_cells = @banner_game.cells(@banner_game.step)
+              @banner_game_tick = tick
+            end
+            @banner_game_cells
           end
 
           def draw_banner(size)
@@ -1267,6 +1307,11 @@ module PWN
 
           def footer_text
             text = '/ menu · ^C=cancel · ^D=back · ^L=clear · ^T=toggle pane · ^S=swarm · ^R=search ^O=operations · ↑↓ history · Shift+Enter=newline · Enter=send'
+            if @focus == :animation
+              controls = { pong: '↑↓ paddle', snake: '↑↓←→ steer', falling_blocks: '←→ move · ↓ faster · Space=rotate',
+                           asteroids: '←→ turn · ↑↓ thrust/reverse · Space=fire' }.fetch(@banner_name, '↑↓←→ play')
+              return text.sub('↑↓ history', controls).sub('Shift+Enter=newline · Enter=send', 'Enter/Esc=draft')
+            end
             @focus == :session ? text.sub('↑↓ history', '↑↓ scroll · HOME · PGUP · PGDN · END') : text
           end
 
@@ -1295,6 +1340,7 @@ module PWN
             visible.each_with_index { |spans, index| put_spans(2 + index, @header_text_column, spans) }
             if @header_pane_height
               box(0, 0, height, height, '')
+              mark_active(0, 0, height, 'PLAY') if @focus == :animation
               draw_banner(height - 2)
             end
             height
@@ -1338,6 +1384,8 @@ module PWN
             end
             engine = PWN::Env.dig(:ai, :active).to_s
             model = REPL.pwn_ai_engine_model(engine: engine)
+            header_layout(engine, model)
+            @focus = :mission if @focus == :animation && !@header_pane_height
             footer, compose_height, footer_height = layout_chrome
             @compose_height = compose_height
             @footer_height = footer_height
@@ -1359,9 +1407,9 @@ module PWN
             rows.slice(start, @page_size).to_a.each_with_index { |(color, row), index| put(header_height + 1 + index, 2, row, color) }
             draw_sidebar(header_height, pane_width + 1, timeline_height) if sidebar.positive?
             compose_y = @height - compose_height - footer_height
-            mission_title = @focus == :session ? 'MISSION CONTROL' : 'MISSION CONTROL · active'
+            mission_title = @focus == :mission ? 'MISSION CONTROL · active' : 'MISSION CONTROL'
             box(compose_y, 0, compose_height, @width - 1, mission_title)
-            mark_active(compose_y, 0, @width - 1, mission_title) if @focus != :session
+            mark_active(compose_y, 0, @width - 1, mission_title) if @focus == :mission
             draw_composer(compose_y, height: compose_height)
             footer_top = @height - footer_height
             footer.first(footer_height).each_with_index { |line, index| put(footer_top + index, 1, line, tone(:footer)) }
@@ -1370,7 +1418,9 @@ module PWN
             draw_details(engine, model) if @details
             draw_swarm if @workspace
             draw_system_role if @role_editor
-            if @focus == :session && !(@details || @workspace || @role_editor)
+            if @focus == :animation && !(@details || @workspace || @role_editor || @model_prompt)
+              @screen.setpos(1, 1)
+            elsif @focus == :session && !(@details || @workspace || @role_editor)
               @screen.setpos(header_height + 1, 2)
             elsif @role_editor || !(@details || @workspace)
               @screen.setpos(*@cursor_position)

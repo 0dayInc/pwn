@@ -187,6 +187,59 @@ module PWN
       end
     end
 
+    # Caller-owned simulation: yields on the UI thread, never reads input or
+    # accumulates a replay. The caller supplies the clock and normalized keys.
+    class MiniGame
+      def initialize(name:, width:, height:, seed: MINI_SEED)
+        @name = name.to_s
+        raise ArgumentError, "Unknown mini-banner: #{name}" unless Banner.mini_names.map(&:to_s).include?(@name)
+
+        limit = @name == 'falling_blocks' ? 64 : MINI_WIDTH
+        @width = width.clamp(5, limit)
+        @height = height.clamp(5, limit)
+        @keys = []
+        @simulation = Fiber.new do
+          options = { frames: self, width: @width, height: @name == 'falling_blocks' ? @height * 2 : @height,
+                      rng: Random.new(seed), player: self }
+          Banner.send("mini_simulate_#{@name}", options)
+        end
+      end
+
+      def key(key)
+        @keys << key if @keys.length < 16
+      end
+
+      def controls
+        keys = @keys
+        @keys = []
+        keys
+      end
+
+      def step
+        @simulation.resume
+      end
+
+      def cells(frame)
+        rows = frame[:rows].drop(1)
+        rows = Banner.send(:mini_block_board, board: rows) if @name == 'falling_blocks'
+        rows = Banner.send(:mini_quarter_board, board: rows, name: @name) if @name == 'snake'
+        rows.map do |row|
+          row.chars.map do |pixel|
+            glyph, foreground, background = MINI_PIXELS.fetch(pixel)
+            { glyph: glyph.dup, foreground: foreground, background: background || :black }
+          end
+        end
+      end
+
+      def <<(frame)
+        Fiber.yield(frame)
+      end
+
+      def length
+        0
+      end
+    end
+
     # Six immutable, compact replays bound memory even when callers resize/reseed.
     private_class_method def self.mini_replay(opts = {})
       key = [opts[:name].to_s.dup.freeze, opts[:width], opts[:height], opts[:seed]].freeze
@@ -347,54 +400,97 @@ module PWN
         bag = (0...MINI_SHAPES.length).to_a.shuffle(random: rng) if bag.empty?
         type = bag.shift
         shape = MINI_SHAPES[type]
-        landing = mini_landing(board: board, shape: shape, rng: rng)
+        landing = opts[:player] ? {} : mini_landing(board: board, shape: shape, rng: rng)
         x = (width - shape.map(&:first).max - 1) / 2
         unless landing && mini_fits?(board: board, shape: shape, x: x, y: 0)
           mini_reset_board(frames: frames, board: board)
           board = Array.new(height) { ' ' * width }
           next
         end
-        rotations = mini_rotations(shape: shape)
-        plan = [[shape, x, 0]]
-        blocked = false
-        (1..landing[:rotation]).each do |rotation|
-          shape = rotations[rotation]
-          if mini_fits?(board: board, shape: shape, x: x, y: 0)
-            plan << [shape, x, 0]
-          else
-            blocked = true
+        if opts[:player]
+          shape, x, y = mini_play_piece(board: board, type: type, frames: frames, player: opts[:player])
+          landing = { x: x, y: y }
+        else
+          shape, x = mini_block_plan(board: board, shape: shape, x: x, landing: landing, frames: frames, type: type)
+          unless shape
+            mini_reset_board(frames: frames, board: board)
+            board = Array.new(height) { ' ' * width }
+            next
           end
         end
-        until x == landing[:x] || blocked
-          x += landing[:x] <=> x
-          blocked = !mini_fits?(board: board, shape: shape, x: x, y: 0)
-          plan << [shape, x, 0] unless blocked
-        end
-        if blocked
-          mini_reset_board(frames: frames, board: board)
-          board = Array.new(height) { ' ' * width }
-          next
-        end
-        (1..landing[:y]).each { |y| plan << [shape, x, y] }
         color = %w[c y m b r g g][type]
-        plan.each do |piece, px, py|
-          picture = board.map(&:dup)
-          active = piece.map { |dx, dy| [px + dx, py + dy] }
-          active.each { |ax, ay| picture[ay][ax] = color }
-          mini_emit(frames: frames, board: picture,
-                    state: { active: active, stack: board.map(&:dup), type: type })
-        end
         shape.each { |dx, dy| board[landing[:y] + dy][x + dx] = color }
         mini_emit(frames: frames, board: board, event: :lock, ticks: 2)
-        full = board.each_index.reject { |y| board[y].include?(' ') }
+        full = board.each_index.reject { |row| board[row].include?(' ') }
         next if full.empty?
 
         flash = board.map(&:dup)
-        full.each { |y| flash[y] = 'w' * width }
+        full.each { |row| flash[row] = 'w' * width }
         mini_emit(frames: frames, board: flash, event: :clear, state: { lines: full }, ticks: 3)
-        board = Array.new(full.length) { ' ' * width } + board.each_with_index.filter_map { |row, y| row unless full.include?(y) }
+        board = Array.new(full.length) { ' ' * width } + board.each_with_index.filter_map { |row, index| row unless full.include?(index) }
         mini_emit(frames: frames, board: board, event: :collapse, ticks: 2)
       end
+    end
+
+    private_class_method def self.mini_block_plan(opts = {})
+      board, shape, x, landing, frames, type = opts.values_at(:board, :shape, :x, :landing, :frames, :type)
+      rotations = mini_rotations(shape: shape)
+      plan = [[shape, x, 0]]
+      blocked = false
+      (1..landing[:rotation]).each do |rotation|
+        shape = rotations[rotation]
+        if mini_fits?(board: board, shape: shape, x: x, y: 0)
+          plan << [shape, x, 0]
+        else
+          blocked = true
+        end
+      end
+      until x == landing[:x] || blocked
+        x += landing[:x] <=> x
+        blocked = !mini_fits?(board: board, shape: shape, x: x, y: 0)
+        plan << [shape, x, 0] unless blocked
+      end
+      return if blocked
+
+      (1..landing[:y]).each { |y| plan << [shape, x, y] }
+      color = %w[c y m b r g g][type]
+      plan.each do |piece, px, py|
+        picture = board.map(&:dup)
+        active = piece.map { |dx, dy| [px + dx, py + dy] }
+        active.each { |ax, ay| picture[ay][ax] = color }
+        mini_emit(frames: frames, board: picture,
+                  state: { active: active, stack: board.map(&:dup), type: type })
+      end
+      [shape, x]
+    end
+
+    private_class_method def self.mini_play_piece(opts = {})
+      board, type, frames, player = opts.values_at(:board, :type, :frames, :player)
+      shape = MINI_SHAPES[type]
+      x = (board.first.length - shape.map(&:first).max - 1) / 2
+      y = 0
+      tick = 0
+      loop do
+        active = shape.map { |dx, dy| [x + dx, y + dy] }
+        picture = board.map(&:dup)
+        active.each { |ax, ay| picture[ay][ax] = %w[c y m b r g g][type] }
+        mini_emit(frames: frames, board: picture, state: { active: active, stack: board.map(&:dup), type: type })
+        keys = player.controls
+        keys.each do |key|
+          candidate = key == ' ' ? mini_rotations(shape: shape).fetch(1, shape) : shape
+          nx = x + { left: -1, right: 1 }.fetch(key, 0)
+          next unless mini_fits?(board: board, shape: candidate, x: nx, y: y)
+
+          shape = candidate
+          x = nx
+        end
+        tick += 1
+        next unless keys.include?(:down) || (tick % 5).zero?
+        break unless mini_fits?(board: board, shape: shape, x: x, y: y + 1)
+
+        y += 1
+      end
+      [shape, x, y]
     end
 
     private_class_method def self.mini_reset_board(opts = {})
@@ -442,19 +538,31 @@ module PWN
       height = opts[:height]
       rng = opts[:rng]
       spaces = (0...height).flat_map { |y| (0...width).map { |x| [x, y] } }
+      player = opts[:player]
       while frames.length < MINI_FRAME_COUNT
         y = rng.rand(height)
         body = [[2, y], [1, y], [0, y]]
+        direction = [1, 0]
         food = (spaces - body).sample(random: rng)
         steps = 0
         loop do
           board = Array.new(height) { ' ' * width }
           body.each_with_index { |(x, row), index| board[row][x] = index.zero? ? 'y' : 'g' }
           board[food[1]][food[0]] = 'f' if food
-          mini_emit(frames: frames, board: board, ticks: 2, state: { body: body.map(&:dup), food: food&.dup })
+          mini_emit(frames: frames, board: board, ticks: player ? 1 : 2, state: { body: body.map(&:dup), food: food&.dup })
           break if frames.length >= MINI_FRAME_COUNT
 
-          target = mini_snake_route(body: body, food: food, width: width, height: height, rng: rng) if food
+          if player
+            turn = player.controls.filter_map { |key| { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[key] }.find do |dx, dy|
+              [dx, dy] != direction && [dx, dy] != direction.map(&:-@)
+            end
+            direction = turn if turn
+            target = [body.first[0] + direction[0], body.first[1] + direction[1]]
+            occupied = target == food ? body : body.take(body.length - 1)
+            target = nil unless spaces.include?(target) && !occupied.include?(target)
+          elsif food
+            target = mini_snake_route(body: body, food: food, width: width, height: height, rng: rng)
+          end
           if !food || !target || steps >= width * height * 4
             mini_reset_board(frames: frames, board: board)
             break
@@ -477,6 +585,7 @@ module PWN
       height = opts[:height]
       rng = opts[:rng]
       paddles = [(height - 1) / 2.0, (height - 1) / 2.0]
+      player = opts[:player]
       scores = [0, 0]
       while frames.length < MINI_FRAME_COUNT
         x = (width - 1) / 2.0
@@ -485,9 +594,14 @@ module PWN
         vy = ((rng.rand * 0.4) + 0.1) * (rng.rand(2).zero? ? -1 : 1)
         bias = Array.new(2) { rng.rand(5).zero? ? rng.rand(-2..2) : rng.rand - 0.5 }
         rally = 0
-        mini_pong_snapshot(frames: frames, width: width, height: height, paddles: paddles, ball: [x, y], scores: scores, event: :serve, ticks: 16)
+        mini_pong_snapshot(frames: frames, width: width, height: height, paddles: paddles, ball: [x, y], scores: scores, event: :serve, ticks: player ? 1 : 16)
         loop do
+          player&.controls&.each do |key|
+            paddles[0] = (paddles[0] + { up: -0.5, down: 0.5 }.fetch(key, 0)).clamp(0, height - 1)
+          end
           paddles.each_index do |side|
+            next if player && side.zero?
+
             incoming = side.zero? ? vx.negative? : vx.positive?
             target = incoming ? y - 0.25 + bias[side] : (height - 1) / 2.0
             speed = incoming ? 0.275 : 0.11
@@ -519,7 +633,7 @@ module PWN
           y = ny
           if x.negative? || x > width - 1
             scores[x.negative? ? 1 : 0] += 1
-            mini_pong_snapshot(frames: frames, width: width, height: height, paddles: paddles, ball: nil, scores: scores, event: :score, ticks: 20)
+            mini_pong_snapshot(frames: frames, width: width, height: height, paddles: paddles, ball: nil, scores: scores, event: :score, ticks: player ? 1 : 20)
             break
           end
           mini_pong_snapshot(frames: frames, width: width, height: height, paddles: paddles, ball: [x, y], scores: scores, event: event, rally: rally)
@@ -594,13 +708,18 @@ module PWN
         end
         angle = Math.atan2(mini_delta(from: ship[1], to: target[1], span: height), mini_delta(from: ship[0], to: target[0], span: width))
         turn = mini_delta(from: ship[2], to: angle, span: Math::PI * 2).clamp(-0.1, 0.1)
+        keys = opts[:player]&.controls
+        turn = keys.sum { |key| { left: -0.2, right: 0.2 }.fetch(key, 0) } if keys
         ship[2] = (ship[2] + turn) % (Math::PI * 2)
-        thrust = tick % 80 < 24
+        power = tick % 80 < 24 ? 1 : 0
+        power = keys.sum { |key| { up: 1, down: -1 }.fetch(key, 0) }.clamp(-1, 1) if keys
+        thrust = !power.zero?
         [Math.cos(ship[2]), Math.sin(ship[2])].each_with_index do |direction, axis|
-          velocity[axis] = ((velocity[axis] * 0.99) + (thrust ? direction * 0.006 : 0)).clamp(-0.15, 0.15)
+          velocity[axis] = ((velocity[axis] * 0.99) + (direction * 0.006 * power)).clamp(-0.15, 0.15)
           ship[axis] = (ship[axis] + velocity[axis]) % (axis.zero? ? width : height)
         end
-        shots << [ship[0], ship[1], Math.cos(ship[2]) * 0.36, Math.sin(ship[2]) * 0.36, 24] if (tick % 12).zero?
+        fire = keys ? keys.include?(' ') : (tick % 12).zero?
+        shots << [ship[0], ship[1], Math.cos(ship[2]) * 0.36, Math.sin(ship[2]) * 0.36, 24] if fire
         shots.each do |shot|
           shot[0] = (shot[0] + shot[2]) % width
           shot[1] = (shot[1] + shot[3]) % height
