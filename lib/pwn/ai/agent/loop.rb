@@ -59,8 +59,78 @@ module PWN
       #     (:escalation_persona) — the local model still produces the final
       #     answer so Learning/Metrics stay attributed to :ollama.
       module Loop
+        # Provider calls run on a child. Thread#raise does not wake a native read,
+        # so the owner waits in Ruby and leaves within one poll on cancel.
+        class ProviderWindow
+          def request_model_cancel
+            @mutex.synchronize do
+              @cancel_requested = true
+              if @phase == :model && !@model_signal_sent
+                @model_signal_sent = true
+                @owner.raise(Steering::ModelCancelled)
+              end
+            end
+          end
+
+          def model(messages:, &block)
+            result = nil
+            worker = nil
+            Thread.handle_interrupt(Steering::ModelCancelled => :never) do
+              checkpoint(messages: messages, phase: :model)
+              raise Steering::ModelCancelled if cancel_requested?
+
+              worker = provider_thread(&block)
+              Thread.handle_interrupt(Steering::ModelCancelled => :immediate) do
+                loop do
+                  raise Steering::ModelCancelled if cancel_requested?
+
+                  break if worker.join(0.05)
+                end
+              end
+              result = worker.value
+            ensure
+              abandon_provider(worker)
+              @mutex.synchronize { @phase = :boundary }
+              begin
+                Thread.handle_interrupt(Steering::ModelCancelled => :immediate) { nil }
+              rescue Steering::ModelCancelled
+                nil
+              end
+            end
+            result
+          rescue Steering::ModelCancelled
+            nil
+          end
+
+          private
+
+          def cancel_requested?
+            @mutex.synchronize { @cancel_requested }
+          end
+
+          def provider_thread(&block)
+            parent = Thread.current
+            locals = parent.keys.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, parent[key]] }
+            variables = parent.thread_variables.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, parent.thread_variable_get(key)] }
+            Thread.new do
+              Thread.current.report_on_exception = false
+              locals.each { |key, value| Thread.current[key] = value }
+              variables.each { |key, value| Thread.current.thread_variable_set(key, value) }
+              Thread.handle_interrupt(Steering::ModelCancelled => :never, &block)
+            end
+          end
+
+          def abandon_provider(worker)
+            return unless worker&.alive?
+
+            worker.raise(Steering::ModelCancelled)
+            worker.join(0.2)
+            worker.kill if worker.alive?
+          end
+        end
+
         # Request-owned input broker; only the provider window is interruptible.
-        class Steering
+        class Steering < ProviderWindow
           INPUT_LOCK = Mutex.new
           INPUT_OWNERS = {} # rubocop:disable Style/MutableConstant -- guarded by INPUT_LOCK
 
@@ -80,12 +150,14 @@ module PWN
           attr_reader :reader
 
           def initialize(input:, output:)
+            super()
             @input = input
             @output = output
             @owner = Thread.current
             @mutex = Mutex.new
             @pending = []
             @phase = :boundary
+            @cancel_requested = false
           end
 
           def submit(text)
@@ -125,23 +197,6 @@ module PWN
 
             yield if block_given?
             raise Restart.new(messages, instructions)
-          end
-
-          def model(messages:, &block)
-            # Drain an in-flight signal inside this rescue, never in a tool.
-            Thread.handle_interrupt(ModelCancelled => :never) do
-              checkpoint(messages: messages, phase: :model)
-              Thread.handle_interrupt(ModelCancelled => :immediate, &block)
-            ensure
-              @mutex.synchronize { @phase = :boundary }
-              begin
-                Thread.handle_interrupt(ModelCancelled => :immediate) { nil }
-              rescue ModelCancelled
-                nil
-              end
-            end
-          rescue ModelCancelled
-            nil
           end
 
           def with_reader

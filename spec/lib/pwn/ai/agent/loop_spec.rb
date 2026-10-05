@@ -228,7 +228,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       calls = []
       owner = Thread.current
       allow(described_class).to receive(:call_engine) do |opts|
-        expect(Thread.current).to eq(owner)
+        expect(Thread.current).not_to eq(owner)
         calls << Marshal.load(Marshal.dump(opts[:messages]))
         if calls.length == 1
           entered << true

@@ -258,6 +258,27 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     foreign&.join
   end
 
+  it 'leaves a provider blocked in native IO without waiting for that read to return' do
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
+      Thread.handle_interrupt(Exception => :never) { sleep 8 }
+    end
+    keys = "what color is a lemon?\n".chars
+    cancelled = false
+    launch(keys) do
+      if !cancelled && @paint.any? { |row| row.include?('Elapsed') }
+        cancelled = true
+        "\u0003"
+      elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
+        "\u0004"
+      else
+        Thread.pass
+        nil
+      end
+    end
+    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
+  end
+
   it 'forwards tool input, preserves completed evidence before steering, and locks settings while running' do
     entered = Queue.new
     calls = 0
@@ -1025,6 +1046,86 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.draw
     expect(painted.map { |row| row[2] }.join).to include('SESSION  · active')
     expect(screen).to have_received(:setpos).with(a_kind_of(Integer), 2)
+    console.handle("\u0014")
+    painted.clear
+    console.draw
+    expect(painted.map { |row| row[2] }.join).to include(' PLAY ')
+    expect(painted.map { |row| row[2] }.join).not_to include('MISSION CONTROL · active')
+    expect(screen).to have_received(:setpos).with(1, 1)
+    allow(curses).to receive_messages(lines: 24, cols: 80)
+    console.draw
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+  end
+
+  it 'cycles mission, session and visible animation with both shortcuts without changing the draft' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('kept draft', 4)
+    console.instance_variable_set(:@header_pane_height, 10)
+    console.banner_frame(8, cells: true)
+    console.handle("\u0014")
+    console.handle("\u0018")
+    expect(console.instance_variable_get(:@focus)).to eq(:animation)
+    console.banner_frame(8, cells: true)
+    game = console.instance_variable_get(:@banner_game)
+    expect(game).to receive(:key).with(:up)
+    expect(game).to receive(:key).with(' ')
+    console.handle(:up)
+    console.handle(' ')
+    expect([editor.text, editor.cursor]).to eq(['kept draft', 4])
+    console.handle("\u0014")
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+    expect([editor.text, editor.cursor]).to eq(['kept draft', 4])
+  end
+
+  it 'returns to the unchanged automatic animation when focus leaves the game' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    allow(Process).to receive(:clock_gettime).and_return(10.0)
+    automatic = console.banner_frame(8, cells: true)
+    console.instance_variable_set(:@header_pane_height, 10)
+    2.times { console.handle("\u0014") }
+    expect(console.banner_frame(8, cells: true)).not_to eq(automatic)
+    console.handle("\u0018")
+    expect(console.banner_frame(8, cells: true)).to eq(automatic)
+    console.instance_variable_set(:@header_pane_height, nil)
+    2.times { console.handle("\u0014") }
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+  end
+
+  it 'keeps modal, search and cancellation priority above animation controls' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@focus, :animation)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('draft', 2)
+    game = double(key: nil)
+    console.instance_variable_set(:@banner_game, game)
+    console.instance_variable_set(:@details, 0)
+    expect(console).to receive(:handle_details).with(:up)
+    console.handle(:up)
+    console.instance_variable_set(:@details, nil)
+    console.instance_variable_set(:@model_prompt, {})
+    expect(console).to receive(:handle_model_prompt).with(' ')
+    console.handle(' ')
+    console.instance_variable_set(:@model_prompt, nil)
+    allow(console).to receive(:busy?).and_return(true)
+    expect(console).to receive(:cancel)
+    console.handle("\u0003")
+    console.handle("\u0012")
+    expect(editor.search).not_to be_nil
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+    expect(game).not_to have_received(:key)
+    expect([editor.text, editor.cursor]).to eq(['draft', 2])
+  end
+
+  it 'preserves bracketed paste and the mission cursor when leaving animation focus' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('draft', 2)
+    console.instance_variable_set(:@focus, :animation)
+    [:paste_start, ' ', "\n", 'x', :paste_end].each { |key| console.handle(key) }
+    expect(editor.text).to eq("dr \nxaft")
+    expect(editor.cursor).to eq(5)
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
   end
 
   it 'toggles the pane with Ctrl+T and opens swarm with Ctrl+S' do

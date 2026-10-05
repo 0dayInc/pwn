@@ -25,7 +25,103 @@ describe PWN::Banner do
       end
     end
   end
+end
 
+describe PWN::Banner::MiniGame do
+  it 'renders bounded, unbranded colored frames without accumulating a replay' do
+    PWN::Banner.mini_names.product([5, 8, 16]).each do |name, size|
+      game = described_class.new(name: name, width: size, height: size)
+      40.times do
+        frame = game.step
+        cells = game.cells(frame)
+        expect(cells.length).to eq(size)
+        expect(cells.map(&:length)).to all(eq(size))
+        expect(cells.flatten.map { |cell| cell[:glyph] }.join).not_to match(/[PWN]/)
+        expect(cells.flatten).to all(include(:foreground, :background))
+      end
+      expect(game.length).to eq(0)
+    end
+  end
+
+  it 'lets the player move only the left Pong paddle while the ball and opponent keep playing' do
+    game = PWN::Banner::MiniGame.new(name: :pong, width: 8, height: 8, seed: 73)
+    first = game.step
+    game.key(:up)
+    moved = game.step
+    expect(moved[:state][:paddles][0]).to be < first[:state][:paddles][0]
+    expect(moved[:state][:ball]).not_to eq(first[:state][:ball])
+    game.key(:down)
+    expect(game.step[:state][:paddles][0]).to eq(first[:state][:paddles][0])
+    game.key(:left)
+    expect(game.step[:state][:paddles][0]).to eq(first[:state][:paddles][0])
+    100.times do
+      game.key(:up)
+      game.step
+    end
+    expect(game.step[:state][:paddles][0]).to eq(0)
+  end
+
+  it 'steers Snake with arrows without reversing into its neck or changing direction twice per tick' do
+    game = PWN::Banner::MiniGame.new(name: :snake, width: 16, height: 16, seed: 73)
+    first = game.step[:state]
+    game.key(:left)
+    moved = game.step[:state]
+    expect(moved[:body].first).to eq([first[:body][0][0] + 1, first[:body][0][1]])
+    turn = moved[:body][0][1].positive? ? :up : :down
+    game.key(turn)
+    game.key(:left)
+    turned = game.step[:state]
+    expect(turned[:body].first).to eq([moved[:body][0][0], moved[:body][0][1] + (turn == :up ? -1 : 1)])
+    game.key(:left)
+    expect(game.step[:state][:body].first[0]).to eq(turned[:body][0][0] - 1)
+  end
+
+  it 'moves Tetris sideways, rotates with space and soft drops one row with down' do
+    game = PWN::Banner::MiniGame.new(name: :falling_blocks, width: 8, height: 8, seed: 73)
+    first = game.step[:state]
+    game.key(:left)
+    left = game.step[:state]
+    expect(left[:active]).to eq(first[:active].map { |x, y| [x - 1, y] })
+    game.key(:right)
+    expect(game.step[:state][:active]).to eq(first[:active])
+    game.key(' ')
+    rotated = game.step[:state]
+    expect(rotated[:active]).not_to eq(first[:active])
+    expect(rotated[:active].map(&:last).min).to eq(0)
+    game.key(:down)
+    dropped = game.step[:state]
+    expect(dropped[:active]).to eq(rotated[:active].map { |x, y| [x, y + 1] })
+    expect(dropped[:stack]).to eq(first[:stack])
+    events = 150.times.map do
+      game.key(:down)
+      game.step[:event]
+    end
+    expect(events).to include(:lock)
+  end
+
+  it 'turns and thrusts Asteroids only on arrows and fires only on space' do
+    game = PWN::Banner::MiniGame.new(name: :asteroids, width: 16, height: 16, seed: 73)
+    first = game.step[:state]
+    idle = game.step[:state]
+    expect(idle[:ship]).to eq(first[:ship])
+    expect(idle[:shots]).to be_empty
+    game.key(:left)
+    left = game.step[:state]
+    expect(left[:ship][2]).to be_within(0.001).of((first[:ship][2] - 0.2) % (Math::PI * 2))
+    game.key(:right)
+    expect(game.step[:state][:ship][2]).to be_within(0.001).of(first[:ship][2])
+    game.key(:up)
+    moved = game.step[:state]
+    expect(moved[:ship].take(2)).not_to eq(first[:ship].take(2))
+    expect(moved[:thrust]).to be(true)
+    game.key(:down)
+    expect(game.step[:state][:thrust]).to be(true)
+    game.key(' ')
+    expect(game.step[:state][:shots].length).to eq(1)
+  end
+end
+
+describe PWN::Banner do
   def block_colors(rows)
     rows.flat_map do |row|
       [0, 2].map do |bit|
