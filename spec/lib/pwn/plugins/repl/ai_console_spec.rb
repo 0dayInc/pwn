@@ -259,7 +259,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'leaves a provider blocked in native IO without waiting for that read to return' do
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    started = nil
     allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
       Thread.handle_interrupt(Exception => :never) { sleep 8 }
     end
@@ -268,6 +268,8 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     launch(keys) do
       if !cancelled && @paint.any? { |row| row.include?('Elapsed') }
         cancelled = true
+        # Time cancellation, not typing, cold artwork or mock screen painting.
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         "\u0003"
       elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
         "\u0004"
@@ -276,6 +278,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
         nil
       end
     end
+    expect(started).not_to be_nil
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
   end
 
@@ -503,11 +506,11 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   it 'centers capped retro artwork inside a larger cell-square canvas' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
-    allow(PWN::Banner).to receive(:mini_names).and_return([:pong])
+    allow(PWN::Banner).to receive(:mini_names).and_return([:pacman])
     allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(100.0)
     size = 24
     canvas = console.banner_frame(size)
-    art = PWN::Banner.mini_frame(name: :pong, frame: 0, width: size, height: size, branding: false)
+    art = PWN::Banner.mini_frame(name: :pacman, frame: 0, width: size, height: size, branding: false)
     expect(canvas.length).to eq(size)
     expect(canvas.map(&:length)).to all(eq(size))
     top = (size - art.length) / 2
@@ -535,6 +538,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'carves a themed cell-square banner pane only when all settings still fit, keeping bounds and draft' do
+    allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
     PWN::Env[:ai] = { active: :ollama, tui: { theme: { category: 'magenta', header: 'white', border: 'blue', title: 'red' } },
                       ollama: { model: 'fixture', system_role_content: 'Complete functional settings.', reasoning_effort: 'high' } }
     screen = double(erase: nil, refresh: nil, setpos: nil, addstr: nil)
@@ -577,7 +581,32 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect([console.instance_variable_get(:@editor).text, console.instance_variable_get(:@editor).cursor]).to eq(['retained draft', 4])
   end
 
+  it 'keeps a full connected maze and one-cell actors in native minimum and typical console layouts' do
+    allow(PWN::Banner).to receive(:mini_names).and_return([:pacman])
+    PWN::Env[:ai] = { active: :ollama, ollama: { model: 'fixture' } }
+    [[100, 26], [120, 36]].each do |columns, rows|
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+      console.instance_variable_set(:@width, columns)
+      console.instance_variable_set(:@height, rows)
+      console.instance_variable_set(:@focus, :animation)
+      allow(console).to receive(:put)
+      allow(console).to receive(:box)
+      allow(console).to receive(:mark_active)
+      expect(console.draw_header('ollama', 'fixture')).to eq(10)
+      game = console.instance_variable_get(:@banner_game)
+      frame = game.step
+      maze = frame[:state][:maze]
+      expect(maze.length).to eq(8)
+      expect(maze.map(&:length)).to all(eq(8))
+      expect(maze[2...-2].map { |row| row[2...-2] }.join.count('#')).to be >= 4
+      expect(game.cells(frame).flatten.count { |cell| cell[:foreground] == :red }).to eq(1)
+      game.key(:right)
+      expect(game.step[:state][:pacman]).to eq([2, 6])
+    end
+  end
+
   it 'grows both game canvas dimensions with the header without recursively shrinking settings' do
+    allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
     PWN::Env[:ai] = { active: :ollama, ollama: { model: 'fixture', system_role_content: 'operator ' * 100, reasoning_effort: 'high' } }
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     console.instance_variable_set(:@width, 120)
@@ -669,9 +698,9 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(console.instance_variable_get(:@banner_seed)).not_to eq(seed)
   end
 
-  it 'samples Asteroids or Pong once and caches their faster cadence outside the key path' do
+  it 'samples Asteroids or Pac-Man once and caches the game-specific cadence outside the key path' do
     allow(PWN::Banner).to receive(:mini_cells).and_call_original
-    %i[pong asteroids].each do |name|
+    %i[pacman asteroids].each do |name|
       pry = Pry.new
       pry.config.pwn_ai_session_id = 'fast-colored-session'
       console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
@@ -684,7 +713,11 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       console.banner_frame(8, cells: true)
       seed = console.instance_variable_get(:@banner_seed)
       now += 1.21
-      expect(PWN::Banner).to receive(:mini_cells).with(name: name, frame: 24, width: 8, height: 8, seed: seed, branding: false).twice.and_call_original
+      if name == :pacman
+        expect(console).to receive(:automatic_banner).with(8, now).twice.and_call_original
+      else
+        expect(PWN::Banner).to receive(:mini_cells).with(name: name, frame: 24, width: 8, height: 8, seed: seed, branding: false).twice.and_call_original
+      end
       2.times { console.banner_frame(8, cells: true) }
     end
   end
@@ -1078,6 +1111,111 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect([editor.text, editor.cursor]).to eq(['kept draft', 4])
   end
 
+  it 'paints an Asteroids turn on the next draw without waiting for its physics tick' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.banner_frame(8, cells: true)
+    console.instance_variable_set(:@banner_name, :asteroids)
+    console.instance_variable_set(:@banner_frame_seconds, 0.05)
+    console.instance_variable_set(:@focus, :animation)
+    first = console.playable_banner(8, 10.001)
+    console.handle(:left)
+    expect(console.playable_banner(8, 10.002)).not_to eq(first)
+    expect(console.playable_banner(8, 10.003)).to eq(console.playable_banner(8, 10.002))
+    console.instance_variable_set(:@banner_game_frame, { state: { explosion: 12 } })
+    game = console.instance_variable_get(:@banner_game)
+    expect(game).not_to receive(:step)
+    16.times { console.handle(:up) }
+    console.playable_banner(8, 10.004)
+  end
+
+  it 'waits for Snake input and routes timed turns across the full pane instead of restarting' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.banner_frame(8, cells: true)
+    console.instance_variable_set(:@banner_name, :snake)
+    console.instance_variable_set(:@banner_frame_seconds, 0.1)
+    console.instance_variable_set(:@focus, :animation)
+    first = console.playable_banner(8, 10.0)
+    40.times { |tick| expect(console.playable_banner(8, 10.05 + (tick * 0.1))).to eq(first) }
+    game = console.instance_variable_get(:@banner_game)
+    frames = []
+    allow(game).to(receive(:step).and_wrap_original { |method| method.call.tap { |frame| frames << frame } })
+    console.handle(:right)
+    console.playable_banner(8, 15.0)
+    head = frames.last[:state][:body].first
+    console.handle(:up)
+    console.playable_banner(8, 15.05)
+    expect(frames.length).to eq(1)
+    console.playable_banner(8, 15.21)
+    expect(frames.last[:state][:body].first).to eq([head[0], head[1] - 1])
+    console.handle(:right)
+    console.playable_banner(8, 15.41)
+    expect(frames.last[:state][:body].first).to eq([head[0] + 1, head[1] - 1])
+    expect(game.instance_variable_get(:@width)).to eq(8)
+    expect(frames.last[:rows].drop(1).map(&:length)).to all(eq(16))
+    expect(console.instance_variable_get(:@editor).text).to eq('')
+  end
+
+  it 'cycles games with Ctrl+G only in animation focus and preserves swarm and modal priorities' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.banner_frame(8, cells: true)
+    console.instance_variable_set(:@banner_name, :falling_blocks)
+    console.instance_variable_set(:@focus, :animation)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('kept draft', 4)
+    %i[snake pacman asteroids galaga frogger falling_blocks].each do |name|
+      console.handle("\u0007")
+      expect(console.instance_variable_get(:@banner_name)).to eq(name)
+      expect(console.instance_variable_get(:@workspace)).to be_nil
+      console.banner_frame(8, cells: true)
+      expect(console.instance_variable_get(:@banner_game).instance_variable_get(:@name)).to eq(name.to_s)
+      expect(console.footer_text).to include('^G=next game')
+      expect(console.footer_text).to include('↑↓←→ start/steer · ● power') if name == :pacman
+      expect(console.footer_text).to include('↑↓←→ move · Space=fire') if name == :galaga
+      expect(console.footer_text).to include('↑↓←→ hop · logs → goals') if name == :frogger
+      expect(console.operation_lines.join).to include('^S swarm')
+    end
+    console.instance_variable_set(:@details, 0)
+    expect(console).to receive(:handle_details).with("\u0007")
+    console.handle("\u0007")
+    console.instance_variable_set(:@details, nil)
+    editor.search_history
+    expect(console).to receive(:handle_search).with("\u0007")
+    console.handle("\u0007")
+    editor.finish_search
+    console.handle("\u0013")
+    expect(console.instance_variable_get(:@workspace)).to be_a(Hash)
+    console.handle("\u0007")
+    expect(console.instance_variable_get(:@workspace)).to be_nil
+    expect(console.instance_variable_get(:@banner_name)).to eq(:falling_blocks)
+    console.handle("\e")
+    console.handle("\u0007")
+    expect(console.instance_variable_get(:@workspace)).to be_a(Hash)
+    expect([editor.text, editor.cursor]).to eq(['kept draft', 4])
+  end
+
+  it 'delivers timed Pac-Man buffered arrows without consuming the mission draft or speeding up on repeats' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.banner_frame(8, cells: true)
+    console.instance_variable_set(:@banner_name, :pacman)
+    console.instance_variable_set(:@banner_seed, 9)
+    console.instance_variable_set(:@banner_frame_seconds, 0.1)
+    console.instance_variable_set(:@focus, :animation)
+    editor = console.instance_variable_get(:@editor)
+    editor.place('kept draft', 4)
+    console.playable_banner(7, 10.01)
+    console.handle(:right)
+    console.playable_banner(7, 10.11)
+    expect(console.instance_variable_get(:@banner_game_frame)[:state][:pacman]).to eq([2, 5])
+    console.handle(:up)
+    10.times { console.playable_banner(7, 10.12) }
+    expect(console.instance_variable_get(:@banner_game_frame)[:state][:pacman]).to eq([2, 5])
+    [10.21, 10.31, 10.41, 10.51, 10.61, 10.71].each { |time| console.playable_banner(7, time) }
+    expect(console.instance_variable_get(:@banner_game_frame)[:state][:pacman]).to eq([3, 4])
+    console.handle("\e")
+    expect([editor.text, editor.cursor]).to eq(['kept draft', 4])
+    expect(console.instance_variable_get(:@focus)).to eq(:mission)
+  end
+
   it 'returns to the unchanged automatic animation when focus leaves the game' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     allow(Process).to receive(:clock_gettime).and_return(10.0)
@@ -1090,6 +1228,28 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.instance_variable_set(:@header_pane_height, nil)
     2.times { console.handle("\u0014") }
     expect(console.instance_variable_get(:@focus)).to eq(:mission)
+  end
+
+  it 'streams the new arcade demos on the UI owner without a synchronous full replay build' do
+    %i[pacman galaga frogger].each do |name|
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+      allow(PWN::Banner).to receive(:mini_names).and_return([name])
+      allow(Process).to receive(:clock_gettime).and_return(10.0)
+      expect(PWN::Banner).not_to receive(:mini_cells)
+      first = console.banner_frame(32, cells: true)
+      demo = console.instance_variable_get(:@banner_demo)
+      expect(demo).to be_a(PWN::Banner::MiniGame)
+      expect(console.instance_variable_get(:@banner_demo_frame)[:state][:started]).to be true
+      expect(first.map(&:length)).to all(eq(32))
+      expect(console.banner_frame(32, cells: true)).to eq(first)
+      allow(Process).to receive(:clock_gettime).and_return(10.2)
+      console.banner_frame(32, cells: true)
+      expect(console.instance_variable_get(:@banner_demo)).to equal(demo)
+      console.instance_variable_set(:@focus, :animation)
+      console.banner_frame(32, cells: true)
+      expect(console.instance_variable_get(:@banner_game)).not_to equal(demo)
+      expect(console.instance_variable_get(:@banner_game_frame)[:state][:started]).to be false
+    end
   end
 
   it 'keeps modal, search and cancellation priority above animation controls' do
@@ -1488,6 +1648,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   ["\e", "\u0003"].each do |cancel_key|
     it "keeps the rendered header and banner unchanged after reasoning cancellation #{cancel_key.inspect}" do
+      allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
       allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
       expect(PWN::Plugins::REPL).not_to receive(:pwn_ai_apply_model)
       original = Marshal.dump(PWN::Env[:ai])

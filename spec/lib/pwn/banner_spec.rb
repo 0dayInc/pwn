@@ -3,6 +3,252 @@
 require 'spec_helper'
 
 describe PWN::Banner do
+  it 'keeps compact ghost hints in one cell rather than reserving multi-cell actor tiles' do
+    %w[R M C F].each do |pixel|
+      glyph, = described_class::MINI_PIXELS.fetch(pixel)
+      expect(glyph.length).to eq(1)
+      expect(glyph).to eq('⣻')
+    end
+  end
+
+  it 'advances Galaga waves after actual shot hits and detects both enemy and hostile-shot collisions' do
+    opts = { width: 8, height: 8, rng: Random.new(3) }
+    state = described_class.send(:mini_galaga_round, opts)
+    state[:started] = true
+    state[:enemies] = [{ x: 2.0, y: 1.0, home: [2, 1], diving: false, phase: 0 }]
+    state[:shots] = [[2.0, 1.7]]
+    expect(described_class.send(:mini_galaga_move, opts.merge(state: state))).to eq(:wave_complete)
+    expect(state[:score]).to eq(50)
+    expect(state[:enemies]).to be_empty
+    state[:hostile] = [[state[:ship][0], state[:ship][1] - 0.3, 0]]
+    expect(described_class.send(:mini_galaga_move, opts.merge(state: state))).to eq(:game_over)
+    state[:hostile].clear
+    state[:enemies] = [{ x: state[:ship][0], y: state[:ship][1] - 0.1, home: [2, 1], diving: true, phase: 0 }]
+    expect(described_class.send(:mini_galaga_move, opts.merge(state: state))).to eq(:game_over)
+    frames = described_class.send(:mini_replay, name: :galaga, width: 8, height: 9, seed: 3)
+    expect(frames.map { |frame| frame[:event] }).to include(:wave_complete)
+    expect(frames.any? { |frame| frame[:state][:level].to_i > 1 }).to be true
+  end
+
+  it 'progresses Frogger after all goals and rejects occupied goals and log-edge falls' do
+    opts = { width: 8, height: 8, rng: Random.new(3) }
+    state = described_class.send(:mini_frogger_round, opts)
+    state[:started] = true
+    state[:filled] = state[:goals].take(2)
+    state[:frog] = [state[:goals].last.to_f, 1]
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: [:up]))).to eq(:level_complete)
+    state[:frog] = [state[:goals].last.to_f, 1]
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: [:up]))).to eq(:game_over)
+    water = state[:lanes].find { |lane| lane[:water] }
+    water[:offset] = 6
+    water[:speed] = 0.2
+    state[:frog] = [7.0, water[:y]]
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: []))).to eq(:game_over)
+    frames = described_class.send(:mini_replay, name: :frogger, width: 5, height: 6, seed: 3)
+    expect(frames.map { |frame| frame[:event] }).to include(:level_complete)
+    expect(frames.any? { |frame| frame[:state][:level].to_i > 1 }).to be true
+  end
+
+  it 'recovers both new games to input-ready play and ignores wreck controls' do
+    %i[galaga frogger].each do |name|
+      game = described_class::MiniGame.new(name: name, width: 5, height: 5, seed: 3)
+      game.step
+      game.key(:up)
+      frames = []
+      600.times do
+        frame = game.step
+        frames << frame
+        break if frame[:event] == :game_over
+      end
+      expect(frames.last[:event]).to eq(:game_over)
+      8.times do
+        game.key(:right)
+        game.key(' ')
+        game.step
+      end
+      ready = game.step
+      expect(ready[:event]).to eq(:ready)
+      5.times { expect(game.step).to eq(ready) }
+      game.key(:left)
+      expect(game.step[:event]).to eq(:play)
+    end
+  end
+
+  it 'paints distinct directional mouths and compact ghosts without reducing maze dimensions' do
+    opts = { width: 18, height: 12 }
+    game = described_class::MiniGame.new(name: :pacman, **opts)
+    state = Marshal.load(Marshal.dump(game.step[:state]))
+    expect(state[:maze].first.length).to eq(18)
+    expect(state[:maze].length).to eq(12)
+    expect(state[:ghosts].map { |ghost| ghost[:color] }).to eq(%w[R M C])
+    state[:ghosts].clear
+    state[:pacman] = [2, 2]
+    rows = %i[right down left up].map do |direction|
+      state[:direction] = direction
+      frames = []
+      described_class.send(:mini_pacman_snapshot, frames: frames, state: state)
+      expect(game.cells(frames.first).map(&:length)).to all(eq(18))
+      frames.first[:rows]
+    end
+    expect(rows.uniq.length).to eq(4)
+    state[:tick] = 2
+    closed = []
+    described_class.send(:mini_pacman_snapshot, frames: closed, state: state)
+    expect(rows).not_to include(closed.first[:rows])
+    state[:ghosts] = [{ position: [3, 2], color: 'R' }]
+    ghosts = []
+    described_class.send(:mini_pacman_snapshot, frames: ghosts, state: state)
+    cells = game.cells(ghosts.first)
+    expect(cells.flatten.count { |cell| cell[:foreground] == :red }).to eq(1)
+  end
+
+  it 'plays Frogger with immediate hops, traffic, moving logs, water deaths and goals' do
+    game = described_class::MiniGame.new(name: :frogger, width: 8, height: 8, seed: 3)
+    frame = game.step
+    10.times { expect(game.step).to eq(frame) }
+    game.key(:left)
+    expect(game.step[:state][:frog][0]).to eq(frame[:state][:frog][0] - 1)
+    opts = { width: 8, height: 8, rng: Random.new(3) }
+    state = described_class.send(:mini_frogger_round, opts)
+    water = state[:lanes].find { |lane| lane[:water] }
+    water[:offset] = 0
+    state[:frog] = [1.0, water[:y]]
+    state[:started] = true
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: []))).to eq(:play)
+    expect(state[:frog][0]).to be_within(0.001).of(1.0 + water[:speed])
+    state[:frog] = [water[:length] + water[:offset] + 0.5, water[:y]]
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: []))).to eq(:game_over)
+    road = state[:lanes].find { |lane| !lane[:water] }
+    state[:frog] = [road[:offset] + 0.5, road[:y]]
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: []))).to eq(:game_over)
+    state[:frog] = [state[:goals].first.to_f, 1]
+    expect(described_class.send(:mini_frogger_move, opts.merge(state: state, keys: [:up]))).to eq(:goal)
+    expect(state[:filled]).to eq([state[:goals].first])
+    expect(state[:frog][1]).to eq(7)
+  end
+
+  it 'plays Galaga with input-ready launch, shots, formation enemies, dives and hostile fire' do
+    game = described_class::MiniGame.new(name: :galaga, width: 12, height: 12, seed: 7)
+    ready = game.step
+    5.times { expect(game.step).to eq(ready) }
+    expect(ready[:state][:enemies].length).to be > 4
+    game.key(:left)
+    moved = game.step
+    expect(moved[:state][:ship][0]).to be < ready[:state][:ship][0]
+    game.key(' ')
+    expect(game.step[:state][:shots]).not_to be_empty
+    frames = described_class.send(:mini_replay, name: :galaga, width: 12, height: 13, seed: 7)
+    expect(frames.any? { |frame| frame[:state][:enemies]&.any? { |enemy| enemy[:diving] } }).to be true
+    expect(frames.any? { |frame| frame[:state][:hostile]&.any? }).to be true
+    expect(frames.map { |frame| frame[:event] }).to include(:hit, :game_over)
+  end
+
+  it 'randomizes real maze walls while retaining connected pellets and power across seeds and rounds' do
+    [5, 6, 8, 11, 16, 24].each do |size|
+      mazes = 12.times.map do |seed|
+        state = described_class.send(:mini_pacman_round, width: size, height: size, rng: Random.new(seed))
+        reachable = [state[:pacman]]
+        reachable.each do |point|
+          described_class.send(:mini_pacman_neighbors, point: point, maze: state[:maze]).each_value do |neighbor|
+            reachable << neighbor unless reachable.include?(neighbor)
+          end
+        end
+        expect((state[:pellets] + state[:power]) - reachable).to be_empty
+        state[:maze]
+      end
+      expect(mazes.uniq.length).to be >= (size == 5 ? 2 : 4)
+      rng = Random.new(91)
+      rounds = Array.new(8) { described_class.send(:mini_pacman_round, width: size, height: size, rng: rng)[:maze] }
+      expect(rounds.uniq.length).to be > 1
+    end
+  end
+
+  it 'selects Pac-Man instead of Pong and renders a connected pellet maze at every supported size' do
+    expect(described_class.mini_names).to eq(%i[falling_blocks snake pacman asteroids galaga frogger])
+    [5, 6, 8, 11, 16].each do |size|
+      game = described_class::MiniGame.new(name: :pacman, width: size, height: size)
+      frame = game.step
+      state = frame[:state]
+      maze = state[:maze]
+      open = (0...maze.length).flat_map { |y| (0...maze.first.length).filter_map { |x| [x, y] unless maze[y][x] == '#' } }
+      reached = [state[:pacman]]
+      reached.each do |x, y|
+        [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].each do |point|
+          reached << point if open.include?(point) && !reached.include?(point)
+        end
+      end
+      expect(reached.sort).to eq(open.sort)
+      expect(state[:pellets]).not_to be_empty
+      expect(state[:power].length).to eq(4)
+      expect(frame[:event]).to eq(:ready)
+      expect(game.cells(frame).length).to eq(size)
+      expect(game.cells(frame).map(&:length)).to all(eq(size))
+      10.times { expect(game.step).to eq(frame) }
+    end
+  end
+
+  it 'resolves Pac-Man power pellets before ghost contact and respawns eaten ghosts' do
+    state = described_class.send(:mini_pacman_round, width: 7, height: 7)
+    state[:pacman] = [2, 1]
+    state[:ghosts][0][:position] = [1, 1]
+    expect(described_class.send(:mini_pacman_move, state: state, keys: [:left], rng: Random.new(3))).to eq(:ghost_eaten)
+    expect(state[:score]).to eq(250)
+    expect(state[:frightened]).to be_positive
+    expect(state[:power]).not_to include([1, 1])
+    expect(state[:ghosts][0][:position]).to eq(state[:ghosts][0][:home])
+    expect(state[:ghosts][0][:delay]).to be_positive
+  end
+
+  it 'does not eat a returning ghost twice or kill Pac-Man while it is recovering at home' do
+    state = described_class.send(:mini_pacman_round, width: 7, height: 7)
+    state[:pacman] = state[:ghosts][0][:home].dup
+    state[:frightened] = 5
+    expect(described_class.send(:mini_pacman_contact, state: state)).to eq(:ghost_eaten)
+    expect(described_class.send(:mini_pacman_contact, state: state)).to be_nil
+    state[:frightened] = 0
+    expect(described_class.send(:mini_pacman_contact, state: state)).to be_nil
+    expect(state[:score]).to eq(200)
+  end
+
+  it 'detects Pac-Man collisions, expires fright, completes levels and recovers to arrow-ready play' do
+    state = described_class.send(:mini_pacman_round, width: 7, height: 7)
+    state[:ghosts][0][:position] = [2, 5]
+    state[:frightened] = 1
+    expect(described_class.send(:mini_pacman_move, state: state, keys: [:right], rng: Random.new(3))).to eq(:game_over)
+    state[:ghosts].clear
+    state[:pellets] = [[3, 5]]
+    state[:power].clear
+    state[:tick] = 0
+    expect(described_class.send(:mini_pacman_move, state: state, keys: [:right], rng: Random.new(3))).to eq(:level_complete)
+
+    game = described_class::MiniGame.new(name: :pacman, width: 5, height: 5)
+    game.step
+    game.key(:right)
+    frames = Array.new(500) { game.step }
+    death = frames.index { |frame| frame[:event] == :game_over }
+    expect(death).not_to be_nil
+    x, y = frames[death][:state][:pacman]
+    expect(game.cells(frames[death])[y][x]).to include(glyph: '█', foreground: :white)
+    expect(frames.drop(death + 6).map { |frame| frame[:event] }).to all(eq(:ready))
+    game.key(:up)
+    expect(game.step[:event]).to eq(:play)
+  end
+
+  it 'runs reproducible Pac-Man demos with moving ghosts, eating, recovery and complete bounded frames' do
+    [5, 8, 16].each do |size|
+      frames = described_class.send(:mini_replay, name: :pacman, width: size, height: size + 1, seed: 42)
+      expect(frames.length).to eq(1800)
+      expect(frames.map { |frame| frame[:event] }).to include(:play, :power)
+      expect(frames.map { |frame| frame[:event] }).to include(:level_complete) if size == 5
+      expect(frames.filter_map { |frame| frame[:state][:pacman] }.uniq.length).to be > 5
+      expect(frames.filter_map { |frame| frame[:state][:ghosts]&.first&.dig(:position) }.uniq.length).to be > 2
+      expect(frames.map { |frame| frame[:rows].length }).to all(eq(size + 1))
+      expect(frames.flat_map { |frame| frame[:rows].map(&:length) }).to all(eq(size))
+      described_class.instance_variable_set(:@mini_replays, {})
+      expect(described_class.send(:mini_replay, name: :pacman, width: size, height: size + 1, seed: 42)).to eq(frames)
+    end
+  end
+
   it 'reclaims the wordmark row for unbranded games and leaves tiny panes blank' do
     described_class.mini_names.product([1, 3, 5, 8, 16]).each do |name, size|
       [0, 6, 100, 1799].each do |frame|
@@ -28,6 +274,93 @@ describe PWN::Banner do
 end
 
 describe PWN::Banner::MiniGame do
+  it 'paints Galaga as a filled symmetric upward triangle without changing ship physics' do
+    [8, 12, 24].each do |size|
+      game = described_class.new(name: :galaga, width: size, height: size)
+      frame = game.step
+      expect(frame[:state][:ship]).to eq([size / 2.0, size - 1.0])
+      dots = []
+      game.cells(frame).each_with_index do |row, y|
+        row.each_with_index do |cell, x|
+          next unless cell[:foreground] == :cyan
+
+          mask = cell[:glyph].ord - 0x2800
+          [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [0, 3], [1, 3]].each_with_index do |(dx, dy), bit|
+            dots << [(x * 2) + dx, (y * 4) + dy] if mask[bit] == 1
+          end
+        end
+      end
+      rows = dots.group_by(&:last).sort.map { |_, points| points.map(&:first).sort }
+      expect(rows.map(&:length)).to eq([1, 3, 3, 5, 5])
+      rows.each { |xs| expect(xs).to eq((xs.first..xs.last).to_a) }
+      expect(rows.map { |xs| xs.first + xs.last }.uniq.length).to eq(1)
+      game.key(:left)
+      expect(game.step[:state][:ship]).to eq([(size / 2.0) - 0.75, size - 1.0])
+    end
+  end
+
+  it 'retains inner walls and branching corridors with single-cell actors in delivered console panes' do
+    # The console starts at an eight-cell interior at both 100x26 and 120x36.
+    # Settings can grow that pane; include odd, even and large interiors.
+    [8, 9, 12, 18, 24].each do |size|
+      layouts = 12.times.map do |seed|
+        game = described_class.new(name: :pacman, width: size, height: size, seed: seed)
+        frame = game.step
+        maze = frame[:state][:maze]
+        expect(maze.length).to eq(size)
+        expect(maze.map(&:length)).to all(eq(size))
+        inner = maze[2...-2].map { |row| row[2...-2] }.join
+        expect(inner.count('#')).to be >= 4
+        expect(inner.count('#').fdiv(inner.length)).to be_between(0.2, 0.8)
+        expect(inner.count(' ')).to be >= 4
+        reached = [frame[:state][:pacman]]
+        reached.each do |point|
+          PWN::Banner.send(:mini_pacman_neighbors, point: point, maze: maze).each_value do |neighbor|
+            reached << neighbor unless reached.include?(neighbor)
+          end
+        end
+        expect(reached.length).to eq(maze.join.count(' '))
+        expect(frame[:rows].join.count('><^vO')).to eq(1)
+        expect(frame[:rows].join.count('RMCF')).to eq(frame[:state][:ghosts].length)
+        expect(frame[:rows][1]).to eq('#' * size)
+        expect(frame[:rows].last).to eq('#' * size)
+        game.key(:right)
+        expect(game.step[:state][:pacman]).to eq([2, size - 2])
+        maze
+      end
+      expect(layouts.uniq.length).to be >= 8
+    end
+  end
+
+  it 'uses the entire Pac-Man pane beyond sixteen cells without shrinking or padding the maze' do
+    [17, 24, 64].each do |size|
+      game = described_class.new(name: :pacman, width: size, height: size)
+      frame = game.step
+      expect(game.cells(frame).length).to eq(size)
+      expect(game.cells(frame).map(&:length)).to all(eq(size))
+      expect(frame[:state][:maze].last).to eq('#' * size)
+      game.key(:up)
+      expect(game.step[:state][:pacman]).to eq([1, size - 3])
+    end
+  end
+
+  it 'starts Pac-Man on arrows, eats pellets, buffers a blocked turn and stops at walls' do
+    game = described_class.new(name: :pacman, width: 7, height: 7, seed: 9)
+    expect(game.step[:state][:pacman]).to eq([1, 5])
+    game.key(:right)
+    moved = game.step
+    expect(moved[:state][:pacman]).to eq([2, 5])
+    expect(moved[:state][:score]).to eq(10)
+    game.key(:up)
+    2.times { game.step }
+    expect(game.step[:state][:pacman]).to eq([3, 5])
+    2.times { game.step }
+    expect(game.step[:state][:pacman]).to eq([3, 4])
+    game.key(:left)
+    2.times { game.step }
+    expect(game.step[:state][:pacman]).to eq([3, 3])
+  end
+
   it 'renders bounded, unbranded colored frames without accumulating a replay' do
     PWN::Banner.mini_names.product([5, 8, 16]).each do |name, size|
       game = described_class.new(name: name, width: size, height: size)
@@ -76,6 +409,31 @@ describe PWN::Banner::MiniGame do
     expect(game.step[:state][:body].first[0]).to eq(turned[:body][0][0] - 1)
   end
 
+  it 'keeps Snake stopped after collision until a new arrow starts the next round' do
+    game = described_class.new(name: :snake, width: 5, height: 5, seed: 73)
+    expect(game.step[:event]).to eq(:ready)
+    game.key(:right)
+    7.times { expect(game.step[:event]).to eq(:play) }
+    expect(game.step[:event]).to eq(:game_over)
+    ready = game.step
+    expect(ready[:event]).to eq(:ready)
+    20.times { expect(game.step).to eq(ready) }
+    game.key(:up)
+    expect(game.step[:state][:body].first).to eq([2, 4])
+  end
+
+  it 'packs playable Snake over the full width and bottom with quarter-cell pixels' do
+    [5, 8, 16].each do |size|
+      board = Array.new(size * 2) { ' ' * (size * 2) }
+      board[0][0] = 'g'
+      board[-1][-1] = 'y'
+      game = described_class.new(name: :snake, width: size, height: size)
+      cells = game.cells(rows: ['label'] + board)
+      expect(cells.first.first).to include(glyph: '▘', foreground: :green)
+      expect(cells.last.last).to include(glyph: '▗', foreground: :yellow)
+    end
+  end
+
   it 'moves Tetris sideways, rotates with space and soft drops one row with down' do
     game = PWN::Banner::MiniGame.new(name: :falling_blocks, width: 8, height: 8, seed: 73)
     first = game.step[:state]
@@ -99,6 +457,39 @@ describe PWN::Banner::MiniGame do
     expect(events).to include(:lock)
   end
 
+  it 'explodes on a real ship impact, ignores wreck controls, then recovers with brief protection' do
+    rng = instance_double(Random)
+    allow(Random).to receive(:new).with(73).and_return(rng)
+    allow(rng).to receive(:rand).and_return(0.0, 0.82, 0.5, 0.0, 0.5)
+    game = described_class.new(name: :asteroids, width: 5, height: 5, seed: 73)
+    frames = Array.new(20) { game.step }
+    crash = frames.find { |frame| frame[:event] == :crash }
+    expect(crash).not_to be_nil
+    ship = crash[:state][:ship]
+    expect(crash[:state][:rocks].any? do |rock|
+      dx = PWN::Banner.send(:mini_delta, from: ship[0], to: rock[0], span: 5)
+      dy = PWN::Banner.send(:mini_delta, from: ship[1], to: rock[1], span: 5)
+      (dx * dx) + (dy * dy) <= (rock[4] + 0.55)**2
+    end).to be(true)
+    wrecks = frames.select { |frame| frame[:state][:explosion].to_i.positive? }
+    expect(wrecks.length).to be >= 8
+    expect(wrecks.map { |frame| frame[:rows] }.uniq.length).to be >= 4
+    wrecks.each do |frame|
+      expect(game.cells(frame).flatten.any? { |cell| cell[:foreground] == :cyan && cell[:glyph] != ' ' }).to be(false)
+      expect(game.cells(frame).flatten.any? { |cell| %i[red yellow white].include?(cell[:foreground]) && cell[:glyph] != ' ' }).to be(true)
+    end
+    game.key(:up)
+    game.key(' ')
+    frozen = game.step
+    expect(frozen[:state][:ship]).to eq(ship)
+    expect(frozen[:state][:shots]).to be_empty
+    recovery = Array.new(15) { game.step }.find { |frame| frame[:event] == :recover }
+    expect(recovery).not_to be_nil
+    expect(recovery[:state][:invulnerable]).to be_positive
+    game.key(:up)
+    expect(game.step[:state][:ship]).not_to eq(ship)
+  end
+
   it 'turns and thrusts Asteroids only on arrows and fires only on space' do
     game = PWN::Banner::MiniGame.new(name: :asteroids, width: 16, height: 16, seed: 73)
     first = game.step[:state]
@@ -107,12 +498,14 @@ describe PWN::Banner::MiniGame do
     expect(idle[:shots]).to be_empty
     game.key(:left)
     left = game.step[:state]
-    expect(left[:ship][2]).to be_within(0.001).of((first[:ship][2] - 0.2) % (Math::PI * 2))
+    expect(left[:ship][2]).to be_within(0.001).of((first[:ship][2] - (Math::PI / 4)) % (Math::PI * 2))
     game.key(:right)
     expect(game.step[:state][:ship][2]).to be_within(0.001).of(first[:ship][2])
     game.key(:up)
     moved = game.step[:state]
     expect(moved[:ship].take(2)).not_to eq(first[:ship].take(2))
+    distance = moved[:ship].take(2).zip(first[:ship]).sum { |a, b| (a - b)**2 }
+    expect(Math.sqrt(distance)).to be >= 0.079
     expect(moved[:thrust]).to be(true)
     game.key(:down)
     expect(game.step[:state][:thrust]).to be(true)
@@ -250,7 +643,17 @@ describe PWN::Banner do
     expect(described_class::MINI_PIXELS.fetch(rows[1][2])).to eq(['▘', :red])
   end
 
-  it 'draws a tiny connected five-pixel arrowhead rather than a chunky rotating blob' do
+  it 'draws Asteroids on a finer two-by-four dot raster, including bottom and wrapped edges' do
+    board = Array.new(5) { ' ' * 5 }
+    4.times { |y| described_class.send(:mini_dot, board: board, x: 0, y: y, color: 0) }
+    described_class.send(:mini_dot, board: board, x: 9, y: 19, color: 2)
+    described_class.send(:mini_dot, board: board, x: 10, y: 20, color: 0)
+    expect(described_class::MINI_PIXELS.fetch(board[0][0])).to eq(["\u2847", :cyan])
+    expect(described_class::MINI_PIXELS.fetch(board[4][4])).to eq(["\u2880", :yellow])
+    expect(board.join.chars.reject { |pixel| pixel == ' ' }.length).to eq(2)
+  end
+
+  it 'draws a filled connected fine-dot ship with a solid center in every heading' do
     8.times do |direction|
       frames = []
       described_class.send(:mini_asteroids_snapshot, frames: frames, width: 8, height: 7, ship: [4, 3, direction * Math::PI / 4], thrust: false, rocks: [], shots: [], sparks: [])
@@ -259,13 +662,18 @@ describe PWN::Banner do
         row.chars.each_with_index do |pixel, x|
           next if pixel == ' '
 
-          mask = (pixel.ord - 256) % 16
-          4.times { |bit| points << [(x * 2) + (bit % 2), (y * 2) + (bit / 2)] if mask[bit] == 1 }
+          glyph = described_class::MINI_PIXELS.fetch(pixel).first
+          expect(glyph.ord).to be_between(0x2801, 0x28ff)
+          mask = glyph.ord - 0x2800
+          [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [0, 3], [1, 3]].each_with_index do |(dx, dy), bit|
+            points << [(x * 2) + dx, (y * 4) + dy] if mask[bit] == 1
+          end
         end
       end
-      expect(points.length).to eq(5)
-      expect(points.map(&:first).minmax.then { |a, b| b - a }).to eq(2)
-      expect(points.map(&:last).minmax.then { |a, b| b - a }).to eq(2)
+      expect(points.length).to be_between(10, 13)
+      expect(points).to include([8, 12])
+      expect(points.map(&:first).minmax.then { |a, b| b - a }).to be_between(3, 4)
+      expect(points.map(&:last).minmax.then { |a, b| b - a }).to be_between(3, 4)
       connected = [points.shift]
       loop do
         adjacent = points.select { |point| connected.any? { |other| point.zip(other).all? { |a, b| (a - b).abs <= 1 } } }
@@ -303,27 +711,27 @@ describe PWN::Banner do
     end
   end
 
-  it 'keeps rocks small and neutral with sparse quarter-cell shots and thrust' do
+  it 'keeps rocks small and neutral with sparse fine-dot shots and thrust' do
     frames = []
     described_class.send(:mini_asteroids_snapshot, frames: frames, width: 8, height: 7, ship: [4, 3, 0], thrust: false,
                                                    rocks: [[1, 1, 0, 0, 0.5, 1]], shots: [], sparks: [])
-    rock_pixels = frames.first[:rows].drop(1).flat_map(&:chars).reject { |pixel| pixel == ' ' || (pixel.ord - 256) / 16 == 0 }
+    rock_pixels = frames.first[:rows].drop(1).flat_map(&:chars).reject { |pixel| pixel == ' ' || (pixel.ord - 4096) / 256 == 0 }
     expect(rock_pixels.map { |pixel| described_class::MINI_PIXELS.fetch(pixel)[1] }.uniq).to eq([:white])
-    expect(rock_pixels.sum { |pixel| ((pixel.ord - 256) % 16).digits(2).sum }).to eq(4)
+    expect(rock_pixels.sum { |pixel| ((pixel.ord - 4096) % 256).digits(2).sum }).to eq(4)
   end
 
-  it 'keeps a readable five-pixel ship and sparse subcell occupancy throughout tiny seeded replays' do
+  it 'keeps a solid fine-dot ship and sparse subcell occupancy throughout tiny seeded replays' do
     [5, 8, 16].product([1, 73, 74]).each do |size, seed|
       frames = described_class.send(:mini_replay, name: :asteroids, width: size, height: size, seed: seed)
       frames.each do |frame|
         next unless frame[:state][:ship]
 
         pixels = frame[:rows].drop(1).flat_map(&:chars).reject { |pixel| pixel == ' ' }
-        area = pixels.sum { |pixel| ((pixel.ord - 256) % 16).digits(2).sum }
-        ship = pixels.select { |pixel| (pixel.ord - 256) / 16 == 0 }
-        expect(ship.sum { |pixel| ((pixel.ord - 256) % 16).digits(2).sum }).to eq(5)
-        expect(area).to be <= [20, size * (size - 1)].min
-        # A lone quadrant can occupy a cell: measure ink area above, not full
+        area = pixels.sum { |pixel| ((pixel.ord - 4096) % 256).digits(2).sum }
+        ship = pixels.select { |pixel| (pixel.ord - 4096) / 256 == 0 }
+        expect(ship.sum { |pixel| ((pixel.ord - 4096) % 256).digits(2).sum }).to be_between(10, 13)
+        expect(area).to be <= 28
+        # A lone dot can occupy a cell: measure ink area above, not full
         # character rectangles, while bounding the number of colored cells too.
         expect(pixels.length).to be <= 14
       end
@@ -346,7 +754,7 @@ describe PWN::Banner do
     [5, 8, 16].each do |size|
       frames = described_class.send(:mini_replay, name: :asteroids, width: size, height: size, seed: 73)
       thrust = frames.select { |frame| frame[:state][:thrust] }
-      visible = thrust.count { |frame| frame[:rows].drop(1).join.chars.any? { |pixel| (pixel.ord - 256) / 16 == 5 } }
+      visible = thrust.count { |frame| frame[:rows].drop(1).join.chars.any? { |pixel| (pixel.ord - 4096) / 256 == 5 } }
       expect(visible.to_f / thrust.length).to be >= 0.95
     end
   end
@@ -441,7 +849,7 @@ describe PWN::Banner do
             expect(frames.flatten(1).map(&:length)).to all(eq(size))
             frames.flatten(2).each do |cell|
               expect(cell.keys).to contain_exactly(:glyph, :foreground, :background)
-              expect(cell[:glyph]).to match(/\A[ PWN█▀▄▌▐░▘▝▖▗▞▛▚▜▙▟]\z/)
+              expect(cell[:glyph]).to match(/\A[ PWN█▀▄▌▐░▒·●▘▝▖▗▞▛▚▜▙▟ᗧᗤᗢᗣ│•✹═≈▰▱\u2800-\u28ff]\z/)
               expect(%i[black red green yellow blue magenta cyan white]).to include(cell[:foreground], cell[:background])
             end
             expect(described_class.mini_cells(**args, frame: described_class::MINI_FRAME_COUNT)).to eq(frames.first)
@@ -647,7 +1055,7 @@ end
 describe PWN::Banner do
   describe '.mini_frame' do
     it 'offers retro games with deterministic cycles and branding at every square size' do
-      expect(described_class.mini_names).to eq(%i[falling_blocks snake pong asteroids])
+      expect(described_class.mini_names).to eq(%i[falling_blocks snake pacman asteroids galaga frogger])
       described_class.mini_names.each do |name|
         (5..16).each do |size|
           args = { name: name, width: size, height: size }
@@ -694,7 +1102,7 @@ describe PWN::Banner do
       changed.clear
       described_class.mini_names.clear
       expect(described_class.mini_frame).to eq(original)
-      expect(described_class.mini_names.length).to eq(4)
+      expect(described_class.mini_names.length).to eq(6)
     end
 
     it 'keeps recognizable pieces, bodies and paddles in the smallest complete canvas' do

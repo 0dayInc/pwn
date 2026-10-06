@@ -105,6 +105,8 @@ module PWN
 
         # Read a duplicated terminal rather than stdin, which belongs to tools.
         class Keyboard
+          attr_writer :interval
+
           KEYS = {
             "\e[A" => :up, "\e[B" => :down, "\e[C" => :right, "\e[D" => :left,
             "\eOA" => :up, "\eOB" => :down, "\eOC" => :right, "\eOD" => :left,
@@ -120,7 +122,7 @@ module PWN
           end
 
           def call
-            if @source.wait_readable(@buffer.empty? ? 0.04 : 0)
+            if @source.wait_readable(@buffer.empty? ? (@interval || 0.04) : 0)
               chunk = @source.read_nonblock(4096, exception: false)
               return :eof if chunk.nil? && @buffer.empty?
 
@@ -402,6 +404,7 @@ module PWN
               break if @leaving && !busy?
 
               draw
+              @getch.interval = @focus == :animation && %i[asteroids galaga frogger].include?(@banner_name) ? 0.01 : 0.04 if @getch.is_a?(Keyboard)
               handle(@getch.call)
             rescue Interrupt
               cancel
@@ -690,7 +693,7 @@ module PWN
 
             return clear_view if key == "\u000c"
 
-            if ["\u0007", "\u0013"].include?(key)
+            if key == "\u0013" || (key == "\u0007" && (@focus != :animation || @workspace))
               @workspace ? @workspace = nil : open_swarm
               return
             end
@@ -801,12 +804,22 @@ module PWN
           end
 
           def handle_animation(key)
-            if key == :paste_start
+            if key == "\u0007"
+              names = PWN::Banner.mini_names
+              @banner_name = names[(names.index(@banner_name).to_i + 1) % names.length]
+              @banner_frame_seconds = PWN::Banner.mini_frame_seconds(name: @banner_name)
+              @banner_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+              @banner_game = @banner_game_key = @banner_game_tick = nil
+            elsif key == :paste_start
               @focus = :mission
               @paste = true
               @banner_game&.controls
             elsif [:up, :down, :left, :right, ' '].include?(key)
+              return if %i[asteroids galaga frogger].include?(@banner_name) && @banner_game_frame&.dig(:state, :explosion).to_i.positive?
+
               @banner_game&.key(key)
+              # Paint a discrete control immediately, not after the next idle tick.
+              @banner_game_tick = nil if %i[asteroids galaga frogger].include?(@banner_name)
             elsif ["\r", "\n", "\e", :newline].include?(key)
               @focus = :mission
               @banner_game&.controls
@@ -1053,7 +1066,7 @@ module PWN
             ['REQUEST', state, "Elapsed #{elapsed}", "Completed tools #{@completed_tools}",
              "Events #{@event_count}", '', 'TOKENS', "#{usage[:input_tokens]} in · #{usage[:output_tokens]} out",
              "cached #{usage[:cached_tokens]} · calls #{usage[:calls]}", "Cost #{cost}",
-             '', 'SWARM', swarm[:swarm_id] || 'none', "#{active} active · ^G swarm",
+             '', 'SWARM', swarm[:swarm_id] || 'none', "#{active} active · ^S swarm",
              '', 'VIEW', @verbose ? 'verbose' : 'compact · /verbose', scroll_status,
              '', 'LAST TOOL', @last_tool || 'not observed']
           end
@@ -1226,6 +1239,7 @@ module PWN
             cadence = cells ? @banner_frame_seconds : PWN::Banner::MINI_FRAME_SECONDS
             frame = ((now - @banner_started) / cadence).floor % PWN::Banner::MINI_FRAME_COUNT
             return playable_banner(size, now) if cells && @focus == :animation
+            return automatic_banner(size, now) if cells && size >= 5 && %i[pacman galaga frogger].include?(@banner_name)
             return PWN::Banner.mini_cells(name: @banner_name, frame: frame, width: size, height: size, seed: @banner_seed, branding: false) if cells
 
             art = PWN::Banner.mini_frame(name: @banner_name, frame: frame, width: size, height: size, branding: false)
@@ -1235,6 +1249,24 @@ module PWN
             canvas
           end
 
+          def automatic_banner(size, now)
+            key = [@banner_session, @banner_name, size, @banner_seed]
+            if @banner_demo_key != key
+              @banner_demo_key = key
+              @banner_demo = PWN::Banner::MiniGame.new(name: @banner_name, width: size, height: size, seed: @banner_seed, demo: true)
+              @banner_demo.step
+              @banner_demo_tick = nil
+            end
+            tick = (now / @banner_frame_seconds).floor
+            if @banner_demo_tick != tick
+              # Advance one frame, never build 1800 or catch up after a modal.
+              @banner_demo_frame = @banner_demo.step
+              @banner_demo_cells = @banner_demo.cells(@banner_demo_frame)
+              @banner_demo_tick = tick
+            end
+            @banner_demo_cells
+          end
+
           def playable_banner(size, now)
             key = [@banner_session, @banner_name, size, @banner_seed]
             if @banner_game_key != key
@@ -1242,9 +1274,13 @@ module PWN
               @banner_game = PWN::Banner::MiniGame.new(name: @banner_name, width: size, height: size, seed: @banner_seed)
               @banner_game_tick = nil
             end
-            tick = (now / @banner_frame_seconds).floor
+            # Human Snake input needs a full reaction interval on its tiny board;
+            # decorative replay cadence is independent of player movement.
+            cadence = @banner_name == :snake ? 0.2 : @banner_frame_seconds
+            tick = (now / cadence).floor
             if @banner_game_tick != tick
-              @banner_game_cells = @banner_game.cells(@banner_game.step)
+              @banner_game_frame = @banner_game.step
+              @banner_game_cells = @banner_game.cells(@banner_game_frame)
               @banner_game_tick = tick
             end
             @banner_game_cells
@@ -1308,9 +1344,10 @@ module PWN
           def footer_text
             text = '/ menu · ^C=cancel · ^D=back · ^L=clear · ^T=toggle pane · ^S=swarm · ^R=search ^O=operations · ↑↓ history · Shift+Enter=newline · Enter=send'
             if @focus == :animation
-              controls = { pong: '↑↓ paddle', snake: '↑↓←→ steer', falling_blocks: '←→ move · ↓ faster · Space=rotate',
-                           asteroids: '←→ turn · ↑↓ thrust/reverse · Space=fire' }.fetch(@banner_name, '↑↓←→ play')
-              return text.sub('↑↓ history', controls).sub('Shift+Enter=newline · Enter=send', 'Enter/Esc=draft')
+              controls = { pacman: '↑↓←→ start/steer · ● power', snake: '↑↓←→ start/steer', falling_blocks: '←→ move · ↓ faster · Space=rotate',
+                           asteroids: '←→ turn · ↑↓ thrust/reverse · Space=fire', galaga: '↑↓←→ move · Space=fire',
+                           frogger: '↑↓←→ hop · logs → goals' }.fetch(@banner_name, '↑↓←→ play')
+              return text.sub('↑↓ history', "^G=next game · #{controls}").sub('Shift+Enter=newline · Enter=send', 'Enter/Esc=draft')
             end
             @focus == :session ? text.sub('↑↓ history', '↑↓ scroll · HOME · PGUP · PGDN · END') : text
           end
