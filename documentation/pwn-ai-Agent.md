@@ -22,12 +22,46 @@ ASSISTANT and WARNING), a persistent multiline composer, and an operational
 sidebar at 100 columns or wider. Narrower screens give the timeline the full width.
 At 100 columns × 26 rows or larger, the header may carve out a bordered retro-game
 colored Unicode-block animation on the left: falling tetrominoes with line clears,
-a connected snake eating food and growing, Pong with small tracking paddles and a
-bouncing ball, or Asteroids with a rotating cyan ship, red thrust, drifting green
-rocks, yellow shots and magenta fragments. Pong's one-cell-high paddles and
-quadrant-block ball move in half-cell steps; doubling the presentation rate does
-not double gameplay speed. Asteroids wraps at the edges and shots break up rocks;
-its seeded autonomous flight is decorative, not player-controlled.
+a connected snake eating food and growing, Pac-Man with a blue maze, pellets,
+yellow mouth sprite and colored ghosts, or Asteroids with a filled cyan ship,
+red thrust, white rocks, yellow shots and expanding collision fragments.
+Ctrl+T/Ctrl+X cycles MISSION CONTROL → SESSION → the visible game pane.
+While the game is active, Ctrl+G cycles Tetris → Snake → Pac-Man → Asteroids → Galaga → Frogger;
+outside game focus Ctrl+G retains its swarm alias, and Ctrl+S opens swarm.
+Enter/Esc returns to the unchanged mission draft. Modals and cancellation retain
+priority; games never read input or render on a separate thread.
+Pac-Man starts on an arrow, moves every 0.3 seconds and buffers the latest turn
+until a corridor permits it. Walls stop movement. Eat every pellet to advance
+the level; large yellow power pellets turn ghosts blue for seven seconds.
+Ghosts chase through corridors, flee while frightened and return home when eaten.
+Contact with a normal ghost ends the round, followed by a brief flash and a fresh
+arrow-ready start. Small mazes use one ghost; larger mazes use three.
+Maze walls are generated from a seeded spanning tree with extra loops, not a
+fixed grid with shuffled pellets. Every pellet remains reachable, and each round
+consumes fresh random geometry. Pac-Man and ghosts each occupy one terminal cell,
+including in the smallest eight-cell console pane. The maze fills the available
+interior with internal walls and connected corridors instead of sacrificing routes
+for enlarged sprites. Directional mouth and ghost glyphs retain compact hints;
+individual eyes and scalloped feet cannot be resolved at this size.
+Galaga uses arrows to move and Space to shoot. Destroy formations and diving
+enemies, dodge hostile shots, and clear the formation to advance a wave. A hit
+shows an expanding explosion, then an input-ready restart. The cyan player ship is
+a filled upward-pointing delta with a nose, spine and wings on a 2x4 Braille-dot
+raster; movement and collision coordinates remain unchanged.
+Frogger uses arrows to hop: avoid moving traffic, ride moving logs across water,
+and enter each empty goal. Water, traffic, occupied goals and riding off the edge
+cause a short death/recovery animation. Filling all goals advances the level.
+Both games begin on input, fill small and large panes, and run automatic demos
+when inactive. Their footer hints appear only while the game pane is focused.
+Pac-Man, Galaga and Frogger demos advance one caller-owned simulation frame per
+UI tick rather than building a full replay on a cold resize or session change.
+The deterministic random-access `mini_cells` replay API remains available to
+other callers; its first large-canvas call can take longer than cached frames.
+Snake uses arrows; Tetris uses Left/Right, Down and Space to rotate; Asteroids
+uses Left/Right to turn, Up/Down for thrust/reverse and Space to fire. Asteroids
+wraps at the edges and shots split rocks. Inactive games run seeded automatic demos.
+Pong is no longer selectable; the explicit `name: :pong` Banner APIs remain
+compatible with existing callers.
 Its framed width in terminal cells equals the complete header's height in rows;
 the interior canvas is `(header height - 2)` cells on each side. This is a
 cell-square, not a pixel-square—terminal glyph cells are usually taller than wide.
@@ -43,14 +77,14 @@ color, holes and silhouette instead of recoloring neighbors when they touch.
 The board remains full-width; only its horizontal logical resolution changes.
 Completed rows intentionally flash white before collapsing; game-over and replay
 resets also use white holds/wipes. Ordinary locking never changes color or shape.
-Colored falling blocks support interiors up to 64 cells; the other artwork retains
+Colored falling blocks, Pac-Man, Galaga and Frogger support interiors up to 64 cells; the other artwork retains
 its 16-cell limit. Above the applicable limit, art is centered and padded rather
 than clipped or stretched.
 One `PWN::Banner.mini_names` animation is randomly
 selected for the session and retained across redraws, model changes and resize;
 changing the active session selects again. Frames advance at the banner API's
-`mini_frame_seconds(name:)` cadence (0.05 seconds for Pong/Asteroids, 0.1 for
-blocks/snake) using monotonic time in the existing render loop—no extra animation
+`mini_frame_seconds(name:)` cadence (0.05 seconds for Asteroids/Galaga, 0.1 for
+blocks/Snake/Pac-Man/Frogger) using monotonic time in the existing render loop—no extra animation
 thread, input reader or provider call. This is decoration, not progress or
 telemetry. The frame keeps the existing border/title theme roles. Artwork comes
 from `PWN::Banner.mini_cells(branding: false)` with dedicated foreground/background curses pairs,
@@ -60,7 +94,7 @@ halves become a full block, not a half-block with its background lost). The `min
 retains its 60-frame, 0.1-second loops for other callers. Both miniature APIs
 default to their legacy branding; `branding: false` reclaims the label row and
 leaves undersized fallback panes blank. Colored replays contain
-1800 frames (90 seconds for Pong/Asteroids, 180 for blocks/snake), use a local
+1800 frames (90 seconds for Asteroids, 180 for blocks/snake/Pac-Man), use a local
 per-session seed, and share a bounded six-replay cache. Settings
 wrap in the right-hand region without losing their label colors. A bounded,
 nonrecursive layout pass grows the header and square together. If the terminal
