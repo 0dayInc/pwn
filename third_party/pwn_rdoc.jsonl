@@ -3405,6 +3405,9 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.prepare_swarm_mission Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.prepare_swarm_mission`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.put Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.put`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.put_spans Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.put_spans`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.rabbit_cells Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.rabbit_cells`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.rabbit_coverage Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.rabbit_coverage`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.rabbit_source Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.rabbit_source`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.refresh_completion Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.refresh_completion`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.refresh_swarm Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.refresh_swarm`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.restore_streams Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.restore_streams`: "}]}

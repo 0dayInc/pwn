@@ -720,6 +720,7 @@ module PWN
               @menu = nil
               panes = @header_pane_height ? %i[mission session animation] : %i[mission session]
               @focus = panes[(panes.index(@focus).to_i + 1) % panes.length]
+              @banner_activated = true if @focus == :animation
               @banner_game&.controls
               @banner_game_tick = nil
               return
@@ -1227,6 +1228,9 @@ module PWN
           # Artwork has no worker, IO, or request-progress meaning. The existing
           # event-loop repaint supplies its clock, including while requests run.
           def banner_frame(size, cells: false)
+            # Startup is artwork only. Once focused, retain the existing seeded
+            # automatic behavior on leaving the game; never return to the splash.
+            @banner_activated ||= @focus == :animation
             now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
             session = @pry.config.pwn_ai_session_id.to_s
             if @banner_session != session
@@ -1236,6 +1240,11 @@ module PWN
               @banner_seed = session.bytes.reduce(PWN::Banner::MINI_SEED) { |seed, byte| ((seed * 33) ^ byte) & 0xffffffff }
               @banner_started = now
             end
+            unless @banner_activated
+              art = rabbit_cells(size)
+              return cells ? art : art.map { |row| row.map { |cell| cell[:glyph] }.join }
+            end
+
             cadence = cells ? @banner_frame_seconds : PWN::Banner::MINI_FRAME_SECONDS
             frame = ((now - @banner_started) / cadence).floor % PWN::Banner::MINI_FRAME_COUNT
             return playable_banner(size, now) if cells && @focus == :animation
@@ -1247,6 +1256,97 @@ module PWN
             top = (size - art.length) / 2
             art.each_with_index { |row, index| canvas[top + index] = row.center(size) }
             canvas
+          end
+
+          # Rasterize the actual banner's punctuation, not a replacement rabbit.
+          # These 3x6 character strokes retain the usual 1:2 terminal-cell aspect.
+          # Only the dedication and wordmark are omitted; the full banner API is
+          # unchanged. At native size use its original characters verbatim.
+          RABBIT_STROKES = {
+            ' ' => [0, 0, 0, 0, 0, 0], '_' => [0, 0, 0, 0, 0, 7],
+            '/' => [1, 1, 2, 2, 4, 4], '\\' => [4, 4, 2, 2, 1, 1],
+            '{' => [1, 2, 2, 4, 2, 1], '}' => [4, 2, 2, 1, 2, 4],
+            'Y' => [5, 5, 2, 2, 2, 2], '.' => [0, 0, 0, 0, 0, 2],
+            '-' => [0, 0, 0, 7, 0, 0], '"' => [5, 5, 0, 0, 0, 0],
+            '`' => [4, 2, 0, 0, 0, 0], ',' => [0, 0, 0, 0, 2, 4],
+            ';' => [0, 2, 0, 0, 2, 4], '|' => [2, 2, 2, 2, 2, 2]
+          }.transform_values(&:freeze).freeze
+          RABBIT_DOTS = [[0, 0, 1], [0, 1, 2], [0, 2, 4], [1, 0, 8], [1, 1, 16], [1, 2, 32], [0, 3, 64], [1, 3, 128]].map(&:freeze).freeze
+
+          def rabbit_source
+            @rabbit_source ||= begin
+              rows = PWN::Banner::WhiteRabbit.get.uncolorize.lines.map { |line| line.sub('R.I.P. Houdini', '').sub('pwn', '').rstrip }
+              rows.shift while rows.first&.strip == ''
+              rows.pop while rows.last&.strip == ''
+              left = rows.reject { |row| row.strip.empty? }.map { |row| row.index(/\S/) }.min
+              rows.map { |row| row[left..].to_s.freeze }.freeze
+            end
+          end
+
+          def rabbit_cells(size)
+            size = [size.to_i, 0].max
+            return [] if size.zero?
+            return @rabbit_cells if @rabbit_size == size
+
+            @rabbit_size = size
+            rows = rabbit_source
+            columns = rows.map(&:length).max
+            if size >= [columns, rows.length].max
+              left = (size - columns) / 2
+              top = (size - rows.length) / 2
+              return @rabbit_cells = Array.new(size) do |y|
+                Array.new(size) do |x|
+                  glyph = y.between?(top, top + rows.length - 1) && x.between?(left, left + columns - 1) ? rows[y - top][x - left] : nil
+                  { glyph: glyph || ' ', foreground: :white, background: :black }.freeze
+                end.freeze
+              end.freeze
+            end
+
+            source_width = columns * 3
+            source = rows.flat_map do |row|
+              6.times.map do |y|
+                row.ljust(columns).chars.reduce(0) { |bits, char| (bits << 3) | RABBIT_STROKES.fetch(char)[y] }
+              end
+            end
+            # Square Braille dots contain the same physical aspect as the ASCII
+            # source. Fractional area sampling keeps thin punctuation on shrink.
+            scale = [size * 2.0 / source_width, size * 4.0 / source.length].min
+            width = [(source_width * scale).round, 1].max
+            height = [(source.length * scale).round, 1].max
+            left = ((size * 2) - width) / 2
+            top = ((size * 4) - height) / 2
+            threshold = size < 5 ? 0.02 : 0.12
+            @rabbit_cells = Array.new(size) do |y|
+              Array.new(size) do |x|
+                mask = RABBIT_DOTS.sum do |dx, dy, bit|
+                  px = (x * 2) + dx - left
+                  py = (y * 4) + dy - top
+                  next 0 unless px.between?(0, width - 1) && py.between?(0, height - 1)
+
+                  coverage = rabbit_coverage(source, source_width, [px.fdiv(width), py.fdiv(height), (px + 1).fdiv(width), (py + 1).fdiv(height)])
+                  coverage >= threshold ? bit : 0
+                end
+                { glyph: mask.zero? ? ' ' : (0x2800 + mask).chr(Encoding::UTF_8), foreground: :white, background: :black }.freeze
+              end.freeze
+            end.freeze
+          end
+
+          # Fractional box-area coverage avoids nearest-neighbour holes.
+          def rabbit_coverage(source, source_width, bounds)
+            left, top, right, bottom = bounds
+            left *= source_width
+            right *= source_width
+            top *= source.length
+            bottom *= source.length
+            ink = (top.floor...bottom.ceil).sum do |y|
+              overlap_y = [y + 1, bottom].min - [y, top].max
+              (left.floor...right.ceil).sum do |x|
+                next 0 unless source[y][source_width - 1 - x] == 1
+
+                ([x + 1, right].min - [x, left].max) * overlap_y
+              end
+            end
+            ink.fdiv((right - left) * (bottom - top))
           end
 
           def automatic_banner(size, now)
@@ -1296,7 +1396,7 @@ module PWN
               row.first(size).each_with_index do |cell, x|
                 index = PALETTE.index(cell[:foreground].to_s)
                 background = PALETTE.index(cell[:background].to_s)
-                colors = @banner_colors && (@banner_name != :falling_blocks || @banner_two_colors)
+                colors = @banner_colors && (!@banner_activated || @banner_name != :falling_blocks || @banner_two_colors)
                 pair = if colors && index && background && (background == 7 || @banner_two_colors)
                          background == 7 ? 9 + index : 17 + (background * 8) + index
                        end

@@ -515,6 +515,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     pry = Pry.new
     pry.config.pwn_ai_session_id = 'banner-one'
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@banner_activated, true)
     choices = PWN::Banner.mini_names.first(2)
     allow(PWN::Banner).to receive(:mini_names).and_return(choices)
     allow(choices).to receive(:sample).and_return(*choices)
@@ -536,6 +537,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   it 'centers capped retro artwork inside a larger cell-square canvas' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@banner_activated, true)
     allow(PWN::Banner).to receive(:mini_names).and_return([:pacman])
     allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(100.0)
     size = 24
@@ -551,6 +553,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   it 'paints falling blocks against the actual pane floor even beyond sixteen cells' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@banner_activated, true)
     allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
     now = 100.0
     allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC) { now }
@@ -594,7 +597,8 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(painted.select { |y, x, _text, _color| y < 10 && x < 10 }.map { |_, _, text| text }.join).not_to match(/[PWN]/)
     expect(painted.select { |y, x, text, _color| y.between?(1, 8) && x == 1 && text == ' ' * 8 }.length).to eq(8)
     expect(painted.select { |y, _x, _text, _color| y < 10 }).to all(satisfy { |y, x, text, _color| y >= 0 && x >= 0 && x + console.width(text) <= 120 })
-    expect(PWN::Banner).to have_received(:mini_cells).with(hash_including(width: 8, height: 8)).once
+    expect(PWN::Banner).not_to have_received(:mini_cells)
+    expect(console.banner_frame(8, cells: true).flatten.map { |cell| cell[:foreground] }.uniq).to eq([:white])
     [[80, 36], [120, 24]].each do |columns, rows|
       allow(curses).to receive_messages(cols: columns, lines: rows)
       rectangles.clear
@@ -607,7 +611,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.draw
     expect(console.instance_variable_get(:@header_text_column)).to eq(2)
     expect(console.header_lines('ollama', 'fixture', 115).length).to be > 16
-    expect(PWN::Banner).to have_received(:mini_cells).once
+    expect(PWN::Banner).not_to have_received(:mini_cells)
     expect([console.instance_variable_get(:@editor).text, console.instance_variable_get(:@editor).cursor]).to eq(['retained draft', 4])
   end
 
@@ -641,6 +645,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     console.instance_variable_set(:@width, 120)
     console.instance_variable_set(:@height, 40)
+    console.instance_variable_set(:@banner_activated, true)
     allow(console).to receive(:put)
     allow(console).to receive(:box)
     allow(PWN::Banner).to receive(:mini_cells).and_call_original
@@ -710,6 +715,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     pry = Pry.new
     pry.config.pwn_ai_session_id = 'colored-session'
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    console.instance_variable_set(:@banner_activated, true)
     names = [:snake]
     allow(PWN::Banner).to receive(:mini_names).and_return(names)
     expect(names).to receive(:sample).twice.and_return(:snake)
@@ -734,6 +740,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
       pry = Pry.new
       pry.config.pwn_ai_session_id = 'fast-colored-session'
       console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+      console.instance_variable_set(:@banner_activated, true)
       names = PWN::Banner.mini_names
       allow(PWN::Banner).to receive(:mini_names).and_return(names)
       expect(names).to receive(:sample).once.and_return(name)
@@ -1120,6 +1127,144 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     expect(console.instance_variable_get(:@focus)).to eq(:mission)
   end
 
+  it 'shows only the white rabbit before the first animation focus without computing games' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    expect(PWN::Banner).not_to receive(:mini_cells)
+    expect(PWN::Banner).not_to receive(:mini_frame)
+    expect(PWN::Banner::MiniGame).not_to receive(:new)
+    first = console.banner_frame(8, cells: true)
+    expect(first.flatten.map { |cell| cell[:foreground] }.uniq).to eq([:white])
+    expect(first.flatten.count { |cell| cell[:glyph] != ' ' }).to be > 16
+    console.instance_variable_set(:@header_pane_height, 10)
+    console.handle("\u0014")
+    expect(console.banner_frame(8, cells: true)).to eq(first)
+    expect(console.banner_frame(8).join).not_to match(/[PWN]/)
+  end
+
+  it 'uses fine two by four text dots without terminal image output' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    [8, 12, 16, 18].each do |size|
+      glyphs = console.banner_frame(size, cells: true).flatten.map { |cell| cell[:glyph] }
+      expect(glyphs).to all(match(/\A[ \u2801-\u28ff]\z/))
+      expect(glyphs.uniq.length).to be > 4
+    end
+    source = File.read(File.expand_path('../../../../../lib/pwn/plugins/repl/ai_console.rb', __dir__))
+    expect(source).not_to include('graphics_response?', '\\e_G')
+  end
+
+  it 'area-filters fractional source pixels instead of losing a bend to point sampling' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    expect(console.rabbit_coverage([0b10, 0b01], 2, [0, 0, 1, 1])).to eq(0.5)
+    expect(console.rabbit_coverage([0b10, 0b01], 2, [0.25, 0, 0.75, 0.5])).to eq(0.5)
+    expect(console.rabbit_coverage([0b10, 0b01], 2, [0, 0, 0.5, 0.5])).to eq(1.0)
+    expect(console.rabbit_coverage([0b10, 0b01], 2, [0.5, 0, 1, 0.5])).to eq(0.0)
+  end
+
+  it 'derives every source row from WhiteRabbit.get and preserves the native art without labels' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    source = PWN::Banner::WhiteRabbit.get.uncolorize
+    expect(PWN::Banner::WhiteRabbit).to receive(:get).once.and_return(source)
+    rows = source.lines.map { |row| row.sub('R.I.P. Houdini', '').sub('pwn', '').rstrip }.reject(&:empty?).map { |row| row[8..] }
+    expect(console.rabbit_source).to eq(rows)
+    expect(rows.join.chars.uniq - PWN::Plugins::REPL::AIConsole::Console::RABBIT_STROKES.keys).to be_empty
+    [22, 34, 64].each do |size|
+      art = console.banner_frame(size)
+      top = (size - rows.length) / 2
+      left = (size - rows.map(&:length).max) / 2
+      rows.each_with_index { |row, y| expect(art[top + y][left, row.length]).to eq(row) }
+      expect(art.join).not_to match(/pwn|Houdini|\e/)
+    end
+  end
+
+  it 'contains the rabbit with centered aspect-correct padding across tiny resizes' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    expect(PWN::Banner::MiniGame).not_to receive(:new)
+    expect(console.banner_frame(0, cells: true)).to eq([])
+    [1, 2, 3, 5, 8, 12, 13, 14, 16, 18, 8].each do |size|
+      cells = console.banner_frame(size, cells: true)
+      expect(cells.length).to eq(size)
+      expect(cells.map(&:length)).to all(eq(size))
+      expect(cells.flatten.map { |cell| [cell[:foreground], cell[:background]] }.uniq).to eq([%i[white black]])
+      points = []
+      cells.each_with_index do |row, y|
+        row.each_with_index do |cell, x|
+          next if cell[:glyph] == ' '
+
+          mask = cell[:glyph] == ' ' ? 0 : cell[:glyph].ord - 0x2800
+          expect(mask).not_to be_nil
+          [[0, 0, 1], [0, 1, 2], [0, 2, 4], [0, 3, 64], [1, 0, 8], [1, 1, 16], [1, 2, 32], [1, 3, 128]].each do |dx, dy, bit|
+            points << [(x * 2) + dx, (y * 4) + dy] if mask.anybits?(bit)
+          end
+        end
+      end
+      expect(points).not_to be_empty
+      next if size < 8
+
+      xs, ys = points.transpose
+      ratio = console.rabbit_source.map(&:length).max.fdiv(console.rabbit_source.length * 2)
+      expect((xs.max - xs.min + 1).fdiv(ys.max - ys.min + 1)).to be_within(0.1).of(ratio)
+      expect((xs.min - ((size * 2) - 1 - xs.max)).abs).to be <= 2
+      expect((ys.min - ((size * 4) - 1 - ys.max)).abs).to be <= 2
+      expect(points.length).to be > size * 3
+      expect(cells.flatten.map { |cell| cell[:glyph] }.uniq.length).to be > 4
+      expect(console.banner_frame(size, cells: true)).to equal(cells)
+    end
+  end
+
+  it 'paints only white with a 64-pair palette and keeps rabbit geometry in monochrome' do
+    [false, true].each do |no_color|
+      curses = double(has_colors?: true, start_color: nil, use_default_colors: nil, init_pair: nil, color_pairs: 64)
+      console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: curses, getch: nil)
+      allow(ENV).to receive(:key?).with('NO_COLOR').and_return(no_color)
+      allow(PWN::Banner).to receive(:mini_names).and_return([:falling_blocks])
+      console.setup_colors
+      painted = []
+      allow(console).to receive(:put) { |*args| painted << args }
+      console.draw_banner(8)
+      ink = painted.reject { |_, _, glyph, _| glyph.strip.empty? }
+      expect(ink).not_to be_empty
+      white = 9 + PWN::Plugins::REPL::AIConsole::Console::PALETTE.index('white')
+      expect(ink.map(&:last).uniq).to eq([no_color ? nil : white])
+      expect(ink.map { |_, _, glyph, _| glyph }).to all(match(/[\u2801-\u28ff]/))
+    end
+  end
+
+  it 'activates once on actual focus, cycles games and never restores the splash on return' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    allow(PWN::Banner).to receive(:mini_names).and_return(%i[snake pacman])
+    allow(Process).to receive(:clock_gettime).and_return(10.0)
+    splash = console.banner_frame(8, cells: true)
+    console.instance_variable_set(:@header_pane_height, 10)
+    2.times { console.handle("\u0014") }
+    console.banner_frame(8, cells: true)
+    game = console.instance_variable_get(:@banner_game)
+    expect(game).to be_a(PWN::Banner::MiniGame)
+    console.handle("\e")
+    expect(console.banner_frame(8, cells: true)).not_to eq(splash)
+    2.times { console.handle("\u0018") }
+    console.banner_frame(8, cells: true)
+    expect(console.instance_variable_get(:@banner_game)).to equal(game)
+    name = console.instance_variable_get(:@banner_name)
+    console.handle("\u0007")
+    console.banner_frame(8, cells: true)
+    expect(console.instance_variable_get(:@banner_name)).not_to eq(name)
+    expect(console.instance_variable_get(:@banner_game)).not_to equal(game)
+    console.handle("\e")
+    expect(console.banner_frame(12, cells: true)).not_to eq(console.rabbit_cells(12))
+  end
+
+  it 'does not activate games when the pane is hidden or focus keys belong to a modal' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    expect(PWN::Banner::MiniGame).not_to receive(:new)
+    4.times { console.handle("\u0014") }
+    expect(console.instance_variable_get(:@banner_activated)).to be_nil
+    console.instance_variable_set(:@header_pane_height, 10)
+    console.instance_variable_set(:@details, 0)
+    expect(console).to receive(:handle_details).with("\u0018")
+    console.handle("\u0018")
+    expect(console.banner_frame(8, cells: true)).to eq(console.rabbit_cells(8))
+  end
+
   it 'cycles mission, session and visible animation with both shortcuts without changing the draft' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     editor = console.instance_variable_get(:@editor)
@@ -1249,6 +1394,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   it 'returns to the unchanged automatic animation when focus leaves the game' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     allow(Process).to receive(:clock_gettime).and_return(10.0)
+    console.instance_variable_set(:@banner_activated, true)
     automatic = console.banner_frame(8, cells: true)
     console.instance_variable_set(:@header_pane_height, 10)
     2.times { console.handle("\u0014") }
@@ -1263,6 +1409,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   it 'streams the new arcade demos on the UI owner without a synchronous full replay build' do
     %i[pacman galaga frogger].each do |name|
       console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+      console.instance_variable_set(:@banner_activated, true)
       allow(PWN::Banner).to receive(:mini_names).and_return([name])
       allow(Process).to receive(:clock_gettime).and_return(10.0)
       expect(PWN::Banner).not_to receive(:mini_cells)
