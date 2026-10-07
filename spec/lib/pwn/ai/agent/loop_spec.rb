@@ -1081,7 +1081,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         )
       ).to eq false
       src = File.read(described_class.method(:run).source_location.first)
-      expect(src).to match(/skip_plan.*catalog/)
+      expect(src).to match(/skip_compass.*catalog/)
+      expect(src).to match(/skip_plan.*skip_compass/)
       expect(src).to match(/force_plan && cal_state\[:cal\] && !skip_plan/)
     end
 

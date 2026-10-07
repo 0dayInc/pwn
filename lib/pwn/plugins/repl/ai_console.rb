@@ -610,7 +610,7 @@ module PWN
               clear_view
             elsif line.match?(%r{\A/verbose(?:\s|$)})
               toggle_verbose(line)
-            elsif line.start_with?('/swarm') && %w[status tail steer cancel help roster].include?(line.split[1])
+            elsif line.start_with?('/swarm') && %w[status tail steer cancel pause resume help agents].include?(line.split[1])
               run_swarm(line)
             else
               add(:warning, 'Request running. Settings and new requests wait until idle. Use /steer, /input, /swarm status|steer|cancel, /clear, or /verbose.')
@@ -1062,7 +1062,7 @@ module PWN
             usage = @usage.snapshot
             cost = usage[:estimated_cost_usd] ? format('$%.4f est.', usage[:estimated_cost_usd]) : usage[:cost_status]
             swarm = @swarm&.snapshot || {}
-            active = Array(swarm[:jobs]).count { |job| %w[queued running steering cancelling].include?(job[:state]) }
+            active = Array(swarm[:jobs]).count { |job| AISwarm::Controller::ACTIVE.include?(job[:state]) }
             ['REQUEST', state, "Elapsed #{elapsed}", "Completed tools #{@completed_tools}",
              "Events #{@event_count}", '', 'TOKENS', "#{usage[:input_tokens]} in · #{usage[:output_tokens]} out",
              "cached #{usage[:cached_tokens]} · calls #{usage[:calls]}", "Cost #{cost}",
@@ -1559,6 +1559,10 @@ module PWN
             when :home then view[:offset] = 0
             when :end then view[:offset] = 1_000_000
             when 'r' then refresh_swarm
+            when 'v'
+              view[:confirm] = ['mission', @editor.text] unless @editor.text.strip.empty?
+            when 'p', 'u'
+              view[:confirm] = [key == 'p' ? 'pause' : 'resume', item[:id]] if view[:tab] == :jobs && item
             when 'a', 'b', 'd' then prepare_swarm_mission(key, item)
             when 'c', "\u0003"
               return unless view[:tab] == :jobs && item
@@ -1582,9 +1586,9 @@ module PWN
             minimum = key == 'd' ? 2 : 1
             return view[:notice] = "Select at least #{minimum} agent(s) with Space." if names.length < minimum
 
-            command = { 'a' => 'ask', 'b' => 'broadcast', 'd' => 'debate' }.fetch(key)
+            command = { 'a' => 'dm', 'b' => 'broadcast', 'd' => 'debate' }.fetch(key)
             view[:confirm] = case command
-                             when 'ask' then [command, names.first, @editor.text]
+                             when 'dm' then [command, names.first, @editor.text]
                              when 'broadcast' then [command, '--names', names.join(','), '--', @editor.text]
                              else [command, names.join(','), '--', @editor.text]
                              end
@@ -1614,17 +1618,21 @@ module PWN
 
           def execute_swarm_action
             args = @workspace.delete(:confirm)
-            result = @swarm.execute(line: Shellwords.join(['/swarm'] + args), on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record))
+            options = { line: Shellwords.join(['/swarm'] + args), on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record) }
+            options[:solve_request] = args.last if args.first == 'mission'
+            result = @swarm.execute(options)
             @workspace[:notice] = result[:error] || "#{args.first}: accepted#{" · job #{result[:job_id]}" if result[:job_id]}"
             add(result[:ok] == false ? :warning : :notice, @workspace[:notice])
             refresh_swarm if args.first == 'spawn'
-            @workspace.merge!(tab: :jobs, index: 0, offset: 0, detail: true) if result[:ok] && %w[ask broadcast debate].include?(args.first)
+            @workspace.merge!(tab: :jobs, index: 0, offset: 0, detail: true) if result[:ok] && %w[mission dm broadcast debate].include?(args.first)
           end
 
           def swarm_content
             view = @workspace
             if view[:confirm]
               args = view[:confirm]
+              return [[false, "ACTION: mission\nTEAM: protagonist builds; antagonist assesses independently and critiques; verifier runs checks; integrator accepts or requests repair.\nOnly protagonist writes. Verification uses disposable artifact copies (not an OS sandbox).\nORIGINAL REQUEST:\n#{args.last}"]] if args.first == 'mission'
+
               target = args.first == 'broadcast' ? args[2] : args[1]
               return [[false, "ACTION: #{args.first}\nTARGET: #{target}\n#{args.first == 'cancel' ? 'Cancel at a safe boundary; completed work is not undone.' : args.last}"]]
             end
@@ -1632,7 +1640,13 @@ module PWN
             item = items[view[:index]]
             rows = []
             if view[:detail] && item
-              item.each { |key, value| rows << [false, "#{key.to_s.upcase}: #{value}"] }
+              item.each do |key, value|
+                if key == :team
+                  rows.concat(solve_rows(value))
+                else
+                  rows << [false, "#{key.to_s.upcase}: #{value}"]
+                end
+              end
             elsif items.empty?
               rows << [false, view[:tab] == :roster ? 'No agents. Press n to add a local persona (no model call).' : 'No jobs yet. Tab to roster; a sends your draft after confirmation.']
             else
@@ -1648,13 +1662,25 @@ module PWN
             rows
           end
 
+          def solve_rows(team)
+            rows = [[false, "ORIGINAL REQUEST: #{team[:request]}"], [false, "ROUND: #{team[:round]} · REVISION: #{team[:revision]}"]]
+            (team[:roles] || {}).each do |role, state|
+              routing = team.dig(:routing, role) || {}
+              rows << [false, "#{role.upcase}: #{state} · #{routing[:engine]} / #{routing[:model] || 'provider default'}"]
+            end
+            (team[:requirements] || {}).each { |id, text| rows << [false, "#{id}: #{text}"] }
+            (team[:artifacts] || {}).each { |path, sha| rows << [false, "ARTIFACT: #{path} · #{sha}"] }
+            Array(team[:objections]).each { |text| rows << [false, "OPEN: #{text}"] }
+            rows
+          end
+
           def draw_swarm
             @screen.erase
             view = @workspace
             box(0, 0, @height - 1, @width - 1, "SWARM WORKSPACE · #{view[:tab].to_s.upcase}")
             swarm_put(1, 'Tab roster/jobs · j/k move · Enter details', :footer)
-            swarm_put(2, 'Space pick · a ask · b broadcast · d debate', :footer)
-            swarm_put(3, 'n new · r refresh · s steer · c cancel', :footer)
+            swarm_put(2, 'v Mission with team · Space pick · a dm · b broadcast · d debate', :footer)
+            swarm_put(3, 'n new · r refresh · s steer · p pause · u resume · c cancel', :footer)
             swarm_put(4, 'PgUp/Dn Home/End scroll · Esc back', :footer)
             rows = swarm_content.flat_map { |selected, text| wrap(swarm_safe(text), @width - 7).map { |row| [selected, row] } }
             page = @height - 10

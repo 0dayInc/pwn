@@ -35,7 +35,7 @@ module PWN
         # Session-scoped swarm jobs. Workers never draw the terminal.
         class Controller # rubocop:disable Metrics/ClassLength -- one session-scoped swarm command surface
           MAX_JOBS = 8
-          ACTIVE = %w[queued running steering cancelling].freeze
+          ACTIVE = %w[queued running steering cancelling paused].freeze
 
           def initialize(session_id:)
             @session_id = session_id.to_s
@@ -46,6 +46,10 @@ module PWN
           end
 
           def execute(opts = {})
+            if (match = opts[:line].to_s.match(%r{\A\s*/swarm[ \t]+mission(?:[ \t](.*))?\z}m))
+              return solve([], opts.merge(solve_request: opts.fetch(:solve_request, match[1].to_s)))
+            end
+
             line = opts[:line].to_s.strip
             tokens = Shellwords.split(line)
             tokens.shift if tokens.first == '/swarm'
@@ -59,7 +63,7 @@ module PWN
             @mutex.synchronize do
               {
                 swarm_id: @swarm_id,
-                jobs: @jobs.values.map { |job| job.slice(:id, :agent, :state, :command, :result, :error, :last_tool).transform_values { |value| value.is_a?(String) ? value.dup : value } }
+                jobs: @jobs.values.map { |job| Marshal.load(Marshal.dump(job.slice(:id, :agent, :state, :command, :result, :error, :last_tool, :team))) }
               }
             end
           end
@@ -97,18 +101,20 @@ module PWN
           def dispatch(command, tokens, opts)
             case command
             when 'help', 'dashboard' then help_text
-            when 'roster' then { ok: true, agents: roster, swarm_id: @swarm_id }
+            when 'agents' then { ok: true, agents: roster, swarm_id: @swarm_id }
             when 'status' then status(tokens.first)
             when 'create' then create(tokens.join(' '))
             when 'use' then use(tokens.first)
             when 'spawn' then spawn(tokens)
             when 'retire' then retire(tokens.first)
-            when 'ask' then ask(tokens, opts)
+            when 'dm' then ask(tokens, opts)
+            when 'mission' then solve(tokens, opts)
             when 'debate' then debate(tokens, opts)
             when 'broadcast' then broadcast(tokens, opts)
             when 'tail' then tail(tokens.first)
             when 'steer' then steer(tokens, opts)
             when 'cancel' then cancel(tokens.first)
+            when 'pause', 'resume' then pause(tokens.first, command == 'pause')
             else { ok: false, error: "unknown /swarm command: #{command}", hint: help_text[:usage] }
             end
           end
@@ -116,7 +122,7 @@ module PWN
           def help_text
             {
               ok: true,
-              usage: '/swarm roster|status [JOB]|create [topic]|use ID|spawn NAME ROLE [--engine E --model M --toolsets a,b]|retire NAME|ask NAME REQUEST|debate NAMES TOPIC [--rounds N]|broadcast REQUEST [--names a,b]|tail [N]|steer JOB INSTRUCTION|cancel JOB|all'
+              usage: '/swarm mission REQUEST|agents|status [JOB]|create [topic]|use ID|spawn NAME ROLE [--engine E --model M --toolsets a,b]|retire NAME|dm NAME REQUEST|debate NAMES TOPIC [--rounds N]|broadcast REQUEST [--names a,b]|tail [N]|steer JOB INSTRUCTION|pause JOB|resume JOB|cancel JOB|all'
             }
           end
 
@@ -161,10 +167,23 @@ module PWN
           def ask(tokens, opts)
             name = tokens.shift
             request = tokens.join(' ')
-            return { ok: false, error: 'usage: ask NAME REQUEST' } if name.to_s.empty? || request.empty?
+            return { ok: false, error: 'usage: dm NAME REQUEST' } if name.to_s.empty? || request.empty?
 
-            start_job(agent: name, command: 'ask', opts: opts) do |job|
+            start_job(agent: name, command: 'dm', opts: opts) do |job|
               PWN::AI::Agent::Swarm.ask(name: name, request: request, swarm_id: ensure_swarm, steering: job[:control], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts))
+            end
+          end
+
+          def solve(tokens, opts)
+            request = opts.fetch(:solve_request, tokens.join(' '))
+            return { ok: false, error: 'usage: mission REQUEST' } if request.strip.empty?
+
+            start_job(agent: 'team', command: 'mission', opts: opts) do |job|
+              PWN::AI::Agent::Swarm.solve(
+                request: request, swarm_id: ensure_swarm, steering: job[:control],
+                workspace: opts[:workspace], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts),
+                on_state: ->(state) { @mutex.synchronize { job[:team] = state } }
+              )
             end
           end
 
@@ -219,6 +238,16 @@ module PWN
             { ok: true, job_id: job[:id] }
           end
 
+          def pause(id, paused)
+            job = find_job(id)
+            return { ok: false, error: 'job not found' } unless job
+            return { ok: false, error: 'pause/resume applies to mission jobs only' } unless job[:command] == 'mission'
+            return { ok: false, error: 'job is no longer active' } unless update_active(job, paused ? 'paused' : 'running')
+
+            job[:control].pause(paused)
+            { ok: true, job_id: id, state: job[:state] }
+          end
+
           def cancel(id)
             return cancel_all if id.nil? || id == 'all'
 
@@ -245,6 +274,8 @@ module PWN
 
           def start_job(agent:, command:, opts:)
             return { ok: false, error: 'swarm controller is closed' } if @closed
+            return { ok: false, error: 'mission requires exclusive workspace ownership; wait or cancel active jobs' } if (command == 'mission' && busy?) || snapshot[:jobs].any? { |row| row[:command] == 'mission' && ACTIVE.include?(row[:state]) }
+
             return { ok: false, error: "job limit #{MAX_JOBS} reached" } if busy_count >= MAX_JOBS
 
             ensure_swarm
@@ -257,16 +288,18 @@ module PWN
             job[:worker] = Thread.new do
               locals.each { |key, value| Thread.current[key] = value }
               variables.each { |key, value| Thread.current.thread_variable_set(key, value) }
-              job[:control] = JobControl.new(input: StringIO.new, output: StringIO.new)
+              control_class = command == 'mission' ? PWN::AI::Agent::Solve::Control : JobControl
+              job[:control] = control_class.new(input: StringIO.new, output: StringIO.new)
               Thread.current[:pwn_steering_input] = job[:control]
               ready << true
               update(job, 'running')
               result = yield(job)
               job[:control].check_stop
-              update(job, 'completed', result: summarize(result))
-              opts[:on_event]&.call(:assistant, "#{agent} [#{id}] #{command} complete\n#{summarize(result)}")
+              state = command == 'mission' ? result[:status] : 'completed'
+              update(job, state, result: summarize(result))
+              opts[:on_event]&.call(:assistant, "#{agent} [#{id}] #{command} #{state}\n#{summarize(result)}")
               result
-            rescue JobControl::Stopped => e
+            rescue JobControl::Stopped, PWN::AI::Agent::Solve::Control::Stopped => e
               update(job, 'cancelled', error: e.message)
               opts[:on_event]&.call(:warning, "#{agent} [#{id}] #{e.message}")
             rescue StandardError => e

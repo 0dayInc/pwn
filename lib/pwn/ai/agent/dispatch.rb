@@ -51,6 +51,9 @@ module PWN
           entry = Registry.lookup(name: name) || Registry.lookup(name: repair_name(name: name))
           return JSON.generate(error: "unknown tool: #{name}") unless entry
 
+          solve_tools = Thread.current[:pwn_solve_tools]
+          return JSON.generate(success: false, error: 'Tool denied by solve role capability boundary') if solve_tools && !solve_tools.include?(entry.name.to_s)
+
           args = parse_args(raw: raw, entry: entry)
           args = alias_known_keys(args: args, entry: entry)
           schema = entry.schema[:parameters] || entry.schema['parameters'] || { type: 'object' }

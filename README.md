@@ -278,12 +278,12 @@ If this project helped you and you want to support the work, keep us caffeinated
 
 ### [**0x004D65726368**](https://0day.myspreadshop.com/) ###
 
-[![PWN Sticker](https://image.spreadshirtmedia.com/image-server/v1/products/T1459A839PA3861PT28D1044068794FS8193/views/1,width=300,height=300,appearanceId=839,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/stickers)
+[![PWN Sticker](https://image.spreadshirtmedia.com/image-server/v1/products/T1459A839PA3861PT28D1044068794W10000H3537/views/1,width=300,height=300,appearanceId=839,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/home+%26+living+stickers+%26+magnets)
 
-[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T1313A1PA3933PT10X2Y25D1020472680FS6327/views/3,width=300,height=300,appearanceId=1,backgroundColor=000000/https0dayinccom.jpg)](https://0day.myspreadshop.com/accessories+mugs+%26+drinkware)
+[![Coffee Mug](https://image.spreadshirtmedia.com/image-server/v1/products/T1313A1PA3933PT10X3Y20D1044068794W5491H1942/views/3,width=300,height=300,appearanceId=1,backgroundColor=000000,crop=detail,modelId=11707/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/home+%26+living+mugs+%26+drinkwear)
 
-[![Mouse Pad](https://image.spreadshirtmedia.com/image-server/v1/products/T993A1PA2168PT10X162Y26D1044068794S100/views/1,width=300,height=300,appearanceId=1,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/accessories)
+[![Mouse Pad](https://image.spreadshirtmedia.com/image-server/v1/products/T993A1PA2168PT10X162Y26D1044068794W6102H2158/views/1,width=300,height=300,appearanceId=1,backgroundColor=000000/ultimate-hacker-t-shirt-to-convey-to-the-public-a-hackers-favorite-past-time.jpg)](https://0day.myspreadshop.com/home+%26+living+other)
 
-[![0day Inc.](https://image.spreadshirtmedia.com/image-server/v1/products/T951A550PA3076PT17X0Y73D1020472680FS8515/views/1,width=300,height=300,appearanceId=70,backgroundColor=000000/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/0dayinc-A5c3e498cf937643162a01b5f?productType=951&appearance=70)
+[![0day Inc.](https://image.spreadshirtmedia.com/image-server/v1/products/T803A2PA1648PT32X20Y18D1020472680W8807H1441/views/1,width=300,height=300,appearanceId=2,backgroundColor=000000,crop=detail,modelId=1723/https0dayinccom.jpg)](https://0day.myspreadshop.com/0dayinc-A5c3e498cf937643162a01b5f?productType=803&sellable=1naaRYxY1zhOoQlv7Mdg-803-34&appearance=2&size=29)
 
-[![Black Fingerprint Hoodie](https://image.spreadshirtmedia.com/image-server/v1/products/T111A2PA3208PT17X169Y51D1020472728FS6268/views/1,width=300,height=300,appearanceId=2/https0dayinccom.jpg)](https://shop.spreadshirt.com/0day/blackfingerprint-A5c3e49db1cbf3a0b9596b4d0?productType=111&appearance=2)
+[![Black Fingerprint Hoodie](https://image.spreadshirtmedia.com/image-server/v1/products/T111A2PA4247PT17X198Y27D1020472728W12744H19015/views/1,width=300,height=300,appearanceId=5,backgroundColor=000000,crop=detail,modelId=1159/https0dayinccom.jpg)](https://0day.myspreadshop.com/blackfingerprint-A5c3e49db1cbf3a0b9596b4d0?productType=111&sellable=ekXXmGonOyclynglNE87-111-22&appearance=5)

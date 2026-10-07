@@ -464,6 +464,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_files Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_files`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.session_tool_budget Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.session_tool_budget`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.should_auto_introspect? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.should_auto_introspect?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.solve_handoff? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.solve_handoff?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.spill_tool_body Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.spill_tool_body`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.spill_tool_history! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.spill_tool_history!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.squeeze_unquoted Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.squeeze_unquoted`: "}]}
@@ -855,6 +856,19 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.sensitive? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.sensitive?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.useful? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.useful?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::SkillReview.verified_execution? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::SkillReview.verified_execution?`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve.authors`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve.help Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve.help`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.begin_turn Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.begin_turn`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.check_stop Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.check_stop`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.checkpoint Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.checkpoint`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.guidance Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.guidance`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.model Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.model`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.pause Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.pause`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.stop Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.stop`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Control.submit Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Control.submit`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Run.new Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Run.new`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Solve::Run.run Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Solve::Run.run`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.ask Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.ask`: Supported Method Parameters\n\nreply = PWN::AI::Agent::Swarm.ask(\n\nname: 'required - persona name from ~/.pwn/agents.yml',\nrequest: 'required - what to ask/instruct the persona',\nswarm_id: 'optional - join an existing swarm (created if omitted)',\nto: 'optional - addressee recorded on the bus (default :all)',\non_tool: 'optional - ->(name, args, result) live-UI callback',\nsteering: 'optional - Loop::Steering for this persona turn',\nusage_observer: 'optional - callable receiving provider usage'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.authors Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.broadcast Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.broadcast`: Supported Method Parameters\n\nresult = PWN::AI::Agent::Swarm.broadcast(\n\nrequest: 'required', names: 'optional - default all personas',\nswarm_id: 'optional'\n\n)\n"}]}
@@ -884,6 +898,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.persona_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.persona_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.personas Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.personas`: Supported Method Parameters\n\npersonas = PWN::AI::Agent::Swarm.personas\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.retire Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.retire`: Supported Method Parameters\n\nPWN::AI::Agent::Swarm.retire(\n\nname: 'required - persona name',\nswarm_id: 'optional - swarm directory when local is true',\nlocal: 'optional - true retires only that swarm registry'\n\n)\n"}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.solve Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.solve`: Supported Method Parameters\n\nPWN::AI::Agent::Swarm.solve(\n\nrequest: 'required - original objective, preserved for every role',\nworkspace: 'optional - artifact root, defaults to current directory',\nrounds: 'optional - bounded repair rounds, 1..10, default 3',\nswarm_id: 'optional - existing swarm registry',\nsteering: 'optional - Solve::Control coordinator control',\non_state: 'optional - observed role state callback',\non_tool: 'optional - tool observation callback',\nusage_observer: 'optional - provider usage callback'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.spawn Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.spawn`: Supported Method Parameters\n\nPWN::AI::Agent::Swarm.spawn(\n\nname: 'required - persona name (snake_case)',\nrole: 'required - system_role_content overlay for this persona',\ntoolsets: 'optional - Array of Registry toolset names',\nengine: 'optional - :openai / :anthropic / :grok / :gemini / :ollama / :openwebui',\nmodel: 'optional - exact model identifier (defaults to selected provider model)',\nmax_iters: 'optional - per-turn iteration cap for this persona'\n\n)\n"}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.specialist_roles Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.specialist_roles`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Swarm.view_graph Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Swarm.view_graph`: "}]}
@@ -3400,6 +3415,7 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.seed_request_history Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.seed_request_history`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.send_tool_input Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.send_tool_input`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.setup_colors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.setup_colors`: "}]}
+{"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.solve_rows Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.solve_rows`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.start_request Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.start_request`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.state Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.state`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AIConsole::Console.stop_worker Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AIConsole::Console.stop_worker`: "}]}

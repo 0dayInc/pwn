@@ -249,7 +249,7 @@ module PWN
           end
         end
         PWN_AI_SLASH_COMMANDS = %w[
-          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /system-role /trace
+          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /swarm /system-role /trace
         ].freeze
 
         PWN_AI_SLASH_SUBCOMMANDS = {
@@ -261,6 +261,7 @@ module PWN
           '/memory' => %w[list recall remember forget clear],
           '/mcp' => %w[list backends use current connect disconnect ping tools call status help],
           '/model' => %w[list],
+          '/swarm' => %w[mission agents status create use spawn retire dm debate broadcast tail steer pause resume cancel help],
           '/sessions' => %w[list resume delete stats],
           '/skills' => %w[list recall],
           '/learning' => %w[list requeue]
@@ -524,6 +525,10 @@ module PWN
             args = tokens[1..]
             pi = opts[:pry]
             case cmd
+            when '/swarm'
+              pi.config.pwn_ai_swarm ||= AISwarm::Controller.new(session_id: pi.config.pwn_ai_session_id)
+              result = pi.config.pwn_ai_swarm.execute(line: request, on_event: ->(_type, text) { puts text })
+              puts(result[:usage] || result[:error] || result.inspect)
             when '/steer'
               puts(args.empty? ? '[pwn-ai] Usage: /steer <instruction>' : '[pwn-ai] /steer: no active request; submit a normal request instead')
             when '/help'

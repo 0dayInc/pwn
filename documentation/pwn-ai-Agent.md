@@ -300,7 +300,7 @@ and Ctrl+D still work. A running tool finishes cooperatively: neither rollback
 nor remote provider billing cancellation is promised. Swarm jobs should use
 noninteractive tools; their individual stdin prompts are not multiplexed.
 
-Typed `/swarm roster|status|create|use|spawn|retire|ask|broadcast|debate|tail|steer|cancel`
+Typed `/swarm agents|mission|status|create|use|spawn|retire|dm|broadcast|debate|tail|steer|pause|resume|cancel`
 commands remain available, including parameter completion. These are direct
 operator commands and do not add the workspace's extra confirmation step.
 `/swarm status JOB` includes retained outcomes. Jobs shown here belong to this

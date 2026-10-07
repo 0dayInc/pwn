@@ -345,6 +345,7 @@ module PWN
       #   spinner: 'optional - display spinner (defaults to false)'
       # )
       private_class_method def self.grok_rest_call(opts = {})
+        opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools]
         engine = PWN::Env.dig(:ai, :grok) if defined?(PWN::Env)
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 

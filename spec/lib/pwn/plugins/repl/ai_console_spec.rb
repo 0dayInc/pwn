@@ -17,7 +17,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(PWN::AI::Agent::Loop).to receive(:may_finalize?).and_return(true)
   end
 
-  def launch(keys, &tick)
+  def launch(keys, startup_delay: 0, render_delay: 0, &tick)
     require 'pty'
     require 'timeout'
     master, input = PTY.open
@@ -28,7 +28,10 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     frame = []
     position = [0, 0]
     allow(window).to receive(:erase) { frame = [] }
-    allow(window).to receive(:refresh) { @rendered = frame.dup }
+    allow(window).to receive(:refresh) do
+      sleep render_delay if render_delay.positive? && !keys.empty?
+      @rendered = frame.dup
+    end
     @positions = []
     allow(window).to receive(:setpos) do |*coords|
       position = coords
@@ -42,6 +45,10 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(window).to receive(:attron) { |_attribute, &block| block.call }
     screen = double('curses', init_screen: window, raw: nil, noecho: nil, curs_set: nil, close_screen: nil,
                               lines: 30, cols: 110, stdscr: window, has_colors?: false, resizeterm: nil)
+    allow(screen).to receive(:init_screen) do
+      sleep startup_delay if startup_delay.positive?
+      window
+    end
     @pry = Pry.new
     @pry.config.pwn_ai_session_id = PWN::Sessions.create(title: 'console')[:id]
     @pry.config.pwn_ai = true
@@ -258,28 +265,51 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     foreign&.join
   end
 
-  it 'leaves a provider blocked in native IO without waiting for that read to return' do
-    started = nil
-    allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
-      Thread.handle_interrupt(Exception => :never) { sleep 8 }
-    end
-    keys = "what color is a lemon?\n".chars
-    cancelled = false
-    launch(keys) do
-      if !cancelled && @paint.any? { |row| row.include?('Elapsed') }
-        cancelled = true
-        # Time cancellation, not typing, cold artwork or mock screen painting.
-        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        "\u0003"
-      elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
-        "\u0004"
-      else
-        Thread.pass
-        nil
+  [0, 3.1].each do |startup_delay|
+    it "leaves a provider blocked in native IO without waiting for that read to return (startup #{startup_delay}s)" do
+      entered = Queue.new
+      returned = Queue.new
+      provider = nil
+      started = nil
+      allow(PWN::AI::Agent::Loop).to receive(:call_engine) do
+        Thread.handle_interrupt(Exception => :never) do
+          entered << Thread.current
+          sleep 8
+          returned << true
+        end
       end
+      keys = "what color is a lemon?\n".chars
+      launched = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      launch(keys, startup_delay: startup_delay, render_delay: startup_delay.positive? ? 0.02 : 0) do
+        provider ||= entered.pop unless entered.empty?
+        if !started && provider&.status == 'sleep'
+          # Elapsed is painted before call_engine: it is not a provider barrier.
+          # Time from delivered Ctrl+C, excluding startup and per-key rendering.
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          "\u0003"
+        elsif @paint.any? { |row| row.include?('Request cancelled at a safe boundary') }
+          "\u0004"
+        else
+          Thread.pass
+          nil
+        end
+      end
+      expect(started).not_to be_nil
+      expect(started - launched).to be >= startup_delay
+      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
+      expect(returned).to be_empty
+    ensure
+      # Cancellation deliberately abandons masked IO. Release this fixture only
+      # after measuring return, then reap it before RSpec removes its mocks.
+      provider ||= entered.pop unless entered.empty?
+      begin
+        provider&.wakeup if provider&.alive?
+      rescue ThreadError
+        nil # The provider exited between alive? and wakeup.
+      end
+      provider&.join(2)
+      expect(provider).not_to be_alive if provider
     end
-    expect(started).not_to be_nil
-    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
   end
 
   it 'forwards tool input, preserves completed evidence before steering, and locks settings while running' do
@@ -345,7 +375,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     console.seed_request_history
     '/verbose '.each_char { |key| console.handle(key) }
     menu = console.instance_variable_get(:@menu)
-    expect(menu.map { |item| item[:label] }).to eq(%w[on off])
+    expect(menu.map { |item| item[:label] }).to eq(%w[off on])
     draft = [editor.text.dup, editor.cursor]
     console.handle(:up)
     expect(console.instance_variable_get(:@menu_index)).to eq(1)
@@ -377,7 +407,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     '/verbose '.each_char { |key| console.handle(key) }
     console.handle(:down)
     console.handle("\t")
-    expect(editor.text.strip).to eq('/verbose off')
+    expect(editor.text.strip).to eq('/verbose on')
     console.handle("\u0015")
     '/verbose '.each_char { |key| console.handle(key) }
     console.handle(:up)
@@ -1490,7 +1520,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   it 'keeps slash parameter completion live across spaces and clears stale menus on submit' do
     console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
     '/verbose '.chars.each { |key| console.handle(key) }
-    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to eq(%w[on off])
+    expect(console.instance_variable_get(:@menu).map { |item| item[:label] }).to eq(%w[off on])
     console.handle('o')
     console.handle('f')
     console.handle('f')
