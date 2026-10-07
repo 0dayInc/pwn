@@ -237,7 +237,7 @@ module PWN
           prior_id = Thread.current[:pwn_swarm_id]
           prior_honesty = Thread.current[:pwn_swarm_honesty]
           sid     = opts[:swarm_id] || create(topic: opts[:request].to_s[0, 60])[:swarm_id]
-          persona = personas(swarm_id: sid)[name.to_sym]
+          persona = opts[:persona] || personas(swarm_id: sid)[name.to_sym]
           raise ArgumentError, "unknown persona: #{name} (see #{AGENTS_FILE})" unless persona
 
           if opts[:unit].to_s != ''
@@ -256,6 +256,7 @@ module PWN
           session_id = persona_session(swarm_id: sid, name: name)
           sys        = build_persona_prompt(name: name, persona: persona,
                                             swarm_id: sid, session_id: session_id)
+          sys = "#{sys}\n#{opts[:handoff]}" if opts[:handoff]
 
           empty_tools = opts[:text_only] == true || Array(persona[:toolsets]).empty?
           Thread.current[:pwn_swarm_depth] = depth + 1
@@ -269,6 +270,7 @@ module PWN
               enabled_toolsets: empty_tools ? [] : persona[:toolsets],
               core_only: empty_tools ? false : true,
               system_role_content: sys,
+              solve_handoff: !opts[:handoff].nil?,
               on_tool: opts[:on_tool],
               steering: opts[:steering],
               nested: true
@@ -352,6 +354,30 @@ module PWN
           end
           replies = threads.to_h { |n, th| [n, th.value] }
           { swarm_id: sid, replies: replies }
+        end
+
+        # Run the built-in four-role workflow with host-observed verification.
+        # Supported Method Parameters::
+        #   PWN::AI::Agent::Swarm.solve(
+        #     request: 'required - original objective, preserved for every role',
+        #     workspace: 'optional - artifact root, defaults to current directory',
+        #     rounds: 'optional - bounded repair rounds, 1..10, default 3',
+        #     swarm_id: 'optional - existing swarm registry',
+        #     steering: 'optional - Solve::Control coordinator control',
+        #     on_state: 'optional - observed role state callback',
+        #     on_tool: 'optional - tool observation callback',
+        #     usage_observer: 'optional - provider usage callback'
+        #   )
+        public_class_method def self.solve(opts = {})
+          prior_id = Thread.current[:pwn_swarm_id]
+          prior_honesty = Thread.current[:pwn_swarm_honesty]
+          raise ArgumentError, 'request is required' if opts[:request].to_s.strip.empty?
+
+          Thread.current[:pwn_swarm_honesty] = nil
+          Solve::Run.new(opts).run
+        ensure
+          Thread.current[:pwn_swarm_id] = prior_id
+          Thread.current[:pwn_swarm_honesty] = prior_honesty
         end
 
         # ------------------------------------------------------------------
@@ -754,11 +780,25 @@ module PWN
               on_tool: 'optional - ->(name, args, result) live-UI callback',
               steering: 'optional - Loop::Steering for this persona turn',
               usage_observer: 'optional - callable receiving provider usage',
+              persona: 'optional - explicit in-memory persona for the built-in coordinator',
+              handoff: 'optional - structured coordinator context, not a replacement request',
               from: 'optional - sender account or address to bind as operator (defaults to caller_label)',
               text_only: 'required - text only value consumed by #ask',
               unit: 'optional - claim key (host+phase) before the child runs',
               ttl: 'optional - claim TTL seconds (defaults to 300)',
               engagement_id: 'optional - claim namespace (defaults to swarm_id)'
+            )
+
+            # Solve the unchanged objective with four roles and executed evidence.
+            #{self}.solve(
+              request: 'required - original objective preserved for every role',
+              workspace: 'optional - artifact root, defaults to current directory',
+              rounds: 'optional - repair round cap, 1..10, default 3',
+              swarm_id: 'optional - registry from which role overrides are inherited',
+              steering: 'optional - Solve::Control for coordinator steering/cancellation/pause',
+              on_state: 'optional - observed four-role state callback',
+              on_tool: 'optional - observed tool callback',
+              usage_observer: 'optional - provider usage callback'
             )
 
             # Run debate and return its result

@@ -18,6 +18,119 @@ self-improvement loop covers the whole swarm.
 No daemon. Cross-session / cross-process communication == another `pwn-ai` (or
 a `PWN::Cron` job) calling `Swarm.ask` with the same `swarm_id`.
 
+## Run one mission with a built-in team
+
+```text
+/swarm mission Write and test a Ruby function that validates the supplied data format
+```
+
+No persona setup is required. The exact text after `/swarm mission ` remains the
+user request for **every** role; role instructions and JSON handoffs go in system
+context, not a replacement task. Empty requests fail before dispatch. Existing
+`dm`, `broadcast`, and `debate` retain their messaging semantics. `/swarm agents`
+lists available personas; `/swarm dm NAME REQUEST` messages one persona.
+The renamed slash commands replace the previous spellings without compatibility
+aliases. Ruby APIs `Swarm.solve`, `Swarm.ask`, and the `Solve` coordinator are unchanged.
+
+`/menu` and Tab use case-insensitive alphabetical ordering at every depth:
+root commands, command actions, and live parameter lists (including agents,
+jobs, MCP tools, sessions, skills, memory keys, and cron jobs). Exact spelling
+breaks case-insensitive ties; selections keep their original command payloads.
+
+1. **Antagonist** independently enumerates requirements and risks before seeing
+   a candidate. `R0` always contains the entire unchanged original request.
+2. **Protagonist** builds the candidate using the ordinary nested tool-calling
+   `Loop.run` through `Swarm.ask`, then declares relative artifact paths.
+3. **Antagonist** critiques the candidate and returns unresolved objections.
+4. **Verifier** proposes requirement-indexed commands and exact expected stdout.
+   The coordinator executes them via the registered `shell` tool and `Dispatch`,
+   capturing actual stdout, stderr, and exit status. Model-supplied observations
+   are never accepted as execution evidence.
+5. **Integrator** reviews those observations and either accepts or sends a
+   targeted repair to the protagonist. Repairs always repeat critique and tests.
+
+Acceptance additionally requires every requirement ID to have passing executed
+evidence, no open objections, every check to exit zero with its expected output,
+and unchanged artifact hashes and steering revision. A model's `accept` alone
+cannot complete the job. Candidate and handoff revisions are SHA-256-bound;
+changed files, stale handoffs, failed checks, uncovered requirements, malformed
+JSON, provider failures and limits return **INCOMPLETE**, never success. Structured
+records and raw execution observations are saved with owner-only permissions in
+`~/.pwn/swarm/<solve-id>/solve.json`. Every solve gets fresh role sessions, so an
+earlier candidate cannot contaminate the independent initial assessment.
+
+### Console and controls
+
+Open the swarm workspace with **Ctrl+S / Ctrl+G**, keep a mission in the composer,
+then press **v — Mission with team**. Enter confirms the exact draft and built-in
+roles; Esc aborts without changing the draft or cursor. The jobs detail view
+shows actual role phases, original requirements, provider/model routes, artifact
+hashes, and open objections. There is one integrated final result. Provider usage
+continues through the console's existing usage observer (no invented estimates).
+
+```text
+/swarm status JOB
+/swarm steer JOB Add this verification constraint
+/swarm pause JOB
+/swarm resume JOB
+/swarm cancel JOB
+```
+
+The same slash routes work in the legacy line console. Steering belongs to the
+coordinator and is propagated to later roles; it invalidates previously accepted
+candidate evidence without replacing the original goal. Pause stops future
+dispatch at safe boundaries. Cancel interrupts the owned model wait; an already
+running tool finishes first, and its changes are not undone. Another job cannot
+start in the same controller while solve owns the workspace. A workspace file
+lock also excludes overlapping solve coordinators across processes.
+
+### Role configuration and limits
+
+All roles inherit the already selected provider and that provider's configured
+default model. Optional overrides use **existing** persona fields; no new vault
+configuration keys or schema migration is needed:
+
+```text
+/swarm spawn solve_antagonist Review correctness --engine ollama --model YOUR_INSTALLED_MODEL
+```
+
+The other names are `solve_protagonist`, `solve_verifier`, and `solve_integrator`.
+They can also be defined in `agents.yml`. Engine/model overrides are request-local;
+there is no superiority ranking, automatic diversity, or fallback to a different
+provider. Remote credentials must already be configured. Solve never initiates
+OAuth login or prompts for API keys; configured OAuth refresh remains the provider's
+normal noninteractive operation. Implicit local-agent escalation is disabled for
+solve. A missing provider fails visibly rather than silently switching.
+
+Ruby API: `Swarm.solve(request:, workspace: Dir.pwd, rounds: 3, swarm_id: nil,
+steering: nil, on_state: nil, on_tool: nil, usage_observer: nil)`. `swarm_id` supplies
+role overrides; the returned solve ID identifies the independent records. The
+default round limit is 3 (API range 1–10), each role turn is limited to 25 model
+calls, and each of at most 32 checks per round has a 60-second tool timeout.
+
+### Boundaries, not a security sandbox
+
+The protagonist is the only model role with write-capable tools (`shell` and
+`pwn_eval`). Review roles have no tools; Dispatch denies invented tool calls even
+if a provider ignores its empty tool schema. Integrator repairs are dispatched
+back to that one writer. This is role capability enforcement, **not** confinement
+of arbitrary protagonist Ruby or shell code or other processes on the host.
+
+Verification runs in fresh disposable copies of declared regular-file artifacts;
+all test dependencies must be declared. Symlinks/out-of-workspace artifacts are
+rejected, and input copies must retain their candidate hashes after a check.
+Files over 128 KiB cannot currently be passed to full-content review and produce
+an explicit incomplete result. A disposable directory is **not an OS sandbox**:
+test code can use absolute paths, network, installed dependencies and host resources.
+Existing Dispatch confirmation and `ai_sandbox` policies still apply. Use only
+trusted test commands or supply external OS isolation when executing untrusted code.
+
+Requirement extraction and test relevance still require model judgment. Executed
+checks are evidence for their stated assertions, not mathematical proof of an
+arbitrary natural-language goal; the saved commands, outputs, requirements and
+revisions make that judgment inspectable. No live-provider reliability or automatic
+security isolation is implied by the deterministic offline integration tests.
+
 ## Define personas
 
 Each persona accepts optional `engine` and `model` keys. `model` is the exact

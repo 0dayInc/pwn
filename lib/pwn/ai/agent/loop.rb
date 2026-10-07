@@ -1704,6 +1704,8 @@ module PWN
         # export_finetune can later teach the LoRA to NOT need it.
         @escalate_warned = false
         private_class_method def self.escalate(opts = {})
+          return if Thread.current[:pwn_solve_tools]
+
           request    = opts[:request]
           turn_fails = opts[:turn_fails]
           persona    = agent_flag(key: :escalation_persona)
@@ -2058,7 +2060,7 @@ module PWN
           )
 
           runtime = Thread.current[:pwn_request_runtime]
-          if runtime.respond_to?(:call)
+          if runtime.respond_to?(:call) && !Thread.current[:pwn_solve_tools]
             return runtime.call(messages: messages, tools: tools) do |prepared, route|
               invoke_provider_chat(engine: (route || {})[:provider] || active_engine, messages: prepared, tools: tools, model: (route || {})[:model], temp: (route || {})[:temperature])
             end
@@ -3160,6 +3162,16 @@ module PWN
         end
 
         # Commit the returned tool before unwinding, without stale recovery work.
+        # Child handoffs are proposals, never a user completion. Solve owns
+        # the original objective and the final artifact/evidence gate.
+        private_class_method def self.solve_handoff?(opts = {})
+          return false unless opts[:solve_handoff] && Thread.current[:pwn_solve_tools] && Array(opts[:calls]).empty?
+
+          JSON.parse(opts[:text]).is_a?(Hash)
+        rescue JSON::ParserError
+          false
+        end
+
         private_class_method def self.steering_tool_checkpoint!(opts = {})
           opts[:steering]&.checkpoint(messages: opts[:messages], phase: :tool) do
             tc = opts[:tool_call]
@@ -3348,7 +3360,7 @@ module PWN
           trivia = world_knowledge?(request: request)
           catalog = catalog_lookup?(request: request)
           browse = request_need(request: request) == :browse
-          skip_compass = trivia || catalog || no_tools || browse
+          skip_compass = trivia || catalog || no_tools || browse || opts[:solve_handoff]
           # Trivia / catalog / browse do not get an implement-shaped
           # English compass. Inventing "apply code/host changes" there
           # keeps the model on a Navigate task after the page already loaded.
@@ -3372,7 +3384,7 @@ module PWN
           Thread.current[:pwn_plan_predicted] = nil
           cal_state = calibration_state
           force_plan = cal_state[:force_plan]
-          skip_plan = %i[howto recall greeting].include?(intent) || trivia || catalog || no_tools || browse
+          skip_plan = %i[howto recall greeting].include?(intent) || skip_compass
           did_plan = false
           if !skip_plan && (force_plan || agent_flag(key: :plan_first, default: local) || budget_exhaustion_hot?) && !Array(tools).empty?
             predicted = plan_first(messages: messages, request: request, ts_state: ts_state)
@@ -3523,6 +3535,8 @@ module PWN
 
             messages << msg
 
+            return text if solve_handoff?(opts.merge(text: text, calls: calls))
+
             if calls.empty?
               # P28 — refuse polite mid-goal handoffs so multi-step tasks stay autonomous.
               if incomplete_final?(text: text, last_iter: false)
@@ -3650,7 +3664,7 @@ module PWN
                 # P17 — never fork counterfactual when budget fingerprints dominate:
                 # CF is another mini agent loop and is the #1 amplifier of
                 # iteration-budget exhaustion on this host.
-                if count >= thresh && !retryable_execution_failure?(raw: raw) && !escalated && defined?(Curriculum) && !budget_exhaustion_hot?
+                if count >= thresh && !retryable_execution_failure?(raw: raw) && !escalated && defined?(Curriculum) && !budget_exhaustion_hot? && !opts[:solve_handoff]
                   cf = (turn_fails["cf:#{fkey}"] += 1) == 1 ? Curriculum.counterfactual(request: request, name: name, args: args, error: tele[:err] || raw[0, 200], hint: hint) : nil
                   hint = "#{hint}\n[pwn-ai/counterfactual] branch #{cf[:branch]} (score=#{cf[:score].round(2)}): #{cf[:content]}" if cf
                 end

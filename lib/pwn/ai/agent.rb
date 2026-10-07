@@ -36,6 +36,7 @@ module PWN
       autoload :Extrospection, 'pwn/ai/agent/extrospection'
       autoload :Reflect,       'pwn/ai/agent/reflect'
       autoload :Swarm,         'pwn/ai/agent/swarm'
+      autoload :Solve,         'pwn/ai/agent/solve'
       autoload :Reward,        'pwn/ai/agent/reward'
       autoload :Verification,  'pwn/ai/agent/verification'
       autoload :Curriculum,    'pwn/ai/agent/curriculum'

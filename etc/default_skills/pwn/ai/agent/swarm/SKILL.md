@@ -43,6 +43,7 @@ PWN::AI::Agent::Swarm.personas(opts)
 - `ask`
 - `debate`
 - `broadcast`
+- `solve`
 - `map_targets`
 - `fact_record`
 - `facts_prompt`

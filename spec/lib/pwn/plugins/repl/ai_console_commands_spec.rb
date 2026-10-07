@@ -3,6 +3,42 @@
 require 'spec_helper'
 
 describe PWN::Plugins::REPL::AIConsoleCommands do
+  it 'advertises the renamed swarm surface in both completers' do
+    line = '/swarm '
+    labels = described_class.complete(line: line, cursor: line.length)[:items].map { |item| item[:label] }
+    legacy = PWN::Plugins::REPL.pwn_ai_complete_command(line: line)
+    [labels, legacy].each do |commands|
+      expect(commands).to include('mission', 'agents', 'dm')
+      expect(commands & %w[solve roster ask]).to be_empty
+    end
+  end
+
+  it 'sorts every command group and nested live provider by displayed label' do
+    values = %w[zulu alpha Alpha Bravo]
+    allow(PWN::Plugins::REPL).to receive(:pwn_ai_engines).and_return(values)
+    allow(PWN::Cron).to receive(:list).and_return(values.to_h { |value| [value, {}] })
+    allow(PWN::Memory).to receive(:load).and_return(values.to_h { |value| [value, {}] })
+    allow(PWN::Sessions).to receive(:list).and_return(values.map { |value| { id: value } })
+    stub_const('PWN::Skills', values.to_h { |value| [value, {}] })
+    allow(PWN::AI::MCP).to receive(:backends).and_return(values.map { |value| { name: value, tools: values } })
+    controller = double(completion_context: { agents: values, jobs: values.map { |value| { id: value } } })
+    allow(Dir).to receive(:exist?).with(PWN::AI::Agent::Swarm::SWARM_ROOT).and_return(true)
+    allow(Dir).to receive(:children).with(PWN::AI::Agent::Swarm::SWARM_ROOT).and_return(values)
+    lines = ['/'] + described_class::COMMANDS.map { |command| "#{command} " } +
+            ['/cron run ', '/memory recall ', '/sessions resume ', '/skills recall ', '/model list ', '/learning list ',
+             '/mcp use ', '/mcp call ', '/swarm dm ', '/swarm cancel ', '/swarm use ', '/swarm debate ']
+    lines.each do |line|
+      items = described_class.complete(line: line, cursor: line.length, swarm: controller)[:items]
+      labels = items.map { |item| item[:label] }
+      expect(labels).to eq(labels.sort_by { |label| [label.downcase, label] }), line
+      items.each { |item| expect(item[:text]).to eq(line == '/' ? item[:label] : "#{line}#{item[:label]}") }
+    end
+    line = '/swarm dm '
+    expect(described_class.complete(line: line, cursor: line.length, swarm: controller)[:items].first[:label]).to eq('Alpha')
+    values << 'aardvark'
+    expect(described_class.complete(line: line, cursor: line.length, swarm: controller)[:items].first[:label]).to eq('aardvark')
+  end
+
   it 'completes command names and parameter positions without a provider call' do
     allow(PWN::Plugins::REPL).to receive(:pwn_ai_engines).and_return(%w[openai grok])
     first = described_class.complete(line: '/mo', cursor: 3)
@@ -13,7 +49,7 @@ describe PWN::Plugins::REPL::AIConsoleCommands do
     expect(engines[:items].map { |item| item[:label] }).to include('openai', 'list')
     expect(engines[:items].map { |item| item[:text] }).to include('/model openai')
     verbose = described_class.complete(line: '/verbose ', cursor: 9)
-    expect(verbose[:items].map { |item| item[:label] }).to eq(%w[on off])
+    expect(verbose[:items].map { |item| item[:label] }).to eq(%w[off on])
     free = described_class.complete(line: '/steer keep ', cursor: 12)
     expect(free[:items]).to be_empty
     expect(free[:hint]).to include('free text')

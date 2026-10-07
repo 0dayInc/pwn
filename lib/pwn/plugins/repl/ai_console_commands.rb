@@ -9,7 +9,7 @@ module PWN
           /back /clear /cron /debug /delegate /help /input /learning /mcp /memory /menu /model /system-role
           /sessions /skills /status /steer /swarm /trace /verbose
         ].freeze
-        SWARM = %w[dashboard help roster status create use spawn retire ask debate broadcast tail steer cancel].freeze
+        SWARM = %w[dashboard help mission agents status create use spawn retire dm debate broadcast tail steer pause resume cancel].freeze
 
         public_class_method def self.complete(opts = {})
           line = opts[:line].to_s
@@ -24,7 +24,8 @@ module PWN
                          else
                            candidates(tokens: tokens, prefix: prefix, pry: opts[:pry], swarm: opts[:swarm])
                          end
-          items = values.map do |value|
+          # Every depth is resolved live; sort here so no provider can bypass ordering.
+          items = values.sort_by { |value| [value.downcase, value] }.map do |value|
             replacement = line_replace(line: line, token: current, value: value)
             { label: value, text: replacement[:text], cursor: replacement[:cursor] }
           end
@@ -252,10 +253,10 @@ module PWN
           jobs = Array(context[:jobs]).map { |job| job[:id] || job['id'] }
           agents = Array(context[:agents])
           case action
-          when 'status', 'steer', 'cancel' then [filter(values: jobs + (action == 'cancel' ? ['all'] : []), prefix: prefix), 'job id']
+          when 'status', 'steer', 'cancel', 'pause', 'resume' then [filter(values: jobs + (action == 'cancel' ? ['all'] : []), prefix: prefix), 'job id']
           when 'use' then [filter(values: existing_swarms, prefix: prefix), 'swarm id']
           when 'spawn' then [[], position == 2 ? 'persona name' : 'role text']
-          when 'retire', 'ask' then [filter(values: agents, prefix: prefix), 'persona']
+          when 'retire', 'dm' then [filter(values: agents, prefix: prefix), 'persona']
           when 'debate' then [filter(values: agents, prefix: prefix), 'comma-separated personas, then topic']
           when 'tail' then [[], 'message limit']
           else [[], 'free text']
