@@ -4,6 +4,59 @@ require 'spec_helper'
 require 'tmpdir'
 
 describe PWN::AI::Router do
+  it 'summarizes sessions with the active provider and model rather than the local artifact route' do
+    stub_const('PWN::Env', { ai: { active: 'openai', openai: { model: 'active-model', key: 'test-key' }, ollama: { model: 'local', base_uri: 'http://localhost:11434' } } })
+    expect(PWN::AI::Ollama).not_to receive(:chat)
+    expect(PWN::AI::OpenAI).to receive(:chat).with(hash_including(model: 'active-model', request: a_string_including('overall conversation', 'JSON', 'at most 7 words'), spinner: false)) do
+      expect(Thread.current[:pwn_session_title]).to be(true)
+      { choices: [{ role: 'system', content: 'wrong' }, { role: 'assistant', content: '{"title":"Repair","summary":"Fixed login"}' }] }
+    end
+    expect(described_class.summarize(text: 'Login repaired', llm: true, session: true)).to include('Fixed login')
+    expect(Thread.current[:pwn_session_title]).to be_nil
+    expect(PWN::Env[:ai][:active]).to eq('openai')
+    PWN::Env[:ai][:active] = 'openwebui'
+    PWN::Env[:ai][:openwebui] = { model: 'local', base_uri: 'http://localhost:3000', key: 'optional - API key' }
+    expect(PWN::Plugins::AuthenticationHelper).not_to receive(:mask_password)
+    expect(PWN::AI::OpenWebUI).not_to receive(:chat)
+    expect(described_class.summarize(text: 'Login repaired', llm: true, session: true)).to eq('')
+  end
+
+  %w[openai anthropic grok gemini ollama openwebui].each do |engine|
+    it "routes session summaries only to the active #{engine} model" do
+      stub_const('PWN::Env', { ai: { active: engine.to_sym, engine.to_sym => { model: 'selected-model', key: 'fixture-key', base_uri: 'http://localhost:1234' } } })
+      mod = Object.const_get(described_class::ENGINE_MOD.fetch(engine))
+      expect(mod).to receive(:chat).with(hash_including(model: 'selected-model', quiet: true, spinner: false)).and_return('{"title":"Topic","summary":"Overall conversation context."}')
+      expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to include('Topic')
+      expect(PWN::Env[:ai][:active]).to eq(engine.to_sym)
+    end
+  end
+
+  it 'retains a safe title on active-provider failure without fallback or authentication prompts' do
+    stub_const('PWN::Env', { ai: { active: :openai, openai: { model: 'active-model', key: 'fixture-key' }, ollama: { model: 'local', base_uri: 'http://localhost:11434' } } })
+    expect(PWN::AI::Ollama).not_to receive(:chat)
+    expect(PWN::Plugins::AuthenticationHelper).not_to receive(:mask_password)
+    expect(PWN::AI::OpenAI).not_to receive(:obtain_oauth_bearer_token)
+    allow(PWN::AI::OpenAI).to receive(:chat).and_raise(IOError, 'offline provider')
+    expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to eq('')
+    expect(Thread.current[:pwn_session_title]).to be_nil
+    PWN::Env[:ai][:openai].delete(:key)
+    expect(PWN::AI::OpenAI).not_to receive(:chat)
+    expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to eq('')
+  end
+
+  %w[openai anthropic grok].each do |engine|
+    it "does not enroll or prompt for #{engine} when session-title OAuth credentials have expired" do
+      stub_const('PWN::Env', { ai: { active: engine.to_sym, engine.to_sym => { model: 'selected-model', oauth: { bearer_token: 'expired-fixture' } } } })
+      mod = Object.const_get(described_class::ENGINE_MOD.fetch(engine))
+      allow(mod).to receive(:oauth_token_expiring?).and_return(true)
+      expect(mod).not_to receive(:obtain_oauth_bearer_token)
+      expect(PWN::Plugins::AuthenticationHelper).not_to receive(:mask_password)
+      expect(PWN::Plugins::TransparentBrowser).not_to receive(:open)
+      expect(described_class.summarize(text: 'Conversation', llm: true, session: true)).to eq('')
+      expect(Thread.current[:pwn_session_title]).to be_nil
+    end
+  end
+
   it 'should display information for authors' do
     expect(described_class).to respond_to :authors
   end

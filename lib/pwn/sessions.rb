@@ -6,6 +6,7 @@ require 'time'
 require 'securerandom'
 require 'digest'
 require 'zlib'
+require 'shellwords'
 require_relative 'redaction'
 
 module PWN
@@ -25,6 +26,45 @@ module PWN
     COMPACT_SIZE_FLOOR = 100_000
     MAX_FILES = 400
     GOLD_MIN_SCORE = 0.6
+    TITLE_WORD_MAX = 7
+    METADATA_MUTEX = Mutex.new
+
+    SESSION_ID = /\A\d{8}_\d{6}_[0-9a-f]{8}\z/
+    # Selectors follow writer-owned schemas only; never recurse through payloads.
+    # :values is a documented map, :items an array, :path a session file path.
+    DEPENDENCY_SCHEMAS = {
+      %r{\A(?:learning\.jsonl|learning/disputed\.jsonl|policy_traj\.jsonl|open_goal\.json|jobs/[0-9a-f]{12}\.json)\z} => [['session_id']],
+      /\Amistakes\.json\z/ => [[:values, 'sessions', :items], [:values, 'verified_sessions', :items]],
+      /\Afindings\.jsonl\z/ => [['session_id'], ['evidence_paths', :items, :path], ['poc_artifacts', :items, :path]],
+      %r{\Aswarm/[^/]+/personas\.json\z} => [[:values]],
+      %r{\Aengagements/[^/]+/facts\.jsonl\z} => [['source_session']],
+      # Legacy Findings allowed an empty engagement name (root evidence ledger).
+      %r{\Aengagements/(?:[^/]+/)?evidence\.jsonl\z} => [['path', :path]],
+      %r{\Aengagements/[^/]+/recon/observations\.jsonl\z} => [['evidence_path', :path]],
+      %r{\Aartifacts/manifest\.jsonl\z} => [['session'], ['source_path', :path]],
+      %r{\Aartifacts/[^/]+/index\.jsonl\z} => [['src', :path]],
+      # These stores do not persist session links. In particular checkpoint
+      # result, preference meta and solve data are arbitrary tool/model content.
+      /\A(?:policy\.json|preferences\.jsonl|reward_sentinel\.json|skill_review\.jsonl|curriculum_kpi\.jsonl)\z/ => [],
+      %r{\Aruns/[^/]+/checkpoints\.jsonl\z} => [],
+      %r{\Amissions/[^/]+\.json\z} => [],
+      %r{\Aswarm/[^/]+/(?:bus\.jsonl|solve\.json)\z} => [],
+      %r{\Acurriculum/(?:models|cooldown)\.json\z} => [],
+      %r{\Aengagements/[^/]+\.json\z} => [],
+      %r{\Aengagements/[^/]+/(?:hosts\.json|scans/nmap-[^/]+\.json|binaries/[^/]+/facts\.json)\z} => [],
+      %r{\Aartifacts/[^/]+/engagement-memory\.json\z} => []
+    }.freeze
+
+    # Preserve candidate records for machine callers; presentation belongs to REPL.
+    class AmbiguousTitle < ArgumentError
+      attr_reader :identifier, :candidates
+
+      def initialize(identifier:, candidates:)
+        @identifier = identifier
+        @candidates = candidates
+        super("Ambiguous session title; use an id: #{candidates.map { |row| row[:id] }.join(', ')}")
+      end
+    end
 
     # Supported Method Parameters::
     #   dir = PWN::Sessions.sessions_dir
@@ -37,22 +77,268 @@ module PWN
     #   sessions = PWN::Sessions.list
     public_class_method def self.list
       dir = sessions_dir
+      references = dependency_index
       Dir.glob(File.join(dir, '*.jsonl')).reverse.map do |f|
+        naming = title_status(session_id: File.basename(f, '.jsonl'))
         {
           id: File.basename(f, '.jsonl'),
+          title: metadata(session_id: File.basename(f, '.jsonl'))[:title],
+          dependencies: references[:dependencies].fetch(File.basename(f, '.jsonl'), []),
+          dependency_errors: references[:errors],
           path: f,
           size: File.size(f),
           mtime: File.mtime(f).utc.iso8601,
           lines: File.readlines(f).count
-        }
+        }.merge(naming)
+      end
+    end
+
+    # Index retained loop evidence without reading vault/config/credential stores.
+    # Supported Method Parameters::
+    #   references = PWN::Sessions.dependency_index
+    # dependencies maps session IDs to files REFERENCING them (not files they
+    # depend on). Unknown/malformed stores are errors, never inferred text links.
+    public_class_method def self.dependency_index
+      root = File.join(Dir.home, '.pwn')
+      files = %w[learning.jsonl learning/disputed.jsonl mistakes.json memory.json memory.archive.json open_goal.json
+                 policy.json policy_traj.jsonl preferences.jsonl reward_sentinel.json
+                 skill_review.jsonl curriculum_kpi.jsonl extrospection.json findings.jsonl].map { |name| File.join(root, name) }
+      directories = %w[runs missions jobs swarm curriculum engagements].map { |name| File.join(root, name) } + [SESSIONS_DIR]
+      errors = directories.select { |dir| File.symlink?(dir) || (File.exist?(dir) && !File.directory?(dir)) }
+      files.concat(Dir.glob(File.join(root, 'artifacts', '{manifest.jsonl,*/index.jsonl,*/engagement-memory.json}')))
+      databases = Dir.glob(File.join(root, 'embeddings', '*.db'))
+      errors.concat(%w[artifacts embeddings].map { |name| File.join(root, name) }.select { |dir| File.symlink?(dir) || (File.exist?(dir) && !File.directory?(dir)) })
+      directories.each do |dir|
+        next unless File.directory?(dir) && !File.symlink?(dir)
+
+        files.concat(Dir.glob(File.join(dir, '**', '*.{json,jsonl}')).reject { |path| File.basename(path) == 'loot.json' })
+        errors.concat(Dir.glob(File.join(dir, '**', '*')).select { |path| File.symlink?(path) })
+      end
+      dependencies = {}
+      evidence_dependencies = {}
+      databases.each do |path|
+        id = File.basename(path, '.db')
+        next unless id.match?(SESSION_ID)
+
+        raise IOError, 'Unsafe embedding store' unless File.file?(path) && File.realpath(path) == File.expand_path(path)
+
+        dependencies[id] = [path]
+      rescue IOError, SystemCallError
+        errors << path
+      end
+      files.uniq.sort.each do |path|
+        next unless File.exist?(path) || File.symlink?(path)
+
+        begin
+          raise IOError, 'Unsafe dependency parent' if errors.any? { |parent| path.start_with?("#{parent}/") }
+          raise IOError, 'Unsafe dependency store' unless File.file?(path) && File.realpath(path) == File.expand_path(path)
+
+          records = path.end_with?('.jsonl') ? File.foreach(path).map { |line| JSON.parse(line) } : [JSON.parse(File.read(path))]
+          raise IOError, 'Invalid dependency records' unless records.all?(Hash)
+          raise IOError, 'Invalid mistake entries' if path == File.join(root, 'mistakes.json') && !records.first.values.all?(Hash)
+
+          if path == File.join(root, 'learning.jsonl')
+            records.each do |record|
+              next unless record.key?('evidence_ref')
+
+              begin
+                PWN::AI::Agent::Learning.evidence_transcript(row: record)
+                hash = record['evidence_ref']['sha256']
+                evidence_dependencies[File.join(root, 'learning', 'evidence', "#{hash}.json")] = [path]
+              rescue IOError
+                errors << path
+              end
+            end
+          end
+
+          dependency_ids(path: path, root: root, records: records).uniq.each do |id|
+            (dependencies[id] ||= []) << path
+          end
+        rescue JSON::ParserError, IOError, SystemCallError
+          errors << path
+        end
+      end
+      result = { dependencies: dependencies.transform_values { |paths| paths.uniq.sort }, errors: errors.uniq.sort }
+      result[:evidence_dependencies] = evidence_dependencies unless evidence_dependencies.empty?
+      result
+    end
+
+    private_class_method def self.dependency_ids(opts = {})
+      path = opts[:path]
+      records = opts[:records]
+      if path.start_with?("#{SESSIONS_DIR}/")
+        relative = path.delete_prefix("#{SESSIONS_DIR}/")
+        # There is no cross-session link in the transcript/sidecar schema.
+        return [] if relative.match?(%r{\A[^/]+\.(?:jsonl|meta\.json)\z})
+        return dependency_value(value: relative.split('/').first) if relative.match?(%r{\A[^/]+/trace\.jsonl\z})
+
+        raise IOError, 'Unknown session dependency store'
+      end
+
+      relative = path.delete_prefix("#{opts[:root]}/")
+      return memory_dependency_ids(records: records) if %w[memory.json memory.archive.json].include?(relative)
+      return event_dependency_ids(name: relative, records: records) if %w[curriculum/log.jsonl extrospection.json].include?(relative)
+
+      schema = DEPENDENCY_SCHEMAS.find { |pattern, _| relative.match?(pattern) }
+      raise IOError, 'Unknown dependency store' unless schema
+
+      ids = records.flat_map do |record|
+        next [] if relative == 'learning.jsonl' && record.key?('evidence_ref') && PWN::AI::Agent::Learning.evidence_complete?(row: record)
+
+        # Swarm.bus_append passes a swarm ID through ArtifactRegistry's session
+        # parameter. Its kind disambiguates that namespace, even on a collision.
+        record = record.except('session') if relative == 'artifacts/manifest.jsonl' && record['kind'] == 'swarm-bus'
+        schema.last.flat_map { |selector| dependency_select(value: record, selector: selector) }
+      end
+      # ArtifactRegistry and EngagementMemory explicitly scope these paths by
+      # session; arbitrary filenames, swarm IDs and run IDs are not session IDs.
+      ids.concat(dependency_value(value: relative.split('/')[1])) if relative.match?(%r{\Aartifacts/[^/]+/(?:index\.jsonl|engagement-memory\.json)\z})
+      ids
+    end
+
+    private_class_method def self.dependency_select(opts = {})
+      value = opts[:value]
+      selector = opts[:selector]
+      return [] if value.nil?
+      return dependency_value(value: value) if selector.empty?
+
+      key, *rest = selector
+      case key
+      when :values, :items
+        type = key == :values ? Hash : Array
+        raise IOError, 'Invalid dependency container' unless value.is_a?(type)
+
+        values = key == :values ? value.values : value
+        values.flat_map { |item| dependency_select(value: item, selector: rest) }
+      when :path
+        raise IOError, 'Invalid dependency path' unless value.is_a?(String)
+        return [] unless File.dirname(value) == SESSIONS_DIR && value.match?(/\.(?:meta\.json|jsonl)\z/)
+
+        dependency_value(value: File.basename(value).sub(/\.(?:meta\.json|jsonl)\z/, ''))
+      else
+        raise IOError, 'Invalid dependency object' unless value.is_a?(Hash)
+
+        dependency_select(value: value[key], selector: rest)
+      end
+    end
+
+    private_class_method def self.dependency_value(opts = {})
+      value = opts[:value]
+      return [] if value.nil?
+      raise IOError, 'Invalid session reference' unless value.is_a?(String)
+
+      value.match?(SESSION_ID) ? [value] : []
+    end
+
+    private_class_method def self.memory_dependency_ids(opts = {})
+      opts[:records].flat_map do |record|
+        raise IOError, 'Invalid memory entries' unless record.values.all?(Hash)
+
+        # Learning.reflect's durable key is reflect_<session>_<lesson digest>.
+        # Memory values, sources and arbitrary user-selected keys are not links.
+        record.keys.filter_map { |key| key[/\Areflect_(\d{8}_\d{6}_[0-9a-f]{8})_[0-9a-f]{8}\z/, 1] }
+      end
+    end
+
+    private_class_method def self.event_dependency_ids(opts = {})
+      opts[:records].flat_map do |record|
+        if opts[:name] == 'curriculum/log.jsonl'
+          # Curriculum.practice persists run results only for this event.
+          next [] unless record['event'] == 'practice'
+
+          dependency_select(value: record, selector: ['data', :items, 'runs', :items, 'session_id'])
+        else
+          observations = record.fetch('observations', [])
+          raise IOError, 'Invalid extrospection observations' unless observations.is_a?(Array) && observations.all?(Hash)
+
+          observations.flat_map do |observation|
+            # auto_extrospect writes ['drift', session_id]; other tags are free text.
+            next [] unless observation['source'] == 'auto_extrospect'
+
+            tags = observation.fetch('tags', [])
+            raise IOError, 'Invalid extrospection tags' unless tags.is_a?(Array)
+            next [] unless tags.first == 'drift'
+
+            dependency_value(value: tags[1])
+          end
+        end
+      end
+    end
+
+    # Hold a kernel-owned shared lease until the caller closes this handle.
+    # Cleanup takes an exclusive lock on this same permanent inode. No PID or
+    # timestamp can grant ownership; exit/crash closes the actual descriptor.
+    # Supported Method Parameters::
+    #   lease = PWN::Sessions.activate(session_id: 'required - stable transcript identifier for activity ownership', creating: 'optional - allow creation under the lease')
+    public_class_method def self.activate(opts = {})
+      sid = opts[:session_id].to_s
+      raise ArgumentError, 'Invalid session ID' if sid.empty? || File.basename(sid) != sid || sid.include?("\0") || sid == '.' || sid == '..'
+
+      register_activity_owner
+      lock = File.open(File.join(sessions_dir, ".#{sid}.cleanup.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- caller owns the lease lifetime
+      lock.close_on_exec = true
+      raise IOError, "Session #{sid} is being removed" unless lock.flock(File::LOCK_SH | File::LOCK_NB)
+      raise IOError, "Session #{sid} not found" unless opts[:creating] || File.file?(File.join(sessions_dir, "#{sid}.jsonl"))
+
+      lock
+    rescue Exception # rubocop:disable Lint/RescueException -- interrupts must close untransferred lease descriptors
+      lock&.close
+      raise
+    end
+
+    # Closing, not LOCK_UN, preserves independent and inherited owners.
+    # Supported Method Parameters::
+    #   PWN::Sessions.deactivate(lease: 'required - handle returned by activate')
+    public_class_method def self.deactivate(opts = {})
+      lease = opts[:lease]
+      lease.close if lease && !lease.closed?
+      nil
+    end
+
+    # A held capability marker distinguishes upgraded idle launchers from legacy
+    # processes with unknowable in-memory ownership. This is NOT a session pin.
+    private_class_method def self.register_activity_owner
+      return unless File.file?('/proc/self/stat')
+
+      start = File.read('/proc/self/stat').split(') ').last.split[19]
+      path = File.join(sessions_dir, ".activity-owner-#{Process.pid}-#{start}.lock")
+      @activity_owner_mutex ||= Mutex.new
+      @activity_owner_mutex.synchronize do
+        @activity_owners ||= {}
+        @activity_owners.delete_if do |owner_path, handle|
+          expired = !File.exist?(owner_path) || !owner_path.include?(".activity-owner-#{Process.pid}-")
+          handle.close if expired && !handle.closed?
+          expired
+        end
+        return if @activity_owners[path] && !@activity_owners[path].closed?
+
+        marker = File.open(path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- process-lifetime capability marker
+        marker.close_on_exec = true
+        raise IOError, 'Activity owner marker already locked' unless marker.flock(File::LOCK_EX | File::LOCK_NB)
+
+        @activity_owners[path] = marker
+      end
+      nil
+    end
+
+    # Probe kernel ownership without trusting stale marker contents.
+    # Supported Method Parameters::
+    #   active = PWN::Sessions.active?(session_id: 'required - stable transcript identifier for activity ownership')
+    public_class_method def self.active?(opts = {})
+      sid = opts[:session_id].to_s
+      raise ArgumentError, 'Invalid session ID' if sid.empty? || File.basename(sid) != sid || sid == '.' || sid == '..'
+
+      File.open(File.join(sessions_dir, ".#{sid}.cleanup.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+        !lock.flock(File::LOCK_EX | File::LOCK_NB)
       end
     end
 
     # Supported Method Parameters::
     #   session = PWN::Sessions.create(
-    #     title: 'optional - human title',
+    #     title: 'optional - human title, capped at seven whitespace-separated words',
     #     source: 'optional - e.g. pwn-ai',
-    #     id: 'optional - fixed session id (tests / replay); default timestamp_hex'
+    #     id: 'optional - fixed session id (tests / replay); default timestamp_hex',
+    #     active: 'optional - return an owned lease with the new session'
     #   )
     public_class_method def self.create(opts = {})
       dir = sessions_dir
@@ -63,11 +349,12 @@ module PWN
         id = "#{ts}_#{rand}"
       end
       path = File.join(dir, "#{id}.jsonl")
+      lease = activate(session_id: id, creating: true)
       raise "Session #{id} already exists" if File.exist?(path)
 
       meta = {
         id: id,
-        title: opts[:title] || "pwn-ai session #{id}",
+        title: bounded_title(title: opts[:title] || "pwn-ai session #{id}"),
         source: opts[:source] || 'pwn-ai',
         created_at: Time.now.utc.iso8601
       }
@@ -76,7 +363,202 @@ module PWN
       File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |f|
         f.puts(JSON.dump(role: 'system', content: "Session started: #{meta[:title]}", timestamp: meta[:created_at]))
       end
-      { id: id, path: path, meta: meta }
+      write_metadata(session_id: id, metadata: meta)
+      result = { id: id, path: path, meta: meta }
+      result[:lease] = lease if opts[:active]
+      result
+    ensure
+      deactivate(lease: lease) unless result && opts[:active]
+    end
+
+    # Read durable session naming metadata, including legacy transcript titles.
+    # Normalize old titles without rewriting files; list, resume and panes share
+    # this effective title. Explicit titles follow the same seven-word limit.
+    public_class_method def self.metadata(opts = {})
+      sid = opts[:session_id].to_s
+      path = File.join(sessions_dir, "#{sid}.meta.json")
+      if File.file?(path)
+        stored = JSON.parse(File.read(path), symbolize_names: true)
+        return stored.merge(id: sid, title: bounded_title(title: stored[:title])) if stored.is_a?(Hash) && !bounded_title(title: stored[:title]).empty?
+      end
+
+      first = File.open(File.join(sessions_dir, "#{sid}.jsonl"), &:gets)
+      row = JSON.parse(first.to_s, symbolize_names: true)
+      title = row[:content].to_s.delete_prefix('Session started: ') if row[:role] == 'system' && row[:content].to_s.start_with?('Session started: ')
+      { id: sid, title: bounded_title(title: title.to_s.empty? ? "pwn-ai session #{sid}" : title) }
+    rescue Errno::ENOENT, JSON::ParserError
+      { id: sid, title: bounded_title(title: "pwn-ai session #{sid}") }
+    end
+
+    # Read strict persisted title provenance, never infer LLM work from title text.
+    # Supported Method Parameters::
+    #   status = PWN::Sessions.title_status(session_id: 'required - canonical session ID')
+    public_class_method def self.title_status(opts = {})
+      sid = opts[:session_id].to_s
+      status = { title_source: nil, is_summarized: false, classification: :unknown, title_reason: 'invalid_session' }
+      return status unless sid.match?(SESSION_ID)
+
+      path = File.join(sessions_dir, "#{sid}.jsonl")
+      return status.merge(title_reason: 'invalid_transcript') unless cleanup_transcript_valid?(path: path)
+
+      meta_path = path.sub(/\.jsonl\z/, '.meta.json')
+      return status.merge(classification: :unnamed, title_reason: 'missing_summary_provenance') unless File.exist?(meta_path) || File.symlink?(meta_path)
+      return status.merge(title_reason: 'unsafe_metadata') unless File.file?(meta_path) && !File.symlink?(meta_path)
+
+      meta = JSON.parse(File.read(meta_path))
+      return status.merge(title_reason: 'invalid_metadata') unless meta.is_a?(Hash)
+
+      status[:title_source] = meta['title_source']
+      keys = %w[id title source created_at updated_at title_source title_aliases title_history summary summary_turns]
+      valid = (meta.keys - keys).empty? && meta['title'].is_a?(String) && !bounded_title(title: meta['title']).empty?
+      valid &&= !meta.key?('id') || meta['id'] == sid
+      valid &&= !meta.key?('source') || %w[pwn-ai pwn-ai-cli pwn-ai-swarm].include?(meta['source'])
+      valid &&= !meta.key?('summary') || meta['summary'].is_a?(String)
+      valid &&= !meta.key?('summary_turns') || (meta['summary_turns'].is_a?(Integer) && meta['summary_turns'] >= 0)
+      valid &&= %w[title_aliases title_history].all? { |key| !meta.key?(key) || (meta[key].is_a?(Array) && meta[key].all?(String)) }
+      return status.merge(title_reason: 'invalid_metadata') unless valid
+
+      case meta['title_source']
+      when 'summary'
+        return status.merge(title_reason: 'incomplete_summary_provenance') unless meta['summary'].is_a?(String) && !meta['summary'].match?(/\A[[:space:]]*\z/) && meta['summary_turns'].is_a?(Integer) && meta['summary_turns'].positive?
+        return status.merge(classification: :unnamed, title_reason: 'placeholder_not_summary') unless summary_title_valid?(title: meta['title'])
+
+        status.merge(is_summarized: true, classification: :named, title_reason: 'llm_summary')
+      when 'provisional', 'manual', nil, ''
+        reason = %w[provisional manual].include?(meta['title_source']) ? "#{meta['title_source']}_not_summary" : 'missing_summary_provenance'
+        status.merge(classification: :unnamed, title_reason: reason)
+      else
+        status.merge(title_reason: 'unknown_title_source')
+      end
+    rescue JSON::ParserError, IOError, SystemCallError, ArgumentError
+      status.merge(title_reason: 'unreadable_metadata')
+    end
+
+    # Reject default identifiers even if a provider echoes one as its title.
+    private_class_method def self.summary_title_valid?(opts = {})
+      title = bounded_title(title: opts[:title]).strip
+      !title.empty? && !title.match?(/\Apwn-ai(?: session \d{8}_\d{6}_[a-f0-9]{8}| \d{4}-\d{2}-\d{2} \d{2}:\d{2})?\z/)
+    end
+
+    # Structural deletion guard shared by listing and scheduled cleanup.
+    private_class_method def self.cleanup_transcript_valid?(opts = {})
+      path = opts[:path]
+      return false unless File.file?(path) && !File.symlink?(path)
+
+      rows = File.foreach(path).map { |line| JSON.parse(line) }
+      return false if rows.empty? || rows.any? { |row| !row.is_a?(Hash) || !%w[system user assistant tool observation].include?(row['role']) || !row.key?('content') }
+
+      first = rows.first
+      return false unless first['role'] == 'system' && first['content'].is_a?(String) && first['content'].start_with?('Session started: ')
+
+      rows.all? do |row|
+        (row.keys - %w[role content timestamp title step_reward]).empty? &&
+          (!row.key?('title') || row['title'].is_a?(String)) &&
+          (!row.key?('step_reward') || (row['role'] == 'tool' && row['step_reward'].is_a?(Integer) && [-1, 0, 1].include?(row['step_reward'])))
+      end
+    rescue JSON::ParserError, IOError, SystemCallError
+      false
+    end
+
+    # Resolve an exact id first, then a unique current or previously displayed title.
+    # A background summary must not invalidate a name just copied from the menu.
+    public_class_method def self.resolve(opts = {})
+      identifier = opts[:identifier].to_s
+      rows = list
+      return identifier if rows.any? { |row| row[:id] == identifier }
+
+      titles = rows.to_h do |row|
+        aliases = Array(metadata(session_id: row[:id])[:title_aliases]).map { |title| bounded_title(title: title) }.reject(&:empty?)
+        [row[:id], [row[:title]] + aliases]
+      end
+      matches = rows.select { |row| titles[row[:id]].include?(identifier) }
+      if matches.empty? && identifier.match?(/\A(["']).*\1\z/m)
+        unquoted = Shellwords.shellsplit(identifier)
+        if unquoted.length == 1
+          return unquoted.first if rows.any? { |row| row[:id] == unquoted.first }
+
+          matches = rows.select { |row| titles[row[:id]].include?(unquoted.first) }
+        end
+      end
+      raise AmbiguousTitle.new(identifier: identifier, candidates: matches) if matches.length > 1
+      raise ArgumentError, "Session #{identifier.inspect} not found" if matches.empty?
+
+      matches.first[:id]
+    end
+
+    # Seed a local provisional title before any provider work begins.
+    public_class_method def self.provisional_title(opts = {})
+      sid = opts[:session_id].to_s
+      text = bounded_title(title: PWN::Redaction.redact(value: opts[:request].to_s).gsub(/[[:space:][:cntrl:]]+/, ' '))
+      METADATA_MUTEX.synchronize do
+        meta = metadata(session_id: sid)
+        if !text.empty? && meta[:title] == "pwn-ai session #{sid}"
+          meta = meta.merge(title: text, title_source: 'provisional')
+          write_metadata(session_id: sid, metadata: meta)
+        end
+        meta
+      end
+    end
+
+    # Summarize newly persisted turns into a rolling overall conversation summary.
+    # Call from a worker, never the terminal/input thread. Failed summaries retain
+    # the provisional/previous title and leave the cursor available for retry.
+    public_class_method def self.refresh_title(opts = {})
+      sid = opts[:session_id].to_s
+      lease = activate(session_id: sid)
+      original = metadata(session_id: sid)
+      rows = load(session_id: sid).select { |row| %w[user assistant].include?(row[:role].to_s) }
+      cursor = original[:summary_turns].to_i
+      return original if rows.length <= cursor
+
+      result = original
+      text = rows.drop(cursor).map { |row| "#{row[:role]}: #{row[:content]}" }.join("\n")
+      # Character chunks keep Unicode intact, including four-byte characters.
+      text.chars.each_slice(1500) do |chunk|
+        output = PWN::AI::Router.summarize(text: "Previous overall summary: #{result[:summary]}\nNew conversation turns:\n#{chunk.join}", llm: true, session: true)
+        parsed = JSON.parse(output.to_s.sub(/\A```(?:json)?\s*/, '').sub(/\s*```\z/, ''), symbolize_names: true)
+        return original unless parsed.is_a?(Hash) && parsed[:title].is_a?(String) && parsed[:summary].is_a?(String)
+        return original if !summary_title_valid?(title: parsed[:title]) || parsed[:summary].strip.empty?
+
+        result = result.merge(title: bounded_title(title: parsed[:title].gsub(/[[:space:][:cntrl:]]+/, ' ')), summary: parsed[:summary])
+      end
+      METADATA_MUTEX.synchronize do
+        current = metadata(session_id: sid)
+        return current unless current[:summary_turns].to_i == cursor
+
+        result = result.merge(title_aliases: (Array(current[:title_aliases]) + [current[:title]]).uniq) unless result[:title] == current[:title]
+        result = PWN::Redaction.redact(value: result.merge(summary_turns: rows.length, title_source: 'summary', updated_at: Time.now.utc.iso8601))
+        write_metadata(session_id: sid, metadata: result)
+        result
+      end
+    rescue StandardError
+      original
+    ensure
+      deactivate(lease: lease)
+    end
+
+    # Bound titles only, retaining internal whitespace and quotes for exact resume.
+    private_class_method def self.bounded_title(opts = {})
+      text = opts[:title].to_s.gsub(/[[:cntrl:]]/, ' ').sub(/\A[[:space:]]+/, '')
+      text[/\A[^[:space:]]+(?:[[:space:]]+[^[:space:]]+){0,#{TITLE_WORD_MAX - 1}}/].to_s
+    end
+
+    private_class_method def self.write_metadata(opts = {})
+      sid = opts[:session_id].to_s
+      lease = activate(session_id: sid)
+      path = File.join(sessions_dir, "#{sid}.meta.json")
+      return unless File.file?(File.join(sessions_dir, "#{sid}.jsonl"))
+
+      tmp = "#{path}.#{SecureRandom.hex(8)}.tmp"
+      File.open(tmp, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+        file.write(JSON.generate(PWN::Redaction.redact(value: opts[:metadata])))
+        file.flush
+        file.fsync
+      end
+      File.rename(tmp, path)
+    ensure
+      FileUtils.rm_f(tmp) if tmp
+      deactivate(lease: lease)
     end
 
     # Supported Method Parameters::
@@ -89,6 +571,7 @@ module PWN
       sid = opts[:session_id]
       raise 'ERROR: session_id required' unless sid
 
+      lease = activate(session_id: sid)
       path = File.join(sessions_dir, "#{sid}.jsonl")
       raise "Session #{sid} not found" unless File.exist?(path)
 
@@ -113,7 +596,10 @@ module PWN
         timestamp: Time.now.utc.iso8601
       }
       File.open(path, 'a') { |f| f.puts(JSON.dump(entry)) }
+      provisional_title(session_id: sid, request: content) if role == 'user'
       entry
+    ensure
+      deactivate(lease: lease)
     end
 
     # Supported Method Parameters::
@@ -121,7 +607,7 @@ module PWN
     public_class_method def self.load(opts = {})
       sid = opts[:session_id]
       path = File.join(sessions_dir, "#{sid}.jsonl")
-      return [] unless File.exist?(path)
+      return PWN::AI::Agent::Learning.session_evidence(session_id: sid) || [] unless File.exist?(path)
 
       File.readlines(path).map { |l| JSON.parse(l, symbolize_names: true) }
     end
@@ -302,19 +788,27 @@ module PWN
     #     force: 'optional - Boolean bypass pin policy (default false)'
     #   )
     # Refuses deletion of pinned sessions (hot/gold/mistake/current) unless force:true.
-    public_class_method def self.delete(opts = {}) # rubocop:disable Naming/PredicateMethod
-      sid = opts[:session_id]
+    public_class_method def self.delete(opts = {})
+      sid = opts[:session_id].to_s
       raise 'ERROR: session_id required' if sid.to_s.empty?
+      raise ArgumentError, 'Invalid session ID' if File.basename(sid) != sid || sid.include?("\0") || sid == '.' || sid == '..'
 
       force = opts[:force] ? true : false
       path = File.join(sessions_dir, "#{sid}.jsonl")
+      lock_path = File.join(sessions_dir, ".#{sid}.cleanup.lock")
+      lock = opts[:cleanup_lock] || File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600)
+      raise IOError, "Session #{sid} is active" unless File.identical?(lock, lock_path) && lock.flock(File::LOCK_EX | File::LOCK_NB)
+
       unless force
         pins = protected_session_ids(current_session_id: opts[:current_session_id])
         raise "ERROR: refusing to delete protected session #{sid.inspect} (pinned by HOT_DAYS/gold/mistakes/current; pass force:true)" if pins.include?(sid.to_s)
       end
 
       FileUtils.rm_f(path)
+      FileUtils.rm_f(File.join(sessions_dir, "#{sid}.meta.json"))
       true
+    ensure
+      lock&.close unless opts[:cleanup_lock]
     end
 
     # Supported Method Parameters::
@@ -387,7 +881,7 @@ module PWN
         next unless stub || aged
 
         deleted << e[:id]
-        FileUtils.rm_f(e[:path]) unless dry
+        FileUtils.rm_f([e[:path], File.join(dir, "#{e[:id]}.meta.json")]) unless dry
       end
 
       # Refresh remaining after deletes
@@ -399,13 +893,14 @@ module PWN
         over = remaining.size - max_files
         unpinned.first(over).each do |e|
           deleted << e[:id]
-          FileUtils.rm_f(e[:path]) unless dry
+          FileUtils.rm_f([e[:path], File.join(dir, "#{e[:id]}.meta.json")]) unless dry
           remaining.delete(e)
         end
       end
 
       # Compact large/cold kept files
       remaining.each do |e|
+        next if e[:pinned]
         next if e[:age] <= hot_days && e[:size] < COMPACT_SIZE_FLOOR
         next if e[:size] < COMPACT_SIZE_FLOOR && e[:age] <= retain_days
 
@@ -440,6 +935,9 @@ module PWN
       hot_days = (opts[:hot_days] || HOT_DAYS).to_f
       retain_days = (opts[:retain_days] || RETAIN_DAYS).to_f
       pins = {}
+      references = dependency_index
+      references[:dependencies].each_key { |id| pins[id] = true }
+      Dir.glob(File.join(SESSIONS_DIR, '*.jsonl')).each { |path| pins[File.basename(path, '.jsonl')] = true } if references[:errors].any?
       pins[opts[:current_session_id].to_s] = true unless opts[:current_session_id].to_s.empty?
 
       # Hot by mtime
@@ -455,11 +953,12 @@ module PWN
           r = JSON.parse(line, symbolize_names: true)
           sid = r[:session_id].to_s
           next if sid.empty?
+          next if r.key?(:evidence_ref) && PWN::AI::Agent::Learning.evidence_complete?(row: r)
 
           gold = r[:success] == true && (
             !r.key?(:score) || r[:score].to_f >= GOLD_MIN_SCORE
           )
-          pins[sid] = true if gold
+          pins[sid] = true if gold || r.key?(:evidence_ref)
         rescue StandardError
           next
         end
@@ -519,6 +1018,7 @@ module PWN
       dry = opts[:dry_run] ? true : false
       return false unless File.exist?(path)
 
+      lease = activate(session_id: File.basename(path, '.jsonl'))
       lines = File.readlines(path)
       rows = lines.map do |l|
         JSON.parse(l, symbolize_names: true)
@@ -560,6 +1060,7 @@ module PWN
       true
     ensure
       FileUtils.rm_f(tmp) if defined?(tmp) && tmp && File.exist?(tmp)
+      deactivate(lease: lease)
     end
 
     # Author(s):: 0day Inc. <support@0dayinc.com>
@@ -569,14 +1070,15 @@ module PWN
       raise 'ERROR: session_id required' if sid.empty?
 
       src = File.join(sessions_dir, "#{sid}.jsonl")
-      raise "Session #{sid} not found" unless File.exist?(src)
+      transcript = load(session_id: sid)
+      raise "Session #{sid} not found" if transcript.empty? && !File.exist?(src)
 
       dir = File.join(Dir.home, '.pwn', 'exports')
       FileUtils.mkdir_p(dir)
       dest = File.join(dir, "#{sid}.tar.gz")
       manifest = {}
       Dir.mktmpdir do |tmp|
-        lines = File.foreach(src).map { |line| JSON.generate(PWN::Redaction.redact(value: JSON.parse(line))) }
+        lines = transcript.map { |row| JSON.generate(PWN::Redaction.redact(value: row)) }
         body = "#{lines.join("\n")}\n"
         manifest[File.basename(src)] = Digest::SHA256.hexdigest(body)
         File.write(File.join(tmp, File.basename(src)), body)
@@ -599,16 +1101,24 @@ module PWN
       days = (opts[:days] || 90).to_i
       cutoff = Time.now - (days * 86_400)
       gzipped = 0
+      pins = protected_session_ids(hot_days: 0)
       Dir[File.join(sessions_dir, '*.jsonl')].each do |path|
+        next if pins.include?(File.basename(path, '.jsonl'))
         next if File.mtime(path) > cutoff
 
-        lines = File.readlines(path)
-        keep = lines.first(20) + lines.last(20)
-        Zlib::GzipWriter.open("#{path}.gz") do |gz|
-          keep.each { |line| gz.write("#{JSON.generate(PWN::Redaction.redact(value: JSON.parse(line)))}\n") }
+        id = File.basename(path, '.jsonl')
+        File.open(File.join(sessions_dir, ".#{id}.cleanup.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+          next unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+          next unless File.file?(path) && File.mtime(path) <= cutoff
+
+          lines = File.readlines(path)
+          keep = lines.first(20) + lines.last(20)
+          Zlib::GzipWriter.open("#{path}.gz") do |gz|
+            keep.each { |line| gz.write("#{JSON.generate(PWN::Redaction.redact(value: JSON.parse(line)))}\n") }
+          end
+          File.delete(path)
+          gzipped += 1
         end
-        File.delete(path)
-        gzipped += 1
       end
       { deleted: 0, gzipped: gzipped, days: days }
     end
@@ -630,12 +1140,46 @@ module PWN
         # Run list and return its result
         #{self}.list
 
+        # Index exact dependency file paths and uncertain stores for cleanup and listing.
+        #{self}.dependency_index
+
+        # Hold a shared per-session OS lease until deactivate or process exit.
+        #{self}.activate(
+          session_id: 'required - stable transcript identifier for activity ownership',
+          creating: 'optional - allow creation under the lease; default false'
+        )
+
+        # Release exactly the supplied lease, preserving other owners.
+        #{self}.deactivate(lease: 'required - handle returned by activate')
+
+        # Probe kernel lease ownership, ignoring stale marker contents.
+        #{self}.active?(session_id: 'required - stable transcript identifier for activity ownership')
+
         # Run create and return its result
         #{self}.create(
-          title: 'optional - human title',
+          title: 'optional - human title, capped at seven whitespace-separated words',
           source: 'optional - e.g. pwn-ai (defaults to pwn-ai)',
-          id: 'optional - fixed session id (tests / replay); default timestamp_hex'
+          id: 'optional - fixed session id (tests / replay); default timestamp_hex',
+          active: 'optional - return an owned lease with the new session; default false'
         )
+
+        # Run append and return its result
+        #{self}.metadata(session_id: 'required - stable session id')
+
+        # Classify strict persisted LLM title provenance without provider calls.
+        #{self}.title_status(session_id: 'required - canonical session ID')
+
+        # Resolve a unique exact title or stable id.
+        #{self}.resolve(identifier: 'required - exact session title or id')
+
+        # Seed a title from the first submitted request without provider calls.
+        #{self}.provisional_title(
+          session_id: 'required - stable session id',
+          request: 'required - first submitted request'
+        )
+
+        # Update a rolling conversation summary and title off the input thread.
+        #{self}.refresh_title(session_id: 'required - stable session id to summarize')
 
         # Run append and return its result
         #{self}.append(
@@ -681,7 +1225,8 @@ module PWN
         #{self}.delete(
           session_id: 'required - session id value consumed by #delete',
           force: 'optional - Boolean bypass pin policy (default false)',
-          current_session_id: 'optional - current session id value consumed by #delete'
+          current_session_id: 'optional - current session id value consumed by #delete',
+          cleanup_lock: 'optional - already-held per-session exclusive cleanup lock'
         )
 
         # Run stats and return its result

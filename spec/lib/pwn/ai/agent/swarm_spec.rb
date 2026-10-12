@@ -9,6 +9,8 @@ describe PWN::AI::Agent::Swarm do
     allow(Dir).to receive(:home).and_return(@swarm_home)
     stub_const('PWN::AI::Agent::Swarm::AGENTS_FILE', File.join(@swarm_home, 'agents.yml'))
     stub_const('PWN::AI::Agent::Swarm::SWARM_ROOT', File.join(@swarm_home, 'swarm'))
+    # Sessions may have been loaded before Dir.home was stubbed by this spec.
+    stub_const('PWN::Sessions::SESSIONS_DIR', File.join(@swarm_home, 'sessions'))
     stub_const('PWN::Env', { ai: { active: 'openai', agent: { max_iters: 90 } } })
     @swarm_overrides = %i[pwn_swarm_engine pwn_swarm_model pwn_swarm_depth pwn_swarm_id pwn_swarm_honesty].to_h do |key|
       [key, Thread.current[key]]
@@ -202,12 +204,19 @@ describe PWN::AI::Agent::Swarm do
     described_class.spawn(name: 'pwn_red_team', role: 'review', toolsets: %w[pwn terminal extrospection])
     Thread.current[:pwn_swarm_honesty] = nil
     Thread.current[:pwn_swarm_id] = nil
-    allow(PWN::AI::Agent::Loop).to receive(:run).and_return('Step 1 is most likely to fail.')
+    allow(PWN::AI::Agent::Loop).to receive(:run) do |options|
+      expect(PWN::Sessions.active?(session_id: options[:session_id])).to be(true)
+      'Step 1 is most likely to fail.'
+    end
     described_class.ask(
       name: 'pwn_red_team',
       request: 'GOAL: summarize the conversation of this session.',
       text_only: true
     )
+    expect(PWN::Sessions.sessions_dir).to eq(File.join(@swarm_home, 'sessions'))
+    expect(PWN::Sessions.list.length).to eq(1)
+    expect(PWN::Sessions.active?(session_id: PWN::Sessions.list.first[:id])).to be(false)
+    expect(PWN::Sessions.list.map { |session| session[:path] }).to all(start_with(File.join(@swarm_home, 'sessions', '')))
     expect(described_class.honesty_unmet).to eq([])
     expect(Array(Thread.current[:pwn_swarm_honesty])).to eq([])
     expect(Thread.current[:pwn_swarm_id]).to be_nil

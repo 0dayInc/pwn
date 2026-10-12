@@ -55,6 +55,18 @@ module PWN
             nil
           end
 
+          # Explicit command results bypass stream splitting, never transcript parsing.
+          def command_result(text)
+            @queue << [:command, text]
+            nil
+          end
+
+          # Actionable command notices stay visible in compact view, as one event.
+          def command_notice(text)
+            @queue << [:command_notice, text]
+            nil
+          end
+
           def flush
             @lock.synchronize do
               unless @buffer.empty?
@@ -419,17 +431,27 @@ module PWN
           def drain
             200.times do
               type, text = @events.pop(true)
-              if type == :model_prompt
+              case type
+              when :model_prompt
                 next if @cancelling || @leaving
 
                 @model_prompt = text
                 @model_index = text[:efforts].index(text[:default]) || 0
                 @menu = nil
-              elsif type == :done
+              when :done
                 @worker.join
                 finish_request_metrics
                 @running = false
                 @control = nil
+                queue_title_update(text) if text
+              when :session_title
+                @session_metadata = text if text && text[:id] == @pry.config.pwn_ai_session_id
+              when :title_done
+                @title_worker.join
+                @title_worker = nil
+                pending = @title_pending
+                @title_pending = nil
+                queue_title_update(pending) if pending
               else
                 add(type, text)
               end
@@ -438,7 +460,22 @@ module PWN
             nil
           end
 
+          def queue_title_update(session_id)
+            if @title_worker
+              @title_pending = session_id
+              return
+            end
+            @title_worker = Thread.new do
+              @events << [:session_title, PWN::Sessions.refresh_title(session_id: session_id)]
+            ensure
+              @events << [:title_done, nil]
+            end
+            @title_worker.report_on_exception = false
+          end
+
           def add(type, text)
+            command_notice = type == :command_notice
+            type = :notice if command_notice
             clean = PWN::Redaction.redact(value: text.to_s)
             clean = clean.gsub(/\e\][^\a]*(?:\a|\e\\)/, '').gsub(%r{\e\[[0-?]*[ -/]*[@-~]}, '').gsub(/[\x00-\x08\x0b-\x1f\x7f]/, '')
             return if clean.strip.empty?
@@ -449,7 +486,7 @@ module PWN
               @completed_tools += 1
               @last_tool = fit(clean.lines.first.to_s.strip, 80)
             end
-            @timeline << [type, bounded_event(clean), Time.now.strftime('%Y-%m-%d %H:%M:%S%z'), {}]
+            @timeline << [type, type == :command || command_notice ? clean : bounded_event(clean), Time.now.strftime('%Y-%m-%d %H:%M:%S%z'), { command_notice: command_notice }]
             @rows = nil
             if @timeline.length > 2000
               removed = @timeline.shift
@@ -459,6 +496,7 @@ module PWN
           end
 
           def start_request(request, command: false)
+            session_id = @pry.config.pwn_ai_session_id
             @locals = Thread.current.keys.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, Thread.current[key]] }
             @thread_variables = Thread.current.thread_variables.select { |key| key.to_s.start_with?('pwn_') }.to_h { |key| [key, Thread.current.thread_variable_get(key)] }
             # A fresh forwarding pipe prevents unread input crossing requests.
@@ -504,8 +542,9 @@ module PWN
                 end
                 control.checkpoint(messages: [])
               else
+                @events << [:session_title, PWN::Sessions.provisional_title(session_id: session_id, request: request)]
                 final = PWN::AI::Agent::Loop.run(
-                  request: request, session_id: @pry.config.pwn_ai_session_id,
+                  request: request, session_id: session_id,
                   enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
                   on_tool: on_tool, steering: control, debug: @pry.config.pwn_ai_debug, debug_tee: @output
                 )
@@ -519,7 +558,7 @@ module PWN
               PWN::Plugins::Log.note_exception!(error: e, where: 'curses agent', which_self: AIConsole)
               @events << [:warning, "#{e.class}: #{e.message}"]
             ensure
-              @events << [:done, nil]
+              @events << [:done, command ? nil : session_id]
             end
             @worker.report_on_exception = false
             @control = ready.pop
@@ -547,9 +586,15 @@ module PWN
             @tool_input.close unless @tool_input.closed?
             @worker&.join
             @swarm&.close
+          ensure
+            @title_worker&.kill
+            @title_worker&.join
           end
 
           def submit(line)
+            # Pasted slash commands may have surrounding Unicode whitespace.
+            # Preserve normal request text and the exact internal title bytes.
+            line = line.gsub(/\A[[:space:]]+|[[:space:]]+\z/, '') if line.match?(%r{\A[[:space:]]*/})
             return if line.strip.empty?
 
             # Pry owns the existing pwn_history format, append and deduplication.
@@ -578,13 +623,11 @@ module PWN
             elsif line.match?(%r{\A/(?:mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$))})
               start_request(line, command: true)
             elsif line.start_with?('/') || line.start_with?('ai.profile ', 'ai.memory ')
-              if line.start_with?('/sessions resume ')
+              if line.match?(%r{\A/sessions[[:space:]]+resume(?:[[:space:]]|$)})
                 return add(:warning, 'Cannot switch sessions while swarm jobs are active.') if @swarm&.busy?
 
-                sid = line.split.last
-                PWN::Sessions.to_response_history(session_id: sid)
-                @pry.config.pwn_ai_session_id = sid
-                add(:notice, "Session resumed: #{sid}")
+                REPL.pwn_ai_dispatch_slash!(request: line, pry: @pry)
+                @session_metadata = PWN::Sessions.metadata(session_id: @pry.config.pwn_ai_session_id)
               elsif !REPL.pwn_ai_dispatch_slash!(request: line, pry: @pry)
                 add(:warning, 'Unknown command. Use / or Tab for commands.')
               end
@@ -636,8 +679,8 @@ module PWN
             return open_swarm if ['/swarm', '/swarm dashboard'].include?(line.strip)
 
             result = @swarm.execute(line: line, on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record))
-            text = result[:job_id] ? "Swarm job #{result[:job_id]} queued (#{result[:state]})." : (result[:usage] || result[:error] || result.inspect)
-            add(result[:ok] == false ? :warning : :notice, text)
+            text = result[:job_id] ? "Swarm job #{result[:job_id]} queued (#{result[:state]})." : (result[:usage] || REPL.pwn_ai_result_text(value: result))
+            add(:command, text)
           end
 
           def send_tool_input(line)
@@ -1019,7 +1062,7 @@ module PWN
             @rows_verbose = @verbose
             @rows_theme = theme
             @rows = @timeline.flat_map do |type, text, stamp, cache|
-              next [] if !@verbose && %i[tool result notice].include?(type)
+              next [] if !@verbose && %i[tool result notice].include?(type) && !cache[:command_notice]
 
               unless cache[:width] == limit && cache[:verbose] == @verbose && cache[:theme] == theme
                 cache[:verbose] = @verbose
@@ -1028,8 +1071,10 @@ module PWN
                 role = COLORS.fetch(type, :result)
                 label_color = type == :operator ? tone(:operator) : tone(role)
                 body_color = type == :operator ? tone(:request) : label_color
+                body_width = [limit - 2, 1].max
+                body = type == :command || cache[:command_notice] ? wrap_command(text, body_width) : wrap(text, body_width)
                 cache[:rows] = [[label_color, "#{fit(type.to_s.upcase, 12)} · #{stamp}"]] +
-                               wrap(text, limit).map { |row| [body_color, "  #{row}"] } + [[nil, '']]
+                               body.map { |row| [body_color, "  #{row}"] } + [[nil, '']]
               end
               cache[:rows]
             end
@@ -1082,6 +1127,17 @@ module PWN
               result << char
             end
             result
+          end
+
+          # Carry nested field indentation onto continuation rows. If indentation
+          # itself fills a tiny pane, fall back to lossless ordinary wrapping.
+          def wrap_command(text, limit)
+            text.split("\n", -1).flat_map do |line|
+              indent = line[/\A */]
+              next wrap(line, limit) if indent.length >= limit - 1
+
+              wrap(line.delete_prefix(indent), limit - indent.length).map { |row| "#{indent}#{row}" }
+            end
           end
 
           def wrap(text, limit, words: true)
@@ -1536,7 +1592,8 @@ module PWN
             @total_rows = rows.length
             @scroll = @scroll.clamp(0, [rows.length - @page_size, 0].max) if @scroll
             session_id = @pry.config.pwn_ai_session_id.to_s
-            session_title = "SESSION #{session_id}"
+            @session_metadata = PWN::Sessions.metadata(session_id: session_id) unless @session_metadata && @session_metadata[:id] == session_id
+            session_title = session_id.empty? ? 'SESSION ' : "SESSION #{@session_metadata[:title]} · #{session_id}"
             session_title += ' · active' if @focus == :session
             box(header_height, 0, timeline_height, pane_width, session_title)
             mark_active(header_height, 0, pane_width, session_title) if @focus == :session

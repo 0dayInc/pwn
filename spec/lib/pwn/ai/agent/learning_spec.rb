@@ -5,6 +5,235 @@ require 'tmpdir'
 require 'fileutils'
 
 describe PWN::AI::Agent::Learning do
+  describe 'evidence failure safety' do
+    before do
+      home = Dir.mktmpdir
+      @home = home
+      allow(Dir).to receive(:home).and_return(home)
+      @root = File.join(home, '.pwn')
+      FileUtils.mkdir_p(File.join(@root, 'sessions'))
+      stub_const('PWN::Sessions::SESSIONS_DIR', File.join(@root, 'sessions'))
+      stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(@root, 'learning.jsonl'))
+      @sid = '20261012_120000_87654321'
+      @source = File.join(@root, 'sessions', "#{@sid}.jsonl")
+      @trace = %w[user tool observation assistant].map { |role| { role: role, content: "support #{role}" } }
+      File.write(@source, "#{@trace.map(&:to_json).join("\n")}\n")
+      @learning = described_class::LEARNING_FILE
+      @original = "#{JSON.generate(id: 'lesson', session_id: @sid, task: 'support', success: true, timestamp: Time.now.utc.iso8601)}\n"
+      File.write(@learning, @original)
+    end
+
+    after { FileUtils.rm_rf(@home) }
+
+    it 'keeps original references when artifact creation is interrupted and retries safely' do
+      allow(described_class).to receive(:evidence_write).and_wrap_original do |method, opts|
+        raise IOError, 'injected interruption' if opts[:path].include?('/evidence/')
+
+        method.call(opts)
+      end
+      expect { described_class.migrate_evidence(dry_run: false) }.to raise_error(IOError, 'injected interruption')
+      expect(File.read(@learning)).to eq(@original)
+      expect(PWN::Sessions.dependency_index[:dependencies]).to have_key(@sid)
+      allow(described_class).to receive(:evidence_write).and_call_original
+      expect(described_class.migrate_evidence(dry_run: false)[:migrated_rows]).to eq(1)
+    end
+
+    it 'refuses a concurrent index edit without overwriting it' do
+      changed = "#{@original}#{JSON.generate(task: 'concurrent outcome')}\n"
+      allow(described_class).to receive(:evidence_write).and_wrap_original do |method, opts|
+        result = method.call(opts)
+        File.write(@learning, changed) if opts[:path].include?('/evidence/')
+        result
+      end
+      expect { described_class.migrate_evidence(dry_run: false) }.to raise_error(IOError, /changed during/)
+      expect(File.read(@learning)).to eq(changed)
+    end
+
+    it 'pins missing, forged, and source-changed evidence and retains other stores' do
+      described_class.migrate_evidence(dry_run: false)
+      row = JSON.parse(File.read(@learning), symbolize_names: true)
+      artifact = File.join(@root, 'learning', 'evidence', "#{row[:evidence_ref][:sha256]}.json")
+      expect(File.stat(artifact).mode & 0o777).to eq(0o600)
+      expect(File.stat(File.dirname(artifact)).mode & 0o777).to eq(0o700)
+      File.write(File.join(@root, 'mistakes.json'), JSON.generate(error: { sessions: [@sid] }))
+      expect(PWN::Sessions.dependency_index[:dependencies][@sid]).to eq([File.join(@root, 'mistakes.json')])
+      File.open(@source, 'a') { |file| file.puts(JSON.generate(role: 'user', content: 'new turn')) }
+      expect(described_class.evidence_complete?(row: row)).to be(false)
+      File.delete(artifact)
+      expect(PWN::Sessions.dependency_index[:dependencies][@sid]).to include(@learning)
+      expect(PWN::Sessions.protected_session_ids(hot_days: -1)).to include(@sid)
+      expect(PWN::Sessions.load(session_id: @sid)).not_to be_empty
+    end
+
+    it 'does not release a source pin for a hash-valid but incomplete snapshot' do
+      described_class.migrate_evidence(dry_run: false)
+      row = JSON.parse(File.read(@learning), symbolize_names: true)
+      dir = File.join(@root, 'learning', 'evidence')
+      data = JSON.parse(File.read(File.join(dir, "#{row[:evidence_ref][:sha256]}.json")))
+      data['transcript'].pop
+      data['row_count'] -= 1
+      body = JSON.generate(data)
+      hash = Digest::SHA256.hexdigest(body)
+      File.write(File.join(dir, "#{hash}.json"), body)
+      row[:evidence_ref] = { version: 1, id: hash, sha256: hash }
+      File.write(@learning, "#{JSON.generate(row)}\n")
+      expect(described_class.evidence_complete?(row: row)).to be(false)
+      expect(PWN::Sessions.dependency_index[:dependencies][@sid]).to include(@learning)
+    end
+
+    it 'does not follow source symlinks or path-shaped session IDs' do
+      File.delete(@source)
+      File.symlink(@learning, @source)
+      plan = described_class.migrate_evidence
+      expect(plan[:malformed_sessions]).to eq(1)
+      File.write(@learning, "#{JSON.generate(session_id: '../../private')}\n")
+      expect(described_class.migrate_evidence[:malformed_refs]).to eq(1)
+      expect(File.exist?(File.join(@root, 'learning'))).to be(false)
+    end
+
+    it 'rejects a symlinked evidence parent before creating directories through it' do
+      target = File.join(@home, 'outside')
+      FileUtils.mkdir_p(target)
+      File.symlink(target, File.join(@root, 'learning'))
+      expect { described_class.migrate_evidence(dry_run: false) }.to raise_error(IOError)
+      expect(Dir.children(target)).to eq([])
+      expect(File.read(@learning)).to eq(@original)
+    end
+
+    it 'exports the same uncompressed training context after source removal' do
+      stub_const('PWN::AI::Agent::Learning::FINETUNE_DIR', File.join(@root, 'finetune'))
+      before = described_class.export_finetune(compress: false)
+      body = File.read(before[:path])
+      described_class.migrate_evidence(dry_run: false)
+      File.delete(@source)
+      after = described_class.export_finetune(compress: false)
+      expect(after[:samples]).to eq(1)
+      expect(File.read(after[:path])).to eq(body)
+      expect(PWN::AI::Agent::Reward.send(:load_trace, session_id: @sid)).to eq(['support tool'])
+    end
+
+    it 'persists PRM annotations by copy-on-write without losing the original supporting trace' do
+      described_class.migrate_evidence(dry_run: false)
+      before = File.read(@learning)
+      old_row = JSON.parse(before, symbolize_names: true)
+      File.delete(@source)
+      expect(PWN::AI::Agent::Reward).to receive(:fold_step_reward_to_metrics).with(content: 'support tool', reward: 1)
+      PWN::AI::Agent::Reward.send(:annotate_session, session_id: @sid, rewards: [1])
+      trace = PWN::Sessions.load(session_id: @sid)
+      expect(trace.find { |row| row[:role] == 'tool' }[:step_reward]).to eq(1)
+      expect(trace.map { |row| row[:content] }).to eq(@trace.map { |row| row[:content] })
+      expect(described_class.evidence_transcript(row: old_row)).to eq(@trace)
+      expect(File.exist?(@source)).to be(false)
+      expect(described_class.rollback_evidence(migration: Digest::SHA256.hexdigest(before))[:restored]).to be(true)
+      expect(File.read(@learning)).to eq(before)
+    end
+
+    it 'reports malformed JSON without creating migration files' do
+      File.open(@learning, 'a') { |file| file.puts('{invalid') }
+      expect(described_class.migrate_evidence[:malformed_rows]).to eq(1)
+      expect(described_class.migrate_evidence(dry_run: false)[:aborted]).to be(true)
+      expect(File.exist?(File.join(@root, 'learning'))).to be(false)
+    end
+
+    it 'keeps migrated sessions discoverable to offline evaluation' do
+      described_class.migrate_evidence(dry_run: false)
+      File.delete(@source)
+      allow(PWN::AI::Agent::Curriculum).to receive(:log)
+      allow(PWN::AI::Agent::Reward).to receive(:judge).and_return(score: 1.0, training_score: 1.0, success: true)
+      expect(PWN::AI::Agent::Curriculum.offline_judge(commit: false)[:scored]).to eq(1)
+    end
+
+    it 'recovers a prepared ledger after interruption following the atomic index replacement' do
+      allow(described_class).to receive(:evidence_write).and_wrap_original do |method, opts|
+        raise IOError, 'interrupted commit marker' if opts[:body].include?('"state":"committed"')
+
+        method.call(opts)
+      end
+      expect { described_class.migrate_evidence(dry_run: false) }.to raise_error(IOError, 'interrupted commit marker')
+      row = JSON.parse(File.read(@learning), symbolize_names: true)
+      expect(described_class.evidence_transcript(row: row)).to eq(@trace)
+      allow(described_class).to receive(:evidence_write).and_call_original
+      id = Digest::SHA256.hexdigest(@original)
+      expect(described_class.rollback_evidence(migration: id)[:restored]).to be(true)
+      expect(File.read(@learning)).to eq(@original)
+    end
+
+    it 'serializes outcome writers with the migration lock and rejects rollback over later writes' do
+      migration = described_class.migrate_evidence(dry_run: false)
+      lock = described_class.send(:learning_lock)
+      started = Queue.new
+      writer = Thread.new do
+        started << true
+        described_class.note_outcome(task: 'concurrent', success: true)
+      end
+      started.pop
+      expect(writer.join(0.05)).to be_nil
+      described_class.send(:learning_unlock, lock: lock)
+      lock = nil
+      expect(writer.join(5)).to eq(writer)
+      writer.value
+      expect(described_class.outcomes(limit: 10).length).to eq(2)
+      expect { described_class.rollback_evidence(migration: File.basename(migration[:ledger], '.json')) }.to raise_error(IOError, /changed since/)
+    ensure
+      described_class.send(:learning_unlock, lock: lock) if lock
+      writer&.join(5)
+    end
+
+    it 'redacts copied evidence without opening a vault and keeps session export usable' do
+      File.open(@source, 'a') { |file| file.puts(JSON.generate(role: 'observation', content: 'password=fixture-only-secret')) }
+      expect(PWN::Redaction).not_to receive(:capture)
+      described_class.migrate_evidence(dry_run: false)
+      row = JSON.parse(File.read(@learning), symbolize_names: true)
+      trace = described_class.evidence_transcript(row: row)
+      expect(trace.last[:content]).to include('[REDACTED:password:')
+      expect(JSON.generate(trace)).not_to include('fixture-only-secret')
+      File.delete(@source)
+      export = PWN::Sessions.export(session_id: @sid)
+      expect(File.file?(export[:path])).to be(true)
+      expect(export[:manifest]).to have_key("#{@sid}.jsonl")
+    end
+  end
+
+  it 'migrates complete evidence only after verification and resolves it without the source' do
+    Dir.mktmpdir do |home|
+      allow(Dir).to receive(:home).and_return(home)
+      root = File.join(home, '.pwn')
+      FileUtils.mkdir_p(File.join(root, 'sessions'))
+      stub_const('PWN::Sessions::SESSIONS_DIR', File.join(root, 'sessions'))
+      stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', File.join(root, 'learning.jsonl'))
+      sid = '20261012_120000_12345678'
+      transcript = %w[user tool observation assistant].map { |role| { role: role, content: "support #{role}" } }
+      source = File.join(root, 'sessions', "#{sid}.jsonl")
+      File.write(source, "#{transcript.map(&:to_json).join("\n")}\n")
+      learning = described_class::LEARNING_FILE
+      original = "#{JSON.generate(id: 'lesson1', session_id: sid, task: 'support', success: true)}\n"
+      File.write(learning, original)
+      plan = described_class.migrate_evidence
+      expect(plan[:migratable_sessions]).to eq(1)
+      expect(File.read(learning)).to eq(original)
+      expect(File.exist?(File.join(root, 'learning'))).to be(false)
+      migration = described_class.migrate_evidence(dry_run: false)
+      expect(migration[:migrated_rows]).to eq(1)
+      migrated = File.read(learning)
+      expect(described_class.rollback_evidence(migration: File.basename(migration[:ledger], '.json'))[:restored]).to be(true)
+      expect(File.read(learning)).to eq(original)
+      expect(described_class.migrate_evidence(dry_run: false)[:migrated_rows]).to eq(1)
+      expect(File.read(learning)).to eq(migrated)
+      row = JSON.parse(File.read(learning), symbolize_names: true)
+      expect(row[:evidence_ref][:version]).to eq(1)
+      expect(PWN::Sessions.dependency_index[:dependencies]).not_to have_key(sid)
+      File.delete(source)
+      expect(PWN::Sessions.load(session_id: sid)).to eq(transcript)
+      expect(described_class.migrate_evidence(dry_run: false)[:migrated_rows]).to eq(0)
+      artifact = File.join(root, 'learning', 'evidence', "#{row[:evidence_ref][:sha256]}.json")
+      File.write(artifact, '{}')
+      expect(PWN::Sessions.dependency_index[:dependencies]).to have_key(sid)
+      expect { PWN::Sessions.load(session_id: sid) }.to raise_error(IOError)
+    end
+  end
+end
+
+describe PWN::AI::Agent::Learning do
   it 'should display information for authors' do
     authors_response = PWN::AI::Agent::Learning
     expect(authors_response).to respond_to :authors

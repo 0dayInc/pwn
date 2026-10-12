@@ -35,7 +35,16 @@ PWN::Sessions.sessions_dir(opts)
 
 - `sessions_dir`
 - `list`
+- `dependency_index`
+- `activate`
+- `deactivate`
+- `active`
 - `create`
+- `metadata`
+- `title_status`
+- `resolve`
+- `provisional_title`
+- `refresh_title`
 - `append`
 - `load`
 - `previous_id`
@@ -51,6 +60,7 @@ PWN::Sessions.sessions_dir(opts)
 - `redact`
 - `authors`
 - `help`
+- `active?`
 - `lean!`
 
 ## Source

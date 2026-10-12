@@ -226,17 +226,34 @@ PWN::AI::Agent::Registry.register(
     name: 'learning_gc_stores',
     description: 'Lean-keep ~/.pwn RL stores (memory, learning.jsonl, mistakes.json, ' \
                  'sessions/) without dropping gold outcomes, open mistakes, prefs/SOPs, ' \
-                 'or reference-pinned session transcripts. dry_run:true plans only.',
+                 'or reference-pinned session transcripts. dry_run:true plans only. ' \
+                 'operation:evidence_plan audits immutable evidence migration; evidence_apply writes it, ' \
+                 'evidence_rollback restores an unchanged ledger before session cleanup. None deletes sessions.',
     parameters: {
       type: 'object',
       properties: {
-        dry_run: { type: 'boolean', default: false, description: 'Report only; do not rewrite.' }
+        dry_run: { type: 'boolean', default: false, description: 'Report only; do not rewrite.' },
+        operation: { type: 'string', enum: %w[gc evidence_plan evidence_apply evidence_rollback], default: 'gc' },
+        migration: { type: 'string', description: 'SHA-256 migration ID for evidence_rollback.' }
       },
       required: []
     }
   },
   check: -> { defined?(PWN::AI::Agent::Learning) && PWN::AI::Agent::Learning.respond_to?(:gc_stores!) },
   handler: lambda { |args|
-    PWN::AI::Agent::Learning.gc_stores!(dry_run: args[:dry_run] ? true : false)
+    case args[:operation].to_s
+    when 'evidence_plan'
+      next PWN::AI::Agent::Learning.migrate_evidence(dry_run: true)
+    when 'evidence_apply'
+      next PWN::AI::Agent::Learning.migrate_evidence(dry_run: args[:dry_run] == true)
+    when 'evidence_rollback'
+      raise ArgumentError, 'Use evidence_plan for read-only inspection' if args[:dry_run]
+
+      next PWN::AI::Agent::Learning.rollback_evidence(migration: args[:migration])
+    when '', 'gc'
+      next PWN::AI::Agent::Learning.gc_stores!(dry_run: args[:dry_run] ? true : false)
+    else
+      raise ArgumentError, 'Unknown learning maintenance operation'
+    end
   }
 )

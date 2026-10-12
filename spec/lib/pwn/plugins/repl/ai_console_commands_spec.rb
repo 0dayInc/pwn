@@ -3,6 +3,15 @@
 require 'spec_helper'
 
 describe PWN::Plugins::REPL::AIConsoleCommands do
+  it 'offers only plural sessions and no nested removed alias or prefix routes' do
+    expect(described_class.complete(line: '/', cursor: 1)[:items].map { |item| item[:label] }).to include('/sessions')
+    expect(described_class.complete(line: '/', cursor: 1)[:items].map { |item| item[:label] }).not_to include('/session')
+    ['/session ', '/session resume ', '/sessions-extra ', '/sessions/resume '].each do |line|
+      expect(described_class.complete(line: line, cursor: line.length)[:items]).to be_empty
+      expect(PWN::Plugins::REPL.pwn_ai_complete_command(line: line)).to be_empty
+    end
+  end
+
   it 'advertises the renamed swarm surface in both completers' do
     line = '/swarm '
     labels = described_class.complete(line: line, cursor: line.length)[:items].map { |item| item[:label] }

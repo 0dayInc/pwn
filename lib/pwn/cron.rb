@@ -253,6 +253,12 @@ module PWN
         enabled: true
       },
       {
+        name: 'session_cleanup',
+        schedule: '45 3 * * *',
+        ruby: "require File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'); PWN::SessionCleanup.run(dry_run: false)",
+        enabled: true
+      },
+      {
         name: 'pwn_stores_lean_nightly',
         schedule: '15 5 * * *',
         ruby: 'PWN::AI::Agent::Learning.gc_stores! if defined?(PWN::AI::Agent::Learning)',
@@ -261,6 +267,7 @@ module PWN
     ].freeze
 
     public_class_method def self.install_defaults
+      install_default_payloads
       jobs = load_jobs
       names = jobs.values.map { |j| j[:name].to_s }
       seeded = []
@@ -273,7 +280,7 @@ module PWN
         seeded << create(
           name: spec[:name],
           schedule: spec[:schedule],
-          ruby: spec[:ruby],
+          ruby: default_payload(spec: spec),
           delivery: 'log',
           enabled: spec.fetch(:enabled, true)
         )
@@ -294,6 +301,33 @@ module PWN
     rescue StandardError => e
       warn("[PWN::Cron] install_defaults failed: #{e.class}: #{e.message}")
       []
+    end
+
+    # Refresh only managed payloads; never overwrite an operator's custom helper.
+    private_class_method def self.install_default_payloads
+      source = File.expand_path('../../etc/default_cron/session_cleanup.rb', __dir__)
+      target = File.join(cron_dir, 'session_cleanup.rb')
+      raise 'Refusing symlinked cron payload' if File.symlink?(target)
+      return if File.exist?(target) && !File.read(target).include?('# PWN managed default: session_cleanup v')
+      return if File.file?(target) && File.binread(target) == File.binread(source)
+
+      temporary = "#{target}.#{SecureRandom.hex(8)}.tmp"
+      begin
+        File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) { |file| file.write(File.binread(source)) }
+        File.rename(temporary, target)
+      ensure
+        FileUtils.rm_f(temporary)
+      end
+    end
+
+    # First-run catch-up must not delete anything at registration time.
+    private_class_method def self.default_payload(opts = {})
+      spec = opts[:spec]
+      return spec[:ruby] unless spec[:name] == 'session_cleanup'
+
+      slot = Time.at(((Time.now.to_i / 60) + 1) * 60)
+      slot += 60 until slot.hour == 3 && slot.min == 45
+      "if Time.now.to_i < #{slot.to_i}; { deferred: true, deleted: 0 }; else; #{spec[:ruby]}; end"
     end
 
     # ------------------------------------------------------------------

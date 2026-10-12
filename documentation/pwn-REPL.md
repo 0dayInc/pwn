@@ -16,6 +16,46 @@ commands.
 
 ## Custom commands
 
+### pwn-ai session titles
+
+`/sessions list` shows stable IDs and titles of at most seven
+whitespace-separated words, matching the SESSION pane. The first request seeds
+a provisional title; the currently active LLM provider and selected model produce a concise conversation title
+after completed turns, with a deterministic seven-word fallback cap. The limit
+also applies to explicit titles. It does not shorten requests or apply to the
+rolling conversation summary.
+
+Title generation runs asynchronously after completed turns, never during drawing
+or keystrokes. It uses the previous overall summary plus new conversation turns,
+without changing the active provider or falling back to a different model. Missing
+credentials or failed/invalid responses retain the prior or provisional title;
+background title work never starts interactive authentication. Artifact summaries
+retain their separate local-only routing policy.
+
+Existing overlong titles are normalized when read, without rewriting transcripts
+or metadata merely to list them. `/sessions resume <title-or-id>`
+accepts the exact displayed title, optionally quoted. Internal quotes
+and Unicode whitespace are supported. If shortened titles collide, use the
+stable ID shown in the ambiguity message; IDs and transcript filenames do not
+change.
+Previously displayed titles remain resume aliases when a background summary
+renames the session, so a name copied from the list does not expire while typing.
+Aliases shared by multiple sessions are ambiguous too; use a stable ID.
+
+`dependencies` means **referenced by**: files containing defined structural
+references to that session. Transcript prose, prompts, tool results and quoted
+JSON—including previous `/sessions list` output—are not dependencies. An empty
+array means no known structural references; `dependency_errors` separately
+reports uncertainty and blocks scheduled cleanup. Dependency-backed sessions
+stay visible and resumable. See Installation's session-cleanup schema table.
+`title_source`, `is_summarized`, `classification` and `title_reason` expose the
+same strict provenance used by cleanup. Only persisted `summary` provenance with
+a nonblank summary/title and positive integer summary cursor counts as named.
+Provisional, manual, persona, historical and alias titles do not prove LLM work;
+legacy records explicitly report missing provenance. Unknown/malformed metadata
+is protected without being called summarized. Neither listing nor cleanup calls
+the LLM to manufacture provenance.
+
 | Command | Implemented in | Purpose |
 |---|---|---|
 | `pwn-ai` | `Agent::Loop` | Enter the AI agent TUI |
@@ -59,6 +99,40 @@ history browsing. Recalled lines can be edited without changing saved entries.
 History includes messages and slash commands, skips blank lines and consecutive
 duplicates, and keeps the latest 100 entries in memory for the current pwn-mesh
 session only; it is not written to disk.
+
+### Message transport labels
+
+Each CONVERSATION header ends with its direction and the transport used for
+that individual message: `· RX via MQTT`, `· TX via Serial`, `· RX via Bluetooth`,
+or `· TX via TCP`. In `auto` mode this is the resolved connection, not the
+configured `auto` value. Received messages retain the subscribing transport's
+origin through queued rendering, even if the current transport changes.
+Missing origin metadata is shown as `Unknown`, not guessed from the current pin.
+
+Headers use `timestamp encryption · SHORT NAME · source path · destination path · direction via transport`,
+with exactly one space on either side of each `·`. RX uses the sender's
+`User.short_name` (`shortName` in JSON); TX uses the sending local node's User,
+never the destination's name. Device connections use their NodeInfo/NODEINFO
+inventory. MQTT learns NODEINFO announcements in a bounded, connection-local
+inventory (up to 1000 users), including the sending identity if advertised.
+Names are captured with each message, so later inventory or binding changes do
+not rename queued messages. Missing or blank short names omit that field and
+its separator; long names, node-ID fragments and gateway names are not substitutes.
+ANSI CSI sequences are removed, control/newline characters and literal `·` in
+names become spaces, and surrounding Unicode whitespace is trimmed. Other
+Unicode text and internal spaces are retained. Names are labels, not authenticated identities.
+
+For example (placeholder node IDs):
+
+```text
+2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!aabbccdd · US/CA/2/e/LongFast/# · RX via MQTT
+2026-01-02 03:04:06+0000 🔍 · SELF · US/CA/2/e/LongFast/!bbccddee (ME) · US/CA/2/e/LongFast/# · TX via Serial
+```
+
+The timestamp, encryption indicator, source/destination paths, channel and
+`(ME)` marker keep their existing meaning. The suffix identifies the local
+client connection, not every RF or broker hop. A TX header means local transport
+submission; it does not confirm over-the-air delivery or peer receipt.
 
 ### Encrypted DMs and key discovery
 

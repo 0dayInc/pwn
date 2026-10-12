@@ -3105,6 +3105,8 @@ module PWN
 
         public_class_method def self.run(opts = {})
           options = opts.merge(request: opts[:request])
+          sid = opts[:session_id].to_s
+          lease = PWN::Sessions.activate(session_id: sid) if !sid.empty? && File.file?(File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl"))
           original_system = opts[:system_role_content]
           begin
             run_turn(options)
@@ -3121,6 +3123,8 @@ module PWN
             options.delete(:verification_contract)
             retry
           end
+        ensure
+          PWN::Sessions.deactivate(lease: lease)
         end
 
         private_class_method def self.update_steered_open_goal!(opts = {})

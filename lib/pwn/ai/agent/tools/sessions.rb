@@ -53,7 +53,8 @@ PWN::AI::Agent::Registry.register(
   schema: {
     name: 'sessions_list',
     description: 'List every pwn-ai session transcript in ~/.pwn/sessions ' \
-                 '(id, path, size_bytes, mtime, line_count) newest-first. ' \
+                 '(id, title, path, size, mtime, lines, dependencies, dependency_errors) newest-first. ' \
+                 'dependencies lists files referencing this session through structured links, not prose mentions. ' \
                  'Use to discover a session_id for learning_reflect / ' \
                  'learning_distill_skill / sessions_view.',
     parameters: {

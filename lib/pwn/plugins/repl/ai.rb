@@ -36,11 +36,7 @@ module PWN
               # pwn-ai activation: initialise memory/sessions/cron stores
               PWN::Config.load_memory
               mem_count = (PWN.const_defined?(:Memory) ? PWN::Memory.load.keys.length : 0)
-              sess = begin
-                PWN::Plugins::REPL.pwn_ai_activation_session(pry: pi)
-              rescue StandardError
-                nil
-              end
+              sess = PWN::Plugins::REPL.pwn_ai_activation_session(pry: pi)
               pi.config.pwn_ai_session_id = sess[:id] if sess
               cron_count = (PWN.const_defined?(:Cron) ? PWN::Cron.list.keys.length : 0)
 
@@ -105,7 +101,7 @@ module PWN
               when 'list', 'recall', nil
                 q = args[1]
                 res = PWN::Memory.recall(query: q)
-                puts res.inspect
+                PWN::Plugins::REPL.pwn_ai_print_result(value: res, output: output)
               when 'remember'
                 key = args[1]
                 val = args[2..].join(' ')
@@ -130,7 +126,8 @@ module PWN
               cmd = args[0]
               case cmd
               when 'list', nil
-                puts PWN::Sessions.list.inspect
+                output.puts('Session dependencies: referenced by these files; text mentions are not links.')
+                PWN::Plugins::REPL.pwn_ai_print_result(value: PWN::Sessions.list, output: output)
               when 'resume'
                 sid = args[1]
                 hist = PWN::Sessions.to_response_history(session_id: sid)
@@ -139,7 +136,7 @@ module PWN
                 PWN::Sessions.delete(session_id: args[1], force: true)
                 puts "Deleted #{args[1]}"
               when 'stats'
-                puts PWN::Sessions.stats
+                PWN::Plugins::REPL.pwn_ai_print_result(value: PWN::Sessions.stats, output: output)
               else
                 puts PWN::Sessions.help
               end
@@ -153,16 +150,16 @@ module PWN
               cmd = args[0]
               case cmd
               when 'list', nil
-                puts PWN::Cron.list.inspect
+                PWN::Plugins::REPL.pwn_ai_print_result(value: PWN::Cron.list, output: output)
               when 'create'
                 # simplistic: pwn-ai-cron create '0 * * * *' 'prompt here'
                 sched = args[1]
                 pr = args[2..].join(' ')
                 job = PWN::Cron.create(schedule: sched, prompt: pr)
-                puts "Created #{job}"
+                PWN::Plugins::REPL.pwn_ai_print_result(value: { created: job }, output: output)
               when 'run'
                 res = PWN::Cron.run(id: args[1])
-                puts res
+                PWN::Plugins::REPL.pwn_ai_print_result(value: res, output: output)
               when 'remove'
                 PWN::Cron.remove(id: args[1])
                 puts 'Removed'
@@ -263,6 +260,7 @@ module PWN
           '/model' => %w[list],
           '/swarm' => %w[mission agents status create use spawn retire dm debate broadcast tail steer pause resume cancel help],
           '/sessions' => %w[list resume delete stats],
+
           '/skills' => %w[list recall],
           '/learning' => %w[list requeue]
         }.freeze
@@ -452,9 +450,15 @@ module PWN
             config = opts[:pry].config
             sid = config.pwn_ai_startup_session_id
             config.pwn_ai_startup_session_id = nil
-            return { id: sid } if sid
-
-            PWN::Sessions.create(title: "pwn-ai #{Time.now.strftime('%Y-%m-%d %H:%M')}", source: 'pwn-ai')
+            session = if sid
+                        { id: sid, lease: config.pwn_ai_startup_session_lease || PWN::Sessions.activate(session_id: sid) }
+                      else
+                        PWN::Sessions.create(source: 'pwn-ai', active: true)
+                      end
+            config.pwn_ai_startup_session_lease = nil
+            PWN::Sessions.deactivate(lease: config.pwn_ai_session_lease)
+            config.pwn_ai_session_lease = session[:lease]
+            session
           end
 
           # Validate selection before changing request-local routing state.
@@ -507,7 +511,7 @@ module PWN
           # Run a leading-slash pwn-ai command locally. Returns true when handled
           # (caller should not send the line to Loop.run).
           def pwn_ai_dispatch_slash!(opts = {})
-            request = opts[:request].to_s
+            request = opts[:request].to_s.gsub(/\A[[:space:]]+|[[:space:]]+\z/, '')
             if request.strip.match?(/\Aai\.profile(?:\s|$)/)
               pwn_ai_profile_command(pry: opts[:pry], args: request.strip.split(/\s+/).drop(1))
               return true
@@ -518,7 +522,7 @@ module PWN
             end
             return false unless pwn_ai_complete_kind(line: request) == :command
 
-            tokens = request.strip.split(/\s+/)
+            tokens = request.split(/[[:space:]]+/)
             cmd = tokens[0].to_s
             return false unless PWN_AI_SLASH_COMMANDS.include?(cmd)
 
@@ -528,7 +532,7 @@ module PWN
             when '/swarm'
               pi.config.pwn_ai_swarm ||= AISwarm::Controller.new(session_id: pi.config.pwn_ai_session_id)
               result = pi.config.pwn_ai_swarm.execute(line: request, on_event: ->(_type, text) { puts text })
-              puts(result[:usage] || result[:error] || result.inspect)
+              pwn_ai_print_result(value: result[:usage] || result)
             when '/steer'
               puts(args.empty? ? '[pwn-ai] Usage: /steer <instruction>' : '[pwn-ai] /steer: no active request; submit a normal request instead')
             when '/help'
@@ -539,6 +543,7 @@ module PWN
               end
               puts '  TAB: /… command menu · slash later in the line: path nav · else Ruby completion'
               puts '  /steer <instruction>: redirect an active request; a running tool finishes first (not undone)'
+              puts '  /sessions resume <id|title>: resume by exact id or unique displayed title (optionally quoted)'
             when '/back'
               if pi.respond_to?(:eval)
                 pi.eval('back')
@@ -560,7 +565,8 @@ module PWN
             when '/cron'
               pwn_ai_run_cron(args: args)
             when '/sessions'
-              pwn_ai_run_sessions(args: args)
+              identifier = request.sub(%r{\A/sessions[[:space:]]+resume(?:[[:space:]]+|$)}, '') if args.first == 'resume'
+              pwn_ai_run_sessions(args: args, identifier: identifier, pry: pi)
             when '/memory'
               pwn_ai_run_memory(args: args)
             when '/skills'
@@ -856,17 +862,138 @@ module PWN
             false
           end
 
+          # Presentation only: never parse arbitrary transcript or nested string values.
+          # Keep field names intact; numbered records work at any terminal width.
+          def pwn_ai_result_text(opts = {})
+            value = opts[:value]
+            if value.is_a?(String) && value.lstrip.start_with?('{', '[')
+              begin
+                parsed = JSON.parse(value)
+                value = parsed if parsed.is_a?(Hash) || parsed.is_a?(Array)
+              rescue JSON::ParserError
+                # Prose, code and incomplete JSON retain their original bytes.
+              end
+            end
+            return value.strip.empty? ? value.inspect : value if value.is_a?(String)
+
+            # Redact the structured copy before multiline layout can separate a
+            # sensitive key from its value. Never mutate the API's return object.
+            clean = PWN::Redaction.redact(value: value)
+            pwn_ai_result_lines(value: pwn_ai_result_chronology(value: clean), indent: '').join("\n")
+          end
+
+          # Only explicit timestamp fields are dates; never infer dates from IDs,
+          # durations, free text or nested JSON strings. Epoch values are seconds.
+          def pwn_ai_result_time(opts = {})
+            require 'time'
+
+            return nil unless %w[timestamp ts at mtime created_at updated_at started_at finished_at completed_at ended_at queued_at scheduled_at last_run next_run last_hit last_io oldest newest].include?(opts[:key].to_s)
+
+            value = opts[:value]
+            case value
+            when Time then value
+            when Numeric then Time.at(value).utc
+            when String
+              match = value.match(/\A(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)? ?(?:Z|[+-]([01]\d|2[0-3]):?([0-5]\d))\z/)
+              return nil unless match && Date.valid_date?(*match.captures.first(3).map(&:to_i))
+              return nil unless match[4].to_i < 24 && match[5].to_i < 60 && match[6].to_i < 60
+
+              Time.iso8601(value.sub(' ', 'T').delete(' '))
+            end
+          rescue ArgumentError, RangeError, TypeError
+            nil
+          end
+
+          # Precedence is independent of hash insertion order. Event time / mtime
+          # precede lifecycle creation, then update/run times. Invalid fields fall
+          # through to the next valid timestamp; missing/invalid records stay in
+          # original order before dated records, and equal instants remain stable.
+          def pwn_ai_result_record_time(opts = {})
+            record = opts[:value]
+            %w[timestamp ts at mtime created_at started_at queued_at scheduled_at updated_at finished_at completed_at ended_at last_run next_run last_hit last_io].each do |key|
+              value = record.key?(key.to_sym) ? record[key.to_sym] : record[key]
+              time = pwn_ai_result_time(key: key, value: value)
+              return time if time
+            end
+            nil
+          end
+
+          def pwn_ai_result_order(opts = {})
+            entries = opts[:entries]
+            return entries unless entries.all? { |_key, value| value.is_a?(Hash) }
+
+            entries.each_with_index.sort_by do |(_key, value), index|
+              time = pwn_ai_result_record_time(value: value)
+              [time ? 1 : 0, time ? time.to_r : 0, index]
+            end.map(&:first)
+          end
+
+          # Work on a presentation copy only, including keyed cron/memory maps.
+          # Scalar/mixed arrays (arguments, steps, content blocks) retain order.
+          # Localize only for display, using the host/TZ offset at each instant.
+          def pwn_ai_result_chronology(opts = {})
+            value = opts[:value]
+            case value
+            when Hash
+              pwn_ai_result_order(entries: value.to_a).to_h do |key, item|
+                time = pwn_ai_result_time(key: key, value: item)
+                [key, time ? time.getlocal.strftime('%Y-%m-%d %H:%M:%S%z') : pwn_ai_result_chronology(value: item)]
+              end
+            when Array
+              pwn_ai_result_order(entries: value.each_with_index.map { |item, index| [index, item] }).map do |_index, item|
+                pwn_ai_result_chronology(value: item)
+              end
+            else value
+            end
+          end
+
+          def pwn_ai_result_lines(opts = {})
+            value = opts[:value]
+            indent = opts[:indent]
+            entries = case value
+                      when Hash then value.map { |key, item| ["#{key}:", item] }
+                      when Array then value.each_with_index.map { |item, index| ["#{index + 1}.", item] }
+                      end
+            return ["#{indent}#{pwn_ai_result_scalar(value: value)}"] if entries.nil? || entries.empty?
+
+            entries.flat_map do |label, item|
+              if (item.is_a?(Hash) || item.is_a?(Array)) && !item.empty?
+                ["#{indent}#{label}"] + pwn_ai_result_lines(value: item, indent: "#{indent}  ")
+              elsif item.is_a?(String) && item.include?("\n")
+                ["#{indent}#{label} |"] + item.split("\n", -1).map { |line| "#{indent}  #{line}" }
+              else
+                ["#{indent}#{label} #{pwn_ai_result_scalar(value: item)}"]
+              end
+            end
+          end
+
+          def pwn_ai_result_scalar(opts = {})
+            value = opts[:value]
+            return 'null' if value.nil?
+            return '{}' if value.is_a?(Hash) && value.empty?
+            return '[]' if value.is_a?(Array) && value.empty?
+            return value.inspect if value.is_a?(String) && (value.empty? || value.strip != value || value.match?(/\A(?:null|true|false|\[\]|\{\}|-?\d+(?:\.\d+)?)\z/))
+
+            value.to_s
+          end
+
+          def pwn_ai_print_result(opts = {})
+            text = pwn_ai_result_text(value: opts[:value])
+            output = opts[:output] || $stdout
+            output.respond_to?(:command_result) ? output.command_result(text) : output.puts(text)
+          end
+
           def pwn_ai_run_cron(opts = {})
             args = Array(opts[:args])
             sub = args[0] || 'list'
             case sub
             when 'list'
-              puts PWN::Cron.list.inspect
+              pwn_ai_print_result(value: PWN::Cron.list)
             when 'create'
               job = PWN::Cron.create(schedule: args[1], prompt: args[2..].join(' '))
-              puts "Created #{job}"
+              pwn_ai_print_result(value: { created: job })
             when 'run'
-              puts PWN::Cron.run(id: args[1])
+              pwn_ai_print_result(value: PWN::Cron.run(id: args[1]))
             when 'remove'
               PWN::Cron.remove(id: args[1])
               puts 'Removed'
@@ -880,19 +1007,35 @@ module PWN
             sub = args[0] || 'list'
             case sub
             when 'list'
-              puts PWN::Sessions.list.inspect
+              puts('Session dependencies: referenced by these files; text mentions are not links.')
+              pwn_ai_print_result(value: PWN::Sessions.list)
             when 'resume'
-              sid = args[1]
+              sid = PWN::Sessions.resolve(identifier: opts[:identifier] || args.drop(1).join(' '))
+              lease = PWN::Sessions.activate(session_id: sid)
               hist = PWN::Sessions.to_response_history(session_id: sid)
-              puts "Loaded session #{sid} with #{hist[:choices].size} entries"
+              if opts[:pry]
+                config = opts[:pry].config
+                previous = config.pwn_ai_session_lease
+                config.pwn_ai_session_id = sid
+                config.pwn_ai_session_lease = lease
+                lease = nil
+                PWN::Sessions.deactivate(lease: previous)
+              end
+              puts "Loaded session #{sid} — #{PWN::Sessions.metadata(session_id: sid)[:title]} with #{hist[:choices].size} entries"
             when 'delete'
               PWN::Sessions.delete(session_id: args[1], force: true)
               puts "Deleted #{args[1]}"
             when 'stats'
-              puts PWN::Sessions.stats
+              pwn_ai_print_result(value: PWN::Sessions.stats)
             else
               puts PWN::Sessions.help
             end
+          rescue PWN::Sessions::AmbiguousTitle => e
+            candidates = e.candidates.map { |row| row.slice(:id, :title, :mtime, :lines) }
+            text = "Ambiguous session title #{e.identifier.inspect}\nActive session unchanged.\n#{pwn_ai_result_text(value: candidates)}\nChoose the intended session's id: /sessions resume <ID>\nReplace <ID> with a listed id. Example (only if intended):\n/sessions resume #{Shellwords.escape(candidates.first[:id])}"
+            $stdout.respond_to?(:command_notice) ? $stdout.command_notice(text) : puts("NOTICE\n#{text}")
+          ensure
+            PWN::Sessions.deactivate(lease: lease)
           end
 
           def pwn_ai_run_memory(opts = {})
@@ -900,7 +1043,7 @@ module PWN
             sub = args[0] || 'list'
             case sub
             when 'list', 'recall'
-              puts PWN::Memory.recall(query: args[1]).inspect
+              pwn_ai_print_result(value: PWN::Memory.recall(query: args[1]))
             when 'remember'
               PWN::Memory.remember(key: args[1], value: args[2..].join(' '))
               puts "Remembered #{args[1]}"
@@ -922,9 +1065,9 @@ module PWN
             when 'list'
               flag = args.include?('--conflicted') || args.include?('conflicted')
               rows = flag ? PWN::AI::Agent::Learning.list_conflicted : PWN::AI::Agent::Learning.outcomes(limit: 20)
-              puts rows.inspect
+              pwn_ai_print_result(value: rows)
             when 'requeue'
-              puts PWN::AI::Agent::Learning.requeue_conflicted.inspect
+              pwn_ai_print_result(value: PWN::AI::Agent::Learning.requeue_conflicted)
             else
               puts 'Usage: /learning [list [--conflicted]|requeue]'
             end
@@ -965,7 +1108,7 @@ module PWN
               args = args[1..]
             end
             sub = args[0].to_s
-            rest = args[1..]
+            rest = Array(args[1..])
             sub = 'use' if backend && sub.empty?
             if sub.empty? || sub == 'help'
               puts 'pwn-ai /mcp — local MCP session broker for every PWN::AI::MCP::* client'
@@ -1015,7 +1158,7 @@ module PWN
             payload[:backend] = payload[:backend].to_s
             payload.delete(:backend) if payload[:backend].empty?
             result = PWN::AI::MCP.invoke(payload)
-            puts result.inspect
+            pwn_ai_print_result(value: result)
             result
           end
 
@@ -1192,7 +1335,9 @@ module PWN
 
             # Run /sessions locally without Loop.run.
             #{self}.pwn_ai_run_sessions(
-              args: 'optional - Array of slash tokens after /sessions'
+              args: 'optional - Array of slash tokens after /sessions',
+              identifier: 'optional - exact title or id preserving whitespace and quotes',
+              pry: 'optional - Pry instance whose active session is switched on resume'
             )
 
             # Run /memory locally without Loop.run.

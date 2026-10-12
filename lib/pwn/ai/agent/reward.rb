@@ -1647,8 +1647,17 @@ module PWN
           return unless sid && defined?(PWN::Sessions)
 
           path = File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl")
-          return unless File.exist?(path)
+          unless File.exist?(path)
+            result = Learning.annotate_evidence(session_id: sid, rewards: rewards)
+            if result[:annotated]
+              PWN::Sessions.load(session_id: sid).select { |row| row[:role].to_s == 'tool' }.each_with_index do |row, index|
+                fold_step_reward_to_metrics(content: row[:content], reward: rewards[index]) unless rewards[index].nil?
+              end
+            end
+            return result
+          end
 
+          lease = PWN::Sessions.activate(session_id: sid)
           lines = File.readlines(path)
           ti = -1
           lines.map! do |l|
@@ -1668,6 +1677,8 @@ module PWN
           File.write(path, lines.join)
         rescue StandardError
           nil
+        ensure
+          PWN::Sessions.deactivate(lease: lease)
         end
 
         # Extract tool name from "name → …" session content and record PRM.

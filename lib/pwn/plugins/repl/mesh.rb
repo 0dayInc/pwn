@@ -576,8 +576,22 @@ module PWN
             env = opts[:env] || {}
             obj = opts[:obj]
             psks = opts[:psks]
-            blk = opts[:on_message]
-            case mesh_bound_transport(env: env)
+            kind = mesh_bound_transport(env: env)
+            on_message = opts[:on_message]
+            obj.instance_variable_set(:@pwn_mesh_users, { mutex: Mutex.new, users: {} }) unless obj.nil? || obj.frozen?
+            # Capture the subscriber's origin before reconnects can change the
+            # live binding. Keep host metadata outside the wire packet and do
+            # not mutate transport-owned history records.
+            blk = proc do |msg|
+              if msg.is_a?(Hash)
+                mesh_remember_node_user(obj: obj, msg: msg)
+                packet = msg[:packet].is_a?(Hash) ? msg[:packet] : msg
+                short_name = mesh_node_short_name(obj: obj, id: packet[:from] || packet[:node_id_from])
+                msg = msg.merge(mesh_transport: kind, mesh_short_name: short_name)
+              end
+              on_message.call(msg)
+            end
+            case kind
             when :serial
               Meshtastic::Serial.subscribe(serial_obj: obj, psks: psks, &blk)
             when :bluetooth
@@ -778,6 +792,47 @@ module PWN
 
           private :mesh_node_user, :mesh_dm_key
 
+          # MQTT has no PhoneAPI node inventory. Retain observed User records
+          # on this connection only; a reconnect cannot reuse another's names.
+          def mesh_remember_node_user(opts = {})
+            cache = opts[:obj].instance_variable_get(:@pwn_mesh_users)
+            return unless cache
+
+            msg = opts[:msg]
+            info = msg[:node_info] || msg[:nodeInfo]
+            num = info.is_a?(Hash) ? info[:num] : msg.dig(:packet, :from)
+            return unless num.is_a?(Integer)
+
+            user = mesh_node_user(obj: { proto_data: [msg] }, num: num)
+            return unless user
+
+            cache[:mutex].synchronize do
+              cache[:users].delete(num)
+              cache[:users][num] = user.dup
+              cache[:users].shift while cache[:users].size > 1000
+            end
+          rescue Google::Protobuf::ParseError
+            nil
+          end
+
+          # Names are display-only User.short_name, never a long-name alias.
+          def mesh_node_short_name(opts = {})
+            id = mesh_format_node_id(id: opts[:id])
+            return unless id.match?(/\A![0-9a-f]{8}\z/)
+
+            num = id.delete_prefix('!').to_i(16)
+            cache = opts[:obj].instance_variable_get(:@pwn_mesh_users)
+            user = cache[:mutex].synchronize { cache[:users][num] } if cache
+            user ||= mesh_node_user(obj: opts[:obj], num: num)
+            return unless user
+
+            name = (user[:short_name] || user[:shortName] || user['short_name'] || user['shortName']).to_s.dup.force_encoding(Encoding::UTF_8).scrub
+            name = name.gsub(%r{\e\[[0-?]*[ -/]*[@-~]}, '').gsub(/[[:cntrl:]\p{Zl}\p{Zp}·]/, ' ').gsub(/\A[[:space:]]+|[[:space:]]+\z/, '')
+            name unless name.empty?
+          end
+
+          private :mesh_node_short_name, :mesh_remember_node_user
+
           def mesh_send_text(opts = {})
             env = opts[:env] || {}
             obj = opts[:obj]
@@ -788,6 +843,8 @@ module PWN
             dest = '!ffffffff' if dest.empty?
             kind = mesh_bound_transport(env: env)
             channel_name = opts[:channel_name].to_s
+            from_id = kind == :mqtt && !from.to_s.empty? ? mesh_format_node_id(id: from) : mesh_self_node_id(env: env, obj: obj)
+            short_name = mesh_node_short_name(obj: obj, id: from_id)
             radio = opts[:radio]
             radio = mesh_radio_index_for_name(env: env, obj: obj, name: channel_name) if radio.nil? && !channel_name.empty?
             radio = mesh_radio_channel(env: env, obj: obj) if radio.nil? && %i[serial bluetooth tcp].include?(kind)
@@ -845,15 +902,15 @@ module PWN
                   end
                 end
                 unless echoed
-                  from_id = from.to_s
-                  from_id = mesh_self_node_id(env: env, obj: obj) if from_id.empty?
-                  from_id = mesh_format_node_id(id: from_id)
                   PWN.send(:remove_const, :MeshLastTx) if PWN.const_defined?(:MeshLastTx)
                   PWN.const_set(:MeshLastTx, { from: from_id, to: dest, text: piece.to_s, at: Time.now })
                   mesh_handle_rx(
                     local: true,
+                    obj: obj,
+                    transport: kind,
                     channel_name: channel_name,
                     msg: {
+                      mesh_short_name: short_name,
                       packet: {
                         id: packet_id,
                         channel: radio,
@@ -1606,9 +1663,11 @@ module PWN
             return unless mesh_text_app?(portnum: decoded[:portnum])
 
             env = mesh_env_hash
+            transport = opts[:transport] || msg[:mesh_transport]
+            obj = opts[:obj] || (PWN.const_get(:MeshObj) if PWN.const_defined?(:MeshObj))
             idx = packet[:channel] || packet['channel']
             idx = nil unless idx.nil? || idx.is_a?(Integer) || (idx.is_a?(String) && idx.match?(/\A[0-7]\z/))
-            idx = 0 if idx.nil? && %i[serial bluetooth tcp].include?(mesh_bound_transport(env: env))
+            idx = 0 if idx.nil? && %w[serial bluetooth tcp].include?((transport || mesh_bound_transport(env: env)).to_s)
             idx = idx.to_i unless idx.nil?
             channel_name = opts[:channel_name].to_s
             channel_name = mesh_channel_name_for_index(index: idx, env: env) if channel_name.empty?
@@ -1641,8 +1700,9 @@ module PWN
             dest = to
             dest = mesh_self_node_id(env: env) if dest.empty? && !opts[:local]
             dest_label = mesh_reply_target_label(to: dest, env: env, channel_name: channel_name)
-            from = mesh_decorate_local_id(id: from_id, env: env)
-            dest_label = mesh_decorate_local_id(id: dest_label, env: env)
+            short_name = msg.key?(:mesh_short_name) ? msg[:mesh_short_name] : mesh_node_short_name(obj: obj, id: from_id)
+            from = mesh_decorate_local_id(id: from_id, env: env, obj: obj)
+            dest_label = mesh_decorate_local_id(id: dest_label, env: env, obj: obj)
             path = mesh_conversation_path(env: env, channel_name: channel_name, topic: msg[:topic] || packet[:topic])
             unless path.empty?
               from = "#{path}/#{from}"
@@ -1664,13 +1724,16 @@ module PWN
               color = opts[:local] ? 23 : 21
               secure = packet[:pki_encrypted] == true || mesh_channel_securely_encrypted?(env: env, channel: channel_name)
               security_icon = secure ? '🔒' : '🔍'
-              current_line = "#{ts}  #{security_icon}  #{from.strip}  #{dest_label}\n#{display_text}"
+              transport_label = { 'serial' => 'Serial', 'bluetooth' => 'Bluetooth', 'tcp' => 'TCP', 'mqtt' => 'MQTT' }.fetch(transport.to_s, 'Unknown')
+              suffix = "#{opts[:local] ? 'TX' : 'RX'} via #{transport_label}"
+              header = ["#{ts} #{security_icon}", short_name, from.strip, dest_label.strip, suffix].compact.join(' · ')
+              current_line = "#{header}\n#{display_text}"
               unless state[:last_line] == current_line
                 rx_body_win = PWN.const_get(:MeshRxBodyWin)
                 mutex.synchronize do
                   width = [rx_body_win.maxx - 2, 1].max
                   rx_body_win.attron(Curses.color_pair(color) | Curses::A_BOLD)
-                  rx_body_win.addstr(" #{ts}  #{security_icon}  #{from.strip}  ·  #{dest_label}\n")
+                  rx_body_win.addstr(" #{header}\n")
                   rx_body_win.attroff(Curses.color_pair(color) | Curses::A_BOLD)
                   rx_body_win.attron(Curses.color_pair(24))
                   mesh_wrap_text(text: display_text, width: width - 1).each do |line|

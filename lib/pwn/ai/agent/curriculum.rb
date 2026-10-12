@@ -241,6 +241,10 @@ module PWN
                    Dir[File.join(dir, '*.jsonl')].sort_by { |f| -File.mtime(f).to_i }.first(limit * 2).map { |f| File.basename(f, '.jsonl') }
                  end
 
+          # Session cleanup removes directory discovery, not the learning corpus.
+          evidence_rows = defined?(Learning) ? Learning.outcomes(limit: 100_000).select { |row| row[:evidence_ref] } : []
+          evidence_times = evidence_rows.to_h { |row| [row[:session_id], row[:timestamp]] }
+          sids = (sids + evidence_times.keys).uniq
           scored = []
           sids.first(limit * 3).each do |sid|
             break if scored.length >= limit
@@ -257,7 +261,7 @@ module PWN
                 (PWN::Sessions::SESSIONS_DIR if defined?(PWN::Sessions::SESSIONS_DIR)) || File.join(Dir.home, '.pwn', 'sessions'),
                 "#{sid}.jsonl"
               )
-              File.exist?(path) ? File.mtime(path).utc : nil
+              File.exist?(path) ? File.mtime(path).utc : (Time.parse(evidence_times[sid]) if evidence_times[sid])
             rescue StandardError
               nil
             end
@@ -1018,7 +1022,8 @@ module PWN
         end
 
         private_class_method def self.self_play(opts = {})
-          sid = PWN::Sessions.create(title: "curriculum #{opts[:tag]}")[:id]
+          session = PWN::Sessions.create(title: "curriculum #{opts[:tag]}", active: true)
+          sid = session[:id]
           # P23 — short-horizon graded tasks: cap iters so practice actually
           # teaches finish-under-N instead of letting DEFAULT_MAX_ITERS mask it.
           prompt = opts[:prompt].to_s
@@ -1058,6 +1063,8 @@ module PWN
           Reward.resolve_outcome(outcome: { source: :error, error: e.message }).merge(
             session_id: sid, prompt: opts[:prompt], final: final, trace: trace
           )
+        ensure
+          PWN::Sessions.deactivate(lease: session[:lease]) if session
         end
 
         private_class_method def self.score_branch(opts = {})

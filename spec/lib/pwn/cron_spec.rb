@@ -178,12 +178,12 @@ describe PWN::Cron do
       ].each do |m|
         expect(PWN::Cron).to respond_to(m)
       end
-      expect(PWN::Cron::DEFAULT_JOBS.length).to eq(5)
+      expect(PWN::Cron::DEFAULT_JOBS.length).to eq(6)
       names = PWN::Cron::DEFAULT_JOBS.map { |j| j[:name] }
       expect(names).to include('pwn_stores_lean_nightly')
       expect(names).to include('learning_consolidate_nightly')
       enabled = PWN::Cron::DEFAULT_JOBS.reject { |j| j[:enabled] == false }.map { |j| j[:name] }
-      expect(enabled).to contain_exactly('pwn_stores_lean_nightly', 'learning_consolidate_nightly')
+      expect(enabled).to contain_exactly('pwn_stores_lean_nightly', 'learning_consolidate_nightly', 'session_cleanup')
     end
 
     it 'picks a native backend per OS without consulting live daemons' do
@@ -204,7 +204,8 @@ describe PWN::Cron do
         '0 4 * * 0' => { kind: :weekly, minute: 0, hour: 4, wday: 0 },
         '30 3 * * *' => { kind: :daily, minute: 30, hour: 3 },
         '0 5 * * *' => { kind: :daily, minute: 0, hour: 5 },
-        '15 5 * * *' => { kind: :daily, minute: 15, hour: 5 }
+        '15 5 * * *' => { kind: :daily, minute: 15, hour: 5 },
+        '45 3 * * *' => { kind: :daily, minute: 45, hour: 3 }
       }
       PWN::Cron::DEFAULT_JOBS.each do |spec|
         cal = PWN::Cron.cron_to_calendar(schedule: spec[:schedule])

@@ -28,11 +28,17 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::AI::Agent::Learning.help
-PWN::AI::Agent::Learning.note_outcome(opts)
+PWN::AI::Agent::Learning.evidence_transcript(opts)
 ```
 
 ## Public methods
 
+- `evidence_transcript`
+- `session_evidence`
+- `evidence_complete`
+- `migrate_evidence`
+- `annotate_evidence`
+- `rollback_evidence`
 - `note_outcome`
 - `consistency_check`
 - `disputed_save`
@@ -63,6 +69,7 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 - `authors`
 - `help`
 - `compact!`
+- `evidence_complete?`
 - `gc_stores!`
 - `lean!`
 - `prune_outcomes!`
@@ -74,5 +81,5 @@ PWN::AI::Agent::Learning.note_outcome(opts)
 
 ## Verification
 
-`PWN::AI::Agent::Learning.respond_to?(:note_outcome)` after the
+`PWN::AI::Agent::Learning.respond_to?(:evidence_transcript)` after the
 module is loaded. Read the source for parameter names.

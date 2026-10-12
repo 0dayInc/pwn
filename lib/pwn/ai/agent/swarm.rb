@@ -253,7 +253,8 @@ module PWN
           bus_append(swarm_id: sid, from: opts[:from] || caller_label,
                      to: name, content: opts[:request].to_s)
 
-          session_id = persona_session(swarm_id: sid, name: name)
+          session_leases = []
+          session_id = persona_session(swarm_id: sid, name: name, leases: session_leases)
           sys        = build_persona_prompt(name: name, persona: persona,
                                             swarm_id: sid, session_id: session_id)
           sys = "#{sys}\n#{opts[:handoff]}" if opts[:handoff]
@@ -285,6 +286,7 @@ module PWN
           (Thread.current[:pwn_swarm_honesty] ||= []) << honesty.merge(name: name) unless empty_tools
           { ok: true, swarm_id: sid, name: name, session_id: session_id, reply: reply, inbox: inbox, honesty: honesty }
         ensure
+          Array(session_leases).each { |lease| PWN::Sessions.deactivate(lease: lease) }
           Thread.current[:pwn_swarm_depth] = depth
           if empty_tools
             Thread.current[:pwn_swarm_id] = prior_id
@@ -410,12 +412,17 @@ module PWN
           name = opts[:name].to_s
           map_path = File.join(SWARM_ROOT, sid, 'personas.json')
           map = File.exist?(map_path) ? JSON.parse(File.read(map_path)) : {}
-          return map[name] if map[name]
+          if map[name]
+            opts[:leases] << PWN::Sessions.activate(session_id: map[name]) if opts[:leases]
+            return map[name]
+          end
 
           sess = PWN::Sessions.create(
             title: "swarm:#{sid} persona:#{name}",
-            source: 'pwn-ai-swarm'
+            source: 'pwn-ai-swarm',
+            active: !opts[:leases].nil?
           )
+          opts[:leases] << sess[:lease] if opts[:leases]
           map[name] = sess[:id]
           File.write(map_path, JSON.pretty_generate(map))
           sess[:id]

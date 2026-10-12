@@ -325,7 +325,7 @@ module PWN
       # )
 
       private_class_method def self.anthropic_rest_call(opts = {})
-        opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools]
+        opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools] || Thread.current[:pwn_session_title]
         engine = PWN::Env[:ai][:anthropic] if defined?(PWN::Env)
         raise 'ERROR: Anthropic Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
