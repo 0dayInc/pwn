@@ -604,7 +604,7 @@ describe PWN::Banner do
     [5, 8, 16, 20].each do |size|
       frames = described_class.send(:mini_replay, name: :falling_blocks, width: size, height: size, seed: 73)
       locks = frames.select { |frame| frame[:event] == :lock }
-      expect(locks.first[:rows].last.chars.any? { |pixel| pixel != ' ' && ((pixel.ord - 256) % 16) & 12 != 0 }).to be(true)
+      expect(locks.first[:rows].last.chars.any? { |pixel| pixel != ' ' && ((pixel.ord - 256) % 16).anybits?(12) }).to be(true)
       [0, size - 1].each do |column|
         expect(locks.any? { |frame| frame[:rows].drop(1).any? { |row| row[column] != ' ' } }).to be(true)
       end
