@@ -4,6 +4,7 @@ require 'json'
 require 'fileutils'
 require 'time'
 require 'digest'
+require 'securerandom'
 
 module PWN
   module AI
@@ -29,6 +30,330 @@ module PWN
         DISPUTED_FILE      = File.join(Dir.home, '.pwn', 'learning', 'disputed.jsonl')
         LESSONS_FILE       = File.join(Dir.home, '.pwn', 'lessons.json')
         FINETUNE_DIR       = File.join(Dir.home, '.pwn', 'finetune')
+        # Evidence is immutable; provenance is not permission to remove a session.
+        # All readers validate the content hash and full-snapshot contract first.
+        public_class_method def self.evidence_transcript(opts = {})
+          row = opts[:row].transform_keys(&:to_sym)
+          ref = row[:evidence_ref]
+          raise IOError, 'Missing learning evidence reference' unless ref.is_a?(Hash)
+
+          ref = ref.transform_keys(&:to_sym)
+          hash = ref[:sha256]
+          sid = row[:session_id]
+          raise IOError, 'Invalid learning evidence reference' unless ref[:version] == 1 && hash.is_a?(String) && hash.match?(/\A[0-9a-f]{64}\z/) && ref[:id] == hash && sid.is_a?(String) && sid.match?(PWN::Sessions::SESSION_ID)
+
+          path = File.join(File.dirname(LEARNING_FILE), 'learning', 'evidence', "#{hash}.json")
+          body = evidence_read(path: path)
+          raise IOError, 'Learning evidence checksum mismatch' unless Digest::SHA256.hexdigest(body) == hash
+
+          data = JSON.parse(body, symbolize_names: true)
+          rows = data[:transcript]
+          valid = data[:version] == 1 && data[:kind] == 'full_session_snapshot' && data[:session_id] == sid &&
+                  rows.is_a?(Array) && !rows.empty? && rows.all?(Hash) && data[:row_count] == rows.length &&
+                  data[:source_sha256].to_s.match?(/\A[0-9a-f]{64}\z/) && data[:redaction] == 'PWN::Redaction.redact'
+          raise IOError, 'Incomplete learning evidence' unless valid
+
+          rows
+        rescue JSON::ParserError, SystemCallError, TypeError, NoMethodError
+          raise IOError, 'Unreadable learning evidence'
+        end
+
+        # Return a verified immutable snapshot, never arbitrary provenance paths.
+        public_class_method def self.session_evidence(opts = {})
+          sid = opts[:session_id].to_s
+          return nil unless sid.match?(PWN::Sessions::SESSION_ID) && File.file?(LEARNING_FILE)
+
+          rows = evidence_read(path: LEARNING_FILE).lines.map { |line| JSON.parse(line, symbolize_names: true) }
+          refs = rows.select { |row| row.is_a?(Hash) && row[:session_id] == sid && row.key?(:evidence_ref) }
+          return nil if refs.empty?
+
+          # A single migration snapshots all outcomes for a session together.
+          # Divergent snapshots cannot be silently chosen for legacy ID-only callers.
+          transcripts = refs.map { |row| evidence_transcript(row: row) }.uniq
+          raise IOError, 'Ambiguous learning evidence snapshots' unless transcripts.length == 1
+
+          transcripts.first
+        rescue JSON::ParserError
+          raise IOError, 'Malformed learning evidence index'
+        rescue IOError
+          warn '[pwn-ai/learning] Retained evidence is unavailable or ambiguous; no transcript context was substituted. Check evidence integrity before training or evaluation.'
+          raise
+        end
+
+        # A marker alone never releases retention; changed live sources stay pinned.
+        public_class_method def self.evidence_complete?(opts = {})
+          row = opts[:row].transform_keys(&:to_sym)
+          transcript = evidence_transcript(row: row)
+          sid = row[:session_id]
+          path = File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl")
+          return true unless File.exist?(path) || File.symlink?(path)
+
+          ref = row[:evidence_ref].transform_keys(&:to_sym)
+          artifact = File.join(File.dirname(LEARNING_FILE), 'learning', 'evidence', "#{ref[:sha256]}.json")
+          data = JSON.parse(evidence_read(path: artifact))
+          source = evidence_read(path: path)
+          source_rows = source.lines.map { |line| JSON.parse(line, symbolize_names: true) }
+          Digest::SHA256.hexdigest(source) == data['source_sha256'] && PWN::Redaction.redact(value: source_rows) == transcript
+        rescue IOError, SystemCallError, JSON::ParserError, TypeError, NoMethodError
+          false
+        end
+
+        # Plan by default; no provider calls, vault reads, transcript logging or deletion.
+        public_class_method def self.migrate_evidence(opts = {})
+          dry = opts[:dry_run] != false
+          lock = learning_lock unless dry
+          original = File.exist?(LEARNING_FILE) ? evidence_read(path: LEARNING_FILE) : ''
+          malformed = 0
+          rows = original.lines.filter_map do |line|
+            row = JSON.parse(line, symbolize_names: true)
+            raise JSON::ParserError unless row.is_a?(Hash)
+
+            row
+          rescue JSON::ParserError
+            malformed += 1
+            nil
+          end
+
+          report = { dry_run: dry, rows: rows.length, malformed_rows: malformed, session_refs: 0, migratable_sessions: 0,
+                     missing_sessions: 0, malformed_sessions: 0, malformed_refs: 0, verified_rows: 0,
+                     estimated_source_bytes: 0, migrated_rows: 0 }
+          snapshots = {}
+          rows.each do |row|
+            sid = row[:session_id]
+            next if sid.nil? || sid == ''
+
+            report[:session_refs] += 1
+            unless sid.is_a?(String) && sid.match?(PWN::Sessions::SESSION_ID)
+              report[:malformed_refs] += 1
+              next
+            end
+            if row.key?(:evidence_ref)
+              report[evidence_complete?(row: row) ? :verified_rows : :malformed_refs] += 1
+              next
+            end
+            next if snapshots.key?(sid)
+
+            path = File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl")
+            snapshots[sid] = nil
+            unless File.exist?(path) || File.symlink?(path)
+              report[:missing_sessions] += 1
+              next
+            end
+            begin
+              body = evidence_read(path: path)
+              transcript = body.lines.map { |line| JSON.parse(line, symbolize_names: true) }
+              raise IOError, 'Malformed source transcript' if transcript.empty? || !transcript.all?(Hash)
+
+              payload = JSON.generate(version: 1, kind: 'full_session_snapshot', session_id: sid,
+                                      source_sha256: Digest::SHA256.hexdigest(body), row_count: transcript.length,
+                                      redaction: 'PWN::Redaction.redact', transcript: PWN::Redaction.redact(value: transcript))
+              hash = Digest::SHA256.hexdigest(payload)
+              snapshots[sid] = { body: payload, source: body, path: path, ref: { version: 1, id: hash, sha256: hash } }
+              report[:migratable_sessions] += 1
+              report[:estimated_source_bytes] += body.bytesize
+            rescue IOError, SystemCallError, JSON::ParserError
+              report[:malformed_sessions] += 1
+            end
+          end
+          index = PWN::Sessions.dependency_index
+          eligible = snapshots.select { |_sid, snapshot| snapshot }.keys
+          releasable = eligible.select do |sid|
+            rows.select { |row| row[:session_id] == sid }.all? { |row| !row.key?(:evidence_ref) || evidence_complete?(row: row) }
+          end
+          report[:unique_session_refs] = rows.filter_map { |row| row[:session_id] if row[:session_id].is_a?(String) && row[:session_id].match?(PWN::Sessions::SESSION_ID) }.uniq.length
+          report[:estimated_artifact_bytes] = snapshots.values.compact.sum { |snapshot| snapshot[:body].bytesize }
+          report[:backup_bytes] = original.bytesize
+          report[:migratable_rows] = rows.count { |row| !row.key?(:evidence_ref) && snapshots[row[:session_id]] }
+          report[:remaining_dependency_sessions] = index[:dependencies].count do |sid, paths|
+            !releasable.include?(sid) || paths.any? { |path| path != LEARNING_FILE }
+          end
+          report[:remaining_dependency_edges] = index[:dependencies].sum { |sid, paths| paths.count { |path| path != LEARNING_FILE || !releasable.include?(sid) } }
+          report[:remaining_existing_dependency_sessions] = index[:dependencies].count do |sid, paths|
+            File.file?(File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl")) &&
+              (!releasable.include?(sid) || paths.any? { |path| path != LEARNING_FILE })
+          end
+          report[:already_missing_dependency_sessions] = index[:dependencies].count { |sid, _paths| !File.file?(File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl")) }
+          report[:dependency_errors] = index[:errors].length
+          return report.merge(aborted: true) if malformed.positive?
+          return report if dry || eligible.empty?
+
+          evidence_commit(rows: rows, original: original, snapshots: snapshots, report: report)
+        ensure
+          learning_unlock(lock: lock) if lock
+        end
+
+        private_class_method def self.evidence_read(opts = {})
+          path = opts[:path]
+          raise IOError, 'Unsafe evidence path' unless File.file?(path) && File.realpath(path) == File.expand_path(path)
+
+          File.binread(path)
+        end
+
+        # Copy-on-write PRM metadata; never rewrite supporting actions/results.
+        public_class_method def self.annotate_evidence(opts = {})
+          sid = opts[:session_id].to_s
+          rewards = opts[:rewards]
+          raise ArgumentError, 'Invalid evidence annotation' unless sid.match?(PWN::Sessions::SESSION_ID) && rewards.is_a?(Array) && rewards.all? { |reward| reward.nil? || (reward.is_a?(Integer) && [-1, 0, 1].include?(reward)) }
+
+          lock = learning_lock
+          original = evidence_read(path: LEARNING_FILE)
+          rows = original.lines.map { |line| JSON.parse(line, symbolize_names: true) }
+          row = rows.find { |entry| entry[:session_id] == sid && entry[:evidence_ref] }
+          return { annotated: false } unless row
+
+          transcript = session_evidence(session_id: sid)
+          prior = row[:evidence_ref][:sha256]
+          artifact = File.join(File.dirname(LEARNING_FILE), 'learning', 'evidence', "#{prior}.json")
+          data = JSON.parse(evidence_read(path: artifact), symbolize_names: true)
+          index = -1
+          transcript.each do |entry|
+            next unless entry[:role].to_s == 'tool'
+
+            index += 1
+            entry[:step_reward] = rewards[index] unless rewards[index].nil?
+          end
+          return { annotated: false, unchanged: true } if transcript == data[:transcript]
+
+          body = JSON.generate(data.merge(transcript: transcript, derived_from: prior, annotation: 'step_reward'))
+          hash = Digest::SHA256.hexdigest(body)
+          updated = rows.map { |entry| entry[:session_id] == sid ? entry.except(:evidence_ref) : entry }
+          snapshot = { body: body, source: nil, path: File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl"),
+                       ref: { version: 1, id: hash, sha256: hash } }
+          evidence_commit(rows: updated, original: original, snapshots: { sid => snapshot }, report: { migrated_rows: 0 }).merge(annotated: true)
+        ensure
+          learning_unlock(lock: lock) if lock
+        end
+
+        # Roll back only an unchanged migration while every original source exists.
+        public_class_method def self.rollback_evidence(opts = {})
+          id = opts[:migration].to_s
+          raise ArgumentError, 'Expected migration SHA-256 ID' unless id.match?(/\A[0-9a-f]{64}\z/)
+
+          lock = learning_lock
+          root = File.join(File.dirname(LEARNING_FILE), 'learning', 'migrations')
+          path = File.join(root, "#{id}.json")
+          record = JSON.parse(evidence_read(path: path), symbolize_names: true)
+          backup = evidence_read(path: File.join(root, "#{id}.backup.jsonl"))
+          raise IOError, 'Invalid migration backup' unless record[:before_sha256] == id && Digest::SHA256.hexdigest(backup) == id
+
+          current = evidence_read(path: LEARNING_FILE)
+          return { restored: true, unchanged: true } if current == backup
+          raise IOError, 'Learning changed since migration; refusing rollback' unless Digest::SHA256.hexdigest(current) == record[:after_sha256]
+
+          current_rows = current.lines.map { |line| JSON.parse(line, symbolize_names: true) }
+          backup.lines.each do |line|
+            previous = JSON.parse(line, symbolize_names: true)
+            if previous[:evidence_ref]
+              evidence_transcript(row: previous)
+              next
+            end
+            sid = previous[:session_id]
+            row = current_rows.find { |entry| entry[:session_id] == sid && entry[:evidence_ref] }
+            next unless row
+
+            raise IOError, 'Restore source sessions before rollback' unless evidence_complete?(row: row) && File.file?(File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl"))
+          end
+          evidence_write(path: LEARNING_FILE, body: backup)
+          evidence_write(path: path, body: JSON.generate(record.merge(state: 'rolled_back')))
+          { restored: true }
+        ensure
+          learning_unlock(lock: lock) if lock
+        end
+
+        private_class_method def self.evidence_write(opts = {})
+          path = opts[:path]
+          body = opts[:body]
+          dir = File.dirname(path)
+          ancestor = dir
+          ancestor = File.dirname(ancestor) until File.exist?(ancestor) || File.symlink?(ancestor)
+          raise IOError, 'Unsafe evidence ancestor' unless File.directory?(ancestor) && File.realpath(ancestor) == File.expand_path(ancestor)
+
+          FileUtils.mkdir_p(dir, mode: 0o700)
+          raise IOError, 'Unsafe evidence directory' unless File.realpath(dir) == File.expand_path(dir)
+          raise IOError, 'Unsafe evidence target' if File.symlink?(path)
+
+          tmp = "#{path}.#{SecureRandom.hex(12)}.tmp"
+          File.open(tmp, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+            file.write(body)
+            file.flush
+            file.fsync
+          end
+          File.rename(tmp, path)
+          File.open(dir, &:fsync)
+          raise IOError, 'Evidence write verification failed' unless evidence_read(path: path) == body
+
+          path
+        ensure
+          FileUtils.rm_f(tmp) if tmp
+        end
+
+        private_class_method def self.evidence_commit(opts = {})
+          rows, original, snapshots, report = opts.values_at(:rows, :original, :snapshots, :report)
+          root = File.join(File.dirname(LEARNING_FILE), 'learning')
+          before_hash = Digest::SHA256.hexdigest(original)
+          backup = File.join(root, 'migrations', "#{before_hash}.backup.jsonl")
+          evidence_write(path: backup, body: original) unless File.exist?(backup)
+          raise IOError, 'Invalid migration backup' unless evidence_read(path: backup) == original
+
+          rows.each do |row|
+            snapshot = snapshots[row[:session_id]]
+            next if row.key?(:evidence_ref) || snapshot.nil?
+
+            ref = snapshot[:ref]
+            path = File.join(root, 'evidence', "#{ref[:sha256]}.json")
+            evidence_write(path: path, body: snapshot[:body]) unless File.exist?(path)
+            row[:evidence_ref] = ref
+            evidence_transcript(row: row)
+            report[:migrated_rows] += 1
+          end
+          updated = rows.map { |row| "#{JSON.generate(row)}\n" }.join
+          ledger = File.join(root, 'migrations', "#{before_hash}.json")
+          record = { version: 1, state: 'prepared', before_sha256: before_hash,
+                     after_sha256: Digest::SHA256.hexdigest(updated), migrated_rows: report[:migrated_rows] }
+          evidence_write(path: ledger, body: JSON.generate(record))
+          raise IOError, 'Learning changed during migration' unless evidence_read(path: LEARNING_FILE) == original
+
+          snapshots.each_value do |snapshot|
+            next unless snapshot
+
+            if snapshot[:source].nil?
+              raise IOError, 'Session appeared during evidence annotation' if File.exist?(snapshot[:path]) || File.symlink?(snapshot[:path])
+
+              next
+            end
+
+            raise IOError, 'Session changed during migration' unless evidence_read(path: snapshot[:path]) == snapshot[:source]
+          end
+          evidence_write(path: LEARNING_FILE, body: updated)
+          evidence_write(path: ledger, body: JSON.generate(record.merge(state: 'committed')))
+          report.merge(ledger: ledger)
+        end
+
+        # Reentrant across note_outcome -> pruning; flock serializes cooperating processes.
+        private_class_method def self.learning_lock
+          key = :pwn_learning_write_lock
+          return nil if Thread.current[key]
+
+          root = File.dirname(LEARNING_FILE)
+          FileUtils.mkdir_p(root, mode: 0o700)
+          path = File.join(root, '.learning-write.lock')
+          raise IOError, 'Unsafe learning lock' if File.symlink?(path) || File.realpath(root) != File.expand_path(root)
+
+          # Ownership transfers to the caller's ensure/learning_unlock.
+          file = File.open(path, File::RDWR | File::CREAT, 0o600) # rubocop:disable Style/FileOpen
+          file.flock(File::LOCK_EX)
+          Thread.current[key] = file
+          file
+        end
+
+        private_class_method def self.learning_unlock(opts = {})
+          file = opts[:lock]
+          return unless file
+
+          Thread.current[:pwn_learning_write_lock] = nil
+          file.close
+        end
+
         # P0 — post-answer introspect must not train "stop early" while
         # spending the iteration budget after the final. Soft cap skips
         # expensive stages (tool critic, PRM-LLM, reflect, extrospect);
@@ -91,6 +416,7 @@ module PWN
         # )
 
         public_class_method def self.note_outcome(opts = {})
+          lock = learning_lock
           task    = opts[:task].to_s
           # 4.1 — allow success: 'soft' (HER) distinct from true/false
           raw_ok  = opts[:success]
@@ -169,6 +495,8 @@ module PWN
             Curriculum.calibrate(predicted: pred, actual: decision ? decision[:training_score] : opts[:score], engine: eng)
           end
           entry
+        ensure
+          learning_unlock(lock: lock) if lock
         end
 
         public_class_method def self.consistency_check(opts = {})
@@ -843,6 +1171,7 @@ module PWN
         end
 
         public_class_method def self.flip_last_outcome(opts = {})
+          lock = learning_lock
           return { flipped: false } unless File.exist?(LEARNING_FILE)
 
           lines = File.readlines(LEARNING_FILE)
@@ -869,6 +1198,8 @@ module PWN
           { flipped: true, id: last[:id], rejected: last[:details].to_s[0, 2_000] }
         rescue StandardError
           { flipped: false }
+        ensure
+          learning_unlock(lock: lock) if lock
         end
 
         # Supported Method Parameters::
@@ -959,8 +1290,11 @@ module PWN
         # PWN::AI::Agent::Learning.reset
 
         public_class_method def self.reset
+          lock = learning_lock
           FileUtils.rm_f(LEARNING_FILE)
           { cleared: true }
+        ensure
+          learning_unlock(lock: lock) if lock
         end
 
         # -------------------------------------------------------------
@@ -1168,6 +1502,7 @@ module PWN
         # One-shot / on-load repair: rewrite tags+details where verdict label
         # disagrees with score (solved @ 0.3 etc.). Safe to call repeatedly.
         public_class_method def self.reconcile_verdict_tags!(opts = {})
+          lock = learning_lock unless opts[:dry_run]
           return { repaired: 0 } unless File.exist?(LEARNING_FILE)
 
           dry = opts[:dry_run] ? true : false
@@ -1206,6 +1541,8 @@ module PWN
           { repaired: repaired, dry_run: dry }
         rescue StandardError => e
           { repaired: 0, error: "#{e.class}: #{e.message}" }
+        ensure
+          learning_unlock(lock: lock) if lock
         end
 
         private_class_method def self.auto_introspect_enabled?
@@ -1599,6 +1936,7 @@ module PWN
         # keeping best score. Truncate details. Never sacrifices exemplar pool.
 
         public_class_method def self.prune_outcomes!(opts = {})
+          lock = learning_lock unless opts[:dry_run]
           dry = opts[:dry_run] ? true : false
           max_rows = (opts[:max_rows] || MAX_OUTCOME_ROWS).to_i
           retain_days = (opts[:retain_days] || OUTCOME_RETAIN_DAYS).to_f
@@ -1722,6 +2060,8 @@ module PWN
                          end,
             dry_run: dry
           }
+        ensure
+          learning_unlock(lock: lock) if lock
         end
 
         # Memory lean + outcome prune.
@@ -1940,6 +2280,7 @@ module PWN
         end
 
         public_class_method def self.requeue_conflicted(opts = {})
+          lock = learning_lock unless opts[:dry_run]
           dry = opts[:dry_run] ? true : false
           rows = list_conflicted(limit: 10_000)
           return { rescored: 0, dry_run: dry } if rows.empty? || dry
@@ -1974,6 +2315,8 @@ module PWN
             n += 1
           end
           { rescored: n, dry_run: false }
+        ensure
+          learning_unlock(lock: lock) if lock
         end
 
         public_class_method def self.compact!(opts = {})
@@ -1998,6 +2341,28 @@ module PWN
         # Display Usage for this Module
 
         public_class_method def self.help
+          puts "
+            # Plan a full-snapshot evidence migration, or explicitly apply it.
+            #{self}.migrate_evidence(dry_run: 'optional - Boolean; defaults true, false writes evidence and references')
+
+            # Restore an unchanged learning ledger before any source-session cleanup.
+            #{self}.rollback_evidence(migration: 'required - SHA-256 migration ID from the ledger filename')
+
+            # Persist derived PRM rewards without rewriting immutable supporting content.
+            #{self}.annotate_evidence(
+              session_id: 'required - canonical source session ID with retained evidence and no live transcript',
+              rewards: 'required - Array of integer -1, 0, 1 or nil per tool row'
+            )
+
+            # Read and verify the immutable evidence supporting one outcome.
+            #{self}.evidence_transcript(row: 'required - outcome Hash including session_id and evidence_ref')
+
+            # Resolve a legacy session ID to an unambiguous verified snapshot.
+            #{self}.session_evidence(session_id: 'required - canonical source session ID')
+
+            # Check complete evidence and unchanged source before releasing a pin.
+            #{self}.evidence_complete?(row: 'required - outcome Hash including session_id and evidence_ref')
+          "
           puts "USAGE:
             # Run note outcome and return its result
             #{self}.note_outcome(

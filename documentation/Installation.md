@@ -202,6 +202,110 @@ without a per-job crontab line. Live Policy files (`policy.json`,
 `policy_traj.jsonl`) are created on first agent turn when `ai.agent.policy`
 is on.
 
+Schema `v8` seeds the enabled `session_cleanup` hygiene job, daily at 03:45
+in the scheduler's local timezone. First launch also seeds it through
+`PWN::Cron.install_defaults`. The bundled `etc/default_cron/session_cleanup.rb`
+is installed to `~/.pwn/cron/session_cleanup.rb`; managed copies refresh on
+subsequent launches/migrations, while unmarked custom helpers are preserved.
+An existing job named `session_cleanup` keeps its ID, schedule, enabled state,
+payload and native scheduler drop-ins. New jobs defer cleanup until their first
+scheduled time, rather than deleting during initial catch-up.
+
+Cleanup calls a session named only when its persisted metadata has
+`title_source: summary`, a nonblank title and summary, and a positive integer
+`summary_turns` cursor: the fields published after validated LLM title generation.
+Provisional first-request titles, manual titles, persona labels, aliases and
+historical embedded titles are not evidence of LLM summarization. Legacy records
+without provenance are unsummarized with `missing_summary_provenance`; invalid or
+incomplete metadata is unknown, never named. `/sessions list` and cleanup share
+`title_source`, `is_summarized`, `classification` and `title_reason`. Classification
+does not establish deletion safety: malformed records, symlinks and uncertain pin
+stores remain protected. Age alone does not preserve an unsummarized session.
+Version 5 backs up unreferenced unsummarized sessions before a guarded `Sessions.delete`
+call that bypasses the ordinary age pin. Current sessions and every known
+learning/mistake/memory reference remain protected. `/sessions list` exposes
+`dependencies` as an array of files **referencing this session** (empty when
+none), not files this session depends on. `dependency_errors` lists unknown,
+malformed or unsafe stores; cleanup fails closed when it is nonempty.
+The shared index follows defined structural fields, not ID-looking text.
+Dependency-backed sessions remain visible and resumable, not archived away.
+Vault/config/credential payloads and historical backups are not scanned.
+Same-user interactive PWN
+processes defer deletion because existing writers have no lifetime leases; this is a
+conservative guard, not a cross-process session lease. Inspect without deleting:
+`ruby ~/.pwn/cron/session_cleanup.rb --dry-run`.
+
+`--apply` backs up eligible transcript/metadata bytes under
+`~/.pwn/session_cleanup_archive/<run>/` (directories 0700, files 0600), outside
+`/sessions list`. Atomic, fsynced backups are SHA-256 verified before deletion;
+file identities/hashes, title classification, reference stores and process state
+are rechecked under per-ID/transcript locks. `ledger.json` records exact IDs,
+hashes, skips and completed deletions; dry-run JSON contains metadata only and
+creates no archive. Backups are for recovery, not an automatic reference
+resolver: referenced placeholders remain in the active list until a separately
+verified archive-aware lookup policy exists. No memory, learning or mistake
+records are rewritten. The process checks and advisory locks do not claim a
+transactional guarantee against arbitrary non-cooperating external writers.
+
+The cleanup-specific pins additionally preserve every session ID referenced in
+retained learning, mistake and durable memory stores, including non-gold learning
+and old resolved mistakes. References are schema-aware:
+
+| Store / writer | Session reference |
+| --- | --- |
+| `learning.jsonl` / Learning; `policy_traj.jsonl` / Policy; `open_goal.json` / OpenGoal | Top-level `session_id` |
+| `mistakes.json` / Mistakes | Each signature record's `sessions[]` and `verified_sessions[]`; signature keys are not session IDs |
+| `memory.json`, `memory.archive.json` / Learning.reflect, Memory | Exact `reflect_<session ID>_<8-hex lesson digest>` keys; arbitrary memory keys, values and source strings are not links |
+| `jobs/<12-hex job ID>.json` / Jobs | Top-level `session_id`; command, environment and job ID are not links |
+| `swarm/*/personas.json` / Swarm | Persona-to-session map values, not persona names or swarm IDs |
+| `curriculum/log.jsonl` / Curriculum | `practice` event's `data[].runs[].session_id`; other events' prose is not traversed |
+| `extrospection.json` / Extrospection | `auto_extrospect` observations' second tag in `['drift', session ID]`; manual/other tags and observation data are not links |
+| `engagements/*/facts.jsonl` / Swarm | Top-level `source_session` |
+| `findings.jsonl` / Findings | Top-level `session_id`; exact transcript/sidecar paths in `evidence_paths[]` and `poc_artifacts[]` |
+| Engagement evidence and recon ledgers / Findings, Recon | Exact transcript/sidecar paths in `path` or `evidence_path`; includes the legacy root `engagements/evidence.jsonl` |
+| `artifacts/manifest.jsonl` / ArtifactRegistry | Top-level `session` and exact transcript/sidecar `source_path`; `kind: swarm-bus` uses `session` for a swarm ID, not session provenance |
+| `artifacts/<session ID>/index.jsonl`, `engagement-memory.json` | Session ownership from that exact directory; index `src` may also reference a transcript/sidecar |
+| `embeddings/<session ID>.db`, `sessions/<session ID>/trace.jsonl` | Ownership from that exact filename/directory, not database contents or trace tool payloads |
+
+IDs must be complete canonical values, not substrings or whitespace-normalized
+tokens. Only known evidence/source path fields pointing directly into the
+configured sessions directory are path references. There is currently no
+cross-session link field in transcript or title metadata schemas: listing,
+recalling, quoting JSON, or mentioning a session never pins it, including when
+`sessions_list` output is saved repeatedly. Self listings do not create pins.
+
+The index also validates the JSON containers in policy, preference, sentinel,
+skill-review and KPI stores, run checkpoints, mission ledgers, swarm bus/solve
+records, curriculum model/cooldown maps, engagement descriptors/hosts/scans and
+binary facts. These writers do **not** persist session ownership links; their
+arbitrary payloads, prompts, run/job IDs and user-selected labels must not be
+interpreted as such. Unknown JSON stores within the indexed directories are
+reported as uncertainty rather than silently ignored. Adding a new reference
+schema requires auditing its writer/callers and adding positive and negative
+fixtures, not a recursive key-name or text search. Vaults, loot payloads, arbitrary
+artifact content and backups remain outside this index.
+
+Native scalar tool `step_reward` fields are recognized;
+unknown transcript fields remain protected.
+
+`/sessions list` reads all transcript files afresh, not just cleanup candidates.
+In cleanup output, `unnamed` includes protected sessions; `candidate_ids` excludes
+them. Active sessions hold shared OS locks on permanent per-ID cleanup lock
+files; cleanup takes an exclusive nonblocking lock on the same inode before
+rechecking, backing up and deleting. An active A does not retain inactive B.
+CLI/REPL activation and resume transfer ownership, exit releases it, nested
+Loop requests and title writers hold independent leases, and crashes release
+descriptors automatically. Stale lock contents or reused PIDs confer no ownership.
+Never unlink lock files: that would split the synchronization inode.
+
+Old installed processes cannot be upgraded by refreshing the cron helper alone.
+`legacy_owners` reports launchers without the held PID/start-identity capability
+marker; `unknown_legacy_ownership` means their in-memory session IDs are unknown,
+not that every session is active. Ask the operator to identify/quiesce those
+writers and restart using the updated source or deployed version before deleting
+ambiguous candidates. Do not infer active IDs from mtimes, titles or process-name
+matches, and do not bypass reference/summary guards. No config migration is needed.
+
 From a checkout:
 
 ```bash

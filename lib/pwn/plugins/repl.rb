@@ -464,6 +464,10 @@ module PWN
 
       public_class_method def self.add_hooks
         # Define REPL Hooks
+        Pry.config.hooks.add_hook(:after_session, :pwn_session_lease) do |_output, _binding, pi|
+          PWN::Sessions.deactivate(lease: pi.config.pwn_ai_session_lease)
+          pi.config.pwn_ai_session_lease = nil
+        end
         # Welcome Banner Hook
         Pry.config.hooks.add_hook(:before_session, :welcome) do |output, _binding, _pi|
           Pry.config.refresh_pwn_env = false
@@ -882,6 +886,8 @@ module PWN
         pi = opts[:pry]
         return nil unless pi.respond_to?(:config)
 
+        PWN::Sessions.deactivate(lease: pi.config.pwn_ai_session_lease)
+        pi.config.pwn_ai_session_lease = nil
         pi.config.color = true
         pi.config.pwn_asm = false if pi.config.pwn_asm
         pi.config.pwn_ai = false if pi.config.pwn_ai
@@ -973,6 +979,7 @@ module PWN
       # PWN::Plugins::REPL.start
 
       public_class_method def self.start(opts = {})
+        PWN::Sessions.send(:register_activity_owner)
         ai_session_id = opts[:ai_session_id]
         settings = PWN::Env[:driver_opts]
 
@@ -1006,6 +1013,7 @@ module PWN
           hooks = Pry.config.hooks.dup
           hooks.add_hook(:before_session, :pwn_ai_cli) do |_output, _binding, pi|
             pi.config.pwn_ai_startup_session_id = ai_session_id
+            pi.config.pwn_ai_startup_session_lease = opts[:ai_session_lease]
             pi.run_command('pwn-ai')
           end
           Pry.start(Pry.main, prompt: prompt, hooks: hooks)
@@ -1244,7 +1252,7 @@ module PWN
           )
 
           # Run start and return its result
-          #{self}.start(ai_session_id: 'optional - prepared CLI session id')
+          #{self}.start(ai_session_id: 'optional - prepared CLI session id', ai_session_lease: 'optional - prepared CLI session lease')
 
           # Print the AUTHOR(S) string for this module.
           #{self}.authors

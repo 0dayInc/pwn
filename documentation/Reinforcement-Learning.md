@@ -1,5 +1,85 @@
 # Reinforcement Learning in pwn-ai
 
+## Retained learning evidence and session cleanup
+
+Learning outcomes can retain a versioned `evidence_ref` (`version`, `id`,
+`sha256`) pointing to `~/.pwn/learning/evidence/<sha256>.json`. The existing
+`session_id` remains provenance. It ceases to pin a source transcript only
+after the artifact is readable, hash-valid, schema-valid, and its complete
+redacted transcript matches the unchanged source. A marker alone is not enough.
+Missing, modified, malformed or conflicting evidence does not authorize cleanup.
+Other stores, including mistakes, reflection memory and disputed learning,
+continue to pin their source sessions. Evidence files are never session-cleanup
+candidates; the dependency index exposes their referenced-by edges separately.
+
+No reliable turn-to-outcome boundary exists in legacy learning rows. Migration
+therefore preserves **every persisted transcript row**, including requests,
+tool actions, observations, results, timestamps and extra fields, with source
+session provenance and a SHA-256 of the original bytes. It uses the existing
+credential-pattern redactor, not a model or Vault, and does not summarize.
+Already compacted source content cannot be reconstructed; external artifact
+references stay references, and those artifacts must still be retained.
+
+Use the existing `learning_gc_stores` tool with
+`{"operation":"evidence_plan","dry_run":true}` for a read-only count/size
+report. This operation does not invoke store GC. The equivalent Ruby API in
+the existing `pwn` console is:
+
+```ruby
+PWN::AI::Agent::Learning.migrate_evidence(dry_run: true)
+```
+
+After reviewing the plan and explicitly approving writes, stop old installed
+PWN processes, scheduled maintenance and external editors first. Deploy the
+matching source before restarting: legacy installed writers do not participate
+in the new lock. Then use `learning_gc_stores` with
+`{"operation":"evidence_apply","dry_run":false}`, or
+`PWN::AI::Agent::Learning.migrate_evidence(dry_run: false)`.
+**Neither operation deletes sessions.** Review a separate session-cleanup
+dry run afterward; named/active/uncertain sessions remain protected by that
+cleanup policy. Do not infer session-count reduction from an evidence migration.
+
+Artifacts deduplicate by content hash. Files use 0600 and new directories 0700.
+Atomic, fsynced writes/readback precede the learning-index replacement. Original
+learning bytes and prepared/committed ledgers live under
+`~/.pwn/learning/migrations/`, outside legacy backup pruning. Core learning
+writers share a reentrant advisory lock; optimistic byte checks additionally
+reject observed source/index changes. These locks cannot coordinate arbitrary
+external editors or old installed versions: apply requires a quiescent store.
+Interrupted precommit runs leave original references intact and can be retried;
+an interruption after index replacement can leave a prepared ledger with a
+fully usable verified index. No partial artifact or staging file releases a pin.
+
+Before any source deletion, an unchanged migration can be rolled back with
+`PWN::AI::Agent::Learning.rollback_evidence(migration: '<ledger SHA-256 ID>')`,
+or tool operation `evidence_rollback` with the same `migration` field. Rollback
+verifies backup/index hashes and refuses later edits or absent/changed sources;
+it never overwrites concurrent learning. Keep recovery files private. They
+retain the exact original learning bytes, which can include legacy sensitive
+data. This is not an evidence garbage collector or a credential-store migration.
+
+Consumer audit: `Sessions.load` supplies verified evidence only when the legacy
+source is absent, keeping all existing ID-only consumers compatible. This covers
+`Learning` export_finetune, reflect, fold_judge_into_metrics,
+recover_predicted_from_session, infer_success, compress_exemplar,
+build_skill_from_session and requeue_conflicted; `Reward` run_verification,
+record_verification, request_verification and load_trace; `Curriculum`
+offline_judge and self_play; `Mistakes` previous_user/previous_assistant;
+`Memory.session_turns`; `tools/sessions.rb`; and REPL session-goal lookup.
+`Sessions.export` now uses that resolver too. `Curriculum.offline_judge` also
+discovers retained evidence outcomes after directory cleanup (outcome timestamp
+is its archived-session age). Invalid evidence raises at the resolver rather
+than masquerading as an empty transcript; existing consumer error/drop reporting
+continues to apply, with a metadata-only diagnostic when evidence cannot resolve.
+Reward's PRM annotation writer uses `Learning.annotate_evidence` when the source
+is absent: integer step rewards create a new content-hashed snapshot and replace
+references under the same backup/ledger/lock protocol. Supporting content and the
+old artifact remain unchanged; no session is recreated. Annotation rollback can
+restore verified prior evidence references even after original-session cleanup.
+DPO export already consumes self-contained preference
+pairs, not session files. New module/autoload/gemspec entries are unnecessary:
+the implementation extends existing paired modules.
+
 pwn-ai learns while you work. Most of that learning stays **in context**: the
 agent writes what happened to disk and puts the useful bits back into the next
 prompt. On a host **with a trainer and a GPU**, the same data can also train a

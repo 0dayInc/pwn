@@ -391,7 +391,7 @@ module PWN
       # )
 
       private_class_method def self.open_ai_rest_call(opts = {})
-        opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools]
+        opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools] || Thread.current[:pwn_session_title]
         engine = PWN::Env[:ai][:openai] if defined?(PWN::Env)
         raise 'ERROR: OpenAI Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 

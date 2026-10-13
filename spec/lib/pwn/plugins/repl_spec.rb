@@ -234,6 +234,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       options.fetch(:hooks).exec_hook(:before_session, StringIO.new, TOPLEVEL_BINDING, pi)
       expect(pi.config.pwn_ai_startup_session_id).to eq('prepared-session')
     end
+    expect(PWN::Sessions).to receive(:register_activity_owner).and_call_original
     described_class.start(ai_session_id: 'prepared-session')
   end
 
@@ -241,6 +242,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
     described_class.add_commands
     config = Pry::Config.new
     config.pwn_ai_startup_session_id = 'ingested-session'
+    allow(PWN::Sessions).to receive(:activate).with(session_id: 'ingested-session').and_return(nil)
     pi = double('pry', config: config)
     allow(described_class).to receive(:install_pwn_ai_completer!)
     allow(PWN::ModuleSkills).to receive(:install)

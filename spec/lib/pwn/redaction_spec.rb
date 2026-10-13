@@ -47,7 +47,8 @@ RSpec.describe 'Persistence redaction' do
   it 'sanitizes learning payloads, logger output, compaction and retention artifacts before writing' do
     Dir.mktmpdir do |dir|
       allow(Dir).to receive(:home).and_return(dir)
-      stub_const('PWN::Sessions::SESSIONS_DIR', dir)
+      stub_const('PWN::Sessions::SESSIONS_DIR', File.join(dir, 'sessions'))
+      FileUtils.mkdir_p(PWN::Sessions::SESSIONS_DIR)
       secret = 'AKIAABCDEFGHIJKLMNOP'
       io = StringIO.new
       original = $stdout
@@ -61,7 +62,7 @@ RSpec.describe 'Persistence redaction' do
       allow(File).to(receive(:open).with(%r{\A/tmp/pwn-ai-.*\.json\z}, 'w').and_wrap_original { |m, _, mode| m.call(path, mode) })
       PWN::Plugins::Log.append(level: :learning, msg: [{ api_key: 'fixture-only', body: secret }])
       expect(File.read(path)).not_to include(secret, 'fixture-only')
-      transcript = File.join(dir, 'old.jsonl')
+      transcript = File.join(PWN::Sessions::SESSIONS_DIR, 'old.jsonl')
       File.write(transcript, "#{JSON.generate(role: 'tool', content: "#{secret} #{'x' * 200}")}\n")
       PWN::Sessions.send(:compact_transcript!, path: transcript, tool_max: 50)
       expect(File.read(transcript)).not_to include(secret)

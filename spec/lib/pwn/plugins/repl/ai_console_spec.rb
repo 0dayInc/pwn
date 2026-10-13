@@ -15,9 +15,10 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
     allow(PWN::AI::Agent::Loop).to receive(:should_auto_introspect?).and_return(false)
     allow(PWN::AI::Agent::Loop).to receive(:may_finalize?).and_return(true)
+    allow(PWN::AI::Router).to receive(:summarize).and_return('')
   end
 
-  def launch(keys, startup_delay: 0, render_delay: 0, &tick)
+  def launch(keys, startup_delay: 0, render_delay: 0, screen_rows: 30, &tick)
     require 'pty'
     require 'timeout'
     master, input = PTY.open
@@ -44,7 +45,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     }
     allow(window).to receive(:attron) { |_attribute, &block| block.call }
     screen = double('curses', init_screen: window, raw: nil, noecho: nil, curs_set: nil, close_screen: nil,
-                              lines: 30, cols: 110, stdscr: window, has_colors?: false, resizeterm: nil)
+                              lines: screen_rows, cols: 110, stdscr: window, has_colors?: false, resizeterm: nil)
     allow(screen).to receive(:init_screen) do
       sleep startup_delay if startup_delay.positive?
       window
@@ -66,6 +67,247 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   ensure
     master&.close
     input&.close
+  end
+
+  it 'paints provisional and asynchronously updated summary titles in the actual SESSION pane' do
+    reached = Queue.new
+    release = Queue.new
+    owner = Thread.current
+    PWN::Env[:ai] = { active: :openai, openai: { model: 'active-title-model', key: 'fixture-key' } }
+    allow(PWN::AI::Router).to receive(:summarize).and_call_original
+    expect(PWN::AI::Ollama).not_to receive(:chat)
+    expect(PWN::AI::OpenAI).to receive(:chat).with(hash_including(model: 'active-title-model', request: a_string_including('overall conversation', 'at most 7 words'))).once do
+      expect(Thread.current).not_to eq(owner)
+      reached << true
+      release.pop
+      JSON.generate(title: 'Login and certificate repair plus automated rotation verification', summary: 'Investigated login and repaired certificates.')
+    end
+    allow(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+      expect(PWN::Sessions.metadata(session_id: opts[:session_id])[:title]).to eq('Investigate login and repair all expired certificates')
+      PWN::Sessions.append(session_id: opts[:session_id], content: opts[:request])
+      PWN::Sessions.append(session_id: opts[:session_id], role: 'assistant', content: 'Certificate repaired')
+      'Certificate repaired'
+    end
+    submitted = false
+    unblocked = false
+    launch('Investigate login and repair all expired certificates today'.chars) do
+      unless submitted
+        submitted = true
+        @pry.config.pwn_ai_session_id = PWN::Sessions.create[:id]
+        next "\r"
+      end
+      if !reached.empty? && !unblocked
+        expect(@paint.join).to include('SESSION Investigate login and repair all expired certificates')
+        unblocked = true
+        release << true
+      end
+      @paint.join.include?('SESSION Login and certificate repair plus automated rotation') ? :eof : nil
+    end
+    expect(@paint.join).to include('SESSION Login and certificate repair plus automated rotation')
+    expect(@paint.join).not_to include('SESSION Login and certificate repair plus automated rotation verification')
+    title = PWN::Sessions.metadata(session_id: @pry.config.pwn_ai_session_id)[:title]
+    expect(PWN::Sessions.resolve(identifier: title)).to eq(@pry.config.pwn_ai_session_id)
+  ensure
+    release << true if release
+  end
+
+  it 'resumes the displayed title after async renaming through curses with surrounding whitespace and restores history' do
+    sid = PWN::Sessions.create(id: 'displayed_title', title: 'Café  "login" repair')[:id]
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'Prior fixture request')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Prior fixture answer')
+    requested = false
+    selected = false
+    keys = "/sessions list\n".chars
+    expect(PWN::AI::Agent::Loop).to receive(:run).with(hash_including(request: 'Continue fixture', session_id: sid)) do |opts|
+      expect(PWN::Sessions.to_llm_messages(session_id: opts[:session_id]).map { |row| row[:content] }).to eq(['Prior fixture request', 'Prior fixture answer'])
+      opts[:on_tool].call('fixture callback', {}, 'fixture result')
+      'Resumed fixture complete'
+    end
+    launch(keys, screen_rows: 60) do
+      if !selected && @paint.join.include?('title: Café  "login" repair')
+        selected = true
+        allow(PWN::AI::Router).to receive(:summarize).and_return(JSON.generate(title: 'Updated login repair', summary: 'Login repaired'))
+        worker = Thread.new { PWN::Sessions.refresh_title(session_id: sid) }
+        worker.value
+        keys.concat("　/sessions resume Café  \"login\" repair　\n".chars)
+      elsif selected && !requested
+        expect(@pry.config.pwn_ai_session_id).to eq(sid)
+        requested = true
+        keys.concat("Continue fixture\n".chars)
+      elsif @paint.join.include?('Resumed fixture complete')
+        next :eof
+      end
+      nil
+    end
+    expect(@paint.join).to include('SESSION Updated login repair', 'fixture callback')
+  end
+
+  it 'paints the same bounded legacy title that plural resume resolves' do
+    sid = PWN::Sessions.create(id: 'legacy_pane')[:id]
+    title = 'One two three four five six seven'
+    File.write(File.join(PWN::Sessions.sessions_dir, "#{sid}.meta.json"), JSON.generate(title: "#{title} eight nine", title_source: 'summary'))
+    launch("/sessions resume '#{title}'\n".chars) do
+      @paint.join.include?("SESSION #{title} · #{sid}") ? :eof : nil
+    end
+    expect(@pry.config.pwn_ai_session_id).to eq(sid)
+    expect(@paint.join).not_to include("SESSION #{title} eight")
+  end
+
+  ['Café  "login" repair', %q('Café  "login" repair'), 'chosen_id'].each do |identifier|
+    it "switches through the editor with #{identifier.inspect} and restores persisted conversation" do
+      sid = PWN::Sessions.create(id: 'chosen_id', title: 'Café  "login" repair')[:id]
+      PWN::Sessions.create(id: 'title_looks_like_id', title: 'chosen_id')
+      PWN::Sessions.append(session_id: sid, role: 'user', content: 'Persisted fixture request')
+      PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Persisted fixture answer')
+      launch("/sessions resume #{identifier}\n".chars) do
+        @paint.join.include?("SESSION Café  \"login\" repair · #{sid}") ? :eof : nil
+      end
+      expect(@pry.config.pwn_ai_session_id).to eq(sid)
+      expect(PWN::Sessions.to_llm_messages(session_id: sid).map { |row| row[:content] }).to eq(['Persisted fixture request', 'Persisted fixture answer'])
+    end
+  end
+
+  %i[current historical current_historical normalized].each do |variant|
+    it "retains the session and NOTICE role for #{variant} duplicate titles through the editor" do
+      title = variant == :normalized ? 'One two three four five six seven' : 'Repeated Café title'
+      %w[variant_a variant_b].each_with_index do |id, index|
+        PWN::Sessions.create(id: id, title: variant == :normalized ? "#{title} #{id}" : title)
+        next unless variant == :historical || (variant == :current_historical && index.zero?)
+
+        File.write(File.join(PWN::Sessions.sessions_dir, "#{id}.meta.json"), JSON.generate(title: "New title #{id}", title_aliases: [title]))
+      end
+      initial = nil
+      keys = []
+      launch(keys, screen_rows: 60) do
+        unless initial
+          initial = @pry.config.pwn_ai_session_id
+          keys.concat("/verbose off\n/sessions resume '#{title}'\n".chars)
+          next nil
+        end
+        :eof
+      end
+      expect(@pry.config.pwn_ai_session_id).to eq(initial)
+      text = @rendered.map(&:last).join("\n")
+      expect(text).to include('NOTICE', 'session unchanged', 'id: variant_a', 'id: variant_b', '/sessions resume <ID>')
+      expect(text).to include('title: New title variant_a') if %i[historical current_historical].include?(variant)
+    end
+  end
+
+  it 'keeps the current session for an unknown title submitted through the editor' do
+    initial = nil
+    keys = []
+    launch(keys) do
+      unless initial
+        initial = @pry.config.pwn_ai_session_id
+        keys.concat("/sessions resume nonexistent title\n".chars)
+        next nil
+      end
+      :eof
+    end
+    expect(@pry.config.pwn_ai_session_id).to eq(initial)
+    expect(@paint.join).to include('not found')
+  end
+
+  it 'shows complete duplicate candidates as a NOTICE even in compact view without switching' do
+    %w[older_candidate newer_candidate].each_with_index do |id, index|
+      session = PWN::Sessions.create(id: id, title: 'Repeated Café title')
+      time = Time.iso8601(index.zero? ? '2026-01-02T03:04:05Z' : '2026-07-02T03:04:05Z')
+      File.utime(time, time, session[:path])
+    end
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    initial = nil
+    keys = []
+    launch(keys, screen_rows: 60) do
+      unless initial
+        initial = @pry.config.pwn_ai_session_id
+        keys.concat("/verbose off\n/sessions resume Repeated Café title\n".chars)
+        next nil
+      end
+      :eof
+    end
+    expect(@pry.config.pwn_ai_session_id).to eq(initial)
+    text = @rendered.map(&:last).join("\n")
+    expect(text).to include('NOTICE', 'Ambiguous session title', 'id: older_candidate', 'id: newer_candidate', 'title: Repeated Café title', '/sessions resume older_candidate')
+    expect(text.index('id: older_candidate')).to be < text.index('id: newer_candidate')
+    %w[2026-01-02T03:04:05Z 2026-07-02T03:04:05Z].each do |time|
+      expect(text).to include(Time.iso8601(time).getlocal.strftime('%Y-%m-%d %H:%M:%S%z'))
+    end
+  end
+
+  it 'keeps the active session on ambiguous titles and rejects removed or prefix commands through curses' do
+    %w[duplicate_one duplicate_two].each { |id| PWN::Sessions.create(id: id, title: 'Repeated title') }
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    initial = nil
+    keys = []
+    launch(keys, screen_rows: 60) do
+      unless initial
+        initial = @pry.config.pwn_ai_session_id
+        keys.concat("/sessions resume Repeated title\n/session resume duplicate_one\n/sessions-extra resume duplicate_one\n".chars)
+        next nil
+      end
+      :eof
+    end
+    expect(@pry.config.pwn_ai_session_id).to eq(initial)
+    expect(@paint.join).to include('Ambiguous session title', 'duplicate_one', 'duplicate_two', 'Unknown command.')
+  end
+
+  it 'does not repaint a resumed session with an old summary worker result' do
+    pry = Pry.new
+    old = PWN::Sessions.create(title: 'Old conversation')
+    current = PWN::Sessions.create(title: 'New conversation')
+    pry.config.pwn_ai_session_id = current[:id]
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil)
+    events = console.instance_variable_get(:@events)
+    events << [:session_title, current[:meta]]
+    events << [:session_title, old[:meta].merge(title: 'Old worker finished late')]
+    console.drain
+    expect(console.instance_variable_get(:@session_metadata)).to eq(current[:meta])
+    expect(pry.config.pwn_ai_session_id).to eq(current[:id])
+  end
+
+  it 'keeps complete command results visible in compact mode and wraps within the pane padding' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: Curses, getch: nil)
+    text = "records:\n  1. #{'value ' * 4000}END"
+    console.add(:command, text)
+    console.instance_variable_set(:@verbose, false)
+    expect(console.instance_variable_get(:@timeline).last[1]).to eq(text)
+    [12, 40, 80].each do |limit|
+      rows = console.timeline_rows(limit).drop(1).map(&:last)
+      expect(rows.join).to include('END')
+      expect(rows.map { |row| Unicode::DisplayWidth.of(row) }.max).to be <= limit
+    end
+  end
+
+  it 'preserves actionable command notices in one complete NOTICE-role event' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: nil, getch: nil)
+    queue = Queue.new
+    output = PWN::Plugins::REPL::AIConsole::EventIO.new(queue)
+    text = "Candidates:\n#{"id: fixture\n" * 3000}\nFINAL CANDIDATE"
+    output.command_notice(text)
+    console.add(*queue.pop)
+    expect(queue).to be_empty
+    expect(console.instance_variable_get(:@timeline).last.take(2)).to eq([:notice, text])
+    console.instance_variable_set(:@verbose, false)
+    allow(console).to receive(:tone) { |role| role }
+    rows = console.timeline_rows(80)
+    expect(rows.first).to match([:notice, a_string_starting_with('NOTICE')])
+    expect(rows.last).to eq([:notice, '  FINAL CANDIDATE'])
+  end
+
+  it 'keeps nested command continuation rows indented without parsing user or tool JSON' do
+    console = PWN::Plugins::REPL::AIConsole::Console.new(pry: Pry.new, input: StringIO.new, curses: Curses, getch: nil)
+    console.add(:command, "tools:\n  1.\n    description: a nested value that wraps across several rows")
+    body = console.timeline_rows(24).drop(1).map(&:last)
+    expect(body.drop(2)).to all(start_with('      '))
+    expect(body.map { |line| Unicode::DisplayWidth.of(line) }.max).to be <= 24
+    deep = console.wrap_command("#{' ' * 21}界", 22)
+    expect(deep.map { |line| Unicode::DisplayWidth.of(line) }.max).to be <= 22
+    expect(deep.join).to eq("#{' ' * 21}界")
+    raw = '{"code":[false,null]}'
+    %i[operator tool result assistant].each do |type|
+      console.add(type, raw)
+      expect(console.instance_variable_get(:@timeline).last[1]).to eq(raw)
+    end
   end
 
   it 'edits system role in an isolated multiline modal and preserves mission cursor on save and cancel' do
@@ -1859,7 +2101,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     keys = "/sessions resume #{sid}\n".chars
     repeated = false
     launch(keys) do
-      if @rendered.any? { |row| row.last.include?("SESSION #{sid}") }
+      if @pry.config.pwn_ai_session_id == sid && @rendered.any? { |row| row.last.include?('SESSION header resume') }
         if repeated
           "\u0004"
         else
@@ -1897,12 +2139,15 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
 
   it 'honors locally selected model and resumed session in the actual provider call' do
     sid = PWN::Sessions.create(title: 'resumed console')[:id]
+    PWN::Sessions.append(session_id: sid, role: 'user', content: 'Previous fixture question')
+    PWN::Sessions.append(session_id: sid, role: 'assistant', content: 'Previous fixture answer')
     allow(PWN::Plugins::REPL).to receive(:persist_ai_selection).and_return(false)
-    expect(PWN::AI::OpenAI).to receive(:chat_with_tools) do
+    expect(PWN::AI::OpenAI).to receive(:chat_with_tools) do |opts|
       expect(PWN::Env.dig(:ai, :openai, :model)).to eq('console-fixture')
+      expect(opts[:messages]).to include(hash_including(role: 'user', content: 'Previous fixture question'), hash_including(role: 'assistant', content: 'Previous fixture answer'))
       { choices: [{ message: { role: 'assistant', content: 'Selected route.', tool_calls: [] } }] }
     end
-    keys = "/model openai console-fixture\n/sessions resume #{sid}\nwhat color is a lemon?\n".chars
+    keys = "/model openai console-fixture\n/sessions resume resumed console\nwhat color is a lemon?\n".chars
     launch(keys) { @paint.any? { |row| row.include?('Selected route.') } ? "\u0004" : nil }
     expect(@pry.config.pwn_ai_session_id).to eq(sid)
     expect(PWN::Sessions.load(session_id: sid).map { |row| row[:content] }.join).to include('Selected route.')
@@ -1992,6 +2237,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     repl.add_commands
     pi = Pry.new
     pi.config.pwn_ai_startup_session_id = 'prepared-console-session'
+    allow(PWN::Sessions).to receive(:activate).with(session_id: 'prepared-console-session').and_return(nil)
     allow(PWN::ModuleSkills).to receive(:install)
     allow(PWN::Config).to receive(:load_skills)
     allow(PWN::Config).to receive(:load_memory)

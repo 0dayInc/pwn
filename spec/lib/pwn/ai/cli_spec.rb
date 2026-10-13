@@ -8,6 +8,19 @@ require 'tmpdir'
 RSpec.describe 'PWN::AI::CLI' do
   before { require 'pwn/ai/cli' }
 
+  context 'session title lifecycle' do
+    include_context 'pwn tmp sandbox'
+
+    it 'starts interactive sessions with a replaceable title, not a fixed generic name' do
+      allow(PWN::Config).to receive(:refresh_env)
+      expect(PWN::Plugins::REPL).to receive(:start) do |opts|
+        sid = opts[:ai_session_id]
+        expect(PWN::Sessions.provisional_title(session_id: sid, request: 'Investigate startup')[:title]).to eq('Investigate startup')
+      end
+      expect(PWN::AI::CLI.run(argv: [], output: StringIO.new)).to eq(0)
+    end
+  end
+
   it 'parses explicit actions and preserves path spelling' do
     expect(PWN::AI::CLI.parse(argv: ['--analyze', './a b', '--ai', 'explain'])).to include(analyze: './a b', ai: 'explain')
     expect(PWN::AI::CLI.parse(argv: ['--replay', 'session-1'])).to include(replay: 'session-1')
@@ -165,8 +178,9 @@ RSpec.describe 'PWN::AI::CLI' do
 
   it 'starts the interactive AI REPL using the pre-ingested session' do
     allow(PWN::Config).to receive(:refresh_env)
+    expect(PWN::Sessions).to receive(:register_activity_owner).and_call_original
     allow(PWN::Sessions).to receive(:create).and_return(id: 'cli-interactive')
-    expect(PWN::Plugins::REPL).to receive(:start).with(ai_session_id: 'cli-interactive')
+    expect(PWN::Plugins::REPL).to receive(:start).with(ai_session_id: 'cli-interactive', ai_session_lease: nil)
     expect(PWN::AI::CLI.run(argv: [])).to eq(0)
   end
 

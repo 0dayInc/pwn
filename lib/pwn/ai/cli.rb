@@ -56,6 +56,7 @@ module PWN
         require 'pwn'
         return run_policy(parsed: parsed, output: output) if parsed[:policy]
 
+        PWN::Sessions.send(:register_activity_owner)
         if parsed[:plan_only]
           prompt = parsed[:ai] == '-' ? (opts[:input] || $stdin).read : parsed[:ai]
           raise ArgumentError, '--ai requires a non-empty prompt' if prompt.to_s.strip.empty?
@@ -93,7 +94,7 @@ module PWN
         end
 
         PWN::Config.refresh_env(**parsed.slice(:pwn_env_path, :pwn_dec_path))
-        session = PWN::Sessions.create(title: 'pwn-ai', source: 'pwn-ai-cli')
+        session = PWN::Sessions.create(source: 'pwn-ai-cli', active: true)
         if parsed[:analyze]
           report = PWN::AI::Context.ingest(path: parsed[:analyze], session_id: session[:id], format: 'binary')
           (opts[:error] || $stderr).puts(JSON.generate(report))
@@ -104,9 +105,11 @@ module PWN
 
           output.puts(PWN::AI::Agent::Loop.run(request: prompt, session_id: session[:id], enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets)))
         else
-          PWN::Plugins::REPL.start(ai_session_id: session[:id])
+          PWN::Plugins::REPL.start(ai_session_id: session[:id], ai_session_lease: session[:lease])
         end
         0
+      ensure
+        PWN::Sessions.deactivate(lease: session[:lease]) if session
       end
 
       private_class_method def self.validate_policy_options(opts = {})

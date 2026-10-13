@@ -49,7 +49,7 @@ module PWN
     # Bump this whenever the shape of any file under ~/.pwn changes in a
     # way that requires a one-time transform.  Add the transform as an
     # entry in MIGRATIONS keyed by the NEW schema number.
-    SCHEMA_VERSION = 7
+    SCHEMA_VERSION = 8
 
     OK   = "\e[32mok\e[0m"
     BAD  = "\e[31mFAIL\e[0m"
@@ -257,6 +257,10 @@ module PWN
       7 => lambda { |_root, io|
         io.puts '    · pwn.yaml ai.tui.theme.title'
         PWN::Migrate.backfill_vault(io: io)
+      },
+      8 => lambda { |_root, io|
+        io.puts '    · guarded session_cleanup default cron payload and job'
+        PWN::Cron.install_defaults
       }
     }.freeze
 
