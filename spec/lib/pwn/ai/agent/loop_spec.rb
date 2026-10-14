@@ -5,6 +5,442 @@ require 'tmpdir'
 require 'fileutils'
 
 describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
+  describe 'runtime execution boundaries' do
+    include_context 'pwn tmp sandbox'
+
+    before do
+      allow(Dir).to receive(:home).and_return(@tmp)
+      stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(@tmp, 'open_goal.json'))
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      @agent_cfg[:plan_first] = false
+    end
+
+    it 'verifies an exact HTTP target at the actual Loop finalization boundary' do
+      require 'socket'
+      server = TCPServer.new('127.0.0.1', 0)
+      url = "http://127.0.0.1:#{server.addr[1]}/ready"
+      request = "Check #{url}"
+      responder = Thread.new do
+        client = server.accept
+        while (line = client.gets)
+          break if line == "\r\n"
+        end
+        client.write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+        client.close
+      end
+      sid = PWN::Sessions.create(title: 'http verifier fixture')[:id]
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, engine: :openai, artifact_root: @tmp, trace: false)
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools).and_return(choices: [{ message: { role: 'assistant', content: 'Checked.' } }])
+      contract = { root: @tmp, requirements: [request], allowed_urls: [url], checks: [{ requirement: request, kind: :http, url: url, expected: 'ok' }] }
+      result = described_class.run(request: request, session_id: sid, runtime: runtime, verification_contract: contract, enabled_toolsets: [], system_role_content: 'fixture')
+      expect(result).to eq('Checked.')
+      expect(runtime.outcome[:status]).to eq('complete')
+      expect(runtime.evidence.first).to include(kind: 'http', locator: url, source_id: 'original', passed: true)
+      expect(runtime.host_evidenced?('127.0.0.1')).to be true
+      expect(runtime.host_evidenced?('127.0.0.10')).to be false
+    ensure
+      server&.close
+      responder&.kill
+      responder&.join
+    end
+
+    it 'owns provider retries at the real transport boundary without Loop amplification' do
+      require 'rest-client'
+      attempts = 0
+      allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
+      allow(PWN::AI::HttpRetry).to receive(:report_event)
+      allow(RestClient::Request).to receive(:execute) do
+        attempts += 1
+        raise RestClient::Exceptions::ReadTimeout, 'Timed out reading'
+      end
+      outcome = nil
+      result = described_class.run(request: 'Return a fixture answer.', session_id: 'retry-owner', system_role_content: 'fixture',
+                                   provider_attempts: 3, provider_config: { active: :openai, openai: { model: 'gpt-4', key: 'fixture-key' } },
+                                   on_outcome: ->(row) { outcome = row })
+      expect(attempts).to eq(3)
+      expect(result).to include('engine hop failed')
+      expect(outcome[:status]).to eq('incomplete')
+      expect(Thread.current[:pwn_provider_attempt_owner]).to be_nil
+    end
+
+    %i[anthropic grok gemini ollama openwebui].each do |provider|
+      it "owns #{provider} retries through the actual adapter without transport amplification" do
+        require 'rest-client'
+        attempts = 0
+        requests = []
+        allow(PWN::Plugins::TransparentBrowser).to receive(:open).and_return(browser: RestClient)
+        allow(PWN::AI::HttpRetry).to receive(:report_event)
+        allow(RestClient::Request).to receive(:execute) do |wire|
+          requests << wire[:url]
+          next '{}' if wire[:url].end_with?('/api/show')
+
+          attempts += 1
+          raise RestClient::Exceptions::ReadTimeout, 'Timed out reading'
+        end
+        outcome = nil
+        described_class.run(request: 'Return a fixture answer.', session_id: "retry-#{provider}", system_role_content: 'fixture',
+                            provider_attempts: 3, provider_config: { active: provider, provider => { model: 'fixture', key: 'fixture-key', base_uri: 'https://fixture.invalid' } },
+                            on_outcome: ->(row) { outcome = row })
+        expect(attempts).to eq(3), requests.inspect
+        expect(outcome[:status]).to eq('incomplete')
+      end
+    end
+
+    it 'cancels an in-flight provider and joins its request-owned worker' do
+      started = Queue.new
+      cancelled = false
+      provider_thread = nil
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do
+        provider_thread = Thread.current
+        started << true
+        sleep
+      end
+      outcome = nil
+      canceller = Thread.new do
+        started.pop
+        cancelled = true
+      end
+      expect do
+        described_class.run(request: 'Return a fixture answer.', session_id: 'cancel-owner', engine: :openai, system_role_content: 'fixture',
+                            cancel: -> { cancelled }, on_outcome: ->(row) { outcome = row })
+      end.to raise_error(Interrupt)
+      expect(outcome[:status]).to eq('cancelled')
+      expect(provider_thread).not_to be_alive
+    ensure
+      canceller&.kill
+      canceller&.join
+    end
+
+    it 'cancels a real mutation in Loop and denies its replay after checkpoint restore' do
+      counter = File.join(@tmp, 'cancel-counter')
+      cancelled = false
+      options = { request: 'Run the fixture mutation', session_id: 'tool-cancel', request_id: 'same', engine: :openai,
+                  artifact_root: @tmp, trace: false, cancel: -> { cancelled } }
+      runtime = PWN::AI::Agent::RequestRuntime.new(options)
+      args = { command: "printf 'once\\n' >> #{counter}; sleep 30", timeout: 180 }
+      reply = { role: 'assistant', tool_calls: [{ id: 'mutation', type: 'function', function: { name: 'shell', arguments: args.to_json } }] }
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools).and_return(choices: [{ message: reply }])
+      canceller = Thread.new do
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+        sleep 0.01 until File.exist?(counter) || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        cancelled = true
+      end
+      expect { described_class.run(request: runtime.request, session_id: 'tool-cancel', runtime: runtime, system_role_content: 'fixture') }.to raise_error(Interrupt)
+      expect(runtime.outcome[:status]).to eq('cancelled')
+      restored = PWN::AI::Agent::RequestRuntime.new(options.except(:cancel).merge(resume: true))
+      restored.start!
+      denied = restored.execute_tool(name: 'shell', args: args, effect: :write) { raise 'must not replay' }
+      expect(denied[:error]).to eq('uncertain_side_effect')
+      expect(File.readlines(counter)).to eq(["once\n"])
+    ensure
+      canceller&.kill
+      canceller&.join
+    end
+
+    it 'keeps simultaneous Loop provider configuration and model routes isolated' do
+      seen = Queue.new
+      ready = Queue.new
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools) do |options|
+        config = PWN::AI::HttpRetry.provider_config(engine: :openai)
+        ready << true
+        sleep 0.03
+        seen << [options[:model], config[:base_uri], options[:reasoning_effort]]
+        { choices: [{ message: { role: 'assistant', content: 'Fixture answer.' } }] }
+      end
+      workers = %w[first second].map do |name|
+        Thread.new do
+          described_class.run(request: 'Return a fixture answer.', session_id: name, system_role_content: 'fixture', enabled_toolsets: [],
+                              provider_config: { active: :openai, openai: { model: name, base_uri: "https://#{name}.invalid", reasoning_effort: name } })
+        end
+      end
+      workers.each(&:value)
+      expect(ready.size).to eq(2)
+      expect(2.times.map { seen.pop }).to contain_exactly(['first', 'https://first.invalid', 'first'], ['second', 'https://second.invalid', 'second'])
+    ensure
+      workers&.each { |worker| worker.kill if worker.alive? }
+      workers&.each(&:join)
+    end
+
+    it 'overlaps independent reads while preserving real write barriers and start/end order' do
+      left = File.join(@tmp, 'left.txt')
+      right = File.join(@tmp, 'right.txt')
+      output = File.join(@tmp, 'out.txt')
+      File.write(left, 'left')
+      File.write(right, 'right')
+      timings = []
+      lock = Mutex.new
+      allow(PWN::Plugins::ArtifactRegistry).to receive(:read_page).and_wrap_original do |original, options|
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        sleep 0.05
+        value = original.call(options)
+        lock.synchronize { timings << [start, Process.clock_gettime(Process::CLOCK_MONOTONIC)] }
+        value
+      end
+      calls = [left, right].each_with_index.map { |path, index| { id: "read#{index}", type: 'function', function: { name: 'artifact_read', arguments: { path: path }.to_json } } }
+      calls << { id: 'barrier', type: 'function', function: { name: 'shell', arguments: { command: "printf verified > #{output}" }.to_json } }
+      calls << { id: 'barrier-last', type: 'function', function: { name: 'shell', arguments: { command: "printf '!' >> #{output}" }.to_json } }
+      calls.concat([left, right].each_with_index.map { |path, index| { id: "after#{index}", type: 'function', function: { name: 'artifact_read', arguments: { path: path }.to_json } } })
+      replies = [{ role: 'assistant', tool_calls: calls }, { role: 'assistant', content: 'Verified.' }]
+      allow(PWN::AI::OpenAI).to receive(:chat_with_tools) { { choices: [{ message: replies.shift || raise('unexpected provider call') }] } }
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{output}", session_id: 'parallel', engine: :openai, trace: false, artifact_root: @tmp)
+      expect(described_class.run(request: runtime.request, runtime: runtime, session_id: 'parallel', system_role_content: 'fixture')).to eq('Verified.')
+      expect(timings.length).to eq(4)
+      expect(timings[0][0]).to be < timings[1][1]
+      expect(timings[1][0]).to be < timings[0][1]
+      events = runtime.events.select { |row| %w[start end].include?(row[:phase]) }
+      barrier_start = events.index { |row| row[:action_id] == 'barrier' && row[:phase] == 'start' }
+      barrier_end = events.index { |row| row[:action_id] == 'barrier-last' && row[:phase] == 'end' }
+      first_write_end = events.index { |row| row[:action_id] == 'barrier' && row[:phase] == 'end' }
+      last_write_start = events.index { |row| row[:action_id] == 'barrier-last' && row[:phase] == 'start' }
+      expect(first_write_end).to be < last_write_start
+      expect(events[0...barrier_start].count { |row| row[:phase] == 'end' }).to eq(2)
+      expect(events[(barrier_end + 1)..].count { |row| row[:phase] == 'start' }).to eq(2)
+      expect(File.read(output)).to eq('verified!')
+    end
+  end
+
+  describe 'evidence-owned completion' do
+    include_context 'pwn tmp sandbox'
+
+    before do
+      allow(Dir).to receive(:home).and_return(@tmp)
+      stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(@tmp, 'open_goal.json'))
+      allow(PWN::AI::Agent::TaskSummarizer).to receive(:enabled?).and_return(false)
+      allow(described_class).to receive(:should_auto_introspect?).and_return(false)
+      @agent_cfg[:plan_first] = false
+    end
+
+    it 'accepts Verification complete after an actual write without wording-dependent retries' do
+      path = File.join(@tmp, 'answer.txt')
+      replies = [
+        { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf verified > #{path}" }.to_json } }] },
+        { role: 'assistant', content: 'Verification complete.' }
+      ]
+      allow(described_class).to receive(:call_engine) do
+        raise 'unexpected provider retry' if replies.empty?
+
+        expect(Thread.current[:pwn_request_runtime]).to be_a(PWN::AI::Agent::RequestRuntime)
+        replies.shift
+      end
+      result = described_class.run(request: "Write #{path}", session_id: 'completion', system_role_content: 'fixture', engine: :openai)
+      expect(result).to eq('Verification complete.')
+      expect(File.read(path)).to eq('verified')
+    end
+
+    it 'does not bypass an answer contract through a cheap greeting return' do
+      sid = PWN::Sessions.create(title: 'answer contract')[:id]
+      allow(described_class).to receive(:call_engine).and_return(role: 'assistant', content: 'Wrong answer.')
+      outcome = nil
+      result = described_class.run(request: 'hello', session_id: sid, enabled_toolsets: [], system_role_content: 'fixture',
+                                   on_outcome: ->(row) { outcome = row },
+                                   verification_contract: { root: @tmp, requirements: ['hello'], checks: [{ requirement: 'hello', kind: :answer, expected: 'Hello.' }] })
+      expect(result).to include('incomplete')
+      expect(outcome[:status]).to eq('incomplete')
+    end
+
+    it 'automatically restores the session checkpoint identity for continue' do
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{@tmp}/resume.txt", session_id: 'resume', request_id: 'original', artifact_root: @tmp, trace: false)
+      Thread.current[:pwn_request_runtime] = runtime
+      PWN::AI::Agent::OpenGoal.begin!(request: runtime.request, session_id: 'resume')
+      runtime.finish!(status: 'incomplete')
+      Thread.current[:pwn_request_runtime] = nil
+      expect(described_class).to receive(:run_turn) do |opts|
+        restored = Thread.current[:pwn_request_runtime]
+        expect(restored.request_id).to eq('original')
+        expect(restored.original_request).to eq(runtime.original_request)
+        expect(opts[:request]).to eq(runtime.request)
+        'still incomplete'
+      end
+      expect(described_class.run(request: 'continue', session_id: 'resume')).to eq('still incomplete')
+    ensure
+      Thread.current[:pwn_request_runtime] = nil
+    end
+
+    it 'drives the actual runtime/provider adapter boundary and harmless Dispatch write' do
+      PWN::Env[:ai][:active] = :openai
+      path = File.join(@tmp, 'provider.txt')
+      replies = [
+        { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf provider > #{path}" }.to_json } }] },
+        { role: 'assistant', content: 'Verification complete.' }
+      ]
+      expect(PWN::AI::OpenAI).to receive(:chat_with_tools).twice do |opts|
+        expect(opts[:messages]).to be_an(Array)
+        { choices: [{ message: replies.shift }] }
+      end
+      result = described_class.run(request: "Write #{path}", session_id: 'provider', system_role_content: 'fixture')
+      expect(result).to eq('Verification complete.')
+      expect(File.read(path)).to eq('provider')
+    end
+
+    it 'retains completion evidence after all tool messages are evicted' do
+      path = File.join(@tmp, 'compacted.txt')
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: "Write #{path}", session_id: 'compact', artifact_root: @tmp, trace: false)
+      replies = [
+        { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf compacted > #{path}" }.to_json } }] },
+        { role: 'assistant', content: 'Verification complete.' }
+      ]
+      allow(described_class).to receive(:call_engine) do |opts|
+        raise 'unexpected provider retry' if replies.empty?
+
+        opts[:messages].reject! { |row| row[:role] == 'tool' || row[:tool_calls] }
+        replies.shift
+      end
+      on_tool = lambda do |name, _args, _result|
+        next unless name == 'shell'
+
+        checkpoint = JSON.parse(File.read(runtime.checkpoint_path))
+        expect(checkpoint.dig('observations', path, 'sha256')).to eq(Digest::SHA256.file(path).hexdigest)
+        expect(checkpoint.dig('observations', path, 'action_id')).to eq('write')
+        expect(checkpoint.dig('observations', path, 'tool')).to eq('shell')
+      end
+      expect(described_class.run(request: runtime.request, runtime: runtime, session_id: 'compact', system_role_content: 'fixture', engine: :openai, on_tool: on_tool)).to eq('Verification complete.')
+      expect(runtime.outcome[:status]).to eq('complete')
+      persisted = JSON.parse(File.read(runtime.checkpoint_path))
+      expect(persisted.dig('observations', path, 'sha256')).to eq(Digest::SHA256.file(path).hexdigest)
+      expect(Thread.current[:pwn_request_runtime]).to be_nil
+    end
+
+    it 'does not let unrelated read effects prove a write' do
+      expect(described_class.send(:write_verified?, request: 'Update the remote record', effects: %i[write read], messages: [])).to be(false)
+    end
+
+    it 'does not treat lack of available tools as proof that requested host work completed' do
+      Thread.current[:pwn_loop_no_tools] = true
+      expect(described_class.send(:request_unsatisfied?, request: 'write a report', messages: [])).to be(true)
+    ensure
+      Thread.current[:pwn_loop_no_tools] = nil
+    end
+
+    it 'returns a structured blocked outcome when explicit tool exposure cannot perform host work' do
+      calls = 0
+      outcome = nil
+      allow(described_class).to receive(:call_engine) do
+        calls += 1
+        raise 'unexpected provider retry' if calls > 1
+
+        { role: 'assistant', content: 'Done.' }
+      end
+      result = described_class.run(request: 'write a report', session_id: 'no-tools', enabled_toolsets: [],
+                                   system_role_content: 'fixture', on_outcome: ->(row) { outcome = row })
+      expect(result).to include('blocked')
+      expect(outcome[:status]).to eq('blocked')
+    end
+
+    it 'keeps verification errors unmet rather than converting them to an empty list' do
+      allow(PWN::AI::Agent::TurnFinalizer).to receive(:arbitrate).and_raise(IOError, 'checker unavailable')
+      unmet = described_class.send(:completion_unmet, request: 'Write /tmp/fixture.txt', messages: [])
+      expect(unmet).to include(a_string_starting_with('verification_error:'))
+      expect(described_class.send(:request_unsatisfied?, request: 'Write /tmp/fixture.txt', messages: [])).to be(true)
+    end
+
+    it 'terminates checker errors with a durable verification_error outcome, not a success' do
+      request = "Write #{File.join(@tmp, 'error.txt')}"
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'error', artifact_root: @tmp, trace: false)
+      allow(PWN::AI::Agent::TurnFinalizer).to receive(:arbitrate).and_raise(IOError, 'checker unavailable')
+      allow(described_class).to receive(:call_engine).and_return(role: 'assistant', content: 'Done.')
+      expect(described_class).to receive(:call_engine).once
+      expect(described_class.run(request: request, runtime: runtime, session_id: 'error', system_role_content: 'fixture', engine: :openai)).to include('verification_error')
+      expect(runtime.outcome[:status]).to eq('verification_error')
+    end
+
+    it 'rejects a failed explicit content check before publishing a successful final' do
+      path = File.join(@tmp, 'checked.txt')
+      request = "Write #{path} containing correct"
+      sid = PWN::Sessions.create(title: 'verification fixture')[:id]
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, artifact_root: @tmp, trace: false)
+      replies = [
+        { role: 'assistant', tool_calls: [{ id: 'write', type: 'function', function: { name: 'shell', arguments: { command: "printf wrong > #{path}" }.to_json } }] },
+        { role: 'assistant', content: 'Done.' }
+      ]
+      allow(described_class).to receive(:call_engine) { replies.shift }
+      contract = { root: @tmp, requirements: ['containing correct'], checks: [{ requirement: 'containing correct', kind: 'file', path: path, expected: 'correct' }] }
+      result = described_class.run(request: request, runtime: runtime, session_id: sid, system_role_content: 'fixture', engine: :openai, verification_contract: contract)
+      expect(result).to include('incomplete')
+      expect(runtime.outcome[:status]).to eq('incomplete')
+    end
+
+    it 'keeps completed evidence and original destinations through additive steering at the real entry' do
+      first = File.join(@tmp, 'first.txt')
+      second = File.join(@tmp, 'second.txt')
+      input, writer = IO.pipe
+      control = described_class::Steering.new(input: input, output: StringIO.new)
+      request = "Write #{first}"
+      sid = PWN::Sessions.create(title: 'amendment verification')[:id]
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: sid, artifact_root: @tmp, trace: false)
+      count = 0
+      allow(described_class).to receive(:call_engine) do
+        count += 1
+        raise 'unexpected provider retry' if count > 3
+
+        if count == 3
+          { role: 'assistant', content: 'Verification complete.' }
+        else
+          if count == 2
+            expect(runtime.contract[:required_artifacts]).to contain_exactly(first, second)
+            expect(runtime.observations).to have_key(first)
+          end
+          path = count == 1 ? first : second
+          { role: 'assistant', tool_calls: [{ id: "write#{count}", type: 'function', function: { name: 'shell', arguments: { command: "printf verified > #{path}" }.to_json } }] }
+        end
+      end
+      on_tool = ->(name, _args, _result) { control.submit("Also write #{second}") if name == 'shell' && count == 1 }
+      contract = { root: @tmp, requirements: [request], checks: [{ requirement: request, kind: 'file', path: first, expected: 'verified' }] }
+      result = described_class.run(request: request, runtime: runtime, session_id: sid, steering: control,
+                                   system_role_content: 'fixture', engine: :openai, on_tool: on_tool, verification_contract: contract)
+      expect(result).to eq('Verification complete.')
+      expect(runtime.original_request).to eq(request)
+      expect(runtime.outcome[:status]).to eq('complete')
+      expect([File.read(first), File.read(second)]).to eq(%w[verified verified])
+    ensure
+      input&.close
+      writer&.close
+    end
+
+    it 'persists cancellation and restores the runtime binding without a provider restart' do
+      input, writer = IO.pipe
+      control = described_class::Steering.new(input: input, output: StringIO.new)
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: 'What color is a lemon?', session_id: 'cancel', artifact_root: @tmp, trace: false)
+      control.submit('cancel')
+      expect(described_class).not_to receive(:call_engine)
+      result = described_class.run(request: runtime.request, runtime: runtime, session_id: 'cancel', steering: control,
+                                   system_role_content: 'fixture', enabled_toolsets: [], engine: :openai)
+      expect(result).to eq('Request cancelled.')
+      expect(runtime.outcome[:status]).to eq('cancelled')
+      expect(Thread.current[:pwn_request_runtime]).to be_nil
+    ensure
+      input&.close
+      writer&.close
+    end
+
+    it 'restores request ownership even when the terminal outcome consumer raises' do
+      allow(described_class).to receive(:call_engine).and_return(role: 'assistant', content: 'Yellow.')
+      expect do
+        described_class.run(request: 'What color is a lemon?', session_id: 'callback-error', enabled_toolsets: [], system_role_content: 'fixture',
+                            on_outcome: ->(_row) { raise IOError, 'consumer failed' })
+      end.to raise_error(IOError, 'consumer failed')
+      expect(Thread.current[:pwn_request_runtime]).to be_nil
+    ensure
+      Thread.current[:pwn_request_runtime] = nil
+    end
+
+    it 'records a completed greeting instead of defaulting the cheap path to incomplete' do
+      allow(described_class).to receive(:answer_greeting).and_return('Hello.')
+      outcome = nil
+      expect(described_class.run(request: 'hi', session_id: 'hello', on_outcome: ->(row) { outcome = row })).to eq('Hello.')
+      expect(outcome[:status]).to eq('complete')
+    end
+
+    it 'does not reuse a previous terminal success when the resumed provider returns nothing' do
+      request = 'What color is a lemon?'
+      runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'resume', artifact_root: @tmp, trace: false)
+      runtime.finish!(status: 'complete')
+      allow(described_class).to receive(:call_engine).and_return(nil)
+      described_class.run(request: request, runtime: runtime, session_id: 'resume', enabled_toolsets: [], system_role_content: 'fixture')
+      expect(runtime.outcome[:status]).to eq('incomplete')
+    end
+  end
+
   describe 'operator steering' do
     include_context 'pwn tmp sandbox'
 
@@ -174,7 +610,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         else
           expect(count).to eq(2)
           messages = opts[:messages]
-          expect(messages.select { |row| row[:role] == 'user' }.map { |row| row[:content] }).to include(old_request, latest)
+          expect(messages.select { |row| row[:role] == 'user' }.map { |row| row[:content] }).to include(old_request, "replace: #{latest}")
           results = messages.select { |row| row[:role] == 'tool' }
           expect(results.map { |row| row[:tool_call_id] }).to eq(%w[first stale])
           expect(results.first[:content]).to include('tool answer')
@@ -194,7 +630,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       end
       producer = Thread.new do
         entered.pop
-        writer.puts("/steer #{latest}")
+        writer.puts("/steer replace: #{latest}")
         queued.pop
         writer.puts('tool answer')
       end
@@ -545,7 +981,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
         messages: msgs_mut, turn_fails: {}, i: 5, max_iters: 40,
         request: 'fix p17', plan_steps: 3, ts_state: last_plan
       )
-      expect(r_mut).to be true
+      # Tool text and generic effects are not host-owned revision evidence.
+      expect(r_mut).to be false
 
       r_bare = loop_mod.send(
         :evidence_enough_to_finalize?,
@@ -761,7 +1198,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).to match(/skip_compass = .*browse/)
     end
 
-    it 'does not bounce a text-only turn for missing tool evidence' do
+    it 'keeps host work unmet when tool exposure is disabled' do
       req = 'Navigate to https://0dayinc.com using TransparentBrowser.open and list blog URLs'
       expect(described_class.needs_host_work?(request: req)).to eq true
       expect(
@@ -778,7 +1215,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
           request: req,
           messages: [{ role: 'assistant', content: 'SOUND — step 1 is the likely fail.', tool_calls: [] }]
         )
-      ).to eq false
+      ).to eq true
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).to match(/pwn_loop_no_tools/)
       expect(src).to match(/skip_compass = .*no_tools/)
@@ -939,8 +1376,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       src = File.read(described_class.method(:run).source_location.first)
       chunk = src[/if Thread\.current\[:pwn_extinguished\].*?note_payload_result!/m]
       expect(chunk).to include('same_n = note_same_payload!')
-      expect(chunk.index('note_same_payload!')).to be < chunk.index('Dispatch.call')
-      expect(chunk.index('Dispatch.call')).to be < chunk.index('note_payload_result!')
+      expect(chunk.index('note_same_payload!')).to be < chunk.index('dispatch_scheduled')
+      expect(chunk.index('dispatch_scheduled')).to be < chunk.index('note_payload_result!')
       expect(chunk).to match(/same_n >= 3/)
       raw = described_class.send(:checkpoint_result, name: 'shell', args: '{"command":"echo same"}')
       expect(JSON.parse(raw)).to include('success' => false, 'checkpoint' => true)
@@ -1455,7 +1892,7 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       Thread.current[:pwn_loop_deliverables] = nil
     end
 
-    it 'parses a full acceptance contract from one engine JSON hop' do
+    it 'does not promote inferred acceptance criteria into mandatory obligations' do
       src = File.read(described_class.method(:run).source_location.first)
       expect(src).not_to match(/NAMED_PATH_RX/)
       expect(src).not_to include('%PDF')
@@ -1475,13 +1912,13 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       paths = described_class.send(:declared_deliverables, request: 'write a report to /tmp/out.json')
       expect(paths).to eq(['/tmp/out.json'])
       contract = described_class.send(:declared_contract, request: 'write a report to /tmp/out.json')
-      expect(contract[:min_seconds]).to eq(28_800)
-      expect(contract[:skills]).to eq(['penetration-testing'])
-      expect(contract[:proofs]).to eq(['/tmp/poc.sh'])
-      expect(contract[:hosts]).to eq(['127.0.0.1'])
-      expect(contract[:techniques]).to eq(['T1059'])
-      expect(contract[:issue_work]).to eq(true)
-      expect(described_class).to have_received(:call_engine).once
+      expect(contract[:min_seconds]).to eq(0)
+      expect(contract[:skills]).to eq([])
+      expect(contract[:proofs]).to eq([])
+      expect(contract[:hosts]).to eq([])
+      expect(contract[:techniques]).to eq([])
+      expect(contract[:issue_work]).to eq(false)
+      expect(described_class).not_to have_received(:call_engine)
     ensure
       Thread.current[:pwn_loop_active] = nil
       Thread.current[:pwn_loop_deliverables] = nil
@@ -1648,8 +2085,8 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       File.write(proof, 'poc')
       expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
       msgs[2][:content] = '{"success":true,"result":{"value":"1","stdout":"open 127.0.0.1:5000"},"effect":"eval"}'
-      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(false)
-      expect(described_class.send(:may_finalize?, request: req, messages: msgs, text: recap)).to eq(true)
+      expect(described_class.send(:request_unsatisfied?, request: req, messages: msgs)).to eq(true)
+      expect(described_class.send(:may_finalize?, request: req, messages: msgs, text: recap)).to eq(false)
     ensure
       FileUtils.rm_f(proof)
       Thread.current[:pwn_loop_t0] = nil

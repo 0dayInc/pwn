@@ -64,7 +64,7 @@ describe PWN::AI::Agent::SkillReview do
     expect(File.read(skill_path)).not_to include('osint-order')
   end
 
-  it 'auto-safe appends a small verified procedure and keeps a backup' do
+  it 'does not automatically trust self-reported execution metadata' do
     allow(PWN::Config).to receive(:write_skill) do |opts|
       body = opts[:content]
       File.write(skill_path, body.include?('---') ? body : "---\nname: osint\ndescription: Public source checks.\n---\n\n#{body}")
@@ -77,10 +77,9 @@ describe PWN::AI::Agent::SkillReview do
       evidence: evidence,
       skills_root: dir
     )
-    expect(result[:action]).to eq('applied')
-    expect(File.read(skill_path)).to include('osint-order')
-    expect(Dir.glob("#{skill_path}.*.bak")).not_to be_empty
-    expect(PWN::Config).to have_received(:load_skills).at_least(:once)
+    expect(result[:action]).to eq('recommend')
+    expect(File.read(skill_path)).not_to include('osint-order')
+    expect(Dir.glob("#{skill_path}.*.bak")).to be_empty
   end
 
   it 'refuses auto-safe creation, secrets, generated module skills, and model-only proof' do
@@ -123,5 +122,18 @@ describe PWN::AI::Agent::SkillReview do
     result = described_class.review_turn(request: 'no, that is wrong, save the public query order', success: false, mode: 'auto-safe')
     expect(result[:action]).to eq('recommend')
     expect(File.read(skill_path)).not_to include('wrong')
+  end
+
+  it 'retains an executable proposal and rejects unsupported approval without changing the skill' do
+    original = File.read(skill_path)
+    proposal = described_class.review(request: 'domain public source check', mode: 'recommend', procedure: procedure, evidence: evidence)
+    expect(proposal[:procedure]).to eq(procedure)
+    expect(proposal[:source_sha256]).to eq(Digest::SHA256.hexdigest(original))
+    digest = Digest::SHA256.hexdigest(JSON.generate(proposal))
+    result = described_class.decide(source_sha256: digest, decision: 'approve', skills_root: dir)
+    expect(result).to include(ok: false)
+    expect(result[:error]).to include('independent')
+    expect(File.read(skill_path)).to eq(original)
+    expect(described_class.decide(source_sha256: digest, decision: 'reject', skills_root: dir)).to include(ok: true, decision: 'reject')
   end
 end

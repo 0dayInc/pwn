@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Redaction
 
-Shared write-boundary redaction. Never opens a credential store.
+Write-boundary redaction; reject cyclic or over-100-level containers before inspecting secrets. Never opens a credential store.
 
 ## When to use
 

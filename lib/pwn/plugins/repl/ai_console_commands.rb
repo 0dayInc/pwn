@@ -6,8 +6,8 @@ module PWN
       # Live slash-command parameter completion. Never calls a provider.
       module AIConsoleCommands
         COMMANDS = %w[
-          /back /clear /cron /debug /delegate /help /input /learning /mcp /memory /menu /model /system-role
-          /sessions /skills /status /steer /swarm /trace /verbose
+          /back /clear /cron /debug /delegate /evidence /guide /help /input /learning /mcp /memory /menu /model /readiness /system-role
+          /sessions /skills /status /steer /swarm /trace /vault /verbose
         ].freeze
         SWARM = %w[dashboard help mission agents status create use spawn retire dm debate broadcast tail steer pause resume cancel].freeze
 
@@ -17,7 +17,9 @@ module PWN
           tokens = scan(line: line, cursor: cursor)
           current = tokens.find { |token| token[:current] } || tokens.last || { text: '', start: 0, finish: 0 }
           prefix = line.scan(/\X/)[current[:start]...cursor].to_a.join
-          values, hint = if prefix.start_with?('PWN')
+          values, hint = if tokens.first&.dig(:text) == '/vault'
+                           candidates(tokens: tokens, prefix: prefix)
+                         elsif prefix.start_with?('PWN')
                            pwn_constants(prefix: prefix)
                          elsif path_token?(prefix: prefix)
                            paths(prefix: prefix)
@@ -136,6 +138,7 @@ module PWN
           return [filter(values: COMMANDS, prefix: prefix), 'command'] if position.zero?
 
           case command
+          when '/vault' then vault_keys(tokens: tokens, position: position, prefix: prefix)
           when '/verbose' then [filter(values: %w[on off], prefix: prefix), 'verbosity']
           when '/steer', '/input', '/delegate' then [[], 'free text; no invented values']
           when '/cron' then cron(tokens: tokens, position: position, prefix: prefix)
@@ -148,6 +151,21 @@ module PWN
           when '/swarm' then swarm(tokens: tokens, position: position, prefix: prefix, controller: opts[:swarm])
           else [[], 'no further parameters']
           end
+        end
+
+        private_class_method def self.vault_keys(opts = {})
+          tokens = opts[:tokens]
+          position = opts[:position]
+          prefix = opts[:prefix]
+          return [filter(values: ['edit'], prefix: prefix), 'vault action'] if position == 1
+          return [[], 'Use /vault edit [key ...]; one nested mapping path'] unless tokens[1][:text] == 'edit'
+
+          # Only the shipped schema supplies names. Never decrypt or inspect live
+          # configuration values to fill completion labels, hints or history.
+          node = PWN::Config.env_template
+          tokens[2...position].each { |token| node = node.is_a?(Hash) ? node[token[:text].to_sym] : nil }
+          names = node.is_a?(Hash) ? node.keys.map(&:to_s) : []
+          [filter(values: names, prefix: prefix), 'Enter edits this scope; schema keys only (custom keys may be typed)']
         end
 
         private_class_method def self.filter(opts = {})
@@ -180,7 +198,7 @@ module PWN
           tokens = opts[:tokens]
           position = opts[:position]
           prefix = opts[:prefix]
-          return [filter(values: %w[list resume delete stats], prefix: prefix), 'session action'] if position == 1
+          return [filter(values: %w[cleanup list picker resume delete stats], prefix: prefix), 'session action'] if position == 1
           return [[], 'no further parameters'] unless %w[resume delete].include?(tokens[1][:text])
 
           ids = safe { PWN::Sessions.list.map { |row| row[:id] || row['id'] } }
@@ -200,7 +218,7 @@ module PWN
           tokens = opts[:tokens]
           position = opts[:position]
           prefix = opts[:prefix]
-          return [filter(values: %w[list requeue], prefix: prefix), 'learning action'] if position == 1
+          return [filter(values: %w[inbox list requeue], prefix: prefix), 'learning action'] if position == 1
           return [filter(values: %w[--conflicted conflicted], prefix: prefix), 'list filter'] if tokens[1][:text] == 'list'
 
           [[], 'no further parameters']

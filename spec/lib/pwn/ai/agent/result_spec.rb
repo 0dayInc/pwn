@@ -4,6 +4,39 @@ require 'spec_helper'
 require 'tmpdir'
 
 describe PWN::AI::Agent::Result do
+  it 'redacts credentials in a deep cyclic environment without recursive traversal' do
+    env = { token: 'fixture-secret' }
+    10_000.times { env = { nested: env } }
+    env[:self] = env
+    stub_const('PWN::Env', env)
+    expect(described_class.redact(content: 'fixture-secret')).to eq('<<<REDACTED>>>')
+  end
+
+  it 'rejects cyclic and excessively nested tool results with a JSON nesting error' do
+    cyclic = []
+    cyclic << cyclic
+    deep = 'leaf'
+    10_000.times { deep = [deep] }
+    [cyclic, deep].each do |value|
+      expect { described_class.page(value: value) }.to raise_error(JSON::NestingError)
+    end
+  end
+
+  it 'preserves shared result branches and binary wrappers without mutating the source' do
+    shared = { text: "\xff".b }
+    expect(described_class.page(value: [shared, shared])).to eq(
+      [{ text: { encoding: 'base64', body: '/w==' } }, { text: { encoding: 'base64', body: '/w==' } }]
+    )
+    expect(shared[:text]).to eq("\xff".b)
+  end
+
+  it 'preserves the JSON nesting boundary for finite valid results' do
+    value = 'leaf'
+    100.times { value = [value] }
+    expect(JSON.generate(described_class.page(value: value))).to eq(JSON.generate(value))
+    expect { described_class.page(value: [value]) }.to raise_error(JSON::NestingError)
+  end
+
   around do |example|
     Dir.mktmpdir('pwn-result-') do |dir|
       @artifact_root = dir

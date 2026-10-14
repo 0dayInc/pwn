@@ -5,6 +5,23 @@ require 'tmpdir'
 require 'pwn/redaction'
 
 RSpec.describe 'Persistence redaction' do
+  it 'rejects deep and cyclic containers before logging or inspecting sensitive fields' do
+    cycle = { password: 'harmless-private-fixture' }
+    cycle[:self] = cycle
+    deep = 'leaf'
+    10_000.times { deep = [deep] }
+    [cycle, deep, { password: deep }].each do |value|
+      expect { PWN::Redaction.redact(value: value) }.to raise_error(JSON::NestingError, /nesting limit/)
+    end
+    shared = { password: 'harmless-private-fixture' }
+    expect(PWN::Redaction.redact(value: [shared, shared]).to_s).not_to include('harmless-private-fixture')
+    expect(shared[:password]).to eq('harmless-private-fixture')
+    boundary = 'public'
+    100.times { boundary = [boundary] }
+    expect(JSON.generate(PWN::Redaction.redact(value: boundary))).to eq(JSON.generate(boundary))
+    expect { PWN::Redaction.redact(value: [boundary]) }.to raise_error(JSON::NestingError)
+  end
+
   it 'redacts all session fields before capping, without consulting credential files or permitting an opt-out' do
     Dir.mktmpdir do |dir|
       stub_const('PWN::Sessions::SESSIONS_DIR', dir)

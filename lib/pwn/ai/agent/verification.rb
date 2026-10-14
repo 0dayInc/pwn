@@ -43,7 +43,8 @@ module PWN
             writer = Array(opts[:actions]).reverse.find { |action| action[:artifacts].is_a?(Hash) && action[:artifacts].key?(artifact[:path_digest]) }
             writer[:action_id] if writer && writer[:artifacts][artifact[:path_digest]] == artifact[:sha256]
           end.uniq
-          { runner_version: 1, request_digest: Digest::SHA256.hexdigest(request), requirements: requirements, missing: missing, checks: checks, status: status,
+          spans = requirements.map { |requirement| { requirement: requirement, offset: request.index(requirement), length: requirement.length, sha256: Digest::SHA256.hexdigest(requirement) } }
+          { runner_version: 1, request_digest: Digest::SHA256.hexdigest(request), requirements: requirements, requirement_spans: spans, missing: missing, checks: checks, status: status,
             attribution: { source: 'independent_verifier', verified_action_ids: ids } }
         end
 
@@ -63,6 +64,7 @@ module PWN
           row = { criterion: check[:requirement], passed: nil, evidence: 'unavailable' }
           return row.merge(command_check(opts)) if check[:kind].to_s == 'command'
           return row.merge(http_check(opts)) if check[:kind].to_s == 'http'
+          return row.merge(answer_check(opts)) if check[:kind].to_s == 'answer'
 
           path = File.expand_path(check[:path].to_s, opts[:root])
           raise ArgumentError, 'artifact outside verification root' unless path.start_with?("#{opts[:root]}/")
@@ -91,6 +93,26 @@ module PWN
           row.merge(passed: false, evidence: 'invalid JSON artifact')
         rescue StandardError => e
           row.merge(error: e.class.to_s)
+        end
+
+        private_class_method def self.answer_check(opts = {})
+          check = opts[:check]
+          answer = opts.fetch(:answer)
+          raise ArgumentError, 'literal expected answer required' unless check[:expected].is_a?(String) && answer.is_a?(String)
+
+          sources = Array(check[:sources]).map do |source|
+            quote = source.fetch(:quote)
+            citation = source.fetch(:citation)
+            raise ArgumentError, 'nonempty source quote and citation required' if quote.to_s.empty? || citation.to_s.empty?
+
+            observed = verify_check(opts.merge(check: source.merge(kind: :file, requirement: check[:requirement])))
+            supported = observed[:passed] == true && source.fetch(:expected).include?(quote) && answer.include?(quote) && answer.include?(citation)
+            observed.merge(passed: supported)
+          end
+          result = { passed: answer == check[:expected] && sources.all? { |source| source[:passed] == true },
+                     evidence: Digest::SHA256.hexdigest(answer), sources: sources }
+          record_observation(opts.merge(result: result, locator: 'final_answer'))
+          result
         end
 
         private_class_method def self.command_check(opts = {})
@@ -140,8 +162,10 @@ module PWN
               waiter.join
             end
             text = output[stdout]
-            return { passed: status.exitstatus == check.fetch(:exit_code, 0) && (!check.key?(:expected) || text == check[:expected]),
-                     evidence: Digest::SHA256.hexdigest(text), exit_code: status.exitstatus }
+            result = { passed: status.exitstatus == check.fetch(:exit_code, 0) && (!check.key?(:expected) || text == check[:expected]),
+                       evidence: Digest::SHA256.hexdigest(text), exit_code: status.exitstatus }
+            record_observation(opts.merge(result: result, locator: Digest::SHA256.hexdigest(JSON.generate(argv))))
+            return result
           end
         end
 
@@ -167,7 +191,19 @@ module PWN
               end
             end
           end
-          { passed: response.code.to_i == check.fetch(:status, 200) && text == check[:expected], evidence: Digest::SHA256.hexdigest(text), http_status: response.code.to_i }
+          result = { passed: response.code.to_i == check.fetch(:status, 200) && text == check[:expected], evidence: Digest::SHA256.hexdigest(text), http_status: response.code.to_i }
+          record_observation(opts.merge(result: result, locator: uri.to_s))
+          result
+        end
+
+        private_class_method def self.record_observation(opts = {})
+          runtime = Thread.current[:pwn_request_runtime]
+          return unless runtime
+
+          check = opts[:check]
+          result = opts[:result]
+          runtime.observe_evidence!(requirement: check[:requirement], kind: check[:kind], locator: opts[:locator],
+                                    passed: result[:passed], sha256: result[:evidence], max_age: check[:max_age])
         end
 
         public_class_method def self.authors
@@ -181,7 +217,8 @@ module PWN
               request: 'required - original request, unchanged',
               requirements: 'required - distinct verbatim request clauses to check',
               root: 'required - allowed artifact directory',
-              checks: 'required - host-defined file/json/command/http checks naming a requirement',
+              checks: 'required - host-defined file/json/command/http/answer checks naming a requirement',
+              answer: 'optional - actual final text for an answer check; expected text and cited file bytes are host-defined',
               allow_commands: 'optional - explicitly enable literal argv test commands (default false)',
               allowed_urls: 'optional - exact HTTP GET URLs permitted; redirects never followed',
               timeout: 'optional - per-command or HTTP timeout seconds (default 10, capped at 60)',

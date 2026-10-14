@@ -9,6 +9,75 @@ so it doesn't repeat it**.
 
 ## Two ways to run it
 
+### Local operator workspace
+
+The curses console exposes these local views through the command menu:
+
+* `/sessions` (or `/sessions picker`) opens a searchable picker. Type to filter
+  titles or stable IDs, use Up/Down to select, Enter to inspect local activity,
+  held activity lease, summary provenance, referenced-by paths and any recorded
+  unfinished goal, then `r` to resume that exact ID. Duplicate titles are never
+  guessed. Tab refreshes while preserving the selected ID. Esc restores the draft.
+* `/readiness` previews the configured four-role routes, credential **presence**
+  (never credential values), local required tool paths, workspace and limits.
+  `w` toggles optional Git-worktree execution, `+`/`-` sets 1–10 repair rounds,
+  `t` cycles the bounded per-check timeout and `r` cycles the per-role timeout.
+  These console-lifetime options
+  feed the next mission without modifying the objective or encrypted config.
+  Navigation never logs in, installs dependencies or calls a provider. Readiness
+  is not a connectivity test; task-specific dependencies are not inferred.
+* `/evidence` lists retained mission records and current console mission snapshots.
+  Enter inspects the original requirements, candidate revision, artifacts,
+  executed checks, observations, blockers and recorded outcome. Tab reloads
+  persisted records. A canceled mission retains its evidence. On a worktree
+  result, `d` opens the checksum-verified changed/deleted-file patch; `a` then
+  requires typing `APPLY <tested-revision>`. The backend rechecks source,
+  candidate, patch and tested revision before applying; it never stages or commits.
+  `x` requests removal of an owned checkout after typing `DISCARD <revision>`
+  (or its displayed ownership token before a candidate exists). A changed checkout
+  is refused with recovery guidance; patch and evidence are retained.
+  Running phase checkpoints are atomically persisted before publication, including
+  actual check records, uncovered requirements and repair reasons.
+  Worktrees isolate edits, **not** arbitrary code execution or network access.
+* `/sessions cleanup` previews the same provenance/dependency policy as scheduled
+  cleanup. Inspect the exact IDs, paths, fingerprints, retention reasons and
+  uncertainty. `a`, then Enter confirms only the displayed candidate set.
+  Newly discovered or changed records are excluded. Apply rechecks activity,
+  references and source bytes under locks, backs up candidate bytes, and reports
+  actual deletions and skipped records. No deletion happens during preview.
+* `/learning inbox` lists learning outcomes and retained skill proposals.
+  Enter inspects the exact procedure, source fields and fingerprints; `e` inspects
+  retained execution evidence. `a` approves, `x` rejects and `u` rolls back, each
+  requiring Enter confirmation. For skills, approval appends the proposed procedure
+  to an existing non-generated skill; rollback restores its backup only if the
+  approved file is unchanged. Source changes, absent or failing independent proof,
+  conflicted outcomes, generated skills and legacy proposals without procedure
+  payload remain blocked. Creation of a new skill is not enabled by this approval
+  API. Outcome decisions remain audit records, never fabricated training labels.
+  SkillReview evidence references use `learning_id` and `learning_sha256` for an
+  immutable learning row with retained full-session evidence and passing host
+  Verification checks. A model's `fixture_passed` assertion alone is insufficient,
+  including in `auto-safe` mode. No provider is called during review.
+* `/guide` is a short dismissible guide. Its numbered examples insert editable
+  draft text without executing it; existing drafts are retained. `x` records
+  dismissal in a private local preference marker; Esc closes without writing it.
+
+All these overlays support scrollback with PgUp/PgDn/Home/End and preserve the
+mission draft. Requested cancellation and pause are not reported as completion:
+pause becomes observed only at a coordinator boundary. Local list/readiness scans
+run on a coalesced event worker; stale results cannot replace a newly opened view.
+Ordinary curses and legacy steerable requests and missions share canonical-workspace
+admission locks; a second writer receives
+an actionable busy error. Other applications and unupgraded clients do not honor
+these advisory locks.
+
+For Ruby callers, `PWN::AI::Agent::Swarm.solve(request: objective, workspace: root,
+worktree: true, rounds: 3, verification_timeout: 60, role_timeout: 300)` uses the
+same mission backend. Timeouts are 1–600 seconds; rounds are 1–10. Worktree mode
+requires a clean Git root (including ignored and untracked files). It does not
+stage, commit or automatically apply the candidate. Preserve `request` verbatim;
+options are separate from the objective.
+
 ```text
 # 1. Interactive curses console (inside the pwn REPL)
 pwn[CURRENT_VERSION]:001 >>> pwn-ai
@@ -164,6 +233,7 @@ changes only default values, not the configuration schema; no migration is neede
 | PgUp/PgDn | Scroll the timeline; new output does not pull a scrolled viewport to the bottom |
 | `/model`, `/sessions resume ID` | Show model settings / change the next request's model or session while idle |
 | `/system-role` | Open the active engine's multiline SYSTEM ROLE CONTENT editor while idle; Ctrl+S saves, Esc cancels |
+| `/vault edit [key ...]` | Privately edit encrypted configuration or one nested mapping scope; Ctrl+S saves, Esc/Ctrl+C cancels |
 | `/steer INSTRUCTION` | Redirect the active request at a safe boundary |
 | `/input TEXT` | Send one line to an ordinary tool stdin prompt; not retained in input recall |
 | Ctrl+C | Cancel the active request cooperatively, or clear an idle draft |
@@ -196,6 +266,58 @@ no silent session-only fallback. On success, the header and next request use
 the new role immediately, and a new session loads it from the vault. Request or
 swarm activity blocks role changes. No schema migration is required. The legacy
 non-curses interface reports that this editor requires an interactive terminal.
+
+### Private vault editor
+
+`/vault edit` opens the complete **PRIVATE YAML** document; `/vault edit ai
+anthropic` opens that nested mapping, and `/vault edit ai anthropic model`
+opens a scalar. Tokens identify one nested key path, never filenames or multiple
+disjoint scopes. The target and decryptor are the same `driver_opts.pwn_env_path`
+and `driver_opts.pwn_dec_path` used by `pwn-vault`, defaulting to
+`~/.pwn/pwn.yaml` and its existing `.decryptor` sidecar. Unknown paths are rejected; edit the parent mapping
+to add a new key. Arrays are edited as a whole, not by numeric path indices.
+Existing non-null types must be retained; an existing null may remain null or
+be replaced by a YAML value. The root must retain an `ai` mapping, a supported
+`ai.active`, and its engine mapping. Mapping keys may be added or removed within
+the selected scope. Duplicate keys, aliases, object tags and multiple documents
+are rejected. Nesting is limited to 100 mappings/sequences, including the merged
+full document and decryptor parsing, before recursive YAML conversion. Invalid
+input leaves the encrypted file intact. YAML formatting/comments are normalized on save.
+
+Enter inserts a newline, arrows move, Home/End move to the document ends and
+Ctrl+U clears. **Ctrl+S** explicitly saves encrypted; **Esc/Ctrl+C** discards
+changes, and Ctrl+D leaves without saving. Save errors remain redacted inside
+the modal so the text can be corrected. No editor contents enter SESSION,
+history, completion suggestions, logs or provider requests. Completion suggests
+only shipped schema key names, never reads/decrypts the vault, and never offers
+configuration values; existing custom keys can be typed explicitly.
+
+Plaintext is decrypted/edited in memory. Only encrypted bytes enter the private
+temporary file, which is atomically renamed over the vault using the same
+AES-256-CBC format/key/IV as `pwn-vault`; the decryptor is not regenerated.
+Save re-reads the current document, preserves changes outside the selected scope,
+and refuses a changed selected scope (the whole document for unscoped edits).
+Editor instances serialize saves with a directory lock; a final ciphertext check
+also detects intervening changes from other writers. Configuration is updated
+locally without running authentication or `Config.refresh_env`. Editing is
+blocked while a request/swarm is active. The legacy non-curses interface explains
+that an interactive curses console is required and makes no changes.
+
+### Bounded nested data
+
+JSON-bound tool results, schema copies/normalization, MCP arguments, Swarm key
+conversion and persistence redaction reject cyclic or over-deep containers with
+`JSON::NestingError`, using the serializer's 100-container default. Credential
+collection for result redaction walks the environment by identity without Ruby
+recursion, so repeated or cyclic mappings do not prevent credential replacement.
+Redaction validates even sensitive-field containers before inspecting them;
+invalid input fails closed rather than returning a raw value. Valid shared
+branches remain independent output copies and inputs are not modified.
+
+Local XML ingestion preflights element depth (maximum 100) before recursive
+REXML XPath/formatting, and rejects excessive nesting with `ArgumentError`
+before database or embedding work. These bounds cover the named preprocessing
+paths, not arbitrary Ruby/plugin callbacks or all possible VM stack failures.
 
 ### Model and reasoning selection
 

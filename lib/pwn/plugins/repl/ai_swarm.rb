@@ -32,10 +32,27 @@ module PWN
           end
         end
 
+        # The UI distinguishes a pause request from arrival at a safe boundary.
+        class MissionControl < PWN::AI::Agent::Solve::Control
+          attr_reader :observed_pause
+
+          def pause(value)
+            @pause_requested = value
+            super
+          end
+
+          def check_stop
+            @observed_pause = @pause_requested == true
+            super
+          ensure
+            @observed_pause = false
+          end
+        end
+
         # Session-scoped swarm jobs. Workers never draw the terminal.
         class Controller # rubocop:disable Metrics/ClassLength -- one session-scoped swarm command surface
           MAX_JOBS = 8
-          ACTIVE = %w[queued running steering cancelling paused].freeze
+          ACTIVE = %w[queued running steering cancelling pause_requested paused].freeze
 
           def initialize(session_id:)
             @session_id = session_id.to_s
@@ -63,7 +80,11 @@ module PWN
             @mutex.synchronize do
               {
                 swarm_id: @swarm_id,
-                jobs: @jobs.values.map { |job| Marshal.load(Marshal.dump(job.slice(:id, :agent, :state, :command, :result, :error, :last_tool, :team))) }
+                jobs: @jobs.values.map do |job|
+                  row = Marshal.load(Marshal.dump(job.slice(:id, :agent, :state, :command, :result, :error, :last_tool, :team)))
+                  row[:state] = 'paused' if job[:state] == 'pause_requested' && job[:control]&.observed_pause
+                  row
+                end
               }
             end
           end
@@ -81,6 +102,43 @@ module PWN
             PWN::AI::Agent::Swarm.personas(swarm_id: @swarm_id).map do |name, persona|
               { name: name.to_s, role: persona[:role].to_s, engine: (persona[:engine] || 'inherit').to_s, model: (persona[:model] || 'provider default').to_s }
             end
+          end
+
+          # Same configured persona precedence as Solve; local doctor probes only.
+          def readiness(opts = {})
+            configured = PWN::AI::Agent::Swarm.personas(swarm_id: @swarm_id)
+            errors = []
+            routes = PWN::AI::Agent::Solve::ROLES.to_h do |role|
+              persona = configured[:"solve_#{role}"] || {}
+              engine = (persona[:engine] || Thread.current[:pwn_swarm_engine] || PWN::Env.dig(:ai, :active)).to_s
+              provider = PWN::Env.dig(:ai, engine.to_sym) || {}
+              credentials = [provider[:key], provider.dig(:oauth, :bearer_token), provider.dig(:oauth, :refresh_token)]
+              present = engine == 'ollama' || credentials.any? { |value| !value.to_s.strip.empty? && !value.to_s.match?(/\A(?:optional|required)\s*-/) }
+              errors << "#{role}: unsupported provider #{engine}; configure ai.active or solve_#{role}.engine" unless PWN::AI::Agent::Loop::ENGINE_MODS.key?(engine.to_sym)
+              errors << "#{role}: configure #{engine} credentials first; this view never starts login" unless present
+              writer_tools = opts[:worktree] ? ['terminal'] : %w[terminal pwn]
+              [role, { engine: engine, model: persona[:model] || provider[:model] || 'provider default', credentials_present: present, toolsets: role == 'protagonist' ? writer_tools : [] }]
+            end
+            workspace = File.realpath(opts[:workspace] || Dir.pwd)
+            errors << 'Workspace must be a writable directory' unless File.directory?(workspace) && File.writable?(workspace)
+            required = opts[:worktree] ? %w[sh ruby git] : %w[sh ruby]
+            tools = required.to_h { |name| [name, PWN::Setup.send(:which, name: name)] }
+            tools.each { |name, path| errors << "Required tool #{name} missing from PATH; inspect pwn setup --check" if path.empty? }
+            if opts[:worktree] && !tools['git'].empty?
+              tree = PWN::AI::Agent::Solve::Worktree.new(workspace)
+              root = tree.git(workspace, 'rev-parse', '--show-toplevel').strip
+              errors << 'Worktree workspace must be the Git repository root' unless File.realpath(root) == workspace
+              errors << 'Worktree requires a clean checkout including untracked and ignored files; use a clean clone or resolve changes first' unless tree.git(workspace, 'status', '--porcelain', '--untracked-files=all', '--ignored').empty?
+            end
+            errors << 'rounds must be 1..10' unless Integer(opts.fetch(:rounds, 3)).between?(1, 10)
+            errors << 'verification_timeout must be 1..600 seconds' unless Integer(opts.fetch(:verification_timeout, 60)).between?(1, 600)
+            errors << 'role_timeout must be 1..600 seconds' unless Integer(opts.fetch(:role_timeout, 300)).between?(1, 600)
+            errors << 'Workspace has active swarm writers; wait or cancel before mission launch' if busy?
+            { ready: errors.empty?, routes: routes, workspace: workspace, worktree: opts.fetch(:worktree, false), required_tools: tools, rounds: opts.fetch(:rounds, 3),
+              verification_timeout: opts.fetch(:verification_timeout, 60), role_timeout: opts.fetch(:role_timeout, 300), model_calls_per_role: 25, errors: errors,
+              note: 'Local checks only; endpoint availability and requested task-specific tools are not probed. Execution is not an OS sandbox.' }
+          rescue StandardError => e
+            { ready: false, routes: routes, workspace: opts[:workspace] || Dir.pwd, errors: ["#{e.class}: #{e.message}"] }
           end
 
           def cancel_all
@@ -181,6 +239,7 @@ module PWN
             start_job(agent: 'team', command: 'mission', opts: opts) do |job|
               PWN::AI::Agent::Swarm.solve(
                 request: request, swarm_id: ensure_swarm, steering: job[:control],
+                worktree: opts.fetch(:worktree, false), rounds: opts.fetch(:rounds, 3), verification_timeout: opts.fetch(:verification_timeout, 60), role_timeout: opts.fetch(:role_timeout, 300),
                 workspace: opts[:workspace], usage_observer: opts[:usage_observer], on_tool: tool_callback(job, opts),
                 on_state: ->(state) { @mutex.synchronize { job[:team] = state } }
               )
@@ -242,7 +301,7 @@ module PWN
             job = find_job(id)
             return { ok: false, error: 'job not found' } unless job
             return { ok: false, error: 'pause/resume applies to mission jobs only' } unless job[:command] == 'mission'
-            return { ok: false, error: 'job is no longer active' } unless update_active(job, paused ? 'paused' : 'running')
+            return { ok: false, error: 'job is no longer active' } unless update_active(job, paused ? 'pause_requested' : 'running')
 
             job[:control].pause(paused)
             { ok: true, job_id: id, state: job[:state] }
@@ -288,14 +347,15 @@ module PWN
             job[:worker] = Thread.new do
               locals.each { |key, value| Thread.current[key] = value }
               variables.each { |key, value| Thread.current.thread_variable_set(key, value) }
-              control_class = command == 'mission' ? PWN::AI::Agent::Solve::Control : JobControl
+              control_class = command == 'mission' ? MissionControl : JobControl
               job[:control] = control_class.new(input: StringIO.new, output: StringIO.new)
               Thread.current[:pwn_steering_input] = job[:control]
               ready << true
               update(job, 'running')
               result = yield(job)
-              job[:control].check_stop
+              job[:control].check_stop unless command == 'mission'
               state = command == 'mission' ? result[:status] : 'completed'
+              @mutex.synchronize { job[:team] = (job[:team] || {}).merge(result) } if command == 'mission'
               update(job, state, result: summarize(result))
               opts[:on_event]&.call(:assistant, "#{agent} [#{id}] #{command} #{state}\n#{summarize(result)}")
               result

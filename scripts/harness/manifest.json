@@ -1,0 +1,290 @@
+{
+  "schema": "pwn-fair-manifest-v1",
+  "seed": 0,
+  "provenance": "Fixed authored public regression fixtures, not private heldout evidence or live model performance. Expected bytes reviewed independently of runner. Freeze before model runs; reserve separate private tasks for real holdout.",
+  "model": {
+    "id": null,
+    "version": null,
+    "reasoning": null,
+    "temperature": 0,
+    "live_status": "NOT_RUN"
+  },
+  "tool_permissions": [
+    "shell: local fixture workspace only"
+  ],
+  "environment": {
+    "os": "record runner host",
+    "home": "new empty temporary directory per task",
+    "network": "forbidden",
+    "learning_snapshot": null
+  },
+  "budget": {
+    "wall_seconds": 35,
+    "max_iterations": 6,
+    "tokens": null,
+    "cost": null
+  },
+  "ablations": [
+    {"id": "single-cold", "wiring": "Actual CLI/Loop, empty HOME, policy disabled; other learning not falsely called disabled"},
+    {"id": "single-snapshot", "wiring": "Actual CLI/Loop/learning retrieval, cloned immutable training HOME, policy disabled"},
+    {"id": "single-policy", "wiring": "Actual CLI/Loop/Policy begin/observe/finish, cloned immutable training HOME"},
+    {"id": "swarm-snapshot", "wiring": "Actual CLI/Dispatch agent_spawn/agent_ask/Swarm.ask/nested Loop/shell, cloned immutable training HOME"}
+  ],
+  "faults_pending": [],
+  "fault_scope": "cli_faults.rb executes installed CLI with test-injected public Loop runtime/steering options. No production CLI resume/steering flags are claimed. Real shell effects, EOF retry, blocked-provider cancellation, process crash and hard wall-cap restarts. Coverage is finite, not every provider HTTP retry mode.",
+  "tasks": [
+    {
+      "id": "exact-file",
+      "domain": "exact_file",
+      "prompt": "Create result.txt containing exactly alpha followed by newline, then read it back.",
+      "responses": [
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "1",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"printf 'alpha\\\\n' > result.txt; printf 'effect\\\\n' >> effects.log\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "2",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"cat result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": "FIXTURE_COMPLETE",
+          "tool_calls": []
+        }
+      ],
+      "checks": [
+        {
+          "path": "result.txt",
+          "bytes": "alpha\n"
+        }
+      ],
+      "success_marker": "FIXTURE_COMPLETE",
+      "expected_outcome": "PASS"
+    },
+    {
+      "id": "structured",
+      "domain": "structured_extraction",
+      "prompt": "Extract active names from [{\"name\":\"Ada\",\"active\":true},{\"name\":\"Bo\",\"active\":false}] into result.txt as the JSON array [\"Ada\"] followed by newline. Read it back.",
+      "responses": [
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "1",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"printf '[\\\"Ada\\\"]\\\\n' > result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "2",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"cat result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": "FIXTURE_COMPLETE",
+          "tool_calls": []
+        }
+      ],
+      "checks": [
+        {
+          "path": "result.txt",
+          "bytes": "[\"Ada\"]\n"
+        }
+      ],
+      "success_marker": "FIXTURE_COMPLETE",
+      "expected_outcome": "PASS"
+    },
+    {
+      "id": "coding",
+      "domain": "safe_coding",
+      "prompt": "Use Ruby to compute unique sorted values from [3,1,3,2] and write result.txt with 1,2,3 followed by newline. Read it back.",
+      "responses": [
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "1",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"ruby -e 'File.write(\\\"result.txt\\\", [3,1,3,2].uniq.sort.join(\\\",\\\") + \\\"\\\\n\\\")'\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "2",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"cat result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": "FIXTURE_COMPLETE",
+          "tool_calls": []
+        }
+      ],
+      "checks": [
+        {
+          "path": "result.txt",
+          "bytes": "1,2,3\n"
+        }
+      ],
+      "success_marker": "FIXTURE_COMPLETE",
+      "expected_outcome": "PASS"
+    },
+    {
+      "id": "security-toy",
+      "domain": "security_toy",
+      "prompt": "Classify the literal toy SQL snippet SELECT * FROM users WHERE name = ? as parameterized. Write parameterized followed by newline to result.txt and read it back. No network or exploitation.",
+      "responses": [
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "1",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"printf 'parameterized\\\\n' > result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "2",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"cat result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": "FIXTURE_COMPLETE",
+          "tool_calls": []
+        }
+      ],
+      "checks": [
+        {
+          "path": "result.txt",
+          "bytes": "parameterized\n"
+        }
+      ],
+      "success_marker": "FIXTURE_COMPLETE",
+      "expected_outcome": "PASS"
+    },
+    {
+      "id": "artifact-lie",
+      "domain": "artifact_truth",
+      "prompt": "Create result.txt containing exactly alpha followed by newline and verify it.",
+      "responses": [
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "1",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"printf 'wrong\\\\n' > result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "2",
+              "type": "function",
+              "function": {
+                "name": "shell",
+                "arguments": "{\"command\": \"cat result.txt\", \"timeout\": 10}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": "FIXTURE_COMPLETE",
+          "tool_calls": []
+        }
+      ],
+      "checks": [
+        {
+          "path": "result.txt",
+          "bytes": "alpha\n"
+        }
+      ],
+      "success_marker": "FIXTURE_COMPLETE",
+      "expected_outcome": "FAIL"
+    },
+    {
+      "id": "timeout-replay",
+      "domain": "uncertain_side_effect",
+      "prompt": "Write result.txt after the operation completes and verify it.",
+      "responses": [
+        {"role": "assistant", "tool_calls": [{"id": "first", "type": "function", "function": {"name": "shell", "arguments": "{\"command\":\"printf 'effect\\n' >> effects.log; sleep 3; printf done > result.txt\",\"timeout\":1}"}}]},
+        {"role": "assistant", "tool_calls": [{"id": "retry", "type": "function", "function": {"name": "shell", "arguments": "{\"command\":\"printf 'effect\\n' >> effects.log; sleep 3; printf done > result.txt\",\"timeout\":1}"}}]},
+        {"role": "assistant", "content": "FIXTURE_COMPLETE", "tool_calls": []}
+      ],
+      "checks": [{"path": "effects.log", "bytes": "effect\n"}],
+      "success_marker": "FIXTURE_COMPLETE",
+      "expected_outcome": "INCOMPLETE"
+    }
+  ]
+}

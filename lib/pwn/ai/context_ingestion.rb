@@ -3,11 +3,12 @@
 require 'sqlite3'
 require 'net/http'
 require 'rexml/document'
+require 'rexml/parsers/pullparser'
 require 'base64'
 
 module PWN
   module AI
-    # Local evidence ingestion; unavailable embeddings never become synthetic vectors.
+    # Local evidence ingestion; XML is bounded to 100 element levels before XPath. Unavailable embeddings never become synthetic vectors.
     module Context
       public_class_method def self.authors
         "AUTHOR(S):\n  0day Inc. <support@0dayinc.com>\n"
@@ -155,6 +156,19 @@ module PWN
         [nil, "embedding unavailable: #{e.class}: #{e.message}"]
       end
 
+      # REXML's XPath and formatter recurse even though its parser accepts deep XML.
+      private_class_method def self.validate_xml_nesting(opts = {})
+        parser = REXML::Parsers::PullParser.new(opts[:data])
+        depth = 0
+        while parser.has_next?
+          event = parser.pull
+          depth += 1 if event.start_element?
+          raise ArgumentError, 'artifact exceeds XML nesting limit (100)' if depth > 100
+
+          depth -= 1 if event.end_element?
+        end
+      end
+
       private_class_method def self.ingestion_records(opts = {})
         source = opts[:source]
         if File.directory?(source)
@@ -173,6 +187,7 @@ module PWN
                 when 'xml', 'nmap', 'burp', 'zap'
                   raise ArgumentError, 'DTD/entities are not accepted' if data.match?(/<!DOCTYPE|<!ENTITY/i)
 
+                  validate_xml_nesting(data: data)
                   doc = REXML::Document.new(data)
                   nodes = REXML::XPath.match(doc, '//host|//item|//alertitem|//site')
                   nodes = [doc.root] if nodes.empty?

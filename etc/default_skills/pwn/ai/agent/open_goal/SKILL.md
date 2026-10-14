@@ -35,6 +35,7 @@ PWN::AI::Agent::OpenGoal.goal_file(opts)
 
 - `goal_file`
 - `current`
+- `for_session`
 - `begin`
 - `clear`
 - `resume`

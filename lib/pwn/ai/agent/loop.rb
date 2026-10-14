@@ -818,9 +818,11 @@ module PWN
 
         private_class_method def self.request_unsatisfied?(opts = {})
           request = opts[:request].to_s
+          return true if completion_unmet(request: request, messages: opts[:messages]).any?
+          return false if Thread.current[:pwn_request_runtime]&.scope_evidenced?
+
           need = request_need(request: request)
           return false if need == :none
-          return false if Thread.current[:pwn_loop_no_tools]
 
           effects = tool_effects(messages: opts[:messages])
           return !effects.intersect?(%i[read recall eval]) if need == :read && catalog_lookup?(request: request)
@@ -829,41 +831,21 @@ module PWN
           live = effects.reject { |fx| %i[recall store].include?(fx) }
           unmet = completion_unmet(request: request, messages: opts[:messages])
           return true if unmet.any?
-          return true if live.empty? && %i[write browse read].include?(need)
           return true if duration_unsatisfied?(request: request)
+          return false if need == :write && write_verified?(request: request, messages: opts[:messages])
+          return true if live.empty? && %i[write browse read].include?(need)
           return true if need == :write && !write_verified?(effects: effects, request: request, messages: opts[:messages])
           return true if need == :browse && !effects.include?(:browse)
           return true if need == :any && live.any? && !live.intersect?(%i[write browse eval])
 
           false
         rescue StandardError
-          false
+          true
         end
 
         private_class_method def self.write_verified?(opts = {})
-          effects = Array(opts[:effects])
-          idx = effects.index(:write)
-          if idx
-            tail = effects[(idx + 1)..] || []
-            return true if tail.intersect?(%i[read eval])
-          end
-
-          saw_write_argv = false
-          Array(opts[:messages]).each do |msg|
-            next unless msg.is_a?(Hash)
-
-            if msg[:role].to_s == 'assistant' && defined?(Dispatch)
-              Array(msg[:tool_calls]).each do |tc|
-                blob = Dispatch.send(:argv_blob, args: tc.dig(:function, :arguments) || tc.dig('function', 'arguments'))
-                saw_write_argv = true if blob.to_s.match?(Dispatch::WRITE_ARGV_RX)
-              end
-            elsif saw_write_argv && msg[:role].to_s == 'tool'
-              fx = stamped_effect(content: msg[:content])
-              return true if %i[read eval].include?(fx)
-            end
-          end
-
-          false
+          # A generic later read/eval is not verification of this write.
+          TurnFinalizer.evidence_satisfied?(request: opts[:request], messages: opts[:messages])
         rescue StandardError
           false
         end
@@ -915,7 +897,7 @@ module PWN
         private_class_method def self.declared_contract_unsatisfied?(opts = {})
           completion_unmet(opts).any?
         rescue StandardError
-          false
+          true
         end
 
         private_class_method def self.completion_unmet(opts = {})
@@ -926,6 +908,7 @@ module PWN
           files.each { |path| unmet << "deliverable_missing:#{path}" if deliverable_missing?(path: path) }
           artifact = TurnFinalizer.arbitrate(request: request, paths: contract[:paths], messages: opts[:messages])
           artifact[:unmet].each { |row| unmet << "#{row[:criterion]}:#{row[:detail]}" }
+          unmet.concat(Thread.current[:pwn_request_runtime].unmet) if Thread.current[:pwn_request_runtime]
           trace_files = session_files(messages: opts[:messages])
           unmet << 'issue_work_proofs' if contract[:issue_work] && Array(contract[:proofs]).empty? && files.empty? && trace_files.empty?
           if contract[:issue_work] && defined?(PWN::Plugins::Findings)
@@ -937,12 +920,12 @@ module PWN
           blob = evidence_blob(messages: opts[:messages], files: files + trace_files)
           asked_hosts = Array(contract[:hosts]).select { |host| request.downcase.include?(host.to_s.downcase) }
           asked_tech = Array(contract[:techniques]).select { |tech| request.downcase.include?(tech.to_s.downcase) }
-          unmet << 'hosts' if evidence_tokens_missing?(tokens: asked_hosts, blob: blob)
+          unmet << 'hosts' unless asked_hosts.all? { |host| Thread.current[:pwn_request_runtime]&.host_evidenced?(host) }
           unmet << 'techniques' if evidence_tokens_missing?(tokens: asked_tech, blob: blob)
           Array(Swarm.honesty_unmet(swarm_id: Thread.current[:pwn_swarm_id])).each { |u| unmet << u } if defined?(Swarm)
           unmet
-        rescue StandardError
-          []
+        rescue StandardError => e
+          ["verification_error:#{e.class}:#{e.message}"]
         end
 
         private_class_method def self.write_or_read_evidenced?(opts = {})
@@ -1010,10 +993,8 @@ module PWN
           cached = Thread.current[:pwn_loop_deliverables]
           contract = if cached.is_a?(Array) || cached.is_a?(Hash)
                        normalize_contract(raw: cached)
-                     elsif Thread.current[:pwn_loop_nested] || !Thread.current[:pwn_loop_active]
-                       EMPTY_CONTRACT.dup
                      else
-                       infer_deliverables(request: opts[:request])
+                       EMPTY_CONTRACT.dup
                      end
           # Paths are user-owned. Inference cannot invent a destination or
           # convert the source document into a write obligation.
@@ -1139,8 +1120,6 @@ module PWN
               return false
             end
           end
-          return true if evidence_satisfied?(messages: opts[:messages], text: opts[:text], request: opts[:request])
-          return false if incomplete_final?(text: opts[:text], last_iter: false)
           return false if request_unsatisfied?(
             request: opts[:request],
             messages: opts[:messages],
@@ -1306,6 +1285,9 @@ module PWN
         end
 
         private_class_method def self.active_engine
+          owner = Thread.current[:pwn_request_runtime]
+          return owner.engine.to_sym if owner.respond_to?(:engine)
+
           tl = Thread.current[:pwn_swarm_engine].to_s
           return tl.downcase.to_sym unless tl.empty?
 
@@ -2042,7 +2024,7 @@ module PWN
 
         private_class_method def self.thinking_effort(opts = {})
           engine_name = (opts[:engine] || active_engine).to_s.to_sym
-          slot = defined?(PWN::Env) ? PWN::Env.dig(:ai, engine_name) : nil
+          slot = PWN::AI::HttpRetry.provider_config(engine: engine_name)
           slot = {} unless slot.is_a?(Hash)
           value = opts[:effort] || slot[:reasoning_effort] || slot[:think]
           text = value.to_s.strip
@@ -2060,7 +2042,7 @@ module PWN
           )
 
           runtime = Thread.current[:pwn_request_runtime]
-          if runtime.respond_to?(:call) && !Thread.current[:pwn_solve_tools]
+          if runtime.respond_to?(:call)
             return runtime.call(messages: messages, tools: tools) do |prepared, route|
               invoke_provider_chat(engine: (route || {})[:provider] || active_engine, messages: prepared, tools: tools, model: (route || {})[:model], temp: (route || {})[:temperature])
             end
@@ -2078,6 +2060,7 @@ module PWN
 
           mod = Object.const_get(mod_name)
           if mod.respond_to?(:chat_with_tools)
+            config = PWN::AI::HttpRetry.provider_config(engine: engine) || {}
             wire_msgs = if engine == :grok
                           openai_wire_messages(messages: messages)
                         elsif local_engine?(engine: engine)
@@ -2096,14 +2079,14 @@ module PWN
               cwt_opts[:think] = true
             else
               cwt_opts[:think] = false
-              cwt_opts[:reasoning_effort] = 'none' if engine == :openai && PWN::Env.dig(:ai, engine, :reasoning_effort).to_s == 'none'
+              cwt_opts[:reasoning_effort] = 'none' if engine == :openai && config[:reasoning_effort].to_s == 'none'
             end
-            model = opts[:model] || Thread.current[:pwn_swarm_model]
+            model = opts[:model] || Thread.current[:pwn_swarm_model] || config[:model]
             cwt_opts[:model] = model unless model.to_s.strip.empty?
             cwt_opts[:temp] = opts[:temp] unless opts[:temp].nil?
             if tools && !tools.empty?
               env_tc = begin
-                PWN::Env.dig(:ai, engine, :tool_choice)
+                config[:tool_choice]
               rescue StandardError
                 nil
               end
@@ -2594,7 +2577,7 @@ module PWN
           SYS
 
           txt =
-            if mod.respond_to?(:chat)
+            if mod.respond_to?(:chat) && !Thread.current[:pwn_request_runtime]
               r = mod.chat(
                 request: request,
                 system_role_content: q_sys,
@@ -2660,7 +2643,7 @@ module PWN
           SYS
 
           txt =
-            if mod.respond_to?(:chat)
+            if mod.respond_to?(:chat) && !Thread.current[:pwn_request_runtime]
               r = mod.chat(
                 request: request,
                 system_role_content: q_sys,
@@ -2752,7 +2735,7 @@ module PWN
           SYS
 
           txt =
-            if mod.respond_to?(:chat)
+            if mod.respond_to?(:chat) && !Thread.current[:pwn_request_runtime]
               r = mod.chat(
                 request: request,
                 system_role_content: howto_sys,
@@ -3050,7 +3033,7 @@ module PWN
           SYS
 
           txt =
-            if mod.respond_to?(:chat)
+            if mod.respond_to?(:chat) && !Thread.current[:pwn_request_runtime]
               r = mod.chat(
                 request: request,
                 system_role_content: recall_sys,
@@ -3104,7 +3087,15 @@ module PWN
         # )
 
         public_class_method def self.run(opts = {})
-          options = opts.merge(request: opts[:request])
+          previous_runtime = Thread.current[:pwn_request_runtime]
+          execution_lease = execution_lease(opts)
+          runtime = opts[:runtime] || request_runtime(opts)
+          Thread.current[:pwn_request_runtime] = runtime
+          return 'Request cancelled.' if runtime.outcome&.dig(:status) == 'cancelled'
+
+          runtime.start!
+          runtime.bind_verification!(contract: opts[:verification_contract])
+          options = opts.merge(request: runtime.request, verification_contract: runtime.verification_contract)
           sid = opts[:session_id].to_s
           lease = PWN::Sessions.activate(session_id: sid) if !sid.empty? && File.file?(File.join(PWN::Sessions.sessions_dir, "#{sid}.jsonl"))
           original_system = opts[:system_role_content]
@@ -3115,16 +3106,95 @@ module PWN
             history.pop if history.last&.dig(:role).to_s == 'assistant' && Array(history.last[:tool_calls]).empty?
             repair_steering_history!(messages: history)
             e.instructions.each do |instruction|
+              runtime.amend!(instruction: instruction)
               history << { role: 'user', content: instruction }
               append_session(session_id: options[:session_id], role: 'user', content: instruction)
             end
-            options = options.merge(request: e.instructions.last, steering_history: history, system_role_content: original_system)
+            return 'Request cancelled.' if runtime.outcome&.dig(:status) == 'cancelled'
+
+            options = options.merge(request: runtime.request, steering_history: history, system_role_content: original_system)
             update_steered_open_goal!(options)
-            options.delete(:verification_contract)
             retry
           end
+        rescue Interrupt
+          runtime&.finish!(status: 'cancelled')
+          raise
         ensure
-          PWN::Sessions.deactivate(lease: lease)
+          begin
+            runtime&.finish!(status: 'incomplete') unless runtime&.outcome
+            previous_runtime.accept_child!(runtime: runtime) if previous_runtime && runtime && previous_runtime != runtime
+            opts[:on_outcome]&.call(runtime.outcome) if runtime
+          ensure
+            Thread.current[:pwn_request_runtime] = previous_runtime
+            PWN::Sessions.deactivate(lease: lease)
+            execution_lease&.close
+          end
+        end
+
+        # Exclusive execution ownership is distinct from the shared cleanup
+        # lease. Acquire before loading/checkpointing; crash closes the fd.
+        private_class_method def self.execution_lease(opts = {})
+          sid = (opts[:runtime]&.session_id || opts[:session_id]).to_s
+          raise ArgumentError, 'runtime session identity mismatch' if opts[:runtime] && opts[:session_id] && opts[:session_id].to_s != sid
+
+          return if sid.empty?
+
+          root = PWN::Sessions.sessions_dir
+          FileUtils.mkdir_p(root)
+          lock = File.open(File.join(root, ".#{Digest::SHA256.hexdigest(sid)}.execution.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- Loop owns lifetime
+          lock.close_on_exec = true
+          raise IOError, "Session #{sid} is already executing" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+
+          lock
+        rescue Exception # rubocop:disable Lint/RescueException -- close untransferred descriptor on interrupt
+          lock&.close
+          raise
+        end
+
+        private_class_method def self.engine_failure_text(opts = {})
+          attempts = opts[:runtime]&.last_provider_attempts || opts[:attempts]
+          "[pwn-ai] engine hop failed after #{attempts} tries: #{opts[:error].message.to_s[0, 240]}"
+        end
+
+        private_class_method def self.engine_retry_exhausted?(opts = {})
+          !opts[:runtime].nil? || opts[:attempts] >= 5
+        end
+
+        private_class_method def self.scheduled_tool_calls(opts = {})
+          opts[:steering]&.checkpoint(messages: opts[:messages], phase: :tool)
+          eligible = lambda do |call|
+            args = { name: call.dig(:function, :name), args: call.dig(:function, :arguments) }
+            signature = payload_sig(args)
+            !Thread.current[:pwn_extinguished]&.[](signature) && (read_like?(args) || Thread.current[:pwn_same_payload].to_h.fetch(signature, 0) < 2)
+          end
+          opts[:runtime].scheduled_calls(opts[:calls], session_id: opts[:session_id], eligible: eligible)
+        end
+
+        private_class_method def self.dispatch_scheduled(opts = {})
+          opts[:result] || Dispatch.call(tool_call: opts[:tool_call], session_id: opts[:session_id])
+        end
+
+        private_class_method def self.request_runtime(opts = {})
+          goal = OpenGoal.for_session(session_id: opts[:session_id]) if opts[:request].to_s.match?(OpenGoal::CONTINUE_RX)
+          raise ArgumentError, 'selected session no longer has an unfinished request' if opts[:require_resumable] && !goal
+
+          resume = goal && goal[:request_id] && goal[:checkpoint_path]
+          root = resume ? File.dirname(goal[:checkpoint_path], 2) : opts[:artifact_root]
+          RequestRuntime.new(request: goal ? goal[:request] : opts[:request], session_id: opts[:session_id],
+                             request_id: resume ? goal[:request_id] : opts[:request_id], artifact_root: root,
+                             resume: !!resume, trace: false, retrieve: false, enabled_toolsets: opts[:enabled_toolsets], verification_contract: opts[:verification_contract],
+                             engine: opts[:engine], model: opts[:model], provider_config: opts[:provider_config], profile: opts[:profile], profiles: opts[:profiles],
+                             provider_attempts: opts.fetch(:provider_attempts, 5), cancel: opts[:cancel])
+        end
+
+        private_class_method def self.cheap_returns_allowed?(opts = {})
+          opts[:force_tools] != true && !opts[:verification_contract]
+        end
+
+        private_class_method def self.final_verification(opts = {})
+          Reward.run_verification(request: opts[:request], session_id: opts[:session_id], contract: opts[:contract])
+        rescue StandardError => e
+          { status: :unknown, error: "#{e.class}: #{e.message}", checks: [] }
         end
 
         private_class_method def self.update_steered_open_goal!(opts = {})
@@ -3138,7 +3208,7 @@ module PWN
           system = opts[:system_role_content]
           history = opts[:steering_history]
           if history
-            authority = 'The operator has steered this request. Prior conversation and completed tool evidence remain context, not an obligation to continue cancelled work. Follow user instructions in chronological order; the latest explicit user instruction overrides earlier conflicting instructions. Reassess remaining work; never claim old work was undone.'
+            authority = 'Steering adds constraints to the original request. Preserve all original obligations unless an explicit replace: amendment replaces the scope, or cancel ends it. Completed evidence remains valid for unchanged targets; never claim old work was undone.'
             return [{ role: 'system', content: "#{system}\n#{authority}" }] + history.reject { |row| row[:role].to_s == 'system' }
           end
           request = opts[:request]
@@ -3184,11 +3254,7 @@ module PWN
             opts[:messages] << {
               role: 'tool', tool_call_id: tc[:id], name: name,
               content: wrap_untrusted_tool(content: raw),
-              artifact_observations: TurnFinalizer.observe_artifacts(
-                paths: opts[:paths], before: opts[:before],
-                effect: Dispatch.effect(name: name, args: tc.dig(:function, :arguments)),
-                success: opts[:success]
-              )
+              artifact_observations: opts[:observations] || {}
             }
             append_session(session_id: opts[:session_id], role: 'tool', content: "#{name} → #{raw}")
             opts[:on_tool]&.call(name, tc.dig(:function, :arguments), raw)
@@ -3242,7 +3308,12 @@ module PWN
           opts[:request] = request
           intent = prepared[:intent]
           Thread.current[:pwn_request_intent] = intent
-          TurnFinalizer.commit_artifacts!(request: request, inherit: nested)
+          runtime = Thread.current[:pwn_request_runtime]
+          if runtime && runtime.request == request
+            Thread.current[:pwn_artifact_contract] = runtime.contract
+          else
+            TurnFinalizer.commit_artifacts!(request: request, inherit: nested)
+          end
           required_artifacts = TurnFinalizer.required_artifacts(request: request)
           Thread.current[:pwn_extinguished] = {}
           Thread.current[:pwn_same_payload] = Hash.new(0)
@@ -3255,7 +3326,7 @@ module PWN
           expose_current_session(session_id: session_id)
           Mistakes.check_user_correction(request: request, session_id: session_id) if defined?(Mistakes)
 
-          allow_text_only = steering.nil? && required_artifacts.empty? && opts[:force_tools] != true
+          allow_text_only = steering.nil? && required_artifacts.empty? && cheap_returns_allowed?(opts)
           cheap = allow_text_only && %i[greeting howto recall].include?(intent)
 
           if allow_text_only && intent == :greeting
@@ -3265,6 +3336,7 @@ module PWN
               request: request,
               session_id: session_id
             )
+            runtime&.finish!(status: 'complete')
             final_chars = txt.to_s.length
             debug_final_text!(text: txt, debug: opts[:debug])
             return txt
@@ -3289,6 +3361,7 @@ module PWN
                 session_id: session_id,
                 system_role_content: system_role_content
               )
+              runtime&.finish!(status: 'complete')
               final_chars = txt.to_s.length
               debug_final_text!(text: txt, debug: opts[:debug])
               return txt
@@ -3301,6 +3374,7 @@ module PWN
                 session_id: session_id,
                 system_role_content: system_role_content
               )
+              runtime&.finish!(status: 'complete')
               final_chars = txt.to_s.length
               debug_final_text!(text: txt, debug: opts[:debug])
               return txt
@@ -3459,8 +3533,8 @@ module PWN
               if engine_transient?(error: e)
                 engine_blips += 1
                 debug_progress(msg: "engine hop failed #{e.class}: #{e.message.to_s[0, 240]} blip=#{engine_blips}")
-                if engine_blips >= 5
-                  txt = "[pwn-ai] engine hop failed after #{engine_blips} tries: #{e.message.to_s[0, 240]}"
+                if engine_retry_exhausted?(runtime: runtime, attempts: engine_blips)
+                  txt = engine_failure_text(runtime: runtime, attempts: engine_blips, error: e)
                   debug_final_text!(text: txt)
                   final_chars = txt.length
                   return txt
@@ -3542,53 +3616,48 @@ module PWN
             return text if solve_handoff?(opts.merge(text: text, calls: calls))
 
             if calls.empty?
-              # P28 — refuse polite mid-goal handoffs so multi-step tasks stay autonomous.
-              if incomplete_final?(text: text, last_iter: false)
-                turn_fails['incomplete_final'] += 1
-                warn "[pwn-ai/loop] incomplete final on iter=#{i}; continuing autonomously"
-                debug_progress(msg: "bounce incomplete_final snippet=#{debug_snippet(text: text)}")
-                messages << {
-                  role: 'user',
-                  content: bounce_incomplete_nudge(text: text)
-                }
-                next
+              verification_outcome = nil
+              if opts[:verification_contract]
+                report = final_verification(request: request, session_id: session_id, contract: opts[:verification_contract].merge(actions: verified_actions, answer: text))
+                verification_outcome = Reward.resolve_outcome(outcome: { score: nil, source: :verification, verification: report })
+                on_tool&.call('verification', {}, JSON.generate(report))
+                unless report[:status].to_s == 'pass'
+                  status = report[:status].to_s == 'fail' ? 'incomplete' : 'verification_error'
+                  runtime&.finish!(status: status, unmet: [report])
+                  return "[pwn-ai] #{status}: explicit request verification did not pass."
+                end
               end
+              # Completion is an evidence decision, never a prose classifier.
               unless may_finalize?(
                 request: request,
                 messages: messages,
                 text: text
               )
                 turn_fails['unsatisfied'] += 1
-                if turn_fails['unsatisfied'] >= 2 && evidence_satisfied?(request: request, messages: messages, text: text)
-                  debug_progress(msg: 'nag cap: evidence_satisfied after 2 bounces')
-                else
-                  unmet = completion_unmet(request: request, messages: messages)
-                  warn "[pwn-ai/loop] original request not evidenced on iter=#{i} unmet=#{unmet.join(',')}; continuing"
-                  debug_progress(msg: "bounce unsatisfied unmet=#{unmet.join(',')} snippet=#{debug_snippet(text: text)}")
-                  missing = unmet.any? { |row| row.to_s.start_with?('deliverable_missing:') }
-                  nudge = if missing
-                            "[pwn-ai] artifact not written; write it now. unmet=#{unmet.join(',')} " \
-                              'Keep calling CORE_TOOLS (shell, pwn_eval) until that path exists and is non-empty.'
-                          else
-                            "[pwn-ai] The original request is not evidenced yet. unmet=#{unmet.join(',')} " \
-                              'Keep calling CORE_TOOLS (shell, pwn_eval) until that request is ' \
-                              'done or a tool returned failure evidence. pwn-ai does not decide ' \
-                              'authorization. Do not declare completion from a listing or a refusal.'
-                          end
-                  messages << {
-                    role: 'user',
-                    content: nudge
-                  }
-                  next
+                unmet = completion_unmet(request: request, messages: messages)
+                if unmet.any? { |row| row.start_with?('verification_error:') }
+                  runtime&.finish!(status: 'verification_error', unmet: unmet)
+                  return "[pwn-ai] verification_error: #{unmet.join(',')}"
                 end
-              end
-              verification_outcome = nil
-              if opts[:verification_contract]
-                report = Reward.run_verification(request: request, session_id: session_id, contract: opts[:verification_contract].merge(actions: verified_actions))
-                verification_outcome = Reward.resolve_outcome(outcome: { score: nil, source: :verification, verification: report })
-                on_tool&.call('verification', {}, JSON.generate(report))
+                if no_tools
+                  runtime&.finish!(status: 'blocked', unmet: unmet + ['no_available_tools'])
+                  return '[pwn-ai] blocked: requested host work is unverified and no tools are available in this request.'
+                end
+                warn "[pwn-ai/loop] original request not evidenced on iter=#{i} unmet=#{unmet.join(',')}; continuing"
+                debug_progress(msg: "bounce unsatisfied unmet=#{unmet.join(',')} snippet=#{debug_snippet(text: text)}")
+                missing = unmet.any? { |row| row.to_s.start_with?('deliverable_missing:') }
+                nudge = if missing
+                          "[pwn-ai] artifact not written; write it now. unmet=#{unmet.join(',')} " \
+                            'Keep calling CORE_TOOLS (shell, pwn_eval) until that path exists and is non-empty.'
+                        else
+                          "[pwn-ai] The original request is not evidenced yet. unmet=#{unmet.join(',')} " \
+                            'Continue remaining work, or report a concrete tool-evidenced blocker. Do not declare completion from unrelated evidence.'
+                        end
+                messages << { role: 'user', content: nudge }
+                next
               end
               steering&.checkpoint(messages: messages, phase: :finished)
+              runtime&.finish!(status: 'complete')
               debug_progress(msg: "final accepted chars=#{text.to_s.length}")
               quiet_debug_tui!(reason: 'final')
               debug_final_text!(text: text)
@@ -3617,7 +3686,7 @@ module PWN
               on_tool: on_tool
             )
 
-            calls.each do |tc|
+            scheduled_tool_calls(runtime: runtime, calls: calls, session_id: session_id, steering: steering, messages: messages).each do |tc, dispatched|
               steering&.checkpoint(messages: messages, phase: :tool)
               name    = tc.dig(:function, :name).to_s
               args    = tc.dig(:function, :arguments)
@@ -3638,11 +3707,10 @@ module PWN
                 raw = if same_n >= 3
                         checkpoint_result(name: name, args: args)
                       else
-                        Dispatch.call(tool_call: tc, session_id: session_id)
+                        dispatch_scheduled(tool_call: tc, session_id: session_id, result: dispatched)
                       end
               end
               tools_called += 1
-              steering_tool_checkpoint!(steering: steering, messages: messages, tool_call: tc, raw: raw, paths: watch_paths, before: before_host, session_id: session_id, on_tool: on_tool)
               note_payload_result!(name: name, args: args, raw: raw)
               if opts[:verification_contract]
                 after_artifacts = Verification.snapshot(opts[:verification_contract])
@@ -3652,8 +3720,12 @@ module PWN
               tele    = record_metrics(name: name, action_id: tc[:id], trusted_context: Policy.current_episode&.dig(:trusted_context) || trusted_context,
                                        started: started, raw: raw, args: args, session_id: session_id, engine: engine, ts_state: ts_state)
               result  = Result.condition(content: raw, entry: entry, session_id: session_id)
-
-              steering_tool_checkpoint!(steering: steering, messages: messages, tool_call: tc, raw: result, paths: watch_paths, before: before_host, session_id: session_id, success: tele[:ok], on_tool: on_tool)
+              observations = TurnFinalizer.observe_artifacts(
+                paths: watch_paths, before: before_host,
+                effect: Dispatch.effect(name: name, args: args), success: tele[:ok] == true,
+                action_id: tc[:id], tool: name
+              )
+              steering_tool_checkpoint!(steering: steering, messages: messages, tool_call: tc, raw: result, observations: observations, session_id: session_id, on_tool: on_tool)
 
               unless tele[:ok]
                 fkey = Digest::SHA256.hexdigest("#{name}|#{args}")[0, 16]
@@ -3686,12 +3758,7 @@ module PWN
                 tool_call_id: tc[:id] || tc['id'] || "call_#{i}",
                 name: name,
                 content: wrap_untrusted_tool(content: result),
-                artifact_observations: TurnFinalizer.observe_artifacts(
-                  paths: watch_paths,
-                  before: before_host,
-                  effect: Dispatch.effect(name: name, args: args),
-                  success: tele[:ok] == true
-                )
+                artifact_observations: observations
               }
               append_session(
                 session_id: session_id,
@@ -3863,6 +3930,10 @@ module PWN
             #{self}.run(
               request: 'required - what the human typed',
               session_id: 'optional - PWN::Sessions id (transcript is appended to it)',
+              runtime: 'optional - request-owned RequestRuntime, including a restored checkpoint',
+              request_id: 'optional - stable request identity for the durable evidence checkpoint',
+              artifact_root: 'optional - private request checkpoint and context-spill directory',
+              on_outcome: 'optional - callback receiving the persisted structured terminal outcome',
               enabled_toolsets: 'optional - subset of Registry.toolsets, or nil for all',
               on_tool: 'optional - ->(name, args, result) callback for live UI',
               system_role_content: 'optional - override default system prompt (built from session_id if not provided)',

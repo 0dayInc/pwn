@@ -5,6 +5,16 @@ require 'json'
 require 'timeout'
 
 describe PWN::AI::MCP::ComboNation do
+  it 'rejects cyclic and overdeep arguments before stack exhaustion' do
+    cycle = []
+    cycle << cycle
+    deep = {}
+    10_000.times { deep = { nested: deep } }
+    [cycle, deep].each do |value|
+      expect { described_class.send(:stringify, value: value) }.to raise_error(JSON::NestingError)
+    end
+  end
+
   def start_fake_server(handler)
     from_client_r, from_client_w = IO.pipe
     to_client_r, to_client_w = IO.pipe

@@ -363,11 +363,14 @@ module PWN
 
       private_class_method def self.stringify(opts = {})
         value = opts[:value]
+        depth = opts.fetch(:depth, 0)
+        raise JSON::NestingError, 'MCP arguments exceed JSON nesting limit (100)' if depth >= 100 && (value.is_a?(Hash) || value.is_a?(Array))
+
         case value
         when Hash
-          value.to_h { |key, child| [key.to_s, stringify(value: child)] }
+          value.to_h { |key, child| [key.to_s, stringify(value: child, depth: depth + 1)] }
         when Array
-          value.map { |child| stringify(value: child) }
+          value.map { |child| stringify(value: child, depth: depth + 1) }
         else
           value
         end

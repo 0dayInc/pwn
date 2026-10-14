@@ -25,7 +25,7 @@ module PWN
       # )
 
       private_class_method def self.gemini_rest_call(opts = {})
-        engine = PWN::Env[:ai][:gemini]
+        engine = PWN::AI::HttpRetry.provider_config(engine: :gemini)
         raise 'ERROR: Gemini Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         token = engine[:key] ||= PWN::Plugins::AuthenticationHelper.mask_password(prompt: 'Google Gemini API Key')
@@ -85,6 +85,8 @@ module PWN
 
           response.body
         rescue RestClient::TooManyRequests => e
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           retry_count += 1
           if retry_count >= max_attempts
             unless opts[:quiet]
@@ -109,8 +111,12 @@ module PWN
           end
           retry if retry_count < max_attempts
 
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           raise "Gemini API Error: #{e.class}: #{e.message}"
         rescue RestClient::ExceptionWithResponse => e
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           raise "Gemini API Error: #{e.message}: #{e.response}"
         rescue StandardError => e
           case e.message
@@ -188,7 +194,7 @@ module PWN
       # )
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine   = PWN::Env[:ai][:gemini]
+        engine   = PWN::AI::HttpRetry.provider_config(engine: :gemini)
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
@@ -389,7 +395,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine  = PWN::Env[:ai][:gemini]
+        engine  = PWN::AI::HttpRetry.provider_config(engine: :gemini)
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 1_000_000
         request = request.to_s[0, ((max_prompt_length - 1) / 3.36).floor]

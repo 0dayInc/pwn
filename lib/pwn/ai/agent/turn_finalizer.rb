@@ -236,10 +236,14 @@ module PWN
           observed = artifact_snapshot(paths: opts[:paths]).select do |path, row|
             row && before.key?(path) && before[path] != row
           end
-          observed.transform_values do |row|
+          observed = observed.transform_values do |row|
             contract = Thread.current[:pwn_artifact_contract]
+            row = row.merge(action_id: opts[:action_id], tool: opts[:tool]) if opts[:action_id]
             contract ? row.merge(artifact_turn_id: contract[:id]) : row
           end
+          runtime = Thread.current[:pwn_request_runtime]
+          runtime.observe!(observations: observed) if runtime && runtime.contract[:id] == Thread.current[:pwn_artifact_contract]&.dig(:id)
+          observed
         end
 
         private_class_method def self.artifact_readback(opts = {})
@@ -261,7 +265,7 @@ module PWN
             { stat: { size: stat.size, ino: stat.ino, dev: stat.dev, mtime: stat.mtime.to_r.to_s, ctime: stat.ctime.to_r.to_s },
               head: head, tail: tail, sha256: digest.hexdigest }
           end
-        rescue StandardError
+        rescue Errno::ENOENT, Errno::ENOTDIR
           nil
         end
 
@@ -288,16 +292,41 @@ module PWN
             current_turn = row && row.dig(:evidence, :artifact_turn_id) == Thread.current[:pwn_artifact_contract]&.dig(:id) && Thread.current[:pwn_artifact_contract]
             unmet << { criterion: 'artifact_mtime_before_session', detail: path } if t0 && File.mtime(path) < t0 && !current_turn
           end
+          unmet.concat(literal_content_unmet(request: request, ledger: ledger, paths: paths))
+          complete = unmet.empty? && (!paths.empty? || ledger.any?)
           {
-            complete: unmet.empty? && (!paths.empty? || ledger.any?),
+            status: complete ? 'complete' : 'incomplete',
+            complete: complete,
             unmet: unmet,
             ledger: ledger
           }
+        rescue StandardError => e
+          { status: 'verification_error', complete: false, unmet: [{ criterion: 'verification_error', detail: "#{e.class}: #{e.message}" }], ledger: {} }
+        end
+
+        # Deliberately narrow, deterministic literal grammar, not a semantic
+        # judge. The expected digest comes from the request, never tool prose.
+        private_class_method def self.literal_content_unmet(opts = {})
+          request = opts[:request].to_s
+          paths = opts[:paths]
+          ledger = opts[:ledger]
+          request.scan(/(?:"([^"\n]+)"|`([^`\n]+)`|([^\s]+))\s+containing exactly\s+([^\n]+?)\s+followed by (?:a )?newline/i).filter_map do |quoted, ticked, bare, literal|
+            path = File.expand_path(quoted || ticked || bare, Thread.current[:pwn_artifact_contract]&.dig(:cwd) || Dir.pwd)
+            next unless paths.include?(path)
+
+            expected = Digest::SHA256.hexdigest("#{literal}\n")
+            next if ledger.dig(path, :evidence, :sha256) == expected
+
+            { criterion: 'artifact_content_mismatch', detail: path }
+          end
         end
 
         public_class_method def self.evidence_ledger(opts = {})
           ledger = {}
-          Array(opts[:messages]).each do |msg|
+          runtime = Thread.current[:pwn_request_runtime]
+          messages = Array(opts[:messages])
+          messages += [{ role: 'tool', artifact_observations: runtime.observations }] if runtime
+          messages.each do |msg|
             next unless msg.is_a?(Hash) && msg[:role].to_s == 'tool'
 
             next unless msg[:artifact_observations].is_a?(Hash)
@@ -309,7 +338,7 @@ module PWN
               next if contract && observed[:artifact_turn_id] != contract[:id]
 
               current = artifact_readback(path: path)
-              readback = observed.except(:artifact_turn_id)
+              readback = observed.except(:artifact_turn_id, :action_id, :tool, :child_request_id, :child_turn_id, :child_provenance)
               next unless current && current == readback
 
               ledger[path] = { write: true, read: true, evidence: observed }
@@ -386,7 +415,9 @@ module PWN
             # Keep this result in internal tool-message artifact_observations.
             #{self}.observe_artifacts(
               paths: 'required - destination paths', before: 'required - artifact_snapshot result',
-              effect: 'required - actual Dispatch effect', success: 'required - semantic tool success boolean'
+              effect: 'required - actual Dispatch effect', success: 'required - semantic tool success boolean',
+              action_id: 'optional - dispatcher tool call identifier for revision provenance',
+              tool: 'optional - dispatcher tool name for revision provenance'
             )
 
             # Arbitrate a completion claim against the turn evidence ledger.

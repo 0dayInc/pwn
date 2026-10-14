@@ -3,6 +3,16 @@
 require 'spec_helper'
 
 describe PWN::AI::Anthropic do
+  it 'rejects cyclic and overdeep wire schema copies before stack exhaustion' do
+    cycle = {}
+    cycle[:properties] = cycle
+    deep = {}
+    10_000.times { deep = { properties: deep } }
+    [cycle, deep].each do |schema|
+      expect { described_class.send(:anthropic_input_schema, schema: schema) }.to raise_error(JSON::NestingError)
+    end
+  end
+
   it 'should display information for authors' do
     authors_response = PWN::AI::Anthropic
     expect(authors_response).to respond_to :authors

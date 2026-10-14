@@ -36,6 +36,7 @@ PWN::AI::Agent::Dispatch.call(opts)
 - `call`
 - `repair_name`
 - `tool_calls_from_text`
+- `scheduling`
 - `effect`
 - `authors`
 - `help`

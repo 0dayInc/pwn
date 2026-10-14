@@ -2,6 +2,7 @@
 
 require 'open3'
 require 'timeout'
+require 'shellwords'
 require 'pwn/ai/agent/registry'
 require 'pwn/ai/agent/tool_guard'
 
@@ -52,6 +53,12 @@ PWN::AI::Agent::Registry.register(
     return PWN::AI::Agent::ToolGuard.invalid_payload(rule_id: 'payload.required', hint: args[:__schema_hint]) if args[:__schema_error]
 
     cmd = args[:command].to_s
+    # Request-local cwd for isolated Solve writers; never chdir the shared REPL.
+    if Thread.current[:pwn_solve_workspace]
+      return { error: 'solve does not permit detached writer jobs', exit: nil } if args[:background] == true
+
+      cmd = "cd #{Shellwords.escape(Thread.current[:pwn_solve_workspace])} && (\n#{cmd}\n)"
+    end
     placeholder = PWN::AI::Agent::ToolGuard.placeholder_match(text: cmd, placeholder_ok: args[:placeholder_ok] || args['placeholder_ok'])
     if placeholder
       return PWN::AI::Agent::ToolGuard.invalid_payload(
@@ -118,6 +125,10 @@ PWN::AI::Agent::Registry.register(
         Timeout.timeout(timeout) do
           # Wait for the child; readers drain pipes concurrently.
           wait_thr.value
+          # Descendants can retain these pipes after the shell has exited.
+          # Their drain belongs to the same deadline, not an unbounded join.
+          out_reader.value
+          err_reader.value
         end
       rescue Timeout::Error
         timed_out = true
@@ -183,6 +194,18 @@ PWN::AI::Agent::Registry.register(
       unless timed_out
         status = wait_thr.value
         exitstatus = status&.exitstatus
+      end
+    ensure
+      # A coordinator cancellation/deadline is not necessarily Timeout::Error.
+      # Reap our process group before Open3's ensure waits for the child.
+      begin
+        Process.kill('KILL', -wait_thr.pid) if wait_thr&.alive? || out_reader&.alive? || err_reader&.alive?
+      rescue Errno::ESRCH, Errno::EPERM
+        nil
+      end
+      [out_reader, err_reader].compact.each do |reader|
+        reader.kill if reader.alive?
+        reader.join(0.2)
       end
     end
 

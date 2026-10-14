@@ -20,6 +20,10 @@ module PWN
           options.on('--execute PATH', 'Run an approved YAML task DAG') { |v| result[:execute] = v }
           options.on('--resume RUN_ID', 'Resume a checkpointed DAG run, skipping completed steps') { |v| result[:resume] = v }
           options.on('--mission ID', 'Bind this plan or run to a durable mission') { |v| result[:mission] = v }
+          options.on('--resume-session ID', 'Continue the exact unfinished request in an existing session') { |v| result[:resume_session] = v }
+          options.on('--replace-session ID', 'Start a new objective in an existing session; preserves old checkpoint') { |v| result[:replace_session] = v }
+          options.on('--verification-contract PATH', 'Host-authored JSON verification contract for a new request') { |v| result[:verification_contract] = v }
+          options.on('--approve-replacement', 'Explicitly approve replacement objective and contract') { result[:approve_replacement] = true }
           options.on('--policy ACTION', %w[evaluate promote rollback], 'Offline policy: evaluate, promote, rollback (no AI session)') { |v| result[:policy] = v }
           options.on('--baseline PATH', 'Frozen baseline policy JSON') { |v| result[:baseline] = v }
           options.on('--candidate PATH', 'Frozen candidate policy JSON') { |v| result[:candidate] = v }
@@ -40,6 +44,7 @@ module PWN
         raise OptionParser::InvalidArgument, '--plan-only requires --ai' if result[:plan_only] && !result[:ai]
 
         validate_policy_options(parsed: result)
+        validate_request_options(parsed: result)
 
         result[:help_text] = parser.to_s
         result
@@ -94,22 +99,61 @@ module PWN
         end
 
         PWN::Config.refresh_env(**parsed.slice(:pwn_env_path, :pwn_dec_path))
-        session = PWN::Sessions.create(source: 'pwn-ai-cli', active: true)
+        session = request_session(parsed: parsed)
         if parsed[:analyze]
           report = PWN::AI::Context.ingest(path: parsed[:analyze], session_id: session[:id], format: 'binary')
           (opts[:error] || $stderr).puts(JSON.generate(report))
         end
-        if parsed[:ai]
-          prompt = parsed[:ai] == '-' ? (opts[:input] || $stdin).read : parsed[:ai]
+        if parsed[:ai] || parsed[:resume_session]
+          prompt = parsed[:resume_session] ? 'continue' : parsed[:ai]
+          prompt = (opts[:input] || $stdin).read if prompt == '-'
           raise ArgumentError, '--ai requires a non-empty prompt' if prompt.strip.empty?
 
-          output.puts(PWN::AI::Agent::Loop.run(request: prompt, session_id: session[:id], enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets)))
+          outcome = nil
+          contract = JSON.parse(File.read(parsed[:verification_contract]), symbolize_names: true) if parsed[:verification_contract]
+          output.puts(PWN::AI::Agent::Loop.run(request: prompt, session_id: session[:id], enabled_toolsets: PWN::Env.dig(:ai, :agent, :toolsets),
+                                               verification_contract: contract,
+                                               require_resumable: parsed.key?(:resume_session),
+                                               on_outcome: ->(row) { outcome = row }))
+          return outcome && outcome[:status] == 'complete' ? 0 : 1
         else
           PWN::Plugins::REPL.start(ai_session_id: session[:id], ai_session_lease: session[:lease])
         end
         0
       ensure
         PWN::Sessions.deactivate(lease: session[:lease]) if session
+      end
+
+      private_class_method def self.validate_request_options(opts = {})
+        parsed = opts[:parsed]
+        selected = parsed[:resume_session] || parsed[:replace_session]
+        if selected
+          raise OptionParser::InvalidArgument, 'session selection cannot accompany another action' if %i[analyze replay rerun plan_only execute resume policy].any? { |key| parsed[key] } || (parsed[:resume_session] && parsed[:replace_session])
+          raise OptionParser::InvalidArgument, '--resume-session preserves its objective and contract; no --ai or --verification-contract' if parsed[:resume_session] && (parsed[:ai] || parsed[:verification_contract])
+        end
+        if parsed[:replace_session]
+          raise OptionParser::InvalidArgument, '--replace-session requires --ai, --verification-contract and --approve-replacement' unless parsed[:ai] && parsed[:verification_contract] && parsed[:approve_replacement]
+          raise OptionParser::InvalidArgument, 'replacement must be a new objective, not continue' if parsed[:ai].match?(PWN::AI::Agent::OpenGoal::CONTINUE_RX)
+        elsif parsed[:approve_replacement]
+          raise OptionParser::InvalidArgument, '--approve-replacement requires --replace-session'
+        end
+        return unless parsed[:verification_contract]
+
+        raise OptionParser::InvalidArgument, '--verification-contract requires a one-shot --ai request' if !parsed[:ai] || %i[plan_only execute resume replay rerun policy].any? { |key| parsed[key] }
+      end
+
+      private_class_method def self.request_session(opts = {})
+        parsed = opts[:parsed]
+        sid = parsed[:resume_session] || parsed[:replace_session]
+        return PWN::Sessions.create(source: 'pwn-ai-cli', active: true) unless sid
+
+        lease = PWN::Sessions.activate(session_id: sid)
+        raise ArgumentError, "No unfinished request for session #{sid}" unless PWN::AI::Agent::OpenGoal.for_session(session_id: sid)
+
+        { id: sid, lease: lease }
+      rescue Exception # rubocop:disable Lint/RescueException -- do not leak selection lease on interrupt
+        PWN::Sessions.deactivate(lease: lease)
+        raise
       end
 
       private_class_method def self.validate_policy_options(opts = {})

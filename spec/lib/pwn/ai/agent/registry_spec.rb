@@ -4,6 +4,16 @@ require 'spec_helper'
 require 'tmpdir'
 
 describe PWN::AI::Agent::Registry do
+  it 'rejects cyclic and overdeep provider schema branches before stack exhaustion' do
+    cycle = { type: 'object' }
+    cycle[:anyOf] = [cycle]
+    deep = { required: ['value'] }
+    10_000.times { deep = { allOf: [deep] } }
+    [cycle, deep].each do |schema|
+      expect { described_class.send(:explicit_root_types, schema: schema) }.to raise_error(JSON::NestingError)
+    end
+  end
+
   it 'should display information for authors' do
     authors_response = PWN::AI::Agent::Registry
     expect(authors_response).to respond_to :authors

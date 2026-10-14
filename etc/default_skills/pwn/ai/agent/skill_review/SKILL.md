@@ -36,6 +36,8 @@ PWN::AI::Agent::SkillReview.review(opts)
 - `review`
 - `review_turn`
 - `note_reuse`
+- `decide`
+- `evidence_transcript`
 - `authors`
 - `help`
 

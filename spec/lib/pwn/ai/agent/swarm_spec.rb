@@ -3,6 +3,25 @@
 require 'spec_helper'
 require 'tmpdir'
 
+RSpec.describe 'Swarm serialization nesting' do
+  it 'rejects deep and cyclic values with a bounded JSON error and preserves symbols and shared branches' do
+    cycle = {}
+    cycle[:self] = cycle
+    deep = :leaf
+    10_000.times { deep = [deep] }
+    [cycle, deep].each do |value|
+      expect { PWN::AI::Agent::Swarm.send(:deep_stringify, hash: value) }.to raise_error(JSON::NestingError, /nesting limit/)
+    end
+    shared = { role: :reviewer }
+    expect(PWN::AI::Agent::Swarm.send(:deep_stringify, hash: [shared, shared])).to eq([{ 'role' => 'reviewer' }] * 2)
+    expect(shared).to eq(role: :reviewer)
+    boundary = :leaf
+    100.times { boundary = [boundary] }
+    expect(JSON.generate(PWN::AI::Agent::Swarm.send(:deep_stringify, hash: boundary))).to eq(JSON.generate(boundary))
+    expect { PWN::AI::Agent::Swarm.send(:deep_stringify, hash: [boundary]) }.to raise_error(JSON::NestingError)
+  end
+end
+
 describe PWN::AI::Agent::Swarm do
   before do
     @swarm_home = Dir.mktmpdir('pwn-swarm-spec')

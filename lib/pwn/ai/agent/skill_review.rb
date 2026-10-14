@@ -37,7 +37,10 @@ module PWN
             request: request,
             verified: verified,
             reason: target ? 'closest skill matches the procedure' : 'no existing skill matches',
-            path: target && target[:path]
+            path: target && target[:path],
+            procedure: opts[:procedure].slice(:when, :prerequisites, :steps, :verification, :failures),
+            evidence: (opts[:evidence] || {}).slice(:source, :fixture_passed, :sessions, :model_claimed, :learning_id, :learning_sha256),
+            source_sha256: target && File.file?(target[:path].to_s) ? Digest::SHA256.file(target[:path]).hexdigest : nil
           }
           return finish(proposal.merge(action: 'refused', reason: 'generated module skills are not rewritten')) if generated?(name: proposal[:name], path: proposal[:path])
           return finish(proposal) unless mode == 'auto-safe' && auto_safe?(proposal: proposal, procedure: procedure)
@@ -67,6 +70,63 @@ module PWN
           }
           append_ledger(row: row)
           row
+        end
+
+        # Apply an explicit operator decision to an unchanged retained proposal.
+        # Supported Method Parameters::
+        #   PWN::AI::Agent::SkillReview.decide(
+        #     source_sha256: 'required - SHA256 of the retained proposal JSON',
+        #     decision: 'required - approve, reject, or rollback',
+        #     skills_root: 'optional - local skills root; default ~/.pwn/skills'
+        #   )
+        public_class_method def self.decide(opts = {})
+          digest = opts[:source_sha256].to_s
+          decision = opts[:decision].to_s
+          root = File.realpath(opts[:skills_root] || File.join(Dir.home, '.pwn', 'skills'))
+          raise 'unknown decision' unless %w[approve reject rollback].include?(decision)
+          raise 'unsafe proposal ledger' unless File.realpath(LEDGER) == File.expand_path(LEDGER)
+
+          File.open("#{LEDGER}.lock", File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) do |lock|
+            lock.flock(File::LOCK_EX)
+            rows = File.readlines(LEDGER).map { |line| JSON.parse(line, symbolize_names: true) }
+            proposal = rows.find { |row| row[:action] == 'recommend' && Digest::SHA256.hexdigest(JSON.generate(row)) == digest }
+            raise 'proposal source changed or missing' unless proposal
+
+            prior = rows.reverse.find { |row| row[:proposal_sha256] == digest }
+            raise 'roll back the applied proposal before rejecting it' if decision == 'reject' && prior && prior[:decision] == 'approve'
+
+            receipt = { action: 'decision', proposal_sha256: digest, decision: decision, at: Time.now.utc.iso8601 }
+            if decision == 'approve'
+              raise 'proposal already decided; rollback first' if prior && prior[:decision] != 'rollback'
+
+              receipt.merge!(approve_proposal(proposal: proposal, root: root))
+            elsif decision == 'rollback'
+              raise 'no applied proposal to roll back' unless prior && prior[:decision] == 'approve'
+
+              rollback_proposal(receipt: prior, root: root)
+            end
+            File.open(LEDGER, File::WRONLY | File::APPEND | File::NOFOLLOW) do |file|
+              file.puts(JSON.generate(receipt))
+              file.flush
+              file.fsync
+            end
+            raise 'decision readback failed' unless JSON.parse(File.readlines(LEDGER).last, symbolize_names: true) == receipt
+
+            refresh_catalog(path: receipt[:path] || prior&.dig(:path)) unless decision == 'reject'
+            receipt.merge(ok: true)
+          end
+        rescue StandardError => e
+          { ok: false, error: e.message }
+        end
+
+        # Inspect retained independent execution evidence for a proposed procedure.
+        # Supported Method Parameters::
+        #   PWN::AI::Agent::SkillReview.evidence_transcript(
+        #     proposal: 'required - retained skill proposal Hash'
+        #   )
+        public_class_method def self.evidence_transcript(opts = {})
+          proof = independent_proof(evidence: opts[:proposal][:evidence])
+          Learning.evidence_transcript(row: proof)
         end
 
         public_class_method def self.authors
@@ -104,6 +164,16 @@ module PWN
               regressed: 'optional - true when reuse made the task worse'
             )
 
+            # Apply a human decision to the exact retained proposal; unchanged evidence and skill bytes are required.
+            #{self}.decide(
+              source_sha256: 'required - SHA256 of retained proposal JSON',
+              decision: 'required - approve, reject, or rollback',
+              skills_root: 'optional - local skills root; default ~/.pwn/skills'
+            )
+
+            # Inspect the independent execution transcript referenced by a proposal.
+            #{self}.evidence_transcript(proposal: 'required - retained skill proposal Hash')
+
             # Print the module authors.
             #{self}.authors
           "
@@ -115,6 +185,80 @@ module PWN
           mode = raw.to_s
           mode = 'recommend' if mode.empty? || !MODES.include?(mode)
           mode
+        end
+
+        private_class_method def self.approve_proposal(opts = {})
+          proposal = opts[:proposal]
+          independent_proof(evidence: proposal[:evidence])
+
+          procedure = procedure_from(procedure: proposal[:procedure])
+          raise procedure[:reason] unless procedure[:ok]
+          raise 'invalid or generated skill name' unless proposal[:name].to_s.match?(/\A[a-z0-9][a-z0-9_-]*\z/) && !generated?(proposal)
+
+          path = File.join(opts[:root], proposal[:name], 'SKILL.md')
+          raise 'proposal target changed' unless proposal[:kind] == 'update' && File.expand_path(proposal[:path].to_s) == path
+          raise 'unsafe skill target' unless File.realpath(path) == path && File.file?(path)
+
+          original = File.binread(path)
+          raise 'skill source changed' unless Digest::SHA256.hexdigest(original) == proposal[:source_sha256]
+
+          backup = "#{path}.#{proposal[:source_sha256]}.bak"
+          File.open(backup, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) { |file| file.write(original) } unless File.exist?(backup)
+          raise 'backup changed' unless !File.symlink?(backup) && File.binread(backup) == original
+
+          content = "#{original}\n\n## Reviewed procedure\n\n#{procedure[:text]}\n"
+          write_reviewed(path: path, content: content)
+          { path: path, backup: backup, original_sha256: proposal[:source_sha256], applied_sha256: Digest::SHA256.hexdigest(content) }
+        end
+
+        private_class_method def self.refresh_catalog(opts = {})
+          path = opts[:path]
+          return unless defined?(PWN::Skills) && PWN::Skills.is_a?(Hash)
+
+          updated = PWN::Skills.transform_values do |meta|
+            meta.is_a?(Hash) && meta[:path] == path ? meta.merge(content: File.read(path)) : meta
+          end
+          PWN.send(:remove_const, :Skills)
+          PWN.const_set(:Skills, updated.freeze)
+        end
+
+        private_class_method def self.independent_proof(opts = {})
+          evidence = opts[:evidence] || {}
+          rows = File.file?(Learning::LEARNING_FILE) ? File.readlines(Learning::LEARNING_FILE).map { |line| JSON.parse(line, symbolize_names: true) } : []
+          proof = rows.find { |row| row[:id] == evidence[:learning_id] && Digest::SHA256.hexdigest(JSON.generate(row)) == evidence[:learning_sha256] }
+          verification = proof && proof[:verification]
+          raise 'independent execution evidence is required' unless proof && !%w[conflicted disputed unverified].include?(proof[:status]) && verification && verification[:runner_version] == 1 && verification[:status].to_s == 'pass' && verification.dig(:attribution, :source) == 'independent_verifier' && !Array(verification[:checks]).empty? && verification[:checks].all? { |row| row[:passed] == true }
+
+          transcript = Learning.evidence_transcript(row: proof)
+          raise 'independent retained tool observations are required' unless transcript.any? { |row| row[:role].to_s == 'tool' } && transcript.any? { |row| row[:role].to_s == 'observation' }
+
+          proof
+        end
+
+        private_class_method def self.rollback_proposal(opts = {})
+          receipt = opts[:receipt]
+          path = receipt[:path]
+          backup = receipt[:backup]
+          raise 'unsafe rollback target' unless path.start_with?("#{opts[:root]}/") && File.realpath(path) == path && File.realpath(backup) == backup
+          raise 'skill changed after approval; manual recovery required' unless Digest::SHA256.file(path).hexdigest == receipt[:applied_sha256]
+          raise 'backup changed' unless Digest::SHA256.file(backup).hexdigest == receipt[:original_sha256]
+
+          write_reviewed(path: path, content: File.binread(backup))
+        end
+
+        private_class_method def self.write_reviewed(opts = {})
+          path = opts[:path]
+          content = opts[:content]
+          temporary = "#{path}.review-#{Process.pid}.tmp"
+          File.open(temporary, File::WRONLY | File::CREAT | File::EXCL | File::NOFOLLOW, 0o600) do |file|
+            file.write(content)
+            file.flush
+            file.fsync
+          end
+          File.rename(temporary, path)
+          raise 'skill readback failed' unless File.binread(path) == content
+        ensure
+          File.unlink(temporary) if temporary && File.exist?(temporary)
         end
 
         private_class_method def self.useful?(opts = {})
@@ -147,7 +291,10 @@ module PWN
 
         private_class_method def self.verified_execution?(opts = {})
           evidence = opts[:evidence].is_a?(Hash) ? opts[:evidence] : {}
+          independent_proof(evidence: evidence)
           evidence[:source].to_s == 'execution' && evidence[:fixture_passed] == true && Array(evidence[:sessions]).map(&:to_s).uniq.length >= 3 && evidence[:model_claimed] != true
+        rescue StandardError
+          false
         end
 
         private_class_method def self.locate(opts = {})

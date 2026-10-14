@@ -1,0 +1,12 @@
+{
+  "schema": "pwn-frozen-experiments-v1",
+  "seed": 104729,
+  "provenance": "Public synthetic infrastructure regression. Splits have independently authored tasks and literal gold; no private holdout or model-quality claim. Caller-supplied locked manifests can replace this corpus.",
+  "arms": ["single-cold", "single-snapshot", "single-policy", "swarm-snapshot"],
+  "budget": {"wall_seconds": 35, "max_iterations": 12},
+  "tasks": [
+    {"id": "train-record-count", "split": "train", "input": "apple\npear\napple\n", "prompt": "Count nonempty lines in input.txt, write the count followed by newline to result.txt, and read it back.", "command": "ruby -e 'File.write(\"result.txt\", File.readlines(\"input.txt\").reject { |s| s.strip.empty? }.length.to_s + \"\\n\")'"},
+    {"id": "validation-order", "split": "validation", "input": "zed\nann\nzed\nbo\n", "prompt": "Sort and deduplicate lines in input.txt. Write one name per line to result.txt and read it back.", "command": "ruby -e 'File.write(\"result.txt\", File.readlines(\"input.txt\").uniq.sort.join)'"},
+    {"id": "heldout-filtered-total", "split": "heldout", "input": "[{\"n\":2,\"include\":true},{\"n\":7,\"include\":false},{\"n\":4,\"include\":true}]\n", "prompt": "Parse the JSON array in input.txt. Sum n only for objects whose include is true. Write the integer followed by newline to result.txt and read it back.", "command": "ruby -rjson -e 'rows = JSON.parse(File.read(\"input.txt\")); File.write(\"result.txt\", rows.select { |r| r[\"include\"] == true }.sum { |r| r.fetch(\"n\") }.to_s + \"\\n\")'"}
+  ]
+}

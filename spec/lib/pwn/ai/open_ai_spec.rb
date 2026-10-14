@@ -5,6 +5,19 @@ require 'tmpdir'
 require 'rest-client'
 
 describe PWN::AI::OpenAI do
+  it 'preserves explicit and configured zero temperature on the actual nonreasoning wire' do
+    stub_const('PWN::Env', { ai: { openai: { model: 'gpt-4o', temp: 0, key: 'fixture' } } })
+    payloads = []
+    allow(RestClient::Request).to receive(:execute) do |args|
+      payloads << JSON.parse(args[:payload], symbolize_names: true)
+      { choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }.to_json
+    end
+    described_class.chat_with_tools(messages: [{ role: 'user', content: 'fixture' }], tools: [], temp: 0)
+    described_class.chat_with_tools(messages: [{ role: 'user', content: 'fixture' }], tools: [])
+    expect(payloads.size).to eq(2)
+    expect(payloads.map { |row| row[:temperature] }).to eq([0.0, 0.0])
+  end
+
   describe 'OAuth enrollment persistence' do
     before do
       @oauth_home = Dir.mktmpdir('pwn-openai-oauth')

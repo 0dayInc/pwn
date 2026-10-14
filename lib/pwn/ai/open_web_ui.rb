@@ -41,7 +41,7 @@ module PWN
       # )
 
       private_class_method def self.openwebui_rest_call(opts = {})
-        engine = PWN::Env[:ai][:openwebui]
+        engine = PWN::AI::HttpRetry.provider_config(engine: :openwebui)
         raise 'ERROR: Open WebUI engine hash not found in PWN::Env[:ai][:openwebui]. Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         base_uri = engine[:base_uri].to_s.strip
@@ -223,9 +223,13 @@ module PWN
           end
           retry if retry_count < max_attempts
 
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           nil
         end
       rescue RestClient::ExceptionWithResponse => e
+        raise e if Thread.current[:pwn_provider_attempt_owner]
+
         # Never return nil here — chat_with_tools used to `return nil if response.nil?`
         # which made the agent loop print "[pwn-ai] engine returned no message"
         # with no actionable error. Raise so the caller / REPL surfaces the body.
@@ -627,7 +631,7 @@ module PWN
       # Bare POST /api/chat is not an API route on stock Open WebUI (405).
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine = PWN::Env[:ai][:openwebui]
+        engine = PWN::AI::HttpRetry.provider_config(engine: :openwebui)
         model = opts[:model] ||= engine[:model]
         raise 'ERROR: Model is required.  Call #get_models method for details' unless real_config_value?(value: model)
 
@@ -705,7 +709,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine = PWN::Env[:ai][:openwebui]
+        engine = PWN::AI::HttpRetry.provider_config(engine: :openwebui)
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 1_000_000
         request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor

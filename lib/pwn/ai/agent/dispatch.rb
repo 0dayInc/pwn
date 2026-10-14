@@ -51,6 +51,9 @@ module PWN
           entry = Registry.lookup(name: name) || Registry.lookup(name: repair_name(name: name))
           return JSON.generate(error: "unknown tool: #{name}") unless entry
 
+          owner = Thread.current[:pwn_request_runtime]
+          return JSON.generate(success: false, error: 'request_tool_permission_denied') if owner && !owner.tool_allowed?(name: entry.name, toolset: entry.toolset)
+
           solve_tools = Thread.current[:pwn_solve_tools]
           return JSON.generate(success: false, error: 'Tool denied by solve role capability boundary') if solve_tools && !solve_tools.include?(entry.name.to_s)
 
@@ -123,7 +126,12 @@ module PWN
 
           started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           begin
-            result = entry.handler.call(args)
+            runtime = Thread.current[:pwn_request_runtime]
+            result = if runtime
+                       runtime.execute_tool(name: entry.name, args: args, effect: effect(name: entry.name, args: args), action_id: tool_call[:id] || tool_call['id']) { entry.handler.call(args) }
+                     else
+                       entry.handler.call(args)
+                     end
           rescue StandardError => e
             finish_budget(budget: budget, result: { error: e.is_a?(Timeout::Error) ? 'timeout' : e.class.name }, elapsed: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
             raise
@@ -138,6 +146,7 @@ module PWN
             result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(result)))
           end
           response = { success: true, result: result, effect: effect(name: entry.name, args: args) }
+          response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false)
           response[:budget] = telemetry if telemetry
           if telemetry && telemetry[:remaining_s].zero?
             response[:success] = false
@@ -207,6 +216,8 @@ module PWN
         private_class_method def self.prepare_budget(opts = {})
           entry = opts[:entry]
           args = opts[:args]
+          return nil if Thread.current[:pwn_request_runtime] && args.key?(:timeout)
+
           if entry.name == 'shell' && (args[:background] == true || (!args.key?(:timeout) && ToolGuard.auto_job?(payload: args[:command].to_s)))
             args[:background] = true
             return nil
@@ -299,15 +310,18 @@ module PWN
 
         private_class_method def self.drop_required(opts = {})
           node = opts[:node]
+          depth = opts.fetch(:depth, 0)
+          raise JSON::NestingError, 'tool schema exceeds JSON nesting limit (100)' if depth >= 100 && (node.is_a?(Hash) || node.is_a?(Array))
+
           case node
           when Hash
             node.each_with_object({}) do |(key, value), acc|
               next if key.to_s == 'required'
 
-              acc[key] = drop_required(node: value)
+              acc[key] = drop_required(node: value, depth: depth + 1)
             end
           when Array
-            node.map { |value| drop_required(node: value) }
+            node.map { |value| drop_required(node: value, depth: depth + 1) }
           else
             node
           end
@@ -514,9 +528,34 @@ module PWN
           learning_note_outcome skill_create skill_add_reference skills_update
         ].freeze
 
+        # Audited local reads only. Resource conflicts deliberately serialize
+        # even two reads of one handle, and every other tool is a barrier.
+        PARALLEL_READS = %w[artifact_read artifact_grep artifacts_get artifact_get job_tail].freeze
+
+        # Supported Method Parameters::
+        # metadata = PWN::AI::Agent::Dispatch.scheduling(
+        #   tool_call: 'required - tool call whose audited read resources are resolved'
+        # )
+        public_class_method def self.scheduling(opts = {})
+          call = opts[:tool_call]
+          name = call.dig(:function, :name).to_s
+          args = call.dig(:function, :arguments)
+          args = JSON.parse(args) if args.is_a?(String)
+          args = args.transform_keys(&:to_s)
+          resource = args['id'] if name == 'job_tail'
+          if PARALLEL_READS.include?(name) && name != 'job_tail'
+            handle = args['handle'] || args['sha256']
+            path = handle ? PWN::Plugins::ArtifactRegistry.resolve(handle: handle)[:path] : args['path'] || args['ref']
+            resource = File.realpath(path) if path
+          end
+          { exclusive: !PARALLEL_READS.include?(name) || resource.to_s.empty?, resources: ["handle:#{resource}"] }
+        rescue JSON::ParserError, NoMethodError, ArgumentError, SystemCallError
+          { exclusive: true, resources: ['*'] }
+        end
+
         public_class_method def self.effect(opts = {})
           name = opts[:name].to_s
-          return :read if name.empty?
+          return :read if PARALLEL_READS.include?(name)
           return :recall if RECALL_TOOLS.include?(name)
           return :store if STORE_TOOLS.include?(name)
 
@@ -525,9 +564,9 @@ module PWN
           return :browse if blob.match?(BROWSE_ARGV_RX)
           return :eval if name == 'pwn_eval'
 
-          :read
+          :exclusive
         rescue StandardError
-          :read
+          :exclusive
         end
 
         private_class_method def self.argv_blob(opts = {})
@@ -630,6 +669,11 @@ module PWN
             #{self}.tool_calls_from_text(
               text: 'required - assistant plain-text that may embed shell(...) / JSON tool forms',
               call: 'optional - shell{command: uname -s} / tool:shell{command:id}'
+            )
+
+            # Resolve audited read resources; unknown tools are exclusive barriers.
+            #{self}.scheduling(
+              tool_call: 'required - tool call with function name and arguments'
             )
 
             # Run effect and return its result
