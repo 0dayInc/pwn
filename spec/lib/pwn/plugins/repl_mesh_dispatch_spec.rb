@@ -16,6 +16,7 @@ describe PWN::Plugins::REPL, 'mesh dispatch encryption' do
   end
 
   before do
+    allow(described_class).to receive(:mesh_ai_session).and_return(id: '20260101_000000_aabbccdd', lease: nil)
     PWN::Env[:plugins] ||= {}
     @prev_mesh = PWN::Env[:plugins][:meshtastic]
     @prev_ai = PWN::Env[:ai]
@@ -65,6 +66,7 @@ describe PWN::Plugins::REPL, 'mesh dispatch encryption' do
   end
 
   it 'dispatches pwn-ai for DMs that reside on an encrypted whitelisted channel when the text starts with @ai' do
+    mesh_env[:transport] = 'serial'
     allow(PWN::AI::Agent::Loop).to receive(:run).and_return('ai dm reply')
     allow(described_class).to receive(:mesh_send_text)
     allow(Thread).to receive(:new).and_yield

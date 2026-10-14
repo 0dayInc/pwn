@@ -3,8 +3,9 @@
 require 'spec_helper'
 require 'open3'
 require 'tmpdir'
-require_relative '../../scripts/harness/evaluate'
-require_relative '../../scripts/harness/experiments'
+require_relative '../support/harness/evaluate'
+require_relative '../support/harness/experiments'
+require_relative '../support/harness/cli_faults'
 
 RSpec.describe 'offline harness evaluation' do
   it 'refuses unknown or unequal comparison identities before launching anything' do
@@ -39,13 +40,7 @@ RSpec.describe 'offline harness evaluation' do
 
   it 'runs real CLI/Loop/tool effects and independently rejects a lying artifact claim' do
     Dir.mktmpdir('pwn-harness-spec-', '/tmp') do |root|
-      stdout, stderr, status = Open3.capture3(
-        { 'HOME' => root, 'LANG' => 'C.UTF-8', 'GEM_HOME' => Gem.dir, 'GEM_PATH' => Gem.path.join(File::PATH_SEPARATOR) },
-        RbConfig.ruby, File.join(HarnessEvaluation::ROOT, 'scripts/harness/evaluate.rb'), root,
-        unsetenv_others: true
-      )
-      expect(status.success?).to be(true), stderr
-      report = JSON.parse(stdout)
+      report = JSON.parse(JSON.generate(HarnessEvaluation.run(output: root)))
       results = report.fetch('results').to_h { |row| [row.fetch('task'), row] }
       expect(results.keys.sort).to eq(%w[artifact-lie coding exact-file security-toy structured timeout-replay])
       %w[coding exact-file security-toy structured].each do |name|
@@ -61,6 +56,13 @@ RSpec.describe 'offline harness evaluation' do
       expect(report.fetch('swarm_acceptance').fetch('results').drop(1)).to all(include('exit_status' => 1))
       expect(report.fetch('session_acceptance').fetch('results')).to all(include('outcome' => 'PASS', 'identity_preserved' => true))
       expect(report.fetch('model_comparison')['outcome']).to eq('NOT_RUN')
+      results.each_value do |row|
+        expect(row).to include('outcome' => row.fetch('expected_outcome'), 'false_success' => false, 'repeated_effects' => 0)
+      end
+      expect(report.fetch('runtime_fault_process')).to include('exit_status' => 0, 'resource_cap' => false)
+      expect(report.fetch('experiments')).to include('snapshot_unchanged' => true, 'input_manifests_unchanged' => true)
+      expect(report.fetch('experiments').fetch('results')).to all(include('outcome' => 'PASS', 'inputs_unchanged' => true, 'false_success' => false, 'repeated_effects' => 0))
+      expect(report.fetch('cli_faults').fetch('results')).to all(include('outcome' => 'PASS'))
       expect(report.fetch('runtime_faults').fetch('results').map { |row| row.fetch('outcome') }).to eq(%w[PASS PASS PASS PASS])
       expect(results.values).to all(include('tokens' => nil, 'cost' => nil))
     ensure
@@ -89,12 +91,7 @@ RSpec.describe 'offline harness evaluation' do
 
   it 'executes fault stimuli through the actual CLI, Loop, persisted runtime and shell' do
     Dir.mktmpdir('pwn-cli-faults-', '/tmp') do |root|
-      stdout, stderr, status = Open3.capture3(
-        { 'HOME' => root, 'PATH' => '/usr/bin:/bin', 'GEM_HOME' => Gem.dir, 'GEM_PATH' => Gem.path.join(File::PATH_SEPARATOR) },
-        RbConfig.ruby, File.join(HarnessEvaluation::ROOT, 'scripts/harness/cli_faults.rb'), root, unsetenv_others: true
-      )
-      expect(status.success?).to be(true), "#{stderr}\n#{stdout}"
-      report = JSON.parse(stdout)
+      report = JSON.parse(JSON.generate(HarnessCLIFaults.run(output: root)))
       expect(report.fetch('results').map { |row| row.fetch('id') }).to eq(%w[compaction-steering provider-retry cancel-during-provider checkpoint-restart resource-cap-restart])
       expect(report.fetch('results')).to all(include('outcome' => 'PASS', 'tokens' => nil, 'cost' => nil))
       expect(report.fetch('model_quality')).to eq('NOT_RUN')
@@ -103,12 +100,7 @@ RSpec.describe 'offline harness evaluation' do
 
   it 'runs independently frozen split tasks through real single, swarm and learning snapshot paths' do
     Dir.mktmpdir('pwn-heldout-', '/tmp') do |root|
-      stdout, stderr, status = Open3.capture3(
-        { 'HOME' => root, 'PATH' => '/usr/bin:/bin', 'GEM_HOME' => Gem.dir, 'GEM_PATH' => Gem.path.join(File::PATH_SEPARATOR) },
-        RbConfig.ruby, File.join(HarnessEvaluation::ROOT, 'scripts/harness/experiments.rb'), root, unsetenv_others: true
-      )
-      expect(status.success?).to be(true), "#{stderr}\n#{stdout}"
-      report = JSON.parse(stdout)
+      report = JSON.parse(JSON.generate(HarnessExperiments.run(output: root)))
       expect(report.fetch('model_quality')).to eq('NOT_RUN')
       expect(report.fetch('results').length).to eq(8)
       expect(report.fetch('results')).to all(include('outcome' => 'PASS', 'inputs_unchanged' => true, 'tokens' => nil, 'cost' => nil))
@@ -121,7 +113,7 @@ RSpec.describe 'offline harness evaluation' do
   end
 
   it 'requires explicit live approval before importing the reference agent or reading credentials' do
-    stdout, stderr, status = Open3.capture3('python3', File.join(HarnessEvaluation::ROOT, 'scripts/harness/reference_adapter.py'))
+    stdout, stderr, status = Open3.capture3('python3', File.join(HarnessEvaluation::ROOT, 'spec/support/harness/reference_adapter.py'))
     expect(status.success?).to be(false)
     expect(stdout).to eq('')
     expect(stderr).to include('explicit --approve-live required')
@@ -130,7 +122,7 @@ RSpec.describe 'offline harness evaluation' do
   it 'rejects manifest drift and cross-split input leakage before provider execution' do
     Dir.mktmpdir do |root|
       path = File.join(root, 'tasks.json')
-      manifest = JSON.parse(File.read(File.join(HarnessEvaluation::ROOT, 'scripts/harness/experiment_tasks.json')))
+      manifest = JSON.parse(File.read(File.join(HarnessEvaluation::ROOT, 'spec/fixtures/harness/experiment_tasks.json')))
       manifest['tasks'].last['input'] = manifest['tasks'].first['input']
       File.write(path, JSON.generate(manifest))
       File.write("#{path}.sha256", Digest::SHA256.file(path).hexdigest)
@@ -144,7 +136,7 @@ RSpec.describe 'offline harness evaluation' do
   it 'forwards same-model settings to the inspected reference API without importing or invoking it' do
     code = <<~PYTHON
       import runpy
-      api = runpy.run_path(#{File.join(HarnessEvaluation::ROOT, 'scripts/harness/reference_adapter.py').inspect})
+      api = runpy.run_path(#{File.join(HarnessEvaluation::ROOT, 'spec/support/harness/reference_adapter.py').inspect})
       config = dict(provider='fixture', model='fixture-v1', revision='immutable', endpoint='offline', reasoning={'effort':'none'},
                     temperature=0, max_iterations=6, max_tokens=1024, wall_seconds=30, tool_capabilities=['local_shell'],
                     network=False, api_mode='chat_completions', toolsets=['terminal'])
@@ -172,7 +164,7 @@ RSpec.describe 'offline harness evaluation' do
 
   it 'pins separately authored fixture and adapter bytes' do
     %w[manifest adapters experiment_tasks experiment_gold live_comparison].each do |name|
-      path = File.join(HarnessEvaluation::ROOT, "scripts/harness/#{name}.json")
+      path = File.join(HarnessEvaluation::ROOT, "spec/fixtures/harness/#{name}.json")
       expect(Digest::SHA256.file(path).hexdigest).to eq(File.read("#{path}.sha256").strip)
     end
   end

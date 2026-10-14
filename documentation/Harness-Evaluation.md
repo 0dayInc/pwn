@@ -24,14 +24,19 @@ replaying a side effect. No automatic deployment or recovery mutation occurs.
 ## Offline acceptance (no credentials or provider calls)
 
 ```sh
-ruby scripts/harness/evaluate.rb /tmp/pwn-harness-evaluation/offline
-ruby scripts/harness/package_acceptance.rb /tmp/pwn-harness-evaluation/package
-ruby scripts/harness/cli_faults.rb /tmp/pwn-harness-evaluation/faults
-ruby scripts/harness/experiments.rb /tmp/pwn-harness-evaluation/experiments
-ruby scripts/harness/swarm_acceptance.rb /tmp/pwn-harness-evaluation/swarm
-ruby scripts/harness/session_acceptance.rb /tmp/pwn-harness-evaluation/sessions
-bundle exec rspec spec/lib/pwn/runtime_fingerprint_spec.rb spec/integration/harness_evaluation_spec.rb
+HOME=$(mktemp -d /tmp/pwn-rspec-home.XXXXXX) bundle exec rspec \
+  spec/integration/harness_evaluation_spec.rb \
+  spec/integration/harness_package_spec.rb \
+  spec/integration/harness_layout_spec.rb
 ```
+
+RSpec owns acceptance and is included in the default offline `bundle exec rake`
+gate. Callable execution/grading helpers and subprocess-only preloads live in
+`spec/support/harness`; locked JSON manifests, independent gold and SHA-256 files
+live in `spec/fixtures/harness`. Helpers are explicitly required, not recursively
+loaded into the test process: the provider preloads must only run in isolated
+children. There is no separate script-suite CLI. The package example builds and
+executes the installed gem, not a mocked packaging check.
 
 The package lane copies current tracked and nonignored untracked working files
 into a temporary checkout, records every copied SHA-256, builds the actual gem,
@@ -186,7 +191,7 @@ These are local execution results, not live provider scores:
   suite: **423 examples, 0 failures**, exit 0 (`focused-post-package-fix.log`).
 - `HOME=/tmp/pwn-harness-final-acceptance/home bundle exec rubocop`:
   **1150 files, no offenses**, exit 0 (`rubocop-post-package-fix.log`).
-- `ruby scripts/harness/evaluate.rb /tmp/pwn-harness-final-acceptance/offline-final`:
+- Historical offline evaluator run (before the RSpec layout migration):
   exit 0. Four baseline tasks PASS; artifact-lie remains FAIL/exit1, and
   timeout-replay remains INCOMPLETE/exit1 with no repeated effect. All five
   executable fault acceptance lanes, eight frozen task/arm trials, five Swarm
@@ -196,8 +201,8 @@ These are local execution results, not live provider scores:
   `HarnessExperiments.run(output: '/tmp/pwn-harness-final-acceptance/frozen-replay',
   frozen: '/tmp/pwn-harness-final-acceptance/offline-final/experiments')` returned
   exit 0 with equal snapshot digest, schedule, input hashes and graded outcomes.
-- Final packaged acceptance command:
-  `ruby scripts/harness/package_acceptance.rb /tmp/pwn-harness-final-acceptance/package-verified`.
+- Historical packaged acceptance output: `package-verified` beneath the artifact root above.
+  Current entry point: `bundle exec rspec spec/integration/harness_package_spec.rb`.
   Its `acceptance.json` is the authority for installed execution and source-byte
   equality, not the earlier source-only counts above.
 
@@ -226,10 +231,20 @@ hard cost cap. Unknown or unequal provider/model/revision values reject executio
 Raw returned data stays UNVERIFIED until an independent artifact checker grades
 it. Aggregate unobserved usage/cost remain null rather than fabricated zeros.
 
+The optional `spec/integration/harness_live_spec.rb` is tagged `:harness_live`
+and excluded unless `PWN_TEST_HARNESS_LIVE=1`. It never adds pending examples to
+the default gate. Explicit opt-in also requires `PWN_HARNESS_REFERENCE_SOURCE`,
+`PWN_HARNESS_LIVE_MANIFEST`, `PWN_HARNESS_PROMPT_FILE`, and `PWN_EVAL_API_KEY`;
+missing prerequisites fail rather than skip. The adapter's approval, locked
+parity, pinned-source, temporary HOME/cwd and cost-cap checks remain mandatory.
+This optional example observes only the reference API response; it does not
+establish a paired comparison or model-quality gain. No live lane was run for
+the layout migration.
+
 Safe static inspection (does not import the agent or read credentials):
 
 ```sh
-python3 scripts/harness/reference_adapter.py --inspect-source /path/to/pinned/reference/source
+python3 spec/support/harness/reference_adapter.py --inspect-source /path/to/pinned/reference/source
 ```
 
 `live_comparison.json` deliberately has unselected provider/model/revision fields
@@ -287,15 +302,11 @@ learning-context invocations and policy episodes are observed rather than inferr
 These unequal fixture call counts are wiring evidence, not fair budget-normalized
 model superiority. Model quality remains NOT_RUN.
 
-To replay exactly the earlier frozen training state with the same locked corpus:
-
-```sh
-ruby scripts/harness/experiments.rb /tmp/new-replay \
-  scripts/harness/experiment_tasks.json scripts/harness/experiment_gold.json \
-  /tmp/pwn-harness-evaluation/experiments
-```
-
-Custom locked manifests/gold can replace the public corpus via the second and
-third arguments. They are trusted local executable fixtures, not untrusted code;
-the HTTP guard is not an OS sandbox for arbitrary shell commands. Keep private
-benchmark gold outside any live agent sandbox. Do not tune on heldout outcomes.
+For a diagnostic replay of a previously retained frozen training state, require
+`spec/support/harness/experiments` and call `HarnessExperiments.run(output: ...,
+frozen: ...)` from Ruby. Use a fresh `/tmp` output directory. This returns raw
+observations; the integration specs own acceptance, not a helper's exit status.
+Custom locked manifests and gold use the `manifest:` and `gold:` options. They
+are trusted local executable fixtures, not untrusted code; the HTTP guard is not
+an OS sandbox for arbitrary shell commands. Keep private benchmark gold outside
+any live agent sandbox. Do not tune on heldout outcomes.

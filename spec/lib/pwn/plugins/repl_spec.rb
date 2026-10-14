@@ -537,7 +537,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       expect(Meshtastic::Serial).to receive(:connect).and_raise(IOError, 'no serial')
       expect(Meshtastic::Bluetooth).to receive(:connect).and_raise(IOError, 'no ble')
       expect(Meshtastic::TCP).to receive(:connect).and_raise(IOError, 'no tcp')
-      expect(Meshtastic::MQTT).to receive(:connect).and_return(:mqtt_obj)
+      expect(described_class).to receive(:mesh_mqtt_connect).and_return(:mqtt_obj)
       expect(described_class.send(:mesh_connect, env: env)).to eq(:mqtt_obj)
       expect(PWN.const_get(:MeshTransport)).to eq(:mqtt)
     ensure
@@ -549,8 +549,8 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       env = {
         mqtt: { host: 'mqtt.example', port: 1883, tls: 'false', user: 'u', pass: 'p' }
       }
-      expect(Meshtastic::MQTT).to receive(:connect).with(
-        hash_including(host: 'mqtt.example', port: 1883, tls: false, username: 'u', password: 'p')
+      expect(described_class).to receive(:mesh_mqtt_connect).with(
+        options: hash_including(host: 'mqtt.example', port: 1883, tls: false, username: 'u', password: 'p')
       ).and_return(:mqtt_obj)
       expect(described_class.send(:mesh_connect_one, env: env, transport: :mqtt)).to eq(:mqtt_obj)
     end
@@ -569,7 +569,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       expect(Meshtastic::Serial).to receive(:connect).and_raise(IOError, 'no serial')
       expect(Meshtastic::Bluetooth).to receive(:connect).and_raise(IOError, 'no ble')
       expect(Meshtastic::TCP).to receive(:connect).and_raise(IOError, 'no tcp')
-      expect(Meshtastic::MQTT).to receive(:connect).and_raise(
+      expect(described_class).to receive(:mesh_mqtt_connect).and_raise(
         OpenSSL::SSL::SSLError, 'SSL_connect unexpected eof while reading'
       )
       expect { described_class.send(:mesh_connect, env: env) }.to raise_error(
@@ -587,7 +587,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       expect(Meshtastic::Serial).to receive(:wait_for_config).and_return(:serial_obj)
       expect(Meshtastic::Bluetooth).not_to receive(:connect)
       expect(Meshtastic::TCP).not_to receive(:connect)
-      expect(Meshtastic::MQTT).not_to receive(:connect)
+      expect(described_class).not_to receive(:mesh_mqtt_connect)
       expect(described_class.send(:mesh_connect, env: env)).to eq(:serial_obj)
       expect(PWN.const_get(:MeshTransport)).to eq(:serial)
     ensure
@@ -1035,6 +1035,7 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       expect(PWN::Env[:plugins][:meshtastic][:dispatch_to_pwn_ai]).to eq(true)
       mesh_env[:channel][:LongFast][:psk] = 'cHdu'
       mesh_env[:ai_whitelist] = ['LongFast']
+      allow(described_class).to receive(:mesh_ai_session).and_return(id: '20260101_000000_aabbccdd', lease: nil)
       allow(PWN::AI::Agent::Loop).to receive(:run).and_return('ai says hi')
       allow(described_class).to receive(:mesh_send_text)
       allow(Thread).to receive(:new).and_yield

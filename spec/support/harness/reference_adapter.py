@@ -90,7 +90,7 @@ def main():
     args = parser.parse_args()
     if not args.approve_live and not args.inspect_source:
         parser.error("explicit --approve-live required; no agent imported or credentials read")
-    metadata = locked(Path(__file__).with_name("adapters.json"))
+    metadata = locked(Path(__file__).resolve().parents[2] / "fixtures/harness/adapters.json")
     source, fields = inspect_source(args.inspect_source or args.source, metadata)
     if args.inspect_source:
         print(json.dumps({"status": "STATIC_API_VERIFIED", "model_quality": "NOT_RUN", "constructor_fields": fields}))

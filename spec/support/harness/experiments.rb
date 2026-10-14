@@ -56,7 +56,7 @@ module HarnessExperiments
             'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json'), 'PWN_HARNESS_OBSERVATIONS' => File.join(root, 'observations.json') }
     command = [RbConfig.ruby]
     command += ['-I', File.join(source, 'lib')] unless options[:executable]
-    command += ['-r', File.join(source, 'scripts/harness/experiment_preload.rb'), options[:executable] || File.join(source, 'bin/pwn-ai'), '--ai', task.fetch('prompt')]
+    command += ['-r', File.join(source, 'spec/support/harness/experiment_preload.rb'), options[:executable] || File.join(source, 'bin/pwn-ai'), '--ai', task.fetch('prompt')]
     result = HarnessEvaluation.capture(env, command, root, options.fetch(:wall_seconds, 35))
     grade = HarnessEvaluation.grade({ 'checks' => gold.fetch(task.fetch('id')), 'success_marker' => 'FIXTURE_COMPLETE' }, root, result)
     File.write(File.join(root, 'process.json'), JSON.pretty_generate(result.merge(command: command)))
@@ -74,8 +74,8 @@ module HarnessExperiments
 
   def self.run(options)
     source = options[:source_root] || HarnessEvaluation::ROOT
-    manifest_path = options[:manifest] || File.join(source, 'scripts/harness/experiment_tasks.json')
-    gold_path = options[:gold] || File.join(source, 'scripts/harness/experiment_gold.json')
+    manifest_path = options[:manifest] || File.join(source, 'spec/fixtures/harness/experiment_tasks.json')
+    gold_path = options[:gold] || File.join(source, 'spec/fixtures/harness/experiment_gold.json')
     manifest = locked_json(manifest_path)
     gold = locked_json(gold_path).fetch('checks')
     input_hashes = [manifest_path, gold_path].to_h { |path| [path, Digest::SHA256.file(path).hexdigest] }
@@ -107,7 +107,7 @@ module HarnessExperiments
       File.write(receipt, JSON.generate(row))
       env = { 'HOME' => row[:home], 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
               'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR) }
-      recorded = HarnessEvaluation.capture(env, [RbConfig.ruby, '-I', File.join(source, 'lib'), File.join(source, 'scripts/harness/record_training.rb'), receipt], output, 20)
+      recorded = HarnessEvaluation.capture(env, [RbConfig.ruby, '-I', File.join(source, 'lib'), File.join(source, 'spec/support/harness/record_training.rb'), receipt], output, 20)
       File.write(File.join(output, "#{task.fetch('id')}-learning.json"), JSON.pretty_generate(recorded))
       raise 'training learning receipt failed' unless recorded[:exit_status]&.zero?
 
@@ -134,10 +134,4 @@ module HarnessExperiments
     File.write(File.join(output, 'experiments.json'), JSON.pretty_generate(report))
     report
   end
-end
-
-if $PROGRAM_NAME == __FILE__
-  report = HarnessExperiments.run(output: ARGV.fetch(0), manifest: ARGV[1], gold: ARGV[2], frozen: ARGV[3])
-  puts JSON.pretty_generate(report)
-  exit(report[:snapshot_unchanged] && report[:input_manifests_unchanged] && report[:results].all? { |row| row[:outcome] == 'PASS' && row[:inputs_unchanged] && !row[:false_success] && row[:repeated_effects].zero? } ? 0 : 1)
 end

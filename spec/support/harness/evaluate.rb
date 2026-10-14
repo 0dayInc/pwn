@@ -10,8 +10,8 @@ require 'timeout'
 
 # Offline only. The separate opt-in reference adapter cannot be selected here.
 module HarnessEvaluation
-  ROOT = File.expand_path('../..', __dir__)
-  MANIFEST = File.join(__dir__, 'manifest.json')
+  ROOT = File.expand_path('../../..', __dir__)
+  MANIFEST = File.join(ROOT, 'spec/fixtures/harness/manifest.json')
 
   def self.validate_parity!(left, right)
     fields = %w[provider model revision endpoint reasoning temperature max_iterations max_tokens wall_seconds tool_capabilities network]
@@ -100,7 +100,7 @@ module HarnessEvaluation
   end
 
   def self.run(options)
-    manifest_path = options[:source_root] ? File.join(options[:source_root], 'scripts/harness/manifest.json') : MANIFEST
+    manifest_path = options[:source_root] ? File.join(options[:source_root], 'spec/fixtures/harness/manifest.json') : MANIFEST
     manifest_bytes = File.binread(manifest_path)
     manifest = JSON.parse(manifest_bytes)
     lock = File.read("#{manifest_path}.sha256").strip
@@ -127,7 +127,7 @@ module HarnessEvaluation
               'PWN_HARNESS_FIXTURE' => fixture, 'PWN_HARNESS_EVENTS' => events,
               'PWN_HARNESS_FINGERPRINT' => fingerprint }
       executable = options[:executable] || File.join(ROOT, 'bin/pwn-ai')
-      preload = File.join(options[:source_root] || ROOT, 'scripts/harness/fake_provider.rb')
+      preload = File.join(options[:source_root] || ROOT, 'spec/support/harness/fake_provider.rb')
       command = [ruby]
       command += ['-I', File.join(ROOT, 'lib')] unless options[:executable]
       command += ['-r', preload, executable, '--ai', task.fetch('prompt')]
@@ -149,7 +149,7 @@ module HarnessEvaluation
                   'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR) }
     fault_source = options[:source_root] || ROOT
     fault_run = capture(fault_env, [ruby, '-I', File.join(fault_source, 'lib'),
-                                    File.join(fault_source, 'scripts/harness/runtime_faults.rb'), fault_root], fault_root, 30)
+                                    File.join(fault_source, 'spec/support/harness/runtime_faults.rb'), fault_root], fault_root, 30)
     File.write(File.join(fault_root, 'process.json'), JSON.pretty_generate(fault_run))
     faults = begin
       JSON.parse(fault_run[:stdout])
@@ -173,21 +173,4 @@ module HarnessEvaluation
     File.write(File.join(output_root, 'results.json'), JSON.pretty_generate(report))
     report
   end
-
-  def self.passed?(report)
-    report[:results].all? { |row| row[:outcome] == row[:expected_outcome] && !row[:false_success] && row[:repeated_effects].zero? } &&
-      report[:runtime_fault_process][:exit_status]&.zero? &&
-      report[:cli_faults][:results].all? { |row| row[:outcome] == 'PASS' } &&
-      report[:swarm_acceptance][:results].all? { |row| row[:outcome] == 'PASS' } &&
-      report[:session_acceptance][:results].all? { |row| row[:outcome] == 'PASS' } &&
-      report[:experiments][:snapshot_unchanged] && report[:experiments][:input_manifests_unchanged] &&
-      report[:experiments][:results].all? { |row| row[:outcome] == 'PASS' && row[:inputs_unchanged] && !row[:false_success] && row[:repeated_effects].zero? }
-  end
-end
-
-if $PROGRAM_NAME == __FILE__
-  output = ARGV.fetch(0, '/tmp/pwn-harness-evaluation/offline')
-  report = HarnessEvaluation.run(output: output)
-  puts JSON.pretty_generate(report)
-  exit(HarnessEvaluation.passed?(report) ? 0 : 1)
 end

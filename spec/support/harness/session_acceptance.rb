@@ -14,7 +14,7 @@ module HarnessSessionAcceptance
             'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json') }
     command = [RbConfig.ruby]
     command += ['-I', File.join(source, 'lib')] unless options[:executable]
-    command += ['-r', File.join(source, 'scripts/harness/fake_provider.rb'), options[:executable] || File.join(source, 'bin/pwn-ai')] + args
+    command += ['-r', File.join(source, 'spec/support/harness/fake_provider.rb'), options[:executable] || File.join(source, 'bin/pwn-ai')] + args
     HarnessEvaluation.capture(env, command, root, 35).merge(command: command)
   end
 
@@ -61,10 +61,4 @@ module HarnessSessionAcceptance
     File.write(File.join(options.fetch(:output), 'session-acceptance.json'), JSON.pretty_generate(report))
     report
   end
-end
-
-if $PROGRAM_NAME == __FILE__
-  report = HarnessSessionAcceptance.run(output: ARGV.fetch(0))
-  puts JSON.pretty_generate(report)
-  exit(report[:results].all? { |row| row[:outcome] == 'PASS' } ? 0 : 1)
 end

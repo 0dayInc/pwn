@@ -906,9 +906,11 @@ module PWN
           PWN.const_get(:MeshTxEchoThread).kill
           PWN.send(:remove_const, :MeshTxEchoThread)
         end
+        PWN::Plugins::REPL.send(:mesh_stop_receivers!) if PWN::Plugins::REPL.respond_to?(:mesh_stop_receivers!, true)
         if PWN.const_defined?(:MeshObj)
           PWN::Plugins::REPL.send(
             :mesh_disconnect,
+            transport: (PWN::MeshTransport if PWN.const_defined?(:MeshTransport)),
             env: (defined?(PWN::Env) && PWN::Env.dig(:plugins, :meshtastic)) || {},
             obj: PWN.const_get(:MeshObj)
           )

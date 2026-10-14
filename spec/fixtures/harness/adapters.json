@@ -46,7 +46,7 @@
     ],
     "invoke": "agent.run_conversation(user_message=prompt, conversation_history=[])",
     "return": "dict; preserve complete response, do not infer success from answer text",
-    "adapter": "scripts/harness/reference_adapter.py; --approve-live required, pinned source and locked live_comparison.json parity validated before import",
+    "adapter": "spec/support/harness/reference_adapter.py; --approve-live required, pinned source and locked live_comparison.json parity validated before import",
     "offline_inspection": "--inspect-source PATH checks source hashes and AST signature without imports or credentials"
   },
   "required_before_live": [

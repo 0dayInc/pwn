@@ -52,7 +52,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
       obj[:proto_data].last[:node_info][:user][:short_name] = 'LATE'
       described_class.send(:mesh_drain_events)
 
-      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via #{label}\n")
+      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via #{label} · GPS N/A\n")
       expect(win).to have_received(:attron).with(21 | Curses::A_BOLD)
       expect(win).to have_received(:addstr).with(" hello\n")
       expect(message).not_to have_key(:mesh_transport)
@@ -75,7 +75,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
       end
       described_class.send(:mesh_send_text, env: env, obj: obj, text: 'sent', channel_name: 'LongFast', channel: 0)
 
-      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · SELF · US/CA/2/e/LongFast/!aabbccdd (ME) · US/CA/2/e/LongFast/# · TX via #{label}\n")
+      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · SELF · US/CA/2/e/LongFast/!aabbccdd (ME) · US/CA/2/e/LongFast/# · TX via #{label} · GPS N/A\n")
       expect(win).to have_received(:attron).with(23 | Curses::A_BOLD)
       expect(described_class).not_to have_received(:mesh_maybe_dispatch_to_pwn_ai)
     end
@@ -101,7 +101,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
     described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :tcp))
     reply = message[:packet].merge(id: 124, decoded: { portnum: 1, reply_id: 123, payload: '@ai reply' })
     described_class.send(:mesh_handle_rx, msg: { packet: reply, mesh_transport: :tcp })
-    expect(win).to have_received(:addstr).with(a_string_matching(/🔒 · PEER · .*!bbccddee.*!aabbccdd \(ME\) · RX via TCP\n/)).twice
+    expect(win).to have_received(:addstr).with(a_string_matching(%r{🔒 · PEER · .*!bbccddee.*!aabbccdd \(ME\) · RX via TCP · GPS N/A\n})).twice
     expect(win).to have_received(:addstr).with(" Replied to: \"!bbccddee >> hello\" with: @ai reply\n")
     expect(described_class).to have_received(:mesh_maybe_dispatch_to_pwn_ai).with(hash_including(text: '@ai reply', radio: 0))
   end
@@ -109,7 +109,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
   it 'does not invent a known transport for an untagged event' do
     stub_const('PWN::MeshTransport', :mqtt)
     described_class.send(:mesh_handle_rx, msg: message)
-    expect(win).to have_received(:addstr).with(a_string_ending_with(" · RX via Unknown\n"))
+    expect(win).to have_received(:addstr).with(a_string_ending_with(" · RX via Unknown · GPS N/A\n"))
   end
 
   it 'learns MQTT sender names from real NODEINFO envelopes, not gateway or destination names' do
@@ -140,14 +140,14 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
     it "omits absent/blank short names without substituting the long name: #{name.inspect}" do
       obj[:proto_data].each { |row| row[:node_info][:user][:short_name] = name }
       described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :serial))
-      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via Serial\n")
+      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via Serial · GPS N/A\n")
     end
   end
 
   it 'sanitizes control/newline/delimiter text while preserving Unicode and legitimate internal spaces' do
     obj[:proto_data].last[:node_info][:user][:short_name] = "\u00a0\e[31mÉ  山\n·\tX\e[0m\u00a0"
     described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :serial))
-    expect(win).to have_received(:addstr).with(a_string_including('🔍 · É  山   X · US/CA/2/e/LongFast/!bbccddee'))
+    expect(win).to have_received(:addstr).with(a_string_including('🔍 · É  山   X  · US/CA/2/e/LongFast/!bbccddee'))
   end
 
   %i[serial bluetooth tcp].each do |kind|
@@ -184,17 +184,17 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
   [40, 80, 160].each do |width|
     it "retains complete headers and exact delimiter spacing at #{width} columns" do
       allow(win).to receive(:maxx).and_return(width)
-      headers = []
-      allow(win).to receive(:addstr) { |text| headers << text if text.include?(' via ') }
+      lines = []
+      allow(win).to receive(:addstr) { |text| lines << text }
       described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :serial))
-      expect(headers.size).to eq(1)
-      expect(headers.first.split(' · ').size).to eq(5)
-      expect(headers.first).not_to match(/  ·|·  /)
-      expect(headers.first).to include('US/CA/2/e/LongFast/!bbccddee', 'US/CA/2/e/LongFast/#', 'RX via Serial')
+      header_lines = lines.take_while { |text| !text.include?('hello') }.map(&:strip).reject(&:empty?)
+      expect(header_lines.join(' · ').split(' · ').size).to eq(6)
+      expect(header_lines.join("\n")).not_to match(/  ·|·  /)
+      expect(header_lines.join("\n")).to include('US/CA/2/e/LongFast/!bbccddee', 'US/CA/2/e/LongFast/#', 'RX via Serial', 'GPS N/A')
     end
   end
 
-  it 'keeps a captured missing name absent even if inventory is learned before queued rendering' do
+  it 'shows a short name learned before paint when the receive snapshot was blank' do
     obj[:proto_data].clear
     callback = nil
     stub_const('PWN::MeshTransport', :serial)
@@ -204,9 +204,36 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
     callback.call(message)
     obj[:proto_data] << { node_info: { num: 0xbbccddee, user: { short_name: 'LATE' } } }
     described_class.send(:mesh_handle_rx, msg: events.first)
-    expect(win).to have_received(:addstr).with(a_string_including('🔍 · US/CA/2/e/LongFast/!bbccddee'))
-    expect(events.first).to have_key(:mesh_short_name)
+    expect(win).to have_received(:addstr).with(a_string_including('🔍 · LATE · US/CA/2/e/LongFast/!bbccddee'))
     expect(events.first[:mesh_short_name]).to be_nil
+  end
+
+  it 'uses the last four bytes of a non-empty channel.from as that node short name' do
+    env[:channel][:LongFast][:from] = '!0000abcd'
+    obj[:proto_data] << { node_info: { num: 0xabcd, user: { short_name: 'DBNM' } } }
+    described_class.send(:mesh_handle_rx, env: env, msg: { packet: message[:packet].merge(from: 0xabcd), mesh_transport: :serial })
+    expect(win).to have_received(:addstr).with(a_string_including(' · abcd · '))
+    expect(win).not_to have_received(:addstr).with(a_string_including('DBNM'))
+  end
+
+  it 'uses a non-empty channel.short_name instead of the last four bytes of from' do
+    env[:channel][:LongFast][:from] = '!0000abcd'
+    env[:channel][:LongFast][:short_name] = 'MINE'
+    described_class.send(:mesh_handle_rx, env: env, msg: { packet: message[:packet].merge(from: 0xabcd), mesh_transport: :serial })
+    expect(win).to have_received(:addstr).with(a_string_including(' · MINE · '))
+    expect(win).not_to have_received(:addstr).with(a_string_including(' · abcd · '))
+  end
+
+  it 'does not replace another sender when channel.from is empty or absent' do
+    env[:channel][:LongFast][:from] = '   '
+    described_class.send(:mesh_handle_rx, env: env, msg: message.merge(mesh_transport: :serial))
+    expect(win).to have_received(:addstr).with(a_string_including(' · PEER · '))
+  end
+
+  it 'keeps a space before the separator after a width-2 short name' do
+    obj[:proto_data].last[:node_info][:user][:short_name] = '🐇'
+    described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :serial))
+    expect(win).to have_received(:addstr).with(a_string_including('🐇  · '))
   end
 
   it 'omits unavailable local names instead of borrowing the destination name' do
@@ -223,6 +250,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
     env[:ai_whitelist] = ['LongFast']
     env[:channel][:LongFast][:psk] = Base64.strict_encode64('x' * 32)
     allow(described_class).to receive(:mesh_maybe_dispatch_to_pwn_ai).and_call_original
+    allow(described_class).to receive(:mesh_ai_session).and_return(id: '20260101_000000_aabbccdd', lease: nil)
     allow(PWN::AI::Agent::Loop).to receive(:run).and_return('offline reply')
     allow(Thread).to receive(:new) { |&block| block.call }
     expect(Meshtastic::Serial).to receive(:send_to_radio) do |args|

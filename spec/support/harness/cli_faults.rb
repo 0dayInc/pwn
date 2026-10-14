@@ -22,7 +22,7 @@ module HarnessCLIFaults
             'PWN_HARNESS_CAP_READY' => File.join(root, 'cap-ready') }
     command = [RbConfig.ruby]
     command += ['-I', File.join(source, 'lib')] unless options[:executable]
-    command += ['-r', File.join(source, 'scripts/harness/fault_preload.rb'),
+    command += ['-r', File.join(source, 'spec/support/harness/fault_preload.rb'),
                 options[:executable] || File.join(source, 'bin/pwn-ai'), '--ai', prompt]
     ready_path = fixture[:await_cap_ready] ? env.fetch('PWN_HARNESS_CAP_READY') : nil
     report = HarnessEvaluation.capture(env, command, root, fixture.fetch(:wall_seconds, 35), ready_path: ready_path)
@@ -104,10 +104,4 @@ module HarnessCLIFaults
     File.write(File.join(options.fetch(:output), 'cli-faults.json'), JSON.pretty_generate(report))
     report
   end
-end
-
-if $PROGRAM_NAME == __FILE__
-  report = HarnessCLIFaults.run(output: ARGV.fetch(0))
-  puts JSON.pretty_generate(report)
-  exit(report[:results].all? { |row| row[:outcome] == 'PASS' } ? 0 : 1)
 end

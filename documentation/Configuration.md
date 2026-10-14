@@ -234,6 +234,7 @@ plugins:
         topic: 2/e/#               # MQTT topic filter to subscribe/publish for this channel.
         channel_num: 8             # Meshtastic channel index (slot number on the device).
         from: '!deadbeef'          # Sender node id used on outbound packets. Optional - defaults to !<mqtt client_id>.
+        short_name:                # Optional display name for that from node. When set, it replaces the last four bytes of from.
       PWN:                         # Example second (private) channel definition.
         psk: ...                     # Private channel pre-shared key (base64). Redacted.
         region: US/UT              # LoRa region tag for this channel.
@@ -403,6 +404,7 @@ PWN::Config.refresh_env
 | `plugins.meshtastic.channel.<NAME>.topic` | String | - | `pwn-mesh` | MQTT topic filter to subscribe/publish (e.g. `2/e/#`). |
 | `plugins.meshtastic.channel.<NAME>.channel_num` | Integer | - | `pwn-mesh` | Meshtastic channel index. |
 | `plugins.meshtastic.channel.<NAME>.from` | String | `!<mqtt client_id>` | `pwn-mesh` | Sender node id used on outbound packets. |
+| `plugins.meshtastic.channel.<NAME>.short_name` | String | - | `pwn-mesh` | Optional short name for that `from` node. A non-empty value is shown instead of the last four bytes of `from`. |
 | `plugins.shodan.api_key` | String | - | `PWN::Plugins::Shodan` | Shodan API key (passed as `api_key:` to `Shodan.*`). |
 
 ### `memory` / `sessions` / `cron`
