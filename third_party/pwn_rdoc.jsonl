@@ -503,6 +503,7 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.tool_effects Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.tool_effects`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.unwrap_untrusted Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.unwrap_untrusted`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.update_steered_open_goal! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.update_steered_open_goal!`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.verification_text Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.verification_text`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wait_trace_step! Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wait_trace_step!`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.world_knowledge? Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.world_knowledge?`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Loop.wrap_untrusted_tool Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Loop.wrap_untrusted_tool`: "}]}

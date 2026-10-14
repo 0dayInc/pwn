@@ -335,9 +335,13 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     @screen = screen
     output = double('terminal', tty?: true)
     previous = [$stdin, $stdout, $stderr]
-    Timeout.timeout(25, Class.new(Exception)) do # rubocop:disable Lint/InheritException
-      PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen,
-                                        getch: -> { keys.empty? ? tick.call : keys.shift })
+    Timeout.timeout(60, Class.new(Exception)) do # rubocop:disable Lint/InheritException -- must escape Console rescue StandardError
+      reader = lambda do
+        key = keys.empty? ? tick.call : keys.shift
+        sleep 0.01 if key.nil?
+        key
+      end
+      PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)
     end
     expect([$stdin, $stdout]).to eq(previous.take(2))
     expect(PWN::Plugins::Log.raw_stderr).to equal(previous[2])
@@ -349,15 +353,20 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   end
 
   it 'rejects an ordinary request while the shared mission workspace lease is held' do
-    path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(File.realpath(Dir.pwd))}.lock")
-    expect(PWN::AI::Agent::Loop).not_to receive(:run)
-    File.open(path, File::RDWR | File::CREAT, 0o600) do |lease|
-      expect(lease.flock(File::LOCK_EX | File::LOCK_NB)).to be_truthy
-      launch(['inspect workspace'.chars, "\r"].flatten) do
-        @paint.join.include?('Workspace busy:') ? "\u0004" : nil
+    workspace = Dir.mktmpdir('pwn-lease-')
+    Dir.chdir(workspace) do
+      path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(File.realpath(workspace))}.lock")
+      expect(PWN::AI::Agent::Loop).not_to receive(:run)
+      File.open(path, File::RDWR | File::CREAT, 0o600) do |lease|
+        expect(lease.flock(File::LOCK_EX | File::LOCK_NB)).to be_truthy
+        launch(['inspect workspace'.chars, "\r"].flatten) do
+          @paint.join.include?('Workspace busy:') ? "\u0004" : nil
+        end
       end
+      expect(@paint.join).to include('Workspace busy:')
     end
-    expect(@paint.join).to include('Workspace busy:')
+  ensure
+    FileUtils.rm_rf(workspace) if workspace
   end
 
   it 'paints provisional and asynchronously updated summary titles in the actual SESSION pane' do

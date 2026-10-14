@@ -334,6 +334,24 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(described_class.send(:request_unsatisfied?, request: 'Write /tmp/fixture.txt', messages: [])).to be(true)
     end
 
+    it 'searches binary tool output and files without an encoding verification error' do
+      path = File.join(@tmp, 'binary-evidence.bin')
+      File.binwrite(path, "prefix \xff\xfe suffix\n".b)
+      Thread.current[:pwn_loop_deliverables] = {
+        paths: [], min_seconds: 0, skills: [], proofs: [], hosts: [],
+        techniques: ['T1059'], issue_work: false
+      }
+      messages = [
+        { role: 'assistant', content: "notes include T1059 and #{path}" },
+        { role: 'tool', content: "payload \xff".b }
+      ]
+      unmet = described_class.send(:completion_unmet, request: 'check T1059', messages: messages)
+      expect(unmet.grep(/\Averification_error:/)).to eq([])
+      expect(unmet).not_to include('techniques')
+    ensure
+      Thread.current[:pwn_loop_deliverables] = nil
+    end
+
     it 'terminates checker errors with a durable verification_error outcome, not a success' do
       request = "Write #{File.join(@tmp, 'error.txt')}"
       runtime = PWN::AI::Agent::RequestRuntime.new(request: request, session_id: 'error', artifact_root: @tmp, trace: false)

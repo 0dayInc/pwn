@@ -902,12 +902,14 @@ module PWN
 
         private_class_method def self.completion_unmet(opts = {})
           contract = declared_contract(request: opts[:request])
-          request = opts[:request].to_s
+          request = verification_text(text: opts[:request])
           unmet = []
           files = Array(contract[:paths]) + Array(contract[:proofs])
           files.each { |path| unmet << "deliverable_missing:#{path}" if deliverable_missing?(path: path) }
           artifact = TurnFinalizer.arbitrate(request: request, paths: contract[:paths], messages: opts[:messages])
-          artifact[:unmet].each { |row| unmet << "#{row[:criterion]}:#{row[:detail]}" }
+          artifact[:unmet].each do |row|
+            unmet << "#{verification_text(text: row[:criterion])}:#{verification_text(text: row[:detail])}"
+          end
           unmet.concat(Thread.current[:pwn_request_runtime].unmet) if Thread.current[:pwn_request_runtime]
           trace_files = session_files(messages: opts[:messages])
           unmet << 'issue_work_proofs' if contract[:issue_work] && Array(contract[:proofs]).empty? && files.empty? && trace_files.empty?
@@ -918,14 +920,14 @@ module PWN
           end
           unmet << 'skills' if declared_skills_missing?(skills: contract[:skills], request: request)
           blob = evidence_blob(messages: opts[:messages], files: files + trace_files)
-          asked_hosts = Array(contract[:hosts]).select { |host| request.downcase.include?(host.to_s.downcase) }
-          asked_tech = Array(contract[:techniques]).select { |tech| request.downcase.include?(tech.to_s.downcase) }
+          asked_hosts = Array(contract[:hosts]).select { |host| request.downcase.include?(verification_text(text: host).downcase) }
+          asked_tech = Array(contract[:techniques]).select { |tech| request.downcase.include?(verification_text(text: tech).downcase) }
           unmet << 'hosts' unless asked_hosts.all? { |host| Thread.current[:pwn_request_runtime]&.host_evidenced?(host) }
           unmet << 'techniques' if evidence_tokens_missing?(tokens: asked_tech, blob: blob)
           Array(Swarm.honesty_unmet(swarm_id: Thread.current[:pwn_swarm_id])).each { |u| unmet << u } if defined?(Swarm)
           unmet
         rescue StandardError => e
-          ["verification_error:#{e.class}:#{e.message}"]
+          ["verification_error:#{e.class}:#{verification_text(text: e.message)}"]
         end
 
         private_class_method def self.write_or_read_evidenced?(opts = {})
@@ -951,16 +953,20 @@ module PWN
           tokens = Array(opts[:tokens]).map(&:to_s).reject(&:empty?)
           return false if tokens.empty?
 
-          blob = opts[:blob].to_s.downcase
-          tokens.any? { |tok| !blob.include?(tok.downcase) }
+          blob = verification_text(text: opts[:blob]).downcase
+          tokens.any? { |tok| !blob.include?(verification_text(text: tok).downcase) }
+        end
+
+        private_class_method def self.verification_text(opts = {})
+          opts[:text].to_s.dup.force_encoding(Encoding::UTF_8).scrub
         end
 
         private_class_method def self.evidence_blob(opts = {})
           parts = Array(opts[:messages]).select { |msg| msg.is_a?(Hash) && %w[tool assistant].include?(msg[:role].to_s) }.map do |msg|
-            unwrap_untrusted(text: msg[:content].to_s)
+            verification_text(text: unwrap_untrusted(text: msg[:content]))
           end
           Array(opts[:files]).each do |path|
-            parts << File.binread(path) if File.file?(path.to_s)
+            parts << verification_text(text: File.binread(path)) if File.file?(path.to_s)
           rescue StandardError
             nil
           end
@@ -979,7 +985,7 @@ module PWN
         end
 
         private_class_method def self.unwrap_untrusted(opts = {})
-          text = opts[:text].to_s
+          text = verification_text(text: opts[:text])
           text = text.sub(/\A\[UNTRUSTED TOOL OUTPUT[^\]]*\]\s*/m, '')
           text.sub(%r{\s*\[/UNTRUSTED TOOL OUTPUT\]\s*\z}m, '')
         end
