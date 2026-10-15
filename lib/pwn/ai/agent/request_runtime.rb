@@ -22,7 +22,7 @@ module PWN
         def initialize(opts = {})
           @session_id = opts[:session_id].to_s
           @request_id = (opts[:request_id] || SecureRandom.uuid).to_s.freeze
-          @original_request = opts[:request].to_s.dup.freeze
+          @original_request = PWN::AI::Agent::Result.utf8_text(text: opts[:request]).freeze
           @request = @original_request
           @cwd = Dir.pwd
           @amendments = [].freeze
@@ -67,7 +67,7 @@ module PWN
 
         # Steering is additive unless the operator explicitly says replace/cancel.
         def amend!(opts = {})
-          instruction = opts.fetch(:instruction).to_s
+          instruction = PWN::AI::Agent::Result.utf8_text(text: opts.fetch(:instruction))
           mode = if instruction.strip.match?(/\Acancel\z/i)
                    'cancel'
                  elsif instruction.match?(/\Areplace:\s*/i)
@@ -221,7 +221,7 @@ module PWN
             @events << { phase: 'verification', report: report, request_id: @request_id,
                          request_sha256: Digest::SHA256.hexdigest(@request),
                          original_sha256: Digest::SHA256.hexdigest(@original_request),
-                         amendments_sha256: Digest::SHA256.hexdigest(JSON.generate(@amendments)),
+                         amendments_sha256: Digest::SHA256.hexdigest(JSON.generate(PWN::AI::Agent::Result.utf8_value(value: @amendments))),
                          at: Time.now.utc.iso8601(9) }
             checkpoint!
           end
@@ -304,7 +304,7 @@ module PWN
         def execute_tool(opts = {}, &)
           check_cancelled!
           payload = opts.fetch(:args).reject { |key, _| key.to_s == 'timeout' }
-          key = Digest::SHA256.hexdigest(JSON.generate([opts.fetch(:name), canonical(payload)]))
+          key = Digest::SHA256.hexdigest(JSON.generate(PWN::AI::Agent::Result.utf8_value(value: [opts.fetch(:name), canonical(payload)])))
           mutation = !%w[read recall].include?(opts.fetch(:effect).to_s)
           action = { action_id: opts[:action_id], tool: opts[:name], payload_sha256: key, effect: opts[:effect].to_s,
                      target: payload[:url] || payload['url'] }
@@ -496,7 +496,7 @@ module PWN
           FileUtils.mkdir_p(File.dirname(@checkpoint_path), mode: 0o700)
           temp = "#{@checkpoint_path}.#{SecureRandom.hex(8)}.tmp"
           File.open(temp, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
-            file.write(JSON.generate(data))
+            file.write(JSON.generate(PWN::AI::Agent::Result.utf8_value(value: data)))
             file.flush
             file.fsync
           end

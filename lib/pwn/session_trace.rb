@@ -31,7 +31,7 @@ module PWN
         now = Process.clock_gettime(Process::CLOCK_MONOTONIC, :nanosecond)
         row[:monotonic_ns] = [now, last ? last.fetch('monotonic_ns') + 1 : 0].max
         row[:sequence] = last ? last.fetch('sequence') + 1 : 1
-        file.puts(JSON.generate(row))
+        file.puts(JSON.generate(PWN::AI::Agent::Result.utf8_value(value: row)))
         file.flush
       end
       row

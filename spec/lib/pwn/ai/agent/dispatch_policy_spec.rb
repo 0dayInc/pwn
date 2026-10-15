@@ -21,6 +21,18 @@ RSpec.describe PWN::AI::Agent::Dispatch do
     JSON.parse(described_class.call({ tool_call: { function: { name: name, arguments: JSON.generate(args) } }, scope_path: File.join(@dir, 'absent.yaml') }.merge(options)), symbolize_names: true)
   end
 
+  it 'validates binary-tagged UTF-8 tool arguments without JSON::GeneratorError' do
+    PWN::AI::Agent::Registry.discover
+    command = "printf %s 'status \u2022 ok'".b
+    expect(command.encoding).to eq(Encoding::ASCII_8BIT)
+    raw = described_class.call(
+      tool_call: { function: { name: 'shell', arguments: { command: command, timeout: 2 } } },
+      scope_path: File.join(@dir, 'absent.yaml')
+    )
+    out = JSON.parse(raw, symbolize_names: true)
+    expect(out.dig(:result, :stdout)).to eq("status \u2022 ok")
+  end
+
   it 'transports literal unquoted ellipses without heuristic rejection or byte rewriting' do
     PWN::AI::Agent::Registry.discover
     out = dispatch('shell', { command: 'printf %s ...', timeout: 2 })

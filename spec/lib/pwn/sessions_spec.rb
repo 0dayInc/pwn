@@ -363,6 +363,7 @@ describe PWN::Sessions do
     s = PWN::Sessions.create(title: 'spec test session')
     expect(s[:id]).not_to be_nil
     PWN::Sessions.append(session_id: s[:id], role: 'user', content: 'test input')
+    PWN::Sessions.append(session_id: s[:id], role: 'tool', content: "status \u2022 ok".b)
     t = PWN::Sessions.load(session_id: s[:id])
     expect(t.size).to be >= 2
     # Hot sessions are pinned — force required for intentional delete.

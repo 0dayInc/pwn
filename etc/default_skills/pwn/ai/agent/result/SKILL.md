@@ -35,6 +35,8 @@ PWN::AI::Agent::Result.condition(opts)
 
 - `condition`
 - `page`
+- `utf8_text`
+- `utf8_value`
 - `token_limit`
 - `page_length`
 - `default_max`

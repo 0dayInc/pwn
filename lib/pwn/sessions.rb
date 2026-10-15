@@ -590,6 +590,7 @@ module PWN
         content = "#{content[0, cap]}…[compacted]" if content.bytesize > cap
         content = redact(content: content)
       end
+      content = PWN::AI::Agent::Result.utf8_value(value: content) if content.is_a?(String) || content.is_a?(Hash) || content.is_a?(Array)
       entry = {
         role: redact(content: role),
         content: content,
