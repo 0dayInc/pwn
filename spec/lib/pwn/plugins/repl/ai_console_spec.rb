@@ -295,7 +295,11 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(PWN::AI::Agent::Loop).to receive(:should_auto_introspect?).and_return(false)
     allow(PWN::AI::Agent::Loop).to receive(:may_finalize?).and_return(true)
     allow(PWN::AI::Router).to receive(:summarize).and_return('')
+    @launch_pwd = Dir.pwd
+    Dir.chdir(@tmp)
   end
+
+  after { Dir.chdir(@launch_pwd) if @launch_pwd && Dir.exist?(@launch_pwd) }
 
   def launch(keys, startup_delay: 0, render_delay: 0, screen_rows: 30, &tick)
     require 'pty'
@@ -338,7 +342,7 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     Timeout.timeout(60, Class.new(Exception)) do # rubocop:disable Lint/InheritException -- must escape Console rescue StandardError
       reader = lambda do
         key = keys.empty? ? tick.call : keys.shift
-        sleep 0.01 if key.nil?
+        Thread.pass if key.nil?
         key
       end
       PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)

@@ -462,6 +462,13 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
   describe 'operator steering' do
     include_context 'pwn tmp sandbox'
 
+    before do
+      @steer_pwd = Dir.pwd
+      Dir.chdir(@tmp)
+    end
+
+    after { Dir.chdir(@steer_pwd) if @steer_pwd && Dir.exist?(@steer_pwd) }
+
     around do |example|
       require 'timeout'
       Timeout.timeout(15, Class.new(Exception)) { example.run } # rubocop:disable Lint/InheritException -- must escape provider retry rescues
