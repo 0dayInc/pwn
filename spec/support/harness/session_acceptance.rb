@@ -8,14 +8,14 @@ module HarnessSessionAcceptance
     source = options[:source_root] || HarnessEvaluation::ROOT
     FileUtils.mkdir_p(File.join(root, 'home'))
     File.write(File.join(root, 'provider.json'), JSON.generate(responses: steps))
-    env = { 'HOME' => File.join(root, 'home'), 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+    env = { 'HOME' => File.join(root, 'home'), 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
             'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR),
             'PWN_HARNESS_FIXTURE' => File.join(root, 'provider.json'), 'PWN_HARNESS_EVENTS' => File.join(root, 'events.jsonl'),
             'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json') }
     command = [RbConfig.ruby]
     command += ['-I', File.join(source, 'lib')] unless options[:executable]
     command += ['-r', File.join(source, 'spec/support/harness/fake_provider.rb'), options[:executable] || File.join(source, 'bin/pwn-ai')] + args
-    HarnessEvaluation.capture(env, command, root, 35).merge(command: command)
+    HarnessEvaluation.agent_capture(env, command, root, 35, options).merge(command: command)
   end
 
   def self.run(options)
@@ -29,7 +29,13 @@ module HarnessSessionAcceptance
       File.write(contract_path, JSON.generate(contract))
       initial = invoke(root, [HarnessExperiments.tool('shell', { command: "printf 'wrong\\n' > result.txt", timeout: 10 }, 'wrong')] + Array.new(8) { final },
                        ['--ai', prompt, '--verification-contract', contract_path], options)
-      old_path = Dir.glob(File.join(root, 'home/.pwn/sessions/requests/**/*.json')).fetch(0)
+      old_path = Dir.glob(File.join(root, 'home/.pwn/sessions/requests/**/*.json')).first
+      unless old_path
+        File.write(File.join(root, 'process.json'), JSON.pretty_generate(initial: initial))
+        next { id: name, outcome: 'FAIL', initial_exit_status: initial[:exit_status], exit_status: initial[:exit_status],
+               identity_preserved: false, artifact_root: root, task_outcome: nil, missing_checkpoint: true,
+               ready_observed: initial[:ready_observed], resource_cap: initial[:resource_cap] }
+      end
       old_bytes = File.binread(old_path)
       old = JSON.parse(old_bytes)
       sid = old.fetch('session_id')

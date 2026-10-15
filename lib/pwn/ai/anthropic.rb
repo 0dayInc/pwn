@@ -567,6 +567,7 @@ module PWN
       #   model: 'optional - overrides PWN::Env[:ai][:anthropic][:model]',
       #   temp: 'optional - temperature (defaults to PWN::Env[:ai][:anthropic][:temp] || 1)',
       #   max_tokens: 'optional - defaults to PWN::Env[:ai][:anthropic][:max_tokens] || 128_000',
+      #   reasoning_effort: 'optional - output_config.effort when the model supports it',
       #   timeout: 'optional - seconds (default 900)',
       #   spinner: 'optional - display spinner (default false)'
       # )
@@ -612,6 +613,11 @@ module PWN
             }
           end
           http_body[:tool_choice] = anth_tool_choice(choice: opts[:tool_choice], model: model) if opts[:tool_choice]
+        end
+        effort = opts[:reasoning_effort].to_s
+        if !effort.empty? && effort != 'none' && reasoning_efforts(model: model)[:efforts].include?(effort)
+          http_body[:output_config] = { effort: effort }
+          http_body[:thinking] = { type: 'adaptive' } unless opts[:think] == false
         end
 
         response = anthropic_rest_call(
@@ -828,6 +834,41 @@ module PWN
         }
       end
 
+      private_class_method def self.reasoning_efforts(opts = {})
+        model = opts[:model].to_s.downcase
+        stamp = '(?:-\d{8})?(?:\z|-)'
+        return { efforts: [], default: nil } unless model.match?(/\Aclaude-/i)
+
+        patterns = [
+          /claude-opus-4-[5-8]#{stamp}/i,
+          /claude-sonnet-4-6#{stamp}/i,
+          /claude-(?:opus|sonnet)-5(?:-5)?#{stamp}/i,
+          /claude-haiku-5-5#{stamp}/i,
+          /claude-fable-5(?:-1)?#{stamp}/i,
+          /claude-mythos-(?:5(?:-1)?|preview)#{stamp}/i
+        ]
+        return { efforts: [], default: nil } unless patterns.any? { |pattern| model.match?(pattern) }
+
+        efforts = %w[low medium high]
+        newer = [
+          /claude-opus-4-[78]#{stamp}/i,
+          /claude-(?:opus|sonnet)-5(?:-5)?#{stamp}/i,
+          /claude-haiku-5-5#{stamp}/i,
+          /claude-fable-5(?:-1)?#{stamp}/i,
+          /claude-mythos-(?:5(?:-1)?|preview)#{stamp}/i
+        ]
+        efforts << 'xhigh' if newer.any? { |pattern| model.match?(pattern) }
+        claude5 = [
+          /claude-(?:opus|sonnet)-5(?:-5)?#{stamp}/i,
+          /claude-haiku-5-5#{stamp}/i,
+          /claude-fable-5(?:-1)?#{stamp}/i,
+          /claude-mythos-(?:5(?:-1)?|preview)#{stamp}/i
+        ]
+        efforts << 'max' if claude5.any? { |pattern| model.match?(pattern) }
+        default = model.match?(/claude-(?:opus-5-5|haiku-5-5)#{stamp}/i) ? 'medium' : 'high'
+        { efforts: efforts, default: default }
+      end
+
       private_class_method def self.anth_tool_choice(opts = {})
         choice = opts[:choice]
         mapped = case choice
@@ -1023,6 +1064,8 @@ module PWN
             model: 'optional - overrides PWN::Env[:ai][:anthropic][:model]',
             temp: 'optional - temperature (defaults to PWN::Env[:ai][:anthropic][:temp] || 1)',
             max_tokens: 'optional - defaults to PWN::Env[:ai][:anthropic][:max_tokens] || 128_000',
+            reasoning_effort: 'optional - output_config.effort when the model supports it',
+            think: 'optional - false omits adaptive thinking when an effort is set',
             timeout: 'optional - seconds (default 900)',
             spinner: 'optional - display spinner (default false)'
           )

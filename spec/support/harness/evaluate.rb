@@ -13,6 +13,13 @@ module HarnessEvaluation
   ROOT = File.expand_path('../../..', __dir__)
   MANIFEST = File.join(ROOT, 'spec/fixtures/harness/manifest.json')
 
+  # Scripted shell tasks call `ruby`. A stripped PATH must still find the suite
+  # interpreter: /usr/bin/ruby may be older or lack json, which fails only the
+  # held-out JSON task while File-only tasks pass.
+  def self.isolated_path
+    [File.dirname(RbConfig.ruby), '/usr/bin', '/bin'].uniq.join(File::PATH_SEPARATOR)
+  end
+
   def self.validate_parity!(left, right)
     fields = %w[provider model revision endpoint reasoning temperature max_iterations max_tokens wall_seconds tool_capabilities network]
     fields.each do |key|
@@ -99,6 +106,14 @@ module HarnessEvaluation
       latency_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started }
   end
 
+  # Gem activation is not part of the scripted work cap. Packaged boots get a
+  # separate finite startup bound; a missing ready file is a capped boot, not a parser crash.
+  def self.agent_capture(env, command, cwd, seconds, options = {})
+    ready = File.join(cwd, 'harness-ready')
+    startup = options[:executable] ? 180 : 45
+    capture(env.merge('PWN_HARNESS_READY' => ready), command, cwd, seconds, ready_path: ready, startup_seconds: startup)
+  end
+
   def self.run(options)
     manifest_path = options[:source_root] ? File.join(options[:source_root], 'spec/fixtures/harness/manifest.json') : MANIFEST
     manifest_bytes = File.binread(manifest_path)
@@ -121,7 +136,7 @@ module HarnessEvaluation
       File.write(fixture, JSON.generate(responses: task.fetch('responses')))
       events = File.join(root, 'events.jsonl')
       fingerprint = File.join(root, 'fingerprint.json')
-      env = { 'HOME' => home, 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+      env = { 'HOME' => home, 'PATH' => isolated_path, 'LANG' => 'C.UTF-8',
               'GEM_HOME' => options[:gem_home] || Gem.dir,
               'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR),
               'PWN_HARNESS_FIXTURE' => fixture, 'PWN_HARNESS_EVENTS' => events,
@@ -131,7 +146,7 @@ module HarnessEvaluation
       command = [ruby]
       command += ['-I', File.join(ROOT, 'lib')] unless options[:executable]
       command += ['-r', preload, executable, '--ai', task.fetch('prompt')]
-      result = capture(env, command, root, manifest.fetch('budget').fetch('wall_seconds'))
+      result = HarnessEvaluation.agent_capture(env, command, root, manifest.fetch('budget').fetch('wall_seconds'), options)
       grade = grade(task, root, result)
       File.write(File.join(root, 'stdout.txt'), result.delete(:stdout))
       File.write(File.join(root, 'stderr.txt'), result.delete(:stderr))
@@ -144,7 +159,7 @@ module HarnessEvaluation
         artifact_root: root, command: command }.merge(result).merge(grade)
     end
     fault_root = Dir.mktmpdir('runtime-faults-', output_root)
-    fault_env = { 'HOME' => fault_root, 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+    fault_env = { 'HOME' => fault_root, 'PATH' => isolated_path, 'LANG' => 'C.UTF-8',
                   'GEM_HOME' => options[:gem_home] || Gem.dir,
                   'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR) }
     fault_source = options[:source_root] || ROOT

@@ -758,6 +758,22 @@ module PWN
               efforts = %w[low medium high xhigh] if %w[grok-4.6 grok-4.7].include?(model)
               efforts = %w[low medium high] if model == 'grok-4.5'
               efforts = %w[low high] if %w[grok-3-mini grok-3-mini-fast].include?(model)
+            elsif engine == 'anthropic'
+              selection = PWN::AI::Anthropic.send(:reasoning_efforts, model: model)
+              efforts = selection[:efforts]
+              default = selection[:default] || default
+            elsif engine == 'gemini'
+              selection = PWN::AI::Gemini.send(:reasoning_efforts, model: model)
+              efforts = selection[:efforts]
+              default = selection[:default] || default
+            elsif engine == 'ollama'
+              selection = PWN::AI::Ollama.send(:thinking_controls, model: model)
+              efforts = selection[:efforts]
+              default = selection[:default] || default
+            elsif engine == 'openwebui'
+              selection = PWN::AI::OpenWebUI.send(:thinking_controls, model: model)
+              efforts = selection[:efforts]
+              default = selection[:default] || default
             end
             current = PWN::Env.dig(:ai, engine.to_sym, :reasoning_effort).to_s
             efforts.delete('none') if engine == 'openai' && model.start_with?('gpt-6-astra')

@@ -15,7 +15,7 @@ module HarnessCLIFaults
     path = File.join(root, 'provider.json')
     File.write(path, JSON.generate(fixture))
     source = options[:source_root] || HarnessEvaluation::ROOT
-    env = { 'HOME' => File.join(root, 'home'), 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+    env = { 'HOME' => File.join(root, 'home'), 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
             'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR),
             'PWN_HARNESS_FIXTURE' => path, 'PWN_HARNESS_EVENTS' => File.join(root, 'events.jsonl'),
             'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json'), 'PWN_HARNESS_RUNTIME' => File.join(root, 'runtime'),
@@ -25,7 +25,12 @@ module HarnessCLIFaults
     command += ['-r', File.join(source, 'spec/support/harness/fault_preload.rb'),
                 options[:executable] || File.join(source, 'bin/pwn-ai'), '--ai', prompt]
     ready_path = fixture[:await_cap_ready] ? env.fetch('PWN_HARNESS_CAP_READY') : nil
-    report = HarnessEvaluation.capture(env, command, root, fixture.fetch(:wall_seconds, 35), ready_path: ready_path)
+    startup = options[:executable] ? 180 : 45
+    report = if ready_path
+               HarnessEvaluation.capture(env, command, root, fixture.fetch(:wall_seconds, 35), ready_path: ready_path, startup_seconds: startup)
+             else
+               HarnessEvaluation.agent_capture(env, command, root, fixture.fetch(:wall_seconds, 35), options)
+             end
     phase = fixture[:resume] ? 'resumed' : 'initial'
     File.write(File.join(root, "#{phase}-process.json"), JSON.pretty_generate(report.merge(command: command)))
     report

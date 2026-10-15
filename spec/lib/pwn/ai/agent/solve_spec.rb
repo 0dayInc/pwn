@@ -320,16 +320,18 @@ RSpec.describe 'Swarm solve' do # rubocop:disable Metrics/BlockLength -- end-to-
     end
 
     it 'reaps a writer command when its role deadline expires' do
+      role_started = nil
       @hook = lambda do |handoff, _answer|
         next unless handoff[:phase] == 'build'
 
         @isolated = handoff[:workspace]
+        role_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         PWN::AI::Agent::Dispatch.call(tool_call: { function: { name: 'shell', arguments: JSON.generate(command: 'sleep 4', timeout: 5) } })
       end
-      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       out = PWN::AI::Agent::Swarm.solve(request: 'Write hello', workspace: @workspace, worktree: true, rounds: 1, role_timeout: 1)
       expect(out[:status]).to eq('incomplete')
-      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
+      # Worktree checkout is outside the role deadline. Time the writer, not setup.
+      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - role_started).to be < 3
       expect(File).not_to exist(File.join(@workspace, 'greeting.txt'))
     end
 

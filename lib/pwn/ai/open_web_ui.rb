@@ -614,6 +614,42 @@ module PWN
         false
       end
 
+      private_class_method def self.thinking_controls(opts = {})
+        name = opts[:model].to_s.strip
+        return { efforts: [], default: nil } if name.empty?
+
+        names = [name]
+        names << "#{name}:latest" unless name.include?(':')
+        names.each do |candidate|
+          raw = openwebui_rest_call(
+            http_method: :post, rest_call: 'ollama/api/show',
+            http_body: { model: candidate }, timeout: 8, quiet: true, non_interactive: true
+          )
+          parsed = raw.is_a?(Hash) ? raw : JSON.parse(raw.to_s)
+          thinking = parsed[:thinking] || parsed['thinking']
+          next unless thinking.is_a?(Hash)
+
+          values = Array(thinking[:values] || thinking['values'])
+          efforts = values.map(&:to_s).reject { |value| %w[true false].include?(value.downcase) }
+          next if efforts.empty?
+
+          default = (thinking[:default] || thinking['default']).to_s
+          default = nil unless efforts.include?(default)
+          return { efforts: efforts, default: default }
+        end
+        { efforts: [], default: nil }
+      rescue StandardError
+        { efforts: [], default: nil }
+      end
+
+      private_class_method def self.think_wire(opts = {})
+        effort = opts[:reasoning_effort].to_s
+        return false if opts[:think] == false || %w[none false].include?(effort)
+        return true if effort.empty? || effort == 'true'
+
+        effort
+      end
+
       # Supported Method Parameters::
       # response = PWN::AI::OpenWebUI.chat_with_tools(
       #   messages: 'required - full OpenAI-format messages array (system/user/assistant/tool)',
@@ -667,7 +703,7 @@ module PWN
           http_body[:format] = fmt unless fmt.nil? || fmt.to_s.empty?
         end
         http_body[:tool_choice] = opts[:tool_choice] if opts[:tool_choice]
-        http_body[:think] = true unless opts[:think] == false
+        http_body[:think] = think_wire(reasoning_effort: opts[:reasoning_effort], think: opts[:think])
 
         response = openwebui_rest_call(
           http_method: :post,
@@ -830,7 +866,8 @@ module PWN
             temp: 'optional - temperature (defaults to PWN::Env[:ai][:openwebui][:temp] || 1)',
             timeout: 'optional - seconds (default 900)',
             spinner: 'optional - display spinner (default false)',
-            think: 'optional - true enables backend think (default true; false disables)'
+            think: 'optional - true enables backend think (default true; false disables)',
+            reasoning_effort: 'optional - think level when the proxied model publishes named levels'
           )
 
           # Run chat and return its result

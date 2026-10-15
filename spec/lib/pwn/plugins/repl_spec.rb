@@ -97,11 +97,33 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
     end
 
     it 'does not offer effort controls for unsupported models' do
+      allow(PWN::AI::Ollama).to receive(:thinking_controls).and_return({ efforts: [], default: nil })
+      allow(PWN::AI::OpenWebUI).to receive(:thinking_controls).and_return({ efforts: [], default: nil })
       expect(described_class.pwn_ai_reasoning_selection(engine: 'grok', model: 'grok-4')[:efforts]).to eq([])
       expect(described_class.pwn_ai_reasoning_selection(engine: 'openai', model: 'gpt-4o')[:efforts]).to eq([])
-      %w[anthropic gemini ollama openwebui].each do |engine|
+      expect(described_class.pwn_ai_reasoning_selection(engine: 'anthropic', model: 'claude-3-haiku')[:efforts]).to eq([])
+      expect(described_class.pwn_ai_reasoning_selection(engine: 'gemini', model: 'gemini-2.5-pro')[:efforts]).to eq([])
+      %w[ollama openwebui].each do |engine|
         expect(described_class.pwn_ai_reasoning_selection(engine: engine, model: 'fixture')[:efforts]).to eq([])
       end
+    end
+
+    it 'offers named effort levels only for models that publish them' do
+      anthropic = described_class.pwn_ai_reasoning_selection(engine: 'anthropic', model: 'claude-sonnet-4-6')
+      expect(anthropic[:efforts]).to eq(%w[low medium high])
+      expect(anthropic[:default]).to eq('high')
+      newer = described_class.pwn_ai_reasoning_selection(engine: 'anthropic', model: 'claude-opus-5-5')
+      expect(newer[:efforts]).to eq(%w[low medium high xhigh max])
+      expect(newer[:default]).to eq('medium')
+      gemini = described_class.pwn_ai_reasoning_selection(engine: 'gemini', model: 'gemini-4-argon')
+      expect(gemini[:efforts]).to eq(%w[low medium high])
+      expect(gemini[:default]).to eq('medium')
+      flash = described_class.pwn_ai_reasoning_selection(engine: 'gemini', model: 'gemini-3-flash')
+      expect(flash[:efforts]).to eq(%w[minimal low medium high])
+      allow(PWN::AI::Ollama).to receive(:thinking_controls).and_return({ efforts: %w[low medium high], default: 'medium' })
+      ollama = described_class.pwn_ai_reasoning_selection(engine: 'ollama', model: 'gpt-oss')
+      expect(ollama[:efforts]).to eq(%w[low medium high])
+      expect(ollama[:default]).to eq('medium')
     end
 
     it 'cancels without changing any configuration or persisting' do
@@ -112,9 +134,10 @@ describe PWN::Plugins::REPL do # rubocop:disable Metrics/BlockLength
       expect(Marshal.dump(PWN::Env[:ai])).to eq(before)
     end
 
-    it 'skips effort prompts and catalogs for engines without effort support' do
+    it 'skips effort prompts when the selected model publishes no named levels' do
       PWN::Env[:ai] = { active: 'ollama', ollama: { model: 'old', think: false } }
       allow(described_class).to receive(:persist_ai_selection).and_return(false)
+      allow(PWN::AI::Ollama).to receive(:thinking_controls).and_return({ efforts: [], default: nil })
       expect(PWN::AI::OpenAI).not_to receive(:get_models)
       prompt = double('prompt')
       expect(prompt).not_to receive(:call)
