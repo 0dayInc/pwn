@@ -58,6 +58,7 @@ module PWN
           return JSON.generate(success: false, error: 'Tool denied by solve role capability boundary') if solve_tools && !solve_tools.include?(entry.name.to_s)
 
           args = parse_args(raw: raw, entry: entry)
+          args = Result.utf8_value(value: args)
           args = alias_known_keys(args: args, entry: entry)
           schema = entry.schema[:parameters] || entry.schema['parameters'] || { type: 'object' }
           declaration = Manifest.load(directory: opts[:manifest_directory] || Manifest::DIRECTORY)[entry.name]
@@ -143,7 +144,7 @@ module PWN
           if defined?(PWN::Plugins::Vault) && result.is_a?(String)
             result = PWN::Plugins::Vault.redact(text: result)
           elsif defined?(PWN::Plugins::Vault) && result.is_a?(Hash)
-            result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(result)))
+            result = JSON.parse(PWN::Plugins::Vault.redact(text: JSON.generate(Result.utf8_value(value: result))))
           end
           response = { success: true, result: result, effect: effect(name: entry.name, args: args) }
           response[:success] = false if result.is_a?(Hash) && (result[:error] || result['error'] || result[:success] == false || result['success'] == false)
@@ -152,7 +153,7 @@ module PWN
             response[:success] = false
             response[:error] = 'budget_exhausted'
           end
-          JSON.generate(response)
+          JSON.generate(PWN::AI::Agent::Result.utf8_value(value: response))
         rescue StandardError => e
           JSON.generate(
             success: false,
@@ -229,7 +230,7 @@ module PWN
           chains = ledger[:chains] ||= {}
           key = opts[:budget_key] || entry.name
           chain = chains[key] ||= { payloads: {} }
-          payload = args.reject { |name, _| name.to_s == 'timeout' }
+          payload = Result.utf8_value(value: args.reject { |name, _| name.to_s == 'timeout' })
           hash = Digest::SHA256.hexdigest(JSON.generate(canonical(value: payload)))
           active = chain[:active]
           return { denial: { success: false, error: 'retry_required', payload_hash: active, hint: 'Retry the identical payload; its timeout will increase automatically.' } } if active && active != hash && (10_800 - chain[:payloads][active][:spent_s]).floor >= 1
@@ -404,7 +405,7 @@ module PWN
                      else
                        {}
                      end
-            key = "#{name}|#{JSON.generate(args_h)}"
+            key = "#{name}|#{JSON.generate(Result.utf8_value(value: args_h))}"
             next if seen[key]
 
             seen[key] = true
@@ -414,7 +415,7 @@ module PWN
               function: {
                 name: name,
                 # OpenAI/xAI wire format requires a JSON string, not a map.
-                arguments: JSON.generate(args_h)
+                arguments: JSON.generate(Result.utf8_value(value: args_h))
               }
             }
           end

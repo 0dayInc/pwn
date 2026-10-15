@@ -6,6 +6,15 @@ require 'pwn/ai/agent/request_runtime'
 describe PWN::AI::Agent::RequestRuntime do
   include_context 'pwn tmp sandbox'
 
+  it 'accepts a binary-tagged request without raising JSON::GeneratorError' do
+    request = "status \u2022 ok".b
+    expect(request.encoding).to eq(Encoding::ASCII_8BIT)
+    runtime = described_class.new(request: request, session_id: 'encoding-fixture', artifact_root: @tmp, trace: false)
+    expect(runtime.request.encoding).to eq(Encoding::UTF_8)
+    expect(runtime.request).to eq("status \u2022 ok")
+    expect(JSON.parse(File.read(runtime.checkpoint_path)).fetch('request')).to eq("status \u2022 ok")
+  end
+
   it 'rejects simultaneous execution of the same session before creating a runtime' do
     sid = 'exclusive-fixture'
     allow(PWN::AI::Agent::Loop).to receive(:run_turn).and_return('fixture')

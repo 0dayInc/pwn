@@ -28,20 +28,13 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWNSandboxDriver.help
-PWNSandboxDriver.available?(opts)
+PWNSandboxDriver.help(opts)
 ```
 
 ## Public methods
 
 - `authors`
 - `help`
-- `available?`
-- `bounded`
-- `execute`
-- `fuzz`
-- `inside`
-- `main`
-- `snapshot`
 
 ## Source
 

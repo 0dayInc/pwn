@@ -30,6 +30,16 @@ describe PWN::AI::Agent::Result do
     expect(shared[:text]).to eq("\xff".b)
   end
 
+  it 'retags binary UTF-8 text so JSON.generate does not raise on a leading E2 byte' do
+    text = "status \u2022 ok".b
+    expect(text.encoding).to eq(Encoding::ASCII_8BIT)
+    paged = described_class.page(value: { stdout: text })
+    expect(paged[:stdout].encoding).to eq(Encoding::UTF_8)
+    expect(paged[:stdout]).to eq("status \u2022 ok")
+    expect { JSON.generate(success: true, result: paged) }.not_to raise_error
+    expect(described_class.utf8_text(text: text)).to eq("status \u2022 ok")
+  end
+
   it 'preserves the JSON nesting boundary for finite valid results' do
     value = 'leaf'
     100.times { value = [value] }

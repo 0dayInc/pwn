@@ -38,16 +38,24 @@ module PWN
         # )
 
         public_class_method def self.condition(opts = {})
-          content = opts[:content].to_s
-          content = JSON.generate(spill_summary(content: content, session_id: opts[:session_id])) if content.bytesize > token_limit(entry: opts[:entry]) || !content.dup.force_encoding('UTF-8').valid_encoding?
+          raw = opts[:content].to_s
+          utf = raw.dup.force_encoding(Encoding::UTF_8)
+          content = utf.valid_encoding? ? utf : raw
+          content = JSON.generate(spill_summary(content: content, session_id: opts[:session_id])) if content.bytesize > token_limit(entry: opts[:entry]) || !utf.valid_encoding?
           redact(content: content)
         end
 
         # Preserve the original handler result before redaction/quarantine.
         public_class_method def self.page(opts = {})
           value = opts[:value]
-          safe_value = value.is_a?(String) ? value : transport_value(value: value)
-          content = value.is_a?(String) ? value : JSON.generate(safe_value)
+          if value.is_a?(String)
+            utf = value.dup.force_encoding(Encoding::UTF_8)
+            safe_value = utf.valid_encoding? ? utf : value
+            content = safe_value
+          else
+            safe_value = transport_value(value: value)
+            content = JSON.generate(safe_value)
+          end
           return safe_value if content.bytesize <= token_limit(entry: opts[:entry]) && content.dup.force_encoding('UTF-8').valid_encoding?
 
           summary = spill_summary(content: content, session_id: opts[:session_id])
@@ -61,6 +69,29 @@ module PWN
             end
           end
           summary
+        end
+
+        # Retag binary strings whose bytes are already UTF-8. JSON.generate
+        # refuses ASCII-8BIT bytes at or above 0x80, including a leading \xE2.
+        public_class_method def self.utf8_text(opts = {})
+          utf = opts[:text].to_s.dup.force_encoding(Encoding::UTF_8)
+          utf.valid_encoding? ? utf : utf.scrub
+        end
+
+        public_class_method def self.utf8_value(opts = {})
+          value = opts[:value]
+          depth = opts.fetch(:depth, 0)
+          return value if depth >= 100
+
+          case value
+          when String then utf8_text(text: value)
+          when Hash
+            value.each_with_object({}) do |(key, item), out|
+              out[key.is_a?(String) ? utf8_text(text: key) : key] = utf8_value(value: item, depth: depth + 1)
+            end
+          when Array then value.map { |item| utf8_value(value: item, depth: depth + 1) }
+          else value
+          end
         end
 
         # A byte is a conservative token upper bound; never assume four bytes
@@ -198,6 +229,17 @@ module PWN
 
             # Maximum page bytes with space reserved for response metadata.
             #{self}.page_length
+
+            # Retag a binary string whose bytes are already UTF-8, or scrub invalid bytes.
+            #{self}.utf8_text(
+              text: 'required - string that may be tagged ASCII-8BIT'
+            )
+
+            # Walk a tool or session value and retag every string before JSON.generate.
+            #{self}.utf8_value(
+              value: 'required - string, hash, or array that may contain binary-tagged text',
+              depth: 'optional - nesting depth already walked; stops at 100'
+            )
 
             # Engine-aware default: ollama keeps history inside a tight num_ctx;
             #{self}.default_max
