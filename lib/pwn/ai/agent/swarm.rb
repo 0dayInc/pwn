@@ -364,6 +364,9 @@ module PWN
         #     request: 'required - original objective, preserved for every role',
         #     workspace: 'optional - artifact root, defaults to current directory',
         #     rounds: 'optional - bounded repair rounds, 1..10, default 3',
+        #     worktree: 'optional - detached Git candidate checkout; default false, requires a clean root',
+        #     verification_timeout: 'optional - per-check seconds, 1..600, default 60',
+        #     role_timeout: 'optional - per-role seconds, 1..600, default 300',
         #     swarm_id: 'optional - existing swarm registry',
         #     steering: 'optional - Solve::Control coordinator control',
         #     on_state: 'optional - observed role state callback',
@@ -504,9 +507,12 @@ module PWN
 
         private_class_method def self.deep_stringify(opts = {})
           h = opts[:hash]
+          depth = opts.fetch(:depth, 0)
+          raise JSON::NestingError, 'swarm data exceeds JSON nesting limit (100)' if depth >= 100 && (h.is_a?(Hash) || h.is_a?(Array))
+
           case h
-          when Hash  then h.to_h { |k, v| [k.to_s, deep_stringify(hash: v)] }
-          when Array then h.map { |v| deep_stringify(hash: v) }
+          when Hash  then h.to_h { |k, v| [k.to_s, deep_stringify(hash: v, depth: depth + 1)] }
+          when Array then h.map { |v| deep_stringify(hash: v, depth: depth + 1) }
           when Symbol then h.to_s
           else h
           end
@@ -801,6 +807,9 @@ module PWN
               request: 'required - original objective preserved for every role',
               workspace: 'optional - artifact root, defaults to current directory',
               rounds: 'optional - repair round cap, 1..10, default 3',
+              worktree: 'optional - detached Git candidate checkout; default false, requires a clean root',
+              verification_timeout: 'optional - per-check seconds, 1..600, default 60',
+              role_timeout: 'optional - per-role seconds, 1..600, default 300',
               swarm_id: 'optional - registry from which role overrides are inherited',
               steering: 'optional - Solve::Control for coordinator steering/cancellation/pause',
               on_state: 'optional - observed four-role state callback',

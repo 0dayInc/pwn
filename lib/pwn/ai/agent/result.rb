@@ -90,9 +90,14 @@ module PWN
 
         private_class_method def self.transport_value(opts = {})
           value = opts[:value]
+          depth = opts.fetch(:depth, 0)
+          # Match JSON.generate's default container limit before Ruby recursion
+          # can overflow. Cycles necessarily reach this bound as well.
+          raise JSON::NestingError, 'tool result exceeds JSON nesting limit (100)' if depth >= 100 && (value.is_a?(Hash) || value.is_a?(Array))
+
           case value
-          when Hash then value.transform_values { |v| transport_value(value: v) }
-          when Array then value.map { |v| transport_value(value: v) }
+          when Hash then value.transform_values { |v| transport_value(value: v, depth: depth + 1) }
+          when Array then value.map { |v| transport_value(value: v, depth: depth + 1) }
           when String
             value.dup.force_encoding('UTF-8').valid_encoding? ? value.dup.force_encoding('UTF-8') : { encoding: 'base64', body: Base64.strict_encode64(value) }
           else value
@@ -140,11 +145,23 @@ module PWN
         end
 
         private_class_method def self.collect(opts = {})
-          hash = opts[:hash] ||= {}
-          acc  = opts[:acc]  ||= []
-          hash.each do |k, v|
+          hash = opts[:hash] || {}
+          acc = opts[:acc] || []
+          pending = [hash.each_pair]
+          seen = {}.compare_by_identity
+          seen[hash] = true
+          until pending.empty?
+            begin
+              k, v = pending.last.next
+            rescue StopIteration
+              pending.pop
+              next
+            end
             if v.is_a?(Hash)
-              collect(hash: v, acc: acc)
+              next if seen[v]
+
+              seen[v] = true
+              pending << v.each_pair
             elsif SENSITIVE_KEYS.include?(k.to_s.downcase.to_sym) && v.is_a?(String) && !v.empty?
               acc << v
             end

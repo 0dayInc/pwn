@@ -146,6 +146,7 @@ module PWN
       private_class_method def self.sync_oauth_into_env(opts = {})
         oauth = opts[:oauth]
         return false unless oauth.is_a?(Hash)
+        return Thread.current[:pwn_request_runtime].update_provider_oauth(:openai, oauth) if Thread.current[:pwn_request_runtime]
         return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
         engine = PWN::Env.dig(:ai, :openai)
@@ -171,6 +172,7 @@ module PWN
       # bearer lives in-session only.
       private_class_method def self.persist_oauth_to_vault(opts = {})
         oauth = opts[:oauth]
+        return false if Thread.current[:pwn_request_runtime]
         return false unless oauth.is_a?(Hash)
         return false unless real_config_value?(value: oauth[:bearer_token])
 
@@ -392,7 +394,7 @@ module PWN
 
       private_class_method def self.open_ai_rest_call(opts = {})
         opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools] || Thread.current[:pwn_session_title]
-        engine = PWN::Env[:ai][:openai] if defined?(PWN::Env)
+        engine = PWN::AI::HttpRetry.provider_config(engine: :openai)
         raise 'ERROR: OpenAI Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         # ------------------------------------------------------------------
@@ -561,17 +563,18 @@ module PWN
           end
           retry if retry_count < max_attempts
 
-          raise e if oauth_selected
+          raise e if oauth_selected || Thread.current[:pwn_provider_attempt_owner]
 
           nil
         end
       rescue RestClient::ExceptionWithResponse => e
-        raise e if oauth_selected || e.is_a?(RestClient::TooManyRequests)
+        raise e if oauth_selected || e.is_a?(RestClient::TooManyRequests) || Thread.current[:pwn_provider_attempt_owner]
 
         puts "ERROR: #{e.message}: #{e.response}" unless opts[:quiet]
         "#{e.message}: #{e.response}" if opts[:quiet]
       rescue StandardError => e
         raise e if oauth_selected
+        raise e if Thread.current[:pwn_provider_attempt_owner]
 
         case e.message
         when '400 Bad Request', '404 Resource Not Found'
@@ -656,7 +659,7 @@ module PWN
       # response_history; the caller owns the messages array.
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine   = PWN::Env[:ai][:openai]
+        engine   = PWN::AI::HttpRetry.provider_config(engine: :openai)
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
@@ -695,8 +698,7 @@ module PWN
         http_body[:max_completion_tokens] = max_tokens if max_tokens.positive?
         http_body[:prompt_cache_key] = cache_key if cache_key
         unless reasoning
-          temp = opts[:temp].to_f
-          temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
+          temp = (opts[:temp] || engine[:temp] || 1).to_f
           http_body[:temperature] = temp
         end
         http_body[:tools]       = opts[:tools]       if opts[:tools] && !opts[:tools].empty?
@@ -983,7 +985,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine  = PWN::Env[:ai][:openai]
+        engine  = PWN::AI::HttpRetry.provider_config(engine: :openai)
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 128_000
         request = request.to_s[0, ((max_prompt_length - 1) / 3.36).floor]
@@ -991,8 +993,7 @@ module PWN
         model = opts[:model] ||= engine[:model]
         raise 'ERROR: Model is required.  Call #get_models method for details' if model.nil?
 
-        temp = opts[:temp].to_f
-        temp = engine[:temp].to_f.nonzero? || 1 if temp.zero?
+        temp = (opts[:temp] || engine[:temp] || 1).to_f
 
         reasoning = reasoning_model?(model: model)
 
@@ -1147,8 +1148,7 @@ module PWN
 
         model = 'gpt-4-vision-preview'
 
-        temp = opts[:temp].to_f
-        temp = 1 if temp.zero?
+        temp = opts.fetch(:temp, 1).to_f
 
         max_tokens = 4_096 - (request.to_s.length / 4)
 

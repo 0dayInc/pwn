@@ -11,6 +11,45 @@ RSpec.describe 'PWN::AI::CLI' do
   context 'session title lifecycle' do
     include_context 'pwn tmp sandbox'
 
+    it 'resumes an explicitly selected prior session without creating a replacement objective' do
+      allow(PWN::Config).to receive(:refresh_env)
+      session = PWN::Sessions.create(source: 'fixture')
+      PWN::AI::Agent::OpenGoal.begin!(request: 'Original objective', session_id: session[:id])
+      expect(PWN::Sessions).not_to receive(:create)
+      expect(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+        expect(opts).to include(session_id: session[:id], request: 'continue')
+        opts[:on_outcome].call(status: 'blocked')
+        'Not complete'
+      end
+      expect(PWN::AI::CLI.run(argv: ['--resume-session', session[:id]], output: StringIO.new)).to eq(1)
+    end
+
+    it 'requires explicit approval for a new replacement objective and authored contract' do
+      allow(PWN::Config).to receive(:refresh_env)
+      session = PWN::Sessions.create(source: 'fixture')
+      PWN::AI::Agent::OpenGoal.begin!(request: 'Original objective', session_id: session[:id])
+      path = File.join(@tmp, 'contract.json')
+      contract = { requirements: ['New objective'], checks: [{ requirement: 'New objective', kind: 'answer', expected: 'fixture' }] }
+      File.write(path, JSON.generate(contract))
+      argv = ['--replace-session', session[:id], '--ai', 'New objective', '--verification-contract', path]
+      expect { PWN::AI::CLI.parse(argv: argv) }.to raise_error(OptionParser::InvalidArgument, /approve-replacement/)
+      expect(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+        expect(opts).to include(session_id: session[:id], request: 'New objective', verification_contract: contract)
+        opts[:on_outcome].call(status: 'complete')
+        'fixture'
+      end
+      expect(PWN::AI::CLI.run(argv: argv + ['--approve-replacement'], output: StringIO.new)).to eq(0)
+    end
+
+    it 'returns nonzero for an incomplete request even when provider prose claims success' do
+      allow(PWN::Config).to receive(:refresh_env)
+      allow(PWN::AI::Agent::Loop).to receive(:run) do |opts|
+        opts.fetch(:on_outcome).call(status: 'incomplete', unmet: ['artifact_content_mismatch'])
+        'Verified successfully.'
+      end
+      expect(PWN::AI::CLI.run(argv: ['--ai', 'write result.txt'], output: StringIO.new)).to eq(1)
+    end
+
     it 'starts interactive sessions with a replaceable title, not a fixed generic name' do
       allow(PWN::Config).to receive(:refresh_env)
       expect(PWN::Plugins::REPL).to receive(:start) do |opts|
@@ -168,6 +207,7 @@ RSpec.describe 'PWN::AI::CLI' do
         db.close
         expect(File.file?(File.join(root, "#{args[:session_id]}.jsonl"))).to be(true)
         expect(args[:request]).to eq('explain')
+        args.fetch(:on_outcome).call(status: 'complete', unmet: [])
         'fixture answer'
       end
       output = StringIO.new

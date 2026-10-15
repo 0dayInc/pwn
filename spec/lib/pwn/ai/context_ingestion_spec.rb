@@ -4,6 +4,18 @@ require 'spec_helper'
 require 'tmpdir'
 
 describe PWN::AI::Context do
+  it 'rejects deep XML before recursive XPath, serialization, database writes or embeddings' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'deep.xml')
+      valid = "#{'<root>' * 100}harmless-fixture#{'</root>' * 100}"
+      File.write(path, valid)
+      expect(described_class.send(:ingestion_records, source: path).first[:text]).to eq(valid)
+      File.write(path, "#{'<root>' * 10_000}harmless-fixture#{'</root>' * 10_000}")
+      expect(described_class).not_to receive(:ingestion_db)
+      expect { described_class.ingest(path: path, root: dir) }.to raise_error(ArgumentError, /XML nesting limit/)
+    end
+  end
+
   it 'removes stale evidence when a source is emptied and re-ingested' do
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'source.txt')

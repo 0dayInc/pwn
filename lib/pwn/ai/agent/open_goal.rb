@@ -3,6 +3,8 @@
 require 'json'
 require 'fileutils'
 require 'time'
+require 'digest'
+require 'securerandom'
 
 module PWN
   module AI
@@ -14,6 +16,9 @@ module PWN
         CONTINUE_RX = /\A\s*(continue|resume|keep going|pick up|carry on)(?:\s+(?:please|the\s+)?(?:goal|task|work))?\s*[.!]?\s*\z/i
 
         public_class_method def self.goal_file
+          runtime = Thread.current[:pwn_request_runtime]
+          return File.join(File.dirname(GOAL_FILE), 'open_goals', Digest::SHA256.hexdigest(runtime.session_id), "#{Digest::SHA256.hexdigest(runtime.request_id)}.json") if runtime
+
           GOAL_FILE
         end
 
@@ -29,6 +34,16 @@ module PWN
           nil
         end
 
+        public_class_method def self.for_session(opts = {})
+          sid = opts[:session_id].to_s
+          pointer = File.join(File.dirname(GOAL_FILE), 'open_goals', Digest::SHA256.hexdigest(sid), 'current.json')
+          path = File.file?(pointer) ? pointer : GOAL_FILE
+          return unless File.file?(path)
+
+          row = JSON.parse(File.read(path), symbolize_names: true)
+          row if row[:session_id] == sid && !row[:request].to_s.empty?
+        end
+
         public_class_method def self.begin!(opts = {})
           request = opts[:request].to_s.strip
           return if request.empty?
@@ -40,7 +55,10 @@ module PWN
             mission_id: opts[:mission_id].to_s,
             updated_at: Time.now.utc.iso8601
           }
-          File.write(goal_file, "#{JSON.pretty_generate(row)}\n")
+          runtime = Thread.current[:pwn_request_runtime]
+          row.merge!(request_id: runtime.request_id, checkpoint_path: runtime.checkpoint_path) if runtime
+          atomic_write(path: goal_file, row: row)
+          atomic_write(path: File.join(File.dirname(goal_file), 'current.json'), row: row) if runtime
           row
         end
 
@@ -50,6 +68,11 @@ module PWN
           return :held if mission_open?
 
           File.delete(goal_file)
+          pointer = File.join(File.dirname(goal_file), 'current.json')
+          if Thread.current[:pwn_request_runtime] && File.file?(pointer)
+            row = JSON.parse(File.read(pointer), symbolize_names: true)
+            File.delete(pointer) if row[:request_id] == Thread.current[:pwn_request_runtime].request_id
+          end
           :ok
         rescue StandardError
           :ok
@@ -76,6 +99,11 @@ module PWN
             # Run current and return its result
             #{self}.current
 
+            # Look up only the named session's resumable request.
+            #{self}.for_session(
+              session_id: 'required - exact session identity; no cross-session fallback'
+            )
+
             # Run begin and return its result
             #{self}.begin!(
               request: 'required - request value consumed by #begin!',
@@ -95,6 +123,20 @@ module PWN
             #{self}.authors
           "
           constants.sort
+        end
+
+        private_class_method def self.atomic_write(opts = {})
+          path = opts[:path]
+          FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
+          temp = "#{path}.#{SecureRandom.hex(8)}.tmp"
+          File.open(temp, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+            file.write(JSON.generate(opts[:row]))
+            file.flush
+            file.fsync
+          end
+          File.rename(temp, path)
+        ensure
+          File.unlink(temp) if temp && File.exist?(temp)
         end
 
         private_class_method def self.mission_open?(opts = {})

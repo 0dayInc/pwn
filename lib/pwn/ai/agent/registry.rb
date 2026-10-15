@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module PWN
   module AI
     module Agent
@@ -157,6 +159,9 @@ module PWN
           schema = opts[:schema]
           return schema unless schema.is_a?(Hash)
 
+          depth = opts.fetch(:depth, 0)
+          raise JSON::NestingError, 'tool schema exceeds JSON nesting limit (100)' if depth >= 100
+
           result = schema.dup
           type = schema[:type] || schema['type'] || opts[:inherited_type]
           result[:type] = type if type && !schema.key?(:type) && !schema.key?('type')
@@ -164,7 +169,7 @@ module PWN
             key = schema.key?(combiner) ? combiner : combiner.to_s
             next unless schema[key].is_a?(Array)
 
-            result[key] = schema[key].map { |branch| explicit_root_types(schema: branch, inherited_type: type) }
+            result[key] = schema[key].map { |branch| explicit_root_types(schema: branch, inherited_type: type, depth: depth + 2) }
           end
           result
         end

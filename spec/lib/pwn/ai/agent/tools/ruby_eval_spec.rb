@@ -87,8 +87,8 @@ describe 'PWN::AI::Agent::Tools ruby_eval' do
       }
     )
     parsed = JSON.parse(out, symbolize_names: true)
-    # handler now rescues → success:true with error key in result
-    expect(parsed[:success]).to eq(true)
+    # A rescued handler error is a failed dispatch, not verified success.
+    expect(parsed[:success]).to eq(false)
     expect(parsed[:result][:error]).to match(/SyntaxError/)
   end
 end

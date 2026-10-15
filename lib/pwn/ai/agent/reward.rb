@@ -312,9 +312,12 @@ module PWN
           sid = opts[:session_id].to_s
           rows = PWN::Sessions.load(session_id: sid)
           user = rows.reverse.find { |row| row[:role].to_s == 'user' }
-          raise ArgumentError, 'verification must match the current session request' unless user && user[:content].to_s == request
+          runtime = Thread.current[:pwn_request_runtime]
+          bound = runtime&.session_bound?(session_id: sid, request: request, rows: rows)
+          raise ArgumentError, 'verification must match the current session request' unless (user && user[:content].to_s == request) || bound
 
           record = Verification.run(opts.fetch(:contract).merge(request: request)).merge(session_id: sid)
+          runtime.verification!(report: record) if runtime && runtime.session_id == sid && runtime.request == request
           PWN::Sessions.append(session_id: sid, role: 'verification', content: JSON.generate(record)) if opts.fetch(:commit, true)
           record
         end

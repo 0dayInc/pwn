@@ -70,7 +70,7 @@ describe 'P0 signal hygiene (handler + inbox + policy-cold + calibrate)' do
       }
     )
     parsed2 = JSON.parse(missing, symbolize_names: true)
-    expect(parsed2[:success]).to eq(true)
+    expect(parsed2[:success]).to eq(false)
     expect(parsed2.dig(:result, :error)).to eq('invalid_payload')
     expect(parsed2.dig(:result, :hint).to_s).to match(/Expected keys: command/i)
   end

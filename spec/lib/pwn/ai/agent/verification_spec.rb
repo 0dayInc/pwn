@@ -31,6 +31,18 @@ RSpec.describe 'PWN::AI::Agent::Verification' do
     expect(report[:status]).to eq(:pass)
   end
 
+  it 'checks a non-file answer against exact criteria and current cited source bytes' do
+    File.write(File.join(@root, 'source.txt'), 'The fixture limit is seven.')
+    answer = 'The fixture limit is seven. [source.txt]'
+    check = { requirement: 'Report the fixture limit', kind: :answer, expected: answer,
+              sources: [{ path: 'source.txt', expected: 'The fixture limit is seven.', quote: 'seven', citation: '[source.txt]' }] }
+    opts = { request: 'Report the fixture limit', requirements: ['Report the fixture limit'], root: @root, checks: [check], answer: answer }
+    expect(PWN::AI::Agent::Verification.run(opts)[:status]).to eq(:pass)
+    expect(PWN::AI::Agent::Verification.run(opts.merge(answer: 'Verified: eight.'))[:status]).to eq(:fail)
+    File.write(File.join(@root, 'source.txt'), 'Changed source')
+    expect(PWN::AI::Agent::Verification.run(opts)[:status]).to eq(:fail)
+  end
+
   it 'rejects symlink escapes without reading their contents' do
     Dir.mktmpdir('pwn-outside') do |outside|
       path = File.join(outside, 'result')

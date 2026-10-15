@@ -149,7 +149,7 @@ module PWN
       publish(File.join(result[:archive_dir], 'ledger.json'), JSON.pretty_generate(result))
     end
 
-    def self.run(dry_run: true, current_session_id: nil, proc_root: '/proc')
+    def self.run(dry_run: true, current_session_id: nil, proc_root: '/proc', approved_candidates: nil)
       raise 'Session cleanup requires the updated Sessions activity API; load the updated source or deploy it before running this helper' unless PWN::Sessions.respond_to?(:activate)
 
       root = PWN::Sessions.sessions_dir
@@ -177,6 +177,11 @@ module PWN
         end
         expected = snapshot(path)
         record[:files] = expected
+        if approved_candidates && approved_candidates[id] != expected
+          record[:skip] = :not_approved_or_changed
+          result[:skipped][:not_approved_or_changed] += 1
+          next
+        end
         result[:unnamed] += 1
         if PWN::Sessions.active?(session_id: id)
           record[:skip] = :active

@@ -139,6 +139,7 @@ module PWN
       private_class_method def self.sync_oauth_into_env(opts = {})
         oauth = opts[:oauth]
         return false unless oauth.is_a?(Hash)
+        return Thread.current[:pwn_request_runtime].update_provider_oauth(:anthropic, oauth) if Thread.current[:pwn_request_runtime]
         return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
         engine = PWN::Env.dig(:ai, :anthropic)
@@ -162,6 +163,7 @@ module PWN
       # bearer lives in-session only.
       private_class_method def self.persist_oauth_to_vault(opts = {})
         oauth = opts[:oauth]
+        return false if Thread.current[:pwn_request_runtime]
         return false unless oauth.is_a?(Hash)
         return false unless real_config_value?(value: oauth[:bearer_token])
 
@@ -326,7 +328,7 @@ module PWN
 
       private_class_method def self.anthropic_rest_call(opts = {})
         opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools] || Thread.current[:pwn_session_title]
-        engine = PWN::Env[:ai][:anthropic] if defined?(PWN::Env)
+        engine = PWN::AI::HttpRetry.provider_config(engine: :anthropic)
         raise 'ERROR: Anthropic Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         # ------------------------------------------------------------------
@@ -461,6 +463,8 @@ module PWN
 
           response.body
         rescue RestClient::TooManyRequests => e
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           retry_count += 1
           if retry_count >= max_attempts
             unless opts[:quiet]
@@ -485,8 +489,12 @@ module PWN
           end
           retry if retry_count < max_attempts
 
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           raise "Anthropic API Error: #{e.class}: #{e.message}"
         rescue RestClient::ExceptionWithResponse => e
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           raise "Anthropic API Error: #{e.message}: #{e.response}"
         rescue StandardError => e
           case e.message
@@ -564,7 +572,7 @@ module PWN
       # )
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine   = PWN::Env[:ai][:anthropic]
+        engine   = PWN::AI::HttpRetry.provider_config(engine: :anthropic)
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
@@ -685,11 +693,14 @@ module PWN
 
       private_class_method def self.json_copy(opts = {})
         value = opts[:value]
+        depth = opts.fetch(:depth, 0)
+        raise JSON::NestingError, 'tool schema exceeds JSON nesting limit (100)' if depth >= 100 && (value.is_a?(Hash) || value.is_a?(Array))
+
         case value
         when Hash
-          value.each_with_object({}) { |(key, item), out| out[key] = json_copy(value: item) }
+          value.each_with_object({}) { |(key, item), out| out[key] = json_copy(value: item, depth: depth + 1) }
         when Array
-          value.map { |item| json_copy(value: item) }
+          value.map { |item| json_copy(value: item, depth: depth + 1) }
         else
           value.is_a?(String) ? value.dup : value
         end
@@ -856,7 +867,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine = PWN::Env[:ai][:anthropic]
+        engine = PWN::AI::HttpRetry.provider_config(engine: :anthropic)
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 200_000
         request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor

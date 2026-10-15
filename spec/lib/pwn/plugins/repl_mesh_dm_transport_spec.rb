@@ -45,6 +45,7 @@ describe PWN::Plugins::REPL, 'mesh DM transport replay' do
     )
 
     expect(win).to have_received(:addstr).with(" hello receiver\n")
-    expect(win).to have_received(:addstr).with(a_string_including('!aabbccdd', '!bbccddee (ME)'))
+    expect(win).to have_received(:addstr).with(a_string_including('!aabbccdd'))
+    expect(win).to have_received(:addstr).with(a_string_including('!bbccddee (ME)'))
   end
 end

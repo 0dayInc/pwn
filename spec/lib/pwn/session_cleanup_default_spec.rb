@@ -24,7 +24,7 @@ RSpec.describe 'Bundled session cleanup' do
     original = PWN::Cron.create(name: 'session_cleanup', schedule: '12 9 * * *', ruby: 'custom guard', enabled: false)
     File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 7))
     result = PWN::Migrate.run(fix: false, backup: false, io: StringIO.new)
-    expect(result[:applied_migrations]).to eq([8])
+    expect(result[:applied_migrations]).to eq([8, 9])
     expect(PWN::Cron.list.fetch(original[:id])).to eq(original)
     expect(PWN::Cron.list.values.count { |job| job[:name] == 'session_cleanup' }).to eq(1)
     expect(File).to exist(File.join(PWN::Cron.cron_dir, 'session_cleanup.rb'))

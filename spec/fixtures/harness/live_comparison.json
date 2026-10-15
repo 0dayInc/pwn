@@ -1,0 +1,21 @@
+{
+  "schema": "pwn-live-parity-v1",
+  "status": "NOT_RUN",
+  "parity_reviewed": false,
+  "provider_hard_cost_cap_confirmed": false,
+  "approved_cost_usd": null,
+  "pwn": {
+    "provider": null, "model": null, "revision": null, "endpoint": null,
+    "reasoning": null, "temperature": 0, "max_iterations": 12,
+    "max_tokens": 2048, "wall_seconds": 120,
+    "tool_capabilities": ["local_shell"], "network": false,
+    "toolsets": ["shell"]
+  },
+  "reference": {
+    "provider": null, "model": null, "revision": null, "endpoint": null,
+    "reasoning": null, "temperature": 0, "max_iterations": 12,
+    "max_tokens": 2048, "wall_seconds": 120,
+    "tool_capabilities": ["local_shell"], "network": false,
+    "toolsets": ["terminal"], "api_mode": null
+  }
+}

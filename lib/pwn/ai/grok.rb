@@ -129,6 +129,7 @@ module PWN
       private_class_method def self.sync_oauth_into_env(opts = {})
         oauth = opts[:oauth]
         return false unless oauth.is_a?(Hash)
+        return Thread.current[:pwn_request_runtime].update_provider_oauth(:grok, oauth) if Thread.current[:pwn_request_runtime]
         return false unless defined?(PWN::Env) && PWN::Env.is_a?(Hash)
 
         engine = PWN::Env.dig(:ai, :grok)
@@ -152,6 +153,7 @@ module PWN
       # bearer lives in-session only.
       private_class_method def self.persist_oauth_to_vault(opts = {})
         oauth = opts[:oauth]
+        return false if Thread.current[:pwn_request_runtime]
         return false unless oauth.is_a?(Hash)
         return false unless real_config_value?(value: oauth[:bearer_token])
 
@@ -346,7 +348,7 @@ module PWN
       # )
       private_class_method def self.grok_rest_call(opts = {})
         opts = opts.merge(non_interactive: true) if Thread.current[:pwn_solve_tools] || Thread.current[:pwn_session_title]
-        engine = PWN::Env.dig(:ai, :grok) if defined?(PWN::Env)
+        engine = PWN::AI::HttpRetry.provider_config(engine: :grok)
         raise 'ERROR: Grok Hash not found in PWN::Env.  Run `pwn -Y default.yaml`, then `PWN::Env` for usage.' if engine.nil?
 
         # ------------------------------------------------------------------
@@ -495,11 +497,14 @@ module PWN
           end
           retry if retry_count < max_attempts
 
+          raise e if Thread.current[:pwn_provider_attempt_owner]
+
           nil
         end
       rescue RestClient::ExceptionWithResponse => e
-        # Keep the HTTP type/response for callers, and surface provider diagnostics
-        # instead of turning failed requests into nil or unparseable JSON text.
+        raise e if Thread.current[:pwn_provider_attempt_owner]
+
+        # Keep the HTTP type/response and actionable provider diagnostics.
         e.message = "Grok HTTP #{e.http_code} (#{http_method.to_s.upcase} #{rest_call}): #{e.response&.body}"
         raise
       rescue StandardError => e
@@ -567,7 +572,7 @@ module PWN
       # response shapes are identical to PWN::AI::OpenAI.chat_with_tools.
 
       public_class_method def self.chat_with_tools(opts = {})
-        engine   = PWN::Env[:ai][:grok]
+        engine   = PWN::AI::HttpRetry.provider_config(engine: :grok)
         messages = opts[:messages]
         raise 'ERROR: messages array is required' if messages.nil? || messages.empty?
 
@@ -647,7 +652,7 @@ module PWN
       # )
 
       public_class_method def self.chat(opts = {})
-        engine = PWN::Env[:ai][:grok]
+        engine = PWN::AI::HttpRetry.provider_config(engine: :grok)
         request = opts[:request]
         max_prompt_length = engine[:max_prompt_length] ||= 256_000
         request_trunc_idx = ((max_prompt_length - 1) / 3.36).floor

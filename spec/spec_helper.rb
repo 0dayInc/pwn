@@ -3,7 +3,8 @@
 require 'pwn'
 require 'stringio'
 
-Dir[File.join(__dir__, 'support', '**', '*.rb')].each { |f| require f }
+# Harness preloads are subprocess-only; runners are explicitly required by integration specs.
+Dir[File.join(__dir__, 'support', '**', '*.rb')].reject { |f| f.include?('/support/harness/') }.each { |f| require f }
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Keep `rake` output clean.
@@ -18,6 +19,7 @@ Dir[File.join(__dir__, 'support', '**', '*.rb')].each { |f| require f }
 #    - `it '...', :stdout do ... end`               → per-example opt-out
 # ─────────────────────────────────────────────────────────────────────────────
 RSpec.configure do |config|
+  config.filter_run_excluding :harness_live unless ENV['PWN_TEST_HARNESS_LIVE'] == '1'
   config.filter_run_excluding :local_embeddings unless ENV['PWN_TEST_EMBED_ENDPOINT'] && ENV['PWN_SQLITE_VEC_EXTENSION']
   config.filter_run_excluding :proxmark3_integration unless ENV['PWN_TEST_PROXMARK3'] == '1'
   config.filter_run_excluding :rtl433_integration unless ENV['PWN_TEST_RTL433'] == '1'

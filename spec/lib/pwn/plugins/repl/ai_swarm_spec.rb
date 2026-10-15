@@ -5,6 +5,35 @@ require 'spec_helper'
 describe PWN::Plugins::REPL::AISwarm::Controller do
   include_context 'pwn tmp sandbox'
 
+  it 'retains cancellation evidence and forwards bounded mission options unchanged' do
+    allow(PWN::AI::Agent::Swarm).to receive(:solve) do |opts|
+      expect(opts).to include(worktree: true, rounds: 2, verification_timeout: 120, role_timeout: 45)
+      opts[:steering].stop
+      { status: 'cancelled', reply: 'Cancelled after check', evidence: [{ exitstatus: 1, stdout: 'retained failure' }], record_path: '/fixture/solve.json' }
+    end
+    controller = described_class.new(session_id: 'fixture')
+    controller.execute(line: '/swarm mission Original objective', worktree: true, rounds: 2, verification_timeout: 120, role_timeout: 45)
+    controller.send(:workers).each(&:join)
+    expect(controller.snapshot[:jobs].first).to include(state: 'cancelled', team: include(evidence: [include(stdout: 'retained failure')], record_path: '/fixture/solve.json'))
+  ensure
+    controller&.close
+  end
+
+  it 'reports pause requested until the coordinator actually reaches its boundary' do
+    control = PWN::Plugins::REPL::AISwarm::MissionControl.new(input: StringIO.new, output: StringIO.new)
+    control.pause(true)
+    expect(control.observed_pause).not_to be(true)
+    worker = Thread.new { control.check_stop }
+    Timeout.timeout(2) { Thread.pass until control.observed_pause }
+    expect(worker).to be_alive
+    control.pause(false)
+    expect(worker.join(2)).to eq(worker)
+    expect(control.observed_pause).to be(false)
+  ensure
+    control&.pause(false)
+    worker&.join(2)
+  end
+
   it 'routes renamed commands and missing arguments through both console entry points' do
     allow(PWN::AI::Agent::Swarm).to receive(:personas).and_return(scout: { role: 'Inspect' })
     allow(PWN::AI::Agent::Swarm).to receive(:create).and_return(swarm_id: 'fixture')

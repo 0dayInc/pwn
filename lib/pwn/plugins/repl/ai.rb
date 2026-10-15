@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'digest'
+require 'tmpdir'
 require 'yaml'
 require 'pry'
 require 'reline'
@@ -246,10 +248,11 @@ module PWN
           end
         end
         PWN_AI_SLASH_COMMANDS = %w[
-          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /swarm /system-role /trace
+          /back /cron /debug /delegate /help /learning /memory /mcp /model /sessions /skills /steer /swarm /system-role /trace /vault
         ].freeze
 
         PWN_AI_SLASH_SUBCOMMANDS = {
+          '/vault' => %w[edit],
           '/cron' => %w[list create run remove],
           '/debug' => [],
           '/trace' => [],
@@ -276,6 +279,11 @@ module PWN
           # readline and not a worker thread running tools without their locals.
           def pwn_ai_run_steerable(opts = {})
             previous = Thread.current[:pwn_steering_input]
+            workspace = File.realpath(Dir.pwd)
+            lock_path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock")
+            workspace_lock = File.open(lock_path, File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- ensure releases the request lease
+            raise 'another request owns this workspace; status, steer, pause and cancel remain available' unless workspace_lock.flock(File::LOCK_EX | File::LOCK_NB)
+
             input = opts[:input] || $stdin
             output = opts[:output] || $stdout
             control = PWN::AI::Agent::Loop::Steering.new(input: input, output: output)
@@ -283,6 +291,7 @@ module PWN
             control.with_reader { PWN::AI::Agent::Loop.run(opts.merge(steering: control)) }
           ensure
             Thread.current[:pwn_steering_input] = previous
+            workspace_lock&.close
           end
 
           def pwn_ai_complete_kind(opts = {})
@@ -512,6 +521,10 @@ module PWN
           # (caller should not send the line to Loop.run).
           def pwn_ai_dispatch_slash!(opts = {})
             request = opts[:request].to_s.gsub(/\A[[:space:]]+|[[:space:]]+\z/, '')
+            if request.match?(%r{\A/vault(?:\s|$)})
+              puts '[pwn-ai] /vault edit [key ...] requires the curses console. Open pwn-ai in an interactive terminal; no configuration changed.'
+              return true
+            end
             if request.strip.match?(/\Aai\.profile(?:\s|$)/)
               pwn_ai_profile_command(pry: opts[:pry], args: request.strip.split(/\s+/).drop(1))
               return true
@@ -544,6 +557,7 @@ module PWN
               puts '  TAB: /… command menu · slash later in the line: path nav · else Ruby completion'
               puts '  /steer <instruction>: redirect an active request; a running tool finishes first (not undone)'
               puts '  /sessions resume <id|title>: resume by exact id or unique displayed title (optionally quoted)'
+              puts '  /vault edit [key ...]: edit all encrypted pwn.yaml or one nested key scope (curses only). Ctrl+S saves; Esc/Ctrl+C cancels.'
             when '/back'
               if pi.respond_to?(:eval)
                 pi.eval('back')

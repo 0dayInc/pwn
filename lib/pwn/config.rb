@@ -325,13 +325,17 @@ module PWN
                 psk: 'AQ==',
                 region: 'US/<STATE>',
                 topic: '2/e/#',
-                channel_num: 8
+                channel_num: 8,
+                from: '',
+                short_name: ''
               },
               PWN: {
                 psk: 'required - PSK for pwn channel',
                 region: 'US/<STATE>',
                 topic: '2/e/PWN/#',
-                channel_num: 99
+                channel_num: 99,
+                from: '',
+                short_name: ''
               }
             }
           },

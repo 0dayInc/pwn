@@ -12,7 +12,7 @@ metadata:
 
 # PWN::Plugins::REPL::AIConsole
 
-Single-owner fullscreen agent console. Workers never paint the terminal.
+Single-owner fullscreen console: wrapped completion and private /vault edit; Ctrl+S saves encrypted, Esc cancels.
 
 ## When to use
 

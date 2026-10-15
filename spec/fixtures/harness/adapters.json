@@ -1,0 +1,62 @@
+{
+  "schema": "pwn-comparison-adapters-v1",
+  "status": "NOT_RUN",
+  "reference_revision": "601b550b4b5addecc0b6dacf9a472a54dd8c6799",
+  "inspected_reference_sources": {
+    "run_agent.py": "2bd45c545c2cf0dec95702e71232f026b1265b54bf234a1c03c8cf83f5236f10",
+    "agent/turn_facade.py": "e9176a8ae1d7822fa45c75b680d5ae4be7c949e49c877673aea867cc146856a0"
+  },
+  "pwn": {
+    "entry": [
+      "ruby",
+      "<isolated GEM_HOME>/bin/pwn-ai",
+      "--ai",
+      "<task prompt>"
+    ],
+    "library": "PWN::AI::Agent::Loop.run(request:, session_id:, enabled_toolsets:)",
+    "provider_configuration": "PWN::Env[:ai][:active]; PWN::Env[:ai][provider][:model]; reasoning_effort; agent.max_iters",
+    "swarm_api": [
+      "PWN::AI::Agent::Swarm.spawn(opts)",
+      "PWN::AI::Agent::Swarm.debate(opts)",
+      "PWN::AI::Agent::Swarm.broadcast(opts)"
+    ],
+    "notes": "CLI refresh_env loads encrypted config in ordinary live use; offline preload replaces refresh_env only inside fixture subprocess. Do not silently use user configuration."
+  },
+  "reference_agent": {
+    "module": "run_agent",
+    "class": "AIAgent",
+    "constructor_fields": [
+      "base_url",
+      "api_key",
+      "provider",
+      "api_mode",
+      "model",
+      "max_iterations",
+      "enabled_toolsets",
+      "max_tokens",
+      "reasoning_config",
+      "request_overrides",
+      "requested_provider",
+      "run_budget_seconds",
+      "cwd",
+      "skip_context_files",
+      "skip_memory",
+      "skip_background_review",
+      "save_trajectories"
+    ],
+    "invoke": "agent.run_conversation(user_message=prompt, conversation_history=[])",
+    "return": "dict; preserve complete response, do not infer success from answer text",
+    "adapter": "spec/support/harness/reference_adapter.py; --approve-live required, pinned source and locked live_comparison.json parity validated before import",
+    "offline_inspection": "--inspect-source PATH checks source hashes and AST signature without imports or credentials"
+  },
+  "required_before_live": [
+    "Operator-approved cost and wall/token budgets",
+    "Same immutable provider/model version and reasoning configuration; record endpoint revision if model alias mutable",
+    "Tool capability parity and workspace/network/approval sandbox review for both adapters",
+    "Same frozen task bytes and independent checks; private holdout separate from these public scripted fixtures",
+    "Paired repeated seeds; record randomized arm order; reset temp HOME workspace learned snapshots per trial",
+    "Disable or separately count sidecar and swarm calls; record actual execution counts, unknown learning activity must remain unknown",
+    "Usage/cost instrumentation for all calls; null when unobserved; resource cap -> INCOMPLETE",
+    "Use separate validation and heldout sets, no heldout-based tuning or promotion"
+  ]
+}

@@ -1534,13 +1534,13 @@ RSpec.describe 'PWN::AI::Agent reinforced feedback loop', :aggregate_failures do
       expect(src).not_to match(/hot_cap = local_engine\? \? 24 : 75/)
     end
 
-    it 'defines incomplete_final? and continues on mid-goal handoff' do
+    it 'retains diagnostic prose classifiers but gates finalization on evidence' do
       src = File.read(loop_mod.method(:run).source_location.first)
       expect(src).to match(/incomplete_final\?/)
       expect(src).to match(/INCOMPLETE_FINAL_RX/)
       expect(src).to match(/MONOLOGUE_TOOL_INTENT_RX/)
       expect(src).to match(%r{\[pwn-ai/p28\]})
-      expect(src).to match(/continuing autonomously/)
+      expect(src).to include('unless may_finalize?(', 'completion_unmet(request: request, messages: messages)')
       # last-iter wording no longer coaches "next single step" handoffs
       expect(src).not_to match(/next single step/)
       expect(src).to match(/Do NOT monologue/)

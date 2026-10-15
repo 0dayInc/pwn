@@ -28,11 +28,13 @@ Class methods take `(opts = {})` and read `opts`.
 
 ```ruby
 PWN::AI::Agent::Solve.help
-PWN::AI::Agent::Solve.help(opts)
+PWN::AI::Agent::Solve.apply_patch(opts)
 ```
 
 ## Public methods
 
+- `apply_patch`
+- `cleanup_worktree`
 - `authors`
 - `help`
 
@@ -42,5 +44,5 @@ PWN::AI::Agent::Solve.help(opts)
 
 ## Verification
 
-`PWN::AI::Agent::Solve.respond_to?(:authors)` after the
+`PWN::AI::Agent::Solve.respond_to?(:apply_patch)` after the
 module is loaded. Read the source for parameter names.

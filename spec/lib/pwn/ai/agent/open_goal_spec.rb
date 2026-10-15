@@ -26,6 +26,23 @@ describe PWN::AI::Agent::OpenGoal do
     expect(described_class.current).to be_nil
   end
 
+  it 'keeps runtime-bound goals separate and exposes their checkpoint identity for resume' do
+    runtimes = %w[one two].map do |sid|
+      PWN::AI::Agent::RequestRuntime.new(request: "Write #{sid}.txt", session_id: sid, request_id: sid, artifact_root: tmp, trace: false)
+    end
+    runtimes.each do |runtime|
+      Thread.current[:pwn_request_runtime] = runtime
+      described_class.begin!(request: runtime.request, session_id: runtime.session_id)
+    end
+    runtimes.each do |runtime| # rubocop:disable Style/CombinableLoops -- assert after both writes to catch cross-session clobbering
+      Thread.current[:pwn_request_runtime] = runtime
+      expect(described_class.current).to include(request_id: runtime.request_id, checkpoint_path: runtime.checkpoint_path)
+      expect(File.stat(described_class.goal_file).mode & 0o777).to eq(0o600)
+    end
+  ensure
+    Thread.current[:pwn_request_runtime] = nil
+  end
+
   it 'resumes only a bare continue/resume ask, not a new goal' do
     described_class.begin!(request: 'Update all markdown files', session_id: 's1')
     expect(described_class.resume?(request: 'continue')).to eq true

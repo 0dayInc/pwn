@@ -105,6 +105,26 @@ describe PWN::AI::Agent::TurnFinalizer do
   end
 
   describe 'output path literals' do
+    it 'rejects observed wrong bytes for an explicit exact literal requirement' do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'result.txt')
+        request = "Create #{path} containing exactly alpha followed by newline and verify it."
+        described_class.commit_artifacts!(request: request)
+        before = described_class.artifact_snapshot(paths: [path])
+        File.write(path, "wrong\n")
+        observed = described_class.observe_artifacts(paths: [path], before: before, effect: :write, success: true)
+        row = described_class.arbitrate(request: request, messages: [{ role: 'tool', artifact_observations: observed }])
+        expect(row[:complete]).to be false
+        expect(row[:unmet]).to include(criterion: 'artifact_content_mismatch', detail: path)
+        before = described_class.artifact_snapshot(paths: [path])
+        File.write(path, "alpha\n")
+        observed = described_class.observe_artifacts(paths: [path], before: before, effect: :write, success: true)
+        expect(described_class.arbitrate(request: request, messages: [{ role: 'tool', artifact_observations: observed }])[:complete]).to be true
+      end
+    ensure
+      Thread.current[:pwn_artifact_contract] = nil
+    end
+
     it 'precommits immutable required_artifacts before cwd or request processing can drift' do
       Dir.mktmpdir do |dir|
         request = 'Read /tmp/input.md and write ./answer.md'

@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 require 'digest'
+require 'json'
 
 module PWN
-  # Shared write-boundary redaction. Never opens a credential store.
+  # Write-boundary redaction; reject cyclic or over-100-level containers before inspecting secrets. Never opens a credential store.
   module Redaction
     PATTERNS = {
       pem: /-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|\z)/m,
@@ -19,17 +20,40 @@ module PWN
 
     public_class_method def self.redact(opts = {})
       value = opts[:value]
+      validate_nesting(value: value)
+      redact_value(value: value)
+    end
+
+    # Check secret containers too, before their existing token/inspect path.
+    private_class_method def self.validate_nesting(opts = {})
+      value = opts[:value]
+      depth = opts.fetch(:depth, 0)
+      return unless value.is_a?(Hash) || value.is_a?(Array)
+      raise JSON::NestingError, 'redaction input exceeds JSON nesting limit (100)' if depth >= 100
+
+      if value.is_a?(Hash)
+        value.each do |key, item|
+          validate_nesting(value: key, depth: depth + 1)
+          validate_nesting(value: item, depth: depth + 1)
+        end
+      else
+        value.each { |item| validate_nesting(value: item, depth: depth + 1) }
+      end
+    end
+
+    private_class_method def self.redact_value(opts = {})
+      value = opts[:value]
       case value
       when Hash
         value.to_h do |key, item|
           clean = if key.to_s.match?(SECRET_FIELD) && !item.nil?
                     token(kind: key.to_s.downcase, value: item.to_s)
                   else
-                    redact(value: item)
+                    redact_value(value: item)
                   end
-          [key.is_a?(String) ? redact(value: key) : key, clean]
+          [key.is_a?(String) ? redact_value(value: key) : key, clean]
         end
-      when Array then value.map { |item| redact(value: item) }
+      when Array then value.map { |item| redact_value(value: item) }
       when String
         PATTERNS.reduce(value.dup) do |text, (kind, regex)|
           text.split(/(\[REDACTED:[^:\]]+:[0-9a-f]{8}\])/).map do |part|
@@ -98,7 +122,7 @@ module PWN
 
     public_class_method def self.help
       puts "USAGE:
-        # Recursively redact secret patterns before persistence.
+        # Redact secret patterns before persistence; reject cycles/depth above 100 with JSON::NestingError.
         #{self}.redact(
           value: 'required - string or nested JSON-compatible data'
         )

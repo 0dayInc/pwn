@@ -17,6 +17,7 @@ module PWN
       end
 
       public_class_method def self.max_attempts(opts = {})
+        return 1 if Thread.current[:pwn_provider_attempt_owner] || Thread.current[:pwn_request_runtime]
         return 1 unless opts.is_a?(Hash)
 
         n = opts[:max_attempts].to_i
@@ -25,6 +26,15 @@ module PWN
         return 1 if opts[:timeout].to_i.positive? && opts[:timeout].to_i < DEFAULT_TIMEOUT_S
 
         DEFAULT_MAX_ATTEMPTS
+      end
+
+      # Resolve provider defaults from the active request without mutating Env.
+      public_class_method def self.provider_config(opts = {})
+        engine = opts[:engine]
+        owner = Thread.current[:pwn_request_runtime]
+        return owner.provider_config(engine) if owner.respond_to?(:provider_config)
+
+        defined?(PWN::Env) ? PWN::Env[:ai]&.[](engine) : nil
       end
 
       public_class_method def self.retryable?(opts = {})
@@ -116,6 +126,10 @@ module PWN
             timeout: 'optional - seconds to wait before giving up'
           )
 
+          # Resolve isolated provider configuration for the active request.
+          #{self}.provider_config(
+            engine: 'required - provider symbol whose request-owned defaults to read'
+          )
           # Run retryable and return its result
           #{self}.retryable?(
             error: 'optional - error value consumed by #retryable?',

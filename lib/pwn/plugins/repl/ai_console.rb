@@ -4,12 +4,20 @@ require 'curses'
 require 'io/console'
 require 'io/wait'
 require 'fcntl'
+require 'digest'
+require 'fileutils'
+require 'json'
+require 'tmpdir'
+require 'tempfile'
+require 'yaml'
+require 'openssl'
+require 'base64'
 require 'unicode/display_width'
 
 module PWN
   module Plugins
     module REPL
-      # Single-owner fullscreen agent console. Workers never paint the terminal.
+      # Single-owner fullscreen console: wrapped completion and private /vault edit; Ctrl+S saves encrypted, Esc cancels.
       module AIConsole
         public_class_method def self.run(opts = {})
           input = opts[:input] || $stdin
@@ -17,6 +25,179 @@ module PWN
           return :unavailable unless input.tty? && output.tty? && ENV['TERM'] != 'dumb'
 
           Console.new(pry: opts[:pry], input: input, curses: opts[:curses] || Curses, getch: opts[:getch]).run
+        end
+
+        # Private, in-memory configuration transaction. No plaintext filesystem stage.
+        # Compatible with pwn-vault AES-256-CBC and its existing decryptor sidecar.
+        class VaultEdit # rubocop:disable Metrics/ClassLength -- One private encrypted transaction owns validation and atomic persistence.
+          class Error < StandardError; end
+
+          attr_reader :text
+
+          def initialize(keys)
+            @path = PWN::Env.dig(:driver_opts, :pwn_env_path) || File.join(Dir.home, '.pwn', 'pwn.yaml')
+            @decryptor_path = PWN::Env.dig(:driver_opts, :pwn_dec_path) || "#{@path}.decryptor"
+            @keys = keys.freeze
+            @baseline = read_document
+            @text = serialize(@selected = select(@baseline))
+          rescue Error
+            raise
+          rescue StandardError
+            raise Error, 'Cannot open vault. Check encrypted pwn.yaml and decryptor permissions.', cause: nil
+          end
+
+          def select(document)
+            node = document
+            @keys.each do |key|
+              raise Error, 'Unknown key path. Use existing mapping keys; arrays are edited as a whole.' unless node.is_a?(Hash) && node.key?(key.to_sym)
+
+              node = node[key.to_sym]
+            end
+            node
+          end
+
+          def parse(text)
+            stream = Psych.parse_stream(text)
+            raise Error unless stream.children.length == 1
+
+            validate_yaml_nodes(stream)
+            YAML.safe_load(text, permitted_classes: [Symbol], aliases: false, symbolize_names: true)
+          rescue StandardError
+            raise Error, 'Invalid YAML. Use a single YAML value without aliases or object tags.', cause: nil
+          end
+
+          def validate_yaml_nodes(node, depth = 0)
+            container = node.is_a?(Psych::Nodes::Mapping) || node.is_a?(Psych::Nodes::Sequence)
+            raise Error if container && depth >= 100
+
+            if node.is_a?(Psych::Nodes::Mapping)
+              keys = node.children.each_slice(2).map do |key, _value|
+                raise Error unless key.is_a?(Psych::Nodes::Scalar)
+
+                key.value.delete_prefix(':')
+              end
+              raise Error unless keys.uniq.length == keys.length
+            end
+            Array(node.children).each { |child| validate_yaml_nodes(child, depth + (container ? 1 : 0)) }
+          end
+
+          def serialize(value)
+            YAML.dump(value).gsub(/^(\s*):/, '\1')
+          end
+
+          def credentials
+            safe_file(@decryptor_path)
+            result = parse(File.read(@decryptor_path))
+            raise Error, 'Decryptor requires the existing key and IV; restore the original sidecar.' unless result.is_a?(Hash) && result[:key].is_a?(String) && result[:iv].is_a?(String)
+
+            result.slice(:key, :iv)
+          end
+
+          def safe_file(path)
+            stat = File.lstat(path)
+            raise Error, 'Vault and decryptor must be owned regular files with private permissions (chmod 600 or 400).' unless stat.file? && stat.uid == Process.uid && stat.mode.nobits?(0o077)
+          end
+
+          def read_document
+            safe_file(@path)
+            parse(PWN::Plugins::Vault.dump({ file: @path, yaml: false }.merge(credentials)))
+          end
+
+          def validate_shape(original, value)
+            return if original.nil?
+
+            compatible = [true, false].include?(original) ? [true, false].include?(value) : value.is_a?(original.class)
+            raise Error, 'Type mismatch. Keep existing YAML value types; edit arrays as a whole.' unless compatible
+
+            original.each { |key, child| validate_shape(child, value[key]) if value.key?(key) } if original.is_a?(Hash)
+          end
+
+          def validate_document(document)
+            raise Error, 'Configuration requires an ai mapping and a supported active engine mapping.' unless document.is_a?(Hash) && document[:ai].is_a?(Hash)
+
+            engine = document[:ai][:active].to_s
+            engines = PWN::Config.env_template[:ai].select { |_key, config| config.is_a?(Hash) && config.key?(:model) }.keys.map(&:to_s)
+            raise Error, 'Configuration requires an ai mapping and a supported active engine mapping.' unless engines.include?(engine) && document[:ai][engine.to_sym].is_a?(Hash)
+          end
+
+          def save(text)
+            value = parse(text)
+            validate_shape(@selected, value)
+            # Lock the directory (no persistent lockfile or plaintext) across re-read
+            # and rename. All editor instances use the same stable lock inode.
+            File.open(File.dirname(@path), File::RDONLY) do |lock|
+              lock.flock(File::LOCK_EX)
+              latest_bytes = File.binread(@path)
+              document = read_document
+              raise Error, 'Edited scope changed on disk. Cancel and reopen to resolve the conflict.' unless select(document) == @selected
+
+              if @keys.empty?
+                document = value
+              else
+                parent = @keys[0...-1].reduce(document) { |node, key| node.fetch(key.to_sym) }
+                parent[@keys.last.to_sym] = value
+              end
+              validate_document(document)
+              plaintext = serialize(document)
+              parse(plaintext) # A valid subtree can exceed the limit after merging.
+              encrypted = encrypt(plaintext)
+              replacement = prepare_env(document)
+              redacted = PWN::Config.redact_sensitive_artifacts(config: replacement)
+              atomic_write(encrypted, latest_bytes)
+              update_env(replacement, redacted)
+            end
+            :saved
+          rescue Error
+            raise
+          rescue StandardError
+            raise Error, 'Vault not saved. Check permissions and the existing decryptor; cancel and reopen if changed.', cause: nil
+          end
+
+          def encrypt(text)
+            secrets = credentials
+            cipher = OpenSSL::Cipher.new('aes-256-cbc')
+            cipher.encrypt
+            cipher.key = Base64.strict_decode64(secrets.fetch(:key))
+            cipher.iv = Base64.strict_decode64(secrets.fetch(:iv))
+            "#{Base64.strict_encode64(cipher.update(text) + cipher.final)}\n"
+          end
+
+          def atomic_write(encrypted, previous)
+            Tempfile.create(['.pwn-vault-edit-', '.encrypted'], File.dirname(@path)) do |file|
+              file.binmode
+              file.chmod(0o600)
+              file.write(encrypted)
+              file.flush
+              file.fsync
+              safe_file(@path)
+              raise Error, 'Vault changed during save. Cancel and reopen to retry.' unless File.binread(@path) == previous
+
+              File.rename(file.path, @path)
+            end
+          end
+
+          def prepare_env(document)
+            # Keep runtime-only state, but remove deleted persisted keys. No auth,
+            # provider calls, response generation, skill install, or refresh_env.
+            replacement = PWN::Env.merge(document)
+            PWN::Config.send(:merge_ai_defaults!, env: replacement)
+            (@baseline.keys - document.keys).each { |key| replacement.delete(key) }
+            if replacement[:ai].is_a?(Hash)
+              replacement[:ai].each do |engine, config|
+                history = PWN::Env.dig(:ai, engine, :response_history) if PWN::Env.dig(:ai, engine).is_a?(Hash)
+                config[:response_history] = history if config.is_a?(Hash) && history
+              end
+            end
+            replacement
+          end
+
+          def update_env(replacement, redacted)
+            PWN.send(:remove_const, :Env)
+            PWN.const_set(:Env, replacement.freeze)
+            PWN.send(:remove_const, :EnvRedacted) if PWN.const_defined?(:EnvRedacted)
+            PWN.const_set(:EnvRedacted, redacted.freeze)
+            Pry.config.refresh_pwn_env = false
+          end
         end
 
         # Ruby output is queued, never written across the curses screen.
@@ -329,6 +510,7 @@ module PWN
               seed_request_history
               add(:notice, 'Ready. Submit a task · / or Tab opens commands · /steer redirects while busy.')
               add(:notice, 'Tool prompts: /input TEXT forwards one line. Raw/fullscreen tools and direct /dev/tty readers are unsupported.')
+              add(:notice, 'First run: /guide opens a short guide with editable examples; nothing executes until you submit. Dismiss there with x.') unless File.file?(operator_guide_marker)
               event_loop
             ensure
               begin
@@ -432,6 +614,18 @@ module PWN
             200.times do
               type, text = @events.pop(true)
               case type
+              when :operator_loaded
+                generation, data = text
+                if @operator_view && @operator_view[:generation] == generation
+                  @operator_view.merge!(data)
+                  @operator_view[:index] = operator_items.index { |row| row[:id] == @operator_view[:selected_id] } || @operator_view[:index]
+                  @operator_view[:loading] = false
+                end
+                @operator_worker&.join
+                @operator_worker = nil
+                pending = @operator_pending
+                @operator_pending = nil
+                start_operator_scan(*pending) if pending
               when :model_prompt
                 next if @cancelling || @leaving
 
@@ -542,6 +736,10 @@ module PWN
                 end
                 control.checkpoint(messages: [])
               else
+                workspace = File.realpath(Dir.pwd)
+                workspace_lock = File.open(File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(workspace)}.lock"), File::RDWR | File::CREAT | File::NOFOLLOW, 0o600) # rubocop:disable Style/FileOpen -- worker ensure owns the lease
+                raise IOError, 'Workspace busy: another request or mission owns this directory. Wait or cancel it before retrying.' unless workspace_lock.flock(File::LOCK_EX | File::LOCK_NB)
+
                 @events << [:session_title, PWN::Sessions.provisional_title(session_id: session_id, request: request)]
                 final = PWN::AI::Agent::Loop.run(
                   request: request, session_id: session_id,
@@ -558,6 +756,7 @@ module PWN
               PWN::Plugins::Log.note_exception!(error: e, where: 'curses agent', which_self: AIConsole)
               @events << [:warning, "#{e.class}: #{e.message}"]
             ensure
+              workspace_lock&.close
               @events << [:done, command ? nil : session_id]
             end
             @worker.report_on_exception = false
@@ -589,6 +788,9 @@ module PWN
           ensure
             @title_worker&.kill
             @title_worker&.join
+            @operator_worker&.kill
+            @operator_worker&.join
+            @operator_pending = nil
           end
 
           def submit(line)
@@ -599,16 +801,29 @@ module PWN
 
             # Pry owns the existing pwn_history format, append and deduplication.
             # Curses bypasses Pry's input evaluator, so record once here, not on recall.
-            Pry.history << line unless line.match?(%r{\A\s*/input(?:\s|\z)})
+            Pry.history << line unless line.match?(%r{\A\s*/(?:input|vault)(?:\s|\z)})
 
             if %w[back /back].include?(line.strip)
               @leaving = true
               cancel if busy?
             elsif line.strip == '/clear'
               clear_view
+            elsif ['/sessions', '/sessions picker'].include?(line.strip)
+              open_operator(:sessions)
+            elsif line.strip == '/sessions cleanup'
+              open_operator(:cleanup)
+            elsif line.strip == '/evidence'
+              open_operator(:evidence)
+            elsif line.strip == '/readiness'
+              open_operator(:readiness)
+            elsif line.strip == '/guide'
+              open_operator(:guide)
+            elsif line.strip == '/learning inbox'
+              open_operator(:learning)
             elsif line.strip == '/status'
               @details = 0
               @menu = nil
+              add(:info, JSON.pretty_generate(PWN::RuntimeFingerprint.report))
             elsif line.match?(%r{\A/verbose(?:\s|$)})
               toggle_verbose(line)
             elsif line.start_with?('/swarm')
@@ -618,6 +833,8 @@ module PWN
               complete
             elsif busy?
               busy_command(line)
+            elsif line.match?(%r{\A/vault(?:\s|$)})
+              open_vault_edit(line)
             elsif line.strip == '/system-role'
               open_system_role
             elsif line.match?(%r{\A/(?:mcp(?:\s|$)|cron\s+run(?:\s|$)|model(?:\s|$))})
@@ -646,6 +863,7 @@ module PWN
                 add(:warning, '/steer applies to model requests, not local commands. Use /input for a prompt or Ctrl+C to cancel after this command returns.')
               else
                 @control.submit(line.sub(%r{\A/steer\s*}, ''))
+                add(:notice, 'Steering queued; waiting for the next safe boundary.')
               end
             elsif line.start_with?('/input ')
               send_tool_input(line)
@@ -678,7 +896,9 @@ module PWN
           def run_swarm(line)
             return open_swarm if ['/swarm', '/swarm dashboard'].include?(line.strip)
 
-            result = @swarm.execute(line: line, on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record))
+            return add(:warning, 'Workspace busy: wait or cancel the ordinary request before launching a swarm writer.') if @running && line.match?(%r{\A/swarm\s+(?:mission|dm|broadcast|debate)\b})
+
+            result = @swarm.execute(mission_options.merge(line: line, on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record)))
             text = result[:job_id] ? "Swarm job #{result[:job_id]} queued (#{result[:state]})." : (result[:usage] || REPL.pwn_ai_result_text(value: result))
             add(:command, text)
           end
@@ -726,6 +946,12 @@ module PWN
 
           def handle(key)
             return if key.nil?
+
+            if @vault_editor
+              return if @too_small && !["\e", "\u0003", "\u0004", :eof].include?(key)
+
+              return handle_vault_edit(key)
+            end
             return handle_system_role(key) if @role_editor && (!@too_small || ["\e", "\u0003", "\u0004", :eof].include?(key))
             return cancel if key == "\u0003" && busy?
 
@@ -733,6 +959,7 @@ module PWN
             return cancel if @too_small && key == "\u0003" && !@model_prompt
 
             return handle_model_prompt(key) if @model_prompt
+            return handle_operator(key) if @operator_view && ![:eof, "\u0004"].include?(key)
 
             return clear_view if key == "\u000c"
 
@@ -777,6 +1004,8 @@ module PWN
               @menu = nil
               return
             end
+            return page_completion(key) if @menu && %i[page_up page_down].include?(key)
+
             return handle_animation(key) if @focus == :animation && ![:eof, "\u0003", "\u0004"].include?(key)
 
             case key
@@ -797,7 +1026,7 @@ module PWN
                 @editor.insert("\n")
               else
                 @menu = @menu_hint = nil
-                return submit(@editor.text) if @editor.text.strip == '/system-role'
+                return submit(@editor.text) if @editor.text.strip == '/system-role' || @editor.text.match?(%r{\A/vault(?:\s|$)})
 
                 @model_draft = [@editor.text.dup, @editor.cursor] if @editor.text.match?(%r{\A/model(?:\s|$)})
                 submit(@editor.submit)
@@ -873,6 +1102,97 @@ module PWN
               @editor.insert(key)
               refresh_completion
             end
+          end
+
+          def open_vault_edit(line)
+            return add(:warning, 'Vault editing requires an idle workspace; wait for requests and swarm jobs.') if busy?
+
+            words = line.split
+            return add(:warning, 'Use /vault edit [key ...]. Keys form one nested mapping path, not file paths.') unless words[1] == 'edit'
+
+            @vault_transaction = VaultEdit.new(words.drop(2))
+            @vault_editor = Editor.new
+            @vault_editor.replace(@vault_transaction.text)
+            @vault_error = nil
+            @vault_paste = false
+            @menu = @details = @workspace = @operator_view = nil
+            @paste = false
+          rescue VaultEdit::Error => e
+            @vault_transaction = nil
+            add(:warning, e.message)
+          rescue StandardError
+            @vault_transaction = nil
+            add(:warning, 'Cannot open vault. Check encrypted configuration and decryptor permissions.')
+          end
+
+          def handle_vault_edit(key)
+            case key
+            when "\e", "\u0003", "\u0004", :eof
+              @vault_editor = @vault_transaction = @vault_error = nil
+              @leaving = true if [:eof, "\u0004"].include?(key)
+              add(:notice, 'Vault edit cancelled; configuration unchanged.')
+            when "\u0013"
+              return if @vault_paste
+              raise VaultEdit::Error, 'Wait for active requests and swarm jobs before saving.' if busy?
+
+              @vault_transaction.save(@vault_editor.text)
+              @vault_editor = @vault_transaction = @vault_error = nil
+              @editor.replace('')
+              add(:notice, 'Vault saved encrypted; configuration updated for the next request.')
+            when :paste_start then @vault_paste = true
+            when :paste_end then @vault_paste = false
+            when "\r", "\n", :newline then @vault_editor.insert("\n")
+            when :up, :down then move_vault_cursor(key)
+            when :left, :right, :home, :end, :delete, "\b", "\u007f", "\u0001", "\u0005", "\u0015"
+              @vault_editor.edit(key)
+            else
+              @vault_editor.insert(key) if key.is_a?(String) && key.ord >= 32
+            end
+          rescue VaultEdit::Error => e
+            @vault_error = e.message
+          rescue StandardError
+            @vault_error = 'Vault not saved. Check YAML, permissions and decryptor; cancel and reopen to retry.'
+          end
+
+          def move_vault_cursor(direction)
+            chars = @vault_editor.text.scan(/\X/)
+            cursor = @vault_editor.cursor
+            start = (chars.take(cursor).rindex("\n") || -1) + 1
+            column = cursor - start
+            if direction == :up
+              return if start.zero?
+
+              target = (chars.take(start - 1).rindex("\n") || -1) + 1
+              position = target + [column, start - target - 1].min
+            else
+              finish = chars.index.with_index { |char, index| index >= cursor && char == "\n" }
+              return unless finish
+
+              target = finish + 1
+              length = chars.drop(target).take_while { |char| char != "\n" }.length
+              position = target + [column, length].min
+            end
+            @vault_editor.place(@vault_editor.text, position)
+          end
+
+          def draw_vault_edit
+            [@height - 2, @height - 1].each { |row| put(row, 0, ' ' * @width) }
+            height = @height - 4
+            pane_width = @width - 4
+            top = 2
+            height.times { |row| put(top + row, 2, ' ' * pane_width) }
+            box(top, 2, height, pane_width, 'VAULT EDIT · PRIVATE YAML')
+            put(top + 1, 4, fit('Local only · plaintext visible here · not sent to providers or history', pane_width - 4), tone(:category))
+            limit = pane_width - 6
+            rows = wrap(@vault_editor.text, limit, words: false)
+            prefix = wrap(@vault_editor.text.scan(/\X/).take(@vault_editor.cursor).join, limit, words: false)
+            cursor_row = prefix.length - 1
+            visible = height - 5
+            first = [cursor_row - visible + 1, 0].max
+            rows.slice(first, visible).to_a.each_with_index { |row, index| put(top + 2 + index, 4, row, tone(:composer)) }
+            put(top + height - 3, 4, fit(@vault_error || 'Arrows move · Home/End · Ctrl+U clear · preserve YAML types', pane_width - 4), tone(@vault_error ? :warning : :footer))
+            put(top + height - 2, 4, fit('Ctrl+S Save encrypted · Esc/Ctrl+C Cancel · Enter newline', pane_width - 4), tone(:selection))
+            @cursor_position = [top + 2 + cursor_row - first, [4 + width(prefix.last), @width - 5].min]
           end
 
           def open_system_role
@@ -1612,11 +1932,17 @@ module PWN
             draw_details(engine, model) if @details
             draw_swarm if @workspace
             draw_system_role if @role_editor
-            if @focus == :animation && !(@details || @workspace || @role_editor || @model_prompt)
+            draw_vault_edit if @vault_editor
+            if @operator_view
+              draw_operator
+              @screen.refresh
+              return
+            end
+            if @focus == :animation && !(@details || @workspace || @role_editor || @model_prompt || @vault_editor)
               @screen.setpos(1, 1)
-            elsif @focus == :session && !(@details || @workspace || @role_editor)
+            elsif @focus == :session && !(@details || @workspace || @role_editor || @vault_editor)
               @screen.setpos(header_height + 1, 2)
-            elsif @role_editor || !(@details || @workspace)
+            elsif @vault_editor || @role_editor || !(@details || @workspace)
               @screen.setpos(*@cursor_position)
             end
             @screen.refresh
@@ -1659,6 +1985,455 @@ module PWN
               category = ['REQUEST', 'TOKENS', 'SWARM', 'VIEW', 'LAST TOOL'].include?(line)
               put(top + 1 + index, left + 2, fit(line, @width - left - 5), category ? tone(:category) : tone(:value))
             end
+          end
+
+          # Local-only views never submit drafts or resolve titles back into IDs.
+          def open_operator(kind)
+            @editor.finish_search
+            @menu = @details = @workspace = nil
+            @operator_view = { kind: kind, query: '', index: 0, offset: 0, rows: [] }
+            refresh_operator
+          rescue StandardError => e
+            @operator_view[:notice] = "#{e.class}: #{e.message}"
+          end
+
+          def refresh_operator
+            view = @operator_view
+            return if view[:kind] == :guide
+
+            @operator_generation = @operator_generation.to_i + 1
+            view[:selected_id] = operator_items[view[:index]]&.dig(:id)
+            view[:generation] = @operator_generation
+            view[:loading] = true
+            request = [view[:generation], view[:kind], mission_options.dup, @pry.config.pwn_ai_session_id]
+            if @operator_worker
+              @operator_pending = request
+            else
+              start_operator_scan(*request)
+            end
+          end
+
+          def start_operator_scan(generation, kind, options, session_id)
+            @operator_worker = Thread.new do
+              data = operator_scan(kind, options, session_id)
+              @events << [:operator_loaded, [generation, data]]
+            rescue StandardError => e
+              @events << [:operator_loaded, [generation, { notice: "#{e.class}: #{e.message}" }]]
+            end
+          end
+
+          def operator_scan(kind, options, session_id)
+            view = { kind: kind }
+            view[:rows] = PWN::Sessions.list.sort_by { |row| [row[:mtime].to_s, row[:id]] } if view[:kind] == :sessions
+            if view[:kind] == :cleanup
+              require File.expand_path('../../../../etc/default_cron/session_cleanup', __dir__)
+              view[:plan] = PWN::SessionCleanup.run(current_session_id: session_id)
+              view[:rows] = view[:plan][:records].map do |row|
+                category = row[:skip] || row[:apply_blocked_by] || (if row[:classification] == :named
+                                                                      :summarized
+                                                                    else
+                                                                      row[:classification] == :unknown ? :uncertain : :removable
+                                                                    end)
+                row.merge(title: category.to_s, path: File.join(PWN::Sessions.sessions_dir, "#{row[:id]}.jsonl"))
+              end
+            end
+            view[:rows] = mission_evidence_rows if view[:kind] == :evidence
+            view[:readiness] = @swarm.readiness(options) if view[:kind] == :readiness
+            view[:rows] = learning_inbox_rows if view[:kind] == :learning
+            view
+          end
+
+          def mission_evidence_rows
+            stored = Dir.glob(File.join(PWN::AI::Agent::Swarm::SWARM_ROOT, '*', 'solve.json')).map do |path|
+              raise IOError, "Unsafe mission record: #{path}" unless File.realpath(path) == File.expand_path(path)
+
+              data = JSON.parse(File.read(path), symbolize_names: true)
+              { id: File.basename(File.dirname(path)), title: "#{data[:status]} · #{data[:request]}", data: data, path: path }
+            end
+            live = Array(@swarm&.snapshot&.dig(:jobs)).filter_map do |job|
+              next unless job[:command] == 'mission' && job[:team]
+
+              { id: job[:id], title: "#{job[:state]} · #{job[:team][:request]}", data: job[:team], path: job[:team][:record_path] }
+            end
+            live + stored.reject { |row| live.any? { |job| job[:path] == row[:path] } }
+          end
+
+          def learning_inbox_rows
+            sources = { outcome: PWN::AI::Agent::Learning::LEARNING_FILE, skill: PWN::AI::Agent::SkillReview::LEDGER }
+            review_path = File.join(Dir.home, '.pwn', 'operator-learning-review.jsonl')
+            raise IOError, 'Unsafe review ledger' if File.symlink?(review_path)
+
+            decisions = File.file?(review_path) ? File.readlines(review_path).map { |line| JSON.parse(line, symbolize_names: true) } : []
+            sources.flat_map do |kind, path|
+              next [] unless File.file?(path)
+              raise IOError, "Unsafe learning store: #{path}" unless File.realpath(path) == File.expand_path(path)
+
+              source_rows = File.readlines(path).map { |line| JSON.parse(line, symbolize_names: true) }
+              source_rows.filter_map do |data|
+                next if kind == :skill && data[:action] != 'recommend'
+
+                digest = Digest::SHA256.hexdigest(JSON.generate(data))
+                review = decisions.reverse.find { |row| row[:source_path] == path && row[:source_sha256] == digest }
+                review = source_rows.reverse.find { |row| row[:proposal_sha256] == digest } if kind == :skill
+                { id: data[:id] || digest, title: "#{kind}: #{data[:task] || data[:request]}", kind: kind, data: data, path: path, digest: digest,
+                  review: review, review_status: review && review[:decision] != 'rollback' ? review[:decision] : 'unreviewed' }
+              end
+            end
+          end
+
+          def operator_items
+            view = @operator_view
+            view[:rows].select { |row| "#{row[:id]} #{row[:title]}".downcase.include?(view[:query].downcase) }
+          end
+
+          def handle_operator(key)
+            view = @operator_view
+            return handle_operator_guide(key) if view[:kind] == :guide
+            return handle_patch_confirmation(key) if view[:patch_prompt]
+
+            view.delete(:from_end) unless %i[page_up page_down home end].include?(key)
+
+            if view[:kind] == :readiness && %w[w + - t r].include?(key)
+              options = mission_options
+              case key
+              when 'w' then options[:worktree] = !options[:worktree]
+              when '+' then options[:rounds] = [options[:rounds] + 1, 10].min
+              when '-' then options[:rounds] = [options[:rounds] - 1, 1].max
+              when 't' then options[:verification_timeout] = { 30 => 60, 60 => 120, 120 => 300, 300 => 600, 600 => 30 }.fetch(options[:verification_timeout], 60)
+              when 'r' then options[:role_timeout] = { 30 => 60, 60 => 120, 120 => 300, 300 => 600, 600 => 30 }.fetch(options[:role_timeout], 300)
+              end
+              refresh_operator
+              return
+            end
+
+            if view[:confirm]
+              case key
+              when "\e", "\u0003" then view.delete(:confirm)
+              when "\r", "\n"
+                view[:kind] == :learning ? apply_learning_review : apply_operator_cleanup
+              end
+              return
+            end
+            if view[:kind] == :cleanup && key == 'a'
+              return if view[:loading]
+
+              view[:confirm] = true
+              return
+            end
+            item = operator_items[view[:index]]
+            if view[:kind] == :learning && view[:detail] && key == 'e' && item
+              transcript = if item[:kind] == :skill
+                             PWN::AI::Agent::SkillReview.evidence_transcript(proposal: item[:data])
+                           else
+                             PWN::AI::Agent::Learning.evidence_transcript(row: item[:data])
+                           end
+              view[:inspected_evidence] = { id: item[:id], transcript: transcript }
+              view[:evidence_reviewed] = item[:digest]
+              view[:offset] = 0
+              return
+            end
+            if view[:kind] == :evidence && view[:detail] && item && %w[d a x].include?(key)
+              if key == 'd'
+                path = item[:data][:patch_path]
+                raise IOError, 'No retained patch for this mission' unless path && File.file?(path) && !File.symlink?(path)
+                raise IOError, 'Patch is outside the mission record directory' unless File.dirname(File.realpath(path)) == File.dirname(File.realpath(item[:path]))
+                raise IOError, 'Patch checksum changed; apply blocked' unless Digest::SHA256.file(path).hexdigest == item[:data][:patch_sha256]
+
+                view[:patch] = File.read(path)
+                view[:patch_id] = item[:id]
+                view[:offset] = 0
+              elsif key == 'x'
+                raise IOError, 'No owned checkout recorded' unless item[:data][:worktree]
+
+                view[:patch_prompt] = { item: item, editor: Editor.new, action: :discard }
+              else
+                raise IOError, 'Inspect the retained patch with d before applying' unless view[:patch_id] == item[:id]
+
+                view[:patch_prompt] = { item: item, editor: Editor.new }
+              end
+              return
+            end
+            if view[:kind] == :learning && view[:detail] && %w[a x u].include?(key) && item
+              view[:confirm] = { decision: { 'a' => 'approve', 'x' => 'reject', 'u' => 'rollback' }.fetch(key), item: item }
+              return
+            end
+            case key
+            when "\e", "\u0003"
+              if view[:inspected_evidence]
+                view.delete(:inspected_evidence)
+              elsif view[:patch_id]
+                view.delete(:patch_id)
+                view.delete(:patch)
+              else
+                view[:detail] ? view.delete(:detail) : @operator_view = nil
+              end
+              view[:offset] = 0
+            when :up, :down
+              view[:index] = (view[:index] + (key == :up ? -1 : 1)).clamp(0, [operator_items.length - 1, 0].max)
+              view[:offset] = 0
+            when :page_up then view[:offset] = [view[:offset] + (view[:from_end] ? 5 : -5), 0].max
+            when :page_down then view[:offset] = [view[:offset] + (view[:from_end] ? -5 : 5), 0].max
+            when :home
+              view[:from_end] = false
+              view[:offset] = 0
+            when :end
+              view[:from_end] = true
+              view[:offset] = 0
+            when "\r", "\n" then view[:detail] = true if item
+            when "\t" then refresh_operator
+            else
+              if view[:detail]
+                resume_operator_session(item) if key == 'r' && view[:kind] == :sessions && item
+              else
+                if ["\b", "\u007f"].include?(key)
+                  view[:query] = view[:query].chop
+                elsif key.is_a?(String) && key.ord >= 32
+                  view[:query] += key
+                end
+                view[:index] = view[:offset] = 0
+              end
+            end
+          rescue StandardError => e
+            view[:notice] = "#{e.class}: #{e.message}"
+          end
+
+          def resume_operator_session(item)
+            return @operator_view[:notice] = 'Wait or cancel active work before resuming a session.' if busy?
+
+            REPL.pwn_ai_run_sessions(args: ['resume', item[:id]], identifier: item[:id], pry: @pry)
+            @session_metadata = PWN::Sessions.metadata(session_id: @pry.config.pwn_ai_session_id)
+            @swarm = AISwarm::Controller.new(session_id: @pry.config.pwn_ai_session_id)
+            @operator_view = nil
+          end
+
+          def operator_content
+            view = @operator_view
+            return operator_guide_content if view[:kind] == :guide
+            return ['Loading local records; input and Esc remain available.'] if view[:loading]
+
+            if view[:kind] == :learning && view[:confirm]
+              action = view[:confirm]
+              item = action[:item]
+              effects = if item[:kind] != :skill
+                          'Record an evidence review only; no training labels or source evidence are changed.'
+                        elsif action[:decision] == 'approve'
+                          "Append the retained procedure to #{item[:data][:path]}; keep a source-hashed backup."
+                        elsif action[:decision] == 'rollback'
+                          "Restore the backup of #{item[:data][:path]} only if approved bytes remain unchanged."
+                        else
+                          'Reject this proposal without changing the skill or retained evidence.'
+                        end
+              return ["CONFIRM #{action[:decision]}: #{item[:id]}", effects, 'Enter confirm · Esc abort']
+            end
+            return ['MISSION READINESS · w isolated worktree · +/- rounds · t check timeout · r role timeout', REPL.pwn_ai_result_text(value: view[:readiness])] if view[:kind] == :readiness
+
+            if view[:kind] == :cleanup
+              return ['CONFIRM CLEANUP: only these exact unchanged candidates will be rechecked under locks, backed up and removed.', *view[:plan][:candidate_ids], 'Enter apply · Esc abort'] if view[:confirm]
+
+              rows = operator_items
+              return ['CLEANUP RECORD · a review apply confirmation', REPL.pwn_ai_result_text(value: rows[view[:index]])] if view[:detail]
+
+              return ['CLEANUP PREVIEW · Enter inspects source fingerprints · a review apply confirmation',
+                      REPL.pwn_ai_result_text(value: view[:plan].except(:records, :candidate_ids)),
+                      *rows.each_with_index.map { |row, index| "#{index == view[:index] ? '›' : ' '} #{row[:title]} · #{row[:id]} · #{row[:path]}" }]
+            end
+            rows = operator_items
+            item = rows[view[:index]]
+            return ['No matching records.'] unless item
+
+            if view[:kind] == :learning && view[:detail]
+              inspected = view[:inspected_evidence]
+              return ["RETAINED EXECUTION EVIDENCE: #{item[:id]}", REPL.pwn_ai_result_text(value: inspected[:transcript])] if inspected && inspected[:id] == item[:id]
+
+              return ["LEARNING REVIEW: #{item[:id]}", "SOURCE: #{item[:path]}", "SOURCE SHA256: #{item[:digest]}",
+                      "REVIEW STATUS: #{item[:review_status]}", REPL.pwn_ai_result_text(value: item[:review]),
+                      REPL.pwn_ai_result_text(value: item[:data]),
+                      'e inspect retained evidence · a approve · x reject · u rollback · Esc list',
+                      'Skill approval appends the retained procedure; rollback restores unchanged approved bytes. Outcome reviews never manufacture training labels.']
+            end
+
+            if view[:kind] == :evidence && view[:detail]
+              live = Array(@swarm&.snapshot&.dig(:jobs)).find { |job| job[:id] == item[:id] }
+              item = item.merge(data: live[:team]) if live && live[:team]
+              prompt = view[:patch_prompt]
+              if prompt
+                token = item[:data][:revision] || item[:data].dig(:worktree, :token)
+                instruction = prompt[:action] == :discard ? "DISCARD #{token} to remove the owned checkout; retained patch and evidence survive" : "APPLY #{token} to apply the exact tested revision"
+                return ["Type #{instruction}; Esc abort.", prompt[:editor].text]
+              end
+
+              return ["PATCH · #{item[:id]} · a apply after typed confirmation", view[:patch]] if view[:patch_id] == item[:id]
+
+              return ["EVIDENCEBOARD · #{item[:id]}", "SOURCE: #{item[:path] || 'live coordinator snapshot'}", 'd inspect diff · a apply reviewed patch · x discard owned checkout', REPL.pwn_ai_result_text(value: item[:data])]
+            end
+
+            if view[:detail]
+              active = PWN::Sessions.active?(session_id: item[:id])
+              goal = PWN::AI::Agent::OpenGoal.current
+              goal = nil unless goal && goal[:session_id] == item[:id]
+              return ["TITLE: #{item[:title]}", "STABLE ID: #{item[:id]}",
+                      "LOCAL ACTIVITY: #{REPL.pwn_ai_result_text(value: { mtime: item[:mtime] })}",
+                      "ACTIVE LEASE: #{active}", "RETENTION: #{item[:title_reason]}; referenced-by: #{item[:dependencies].join(', ')}",
+                      "DEPENDENCY ERRORS: #{item[:dependency_errors]}", "PATH: #{item[:path]}",
+                      "LATEST RECORDED UNFINISHED GOAL: #{goal ? REPL.pwn_ai_result_text(value: goal) : 'none recorded for this ID'}", 'r resume exact ID · Esc list']
+            end
+            rows.each_with_index.map { |row, index| "#{index == view[:index] ? '›' : ' '} #{row[:title]} · #{row[:id]}" }
+          end
+
+          def handle_patch_confirmation(key)
+            view = @operator_view
+            prompt = view[:patch_prompt]
+            case key
+            when "\e", "\u0003" then view.delete(:patch_prompt)
+            when "\r", "\n"
+              item = prompt[:item]
+              result = if prompt[:action] == :discard
+                         PWN::AI::Agent::Solve.cleanup_worktree(record_path: item[:path], confirmation: prompt[:editor].text)
+                       else
+                         PWN::AI::Agent::Solve.apply_patch(record_path: item[:path], revision: item[:data][:revision], confirmation: prompt[:editor].text)
+                       end
+              view[:notice] = REPL.pwn_ai_result_text(value: result)
+              view.delete(:patch_prompt)
+              refresh_operator
+            when :left, :right, :home, :end, :delete, "\b", "\u007f", "\u0001", "\u0005", "\u0015" then prompt[:editor].edit(key)
+            else
+              prompt[:editor].insert(key) if key.is_a?(String) && key.ord >= 32
+            end
+          end
+
+          def apply_learning_review
+            view = @operator_view
+            action = view.delete(:confirm)
+            item = action[:item]
+            current = learning_inbox_rows.find { |row| row[:id] == item[:id] && row[:digest] == item[:digest] }
+            raise IOError, 'Review blocked: source changed; refresh and inspect again' unless current
+
+            if item[:kind] == :skill
+              raise IOError, 'Inspect retained evidence with e before approval' if action[:decision] == 'approve' && view[:evidence_reviewed] != item[:digest]
+
+              result = PWN::AI::Agent::SkillReview.decide(source_sha256: item[:digest], decision: action[:decision])
+              raise IOError, result[:error] unless result[:ok]
+
+              view[:notice] = "Skill #{action[:decision]} applied; retained evidence unchanged."
+              refresh_operator
+              return
+            end
+
+            if action[:decision] == 'approve'
+              data = item[:data]
+              raise IOError, 'Approval blocked: unresolved conflict or skill recommendation without executable proposal' if data[:status] == 'conflicted' || item[:kind] == :skill
+
+              transcript = PWN::AI::Agent::Learning.evidence_transcript(row: data)
+              verification = data[:verification] || {}
+              raise IOError, 'Approval blocked: missing execution-backed verification' unless verification[:runner_version] == 1 && verification.dig(:attribution, :source) == 'independent_verifier' && !Array(verification[:checks]).empty? && transcript.any? { |row| row[:role].to_s == 'tool' } && transcript.any? { |row| row[:role].to_s == 'observation' }
+            end
+            path = File.join(Dir.home, '.pwn', 'operator-learning-review.jsonl')
+            raise IOError, 'Unsafe review directory' if File.symlink?(File.dirname(path))
+
+            FileUtils.mkdir_p(File.dirname(path), mode: 0o700)
+            decision = { id: item[:id], source_path: item[:path], source_sha256: item[:digest], decision: action[:decision], at: Time.now.utc.iso8601 }
+            File.open(path, File::RDWR | File::CREAT | File::APPEND | File::NOFOLLOW, 0o600) do |file|
+              file.flock(File::LOCK_EX)
+              file.puts(JSON.generate(decision))
+              file.flush
+              file.fsync
+              file.rewind
+              raise IOError, 'Review readback failed' unless JSON.parse(file.readlines.last, symbolize_names: true) == decision
+            end
+            view[:notice] = "#{action[:decision]} recorded; source evidence and training labels unchanged."
+            refresh_operator
+          end
+
+          def operator_guide_marker
+            File.join(Dir.home, '.pwn', 'operator-guide-v1.dismissed')
+          end
+
+          def operator_guide_content
+            ['START HERE · local guide; no work is launched here.',
+             'Write a task in MISSION CONTROL. /readiness checks routes, tools and workspace locally.',
+             'Ctrl+S opens the team workspace. v previews your exact mission draft before confirmation.',
+             '/evidence inspects actual checks and revisions. /sessions finds stable IDs; /sessions cleanup previews retention.',
+             '/learning inbox reviews retained evidence. /steer queues guidance; Ctrl+C requests cancellation, not undo.',
+             '1 Insert: Inspect this workspace and explain its entry points without changing files.',
+             '2 Insert: Add a regression test for the reported bug, fix it, and execute the test.',
+             '3 Insert: /swarm mission Implement the requested change and verify every requirement with executed tests.',
+             'Examples append to an existing draft, never submit. Esc close · x dismiss first-run notice permanently.']
+          end
+
+          def handle_operator_guide(key)
+            case key
+            when "\e", "\u0003" then @operator_view = nil
+            when 'x'
+              root = File.dirname(operator_guide_marker)
+              raise IOError, 'Unsafe guide preferences directory' if File.symlink?(root)
+
+              FileUtils.mkdir_p(root, mode: 0o700)
+              File.open(operator_guide_marker, File::WRONLY | File::CREAT | File::TRUNC | File::NOFOLLOW, 0o600) { |file| file.write("dismissed\n") }
+              raise IOError, 'Guide dismissal readback failed' unless File.read(operator_guide_marker) == "dismissed\n"
+
+              @operator_view = nil
+            when '1', '2', '3'
+              examples = ['Inspect this workspace and explain its entry points without changing files.',
+                          'Add a regression test for the reported bug, fix it, and execute the test.',
+                          '/swarm mission Implement the requested change and verify every requirement with executed tests.']
+              @editor.replace([@editor.text, examples[key.to_i - 1]].reject(&:empty?).join("\n"))
+              @operator_view = nil
+            when :page_up then @operator_view[:offset] = [@operator_view[:offset] + (@operator_view[:from_end] ? 5 : -5), 0].max
+            when :page_down then @operator_view[:offset] = [@operator_view[:offset] + (@operator_view[:from_end] ? -5 : 5), 0].max
+            when :home
+              @operator_view[:from_end] = false
+              @operator_view[:offset] = 0
+            when :end
+              @operator_view[:from_end] = true
+              @operator_view[:offset] = 0
+            end
+          end
+
+          def apply_operator_cleanup
+            view = @operator_view
+            approved = view[:plan][:records].select { |row| view[:plan][:candidate_ids].include?(row[:id]) }.to_h { |row| [row[:id], row[:files]] }
+            result = PWN::SessionCleanup.run(dry_run: false, current_session_id: @pry.config.pwn_ai_session_id, approved_candidates: approved)
+            view.delete(:confirm)
+            view[:notice] = "Deleted: #{result[:deleted_ids].join(', ')}; backup: #{result[:archive_dir] || 'none'}; skipped: #{result[:skipped]}"
+            add(:command, REPL.pwn_ai_result_text(value: result))
+            refresh_operator
+          end
+
+          def operator_viewport(page)
+            view = @operator_view
+            content = operator_content.flat_map { |text| text.split("\n", -1) }
+            return [] if content.empty?
+
+            if view[:from_end]
+              content.reverse_each.lazy.flat_map { |text| wrap(swarm_safe(text), @width - 6).reverse }.drop(view[:offset]).take(page).to_a.reverse
+            else
+              anchor = view[:detail] || (view[:kind] == :cleanup && view[:index].zero?) ? 0 : content.index { |text| text.start_with?('›') }.to_i
+              rows = content.drop(anchor).lazy.flat_map { |text| wrap(swarm_safe(text), @width - 6) }.drop(view[:offset]).take(page).to_a
+              return rows unless rows.empty? && view[:offset].positive?
+
+              view[:from_end] = true
+              view[:offset] = 0
+              operator_viewport(page)
+            end
+          end
+
+          def draw_operator
+            view = @operator_view
+            @screen.erase
+            box(0, 0, @height - 1, @width - 1, "#{view[:kind].to_s.upcase} · LOCAL WORKSPACE")
+            hints = wrap('↑↓ select · Enter inspect · Tab refresh · Esc back', @width - 6)
+            hints.each_with_index { |text, index| put(1 + index, 2, text, tone(:footer)) }
+            search_row = hints.length + 1
+            swarm_put(search_row, "Search: #{view[:query]} · draft preserved", :composer)
+            top = search_row + 2
+            page = [@height - top - 4, 1].max
+            operator_viewport(page).each_with_index do |text, index|
+              paint = -> { put(top + index, 2, text.ljust(@width - 6), tone(:value)) }
+              text.start_with?('›') ? @screen.attron(Curses::A_REVERSE) { paint.call } : paint.call
+            end
+            swarm_put(@height - 3, view[:notice] || 'Local only · no provider/login/install', :notice)
+            swarm_put(@height - 1, 'PgUp/PgDn Home/End scroll · ^D back', :footer)
+            @screen.setpos(search_row, [10 + width(view[:query]), @width - 3].min)
           end
 
           # This overlay owns only navigation state; the mission editor never changes.
@@ -1717,7 +2492,10 @@ module PWN
             when :end then view[:offset] = 1_000_000
             when 'r' then refresh_swarm
             when 'v'
-              view[:confirm] = ['mission', @editor.text] unless @editor.text.strip.empty?
+              unless @editor.text.strip.empty?
+                view[:readiness] = @swarm.readiness(mission_options)
+                view[:confirm] = ['mission', @editor.text]
+              end
             when 'p', 'u'
               view[:confirm] = [key == 'p' ? 'pause' : 'resume', item[:id]] if view[:tab] == :jobs && item
             when 'a', 'b', 'd' then prepare_swarm_mission(key, item)
@@ -1773,9 +2551,17 @@ module PWN
             end
           end
 
+          def mission_options
+            @mission_options ||= { workspace: Dir.pwd, worktree: false, rounds: 3, verification_timeout: 60, role_timeout: 300 }
+          end
+
           def execute_swarm_action
             args = @workspace.delete(:confirm)
-            options = { line: Shellwords.join(['/swarm'] + args), on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record) }
+            if @running && %w[mission dm broadcast debate].include?(args.first)
+              @workspace[:notice] = 'Workspace busy: wait or cancel the ordinary request first.'
+              return
+            end
+            options = mission_options.merge(line: Shellwords.join(['/swarm'] + args), on_event: ->(type, text) { @events << [type, text] }, usage_observer: @usage.method(:record))
             options[:solve_request] = args.last if args.first == 'mission'
             result = @swarm.execute(options)
             @workspace[:notice] = result[:error] || "#{args.first}: accepted#{" · job #{result[:job_id]}" if result[:job_id]}"
@@ -1788,7 +2574,7 @@ module PWN
             view = @workspace
             if view[:confirm]
               args = view[:confirm]
-              return [[false, "ACTION: mission\nTEAM: protagonist builds; antagonist assesses independently and critiques; verifier runs checks; integrator accepts or requests repair.\nOnly protagonist writes. Verification uses disposable artifact copies (not an OS sandbox).\nORIGINAL REQUEST:\n#{args.last}"]] if args.first == 'mission'
+              return [[false, "ACTION: mission\nTEAM: protagonist builds; antagonist assesses independently and critiques; verifier runs checks; integrator accepts or requests repair.\nOnly protagonist writes. Verification uses disposable artifact copies (not an OS sandbox).\n#{REPL.pwn_ai_result_text(value: view[:readiness])}\nORIGINAL REQUEST:\n#{args.last}"]] if args.first == 'mission'
 
               target = args.first == 'broadcast' ? args[2] : args[1]
               return [[false, "ACTION: #{args.first}\nTARGET: #{target}\n#{args.first == 'cancel' ? 'Cancel at a safe boundary; completed work is not undone.' : args.last}"]]
@@ -1828,6 +2614,7 @@ module PWN
             (team[:requirements] || {}).each { |id, text| rows << [false, "#{id}: #{text}"] }
             (team[:artifacts] || {}).each { |path, sha| rows << [false, "ARTIFACT: #{path} · #{sha}"] }
             Array(team[:objections]).each { |text| rows << [false, "OPEN: #{text}"] }
+            rows << [false, REPL.pwn_ai_result_text(value: team.slice(:evidence, :records, :uncovered, :record_path, :worktree))]
             rows
           end
 
@@ -1881,18 +2668,55 @@ module PWN
             put(row, 2, fit(swarm_safe(text).gsub(/\s+/, ' '), @width - 5), tone(role))
           end
 
-          def draw_menu
-            height = [@menu.length + 2, @height - 10].min
-            top = @height - 7 - height
+          def page_completion(key)
+            delta = (key == :page_up ? -1 : 1) * @menu_page_size.to_i
+            @menu_page_offset = (@menu_page_offset.to_i + delta).clamp(0, @menu_page_max.to_i)
+          end
+
+          def completion_layout
             menu_width = [@width - 5, 65].min
+            rows = @menu.each_with_index.flat_map do |item, index|
+              label = item.is_a?(Hash) ? item[:label].to_s : item.to_s
+              wrap(label, menu_width - 6, words: false).each_with_index.map { |line, part| [index, part, line] }
+            end
+            bottom = @height - (@compose_height || 5) - (@footer_height || 2)
+            height = [rows.length + 2, bottom].min
+            return if height < 3
+
+            top = bottom - height
+            visible = height - 2
+            first = rows.index { |row| row[0] == @menu_index } || 0
+            last = rows.rindex { |row| row[0] == @menu_index } || first
+            signature = [@menu, @menu_index, menu_width, visible]
+            @menu_page_offset = 0 unless @menu_layout_signature == signature
+            @menu_layout_signature = signature
+            @menu_page_size = visible
+            @menu_page_max = [last - first + 1 - visible, 0].max
+            @menu_page_offset = @menu_page_offset.to_i.clamp(0, @menu_page_max)
+            start = if last - first < visible
+                      [last - visible + 1, 0].max
+                    else
+                      first + @menu_page_offset
+                    end
+            { rows: rows, width: menu_width, height: height, top: top, start: start, visible: visible }
+          end
+
+          def draw_menu
+            layout = completion_layout
+            return unless layout
+
+            rows, menu_width, height, top, start, visible = layout.values_at(:rows, :width, :height, :top, :start, :visible)
             height.times { |row| put(top + row, 2, ' ' * menu_width) }
             box(top, 2, height, menu_width, "COMMANDS · #{@menu_hint}")
-            start = [@menu_index - height + 3, 0].max
-            @menu.slice(start, height - 2).each_with_index do |item, index|
-              selected = start + index == @menu_index
-              prefix = selected ? '› ' : '  '
-              label = item.is_a?(Hash) ? item[:label].to_s : item.to_s
-              text = fit(prefix + label, menu_width - 4)
+            if rows.length > visible
+              hint = " #{start + 1}–#{start + visible}/#{rows.length} · ↑↓ select"
+              hint += ' · PgUp/PgDn' if @menu_page_max.positive?
+              put(top + height - 1, 4, fit(hint, menu_width - 4), tone(:footer))
+            end
+            rows.slice(start, visible).each_with_index do |(candidate, part, label), index|
+              selected = candidate == @menu_index
+              prefix = selected && part.zero? ? '› ' : '  '
+              text = prefix + label
               text += ' ' * (menu_width - 4 - width(text))
               paint = -> { put(top + index + 1, 4, text, tone(:selection)) }
               selected ? @screen.attron(Curses::A_REVERSE) { paint.call } : paint.call

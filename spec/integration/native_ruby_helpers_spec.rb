@@ -10,8 +10,10 @@ describe 'Native Ruby helper runtime dependencies' do
     expect(python_helpers).to eq([]), "First-party runtime helpers must be Ruby: #{python_helpers.join(', ')}"
   end
 
-  it 'does not require Python to execute first-party helper tests' do
-    expect(Dir.glob(File.join(root, 'spec', '**', '*.py'))).to eq([])
+  it 'keeps Python test support limited to the explicitly approved external reference API boundary' do
+    # The reference exposes a Python API; this is not a PWN runtime helper.
+    # Keep an exact inventory, not a directory-wide exclusion that hides new helpers.
+    expect(Dir.glob(File.join(root, 'spec', '**', '*.py'))).to eq([File.join(root, 'spec/support/harness/reference_adapter.py')])
   end
 
   it 'does not hide a Python interpreter behind the broker or sandbox Ruby entry points' do

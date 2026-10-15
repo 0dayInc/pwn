@@ -12,7 +12,7 @@ metadata:
 
 # PWN::AI::Context
 
-Local evidence ingestion; unavailable embeddings never become synthetic vectors.
+Local evidence ingestion; XML is bounded to 100 element levels before XPath. Unavailable embeddings never become synthetic vectors.
 
 ## When to use
 

@@ -75,7 +75,7 @@ module PWN
 
       public_class_method def self.help
         puts "USAGE:
-          # Ingest evidence into the local embedding database; positional path alone uses defaults.
+          # Ingest evidence into the local embedding database; XML nesting is limited to 100 elements.
           #{self}.ingest(path: '/path/to/evidence', session_id: 'default')
 
           # Retrieve auditable source citations for a prompt.

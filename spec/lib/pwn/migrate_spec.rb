@@ -80,7 +80,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 2))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: false, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([3, 4, 5, 6, 7, 8])
+      expect(result[:applied_migrations]).to eq([3, 4, 5, 6, 7, 8, 9])
       expected = Marshal.load(Marshal.dump(original))
       expected['custom']['model'] = nil
       expect(YAML.safe_load_file(path)).to eq(expected)
@@ -189,7 +189,7 @@ describe PWN::Migrate do
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 3))
       expect(described_class.needed?).to be(true)
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([4, 5, 6, 7, 8])
+      expect(result[:applied_migrations]).to eq([4, 5, 6, 7, 8, 9])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user[:ai][:active]).to eq('grok')
@@ -215,7 +215,7 @@ describe PWN::Migrate do
       PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 4))
       result = described_class.run(fix: true, backup: false, io: io)
-      expect(result[:applied_migrations]).to eq([5, 6, 7, 8])
+      expect(result[:applied_migrations]).to eq([5, 6, 7, 8, 9])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       expect(user.dig(:ai, :agent, :skill_review)).to eq('off')
@@ -240,7 +240,7 @@ describe PWN::Migrate do
       File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
       PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
       File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 5))
-      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([6, 7, 8])
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([6, 7, 8, 9])
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
       theme = user.dig(:ai, :tui, :theme)
@@ -268,6 +268,39 @@ describe PWN::Migrate do
       expect(File.binread(yaml)).to eq(encrypted)
       creds = YAML.safe_load_file(dec, symbolize_names: true)
       expect(PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv]).dig(:ai, :tui, :theme)).to eq(chosen)
+    end
+
+    it 'upgrades a schema-8 vault with channel short_name without replacing from or an existing name' do
+      yaml = File.join(@tmp, 'pwn.yaml')
+      dec = File.join(@tmp, 'pwn.yaml.decryptor')
+      stale = {
+        plugins: {
+          meshtastic: {
+            channel: {
+              active: 'LongFast',
+              LongFast: { from: '!0000abcd', psk: 'AQ==' },
+              Kept: { from: '!0000eeee', short_name: 'KEEP' }
+            }
+          }
+        }
+      }
+      File.write(yaml, YAML.dump(stale).gsub(/^(\s*):/, '\1'))
+      PWN::Plugins::Vault.create(file: yaml, decryptor_file: dec)
+      File.write(File.join(@tmp, '.schema'), JSON.generate(schema: 8))
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([9])
+      creds = YAML.safe_load_file(dec, symbolize_names: true)
+      user = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      long_fast = user.dig(:plugins, :meshtastic, :channel, :LongFast)
+      kept = user.dig(:plugins, :meshtastic, :channel, :Kept)
+      expect(long_fast[:from]).to eq('!0000abcd')
+      expect(long_fast[:psk]).to eq('AQ==')
+      expect(long_fast[:short_name]).to eq('')
+      expect(kept[:short_name]).to eq('KEEP')
+      expect(kept[:from]).to eq('!0000eeee')
+      expect(described_class.run(fix: true, backup: false, io: io)[:applied_migrations]).to eq([])
+      again = PWN::Plugins::Vault.dump(file: yaml, key: creds[:key], iv: creds[:iv])
+      expect(again.dig(:plugins, :meshtastic, :channel, :LongFast, :short_name)).to eq('')
+      expect(again.dig(:plugins, :meshtastic, :channel, :Kept, :short_name)).to eq('KEEP')
     end
 
     it 'dry_run writes nothing' do

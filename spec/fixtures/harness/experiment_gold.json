@@ -1,0 +1,9 @@
+{
+  "schema": "pwn-independent-gold-v1",
+  "provenance": "Literal expectations authored separately from execution and provider scripts. Never copied into a task HOME/workspace or provider fixture.",
+  "checks": {
+    "train-record-count": [{"path": "result.txt", "bytes": "3\n"}],
+    "validation-order": [{"path": "result.txt", "bytes": "ann\nbo\nzed\n"}],
+    "heldout-filtered-total": [{"path": "result.txt", "bytes": "6\n"}]
+  }
+}

@@ -4,6 +4,285 @@ require 'spec_helper'
 require 'stringio'
 require 'pry'
 
+describe 'operator workspace navigation' do
+  include_context 'pwn tmp sandbox'
+
+  before do
+    allow(Dir).to receive(:home).and_return(@tmp)
+    stub_const('PWN::AI::Agent::SkillReview::LEDGER', File.join(@tmp, 'skill_review.jsonl'))
+    stub_const('PWN::AI::Agent::OpenGoal::GOAL_FILE', File.join(@tmp, 'open_goal.json'))
+    allow(Pry).to receive(:history).and_return(Pry::History.new(file_path: File.join(@tmp, 'pwn_history')))
+  end
+
+  let(:pry) { Pry.new }
+  let(:console) { PWN::Plugins::REPL::AIConsole::Console.new(pry: pry, input: StringIO.new, curses: nil, getch: nil) }
+
+  def open_view(line)
+    console.submit(line)
+    Timeout.timeout(5) do
+      while console.instance_variable_get(:@operator_view)&.dig(:loading)
+        console.instance_variable_get(:@operator_worker)&.join(0.01)
+        console.send(:drain)
+      end
+    end
+  end
+
+  after { console.send(:stop_worker) }
+
+  it 'lays out only visible records and scrolls upward immediately after End in a large local list' do
+    screen = double('local screen').as_null_object
+    allow(screen).to receive(:attron) { |*, &block| block.call }
+    console.instance_variable_set(:@screen, screen)
+    console.instance_variable_set(:@height, 40)
+    console.instance_variable_set(:@width, 120)
+    console.instance_variable_set(:@operator_view, { kind: :sessions, query: '', index: 0, offset: 0, rows: Array.new(10_000) { |i| { id: "session-#{i}", title: "Fixture #{i}" } } })
+    %i[box swarm_put].each { |method| allow(console).to receive(method) }
+    painted = []
+    allow(console).to receive(:put) { |*args| painted << args[2] }
+    expect(console).to receive(:wrap).at_most(110).times.and_call_original
+    console.send(:draw_operator)
+    console.handle(:end)
+    console.send(:draw_operator)
+    expect(painted.join).to include('session-9999')
+    painted.clear
+    console.handle(:page_up)
+    console.send(:draw_operator)
+    expect(painted.join).not_to include('session-9999')
+  end
+
+  it 'keeps input responsive while a slow local scan is blocked and ignores its stale result' do
+    entered = Queue.new
+    release = Queue.new
+    allow(PWN::Sessions).to receive(:list) do
+      entered << true
+      release.pop
+      Array.new(10_000) { |i| { id: "session-#{i}", title: "fixture #{i}", mtime: i.to_s } }
+    end
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    Timeout.timeout(1) { console.submit('/sessions') }
+    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 0.2
+    Timeout.timeout(2) { entered.pop }
+    console.handle('x')
+    expect(console.instance_variable_get(:@operator_view)[:query]).to eq('x')
+    console.handle("\e")
+    console.submit('/guide')
+    release << true
+    console.instance_variable_get(:@operator_worker).join(2)
+    console.send(:drain)
+    expect(console.instance_variable_get(:@operator_view)[:kind]).to eq(:guide)
+    expect(console.send(:operator_content).join).not_to include('session-9999')
+  ensure
+    release << true
+    console.instance_variable_get(:@operator_worker)&.kill
+    console.instance_variable_get(:@operator_worker)&.join
+  end
+
+  it 'formats cleanup details only for the selected record rather than the entire local store' do
+    rows = Array.new(10_000) { |i| { id: "session-#{i}", title: 'removable', path: "/fixture/#{i}.jsonl", files: { sha256: 'source-fingerprint' } } }
+    console.instance_variable_set(:@operator_view, { kind: :cleanup, query: '', index: 0, offset: 0, rows: rows, plan: { scanned: rows.length, records: rows, candidate_ids: rows.map { |row| row[:id] } } })
+    expect(PWN::Plugins::REPL).to receive(:pwn_ai_result_text).at_most(3).times.and_call_original
+    expect(console.send(:operator_content).join).to include('session-9999')
+    console.handle("\r")
+    expect(console.send(:operator_content).join).to include('source-fingerprint', '/fixture/0.jsonl')
+  end
+
+  it 'requires the typed tested revision after inspecting the exact patch before apply' do
+    root = File.join(@tmp, 'swarm')
+    stub_const('PWN::AI::Agent::Swarm::SWARM_ROOT', root)
+    dir = File.join(root, 'patch-mission')
+    FileUtils.mkdir_p(dir)
+    patch = File.join(dir, 'candidate.patch')
+    File.write(patch, "diff --git a/old.rb b/old.rb\ndeleted file mode 100644\n")
+    path = File.join(dir, 'solve.json')
+    File.write(path, JSON.generate(status: 'accepted', revision: 'rev-one', request: 'Remove obsolete file', patch_path: patch, patch_sha256: Digest::SHA256.file(patch).hexdigest))
+    open_view('/evidence')
+    console.handle("\r")
+    console.handle('d')
+    expect(console.send(:operator_content).join).to include('deleted file mode')
+    console.handle('a')
+    expect(PWN::AI::Agent::Solve).to receive(:apply_patch).with(record_path: path, revision: 'rev-one', confirmation: 'APPLY rev-one').and_return(ok: false, error: 'fixture blocked apply')
+    'APPLY rev-one'.chars.each { |key| console.handle(key) }
+    console.handle("\r")
+    expect(console.instance_variable_get(:@operator_view)[:notice]).to include('fixture blocked apply')
+  end
+
+  it 'requires typed discard for a retained cancelled checkout without inventing an apply action' do
+    root = File.join(@tmp, 'swarm')
+    stub_const('PWN::AI::Agent::Swarm::SWARM_ROOT', root)
+    dir = File.join(root, 'cancelled-mission')
+    FileUtils.mkdir_p(dir)
+    path = File.join(dir, 'solve.json')
+    File.write(path, JSON.generate(status: 'cancelled', request: 'Stopped candidate', worktree: { token: 'owned-token' }))
+    open_view('/evidence')
+    console.handle("\r")
+    console.handle('x')
+    expect(console.send(:operator_content).join).to include('DISCARD owned-token')
+    expect(PWN::AI::Agent::Solve).to receive(:cleanup_worktree).with(record_path: path, confirmation: 'DISCARD owned-token').and_return(ok: true, status: 'removed')
+    'DISCARD owned-token'.chars.each { |key| console.handle(key) }
+    console.handle("\r")
+    expect(console.instance_variable_get(:@operator_view)[:notice]).to include('removed')
+  end
+
+  it 'reviews learning evidence with durable rejection and blocks approval without execution proof' do
+    path = File.join(@tmp, 'learning.jsonl')
+    stub_const('PWN::AI::Agent::Learning::LEARNING_FILE', path)
+    File.write(path, "#{JSON.generate(id: 'outcome-one', task: 'Unsupported success', status: 'conflicted', session_id: '20260101_000000_deadbeef', success: true)}\n")
+    open_view('/learning inbox')
+    console.handle("\r")
+    expect(console.send(:operator_content).join).to include('conflicted', 'Unsupported success')
+    console.handle('a')
+    console.handle("\r")
+    expect(console.instance_variable_get(:@operator_view)[:notice]).to include('blocked')
+    console.handle('x')
+    console.handle("\r")
+    ledger = File.join(Dir.home, '.pwn', 'operator-learning-review.jsonl')
+    expect(JSON.parse(File.readlines(ledger).last)['decision']).to eq('reject')
+    expect(JSON.parse(File.read(path))['status']).to eq('conflicted')
+  end
+
+  it 'proposes, inspects, explicitly approves and rolls back an execution-backed local skill' do
+    root = File.join(@tmp, '.pwn', 'skills')
+    path = File.join(root, 'fixture-check', 'SKILL.md')
+    FileUtils.mkdir_p(File.dirname(path))
+    original = "---\nname: fixture-check\ndescription: Check fixture bytes.\n---\n\n# Fixture\n"
+    File.write(path, original)
+    stub_const('PWN::Skills', { 'fixture-check' => { path: path, description: 'Check fixture bytes' } })
+    learning = PWN::AI::Agent::Learning
+    sid = PWN::Sessions.create[:id]
+    stdout, stderr, status = Open3.capture3('printf', 'hello')
+    expect(status.exitstatus).to eq(0)
+    File.open(File.join(PWN::Sessions::SESSIONS_DIR, "#{sid}.jsonl"), 'a') do |file|
+      file.puts(JSON.generate(role: 'tool', content: 'printf hello'))
+      file.puts(JSON.generate(role: 'observation', content: { stdout: stdout, stderr: stderr, exitstatus: status.exitstatus }))
+    end
+    File.write(File.join(@tmp, 'observed.txt'), stdout)
+    verification = PWN::AI::Agent::Verification.run(
+      request: 'greeting', requirements: ['greeting'], root: @tmp,
+      checks: [{ kind: 'file', requirement: 'greeting', path: 'observed.txt', expected: 'hello' }]
+    )
+    expect(verification[:status]).to eq(:pass)
+    proof = { id: 'host-check', session_id: sid, task: 'greeting', verification: verification }
+    FileUtils.mkdir_p(File.dirname(learning::LEARNING_FILE))
+    File.write(learning::LEARNING_FILE, "#{JSON.generate(proof)}\n")
+    expect(learning.migrate_evidence(dry_run: false)[:migrated_rows]).to eq(1)
+    proof = JSON.parse(File.readlines(learning::LEARNING_FILE).first, symbolize_names: true)
+    proposal = PWN::AI::Agent::SkillReview.review(
+      request: 'Check fixture bytes', name: 'fixture-check', mode: 'recommend',
+      procedure: { when: 'checking fixture bytes', prerequisites: 'a local fixture exists', steps: 'read the fixture content', verification: 'compare the expected bytes', failures: 'stop on differing bytes' },
+      evidence: { learning_id: proof[:id], learning_sha256: Digest::SHA256.hexdigest(JSON.generate(proof)) }
+    )
+    open_view('/learning inbox')
+    console.instance_variable_get(:@operator_view)[:index] = console.send(:operator_items).index { |row| row[:kind] == :skill }
+    console.handle("\r")
+    console.handle('e')
+    expect(console.send(:operator_content).join).to include('printf hello')
+    console.handle("\e")
+    File.write(path, "#{original}external edit\n")
+    console.handle('a')
+    console.handle("\r")
+    expect(console.instance_variable_get(:@operator_view)[:notice]).to include('source changed')
+    expect(File.read(path)).to end_with("external edit\n")
+    File.write(path, original)
+    retained = File.binread(learning::LEARNING_FILE)
+    File.write(learning::LEARNING_FILE, "#{JSON.generate(proof.merge(status: 'conflicted'))}\n")
+    console.handle('a')
+    console.handle("\r")
+    expect(console.instance_variable_get(:@operator_view)[:notice]).to include('independent execution evidence')
+    expect(File.read(path)).to eq(original)
+    File.binwrite(learning::LEARNING_FILE, retained)
+    console.handle('a')
+    expect(console.send(:operator_content).join).to include('Append the retained procedure', path)
+    expect(File.read(path)).to eq(original)
+    console.handle("\r")
+    expect(File.read(path)).to include('Reviewed procedure', 'compare the expected bytes')
+    expect(PWN::Skills['fixture-check'][:content]).to eq(File.read(path))
+    digest = Digest::SHA256.hexdigest(JSON.generate(proposal))
+    expect(PWN::AI::Agent::SkillReview.decide(source_sha256: digest, decision: 'reject', skills_root: root)).to include(ok: false)
+    applied = File.read(path)
+    File.write(path, "#{applied}later operator edit\n")
+    refused = PWN::AI::Agent::SkillReview.decide(source_sha256: digest, decision: 'rollback', skills_root: root)
+    expect(refused).to include(ok: false, error: include('changed after approval'))
+    expect(File.read(path)).to end_with("later operator edit\n")
+    File.write(path, applied)
+    open_view('/learning inbox')
+    console.instance_variable_get(:@operator_view)[:index] = console.send(:operator_items).index { |row| row[:kind] == :skill }
+    console.handle("\r")
+    console.handle('u')
+    console.handle("\r")
+    expect(File.read(path)).to eq(original)
+    expect(PWN::Skills['fixture-check'][:content]).to eq(original)
+    expect(learning.evidence_transcript(row: proof)).not_to be_empty
+    expect(proposal[:source_sha256]).to eq(Digest::SHA256.hexdigest(original))
+  end
+
+  it 'inserts guide examples as editable drafts and persists dismissal only on explicit action' do
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    marker = File.join(Dir.home, '.pwn', 'operator-guide-v1.dismissed')
+    console.submit('/guide')
+    expect(File).not_to exist(marker)
+    console.handle('1')
+    expect(console.instance_variable_get(:@editor).text).to include('Inspect')
+    console.submit('/guide')
+    console.handle('x')
+    expect(File.read(marker)).to eq("dismissed\n")
+  end
+
+  it 'shows actual mission routes, local tools and actionable missing configuration without network work' do
+    PWN::Env[:ai] = { active: :openai, openai: { model: 'configured-model' } }
+    console.instance_variable_set(:@swarm, PWN::Plugins::REPL::AISwarm::Controller.new(session_id: 'offline'))
+    allow(PWN::AI::Agent::Swarm).to receive(:personas).and_return({})
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    expect(PWN::AI::OpenAI).not_to receive(:chat)
+    open_view('/readiness')
+    text = console.send(:operator_content).join
+    expect(text).to include('configured-model', 'openai', 'credentials', File.realpath(Dir.pwd), '60', 'protagonist')
+  end
+
+  it 'inspects persisted mission checks and candidate revision without launching work' do
+    root = File.join(@tmp, 'swarm')
+    stub_const('PWN::AI::Agent::Swarm::SWARM_ROOT', root)
+    FileUtils.mkdir_p(File.join(root, 'mission-one'))
+    File.write(File.join(root, 'mission-one', 'solve.json'), JSON.generate(request: 'Verify calculator', status: 'cancelled', revision: 'tested-revision', evidence: [{ command: 'ruby check.rb', stdout: 'observed failure', exit: 1, passed: false }], requirements: { R0: 'Verify calculator' }))
+    expect(PWN::AI::Agent::Loop).not_to receive(:run)
+    open_view('/evidence')
+    console.handle("\r")
+    text = console.send(:operator_content).join
+    expect(text).to include('ruby check.rb', 'observed failure', 'tested-revision', 'cancelled')
+  end
+
+  it 'previews cleanup and applies only unchanged explicitly approved candidates' do
+    require File.expand_path('../../../../../etc/default_cron/session_cleanup', __dir__)
+    allow(PWN::SessionCleanup).to receive(:legacy_owners).and_return([])
+    old = PWN::Sessions.create[:id]
+    open_view('/sessions cleanup')
+    expect(console.send(:operator_content).join).to include(old)
+    late = PWN::Sessions.create[:id]
+    console.handle('a')
+    expect(File).to exist(File.join(PWN::Sessions.sessions_dir, "#{old}.jsonl"))
+    console.handle("\r")
+    expect(File).not_to exist(File.join(PWN::Sessions.sessions_dir, "#{old}.jsonl"))
+    expect(File).to exist(File.join(PWN::Sessions.sessions_dir, "#{late}.jsonl"))
+  end
+
+  it 'searches sessions by stable ID and resumes the selected ID without changing a draft' do
+    first = PWN::Sessions.create(title: 'Duplicate title')[:id]
+    second = PWN::Sessions.create(title: 'Duplicate title')[:id]
+    pry.config.pwn_ai_session_id = first
+    editor = console.instance_variable_get(:@editor)
+    editor.replace('unfinished draft')
+    open_view('/sessions')
+    second.chars.each { |key| console.handle(key) }
+    expect(console.send(:operator_items).map { |row| row[:id] }).to eq([second])
+    console.handle("\r")
+    expect(console.send(:operator_content).join).to include(second, 'Duplicate title', 'RETENTION')
+    console.handle('r')
+    expect(pry.config.pwn_ai_session_id).to eq(second)
+    expect(editor.text).to eq('unfinished draft')
+  ensure
+    PWN::Sessions.deactivate(lease: pry.config.pwn_ai_session_lease)
+  end
+end
+
 describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- public launch, terminal lifecycle and deterministic worker integration
   include_context 'pwn tmp sandbox'
 
@@ -16,7 +295,11 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     allow(PWN::AI::Agent::Loop).to receive(:should_auto_introspect?).and_return(false)
     allow(PWN::AI::Agent::Loop).to receive(:may_finalize?).and_return(true)
     allow(PWN::AI::Router).to receive(:summarize).and_return('')
+    @launch_pwd = Dir.pwd
+    Dir.chdir(@tmp)
   end
+
+  after { Dir.chdir(@launch_pwd) if @launch_pwd && Dir.exist?(@launch_pwd) }
 
   def launch(keys, startup_delay: 0, render_delay: 0, screen_rows: 30, &tick)
     require 'pty'
@@ -56,9 +339,13 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
     @screen = screen
     output = double('terminal', tty?: true)
     previous = [$stdin, $stdout, $stderr]
-    Timeout.timeout(25, Class.new(Exception)) do # rubocop:disable Lint/InheritException
-      PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen,
-                                        getch: -> { keys.empty? ? tick.call : keys.shift })
+    Timeout.timeout(60, Class.new(Exception)) do # rubocop:disable Lint/InheritException -- must escape Console rescue StandardError
+      reader = lambda do
+        key = keys.empty? ? tick.call : keys.shift
+        Thread.pass if key.nil?
+        key
+      end
+      PWN::Plugins::REPL::AIConsole.run(pry: @pry, input: input, output: output, curses: screen, getch: reader)
     end
     expect([$stdin, $stdout]).to eq(previous.take(2))
     expect(PWN::Plugins::Log.raw_stderr).to equal(previous[2])
@@ -67,6 +354,23 @@ describe 'pwn-ai curses launch' do # rubocop:disable Metrics/BlockLength -- publ
   ensure
     master&.close
     input&.close
+  end
+
+  it 'rejects an ordinary request while the shared mission workspace lease is held' do
+    workspace = Dir.mktmpdir('pwn-lease-')
+    Dir.chdir(workspace) do
+      path = File.join(Dir.tmpdir, "pwn-solve-#{Digest::SHA256.hexdigest(File.realpath(workspace))}.lock")
+      expect(PWN::AI::Agent::Loop).not_to receive(:run)
+      File.open(path, File::RDWR | File::CREAT, 0o600) do |lease|
+        expect(lease.flock(File::LOCK_EX | File::LOCK_NB)).to be_truthy
+        launch(['inspect workspace'.chars, "\r"].flatten) do
+          @paint.join.include?('Workspace busy:') ? "\u0004" : nil
+        end
+      end
+      expect(@paint.join).to include('Workspace busy:')
+    end
+  ensure
+    FileUtils.rm_rf(workspace) if workspace
   end
 
   it 'paints provisional and asynchronously updated summary titles in the actual SESSION pane' do
