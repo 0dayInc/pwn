@@ -75,6 +75,8 @@ provider.define_singleton_method(:chat_with_tools) do |opts = {}|
   { choices: [{ message: row }] }
 end
 provider.define_singleton_method(:chat) { |*_args| raise 'unexpected text-only provider path' }
+ready = ENV['PWN_HARNESS_READY'].to_s
+File.write(ready, 'ready') unless ready.empty?
 at_exit do
   File.write(ENV.fetch('PWN_HARNESS_FINGERPRINT'), JSON.pretty_generate(PWN::RuntimeFingerprint.report))
 end

@@ -29,14 +29,14 @@ module HarnessSwarmAcceptance
       steps += Array.new(16) { final }
       fixture = File.join(root, 'provider.json')
       File.write(fixture, JSON.generate(responses: steps, toolsets: %w[shell swarm], agent: { max_iters: 6 }))
-      env = { 'HOME' => home, 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+      env = { 'HOME' => home, 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
               'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR),
               'PWN_HARNESS_FIXTURE' => fixture, 'PWN_HARNESS_EVENTS' => File.join(root, 'events.jsonl'),
               'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json') }
       command = [RbConfig.ruby]
       command += ['-I', File.join(source, 'lib')] unless options[:executable]
       command += ['-r', File.join(source, 'spec/support/harness/fake_provider.rb'), options[:executable] || File.join(source, 'bin/pwn-ai'), '--ai', prompt]
-      result = HarnessEvaluation.capture(env, command, root, 35)
+      result = HarnessEvaluation.agent_capture(env, command, root, 35, options)
       File.write(File.join(root, 'process.json'), JSON.pretty_generate(result.merge(command: command)))
       checkpoints = Dir.glob(File.join(home, '.pwn/sessions/requests/**/*.json')).map { |path| JSON.parse(File.read(path)) }
       parent = checkpoints.find { |row| Array(row['enabled_toolsets']).include?('swarm') }

@@ -153,7 +153,6 @@ module PWN
       # bearer lives in-session only.
       private_class_method def self.persist_oauth_to_vault(opts = {})
         oauth = opts[:oauth]
-        return false if Thread.current[:pwn_request_runtime]
         return false unless oauth.is_a?(Hash)
         return false unless real_config_value?(value: oauth[:bearer_token])
 
@@ -230,9 +229,9 @@ module PWN
       #   2. User opens verification_uri_complete in a browser and approves.
       #   3. Poll POST /oauth2/token (grant_type=device_code) until access_token.
       #
-      # On success the access_token + refresh_token are written back into the
-      # passed opts/oauth Hash (so PWN::Env[:ai][:grok][:oauth] is live-cached)
-      # and the operator is told exactly what to persist via pwn-vault.
+      # On success the access_token + refresh_token are written into the live
+      # request runtime (provider_config is a copy) and into the encrypted
+      # vault when the decryptor is present. Tokens are not printed.
       public_class_method def self.obtain_oauth_bearer_token(opts = {})
         client_id = real_config_value?(value: opts[:client_id]) ? opts[:client_id] : XAI_OAUTH_CLIENT_ID
         scope     = real_config_value?(value: opts[:scope])     ? opts[:scope]     : XAI_OAUTH_SCOPE
@@ -318,14 +317,14 @@ module PWN
         opts[:refresh_token] = refresh_token if refresh_token
         opts[:expires_at]    = Time.now.to_i + data['expires_in'].to_i if data['expires_in']
 
+        # provider_config returns a Marshal copy. Mutating that copy does not
+        # survive the next hop, so a dead vault refresh token is reused and
+        # the device flow starts again.
+        sync_oauth_into_env(oauth: opts)
+        persisted = persist_oauth_to_vault(oauth: opts)
+
         puts "\n[*] SUCCESS: xAI Grok OAuth bearer obtained via device_code grant."
-        puts '    Cached in-memory for this pwn / pwn-ai process.'
-        puts ''
-        puts '    TO MAKE THIS PERMANENT (recommended -- one-time), store via pwn-vault:'
-        puts "      ai.grok.oauth.refresh_token = #{refresh_token}" if refresh_token
-        puts "      ai.grok.oauth.bearer_token  = #{access_token}"
-        puts '    On future runs the refresh_token alone is enough -- PWN::AI::Grok will'
-        puts '    silently exchange it for a fresh access_token (no browser, no prompt).'
+        puts(persisted ? '    Tokens saved to the encrypted vault; future sessions can refresh automatically.' : '    Tokens available in this session only; encrypted vault persistence was unavailable.')
         puts ''
 
         access_token

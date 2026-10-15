@@ -213,7 +213,8 @@ module PWN
             maxOutputTokens: opts[:max_tokens] || 8192
           }
         }
-        http_body[:generationConfig][:thinkingConfig] = { includeThoughts: true } unless opts[:think] == false
+        thinking = gemini_thinking_config(model: model, think: opts[:think], reasoning_effort: opts[:reasoning_effort])
+        http_body[:generationConfig][:thinkingConfig] = thinking if thinking
         if system_str && !system_str.empty?
           if defined?(PWN::AI::Agent::PromptCache) &&
              PWN::AI::Agent::PromptCache.enabled?(engine: :gemini)
@@ -369,6 +370,29 @@ module PWN
         }
       end
 
+      private_class_method def self.reasoning_efforts(opts = {})
+        model = opts[:model].to_s.downcase
+        return { efforts: [], default: nil } unless model.match?(/\Agemini-[34]/)
+        return { efforts: [], default: nil } if model.match?(/embed|imagen|veo|aqa|tts/)
+
+        if model.include?('flash')
+          { efforts: %w[minimal low medium high], default: model.include?('flash-lite') ? 'minimal' : 'medium' }
+        else
+          { efforts: %w[low medium high], default: 'medium' }
+        end
+      end
+
+      private_class_method def self.gemini_thinking_config(opts = {})
+        return nil if opts[:think] == false && opts[:reasoning_effort].to_s.empty?
+
+        config = {}
+        config[:includeThoughts] = true unless opts[:think] == false
+        effort = opts[:reasoning_effort].to_s
+        known = reasoning_efforts(model: opts[:model])[:efforts]
+        config[:thinkingLevel] = effort if known.include?(effort)
+        config.empty? ? nil : config
+      end
+
       private_class_method def self.gemini_tool_config(opts = {})
         choice = opts[:choice]
         case choice
@@ -509,7 +533,8 @@ module PWN
             max_tokens: 'optional - maxOutputTokens (defaults to 8192)',
             timeout: 'optional - seconds (default 900)',
             spinner: 'optional - display spinner (default false)',
-            think: 'optional - true includes Gemini thought parts (default true; false disables)'
+            think: 'optional - true includes Gemini thought parts (default true; false disables)',
+            reasoning_effort: 'optional - thinkingLevel when the model supports named levels'
           )
 
           # Run chat and return its result

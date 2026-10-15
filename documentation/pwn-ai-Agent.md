@@ -336,15 +336,22 @@ OpenAI options come from the model catalog's `supported_reasoning_levels` and
 while typing. When metadata is absent, explicit documented GPT-5, GPT-5.1/5.2/
 5.4/5.5 and GPT-6 Astra API contracts provide fallback options. Astra never offers
 `none`. Grok 3 Mini and Grok 4.5/4.6/4.7 use their documented effort levels.
-Unknown models without capability metadata and Anthropic, Gemini, Ollama and
-OpenWebUI do not offer an effort list: those adapters do not consume this effort
-setting (their thinking controls, where present, are different).
+Anthropic prompts for documented effort models and sends `output_config.effort`
+with adaptive thinking. Gemini 3 and Gemini 4 prompt for `thinkingLevel`; Gemini
+2.5 stays on its thinking budget and is not an effort menu. Ollama and Open WebUI
+prompt only when `/api/show` (or the proxied `ollama/api/show`) publishes named
+`thinking.values`. Boolean on/off thinking is not an effort list. Unknown models
+without that metadata do not offer a list.
 
 Acceptance merges `ai.active`, the selected engine's `model` and its existing
 `reasoning_effort` field into the encrypted vault; other settings are retained.
-Missing decryptor files leave changes session-only. No schema migration is needed.
-Capability references: [OpenAI model pages](https://developers.openai.com/api/docs/models),
-[xAI reasoning](https://docs.x.ai/developers/model-capabilities/text/reasoning).
+Missing decryptor files leave changes session-only. Schema 10 backfills a missing
+`reasoning_effort` key for Anthropic, Gemini, Ollama, and Open WebUI without
+replacing an existing value. Capability references: [OpenAI model pages](https://developers.openai.com/api/docs/models),
+[xAI reasoning](https://docs.x.ai/developers/model-capabilities/text/reasoning),
+[Anthropic effort](https://platform.claude.com/docs/en/build-with-claude/effort),
+[Gemini thinking](https://ai.google.dev/gemini-api/docs/generate-content/thinking),
+[Ollama thinking](https://docs.ollama.com/capabilities/thinking).
 
 Settings and new requests are rejected while a request is running, rather than
 mutating its context concurrently. Network-capable local commands (`/mcp`,

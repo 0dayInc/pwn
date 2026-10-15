@@ -50,14 +50,14 @@ module HarnessExperiments
                 agent: { policy: arm == 'single-policy', max_iters: options.fetch(:max_iterations, 12) } }
     File.write(File.join(root, 'provider.json'), JSON.generate(fixture))
     source = options[:source_root] || HarnessEvaluation::ROOT
-    env = { 'HOME' => home, 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+    env = { 'HOME' => home, 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
             'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR),
             'PWN_HARNESS_FIXTURE' => File.join(root, 'provider.json'), 'PWN_HARNESS_EVENTS' => File.join(root, 'events.jsonl'),
             'PWN_HARNESS_FINGERPRINT' => File.join(root, 'fingerprint.json'), 'PWN_HARNESS_OBSERVATIONS' => File.join(root, 'observations.json') }
     command = [RbConfig.ruby]
     command += ['-I', File.join(source, 'lib')] unless options[:executable]
     command += ['-r', File.join(source, 'spec/support/harness/experiment_preload.rb'), options[:executable] || File.join(source, 'bin/pwn-ai'), '--ai', task.fetch('prompt')]
-    result = HarnessEvaluation.capture(env, command, root, options.fetch(:wall_seconds, 35))
+    result = HarnessEvaluation.agent_capture(env, command, root, options.fetch(:wall_seconds, 35), options)
     grade = HarnessEvaluation.grade({ 'checks' => gold.fetch(task.fetch('id')), 'success_marker' => 'FIXTURE_COMPLETE' }, root, result)
     File.write(File.join(root, 'process.json'), JSON.pretty_generate(result.merge(command: command)))
     trace_path = File.join(root, 'events.jsonl')
@@ -105,7 +105,7 @@ module HarnessExperiments
 
       receipt = File.join(output, "#{task.fetch('id')}-receipt.json")
       File.write(receipt, JSON.generate(row))
-      env = { 'HOME' => row[:home], 'PATH' => '/usr/bin:/bin', 'LANG' => 'C.UTF-8',
+      env = { 'HOME' => row[:home], 'PATH' => HarnessEvaluation.isolated_path, 'LANG' => 'C.UTF-8',
               'GEM_HOME' => options[:gem_home] || Gem.dir, 'GEM_PATH' => options[:gem_path] || Gem.path.join(File::PATH_SEPARATOR) }
       recorded = HarnessEvaluation.capture(env, [RbConfig.ruby, '-I', File.join(source, 'lib'), File.join(source, 'spec/support/harness/record_training.rb'), receipt], output, 20)
       File.write(File.join(output, "#{task.fetch('id')}-learning.json"), JSON.pretty_generate(recorded))

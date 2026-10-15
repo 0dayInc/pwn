@@ -180,4 +180,39 @@ describe PWN::AI::Grok do
     src = File.read(described_class.method(:chat_with_tools).source_location.first)
     expect(src).to match(/HttpRetry\.report_event|Log\.progress/)
   end
+
+  it 'keeps a device grant in the request runtime and does not print the tokens' do
+    runtime = Class.new do
+      def initialize
+        @config = { grok: { oauth: { refresh_token: 'dead-refresh', bearer_token: 'expired-bearer' } } }
+      end
+
+      def provider_config(engine)
+        Marshal.load(Marshal.dump(@config[engine.to_sym] || {}))
+      end
+
+      def update_provider_oauth(engine, oauth)
+        @config[engine.to_sym][:oauth] = Marshal.load(Marshal.dump(oauth))
+        :updated
+      end
+    end.new
+    Thread.current[:pwn_request_runtime] = runtime
+    allow(described_class).to receive(:sleep)
+    allow(described_class).to receive(:persist_oauth_to_vault).and_return(false)
+    allow(RestClient).to receive(:post).and_return(
+      double(body: { device_code: 'dev', user_code: 'CODE', verification_uri: 'https://example.invalid/device', interval: 0, expires_in: 30 }.to_json),
+      double(body: { access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600 }.to_json)
+    )
+    output = StringIO.new
+    original = $stdout
+    $stdout = output
+    copy = runtime.provider_config(:grok)[:oauth]
+    expect(described_class.obtain_oauth_bearer_token(copy)).to eq('new-access')
+    expect(runtime.provider_config(:grok)[:oauth]).to include(bearer_token: 'new-access', refresh_token: 'new-refresh')
+    expect(output.string).not_to include('new-access', 'new-refresh', 'dead-refresh')
+    expect(output.string).to include('session only')
+  ensure
+    $stdout = original if original
+    Thread.current[:pwn_request_runtime] = nil
+  end
 end
