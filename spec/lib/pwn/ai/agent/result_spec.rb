@@ -40,6 +40,27 @@ describe PWN::AI::Agent::Result do
     expect(described_class.utf8_text(text: text)).to eq("status \u2022 ok")
   end
 
+  it 'does not warn or raise when JSON.generate sees binary-tagged or malformed text' do
+    require 'pwn'
+    binary = "status \u2022 ok".b
+    malformed = "\xff\xfe".b
+    err = +''
+    prev = $stderr
+    $stderr = StringIO.new
+    generated = JSON.generate(stdout: binary)
+    dumped = JSON.dump(stdout: binary.dup)
+    wired = { stdout: binary.dup }.to_json
+    scrubbed = JSON.generate(stdout: malformed)
+    err = $stderr.string
+    expect(err).not_to include('UTF-8 string passed as BINARY')
+    expect(generated).to include('status')
+    expect(dumped).to include('status')
+    expect(wired).to include('status')
+    expect { JSON.parse(scrubbed) }.not_to raise_error
+  ensure
+    $stderr = prev
+  end
+
   it 'preserves the JSON nesting boundary for finite valid results' do
     value = 'leaf'
     100.times { value = [value] }

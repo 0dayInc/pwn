@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'pwn/json_text'
 require 'pwn/runtime_fingerprint'
 require 'pwn/version'
 require 'yaml'
