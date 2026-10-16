@@ -818,6 +818,8 @@
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Result.spill_summary Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.spill_summary`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Result.token_limit Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.token_limit`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Result.transport_value Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.transport_value`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Result.utf8_text Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.utf8_text`: "}]}
+{"messages":[{"role":"user","content":"PWN::AI::Agent::Result.utf8_value Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Result.utf8_value`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.agent_flag Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.agent_flag`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.annotate_session Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.annotate_session`: "}]}
 {"messages":[{"role":"user","content":"PWN::AI::Agent::Reward.atomic_write Usage"},{"role":"assistant","content":"`PWN::AI::Agent::Reward.atomic_write`: "}]}
