@@ -52,7 +52,8 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
       obj[:proto_data].last[:node_info][:user][:short_name] = 'LATE'
       described_class.send(:mesh_drain_events)
 
-      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via #{label} · GPS N/A\n")
+      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via #{label}\n")
+      expect(described_class.send(:mesh_details_lines, message: PWN::MeshRxState[:detail_rows].last, width: 28).values.flatten.map { |line| line[:text] }.join("\n")).not_to include('VIA')
       expect(win).to have_received(:attron).with(21 | Curses::A_BOLD)
       expect(win).to have_received(:addstr).with(" hello\n")
       expect(message).not_to have_key(:mesh_transport)
@@ -75,7 +76,8 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
       end
       described_class.send(:mesh_send_text, env: env, obj: obj, text: 'sent', channel_name: 'LongFast', channel: 0)
 
-      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · SELF · US/CA/2/e/LongFast/!aabbccdd (ME) · US/CA/2/e/LongFast/# · TX via #{label} · GPS N/A\n")
+      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · SELF · US/CA/2/e/LongFast/!aabbccdd (ME) · US/CA/2/e/LongFast/# · TX via #{label}\n")
+      expect(described_class.send(:mesh_details_lines, message: PWN::MeshRxState[:detail_rows].last, width: 28).values.flatten.map { |line| line[:text] }.join("\n")).not_to include('VIA')
       expect(win).to have_received(:attron).with(23 | Curses::A_BOLD)
       expect(described_class).not_to have_received(:mesh_maybe_dispatch_to_pwn_ai)
     end
@@ -101,7 +103,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
     described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :tcp))
     reply = message[:packet].merge(id: 124, decoded: { portnum: 1, reply_id: 123, payload: '@ai reply' })
     described_class.send(:mesh_handle_rx, msg: { packet: reply, mesh_transport: :tcp })
-    expect(win).to have_received(:addstr).with(a_string_matching(%r{🔒 · PEER · .*!bbccddee.*!aabbccdd \(ME\) · RX via TCP · GPS N/A\n})).twice
+    expect(win).to have_received(:addstr).with(a_string_matching(/🔒 · PEER · .*!bbccddee.*!aabbccdd \(ME\) · RX via TCP\n/)).twice
     expect(win).to have_received(:addstr).with(" Replied to: \"!bbccddee >> hello\" with: @ai reply\n")
     expect(described_class).to have_received(:mesh_maybe_dispatch_to_pwn_ai).with(hash_including(text: '@ai reply', radio: 0))
   end
@@ -109,7 +111,8 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
   it 'does not invent a known transport for an untagged event' do
     stub_const('PWN::MeshTransport', :mqtt)
     described_class.send(:mesh_handle_rx, msg: message)
-    expect(win).to have_received(:addstr).with(a_string_ending_with(" · RX via Unknown · GPS N/A\n"))
+    expect(win).to have_received(:addstr).with(a_string_including('RX via Unknown'))
+    expect(described_class.send(:mesh_details_lines, message: PWN::MeshRxState[:detail_rows].last, width: 28).values.flatten.map { |line| line[:text] }.join("\n")).not_to include('VIA')
   end
 
   it 'learns MQTT sender names from real NODEINFO envelopes, not gateway or destination names' do
@@ -140,7 +143,7 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
     it "omits absent/blank short names without substituting the long name: #{name.inspect}" do
       obj[:proto_data].each { |row| row[:node_info][:user][:short_name] = name }
       described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :serial))
-      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via Serial · GPS N/A\n")
+      expect(win).to have_received(:addstr).with(" 2026-01-02 03:04:05+0000 🔍 · US/CA/2/e/LongFast/!bbccddee · US/CA/2/e/LongFast/# · RX via Serial\n")
     end
   end
 
@@ -188,9 +191,10 @@ describe PWN::Plugins::REPL, 'mesh per-message transport labels' do
       allow(win).to receive(:addstr) { |text| lines << text }
       described_class.send(:mesh_handle_rx, msg: message.merge(mesh_transport: :serial))
       header_lines = lines.take_while { |text| !text.include?('hello') }.map(&:strip).reject(&:empty?)
-      expect(header_lines.join(' · ').split(' · ').size).to eq(6)
+      expect(header_lines.join(' · ').split(' · ').size).to eq(5)
       expect(header_lines.join("\n")).not_to match(/  ·|·  /)
-      expect(header_lines.join("\n")).to include('US/CA/2/e/LongFast/!bbccddee', 'US/CA/2/e/LongFast/#', 'RX via Serial', 'GPS N/A')
+      expect(header_lines.join("\n")).to include('US/CA/2/e/LongFast/!bbccddee', 'US/CA/2/e/LongFast/#', 'RX via Serial')
+      expect(described_class.send(:mesh_details_lines, message: PWN::MeshRxState[:detail_rows].last, width: 28).values.flatten.map { |line| line[:text] }.join("\n")).not_to include('VIA')
     end
   end
 

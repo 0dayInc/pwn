@@ -59,10 +59,11 @@ MQTT receiver when the primary is Serial, Bluetooth, or TCP. Missing/empty
 MQTT configuration makes no additional connection attempt; primary MQTT uses
 only one subscription. MQTT connection failures leave the primary usable and
 are reported in the UI. `/transport` reconnects both subscriptions; `/back`
-closes them. Ctrl+T switches the active pane between COMPOSE and
-CONVERSATION. COMPOSE keeps Up/Down history. CONVERSATION scrolls with
-Up/Down one row, PgUp/PgDn a page, Home to the top, and End to the live
-bottom. The live bottom is not row 0, so PgDn there stays put. Typing or
+closes them. Ctrl+T cycles COMPOSE, CONVERSATION, SENDER, and RECEIVER.
+COMPOSE keeps Up/Down history. CONVERSATION selects messages
+with Up/Down, a page with PgUp/PgDn, Home for the first, and End for the
+latest, including when every message already fits. The latest selection is
+not row 0, so End stays on the last message. Typing or
 Enter returns to COMPOSE; Enter does not send while CONVERSATION is active.
 The active title is reversed and marked active.
 
@@ -79,14 +80,18 @@ uses sender, packet ID, network/channel path, destination and payload (not
 text alone), retaining at most 1000 packets for five minutes. No-ID packets
 cannot be safely merged.
 
-Each header ends with the sender's last known position. A valid fix is
-`lat,lon >> https://maps.google.com/?q=lat,lon` on that same header. The pane
-wraps on ` · `, and only at ` >> ` if the GPS field itself does not fit, so
-the coordinate is not split. This is the compact Maps URL; a maps.app.goo.gl
-code cannot be minted without a Google share request. Unknown, unset, or
-out-of-range positions display `GPS N/A` and omit the URL. `0,0` is kept when
+Each header ends with its direction and transport. Sender and receiver positions
+are not painted there. `SENDER` and `RECEIVER` sit to the right of
+CONVERSATION. A broadcast destination shows the channel name, not the word
+broadcast. Ctrl+T cycles COMPOSE, CONVERSATION, SENDER, and RECEIVER.
+A valid fix is the underlined coordinate.
+Click it, or press `g` while CONVERSATION, SENDER, or RECEIVER is active, to open
+`https://maps.google.com/?q=lat,lon`. The URL is not painted. Curses cannot
+hide a link inside the coordinate text. Unknown, unset, or
+out-of-range positions display `GPS: N/A` and omit the URL. A broadcast
+receiver has no single position, so that field is `GPS: N/A`. `0,0` is kept when
 a real location source is present and omitted when the source is unset. The
-value is the last position recorded for that sender, not a freshness guarantee.
+value is the last position recorded for that node, not a freshness guarantee.
 
 MQTT TX uses `channel.<name>.from` when set, otherwise the connected radio's
 node number, otherwise a node-shaped `mqtt.client_id`. It does not publish the

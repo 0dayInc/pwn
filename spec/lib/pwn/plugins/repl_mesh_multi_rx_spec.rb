@@ -224,7 +224,9 @@ describe PWN::Plugins::REPL, 'additive MQTT receive ownership' do
     stub_const('PWN::MeshObj', {})
     stub_const('PWN::MeshTransport', :mqtt)
     described_class.send(:mesh_handle_rx, env: env, msg: messages.first)
-    expect(win).to have_received(:addstr).with(a_string_including('FIRST', '/LongFast/', 'RX via Serial'))
+    expect(win).to have_received(:addstr).with(a_string_including('FIRST', '/LongFast/'))
+    expect(win).to have_received(:addstr).with(a_string_including('RX via Serial'))
+    expect(described_class.send(:mesh_details_lines, message: PWN::MeshRxState[:detail_rows].last, width: 28).values.flatten.map { |line| line[:text] }.join("\n")).not_to include('VIA')
     expect(described_class).to have_received(:mesh_maybe_dispatch_to_pwn_ai).with(hash_including(obj: radio, channel_name: 'LongFast'))
   end
 
