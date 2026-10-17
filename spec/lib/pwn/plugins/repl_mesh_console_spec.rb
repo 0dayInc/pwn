@@ -116,7 +116,8 @@ describe PWN::Plugins::REPL, 'mesh terminal integration' do
       end
       expect(status.exitstatus).to eq(0), transcript
       transcript.force_encoding(Encoding::UTF_8)
-      expect(transcript).to include('╭', '─', 'COMPOSE', 'CONVERSATION')
+      expect(transcript).to include('╭', '─', 'COMPOSE', 'CONVERSATION', 'SENDER', 'RECEIVER')
+      expect(transcript).not_to include('MSG DETAILS', 'SNDR INFO', 'RCVR INFO')
       expect(File.read(File.join(dir, 'topic'))).to eq('msh/US/UT/2/e/LongFast/#')
       path = File.join(dir, 'pwn.yaml')
       expect(PWN::Plugins::Vault.file_encrypted?(file: path)).to be(true)

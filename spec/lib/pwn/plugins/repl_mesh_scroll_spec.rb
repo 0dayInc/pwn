@@ -46,4 +46,47 @@ describe PWN::Plugins::REPL, 'mesh conversation scroll' do
     described_class.send(:mesh_scroll_conversation, key: :down)
     expect(PWN::MeshRxState[:scroll]).to be_nil
   end
+
+  it 'moves between messages that already fit in the pane' do
+    stub_const('PWN::MeshRxState', {
+                 lines: [
+                   { text: 'one', color: 21, bold: true, message: 0 },
+                   { text: 'two', color: 21, bold: true, message: 1 }
+                 ],
+                 detail_rows: [
+                   { index: 0, from_id: '!00000001', to_id: '!ffffffff', received: true },
+                   { index: 1, from_id: '!00000002', to_id: '!ffffffff', received: true }
+                 ],
+                 focus: :conversation
+               })
+    allow(PWN::MeshRxBodyWin).to receive(:maxy).and_return(20)
+    described_class.send(:mesh_scroll_conversation, key: :up)
+    expect(PWN::MeshRxState[:selected]).to eq(0)
+    expect(described_class.send(:mesh_highlighted_message)[:from_id]).to eq('!00000001')
+    described_class.send(:mesh_scroll_conversation, key: :down)
+    expect(PWN::MeshRxState[:selected]).to be_nil
+    expect(described_class.send(:mesh_highlighted_message)[:from_id]).to eq('!00000002')
+    described_class.send(:mesh_scroll_conversation, key: :home)
+    expect(PWN::MeshRxState[:selected]).to eq(0)
+    described_class.send(:mesh_scroll_conversation, key: :page_down)
+    expect(PWN::MeshRxState[:selected]).to be_nil
+    described_class.send(:mesh_scroll_conversation, key: :page_up)
+    expect(PWN::MeshRxState[:selected]).to eq(0)
+    described_class.send(:mesh_scroll_conversation, key: :end)
+    expect(PWN::MeshRxState[:selected]).to be_nil
+  end
+
+  it 'cycles Ctrl+T through compose, conversation, sndr, and rcvr' do
+    stub_const('PWN::MeshSndrWin', double('sndr', setpos: nil, addstr: nil, attron: nil, attroff: nil, refresh: nil, maxx: 32, erase: nil, maxy: 6))
+    stub_const('PWN::MeshRcvrWin', double('rcvr', setpos: nil, addstr: nil, attron: nil, attroff: nil, refresh: nil, maxx: 32, erase: nil, maxy: 6))
+    allow(described_class).to receive(:mesh_paint_details)
+    described_class.send(:mesh_toggle_focus)
+    expect(described_class.send(:mesh_focus)).to eq(:conversation)
+    described_class.send(:mesh_toggle_focus)
+    expect(described_class.send(:mesh_focus)).to eq(:sndr)
+    described_class.send(:mesh_toggle_focus)
+    expect(described_class.send(:mesh_focus)).to eq(:rcvr)
+    described_class.send(:mesh_toggle_focus)
+    expect(described_class.send(:mesh_focus)).to eq(:compose)
+  end
 end

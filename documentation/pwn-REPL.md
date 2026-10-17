@@ -102,14 +102,16 @@ session only; it is not written to disk.
 
 ### Message transport labels
 
-Each CONVERSATION header ends with its direction and the transport used for
-that individual message: `· RX via MQTT`, `· TX via Serial`, `· RX via Bluetooth`,
-or `· TX via TCP`. In `auto` mode this is the resolved connection, not the
-configured `auto` value. Received messages retain the subscribing transport's
+Each CONVERSATION header ends with `RX via <TRANSPORT>` or `TX via <TRANSPORT>`.
+SENDER and RECEIVER do not show that label. Ctrl+T cycles COMPOSE,
+CONVERSATION, SENDER, and RECEIVER. In `auto` mode this is the
+resolved connection, not the configured `auto` value. Received messages retain the subscribing transport's
 origin through queued rendering, even if the current transport changes.
 Missing origin metadata is shown as `Unknown`, not guessed from the current pin.
+GPS is not part of the header. SENDER and RECEIVER sit to the right of
+CONVERSATION. A broadcast receiver shows the channel name.
 
-Headers use `timestamp encryption · SHORT NAME · source path · destination path · direction via transport`,
+Headers use `timestamp encryption · SHORT NAME · source path · destination path · RX via <TRANSPORT>`,
 with exactly one space on either side of each `·`. RX uses the sender's
 `User.short_name` (`shortName` in JSON); TX uses the sending local node's User,
 never the destination's name. Device connections use their NodeInfo/NODEINFO
@@ -125,8 +127,8 @@ Unicode text and internal spaces are retained. Names are labels, not authenticat
 For example (placeholder node IDs):
 
 ```text
-2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!aabbccdd · US/CA/2/e/LongFast/# · RX via MQTT
-2026-01-02 03:04:06+0000 🔍 · SELF · US/CA/2/e/LongFast/!bbccddee (ME) · US/CA/2/e/LongFast/# · TX via Serial
+2026-01-02 03:04:05+0000 🔍 · PEER · US/CA/2/e/LongFast/!aabbccdd · US/CA/2/e/LongFast/#
+2026-01-02 03:04:06+0000 🔍 · SELF · US/CA/2/e/LongFast/!bbccddee (ME) · US/CA/2/e/LongFast/#
 ```
 
 The timestamp, encryption indicator, source/destination paths, channel and
