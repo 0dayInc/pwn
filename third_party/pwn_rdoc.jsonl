@@ -3397,18 +3397,6 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REDB.strings Usage"},{"role":"assistant","content":"`PWN::Plugins::REDB.strings`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REDB.with_db Usage"},{"role":"assistant","content":"`PWN::Plugins::REDB.with_db`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REDB.xrefs_to Usage"},{"role":"assistant","content":"`PWN::Plugins::REDB.xrefs_to`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.add_commands Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.add_commands`: Supported Method Parameters\n\nPWN::Plugins::REPL.add_commands\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.add_hooks Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.add_hooks`: Supported Method Parameters\n\nPWN::Plugins::REPL.add_hooks\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.compact_context_tokens Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.compact_context_tokens`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.enable_autocomplete Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.enable_autocomplete`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.leave_special_mode! Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.leave_special_mode!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.ready_tty! Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.ready_tty!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.refresh_ps1_proc Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.refresh_ps1_proc`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.reset_reline_editor Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.reset_reline_editor`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.start Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.start`: Supported Method Parameters\n\nPWN::Plugins::REPL.start\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL.process Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL.process`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI.add_commands Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI.add_commands`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::AI.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::AI.help`: "}]}
@@ -3677,13 +3665,6 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh.help`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh.process Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh.process`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.install_pwn_mesh_completer! Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.install_pwn_mesh_completer!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.mesh_menu_pick Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.mesh_menu_pick`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.mesh_reset_input! Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.mesh_reset_input!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.persist_mesh_env Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.persist_mesh_env`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.pwn_mesh_complete Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.pwn_mesh_complete`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.pwn_mesh_dispatch_slash! Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.pwn_mesh_dispatch_slash!`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.pwn_mesh_menu_rows Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Mesh::PWN::Plugins::REPL.pwn_mesh_menu_rows`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::PWNMultiLineInput.new Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::PWNMultiLineInput.new`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::PWNMultiLineInput.ensure_tmux_extended_keys Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::PWNMultiLineInput.ensure_tmux_extended_keys`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::PWNMultiLineInput.ensure_vte_shift_enter Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::PWNMultiLineInput.ensure_vte_shift_enter`: "}]}
@@ -3692,10 +3673,6 @@
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::PWNMultiLineInput.reline_config Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::PWNMultiLineInput.reline_config`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::PWNMultiLineInput.tty? Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::PWNMultiLineInput.tty?`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::REPL::PWNMultiLineInput.winsize Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::PWNMultiLineInput.winsize`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Vault.add_commands Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Vault.add_commands`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Vault.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Vault.authors`: Author(s)\n\n0day Inc. <support@0dayinc.com>\n"}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Vault.help Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Vault.help`: "}]}
-{"messages":[{"role":"user","content":"PWN::Plugins::REPL::Vault.process Usage"},{"role":"assistant","content":"`PWN::Plugins::REPL::Vault.process`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ROP.annotate Usage"},{"role":"assistant","content":"`PWN::Plugins::ROP.annotate`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ROP.authors Usage"},{"role":"assistant","content":"`PWN::Plugins::ROP.authors`: "}]}
 {"messages":[{"role":"user","content":"PWN::Plugins::ROP.canonical_register Usage"},{"role":"assistant","content":"`PWN::Plugins::ROP.canonical_register`: "}]}

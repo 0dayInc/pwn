@@ -381,8 +381,27 @@ edited SOP `SKILL.md`). Generated module skills under `etc/default_skills/pwn/`
 `PWN::` module, plus `references/` when the source has CWE/NIST/URLs) are
 copied to `~/.pwn/skills/pwn/` and **are** overwritten on
 `pwn setup --migrate` / first launch so they stay in sync with `lib/pwn`.
-`bundle exec rake` runs `:module_skills` (`PWN::ModuleSkills.refresh!`)
-before spec so `etc/default_skills/pwn` matches live `PWN::` class methods.
+`bundle exec rake` does not rewrite `etc/default_skills/pwn`. `rake module_skills`
+is the explicit regenerate. A spec or rake run that writes the checkout
+leaves a local `SKILL.md` edit, and the next `upgrade_pwn.sh` merge aborts.
+The upgrade saves modified generated module `SKILL.md` files in a named Git
+stash before merging; it does not automatically reapply those stale files.
+Skills marked `preserve: true` and unrelated edits are left alone.
+
+For a clone already blocked before it can obtain this fix, no reclone is needed:
+
+```bash
+cd /opt/pwn
+git stash push -m 'pwn: preserve legacy generated skills before upgrade' -- etc/default_skills/pwn
+./upgrade_pwn.sh
+```
+
+The stash preserves the prior skill edits for review with `git stash list` and
+`git stash show -p`. Do not blindly pop it after upgrading: that restores stale
+generated files and can recreate the conflict. The one-time command saves all
+edits under that skill subtree, including any hand-edited skills; recover those
+selectively after reviewing them. Other local changes are not stashed.
+
 `pwn setup --migrate` and `pwn-ai` start copy that tree to `~/.pwn/skills/pwn`. Add at least one
 LLM engine key with the `pwn-vault` REPL command to enable `pwn-ai` - see
 [Configuration](Configuration.md). `pwn setup` will report the AI-engine
