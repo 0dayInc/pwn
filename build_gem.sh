@@ -19,6 +19,20 @@ git config pull.rebase false
 # Sync fork with upstream to avoid merge conflicts and ensure we are building the latest codebase
 git remote -v | grep 'upstream' || git remote add upstream https://github.com/0dayinc/pwn.git
 git fetch upstream
+# Preserve legacy generated-skill changes before switching branches or merging.
+# Leave the stash saved: popping it would recreate the next upgrade conflict.
+generated_skills=()
+while IFS= read -r skill; do
+  [[ -f "$skill" ]] || continue
+  [[ "$skill" == */SKILL.md ]] || continue
+  grep -Eq '^[[:space:]]*generated:[[:space:]]*true[[:space:]]*$' "$skill" || continue
+  grep -Eq '^[[:space:]]*preserve:[[:space:]]*true[[:space:]]*$' "$skill" && continue
+  generated_skills+=("$skill")
+done < <(git diff --name-only HEAD -- etc/default_skills/pwn)
+if (( ${#generated_skills[@]} )); then
+  git stash push -m 'pwn upgrade: saved generated module skills' -- "${generated_skills[@]}"
+  printf '%s\n' 'Generated skill edits saved in git stash; not reapplied after upgrade.'
+fi
 git checkout master
 git merge upstream/master
 git pull
