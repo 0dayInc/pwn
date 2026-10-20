@@ -4,6 +4,21 @@ require 'spec_helper'
 require 'meshtastic'
 
 describe PWN::Plugins::REPL, 'mesh primary display, MQTT sender, and GPS link' do
+  it 'paints field labels bold white without changing value attributes' do
+    attrs = 0
+    painted = []
+    allow(Curses).to receive(:color_pair).with(20).and_return(0)
+    allow(Curses).to receive(:color_pair).with(24).and_return(256)
+    allow(details).to receive(:attron) { |value| attrs |= value }
+    allow(details).to receive(:attroff) { |value| attrs &= ~value }
+    allow(details).to receive(:addstr) { |text| painted << [text, attrs] }
+    rows = described_class.send(:mesh_value_rows, label: 'Node ID', value: '!00001337', width: 28)
+    rows += described_class.send(:mesh_value_rows, label: 'GPS', value: 'N/A', width: 28)
+    described_class.send(:mesh_paint_side, win: details, title: 'SENDER', focus: :sndr, rows: rows, hits: [])
+    expect(painted).to include(['Node ID:', 256 | Curses::A_BOLD], ['GPS:', 256 | Curses::A_BOLD])
+    expect(painted).to include([' !00001337', 0], [' N/A', 0])
+  end
+
   let(:env) do
     { transport: 'serial', mqtt: { host: 'offline.invalid', region: 'US' },
       channel: { active: 'LongFast', LongFast: { psk: 'AQ==', region: 'US', topic: '2/e/LongFast/#', from: '!00001337' } } }
@@ -224,7 +239,7 @@ describe PWN::Plugins::REPL, 'mesh primary display, MQTT sender, and GPS link' d
     colors = []
     allow(details).to receive(:attron) { |attr| colors << attr }
     described_class.send(:mesh_handle_rx, env: env, obj: radio, msg: { packet: packet, mesh_transport: :serial })
-    painted = details.lines.join("\n")
+    painted = details.lines.join
     expect(painted).to include('SENDER', 'Node ID: !421f6f22', 'GPS:')
     expect(painted).not_to include('VIA')
     node_num = 0x421f6f22

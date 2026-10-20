@@ -2624,9 +2624,9 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     value = opts[:value].to_s
     value = '—' if value.empty?
     prefix = "#{opts[:label]}: "
-    return [{ text: "#{prefix}#{value}" }] if Unicode::DisplayWidth.of("#{prefix}#{value}") <= width
+    return [{ text: "#{prefix}#{value}", label: prefix.rstrip }] if Unicode::DisplayWidth.of("#{prefix}#{value}") <= width
 
-    [{ text: prefix.rstrip }].concat(mesh_wrap_text(text: value, width: width).map { |line| { text: line } })
+    [{ text: prefix.rstrip, label: prefix.rstrip }].concat(mesh_wrap_text(text: value, width: width).map { |line| { text: line } })
   end
 
   def mesh_gps_labeled_rows(opts = {})
@@ -2637,9 +2637,9 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
     coord, url = label.split(' >> ', 2)
     prefix = 'GPS: '
     if Unicode::DisplayWidth.of("#{prefix}#{coord}") <= width
-      [{ text: "#{prefix}#{coord}", link: true, link_at: prefix.length, url: url }]
+      [{ text: "#{prefix}#{coord}", label: 'GPS:', link: true, link_at: prefix.length, url: url }]
     else
-      [{ text: 'GPS:' }, { text: coord, link: true, url: url }]
+      [{ text: 'GPS:', label: 'GPS:' }, { text: coord, link: true, url: url }]
     end
   end
 
@@ -2964,7 +2964,12 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
           at = line[:link_at].to_i
           prefix = text[0, at].to_s
           coord = text[at..] || ''
-          win.addstr(prefix) unless prefix.empty?
+          unless prefix.empty?
+            win.attron(Curses.color_pair(24) | Curses::A_BOLD)
+            win.addstr(prefix.rstrip)
+            win.attroff(Curses.color_pair(24) | Curses::A_BOLD)
+            win.addstr(prefix[prefix.rstrip.length..])
+          end
           win.attron(Curses::A_UNDERLINE)
           win.addstr(coord)
           win.attroff(Curses::A_UNDERLINE)
@@ -2973,9 +2978,11 @@ class << PWN::Plugins::REPL # rubocop:disable Metrics/ClassLength
           hit[:pane] = opts[:pane]
           opts[:hits] << hit
         elsif line[:label] && win.respond_to?(:attron)
-          win.attron(Curses.color_pair(20) | Curses::A_BOLD)
-          win.addstr(text)
-          win.attroff(Curses.color_pair(20) | Curses::A_BOLD)
+          label = text[0, line[:label].to_s.length]
+          win.attron(Curses.color_pair(24) | Curses::A_BOLD)
+          win.addstr(label)
+          win.attroff(Curses.color_pair(24) | Curses::A_BOLD)
+          win.addstr(text[label.length..].to_s)
         else
           win.addstr(text)
         end
