@@ -2195,7 +2195,8 @@ module PWN
           pairs.each do |pair|
             tool = pair.find { |m| m[:role].to_s == 'tool' }
             prev = collapsed.last&.find { |m| m[:role].to_s == 'tool' }
-            next if tool && prev && tool[:content].to_s.strip == prev[:content].to_s.strip
+            # Compare raw bytes: existing history may contain malformed tool output.
+            next if tool && prev && tool[:content].to_s.b.strip == prev[:content].to_s.b.strip
 
             collapsed << pair
           end
@@ -2241,8 +2242,10 @@ module PWN
           FileUtils.mkdir_p(dir)
           path = File.join(dir, "#{digest[0, 12]}.txt")
           File.binwrite(path, text) unless File.file?(path)
-          head = text.byteslice(0, 2_048).to_s
-          tail = text.bytesize > 3_072 ? text.byteslice(-1_024, 1_024).to_s : ''
+          # Keep the artifact/digest byte-exact; only the displayed excerpt is text.
+          # Byte slicing can bisect a multibyte character at either boundary.
+          head = text.byteslice(0, 2_048).to_s.dup.force_encoding(Encoding::UTF_8).scrub
+          tail = text.bytesize > 3_072 ? text.byteslice(-1_024, 1_024).to_s.dup.force_encoding(Encoding::UTF_8).scrub : ''
           mid = tail.empty? ? '' : "\n...\n#{tail}"
           "#{head}#{mid}\n[compacted path=#{path} sha256=#{digest} bytes=#{text.bytesize} ref=#{path}]"
         rescue StandardError

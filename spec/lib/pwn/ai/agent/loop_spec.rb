@@ -1304,6 +1304,45 @@ describe PWN::AI::Agent::Loop do # rubocop:disable Metrics/BlockLength
       expect(src).not_to match(/compact_history!\(messages: messages\) if local/)
     end
 
+    it 'keeps UTF-8 previews valid across repeated history compaction' do
+      Dir.mktmpdir('pwn-history-encoding') do |dir|
+        allow(Dir).to receive(:home).and_return(dir)
+        messages = [{ role: 'system', content: 'sys' }, { role: 'user', content: 'goal' }]
+        8.times do |n|
+          messages << { role: 'assistant', content: '', tool_calls: [{ id: "c#{n}" }] }
+          messages << { role: 'tool', tool_call_id: "c#{n}", content: "a#{'é' * 3000}#{n}" }
+        end
+        2.times do
+          expect { described_class.send(:compact_history!, messages: messages) }.not_to output(/compact_history swallowed/).to_stderr
+          expect(messages.all? { |msg| msg[:content].valid_encoding? }).to be(true)
+        end
+      end
+    end
+
+    it 'preserves raw spilled bytes while rendering malformed and binary-tagged text safely' do
+      Dir.mktmpdir('pwn-history-binary') do |dir|
+        allow(Dir).to receive(:home).and_return(dir)
+        ["a#{'é' * 3000}".b, "a\xff#{'é' * 3000}"].each do |text|
+          preview = described_class.send(:spill_tool_body, text: text)
+          expect(preview.encoding).to eq(Encoding::UTF_8)
+          expect(preview.valid_encoding?).to be(true)
+          expect(preview).to include('é', '[compacted path=')
+          path = preview[/\[compacted path=(.*?) sha256=/, 1]
+          expect(File.binread(path)).to eq(text.b)
+        end
+      end
+    end
+
+    it 'compacts existing malformed tool history without swallowing encoding errors' do
+      messages = [{ role: 'system', content: 'sys' }, { role: 'user', content: 'goal' }]
+      8.times do |n|
+        messages << { role: 'assistant', tool_calls: [{ id: "c#{n}" }] }
+        messages << { role: 'tool', tool_call_id: "c#{n}", content: "invalid\xff#{n}" }
+      end
+      expect { described_class.send(:compact_history!, messages: messages) }.not_to output(/compact_history swallowed/).to_stderr
+      expect(messages.count { |msg| msg[:role] == 'tool' }).to eq(6)
+    end
+
     it 'shrinks tool bodies when history is fat' do
       msgs = [
         { role: 'system', content: 'sys' },
