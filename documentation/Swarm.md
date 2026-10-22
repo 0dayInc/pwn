@@ -131,6 +131,12 @@ arbitrary natural-language goal; the saved commands, outputs, requirements and
 revisions make that judgment inspectable. No live-provider reliability or automatic
 security isolation is implied by the deterministic offline integration tests.
 
+Parent completion does not trust a child's success prose. Current child receipts
+can satisfy only parent-required exact targets with matching request/turn/action
+provenance and current readback; the parent reruns its integration checks. The
+offline Swarm fault lanes in [Harness Evaluation](Harness-Evaluation.md) exercise
+missing, stale, lying and tampered artifacts without live providers.
+
 ## Define personas
 
 Each persona accepts optional `engine` and `model` keys. `model` is the exact

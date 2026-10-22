@@ -8,31 +8,31 @@
 ## Generate
 
 ```ruby
-payloads = PWN::Plugins::Fuzz.generate(
-  seed: "GET / HTTP/1.1\r\nHost: t\r\n\r\n",
-  strategy: :radamsa,       # :radamsa | :bitflip | :dictionary
-  count: 500
+payloads = PWN::Plugins::Fuzz.http(
+  request: "GET /FUZZ HTTP/1.1\r\nHost: lab.invalid\r\n\r\n",
+  dictionary: ['a', 'long-input', '%00']
 )
-enc = PWN::Plugins::Char.url_encode(str: payloads.first)
 ```
 
 ## Deliver
 
 ```ruby
-payloads.each do |p|
-  PWN::Plugins::Sock.connect(target: '10.0.0.5', port: 8080) do |s|
-    s.write(p); s.read
-  end
-end
+# For authorized network tests, Fuzz.socket accepts target:, port:, request:,
+# payload: and fuzz_delimeter:. Inspect its help for timeout/encoding controls.
+PWN::Plugins::Fuzz.help
 ```
 
 For raw L2/L3: `PWN::Plugins::Packet`.
-CLI network fuzzer: `pwn_fuzz_net_app_proto -t HOST -p PORT -f seeds/`
+CLI network fuzzer: `pwn_fuzz_net_app_proto --help` (requires a payload **file**,
+request template and output directory; not `-f seeds/`).
 
 ## Monitor & report
 
-`PWN::Plugins::PS` watches the target process; `PWN::Plugins::Log` tails its
-log; `PWN::Reports::Fuzz` renders crash → HTML/JSON.
+`Fuzz.http` expands templates only; it does not send traffic. `Fuzz.file_format`
+appends dictionary blobs to a seed. `Fuzz.triage` deduplicates existing crash
+files by hash and selects the smallest reproducer. `PWN::Reports::Fuzz.generate`
+expects a `results_hash:` and output `dir_path:`; it is not a crash detector.
+Use explicit target monitoring and retain actual crash evidence.
 
 Feed unique crashes back as new seeds (`Log → Fuzz` dashed edge in the diagram).
 

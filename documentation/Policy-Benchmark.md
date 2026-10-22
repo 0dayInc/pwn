@@ -356,6 +356,10 @@ raise restored.inspect unless restored[:rolled_back]
 ```
 
 Rollback verifies the receipt's explicit target, backup path and prior digest,
+and requires `receipt_version: 1`, `change_kind: routing_policy` and the
+`acceptance_sha256` of freshly re-executed deterministic reports. Old unversioned
+receipts are rejected rather than silently upgraded. The receipt is a local audit
+record, not hostile-writer attestation. Rollback also
 validates the backup schema, and refuses if the live file no longer matches the
 promoted candidate digest. Missing, altered or symlink backups/targets fail
 closed. Both methods default to a disabled result; rejected operations return

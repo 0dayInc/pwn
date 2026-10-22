@@ -6,10 +6,10 @@
 lib/pwn/                # all namespaces
 lib/pwn/setup.rb        # PWN::Setup - doctor/provisioner data tables
 lib/pwn/migrate.rb      # PWN::Migrate - ~/.pwn state doctor / auto-migrator
-lib/pwn/plugins/        # 67 plugin modules
+lib/pwn/plugins/        # 107 top-level plugin autoloads
 lib/pwn/ai/agent/       # agent core
 lib/pwn/ai/agent/tools/ # LLM tool registrations
-bin/                    # 54 executables: 53 pwn_* drivers + pwn (incl. pwn_setup)
+bin/                    # 56 executables: 53 pwn_* drivers + pwn / pwn-ai / pwn-capd (incl. pwn_setup)
 spec/                   # RSpec (incl. conventions_spec)
 documentation/          # this wiki + diagrams
 ```
@@ -25,7 +25,7 @@ documentation/          # this wiki + diagrams
 ## Quality gates
 
 ```bash
-rake            # rubocop + rspec - must be zero offenses
+bundle exec rake  # RSpec, RuboCop, then RDoc; await the actual exit status
 ```
 
 (`rvmsudo rake` on multi-user RVM installs.)

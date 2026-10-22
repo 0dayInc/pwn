@@ -15,7 +15,7 @@ digraph "PWN_Fuzz" {
   subgraph cluster_gen {
     label="Generate"; fontcolor="#a7f3d0"; style=rounded;
     color="#047857"; bgcolor="#022c22";
-    Fuzz [label="Plugins::Fuzz\nmutate · generate", fillcolor="#6ee7b7"];
+    Fuzz [label="Plugins::Fuzz\nhttp · file_format · socket", fillcolor="#6ee7b7"];
     Char [label="Plugins::Char\nencodings",         fillcolor="#6ee7b7"];
   }
   subgraph cluster_deliver {
@@ -31,7 +31,7 @@ digraph "PWN_Fuzz" {
     PS  [label="Plugins::PS\nprocess health", fillcolor="#fda4af"];
     Log [label="Plugins::Log\ncrash detect",   fillcolor="#fda4af"];
   }
-  Report [label="Reports::Fuzz\ncrash triage", fillcolor="#7dd3fc"];
+  Report [label="Reports::Fuzz\nrender results_hash", fillcolor="#7dd3fc"];
 
   Seed -> Fuzz [color="#38bdf8"];
   Seed -> Char [color="#38bdf8"];
@@ -43,5 +43,5 @@ digraph "PWN_Fuzz" {
   NetApp -> Log [color="#fb7185"];
   PS  -> Report [color="#38bdf8"];
   Log -> Report [color="#38bdf8"];
-  Log -> Fuzz [label="minimise + reseed", style=dashed, color="#fbbf24", constraint=false];
+  Log -> Fuzz [label="operator triage + reseed", style=dashed, color="#fbbf24", constraint=false];
 }

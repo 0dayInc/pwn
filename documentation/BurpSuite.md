@@ -11,20 +11,16 @@ Professional's headless mode + REST API.
 
 ## Configure
 
-```yaml
-# ~/.pwn/pwn.yaml  (edit via `pwn-vault`)
-burp:
-  jar: /opt/burpsuite_pro/burpsuite_pro.jar
-  api_key: <REST-API-KEY>
-  bind_ip: 127.0.0.1
-  proxy_port: 8080
-  api_port: 1337
-```
+`BurpSuite.start` takes `burp_jar_path`, `burp_ip`, `burp_port`,
+`pwn_burp_ip`, `pwn_burp_port`, `headless` and `browser_type` options.
+It uses the PWN Burp extension API; an arbitrary REST API key/config block is
+not an interchangeable adapter. Burp Professional and the matching extension
+must be provisioned separately. Use `.help` for the exact installed contract.
 
 ## Core methods
 
 ```ruby
-burp = PWN::Plugins::BurpSuite.start(headless: true)
+burp = PWN::Plugins::BurpSuite.start(headless: true, burp_port: 8080)
 
 # drive traffic through it
 b = PWN::Plugins::TransparentBrowser.open(

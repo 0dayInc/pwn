@@ -1,4 +1,4 @@
-# `PWN::Plugins` - All 67 Modules
+# `PWN::Plugins` - All 107 Modules
 
 Every plugin is a plain Ruby module of `public_class_method def self.x(opts = {})`
 methods with self-documenting `.help`. Source: `lib/pwn/plugins/*.rb`.
@@ -11,7 +11,7 @@ methods with self-documenting `.help`. Source: `lib/pwn/plugins/*.rb`.
 PWN::Plugins.constants.sort
 PWN::Plugins::BurpSuite.help
 ls PWN::Plugins::NmapIt
-show-source PWN::Plugins::Fuzz.generate
+show-source PWN::Plugins::Fuzz.http
 ```
 
 ## By category
@@ -63,7 +63,7 @@ show-source PWN::Plugins::Fuzz.generate
 | Module | Purpose |
 |---|---|
 | `OAuth2` · `BasicAuth` · `AuthenticationHelper` | credential flows |
-| `Vault` | HashiCorp Vault |
+| `Vault` | Local encrypted configuration and engagement loot helpers; not a HashiCorp Vault client |
 
 ### Hardware / Physical
 | Module | Purpose | Doc |
@@ -97,13 +97,6 @@ show-source PWN::Plugins::Fuzz.generate
 
 ## Full alphabetical list
 
-`Android Assembly AuthenticationHelper BareSIP BasicAuth BeEF
-BlackDuckBinaryAnalysis BurpSuite BusPirate Char CreditCard DAOLDAP DAOMongo
-DAOPostgres DAOSQLite3 DefectDojo DetectOS EIN FileFu Fuzz Git Github
-HackerOne Hunter IPInfo IRC Jenkins JiraDataCenter JSONPathify Log MailAgent
-Metasploit MonkeyPatch MSR206 NessusCloud NexposeVulnScan NmapIt OAuth2 OCR
-OpenAPI OpenVAS Packet PDFParse Pony PS PWNLogger RabbitMQ REPL ScannableCodes
-Serial Shodan SlackClient Sock Spider SSN ThreadPool Tor TransparentBrowser
-TTYSpinner TwitterAPI URIScheme Vault VIN Voice Vsphere XXD Zaproxy`
+`AFLplusplus AISandbox Android ArtifactRegistry Assembly AuthenticationHelper BareSIP BasicAuth BeEF BinaryAnalysis BinaryParser BinWorkspace BlackDuckBinaryAnalysis BurpSuite BusPirate Capability CapabilityBroker Char CredentialAttack CreditCard DAOLDAP DAOMongo DAOPostgres DAOSQLite3 Debugger DefectDojo DetectOS Detonate EIN Emulator ExploitDB ExploitDev FileFu Findings Frida Fuzz GDB GDBMI GDBMi Ghidra GhidraHeadless Git Github GoogleWorkspace HackerOne Handler Httpx Hunter IPInfo IRC Jenkins JiraDataCenter Jobs JSONPathify K8s Log MailAgent Metasploit MethodCatalog MitmProxy MonkeyPatch MSR206 NessusCloud NexposeVulnScan NmapIt Nuclei OAuth2 OCR OpenAPI OpenVAS Packet PDFParse Pony PreflightChecker ProcessTube PS PWNLogger RabbitMQ Radare2 Recon REDB REPL ROP Sandbox SBOM ScannableCodes Semgrep Serial Shodan SlackClient Sock Spider Sqlmap SSN ThreadPool Tor TransparentBrowser TTYSpinner TwitterAPI URIScheme Vault VIN Voice Volatility Vsphere XXD Zaproxy`
 
 [← Home](Home.md) · [Diagrams](Diagrams.md)

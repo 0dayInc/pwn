@@ -61,7 +61,7 @@ UID, socket and interface in sudoers. Only add engagement interfaces after
 operator review. CAP_NET_ADMIN is reserved for future neighbor management;
 current operations need CAP_NET_RAW, while neighbor queries are read-only.
 
-Ruby API (explicit require until central autoload is integrated):
+Ruby API (the central plugin namespace autoloads CapabilityBroker):
 
 ```ruby
 require 'pwn/plugins/capability_broker'

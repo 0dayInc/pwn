@@ -8,8 +8,9 @@
 cd documentation/diagrams && ./build.sh
 ```
 
-Every diagram uses strict layer→layer edges (`newrank=true` + `{rank=same}`
-groups) so lines never criss-cross.
+Diagrams distinguish implemented control/data paths from illustrative operator
+workflows. Cross-links and feedback can cross visually; Graphviz ranking is not
+a dependency guarantee. External services/radios require separate live verification.
 
 ---
 
@@ -23,7 +24,7 @@ groups) so lines never criss-cross.
 [source](diagrams/dot/persistence-filesystem.dot) · doc: [Persistence](Persistence.md)
 ![persistence-filesystem](diagrams/persistence-filesystem.svg)
 
-### Plugin Ecosystem (67 modules)
+### Plugin Ecosystem (107 modules)
 [source](diagrams/dot/plugin-ecosystem.dot) · doc: [Plugins](Plugins.md)
 ![plugin-ecosystem](diagrams/plugin-ecosystem.svg)
 
@@ -95,6 +96,11 @@ groups) so lines never criss-cross.
 ---
 
 ## 4 · Security Workflows
+
+These diagrams show operator-composed workflows, not automatic call chains or
+proof that the named service is available. In particular, SDK wrappers need
+explicit credentials, scanners produce leads, and exports/imports are separate
+operations. See [Operability](Operability.md).
 
 ### End-to-End Penetration Test
 [source](diagrams/dot/penetration-testing-workflow.dot)

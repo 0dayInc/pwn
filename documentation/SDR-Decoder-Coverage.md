@@ -3,7 +3,13 @@
 **Verdict: the “full protocol decode in all modules” requirement is not complete.**
 A valid frame in one mode is useful implementation, not full coverage of the named protocol family.
 
-Audit snapshot: **2026-09-09T20:20:02.204954+00:00**. This is a working-tree audit, not a release or a claim about HEAD. Other workers were changing decoders during review; the exact reviewed bytes are identified by SHA-256 in `/tmp/pwn-decoder-completion-matrix.json`, with retained text in `/tmp/pwn-decoder-audit-snapshot.json`. Later edits require delta review. The audit itself changes documentation only; it does not stage, commit, alter decoder code, or endorse unrelated pre-existing staged files.
+Historical protocol audit snapshot: **2026-09-09T20:20:02.204954+00:00**.
+The current documentation review reconfirmed 24 registry aliases / 21 modules
+and the GQRX forwarding correction below. Other mode-level acceptance rows retain
+their historical evidence boundaries; no live RF or new conformance run is implied.
+Temporary audit files cited below are not shipped evidence and may expire.
+
+Original audit context: This is a working-tree audit, not a release or a claim about HEAD. Other workers were changing decoders during review; the exact reviewed bytes are identified by SHA-256 in `/tmp/pwn-decoder-completion-matrix.json`, with retained text in `/tmp/pwn-decoder-audit-snapshot.json`. Later edits require delta review. The audit itself changes documentation only; it does not stage, commit, alter decoder code, or endorse unrelated pre-existing staged files.
 
 ## Inventory and evidence contract
 
@@ -51,7 +57,7 @@ Local evidence: `lib/pwn/sdr/decoder.rb`, `base.rb`, `dsp.rb`; `spec/lib/pwn/sdr
 | BASE-3 | Overrun/dropped-byte source status checked, discontinuity raises; unknown counts stay nil | Queue backpressure is not hardware-loss telemetry. Validate adapters on actual devices; UDP audio sequence/loss remains unmeasured. Do not report unknown loss as zero. |
 | DSP-1 | Ruby fallback and optional DSPNative packed unpack/magnitude/FM, radix-2 FFT; FFTW/VOLK/Liquid helpers elsewhere | Numeric precision/scale, N versus N-1 FM samples, prior IQ and byte remainder must match across backends/chunks. Generic resampling/timing helpers do not establish continuous protocol tracking. |
 | DSP-2 | Native kernel benchmark artifacts in `ext/pwn_dsp/` | Record selected backend and benchmark entire decode pipeline at each row's rate. Existing README explicitly says kernel-only rates omit acquisition/channelizer/protocol/queueing. |
-| GQRX-1 | `init_freq` resolves registry and forwards common streaming controls; RDS `.sample` avoided when streaming requested | Current allowlist forwards source/file/sample_rate/chunk_bytes but drops protocol `mode`, `iq_format`, `backend`, native executable, modulation, channel/key/context options. Direct `.decode` successes are not GQRX end-to-end acceptance. Implement explicit validated per-decoder option forwarding and test every unique target. |
+| GQRX-1 | `init_freq` resolves registry and forwards common streaming controls; RDS `.sample` avoided when streaming requested | Current `init_freq` strips only GQRX-owned controls and forwards remaining decoder context, including mode/backend/format and callbacks; resolved `freq_obj` stays authoritative. Any explicit decoder context prevents the legacy RDS `.sample` shortcut. `gqrx_spec.rb` covers forwarding. This fixes the historical allowlist defect, not all decoder conformance. |
 | NATIVE-1 | Optional native DSP/SCH and required native LTE bridge; custom native GPS/RDS/RTL433/RFID processes | Namespace comment “100% ruby-native / no external binary” is stale. State accurately: first-party Ruby coordination plus named C/C++ libraries/processes; external fixture generators are not runtime dependencies. If “native” means exclusively Ruby, these backends need an explicit requirement decision. |
 
 ### RF and performance requirements
@@ -516,14 +522,14 @@ Priority orders risk and integration value; it is not a claim that later rows ar
 - Executed `bundle exec rspec spec/lib/pwn/sdr/decoder_spec.rb spec/lib/pwn/sdr/decoder/base_spec.rb spec/lib/pwn/sdr/decoder/dsp_spec.rb` in `/opt/pwn`: **44 examples, 0 failures**. This verifies only that focused run; it is not a protocol-completeness metric.
 - An earlier process launched from the research interpreter had a different gem environment and failed Bundler dependency materialization. The actual terminal environment ran the focused specs successfully. No package installation or lockfile changes were made by this audit.
 - All module/spec inventory and acceptance-ID coverage are checked programmatically against `REGISTRY.values.uniq`; source/spec hashes identify what was read. No fabricated decoded frames or measurements are used.
-- No full `rake`, complete optional-native matrix, sensitivity test or live RF test was run by this documentation audit. Full gates can regenerate module skills and concurrent implementation was active; run them after integration settles. Neither this limitation nor a future green suite resolves the OPEN acceptance rows.
+- No full `rake`, complete optional-native matrix, sensitivity test or live RF test was run by this documentation audit. Concurrent implementation was active; run full gates after integration settles. Current normal rake/spec does not regenerate tracked module skills; `rake module_skills` is explicit. Neither this limitation nor a future green suite resolves the OPEN acceptance rows.
 - Citation retrieval used direct HTTP and PDF text extraction because the configured web extractor was search-only. NOAA's old APT host failed DNS; the NOAA KLM guide was retrieved instead. Semtech's product page timed out; LoRa mode/synchronization context uses the retrieved independent implementation reference, not an unread manufacturer datasheet. The RDS commercial catalogue page was insufficient for clause-level claims; use the actual redsea reference and a pinned licensed standard for final conformance.
 
 ### Required completion artifacts
 
 For every acceptance ID, attach a pinned standard clause/profile, supported-mode list, public entry-point command, source/fixture hash, independent expected decoded fields, negative/ciphertext outcomes, actual execution result, and end-to-end rate/latency evidence. Preserve unsupported variants and unavailable sources as OPEN. A finite catalogue row needs every pinned device ID, including disabled-by-default entries; a finite standard row needs every declared message/PHY combination, not an illustrative subset.
 
-This document is exhaustive over the current registry and reviewed files, **not a declaration of exhaustive protocol conformance**. It intentionally does not claim completion from a test count.
+The historical matrix covers its enumerated registry and reviewed files, **not a declaration of exhaustive protocol conformance**. It intentionally does not claim completion from a test count.
 
 ## Sources
 

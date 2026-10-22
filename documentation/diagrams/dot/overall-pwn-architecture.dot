@@ -1,122 +1,34 @@
-digraph "PWN_Overall_Architecture" {
-  graph [
-    label=<<B>PWN - Offensive Security Automation Framework</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Overall Architecture · lib/pwn/*</FONT>>,
-    labelloc=t, fontsize=22, fontname="Helvetica",
-    rankdir=TB, splines=spline, nodesep=0.55, ranksep=1.15,
-    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, compound=true, newrank=true
-  ];
-  node [fontname="Helvetica", fontsize=11, style="filled,rounded",
-        shape=box, penwidth=1.4, color="#334155", fontcolor="#0f172a"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
-        fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
-
-  /* ───────── L0 · ACTORS ───────── */
-  subgraph cluster_actors {
-    label="Actors"; fontcolor="#94a3b8"; style="rounded,dashed";
-    color="#334155"; bgcolor="#1e293b";
-    User   [label="👤  Researcher\nRed Team · Bug Hunter", fillcolor="#7dd3fc"];
-    CI     [label="⚙️  CI / CD\nHeadless pipelines",       fillcolor="#7dd3fc"];
-    LLM    [label="🤖  LLM Providers\nOpenAI · Anthropic · Grok\nGemini · Ollama · Open WebUI", fillcolor="#c4b5fd"];
-    Target [label="🎯  Attack Surface\nHosts · Web · Cloud\nRadio · Hardware", fillcolor="#fda4af"];
-  }
-  {rank=same; User; CI; LLM; Target}
-
-  /* ───────── L1 · ENTRY POINTS ───────── */
-  subgraph cluster_entry {
-    label="Entry Points  (bin/)"; fontcolor="#7dd3fc";
-    style=rounded; color="#0369a1"; bgcolor="#0c4a6e"; penwidth=2;
-    REPL  [label="🐚  pwn REPL\nPry + PWN:: preload",       fillcolor="#7dd3fc"];
-    PwnAI [label="✨  pwn-ai\nAgent TUI · pwn --ai",         fillcolor="#7dd3fc"];
-    CLI   [label="📜  bin/pwn_*\n54 executables",            fillcolor="#7dd3fc"];
-    Cronb [label="⏱  PWN::Cron\nJobs + background worker", fillcolor="#7dd3fc"];
-  }
-  {rank=same; REPL; PwnAI; CLI; Cronb}
-
-  /* ───────── L2 · AI AGENT CORE ───────── */
-  subgraph cluster_agent {
-    label="PWN::AI::Agent"; fontcolor="#ddd6fe";
-    style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Loop     [label="Loop\nTaskSummarizer briefs\nplan → dispatch → observe\nmax_iters 777 (scars do not shrink)\nlast-iter tools only if done",      fillcolor="#c4b5fd"];
-    Registry [label="Registry\n13 toolsets · 87 tools\ntool_router (CORE+topK)",    fillcolor="#c4b5fd"];
-    Swarm    [label="Swarm\npersonas · debate · bus",        fillcolor="#c4b5fd"];
-    Prompt   [label="PromptBuilder\nengine-budgeted blocks\nMEMORY · SKILLS · POLICY\nMemoryIndex → relevance-ranked",fillcolor="#c4b5fd"];
-  }
-  {rank=same; Loop; Registry; Swarm; Prompt}
-
-  /* ───────── L3 · CAPABILITY NAMESPACES ───────── */
-  subgraph cluster_caps {
-    label="Capability Namespaces  (lib/pwn/*)"; fontcolor="#a7f3d0";
-    style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    Plugins [label="Plugins\n67 modules",     fillcolor="#6ee7b7"];
-    SAST    [label="SAST\n48 rules",          fillcolor="#6ee7b7"];
-    WWW     [label="WWW\n22 site drivers",    fillcolor="#6ee7b7"];
-    AWS     [label="AWS\n90 services",        fillcolor="#6ee7b7"];
-    SDR     [label="SDR\nGQRX · Flipper · RFID\nDecoder::* (20+Base/DSP)", fillcolor="#6ee7b7"];
-    Chain   [label="Blockchain\nBTC · ETH",   fillcolor="#6ee7b7"];
-    Bounty  [label="Bounty\nlifecycle replay", fillcolor="#6ee7b7"];
-    Reports [label="Reports\nHTML · JSON",    fillcolor="#6ee7b7"];
-  }
-  {rank=same; Plugins; SAST; WWW; AWS; SDR; Chain; Bounty; Reports}
-
-  /* ───────── L4 · PERSISTENCE (~/.pwn) ───────── */
-  subgraph cluster_persist {
-    label="Persistence  ~/.pwn/"; fontcolor="#fde68a";
-    style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
-    Memory   [label="memory.json",       shape=cylinder, fillcolor="#fcd34d"];
-    MemIdx   [label="memory.idx\n(embed index)", shape=cylinder, fillcolor="#fcd34d"];
-    Skills   [label="skills/<n>/SKILL.md",        shape=cylinder, fillcolor="#fcd34d"];
-    Learn    [label="learning.jsonl",     shape=cylinder, fillcolor="#fcd34d"];
-    Metrics  [label="metrics.json",       shape=cylinder, fillcolor="#fcd34d"];
-    MistF    [label="mistakes.json",      shape=cylinder, fillcolor="#fcd34d"];
-    Extro    [label="extrospection.json\nrf · web · observations", shape=cylinder, fillcolor="#fcd34d"];
-    Sessions [label="sessions/*.jsonl",   shape=cylinder, fillcolor="#fcd34d"];
-    SwarmB   [label="swarm/*/bus.jsonl",  shape=cylinder, fillcolor="#fcd34d"];
-    CronF    [label="cron/jobs.yml",      shape=cylinder, fillcolor="#fcd34d"];
-    Finetune [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-    Prefs    [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-    PolicyF  [label="policy.json\npolicy_traj.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-  }
-  {rank=same; Memory; MemIdx; Skills; Learn; Metrics; MistF; Extro; Sessions; SwarmB; CronF; Finetune; Prefs; PolicyF}
-
-  /* ── L0 → L1 ── */
-  User -> REPL   [color="#38bdf8"];
-  User -> PwnAI  [color="#38bdf8"];
-  CI   -> CLI    [color="#38bdf8"];
-  CI   -> Cronb  [label="crontab", color="#38bdf8"];
-
-  /* ── L1 → L2 ── */
-  REPL  -> Loop     [color="#a78bfa"];
-  PwnAI -> Loop     [label="natural language", color="#a78bfa", penwidth=2];
-  PwnAI -> Registry [color="#a78bfa"];
-  CLI   -> Swarm    [style=invis];
-  Cronb -> Prompt   [style=invis];
-
-  /* ── L2 → L3 ── */
-  Loop     -> Plugins [label="pwn_eval", color="#34d399", penwidth=2];
-  Loop     -> SAST    [color="#34d399"];
-  Registry -> WWW     [color="#34d399"];
-  Registry -> AWS     [color="#34d399"];
-  Swarm    -> SDR     [color="#34d399"];
-  Swarm    -> Chain   [color="#34d399"];
-  Prompt   -> Bounty  [style=invis];
-  Prompt   -> Reports [style=invis];
-  CLI      -> Plugins [color="#34d399", constraint=false];
-
-  /* ── L3 → L4 ── */
-  Plugins -> Memory   [color="#f59e0b"];
-  SAST    -> Skills   [color="#f59e0b"];
-  WWW     -> Learn    [color="#f59e0b"];
-  AWS     -> Metrics  [color="#f59e0b"];
-  SDR     -> MistF    [style=invis];
-  SDR     -> Extro    [color="#f59e0b"];
-  Chain   -> Sessions [color="#f59e0b"];
-  Bounty  -> SwarmB   [color="#f59e0b"];
-  Reports -> CronF    [color="#f59e0b"];
-  Reports -> Prefs    [style=invis];
-
-  /* ── side flows (few, non-constraining) ── */
-  Loop    -> LLM    [label="tool-use API", color="#c4b5fd", constraint=false, penwidth=2];
-  Plugins -> Target [label="attack",       color="#fb7185", constraint=false, penwidth=2];
-  Prompt  -> Memory [label="inject", dir=back, color="#fbbf24", constraint=false, style=dashed];
-  Reports -> User   [label="findings", color="#38bdf8", constraint=false, penwidth=2];
+digraph PWN_Architecture {
+  graph [label="PWN - runtime ownership and evidence flow", labelloc=t, fontsize=22,
+    fontname="Helvetica", rankdir=TB, bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6];
+  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#c4b5fd", color="#334155"];
+  edge [fontname="Helvetica", fontsize=9, color="#94a3b8", fontcolor="#cbd5e1"];
+  Operator [label="Operator / CI", fillcolor="#7dd3fc"];
+  Entry [label="pwn / pwn-ai CLI and curses\n56 executables total", fillcolor="#7dd3fc"];
+  Mesh [label="pwn-mesh\nprimary radio or MQTT + optional secondary MQTT\n@ai / private channel / whitelist gate", fillcolor="#7dd3fc"];
+  Runtime [label="RequestRuntime + Loop\noriginal objective / additive steering\ncheckpoint / permissions / uncertain effects"];
+  Prompt [label="PromptBuilder\nmemory / skills / lessons / mistakes / policy\nHOST: DetectOS summary + PreflightChecker"];
+  Registry [label="Registry: 16 toolsets / 150 tools\nnormal Loop: core-only + relevant MCP"];
+  Provider [label="Configured provider adapter\nrequest-local routing and retry ownership", fillcolor="#fda4af"];
+  Dispatch [label="Dispatch / ToolGuard / confirmation / sandbox"];
+  Capabilities [label="107 plugin modules / 48 SAST modules\n90 AWS wrappers / 22 WWW drivers\nSDR / blockchain / reports / FFI", fillcolor="#6ee7b7"];
+  Target [label="Authorized target / external service / hardware\nrequires separate live validation", fillcolor="#fda4af"];
+  Evidence [label="Host observations / exact-target artifacts\nSessions / request checkpoints", shape=cylinder, fillcolor="#fcd34d"];
+  Verify [label="Finalization arbiter + Verification\ncurrent bytes / authored checks / complete coverage"];
+  Outcome [label="Verified / failed / unknown or incomplete\nnot model prose alone", fillcolor="#7dd3fc"];
+  Learn [label="Reward / Learning / Mistakes / Metrics\nclaim and verified-completion fields\nPolicy positive credit needs attribution"];
+  Stores [label="Default ~/.pwn stores\nplus explicit artifact/worktree paths", shape=cylinder, fillcolor="#fcd34d"];
+  Swarm [label="Swarm nested Loop / Solve\nparent rechecks child artifact receipts"];
+  Cron [label="Cron scheduler\nhygiene on / curriculum opt-in"];
+  Operator -> Entry; Operator -> Mesh;
+  Entry -> Runtime; Mesh -> Runtime [label="eligible received @ai only"];
+  Runtime -> Prompt; Runtime -> Registry; Prompt -> Provider; Registry -> Provider;
+  Provider -> Dispatch [label="tool calls"]; Dispatch -> Capabilities;
+  Capabilities -> Target; Dispatch -> Evidence; Evidence -> Runtime [label="observations"];
+  Runtime -> Verify; Evidence -> Verify; Verify -> Outcome;
+  Outcome -> Learn; Learn -> Stores; Stores -> Prompt [style=dashed];
+  Dispatch -> Swarm; Swarm -> Runtime [label="child turn", style=dashed];
+  Cron -> Runtime [label="prompt jobs"]; Cron -> Learn [label="explicit maintenance"];
+  Outcome -> Entry [label="release result", style=dashed];
+  Outcome -> Mesh [label="origin-bound reply; submission != RF delivery", style=dashed];
 }

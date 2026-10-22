@@ -1,6 +1,6 @@
 digraph "PWN_TaskSummarizer" {
   graph [
-    label=<<B>PWN::AI::Agent::TaskSummarizer - executive briefs</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">every request is a goal: emit_plan! then about_to then tools (no request type)</FONT>>,
+    label=<<B>PWN::AI::Agent::TaskSummarizer - executive briefs</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Task compass and UI only; request evidence governs completion</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=TB, splines=spline, nodesep=0.55, ranksep=0.9,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
@@ -47,7 +47,7 @@ digraph "PWN_TaskSummarizer" {
     label="Execution (not on task row)"; fontcolor="#fde68a";
     style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
     Tools  [label="Dispatch tools\nshell · pwn_eval · CORE_TOOLS\nown REPL lines", fillcolor="#fcd34d"];
-    Rec    [label="record!\nadvance plan_idx\n(silent unless verbose)", fillcolor="#fcd34d"];
+    Rec    [label="record!\nevidence/phase-guided plan_idx\n(silent unless verbose)", fillcolor="#fcd34d"];
     Flush  [label="flush! / emit!\noptional closing brief", fillcolor="#fcd34d"];
   }
   {rank=same; Tools; Rec; Flush}

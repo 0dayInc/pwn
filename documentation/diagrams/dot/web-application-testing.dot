@@ -1,6 +1,6 @@
 digraph "PWN_Web" {
   graph [
-    label=<<B>Web Application Testing</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">TransparentBrowser → BurpSuite (preferred) → SAST → Reports</FONT>>,
+    label=<<B>Web Application Testing</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">Operator workflow: proxy evidence and separate source scans → reports</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
     rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.2,
     bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true
@@ -28,7 +28,7 @@ digraph "PWN_Web" {
   subgraph cluster_deep {
     label="Deep Analysis"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065";
-    SAST [label="PWN::SAST\n48 rules on source",     fillcolor="#c4b5fd"];
+    SAST [label="PWN::SAST\n48 modules; source tree input",     fillcolor="#c4b5fd"];
     XSS  [label="pwn_xss_dom_vectors\nweb_cache_deception", fillcolor="#c4b5fd"];
     API  [label="Plugins::OpenAPI\nGraphQL introspection",  fillcolor="#c4b5fd"];
   }
@@ -40,7 +40,8 @@ digraph "PWN_Web" {
   TB     -> Burp   [label="proxy 127.0.0.1:8080", color="#f59e0b", penwidth=2];
   Spider -> Burp   [color="#f59e0b"];
   WWW    -> Zap    [color="#f59e0b"];
-  Burp   -> SAST   [color="#a78bfa"];
+  Source [label="Separately supplied source tree", fillcolor="#7dd3fc"];
+  Source -> SAST [color="#a78bfa"];
   Burp   -> XSS    [color="#a78bfa"];
   Zap    -> API    [color="#a78bfa"];
   SAST   -> Report [color="#38bdf8"];

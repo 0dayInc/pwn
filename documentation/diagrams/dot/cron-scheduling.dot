@@ -39,6 +39,8 @@ digraph "PWN_Cron" {
   }
   {rank=same; Practice; Offline; Train; MemGC; Lean}
 
+  Cleanup [label="session_cleanup\n45 3 * * * ON\nleases / pins / backup before delete", fillcolor="#c4b5fd"];
+  Ruby -> Cleanup; Cleanup -> Log;
   Log [label="~/.pwn/cron/log/<id>.log\nlast_run · last_status", shape=cylinder, fillcolor="#fcd34d"];
 
   Create  -> Jobs    [label="write", color="#38bdf8"];

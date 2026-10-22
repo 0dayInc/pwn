@@ -13,8 +13,8 @@
 <text xml:space="preserve" text-anchor="start" x="266.81" y="-409.3" font-family="sans-Serif" font-size="11.00" fill="#94a3b8">Pry + full PWN:: preload + custom commands</text>
 <g id="clust1" class="cluster">
 <title>cluster_repl</title>
-<path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M139,-242.5C139,-242.5 513,-242.5 513,-242.5 519,-242.5 525,-248.5 525,-254.5 525,-254.5 525,-313.75 525,-313.75 525,-319.75 519,-325.75 513,-325.75 513,-325.75 139,-325.75 139,-325.75 133,-325.75 127,-319.75 127,-313.75 127,-313.75 127,-254.5 127,-254.5 127,-248.5 133,-242.5 139,-242.5"/>
-<text xml:space="preserve" text-anchor="middle" x="326" y="-302.75" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Plugins::REPL &#160;(Pry)</text>
+<path fill="#2e1065" stroke="#6d28d9" stroke-width="2" d="M136,-242.5C136,-242.5 532,-242.5 532,-242.5 538,-242.5 544,-248.5 544,-254.5 544,-254.5 544,-313.75 544,-313.75 544,-319.75 538,-325.75 532,-325.75 532,-325.75 136,-325.75 136,-325.75 130,-325.75 124,-319.75 124,-313.75 124,-313.75 124,-254.5 124,-254.5 124,-248.5 130,-242.5 136,-242.5"/>
+<text xml:space="preserve" text-anchor="middle" x="334" y="-302.75" font-family="sans-Serif" font-size="20.00" fill="#ddd6fe">Plugins::REPL &#160;(Pry)</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_cmds</title>
@@ -29,35 +29,35 @@
 <!-- User -->
 <g id="node1" class="node">
 <title>User</title>
-<path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M357.5,-403.75C357.5,-403.75 320.5,-403.75 320.5,-403.75 314.5,-403.75 308.5,-397.75 308.5,-391.75 308.5,-391.75 308.5,-379.75 308.5,-379.75 308.5,-373.75 314.5,-367.75 320.5,-367.75 320.5,-367.75 357.5,-367.75 357.5,-367.75 363.5,-367.75 369.5,-373.75 369.5,-379.75 369.5,-379.75 369.5,-391.75 369.5,-391.75 369.5,-397.75 363.5,-403.75 357.5,-403.75"/>
-<text xml:space="preserve" text-anchor="middle" x="339" y="-382.62" font-family="sans-Serif" font-size="10.00" fill="#0f172a">👤 &#160;$ pwn</text>
+<path fill="#7dd3fc" stroke="#334155" stroke-width="1.3" d="M354.5,-403.75C354.5,-403.75 317.5,-403.75 317.5,-403.75 311.5,-403.75 305.5,-397.75 305.5,-391.75 305.5,-391.75 305.5,-379.75 305.5,-379.75 305.5,-373.75 311.5,-367.75 317.5,-367.75 317.5,-367.75 354.5,-367.75 354.5,-367.75 360.5,-367.75 366.5,-373.75 366.5,-379.75 366.5,-379.75 366.5,-391.75 366.5,-391.75 366.5,-397.75 360.5,-403.75 354.5,-403.75"/>
+<text xml:space="preserve" text-anchor="middle" x="336" y="-382.62" font-family="sans-Serif" font-size="10.00" fill="#0f172a">👤 &#160;$ pwn</text>
 </g>
 <!-- Prompt -->
 <g id="node2" class="node">
 <title>Prompt</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M229.38,-286.5C229.38,-286.5 146.62,-286.5 146.62,-286.5 140.62,-286.5 134.62,-280.5 134.62,-274.5 134.62,-274.5 134.62,-262.5 134.62,-262.5 134.62,-256.5 140.62,-250.5 146.62,-250.5 146.62,-250.5 229.38,-250.5 229.38,-250.5 235.38,-250.5 241.38,-256.5 241.38,-262.5 241.38,-262.5 241.38,-274.5 241.38,-274.5 241.38,-280.5 235.38,-286.5 229.38,-286.5"/>
-<text xml:space="preserve" text-anchor="middle" x="188" y="-265" font-family="sans-Serif" font-size="10.00" fill="#0f172a">pwn[v0.5.x]:001 &gt;&gt;&gt;</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M226.38,-286.5C226.38,-286.5 143.62,-286.5 143.62,-286.5 137.62,-286.5 131.62,-280.5 131.62,-274.5 131.62,-274.5 131.62,-262.5 131.62,-262.5 131.62,-256.5 137.62,-250.5 143.62,-250.5 143.62,-250.5 226.38,-250.5 226.38,-250.5 232.38,-250.5 238.38,-256.5 238.38,-262.5 238.38,-262.5 238.38,-274.5 238.38,-274.5 238.38,-280.5 232.38,-286.5 226.38,-286.5"/>
+<text xml:space="preserve" text-anchor="middle" x="185" y="-265" font-family="sans-Serif" font-size="10.00" fill="#0f172a">pwn[v0.5.x]:001 &gt;&gt;&gt;</text>
 </g>
 <!-- User&#45;&gt;Prompt -->
 <g id="edge1" class="edge">
 <title>User&#45;&gt;Prompt</title>
-<path fill="none" stroke="#38bdf8" stroke-width="2" d="M315.75,-367.25C300.22,-355.54 279.35,-339.76 261,-325.75 247.26,-315.26 232.11,-303.6 219.19,-293.63"/>
-<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="221.09,-291.56 213.04,-288.89 217.66,-295.99 221.09,-291.56"/>
+<path fill="none" stroke="#38bdf8" stroke-width="2" d="M312.75,-367.25C297.22,-355.54 276.35,-339.76 258,-325.75 244.26,-315.26 229.11,-303.6 216.19,-293.63"/>
+<polygon fill="#38bdf8" stroke="#38bdf8" stroke-width="2" points="218.09,-291.56 210.04,-288.89 214.66,-295.99 218.09,-291.56"/>
 </g>
 <!-- Preload -->
 <g id="node3" class="node">
 <title>Preload</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M384.88,-286.5C384.88,-286.5 293.12,-286.5 293.12,-286.5 287.12,-286.5 281.12,-280.5 281.12,-274.5 281.12,-274.5 281.12,-262.5 281.12,-262.5 281.12,-256.5 287.12,-250.5 293.12,-250.5 293.12,-250.5 384.88,-250.5 384.88,-250.5 390.88,-250.5 396.88,-256.5 396.88,-262.5 396.88,-262.5 396.88,-274.5 396.88,-274.5 396.88,-280.5 390.88,-286.5 384.88,-286.5"/>
-<text xml:space="preserve" text-anchor="middle" x="339" y="-271" font-family="sans-Serif" font-size="10.00" fill="#0f172a">autoload PWN::*</text>
-<text xml:space="preserve" text-anchor="middle" x="339" y="-259" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Banner · MonkeyPatch</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M381.88,-286.5C381.88,-286.5 290.12,-286.5 290.12,-286.5 284.12,-286.5 278.12,-280.5 278.12,-274.5 278.12,-274.5 278.12,-262.5 278.12,-262.5 278.12,-256.5 284.12,-250.5 290.12,-250.5 290.12,-250.5 381.88,-250.5 381.88,-250.5 387.88,-250.5 393.88,-256.5 393.88,-262.5 393.88,-262.5 393.88,-274.5 393.88,-274.5 393.88,-280.5 387.88,-286.5 381.88,-286.5"/>
+<text xml:space="preserve" text-anchor="middle" x="336" y="-271" font-family="sans-Serif" font-size="10.00" fill="#0f172a">autoload PWN::*</text>
+<text xml:space="preserve" text-anchor="middle" x="336" y="-259" font-family="sans-Serif" font-size="10.00" fill="#0f172a">Banner · MonkeyPatch</text>
 </g>
 <!-- User&#45;&gt;Preload -->
 <!-- Hist -->
 <g id="node4" class="node">
 <title>Hist</title>
-<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M505.25,-286.5C505.25,-286.5 448.75,-286.5 448.75,-286.5 442.75,-286.5 436.75,-280.5 436.75,-274.5 436.75,-274.5 436.75,-262.5 436.75,-262.5 436.75,-256.5 442.75,-250.5 448.75,-250.5 448.75,-250.5 505.25,-250.5 505.25,-250.5 511.25,-250.5 517.25,-256.5 517.25,-262.5 517.25,-262.5 517.25,-274.5 517.25,-274.5 517.25,-280.5 511.25,-286.5 505.25,-286.5"/>
-<text xml:space="preserve" text-anchor="middle" x="477" y="-271" font-family="sans-Serif" font-size="10.00" fill="#0f172a">~/.pwn_history</text>
-<text xml:space="preserve" text-anchor="middle" x="477" y="-259" font-family="sans-Serif" font-size="10.00" fill="#0f172a">replay · edit</text>
+<path fill="#c4b5fd" stroke="#334155" stroke-width="1.3" d="M523.75,-286.5C523.75,-286.5 446.25,-286.5 446.25,-286.5 440.25,-286.5 434.25,-280.5 434.25,-274.5 434.25,-274.5 434.25,-262.5 434.25,-262.5 434.25,-256.5 440.25,-250.5 446.25,-250.5 446.25,-250.5 523.75,-250.5 523.75,-250.5 529.75,-250.5 535.75,-256.5 535.75,-262.5 535.75,-262.5 535.75,-274.5 535.75,-274.5 535.75,-280.5 529.75,-286.5 523.75,-286.5"/>
+<text xml:space="preserve" text-anchor="middle" x="485" y="-271" font-family="sans-Serif" font-size="10.00" fill="#0f172a">~/.pwn/pwn_history</text>
+<text xml:space="preserve" text-anchor="middle" x="485" y="-259" font-family="sans-Serif" font-size="10.00" fill="#0f172a">replay · edit</text>
 </g>
 <!-- User&#45;&gt;Hist -->
 <!-- CAI -->
@@ -69,8 +69,8 @@
 <!-- Prompt&#45;&gt;CAI -->
 <g id="edge4" class="edge">
 <title>Prompt&#45;&gt;CAI</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M167.12,-249.86C154.03,-238.48 137.04,-223.12 123,-208.5 113.61,-198.72 103.9,-187.34 95.76,-177.38"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="98.04,-175.76 90.84,-171.29 93.69,-179.28 98.04,-175.76"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M165.46,-249.97C152.97,-238.51 136.62,-223.03 123,-208.5 113.73,-198.61 104.04,-187.21 95.88,-177.27"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="98.16,-175.64 90.94,-171.2 93.81,-179.17 98.16,-175.64"/>
 </g>
 <!-- CASM -->
 <g id="node6" class="node">
@@ -81,8 +81,8 @@
 <!-- Prompt&#45;&gt;CASM -->
 <g id="edge5" class="edge">
 <title>Prompt&#45;&gt;CASM</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M185.42,-250C182.64,-231.19 178.2,-201.06 174.98,-179.22"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="177.78,-178.99 173.84,-171.49 172.24,-179.81 177.78,-178.99"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M182.87,-250C180.59,-231.19 176.93,-201.06 174.28,-179.22"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="177.08,-179.1 173.34,-171.49 171.52,-179.77 177.08,-179.1"/>
 </g>
 <!-- NS -->
 <g id="node11" class="node">
@@ -94,7 +94,7 @@
 <!-- Prompt&#45;&gt;NS -->
 <g id="edge13" class="edge">
 <title>Prompt&#45;&gt;NS</title>
-<path fill="none" stroke="#f59e0b" stroke-width="2" d="M233.46,-249.97C242.47,-247.05 251.95,-244.37 261,-242.5 308.48,-232.68 663.08,-244.09 696,-208.5 721.12,-181.34 719.84,-153.54 696,-125.25 650.59,-71.37 473.25,-49.66 337.11,-40.91"/>
+<path fill="none" stroke="#f59e0b" stroke-width="2" d="M230.46,-249.96C239.47,-247.05 248.95,-244.37 258,-242.5 305.8,-232.62 662.85,-244.33 696,-208.5 721.13,-181.34 719.84,-153.54 696,-125.25 650.59,-71.37 473.25,-49.66 337.11,-40.91"/>
 <polygon fill="#f59e0b" stroke="#f59e0b" stroke-width="2" points="337.32,-38.12 329.16,-40.41 336.97,-43.7 337.32,-38.12"/>
 <text xml:space="preserve" text-anchor="middle" x="733.87" y="-147.95" font-family="sans-Serif" font-size="9.00" fill="#cbd5e1">direct call</text>
 </g>
@@ -107,8 +107,8 @@
 <!-- Preload&#45;&gt;CMEM -->
 <g id="edge6" class="edge">
 <title>Preload&#45;&gt;CMEM</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M330.04,-250C320.28,-230.93 304.57,-200.24 293.35,-178.33"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="295.89,-177.14 289.75,-171.29 290.9,-179.69 295.89,-177.14"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M327.49,-250C318.23,-230.93 303.32,-200.24 292.67,-178.33"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="295.28,-177.28 289.26,-171.31 290.24,-179.73 295.28,-177.28"/>
 </g>
 <!-- CSESS -->
 <g id="node8" class="node">
@@ -119,8 +119,8 @@
 <!-- Preload&#45;&gt;CSESS -->
 <g id="edge7" class="edge">
 <title>Preload&#45;&gt;CSESS</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M349.02,-250C359.99,-230.85 377.68,-199.96 390.23,-178.04"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="392.57,-179.58 394.12,-171.25 387.71,-176.8 392.57,-179.58"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M346.48,-250C357.94,-230.85 376.43,-199.96 389.56,-178.04"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="391.93,-179.53 393.64,-171.23 387.13,-176.65 391.93,-179.53"/>
 </g>
 <!-- CCRON -->
 <g id="node9" class="node">
@@ -131,8 +131,8 @@
 <!-- Hist&#45;&gt;CCRON -->
 <g id="edge8" class="edge">
 <title>Hist&#45;&gt;CCRON</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M483.68,-250C490.93,-231.02 502.58,-200.51 510.93,-178.63"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="513.46,-179.85 513.7,-171.38 508.23,-177.85 513.46,-179.85"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M490.47,-250C496.37,-231.1 505.84,-200.78 512.67,-178.92"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="515.3,-179.89 515.01,-171.42 509.95,-178.22 515.3,-179.89"/>
 </g>
 <!-- CDEL -->
 <g id="node10" class="node">
@@ -143,8 +143,8 @@
 <!-- Hist&#45;&gt;CDEL -->
 <g id="edge9" class="edge">
 <title>Hist&#45;&gt;CDEL</title>
-<path fill="none" stroke="#34d399" stroke-width="1.3" d="M509,-250.09C528.4,-239.04 553.31,-223.95 574,-208.5 586.96,-198.82 600.37,-186.92 611.39,-176.57"/>
-<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="613.32,-178.59 617.18,-171.05 609.46,-174.54 613.32,-178.59"/>
+<path fill="none" stroke="#34d399" stroke-width="1.3" d="M513.82,-249.96C531.63,-238.74 554.69,-223.52 574,-208.5 586.68,-198.64 599.96,-186.81 610.97,-176.55"/>
+<polygon fill="#34d399" stroke="#34d399" stroke-width="1.3" points="612.86,-178.62 616.76,-171.09 609.01,-174.54 612.86,-178.62"/>
 </g>
 <!-- CAI&#45;&gt;NS -->
 <g id="edge10" class="edge">

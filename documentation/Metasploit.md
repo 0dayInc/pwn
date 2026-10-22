@@ -8,30 +8,24 @@ with sessions, all from Ruby.
 
 ## Configure
 
-```yaml
-# ~/.pwn/pwn.yaml  (edit via `pwn-vault`)
-metasploit:
-  host: 127.0.0.1
-  port: 55553
-  user: msf
-  pass: ...
-```
-
-Start the daemon: `msfrpcd -U msf -P ... -a 127.0.0.1 -p 55553 -S`
+`connect(yaml_conf:)` reads a separate operator-owned YAML file, not the
+`metasploit:` block in the encrypted PWN vault. Required keys are
+`msfrpcd_host`, `port`, `username`, and `password`. Keep that file private and
+use only a trusted local daemon or protected transport. Without `yaml_conf`,
+the legacy provider file is resolved using `PWN_ROOT` and `PWN_PROVIDER`.
+Review `msfrpcd --help` for daemon transport/authentication settings; no daemon
+or credential enrollment is performed by this documentation check.
 
 ## Use
 
 ```ruby
-msf = PWN::Plugins::Metasploit.connect
-mods = PWN::Plugins::Metasploit.search(msf_obj: msf, query: 'jenkins')
-PWN::Plugins::Metasploit.use(msf_obj: msf,
-  module_type: 'exploit',
-  module_name: 'multi/http/jenkins_script_console')
-PWN::Plugins::Metasploit.set_option(msf_obj: msf, opt: 'RHOSTS', val: '10.0.0.5')
-job = PWN::Plugins::Metasploit.run(msf_obj: msf)
-PWN::Plugins::Metasploit.sessions(msf_obj: msf)
+console = PWN::Plugins::Metasploit.connect(yaml_conf: '/path/to/metasploit.yaml')
+PWN::Plugins::Metasploit.console_exec(console_obj: console, cmd: 'search jenkins')
+# Further commands use the same console_exec interface; inspect results before
+# executing a module. This example does not launch an exploit.
+PWN::Plugins::Metasploit.disconnect(console_obj: console)
 ```
 
-CLI: `pwn_msf_postgres_login -H 10.0.0.5 -U users.txt -P pass.txt`
+CLI: `pwn_msf_postgres_login /path/to/private-msfrpcd.yaml 10.0.0.5 5432`
 
 [← Home](Home.md) · [Plugins](Plugins.md)

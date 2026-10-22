@@ -43,9 +43,10 @@ digraph "PWN_ZeroDay" {
   Surface -> AI   [color="#38bdf8"];
   SAST -> Obs [color="#f59e0b"];
   AI   -> Obs [color="#f59e0b"];
-  Obs  -> Ver [label="lead, not a finding", color="#f59e0b"];
-  Ver  -> Fuzz [color="#f59e0b"];
-  Ver  -> TB   [color="#f59e0b"];
+  Obs -> Fuzz [label="lead, not a finding", color="#f59e0b"];
+  Obs -> TB [label="lead", color="#f59e0b"];
+  Fuzz -> Ver [label="stored PoC", color="#f59e0b"];
+  TB -> Ver [label="reproduction", color="#f59e0b"];
   Fuzz -> Asm  [color="#fb7185"];
   TB   -> MSF  [color="#fb7185"];
   Asm  -> H1   [color="#a78bfa"];

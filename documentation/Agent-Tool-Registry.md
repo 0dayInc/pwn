@@ -11,18 +11,18 @@ toolsets; the JSON-Schema for each tool is what the model actually sees.
 | Toolset | Tools | Backed by |
 |---|---|---|
 | `http` | `http_proxy_start` · `http_proxy_stop` · `http_proxy_entries` · `http_proxy_rules` · `http_replay` | `PWN::Plugins::MitmProxy`: native HTTP HAR capture/replay; opaque CONNECT tunnels |
-| `terminal` | `shell` · `job_run` · `job_status` · `job_tail` · `job_result` · `job_kill` | Foreground host commands plus `PWN::Plugins::Jobs` durable supervisors |
-| `pwn` | `pwn_eval` · `sbom_scan` · `r2_functions` · `r2_disasm` · `gdb_run_to_crash` · `nmap_scan` · `nuclei_scan` · `browser_goto` · `loot_query` | `TOPLEVEL_BINDING.eval` in the live REPL process, after `ToolGuard`; SBOM engines via `PWN::Plugins::SBOM` store CVE leads as recon observations, not findings; r2pipe JSON via `PWN::Plugins::Radare2`; gdb MI3 crash reports via `PWN::Plugins::GDBMI`; nmap XML ingest/diff via `PWN::Plugins::NmapIt`, which skips a known port unless `refresh: true`; nuclei/httpx JSONL via `PWN::Plugins::Nuclei` writes a recon observation (a template match is not a finding) and accepts a `Recon.handoff` record; TransparentBrowser navigation captures screenshot/DOM/HAR via `browser_goto`; engagement loot via `PWN::Plugins::Vault` |
+| `terminal` | `pty_expect` · `job_run` · `job_status` · `job_result` · `job_tail` · `job_kill` · `pty_open` · `pty_send` · `pty_read` · `pty_close` · `pty_session` · `shell` | Foreground host commands plus `PWN::Plugins::Jobs` durable supervisors |
+| `pwn` | `binary_triage` · `browser_goto` · `capabilities` · `debug_session` · `gdb_run_to_crash` · `binary_diff` · `crash_triage` · `emulate` · `detonate` · `decompile` · `exploitdev` · `finding_record` · `finding_report` · `chain_score` · `fuzz_campaign` · `intel_lookup` · `loot_query` · `nmap_scan` · `nuclei_scan` · `r2_functions` · `r2_disasm` · `recon_run` · `pwn_eval` · `sandbox_run` · `sandbox_fuzz` · `sbom_scan` · `swarm_map` | `TOPLEVEL_BINDING.eval` in the live REPL process, after `ToolGuard`; SBOM engines via `PWN::Plugins::SBOM` store CVE leads as recon observations, not findings; r2pipe JSON via `PWN::Plugins::Radare2`; gdb MI3 crash reports via `PWN::Plugins::GDBMI`; nmap XML ingest/diff via `PWN::Plugins::NmapIt`, which skips a known port unless `refresh: true`; nuclei/httpx JSONL via `PWN::Plugins::Nuclei` writes a recon observation (a template match is not a finding) and accepts a `Recon.handoff` record; TransparentBrowser navigation captures screenshot/DOM/HAR via `browser_goto`; engagement loot via `PWN::Plugins::Vault` |
 | `mcp` | `mcp` | `PWN::AI::MCP` session broker → any `PWN::AI::MCP::*` stdio client |
-| `memory` | `memory_remember` · `memory_recall` · `memory_forget` · `memory_clear` · **`memory_lean`** | `PWN::Memory` → `~/.pwn/memory.json` |
-| `skills` | `skills_consolidate` · **`skills_recall`** · `skill_list` · `skill_view` · `skill_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
-| `sessions` | **`session_recall`** · `sessions_list` · `sessions_view` · `sessions_current` · `sessions_delete` · `sessions_stats` · **`sessions_lean`** · `artifact_read` · `artifact_grep` · `artifacts_list` · `artifacts_get` · `artifact_put` · `artifact_get` | `PWN::Sessions` → `~/.pwn/sessions/`; `PWN::Plugins::ArtifactRegistry` → `~/.pwn/artifacts/` |
-| `learning` | `learning_note_outcome` · `learning_reflect` · `learning_distill_skill` · `learning_stats` · `learning_outcomes` · `learning_consolidate` · `learning_reset` · `learning_auto_introspect_toggle` · **`learning_gc_stores`** · **`learning_purge_noise`** · **`mistakes_list`** · **`mistakes_record`** · **`mistakes_resolve`** · **`mistakes_reset`** · **`mistakes_lean`** · **`reward_judge`** · **`reward_prm`** · **`reward_sentinel`** · **`reward_preferences`** · **`reward_export_dpo`** · **`reward_warm_sentinel`** · **`reward_scrub_preferences`** · **`reward_preference_balance`** · **`curriculum_practice`** · **`curriculum_train`** · **`curriculum_hindsight`** · **`curriculum_offline_judge`** · **`curriculum_preference_balance`** | `PWN::AI::Agent::Learning` + `Mistakes` + `Reward` + `Curriculum` → `~/.pwn/learning.jsonl` + `~/.pwn/mistakes.json` + `~/.pwn/preferences.jsonl` + `~/.pwn/curriculum/` + `~/.pwn/finetune/` |
-| `reward` | **`reward_generator_mix`** | `PWN::AI::Agent::Reward.generator_mix` → online preference source-mix controller (`preferences.jsonl`) |
-| `curriculum` | **`curriculum_practice_kpi`** | `PWN::AI::Agent::Curriculum.practice_kpi` → `~/.pwn/curriculum_kpi.jsonl` |
-| `metrics` | `metrics_summary` · `metrics_reset` | `PWN::AI::Agent::Metrics` → `~/.pwn/metrics.json`. ESR is `verified_exploit_tools / vulnerable_tools`. ASR is `successful_attacks / total_attack_attempts`. |
-| `policy` | **`policy_stats`** · **`policy_evaluate`** · **`policy_recommend`** | `PWN::AI::Agent::Policy` → `~/.pwn/policy.json` + `~/.pwn/policy_traj.jsonl` |
-| `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · **`extro_watch`** · **`extro_verify`** · **`extro_rf_tune`** · **`extro_osint`** · **`extro_serial`** · **`extro_telecomm`** · **`extro_packet`** · **`extro_vision`** · **`extro_voice`** · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` | `PWN::AI::Agent::Extrospection` (+ Serial/Packet/OCR/Voice/BareSIP/TransparentBrowser/GQRX) → `~/.pwn/extrospection.json` |
+| `memory` | `memory_remember` · `memory_recall` · `memory_forget` · `memory_clear` · `memory_lean` | `PWN::Memory` → `~/.pwn/memory.json` |
+| `skills` | `skills_recall` · `skills_update` · `skill_list` · `skill_view` · `skill_create` · `skills_create` · `skill_add_reference` · `skill_delete` · `skill_migrate_legacy` · `skills_consolidate` | `~/.pwn/skills/<name>/SKILL.md` (**[agentskills.io](https://agentskills.io) spec**; legacy flat `*.md` auto-migrated) |
+| `sessions` | `artifacts_list` · `artifacts_get` · `artifact_read` · `artifact_grep` · `artifact_put` · `artifact_get` · `context_attach` · `capability_request` · `budget_status` · `engagement_open` · `engagement_close` · `engagement_status` · `session_export` · `session_recall` · `sessions_list` · `sessions_view` · `sessions_delete` · `sessions_stats` · `sessions_current` · `sessions_lean` · `verify` | `PWN::Sessions` → `~/.pwn/sessions/`; `PWN::Plugins::ArtifactRegistry` → `~/.pwn/artifacts/` |
+| `learning` | `curriculum_practice` · `curriculum_train` · `curriculum_hindsight` · `learning_purge_noise` · `curriculum_offline_judge` · `curriculum_preference_balance` · `learning_note_outcome` · `learning_reflect` · `learning_distill_skill` · `learning_stats` · `learning_outcomes` · `learning_consolidate` · `learning_reset` · `learning_auto_introspect_toggle` · `learning_gc_stores` · `mistakes_list` · `mistakes_record` · `mistakes_resolve` · `mistakes_lean` · `mistakes_reset` · `reward_judge` · `reward_prm` · `reward_sentinel` · `reward_preferences` · `reward_export_dpo` · `reward_warm_sentinel` · `reward_scrub_preferences` · `reward_preference_balance` | `PWN::AI::Agent::Learning` + `Mistakes` + `Reward` + `Curriculum` → `~/.pwn/learning.jsonl` + `~/.pwn/mistakes.json` + `~/.pwn/preferences.jsonl` + `~/.pwn/curriculum/` + `~/.pwn/finetune/` |
+| `reward` | `reward_generator_mix` | `PWN::AI::Agent::Reward.generator_mix` → online preference source-mix controller (`preferences.jsonl`) |
+| `curriculum` | `curriculum_practice_kpi` | `PWN::AI::Agent::Curriculum.practice_kpi` → `~/.pwn/curriculum_kpi.jsonl` |
+| `metrics` | `metrics_summary` · `metrics_reset` · `ai_usage` | `PWN::AI::Agent::Metrics` → `~/.pwn/metrics.json`. ESR is `verified_exploit_tools / vulnerable_tools`. ASR is `successful_attacks / total_attack_attempts`. |
+| `policy` | `policy_stats` · `policy_evaluate` · `policy_recommend` | `PWN::AI::Agent::Policy` → `~/.pwn/policy.json` + `~/.pwn/policy_traj.jsonl` |
+| `extrospection` | `extro_snapshot` · `extro_drift` · `extro_observe` · `extro_observations` · `extro_intel` · `extro_correlate` · `extro_stats` · `extro_reset` · `extro_auto_toggle` · `extro_verify` · `extro_watch` · `extro_rf_tune` · `extro_osint` · `extro_serial` · `extro_telecomm` · `extro_packet` · `extro_vision` · `extro_voice` | `PWN::AI::Agent::Extrospection` (+ Serial/Packet/OCR/Voice/BareSIP/TransparentBrowser/GQRX) → `~/.pwn/extrospection.json` |
 | `cron` | `cron_list` · `cron_create` · `cron_run` · `cron_enable` · `cron_disable` · `cron_remove` | `PWN::Cron` → `~/.pwn/cron/jobs.yml` |
 | `swarm` | `agent_list` · `agent_spawn` · `agent_ask` · `agent_debate` · `agent_broadcast` · `swarm_bus` · `swarm_list` · `agent_roster` | `PWN::AI::Agent::Swarm` → `~/.pwn/agents.yml` + `~/.pwn/swarm/` |
 | `manifest` | `host_os_type` | YAML tool declarations in `lib/pwn/ai/tools/*.yaml` via `PWN::AI::Agent::Manifest` |
@@ -86,11 +86,11 @@ PWN::AI::Agent::Registry.definitions(relevance: 'nmap sweep 10.0.0.0/8', top_k: 
 PWN::AI::Agent::Registry.rank(query: 'run a shell command')   # inspect ranking
 PWN::AI::Agent::Registry.preference_order                     # Env / DEFAULT_PREFERENCE
 PWN::AI::Agent::Registry.toolsets                              # -> the 16 names above
-PWN::AI::Agent::Registry.all.count                             # -> 146 (after discover)
+PWN::AI::Agent::Registry.all.count                             # -> 150 (after discover)
 ```
 
-Frontier engines leave `tool_router` off (unless you set it) and receive the
-full set. Local engines (`ollama` / `openwebui`) default `tool_router` to on.
+This broader Registry behavior does not override normal Loop's core-only
+selection. Frontier engines default `tool_router` off for broader callers. Local engines (`ollama` / `openwebui`) default `tool_router` to on.
 
 ## Durable long-running jobs
 
@@ -186,7 +186,8 @@ bound to this turn's contract ID. Finalization rechecks the current file against
 that evidence. Textual delivery claims, mere existence, old-turn observations,
 and files changed after readback cannot satisfy the gate. A proven current-turn
 write delta takes precedence over filesystem timestamp clock-tick lag.
-Nested calls inherit the contract and restore it on return. Historical mistake
+Nested calls bind their own contract and restore the parent scope on return;
+only current, exact-target child receipts can cross into parent acceptance. Historical mistake
 entries are not deleted by this enforcement.
 
 ## Retry checkpoints
@@ -194,8 +195,10 @@ entries are not deleted by this enforcement.
 The identical-payload checkpoint distinguishes retries from successful repeats.
 A structured nonzero exit or timeout resets that payload's repeat count and
 does not extinguish the payload through the repeated-failure guard. The command
-can therefore be retried verbatim; timeout retries still use Dispatch's existing
-deadline escalation and cumulative budget. Successful repeats retain the
+can be retried on legacy standalone Dispatch paths, subject to deadline
+escalation and cumulative budget. Runtime-owned requests preserve caller
+deadlines and refuse uncertain mutations across restart; changing an action ID
+does not make their side effects safe to replay. Successful repeats retain the
 checkpoint. Policy denials, exhausted budgets, checkpoint responses, and text
 in stdout do not grant an execution-failure exemption. Actual command failures
 remain recorded; the exemption does not erase historical mistake entries.

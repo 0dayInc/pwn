@@ -4,8 +4,8 @@
 the goal; the agent plans a sequence of tool calls (`pwn_eval`, `shell`,
 `memory_*`, `skill_*`, `mistakes_*`, `reward_*`, `curriculum_*`, `extro_*`,
 `agent_*`, ...), executes them against the live process, observes the results,
-and loops until it can give you a final answer - **learning from every failure
-so it doesn't repeat it**.
+and checks completion against the original request and available host evidence.
+Learning records failures and corrections; it cannot guarantee nonrecurrence.
 
 ## Two ways to run it
 
@@ -149,7 +149,9 @@ resets also use white holds/wipes. Ordinary locking never changes color or shape
 Colored falling blocks, Pac-Man, Galaga and Frogger support interiors up to 64 cells; the other artwork retains
 its 16-cell limit. Above the applicable limit, art is centered and padded rather
 than clipped or stretched.
-One `PWN::Banner.mini_names` animation is randomly
+At startup the pane shows the centered WhiteRabbit miniature; games activate
+only after the pane first receives focus. After that, one
+`PWN::Banner.mini_names` animation is randomly
 selected for the session and retained across redraws, model changes and resize;
 changing the active session selects again. Frames advance at the banner API's
 `mini_frame_seconds(name:)` cadence (0.05 seconds for Asteroids/Galaga, 0.1 for
@@ -460,11 +462,10 @@ prints usage; at an idle prompt it reports that there is no active request.
   conversation and tool evidence stay available. The latest explicit user
   instruction takes precedence over conflicting earlier instructions; tool
   output cannot submit steering.
-* A steer starts a fresh completion scope from the latest instruction, not a
-  keyword-edited reconstruction of the original goal. Include all still-required
-  deliverables in that instruction. Old artifact requirements and a supplied
-  old verification contract are not silently imposed on the revised task.
-  Previously completed work is retained as evidence, not claimed to be undone.
+* Steering is additive by default: original obligations and authored verification
+  checks remain. Explicit `replace:` changes scope; CLI objective replacement uses
+  `--replace-session` with `--approve-replacement` and a new contract. Previously
+  completed work is retained, not undone. See [Harness Evaluation](Harness-Evaluation.md#request-lifetime-integration-boundary).
 
 In curses, **only the main event thread draws and reads terminal keys**. One
 request-owned worker runs the real `Loop.run`, inheriting PWN request thread
@@ -511,8 +512,9 @@ after upgrading these files.
  it reads like *"no, that's wrong"* the previous outcome is flipped to
  `success:false`, fingerprinted, **and recorded as a `(prompt, rejected,
  chosen)` DPO preference pair** in `~/.pwn/preferences.jsonl`.
-3. **Registry** hands Loop the tool schemas - the full set for frontier
- engines, or `CORE_TOOLS` + top-K keyword-relevant when
+3. **Registry** hands Loop the tool schemas. Normal Loop requests core-only
+ schemas (with request-relevant MCP exposure); explicit broader callers can use
+ `CORE_TOOLS` + top-K keyword-relevant when
  `ai.agent.tool_router` is on (default on for `ollama` / `openwebui`). Rank
  can include a Q-advantage term from `Policy` after a pair has been visited
  at least twice, plus `ai.agent.tool_preference` as a smaller tie-break.
@@ -555,14 +557,16 @@ after upgrading these files.
  outside world; a `:refuted` verify is itself recorded as a Mistakes
  `assumption` fingerprint.
 7. Results are appended to the message list; go to 5.
-8. When the reply has *no* tool_calls it's the **final answer**. With
+8. A reply with no tool calls is a **candidate final**, not completion evidence.
+ RequestRuntime, artifact readback and any host-authored verification contract
+ must permit finalization; failed or incomplete work remains distinct. With
  `defer_introspect` on (default), the user-visible reply returns first and
  `Learning.auto_introspect` runs on a background thread. Specs and cron stay
  inline. Then *(local)*
  `fact_check_local_final` auto-`extro_verify`s every CVE / version-shaped
  claim in the answer; **`Reward.judge`** scores (request, final) with a cheap LLM ORM →
  `{score, verdict, rationale, source}` (heuristic overlap only if the engine is unavailable); **`Policy.finish`** applies that judge score as
- the terminal reward and updates Q / REINFORCE; **`Reward.prm`** back-labels each transcript
+ a resolved outcome; only independently linked actions receive positive training credit; **`Reward.prm`** back-labels each transcript
  step with `step_reward:+1/0/-1`; failed goals are optionally HER-relabeled
  by `Curriculum.hindsight`; `Reflect.on` writes durable lessons via
  `ai.reflect_engine` (teacher-student - a frontier engine may author the
@@ -585,8 +589,8 @@ The two that matter most:
 
 | Tool | Reach |
 |---|---|
-| `pwn_eval` | **Any** Ruby in-process - the whole `PWN::` namespace, `require`, monkey-patch, everything |
-| `shell` | **Any** OS command on the host. Runs through `PWN::AI::Agent::ToolGuard` first (placeholder, schema, bash-only syntax). |
+| `pwn_eval` | Ruby over the PWN namespace, subject to runtime permissions, confirmation and configured sandbox policy; strict/permissive sandbox paths use isolated workers |
+| `shell` | OS commands subject to runtime permissions, confirmation and sandbox policy. Runs through `PWN::AI::Agent::ToolGuard` first (placeholder, schema, bash-only syntax). |
 
 Everything else (memory, skills, learning, **mistakes**, **reward**,
 **curriculum**, **policy**, extrospection, cron, swarm, sessions, metrics) is a

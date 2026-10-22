@@ -15,7 +15,7 @@ digraph "PWN_Mistakes_Negative_Feedback" {
     label="Five ingest paths"; fontcolor="#fecaca"; style="rounded,dashed";
     color="#b91c1c"; bgcolor="#450a0a";
     ToolFail [label=":tool\nDispatch → success:false",           fillcolor="#fda4af"];
-    LoopFail [label=":loop\niteration budget exhausted",          fillcolor="#fda4af"];
+    LoopFail [label=":loop\nlegacy budget scar (not emitted)",          fillcolor="#fda4af"];
     UserCorr [label=":user_correction\n\"no that's wrong\" / \"still broken\"", fillcolor="#fda4af"];
     ModelRec [label=":model\nmistakes_record(tool, error)",       fillcolor="#fda4af"];
     Verify  [label=":model (proactive)\nextro_verify → :refuted\n(browser-caught assumption)", fillcolor="#fda4af", penwidth=2];
@@ -40,7 +40,7 @@ digraph "PWN_Mistakes_Negative_Feedback" {
     label="Reactions inside Loop.run"; fontcolor="#ddd6fe"; style=rounded;
     color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
     Guard [label="guard_repeated_failure\nmax(turn, PERSISTENT count) ≥ 3\n→ trips on 1st recurrence\nin a new session", fillcolor="#c4b5fd"];
-    Hint  [label="correction_hint\nappend to failed result:\n\"seen N×, sig=..., KNOWN FIX: ...\"\n→ self-correct NEXT iter",  fillcolor="#c4b5fd"];
+    Hint  [label="correction_hint\nappend to failed result:\n\"seen N×, sig=..., KNOWN FIX: ...\"\n→ correction guidance next iter",  fillcolor="#c4b5fd"];
     Regr  [label="[REGRESSED]\nresolved sig recurs\n→ reopen + tag",                                                       fillcolor="#c4b5fd"];
   }
   {rank=same; Guard; Hint; Regr}

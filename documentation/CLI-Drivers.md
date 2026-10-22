@@ -1,6 +1,6 @@
 # CLI Drivers - `bin/pwn_*`
 
-54 headless executables (53 `pwn_*` + `pwn`), each a thin `OptionParser`
+56 executables (53 `pwn_*` + `pwn`, `pwn-ai`, `pwn-capd`), each a thin `OptionParser`
 wrapper over one plugin (or one workflow). They exist so CI/CD can call PWN
 without a REPL or an LLM.
 
@@ -9,6 +9,7 @@ without a REPL or an LLM.
 ## Full list
 
 ```text
+pwn-ai                             pwn-capd
 pwn                                pwn_jenkins_update_plugins
 pwn_ai_red_team                    pwn_jenkins_useradd
 pwn_android_war_dialer             pwn_mail_agent
@@ -38,7 +39,9 @@ pwn_jenkins_install_plugin         pwn_zaproxy_active_rest_api_scan
 pwn_jenkins_thinBackup_aws_s3      pwn_zaproxy_active_scan
 ```
 
-Run any with `--help` for its flags.
+Most drivers support `--help`; inspect source before assuming that convention.
+`pwn_msf_postgres_login` is positional (config, hosts, port) and does not have an
+OptionParser help path. Never probe it with `--help` against live credentials.
 
 ## `pwn_setup` - post-install doctor / provisioner / state migrator
 
@@ -78,8 +81,8 @@ sast:
   script:
     - pwn_setup --profile net --yes
     - pwn_setup --check                                   # gate: exit 1 if degraded
-    - pwn_sast -d "$CI_PROJECT_DIR" -o sast_out/
-    - pwn_defectdojo_importscan -f sast_out/report.json -e "$DD_ENGAGEMENT"
+    - pwn_sast --help  # use the installed driver's -u/-d/-n contract, not -o
+    # Add an explicitly configured authenticated import after verifying artifacts.
 ```
 
 ## Write your own

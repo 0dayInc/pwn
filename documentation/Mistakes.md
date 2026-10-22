@@ -28,7 +28,7 @@ detector**, and it survives across sessions.
 | `regressed` | auto-set when a *resolved* signature recurs - reopened as `[REGRESSED]` |
 | `sessions` | last 10 session_ids that hit it |
 
-## How the loop closes (why it does **not** repeat mistakes)
+## How the loop responds to repeated mistakes
 
 ```text
 Loop.run --(tool failure)---------> Mistakes.record         (persist + count++)
@@ -45,7 +45,7 @@ model --(tool call)---------------> mistakes_record / mistakes_resolve
 
 Repeating shell failures with a known recipe (`command is required`, missing path, not-found junk, syntax, raw-socket deny) are resolved in place instead of parked as "needs human". Only scars the loop cannot close stay in the operator inbox.
 
-## Five ingest paths - nothing slips through
+## Recorded ingest paths (not universal error detection)
 
 | Source | Trigger | What is recorded |
 |---|---|---|

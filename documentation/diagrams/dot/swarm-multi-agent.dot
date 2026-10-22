@@ -23,16 +23,16 @@ digraph "PWN_Swarm" {
     Ask       [label="agent_ask\n1 turn → 1 persona",         fillcolor="#c4b5fd"];
     Debate    [label="agent_debate\nround-robin critique",    fillcolor="#c4b5fd"];
     Broadcast [label="agent_broadcast\nfan-out ensemble",     fillcolor="#c4b5fd"];
-    Escalate  [label="Loop.escalate\n(local stuck ≥N fails)\n→ frontier hint", fillcolor="#c4b5fd", penwidth=2];
+    Escalate  [label="Loop escalation (private)\n(local stuck ≥N fails)\n→ frontier hint", fillcolor="#c4b5fd", penwidth=2];
   }
   {rank=same; Spawn; Ask; Debate; Broadcast; Escalate}
 
   /* L2 ─ personas */
   subgraph cluster_personas {
-    label="Personas  (each = full PWN::AI::Agent::Loop)"; fontcolor="#a7f3d0";
+    label="Illustrative personas (each = nested Loop; not completion proof)"; fontcolor="#a7f3d0";
     style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
     Red   [label="🔴  red_team\nengine: grok\ntoolsets: terminal,pwn",     fillcolor="#6ee7b7"];
-    Blue  [label="🔵  blue_team\nengine: anthropic\ntoolsets: pwn,extro",  fillcolor="#6ee7b7"];
+    Blue  [label="🔵  blue_team\nengine: anthropic\ntoolsets: pwn,extrospection",  fillcolor="#6ee7b7"];
     Recon [label="🛰  recon\nengine: ollama\ntoolsets: terminal,memory",  fillcolor="#6ee7b7"];
     Xpl   [label="💥  exploit_dev\nengine: openai\ntoolsets: pwn,skills",  fillcolor="#6ee7b7"];
   }

@@ -24,7 +24,7 @@ digraph "PWN_Reinforcement_Learning" {
     R3 [label="sentinel (ring N=40)\nproxy != judge != (1-corr)\nwarm + proxy distrust", fillcolor="#c4b5fd"];
     R4 [label="semantic_ok\ngrep exit 1 != failure", fillcolor="#c4b5fd"];
     R5 [label="Policy (live MDP)\nplan · complete · usable\nwarm Q + episode budget", fillcolor="#c4b5fd", penwidth=2];
-    E3 [label="verify_as_reward\nextro_verify caps/floors judge", fillcolor="#c4b5fd"];
+    E3 [label="verify_as_reward\nclaim diagnostics; refutation caps", fillcolor="#c4b5fd"];
   }
   {rank=same; R1; R2; R3; R4; R5; E3}
 
@@ -75,7 +75,7 @@ digraph "PWN_Reinforcement_Learning" {
   Loop -> R2   [label="session", color="#a78bfa"];
   Loop -> R3   [color="#a78bfa"];
   R1   -> E3   [label="ground", style=dashed, color="#fbbf24"];
-  R1   -> R5   [label="terminal", color="#a78bfa"];
+  R1 -> Claims [label="fallible judgment", color="#a78bfa"];
   R5   -> Fpol [color="#f59e0b"];
   Loop -> S4   [label="plan_first", color="#34d399"];
   Loop -> S3   [label="final", color="#34d399"];
@@ -89,13 +89,13 @@ digraph "PWN_Reinforcement_Learning" {
   S1 -> Fcur [color="#f59e0b"];
   S2 -> W1   [label="(loser,winner)", color="#fb7185"];
   S3 -> W1   [color="#fb7185"];
-  C3 -> Fses [label="success:true", color="#f59e0b"];
+  C3 -> Fses [label="success:soft", color="#f59e0b"];
 
   W1 -> Fprf [color="#f59e0b", penwidth=2];
   Fprf -> W2 [label="export_dpo", color="#f59e0b"];
   Fses -> W2 [label="export_finetune", color="#f59e0b"];
   W2 -> Fftn [color="#f59e0b"];
-  W2 -> Ollama [label="LoRA", color="#fb7185", penwidth=2];
+  W2 -> Ollama [label="optional configured trainer", color="#fb7185", penwidth=2];
   Fmis -> W2 [label="eval set", style=dashed, color="#fbbf24", constraint=false];
   W3 -> Loop [label="calibration", style=dashed, color="#fbbf24", constraint=false];
   Loop -> Rates [label="rsi_tick", color="#34d399", style=dashed, constraint=false];
@@ -104,12 +104,20 @@ digraph "PWN_Reinforcement_Learning" {
   Cron [label="⏱  PWN::Cron.install_defaults\npractice · offline_judge\ntrain dry_run · consolidate", fillcolor="#7dd3fc"];
   OJ [label="offline_judge\njudges + calibrate + warm sentinel", fillcolor="#6ee7b7"];
   MemGC [label="Learning.consolidate\nnightly memory GC", fillcolor="#6ee7b7"];
-  Cron -> S1 [label="0 3 * * *", color="#38bdf8", constraint=false];
-  Cron -> OJ [label="30 3 * * *", color="#38bdf8", constraint=false];
-  Cron -> W2 [label="0 4 * * 0", color="#38bdf8", constraint=false];
+  Cron -> S1 [label="OFF by default: 0 3 * * *", color="#38bdf8", constraint=false];
+  Cron -> OJ [label="OFF by default: 30 3 * * *", color="#38bdf8", constraint=false];
+  Cron -> W2 [label="OFF by default: 0 4 * * 0", color="#38bdf8", constraint=false];
   Cron -> MemGC [label="0 5 * * *", color="#38bdf8", constraint=false];
   OJ -> R1 [label="backfill", style=dashed, color="#a78bfa", constraint=false];
   OJ -> W3 [label="p(success)", style=dashed, color="#fbbf24", constraint=false];
 
   Ollama -> Loop [label="promoted vN+1\n(next session)", style=dashed, color="#fb7185", constraint=false, penwidth=2];
+
+  Checks [label="Host Verification\ncomplete pass / fail / unknown", fillcolor="#7dd3fc"];
+  Claims [label="Judge claim != verified completion\nfalse rate = refuted / checked claims", fillcolor="#fcd34d"];
+  Frozen [label="Explicit frozen PolicyEvaluation\npublic local held-out / two filesystem suites", fillcolor="#c4b5fd"];
+  Promotion [label="Fresh replay + per-task nonregression\noperator approval / stopped writers\nreceipt v1 + rollback refuses intervening writes", fillcolor="#6ee7b7"];
+  Loop -> Checks; Checks -> Claims; R1 -> Claims; Claims -> R5 [label="attributed eligible credit only"];
+  Fpol -> Frozen [label="snapshot, not live writes"]; Frozen -> Promotion;
+  Promotion -> Fpol [label="explicit target", style=dashed];
 }

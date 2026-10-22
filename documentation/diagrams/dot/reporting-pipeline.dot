@@ -42,11 +42,13 @@ digraph "PWN_Reports" {
   Fuzz  -> Rfuzz  [color="#f59e0b"];
   Uri   -> Ruri   [color="#f59e0b"];
   Phone -> Rphone [color="#f59e0b"];
-  Obs   -> Find   [label="handoff", color="#34d399"];
+  Obs   -> Find   [label="explicit structured record", color="#34d399"];
   Find  -> Gate   [label="verify transcript", color="#f59e0b"];
   Gate  -> HTML   [color="#a78bfa"];
   Rsast  -> HTML [color="#a78bfa"];
   Rfuzz  -> JSON [color="#a78bfa"];
-  Ruri   -> DD   [color="#a78bfa"];
-  Rphone -> Jira [color="#a78bfa"];
+  Ruri -> HTML [color="#a78bfa"];
+  JSON -> DD [label="explicit authenticated import", style=dashed];
+  Rphone -> HTML [color="#a78bfa"];
+  HTML -> Jira [label="operator delivery", style=dashed];
 }

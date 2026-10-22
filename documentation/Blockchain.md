@@ -106,10 +106,11 @@ failures propagate; malformed/unsupported returned ABI layouts are marked unavai
 ## Verification
 
 Default specs use deterministic transport fixtures and need no live credentials.
-Read-only live checks also exercised BTC chain/block/transaction/ancestor/UTXO/date/
+The earlier implementation report recorded read-only live checks exercising BTC chain/block/transaction/ancestor/UTXO/date/
 address/mempool paths against the configured unpruned mainnet node, and Ethereum
 chain/block/receipt/pinned-account/activity/Transfer-log/USDC-metadata paths against
-a public mainnet RPC. These checks establish those observed paths, not universal
+a public mainnet RPC. Those historical checks were not repeated in this documentation audit. They
+establish only the reported paths, not universal
 provider compatibility or complete attribution. Never put RPC credentials in
 fixtures, documentation, logs, or generated skills.
 

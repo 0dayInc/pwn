@@ -54,8 +54,10 @@ Required: `zaproxy`. Fallback: `nuclei`, `httpx`, `TransparentBrowser`, `PWN::Pl
 ## pwn-plugins-packet
 
 Required: `CAP_NET_RAW` **or** the capability broker helper. Install the helper
-from `documentation/Capability-Broker-Sandbox.md` (setcap the helper binary, not
-the Ruby interpreter). Fallback: `Packet.tcp_connect_scan` / `PWN::Plugins::Sock`.
+from [Capability-Broker-Sandbox](Capability-Broker-Sandbox.md) using its dedicated
+service capability boundary. Do not setcap the Ruby interpreter or Ruby script
+(Linux ignores script file capabilities). Fallback: `Packet.tcp_connect_scan` /
+`PWN::Plugins::Sock`.
 
 ## pwn-plugins-k8s
 

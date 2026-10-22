@@ -264,10 +264,12 @@ Unknown usage/cost and uninstrumented all-learning activity remain null. The
 parent supervisor kills the process group on wall cap and records INCOMPLETE,
 never success. A generic child error is not silently converted into a pass.
 
-## Recorded offline integration acceptance
+## Historical offline integration acceptance
 
-Final integration artifacts are retained under `/tmp/pwn-harness-final-acceptance`.
-These are local execution results, not live provider scores:
+The prior integration recorded artifacts under `/tmp/pwn-harness-final-acceptance`.
+That temporary path is not a shipped or durable evidence archive. The following
+counts describe that historical run, not a rerun of the current checkout or live
+provider scores; reproduce the commands above for current acceptance:
 
 - `HOME=/tmp/pwn-harness-final-acceptance/home bundle exec rake`:
   **4369 examples, 0 failures**, then **1150 files, no RuboCop offenses**, exit 0

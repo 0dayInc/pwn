@@ -5,7 +5,7 @@ a plugin whose native extension or OS binary is missing costs nothing until
 you actually touch that constant. That means the install is **two steps**:
 
 ```bash
-gem install --verbose pwn      # 1. get the gem (pure-Ruby core always works)
+gem install --verbose pwn      # 1. install the gem and its Ruby/native dependencies
 pwn setup            # 2. doctor + provision this host's capabilities
 ```
 
@@ -16,7 +16,7 @@ asked - installs exactly the OS headers, external tools, and native gems
 needed to unlock the ones you want. No `/opt/pwn` checkout, no `rvmsudo`
 chain, no bash provisioners required.
 
-Tested on **Kali / Debian / Ubuntu**, **Fedora**, **Arch**, and **macOS**
+Provisioning mappings cover **Kali / Debian / Ubuntu**, **Fedora**, **Arch**, and **macOS**
 (Homebrew or MacPorts). Ruby ≥ 3.3 (RVM, rbenv, asdf, or system Ruby).
 
 ---
@@ -230,9 +230,8 @@ malformed or unsafe stores; cleanup fails closed when it is nonempty.
 The shared index follows defined structural fields, not ID-looking text.
 Dependency-backed sessions remain visible and resumable, not archived away.
 Vault/config/credential payloads and historical backups are not scanned.
-Same-user interactive PWN
-processes defer deletion because existing writers have no lifetime leases; this is a
-conservative guard, not a cross-process session lease. Inspect without deleting:
+Current writers hold per-session lifetime leases; legacy installed writers
+without that protocol cause conservative ownership uncertainty. Inspect without deleting:
 `ruby ~/.pwn/cron/session_cleanup.rb --dry-run`.
 
 `--apply` backs up eligible transcript/metadata bytes under
@@ -334,10 +333,12 @@ lists have been consolidated into `PWN::Setup::NATIVE_GEMS` / `::TOOLCHAIN`.
 
 `pwn setup` is the single provisioning entry point for every image builder:
 
-```dockerfile
-FROM kalilinux/kali-rolling
-RUN gem install --verbose pwn && pwn setup --profile full --yes
-```
+Start from an image with a supported Ruby, RubyGems, compiler and required
+native gem headers already installed. A bare `kalilinux/kali-rolling` image does
+not establish those prerequisites. Review the repository Dockerfile/provisioners,
+pin the base and gem version for reproducible deployments, then explicitly run
+`gem install --verbose pwn` and the chosen `pwn setup --profile` command.
+Image build success is not live provider/radio/browser acceptance.
 
 ```yaml
 # .gitlab-ci.yml - fail the job if the runner is missing a capability
@@ -378,7 +379,7 @@ The first `pwn` launch creates `~/.pwn/` and an **encrypted**
 Source lives in the gem at `etc/default_skills/`. `PWN::Config.install_default_skills`
 walks every `SKILL.md` recursively (idempotent SOP copies; never overwrites an
 edited SOP `SKILL.md`). Generated module skills under `etc/default_skills/pwn/`
-`PWN::` module, plus `references/` when the source has CWE/NIST/URLs) are
+(one per `PWN::` module, plus `references/` when the source has CWE/NIST/URLs) are
 copied to `~/.pwn/skills/pwn/` and **are** overwritten on
 `pwn setup --migrate` / first launch so they stay in sync with `lib/pwn`.
 `bundle exec rake` does not rewrite `etc/default_skills/pwn`. `rake module_skills`
@@ -449,7 +450,7 @@ Vagrant, CI) picks it up automatically.
 ```ruby
 pwn[CURRENT_VERSION]:001 >>> PWN::Setup.check[:ok]          # => true
 pwn[CURRENT_VERSION]:002 >>> PWN::Migrate.needed?           # => false
-pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 67
+pwn[CURRENT_VERSION]:003 >>> PWN::Plugins.constants.count   # => 107
 pwn[CURRENT_VERSION]:004 >>> PWN::SAST.constants.count      # => 48
 pwn[CURRENT_VERSION]:005 >>> pwn-ai                         # launches agent TUI
 ```
