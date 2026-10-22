@@ -1,123 +1,58 @@
 digraph "PWN_Reinforcement_Learning" {
   graph [
-    label=<<B>PWN::AI::Agent - Reward + Curriculum Reinforcement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">reward signal · credit assignment · memory · self-play · weight loop · intro/extro join</FONT>>,
+    label=<<B>PWN::AI::Agent - Reward + Curriculum Reinforcement Loop</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">live accounting · optional curriculum / weights · explicit routing-policy evaluation</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
-    rankdir=TB, splines=spline, nodesep=0.55, ranksep=1.05,
-    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
+    rankdir=TB, splines=polyline, nodesep=0.45, ranksep=0.48,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.4, newrank=true
   ];
-  node [fontname="Helvetica", fontsize=10, style="filled,rounded",
-        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+  node [fontname="Helvetica", fontsize=11, style="filled,rounded",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a",
+        fillcolor="#c4b5fd", margin="0.20,0.16", width=3.8];
+  edge [fontname="Helvetica", fontsize=10, color="#94a3b8",
         fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  /* L0 — request/loop */
-  Req  [label="👤  request", fillcolor="#7dd3fc"];
-  Loop [label="Loop.run\nTaskSummarizer · budget pressure\nplan_first · Dispatch · guard\nfinal answer", fillcolor="#7dd3fc", penwidth=2];
-  {rank=same; Req; Loop}
-
-  /* Tier 1 — Reward signal */
-  subgraph cluster_reward {
-    label="Tier 1 · Reward  (PWN::AI::Agent::Reward)"; fontcolor="#ddd6fe";
-    style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    R1 [label="judge (cheap LLM ORM)\nscore · verdict · source\nevidence-prior fallback", fillcolor="#c4b5fd", penwidth=2];
-    R2 [label="prm (process)\nper-step +1/0/-1\n→ Registry.rank", fillcolor="#c4b5fd"];
-    R3 [label="sentinel (ring N=40)\nproxy != judge != (1-corr)\nwarm + proxy distrust", fillcolor="#c4b5fd"];
-    R4 [label="semantic_ok\ngrep exit 1 != failure", fillcolor="#c4b5fd"];
-    R5 [label="Policy (live MDP)\nplan · complete · usable\nwarm Q + episode budget", fillcolor="#c4b5fd", penwidth=2];
-    E3 [label="verify_as_reward\nclaim diagnostics; refutation caps", fillcolor="#c4b5fd"];
+  // Independent lifecycles, not a mandatory pipeline from each live request.
+  subgraph cluster_live {
+    label="LIVE REQUEST  ·  Loop / Reward / Policy"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Run [fillcolor="#7dd3fc", label="1  ACT + OBSERVE\nLoop: plan, Dispatch, guard, final answer\nPolicy: begin_episode / observe_step\nsemantic_ok: grep exit 1 need not be failure"];
+    Diagnose [label="2  DIAGNOSE WHEN APPLICABLE\nCurriculum: red_team_plan / critic\ncounterfactual: real vs imagined dispatch\nhindsight: achieved-goal relabel, not proof"];
+    Evidence [fillcolor="#fcd34d", label="3  RESOLVE OUTCOME\nHost Verification: pass / fail / unknown\nReward.judge remains a fallible claim\nverify_as_reward: claim diagnostics / caps\nFalse rate = refuted / checked claims"];
+    Credit [label="4  ACCOUNT FOR ELIGIBLE CREDIT\nPolicy: Q-learning + REINFORCE\nPositive credit needs independent attribution\nPRM: step rewards; sentinel: proxy distrust\nCalibration: predicted vs actual (Brier)"];
+    Retain [fillcolor="#fcd34d", label="5  RETAIN UNDER ~/.pwn/\npolicy.json + policy_traj.jsonl\nsessions/*.jsonl: step_reward\nreward_sentinel.json + mistakes.json\npreferences.jsonl: scrubbed trajectory pairs"];
+    Later [fillcolor="#7dd3fc", label="6  INFORM LATER TURNS\nRegistry ranking + advisory policy context\nWarmup and episode budget apply\nRSI records ESR / ASR; ESR drop → lesson\nNo automatic policy-candidate promotion"];
+    Run -> Diagnose -> Evidence -> Credit -> Retain -> Later;
   }
-  {rank=same; R1; R2; R3; R4; R5; E3}
 
-  /* Tier 4 — Curriculum / self-play */
-  subgraph cluster_curr {
-    label="Tier 4 · Curriculum  (PWN::AI::Agent::Curriculum)"; fontcolor="#a7f3d0";
-    style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    S1 [label="practice\nbudget-first + winning_trace DPO\nauto-resolve on judge>=0.7", fillcolor="#6ee7b7", penwidth=2];
-    S2 [label="counterfactual\nreal_dispatch vs imagined", fillcolor="#6ee7b7"];
-    S3 [label="critic\ntool-armed · revised_answer DPO", fillcolor="#6ee7b7"];
-    S4 [label="red_team_plan\nadversarial plan review", fillcolor="#6ee7b7"];
-    C3 [label="hindsight (HER)\nrelabel achieved-goal", fillcolor="#6ee7b7"];
+  subgraph cluster_curriculum {
+    label="OPTIONAL CURRICULUM  ·  independent invocation"; fontsize=12;
+    style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
+    Schedule [fillcolor="#7dd3fc", label="A  OPT IN / INVOKE EXPLICITLY\nCron seeds disabled by default:\npractice 03:00; offline_judge 03:30 daily\ntrain dry_run 04:00 Sunday\nSeeding jobs does not install system crontab"];
+    Practice [fillcolor="#6ee7b7", label="B  PRACTICE / OFFLINE JUDGING\nPractice: budget-first; real tools may run\nJudge-qualified resolution + winning traces\nOffline judge: backfill, calibrate, warm sentinel\nRecords: curriculum/ + mistakes / preferences"];
+    Export [fillcolor="#fcd34d", label="C  EXPORT TRAINING DATA\nLearning.export_finetune + Reward.export_dpo\nEligible sessions / outcomes + preference pairs\nScrub, geometry and source-balance filters\nOutput: finetune/*.jsonl + evaluation set"];
+    Train [fillcolor="#fda4af", label="D  train_and_gate\nDry run or no trainer → export_ready only\nOtherwise: configured trainer → LoRA adapter\nollama create → candidate vs baseline gate\nPreference-diet gate also required"];
+    Model [fillcolor="#6ee7b7", label="E  RETAIN GATED ADAPTER VERSION\nOn passing gates: update curriculum model state\nOptional local weight path, not routing policy\nExport alone is not training or improvement"];
+    Hygiene [fillcolor="#1e293b", fontcolor="#cbd5e1", style="rounded,dashed,filled",
+      label="SEPARATE ENABLED HYGIENE SEED\nLearning.consolidate at 05:00 daily\nMemory maintenance, not model training\nESR = verified_exploit_tools / vulnerable_tools\nASR = successful_attacks / total_attack_attempts"];
+    Schedule -> Practice [label="independent jobs; not a job chain", style=dashed];
+    Practice -> Export [label="eligible retained data", style=dashed];
+    Export -> Train -> Model;
   }
-  {rank=same; S1; S2; S3; S4; C3}
 
-  /* Tier 5 — Weight loop */
-  subgraph cluster_weight {
-    label="Tier 5 · Weight Loop"; fontcolor="#fecaca";
-    style=rounded; color="#b91c1c"; bgcolor="#450a0a"; penwidth=2;
-    W1 [label="preference ledger\ntrajectory pairs\nscrub + geometry filter\nwrite+export <=40%/src", fillcolor="#fda4af"];
-    W2 [label="train_and_gate\nSFT+DPO → LoRA vN+1\ngate + preference diet\nexport_ready without trainer", fillcolor="#fda4af", penwidth=2];
-    W3 [label="calibrate\np(success) vs actual → Brier", fillcolor="#fda4af"];
-    Rates [label="ESR verified_exploit_tools / vulnerable_tools\nASR successful_attacks / total_attack_attempts\nrsi_tick on an ESR drop", fillcolor="#fda4af"];
+  subgraph cluster_policy {
+    label="FROZEN POLICY  ·  explicit operator workflow"; fontsize=12;
+    style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
+    Select [label="I  SELECT SNAPSHOTS\nExplicit baseline + candidate policy bytes\nPolicyEvaluation; not live online writers\nNo automatic handoff from RSI or training"];
+    Eval [label="II  EVALUATE LOCALLY\nPublic fixed held-out tasks\nOff / baseline / candidate comparisons\nTwo disposable filesystem environments\nRegression replay is a separate split"];
+    Gate [fillcolor="#fcd34d", label="III  REPLAY ACCEPTANCE\nFresh replay + aggregate nonregression\nPer-task nonregression + held-out gain\nLocal controller evidence only\nNot proof of general live LLM gains"];
+    Approve [fillcolor="#6ee7b7", label="IV  OPERATOR APPROVAL\nExplicit live policy target\nApproval + stopped writers required\nReplace routing policy, not model weights"];
+    Receipt [fillcolor="#fcd34d", label="V  RETAIN RECEIPT / ROLLBACK\nVersioned receipt v1 + byte digests\nRollback refuses intervening live writes\nNo silent overwrite of newer policy state"];
+    Select -> Eval -> Gate -> Approve -> Receipt;
   }
-  {rank=same; W1; W2; W3; Rates}
-
-  /* Persistence */
-  subgraph cluster_files {
-    label="~/.pwn/"; fontcolor="#fde68a"; style="rounded,dashed";
-    color="#a16207"; bgcolor="#422006";
-    Fmis [label="mistakes.json", shape=cylinder, fillcolor="#fcd34d"];
-    Fses [label="sessions/*.jsonl\n(step_reward)", shape=cylinder, fillcolor="#fcd34d"];
-    Fpol [label="policy.json +\npolicy_traj.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-    Fprf [label="preferences.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-    Fcur [label="curriculum/", shape=cylinder, fillcolor="#fcd34d"];
-    Fftn [label="finetune/*.jsonl", shape=cylinder, fillcolor="#fcd34d"];
-    Frws [label="reward_sentinel.json", shape=cylinder, fillcolor="#fcd34d"];
-  }
-  {rank=same; Fmis; Fses; Fpol; Fprf; Fcur; Fftn; Frws}
-
-  Ollama [label="ollama create pwn-vN+1\n(local LoRA adapter)", fillcolor="#7dd3fc"];
-
-  /* edges */
-  Req  -> Loop [color="#38bdf8", penwidth=2];
-  Loop -> R4   [label="Dispatch", color="#a78bfa"];
-  Loop -> R5   [label="(s,a,r,s')", color="#38bdf8", penwidth=2];
-  Loop -> R1   [label="final", color="#a78bfa", penwidth=2];
-  Loop -> R2   [label="session", color="#a78bfa"];
-  Loop -> R3   [color="#a78bfa"];
-  R1   -> E3   [label="ground", style=dashed, color="#fbbf24"];
-  R1 -> Claims [label="fallible judgment", color="#a78bfa"];
-  R5   -> Fpol [color="#f59e0b"];
-  Loop -> S4   [label="plan_first", color="#34d399"];
-  Loop -> S3   [label="final", color="#34d399"];
-  Loop -> S2   [label="[REPEATING]", color="#fb7185"];
-  Loop -> C3   [label="failed goal", color="#fb7185"];
-
-  R2 -> Fses [label="step_reward", color="#f59e0b"];
-  R3 -> Frws [color="#f59e0b"];
-  R3 -> Fmis [label="reward_signal", color="#fb7185", style=dashed];
-  S1 -> Fmis [label="auto-resolve", color="#34d399", dir=both];
-  S1 -> Fcur [color="#f59e0b"];
-  S2 -> W1   [label="(loser,winner)", color="#fb7185"];
-  S3 -> W1   [color="#fb7185"];
-  C3 -> Fses [label="success:soft", color="#f59e0b"];
-
-  W1 -> Fprf [color="#f59e0b", penwidth=2];
-  Fprf -> W2 [label="export_dpo", color="#f59e0b"];
-  Fses -> W2 [label="export_finetune", color="#f59e0b"];
-  W2 -> Fftn [color="#f59e0b"];
-  W2 -> Ollama [label="optional configured trainer", color="#fb7185", penwidth=2];
-  Fmis -> W2 [label="eval set", style=dashed, color="#fbbf24", constraint=false];
-  W3 -> Loop [label="calibration", style=dashed, color="#fbbf24", constraint=false];
-  Loop -> Rates [label="rsi_tick", color="#34d399", style=dashed, constraint=false];
-
-  /* cron seeds */
-  Cron [label="⏱  PWN::Cron.install_defaults\npractice · offline_judge\ntrain dry_run · consolidate", fillcolor="#7dd3fc"];
-  OJ [label="offline_judge\njudges + calibrate + warm sentinel", fillcolor="#6ee7b7"];
-  MemGC [label="Learning.consolidate\nnightly memory GC", fillcolor="#6ee7b7"];
-  Cron -> S1 [label="OFF by default: 0 3 * * *", color="#38bdf8", constraint=false];
-  Cron -> OJ [label="OFF by default: 30 3 * * *", color="#38bdf8", constraint=false];
-  Cron -> W2 [label="OFF by default: 0 4 * * 0", color="#38bdf8", constraint=false];
-  Cron -> MemGC [label="0 5 * * *", color="#38bdf8", constraint=false];
-  OJ -> R1 [label="backfill", style=dashed, color="#a78bfa", constraint=false];
-  OJ -> W3 [label="p(success)", style=dashed, color="#fbbf24", constraint=false];
-
-  Ollama -> Loop [label="promoted vN+1\n(next session)", style=dashed, color="#fb7185", constraint=false, penwidth=2];
-
-  Checks [label="Host Verification\ncomplete pass / fail / unknown", fillcolor="#7dd3fc"];
-  Claims [label="Judge claim != verified completion\nfalse rate = refuted / checked claims", fillcolor="#fcd34d"];
-  Frozen [label="Explicit frozen PolicyEvaluation\npublic local held-out / two filesystem suites", fillcolor="#c4b5fd"];
-  Promotion [label="Fresh replay + per-task nonregression\noperator approval / stopped writers\nreceipt v1 + rollback refuses intervening writes", fillcolor="#6ee7b7"];
-  Loop -> Checks; Checks -> Claims; R1 -> Claims; Claims -> R5 [label="attributed eligible credit only"];
-  Fpol -> Frozen [label="snapshot, not live writes"]; Frozen -> Promotion;
-  Promotion -> Fpol [label="explicit target", style=dashed];
+  {rank=same; Run; Schedule; Select}
+  {rank=same; Diagnose; Practice; Eval}
+  {rank=same; Evidence; Export; Gate}
+  {rank=same; Credit; Train; Approve}
+  {rank=same; Retain; Model; Receipt}
+  {rank=same; Later; Hygiene}
 }

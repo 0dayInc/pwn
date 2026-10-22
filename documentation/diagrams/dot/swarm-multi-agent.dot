@@ -1,76 +1,51 @@
 digraph "PWN_Swarm" {
   graph [
-    label=<<B>PWN::AI::Agent::Swarm - Native Multi-Agent Orchestration</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">personas · ask · debate · broadcast · shared bus (no daemon)</FONT>>,
+    label=<<B>PWN::AI::Agent::Swarm - Native Multi-Agent Orchestration</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">personas · ask / debate / broadcast · shared bus (no daemon)</FONT>>,
     labelloc=t, fontsize=20, fontname="Helvetica",
-    rankdir=TB, splines=spline, nodesep=0.65, ranksep=1.0,
-    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.6, newrank=true, compound=true
+    rankdir=TB, splines=polyline, nodesep=0.5, ranksep=0.5,
+    bgcolor="#0f172a", fontcolor="#e2e8f0", pad=0.4, newrank=true, compound=true
   ];
   node [fontname="Helvetica", fontsize=11, style="filled,rounded",
-        shape=box, penwidth=1.4, color="#334155", fontcolor="#0f172a"];
-  edge [fontname="Helvetica", fontsize=9, color="#94a3b8",
+        shape=box, penwidth=1.3, color="#334155", fontcolor="#0f172a",
+        fillcolor="#c4b5fd", margin="0.22,0.16", width=4.5];
+  edge [fontname="Helvetica", fontsize=10, color="#94a3b8",
         fontcolor="#cbd5e1", penwidth=1.3, arrowsize=0.8];
 
-  /* L0 ─ orchestrator */
-  Orchestrator [label="👤  Orchestrator\n(you, in pwn-ai)", fillcolor="#7dd3fc"];
-  LocalLoop    [label="🤖  Local Loop.run\n(ai.active = ollama)", fillcolor="#7dd3fc"];
-  {rank=same; Orchestrator; LocalLoop}
-
-  /* L1 ─ swarm verbs */
-  subgraph cluster_verbs {
-    label="Swarm Verbs  (toolset: swarm)"; fontcolor="#ddd6fe";
-    style=rounded; color="#6d28d9"; bgcolor="#2e1065"; penwidth=2;
-    Spawn     [label="agent_spawn\ndefine persona",          fillcolor="#c4b5fd"];
-    Ask       [label="agent_ask\n1 turn → 1 persona",         fillcolor="#c4b5fd"];
-    Debate    [label="agent_debate\nround-robin critique",    fillcolor="#c4b5fd"];
-    Broadcast [label="agent_broadcast\nfan-out ensemble",     fillcolor="#c4b5fd"];
-    Escalate  [label="Loop escalation (private)\n(local stuck ≥N fails)\n→ frontier hint", fillcolor="#c4b5fd", penwidth=2];
+  subgraph cluster_explicit {
+    label="EXPLICIT DELEGATION  ·  operator / calling agent"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Entry [fillcolor="#7dd3fc", label="Choose target persona(s) + request in pwn-ai\nagent_ask: one turn / one persona\nagent_debate: ordered round-robin critique\nagent_broadcast: parallel fan-out ensemble"];
   }
-  {rank=same; Spawn; Ask; Debate; Broadcast; Escalate}
-
-  /* L2 ─ personas */
-  subgraph cluster_personas {
-    label="Illustrative personas (each = nested Loop; not completion proof)"; fontcolor="#a7f3d0";
-    style=rounded; color="#047857"; bgcolor="#022c22"; penwidth=2;
-    Red   [label="🔴  red_team\nengine: grok\ntoolsets: terminal,pwn",     fillcolor="#6ee7b7"];
-    Blue  [label="🔵  blue_team\nengine: anthropic\ntoolsets: pwn,extrospection",  fillcolor="#6ee7b7"];
-    Recon [label="🛰  recon\nengine: ollama\ntoolsets: terminal,memory",  fillcolor="#6ee7b7"];
-    Xpl   [label="💥  exploit_dev\nengine: openai\ntoolsets: pwn,skills",  fillcolor="#6ee7b7"];
+  subgraph cluster_escalation {
+    label="CONDITIONAL ESCALATION  ·  private Loop path"; fontsize=12;
+    style="rounded,dashed,filled"; color="#94a3b8"; fillcolor="#1e293b";
+    Escalate [label="Local Loop is stuck beyond failure threshold\nConfigured escalation_persona must exist\nAsk for a short frontier corrective hint\nLocal model still owns its final answer"];
   }
-  {rank=same; Red; Blue; Recon; Xpl}
+  {rank=same; Entry; Escalate}
 
-  /* L3 ─ shared state */
+  subgraph cluster_runtime {
+    label="EXECUTION OWNER  ·  Swarm.ask → nested Loop"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Run [fillcolor="#6ee7b7", label="Select persona engine / model / skills / toolsets\nPer-persona session + recursion-depth guard\nAppend request; run nested Loop; append reply\nTools remain behind Dispatch / confirmation / sandbox\nNo daemon and no fixed provider-to-role assignment"];
+  }
+  Config [fillcolor="#fcd34d", label="PERSONA DEFINITION  ·  independent setup\nagent_spawn defines a persona in ~/.pwn/agents.yml\nDefinition alone does not execute a turn\nExamples: red_team / blue_team / recon / exploit_dev\nProvider and toolsets are configurable, not role guarantees"];
+  {rank=same; Run; Config}
+
+  subgraph cluster_handoff {
+    label="RESULT BOUNDARY  ·  calling runtime retains responsibility"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    Result [label="Return reply + session ID + child inbox / honesty data\nDebate passes the prior speaker's response onward\nBroadcast collects replies; escalation returns a hint\nReplies, consensus and bus entries are not completion proof\nParent must recheck child artifacts / evidence"];
+  }
   subgraph cluster_state {
-    label="Shared State  ~/.pwn/"; fontcolor="#fde68a";
-    style=rounded; color="#a16207"; bgcolor="#422006"; penwidth=2;
-    Agents [label="agents.yml\npersona registry",         shape=cylinder, fillcolor="#fcd34d"];
-    Bus    [label="swarm/<id>/bus.jsonl\nappend-only chat", shape=cylinder, fillcolor="#fcd34d"];
-    Pmap   [label="swarm/<id>/personas.json\nname → session_id", shape=cylinder, fillcolor="#fcd34d"];
-    Sess   [label="sessions/*.jsonl\nper-persona transcript",     shape=cylinder, fillcolor="#fcd34d"];
+    label="CONTINUITY  ·  ~/.pwn/"; fontsize=12;
+    style="rounded,filled"; color="#334155"; fillcolor="#1e293b";
+    State [fillcolor="#fcd34d", label="swarm/<id>/bus.jsonl: append-only conversation\nswarm/<id>/personas.json: name → session_id\nsessions/*.jsonl: per-persona transcripts\nUse swarm_id to join existing work; swarm_bus to inspect\nBus tail supplies context, not independent verification"];
   }
-  {rank=same; Agents; Bus; Pmap; Sess}
+  {rank=same; Result; State}
 
-  /* edges */
-  Orchestrator -> Spawn     [color="#38bdf8"];
-  Orchestrator -> Ask       [color="#38bdf8"];
-  Orchestrator -> Debate    [color="#38bdf8", penwidth=2];
-  Orchestrator -> Broadcast [color="#38bdf8"];
-  LocalLoop    -> Escalate  [label="escalation_persona", color="#fb7185", penwidth=2];
-
-  Spawn     -> Red   [style=invis];
-  Ask       -> Red   [color="#34d399"];
-  Debate    -> Blue  [color="#34d399"];
-  Debate    -> Recon [color="#34d399"];
-  Broadcast -> Xpl   [color="#34d399"];
-  Escalate  -> Blue  [label="ask 3-line hint", color="#34d399", penwidth=2];
-
-  Red   -> Agents [style=invis];
-  Red   -> Bus  [label="append reply", color="#f59e0b"];
-  Blue  -> Bus  [color="#f59e0b"];
-  Recon -> Pmap [color="#f59e0b"];
-  Xpl   -> Sess [color="#f59e0b"];
-
-  Spawn -> Agents [label="write", color="#f59e0b", constraint=false];
-  Bus   -> Debate [label="tail → context", style=dashed, color="#fbbf24", constraint=false];
-  Bus   -> Orchestrator [label="swarm_bus()", style=dashed, color="#38bdf8", constraint=false];
-  Blue  -> LocalLoop [label="frontier_hint\n(synthetic tool result)", style=dashed, color="#fb7185", constraint=false, penwidth=2];
+  Entry -> Run [ltail=cluster_explicit, lhead=cluster_runtime, label="ask / debate / broadcast", color="#38bdf8", weight=10];
+  Escalate -> Run [ltail=cluster_escalation, lhead=cluster_runtime, label="conditional hint request", style=dashed];
+  Config -> Run [lhead=cluster_runtime, label="read definition", constraint=false];
+  Run -> Result [ltail=cluster_runtime, lhead=cluster_handoff, label="observed child result", weight=10];
+  Run -> State [ltail=cluster_runtime, lhead=cluster_state, label="retain request / reply / session", color="#f59e0b"];
 }
